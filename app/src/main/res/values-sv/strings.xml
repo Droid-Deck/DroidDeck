@@ -4111,5 +4111,7 @@
     <string name="exit_hint_back">Tryck tillbaka igen för att avsluta</string>
 
     <string name="display_integer_scaling">Heltalsskalning</string>
-    <string name="display_integer_scaling_hint">Använder den största hela skalningsfaktorn som får plats. Om källbilden är för stor anpassas hela bilden för att undvika beskärning. Upplösningen ställs in separat.</string>
+    <string name="display_integer_scaling_hint">Använder den största heltalsskalningen som får plats. Kan beskära skärmkanterna. Om källan är större än utdata visar bråkskalning hela bilden. Upplösningen ställs in separat.</string>
+    <string name="display_scaling_integer">Heltal</string>
+    <string name="display_scaling_fit">Anpassa</string>
 </resources>

@@ -4191,5 +4191,7 @@
     <string name="exit_hint_back">Натисніть «Назад» ще раз, щоб вийти</string>
 
     <string name="display_integer_scaling">Цілочисельне масштабування</string>
-    <string name="display_integer_scaling_hint">Використовує найбільший цілий коефіцієнт масштабування, який поміщається. Якщо вихідне зображення завелике, воно вміщується повністю без обрізання. Роздільна здатність налаштовується окремо.</string>
+    <string name="display_integer_scaling_hint">Використовує найбільший цілий масштаб, що вміщується. Краї екрана можуть обрізатися. Якщо джерело більше за вихідне зображення, дробове масштабування показує його повністю. Роздільна здатність налаштовується окремо.</string>
+    <string name="display_scaling_integer">Ціле число</string>
+    <string name="display_scaling_fit">За розміром</string>
 </resources>

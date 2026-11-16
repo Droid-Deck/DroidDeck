@@ -4081,5 +4081,7 @@
     <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
 
     <string name="display_integer_scaling">Penskalaan bilangan bulat</string>
-    <string name="display_integer_scaling_hint">Menggunakan faktor skala bilangan bulat terbesar yang muat. Jika sumber terlalu besar, seluruh gambar disesuaikan agar tidak terpotong. Resolusi diatur secara terpisah.</string>
+    <string name="display_integer_scaling_hint">Menggunakan skala bilangan bulat terbesar yang muat. Tepi layar mungkin terpotong. Jika sumber lebih besar daripada keluaran, penskalaan pecahan menampilkan seluruh gambar. Resolusi diatur secara terpisah.</string>
+    <string name="display_scaling_integer">Bilangan bulat</string>
+    <string name="display_scaling_fit">Sesuaikan</string>
 </resources>

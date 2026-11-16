@@ -4081,5 +4081,7 @@
     <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
 
     <string name="display_integer_scaling">Penskalaan integer</string>
-    <string name="display_integer_scaling_hint">Menggunakan faktor skala integer terbesar yang muat. Jika sumber terlalu besar, keseluruhan imej disesuaikan untuk mengelakkan pemotongan. Resolusi ditetapkan secara berasingan.</string>
+    <string name="display_integer_scaling_hint">Menggunakan skala nombor bulat terbesar yang muat. Tepi skrin mungkin terpotong. Jika sumber lebih besar daripada output, penskalaan pecahan memaparkan keseluruhan imej. Resolusi ditetapkan secara berasingan.</string>
+    <string name="display_scaling_integer">Integer</string>
+    <string name="display_scaling_fit">Muat</string>
 </resources>
