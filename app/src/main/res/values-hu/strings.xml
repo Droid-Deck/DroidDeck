@@ -4110,6 +4110,8 @@
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Nyomd meg még egyszer a visszát a kilépéshez</string>
 
+    <string name="input_duplicate_element">Vezérlő duplikálása</string>
+
     <string name="display_integer_scaling">Egész számú méretezés</string>
     <string name="display_integer_scaling_hint">A legnagyobb elférő egész számú méretezési tényezőt használja. Ha a forrás túl nagy, a teljes képet hozzáigazítja a levágás elkerüléséhez. A felbontás külön állítható.</string>
 </resources>

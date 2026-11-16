@@ -4190,6 +4190,8 @@
     <string name="hud_readings_count">%1$d z %2$d</string>
     <string name="exit_hint_back">Naciśnij wstecz jeszcze raz, aby wyjść</string>
 
+    <string name="input_duplicate_element">Duplikuj kontrolkę</string>
+
     <string name="display_integer_scaling">Skalowanie całkowite</string>
     <string name="display_integer_scaling_hint">Używa największego całkowitego współczynnika skalowania, który się mieści. Jeśli źródło jest zbyt duże, dopasowuje cały obraz, aby uniknąć przycinania. Rozdzielczość ustawia się osobno.</string>
 </resources>

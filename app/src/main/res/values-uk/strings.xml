@@ -4190,6 +4190,8 @@
     <string name="hud_readings_count">%1$d з %2$d</string>
     <string name="exit_hint_back">Натисніть «Назад» ще раз, щоб вийти</string>
 
+    <string name="input_duplicate_element">Дублювати елемент</string>
+
     <string name="display_integer_scaling">Цілочисельне масштабування</string>
     <string name="display_integer_scaling_hint">Використовує найбільший цілий коефіцієнт масштабування, який поміщається. Якщо вихідне зображення завелике, воно вміщується повністю без обрізання. Роздільна здатність налаштовується окремо.</string>
 </resources>

@@ -4110,6 +4110,8 @@
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Paina takaisin vielä kerran poistuaksesi</string>
 
+    <string name="input_duplicate_element">Monista ohjain</string>
+
     <string name="display_integer_scaling">Kokonaislukuskaalaus</string>
     <string name="display_integer_scaling_hint">Käyttää suurinta mahtuvaa kokonaislukukerrointa. Jos lähdekuva on liian suuri, koko kuva sovitetaan rajauksen välttämiseksi. Tarkkuus määritetään erikseen.</string>
 </resources>

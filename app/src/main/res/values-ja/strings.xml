@@ -4080,6 +4080,8 @@
     <string name="hud_readings_count">%2$d 中 %1$d</string>
     <string name="exit_hint_back">もう一度戻るを押すと終了します</string>
 
+    <string name="input_duplicate_element">コントロールを複製</string>
+
     <string name="display_integer_scaling">整数スケーリング</string>
     <string name="display_integer_scaling_hint">収まる最大の整数倍率を使用します。元の画像が大きすぎる場合は、切り抜きを避けるため画像全体を収めます。解像度は別途設定します。</string>
 </resources>

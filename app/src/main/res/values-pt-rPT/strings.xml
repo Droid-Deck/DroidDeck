@@ -4149,6 +4149,8 @@
     <string name="hud_readings_count">%1$d de %2$d</string>
     <string name="exit_hint_back">Prima novamente o botão Voltar para sair</string>
 
+    <string name="input_duplicate_element">Duplicar controlo</string>
+
     <string name="display_integer_scaling">Escala por números inteiros</string>
     <string name="display_integer_scaling_hint">Utiliza o maior fator de escala inteiro que couber. Se a imagem de origem for demasiado grande, ajusta a imagem completa para evitar cortes. A resolução é configurada separadamente.</string>
 </resources>

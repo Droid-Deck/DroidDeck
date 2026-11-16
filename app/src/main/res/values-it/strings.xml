@@ -4149,6 +4149,8 @@
     <string name="hud_readings_count">%1$d di %2$d</string>
     <string name="exit_hint_back">Premi di nuovo indietro per uscire</string>
 
+    <string name="input_duplicate_element">Duplica comando</string>
+
     <string name="display_integer_scaling">Ridimensionamento intero</string>
     <string name="display_integer_scaling_hint">Usa il più grande fattore di scala intero che entra nello schermo. Se la sorgente è troppo grande, adatta l’intera immagine per evitare ritagli. La risoluzione si configura separatamente.</string>
 </resources>

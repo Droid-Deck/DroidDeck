@@ -4110,6 +4110,8 @@
     <string name="hud_readings_count">%1$d af %2$d</string>
     <string name="exit_hint_back">Tryk tilbage igen for at afslutte</string>
 
+    <string name="input_duplicate_element">Dupliker kontrol</string>
+
     <string name="display_integer_scaling">Heltalsskalering</string>
     <string name="display_integer_scaling_hint">Bruger den største hele skaleringsfaktor, der kan være der. Hvis kilden er for stor, tilpasses hele billedet for at undgå beskæring. Opløsningen indstilles separat.</string>
 </resources>
