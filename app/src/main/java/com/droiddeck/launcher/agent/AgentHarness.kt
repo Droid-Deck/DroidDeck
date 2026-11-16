@@ -457,22 +457,30 @@ object OpenCode : AgentHarness {
      */
     override fun saveKey(rootfs: File, provider: AgentHarness.Provider, key: String, endpoint: String?, get: (String, String?) -> String) {
         val token = key.trim().takeIf { it.isNotEmpty() }
-        if (provider.custom) {
-            val base = endpoint(endpoint ?: "")
-            val models = modelIds(get("$base/models", token))
-            check(models.isNotEmpty()) { "No models at $base" }
-            editJson(File(rootfs, CONFIG)) { config ->
-                if (!config.has("\$schema")) config.put("\$schema", "https://opencode.ai/config.json")
-                val all = config.optJSONObject("provider") ?: JSONObject().also { config.put("provider", it) }
-                all.put(CUSTOM, JSONObject()
-                    .put("npm", "@ai-sdk/openai-compatible")
-                    .put("name", runCatching { java.net.URI(base).host }.getOrNull() ?: provider.name)
-                    .put("options", JSONObject().put("baseURL", base))
-                    .put("models", JSONObject().apply { models.forEach { put(it, JSONObject().put("name", it)) } }))
-            }
-        }
-        editJson(File(rootfs, AUTH), private = true) { auth ->
-            if (token != null) auth.put(provider.id, JSONObject().put("type", "api").put("key", token)) else auth.remove(provider.id)
+        // Both files are read before either is written, so one that cannot be read changes nothing.
+        val authFile = File(rootfs, AUTH)
+        val auth = readJson(authFile)
+        if (token != null) auth.put(provider.id, JSONObject().put("type", "api").put("key", token)) else auth.remove(provider.id)
+        if (!provider.custom) return writeJson(authFile, auth, private = true)
+        val base = endpoint(endpoint ?: "")
+        val configFile = File(rootfs, CONFIG)
+        val before = configFile.takeIf { it.exists() }?.readText()
+        val config = readJson(configFile)
+        val models = modelIds(get("$base/models", token))
+        check(models.isNotEmpty()) { "No models at $base" }
+        if (!config.has("\$schema")) config.put("\$schema", "https://opencode.ai/config.json")
+        val all = config.optJSONObject("provider") ?: JSONObject().also { config.put("provider", it) }
+        all.put(CUSTOM, JSONObject()
+            .put("npm", "@ai-sdk/openai-compatible")
+            .put("name", runCatching { java.net.URI(base).host }.getOrNull() ?: provider.name)
+            .put("options", JSONObject().put("baseURL", base))
+            .put("models", JSONObject().apply { models.forEach { put(it, JSONObject().put("name", it)) } }))
+        writeJson(configFile, config)
+        try {
+            writeJson(authFile, auth, private = true)
+        } catch (e: Exception) {
+            if (before != null) configFile.writeText(before) else configFile.delete()
+            throw e
         }
     }
 
@@ -498,14 +506,24 @@ object OpenCode : AgentHarness {
     }
 
     // A file that cannot be read holds the user's other providers too, so it is never replaced.
-    private fun editJson(file: File, private: Boolean = false, edit: (JSONObject) -> Unit) {
-        val json = if (file.exists()) JSONObject(file.readText()) else JSONObject()
-        edit(json)
+    private fun readJson(file: File) = if (file.exists()) JSONObject(file.readText()) else JSONObject()
+
+    private fun editJson(file: File, private: Boolean = false, edit: (JSONObject) -> Unit) =
+        writeJson(file, readJson(file).also(edit), private)
+
+    /** Writes beside [file] and moves it into place, so a write that stops partway leaves the old file. */
+    private fun writeJson(file: File, json: JSONObject, private: Boolean = false) {
         file.parentFile?.mkdirs()
-        file.writeText(json.toString(2) + "\n")
-        if (private) {
-            file.setReadable(false, false)
-            file.setReadable(true, true)
+        val temp = File(file.parentFile, ".${file.name}.tmp")
+        try {
+            temp.writeText(json.toString(2) + "\n")
+            if (private) {
+                temp.setReadable(false, false)
+                temp.setReadable(true, true)
+            }
+            java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            temp.delete()
         }
     }
 

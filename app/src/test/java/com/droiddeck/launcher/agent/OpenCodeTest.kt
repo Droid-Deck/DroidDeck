@@ -150,6 +150,11 @@ class OpenCodeTest {
         assertTrue(runCatching { OpenCode.saveKey(root, provider("opencode"), "sk-zen") }.isFailure)
         assertEquals("{not json", auth.readText())
         assertEquals(emptySet<String>(), OpenCode.keys(root))
+        val config = File(root, "root/.config/opencode/opencode.json").apply { parentFile!!.mkdirs() }
+        config.writeText("""{"provider":{"droiddeck":{"options":{"baseURL":"http://a/v1"}}}}""")
+        assertTrue(runCatching { OpenCode.saveKey(root, provider("droiddeck"), "k", "b:1") { _, _ -> """{"data":[{"id":"m"}]}""" } }.isFailure)
+        assertEquals("""{"provider":{"droiddeck":{"options":{"baseURL":"http://a/v1"}}}}""", config.readText())
+        assertEquals(setOf("droiddeck"), OpenCode.keys(root))
     }
 
     @Test fun aCustomServerBecomesAProviderWithTheModelsItLists() {

@@ -427,6 +427,7 @@ internal fun ToolsField(value: String, onValue: (String) -> Unit, hint: String, 
     // so these fields use the EditText the rest of the launcher types into.
     val view = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     var focused by remember { mutableStateOf(false) }
+    val window = androidx.compose.ui.platform.LocalView.current
     // An EditText's focus does not scroll its Compose parent, so the field follows the keyboard as it opens.
     val keyboard = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
     LaunchedEffect(focused, keyboard) { if (focused) view.bringIntoView() }
@@ -434,5 +435,9 @@ internal fun ToolsField(value: String, onValue: (String) -> Unit, hint: String, 
         value = value, onValueChange = onValue, label = hint, keyboardType = KeyboardType.Text, imeAction = ImeAction.Done,
         modifier = Modifier.bringIntoViewRequester(view).testTag(tag), placeholder = hint, compact = true, showLabel = false,
         onFocusChange = { focused = it },
+        onDone = {
+            (window.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(window.windowToken, 0)
+        },
     )
 }
