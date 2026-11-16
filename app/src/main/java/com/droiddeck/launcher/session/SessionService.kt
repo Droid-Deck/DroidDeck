@@ -971,7 +971,7 @@ class SessionService : Service() {
             linuxDriverId,
         )
         val bridge = com.droiddeck.launcher.core.DeviceSupport.vkBridge(this)
-        if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
+        if (SessionPrefs.systemDriverSteamPath(this)) {
             SystemVulkanDriver.addEnvironment(this, guest)
             if (SessionPrefs.steamGpuCompositingChosen(this, steamHere)) guest.add("BL_STEAM_GPU_COMPOSITING=1")
         }

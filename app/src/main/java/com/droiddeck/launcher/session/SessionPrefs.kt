@@ -949,8 +949,15 @@ object SessionPrefs {
         return prefs(context).getBoolean("steamGpuCompositing", true)
     }
 
+    fun steamGpuDrawingShown(context: Context, systemDriverPath: Boolean = systemDriverSteamPath(context)): Boolean =
+        steamGpuCompositing(context) && (!systemDriverPath || prefs(context).contains("steamGpuCompositing"))
+
     fun steamGpuCompositingChosen(context: Context, steamSession: Boolean): Boolean =
-        steamSession && prefs(context).contains("steamGpuCompositing") && steamGpuCompositing(context)
+        steamSession && steamGpuDrawingShown(context, true)
+
+    fun systemDriverSteamPath(context: Context): Boolean =
+        !com.droiddeck.launcher.core.DeviceSupport.vkBridge(context) && !VenusComponent.wanted(context) &&
+            com.droiddeck.launcher.gpu.SystemVulkanDriver.usesDefault(linuxDriver(context))
 
     fun steamGpuCompositingAllowed(): Boolean =
         !com.droiddeck.launcher.core.DeviceSupport.adreno() && !com.droiddeck.launcher.core.DeviceSupport.mali()

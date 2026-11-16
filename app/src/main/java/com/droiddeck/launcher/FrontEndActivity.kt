@@ -1526,8 +1526,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
                         },
                         onSteamGpuDrawing = {
-                            SessionPrefs.setSteamGpuCompositing(this, !SessionPrefs.steamGpuCompositing(this))
-                            steamGpuDrawing = SessionPrefs.steamGpuCompositing(this)
+                            SessionPrefs.setSteamGpuCompositing(this, !SessionPrefs.steamGpuDrawingShown(this))
+                            steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
                         },
                         onGraphicsLogs = {
                             SessionPrefs.setDetailedGraphicsLogs(this, !SessionPrefs.detailedGraphicsLogs(this))
@@ -3098,7 +3098,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
         graphicsLogs = SessionPrefs.detailedGraphicsLogs(this)
         buildWatermark = SessionPrefs.buildWatermarkEnabled(this)
-        steamGpuDrawing = SessionPrefs.steamGpuCompositing(this)
+        steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
         bridgeFellBack = SessionPrefs.bridgeFellBack(this)
         bridgeFellBackMemory = SessionPrefs.bridgeFellBackForMemory(this)
         clearCachedApps = SessionPrefs.clearCachedApps(this)
