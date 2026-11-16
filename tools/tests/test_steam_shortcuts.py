@@ -71,11 +71,14 @@ class ShortcutsTest(unittest.TestCase):
     def record(self):
         return json.loads((self.config / shortcuts.RECORD).read_text())
 
-    def merge_target(self, mount, exe, **edits):
-        """Runs merge against a target under mount, with the mount's guest roots patched in."""
-        old = shortcuts.CARD_MOUNTS
-        shortcuts.CARD_MOUNTS = (str(mount),)
-        self.addCleanup(setattr, shortcuts, 'CARD_MOUNTS', old)
+    def patched(self, **constants):
+        for name, value in constants.items():
+            old = getattr(shortcuts, name)
+            setattr(shortcuts, name, value)
+            self.addCleanup(setattr, shortcuts, name, old)
+
+    def merge_target(self, exe, **edits):
+        """Runs merge against a Steam-edited target, with the app's exe recorded as the base."""
         fresh = shortcuts.shortcut(self.game())
         current = dict(fresh, Exe=exe, **edits)
         state = {
@@ -119,26 +122,44 @@ class ShortcutsTest(unittest.TestCase):
         self.assertEqual('"%s"' % GUEST, entry['StartDir'])
         self.assertEqual('"%s/Example.exe"' % GUEST, self.record()['games'][str(APPID)]['steam']['Exe'])
 
+    def test_a_steam_target_whose_internal_folder_is_gone_goes_back_to_the_apps(self):
+        games = self.root / 'games'
+        (games / 'Stores').mkdir(parents=True)
+        self.patched(INTERNAL_ROOTS=(str(games / 'Stores'),))
+        entry = self.merge_target('"%s/old-version/Other.exe"' % (games / 'Stores'), StartDir='"%s/data"' % GUEST)
+        self.assertEqual('"%s/Example.exe"' % GUEST, entry['Exe'])
+        self.assertEqual('"%s"' % GUEST, entry['StartDir'])
+
     def test_a_steam_target_on_an_unmounted_card_is_kept(self):
-        self.run_writer(self.game())
-        self.steam_edits(Exe='"%s/card/Other.exe"' % GUEST)
-        card = Path(GUEST + '/card')
-        (card / 'Other.exe').unlink()
-        card.rmdir()
-        entry = self.run_writer(self.game())[APPID]
-        self.assertEqual('"%s/card/Other.exe"' % GUEST, entry['Exe'])
+        card = self.root / 'card'
+        card.mkdir()
+        self.patched(REMOVABLE_ROOTS=(str(card),))
+        entry = self.merge_target('"%s/steamapps/common/Other.exe"' % card)
+        self.assertEqual('"%s/steamapps/common/Other.exe"' % card, entry['Exe'])
+        self.assertEqual('"%s"' % GUEST, entry['StartDir'])
 
     def test_a_steam_target_under_a_bare_card_mountpoint_is_kept(self):
         card = self.root / 'card'
         card.mkdir()
-        entry = self.merge_target(card, '"%s/Other.exe"' % card, StartDir='"%s/data"' % GUEST)
+        self.patched(REMOVABLE_ROOTS=(str(card),))
+        entry = self.merge_target('"%s/Other.exe"' % card, StartDir='"%s/data"' % GUEST)
         self.assertEqual('"%s/Other.exe"' % card, entry['Exe'])
+        self.assertEqual('"%s/data"' % GUEST, entry['StartDir'])
+
+    def test_a_steam_target_under_a_bare_store_mountpoint_is_kept(self):
+        stores = self.root / 'stores'
+        mount = stores / 'abcd1234'
+        mount.mkdir(parents=True)
+        self.patched(REMOVABLE_FAMILIES=(str(stores),))
+        entry = self.merge_target('"%s/Other.exe"' % mount, StartDir='"%s/data"' % GUEST)
+        self.assertEqual('"%s/Other.exe"' % mount, entry['Exe'])
         self.assertEqual('"%s/data"' % GUEST, entry['StartDir'])
 
     def test_a_steam_target_under_a_mounted_card_goes_back_to_the_apps(self):
         card = self.root / 'card'
         (card / 'steamapps').mkdir(parents=True)
-        entry = self.merge_target(card, '"%s/Other.exe"' % card, StartDir='"%s/data"' % GUEST)
+        self.patched(REMOVABLE_ROOTS=(str(card),))
+        entry = self.merge_target('"%s/Other.exe"' % card, StartDir='"%s/data"' % GUEST)
         self.assertEqual('"%s/Example.exe"' % GUEST, entry['Exe'])
         self.assertEqual('"%s"' % GUEST, entry['StartDir'])
 
