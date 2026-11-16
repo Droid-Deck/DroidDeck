@@ -1456,15 +1456,20 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onRuntime = { onRuntimeButton() },
                         onVkBridge = { on ->
                             SessionPrefs.setVkBridge(this, on); SessionPrefs.setMaliFallbackByAuto(this, ""); vkBridge = on
+                            steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
                             if (!on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
                         },
                         onVenus = { on ->
                             SessionPrefs.setVenus(this, on)
                             SessionPrefs.setMaliFallbackByAuto(this, "")
                             venus = on
+                            steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
                             if (on && !com.droiddeck.launcher.core.DeviceSupport.adreno()) Thread({
                                 com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
-                                runOnUiThread { venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this) }
+                                runOnUiThread {
+                                    venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)
+                                    steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
+                                }
                             }, "venus-host-vulkan").start()
                         },
                         onVkBridgeSafe = { on -> SessionPrefs.setVkBridgeSafe(this, on); vkBridgeSafe = on },
