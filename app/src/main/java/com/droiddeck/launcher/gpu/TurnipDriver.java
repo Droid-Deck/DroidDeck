@@ -34,6 +34,8 @@ public final class TurnipDriver {
     public static final List<String> BUNDLED = Collections.unmodifiableList(Arrays.asList(
             DRIVER_A7XX, DRIVER_A8XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER,
             DRIVER_A6XX, com.droiddeck.launcher.session.QuestExperimental.DRIVER_A6XX));
+    private static final String KGSL_NODE = "/dev/kgsl-3d0";
+    private static final String KGSL_SYSFS = "/sys/class/kgsl/kgsl-3d0";
     private static final String OVERRIDE_FILE = "Download/droiddeck-driver";
     private static final String PREFS = "graphics_driver";
     private static final String KEY_HIDDEN = "hiddenBundled";
@@ -138,6 +140,25 @@ public final class TurnipDriver {
     public String autoId() {
         String id = chooseByDevice();
         return id == null ? "system" : id;
+    }
+
+    public String effectiveId() {
+        String id = choose();
+        return id == null || !reachesGpu(id) ? "system" : id;
+    }
+
+    public boolean reachesGpu(String driverId) {
+        String library = libraryName(driverId);
+        return library == null || !needsMissingKgsl(new File(new File(contentDir, driverId), library),
+                kgslPresent(new File(KGSL_NODE), new File(KGSL_SYSFS)));
+    }
+
+    static boolean kgslPresent(File node, File sysfs) {
+        return node.exists() || sysfs.exists();
+    }
+
+    static boolean needsMissingKgsl(File library, boolean kgsl) {
+        return !kgsl && library.isFile() && LinuxVulkanDriverManager.containsAscii(library, KGSL_NODE);
     }
 
     public void remove(String driverId) {
@@ -257,6 +278,11 @@ public final class TurnipDriver {
             Log.e(TAG, id + " unpacked without " + library);
             return null;
         }
+        if (!reachesGpu(id)) {
+            Log.w(TAG, id + " needs " + KGSL_NODE + ", which this GPU does not have; display on the system Vulkan loader");
+            DriverSetupLog.write(context, "install.no-kgsl driver=" + id);
+            return null;
+        }
         Log.i(TAG, "graphics driver " + id + " (" + library + ")");
         DriverSetupLog.write(context, "install.ready driver=" + id + " library=" + library);
         return id;
@@ -282,6 +308,12 @@ public final class TurnipDriver {
             }
         }
         if (chosen != null && !chosen.isEmpty()) {
+            if (SessionPrefs.GPU_DRIVERS_AUTO.equals(SessionPrefs.INSTANCE.gpuDriverMode(context))
+                    && SessionPrefs.INSTANCE.gpuAutoInstalled(context).contains(chosen)
+                    && gpuDetector.get().getFamily() == GpuInfo.Family.A7XX_LOW) {
+                Log.i(TAG, "Auto-selected display driver does not cover Adreno 710/720/722; leaving the display driver to the system");
+                return null;
+            }
             if (BUNDLED.contains(chosen)) {
                 Log.i(TAG, "driver pinned by the user: " + chosen);
                 return chosen;
@@ -316,6 +348,10 @@ public final class TurnipDriver {
         GpuInfo gpu = gpuDetector.get();
         if (gpu.getFamily() == GpuInfo.Family.NOT_ADRENO || gpu.getFamily().getMali()) {
             Log.i(TAG, "not an Adreno GPU; leaving the display driver to the system");
+            return null;
+        }
+        if (gpu.getFamily() == GpuInfo.Family.A7XX_LOW) {
+            Log.i(TAG, "no bundled display driver covers Adreno 710/720/722; leaving the display driver to the system");
             return null;
         }
         int model = gpu.getModel();
