@@ -417,7 +417,7 @@ def main(argv):
         say("%s: %s" % (cmd[0], error))
     if status != 0 and time.monotonic() - started < QUICK_FAILURE:
         notify("%s did not start" % os.path.basename(path),
-               "It exited with status %d; the session's desktop.log says why." % status)
+               "desktop.log (%d)" % status)
     if what == "windows":
         try:
             subprocess.call([sys.executable, PROGRAMS])

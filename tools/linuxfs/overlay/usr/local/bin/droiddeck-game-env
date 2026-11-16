@@ -1157,11 +1157,19 @@ def diagnostic_game_exit(app_id, raw_code, source=None, wrapper_status=None):
 
 
 def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
+    with GAME_DEBUG["desktop_program_logs"](launch_env) as (env, output):
+        code = start_process(launch, env, digest, after, diagnostic_app_id, output)
+        if output is not None:
+            print("droiddeck-game-env: desktop program exited with status %d" % code, file=sys.stderr, flush=True)
+        return code
+
+
+def start_process(launch, launch_env, digest, after=None, diagnostic_app_id=None, output=None):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
-    if after or diagnostic_app_id is not None:
-        process = subprocess.Popen(launch, env=launch_env)
+    if after or diagnostic_app_id is not None or output is not None:
+        process = subprocess.Popen(launch, env=launch_env, stderr=output)
         if diagnostic_app_id is not None:
             diagnostic_game_event("game_start", diagnostic_app_id)
         try:

@@ -709,6 +709,7 @@ class ProtonRunTest(Temp):
         self.assertEqual(entry, str(self.root / "compatibilitytools.d/droiddeck-proton-11-arm64/droiddeck-proton"))
         self.assertEqual(argv, [entry, "waitforexitandrun", str(program), "-fullscreen"])
         self.assertEqual(env["SteamAppId"], "413150")
+        self.assertEqual(env["DROIDDECK_DESKTOP_PROGRAM"], str(program))
         self.assertTrue((self.root / "steamapps/compatdata/413150").is_dir())
 
     def run_main(self, argv):
@@ -737,6 +738,7 @@ class ProtonRunTest(Temp):
         self.assertEqual((env["SteamAppId"], env["STEAM_COMPAT_DATA_PATH"]),
                          ("413150", str(self.root / "steamapps/compatdata/413150")))
         self.assertEqual(dirs, [str(program.parent)])
+        self.assertNotIn("DROIDDECK_DESKTOP_PROGRAM", env)
 
     def test_without_steam_a_game_steam_cannot_start_is_refused(self):
         self.write("Steam/appcache/appinfo.vdf", appinfo({413150: STARDEW}))
