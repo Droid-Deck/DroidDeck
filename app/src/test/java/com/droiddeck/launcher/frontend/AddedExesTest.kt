@@ -297,6 +297,39 @@ class AddedExesTest {
         assertEquals(listOf(other.path), AddedGames.scan(app).map { it.exe.path })
     }
 
+    private fun routeEveryGameTo(steamApp: Int) {
+        val config = File(SessionPrefs.activeSteamRoot(app), "userdata/123/config").apply { mkdirs() }
+        val routes = org.json.JSONObject()
+        AddedGames.scan(app).forEach { routes.put(it.appId.toString(), steamApp) }
+        File(config, ".droiddeck-routes.json").writeText(routes.toString())
+    }
+
+    @Test fun anotherProgramOfASteamInstallIsNotRoutedToTheSteamApp() {
+        noGamesFolders()
+        val main = onStorage("Games2/The Binding of Isaac Rebirth/isaac-ng.exe")
+        val launcher = onStorage("Games2/The Binding of Isaac Rebirth/REPENTOGONLauncher.exe")
+        AddedExes.put(app, AddedExes.Entry(main.parent!!, launcher.path))
+        routeEveryGameTo(250900)
+        val game = AddedGames.scan(app).single()
+        assertEquals(launcher.path, game.exe.path)
+        assertEquals(main.path, game.candidates.first().path)
+        assertNull(game.steamAppId)
+        assertTrue(!game.steamProgram)
+        assertTrue(File(AddedGames.writeListing(app, listOf(game), emptyList()).path).readText().contains("\"route\":false"))
+    }
+
+    @Test fun theSteamAppsOwnProgramStillRoutesToTheSteamApp() {
+        noGamesFolders()
+        val main = onStorage("Games2/The Binding of Isaac Rebirth/isaac-ng.exe")
+        onStorage("Games2/The Binding of Isaac Rebirth/REPENTOGONLauncher.exe")
+        AddedExes.put(app, AddedExes.Entry(main.parent!!, main.path))
+        routeEveryGameTo(250900)
+        val game = AddedGames.scan(app).single()
+        assertEquals(250900, game.steamAppId)
+        assertTrue(game.steamProgram)
+        assertTrue(!File(AddedGames.writeListing(app, listOf(game), emptyList()).path).readText().contains("route"))
+    }
+
     @Test fun aDifferentGameWithANumberedNameIsNotTakenAsAnotherBuild() {
         noGamesFolders()
         val held = onStorage("Games2/id/Doom/Doom.exe")
