@@ -20,12 +20,12 @@ def rate_limit_wait():
     return max(5, min(RATE_LIMIT_WAIT, reset - time.time() + 5))
 
 
-def api(path, *args, attempts=3, retry_rate_limit=True):
+def api(path, *args, attempts=3):
     for attempt in range(attempts):
         done = subprocess.run(["gh", "api", path, *args], text=True, capture_output=True)
         if done.returncode == 0:
             return json.loads(done.stdout)
-        if not retry_rate_limit or "rate limit" not in done.stderr.lower() or attempt == attempts - 1:
+        if "--method" in args or "rate limit" not in done.stderr.lower() or attempt == attempts - 1:
             sys.stderr.write(done.stderr)
             raise subprocess.CalledProcessError(done.returncode, done.args, done.stdout, done.stderr)
         time.sleep(rate_limit_wait())
@@ -137,7 +137,7 @@ def main():
                        "success": "Source validation and APK compilation passed",
                        "failure": "APK compilation failed"}[state]
     finally:
-        api(f"repos/{repo}/statuses/{sha}", "--method", "POST", retry_rate_limit=False,
+        api(f"repos/{repo}/statuses/{sha}", "--method", "POST",
             "-f", "context=Build APK", "-f", f"state={state}",
             "-f", f"description={description}", "-f", f"target_url={target}")
 
