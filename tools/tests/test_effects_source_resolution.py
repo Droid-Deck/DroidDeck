@@ -104,6 +104,7 @@ class EffectsSourceResolutionTest(unittest.TestCase):
 
 TYPES = r'''
 #include <assert.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -179,6 +180,8 @@ static struct {
     int (*QueueSubmit)(int, ...), (*QueuePresentKHR)(int, ...);
 } g_vk = {noop, noop, note_barriers, noop, noop, noop, noop, noop};
 static int g_dev_state = 1, g_window = 1, g_swapchain, g_swap_extra;
+static atomic_int g_low_latency_want;
+static int g_low_latency;
 static int g_colorspace_ext, g_swap_hdr_unavailable, g_swap_is_hdr, g_swap_hdr_want;
 static int g_plain_frame, g_first_frame_done, g_base_black;
 static int g_qfam, g_queue, g_dev, g_fence, g_swap_fmt = SCENE_FMT;

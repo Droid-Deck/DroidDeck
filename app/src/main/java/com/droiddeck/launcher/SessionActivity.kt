@@ -568,6 +568,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var bottomRecoveries = 0
     private var gameOnBottom by mutableStateOf(SessionState.gameOnBottom)
     private var bottomSwapAvailable by mutableStateOf(false)
+    private var externalScreen: com.droiddeck.launcher.ui.ExternalOutputScreen? = null
+    private var externalOutputActive by mutableStateOf(false)
+    private var externalOutput by mutableStateOf(false)
+    private var externalOutputAvailable by mutableStateOf(false)
     private var pausedFrame by mutableStateOf<com.droiddeck.launcher.ui.PausedFrame?>(null)
     private var pausedFrameWanted = false
     private var pauseAnimated by mutableStateOf(false)
@@ -654,16 +658,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {
             notifyActivityDisplayStateChanged(displayId)
+            updateExternalScreen()
             refreshSecondScreenDisplays()
         }
         override fun onDisplayRemoved(displayId: Int) {
             if (refreshActivityDisplayId() && started) {
                 SessionService.setActivityDisplay(this@SessionActivity, sessionActivityDisplayId)
             }
+            updateExternalScreen()
             refreshSecondScreenDisplays()
         }
         override fun onDisplayChanged(displayId: Int) {
             notifyActivityDisplayStateChanged(displayId)
+            updateExternalScreen()
             followPanelRefresh(displayId)
             updateBottomGame()
             refreshSecondScreenDisplays()
@@ -697,7 +704,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun followPanelRefresh(displayId: Int) {
         if (!CompositorHost.isStarted) return
-        val output = bottomGame?.takeIf { bottomOutputActive }?.display ?: glassesScreen?.display
+        val output = bottomGame?.takeIf { bottomOutputActive }?.display ?: glassesScreen?.display ?: externalScreen?.display
             ?: (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
         if (output.displayId != displayId) return
         applyOutputPacing()
@@ -1752,6 +1759,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             },
             unfoldedControlsWithController = unfoldedControlsWithController,
             onUnfoldedControlsWithController = ::chooseUnfoldedControlsWithController,
+            externalOutput = if (externalOutputAvailable || externalOutput) externalOutput else null,
+            onExternalOutput = ::chooseExternalOutput,
             onBackground = { drawerOpen = false; pip.background(); moveTaskToBack(true) },
             onShareLogs = { drawerOpen = false; shareCurrentSessionLogs() },
             onStop = { drawerOpen = false; SessionService.stop(this@SessionActivity); finish() },
@@ -2399,6 +2408,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
+        externalOutput = SessionPrefs.externalGameOutput(this)
         picturePosition = SessionPrefs.picturePosition(this)
         integerScaling = SessionPrefs.integerScaling(this)
         hudOn = SessionPrefs.hudEnabled(this)
@@ -2647,8 +2657,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
         val previous = SessionState.outputSize
         val live = windowOutputSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
-        val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
-        SessionState.outputSize = size
+        val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: externalOutputSize() ?: outputSize()
+        publishOutputSize(holder, size)
         if (!SessionState.running) SessionState.refreshHz = refreshHz(holder)
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
@@ -2678,7 +2688,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         if (!CompositorHost.isStarted) {
             val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
-            val probe = HdrSupport.probe(this, glassesScreen?.display)
+            val probe = HdrSupport.probe(this, glassesScreen?.display ?: externalScreen?.display)
             WaylandCompositor.nativeSetHdrDisplay(
                 probe.displayId, probe.name, probe.formats, probe.hdr10,
                 probe.maxLuminance, probe.maxAverageLuminance, probe.minLuminance,
@@ -2752,9 +2762,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 (width and 1.inv()) to (height and 1.inv())
             else -> null
         }
+        val external = externalScreen != null
         return if (SessionState.followScreen)
-            com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, controlsBelowWanted(), SessionState.followScale)
-        else if (glassesScreen == null) outputSize() else null
+            com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, !external && controlsBelowWanted(), SessionState.followScale)
+        else if (glassesScreen == null && !external) outputSize() else null
     }
 
     private fun resizeOutputForWindow(width: Int, height: Int) {
@@ -2803,6 +2814,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         surfaceH = 0
         glassesOutputActive = false
         bottomOutputActive = false
+        externalOutputActive = false
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(false)
         CompositorHost.detach(holder.surface)
         bottomGame?.takeIf { it.holder === holder }?.let { screen -> uiHandler.post { recoverBottomOutput(screen) } }
@@ -2861,6 +2873,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         bottomGame?.takeIf { if (holder != null) holder === it.holder else bottomOutputActive }
             ?.hz?.takeIf { it > 1f }?.let { return minOf(it, PerfMode.peakRefreshCap(this)) }
         glassesScreen?.hz?.takeIf { it > 1f }?.let { return it }
+        externalScreen?.let { screen ->
+            // Android can apply the requested mode only after the session starts, and the session's rate is fixed then.
+            val hz = if (SessionState.running) screen.hz else maxOf(screen.hz, screen.requestedHz)
+            if (hz > 1f) return hz
+        }
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
         val requested = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
@@ -3983,6 +4000,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val primaryId = shownOnDisplayId
         val candidates = SecondScreenDisplays.available(displayManager, primaryId)
             .filter { glassesScreen == null || it.id != glasses.displayId }
+            .filter { it.id != externalScreen?.display?.displayId }
         val oldIds = secondScreenDisplays.map { it.id }.toSet()
         secondScreenDisplays = candidates
         reconcileDock(primaryId)
@@ -4181,6 +4199,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     /** The game's own surface, without anything DroidDeck draws over it; the caller recycles the bitmap. */
     private fun copyGameFrame(onFrame: (android.graphics.Bitmap?) -> Unit) {
         val source = if (glassesOutputActive) glassesScreen?.surfaceView else if (bottomOutputActive) bottomGame?.surfaceView
+            else if (externalOutputActive) externalScreen?.surfaceView
             else if (::surfaceView.isInitialized) surfaceView else null
         val width = source?.width ?: 0
         val height = source?.height ?: 0
@@ -4269,6 +4288,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionPrefs.setUnfoldedControls(this, on)
         unfoldedControls = on
         applyUnfoldedControls()
+    }
+
+    private fun chooseExternalOutput(on: Boolean) {
+        SessionPrefs.setExternalGameOutput(this, on)
+        externalOutput = on
+        updateExternalScreen()
     }
 
     private fun chooseUnfoldedControlsWithController(on: Boolean) {
@@ -5291,7 +5316,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun capturePausedFrame(manual: Boolean = false) {
-        if (!SessionState.running || pipUi || isInPictureInPictureMode || glassesOutputActive || bottomOutputActive) return
+        if (!SessionState.running || pipUi || isInPictureInPictureMode || glassesOutputActive || bottomOutputActive || externalOutputActive) return
         if (SessionState.suspended && pausedFrame != null) return
         if ((suspendPolicy == SessionPrefs.SUSPEND_NEVER && !manual && !SessionState.manualPause) || !::surfaceView.isInitialized) return
         if (surfaceView.holder.surface?.isValid != true) return
@@ -5803,7 +5828,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         glassesScreen?.trackingRecovery?.update(trackingRecovery, glasses.sbs)
     }
 
-    private fun outputHolder(): SurfaceHolder = glassesScreen?.holder ?: bottomGame?.holder ?: surfaceView.holder
+    private fun outputHolder(): SurfaceHolder = glassesScreen?.holder ?: bottomGame?.holder ?: externalScreen?.holder ?: surfaceView.holder
 
     private fun outputView(): SurfaceView = bottomGame?.takeIf { bottomOutputActive }?.surfaceView ?: surfaceView
 
@@ -5811,14 +5836,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (holder !== outputHolder()) return
         glassesOutputActive = glassesScreen?.holder === holder
         bottomOutputActive = bottomGame?.holder === holder
+        externalOutputActive = externalScreen?.holder === holder
         updateOnScreenPad()
         updatePointerCapture()
         if (bottomOutputActive) bottomRecoveries = 0
-        if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || bottomOutputActive)
-        surfaceView.visibility = if (glassesOutputActive || bottomOutputActive) View.INVISIBLE else View.VISIBLE
-        Log.i(TAG, "compositor output attached: " +
-            if (glassesOutputActive) "glasses display ${glassesScreen?.display?.displayId}"
-            else if (bottomOutputActive) "bottom screen display ${bottomGame?.display?.displayId}" else "phone")
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || bottomOutputActive || externalOutputActive)
+        surfaceView.visibility = if (glassesOutputActive || bottomOutputActive || externalOutputActive) View.INVISIBLE else View.VISIBLE
+        if (CompositorHost.isStarted) WaylandCompositor.nativeSetLowLatencyPresent(externalOutputActive)
+        val external = externalScreen?.display?.takeIf { externalOutputActive }
+        val path = when {
+            glassesOutputActive -> "glasses display ${glassesScreen?.display?.displayId}"
+            bottomOutputActive -> "bottom screen display ${bottomGame?.display?.displayId}"
+            external != null -> "external display ${external.displayId} ${com.droiddeck.launcher.session.ExternalOutput.mode(external.mode)}"
+            else -> "phone"
+        }
+        Log.i(TAG, "compositor output attached: $path")
+        val phone = runCatching { if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay }.getOrNull()
+        SessionEvents.record("output.attached", mapOf(
+            "path" to when { glassesOutputActive -> "glasses"; bottomOutputActive -> "bottom"; external != null -> "external"; else -> "phone" },
+            "display" to (external?.displayId ?: glassesScreen?.display?.displayId ?: bottomGame?.display?.displayId ?: phone?.displayId),
+            "mode" to external?.let { com.droiddeck.launcher.session.ExternalOutput.mode(it.mode) },
+            "phoneHz" to phone?.refreshRate,
+            "outputHz" to (external?.mode?.refreshRate ?: glassesScreen?.hz),
+        ))
         if (pausedFrameWanted) uiHandler.postDelayed({
             if (pausedFrameWanted && pausedFrame == null && resumed) capturePausedFrame()
         }, PAUSED_FRAME_REDRAW_MS)
@@ -5831,8 +5871,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         surfaceW = 0
         surfaceH = 0
         CompositorHost.detach(screen.holder.surface)
-        surfaceView.visibility = View.VISIBLE
         applyOutputPacing()
+        val external = externalScreen
+        if (external != null) {
+            surfaceView.visibility = View.INVISIBLE
+            if (external.holder.surface?.isValid == true) {
+                surfaceW = external.holder.surfaceFrame.width()
+                surfaceH = external.holder.surfaceFrame.height()
+                surfaceCreated(external.holder)
+            }
+            return
+        }
+        surfaceView.visibility = View.VISIBLE
         if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
     }
 
@@ -5866,7 +5916,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         )
         val shown = if (want) target else null
         val current = bottomGame
-        if (current != null && current.display.displayId == shown?.displayId) return
+        if (current != null && current.display.displayId == shown?.displayId) {
+            updateExternalScreen()
+            return
+        }
         if (current != null || shown != null) cancelOutputTouches()
         if (current != null) {
             restoreTopOutput(current)
@@ -5874,6 +5927,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         if (shown != null) {
             closeSecondScreen(reset = false)
+            externalScreen?.let { restorePhoneFromExternal(it); runCatching { it.dismiss() } }
             val screen = com.droiddeck.launcher.ui.BottomGameScreen(this, shown, this, ::onBottomGameTouch, ::onBottomGameHover)
             bottomGame = screen
             surfaceW = 0
@@ -5881,6 +5935,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             screen.setOnDismissListener {
                 if (bottomGame === screen) {
                     restoreTopOutput(screen)
+                    updateExternalScreen()
                     refreshSecondScreenDisplays()
                 }
             }
@@ -5893,6 +5948,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
             if (bottomGame === screen) Log.i(TAG, "requested game output on the bottom screen (display ${shown.displayId})")
         }
+        updateExternalScreen()
         refreshSecondScreenDisplays()
     }
 
@@ -6024,7 +6080,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun glassesOutputSize(): Pair<Int, Int>? {
         if (glassesScreen == null || glasses.width <= 0 || glasses.height <= 0) return null
-        val panel = (if (glasses.sbs) glasses.width / 2 else glasses.width) to glasses.height
+        return presentationOutputSize((if (glasses.sbs) glasses.width / 2 else glasses.width) to glasses.height)
+    }
+
+    private fun publishOutputSize(holder: SurfaceHolder, size: Pair<Int, Int>) {
+        SessionState.outputSize = size
+        externalScreen?.takeIf { it.holder === holder }?.applyMode()
+    }
+
+    private fun externalOutputSize(): Pair<Int, Int>? {
+        val mode = externalScreen?.display?.let(com.droiddeck.launcher.session.ExternalOutput::preferredMode) ?: return null
+        if (mode.physicalWidth <= 0 || mode.physicalHeight <= 0) return null
+        return presentationOutputSize(mode.physicalWidth to mode.physicalHeight)
+    }
+
+    private fun presentationOutputSize(panel: Pair<Int, Int>): Pair<Int, Int> {
         val mode = displayMode()
         val display = com.droiddeck.launcher.session.SessionDisplay
         val choice = SessionPrefs.resolutionChoice(this, mode, panel)
@@ -6088,6 +6158,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             screen.setOnDismissListener {
                 if (glassesScreen === screen) {
                     restorePhoneOutput(screen)
+                    updateBottomGame()
                     refreshSecondScreenDisplays()
                     applyCardboard(cardboard)
                 }
@@ -6098,6 +6169,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 restorePhoneOutput(screen)
                 runCatching { screen.dismiss() }
                 Log.w(TAG, "could not show the game on ${target.name}", e)
+                updateBottomGame()
                 return
             }
             Log.i(TAG, "requested game output on ${g.model} (display ${target.displayId})")
@@ -6105,7 +6177,85 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         applyOutputPacing()
         refreshSecondScreenDisplays()
         applyCardboard(cardboard)
-        if (target == null) updateBottomGame()
+        if (target == null) updateBottomGame() else updateExternalScreen()
+    }
+
+    private var externalOutputReason: String? = null
+
+    private fun updateExternalScreen() {
+        if (!::surfaceView.isInitialized || !::displayManager.isInitialized) return
+        val target = com.droiddeck.launcher.session.ExternalOutput.select(
+            displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION).filterNot {
+                com.droiddeck.launcher.input.DualScreen.builtIn(it) || com.droiddeck.launcher.input.DualScreen.taken(it.displayId)
+            },
+            setOfNotNull(shownOnDisplayId, glasses.displayId, bottomGame?.display?.displayId),
+        )
+        externalOutputAvailable = target != null
+        val reason = when {
+            !externalOutput -> "off"
+            ended -> "session ended"
+            !started -> "activity stopped"
+            isInPictureInPictureMode -> "picture-in-picture"
+            runtimeRemovalBlocked -> "runtime removal"
+            glassesScreen != null -> "glasses output active"
+            bottomGame != null -> "bottom screen output active"
+            target == null -> "no external display"
+            else -> null
+        }
+        if (reason != externalOutputReason) {
+            externalOutputReason = reason
+            if (externalOutput) Log.i(TAG, "external output: " + (reason?.let { "phone output, $it" } ?: "wanted"))
+        }
+        val chosen = target.takeIf { reason == null }
+        val current = externalScreen
+        if (current != null && current.display.displayId == chosen?.displayId) {
+            current.applyMode()
+            return
+        }
+        if (current != null) {
+            Log.i(TAG, "external output: leaving display ${current.display.displayId}")
+            restorePhoneFromExternal(current)
+            runCatching { current.dismiss() }
+        }
+        if (chosen != null) {
+            val screen = com.droiddeck.launcher.ui.ExternalOutputScreen(this, chosen, this)
+            // show() can create the surface synchronously. Select its holder
+            // first, otherwise surfaceCreated() rejects the external callback.
+            externalScreen = screen
+            applyOutputPacing()
+            surfaceW = 0
+            surfaceH = 0
+            screen.setOnDismissListener {
+                if (externalScreen === screen) {
+                    restorePhoneFromExternal(screen)
+                    refreshSecondScreenDisplays()
+                }
+            }
+            try {
+                screen.show()
+            } catch (e: Exception) {
+                restorePhoneFromExternal(screen)
+                runCatching { screen.dismiss() }
+                Log.w(TAG, "external output: could not show the game on display ${chosen.displayId}", e)
+                return
+            }
+            Log.i(TAG, "external output: requested game output on " + com.droiddeck.launcher.session.ExternalOutput.describe(chosen))
+        }
+        applyOutputPacing()
+        refreshSecondScreenDisplays()
+    }
+
+    private fun restorePhoneFromExternal(screen: com.droiddeck.launcher.ui.ExternalOutputScreen) {
+        if (externalScreen !== screen) return
+        externalScreen = null
+        externalOutputActive = false
+        CompositorHost.detach(screen.holder.surface)
+        if (glassesScreen != null || bottomGame != null) return
+        surfaceW = 0
+        surfaceH = 0
+        surfaceView.visibility = View.VISIBLE
+        applyOutputPacing()
+        if (surfaceView.holder.surface?.isValid == true) surfaceCreated(surfaceView.holder)
     }
 
     private fun onGlassesSteamVr(now: SteamVr.Status) {
@@ -6232,6 +6382,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         bottomInputControls?.let { (it.parent as? android.view.ViewGroup)?.removeView(it) }
         bottomInputControls = null
         bottomGame?.let { screen -> bottomGame = null; runCatching { screen.dismiss() } }
+        externalScreen?.let { screen -> externalScreen = null; runCatching { screen.dismiss() } }
         headTracker?.stop()
         if (::hud.isInitialized) hud.stop()
         if (::memoryHud.isInitialized) memoryHud.stop()
