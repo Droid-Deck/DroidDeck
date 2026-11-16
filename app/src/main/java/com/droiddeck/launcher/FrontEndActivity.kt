@@ -1199,7 +1199,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         drivers.restartBlocked = ::runtimeChangesBlocked
-        drivers.onRouteChanged = ::refreshSteamGpuDrawing
+        drivers.onRouteChanged = { ui.post { refreshSteamGpuDrawing() } }
         drivers.loadTpUbwcMode()
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
