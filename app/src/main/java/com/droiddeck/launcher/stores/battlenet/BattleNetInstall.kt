@@ -111,16 +111,22 @@ object BattleNetInstall {
     fun update(context: Context, game: InstalledStoreGame) {
         val app = context.applicationContext
         Thread({
-            val item = CatalogItem(
-                Store.BATTLENET, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover, owned = true,
-                extra = mapOf(INSTALL_UID to installUid(app, game)),
-            )
+            val item = updateItem(game, installUid(app, game))
             game.folder.parentFile?.parentFile?.let { com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, it) }
             enqueue(app, item, game.folder, update = true)
         }, "battlenet-update").start()
     }
 
+    internal fun updateItem(game: InstalledStoreGame, uid: String) = CatalogItem(
+        Store.BATTLENET, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover, owned = true,
+        extra = mapOf(INSTALL_UID to uid, UPDATE_FOLDER to game.folder.absolutePath),
+    )
+
+    internal fun updateFolder(item: CatalogItem): File? = item.extra[UPDATE_FOLDER]?.let(::File)
+
     internal const val INSTALL_UID = "installUid"
+    internal const val UPDATE_FOLDER = "updateFolder"
+    internal const val STALLED = "stalled"
 
     internal fun installUid(context: Context, game: InstalledStoreGame): String =
         runCatching { BattleNet.games(context).firstOrNull { it.uid == game.sidecar.id }?.installUid }.getOrNull() ?: game.sidecar.id
@@ -219,6 +225,7 @@ object BattleNetInstall {
         val detail = when {
             reason == null -> "exit $code"
             reason == "client" -> return context.getString(R.string.bnet_dl_client_first)
+            reason == STALLED -> return context.getString(R.string.bnet_dl_stalled)
             reason.startsWith("agent ") -> context.getString(R.string.bnet_dl_agent_error, reason.removePrefix("agent "))
             else -> reason.removePrefix("stopped ")
         }

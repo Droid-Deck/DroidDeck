@@ -53,6 +53,8 @@ object CompositorHost {
         WaylandCompositor.nativeSetClockControl(java.io.File(context.filesDir, "${com.droiddeck.launcher.runtime.LinuxRuntime.DIR}/tmp/.bl-clock").path)
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
+        blackFrameInsertion = SessionPrefs.blackFrameInsertion(context)
+        WaylandCompositor.nativeSetBlackFrameInsertion(blackFrameInsertion)
         pace(refreshHz, fpsLimit)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
@@ -64,6 +66,7 @@ object CompositorHost {
         com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
+            SessionPrefs.androidDriver(context).isEmpty(),
         )
         attached = surface
         started = true
@@ -71,9 +74,12 @@ object CompositorHost {
         return true
     }
 
+    private var blackFrameInsertion = false
+    private var pictureHolds = 0
+
     private fun pace(refreshHz: Float, fpsLimit: Int) {
         WaylandCompositor.nativeSetFpsLimit(fpsLimit)
-        WaylandCompositor.nativeSetLayerFrameRate(if (fpsLimit > 0) fpsLimit.toFloat() else refreshHz)
+        WaylandCompositor.nativeSetLayerFrameRate(if (fpsLimit > 0 && !blackFrameInsertion) fpsLimit.toFloat() else refreshHz)
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         SessionState.refreshHz = refreshHz
     }
@@ -81,6 +87,27 @@ object CompositorHost {
     @Synchronized
     fun updatePacing(refreshHz: Float, fpsLimit: Int) {
         if (started) pace(refreshHz, fpsLimit)
+    }
+
+    @Synchronized
+    fun setBlackFrameInsertion(on: Boolean, refreshHz: Float, fpsLimit: Int) {
+        blackFrameInsertion = on
+        WaylandCompositor.nativeSetBlackFrameInsertion(on)
+        if (started) pace(refreshHz, fpsLimit)
+    }
+
+    /** Presents only pictures until the matching release; false when nothing is strobing. */
+    @Synchronized
+    fun holdPicture(): Boolean {
+        if (!started || !blackFrameInsertion) return false
+        if (pictureHolds++ == 0) WaylandCompositor.nativeSetPictureHold(true)
+        return true
+    }
+
+    @Synchronized
+    fun releasePicture() {
+        if (pictureHolds == 0) return
+        if (--pictureHolds == 0) WaylandCompositor.nativeSetPictureHold(false)
     }
 
     @Synchronized

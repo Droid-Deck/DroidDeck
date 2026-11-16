@@ -80,6 +80,11 @@ object StoreLaunchRequests {
                 lastLaunched = Store.ROCKSTAR to request.optString("id")
                 com.droiddeck.launcher.stores.rockstar.RockstarLaunch.prepare(app, request.optString("id"))
             }.getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
+            "store-service" -> runCatching {
+                val root = com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app)
+                if (com.droiddeck.launcher.session.SessionFiles.awaitStoreService(app, request.optString("store"), root)) JSONObject().put("ok", true)
+                else JSONObject().put("ok", false).put("reason", "service-unavailable")
+            }.getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
             "rockstar-exited" -> {
                 if (lastLaunched == (Store.ROCKSTAR to request.optString("id"))) lastLaunched = null
                 JSONObject().put("ok", true)
@@ -114,6 +119,7 @@ object StoreLaunchRequests {
                 if (!(url.startsWith("https://") || url.startsWith("http://"))) JSONObject().put("ok", false).put("reason", "not-http")
                 else try {
                     app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    com.droiddeck.launcher.session.SessionService.holdForBrowserHandoff(app)
                     Log.i(TAG, "open-url: " + StoreLog.redactUrl(url))
                     JSONObject().put("ok", true)
                 } catch (e: Exception) {

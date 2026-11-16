@@ -30,6 +30,10 @@ static int is_lock_command(int cmd) {
   switch (cmd) {
     case F_SETLK:
     case F_SETLKW:
+#if defined(F_SETLK64) && F_SETLK64 != F_SETLK
+    case F_SETLK64:
+    case F_SETLKW64:
+#endif
 #ifdef F_OFD_SETLK
     case F_OFD_SETLK:
 #endif
@@ -45,6 +49,9 @@ static int is_lock_command(int cmd) {
 static int is_lock_query(int cmd) {
   switch (cmd) {
     case F_GETLK:
+#if defined(F_GETLK64) && F_GETLK64 != F_GETLK
+    case F_GETLK64:
+#endif
 #ifdef F_OFD_GETLK
     case F_OFD_GETLK:
 #endif
@@ -57,25 +64,18 @@ static int is_lock_query(int cmd) {
 int bl_nl_before_dup(int fd, void **state) __attribute__((visibility("hidden")));
 void bl_nl_after_dup(void *state, int fd) __attribute__((visibility("hidden")));
 
-int fcntl(int fd, int cmd, ...) {
-  static int (*real_fcntl)(int, int, ...);
-  va_list ap;
-  void *arg;
+static int fcntl_with(int (**real_fcntl)(int, int, ...), const char *name, int fd, int cmd, void *arg) {
   int result;
 
-  va_start(ap, cmd);
-  arg = va_arg(ap, void *);
-  va_end(ap);
-
-  if (real_fcntl == NULL) real_fcntl = dlsym(RTLD_NEXT, "fcntl");
-  if (real_fcntl == NULL) {
+  if (*real_fcntl == NULL) *real_fcntl = dlsym(RTLD_NEXT, name);
+  if (*real_fcntl == NULL) {
     errno = ENOSYS;
     return -1;
   }
   void *nl_state = NULL;
   int duplicate = cmd == F_DUPFD || cmd == F_DUPFD_CLOEXEC;
   if (duplicate && bl_nl_before_dup(fd, &nl_state) != 0) return -1;
-  result = real_fcntl(fd, cmd, arg);
+  result = (*real_fcntl)(fd, cmd, arg);
   if (duplicate) bl_nl_after_dup(nl_state, result);
   if (result >= 0 || !unsupported(errno)) return result;
   if (is_lock_command(cmd)) return 0;
@@ -86,6 +86,30 @@ int fcntl(int fd, int cmd, ...) {
   return result;
 }
 
+int fcntl(int fd, int cmd, ...) {
+  static int (*real_fcntl)(int, int, ...);
+  va_list ap;
+  void *arg;
+
+  va_start(ap, cmd);
+  arg = va_arg(ap, void *);
+  va_end(ap);
+  return fcntl_with(&real_fcntl, "fcntl", fd, cmd, arg);
+}
+
 #if defined(__GLIBC__) && defined(F_SETLK64)
+#ifdef __OFF_T_MATCHES_OFF64_T
 int fcntl64(int fd, int cmd, ...) __attribute__((alias("fcntl")));
+#else
+int fcntl64(int fd, int cmd, ...) {
+  static int (*real_fcntl64)(int, int, ...);
+  va_list ap;
+  void *arg;
+
+  va_start(ap, cmd);
+  arg = va_arg(ap, void *);
+  va_end(ap);
+  return fcntl_with(&real_fcntl64, "fcntl64", fd, cmd, arg);
+}
+#endif
 #endif

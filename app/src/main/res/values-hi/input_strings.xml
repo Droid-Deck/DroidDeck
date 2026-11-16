@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">इनपुट प्रोफ़ाइल</string>
+    <string name="input_profiles">प्रोफ़ाइल</string>
+    <string name="input_physical">भौतिक कंट्रोलर</string>
+    <string name="input_primary">मुख्य स्क्रीन</string>
+    <string name="input_secondary">दूसरी स्क्रीन</string>
+    <string name="input_native">मूल / Steam Input</string>
+    <string name="input_native_target">मूल: %1$s</string>
+    <string name="input_remap_native">कंट्रोलर का दूसरा नियंत्रण भेजें</string>
+    <string name="input_disabled">बंद</string>
+    <string name="input_keys">कुंजी या कुंजी संयोजन</string>
+    <string name="input_direction_keys">दिशा कुंजियाँ</string>
+    <string name="input_pointer">पॉइंटर हिलाएँ</string>
+    <string name="input_pointer_speed">पॉइंटर गति: %1$d</string>
+    <string name="input_scroll">स्क्रॉल</string>
+    <string name="input_scroll_vertical">लंबवत स्क्रॉल</string>
+    <string name="input_mouse_left">माउस का बायाँ बटन</string>
+    <string name="input_mouse_right">माउस का दायाँ बटन</string>
+    <string name="input_mouse_middle">माउस का मध्य बटन</string>
+    <string name="input_command_menu">DroidDeck मेन्यू खोलें</string>
+    <string name="input_command_keyboard">कीबोर्ड दिखाएँ</string>
+    <string name="input_command_steam">Steam मेन्यू खोलें</string>
+    <string name="input_command_qam">Steam त्वरित पहुँच खोलें</string>
+    <string name="input_remove_element">नियंत्रण हटाएँ</string>
+    <string name="input_add_element">नियंत्रण जोड़ें</string>
+    <string name="input_extra_keys">डिवाइस-विशिष्ट बटन</string>
+    <string name="input_capture">भौतिक बटन असाइन करें</string>
+    <string name="input_capture_confirm">बटन छोड़ें, फिर संपादित करें, पुनः प्रयास करें या रद्द करें चुनें। छोड़ने के बाद B या वापस रद्द करता है।</string>
+    <string name="input_capture_retry">पुनः प्रयास करें</string>
+    <string name="input_capture_hint">कोई बटन दबाएँ, जिसमें कुंजी के रूप में रिपोर्ट होने वाला वापस बटन भी शामिल है। वॉल्यूम और Android सिस्टम कुंजियाँ आरक्षित हैं। असाइनमेंट केवल इस डिवाइस पर लागू होता है।</string>
+    <string name="input_remove_binding">असाइनमेंट हटाएँ</string>
+    <string name="input_latency">इनपुट निदान</string>
+    <string name="input_measure">इनपुट भेजने का समय रिकॉर्ड करें</string>
+    <string name="input_read_timing">माप पढ़ें</string>
+    <string name="input_latency_hint">Android से मौजूदा इनपुट ट्रांसपोर्ट में प्रकाशन तक मापता है। इसमें Bluetooth आगमन, गेस्ट पोलिंग, रेंडरिंग और डिस्प्ले विलंब शामिल नहीं हैं। रिकॉर्डिंग डिफ़ॉल्ट रूप से बंद है।</string>
+    <string name="input_normal_binding">सामान्य इनपुट असाइनमेंट का उपयोग करें</string>
+</resources>

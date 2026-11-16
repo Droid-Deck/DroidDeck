@@ -43,6 +43,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.MicOff
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.AttachFile
@@ -66,12 +70,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -93,6 +97,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -116,34 +121,54 @@ import com.droiddeck.launcher.agent.AgentHost.Entry
 import com.droiddeck.launcher.agent.AgentSetup
 import kotlinx.coroutines.launch
 
-internal enum class AgentPanel { NONE, MODEL, USAGE, HISTORY, PROCESSES }
+internal enum class AgentPanel { NONE, MODEL, USAGE, HISTORY, PROCESSES, TOOLS }
 
 /** Slash commands the app handles itself; others go to the CLI, which has its own. */
 private val LOCAL_COMMANDS = listOf("/new", "/model", "/plan", "/history", "/processes", "/stop")
 private val CLI_COMMANDS = listOf("/compact", "/cost", "/review", "/init")
-private const val COMPOSER_SLIDE_MS = 350L
 
 /**
- * The chat with the composer at the bottom. The composer is the full editor only while it is
- * being typed in; reading shrinks it to one line, and scrolling back through older messages
- * hides it behind a small pill. [startTyping] opens an empty conversation ready to type.
+ * The chat with the model, usage and menu on top and the editor at the bottom. Scrolling back
+ * through older messages hides the editor behind a small pill and stops following new output.
+ * [inputModifier] goes on the first control, where a controller lands without raising the keyboard.
  */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun AgentPage(
     modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true, hidesPet: Boolean = true,
     menuSlot: AgentMenuSlot? = null,
-) = AgentPageContent(modifier, inputModifier, visible, startTyping, hidesPet, showControlsWithoutKeyboard = false, menuSlot)
+) = AgentPageContent(modifier, inputModifier, visible, hidesPet, menuSlot)
 
+// Lab overlays run against the installed APK, so these entry points keep their JVM signatures.
+@Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun AgentPageWithControls(
     modifier: Modifier, inputModifier: Modifier = Modifier, visible: Boolean = true, startTyping: Boolean = true,
     showControlsWithoutKeyboard: Boolean,
-) = AgentPageContent(modifier, inputModifier, visible, startTyping, hidesPet = true, showControlsWithoutKeyboard = showControlsWithoutKeyboard)
+) = AgentPageContent(modifier, inputModifier, visible, hidesPet = true, drawer = true)
+
+/** Whether the session drawer's chat keeps the model, usage and menu in the editor's row, giving the conversation that row's height. */
+internal object AgentDrawerLayout {
+    private const val KEY = "drawer_inline_controls"
+    var inline by mutableStateOf(true)
+        private set
+    private var loaded = false
+
+    fun load(context: android.content.Context) {
+        if (loaded) return
+        loaded = true
+        inline = AgentHost.prefs(context).getBoolean(KEY, true)
+    }
+
+    fun set(context: android.content.Context, on: Boolean) {
+        inline = on
+        AgentHost.prefs(context).edit().putBoolean(KEY, on).apply()
+    }
+}
 
 @Composable
 private fun AgentPageContent(
-    modifier: Modifier, inputModifier: Modifier, visible: Boolean, startTyping: Boolean, hidesPet: Boolean,
-    showControlsWithoutKeyboard: Boolean, menuSlot: AgentMenuSlot? = null,
+    modifier: Modifier, inputModifier: Modifier, visible: Boolean, hidesPet: Boolean, menuSlot: AgentMenuSlot? = null, drawer: Boolean = false,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -158,9 +183,19 @@ private fun AgentPageContent(
         }
     }
     remember { AgentHost.refresh(context) }
+    remember { AgentDrawerLayout.load(context) }
+    val inline = drawer && AgentDrawerLayout.inline
     LaunchedEffect(AgentHost.unseen, visible) { if (visible) AgentHost.seen() }
-    DisposableEffect(visible, hidesPet) {
-        val counts = visible && hidesPet
+    // A stopped activity keeps its composition; the page is only on screen while its host is started.
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    var started by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) }
+    DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, _ -> started = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED) }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    DisposableEffect(visible, hidesPet, started) {
+        val counts = visible && hidesPet && started
         if (counts) AgentPet.agentOnScreen++
         onDispose { if (counts) AgentPet.agentOnScreen-- }
     }
@@ -172,17 +207,23 @@ private fun AgentPageContent(
         return
     }
     var panel by rememberSaveable { mutableStateOf(AgentPanel.NONE) }
-    val composer = remember { ComposerState(startTyping && AgentHost.entries.isEmpty()) }
+    val composer = remember { ComposerState() }
     val focusManager = LocalFocusManager.current
     val togglePanel: (AgentPanel) -> Unit = { panel = if (panel == it) AgentPanel.NONE else it }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     val menu: @Composable () -> Unit = {
         AgentMenu(menuOpen, { menuOpen = it }, onPanel = { panel = it }, onSetup = { setup = true })
     }
-    // A host with a title bar shows the menu there; otherwise it floats over the conversation's top corner.
-    val inSlot = menuSlot != null && panel != AgentPanel.HISTORY && panel != AgentPanel.PROCESSES
+    val topBar: @Composable () -> Unit = { AgentTopBar(panel, togglePanel, inputModifier, menu) }
+    val inlineControls: (@Composable () -> Unit)? = if (inline) ({
+        ModelChip(panel, togglePanel, inputModifier, compact = true)
+        ContextRing("agent-usage", onClick = { togglePanel(AgentPanel.USAGE) })
+        menu()
+    }) else null
+    // A host with a title bar shows the top bar there.
+    val inSlot = menuSlot != null && panel != AgentPanel.HISTORY && panel != AgentPanel.PROCESSES && panel != AgentPanel.TOOLS
     if (menuSlot != null) DisposableEffect(menuSlot, inSlot) {
-        menuSlot.content = if (inSlot) menu else null
+        menuSlot.content = if (inSlot) topBar else null
         onDispose { menuSlot.content = null }
     }
     // The keyboard leaves too little height for a panel and the editor together, so typing closes the panel.
@@ -191,7 +232,7 @@ private fun AgentPageContent(
     Column(
         modifier.fillMaxSize().imePadding().onPreviewKeyEvent { e ->
             val k = e.nativeKeyEvent
-            if (k.keyCode != KeyEvent.KEYCODE_BUTTON_Y || composer.typing) return@onPreviewKeyEvent false
+            if (k.keyCode != KeyEvent.KEYCODE_BUTTON_Y || composer.focused) return@onPreviewKeyEvent false
             if (k.action == KeyEvent.ACTION_UP) composer.open()
             true
         },
@@ -205,11 +246,22 @@ private fun AgentPageContent(
                 AgentPanelBar(stringResource(R.string.agent_processes)) { panel = AgentPanel.NONE }
                 AgentProcessList(Modifier.weight(1f))
             }
+            AgentPanel.TOOLS -> {
+                AgentPanelBar(stringResource(R.string.agent_tools)) { panel = AgentPanel.NONE }
+                AgentToolsPanel(Modifier.weight(1f))
+            }
             else -> {
+                if (menuSlot == null && !inline) Box(Modifier.padding(bottom = 6.dp)) { topBar() }
+                when (panel) {
+                    AgentPanel.MODEL -> Box(Modifier.padding(bottom = 8.dp)) { AgentModelPicker() }
+                    AgentPanel.USAGE -> Box(Modifier.padding(bottom = 8.dp)) { AgentUsage() }
+                    else -> Unit
+                }
                 val list = rememberLazyListState()
                 val scope = rememberCoroutineScope()
-                // Only dragging back through older messages hides the composer; showing it again shrinks the list, which must not hide it once more.
+                // Only dragging back through older messages stops following the latest; reaching the bottom again resumes it.
                 var readingBack by remember { mutableStateOf(false) }
+                LaunchedEffect(AgentHost.chat) { readingBack = false }
                 LaunchedEffect(list) { snapshotFlow { list.canScrollForward }.collect { if (!it) readingBack = false } }
                 val dragBack = remember {
                     object : NestedScrollConnection {
@@ -223,57 +275,53 @@ private fun AgentPageContent(
                     readingBack = false
                     scope.launch { list.scrollToItem(maxOf(0, list.layoutInfo.totalItemsCount - 1), Int.MAX_VALUE / 2) }
                 }
-                val hidden = !composer.typing && readingBack && AgentHost.entries.isNotEmpty()
-                var wasHidden by remember { mutableStateOf(false) }
-                LaunchedEffect(hidden) {
-                    if (hidden) wasHidden = true
-                    else if (wasHidden) {
-                        wasHidden = false
-                        // The composer takes its height back as it slides in; the latest message stays above it.
-                        kotlinx.coroutines.delay(COMPOSER_SLIDE_MS)
-                        list.scrollToItem(maxOf(0, list.layoutInfo.totalItemsCount - 1), Int.MAX_VALUE / 2)
-                    }
-                }
-                Box(Modifier.weight(1f).fillMaxWidth().clipToBounds().nestedScroll(dragBack)) {
+                val hidden = !composer.focused && !composer.hasUnconsumedFocusRequest() && readingBack && AgentHost.entries.isNotEmpty()
+                var listHeight by remember { mutableIntStateOf(0) }
+                Box(
+                    Modifier.weight(1f).fillMaxWidth().clipToBounds().nestedScroll(dragBack).onGloballyPositioned {
+                        // The editor sliding in or the keyboard rising shrinks the list from below; a list following the latest keeps it in view, even mid-drag.
+                        // Scrolling remeasures the list, which Compose refuses during a measure pass, so this runs once positioning is done.
+                        val height = it.size.height
+                        val shrunk = listHeight - height
+                        listHeight = height
+                        if (shrunk > 0 && !readingBack) list.dispatchRawDelta(shrunk.toFloat())
+                    },
+                ) {
                     AgentConversation(
                         Modifier.fillMaxSize().pointerInput(Unit) {
                             awaitEachGesture {
                                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                                 if (panel == AgentPanel.MODEL || panel == AgentPanel.USAGE) panel = AgentPanel.NONE
-                                if (composer.typing) focusManager.clearFocus()
+                                if (composer.focused) focusManager.clearFocus()
                             }
                         },
-                        list, onRevise = { composer.open() },
+                        list, following = !readingBack, onRevise = { composer.open() }, onSent = toLatest,
                     )
                     androidx.compose.animation.AnimatedVisibility(
                         hidden, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
                     ) {
                         AgentJumpPill(toLatest)
                     }
-                    if (menuSlot == null) Box(Modifier.align(Alignment.TopEnd).padding(top = 4.dp)) { menu() }
                 }
                 androidx.compose.animation.AnimatedVisibility(!hidden, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    AgentComposer(composer, draft, inputModifier, panel, togglePanel, showControlsWithoutKeyboard)
+                    AgentComposer(composer, draft, visible, inlineControls, onPanel = { panel = it }, onSent = toLatest)
                 }
             }
         }
     }
 }
 
-/** Whether the composer is the full editor; [open] also puts the cursor in it. */
+/** Whether the editor has the cursor; [open] puts it there. */
 @Stable
-private class ComposerState(typing: Boolean) {
-    var typing by mutableStateOf(typing)
+private class ComposerState {
+    var focused by mutableStateOf(false)
     var focusRequests by mutableIntStateOf(0)
         private set
     private var consumedFocusRequests by mutableIntStateOf(0)
-    /** Opened and waiting for the text field to take focus; focus passes through nothing on the way. */
-    var opening = false
 
     fun open() {
-        typing = true
-        opening = true
         focusRequests++
+        if (focused) consumeFocusRequest()
     }
 
     fun hasUnconsumedFocusRequest() = focusRequests > consumedFocusRequests
@@ -287,6 +335,37 @@ private class ComposerState(typing: Boolean) {
 @Stable
 internal class AgentMenuSlot {
     var content by mutableStateOf<(@Composable () -> Unit)?>(null)
+}
+
+/** The model and how full the context is, then the [menu]. */
+@Composable
+private fun AgentTopBar(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstControl: Modifier, menu: @Composable () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            ModelChip(panel, onPanel, firstControl, Modifier.weight(1f, fill = false))
+            ContextRing("agent-usage", onClick = { onPanel(AgentPanel.USAGE) })
+        }
+        menu()
+    }
+}
+
+/** The harness, model, effort and plan mode, opening the model picker; [compact] names only the model. */
+@Composable
+private fun ModelChip(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstControl: Modifier, modifier: Modifier = Modifier, compact: Boolean = false) {
+    val context = LocalContext.current
+    val pal = LocalPalette.current
+    val model = AgentHost.models(context).firstOrNull { it.id == AgentHost.model }?.label ?: AgentHost.model ?: stringResource(R.string.agent_model_default)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.then(if (compact) Modifier.widthIn(max = 120.dp) else Modifier).height(36.dp).clip(Shape12).then(firstControl)
+            .clickable { onPanel(AgentPanel.MODEL) }.padding(horizontal = 8.dp).testTag("agent-model"),
+    ) {
+        val parts = if (compact) listOf(model)
+        else listOfNotNull(AgentHost.harness.name, model, AgentHost.effort, stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans })
+        Text(parts.joinToString(" · "), fontSize = 13.sp, color = if (panel == AgentPanel.MODEL) pal.primary else pal.onSurfaceVariant,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        Icon(Icons.Outlined.ExpandMore, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(16.dp))
+    }
 }
 
 /** History, processes, a new conversation, the pet and setup, folded behind one button. */
@@ -306,6 +385,9 @@ private fun AgentMenu(open: Boolean, onOpen: (Boolean) -> Unit, onPanel: (AgentP
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HeaderAction(Icons.Outlined.History, stringResource(R.string.agent_history), size = 36.dp, tag = "agent-history") { onOpen(false); onPanel(AgentPanel.HISTORY) }
                 HeaderAction(Icons.Outlined.Memory, stringResource(R.string.agent_processes), size = 36.dp, tag = "agent-processes") { onOpen(false); onPanel(AgentPanel.PROCESSES) }
+                if (AgentHost.harness == com.droiddeck.launcher.agent.ClaudeCode) HeaderAction(
+                    Icons.Outlined.Extension, stringResource(R.string.agent_tools), size = 36.dp, tag = "agent-tools",
+                ) { onOpen(false); onPanel(AgentPanel.TOOLS) }
                 HeaderAction(Icons.Outlined.Add, stringResource(R.string.agent_new), enabled = !working && AgentHost.entries.isNotEmpty(), size = 36.dp, tag = "agent-new") {
                     onOpen(false)
                     AgentHost.forget(context)
@@ -352,18 +434,20 @@ internal fun HeaderAction(
 }
 
 @Composable
-private fun AgentConversation(modifier: Modifier, list: LazyListState, onRevise: () -> Unit) {
+private fun AgentConversation(modifier: Modifier, list: LazyListState, following: Boolean, onRevise: () -> Unit, onSent: () -> Unit) {
     val pal = LocalPalette.current
     val working = AgentHost.state == AgentHost.State.WORKING
-    val atBottom by remember { derivedStateOf { !list.canScrollForward } }
-    val items = AgentHost.entries.size + (if (working) 1 else 0)
+    // A subagent's calls are shown inside the call that started it.
+    val shown = AgentHost.entries.indices.filter { (AgentHost.entries[it] as? Entry.Used)?.parent.isNullOrEmpty() }
+    val items = shown.size + (if (working) 1 else 0)
+    val follow by rememberUpdatedState(following)
     LaunchedEffect(items) {
-        if (items == 0) return@LaunchedEffect
+        if (items == 0 || !follow) return@LaunchedEffect
         list.animateScrollToItem(items - 1)
         list.scrollToItem(items - 1, Int.MAX_VALUE / 2)
     }
     LaunchedEffect(AgentHost.live.length / 80, AgentHost.liveThinking.length / 80) {
-        if (atBottom && items > 0) list.scrollToItem(items - 1, Int.MAX_VALUE / 2)
+        if (follow && items > 0) list.scrollToItem(items - 1, Int.MAX_VALUE / 2)
     }
     if (AgentHost.entries.isEmpty() && !working) {
         Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -375,11 +459,15 @@ private fun AgentConversation(modifier: Modifier, list: LazyListState, onRevise:
     }
     val start = AgentHost.entries.indexOfLast { it is Entry.Asked }
     LazyColumn(modifier.fillMaxWidth(), state = list, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items(AgentHost.entries.size) { i ->
+        items(shown.size) { n ->
+            val i = shown[n]
             val entry = AgentHost.entries[i]
             AgentEntry(
                 entry, running = working && i > start && entry is Entry.Used && entry.output == null, last = !working && i == AgentHost.entries.lastIndex,
-                changes = if (entry is Entry.Finished) turnChanges(AgentHost.entries, i) else null, onRevise = onRevise,
+                children = if (entry is Entry.Used) AgentHost.entries.filter { it is Entry.Used && it.parent == entry.id && entry.id.isNotEmpty() }.map { it as Entry.Used } else emptyList(),
+                changes = if (entry is Entry.Finished) turnChanges(AgentHost.entries, i) else null,
+                turn = if (entry is Entry.Finished) AgentHost.entries.subList(AgentHost.entries.subList(0, i).indexOfLast { it is Entry.Asked } + 1, i) else emptyList(),
+                answerable = !working && i > start && AgentHost.queue.isEmpty(), onRevise = onRevise, onSent = onSent,
             )
         }
         if (working) item { AgentLive() }
@@ -479,7 +567,8 @@ private fun labStage(lab: com.droiddeck.launcher.agent.LabProgress) = when (lab.
     else -> stringResource(R.string.agent_lab_stage_starting)
 }
 
-private fun hasActivity() = AgentHost.lab != null || AgentHost.queue.isNotEmpty() || currentTodo() != null
+private fun hasActivity() = AgentHost.lab != null || AgentHost.queue.isNotEmpty() || currentTodo() != null ||
+    com.droiddeck.launcher.agent.AgentSetup.problems.isNotEmpty()
 
 /** The todo item in progress and how many are done, while the agent works through a list. */
 private fun currentTodo(): String? {
@@ -505,6 +594,11 @@ private fun AgentActivity(labOpen: Boolean, onLab: () -> Unit) {
         AgentChip {
             Text(todo, fontSize = 12.5.sp, color = pal.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
         }
+    }
+    val problems = com.droiddeck.launcher.agent.AgentSetup.problems
+    if (problems.isNotEmpty()) AgentChip(warn = true, tag = "agent-tools-missing") {
+        Text(stringResource(R.string.agent_tools_missing, problems.joinToString(", ")), fontSize = 12.5.sp, color = AttentionAmber,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 260.dp))
     }
     for (queued in AgentHost.queue) AgentChip(warn = true) {
         Text(stringResource(R.string.agent_queued, queued.text), fontSize = 12.5.sp, color = AttentionAmber, maxLines = 1,
@@ -565,14 +659,13 @@ internal fun liveUsed(limit: AgentHost.Limit) = if (limit.resetsAt > 0 && limit.
 
 @Composable
 private fun AgentComposer(
-    composer: ComposerState, draftState: MutableState<String>, inputModifier: Modifier, panel: AgentPanel, onPanel: (AgentPanel) -> Unit,
-    showControlsWithoutKeyboard: Boolean,
+    composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?,
+    onPanel: (AgentPanel) -> Unit, onSent: () -> Unit,
 ) {
     val context = LocalContext.current
     var draft by draftState
     var labOpen by rememberSaveable { mutableStateOf(false) }
     if (AgentHost.lab == null) labOpen = false
-    var hadFocus by remember { mutableStateOf(false) }
     val send = send@{
         val text = draft.trim()
         when (text.substringBefore(' ')) {
@@ -586,90 +679,33 @@ private fun AgentComposer(
                 if (text.isEmpty() && AgentAttachments.pending.isEmpty()) return@send
                 AgentHost.send(context, text, AgentAttachments.pending.toList())
                 AgentAttachments.pending.clear()
+                onSent()
             }
         }
         draft = ""
     }
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    // Leaving the composer for the conversation, by touch or D-pad, is reading.
-    Column(
-        Modifier.fillMaxWidth().padding(bottom = if (keyboardOpen) 4.dp else 8.dp).onFocusChanged {
-            if (it.hasFocus) hadFocus = true
-            else if (hadFocus) {
-                hadFocus = false
-                if (composer.typing && !composer.opening) composer.typing = false
-            }
-        },
-    ) {
+    Column(Modifier.fillMaxWidth().padding(bottom = if (keyboardOpen) 4.dp else 8.dp)) {
         if (labOpen) AgentLabCard()
-        when (panel) {
-            AgentPanel.MODEL -> Box(Modifier.padding(top = 8.dp)) { AgentModelPicker() }
-            AgentPanel.USAGE -> Box(Modifier.padding(top = 8.dp)) { AgentUsage() }
-            else -> Unit
-        }
-        if (composer.typing) {
-            if (hasActivity()) Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
-            ) { AgentActivity(labOpen) { labOpen = !labOpen } }
-            AgentEditor(composer, draftState, inputModifier, panel, onPanel, highlightControls = showControlsWithoutKeyboard, send = send)
-        } else AgentReadingBar(
-            composer, draft, inputModifier, labOpen, onLab = { labOpen = !labOpen }, onUsage = { onPanel(AgentPanel.USAGE) },
-        ) {
-            // The session drawer is driven by a controller, so its editor opens without raising the keyboard.
-            if (showControlsWithoutKeyboard) {
-                composer.typing = true
-                composer.opening = true
-            } else composer.open()
-        }
-    }
-}
-
-/** The composer while reading: one line holding what is going on, opened by a press or by Y. */
-@Composable
-private fun AgentReadingBar(
-    composer: ComposerState, draft: String, inputModifier: Modifier, labOpen: Boolean, onLab: () -> Unit, onUsage: () -> Unit, onOpen: () -> Unit,
-) {
-    val context = LocalContext.current
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val working = AgentHost.state == AgentHost.State.WORKING
-    var focused by remember { mutableStateOf(false) }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(44.dp).clip(Shape16).background(colors.surface)
-            .border(if (focused) 2.dp else 1.dp, if (focused) pal.primary else pal.line, Shape16)
-            .then(inputModifier).onFocusChanged { focused = it.isFocused }.clickable(onClick = onOpen).testTag("agent-composer-bar")
-            .padding(start = 14.dp, end = 4.dp),
-    ) {
-        Text(
-            draft.ifBlank { stringResource(if (working) R.string.agent_hint_working else R.string.agent_message) }, fontSize = 15.sp,
-            color = if (draft.isBlank()) pal.onSurfaceVariant else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = !hasActivity()).widthIn(min = 72.dp),
-        )
         if (hasActivity()) Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f).padding(start = 8.dp).horizontalScroll(rememberScrollState()),
-        ) { AgentActivity(labOpen, onLab) }
-        ContextRing("agent-usage-bar", onUsage)
-        if (working) Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.padding(start = 4.dp).size(36.dp).clip(CircleShape).background(pal.error.copy(alpha = 0.22f))
-                .clickable { AgentHost.stop(context) }.testTag("agent-stop"),
-        ) { Icon(Icons.Outlined.Stop, stringResource(R.string.agent_stop), tint = colors.error, modifier = Modifier.size(20.dp)) }
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
+        ) { AgentActivity(labOpen) { labOpen = !labOpen } }
+        AgentEditor(composer, draftState, visible, controls, send)
     }
 }
 
-/** The full editor: model and usage on top, the text with attach, stop and send under them. */
+/** The text with attach, stop and send beside it, and [controls] while the text is not being typed in. */
 @Composable
-private fun AgentEditor(
-    composer: ComposerState, draftState: MutableState<String>, inputModifier: Modifier, panel: AgentPanel, onPanel: (AgentPanel) -> Unit,
-    highlightControls: Boolean = false, send: () -> Unit,
-) {
+private fun AgentEditor(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?, send: () -> Unit) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var draft by draftState
+    val voice = remember { AgentVoice(context.applicationContext, { draftState.value }) { draftState.value = it } }
+    val voiceAvailable = remember { AgentVoice.available(context) }
+    DisposableEffect(voice) { onDispose { voice.stop() } }
+    LaunchedEffect(visible) { if (!visible) voice.stop() }
     val working = AgentHost.state == AgentHost.State.WORKING
     if (draft.startsWith("/") && !draft.contains(' ')) {
         val matches = (LOCAL_COMMANDS + CLI_COMMANDS).filter { it.startsWith(draft) && it != draft }
@@ -694,26 +730,11 @@ private fun AgentEditor(
     LaunchedEffect(composer.focusRequests) { if (composer.hasUnconsumedFocusRequest()) runCatching { field.requestFocus() } }
     Column(
         Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape16).background(colors.surface)
-            .border(if (focused || highlightControls) 2.dp else 1.dp, if (focused || highlightControls) pal.primary else pal.line, Shape16).padding(6.dp),
+            .border(if (focused) 2.dp else 1.dp, if (focused) pal.primary else pal.line, Shape16).padding(6.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().height(36.dp)) {
-            val model = AgentHost.models(context).firstOrNull { it.id == AgentHost.model }?.label ?: AgentHost.model ?: stringResource(R.string.agent_model_default)
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = false).height(30.dp).clip(Shape12).clickable { onPanel(AgentPanel.MODEL) }
-                        .padding(horizontal = 8.dp).testTag("agent-model"),
-                ) {
-                    val parts = listOfNotNull(AgentHost.harness.name, model, AgentHost.effort, stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans })
-                    Text(parts.joinToString(" · "), fontSize = 13.sp, color = if (panel == AgentPanel.MODEL) pal.primary else pal.onSurfaceVariant,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    Icon(Icons.Outlined.ExpandMore, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                }
-                ContextRing("agent-usage", onClick = { onPanel(AgentPanel.USAGE) })
-            }
-        }
         Row(verticalAlignment = Alignment.Bottom) {
             if (LocalActivityResultRegistryOwner.current != null) AttachButton()
+            if (AgentAttachments.gameFrame != null) GameFrameButton()
             Box(Modifier.weight(1f).padding(start = 8.dp, top = 10.dp, bottom = 10.dp)) {
                 if (draft.isEmpty()) Text(
                     stringResource(if (working) R.string.agent_hint_working else R.string.agent_hint), fontSize = 16.sp,
@@ -723,27 +744,82 @@ private fun AgentEditor(
                     draft, { draft = it },
                     Modifier.fillMaxWidth().focusRequester(field).onFocusChanged {
                         focused = it.isFocused
-                        if (it.isFocused) {
-                            composer.consumeFocusRequest()
-                            composer.opening = false
-                        }
-                    }.testTag("agent-input").then(inputModifier),
+                        composer.focused = it.isFocused
+                        if (it.isFocused) composer.consumeFocusRequest()
+                    }.testTag("agent-input"),
                     textStyle = TextStyle(fontSize = 16.sp, color = colors.onSurface),
                     cursorBrush = SolidColor(pal.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { send() }),
+                    keyboardActions = KeyboardActions(onSend = {
+                        voice.stop()
+                        send()
+                    }),
                     minLines = 1,
                     maxLines = 8,
                 )
             }
+            if (controls != null && !focused) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(42.dp)) { controls() }
             if (working) RoundButton(Icons.Outlined.Stop, stringResource(R.string.agent_stop), pal.error.copy(alpha = 0.22f), colors.error, "agent-stop") {
                 AgentHost.stop(context)
             }
             val canSend = draft.isNotBlank() || AgentAttachments.pending.isNotEmpty()
-            RoundButton(
+            // An empty message has nothing to send, so the button there dictates one instead.
+            if ((!canSend || voice.listening) && voiceAvailable) VoiceButton(voice) { voice.start(draft) }
+            else RoundButton(
                 Icons.AutoMirrored.Outlined.Send, stringResource(if (working) R.string.agent_queue else R.string.agent_send),
                 if (canSend) pal.primary else pal.surfaceVariant, if (canSend) pal.onPrimary else pal.onSurfaceVariant, "agent-send", enabled = canSend,
-            ) { send() }
+            ) {
+                voice.stop()
+                send()
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit) {
+    val context = LocalContext.current
+    val pal = LocalPalette.current
+    val ask = if (LocalActivityResultRegistryOwner.current != null) rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) onStart() else android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
+    } else null
+    RoundButton(
+        if (voice.listening) Icons.Outlined.MicOff else Icons.Outlined.Mic, stringResource(if (voice.listening) R.string.agent_voice_stop else R.string.agent_voice),
+        if (voice.listening) pal.primary else pal.surfaceVariant, if (voice.listening) pal.onPrimary else pal.onBackground, "agent-voice",
+    ) {
+        when {
+            voice.listening -> voice.finish()
+            context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED -> onStart()
+            ask != null -> ask.launch(android.Manifest.permission.RECORD_AUDIO)
+            else -> android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+/** Attaches what the running game shows, taken from its own surface so nothing drawn over it is in the picture. */
+@Composable
+private fun GameFrameButton() {
+    val context = LocalContext.current
+    val pal = LocalPalette.current
+    RoundButton(Icons.Outlined.PhotoCamera, stringResource(R.string.agent_attach_game), pal.surfaceVariant, pal.onBackground, "agent-game-frame") {
+        val grab = AgentAttachments.gameFrame ?: return@RoundButton
+        val chat = AgentHost.chat
+        grab frame@{ frame ->
+            if (frame == null) {
+                android.widget.Toast.makeText(context, R.string.agent_attach_game_failed, android.widget.Toast.LENGTH_SHORT).show()
+                return@frame
+            }
+            Thread({
+                val path = AgentAttachments.saveFrame(context, chat, frame)
+                frame.recycle()
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    when {
+                        path == null -> android.widget.Toast.makeText(context, R.string.agent_attach_game_failed, android.widget.Toast.LENGTH_SHORT).show()
+                        AgentHost.chat == chat -> AgentAttachments.pending.add(path)
+                        else -> AgentAttachments.discard(context, listOf(path))
+                    }
+                }
+            }, "agent-game-frame").start()
         }
     }
 }
