@@ -164,6 +164,34 @@ class SessionClipboardTest {
         }
     }
 
+    @Test fun twoPausedDesktopCopiesEndWithTheLaterOneOnResume() {
+        val away = startAway("paused-two")
+        try {
+            File(away.dir, "text.queue.1.2.ready").writeText("second from desktop")
+            val claimDeadline = System.currentTimeMillis() + 5000
+            while (away.dir.listFiles()!!.count { it.name.endsWith(".claimed") } < 2 && System.currentTimeMillis() < claimDeadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(20)
+            }
+            shadowOf(Looper.getMainLooper()).idle()
+            away.clipboard.stop()
+            away.focus = true
+            away.clipboard.start()
+            val deadline = System.currentTimeMillis() + 5000
+            while (away.dir.listFiles()!!.any { it.name.endsWith(".ready") || it.name.endsWith(".claimed") } &&
+                System.currentTimeMillis() < deadline
+            ) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(20)
+            }
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals("second from desktop", androidText(away.manager))
+        } finally {
+            away.clipboard.stop()
+            SessionState.sessionId = null
+        }
+    }
+
     @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
     class CompositorShadow {
         companion object {

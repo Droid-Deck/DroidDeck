@@ -28,6 +28,7 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
     private val deferredGuestCopies = mutableListOf<DeferredCopy>()
     private val restoredBaselines = mutableMapOf<File, Baseline?>()
     private var restoredBaselinesDir: File? = null
+    private val replayedFromBaseline = mutableMapOf<String?, String>()
     private var baseline: Baseline? = null
     private var active = false
     private var published = false
@@ -76,8 +77,11 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
         val now = androidText()
         var applied = false
         due.forEach { copy ->
-            val fresh = copy.baseline == null || copy.baseline.text == now
-            if (fresh && receiveGuestText(copy.text, true)) applied = true
+            val fresh = copy.baseline == null || copy.baseline.text == now || replayedFromBaseline[copy.baseline.text] == now
+            if (fresh && receiveGuestText(copy.text, true)) {
+                applied = true
+                copy.baseline?.let { replayedFromBaseline[it.text] = copy.text }
+            }
             synchronized(guestObserverLock) { pendingGuestClaims.remove(copy.claimed) }
             copy.claimed.delete()
         }
@@ -245,6 +249,7 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
             return
         }
         echo = null
+        replayedFromBaseline.clear()
         if (!changed && published && text == shared) return
         publish(text)
     }
