@@ -30,7 +30,7 @@ At the reported revision, DXVK logs the result returned by command-list submissi
 RADV-Xclipse 1.8.0 has several sync paths that can return `VK_ERROR_UNKNOWN`, including sync-object reset, wait and transfer, sync-file import and export, and fence merging. Sync-file export can reject a fence that is not materialized within five seconds, but no accompanying diagnostic proves that this path failed here.
 
 - [RADV-Xclipse sync-object handling](https://github.com/JimVulkan/radv-xclipse/blob/v1.8.0/src/vulkan/runtime/vk_drm_syncobj.c#L430-L462)
-- [RADV-Xclipse sync-file handling](https://github.com/JimVulkan/radv-xclipse/blob/v1.8.0/src/vulkan/runtime/vk_drm_syncobj.c#L510-L642)
+- [RADV-Xclipse sync-file handling](https://github.com/JimVulkan/radv-xclipse/blob/v1.8.0/src/vulkan/runtime/vk_drm_syncobj.c#L408-L433)
 
 ## Related work and rejected hypotheses
 
