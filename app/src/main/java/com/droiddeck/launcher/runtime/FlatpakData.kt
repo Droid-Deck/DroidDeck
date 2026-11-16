@@ -19,7 +19,8 @@ object FlatpakData {
     private const val GUEST = "/root/.var/app"
     private const val KEPT = ".ld.so"
     private const val RESERVE = 64L shl 20
-    private val ID = Regex("[A-Za-z0-9_.-]+")
+    private val ID = Regex("(?!\\.+$)[A-Za-z0-9_.-]+")
+    private val lock = Any()
 
     fun enabled(context: Context): Set<String> = SessionPrefs.flatpakCardData(context)
 
@@ -30,14 +31,14 @@ object FlatpakData {
 
     internal fun internalDir(context: Context, id: String) = File(LinuxRuntime.rootDir(context), "$HOST/$id")
 
-    fun binds(context: Context): List<String> {
+    fun binds(context: Context): List<String> = synchronized(lock) {
         val ids = enabled(context).filter { ID.matches(it) }.sorted()
-        if (ids.isEmpty()) return emptyList()
+        if (ids.isEmpty()) return@synchronized emptyList()
         if (!available(context)) {
             Log.w(TAG, "game storage is not attached; ${ids.size} app(s) use their internal data this session")
-            return emptyList()
+            return@synchronized emptyList()
         }
-        return ids.flatMap { id ->
+        ids.flatMap { id ->
             val card = cardDir(context, id) ?: return@flatMap emptyList()
             val guest = internalDir(context, id)
             val kept = File(guest, KEPT)
@@ -52,20 +53,20 @@ object FlatpakData {
     fun move(
         context: Context, id: String, toCard: Boolean, onProgress: (String, Int) -> Unit,
         freeBytes: (File) -> Long = { runCatching { StatFs(it.path).availableBytes }.getOrDefault(0L) },
-    ): String? {
-        if (!ID.matches(id)) return context.getString(R.string.store_data_failed)
-        if (SessionState.running) return context.getString(R.string.store_data_session)
-        val card = cardDir(context, id) ?: return context.getString(R.string.store_data_no_storage)
+    ): String? = synchronized(lock) {
+        if (!ID.matches(id)) return@synchronized context.getString(R.string.store_data_failed)
+        if (SessionState.running) return@synchronized context.getString(R.string.store_data_session)
+        val card = cardDir(context, id) ?: return@synchronized context.getString(R.string.store_data_no_storage)
         val internal = internalDir(context, id)
         val from = if (toCard) internal else card
         val to = if (toCard) card else internal
         onProgress(context.getString(R.string.store_data_moving), -1)
-        if (toCard && hasSymlink(from)) return context.getString(R.string.store_data_symlinks)
-        if (!to.isDirectory && !to.mkdirs()) return context.getString(R.string.store_data_failed)
-        if (entries(to).isNotEmpty()) return context.getString(R.string.store_data_failed)
+        if (toCard && hasSymlink(from)) return@synchronized context.getString(R.string.store_data_symlinks)
+        if (!to.isDirectory && !to.mkdirs()) return@synchronized context.getString(R.string.store_data_failed)
+        if (entries(to).isNotEmpty()) return@synchronized context.getString(R.string.store_data_failed)
         val bytes = size(from)
         val free = freeBytes(to)
-        if (free < bytes + RESERVE) return context.getString(R.string.store_data_space, com.droiddeck.launcher.core.FileUtils.sizeToString(free))
+        if (free < bytes + RESERVE) return@synchronized context.getString(R.string.store_data_space, com.droiddeck.launcher.core.FileUtils.sizeToString(free))
         val staging = File(to.parentFile, ".${to.name}.moving")
         val placed = ArrayList<File>()
         try {
@@ -83,11 +84,11 @@ object FlatpakData {
             Log.w(TAG, "$id: move to ${if (toCard) "game storage" else "internal"} failed", e)
             placed.forEach { it.deleteRecursively() }
             staging.deleteRecursively()
-            return context.getString(R.string.store_data_failed)
+            return@synchronized context.getString(R.string.store_data_failed)
         }
         SessionPrefs.setFlatpakCardData(context, id, toCard)
         if (toCard) entries(from).forEach { it.deleteRecursively() } else from.deleteRecursively()
-        return null
+        null
     }
 
     private fun entries(dir: File): List<File> = dir.listFiles().orEmpty().filter { it.name != KEPT }

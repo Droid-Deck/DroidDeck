@@ -138,7 +138,42 @@ class FlatpakDataTest {
 
     @Test fun unsafeIdsNeverReachABindOrAPath() {
         assertEquals(app.getString(R.string.store_data_failed), move("../../etc", true))
+        listOf(".", "..", "...").forEach { assertEquals(app.getString(R.string.store_data_failed), move(it, true)) }
+        SessionPrefs.setFlatpakCardData(app, "..", true)
+        SessionPrefs.setFlatpakCardData(app, ".", true)
+        assertTrue(FlatpakData.binds(app).isEmpty())
         SessionPrefs.setFlatpakCardData(app, "a:b/../c", true)
         assertTrue(FlatpakData.binds(app).isEmpty())
+    }
+
+    @Test fun sessionBindsWaitForAMoveInProgress() {
+        seed()
+        val inMove = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        var result: String? = "pending"
+        val mover = Thread {
+            result = FlatpakData.move(app, id, true, { _, _ -> }, { inMove.countDown(); release.await(); free })
+        }
+        mover.start()
+        assertTrue(inMove.await(10, java.util.concurrent.TimeUnit.SECONDS))
+        SessionState.running = true
+        var binds: List<String>? = null
+        val session = Thread { binds = FlatpakData.binds(app) }
+        session.start()
+        session.join(300)
+        assertTrue(session.isAlive)
+        release.countDown()
+        mover.join(10_000)
+        session.join(10_000)
+        assertNull(result)
+        assertEquals(2, binds!!.size)
+        assertTrue(binds!!.first().startsWith(File(card, "flatpak-data/$id").path))
+    }
+
+    @Test fun aMoveIsRefusedOnceASessionIsRunning() {
+        seed()
+        SessionState.running = true
+        assertEquals(app.getString(R.string.store_data_session), move(id, true))
+        assertTrue(FlatpakData.enabled(app).isEmpty())
     }
 }
