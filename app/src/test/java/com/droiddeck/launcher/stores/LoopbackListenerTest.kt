@@ -129,6 +129,22 @@ class LoopbackListenerTest {
         }
     }
 
+    @Test fun a_read_started_near_the_deadline_does_not_extend_it() {
+        val l = listen(requestTimeoutMs = 600)
+        Socket(loopback, l.port).use { s ->
+            val started = System.nanoTime()
+            s.getOutputStream().write('G'.code)
+            s.getOutputStream().flush()
+            Thread.sleep(450)
+            s.getOutputStream().write('E'.code)
+            s.getOutputStream().flush()
+            s.soTimeout = 3_000
+            assertTrue(endsWithin(s, 3_000))
+            val elapsedMs = (System.nanoTime() - started) / 1_000_000L
+            assertTrue("closed after $elapsedMs ms", elapsedMs in 500..900)
+        }
+    }
+
     @Test fun open_connections_are_closed_when_the_listener_closes() {
         val l = listen()
         val idle = Socket(loopback, l.port)

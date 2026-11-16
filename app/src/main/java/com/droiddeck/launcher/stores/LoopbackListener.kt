@@ -86,7 +86,6 @@ internal class LoopbackListener(
 
     private fun serve(socket: Socket) {
         try {
-            socket.soTimeout = requestTimeoutMs
             val request = try { readRequest(socket) } catch (e: IOException) { return }
             val outcome = outcomeOf(request)
             if (outcome == null) { respond(socket, 400, "Bad Request", ""); return }
@@ -105,7 +104,9 @@ internal class LoopbackListener(
         val head = StringBuilder()
         val deadline = System.nanoTime() + requestTimeoutMs * 1_000_000L
         while (head.length < MAX_HEAD) {
-            if (System.nanoTime() > deadline) throw SocketTimeoutException()
+            val left = (deadline - System.nanoTime()) / 1_000_000L
+            if (left <= 0) throw SocketTimeoutException()
+            socket.soTimeout = left.coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
             val b = input.read()
             if (b < 0) break
             head.append(b.toChar())
