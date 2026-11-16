@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">Los gráficos de SteamVR se detuvieron</string>
     <string name="steamvr_recovery_countdown">DroidDeck se reiniciará en %1$d segundos para restablecer los gráficos y volver a abrir SteamVR. Tu juego en curso se cerrará; el progreso no guardado no se podrá recuperar.</string>
@@ -4120,9 +4120,9 @@
     <string name="hud_readings_shown">Mostrados</string>
     <string name="hud_readings_count">%1$d de %2$d</string>
     <string name="exit_hint_back">Presiona atrás una vez más para salir</string>
-
     <string name="display_integer_scaling">Escalado de píxeles enteros</string>
     <string name="display_integer_scaling_hint">Usa la mayor escala entera que cabe. Puede recortar los bordes. Si la imagen original supera el tamaño de salida, el escalado fraccional muestra la imagen completa. La resolución se configura por separado.</string>
     <string name="display_scaling_integer">Entero</string>
     <string name="display_scaling_fit">Ajustar</string>
+    <string name="drawer_antialiasing">Antialiasing</string>
 </resources>
