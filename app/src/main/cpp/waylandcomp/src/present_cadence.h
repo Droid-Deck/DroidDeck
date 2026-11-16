@@ -10,6 +10,7 @@
 #define PRESENT_CADENCE_EXIT_VSYNCS 10
 #define PRESENT_CADENCE_MAX_GAP_VSYNCS 8
 #define PRESENT_CADENCE_MARGIN_NS 1000000LL
+#define PRESENT_CADENCE_APPLY_NS 1000000LL
 #define PRESENT_CADENCE_MAX_AHEAD_NS 100000000LL
 #define PRESENT_CADENCE_TIMELINE_STALE_NS 100000000LL
 
@@ -33,11 +34,14 @@ struct present_cadence_stats {
     unsigned paced, late, unpaced;
     unsigned interval;
     int64_t latency_ns, latency_max_ns;
+    unsigned fillers, overdue, woke_late;
+    int64_t lead_ns;
 };
 
 /* Picks the vsync a frame that reached the compositor at arrival_ns is shown at, or 0 to show it
  * as soon as it is ready. grid_ns is any vsync's present time, lead_ns how long before a vsync a
- * transaction must be applied to be shown at it. */
+ * transaction must be applied to be shown at it; the presenter applies it PRESENT_CADENCE_APPLY_NS
+ * before that. */
 int64_t present_cadence_plan(struct present_cadence *c, int64_t arrival_ns, int64_t grid_ns,
                              int64_t period_ns, int64_t lead_ns);
 /* Records when the frame planned last was applied; returns 1 when that was too late for its vsync. */

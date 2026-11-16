@@ -62,11 +62,11 @@ static unsigned note_gap(struct present_cadence *c, int64_t k) {
     return sum;
 }
 
-/* NDK layers have no buffer backpressure: a frame that becomes ready on the same refresh as a
- * held one replaces it, so a frame queued behind a held one is held to the refresh after it. */
+/* A frame ready for the same refresh as a held one would replace it (NDK layers have no buffer
+ * backpressure), so a frame that follows a held one is held to the refresh after it. */
 static int64_t behind_held(struct present_cadence *c, int64_t arrival_ns, int64_t first, int64_t period_ns,
                            int64_t lead_ns) {
-    if (!c->last_target_ns || c->last_target_ns < arrival_ns + lead_ns) {
+    if (!c->last_target_ns || c->last_target_ns < arrival_ns + PRESENT_CADENCE_APPLY_NS + lead_ns) {
         c->last_target_ns = 0;
         return 0;
     }
@@ -107,7 +107,8 @@ int64_t present_cadence_plan(struct present_cadence *c, int64_t arrival_ns, int6
     }
     const int64_t ref = c->arrival_ref_ns;
     const int64_t first =
-        present_cadence_vsync_at_or_after(ref + max_wait(c) + PRESENT_CADENCE_MARGIN_NS + lead_ns, grid_ns, period_ns);
+        present_cadence_vsync_at_or_after(
+        ref + max_wait(c) + PRESENT_CADENCE_MARGIN_NS + PRESENT_CADENCE_APPLY_NS + lead_ns, grid_ns, period_ns);
     int64_t target;
     if (!c->pacing) {
         target = behind_held(c, arrival_ns, first, period_ns, lead_ns);
@@ -154,5 +155,5 @@ int present_cadence_applied(struct present_cadence *c, int64_t applied_ns) {
     c->next_wait = (c->next_wait + 1) % PRESENT_CADENCE_WAITS;
     if (c->n_waits < PRESENT_CADENCE_WAITS) c->n_waits++;
     c->planned_ref_ns = 0;
-    return c->target_ns && applied_ns + c->lead_ns > c->target_ns;
+    return c->target_ns && applied_ns + PRESENT_CADENCE_APPLY_NS + c->lead_ns > c->target_ns;
 }

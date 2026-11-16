@@ -3944,11 +3944,14 @@ static int on_stats_timer(void *data) {
     {
         struct present_cadence_stats cs;
         sc_layer_cadence_take(&cs);
-        if (cs.paced)
+        if (cs.paced || cs.fillers)
             droiddeck_log("pacing", "last 10 s: %u game frames held to a steady cadence (every %u refreshes at the end), "
-                       "%.2f/%.2f ms from arrival to screen, %u applied too late for their refresh, %u shown unpaced",
-                       cs.paced, cs.interval, (double)cs.latency_ns / 1e6 / cs.paced, (double)cs.latency_max_ns / 1e6,
-                       cs.late, cs.unpaced);
+                       "%.2f/%.2f ms from arrival to screen, %u ready too late for their refresh, %u shown unpaced | "
+                       "presenter: %u filler refreshes, %u frames past their refresh, %u late wake-ups, "
+                       "frames applied %.2f ms before SurfaceFlinger's deadline, %.2f ms before their refresh",
+                       cs.paced, cs.interval, cs.paced ? (double)cs.latency_ns / 1e6 / cs.paced : 0.0,
+                       (double)cs.latency_max_ns / 1e6, cs.late, cs.unpaced, cs.fillers, cs.overdue, cs.woke_late,
+                       (double)PRESENT_CADENCE_APPLY_NS / 1e6, (double)cs.lead_ns / 1e6);
     }
     if (g_bfi_stats.lit || g_bfi_stats.dark || g_bfi_stats.failed) {
         droiddeck_log("bfi", "last 10 s: %u pictures, %u black refreshes, %u black refreshes not presented",

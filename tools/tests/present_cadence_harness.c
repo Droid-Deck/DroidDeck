@@ -24,9 +24,10 @@ struct run {
     int64_t latency_max, latency_sum;
 };
 
-/* Frames are applied in order. SurfaceFlinger shows a transaction at the first refresh it was
- * applied lead ahead of whose expected present time is after its desired time; an NDK layer has no
- * backpressure, so a frame ready on the same refresh as the one before it replaces it. */
+/* The presenter applies a paced frame PRESENT_CADENCE_APPLY_NS before SurfaceFlinger's deadline for
+ * its refresh, or as soon as it is ready if that is later, and fillers keep every refresh presented,
+ * so a frame applied lead ahead of a refresh is shown on it. Frames are applied in order; an NDK layer
+ * has no backpressure, so a frame ready on the same refresh as the one before it replaces it. */
 static struct run simulate(int paced, int64_t period, const char *gaps, int64_t wait_max, int64_t jitter, int frames,
                            int warmup) {
     const int64_t grid = 1000 * MS + 3 * MS, lead = 7 * MS;
@@ -44,16 +45,14 @@ static struct run simulate(int paced, int64_t period, const char *gaps, int64_t 
         nominal[i] = t;
         arrival[i] = t + rand_ns(2 * jitter) - jitter;
         const int64_t applied = arrival[i] + rand_ns(wait_max);
-        int64_t desired = 0;
+        int64_t apply = applied;
         if (paced) {
             const int64_t target = present_cadence_plan(&c, arrival[i], grid, period, lead);
-            if (target) desired = target - period / 2;
+            if (target && target - lead - PRESENT_CADENCE_APPLY_NS > apply) apply = target - lead - PRESENT_CADENCE_APPLY_NS;
             if (present_cadence_applied(&c, applied) && i >= warmup) r.late++;
             if (target && i >= warmup) r.paced++;
         }
-        int64_t v = at_or_after(applied + lead, grid, period);
-        if (desired)
-            while (desired >= v) v += period;
+        int64_t v = at_or_after(apply + lead, grid, period);
         if (i && v < ready[i - 1]) v = ready[i - 1];
         ready[i] = v;
     }
@@ -161,7 +160,7 @@ static void test_latency_comes_back_after_load_drops(void) {
         prev_target = target;
         light = target - arrival;
     }
-    if (!(light < heavy) || light > MS / 2 + PRESENT_CADENCE_MARGIN_NS + lead + p || short_intervals > 2) {
+    if (!(light < heavy) || light > MS / 2 + PRESENT_CADENCE_MARGIN_NS + PRESENT_CADENCE_APPLY_NS + lead + p || short_intervals > 2) {
         fprintf(stderr, "latency %.1f ms after the load dropped (was %.1f ms), %u short intervals\n", light / 1e6,
                 heavy / 1e6, short_intervals);
         exit(1);
