@@ -20,6 +20,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.time.Duration
+import java.util.function.BiConsumer
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], qualifiers = "xhdpi")
@@ -35,7 +36,7 @@ class DroidDeckHudHostCollapseTest {
 
     @After fun restoreAnimation() = animate(1f)
 
-    private fun collapse(snap: String, hudX: Float, hudY: Float, pressX: Float, pressY: Float): Triple<DroidDeckHudView, String, Pair<Float, Float>> {
+    private fun collapse(snap: String, hudX: Float, hudY: Float, pressX: Float, pressY: Float, layoutDuringCollapse: Boolean = false): Triple<DroidDeckHudView, String, Pair<Float, Float>> {
         val app = RuntimeEnvironment.getApplication()
         SessionPrefs.setDroidDeckHudConfig(app, DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSnap" to snap) + ("hudSize" to "full")))
         SessionPrefs.setDroidDeckHudPosition(app, hudX, hudY)
@@ -49,11 +50,21 @@ class DroidDeckHudHostCollapseTest {
         root.measure(exactly(2000), exactly(1000))
         root.layout(0, 0, 2000, 1000)
         hud.x = hudX; hud.y = hudY
+        if (layoutDuringCollapse) {
+            @Suppress("UNCHECKED_CAST")
+            val collapse = DroidDeckHudView::class.java.getDeclaredField("onHoldListener").also { it.isAccessible = true }.get(hud) as BiConsumer<Float, Float>
+            hud.setOnHoldListener { x, y ->
+                collapse.accept(x, y)
+                hud.requestLayout()
+                root.measure(exactly(2000), exactly(1000))
+                root.layout(0, 0, 2000, 1000)
+            }
+        }
         val down = SystemClock.uptimeMillis()
         MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, pressX, pressY, 0).also { root.dispatchTouchEvent(it); it.recycle() }
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ViewConfiguration.getLongPressTimeout() + 300L))
         MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, pressX, pressY, 0).also { root.dispatchTouchEvent(it); it.recycle() }
-        shadowOf(Looper.getMainLooper()).idle()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1000))
         root.measure(exactly(2000), exactly(1000))
         root.layout(0, 0, 2000, 1000)
         shadowOf(Looper.getMainLooper()).idle()
@@ -75,5 +86,14 @@ class DroidDeckHudHostCollapseTest {
         val (tabW, tabH) = hud.dockTabSize()
         assertEquals(700f - tabW / 2f, at.first, 2f)
         assertEquals(350f - tabH / 2f, at.second, 2f)
+    }
+
+    @Test fun aLayoutPassDuringTheCollapseKeepsTheTabWhereThePressPutIt() {
+        animate(1f)
+        val (hud, stored, at) = collapse("1", 600f, 300f, 700f, 350f, layoutDuringCollapse = true)
+        val (tabW, tabH) = hud.dockTabSize()
+        assertEquals("top", stored)
+        assertEquals(700f - tabW / 2f, SessionPrefs.droidDeckHudPosition(RuntimeEnvironment.getApplication())!!.first, 2f)
+        assertEquals(700f - tabW / 2f, at.first, 2f)
     }
 }

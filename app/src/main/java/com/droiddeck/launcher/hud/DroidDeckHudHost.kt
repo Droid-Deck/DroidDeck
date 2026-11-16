@@ -399,6 +399,7 @@ class DroidDeckHudHost(context: Context) {
     ).minByOrNull { it.value }!!.key
 
     private fun commitDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
+        snapping = false
         val tabX = hud.x; val tabY = hud.y
         if (edge != DroidDeckHudDock.NONE) {
             val p = hud.parent as? View
@@ -454,6 +455,7 @@ class DroidDeckHudHost(context: Context) {
             val (tabX, tabY) = settled(p, edge, tabW, tabH)
             val sx = tabW / hud.width; val sy = tabH / hud.height
             val from = hud.dockPreviewBlend
+            snapping = true
             hud.animate().x(tabX).y(tabY).scaleX(sx).scaleY(sy).setDuration(Motion.ms(220).toLong()).setInterpolator(EASE)
                 .setUpdateListener { hud.setDockPreview(edge, from + (1f - from) * it.animatedFraction) }
                 .withEndAction {
