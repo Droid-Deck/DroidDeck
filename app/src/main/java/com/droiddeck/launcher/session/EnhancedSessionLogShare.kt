@@ -870,7 +870,7 @@ internal object EnhancedSessionLogShare {
             truncated = truncated || scan.truncated
             partial = partial || scan.partial
             found += scan.files.asSequence()
-                .filter { recent(it) && it.name.endsWith(".log") && it.length() <= LEGACY_LOG_MAX_BYTES }
+                .filter { recent(it) && it.name.endsWith(".log") }
                 .filter { names == null || it.name in names }
                 .map { it to root }
                 .toList()
@@ -967,7 +967,6 @@ internal object EnhancedSessionLogShare {
     private const val RECENT_MILLIS = 7L * 24 * 60 * 60 * 1000
     private const val COPY_BUFFER_BYTES = 64 * 1024
     private const val TRACE_SCAN_BYTES = 16L * 1024 * 1024
-    private const val LEGACY_LOG_MAX_BYTES = 8L * 1024 * 1024
     private const val MAX_BATTLENET_SCAN = 64
     private const val MAX_BATTLENET_DIRECTORIES = 64
     private const val MAX_MANIFEST_RECORDS = 512

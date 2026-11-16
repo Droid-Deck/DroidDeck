@@ -173,6 +173,43 @@ class SessionLogShareZipTest {
         SessionLogShare.clear(app)
     }
 
+    @Test fun aBattleNetAgentLogOverThePerFileLimitIsSharedWithItsTail() {
+        val session = File(LinuxRuntime.logDir(app), "2026-11-16-01-battle-net").apply { mkdirs() }
+        File(session, "session.log").writeText("droiddeck-battlenet: open (from the menu)\n")
+        val agent = File(com.droiddeck.launcher.runtime.BattleNet.prefix(app), "pfx/drive_c/ProgramData/Battle.net/Agent")
+        val switcher = File(agent, "Logs").apply { mkdirs() }
+        val now = System.currentTimeMillis()
+        for (i in 1..10) switcher.resolve("Agent-$i.log").apply {
+            writeText("switcher argument[0]: '--session=$i'\n")
+            setLastModified(now - i * 60_000L)
+        }
+        val log = File(agent, "Agent.9900/Logs").apply { mkdirs() }.resolve("Agent-11.log")
+        try {
+            log.bufferedWriter().use { out ->
+                out.write("Agent started as Administrator\n")
+                val chunk = "x".repeat(8191) + "\n"
+                repeat(1100) { out.write(chunk) }
+                out.write("Update failed with error 2113\n")
+            }
+            assertTrue(log.length() > 8L * 1024 * 1024)
+
+            val zip = SessionLogShare.zipFolder(app, session)!!
+            ZipFile(zip).use { archive ->
+                val shared = archive.getInputStream(archive.getEntry("battlenet/agent/Agent.9900/Agent-11.log")!!).bufferedReader().readText()
+                assertTrue(shared.startsWith("Agent started as Administrator"))
+                assertTrue(shared.contains("diagnostic file truncated"))
+                assertTrue(shared.trimEnd().endsWith("Update failed with error 2113"))
+                val agentEntries = archive.entries().toList().map { it.name }.filter { it.startsWith("battlenet/agent/") }
+                assertEquals(10, agentEntries.size)
+                assertEquals((1..9).map { "Agent-$it.log" }.toSet(), agentEntries.filterNot { it.contains("Agent.9900") }.map { it.substringAfterLast('/') }.toSet())
+            }
+        } finally {
+            SessionLogShare.clear(app)
+            session.deleteRecursively()
+            agent.deleteRecursively()
+        }
+    }
+
     @Test fun theSharePassChangesNothingInACleanLine() {
         val line = "dxvk: Device 0x5 (Adreno 750) https://github.com/doitsujin/dxvk/releases code 403"
         assertEquals(line, com.droiddeck.launcher.core.LogRedactor.redactForShare(line))
