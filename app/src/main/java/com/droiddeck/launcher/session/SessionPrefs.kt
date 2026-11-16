@@ -949,8 +949,8 @@ object SessionPrefs {
         return prefs(context).getBoolean("steamGpuCompositing", true)
     }
 
-    fun steamGpuCompositingChosen(context: Context): Boolean =
-        prefs(context).contains("steamGpuCompositing") && steamGpuCompositing(context)
+    fun steamGpuCompositingChosen(context: Context, steamSession: Boolean): Boolean =
+        steamSession && prefs(context).contains("steamGpuCompositing") && steamGpuCompositing(context)
 
     fun steamGpuCompositingAllowed(): Boolean =
         !com.droiddeck.launcher.core.DeviceSupport.adreno() && !com.droiddeck.launcher.core.DeviceSupport.mali()
