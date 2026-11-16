@@ -49,6 +49,11 @@ a plain compact device ticket is sent unchanged. Store license tokens already do
 nexus-backend 0.2.15 ([@domsvoboda](https://github.com/domsvoboda)'s commit `27c335e`); the
 content licensing path does not yet (xodus-gaming/xodus#238).
 
+`droiddeck-dlc-mount.patch`: the C++ XGameRuntime mounts downloadable content only inside a
+host-owned workspace named by `XODUS_MOUNT_ROOT`. DroidDeck starts Wine itself, so the
+`droiddeck:prepare` session creates that workspace in its launch directory, reports it as
+`mountRoot`, and removes it when the session ends; `droiddeck-xbox` passes it to the game.
+
 `droiddeck-credential-diagnostics.patch` names the step behind a `credential-io` failure: the
 session lock (`lock-dir-owner`, `lock-file-mode`, `lock-flock-<reason>`, ...), a socket or loopback
 exchange that broke after connecting (`socket-exchange-<reason>`), a malformed host reply, or a

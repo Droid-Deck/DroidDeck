@@ -49,7 +49,8 @@ class XboxLaunchTest(unittest.TestCase):
                 (runtime / name).write_bytes(b'MZ')
             store = {'find_store_game': lambda argv: (root, {'store': 'xbox', 'id': 'GAME'}),
                      'ask': unittest.mock.Mock(return_value={'ok': True, 'socket': '/service', 'lease': 'lease-1',
-                                                            'exe': '/private/Game.exe', 'playfab': 'game-token'})}
+                                                            'exe': '/private/Game.exe', 'playfab': 'game-token',
+                                                            'mountRoot': '/launch/xodus-mounts-1'})}
             close = unittest.mock.Mock()
             with patch('runpy.run_path', return_value=store), patch.dict(xbox['launch'].__globals__, RUNTIME=runtime.parent), \
                  patch.dict(xbox['launch'].__globals__, bridge=lambda path: (1234, 'key', close)), \
@@ -64,6 +65,7 @@ class XboxLaunchTest(unittest.TestCase):
                 for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
                     self.assertNotIn(name, env)
                 self.assertEqual(env['XODUS_XSTS_PLAYFAB'], 'game-token')
+                self.assertEqual(env['XODUS_MOUNT_ROOT'], 'Z:\\launch\\xodus-mounts-1')
             close.assert_called_once()
             self.assertEqual(store['ask'].call_args.args[1], {'op': 'xbox-released', 'lease': 'lease-1'})
 
