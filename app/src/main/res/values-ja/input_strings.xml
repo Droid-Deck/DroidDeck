@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">入力プロファイル</string>
+    <string name="input_profiles">プロファイル</string>
+    <string name="input_physical">物理コントローラー</string>
+    <string name="input_primary">メイン画面</string>
+    <string name="input_secondary">サブ画面</string>
+    <string name="input_native">ネイティブ / Steam Input</string>
+    <string name="input_native_target">ネイティブ: %1$s</string>
+    <string name="input_remap_native">別のコントローラー入力を送信</string>
+    <string name="input_disabled">無効</string>
+    <string name="input_keys">キーまたはキーの組み合わせ</string>
+    <string name="input_direction_keys">方向キー</string>
+    <string name="input_pointer">ポインターを移動</string>
+    <string name="input_pointer_speed">ポインター速度: %1$d</string>
+    <string name="input_scroll">スクロール</string>
+    <string name="input_scroll_vertical">垂直スクロール</string>
+    <string name="input_mouse_left">マウス左ボタン</string>
+    <string name="input_mouse_right">マウス右ボタン</string>
+    <string name="input_mouse_middle">マウス中ボタン</string>
+    <string name="input_command_menu">DroidDeck メニューを開く</string>
+    <string name="input_command_keyboard">キーボードを表示</string>
+    <string name="input_command_steam">Steam メニューを開く</string>
+    <string name="input_command_qam">Steam クイックアクセスを開く</string>
+    <string name="input_remove_element">コントロールを削除</string>
+    <string name="input_add_element">コントロールを追加</string>
+    <string name="input_extra_keys">デバイス固有のボタン</string>
+    <string name="input_capture">物理ボタンを割り当て</string>
+    <string name="input_capture_confirm">ボタンを離してから、編集・再試行・キャンセルのいずれかを選択します。B または戻るは離した後にキャンセルします。</string>
+    <string name="input_capture_retry">再試行</string>
+    <string name="input_capture_hint">ボタンを押してください。キーボードキーとして報告される戻るボタンも含みます。音量キーと Android のシステムキーは予約されています。割り当てはこのデバイスにのみ適用されます。</string>
+    <string name="input_remove_binding">割り当てを削除</string>
+    <string name="input_latency">入力診断</string>
+    <string name="input_measure">入力ディスパッチ時間を記録</string>
+    <string name="input_read_timing">測定値を読み取る</string>
+    <string name="input_latency_hint">Android のディスパッチから既存の入力トランスポートへの公開までの時間を測定します。Bluetooth の到着、ゲストのポーリング、描画、表示の遅延は含みません。記録は既定でオフです。</string>
+    <string name="input_normal_binding">通常の入力割り当てを使用</string>
+</resources>

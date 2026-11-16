@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Syöttöprofiilit</string>
+    <string name="input_profiles">Profiilit</string>
+    <string name="input_physical">Fyysinen ohjain</string>
+    <string name="input_primary">Päänäyttö</string>
+    <string name="input_secondary">Toissijainen näyttö</string>
+    <string name="input_native">Alkuperäinen / Steam Input</string>
+    <string name="input_native_target">Alkuperäinen: %1$s</string>
+    <string name="input_remap_native">Lähetä toinen ohjaimen komento</string>
+    <string name="input_disabled">Pois käytöstä</string>
+    <string name="input_keys">Näppäin tai näppäinyhdistelmä</string>
+    <string name="input_direction_keys">Suuntanäppäimet</string>
+    <string name="input_pointer">Siirrä osoitinta</string>
+    <string name="input_pointer_speed">Osoittimen nopeus: %1$d</string>
+    <string name="input_scroll">Vieritä</string>
+    <string name="input_scroll_vertical">Vieritä pystysuunnassa</string>
+    <string name="input_mouse_left">Hiiren vasen painike</string>
+    <string name="input_mouse_right">Hiiren oikea painike</string>
+    <string name="input_mouse_middle">Hiiren keskimmäinen painike</string>
+    <string name="input_command_menu">Avaa DroidDeck-valikko</string>
+    <string name="input_command_keyboard">Näytä näppäimistö</string>
+    <string name="input_command_steam">Avaa Steam-valikko</string>
+    <string name="input_command_qam">Avaa Steamin pikakäyttö</string>
+    <string name="input_remove_element">Poista ohjain</string>
+    <string name="input_add_element">Lisää ohjain</string>
+    <string name="input_extra_keys">Laittekohtaiset painikkeet</string>
+    <string name="input_capture">Määritä fyysinen painike</string>
+    <string name="input_capture_confirm">Vapauta painike ja valitse Muokkaa, Yritä uudelleen tai Peruuta. B tai Takaisin peruuttaa vapauttamisen jälkeen.</string>
+    <string name="input_capture_retry">Yritä uudelleen</string>
+    <string name="input_capture_hint">Paina painiketta, myös näppäimeksi ilmoitettua Takaisin-painiketta. Äänenvoimakkuus- ja Android-järjestelmänäppäimet on varattu. Määritys koskee vain tätä laitetta.</string>
+    <string name="input_remove_binding">Poista määritys</string>
+    <string name="input_latency">Syötteen diagnostiikka</string>
+    <string name="input_measure">Tallenna syötteen lähetysaika</string>
+    <string name="input_read_timing">Lue mittaukset</string>
+    <string name="input_latency_hint">Mittaa lähetyksen Androidista julkaisuun olemassa olevaan syöttökanavaan. Bluetoothin saapuminen, vieraan kysely, renderöinti ja näytön viive eivät sisälly. Tallennus on oletuksena pois.</string>
+    <string name="input_normal_binding">Käytä tavallista syöttömääritystä</string>
+</resources>

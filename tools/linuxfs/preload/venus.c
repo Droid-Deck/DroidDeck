@@ -12,7 +12,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern char **environ;
+
 __attribute__((constructor)) static void bl_venus_keep_kopper(void) {
+    static const char name[] = "LIBGL_KOPPER_DISABLE=";
     const char *debug = getenv("VN_DEBUG");
-    if (debug && strstr(debug, "vtest")) unsetenv("LIBGL_KOPPER_DISABLE");
+    if (!debug || !strstr(debug, "vtest") || !environ) return;
+    char **out = environ;
+    for (char **in = environ; *in; in++)
+        if (strncmp(*in, name, sizeof name - 1)) *out++ = *in;
+    *out = NULL;
 }

@@ -129,8 +129,9 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
                 }
             }
         }
-        g.disconnect()
-        g.close()
+        // Android can refuse these (BLUETOOTH_CONNECT revoked); an exception on this thread would end the app.
+        runCatching { g.disconnect() }.onFailure { Log.w(TAG, "disconnect failed", it) }
+        runCatching { g.close() }.onFailure { Log.w(TAG, "close failed", it) }
         Log.i(TAG, "disconnected: $why")
         listener?.invoke()
     }

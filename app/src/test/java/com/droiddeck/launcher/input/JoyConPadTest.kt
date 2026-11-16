@@ -147,6 +147,75 @@ class JoyConPadTest {
         assertNull(RecordingWriter.pads[2])
     }
 
+    @Test fun aControllerThatDisconnectsWhileItsKeyIsHandledIsIgnored() {
+        for (lookups in 0..4) {
+            val event = key(right, KeyEvent.KEYCODE_BUTTON_A, BTN_SOUTH)
+            PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = lookups
+            try {
+                val handled = bridge.onKeyEvent(event)
+                if (lookups == 0) assertFalse(handled)
+                if (lookups >= 2) assertTrue(handled)
+            } finally { PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = -1 }
+        }
+        assertTrue(press(right, KeyEvent.KEYCODE_BUTTON_A, BTN_SOUTH))
+    }
+
+    @Test fun aControllerThatDisconnectsAfterTheFirstLookupStillDeliversItsEvents() {
+        val device = controller(0x045e, 0x0b13, MotionEvent.AXIS_X, MotionEvent.AXIS_Y)
+        val down = key(device, KeyEvent.KEYCODE_BUTTON_A, BTN_SOUTH)
+        val up = key(device, KeyEvent.KEYCODE_BUTTON_A, BTN_SOUTH, KeyEvent.ACTION_UP)
+        val move = motion(device, MotionEvent.AXIS_X to 0.5f, MotionEvent.AXIS_Y to -0.25f)
+        try {
+            PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = 1
+            assertTrue(bridge.onKeyEvent(down))
+            assertEquals(0, PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft)
+            assertTrue(pad(0).isDown(PadState.A))
+            PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = 1
+            assertTrue(bridge.onKeyEvent(up))
+            assertFalse(pad(0).isDown(PadState.A))
+            PadBridgeRoutingTest.RegisteredMotionEvent.lookupsLeft = 1
+            assertTrue(bridge.onMotionEvent(move))
+            assertEquals(0, PadBridgeRoutingTest.RegisteredMotionEvent.lookupsLeft)
+            assertEquals(0.5f, pad(0).leftX)
+            assertEquals(-0.25f, pad(0).leftY)
+        } finally {
+            PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = -1
+            PadBridgeRoutingTest.RegisteredMotionEvent.lookupsLeft = -1
+        }
+    }
+
+    @Test fun nonControllerInputStaysUnhandledWithOneLookup() {
+        val keyboard = InputDeviceBuilder.newBuilder().setId(nextId++).setName("Keyboard").setDescriptor("keyboard")
+            .setExternal(true).setSources(InputDevice.SOURCE_KEYBOARD)
+            .setKeyboardType(InputDevice.KEYBOARD_TYPE_ALPHABETIC)
+            .setKeyCharacterMap(KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)).build().also(::register)
+        val typed = KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A, 0, 0, keyboard.id, 30, 0, InputDevice.SOURCE_KEYBOARD)
+        val touch = MotionEvent.obtain(0L, 0L, MotionEvent.ACTION_MOVE, 1, arrayOf(MotionEvent.PointerProperties().apply { id = 0 }),
+            arrayOf(MotionEvent.PointerCoords().apply { x = 10f; y = 20f }), 0, 0, 1f, 1f, keyboard.id, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+        try {
+            PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = 1
+            assertFalse(bridge.onKeyEvent(typed))
+            PadBridgeRoutingTest.RegisteredMotionEvent.lookupsLeft = 1
+            assertFalse(bridge.onMotionEvent(touch))
+        } finally {
+            PadBridgeRoutingTest.RegisteredKeyEvent.lookupsLeft = -1
+            PadBridgeRoutingTest.RegisteredMotionEvent.lookupsLeft = -1
+        }
+        assertNull(RecordingWriter.pads[0])
+    }
+
+    @Test fun wiredMotionKeepsItsAxesWhenDeviceDisappears() {
+        val device = controller(0x20d6, 0x2063, MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        val event = motion(device, MotionEvent.AXIS_RX to 0.75f, MotionEvent.AXIS_RY to -0.5f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to 1f)
+        PadBridgeRoutingTest.RegisteredMotionEvent.lookupsLeft = 2
+        try { assertTrue(bridge.onMotionEvent(event)) } finally { PadBridgeRoutingTest.RegisteredMotionEvent.lookupsLeft = -1 }
+        assertEquals(0.75f, pad(0).rightX)
+        assertEquals(-0.5f, pad(0).rightY)
+        assertEquals(0f, pad(0).leftTrigger)
+        assertEquals(1f, pad(0).rightTrigger)
+    }
+
     @Test fun joyConsHeldForVrAreLeftAlone() {
         bridge.setExcluded { it == left.id }
         assertFalse(bridge.onKeyEvent(key(left, KeyEvent.KEYCODE_BUTTON_L1, BTN_TL)))

@@ -390,7 +390,8 @@ object SteamTouchConfig {
         options: Options? = null,
     ): File? {
         val dir = configDir(context) ?: return null
-        val source = bindings.entries.fold(config.text ?: return null) { text, (ref, change) ->
+        val base = config.text ?: if (config.file == null && bindings.isEmpty()) "\"controller_mappings\"\n{\n\t\"controller_type\"\t\t\"controller_mobile_touch\"\n}\n" else return null
+        val source = bindings.entries.fold(base) { text, (ref, change) ->
             SteamTouchBindings.rewrite(text, ref, change) ?: text
         }
         val key = steamKey(context, appId)

@@ -81,7 +81,10 @@ __attribute__((visibility("hidden"))) int bl_status_without_tracer(const char *p
   long pid;
   if ((flags & O_ACCMODE) != O_RDONLY || (pid = status_pid(path)) < 0 || is_web_helper(caller) || bl_from_ntdll(caller))
     return -1;
-  int in = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+  // through the next open(): the native userland's hook gives the app's ids as root's there
+  static int (*next_open)(const char *, int, ...) = NULL;
+  if (!next_open) next_open = (int (*)(const char *, int, ...))dlsym(RTLD_NEXT, "open");
+  int in = next_open ? next_open(path, O_RDONLY | O_CLOEXEC) : (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
   if (in < 0) goto done;
   for (;;) {
     ssize_t n = read(in, text + len, sizeof(text) - 1 - len);
