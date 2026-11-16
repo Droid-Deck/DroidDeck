@@ -4148,7 +4148,7 @@
     <string name="exit_hint_back">Premi di nuovo indietro per uscire</string>
 
     <string name="display_integer_scaling">Ridimensionamento intero</string>
-    <string name="display_integer_scaling_hint">Usa il massimo fattore di scala intero che entra nello schermo. I bordi potrebbero essere tagliati. Se la sorgente è più grande dell\'output, la scalatura frazionaria mostra l'intera immagine. La risoluzione si configura separatamente.</string>
+    <string name="display_integer_scaling_hint">Usa il massimo fattore di scala intero che entra nello schermo. I bordi potrebbero essere tagliati. Se la sorgente è più grande dell\'output, la scalatura frazionaria mostra l\'intera immagine. La risoluzione si configura separatamente.</string>
     <string name="display_scaling_integer">Intero</string>
     <string name="display_scaling_fit">Adatta</string>
 </resources>
