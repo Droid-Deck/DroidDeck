@@ -125,6 +125,7 @@ class OpenCodeTest {
         assertFalse(OpenCode.hasKey(root))
         val auth = File(root, "root/.local/share/opencode/auth.json").apply { parentFile!!.mkdirs() }
         auth.writeText("""{"openai":{"type":"oauth","refresh":"r"}}""")
+        assertFalse(OpenCode.hasKey(root))
         OpenCode.saveKey(root, "  sk-zen \n")
         val saved = JSONObject(auth.readText())
         assertEquals("r", saved.getJSONObject("openai").getString("refresh"))
@@ -133,6 +134,15 @@ class OpenCodeTest {
         assertTrue(OpenCode.hasKey(root))
         OpenCode.useFree(root)
         assertTrue(File(root, "root/.config/opencode/.droiddeck-free").exists())
+    }
+
+    @Test fun anUnreadableAuthFileIsNotReplaced() {
+        val root = Files.createTempDirectory("rootfs").toFile()
+        val auth = File(root, "root/.local/share/opencode/auth.json").apply { parentFile!!.mkdirs() }
+        auth.writeText("{not json")
+        assertTrue(runCatching { OpenCode.saveKey(root, "sk-zen") }.isFailure)
+        assertEquals("{not json", auth.readText())
+        assertFalse(OpenCode.hasKey(root))
     }
 
     @Test fun signInIsTheKeyOrTheFreeMark() {

@@ -111,7 +111,7 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
                 // Shown while the sign-in is pending, so it is still there after a trip to the browser for the key.
                 val pending = (status == Status.TODO || status == Status.FAILED) && AgentSetup.status[Step.INSTALL] == Status.DONE
                 val showKey = keyed && (keyOpen || pending) && status != Status.WORKING
-                var key by rememberSaveable(harness.id) { mutableStateOf("") }
+                var key by remember(harness.id) { mutableStateOf("") }
                 CheckRow(
                     when (status) {
                         Status.DONE -> CheckState.OK

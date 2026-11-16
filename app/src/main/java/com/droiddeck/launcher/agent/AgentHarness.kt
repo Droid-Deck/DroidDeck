@@ -425,12 +425,13 @@ object OpenCode : AgentHarness {
     override val plans = true
     override val efforts = listOf("low", "medium", "high")
 
-    override fun hasKey(rootfs: File) = runCatching { JSONObject(File(rootfs, AUTH).readText()).length() > 0 }.getOrDefault(false)
+    override fun hasKey(rootfs: File) = runCatching { JSONObject(File(rootfs, AUTH).readText()).has("opencode") }.getOrDefault(false)
 
     /** The key opencode's own `auth login` would save for OpenCode Zen. */
     override fun saveKey(rootfs: File, key: String) {
         val file = File(rootfs, AUTH)
-        val auth = runCatching { JSONObject(file.readText()) }.getOrNull() ?: JSONObject()
+        // An auth.json that cannot be read holds other providers' sign-ins too, so it is never replaced.
+        val auth = if (file.exists()) JSONObject(file.readText()) else JSONObject()
         auth.put("opencode", JSONObject().put("type", "api").put("key", key.trim()))
         file.parentFile?.mkdirs()
         file.writeText(auth.toString(2) + "\n")
