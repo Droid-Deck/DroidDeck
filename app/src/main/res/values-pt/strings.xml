@@ -4158,5 +4158,7 @@
     <string name="exit_hint_back">Pressione o botão Voltar novamente para sair</string>
 
     <string name="display_integer_scaling">Escala por números inteiros</string>
-    <string name="display_integer_scaling_hint">Usa o maior fator de escala inteiro que couber. Se a imagem de origem for grande demais, ajusta a imagem completa para evitar cortes. A resolução é configurada separadamente.</string>
+    <string name="display_integer_scaling_hint">Usa a maior escala inteira que cabe. Pode cortar as bordas da tela. Se a origem for maior que a saída, a escala fracionária exibe a imagem completa. A resolução é configurada separadamente.</string>
+    <string name="display_scaling_integer">Inteiro</string>
+    <string name="display_scaling_fit">Ajustar</string>
 </resources>

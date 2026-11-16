@@ -4111,5 +4111,7 @@
     <string name="exit_hint_back">Nyomd meg még egyszer a visszát a kilépéshez</string>
 
     <string name="display_integer_scaling">Egész számú méretezés</string>
-    <string name="display_integer_scaling_hint">A legnagyobb elférő egész számú méretezési tényezőt használja. Ha a forrás túl nagy, a teljes képet hozzáigazítja a levágás elkerüléséhez. A felbontás külön állítható.</string>
+    <string name="display_integer_scaling_hint">A legnagyobb elférő egész számú méretezést használja. A szélek levágódhatnak. Ha a forrás nagyobb a kimenetnél, a tört méretezés a teljes képet jeleníti meg. A felbontás külön állítható.</string>
+    <string name="display_scaling_integer">Egész szám</string>
+    <string name="display_scaling_fit">Igazítás</string>
 </resources>

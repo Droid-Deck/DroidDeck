@@ -4111,5 +4111,7 @@
     <string name="exit_hint_back">Paina takaisin vielä kerran poistuaksesi</string>
 
     <string name="display_integer_scaling">Kokonaislukuskaalaus</string>
-    <string name="display_integer_scaling_hint">Käyttää suurinta mahtuvaa kokonaislukukerrointa. Jos lähdekuva on liian suuri, koko kuva sovitetaan rajauksen välttämiseksi. Tarkkuus määritetään erikseen.</string>
+    <string name="display_integer_scaling_hint">Käyttää suurinta kokonaislukukerrointa, joka mahtuu näyttöön. Reunat voivat rajautua. Jos lähde on tulostetta suurempi, murto-osaskaalaus näyttää koko kuvan. Resoluutio määritetään erikseen.</string>
+    <string name="display_scaling_integer">Kokonaisluku</string>
+    <string name="display_scaling_fit">Sovita</string>
 </resources>

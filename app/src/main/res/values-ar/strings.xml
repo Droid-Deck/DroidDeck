@@ -4271,5 +4271,7 @@
     <string name="exit_hint_back">اضغط زر الرجوع مرة أخرى للخروج</string>
 
     <string name="display_integer_scaling">تحجيم صحيح بالأعداد الصحيحة</string>
-    <string name="display_integer_scaling_hint">يستخدم أكبر معامل تحجيم صحيح يناسب الشاشة. إذا كان المصدر كبيرًا جدًا، يتم تصغير الصورة كاملة لتجنب الاقتصاص. يتم ضبط الدقة بشكل منفصل.</string>
+    <string name="display_integer_scaling_hint">يستخدم أكبر معامل تكبير صحيح يناسب الشاشة. قد يقص الحواف. إذا كان المصدر أكبر من الناتج، فإن التحجيم الكسري يعرض الصورة كاملة. يتم ضبط الدقة بشكل منفصل.</string>
+    <string name="display_scaling_integer">عدد صحيح</string>
+    <string name="display_scaling_fit">ملاءمة</string>
 </resources>

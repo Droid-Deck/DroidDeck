@@ -90,7 +90,7 @@ int __android_log_print(int, const char *, const char *, ...);
         built = subprocess.run([cc, '-std=c11', '-Wall', '-Wextra', '-Werror',
                                 '-Wno-unused-parameter', '-Wno-missing-field-initializers', '-UNDEBUG',
                                 '-I', str(tmp), '-idirafter', str(headers), '-I', str(SOURCE.parent),
-                                str(probe), '-pthread', '-o', str(cls.binary)],
+                                str(probe), '-pthread', '-lm', '-o', str(cls.binary)],
                                capture_output=True, text=True)
         if built.returncode:
             raise AssertionError(built.stdout + built.stderr)

@@ -4151,5 +4151,7 @@
     <string name="exit_hint_back">Apasă din nou înapoi pentru a ieși</string>
 
     <string name="display_integer_scaling">Scalare cu numere întregi</string>
-    <string name="display_integer_scaling_hint">Folosește cel mai mare factor întreg de scalare care încape. Dacă sursa este prea mare, adaptează întreaga imagine pentru a evita decuparea. Rezoluția se configurează separat.</string>
+    <string name="display_integer_scaling_hint">Folosește cea mai mare scară întreagă care încape. Marginile ecranului pot fi decupate. Dacă sursa este mai mare decât ieșirea, scalarea fracționară afișează imaginea completă. Rezoluția se configurează separat.</string>
+    <string name="display_scaling_integer">Număr întreg</string>
+    <string name="display_scaling_fit">Potrivire</string>
 </resources>
