@@ -10,6 +10,7 @@ import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -164,16 +165,47 @@ class SessionClipboardTest {
         }
     }
 
+    @Test fun pausedDesktopCopyIsRejectedWhenAndroidClipboardIsClearedBeforeResume() {
+        val away = startAway("paused-cleared")
+        val ready = File(away.dir, "text.queue.1.1.ready")
+        try {
+            away.clipboard.stop()
+            assertTrue(ready.exists())
+            away.manager.clearPrimaryClip()
+            assertNull(androidText(away.manager))
+            away.focus = true
+            away.clipboard.start()
+            val deadline = System.currentTimeMillis() + 5000
+            while (ready.exists() && System.currentTimeMillis() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(20)
+            }
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(away.dir.listFiles()!!.none { it.name.endsWith(".claimed") || it.name.endsWith(".ready") })
+            assertNull(androidText(away.manager))
+        } finally {
+            away.clipboard.stop()
+            SessionState.sessionId = null
+        }
+    }
+
     @Test fun twoPausedDesktopCopiesEndWithTheLaterOneOnResume() {
         val away = startAway("paused-two")
         try {
-            File(away.dir, "text.queue.1.2.ready").writeText("second from desktop")
+            away.clipboard.stop()
+            val pending = File(away.dir, "text.queue.1.2.pending")
+            pending.writeText("second from desktop")
+            assertTrue(pending.renameTo(File(away.dir, "text.queue.1.2.ready")))
+            away.clipboard.start()
             val claimDeadline = System.currentTimeMillis() + 5000
             while (away.dir.listFiles()!!.count { it.name.endsWith(".claimed") } < 2 && System.currentTimeMillis() < claimDeadline) {
                 shadowOf(Looper.getMainLooper()).idle()
                 Thread.sleep(20)
             }
             shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(2, away.dir.listFiles()!!.count { it.name.endsWith(".claimed") })
+            assertTrue(away.dir.listFiles()!!.none { it.name.endsWith(".ready") })
+            assertEquals("phone", androidText(away.manager))
             away.clipboard.stop()
             away.focus = true
             away.clipboard.start()

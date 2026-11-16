@@ -77,7 +77,8 @@ class SessionClipboard(private val context: Context, private val hasFocus: () ->
         val now = androidText()
         var applied = false
         due.forEach { copy ->
-            val fresh = copy.baseline == null || copy.baseline.text == now || replayedFromBaseline[copy.baseline.text] == now
+            val fresh = copy.baseline == null || copy.baseline.text == now ||
+                (replayedFromBaseline.containsKey(copy.baseline.text) && replayedFromBaseline[copy.baseline.text] == now)
             if (fresh && receiveGuestText(copy.text, true)) {
                 applied = true
                 copy.baseline?.let { replayedFromBaseline[it.text] = copy.text }
