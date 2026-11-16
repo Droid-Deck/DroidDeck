@@ -336,7 +336,7 @@ object AddedGames {
         val owner = ownerFolder(app, exe)
         if (owner != null && owner.path !in SessionPrefs.removedAddedGames(app)) {
             single(app, owner.path)?.takeIf { canonical(it.exe) == path }?.let {
-                AddedExes.put(app, AddedExes.Entry(owner.path, exe.path))
+                if (guestPath(app, exe) != null) AddedExes.put(app, AddedExes.Entry(owner.path, exe.path))
                 return AddResult.Existing(it)
             }
         }
