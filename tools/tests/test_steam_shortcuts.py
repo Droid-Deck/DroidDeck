@@ -71,6 +71,21 @@ class ShortcutsTest(unittest.TestCase):
     def record(self):
         return json.loads((self.config / shortcuts.RECORD).read_text())
 
+    def merge_target(self, mount, exe, **edits):
+        """Runs merge against a target under mount, with the mount's guest roots patched in."""
+        old = shortcuts.CARD_MOUNTS
+        shortcuts.CARD_MOUNTS = (str(mount),)
+        self.addCleanup(setattr, shortcuts, 'CARD_MOUNTS', old)
+        fresh = shortcuts.shortcut(self.game())
+        current = dict(fresh, Exe=exe, **edits)
+        state = {
+            'app': {field: fresh[field] for field in shortcuts.FIELDS},
+            'steam': {field: current.get(field, '') for field in ('AppName', 'Exe', 'StartDir', 'LaunchOptions')},
+            'rev': 1,
+        }
+        entry, _ = shortcuts.merge(fresh, current, state, 0)
+        return entry
+
     def test_settings_changed_in_steam_survive_its_restart(self):
         self.run_writer(self.game())
         edits = dict(Exe='"%s/bin/Other.exe"' % GUEST, StartDir='"%s"' % GUEST, LaunchOptions='DXVK_HUD=1 %command%',
@@ -112,6 +127,20 @@ class ShortcutsTest(unittest.TestCase):
         card.rmdir()
         entry = self.run_writer(self.game())[APPID]
         self.assertEqual('"%s/card/Other.exe"' % GUEST, entry['Exe'])
+
+    def test_a_steam_target_under_a_bare_card_mountpoint_is_kept(self):
+        card = self.root / 'card'
+        card.mkdir()
+        entry = self.merge_target(card, '"%s/Other.exe"' % card, StartDir='"%s/data"' % GUEST)
+        self.assertEqual('"%s/Other.exe"' % card, entry['Exe'])
+        self.assertEqual('"%s/data"' % GUEST, entry['StartDir'])
+
+    def test_a_steam_target_under_a_mounted_card_goes_back_to_the_apps(self):
+        card = self.root / 'card'
+        (card / 'steamapps').mkdir(parents=True)
+        entry = self.merge_target(card, '"%s/Other.exe"' % card, StartDir='"%s/data"' % GUEST)
+        self.assertEqual('"%s/Example.exe"' % GUEST, entry['Exe'])
+        self.assertEqual('"%s"' % GUEST, entry['StartDir'])
 
     def test_the_app_taking_steams_target_keeps_steams_start_in(self):
         self.run_writer(self.game())

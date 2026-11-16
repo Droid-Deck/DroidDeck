@@ -125,6 +125,10 @@ RECORD = ".droiddeck-shortcuts.json"
 AWAY_LIMIT = 256
 FIELDS = ("AppName", "Exe", "StartDir", "icon", "LaunchOptions")
 FOLLOWED = ("StartDir", "LaunchOptions")
+# Guest mountpoints whose contents live on storage the user can unplug. The app
+# creates the mountpoint before binding it, so it outlives a removed card.
+CARD_MOUNTS = ("/mnt/droiddeck-sd", "/mnt/bannerlator-sd")
+LIBRARY_MOUNTS = "/mnt/droiddeck-lib"
 
 
 def unquoted(value):
@@ -146,6 +150,30 @@ def read_record(path):
     }
 
 
+def storage_mounted(target):
+    """Whether the storage holding target is there this session.
+
+    The app prepares a mounted library by creating its steamapps folder, so a mountpoint
+    that exists but lists nothing is one a removed card left behind. A target under it may
+    work again when the card returns, so its absence is not proof the file is gone.
+    """
+    mount = None
+    for root in CARD_MOUNTS:
+        if target == root or target.startswith(root + "/"):
+            mount = root
+            break
+    else:
+        prefix = LIBRARY_MOUNTS + "/"
+        if target.startswith(prefix):
+            mount = prefix + target[len(prefix):].split("/", 1)[0]
+    if mount is None:
+        return True
+    try:
+        return bool(os.listdir(mount))
+    except OSError:
+        return False
+
+
 def merge(fresh, current, state, seen):
     state = state if isinstance(state, dict) else {}
     rev = state.get("rev") if isinstance(state.get("rev"), int) else 0
@@ -162,9 +190,11 @@ def merge(fresh, current, state, seen):
     # A target Steam still points at after the file is gone starts nothing, so it is not
     # an edit to keep: the app's own exe replaces it (#694: a hand-typed Target outlived
     # the game update that removed the file, and every launch died before the game ran).
-    # Only when the folder that holds it is there: an absent folder can equally be an
-    # unmounted card, and that target may work again next session.
-    gone = bool(target) and os.path.isdir(os.path.dirname(target)) and not os.path.isfile(target)
+    # Only when the folder that holds it is there and its storage is mounted: an absent
+    # folder or a bare mountpoint can equally be an unplugged card, and that target may
+    # work again next session.
+    gone = (bool(target) and os.path.isdir(os.path.dirname(target)) and
+            not os.path.isfile(target) and storage_mounted(target))
     if exe != target and (gone or exe != unquoted(base.get("Exe")) or seen == rev):
         entry["Exe"], entry["StartDir"] = fresh["Exe"], fresh["StartDir"]
     for field in ("AppName", "icon"):
