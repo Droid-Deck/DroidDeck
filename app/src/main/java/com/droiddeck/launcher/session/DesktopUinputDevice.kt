@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.input.HeldInput
 import com.droiddeck.launcher.input.InputSpace
 
 class DesktopUinputDevice(
@@ -15,8 +16,8 @@ class DesktopUinputDevice(
         fun wheel(vertical120: Int, horizontal120: Int)
     }
 
-    private val heldKeys = LinkedHashSet<Int>()
-    private val heldButtons = LinkedHashSet<Int>()
+    private val heldKeys = HeldInput(sink::key)
+    private val heldButtons = HeldInput(sink::button)
     private var dx = 0
     private var dy = 0
     private var x = -1
@@ -40,10 +41,8 @@ class DesktopUinputDevice(
 
     fun release() {
         flushMotion()
-        heldKeys.toList().forEach { sink.key(it, false) }
-        heldKeys.clear()
-        heldButtons.toList().forEach { sink.button(it, false) }
-        heldButtons.clear()
+        heldKeys.release(SOURCE)
+        heldButtons.release(SOURCE)
     }
 
     private fun key(code: Int, down: Boolean) {
@@ -54,12 +53,12 @@ class DesktopUinputDevice(
         }
         if (button != null) {
             flushMotion()
-            if (if (down) heldButtons.add(button) else heldButtons.remove(button)) sink.button(button, down)
+            heldButtons.set(SOURCE, button, down)
             return
         }
         if (code !in KEY_ESC until BTN_MISC && code !in KEY_OK..KEY_MAX) return
         flushMotion()
-        if (if (down) heldKeys.add(code) else heldKeys.remove(code)) sink.key(code, down)
+        heldKeys.set(SOURCE, code, down)
     }
 
     private fun relative(code: Int, value: Int) {
@@ -122,6 +121,7 @@ class DesktopUinputDevice(
         const val ABS_X = 0x00
         const val ABS_Y = 0x01
         const val WHEEL_UNITS = 120
+        private const val SOURCE = 1
 
         private fun scale(value: Int, range: IntRange, size: Int): Int =
             ((value.toLong() - range.first) * (size - 1) / (range.last.toLong() - range.first))
