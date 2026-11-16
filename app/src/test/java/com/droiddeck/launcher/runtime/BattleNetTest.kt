@@ -446,6 +446,7 @@ class BattleNetTest {
         assertEquals("D3CN", BattleNet.launchCode(context, "diablo3", china))
         assertEquals("D3", BattleNet.launchCode(context, "diablo3", legacy))
         assertEquals("D3", BattleNet.launchCode(context, "diablo3", null))
+        assertNull(BattleNet.launchCode(context, "diablo3", File(china, "missing")))
         val game = com.droiddeck.launcher.frontend.Library.SteamGame(
             1234, "Diablo III", null, com.droiddeck.launcher.frontend.Library.ADDED,
             source = Store.BATTLENET.id, storeId = "diablo3", gameFiles = china,
@@ -553,6 +554,34 @@ class BattleNetTest {
         ended.countDown()
         assertTrue(done.await(5, TimeUnit.SECONDS))
         assertEquals("osic", seen.get())
+    }
+
+    @Test fun aCancelledInstallRemovesAFolderItCreatedWithoutARegistration() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected")
+        assertFalse(folder.exists())
+        folder.mkdirs()
+        File(folder, "partial.bin").writeBytes(byteArrayOf(1, 2, 3))
+        val item = CatalogItem(
+            Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
+            extra = mapOf(BattleNetInstall.PREEXISTING to "0"),
+        )
+        val uninstalled = AtomicBoolean(false)
+        val installer = BattleNetInstaller(context, item, folder, false, registrationWaitMs = 0, uninstall = {
+            uninstalled.set(true)
+            false
+        }) { emptyList() }
+        BattleNetInstaller::class.java.getDeclaredField("createdFolder").apply { isAccessible = true }
+            .set(installer, AtomicBoolean(true))
+        BattleNetInstaller::class.java.getDeclaredField("started").apply { isAccessible = true }
+            .set(installer, AtomicBoolean(true))
+        val ended = BattleNetInstaller::class.java.getDeclaredField("ended").apply { isAccessible = true }
+            .get(installer) as CountDownLatch
+        installer.cancel(true)
+        ended.countDown()
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (folder.exists() && System.nanoTime() < until) Thread.sleep(10)
+        assertFalse("a folder this task created must not survive a cancel", folder.exists())
+        assertFalse(uninstalled.get())
     }
 
     @Test fun aRegistrationSourceFailureMakesOwnershipUnknown() {

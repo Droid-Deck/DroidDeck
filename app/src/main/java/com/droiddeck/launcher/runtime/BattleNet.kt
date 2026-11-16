@@ -227,10 +227,8 @@ object BattleNet {
 
     internal fun launchCode(games: List<Game>, uid: String, folder: File?): String? {
         val same = games.filter { it.uid == uid }
-        val target = folder?.absolutePath
-        return same.firstOrNull { target != null && it.folder.absolutePath == target }?.code
-            ?: same.singleOrNull()?.code
-            ?: title(uid)?.code
+        if (folder != null) return same.firstOrNull { it.folder.absolutePath == folder.absolutePath }?.code
+        return same.singleOrNull()?.code ?: title(uid)?.code
     }
 
     internal fun registrationsAt(context: Context, id: String, folder: File): List<String>? {

@@ -290,6 +290,7 @@ internal class BattleNetInstaller(
     private val folder: File,
     private val update: Boolean,
     private val ownership: Ownership = Ownership(item),
+    private val registrationWaitMs: Long = REGISTRATION_WAIT_MS,
     private val uninstall: (String) -> Boolean = { BattleNetInstall.agentUninstall(app, it) },
     private val registration: () -> List<String>? = {
         BattleNet.registrationsAt(app, item.id, folder)
@@ -298,6 +299,7 @@ internal class BattleNetInstaller(
     private val cancelled = AtomicBoolean(false)
     private val cleanupStarted = AtomicBoolean(false)
     private val started = AtomicBoolean(false)
+    private val createdFolder = AtomicBoolean(false)
     private val queueKey = DownloadEntry(Store.BATTLENET, item.id, item.title).key
     private val ended = java.util.concurrent.CountDownLatch(1)
 
@@ -332,7 +334,7 @@ internal class BattleNetInstaller(
         val title = BattleNet.title(item.id)
         val product = title?.product ?: throw IllegalStateException(app.getString(R.string.bnet_dl_failed, item.id))
         val uid = item.extra[BattleNetInstall.INSTALL_UID] ?: title.uid
-        if (!update) folder.mkdirs()
+        if (!update && folder.mkdirs()) createdFolder.set(true)
         val guest = AddedGames.guestPath(app, folder) ?: throw IllegalStateException(app.getString(R.string.bnet_dl_failed, folder.path))
         val (country, region) = BattleNetInstall.country(Locale.getDefault())
         val args = if (update) listOf("agent-update", uid)
@@ -379,7 +381,7 @@ internal class BattleNetInstaller(
      * right after the request would otherwise read an empty list and leave the registration behind.
      */
     private fun registrationsWaiting(): List<String>? {
-        val deadline = System.currentTimeMillis() + REGISTRATION_WAIT_MS
+        val deadline = System.currentTimeMillis() + registrationWaitMs
         while (true) {
             val found = runCatching { registration() }.getOrNull() ?: return null
             if (found.isNotEmpty() || System.currentTimeMillis() >= deadline) return found
@@ -412,7 +414,7 @@ internal class BattleNetInstaller(
                     } else {
                         val uid = created.firstOrNull()
                         val gone = uid?.let(uninstall) ?: false
-                        if (gone || uid == null && folder.isDirectory && folder.list().isNullOrEmpty()) {
+                        if (gone || uid == null && (createdFolder.get() || folder.isDirectory && folder.list().isNullOrEmpty())) {
                             com.droiddeck.launcher.core.FileUtils.delete(folder)
                         }
                         Log.i("BattleNetInstall", "cancelled install of ${uid ?: "a task without a registration"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
