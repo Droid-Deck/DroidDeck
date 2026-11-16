@@ -58,7 +58,7 @@ object AddedGamesPublisher {
         return AddedGames.listingFile(app)
     }
 
-    private fun log(games: List<AddedGames.Game>) {
+    internal fun log(games: List<AddedGames.Game>) {
         if (games.isNotEmpty()) Log.i(TAG, "added games: " + games.joinToString { "${it.name} (${it.exe.name})" })
     }
 

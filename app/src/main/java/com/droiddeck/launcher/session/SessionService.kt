@@ -675,7 +675,7 @@ class SessionService : Service() {
         if (steamHere || noSteamGame) {
             val listing = if (steamHere) SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGamesPublisher.sessionListing(this) } else {
                 val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
-                if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
+                com.droiddeck.launcher.frontend.AddedGamesPublisher.log(added)
                 SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
             }
             guest.add("BL_ADDED_GAMES=" + listing.path)
