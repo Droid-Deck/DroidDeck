@@ -885,10 +885,10 @@ class SessionService : Service() {
                         ))
                     }
                 },
-                readBackAllowed = { SessionPrefs.ramCapMb(this) == 0 },
+                ramCapKb = { SessionPrefs.ramCapMb(this) * 1024L },
                 pagedIn = { processes, swapKb, swapBeforeKb, availableKb, millis ->
                     if (processes == 0) {
-                        Log.i(TAG, "left ${swapBeforeKb / 1024} MB in zram after resume (RAM cap, or ${availableKb / 1024} MB available is too little)")
+                        Log.i(TAG, "left ${swapBeforeKb / 1024} MB in zram after resume (RAM cap reached, or ${availableKb / 1024} MB available is too little)")
                     } else {
                         Log.i(TAG, "read back $processes processes in $millis ms: zram ${swapBeforeKb / 1024} -> ${swapKb / 1024} MB")
                     }

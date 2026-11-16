@@ -109,6 +109,15 @@ Without root an app cannot write its memory cgroup's `memory.reclaim` (owned by 
 and KGSL's per-process GPU reclaim `state` is root-only. Page-out therefore runs inside each
 process through the preload, and GPU memory itself cannot be compressed from userspace.
 
+## Read-back after a suspend
+
+A hidden or screen-off suspend pages the session out before it stops it. After the resume, the
+processes that were paged out are read back largest first, as long as their swap fits the
+budget: half of `MemAvailable`, while leaving the larger of 1 GiB and a tenth of RAM available.
+With a RAM cap, the budget also ends at the cap minus the session's resident memory. Processes
+that do not fit keep their memory in zram and fault it back on demand. Before this, read-back was
+all or nothing, and any RAM cap turned it off even when the session was far below the cap.
+
 ## CRAM and the bounded pager experiment
 
 [Meta's CRAM proposal](https://lpc.events/event/20/contributions/2424/) uses memory compression

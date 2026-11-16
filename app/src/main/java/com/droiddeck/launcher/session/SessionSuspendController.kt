@@ -27,7 +27,7 @@ internal class SessionSuspendController(
     private val nowNanos: () -> Long = System::nanoTime,
     private val pagedOut: (processes: Int, unacknowledged: Int, residentKb: Long, swapKb: Long, swapBeforeKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _, _ -> },
-    private val readBackAllowed: () -> Boolean = { true },
+    private val ramCapKb: () -> Long = { 0L },
     private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _ -> },
 ) {
@@ -316,9 +316,11 @@ internal class SessionSuspendController(
         pagedOutTargets = emptyList()
         val control = zramControl?.takeIf { it.isFile } ?: return
         if (targets.isEmpty() || closing) return
-        val before = memoryKb(targets).second
+        val usage = targets.associateWith { memoryKb(listOf(it)) }
+        val before = usage.values.sumOf { it.second }
         val (total, available) = meminfoKb()
-        if (!readBackAllowed() || !canTake(before, total, available)) {
+        val chosen = readBackTargets(usage, total, available)
+        if (chosen.isEmpty()) {
             pagedIn(0, before, before, available, 0)
             return
         }
@@ -328,13 +330,13 @@ internal class SessionSuspendController(
             return
         }
         val start = nowMillis()
-        for (record in targets) send(record, SIGURG)
-        var swap = before
+        for (record in chosen) send(record, SIGURG)
+        var swap = memoryKb(chosen).second
         var unchanged = 0
         try {
             while (!closing && nowMillis() - start < READ_BACK_TIMEOUT_MS) {
                 sleep(READ_BACK_POLL_MS)
-                val current = memoryKb(targets).second
+                val current = memoryKb(chosen).second
                 unchanged = if (current == swap) unchanged + 1 else 0
                 swap = current
                 if (swap == 0L || unchanged >= READ_BACK_STABLE_POLLS) break
@@ -342,12 +344,24 @@ internal class SessionSuspendController(
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         }
-        pagedIn(targets.size, swap, before, available, nowMillis() - start)
+        pagedIn(chosen.size, memoryKb(targets).second, before, available, nowMillis() - start)
     }
 
-    private fun canTake(swapKb: Long, totalKb: Long, availableKb: Long): Boolean =
-        availableKb >= swapKb * READ_BACK_AVAILABLE_FACTOR &&
-            availableKb - swapKb >= maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE)
+    private fun readBackTargets(usage: Map<ProcessRecord, Pair<Long, Long>>, totalKb: Long, availableKb: Long): List<ProcessRecord> {
+        val cap = ramCapKb()
+        var budget = minOf(
+            availableKb / READ_BACK_AVAILABLE_FACTOR,
+            availableKb - maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE),
+        )
+        if (cap > 0L) budget = minOf(budget, cap - usage.values.sumOf { it.first })
+        val chosen = ArrayList<ProcessRecord>()
+        for ((record, memory) in usage.entries.sortedByDescending { it.value.second }) {
+            if (memory.second > budget) continue
+            chosen += record
+            budget -= memory.second
+        }
+        return chosen
+    }
 
     private fun meminfoKb(): Pair<Long, Long> = try {
         val values = HashMap<String, Long>()
