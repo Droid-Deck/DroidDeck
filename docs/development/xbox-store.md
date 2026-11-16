@@ -109,6 +109,13 @@ The verb resolves, licenses, downloads, extracts, then hoists the manifest to th
 - **Pause and resume.** A legacy download has no control channel: Stop kills the downloader, and
   the next attempt starts that container again from byte zero. Nothing is checkpointed, so a
   stopped legacy install costs the bytes already transferred.
+- **Frameworks.** An installed package gets its `PackageDependency` frameworks from the package
+  graph; an unpacked folder has none, so the loader fails with `0xc0000135` on
+  `VCRUNTIME140_APP.dll` and friends. The verb fetches each declared framework from its Windows
+  Update category and copies its libraries beside the title, which is where the loader looks. A
+  category lists one package per architecture under identifier-only names, so each is unpacked
+  until one declares `ProcessorArchitecture="x64"`; taking the first one puts 32-bit DLLs into a
+  64-bit folder and every load fails with `0xc000007b`.
 - **Failure detail.** A release build hides logcat from adb, so a failed install writes the
   backend's stderr tail to `files/xbox-install.log` beside the app and repeats the last lines in
   the failure message.
@@ -133,7 +140,11 @@ Verified during development:
   across four, measured as growth of the destination folder. The container is
   deleted once its members are on disk, so the peak footprint is one package at
   a time rather than the archive plus everything under it.
-- A launch of this title through Xodus/ARM64 Proton is not yet verified.
+- A launch of this title through Xodus/ARM64 Proton reaches the loader with every declared
+  framework in place, then fails inside Wine: its manifest names `EntryPoint="Forza.App"`, a UWP
+  application that expects the app model to activate a view, which Wine has no host for. The
+  launch reports `uwp-entry-point` rather than dying silently. A package naming
+  `Windows.FullTrustApplication` starts as an ordinary Win32 executable instead.
 
 - Native AArch64 CLI execution on Thor's existing Linux runtime.
 - Abstract-socket credential transport with a synthetic account on Thor; this
