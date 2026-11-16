@@ -677,6 +677,8 @@
     <string name="drawer_page_display">Ecrã</string>
     <string name="drawer_frame_limit">Limite de fotogramas</string>
     <string name="drawer_frame_limit_note">Limita este jogo. O ecrã muda para uma taxa de atualização que o limite divida de forma exata, quando existe; outros limites podem parecer irregulares. Os jogos Steam utilizam o Limite de fotogramas do Steam no Menu de acesso rápido.</string>
+    <string name="drawer_bfi">Inserção de fotogramas pretos</string>
+    <string name="drawer_bfi_note">Movimento mais nítido: cada fotograma é seguido de uma atualização preta. Requer 100 Hz ou mais; o jogo corre a metade da taxa de atualização e fica mais escuro. Desligado com a geração de fotogramas.</string>
     <string name="drawer_page_effects">Efeitos</string>
     <string name="drawer_page_controls">Controlos</string>
     <string name="drawer_page_components">Componentes</string>
@@ -1178,6 +1180,7 @@
     <string name="agent_hint_working">Escreva para pôr a mensagem seguinte na fila</string>
     <string name="agent_queue">Pôr na fila</string>
     <string name="agent_queued">Seguinte: %1$s</string>
+    <string name="agent_tools_missing">Ferramentas do agente não instaladas: %1$s</string>
     <string name="agent_unqueue">Não enviar</string>
     <string name="agent_attach">Anexar</string>
     <string name="agent_remove_attachment">Remover</string>
@@ -3445,6 +3448,7 @@
     <string name="boot_movie_sound">Som</string>
     <string name="boot_movie_skip">Ignorar o vídeo de arranque</string>
     <string name="boot_movie_skip_hint">Utilizar um clipe preto de 0,1 segundos como vídeo de arranque do Steam. Aplica-se na próxima sessão.</string>
+    <string name="boot_movie_shuffle">Aleatório</string>
     <string name="boot_movie_custom">O seu próprio vídeo</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ou WebM. Outros formatos e ficheiros acima de %1$d MB são convertidos para WebM 720p no dispositivo, até %2$d segundos.</string>
     <string name="boot_movie_import">Importar</string>
@@ -4144,4 +4148,9 @@
     <string name="hud_readings_shown">Mostrados</string>
     <string name="hud_readings_count">%1$d de %2$d</string>
     <string name="exit_hint_back">Prima novamente o botão Voltar para sair</string>
+
+    <string name="display_integer_scaling">Escala por números inteiros</string>
+    <string name="display_integer_scaling_hint">Usa a maior escala inteira que cabe. Pode cortar as margens do ecrã. Se a origem for maior do que a saída, a escala fracionária apresenta a imagem completa. A resolução é configurada separadamente.</string>
+    <string name="display_scaling_integer">Inteiro</string>
+    <string name="display_scaling_fit">Ajustar</string>
 </resources>

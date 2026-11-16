@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Ekran</string>
     <string name="drawer_frame_limit">Kare sınırı</string>
     <string name="drawer_frame_limit_note">Bu oyunu sınırlar. Ekran, varsa sınırın tam böldüğü bir yenileme hızına geçer; diğer sınırlar düzensiz görünebilir. Steam oyunları Hızlı erişim menüsündeki Steam\'in Kare Sınırı ayarını kullanır.</string>
+    <string name="drawer_bfi">Siyah kare ekleme</string>
+    <string name="drawer_bfi_note">Daha net hareket: her kareyi siyah bir yenileme izler. 100 Hz veya üzeri gerekir; oyun yenileme hızının yarısında çalışır ve daha koyu görünür. Kare üretimi açıkken kapalıdır.</string>
     <string name="drawer_page_effects">Efektler</string>
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Bileşenler</string>
@@ -1175,6 +1177,7 @@
     <string name="agent_hint_working">Sonraki mesajı sıraya almak için yazın</string>
     <string name="agent_queue">Sıraya ekle</string>
     <string name="agent_queued">Sıradaki: %1$s</string>
+    <string name="agent_tools_missing">Ajan araçları yüklenmedi: %1$s</string>
     <string name="agent_unqueue">Gönderme</string>
     <string name="agent_attach">Ekle</string>
     <string name="agent_remove_attachment">Kaldır</string>
@@ -3407,6 +3410,7 @@
     <string name="boot_movie_sound">Ses</string>
     <string name="boot_movie_skip">Açılış videosunu atla</string>
     <string name="boot_movie_skip_hint">Steam\'in açılış videosu olarak 0,1 saniyelik siyah bir klip kullanılır. Sonraki oturumda geçerli olur.</string>
+    <string name="boot_movie_shuffle">Karıştır</string>
     <string name="boot_movie_custom">Kendi videon</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV veya WebM. Diğer biçimler ve %1$d MB üzeri dosyalar cihazda 720p WebM\'e dönüştürülür, en fazla %2$d saniye.</string>
     <string name="boot_movie_import">İçe aktar</string>
@@ -4105,4 +4109,9 @@
     <string name="hud_readings_shown">Gösterilen</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Çıkmak için bir kez daha geri basın</string>
+
+    <string name="display_integer_scaling">Tam sayı ölçeklendirme</string>
+    <string name="display_integer_scaling_hint">Ekrana sığan en büyük tam sayı ölçeğini kullanır. Ekran kenarları kırpılabilir. Kaynak görüntü çıktıdan büyükse kesirli ölçekleme görüntünün tamamını gösterir. Çözünürlük ayrı ayarlanır.</string>
+    <string name="display_scaling_integer">Tam sayı</string>
+    <string name="display_scaling_fit">Sığdır</string>
 </resources>

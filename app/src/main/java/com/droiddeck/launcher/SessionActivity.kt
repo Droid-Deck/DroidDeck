@@ -173,11 +173,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var adaptiveSticks by mutableStateOf<Boolean?>(null)
     private var quickButtons by mutableStateOf<Map<InputCommand, Boolean>>(emptyMap())
     private var picturePosition by mutableStateOf("center")
+    private var integerScaling by mutableStateOf(false)
 
     private fun applyGameAlignment() {
         if (!CompositorHost.isStarted) return
         val active = SessionState.mode == SessionService.MODE_STEAM &&
-            !pipUi && !isInPictureInPictureMode && !cardboard.enabled
+            !pipUi && !isInPictureInPictureMode && !activeCardboard.enabled
         val alignment = if (!active) ALIGN_CENTER else when (picturePosition) {
             "top" -> ALIGN_PICTURE_TOP
             "bottom" -> ALIGN_PICTURE_BOTTOM
@@ -185,7 +186,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             "right" -> ALIGN_PICTURE_RIGHT
             else -> ALIGN_CENTER
         }
-        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, alignment)
+        WaylandCompositor.nativeSetScaleMode(if (active && integerScaling) SCALE_INTEGER else SCALE_FIT, alignment)
     }
     private var unfoldedPanel by mutableStateOf<OnScreenControls?>(null)
     private var unfoldedColumn: android.widget.LinearLayout? = null
@@ -499,6 +500,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private var drawerGameProfileSelectionMade = false
     private var fpsLimit by mutableStateOf(SessionState.fpsLimit)
+    private var blackFrameInsertion by mutableStateOf(false)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
         SessionState.program in setOf(
@@ -848,6 +850,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); refreshControls() } }
         steamController = SteamControllerBle(this, inputRouter).also { it.start() }
+        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+            !SessionPrefs.bluetoothAsked(this)) {
+            SessionPrefs.setBluetoothAsked(this)
+            requestPermissions(arrayOf(BLUETOOTH_CONNECT), REQUEST_BLUETOOTH)
+        }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
@@ -1085,7 +1092,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     secondScreenPresentation?.closeFieldKeyboard()
                 }
             }
-            androidx.compose.runtime.LaunchedEffect(picturePosition, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
+            androidx.compose.runtime.LaunchedEffect(picturePosition, integerScaling, SessionState.running, pipUi, cardboard.enabled) { applyGameAlignment() }
             DroidDeckTheme {
             if (pipUi) {
                 if (SessionState.suspended) androidx.compose.foundation.layout.Box(
@@ -1440,6 +1447,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
             onHudOrderReset = { hudConfig = DroidDeckHudConfig.clearOrder(this@SessionActivity); hud.applyConfig() },
             onHudExport = { exportHudDiagnostics() },
+            integerScaling = integerScaling,
+            onIntegerScaling = { enabled ->
+                SessionPrefs.setIntegerScaling(this@SessionActivity, enabled)
+                integerScaling = enabled
+                applyGameAlignment()
+            },
             onUpscaler = { m ->
                 val target = effectsEditorTarget ?: screenEffectsTarget
                 val activeProfileId =
@@ -1586,6 +1599,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 SessionState.fpsLimit = fps
                 fpsLimit = fps
                 applyOutputPacing()
+            },
+            blackFrameInsertion = blackFrameInsertion,
+            blackFrameInsertionAvailable = blackFrameInsertion || blackFrameInsertionAvailable(),
+            onBlackFrameInsertion = { on ->
+                SessionPrefs.setBlackFrameInsertion(this@SessionActivity, on)
+                blackFrameInsertion = on
+                CompositorHost.setBlackFrameInsertion(on, refreshHz(), outputFpsLimit())
             },
             onFrameGenPick = { mode ->
                 val appId = frameGenTargetGameId()
@@ -2399,7 +2419,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         unfoldedControls = SessionPrefs.unfoldedControls(this)
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         picturePosition = SessionPrefs.picturePosition(this)
+        integerScaling = SessionPrefs.integerScaling(this)
         hudOn = SessionPrefs.hudEnabled(this)
+        blackFrameInsertion = SessionPrefs.blackFrameInsertion(this)
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
@@ -2589,7 +2611,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         runCatching { com.droiddeck.launcher.runtime.RuntimeInstallService.start(this, release) }
         val ok = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.install(this, release,
             progressFor(RUNTIME_LINES, release.size / 1_000_000))
-        if (ok) return null
+        if (ok) {
+            com.droiddeck.launcher.session.SessionFiles.ensureDirtStandIn(this)
+            return null
+        }
         SessionEvents.record("runtime.failed", mapOf("step" to "install", "reason" to com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installError()))
         return getString(R.string.session_runtime_install_failed)
     }
@@ -2651,7 +2676,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             runCatching { GameEnvironmentStore.publish(this) }
                 .onFailure { Log.e(TAG, "Could not update game environment", it) }
         }, "game-env-publish").start()
-        WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
+        applyGameAlignment()
         val activeProfileId = currentScreenEffectsProfileId()
         val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, activeProfileId)
         val activeEffects = SessionPrefs.screenEffects(this, activeProfileId)
@@ -2864,6 +2889,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val mirrorCap = mirrorRefreshLimit().takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY
         val capped = minOf(hz, PerfMode.peakRefreshCap(this), mirrorCap)
         return if (capped > 1f) capped else 60f
+    }
+
+    private fun blackFrameInsertionAvailable(): Boolean {
+        // Glasses that present the game run at their own rate, uncapped, as refreshHz() reads them.
+        glassesScreen?.display?.let { glasses ->
+            return (glasses.supportedModes?.maxOfOrNull { it.refreshRate } ?: 0f) >= PerfMode.BFI_MIN_REFRESH_HZ
+        }
+        val display = bottomGame?.takeIf { bottomOutputActive }?.display
+            ?: if (Build.VERSION.SDK_INT >= 30) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
+        val peak = display?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 0f
+        return minOf(peak, PerfMode.peakRefreshCap(this)) >= PerfMode.BFI_MIN_REFRESH_HZ
     }
 
     private fun mirrorRefreshLimit(): Int =
@@ -4189,17 +4225,33 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onFrame(null)
             return
         }
-        try {
-            android.view.PixelCopy.request(source, bitmap, { result ->
-                if (result != android.view.PixelCopy.SUCCESS) {
-                    bitmap.recycle()
-                    onFrame(null)
-                } else onFrame(bitmap)
-            }, uiHandler)
-        } catch (_: IllegalArgumentException) {
-            bitmap.recycle()
-            onFrame(null)
+        withPictureFrame { done ->
+            try {
+                android.view.PixelCopy.request(source, bitmap, { result ->
+                    done()
+                    if (result != android.view.PixelCopy.SUCCESS) {
+                        bitmap.recycle()
+                        onFrame(null)
+                    } else onFrame(bitmap)
+                }, uiHandler)
+            } catch (_: IllegalArgumentException) {
+                done()
+                bitmap.recycle()
+                onFrame(null)
+            }
         }
+    }
+
+    /** PixelCopy reads the last queued buffer, which black frame insertion makes black every other refresh. */
+    private fun withPictureFrame(copy: (done: () -> Unit) -> Unit) {
+        if (!CompositorHost.holdPicture()) return copy {}
+        uiHandler.postDelayed({
+            var released = false
+            copy {
+                if (!released) CompositorHost.releasePicture()
+                released = true
+            }
+        }, BFI_PICTURE_SETTLE_MS)
     }
 
     private fun tapSteamButton() {
@@ -4633,25 +4685,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 gamePictureBounds[2], gamePictureBounds[3]
             )
 
+            val nativeWidth: Int
+            val nativeHeight: Int
             if (glassesOutputActive) {
                 val mode = glassesScreen?.display?.mode ?: return null
-                val outputWidth = mode.physicalWidth.takeIf { it > 0 } ?: return null
-                val outputHeight = mode.physicalHeight.takeIf { it > 0 } ?: return null
-                val scaleX = width.toFloat() / outputWidth
-                val scaleY = height.toFloat() / outputHeight
-
-                return android.graphics.RectF(
-                    rect.left * scaleX,
-                    rect.top * scaleY,
-                    rect.right * scaleX,
-                    rect.bottom * scaleY
-                )
+                nativeWidth = mode.physicalWidth.takeIf { it > 0 } ?: return null
+                nativeHeight = mode.physicalHeight.takeIf { it > 0 } ?: return null
+            } else {
+                val nativeSize = IntArray(2)
+                if (!WaylandCompositor.nativeOutputSize(nativeSize)) return null
+                nativeWidth = nativeSize[0].takeIf { it > 0 } ?: return null
+                nativeHeight = nativeSize[1].takeIf { it > 0 } ?: return null
             }
-
-            val nativeSize = IntArray(2)
-            if (!WaylandCompositor.nativeOutputSize(nativeSize)) return null
-            val nativeWidth = nativeSize[0].takeIf { it > 0 } ?: return null
-            val nativeHeight = nativeSize[1].takeIf { it > 0 } ?: return null
             val scaleX = width.toFloat() / nativeWidth
             val scaleY = height.toFloat() / nativeHeight
 
@@ -4860,7 +4905,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun dispatchDirectTouch(event: MotionEvent): Boolean {
         val rect = drawnRect() ?: return false
         if (event.actionMasked == MotionEvent.ACTION_DOWN)
-            ignoreGameTouch = topPictureMapped && !rect.contains(event.x, event.y)
+            ignoreGameTouch = topPictureMapped && !glassesOutputActive &&
+                !rect.contains(event.x, event.y)
         if (ignoreGameTouch) {
             if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                 directTouchHold.cancel()
@@ -5312,17 +5358,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val left = surfaceAt[0] - overlayAt[0]
         val top = surfaceAt[1] - overlayAt[1]
         val bounds = android.graphics.Rect(left, top, left + width, top + height)
-        try {
-            android.view.PixelCopy.request(surfaceView, bitmap, { result ->
-                if (result == android.view.PixelCopy.SUCCESS && !isDestroyed) {
-                    pausedFrame = com.droiddeck.launcher.ui.PausedFrame(bitmap.asImageBitmap(), bounds)
-                    pausedFrameWanted = false
-                } else {
-                    bitmap.recycle()
-                }
-            }, uiHandler)
-        } catch (_: IllegalArgumentException) {
-            bitmap.recycle()
+        withPictureFrame { done ->
+            try {
+                android.view.PixelCopy.request(surfaceView, bitmap, { result ->
+                    done()
+                    if (result == android.view.PixelCopy.SUCCESS && !isDestroyed) {
+                        pausedFrame = com.droiddeck.launcher.ui.PausedFrame(bitmap.asImageBitmap(), bounds)
+                        pausedFrameWanted = false
+                    } else {
+                        bitmap.recycle()
+                    }
+                }, uiHandler)
+            } catch (_: IllegalArgumentException) {
+                done()
+                bitmap.recycle()
+            }
         }
     }
 
@@ -5386,7 +5436,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
                     heldButtons.set(1, it, false)
                 }
-                WaylandCompositor.nativeSetScaleMode(SCALE_FIT, ALIGN_CENTER)
+                applyGameAlignment()
             }
         } else if (!isFinishing && !isDestroyed) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -5747,6 +5797,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         cardboard = c
         val e = effectiveCardboard(c)
         activeCardboard = e
+        applyGameAlignment()
         if (CompositorHost.isStarted) pushCardboard(e)
         if (e.enabled && !was.enabled) headTracker?.recenter()
         updateHeadTracker()
@@ -6314,8 +6365,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         finish()
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_BLUETOOTH || grantResults.firstOrNull() != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        steamController?.stop()
+        steamController = SteamControllerBle(this, inputRouter).also { it.start() }
+    }
+
     companion object {
         const val EXTRA_RETURN_HOME = "returnHome"
+        private const val BLUETOOTH_CONNECT = "android.permission.BLUETOOTH_CONNECT"
+        private const val REQUEST_BLUETOOTH = 31
         const val EXTRA_LINK_TASK = "linkTask"
         const val EXTRA_STEAMVR = "steamVr"
         const val EXTRA_PLAYED_GAME = "com.droiddeck.launcher.PLAYED_GAME"
@@ -6323,6 +6383,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TEXT_FIELD_TAP_MS = 1_000L
         private const val PAUSED_FRAME_MAX_EDGE = 1920f
+        private const val BFI_PICTURE_SETTLE_MS = 50L
         private const val PAUSED_FRAME_REDRAW_MS = 150L
         private const val BOTTOM_RECOVERY_MS = 1_000L
         private const val BOTTOM_RECOVERY_TRIES = 3
@@ -6366,6 +6427,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         private val steamVrWorker = java.util.concurrent.ThreadPoolExecutor(0, 1, 30, java.util.concurrent.TimeUnit.SECONDS,
             java.util.concurrent.LinkedBlockingQueue()) { Thread(it, "steamvr") }
         private const val SCALE_FIT = 1
+        private const val SCALE_INTEGER = 4
         private const val ALIGN_CENTER = 0
         private const val ALIGN_PICTURE_TOP = 3
         private const val ALIGN_PICTURE_BOTTOM = 4

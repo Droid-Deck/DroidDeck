@@ -677,6 +677,8 @@
     <string name="drawer_page_display">Pantalla</string>
     <string name="drawer_frame_limit">Límite de fotogramas</string>
     <string name="drawer_frame_limit_note">Limita este juego. La pantalla cambia a una frecuencia de actualización que sea múltiplo exacto del límite cuando la hay; otros límites pueden verse irregulares. Los juegos de Steam usan el Límite de fotogramas de Steam en el menú Quick Access.</string>
+    <string name="drawer_bfi">Inserción de cuadros negros</string>
+    <string name="drawer_bfi_note">Movimiento más nítido: cada cuadro va seguido de un refresco negro. Requiere 100 Hz o más; el juego corre a la mitad de la frecuencia y se ve más oscuro. Se apaga con la generación de cuadros.</string>
     <string name="drawer_page_effects">Efectos</string>
     <string name="drawer_page_controls">Controles</string>
     <string name="drawer_page_components">Componentes</string>
@@ -1213,6 +1215,7 @@
     <string name="agent_hint_working">Escribe para encolar el siguiente mensaje</string>
     <string name="agent_queue">Encolar</string>
     <string name="agent_queued">Siguiente: %1$s</string>
+    <string name="agent_tools_missing">Herramientas del agente sin instalar: %1$s</string>
     <string name="agent_unqueue">No enviar</string>
     <string name="agent_attach">Adjuntar</string>
     <string name="agent_remove_attachment">Quitar</string>
@@ -3385,6 +3388,7 @@
     <string name="boot_movie_sound">Sonido</string>
     <string name="boot_movie_skip">Omitir el video de inicio</string>
     <string name="boot_movie_skip_hint">Usa un clip negro de 0.1 segundos como video de inicio de Steam. Se aplica en la próxima sesión.</string>
+    <string name="boot_movie_shuffle">Aleatorio</string>
     <string name="boot_movie_custom">Tu propio video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV o WebM. Otros formatos y archivos de más de %1$d MB se convierten a WebM 720p en el dispositivo, hasta %2$d segundos.</string>
     <string name="boot_movie_import">Importar</string>
@@ -4116,4 +4120,9 @@
     <string name="hud_readings_shown">Mostrados</string>
     <string name="hud_readings_count">%1$d de %2$d</string>
     <string name="exit_hint_back">Presiona atrás una vez más para salir</string>
+
+    <string name="display_integer_scaling">Escalado de píxeles enteros</string>
+    <string name="display_integer_scaling_hint">Usa la mayor escala entera que cabe. Puede recortar los bordes. Si la imagen original supera el tamaño de salida, el escalado fraccional muestra la imagen completa. La resolución se configura por separado.</string>
+    <string name="display_scaling_integer">Entero</string>
+    <string name="display_scaling_fit">Ajustar</string>
 </resources>

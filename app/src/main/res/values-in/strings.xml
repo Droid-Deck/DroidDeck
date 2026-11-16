@@ -673,6 +673,8 @@
     <string name="drawer_page_display">Tampilan</string>
     <string name="drawer_frame_limit">Batas frame</string>
     <string name="drawer_frame_limit_note">Membatasi gim ini. Layar beralih ke refresh rate yang habis dibagi batas tersebut jika ada; batas lain bisa terlihat tidak rata. Gim Steam menggunakan Frame Limit milik Steam di menu Quick Access.</string>
+    <string name="drawer_bfi">Penyisipan bingkai hitam</string>
+    <string name="drawer_bfi_note">Gerakan lebih tajam: setiap bingkai diikuti refresh hitam. Butuh 100 Hz atau lebih; game berjalan di setengah refresh rate dan terlihat lebih gelap. Mati saat pembuatan bingkai aktif.</string>
     <string name="drawer_page_effects">Efek</string>
     <string name="drawer_page_controls">Kontrol</string>
     <string name="drawer_page_components">Komponen</string>
@@ -1180,6 +1182,7 @@
     <string name="agent_hint_working">Ketik untuk mengantrekan pesan berikutnya</string>
     <string name="agent_queue">Antrekan</string>
     <string name="agent_queued">Berikutnya: %1$s</string>
+    <string name="agent_tools_missing">Alat agen tidak terpasang: %1$s</string>
     <string name="agent_unqueue">Jangan kirim</string>
     <string name="agent_attach">Lampirkan</string>
     <string name="agent_remove_attachment">Hapus</string>
@@ -3378,6 +3381,7 @@
     <string name="boot_movie_sound">Suara</string>
     <string name="boot_movie_skip">Lewati video pembukaan</string>
     <string name="boot_movie_skip_hint">Gunakan klip hitam berdurasi 0,1 detik sebagai video pembukaan Steam. Berlaku pada sesi berikutnya.</string>
+    <string name="boot_movie_shuffle">Acak</string>
     <string name="boot_movie_custom">Video sendiri</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV, atau WebM. Format lain dan file di atas %1$d MB dikonversi ke WebM 720p di perangkat, hingga %2$d detik.</string>
     <string name="boot_movie_import">Impor</string>
@@ -4075,4 +4079,9 @@
     <string name="hud_readings_shown">Ditampilkan</string>
     <string name="hud_readings_count">%1$d dari %2$d</string>
     <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
+
+    <string name="display_integer_scaling">Penskalaan bilangan bulat</string>
+    <string name="display_integer_scaling_hint">Menggunakan skala bilangan bulat terbesar yang muat. Tepi layar mungkin terpotong. Jika sumber lebih besar daripada keluaran, penskalaan pecahan menampilkan seluruh gambar. Resolusi diatur secara terpisah.</string>
+    <string name="display_scaling_integer">Bilangan bulat</string>
+    <string name="display_scaling_fit">Sesuaikan</string>
 </resources>

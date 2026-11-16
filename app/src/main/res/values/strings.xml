@@ -703,6 +703,8 @@
     <string name="drawer_page_display">Display</string>
     <string name="drawer_frame_limit">Frame limit</string>
     <string name="drawer_frame_limit_note">Caps this game. The display switches to a refresh rate the cap divides evenly when it has one; other caps can look uneven. Steam games use Steam\'s Frame Limit in the Quick Access menu.</string>
+    <string name="drawer_bfi">Black frame insertion</string>
+    <string name="drawer_bfi_note">Sharper motion: a black refresh follows every frame. Needs 100 Hz or more; the game runs at half the refresh rate and looks dimmer. Off while frame generation is on.</string>
     <string name="drawer_page_effects">Effects</string>
     <string name="drawer_page_controls">Controls</string>
     <string name="drawer_page_components">Components</string>
@@ -1269,6 +1271,7 @@
     <string name="agent_no_reply">Ended without a reply</string>
     <string name="agent_retry">Retry</string>
     <string name="agent_setting_up">Setting up the agent</string>
+    <string name="agent_waiting_background">Waiting for background work</string>
     <string name="agent_rebuild_lab">Rebuild my Lab build %1$s for the installed version of DroidDeck and restart on it.</string>
     <string name="agent_tokens">%1$s in · %2$s out</string>
     <string name="agent_thinking">Thinking</string>
@@ -1283,6 +1286,7 @@
     <string name="agent_hint_working">Type to queue the next message</string>
     <string name="agent_queue">Queue</string>
     <string name="agent_queued">Next: %1$s</string>
+    <string name="agent_tools_missing">Agent tools not installed: %1$s</string>
     <string name="agent_unqueue">Don\'t send</string>
     <string name="agent_attach">Attach</string>
     <string name="agent_remove_attachment">Remove</string>
@@ -2658,6 +2662,9 @@
     <string name="display_preserve">Keep proportions</string>
     <string name="display_stretch">Stretch to display</string>
     <string name="display_image_scaling">Image scaling</string>
+    <string name="display_integer_scaling">Integer scaling</string>
+    <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May crop screen edges. If the source is larger than the output, fractional scaling fits the full image. Resolution is configured separately.</string>
+    <string name="display_scaling_fit">Fit</string>
     <string name="display_filter">Scaling filter</string>
     <string name="display_filter_hint">Shared by Steam and Desktop.</string>
     <string name="display_filter_live">Applies live. Shared by Steam and Desktop.</string>
@@ -2976,6 +2983,14 @@
     <string name="edit_launch_options_steam_hint">Shared with Steam\'s Properties: a change in either one shows in both.</string>
     <string name="edit_launch_options_not_saved">Could not save the launch options to Steam. Try again.</string>
     <string name="edit_launch_options_desktop">Steam may be open in the desktop session. Change the launch options in its Properties, or close the session first.</string>
+    <string name="edit_steam_input_override">Steam Input</string>
+    <string name="edit_steam_input_default">Use Steam\'s default</string>
+    <string name="edit_steam_input_enable">Enable Steam Input</string>
+    <string name="edit_steam_input_disable">Disable Steam Input</string>
+    <string name="edit_steam_input_hint">Same as the game\'s Controller setting in Steam Properties.</string>
+    <string name="edit_steam_input_running">Close the Steam or desktop session before changing this setting.</string>
+    <string name="edit_steam_input_not_saved">Could not save the Steam Input setting. Close Steam and try again.</string>
+    <string name="edit_steam_input_unavailable">Could not read this game\'s Steam Input setting.</string>
     <string name="edit_artwork">Artwork</string>
     <string name="edit_other_exe">Other exe…</string>
     <string name="edit_remove">Remove</string>
@@ -3621,6 +3636,7 @@
     <string name="boot_movie_sound">Sound</string>
     <string name="boot_movie_skip">Skip boot movie</string>
     <string name="boot_movie_skip_hint">Use a 0.1-second black clip as Steam’s startup movie. Applies next session.</string>
+    <string name="boot_movie_shuffle">Shuffle</string>
     <string name="boot_movie_custom">Your own movie</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV or WebM. Other formats and files over %1$d MB are converted to 720p WebM on the device, up to %2$d seconds.</string>
     <string name="boot_movie_import">Import</string>
@@ -4188,4 +4204,5 @@
     <string name="hud_readings_shown">Shown</string>
     <string name="hud_readings_count">%1$d of %2$d</string>
     <string name="exit_hint_back">Press back once more to exit</string>
+    <string name="display_scaling_integer">Integer</string>
 </resources>

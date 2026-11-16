@@ -80,6 +80,52 @@ class AgentHostTest {
         assertTrue(event == null || event.entries.none { it is Entry.Finished })
     }
 
+    @Test fun claudeTakesItsMessagesOverStdinSoItStaysOpen() {
+        val command = ClaudeCode.turn("hello there", null, AgentHarness.Options())
+        assertEquals("stream-json", command[command.indexOf("--input-format") + 1])
+        assertFalse("hello there" in command)
+        val line = org.json.JSONObject(ClaudeCode.input("hello there")!!)
+        assertEquals("user", line.getString("type"))
+        assertEquals("hello there", line.getJSONObject("message").getJSONArray("content").getJSONObject(0).getString("text"))
+        assertNull(Codex.input("hi"))
+    }
+
+    @Test fun aTaskNotificationResultIsMarkedBackgroundAndCarriesItsUsage() {
+        val event = ClaudeCode.parse("""{"type":"result","is_error":false,"session_id":"s","duration_ms":900,"total_cost_usd":0.01,"usage":{"input_tokens":3,"output_tokens":4},"origin":{"kind":"task-notification"}}""")!!
+        assertTrue(event.background)
+        assertTrue(event.entries.isEmpty())
+        assertEquals(4L, event.usage?.outputTokens)
+        assertNull(event.backgroundError)
+    }
+
+    @Test fun retainedClaudeCostsAreRecordedOncePerProcess() {
+        val costs = AgentCostTracker()
+        fun usage(cost: Double) = AgentHost.Usage(1, cost, 1, 1)
+        assertEquals(0.05, costs.perTurn(usage(0.05)).costUsd, 0.000001)
+        assertEquals(0.02, costs.perTurn(usage(0.07)).costUsd, 0.000001)
+        assertEquals(0.0, costs.perTurn(usage(0.07)).costUsd, 0.000001)
+        costs.reset()
+        assertEquals(0.0, costs.perTurn(usage(0.0)).costUsd, 0.000001)
+        assertEquals(0.07, costs.perTurn(usage(0.07)).costUsd, 0.000001)
+        assertEquals(0.01, costs.perTurn(usage(0.01)).costUsd, 0.000001)
+        assertEquals(0.07, AgentCostTracker().perTurn(usage(0.07)).costUsd, 0.000001)
+    }
+
+    @Test fun aFailedTaskNotificationResultKeepsItsError() {
+        val event = ClaudeCode.parse("""{"type":"result","is_error":true,"result":"API Error: overloaded","session_id":"s","usage":{"input_tokens":0,"output_tokens":0},"origin":{"kind":"task-notification"}}""")!!
+        assertTrue(event.background)
+        assertEquals("API Error: overloaded", event.backgroundError)
+    }
+
+    @Test fun aToolCallThatRunsInTheBackgroundIsMarked() {
+        fun used(tool: String, input: String) = ClaudeCode.parse(
+            """{"type":"assistant","session_id":"s","message":{"content":[{"type":"tool_use","id":"t","name":"$tool","input":$input}]}}"""
+        )!!.entries.single() as Entry.Used
+        assertTrue(used("Bash", """{"command":"./gradlew test","run_in_background":true}""").background)
+        assertFalse(used("Bash", """{"command":"ls"}""").background)
+        assertTrue(used("Monitor", """{"command":"tail -f log"}""").background)
+    }
+
     @Test fun claudeTurnsBypassPermissionsOrPlanAndTakeAModel() {
         val first = ClaudeCode.turn("hi", null, AgentHarness.Options())
         assertTrue("bypassPermissions" in first && "--resume" !in first && "--model" !in first && "--include-partial-messages" in first)
@@ -179,7 +225,7 @@ class AgentHostTest {
         AgentChats.start(file, "claude")
         AgentChats.appendConversation(file, "abc")
         val written = listOf(
-            Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}"),
+            Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Notice("service unavailable"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}"),
             Entry.Result("t1", "contents", false), Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3)), Entry.Finished("boom", stopped = true),
             Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3, context = 40_000, window = 200_000), planned = true),
         )
@@ -189,7 +235,7 @@ class AgentHostTest {
         assertEquals("claude", loaded.harness)
         assertEquals("abc", loaded.conversation)
         assertEquals(listOf(
-            Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}", "contents", false),
+            Entry.Asked("hi", listOf("/root/x.png")), Entry.Said("hello"), Entry.Notice("service unavailable"), Entry.Thought("hm"), Entry.Used("t1", "Read", "/root/x", "{}", "contents", false),
             Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3)), Entry.Finished("boom", stopped = true),
             Entry.Finished(null, usage = AgentHost.Usage(1, 0.5, 2, 3, context = 40_000, window = 200_000), planned = true),
         ), loaded.entries)
@@ -198,6 +244,7 @@ class AgentHostTest {
 
     @Test fun aTurnThatEndsWithNothingIsAnswerless() {
         assertTrue(AgentHost.answerless(listOf(Entry.Said("x"), Entry.Asked("go on"), Entry.Finished(null))))
+        assertTrue(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Notice("service unavailable"), Entry.Finished(null))))
         assertFalse(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Said("ok"), Entry.Finished(null))))
         assertFalse(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Finished("boom"))))
         assertFalse(AgentHost.answerless(listOf(Entry.Asked("go on"), Entry.Finished(null, stopped = true))))

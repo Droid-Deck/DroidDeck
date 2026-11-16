@@ -673,6 +673,8 @@
     <string name="drawer_page_display">디스플레이</string>
     <string name="drawer_frame_limit">프레임 제한</string>
     <string name="drawer_frame_limit_note">이 게임의 프레임을 제한합니다. 제한값으로 나누어떨어지는 주사율이 있으면 디스플레이가 그 주사율로 전환되며, 그 밖의 제한값은 고르지 않게 보일 수 있습니다. Steam 게임은 빠른 액세스 메뉴의 Steam 프레임 제한을 사용합니다.</string>
+    <string name="drawer_bfi">블랙 프레임 삽입</string>
+    <string name="drawer_bfi_note">더 선명한 움직임: 매 프레임 뒤에 검은 화면 갱신이 들어갑니다. 100Hz 이상이 필요하며 게임은 주사율의 절반으로 실행되고 더 어둡게 보입니다. 프레임 생성 중에는 꺼집니다.</string>
     <string name="drawer_page_effects">효과</string>
     <string name="drawer_page_controls">컨트롤</string>
     <string name="drawer_page_components">구성 요소</string>
@@ -1180,6 +1182,7 @@
     <string name="agent_hint_working">입력하면 다음 메시지가 대기열에 추가됩니다</string>
     <string name="agent_queue">대기열에 추가</string>
     <string name="agent_queued">다음: %1$s</string>
+    <string name="agent_tools_missing">에이전트 도구가 설치되지 않음: %1$s</string>
     <string name="agent_unqueue">보내지 않기</string>
     <string name="agent_attach">첨부</string>
     <string name="agent_remove_attachment">제거</string>
@@ -3378,6 +3381,7 @@
     <string name="boot_movie_sound">소리</string>
     <string name="boot_movie_skip">시작 동영상 건너뛰기</string>
     <string name="boot_movie_skip_hint">0.1초짜리 검은 화면 클립을 Steam 시작 동영상으로 사용합니다. 다음 세션부터 적용됩니다.</string>
+    <string name="boot_movie_shuffle">셔플</string>
     <string name="boot_movie_custom">내 동영상</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV 또는 WebM. 다른 형식과 %1$d MB를 넘는 파일은 기기에서 720p WebM으로 변환됩니다(최대 %2$d초).</string>
     <string name="boot_movie_import">가져오기</string>
@@ -4075,4 +4079,9 @@
     <string name="hud_readings_shown">표시됨</string>
     <string name="hud_readings_count">%2$d 중 %1$d</string>
     <string name="exit_hint_back">한 번 더 뒤로를 누르면 종료됩니다</string>
+
+    <string name="display_integer_scaling">정수 배율 조정</string>
+    <string name="display_integer_scaling_hint">화면에 맞는 가장 큰 정수 배율을 사용합니다. 화면 가장자리가 잘릴 수 있습니다. 원본이 출력보다 크면 소수 배율로 전체 이미지를 표시합니다. 해상도는 별도로 설정합니다.</string>
+    <string name="display_scaling_integer">정수</string>
+    <string name="display_scaling_fit">화면에 맞춤</string>
 </resources>

@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Kijelző</string>
     <string name="drawer_frame_limit">Képkockakorlát</string>
     <string name="drawer_frame_limit_note">Korlátozza ezt a játékot. A kijelző olyan frissítési frekvenciára vált, amelyet a korlát egyenletesen oszt, ha van ilyen; más korlátok egyenetlennek tűnhetnek. A Steam-játékok a Steam képkockakorlátját használják a Gyors hozzáférés menüben.</string>
+    <string name="drawer_bfi">Fekete képkocka beszúrása</string>
+    <string name="drawer_bfi_note">Élesebb mozgás: minden képkockát fekete frissítés követ. Legalább 100 Hz kell; a játék a frissítési frekvencia felével fut és sötétebb. Képkocka-generálás közben ki van kapcsolva.</string>
     <string name="drawer_page_effects">Effektek</string>
     <string name="drawer_page_controls">Vezérlők</string>
     <string name="drawer_page_components">Összetevők</string>
@@ -1183,6 +1185,7 @@
     <string name="agent_hint_working">Gépelj a következő üzenet sorba állításához</string>
     <string name="agent_queue">Sorba állítás</string>
     <string name="agent_queued">Következő: %1$s</string>
+    <string name="agent_tools_missing">Az ügynök eszközei nincsenek telepítve: %1$s</string>
     <string name="agent_unqueue">Ne küldd el</string>
     <string name="agent_attach">Csatolás</string>
     <string name="agent_remove_attachment">Eltávolítás</string>
@@ -3407,6 +3410,7 @@
     <string name="boot_movie_sound">Hang</string>
     <string name="boot_movie_skip">Indítási videó kihagyása</string>
     <string name="boot_movie_skip_hint">Egy 0,1 másodperces fekete klipet használ a Steam indítási videójaként. A következő munkamenetben lép érvénybe.</string>
+    <string name="boot_movie_shuffle">Véletlen sorrend</string>
     <string name="boot_movie_custom">Saját videó</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV vagy WebM. Más formátumokat és a %1$d MB-nál nagyobb fájlokat az eszköz 720p WebM-re alakítja, legfeljebb %2$d másodpercig.</string>
     <string name="boot_movie_import">Importálás</string>
@@ -4105,4 +4109,9 @@
     <string name="hud_readings_shown">Megjelenítve</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Nyomd meg még egyszer a visszát a kilépéshez</string>
+
+    <string name="display_integer_scaling">Egész számú méretezés</string>
+    <string name="display_integer_scaling_hint">A legnagyobb elférő egész számú méretezést használja. A szélek levágódhatnak. Ha a forrás nagyobb a kimenetnél, a tört méretezés a teljes képet jeleníti meg. A felbontás külön állítható.</string>
+    <string name="display_scaling_integer">Egész szám</string>
+    <string name="display_scaling_fit">Igazítás</string>
 </resources>

@@ -20,6 +20,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.droiddeck.launcher.runtime.NativeGuest.init(this)
         Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)
@@ -82,14 +83,17 @@ class App : Application() {
         Thread({
             runCatching {
                 if (com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).isDirectory) {
-                    com.droiddeck.launcher.core.AddonPack.PROOT.ensure(app)
+                    if (!com.droiddeck.launcher.runtime.LinuxRuntime.patchedProot(app)) com.droiddeck.launcher.core.AddonPack.PROOT.ensure(app)
                     com.droiddeck.launcher.core.AddonPack.DIRECTAUDIO.ensure(app)
+                    com.droiddeck.launcher.session.SessionFiles.ensureDirtStandIn(app)
                 }
                 if (com.droiddeck.launcher.stores.gog.GogComet.enabled(app)) com.droiddeck.launcher.core.AddonPack.COMET.ensure(app)
                 if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.XBOX) != null)
                     com.droiddeck.launcher.core.AddonPack.XBOX.ensure(app)
                 if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.UBISOFT) != null)
                     com.droiddeck.launcher.session.SessionFiles.ensureUbisoftService(app)
+                if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.ROCKSTAR) != null)
+                    com.droiddeck.launcher.session.SessionFiles.ensureRockstarService(app)
                 com.droiddeck.launcher.handtracking.HandTracking.load(app)
             }.onFailure { android.util.Log.w("App", "add-on pack prefetch failed", it) }
         }, "addon-packs").start()

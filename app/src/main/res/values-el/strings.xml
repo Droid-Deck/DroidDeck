@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Οθόνη</string>
     <string name="drawer_frame_limit">Όριο καρέ</string>
     <string name="drawer_frame_limit_note">Περιορίζει αυτό το παιχνίδι. Η οθόνη αλλάζει σε ρυθμό ανανέωσης που διαιρείται ακριβώς με το όριο, αν υπάρχει· άλλα όρια μπορεί να φαίνονται ανομοιόμορφα. Τα παιχνίδια Steam χρησιμοποιούν το Frame Limit του Steam στο μενού Quick Access.</string>
+    <string name="drawer_bfi">Εισαγωγή μαύρων καρέ</string>
+    <string name="drawer_bfi_note">Πιο καθαρή κίνηση: κάθε καρέ ακολουθείται από μαύρη ανανέωση. Απαιτεί 100 Hz ή περισσότερα· το παιχνίδι τρέχει στον μισό ρυθμό ανανέωσης και φαίνεται πιο σκοτεινό. Ανενεργό όσο λειτουργεί η δημιουργία καρέ.</string>
     <string name="drawer_page_effects">Εφέ</string>
     <string name="drawer_page_controls">Χειριστήρια</string>
     <string name="drawer_page_components">Στοιχεία</string>
@@ -1183,6 +1185,7 @@
     <string name="agent_hint_working">Γράψτε για να προσθέσετε το επόμενο μήνυμα στην ουρά</string>
     <string name="agent_queue">Στην ουρά</string>
     <string name="agent_queued">Επόμενο: %1$s</string>
+    <string name="agent_tools_missing">Τα εργαλεία του πράκτορα δεν εγκαταστάθηκαν: %1$s</string>
     <string name="agent_unqueue">Να μην σταλεί</string>
     <string name="agent_attach">Επισύναψη</string>
     <string name="agent_remove_attachment">Αφαίρεση</string>
@@ -3407,6 +3410,7 @@
     <string name="boot_movie_sound">Ήχος</string>
     <string name="boot_movie_skip">Παράλειψη ταινίας εκκίνησης</string>
     <string name="boot_movie_skip_hint">Χρησιμοποιεί ένα μαύρο κλιπ 0,1 δευτερολέπτου ως ταινία εκκίνησης του Steam. Εφαρμόζεται στην επόμενη συνεδρία.</string>
+    <string name="boot_movie_shuffle">Τυχαία σειρά</string>
     <string name="boot_movie_custom">Δικό σας βίντεο</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ή WebM. Άλλες μορφές και αρχεία πάνω από %1$d MB μετατρέπονται στη συσκευή σε WebM 720p, έως %2$d δευτερόλεπτα.</string>
     <string name="boot_movie_import">Εισαγωγή</string>
@@ -4105,4 +4109,9 @@
     <string name="hud_readings_shown">Εμφανίζονται</string>
     <string name="hud_readings_count">%1$d από %2$d</string>
     <string name="exit_hint_back">Πατήστε ξανά πίσω για έξοδο</string>
+
+    <string name="display_integer_scaling">Ακέραια κλιμάκωση</string>
+    <string name="display_integer_scaling_hint">Χρησιμοποιεί τη μεγαλύτερη ακέραια κλίμακα που χωράει. Ενδέχεται να περικοπούν οι άκρες. Αν η πηγή είναι μεγαλύτερη από την έξοδο, η κλασματική κλιμάκωση εμφανίζει ολόκληρη την εικόνα. Η ανάλυση ρυθμίζεται ξεχωριστά.</string>
+    <string name="display_scaling_integer">Ακέραιος</string>
+    <string name="display_scaling_fit">Προσαρμογή</string>
 </resources>

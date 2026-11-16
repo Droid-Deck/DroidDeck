@@ -677,6 +677,8 @@
     <string name="drawer_page_display">Afișaj</string>
     <string name="drawer_frame_limit">Limită de cadre</string>
     <string name="drawer_frame_limit_note">Limitează acest joc. Afișajul trece la o rată de reîmprospătare pe care limita o împarte exact, dacă există; alte limite pot părea neuniforme. Jocurile Steam folosesc Limita de cadre a Steam din meniul Acces rapid.</string>
+    <string name="drawer_bfi">Inserare de cadre negre</string>
+    <string name="drawer_bfi_note">Mișcare mai clară: fiecare cadru este urmat de o reîmprospătare neagră. Necesită 100 Hz sau mai mult; jocul rulează la jumătate din rată și pare mai întunecat. Oprit cât timp generarea de cadre e activă.</string>
     <string name="drawer_page_effects">Efecte</string>
     <string name="drawer_page_controls">Comenzi</string>
     <string name="drawer_page_components">Componente</string>
@@ -1186,6 +1188,7 @@
     <string name="agent_hint_working">Scrie pentru a pune următorul mesaj în coadă</string>
     <string name="agent_queue">Pune în coadă</string>
     <string name="agent_queued">Următorul: %1$s</string>
+    <string name="agent_tools_missing">Instrumentele agentului nu sunt instalate: %1$s</string>
     <string name="agent_unqueue">Nu trimite</string>
     <string name="agent_attach">Atașează</string>
     <string name="agent_remove_attachment">Elimină</string>
@@ -3446,6 +3449,7 @@
     <string name="boot_movie_sound">Sunet</string>
     <string name="boot_movie_skip">Omite filmul de pornire</string>
     <string name="boot_movie_skip_hint">Folosește un clip negru de 0,1 secunde ca film de pornire pentru Steam. Se aplică la următoarea sesiune.</string>
+    <string name="boot_movie_shuffle">Aleatoriu</string>
     <string name="boot_movie_custom">Videoclipul tău</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV sau WebM. Alte formate și fișierele de peste %1$d MB sunt convertite pe dispozitiv în WebM 720p, până la %2$d secunde.</string>
     <string name="boot_movie_import">Importă</string>
@@ -4145,4 +4149,9 @@
     <string name="hud_readings_shown">Afișate</string>
     <string name="hud_readings_count">%1$d din %2$d</string>
     <string name="exit_hint_back">Apasă din nou înapoi pentru a ieși</string>
+
+    <string name="display_integer_scaling">Scalare cu numere întregi</string>
+    <string name="display_integer_scaling_hint">Folosește cea mai mare scară întreagă care încape. Marginile ecranului pot fi decupate. Dacă sursa este mai mare decât ieșirea, scalarea fracționară afișează imaginea completă. Rezoluția se configurează separat.</string>
+    <string name="display_scaling_integer">Număr întreg</string>
+    <string name="display_scaling_fit">Potrivire</string>
 </resources>

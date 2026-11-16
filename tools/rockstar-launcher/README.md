@@ -12,7 +12,7 @@ GTA III defaults to full x87 precision for FEX before Wine starts, because reduc
 
 Raw launcher identity requests use `INIT:<nonce>:` with a terminating colon. Framed requests carry their payload length. The reply echoes the complete challenge after `TINI:launcher:`; partial reads do not complete a raw request.
 
-`build.sh` builds 32-bit and 64-bit executables with the GNU Windows targets and stages them as APK resources. `legacy-cipher.bin` contains the fixed client protocol tables, not account credentials or APK signing keys.
+`build.sh` builds 32-bit and 64-bit executables with the GNU Windows targets for the `rockstar` add-on pack. The app downloads the pack after Rockstar sign-in, or when a launch finds the service missing, and stages it in the Linux runtime. `legacy-cipher.bin` contains the fixed client protocol tables, not account credentials or APK signing keys.
 
 Run the protocol tests with:
 

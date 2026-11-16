@@ -677,6 +677,8 @@
     <string name="drawer_page_display">Affichage</string>
     <string name="drawer_frame_limit">Limite d\'images</string>
     <string name="drawer_frame_limit_note">Limite ce jeu. L\'écran passe à une fréquence de rafraîchissement multiple de la limite lorsqu\'il en propose une ; les autres limites peuvent paraître irrégulières. Les jeux Steam utilisent la limite d\'images de Steam dans le menu d\'accès rapide.</string>
+    <string name="drawer_bfi">Insertion d\'images noires</string>
+    <string name="drawer_bfi_note">Mouvement plus net : chaque image est suivie d\'un rafraîchissement noir. Nécessite 100 Hz ou plus ; le jeu tourne à la moitié de la fréquence et paraît plus sombre. Désactivé avec la génération d\'images.</string>
     <string name="drawer_page_effects">Effets</string>
     <string name="drawer_page_controls">Contrôles</string>
     <string name="drawer_page_components">Composants</string>
@@ -1186,6 +1188,7 @@
     <string name="agent_hint_working">Tapez pour mettre le prochain message en attente</string>
     <string name="agent_queue">Mettre en attente</string>
     <string name="agent_queued">Suivant : %1$s</string>
+    <string name="agent_tools_missing">Outils de l’agent non installés : %1$s</string>
     <string name="agent_unqueue">Ne pas envoyer</string>
     <string name="agent_attach">Joindre</string>
     <string name="agent_remove_attachment">Supprimer</string>
@@ -3445,6 +3448,7 @@
     <string name="boot_movie_sound">Son</string>
     <string name="boot_movie_skip">Ignorer la vidéo de démarrage</string>
     <string name="boot_movie_skip_hint">Utilise un clip noir de 0,1 seconde comme vidéo de démarrage de Steam. S’applique à la prochaine session.</string>
+    <string name="boot_movie_shuffle">Aléatoire</string>
     <string name="boot_movie_custom">Votre propre vidéo</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ou WebM. Les autres formats et les fichiers de plus de %1$d Mo sont convertis en WebM 720p sur l\'appareil, jusqu\'à %2$d secondes.</string>
     <string name="boot_movie_import">Importer</string>
@@ -4144,4 +4148,9 @@
     <string name="hud_readings_shown">Affichés</string>
     <string name="hud_readings_count">%1$d sur %2$d</string>
     <string name="exit_hint_back">Appuyez à nouveau sur retour pour quitter</string>
+
+    <string name="display_integer_scaling">Mise à l’échelle entière</string>
+    <string name="display_integer_scaling_hint">Utilise le plus grand facteur d’échelle entier adapté. Les bords peuvent être rognés. Si la source est plus grande que la sortie, la mise à l’échelle fractionnaire affiche l’image entière. La résolution se règle séparément.</string>
+    <string name="display_scaling_integer">Entier</string>
+    <string name="display_scaling_fit">Ajuster</string>
 </resources>

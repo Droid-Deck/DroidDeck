@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Näyttö</string>
     <string name="drawer_frame_limit">Kuvanopeusraja</string>
     <string name="drawer_frame_limit_note">Rajoittaa tätä peliä. Näyttö vaihtaa virkistystaajuuteen, joka on rajan tasakerrannainen, jos sellainen on; muut rajat voivat näyttää epätasaisilta. Steam-pelit käyttävät Steamin Frame Limit -asetusta Pikavalikossa.</string>
+    <string name="drawer_bfi">Mustien kuvien lisäys</string>
+    <string name="drawer_bfi_note">Terävämpi liike: jokaista kuvaa seuraa musta päivitys. Vaatii vähintään 100 Hz; peli pyörii puolella virkistystaajuudesta ja näyttää tummemmalta. Pois päältä kuvien generoinnin aikana.</string>
     <string name="drawer_page_effects">Tehosteet</string>
     <string name="drawer_page_controls">Ohjaimet</string>
     <string name="drawer_page_components">Komponentit</string>
@@ -1183,6 +1185,7 @@
     <string name="agent_hint_working">Kirjoita lisätäksesi seuraavan viestin jonoon</string>
     <string name="agent_queue">Jono</string>
     <string name="agent_queued">Seuraava: %1$s</string>
+    <string name="agent_tools_missing">Agentin työkaluja ei ole asennettu: %1$s</string>
     <string name="agent_unqueue">Älä lähetä</string>
     <string name="agent_attach">Liitä</string>
     <string name="agent_remove_attachment">Poista</string>
@@ -3407,6 +3410,7 @@
     <string name="boot_movie_sound">Ääni</string>
     <string name="boot_movie_skip">Ohita käynnistysvideo</string>
     <string name="boot_movie_skip_hint">Käytä 0,1 sekunnin mustaa leikettä Steam-käynnistysvideona. Otetaan käyttöön seuraavassa istunnossa.</string>
+    <string name="boot_movie_shuffle">Satunnainen</string>
     <string name="boot_movie_custom">Oma video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV tai WebM. Muut muodot ja yli %1$d Mt:n tiedostot muunnetaan laitteella 720p-WebM-muotoon, enintään %2$d sekuntia.</string>
     <string name="boot_movie_import">Tuo</string>
@@ -4105,4 +4109,9 @@
     <string name="hud_readings_shown">Näkyvissä</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Paina takaisin vielä kerran poistuaksesi</string>
+
+    <string name="display_integer_scaling">Kokonaislukuskaalaus</string>
+    <string name="display_integer_scaling_hint">Käyttää suurinta kokonaislukukerrointa, joka mahtuu näyttöön. Reunat voivat rajautua. Jos lähde on tulostetta suurempi, murto-osaskaalaus näyttää koko kuvan. Resoluutio määritetään erikseen.</string>
+    <string name="display_scaling_integer">Kokonaisluku</string>
+    <string name="display_scaling_fit">Sovita</string>
 </resources>

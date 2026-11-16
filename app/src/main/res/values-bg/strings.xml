@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Екран</string>
     <string name="drawer_frame_limit">Ограничение на кадрите</string>
     <string name="drawer_frame_limit_note">Ограничава тази игра. Екранът преминава към честота на опресняване, която се дели точно на ограничението, ако има такава; другите ограничения може да изглеждат неравномерни. Игрите в Steam използват Frame Limit на Steam в менюто Quick Access.</string>
+    <string name="drawer_bfi">Вмъкване на черни кадри</string>
+    <string name="drawer_bfi_note">По-ясно движение: след всеки кадър следва черно опресняване. Нужни са 100 Hz или повече; играта върви на половината честота и изглежда по-тъмна. Изключено при генериране на кадри.</string>
     <string name="drawer_page_effects">Ефекти</string>
     <string name="drawer_page_controls">Контроли</string>
     <string name="drawer_page_components">Компоненти</string>
@@ -1183,6 +1185,7 @@
     <string name="agent_hint_working">Въведете, за да наредите следващото съобщение</string>
     <string name="agent_queue">В опашката</string>
     <string name="agent_queued">Следващо: %1$s</string>
+    <string name="agent_tools_missing">Инструментите на агента не са инсталирани: %1$s</string>
     <string name="agent_unqueue">Не изпращай</string>
     <string name="agent_attach">Прикачи</string>
     <string name="agent_remove_attachment">Премахни</string>
@@ -3407,6 +3410,7 @@
     <string name="boot_movie_sound">Звук</string>
     <string name="boot_movie_skip">Пропусни стартовото видео</string>
     <string name="boot_movie_skip_hint">Използвай 0,1-секунден черен клип като стартовото видео на Steam. Влиза в сила при следващата сесия.</string>
+    <string name="boot_movie_shuffle">Разбъркване</string>
     <string name="boot_movie_custom">Собствено видео</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV или WebM. Други формати и файлове над %1$d MB се конвертират на устройството до WebM 720p, до %2$d секунди.</string>
     <string name="boot_movie_import">Импортиране</string>
@@ -4105,4 +4109,9 @@
     <string name="hud_readings_shown">Показани</string>
     <string name="hud_readings_count">%1$d от %2$d</string>
     <string name="exit_hint_back">Натиснете отново „Назад“, за да излезете</string>
+
+    <string name="display_integer_scaling">Целочислено мащабиране</string>
+    <string name="display_integer_scaling_hint">Използва най-големия цял коефициент на мащабиране, който се побира. Възможно е изрязване на краищата. Ако източникът е по-голям от изхода, дробното мащабиране показва цялото изображение. Разделителната способност се настройва отделно.</string>
+    <string name="display_scaling_integer">Цяло число</string>
+    <string name="display_scaling_fit">Побиране</string>
 </resources>

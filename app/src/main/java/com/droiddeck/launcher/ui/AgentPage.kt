@@ -567,7 +567,8 @@ private fun labStage(lab: com.droiddeck.launcher.agent.LabProgress) = when (lab.
     else -> stringResource(R.string.agent_lab_stage_starting)
 }
 
-private fun hasActivity() = AgentHost.lab != null || AgentHost.queue.isNotEmpty() || currentTodo() != null
+private fun hasActivity() = AgentHost.lab != null || AgentHost.queue.isNotEmpty() || currentTodo() != null ||
+    com.droiddeck.launcher.agent.AgentSetup.problems.isNotEmpty()
 
 /** The todo item in progress and how many are done, while the agent works through a list. */
 private fun currentTodo(): String? {
@@ -593,6 +594,11 @@ private fun AgentActivity(labOpen: Boolean, onLab: () -> Unit) {
         AgentChip {
             Text(todo, fontSize = 12.5.sp, color = pal.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
         }
+    }
+    val problems = com.droiddeck.launcher.agent.AgentSetup.problems
+    if (problems.isNotEmpty()) AgentChip(warn = true, tag = "agent-tools-missing") {
+        Text(stringResource(R.string.agent_tools_missing, problems.joinToString(", ")), fontSize = 12.5.sp, color = AttentionAmber,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 260.dp))
     }
     for (queued in AgentHost.queue) AgentChip(warn = true) {
         Text(stringResource(R.string.agent_queued, queued.text), fontSize = 12.5.sp, color = AttentionAmber, maxLines = 1,

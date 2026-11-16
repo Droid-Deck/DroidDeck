@@ -679,6 +679,8 @@
     <string name="drawer_page_display">Экран</string>
     <string name="drawer_frame_limit">Ограничение кадров</string>
     <string name="drawer_frame_limit_note">Ограничивает эту игру. Экран переключается на частоту обновления, которая делится на ограничение без остатка, если такая есть; при других ограничениях движение может быть неровным. Игры Steam используют ограничение кадров Steam в меню быстрого доступа.</string>
+    <string name="drawer_bfi">Вставка чёрных кадров</string>
+    <string name="drawer_bfi_note">Более чёткое движение: после каждого кадра идёт чёрное обновление. Нужно 100 Гц или больше; игра работает на половине частоты обновления и выглядит темнее. Отключено при генерации кадров.</string>
     <string name="drawer_page_effects">Эффекты</string>
     <string name="drawer_page_controls">Управление</string>
     <string name="drawer_page_components">Компоненты</string>
@@ -1189,6 +1191,7 @@
     <string name="agent_hint_working">Введите текст, чтобы поставить следующее сообщение в очередь</string>
     <string name="agent_queue">В очередь</string>
     <string name="agent_queued">Далее: %1$s</string>
+    <string name="agent_tools_missing">Инструменты агента не установлены: %1$s</string>
     <string name="agent_unqueue">Не отправлять</string>
     <string name="agent_attach">Прикрепить</string>
     <string name="agent_remove_attachment">Удалить</string>
@@ -3485,6 +3488,7 @@
     <string name="boot_movie_sound">Звук</string>
     <string name="boot_movie_skip">Пропускать стартовое видео</string>
     <string name="boot_movie_skip_hint">Использовать 0,1-секундный чёрный клип в качестве стартового видео Steam. Применится в следующем сеансе.</string>
+    <string name="boot_movie_shuffle">Случайный порядок</string>
     <string name="boot_movie_custom">Своё видео</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV или WebM. Другие форматы и файлы больше %1$d МБ преобразуются на устройстве в WebM 720p, до %2$d секунд.</string>
     <string name="boot_movie_import">Импорт</string>
@@ -4185,4 +4189,9 @@
     <string name="hud_readings_shown">Показано</string>
     <string name="hud_readings_count">%1$d из %2$d</string>
     <string name="exit_hint_back">Нажмите «Назад» ещё раз, чтобы выйти</string>
+
+    <string name="display_integer_scaling">Целочисленное масштабирование</string>
+    <string name="display_integer_scaling_hint">Использует наибольший целочисленный масштаб, который помещается на экране. Края могут обрезаться. Если исходное изображение больше выходного, дробное масштабирование показывает его целиком. Разрешение настраивается отдельно.</string>
+    <string name="display_scaling_integer">Целое число</string>
+    <string name="display_scaling_fit">По размеру</string>
 </resources>

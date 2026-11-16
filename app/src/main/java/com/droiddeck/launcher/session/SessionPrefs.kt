@@ -85,6 +85,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
+    fun blackFrameInsertion(context: Context): Boolean = prefs(context).getBoolean("blackFrameInsertion", false)
+
+    fun setBlackFrameInsertion(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("blackFrameInsertion", on).apply()
+    }
+
     fun animationsEnabled(context: Context): Boolean = prefs(context).getBoolean("animations", true)
 
     fun setAnimationsEnabled(context: Context, on: Boolean) {
@@ -641,6 +647,13 @@ object SessionPrefs {
             position.takeIf { it in listOf("top", "bottom", "left", "right", "center") } ?: "center").apply()
     }
 
+    fun integerScaling(context: Context): Boolean =
+        prefs(context).getBoolean("integerScaling", false)
+
+    fun setIntegerScaling(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("integerScaling", enabled).apply()
+    }
+
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
 
     fun setReturnAfterGame(context: Context, on: Boolean) {
@@ -693,6 +706,18 @@ object SessionPrefs {
     fun micEnabled(context: Context): Boolean = prefs(context).getBoolean("mic", false)
 
     fun micAsked(context: Context): Boolean = prefs(context).getBoolean("micAsked", false)
+
+    fun allFilesAsked(context: Context): Boolean = prefs(context).getBoolean("allFilesAsked", false)
+
+    fun setAllFilesAsked(context: Context) {
+        prefs(context).edit().putBoolean("allFilesAsked", true).apply()
+    }
+
+    fun bluetoothAsked(context: Context): Boolean = prefs(context).getBoolean("bluetoothAsked", false)
+
+    fun setBluetoothAsked(context: Context) {
+        prefs(context).edit().putBoolean("bluetoothAsked", true).apply()
+    }
 
     fun setMicAsked(context: Context) {
         prefs(context).edit().putBoolean("micAsked", true).apply()
@@ -939,7 +964,7 @@ object SessionPrefs {
                 prefs(context).edit().putBoolean("steamGpuCompositing", false).apply()
             return false
         }
-        return prefs(context).getBoolean("steamGpuCompositing", false)
+        return prefs(context).getBoolean("steamGpuCompositing", true)
     }
 
     fun steamGpuCompositingAllowed(): Boolean =
@@ -1229,6 +1254,13 @@ object SessionPrefs {
     fun setBootMovieApplyNext(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieApplyNext", on).apply() }
     fun bootMovieSteamSeen(context: Context): String? = prefs(context).getString("bootMovieSteamSeen", null)
     fun setBootMovieSteamSeen(context: Context, path: String) { prefs(context).edit().putString("bootMovieSteamSeen", path).apply() }
+    fun bootMovieShuffle(context: Context): Boolean = prefs(context).getBoolean("bootMovieShuffle", false)
+    fun setBootMovieShuffle(context: Context, on: Boolean) { prefs(context).edit().putBoolean("bootMovieShuffle", on).apply() }
+    fun bootMovieShuffleSeen(context: Context, config: java.io.File): Boolean? {
+        val key = "bootMovieShuffleSeen:${config.path}"
+        return prefs(context).takeIf { it.contains(key) }?.getBoolean(key, false)
+    }
+    fun setBootMovieShuffleSeen(context: Context, config: java.io.File, on: Boolean) { prefs(context).edit().putBoolean("bootMovieShuffleSeen:${config.path}", on).apply() }
     fun bootMovieCustomName(context: Context): String? = prefs(context).getString("bootMovieCustomName", null)
     fun setBootMovieCustomName(context: Context, name: String?) {
         prefs(context).edit().apply { if (name == null) remove("bootMovieCustomName") else putString("bootMovieCustomName", name) }.apply()

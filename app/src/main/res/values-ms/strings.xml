@@ -673,6 +673,8 @@
     <string name="drawer_page_display">Paparan</string>
     <string name="drawer_frame_limit">Had bingkai</string>
     <string name="drawer_frame_limit_note">Mengehadkan permainan ini. Paparan bertukar kepada kadar segar semula yang boleh dibahagi sama rata dengan had jika ada; had lain mungkin kelihatan tidak sekata. Permainan Steam menggunakan Frame Limit Steam dalam menu Akses Pantas.</string>
+    <string name="drawer_bfi">Sisipan bingkai hitam</string>
+    <string name="drawer_bfi_note">Gerakan lebih tajam: setiap bingkai diikuti segar semula hitam. Perlu 100 Hz atau lebih; permainan berjalan pada separuh kadar segar semula dan kelihatan lebih gelap. Dimatikan semasa penjanaan bingkai.</string>
     <string name="drawer_page_effects">Kesan</string>
     <string name="drawer_page_controls">Kawalan</string>
     <string name="drawer_page_components">Komponen</string>
@@ -1180,6 +1182,7 @@
     <string name="agent_hint_working">Taip untuk membariskan mesej seterusnya</string>
     <string name="agent_queue">Baris gilir</string>
     <string name="agent_queued">Seterusnya: %1$s</string>
+    <string name="agent_tools_missing">Alat ejen tidak dipasang: %1$s</string>
     <string name="agent_unqueue">Jangan hantar</string>
     <string name="agent_attach">Lampirkan</string>
     <string name="agent_remove_attachment">Alih keluar</string>
@@ -3378,6 +3381,7 @@
     <string name="boot_movie_sound">Bunyi</string>
     <string name="boot_movie_skip">Langkau filem permulaan</string>
     <string name="boot_movie_skip_hint">Gunakan klip hitam 0.1 saat sebagai filem permulaan Steam. Berkuat kuasa pada sesi seterusnya.</string>
+    <string name="boot_movie_shuffle">Rawak</string>
     <string name="boot_movie_custom">Video anda sendiri</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV atau WebM. Format lain dan fail melebihi %1$d MB ditukar kepada WebM 720p pada peranti, sehingga %2$d saat.</string>
     <string name="boot_movie_import">Import</string>
@@ -4075,4 +4079,9 @@
     <string name="hud_readings_shown">Dipaparkan</string>
     <string name="hud_readings_count">%1$d daripada %2$d</string>
     <string name="exit_hint_back">Tekan kembali sekali lagi untuk keluar</string>
+
+    <string name="display_integer_scaling">Penskalaan integer</string>
+    <string name="display_integer_scaling_hint">Menggunakan skala nombor bulat terbesar yang muat. Tepi skrin mungkin terpotong. Jika sumber lebih besar daripada output, penskalaan pecahan memaparkan keseluruhan imej. Resolusi ditetapkan secara berasingan.</string>
+    <string name="display_scaling_integer">Integer</string>
+    <string name="display_scaling_fit">Muat</string>
 </resources>

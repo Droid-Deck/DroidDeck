@@ -679,6 +679,8 @@
     <string name="drawer_page_display">Wyświetlacz</string>
     <string name="drawer_frame_limit">Limit klatek</string>
     <string name="drawer_frame_limit_note">Ogranicza tę grę. Wyświetlacz przełącza się na częstotliwość odświeżania podzielną przez limit, jeśli taka jest; inne limity mogą wyglądać nierówno. Gry Steam używają limitu klatek Steam w menu szybkiego dostępu.</string>
+    <string name="drawer_bfi">Wstawianie czarnych klatek</string>
+    <string name="drawer_bfi_note">Ostrzejszy ruch: po każdej klatce następuje czarne odświeżenie. Wymaga 100 Hz lub więcej; gra działa z połową częstotliwości odświeżania i jest ciemniejsza. Wyłączone przy generowaniu klatek.</string>
     <string name="drawer_page_effects">Efekty</string>
     <string name="drawer_page_controls">Sterowanie</string>
     <string name="drawer_page_components">Komponenty</string>
@@ -1189,6 +1191,7 @@
     <string name="agent_hint_working">Wpisz, aby zakolejkować następną wiadomość</string>
     <string name="agent_queue">Zakolejkuj</string>
     <string name="agent_queued">Następna: %1$s</string>
+    <string name="agent_tools_missing">Narzędzia agenta nie są zainstalowane: %1$s</string>
     <string name="agent_unqueue">Nie wysyłaj</string>
     <string name="agent_attach">Załącz</string>
     <string name="agent_remove_attachment">Usuń</string>
@@ -3485,6 +3488,7 @@
     <string name="boot_movie_sound">Dźwięk</string>
     <string name="boot_movie_skip">Pomiń film startowy</string>
     <string name="boot_movie_skip_hint">Użyj 0,1-sekundowego czarnego klipu jako filmu startowego Steam. Zacznie obowiązywać w następnej sesji.</string>
+    <string name="boot_movie_shuffle">Losowo</string>
     <string name="boot_movie_custom">Własny film</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV lub WebM. Inne formaty i pliki powyżej %1$d MB są konwertowane na urządzeniu do WebM 720p, do %2$d sekund.</string>
     <string name="boot_movie_import">Importuj</string>
@@ -4185,4 +4189,9 @@
     <string name="hud_readings_shown">Pokazane</string>
     <string name="hud_readings_count">%1$d z %2$d</string>
     <string name="exit_hint_back">Naciśnij wstecz jeszcze raz, aby wyjść</string>
+
+    <string name="display_integer_scaling">Skalowanie całkowite</string>
+    <string name="display_integer_scaling_hint">Używa największej całkowitej skali, która się mieści. Krawędzie ekranu mogą zostać przycięte. Jeśli źródło jest większe niż wynik, skalowanie ułamkowe wyświetla cały obraz. Rozdzielczość ustawia się osobno.</string>
+    <string name="display_scaling_integer">Liczba całkowita</string>
+    <string name="display_scaling_fit">Dopasuj</string>
 </resources>

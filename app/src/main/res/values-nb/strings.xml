@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Skjerm</string>
     <string name="drawer_frame_limit">Bildefrekvensgrense</string>
     <string name="drawer_frame_limit_note">Begrenser dette spillet. Skjermen bytter til en oppdateringsfrekvens som grensen går opp i når det finnes en; andre grenser kan se ujevne ut. Steam-spill bruker Steams Frame Limit i Hurtigmenyen.</string>
+    <string name="drawer_bfi">Innsetting av svarte bilder</string>
+    <string name="drawer_bfi_note">Skarpere bevegelse: hvert bilde etterfølges av en svart oppdatering. Krever 100 Hz eller mer; spillet kjører på halv oppdateringsfrekvens og ser mørkere ut. Av mens bildegenerering er på.</string>
     <string name="drawer_page_effects">Effekter</string>
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Komponenter</string>
@@ -1183,6 +1185,7 @@
     <string name="agent_hint_working">Skriv for å legge neste melding i kø</string>
     <string name="agent_queue">Legg i kø</string>
     <string name="agent_queued">Neste: %1$s</string>
+    <string name="agent_tools_missing">Agentverktøy er ikke installert: %1$s</string>
     <string name="agent_unqueue">Ikke send</string>
     <string name="agent_attach">Legg ved</string>
     <string name="agent_remove_attachment">Fjern</string>
@@ -3407,6 +3410,7 @@
     <string name="boot_movie_sound">Lyd</string>
     <string name="boot_movie_skip">Hopp over oppstartsfilmen</string>
     <string name="boot_movie_skip_hint">Bruk et svart klipp på 0,1 sekunder som oppstartsfilmen til Steam. Trer i kraft neste økt.</string>
+    <string name="boot_movie_shuffle">Tilfeldig rekkefølge</string>
     <string name="boot_movie_custom">Din egen video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV eller WebM. Andre formater og filer over %1$d MB konverteres til 720p-WebM på enheten, opptil %2$d sekunder.</string>
     <string name="boot_movie_import">Importer</string>
@@ -4105,4 +4109,8 @@
     <string name="hud_readings_shown">Vist</string>
     <string name="hud_readings_count">%1$d av %2$d</string>
     <string name="exit_hint_back">Trykk tilbake én gang til for å avslutte</string>
+    <string name="display_integer_scaling">Heltallsskalering</string>
+    <string name="display_integer_scaling_hint">Bruker den største heltallsskalaen som får plass. Kan beskjære skjermkantene. Hvis kilden er større enn utdataene, viser brøkbasert skalering hele bildet. Oppløsningen stilles inn separat.</string>
+    <string name="display_scaling_integer">Heltall</string>
+    <string name="display_scaling_fit">Tilpass</string>
 </resources>

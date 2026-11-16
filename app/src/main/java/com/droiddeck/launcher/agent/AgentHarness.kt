@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** One coding agent CLI in the Linux userland, run one process per turn. */
+/** One coding agent CLI in the Linux userland, run one process per turn (or kept open, see [input]). */
 interface AgentHarness {
     val id: String
     val name: String
@@ -27,8 +27,18 @@ interface AgentHarness {
     fun models(rootfs: File): List<Model>
     /** The guest command for one turn; [conversation] is null for the first one. */
     fun turn(message: String, conversation: String?, options: Options): List<String>
+    /**
+     * The line that hands [message] to a [turn] process over stdin, or null when the message is already in the
+     * command. A process that takes its messages this way stays open between turns, so work it started in the
+     * background can wake it, as it does in the CLI's own terminal.
+     */
+    fun input(message: String): String? = null
     /** One line of the CLI's output, or null when it carries nothing to show. */
     fun parse(line: String): AgentEvent?
+    /** The folder, under the userland's root, where the CLI loads user skills (`<name>/SKILL.md`). */
+    val skills: String
+    /** The CLI's global instructions file under the userland's root, where DroidDeck keeps its rules in a marked block. */
+    val instructions: String
     /** Sets the CLI's own defaults in the userland before it runs; [rootfs] is the userland's root. */
     fun prepare(rootfs: File) {}
     /** Context and plan limits the CLI keeps on disk rather than printing, read once a turn of [conversation] is done. */
@@ -56,9 +66,13 @@ data class AgentEvent(
     val window: Long? = null,
     val limits: List<AgentHost.Limit>? = null,
     val usage: AgentHost.Usage? = null,
+    /** This ends a turn the CLI started itself, such as the answer to a finished background task. */
+    val background: Boolean = false,
+    /** The error a background turn ended with, if it failed. */
+    val backgroundError: String? = null,
 )
 
-/** Claude Code: `claude -p` with stream-json output, resumed by session id. */
+/** Claude Code: `claude -p` with stream-json input and output, resumed by session id. */
 object ClaudeCode : AgentHarness {
     override val id = "claude"
     override val name = "Claude Code"
@@ -73,6 +87,8 @@ object ClaudeCode : AgentHarness {
      * Commits and pull requests the agent makes carry no Claude Code credit or co-author line by
      * default. Only keys the user has not set are written, so their own choice stays.
      */
+    override val skills = "root/.claude/skills"
+    override val instructions = "root/.claude/CLAUDE.md"
     override fun prepare(rootfs: File) {
         val file = File(rootfs, "root/.claude/settings.json")
         val settings = if (file.exists()) runCatching { JSONObject(file.readText()) }.getOrNull() ?: return else JSONObject()
@@ -97,13 +113,18 @@ object ClaudeCode : AgentHarness {
 
     // DroidDeck runs the agent unattended on the user's own device; permission prompts have no one to answer them.
     override fun turn(message: String, conversation: String?, options: AgentHarness.Options) = buildList {
-        addAll(listOf(binary, "-p", message, "--output-format", "stream-json", "--verbose", "--include-partial-messages"))
+        addAll(listOf(binary, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"))
         addAll(listOf("--permission-mode", if (options.plan) "plan" else "bypassPermissions"))
         options.model?.let { addAll(listOf("--model", it)) }
         options.effort?.let { addAll(listOf("--effort", it)) }
         options.brief?.let { addAll(listOf("--append-system-prompt", it)) }
         if (conversation != null) addAll(listOf("--resume", conversation))
     }
+
+    override fun input(message: String): String? = JSONObject()
+        .put("type", "user")
+        .put("message", JSONObject().put("role", "user").put("content", JSONArray().put(JSONObject().put("type", "text").put("text", message))))
+        .toString()
 
     override fun parse(line: String): AgentEvent? {
         val o = runCatching { JSONObject(line) }.getOrNull() ?: return null
@@ -130,7 +151,11 @@ object ClaudeCode : AgentHarness {
                         "thinking" -> if (parent != null) null else block.optString("thinking").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Thought(it) }
                         "tool_use" -> {
                             val input = block.optJSONObject("input")
-                            AgentHost.Entry.Used(block.optString("id"), block.optString("name"), detail(input), fullInput(block.optString("name"), input), parent = parent.orEmpty())
+                            AgentHost.Entry.Used(
+                                block.optString("id"), block.optString("name"), detail(input), fullInput(block.optString("name"), input),
+                                parent = parent.orEmpty(),
+                                background = input?.optBoolean("run_in_background") == true || block.optString("name") == "Monitor",
+                            )
                         }
                         else -> null
                     }
@@ -148,17 +173,25 @@ object ClaudeCode : AgentHarness {
                 AgentEvent(conversation, results)
             }
             "rate_limit_event" -> AgentEvent(conversation, limits = limits(o.optJSONObject("rate_limit_info")))
-            // A resumed session first answers background tasks the last run left behind; that result is not the turn's.
-            "result" -> if (o.optJSONObject("origin")?.optString("kind") == "task-notification") conversation?.let { AgentEvent(it) } else AgentEvent(
-                conversation,
-                listOf(AgentHost.Entry.Finished(if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null)),
-                window = window(o.optJSONObject("modelUsage")),
-                usage = AgentHost.Usage(
+            // The CLI starts turns of its own for background tasks (a resumed session first answers the ones the last
+            // run left behind). Such a result is not the end of the user's turn; the host decides what it ends.
+            "result" -> {
+                val usage = AgentHost.Usage(
                     o.optLong("duration_ms"), o.optDouble("total_cost_usd", 0.0),
                     o.optJSONObject("usage")?.let { it.optLong("input_tokens") + it.optLong("cache_read_input_tokens") + it.optLong("cache_creation_input_tokens") } ?: 0,
                     o.optJSONObject("usage")?.optLong("output_tokens") ?: 0,
-                ),
-            )
+                )
+                if (o.optJSONObject("origin")?.optString("kind") == "task-notification") AgentEvent(
+                    conversation, usage = usage, background = true,
+                    backgroundError = if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null,
+                )
+                else AgentEvent(
+                    conversation,
+                    listOf(AgentHost.Entry.Finished(if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null)),
+                    window = window(o.optJSONObject("modelUsage")),
+                    usage = usage,
+                )
+            }
             else -> conversation?.let { AgentEvent(it) }
         }
     }
@@ -227,6 +260,8 @@ object Codex : AgentHarness {
     override val id = "codex"
     override val name = "Codex"
     override val binary = "/root/.local/bin/codex"
+    override val skills = "root/.codex/skills"
+    override val instructions = "root/.codex/AGENTS.md"
     // Code mode runs in a helper that each release ships as its own download.
     private const val HOST = "/root/.local/bin/codex-code-mode-host"
     override val files get() = listOf(binary, HOST)
