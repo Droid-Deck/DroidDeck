@@ -41,4 +41,18 @@ class SteamGpuCompositingTest {
         SessionPrefs.setSteamGpuCompositing(context, true)
         assertTrue(SessionPrefs.steamGpuCompositing(context))
     }
+
+    @Test fun untouchedPreferenceIsNotAChoice() {
+        assertFalse(SessionPrefs.steamGpuCompositingChosen(context))
+    }
+
+    @Test fun savedGpuChoiceIsAChoice() {
+        SessionPrefs.setSteamGpuCompositing(context, true)
+        assertTrue(SessionPrefs.steamGpuCompositingChosen(context))
+    }
+
+    @Test fun savedSoftwareChoiceIsNotChosenGpu() {
+        SessionPrefs.setSteamGpuCompositing(context, false)
+        assertFalse(SessionPrefs.steamGpuCompositingChosen(context))
+    }
 }
