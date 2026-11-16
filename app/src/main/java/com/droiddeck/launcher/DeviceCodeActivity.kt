@@ -47,7 +47,7 @@ class DeviceCodeActivity : ComponentActivity() {
     private var code by mutableStateOf("")
     private var label by mutableStateOf("")
     private var message by mutableStateOf<String?>(null)
-    private var note by mutableStateOf<String?>(null)
+    private var paste = false
     private var agent = true
     private var url = ""
     private var display: Int? = null
@@ -90,6 +90,18 @@ class DeviceCodeActivity : ComponentActivity() {
         }
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && paste && !inPip) tryPaste()
+    }
+
+    /** Android hands the clipboard only to the app in front, which this float is once expanded. */
+    private fun tryPaste() {
+        val text = runCatching { getSystemService(ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString() }.getOrNull()
+        if (text.isNullOrBlank()) return
+        if (onPaste?.invoke(this, text) == true) returnToApp()
+    }
+
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         inPip = isInPictureInPictureMode
@@ -102,7 +114,7 @@ class DeviceCodeActivity : ComponentActivity() {
         label = intent.getStringExtra(EXTRA_LABEL) ?: getString(R.string.agent_step_github)
         agent = intent.getBooleanExtra(EXTRA_AGENT, true)
         message = intent.getStringExtra(EXTRA_MESSAGE)
-        note = intent.getStringExtra(EXTRA_NOTE)
+        paste = intent.getBooleanExtra(EXTRA_PASTE, false)
         display = intent.getIntExtra(EXTRA_DISPLAY, -1).takeIf { it > 0 }
         if (agent) copy()
     }
@@ -142,13 +154,14 @@ class DeviceCodeActivity : ComponentActivity() {
             ) {
                 Text(label, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
                 val shown = message
-                if (shown != null) FitText(shown, maxSize = if (inPip) 22.sp else 32.sp, fontWeight = FontWeight.Bold, color = accent,
-                    modifier = Modifier.fillMaxWidth())
+                if (shown != null) Text(shown, fontSize = if (inPip) 12.sp else 22.sp, fontWeight = FontWeight.Bold, color = accent,
+                    maxLines = 4, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 else FitText(code, maxSize = if (inPip) 40.sp else 56.sp, fontWeight = FontWeight.Bold, color = accent,
                     modifier = Modifier.fillMaxWidth())
-                Text(note ?: Uri.parse(url).let { it.host + it.path }, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 2, textAlign = TextAlign.Center)
+                if (!paste) Text(Uri.parse(url).let { it.host + it.path }, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 2, textAlign = TextAlign.Center)
                 if (!inPip) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PrimaryButton(stringResource(R.string.fm_copy), onClick = ::copy)
+                    if (paste) PrimaryButton(stringResource(R.string.fm_paste), onClick = ::tryPaste)
+                    else PrimaryButton(stringResource(R.string.fm_copy), onClick = ::copy)
                     SecondaryButton(stringResource(R.string.common_close), onClick = ::finish)
                 }
             }
@@ -162,16 +175,21 @@ class DeviceCodeActivity : ComponentActivity() {
         private const val EXTRA_LABEL = "label"
         private const val EXTRA_AGENT = "agent"
         private const val EXTRA_MESSAGE = "message"
-        private const val EXTRA_NOTE = "note"
+        private const val EXTRA_PASTE = "paste"
+
+        /** Takes what the user copied from the page; true once it was accepted. */
+        @Volatile var onPaste: ((Context, String) -> Boolean)? = null
         private var current: WeakReference<DeviceCodeActivity>? = null
 
-        /** False when this device cannot float a window, so the caller opens the page itself. */
-        /** [message] replaces the code for a page whose link already carries it; [note] replaces the address line. */
-        fun show(context: Context, code: String, url: String, display: Int, label: String? = null, message: String? = null, note: String? = null): Boolean {
+        /**
+         * False when this device cannot float a window, so the caller opens the page itself. [message]
+         * replaces the code; [paste] shows a Paste button that hands the clipboard to [onPaste].
+         */
+        fun show(context: Context, code: String, url: String, display: Int, label: String? = null, message: String? = null, paste: Boolean = false): Boolean {
             if (!PairingGuideActivity.canFloat(context)) return false
             val intent = Intent(context, DeviceCodeActivity::class.java)
                 .putExtra(EXTRA_CODE, code).putExtra(EXTRA_URL, url).putExtra(EXTRA_DISPLAY, display)
-                .putExtra(EXTRA_AGENT, label == null).also { if (label != null) it.putExtra(EXTRA_LABEL, label); if (message != null) it.putExtra(EXTRA_MESSAGE, message); if (note != null) it.putExtra(EXTRA_NOTE, note) }
+                .putExtra(EXTRA_AGENT, label == null).also { if (label != null) it.putExtra(EXTRA_LABEL, label); if (message != null) it.putExtra(EXTRA_MESSAGE, message); it.putExtra(EXTRA_PASTE, paste) }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             return runCatching {
                 if (display > 0) context.startActivity(intent, ActivityOptions.makeBasic().setLaunchDisplayId(display).toBundle())
@@ -182,16 +200,13 @@ class DeviceCodeActivity : ComponentActivity() {
         fun close() {
             current?.get()?.finish()
         }
+    }
 
-        /** While the float is on screen, Android lets it bring DroidDeck back in front of the browser. */
-        fun returnToApp(): Boolean {
-            val float = current?.get()?.takeIf { !it.isFinishing && !it.isDestroyed } ?: return false
-            val opened = runCatching {
-                float.startActivity(Intent(float, FrontEndActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
-            }.isSuccess
-            float.finish()
-            return opened
+    private fun returnToApp() {
+        runCatching {
+            startActivity(Intent(this, FrontEndActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
         }
+        finish()
     }
 }

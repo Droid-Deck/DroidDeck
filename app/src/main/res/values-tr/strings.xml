@@ -1676,7 +1676,8 @@
     <string name="upd_stage_downloading">İndiriliyor</string>
     <string name="upd_stage_installing">Yükleniyor</string>
     <string name="upd_stage_confirm">Onayınız bekleniyor</string>
-    <string name="epic_sign_in_fortnite_note">Epic\'in sayfası bu girişi Fortnite olarak adlandırır</string>
+    <string name="epic_copy_code">authorizationCode sonrasındaki harf ve rakamlara basılı tutun, kopyalayın, sonra buraya dönün</string>
+    <string name="stores_login_in_browser">Tarayıcı</string>
     <string name="upd_failed">Güncelleme başarısız oldu</string>
     <string name="upd_not_offered">Android güncellemeyi yüklemeyi önermedi</string>
 

@@ -1,10 +1,12 @@
 package com.droiddeck.launcher.stores.epic
 
 import android.content.Context
+import android.content.Intent
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.EpicLaunchSupport
 import com.droiddeck.launcher.stores.InstalledStoreGame
+import com.droiddeck.launcher.stores.LoginFlows
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreBackend
 import com.droiddeck.launcher.stores.StoreInstallRoot
@@ -17,9 +19,16 @@ import com.droiddeck.launcher.stores.mergeItems
 object EpicBackend : StoreBackend, EpicLaunchSupport {
     override val store: Store = Store.EPIC
 
+    init {
+        LoginFlows.epicFlow = { EpicLogin.create() }
+    }
+
     override fun signIn(context: Context) {
-        StoreLoginActivity.floodColor = null
-        EpicDeviceLogin.begin(context)
+        context.startActivity(
+            Intent(context, StoreLoginActivity::class.java)
+                .putExtra(StoreLoginActivity.EXTRA_STORE, store.id)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     override fun signOut(context: Context) {

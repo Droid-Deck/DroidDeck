@@ -153,10 +153,10 @@ synchronous on the calling thread (network calls block: call them off the main t
 
 | op | request | answer |
 |---|---|---|
-| `auth.config` | – | `webViewUserAgent` for the Epic client's embedded pages |
-| `auth.deviceStart` | – | `url` (Epic's activation page for the browser), `userCode`, `deviceCode`, `interval` and `expiresIn` (seconds) |
-| `auth.devicePoll` | `deviceCode` | `{"pending": true}` until the user confirms in the browser, then `access_token`, `refresh_token`?, `account_id`?, `display_name`?, `expires_at` (epoch ms) for the launcher client |
-| `auth.refresh` | `refreshToken` | same as `auth.devicePoll` (absent fields: keep the stored ones) |
+| `auth.config` | – | `startUrl`, `redirectPrefix`, `webViewUserAgent` for the login WebView |
+| `auth.codeFromPage` | `text` (the redirect page body as the WebView returns it) | `code`, or `{}` |
+| `auth.signIn` | `code` | `access_token`, `refresh_token`?, `account_id`?, `display_name`?, `expires_at` (epoch ms) |
+| `auth.refresh` | `refreshToken` | same as `auth.signIn` (absent fields: keep the stored ones) |
 | `auth.exchange` | `accessToken` | `code` (single-use launch exchange code) |
 | `library.owned` | `accessToken` | `records[]` of `appName`, `namespace`, `catalogItemId` (all pages; filtered to installable Windows games). A refused token answers `{"error":…, "signIn": true}`; any failed page fails the whole call |
 | `catalog.details` | `accessToken`, `namespace`, `catalogItemId` | `details`: `title`, `developer`, `description`, `publisher`, `releaseDate`, `tall`, `wide`, `canRunOffline`, `dlc`, `mainGameId` |

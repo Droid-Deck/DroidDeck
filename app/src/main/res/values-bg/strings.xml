@@ -1684,7 +1684,8 @@
     <string name="upd_stage_downloading">Изтегляне</string>
     <string name="upd_stage_installing">Инсталиране</string>
     <string name="upd_stage_confirm">Изчакване на потвърждение от теб</string>
-    <string name="epic_sign_in_fortnite_note">Страницата на Epic нарича този вход Fortnite</string>
+    <string name="epic_copy_code">Задръжте буквите и цифрите след authorizationCode, копирайте ги и се върнете тук</string>
+    <string name="stores_login_in_browser">Браузър</string>
     <string name="upd_failed">Актуализацията се провали</string>
     <string name="upd_not_offered">Android не предложи инсталирането на актуализацията</string>
 

@@ -1846,7 +1846,8 @@
     <string name="upd_stage_downloading">Downloading</string>
     <string name="upd_stage_installing">Installing</string>
     <string name="upd_stage_confirm">Waiting for you to confirm</string>
-    <string name="epic_sign_in_fortnite_note">Epic\'s page calls this sign-in Fortnite</string>
+    <string name="epic_copy_code">Long-press the letters and numbers after authorizationCode, copy them, then come back here</string>
+    <string name="stores_login_in_browser">Browser</string>
     <string name="upd_failed">The update failed</string>
     <string name="upd_not_offered">Android didn\'t offer to install the update</string>
 

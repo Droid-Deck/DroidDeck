@@ -21,19 +21,17 @@ fn dispatch(op: &str, req: &Value) -> Value {
     let token = str_of(req, "accessToken");
     match op {
         "auth.config" => json!({
+            "startUrl": account::start_url(),
+            "redirectPrefix": account::REDIRECT_PREFIX,
             "webViewUserAgent": account::WEBVIEW_USER_AGENT,
         }),
-        "auth.deviceStart" => match account::device_start() {
-            Ok(d) => json!({
-                "url": d.url, "userCode": d.user_code, "deviceCode": d.device_code,
-                "interval": d.interval_s, "expiresIn": d.expires_in_s,
-            }),
-            Err(e) => error(e),
+        "auth.codeFromPage" => match account::code_from_page_text(str_of(req, "text")) {
+            Some(code) => json!({ "code": code }),
+            None => json!({}),
         },
-        "auth.devicePoll" => match account::device_poll(str_of(req, "deviceCode")) {
-            account::DevicePoll::Pending => json!({ "pending": true }),
-            account::DevicePoll::Done(t) => t.to_json(),
-            account::DevicePoll::Failed(e) => error(e),
+        "auth.signIn" => match account::sign_in_with_code(str_of(req, "code")) {
+            Ok(t) => t.to_json(),
+            Err(e) => error(e),
         },
         "auth.refresh" => match account::refresh(str_of(req, "refreshToken")) {
             Ok(t) => t.to_json(),
@@ -189,8 +187,8 @@ mod tests {
         let v: Value = serde_json::from_str(&call("locale", r#"{"language":"pt","region":"BR"}"#)).unwrap();
         assert_eq!(v["key"], "pt-BR");
         assert_eq!(v["launchLocale"], "pt");
-        let v: Value = serde_json::from_str(&call("auth.config", "{}")).unwrap();
-        assert!(v["webViewUserAgent"].as_str().unwrap().starts_with("UELauncher/"));
+        let v: Value = serde_json::from_str(&call("auth.codeFromPage", r#"{"text":"{\"authorizationCode\":\"c1\"}"}"#)).unwrap();
+        assert_eq!(v["code"], "c1");
         let v: Value = serde_json::from_str(&call("nope", "{}")).unwrap();
         assert!(v["error"].is_string());
         let v: Value = serde_json::from_str(&call("launch.args", r#"{"namespace":"ns","appName":"A"}"#)).unwrap();
