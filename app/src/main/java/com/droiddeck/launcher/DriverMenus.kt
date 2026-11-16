@@ -130,6 +130,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     }
 
     var restartBlocked: () -> Boolean = { SessionState.running }
+    var onRouteChanged: () -> Unit = {}
 
     fun loadTpUbwcMode() {
         tpUbwcMode = SessionPrefs.tpUbwcMode(activity)
@@ -185,6 +186,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         runtimePending = sessionRunning && SessionState.runtimeDriver.let { it != null && it != linuxSelected }
         refreshReleaseRows()
         refreshPairs()
+        onRouteChanged()
     }
 
     fun summary(): String {

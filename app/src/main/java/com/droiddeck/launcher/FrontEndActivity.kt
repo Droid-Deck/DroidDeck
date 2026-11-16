@@ -1199,6 +1199,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         drivers.restartBlocked = ::runtimeChangesBlocked
+        drivers.onRouteChanged = ::refreshSteamGpuDrawing
         drivers.loadTpUbwcMode()
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
@@ -1456,19 +1457,19 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onRuntime = { onRuntimeButton() },
                         onVkBridge = { on ->
                             SessionPrefs.setVkBridge(this, on); SessionPrefs.setMaliFallbackByAuto(this, ""); vkBridge = on
-                            steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
+                            refreshSteamGpuDrawing()
                             if (!on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
                         },
                         onVenus = { on ->
                             SessionPrefs.setVenus(this, on)
                             SessionPrefs.setMaliFallbackByAuto(this, "")
                             venus = on
-                            steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
+                            refreshSteamGpuDrawing()
                             if (on && !com.droiddeck.launcher.core.DeviceSupport.adreno()) Thread({
                                 com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
                                 runOnUiThread {
                                     venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)
-                                    steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
+                                    refreshSteamGpuDrawing()
                                 }
                             }, "venus-host-vulkan").start()
                         },
@@ -1532,7 +1533,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         },
                         onSteamGpuDrawing = {
                             SessionPrefs.setSteamGpuCompositing(this, !SessionPrefs.steamGpuDrawingShown(this))
-                            steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
+                            refreshSteamGpuDrawing()
                         },
                         onGraphicsLogs = {
                             SessionPrefs.setDetailedGraphicsLogs(this, !SessionPrefs.detailedGraphicsLogs(this))
@@ -3072,6 +3073,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             .show()
     }
 
+    private fun refreshSteamGpuDrawing() {
+        steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
+    }
+
     private fun refresh() {
         val listX64 = SessionPrefs.activeSteamClientArch(this) == "x86_64"
         if (listX64 != steamGamesX64) {
@@ -3103,7 +3108,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
         graphicsLogs = SessionPrefs.detailedGraphicsLogs(this)
         buildWatermark = SessionPrefs.buildWatermarkEnabled(this)
-        steamGpuDrawing = SessionPrefs.steamGpuDrawingShown(this)
+        refreshSteamGpuDrawing()
         bridgeFellBack = SessionPrefs.bridgeFellBack(this)
         bridgeFellBackMemory = SessionPrefs.bridgeFellBackForMemory(this)
         clearCachedApps = SessionPrefs.clearCachedApps(this)
