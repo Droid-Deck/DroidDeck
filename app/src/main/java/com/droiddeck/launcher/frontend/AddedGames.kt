@@ -31,6 +31,7 @@ object AddedGames {
         val exeUncertain: Boolean = false,
         val launchOptions: String = "",
         val single: Boolean = false,
+        val steamProgram: Boolean = true,
     ) {
         fun folderName(): String = folder.name
     }
@@ -470,7 +471,8 @@ object AddedGames {
             val guestDir = SessionPrefs.addedGameStartIn(context, folder.path).takeIf { sidecar == null && it.isNotEmpty() }
                 ?: sidecarDir
                 ?: guestPath(context, (if (adopted != null) adopted else launch).parentFile ?: folder) ?: return
-            val steamId = config?.let { steamRoute(it, appId) }
+            val steamProgram = candidates.firstOrNull()?.let { canonical(it) == canonical(exe) } ?: true
+            val steamId = config?.takeIf { steamProgram }?.let { steamRoute(it, appId) }
             out.add(Game(folder, name, exe, guestExe, guestDir, appId,
                 steamId?.toLong() ?: ((appId shl 32) or 0x02000000L), candidates, steamId,
                 source = sidecar?.store?.id ?: Library.ADDED, storeId = sidecar?.id,
@@ -480,7 +482,7 @@ object AddedGames {
                     sidecar.store == Store.UBISOFT -> com.droiddeck.launcher.stores.ubisoft.UbisoftConnect.launchOptions(context)
                     else -> ""
                 },
-                single = single != null))
+                single = single != null, steamProgram = steamProgram))
         }
     }
 
@@ -568,6 +570,7 @@ object AddedGames {
                 .append(",\"seen\":").append(SessionPrefs.addedGameExeSeen(context, g.folder.path))
             if (g.launchOptions.isNotEmpty()) json.append(",\"launch\":").append(quote(g.launchOptions))
             if (g.source != Library.ADDED) json.append(",\"store\":").append(quote(g.source))
+            if (!g.steamProgram) json.append(",\"route\":false")
             val art = AddedGameArt.resolve(context, g)
             val pieces = listOf("p" to art.portrait, "header" to art.header, "hero" to art.hero, "logo" to art.logo, "icon" to art.icon)
                 .mapNotNull { (k, f) -> f?.let { file -> artGuestPath(context, file)?.let { k to it } } }

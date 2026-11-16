@@ -71,6 +71,10 @@ def store_game(game):
     return bool(game.get("store"))
 
 
+def steam_program(game):
+    return game.get("route") is not False
+
+
 def manifest_ids(steamapps, name):
     matches = []
     try:
@@ -230,7 +234,7 @@ def remember_tried(steam_root, account, appids):
 
 
 def watch(steam_root, listing):
-    games = [game for game in read_json(listing, []) if not store_game(game) and not game.get("native")]
+    games = [game for game in read_json(listing, []) if not store_game(game) and not game.get("native") and steam_program(game)]
     if os.environ.get("DD_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
@@ -601,6 +605,10 @@ def route(steam_root, acct, games):
             shortcuts.append(game)
             continue
         if game.get("native"):
+            shortcuts.append(game)
+            continue
+        if not steam_program(game):
+            share_prefix(steam_root, game)
             shortcuts.append(game)
             continue
         folder = game.get("folder", "")
