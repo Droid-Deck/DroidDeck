@@ -218,12 +218,27 @@ object BattleNet {
         }
     }
 
+    /**
+     * The launch code of the copy installed in [folder]. The store card's code is not enough:
+     * a China client installs Diablo III under `D3CN` while the store title is `D3`.
+     */
+    fun launchCode(context: Context, uid: String, folder: File?): String? =
+        runCatching { games(context) }.getOrNull()?.let { launchCode(it, uid, folder) }
+
+    internal fun launchCode(games: List<Game>, uid: String, folder: File?): String? {
+        val same = games.filter { it.uid == uid }
+        val target = folder?.absolutePath
+        return same.firstOrNull { target != null && it.folder.absolutePath == target }?.code
+            ?: same.singleOrNull()?.code
+            ?: title(uid)?.code
+    }
+
     internal fun registrationsAt(context: Context, id: String, folder: File): List<String>? {
         val pfx = File(prefix(context), "pfx")
         val agentFile = File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db")
         val registryFile = File(pfx, "system.reg")
         val agent = if (!agentFile.exists()) emptyList()
-        else runCatching { productDbInstalls(agentFile.readBytes()) }.getOrNull() ?: return null
+        else runCatching { productDbRegistrations(agentFile.readBytes()) }.getOrNull() ?: return null
         val registry = if (!registryFile.exists()) emptyList()
         else runCatching { registryFile.useLines { uninstallEntries(it) } }.getOrNull() ?: return null
         val products = agent.filter { it.product.isNotEmpty() }.associate { it.uid.lowercase() to it.product }
@@ -339,6 +354,25 @@ object BattleNet {
     internal class AgentInstall(val uid: String, val path: String, val product: String)
 
     internal fun productDbEntries(bytes: ByteArray): List<Pair<String, String>>? = productDbInstalls(bytes)?.map { it.uid to it.path }
+
+    /**
+     * Every registration, including the one an unfinished install or update leaves behind:
+     * `productDbInstalls()` drops entries whose installed flag is 0, which is the state a
+     * cancelled download is in while its folder already holds data.
+     */
+    internal fun productDbRegistrations(bytes: ByteArray): List<AgentInstall>? {
+        val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrNull()?.filter { it.first == 1 } ?: return null
+        return installs.mapNotNull { (_, start, end) ->
+            runCatching {
+                val install = fields(bytes, start, end)
+                val uid = install.firstOrNull { it.first == 1 }?.let { String(bytes, it.second, it.third - it.second) }
+                val product = install.firstOrNull { it.first == 2 }?.let { String(bytes, it.second, it.third - it.second) }.orEmpty()
+                val path = install.firstOrNull { it.first == 3 }?.let { s -> fields(bytes, s.second, s.third).firstOrNull { it.first == 1 } }
+                    ?.let { String(bytes, it.second, it.third - it.second) }
+                if (uid.isNullOrEmpty() || path.isNullOrEmpty()) null else AgentInstall(uid, path, product)
+            }.getOrElse { return null }
+        }
+    }
 
     internal fun productDbInstalls(bytes: ByteArray): List<AgentInstall>? {
         val installs = runCatching { fields(bytes, 0, bytes.size) }.getOrNull()?.filter { it.first == 1 }?.takeIf { it.isNotEmpty() } ?: return null

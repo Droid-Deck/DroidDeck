@@ -1011,7 +1011,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val app = applicationContext
         Thread({
             val added = if (com.droiddeck.launcher.session.NoSteamLaunch.needsAddedGame(game)) runCatching { com.droiddeck.launcher.session.NoSteamLaunch.addedGame(app, game) }.getOrNull() else null
-            val command = com.droiddeck.launcher.session.NoSteamLaunch.command(game, added)
+            val command = com.droiddeck.launcher.session.NoSteamLaunch.command(app, game, added)
             ui.post {
                 onHandled()
                 if (isDestroyed) return@post

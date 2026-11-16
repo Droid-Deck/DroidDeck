@@ -419,6 +419,42 @@ class BattleNetTest {
         assertNull(BattleNetInstall.installUid(context, InstalledStoreGame(sidecar, missing)))
     }
 
+    @Test fun anUnfinishedInstallIsARegistrationButNotAGame() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/StarCraft II").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(
+                field(1, "s2_cn"), field(2, "s2c"),
+                field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/StarCraft II"))),
+                field(4, message(field(1, message(varintField(1, 0), varintField(2, 0))))),
+            )),
+        ))
+        assertTrue("an unfinished install is not a library game", BattleNet.games(context).none { it.installUid == "s2_cn" })
+        assertEquals(listOf("s2_cn"), BattleNet.registrationsAt(context, "s2", folder))
+    }
+
+    @Test fun aChinaCopyLaunchesWithItsRecordedCode() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val legacy = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III").apply { mkdirs() }
+        val china = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III China").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "diablo3"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III"))))),
+            field(1, message(field(1, "d3cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III China"))))),
+        ))
+        assertEquals("D3CN", BattleNet.launchCode(context, "diablo3", china))
+        assertEquals("D3", BattleNet.launchCode(context, "diablo3", legacy))
+        assertEquals("D3", BattleNet.launchCode(context, "diablo3", null))
+        val game = com.droiddeck.launcher.frontend.Library.SteamGame(
+            1234, "Diablo III", null, com.droiddeck.launcher.frontend.Library.ADDED,
+            source = Store.BATTLENET.id, storeId = "diablo3", gameFiles = china,
+        )
+        val command = com.droiddeck.launcher.session.NoSteamLaunch.command(context, game, null)!!
+        assertEquals(com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET, command.program)
+        assertEquals(listOf("launch", "D3CN"), command.args)
+    }
+
     @Test fun aRegistrationForAMissingFolderStillCountsAsPreexisting() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
         File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
@@ -677,7 +713,7 @@ class BattleNetTest {
         assertFalse(noSteam.enabled(context, game))
         assertTrue(BattleNet.ensureNoSteam(context))
         assertTrue(noSteam.enabled(context, game))
-        val command = noSteam.command(game, shortcut)!!
+        val command = noSteam.command(context, game, shortcut)!!
         assertEquals(noSteam.BATTLENET, command.program)
         assertEquals(listOf("launch", "Fen"), command.args)
         GameEnvironmentStore.setGameNoSteam(context, BattleNet.APP_ID.toString(), false)

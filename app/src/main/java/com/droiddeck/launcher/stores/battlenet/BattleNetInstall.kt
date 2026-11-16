@@ -374,6 +374,19 @@ internal class BattleNetInstaller(
         }
     }
 
+    /**
+     * The client writes the install registration a little after the download starts; a cancel
+     * right after the request would otherwise read an empty list and leave the registration behind.
+     */
+    private fun registrationsWaiting(): List<String>? {
+        val deadline = System.currentTimeMillis() + REGISTRATION_WAIT_MS
+        while (true) {
+            val found = runCatching { registration() }.getOrNull() ?: return null
+            if (found.isNotEmpty() || System.currentTimeMillis() >= deadline) return found
+            Thread.sleep(250)
+        }
+    }
+
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
         if (!deleteFiles || update) {
@@ -393,7 +406,7 @@ internal class BattleNetInstaller(
                 } else {
                     StoreInstalls.beginDiscard(folder)
                     discarding = true
-                    val created = runCatching { registration() }.getOrNull()
+                    val created = registrationsWaiting()
                     if (created == null) {
                         Log.w("BattleNetInstall", "could not read registrations for ${folder.path}; leaving cleanup to the user")
                     } else {
@@ -402,7 +415,7 @@ internal class BattleNetInstaller(
                         if (gone || uid == null && folder.isDirectory && folder.list().isNullOrEmpty()) {
                             com.droiddeck.launcher.core.FileUtils.delete(folder)
                         }
-                        Log.i("BattleNetInstall", "cancelled install of ${uid ?: "an unstarted job"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
+                        Log.i("BattleNetInstall", "cancelled install of ${uid ?: "a task without a registration"}: ${if (gone) "removed" else "left for Battle.net to remove"}")
                     }
                 }
             } finally {
@@ -420,3 +433,4 @@ internal class BattleNetInstaller(
 }
 
 private const val END_WAIT_S = 120L
+private const val REGISTRATION_WAIT_MS = 5_000L
