@@ -11,9 +11,13 @@ import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.FlatpakData
 import com.droiddeck.launcher.runtime.FlatpakManager
+import java.util.concurrent.atomic.AtomicInteger
 
 object StoreState {
     private val main = Handler(Looper.getMainLooper())
+    private val latestSnapshot = AtomicInteger()
+
+    internal class Snapshot(val ready: Boolean, val installed: List<FlatpakManager.App>, val cardData: Set<String>, val cardAvailable: Boolean)
 
     var ready by mutableStateOf(false)
         private set
@@ -55,12 +59,24 @@ object StoreState {
     fun refresh(context: Context) {
         val app = context.applicationContext
         Thread({
-            val r = FlatpakManager.ready(app)
-            val list = if (r) FlatpakManager.installedApps(app) else emptyList()
-            val data = FlatpakData.enabled(app)
-            val card = FlatpakData.available(app)
-            main.post { ready = r; installed = list; cardData = data; cardAvailable = card; updates = updates.filter { id -> list.any { it.id == id } }.toSet() }
+            val seq = nextSnapshot()
+            val snapshot = capture(app)
+            main.post { publish(seq, snapshot) }
         }, "store-refresh").start()
+    }
+
+    private fun capture(app: Context): Snapshot {
+        val r = FlatpakManager.ready(app)
+        val list = if (r) FlatpakManager.installedApps(app) else emptyList()
+        return Snapshot(r, list, FlatpakData.enabled(app), FlatpakData.available(app))
+    }
+
+    internal fun nextSnapshot() = latestSnapshot.incrementAndGet()
+
+    internal fun publish(seq: Int, snapshot: Snapshot) {
+        if (seq != latestSnapshot.get()) return
+        ready = snapshot.ready; installed = snapshot.installed; cardData = snapshot.cardData; cardAvailable = snapshot.cardAvailable
+        updates = updates.filter { id -> snapshot.installed.any { it.id == id } }.toSet()
     }
 
     fun loadSections(force: Boolean = false) {
@@ -107,13 +123,11 @@ object StoreState {
             } catch (e: Exception) {
                 e.message ?: e.toString()
             }
-            val r = FlatpakManager.ready(app)
-            val list = if (r) FlatpakManager.installedApps(app) else emptyList()
-            val data = FlatpakData.enabled(app)
-            val card = FlatpakData.available(app)
+            val seq = nextSnapshot()
+            val snapshot = capture(app)
             main.post {
                 busy = null; stage = null; percent = -1
-                ready = r; installed = list; cardData = data; cardAvailable = card
+                publish(seq, snapshot)
                 if (problem != null) Toast.makeText(app, app.getString(R.string.store_problem, label, problem), Toast.LENGTH_LONG).show()
             }
         }, "store-$what").start()

@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.runtime
 
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import java.io.File
@@ -28,9 +29,13 @@ class FlatpakDataTest {
         card = tmp.newFolder("card")
         SessionPrefs.setGameStorage(app, card.path, "SD")
         SessionState.running = false
+        SessionState.phase = SessionPhase.IDLE
     }
 
-    @After fun idle() { SessionState.running = false }
+    @After fun idle() {
+        SessionState.running = false
+        SessionState.phase = SessionPhase.IDLE
+    }
 
     private fun seed(name: String = id, bytes: Int = 1000) {
         val addons = File(FlatpakData.internalDir(app, name), ".srb2kart/addons").apply { mkdirs() }
@@ -175,5 +180,63 @@ class FlatpakDataTest {
         SessionState.running = true
         assertEquals(app.getString(R.string.store_data_session), move(id, true))
         assertTrue(FlatpakData.enabled(app).isEmpty())
+    }
+
+    @Test fun aSessionStillTearingDownBlocksTheMove() {
+        seed()
+        SessionState.phase = SessionPhase.STOPPING
+        assertEquals(app.getString(R.string.store_data_session), move(id, true))
+        SessionState.phase = SessionPhase.PREPARING
+        assertEquals(app.getString(R.string.store_data_session), move(id, true))
+        assertTrue(FlatpakData.enabled(app).isEmpty())
+        SessionState.phase = SessionPhase.IDLE
+        assertNull(move(id, true))
+    }
+
+    @Test fun aMoveInterruptedMidPlacementCanBeRetried() {
+        seed()
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, id, true))
+        File(card, "flatpak-data/$id/.srb2kart").mkdirs()
+        File(card, "flatpak-data/$id/partial.bin").writeText("half")
+        assertNull(move(id, true))
+        val onCard = File(card, "flatpak-data/$id")
+        assertFalse(File(onCard, "partial.bin").exists())
+        assertEquals(1000, File(onCard, ".srb2kart/addons/map.pk3").length())
+        assertTrue(SessionPrefs.flatpakDataMoving(app).isEmpty())
+        assertTrue(FlatpakData.entries(FlatpakData.internalDir(app, id)).isEmpty())
+    }
+
+    @Test fun staleDataLeftAtTheSourceIsDroppedAtSessionStart() {
+        seed()
+        assertNull(move(id, true))
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, id, true))
+        File(FlatpakData.internalDir(app, id), "stale.bin").writeText("old")
+        assertEquals(2, FlatpakData.binds(app).size)
+        assertEquals(listOf(".ld.so"), FlatpakData.internalDir(app, id).list()!!.toList())
+        assertEquals(1000, File(card, "flatpak-data/$id/.srb2kart/addons/map.pk3").length())
+        assertTrue(SessionPrefs.flatpakDataMoving(app).isEmpty())
+    }
+
+    @Test fun staleDataAtTheDestinationIsDroppedBeforeMovingBack() {
+        seed()
+        assertNull(move(id, true))
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, id, true))
+        File(FlatpakData.internalDir(app, id), "stale.bin").writeText("old")
+        assertNull(move(id, false))
+        val internal = FlatpakData.internalDir(app, id)
+        assertFalse(File(internal, "stale.bin").exists())
+        assertEquals(1000, File(internal, ".srb2kart/addons/map.pk3").length())
+    }
+
+    @Test fun anUnreadableSourceIsNotTreatedAsEmpty() {
+        FlatpakData.internalDir(app, id).apply { parentFile!!.mkdirs() }.writeText("not a folder")
+        assertEquals(app.getString(R.string.store_data_failed), move(id, true))
+        assertTrue(FlatpakData.enabled(app).isEmpty())
+        assertTrue(FlatpakData.internalDir(app, id).isFile)
+    }
+
+    @Test fun anAppWithoutDataMovesAsAnEmptyFolder() {
+        assertNull(move(id, true))
+        assertEquals(setOf(id), FlatpakData.enabled(app))
     }
 }

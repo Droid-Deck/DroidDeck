@@ -1911,10 +1911,19 @@ object SessionPrefs {
         prefs(context).edit().putString("gameStorage", path).putString("gameStorageLabel", label).apply()
     }
 
-    fun flatpakCardData(context: Context): Set<String> = prefs(context).getStringSet("flatpakCardData", null)?.toSet().orEmpty()
+    fun flatpakCardData(context: Context): Set<String> = idSet(context, "flatpakCardData")
 
-    fun setFlatpakCardData(context: Context, id: String, on: Boolean) {
-        prefs(context).edit().putStringSet("flatpakCardData", if (on) flatpakCardData(context) + id else flatpakCardData(context) - id).apply()
+    fun setFlatpakCardData(context: Context, id: String, on: Boolean): Boolean = commitId(context, "flatpakCardData", id, on)
+
+    fun flatpakDataMoving(context: Context): Set<String> = idSet(context, "flatpakDataMoving")
+
+    fun setFlatpakDataMoving(context: Context, id: String, on: Boolean): Boolean = commitId(context, "flatpakDataMoving", id, on)
+
+    private fun idSet(context: Context, key: String): Set<String> = prefs(context).getStringSet(key, null)?.toSet().orEmpty()
+
+    private fun commitId(context: Context, key: String, id: String, on: Boolean): Boolean {
+        val current = idSet(context, key)
+        return prefs(context).edit().putStringSet(key, if (on) current + id else current - id).commit()
     }
 
     fun steamLibraries(context: Context): String = prefs(context).getString("steamLibraries", "") ?: ""

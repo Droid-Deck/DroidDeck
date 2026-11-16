@@ -45,6 +45,8 @@ object SessionState {
 
     @Volatile
     var running = false
+
+    val occupied get() = running || (phase != SessionPhase.IDLE && phase != SessionPhase.FAILED)
     @Volatile
     var activityDisplayId = 0
     @Volatile
