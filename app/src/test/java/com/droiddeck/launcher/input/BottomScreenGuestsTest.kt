@@ -48,6 +48,17 @@ class BottomScreenGuestsTest {
         assertEquals(null, BottomScreenGuests.holder(null, null, homes))
     }
 
+    @Test fun anAppThatArrivedBeforeDroidDeckCoveredTheScreenAgainNoLongerHoldsIt() {
+        assertFalse(BottomScreenGuests.current(arrivedAt = 1_000, ownShownAt = 2_000))
+        assertTrue(BottomScreenGuests.current(arrivedAt = 3_000, ownShownAt = 2_000))
+        assertTrue(BottomScreenGuests.current(arrivedAt = 2_000, ownShownAt = 2_000))
+        assertTrue(BottomScreenGuests.current(arrivedAt = 1_000, ownShownAt = null))
+        fun holder(arrivedAt: Long, ownShownAt: Long) = BottomScreenGuests.holder(null,
+            "com.android.chrome".takeIf { BottomScreenGuests.current(arrivedAt, ownShownAt) }, homes)
+        assertEquals(null, holder(arrivedAt = 1_000, ownShownAt = 2_000))
+        assertEquals("com.android.chrome", holder(arrivedAt = 3_000, ownShownAt = 2_000))
+    }
+
     @Test fun keyboardsAndOverlaysNeverTakeTheScreen() {
         assertTrue(BottomScreenGuests.ignorable(AccessibilityWindowInfo.TYPE_INPUT_METHOD))
         assertTrue(BottomScreenGuests.ignorable(AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY))

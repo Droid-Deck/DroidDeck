@@ -65,6 +65,8 @@ private fun releaseDateValue(raw: String): Long =
         runCatching { java.time.LocalDate.parse(day).toEpochDay() }.getOrDefault(0L)
     } ?: 0L
 
+internal fun entryTime(first: Long?, fallback: Long?): Long = first?.takeIf { it > 0 } ?: fallback?.takeIf { it > 0 } ?: 0L
+
 fun <T> sortGames(
     items: List<T>,
     sort: String,
@@ -104,6 +106,7 @@ fun detailCatalogItem(
     library.firstOrNull { it.store == store && it.id == id }
         ?: found.firstOrNull { it.store == store && it.id == id }
         ?: shelves?.all?.firstOrNull { it.store == store && it.id == id }
+        ?: shelves?.all?.firstOrNull { it.store == store && it.extra[StoreFront.STORE_CARD] == id }
 
 fun mergeItems(old: List<CatalogItem>?, new: List<CatalogItem>): List<CatalogItem> {
     if (old.isNullOrEmpty()) return new

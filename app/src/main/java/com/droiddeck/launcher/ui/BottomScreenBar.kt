@@ -12,6 +12,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.input.DeckPanel
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 
@@ -59,6 +61,8 @@ internal class BarExtra(
     val onClick: () -> Unit,
 )
 
+internal class BarTabs(val labels: List<String>, val selected: Int, val onSelect: (Int) -> Unit)
+
 internal class BottomBarModel(
     val title: String?,
     val onClose: (() -> Unit)?,
@@ -67,10 +71,22 @@ internal class BottomBarModel(
     val onQam: (() -> Unit)?,
     val extras: List<BarExtra> = emptyList(),
     val menuActive: Boolean = false,
+    val tabs: BarTabs? = null,
 )
 
 @Composable
 internal fun BottomScreenBar(model: BottomBarModel, modifier: Modifier = Modifier) {
+    val tabs = model.tabs
+    if (tabs == null) BarRow(model, modifier) else Column(modifier.fillMaxWidth().blockTouches()) {
+        BarRow(model)
+        Box(Modifier.fillMaxWidth().padding(start = BAR_PAD, end = BAR_PAD, bottom = 8.dp), contentAlignment = Alignment.Center) {
+            TabStrip(tabs.labels, tabs.selected, tabs.onSelect, Modifier.testTag("bottom-bar-tabs"), bumpers = false)
+        }
+    }
+}
+
+@Composable
+private fun BarRow(model: BottomBarModel, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     BoxWithConstraints(modifier.fillMaxWidth().height(BAR_HEIGHT).blockTouches()) {
         val buttons = listOfNotNull(model.onClose, model.onMenu, model.onQam).size + model.extras.size
@@ -195,10 +211,14 @@ internal fun sessionBarModel(
     onSteam: () -> Unit,
     onQam: () -> Unit,
     extras: List<BarExtra> = emptyList(),
+    tabs: BarTabs? = null,
 ): BottomBarModel {
     val steam = SessionState.mode == SessionService.MODE_STEAM
-    return BottomBarModel(title, onClose, onMenu, onSteam.takeIf { steam }, onQam.takeIf { steam }, extras)
+    return BottomBarModel(title, onClose, onMenu, onSteam.takeIf { steam }, onQam.takeIf { steam }, extras, tabs = tabs)
 }
+
+internal fun deckPanelTabs(context: Context, selected: DeckPanel, onSelect: (DeckPanel) -> Unit) =
+    BarTabs(DeckPanel.entries.map { context.getString(it.label) }, selected.ordinal) { onSelect(DeckPanel.entries[it]) }
 
 internal fun bottomScreenBarView(context: Context, model: () -> BottomBarModel): ComposeView = ComposeView(context).apply {
     setContent { DroidDeckTheme { BottomScreenBar(model()) } }

@@ -133,14 +133,22 @@ docker run --rm --platform "${docker_platform}" \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
+        bash tools/nativeguest/build.sh "$d/libddnatv-hook.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
           -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libblaudit.so" tools/proot/fastpath/audit.c
         aarch64-linux-gnu-strip --strip-unneeded "$d/libblaudit.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
+        mkdir -p "$d/usr/local/lib/droiddeck-xclipse"
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -o "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
+        install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$d/usr/local/lib/droiddeck-xclipse/"
         mkdir -p "$d/usr/local/bin"
         external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
+        aarch64-linux-gnu-gcc -O2 -Wall -o "$d/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-glprobe"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
         for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
@@ -417,6 +425,23 @@ if ! restore_step comet "${comet_key}" "${comet_out}"; then
     DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
     save_step comet "${comet_key}" "${comet_out}"
 fi
+if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
+    upc_out="${linuxfs_dir}/usr/local/lib/droiddeck-ubisoft"
+    upc_key=$(inputs_hash "x86_64-pc-windows-gnu" tools/ubisoft-launcher/src tools/ubisoft-launcher/Cargo.toml tools/ubisoft-launcher/Cargo.lock tools/ubisoft-launcher/build.sh)
+    if ! restore_step ubisoft "${upc_key}" "${upc_out}"; then
+        command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { echo "x86_64-w64-mingw32-gcc is required for the Ubisoft launcher service (droiddeck-upc.exe)." >&2; exit 1; }
+        CARGO_TARGET_DIR="${cache_dir}/ubisoft-target" bash tools/ubisoft-launcher/build.sh "${upc_out}"
+        save_step ubisoft "${upc_key}" "${upc_out}"
+    fi
+    rockstar_out="${linuxfs_dir}/usr/local/lib/droiddeck-rockstar"
+    rockstar_key=$(inputs_hash "windows-gnu" tools/rockstar-launcher/src tools/rockstar-launcher/Cargo.toml tools/rockstar-launcher/Cargo.lock tools/rockstar-launcher/build.sh)
+    if ! restore_step rockstar "${rockstar_key}" "${rockstar_out}"; then
+        command -v i686-w64-mingw32-gcc >/dev/null 2>&1 || { echo "i686-w64-mingw32-gcc is required for the Rockstar launcher service." >&2; exit 1; }
+        CARGO_TARGET_DIR="${cache_dir}/rockstar-target" bash tools/rockstar-launcher/build.sh "${rockstar_out}"
+        save_step rockstar "${rockstar_key}" "${rockstar_out}"
+    fi
+fi
+python3 tools/powervr/fetch.py
 bash tools/packs/build.sh app/build/packs
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}

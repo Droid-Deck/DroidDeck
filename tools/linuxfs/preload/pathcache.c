@@ -111,6 +111,8 @@ char *bl_cached_realpath(const char *path, char *resolved, char *(*real)(const c
   return strdup(out);
 }
 
+int bl_dircache_absent(const char *path) __attribute__((weak, visibility("hidden")));
+
 static int cached_access(const char *path, int mode, int flags, int (*check)(const char *, int, int)) {
   unsigned h;
   int hit;
@@ -122,6 +124,10 @@ static int cached_access(const char *path, int mode, int flags, int (*check)(con
   hit = find(path, KIND_ACCESS, mode, flags, h) != NULL;
   pthread_mutex_unlock(&lock);
   if (hit) return 0;
+  if (bl_dircache_absent && bl_dircache_absent(path)) {
+    errno = ENOENT;
+    return -1;
+  }
   result = check(path, mode, flags);
   if (result == 0) {
     pthread_mutex_lock(&lock);

@@ -63,6 +63,7 @@ class ModeSettings(
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val touchMode: String,
+    val pen: SessionPrefs.Pen? = null,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
     val pipSupported: Boolean = false,
@@ -82,6 +83,7 @@ class ModeSettings(
     val forceSsbs: Boolean = false,
     val syncBackend: String? = null,
     val picturePosition: String? = null,
+    val integerScaling: Boolean? = null,
     val stretch16x9: Boolean? = null,
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
@@ -116,10 +118,12 @@ class ModeSettingsActions(
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onTouch: (String) -> Unit,
+    val onPen: (key: String, value: String) -> Unit = { _, _ -> },
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val onOsc: (String) -> Unit,
+    val onInputSettings: () -> Unit,
     val onBackHold: (Boolean) -> Unit = {},
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onDirectAudio: (Boolean) -> Unit,
@@ -136,6 +140,7 @@ class ModeSettingsActions(
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
     val onPicturePosition: (String) -> Unit = {},
+    val onIntegerScaling: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onSteamClientArch: (String) -> Unit = {},
@@ -223,6 +228,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
                     listOf("top" to stringResource(R.string.display_position_top),
                         "bottom" to stringResource(R.string.display_position_bottom),
+                        "left" to stringResource(R.string.display_position_left),
+                        "right" to stringResource(R.string.display_position_right),
                         "center" to stringResource(R.string.display_position_center)),
                     position, onPick = a.onPicturePosition)
             }
@@ -237,6 +244,18 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
         }
         SettingsGroup(stringResource(R.string.display_image_scaling)) {
+            s.integerScaling?.let { enabled ->
+                ChoiceRow(
+                    host, "integer-scaling",
+                    stringResource(R.string.display_integer_scaling),
+                    stringResource(R.string.display_integer_scaling_hint),
+                    listOf(
+                        false to stringResource(R.string.display_scaling_fit),
+                        true to stringResource(R.string.display_scaling_auto),
+                    ),
+                    enabled, onPick = a.onIntegerScaling,
+                )
+            }
             ChoiceRow(
                 host, "upscaler", stringResource(R.string.display_filter), null,
                 SessionPrefs.upscalerChoices(LocalContext.current), s.upscaler,
@@ -259,6 +278,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         extras.drivers(s.gpuDrivers)
     }
     if (tab == SheetTab.CONTROLS) {
+        InputQuickSettings(host, desktop = s.mode == SessionService.MODE_DESKTOP, onEdit = a.onInputSettings)
         SettingsGroup(if (steam) stringResource(R.string.mode_touch_controls) else stringResource(R.string.mode_touch)) {
             ChoiceRow(
                 host, "touch", stringResource(R.string.mode_touch), null,
@@ -317,6 +337,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             PhysicalShortcutRows()
         }
+        s.pen?.let { PenSettingsGroup(host, it, onPick = a.onPen) }
     }
     if (tab == SheetTab.AUDIO && steam) {
         if (s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {

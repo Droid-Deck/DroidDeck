@@ -26,9 +26,14 @@ object AgentGuest {
         private set
     var keyboardRequests by mutableIntStateOf(0)
         private set
+    var gameTextField by mutableStateOf(false)
+        private set
+    var gameProgram by mutableStateOf<String?>(null)
+        private set
     var keyboardDismissals by mutableIntStateOf(0)
         private set
     @Volatile private var keyboardRoute = false
+    @Volatile var readyListener: (() -> Unit)? = null
     @Volatile private var routeDir: File? = null
     private const val TAG = "AgentGuest"
     private const val POLL_MS = 50L
@@ -43,7 +48,7 @@ object AgentGuest {
             observer?.stopWatching()
             observer = null
             lastFocusKey = null
-            main.post { steamKeyboard = false; desktopTextField = false }
+            main.post { steamKeyboard = false; desktopTextField = false; gameTextField = false; gameProgram = null }
             val dir = dir(context)
             dir.deleteRecursively()
             dir.mkdirs()
@@ -55,10 +60,12 @@ object AgentGuest {
                     when (path) {
                         "hello.json" -> readJson(File(dir, path))?.let {
                             SessionEvents.record("agent.ready", mapOf("pid" to it.optInt("pid"), "focus" to it.optBoolean("focus")))
+                            readyListener?.invoke()
                         }
                         "focus.json" -> readJson(File(dir, path))?.let(::recordFocus)
                         "keyboard.json" -> readJson(File(dir, path))?.let { recordKeyboard(this, it) }
                         "ime.json" -> readJson(File(dir, path))?.let { recordTextField(this, it) }
+                        "wine-ime.json" -> readJson(File(dir, path))?.let { recordGameTextField(this, it) }
                         "keyboard-request.json" -> readJson(File(dir, path))?.let { recordKeyboardRequest(this) }
                         "keyboard-dismiss.json" -> readJson(File(dir, path))?.let { recordKeyboardDismiss(this) }
                     }
@@ -71,7 +78,7 @@ object AgentGuest {
         synchronized(lock) {
             observer?.stopWatching()
             observer = null
-            main.post { steamKeyboard = false; desktopTextField = false }
+            main.post { steamKeyboard = false; desktopTextField = false; gameTextField = false; gameProgram = null }
         }
     }
 
@@ -127,6 +134,16 @@ object AgentGuest {
             main.post { desktopTextField = focused }
         }
         SessionEvents.record("ime.changed", mapOf("textField" to focused, "seq" to snapshot.optInt("seq")))
+    }
+
+    private fun recordGameTextField(source: FileObserver, snapshot: JSONObject) {
+        val focused = snapshot.optBoolean("textField")
+        val program = snapshot.optString("program").takeIf { it.isNotEmpty() }
+        synchronized(lock) {
+            if (source !== observer) return
+            main.post { gameProgram = program; gameTextField = focused }
+        }
+        SessionEvents.record("game.ime.changed", mapOf("textField" to focused, "program" to program, "seq" to snapshot.optInt("seq")))
     }
 
     private fun recordFocus(snapshot: JSONObject) {

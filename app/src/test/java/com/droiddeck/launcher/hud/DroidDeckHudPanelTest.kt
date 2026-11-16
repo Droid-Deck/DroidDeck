@@ -2,12 +2,15 @@ package com.droiddeck.launcher.hud
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.RectF
 import android.os.Looper
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
+import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.ui.Themes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -48,11 +51,12 @@ class DroidDeckHudPanelTest {
                     key to if (mask and (1 shl index) != 0) "1" else "0"
                 }.toMap()
                 view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS +
-                    ("hudSize" to size.token) + settings))
+                    DroidDeckHudConfig.ORDER.associateWith { "0" } + settings + mapOf(
+                    "hudSize" to size.token, "showFPSGraph" to "0", "showClock" to "0")))
                 view.showForTest(SNAPSHOT, "DXVK", 0L)
                 val lines = view.linesForTest().joinToString(" ")
                 for ((index, metric) in metrics.withIndex()) {
-                    val supported = size != DroidDeckHudSize.TILES || index == 0
+                    val supported = metrics[index].first in size.rows
                     val expected = supported && mask and (1 shl index) != 0
                     val label = Regex("(?<![0-9.])${Regex.escape(metric.second)}")
                     assertEquals("$size, mask=$mask, ${metric.second}: $lines", expected, label.containsMatchIn(lines))
@@ -97,6 +101,70 @@ class DroidDeckHudPanelTest {
         }
     }
 
+    @Test fun aSwitchTurnsItsRowOff() {
+        fun full(vararg settings: Pair<String, String>): List<String> {
+            val values = LinkedHashMap(DroidDeckHudConfig.DEFAULTS)
+            values["hudSize"] = DroidDeckHudSize.FULL.token
+            for ((key, value) in settings) values[key] = value
+            val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+            view.applyConfig(DroidDeckHudConfig.encode(values))
+            view.showForTest(SNAPSHOT, "DXVK", 0L)
+            return view.linesForTest()
+        }
+        assertTrue(full().toString(), full().any { "RAM67%" in it })
+        val noRam = full("showRAM" to "0")
+        assertFalse(noRam.toString(), noRam.any { "RAM67%" in it })
+        assertTrue(noRam.toString(), noRam.any { "FPS0.0" in it })
+    }
+
+    @Test fun theSavedOrderDecidesTheRowOrder() {
+        fun only(order: String): List<String> {
+            val off = DroidDeckHudConfig.ORDER.associateWith { "0" }
+            val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+            view.applyConfig(DroidDeckHudConfig.encode(
+                DroidDeckHudConfig.DEFAULTS + off + mapOf(
+                    "hudSize" to DroidDeckHudSize.FULL.token,
+                    "showPower" to "1", "showFPS" to "1", "showRAM" to "1",
+                    "showFPSGraph" to "0", "showClock" to "0", "hudOrder" to order,
+                )))
+            view.showForTest(SNAPSHOT, "DXVK", 0L)
+            return view.linesForTest().filter { !it.startsWith("DroidDeck") }
+        }
+        val powerFirst = only("full:showPower|showFPS|showRAM")
+        assertEquals(powerFirst.toString(), listOf("PWR", "FPS", "RAM"), powerFirst.map { it.take(3) })
+        val ramFirst = only("full:showRAM|showFPS|showPower")
+        assertEquals(ramFirst.toString(), listOf("RAM", "FPS", "PWR"), ramFirst.map { it.take(3) })
+    }
+
+    @Test fun aSaveKeepsTheLegacyOrderForTheOtherSizes() {
+        val app = RuntimeEnvironment.getApplication()
+        SessionPrefs.setDroidDeckHudConfig(app, "hudSize=strip,hudOrder=showRAM|showFPS")
+        val saved = DroidDeckHudConfig.choose(app, emptyMap(), listOf("showFPS", "showRAM"))
+        assertEquals(listOf("showRAM", "showFPS"), DroidDeckHudConfig.storedOrder(saved, DroidDeckHudSize.FULL))
+        assertEquals(listOf("showFPS", "showRAM"), DroidDeckHudConfig.storedOrder(saved, DroidDeckHudSize.STRIP))
+    }
+
+    @Test fun thePillHeroIsWhicheverRowTheUserPutsFirst() {
+        fun pill(order: String): List<String> {
+            val off = DroidDeckHudConfig.ORDER.associateWith { "0" }
+            val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+            view.applyConfig(DroidDeckHudConfig.encode(
+                DroidDeckHudConfig.DEFAULTS + off + mapOf(
+                    "hudSize" to DroidDeckHudSize.PILL.token,
+                    "showFPS" to "1", "showRAM" to "1", "showPower" to "1",
+                    "showFPSGraph" to "0", "showClock" to "0",
+                    "hudOrder" to order,
+                )))
+            view.showForTest(SNAPSHOT, "DXVK", 0L)
+            return view.linesForTest()
+        }
+        val fpsFirst = pill("pill:showFPS|showRAM|showPower")
+        assertTrue(fpsFirst.toString(), fpsFirst.any { it.trim() == "0.0fps" })
+        val fpsLast = pill("pill:showRAM|showPower|showFPS")
+        assertTrue(fpsLast.toString(), fpsLast.any { it.trim().startsWith("FPS") })
+        assertFalse(fpsLast.toString(), fpsLast.any { it.trim() == "0.0fps" })
+    }
+
     @Test fun stripIsOneLineAcrossTheParentWithTheClockOnTheRight() {
         val app = RuntimeEnvironment.getApplication()
         val parent = FrameLayout(app)
@@ -139,6 +207,70 @@ class DroidDeckHudPanelTest {
         assertFalse(line, "BAT" in line)
     }
 
+    @Test fun stripGraphClearsThePreviousTraceWhenFrameHistoryChanges() {
+        val app = RuntimeEnvironment.getApplication()
+        val parent = FrameLayout(app)
+        val view = DroidDeckHudView(app)
+        parent.addView(view)
+        parent.layout(0, 0, 2400, 1080)
+        val stats = FrameStats()
+        var now = 1_000_000_000L
+        repeat(300) { now += 25_000_000L; stats.add(25_000_000L, now) }
+        view.setFrameStats(stats)
+        view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS +
+            ("hudSize" to "strip") + ("showFPSGraph" to "1") + ("hudOpacity" to "100")))
+        view.showForTest(SNAPSHOT, "DXVK", now)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        view.measure(unspecified, unspecified)
+        view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+        fun render() = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also {
+            view.draw(Canvas(it))
+        }
+        val graph = requireNotNull(view.graphForTest())
+        val x = (graph.left + graph.width() * 0.75f).toInt()
+        val y = graph.centerY().toInt()
+        val before = render()
+        stats.reset()
+        val after = render()
+        assertTrue("the graph initially crosses its midpoint", before.getPixel(x, y) != after.getPixel(x, y))
+        assertEquals("the previous trace is cleared to the strip background",
+            after.getPixel(x, graph.top.toInt() + 2), after.getPixel(x, y))
+    }
+
+    @Test fun stripMarkUpdatesAfterThemeChangesWithoutChangingSize() {
+        val app = RuntimeEnvironment.getApplication()
+        val oldTheme = SessionPrefs.theme(app)
+        val parent = FrameLayout(app)
+        val view = DroidDeckHudView(app)
+        parent.addView(view)
+        parent.layout(0, 0, 2400, 1080)
+        fun render(theme: String): Bitmap {
+            SessionPrefs.setTheme(app, theme)
+            view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "strip")))
+            view.showForTest(SNAPSHOT, "DXVK", 0L)
+            val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            view.measure(unspecified, unspecified)
+            view.layout(0, 0, view.measuredWidth, view.measuredHeight)
+            return Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
+        }
+        try {
+            val first = render(Themes.GRAPHITE)
+            val mark = DroidDeckHudView::class.java.getDeclaredField("headerMark").let {
+                it.isAccessible = true
+                RectF(it.get(view) as RectF)
+            }
+            val second = render(Themes.ELECTRIC)
+            val x = (mark.left + mark.width() / 2f).toInt()
+            val y = mark.centerY().toInt()
+            assertEquals(first.width, second.width)
+            assertEquals(first.height, second.height)
+            assertTrue("the mark orb follows the current theme", first.getPixel(x, y) != second.getPixel(x, y))
+            assertEquals(View.LAYER_TYPE_NONE, view.layerType)
+        } finally {
+            SessionPrefs.setTheme(app, oldTheme)
+        }
+    }
+
     @Test fun stripFollowsTheHudScaleInHeightAndKeepsTheFullWidth() {
         val app = RuntimeEnvironment.getApplication()
         val parent = FrameLayout(app)
@@ -165,27 +297,24 @@ class DroidDeckHudPanelTest {
     }
 
     @Test fun pillShowsEachBatteryPartOnItsOwnSwitch() {
-        fun pill(vararg settings: Pair<String, String>): List<String> {
+        fun pill(vararg settings: Pair<String, String>): String {
             val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
             view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to DroidDeckHudSize.PILL.token) + settings))
             view.showForTest(SNAPSHOT, "DXVK", 0L)
-            return view.linesForTest()
+            return view.linesForTest().toString()
         }
-        val all = pill("showBattery" to "1")
-        assertTrue(all.toString(), all.any { "BAT 79% · 34°C · 16.0W" in it })
-        assertEquals(all.toString(), 1, all.count { "BAT" in it })
-        assertFalse(all.toString(), all.single { "RAM" in it }.contains("BAT"))
-
-        val noMemory = pill("showBattery" to "1", "showRAM" to "0")
-        assertTrue(noMemory.toString(), noMemory.none { "RAM" in it })
-        assertTrue(noMemory.toString(), noMemory.any { "BAT 79% · 34°C · 16.0W" in it })
-
         val defaults = pill()
-        assertTrue(defaults.toString(), defaults.any { "BAT 34°C · 16.0W" in it })
-        val wattsOnly = pill("showBatteryTemp" to "0")
-        assertTrue(wattsOnly.toString(), wattsOnly.any { "BAT 16.0W" in it })
-        val nothing = pill("showBatteryTemp" to "0", "showPower" to "0")
-        assertTrue(nothing.toString(), nothing.none { "BAT" in it })
+        assertTrue(defaults, defaults.contains("BAT.T"))
+        assertTrue(defaults, defaults.contains("PWR"))
+        assertFalse(defaults, defaults.contains("BAT79%"))
+        val levelOn = pill("showBattery" to "1")
+        assertTrue(levelOn, levelOn.contains("BAT79%"))
+        val tempOff = pill("showBatteryTemp" to "0")
+        assertFalse(tempOff, tempOff.contains("BAT.T"))
+        assertTrue(tempOff, tempOff.contains("PWR"))
+        val powerOff = pill("showPower" to "0")
+        assertFalse(powerOff, powerOff.contains("PWR"))
+        assertTrue(powerOff, powerOff.contains("BAT.T"))
     }
 
     @Test fun aLockedHudLetsTouchesThroughOnlyWhereAControlTakesThem() {

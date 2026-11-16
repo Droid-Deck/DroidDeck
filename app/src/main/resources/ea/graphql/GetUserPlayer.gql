@@ -1,0 +1,49 @@
+query GetUserPlayer {
+  me {
+    id: pd
+    pd
+    player {
+      ...Player
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment Player on Player {
+  id: pd
+  pd
+  psd
+  displayName
+  uniqueName
+  nickname
+  avatar {
+    ...Avatar
+    __typename
+  }
+  relationship
+  __typename
+}
+
+fragment Avatar on AvatarList {
+  large {
+    ...image
+    __typename
+  }
+  medium {
+    ...image
+    __typename
+  }
+  small {
+    ...image
+    __typename
+  }
+  __typename
+}
+
+fragment image on Image {
+  height
+  width
+  path
+  __typename
+}

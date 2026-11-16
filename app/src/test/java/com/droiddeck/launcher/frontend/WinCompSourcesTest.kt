@@ -77,6 +77,8 @@ class WinCompSourcesTest {
 
     @Test fun steamworksSharedDepotsMapToComponents() {
         assertEquals(listOf("vcredist2015_dll" to "VC++ 2015", "d3dx9" to "DirectX (June 2010)"), WinCompSources.steamDepots(listOf("228986", "228990", "999")))
+        // Hotline Miami's OpenAL depot: the DLL-copy entry, which installs without running anything.
+        assertEquals(listOf("oalinst_dll" to "OpenAL"), WinCompSources.steamDepots(listOf("229020")))
     }
 
 

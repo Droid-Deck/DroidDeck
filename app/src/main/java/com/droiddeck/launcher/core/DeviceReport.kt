@@ -10,6 +10,8 @@ import android.os.PowerManager
 import android.os.StatFs
 import android.provider.Settings
 import android.util.Log
+import com.droiddeck.launcher.gpu.DeviceInfo
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import android.view.Display
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
@@ -110,6 +112,7 @@ object DeviceReport {
         runCatching {
             val info = context.packageManager.getPackageInfo(context.packageName, 0)
             k("Version", "${info.versionName} (${info.longVersionCode})")
+            k("App build", "${com.droiddeck.launcher.BuildConfig.BUILD_LABEL} (source ${com.droiddeck.launcher.BuildConfig.SOURCE_COMMIT})")
         }
         k("Package", context.packageName)
         k("targetSdk", context.applicationInfo.targetSdkVersion)
@@ -186,7 +189,11 @@ object DeviceReport {
         h("GPU")
         k("KGSL gpu_model", readSys("/sys/class/kgsl/kgsl-3d0/gpu_model"))
         k("KGSL chip id", readSys("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))
-        k("System Vulkan ICD", if (File("/vendor/lib64/hw/vulkan.adreno.so").exists()) "/vendor/lib64/hw/vulkan.adreno.so" else "not at the usual path")
+        k("System Vulkan ICD", when {
+            SystemVulkanDriver.isPowerVr() -> SystemVulkanDriver.hal()
+            File("/vendor/lib64/hw/vulkan.adreno.so").exists() -> "/vendor/lib64/hw/vulkan.adreno.so"
+            else -> "not at the usual path"
+        })
 
         h("Display")
         k("Session output", SessionState.outputSize?.let { "${it.first}x${it.second}" })
@@ -208,7 +215,7 @@ object DeviceReport {
 
         h("Drivers")
         val gpu = com.droiddeck.launcher.gpu.GpuInfo.detect()
-        k("GPU", "${gpu.name} · ${gpu.family.label} · ${gpu.supportText(SessionPrefs.vkBridge(context))}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
+        k("GPU", "${gpu.name} · ${gpu.family.label(gpu.name)} · ${gpu.supportText(SessionPrefs.vkBridge(context))}" + if (gpu.oneUi8Gen2) " · One UI 8 Gen 2" else "")
         if (gpu.model == 740) {
             val hint = com.droiddeck.launcher.gpu.TpUbwcHint
             k("TP UBWC hint", hint.forThisDevice(context) ?: "driver default")
@@ -221,19 +228,31 @@ object DeviceReport {
                 com.droiddeck.launcher.gpu.AutoDriverTrial.bad(context))?.let { " (recommended pair: $it)" } ?: ""))
         val turnip = TurnipDriver(context)
         val androidChoice = SessionPrefs.androidDriver(context)
-        k("Display driver (chosen)", if (androidChoice.isEmpty()) "Auto -> ${turnip.autoId()}" else androidChoice)
-        k("  name / version", "${turnip.displayName(if (androidChoice.isEmpty()) turnip.autoId() else androidChoice)} ${turnip.driverVersion(if (androidChoice.isEmpty()) turnip.autoId() else androidChoice)}".trim())
+        val displayId = androidChoice.ifEmpty { turnip.autoId() }
+        val displayLabel = if (displayId == "system") DeviceInfo.builtinDriverLabel(SystemVulkanDriver.isPowerVr(), runtime = false)
+            else "${turnip.displayName(displayId)} ${turnip.driverVersion(displayId)}".trim()
+        k("Display driver (chosen)", if (androidChoice.isEmpty()) "Auto -> $displayLabel" else androidChoice)
+        k("  name / version", displayLabel)
+        turnip.effectiveId().takeIf { it != displayId }?.let { used ->
+            k("  in use", if (used == "system") DeviceInfo.builtinDriverLabel(SystemVulkanDriver.isPowerVr(), runtime = false)
+                else "${turnip.displayName(used)} ${turnip.driverVersion(used)}".trim())
+        }
         k("  imported available", turnip.enumerateImported().ifEmpty { listOf("none") }.joinToString(", "))
         val lm = LinuxVulkanDriverManager(context)
         run {
             val id = SessionPrefs.linuxDriver(context)
-            val label = if (id.isEmpty()) "runtime default (the Turnip built into the runtime)"
+            val label = if (id.isEmpty()) DeviceInfo.builtinDriverLabel(SystemVulkanDriver.isPowerVr(), runtime = true)
             else "${lm.getDriverName(id)} ${lm.getDriverVersion(id)}".trim() +
                 lm.getMinGlibc(id).let { if (it.isEmpty()) "" else " (glibc $it+)" } +
-                if (lm.isInstalled(id)) "" else "  [MISSING - falls back to the runtime's own]"
-            k("Linux driver", label)
+                if (lm.isInstalled(id)) "" else if (SystemVulkanDriver.isPowerVr()) "  [MISSING - select an installed driver or Auto]"
+                else "  [MISSING - falls back to the runtime's own]"
+            val route = DeviceInfo.hostRoute(context)
+            k("Linux driver", route ?: label)
+            if (route != null) k("  chosen, not used", label)
         }
         k("Runtime's own ICD", LinuxRuntime.vulkanIcd(context)?.path)
+        k("Mali (Venus)", if (com.droiddeck.launcher.session.VenusComponent.wanted(context)) "in use"
+            else if (com.droiddeck.launcher.session.VenusComponent.available(context)) "available, off" else "not in this build")
 
         h("Runtime")
         k("Installed version", LinuxRuntimeInstaller.installedVersion(context))
@@ -261,10 +280,12 @@ object DeviceReport {
         EsyncPacks.status(LinuxRuntime.rootDir(context)).let { k("droiddeck-esync packs", "${it.installed} installed, ${it.wanted} wanted") }
         k("Linux x86 (FEX)", if (com.droiddeck.launcher.runtime.LinuxFex.ready(context)) "ready" else "not set up")
         k("gamescope realtime", SessionPrefs.gamescopeRealtime(context))
+        k("pace cores", SessionPrefs.paceCores(context))
         k("zRAM: compress Steam during games", SessionPrefs.zramClient(context))
         k("RAM cap", SessionPrefs.ramCapMb(context).let { if (it > 0) "$it MB" else "off" })
         k("VRAM cap", SessionPrefs.vramCapMb(context).let { if (it > 0) "$it MB" else "driver default" })
         k("proot without seccomp", SessionPrefs.prootNoSeccomp(context))
+        k("native userland (no proot)", SessionPrefs.nativeUserland(context))
         k("proot fast path", SessionPrefs.prootFastPath(context))
         k("proot binary", LinuxRuntime.prootSource(context) + " " + LinuxRuntime.prootBinary(context).path)
         k("proot fast path (eligible)", com.droiddeck.launcher.runtime.ProotFastPath.enabled(context))
@@ -275,6 +296,8 @@ object DeviceReport {
         k("Microphone", SessionPrefs.micEnabled(context))
         k("On-screen controls", SessionPrefs.oscMode(context))
         k("Touch mode", SessionPrefs.touchMode(context))
+        k("Pen mode", SessionPrefs.penMode(context))
+        k("Pen side button", SessionPrefs.penButton(context))
         k("Performance HUD", SessionPrefs.hudEnabled(context))
         k("Game storage", when (val g = SessionPrefs.gameStorage(context)) {
             "" -> "automatic (" + (com.droiddeck.launcher.session.GameStorage.effective(context)?.path ?: "no card present") + ")"

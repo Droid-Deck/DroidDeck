@@ -1,5 +1,6 @@
 import hashlib
 import gzip
+import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -13,18 +14,21 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
 PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
-          'assets/directaudio/': 'directaudio'}
+          'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft', 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/': 'rockstar',
+          'assets/linuxfs/usr/local/lib/droiddeck-dirt/': 'dirt',
+          'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
                 'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
-PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler']
+PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
-                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/components', 'tools/ci', 'tools/build_local.sh',
+                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/ubisoft-launcher', 'tools/rockstar-launcher', 'tools/components', 'tools/ci', 'tools/build_local.sh',
+                'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
-                'tools/gpuload',
+                'tools/gpuload', 'app/src/main/resources/rockstar/legacy-cipher.bin',
                 'app/src/main/cpp/waylandcomp/src/headpose_shm.h',
                 'app/src/main/cpp/venc/venc_proto.h',
                 'app/src/main/cpp/waylandcomp/src/spatialpose_shm.h',
@@ -53,7 +57,7 @@ def sources(root):
 
 def outputs(root):
     result = {}
-    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal']:
+    for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal', 'hybris']:
         base = root / 'app/src/main/assets' / tree
         for path in base.rglob('*'):
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
@@ -74,7 +78,7 @@ def required():
     paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
     paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
-             'libblfastpath.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
+             'libblfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/droiddeck-gog-maintenance',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
              'usr/local/lib/droiddeck-pipewire.tzst']]
@@ -85,6 +89,8 @@ def required():
     paths += ['assets/linuxfs/i386/libfaultreport.so']
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-msitools/' + name for name in
               ['msiinfo', 'cabextract', '7z', '7z.so', 'libmsi-1.0.so.0', 'libgsf-1.so.114', 'libgcab-1.0.so.0']]
+    paths += ['assets/linuxfs/usr/local/lib/droiddeck-xclipse/' + name for name in
+              ['libVkLayer_droiddeck_xclipse.so', 'VkLayer_droiddeck_xclipse.json']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-vr/' + name for name in
               ['droiddeck/bin/linuxarm64/driver_droiddeck.so', 'droiddeck/bin/linuxarm64/xr-display-mode',
                'droiddeck/driver.vrdrivermanifest',
@@ -104,7 +110,8 @@ def required():
               ['comet', 'GalaxyCommunication.exe', 'update-permissions.exe', 'LICENSE', 'version']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-xbox/' + name for name in
               ['xodus-cli', 'xodus-service', 'version', 'backend.lock.json', 'runtime.lock.json', 'LICENSE.xodus', 'LICENSE.nexus', 'LICENSE.LGPL-2.1', 'LICENSE.nghttp2',
-               'windows/xgameruntime.dll', 'windows/winhttp.dll', 'windows/windows.web.dll', 'windows/twinapi.appcore.dll', 'windows/libnghttp2.dll']]
+               'windows/xgameruntime.dll', 'windows/winhttp.dll', 'windows/windows.web.dll', 'windows/twinapi.appcore.dll', 'windows/libnghttp2.dll',
+               'compat/PlayFabGameSave.dll', 'LICENSE.runtime-compat']]
     for driver in ['linux-wine11', 'linux-wine11-systhread']:
         paths += ['assets/directaudio/' + driver + '/' + name for name in
                   ['aarch64-unix/winedirectaudio.so', 'aarch64-windows/winedirectaudio.drv',
@@ -115,7 +122,15 @@ def required():
     paths += ['assets/desktop-removal/' + name for name in
               ['lxqt-r1.tsv.gzip', 'kde-remove.tsv.gzip', 'kde-keep.txt.gzip',
                'emulators-keep.txt.gzip', 'versions.txt', 'sources.json']]
+    paths += ['assets/hybris/runtime.tzst', 'assets/hybris/version.txt']
     return paths
+
+
+def verify_powervr(root):
+    spec = importlib.util.spec_from_file_location('powervr_fetch', ROOT / 'tools/powervr/fetch.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.verify(root)
 
 
 def record(root=ROOT):
@@ -129,6 +144,7 @@ def record(root=ROOT):
     missing = [name for name in required() if name not in paths or not (root / paths[name]).is_file()]
     if missing:
         raise ValueError('Missing runtime inputs:\n' + '\n'.join(missing))
+    verify_powervr(root)
     for name, path in paths.items():
         if name.startswith('assets/desktop-removal/') and name.endswith('.gzip'):
             try:
@@ -196,11 +212,27 @@ def pack_digests(root, name):
     return digests
 
 
+def windows_binaries(package):
+    found = []
+    for info in package.infolist():
+        if info.is_dir():
+            continue
+        with package.open(info) as entry:
+            if entry.read(2) == b'MZ':
+                found.append(info.filename)
+    return found
+
+
 def check_apk(apk, root=ROOT):
     data = verify(root)
-    packs = {name: pack_digests(root, name) for name in PACK_NAMES}
+    packs = {name: pack_digests(root, name) for name in PACK_NAMES
+             if name not in ('ubisoft', 'rockstar', 'dirt') or (root / PACKS / (name + '.tar.zst')).is_file()}
     with ZipFile(apk) as package:
         names = set(package.namelist())
+        for name in sorted(names):
+            prefix = next((p for p in PACKED if name.startswith(p)), None)
+            if prefix:
+                raise ValueError('APK still carries ' + name + ', which the ' + PACKED[prefix] + ' pack provides')
         for library in PACKED_LIBRARIES:
             if library in names:
                 raise ValueError('APK still carries ' + library + ', which the tracking pack provides')
@@ -218,7 +250,7 @@ def check_apk(apk, root=ROOT):
             if prefix:
                 if name in names:
                     raise ValueError('APK still carries ' + name + ', which the ' + PACKED[prefix] + ' pack provides')
-                if packs[PACKED[prefix]].get(name[len(prefix):]) != output['sha256']:
+                if packs.get(PACKED[prefix], {}).get(name[len(prefix):]) != output['sha256']:
                     raise ValueError('Add-on pack ' + PACKED[prefix] + ' is missing or has a stale ' + name)
                 continue
             try:
@@ -227,6 +259,9 @@ def check_apk(apk, root=ROOT):
                 raise ValueError('APK missing ' + name)
             if hashlib.sha256(content).hexdigest() != output['sha256']:
                 raise ValueError('APK has stale runtime input: ' + name)
+        found = windows_binaries(package)
+        if found:
+            raise ValueError('APK carries Windows executables, which ship in add-on packs: ' + ', '.join(found))
 
 
 if __name__ == '__main__':

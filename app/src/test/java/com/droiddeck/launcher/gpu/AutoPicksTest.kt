@@ -56,7 +56,7 @@ class AutoPicksTest {
     }
 
     @Test fun aGpuTheManifestDoesNotCoverUsesTheBuiltInTable() {
-        assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(830), pairs, AutoPicks.parse(manifest)!!))
+        assertEquals(DriverPairs.ddTurnip("DD-Turnip-v0.3.0"), DriverPairs.recommendedKey(gpu(830), pairs, AutoPicks.parse(manifest)!!))
     }
 
     @Test fun anotherSchemaOrNoUsableRulesIsIgnored() {

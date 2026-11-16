@@ -134,17 +134,22 @@ object BattleNetInstall {
             if (uid == null) {
                 Log.w(TAG, "no Battle.net install matches ${game.folder}")
             } else {
-                val item = CatalogItem(
-                    Store.BATTLENET, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover, owned = true,
-                    extra = mapOf(INSTALL_UID to uid),
-                )
-                enqueue(app, item, game.folder, update = true)
+                enqueue(app, updateItem(game, uid), game.folder, update = true)
             }
         }, "battlenet-update").start()
     }
 
+    internal fun updateItem(game: InstalledStoreGame, uid: String) = CatalogItem(
+        Store.BATTLENET, game.sidecar.id, game.sidecar.title, game.sidecar.hero, tallImageUrl = game.sidecar.cover, owned = true,
+        extra = mapOf(INSTALL_UID to uid, UPDATE_FOLDER to game.folder.absolutePath),
+    )
+
+    internal fun updateFolder(item: CatalogItem): File? = item.extra[UPDATE_FOLDER]?.let(::File)
+
     internal const val INSTALL_UID = "installUid"
     internal const val PREEXISTING = "preexisting"
+    internal const val UPDATE_FOLDER = "updateFolder"
+    internal const val STALLED = "stalled"
 
     internal fun installUid(context: Context, game: InstalledStoreGame): String? {
         val games = runCatching { BattleNet.games(context) }.getOrDefault(emptyList())
@@ -250,6 +255,7 @@ object BattleNetInstall {
         val detail = when {
             reason == null -> "exit $code"
             reason == "client" -> return context.getString(R.string.bnet_dl_client_first)
+            reason == STALLED -> return context.getString(R.string.bnet_dl_stalled)
             reason.startsWith("agent ") -> context.getString(R.string.bnet_dl_agent_error, reason.removePrefix("agent "))
             else -> reason.removePrefix("stopped ")
         }

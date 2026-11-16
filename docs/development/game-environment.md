@@ -35,6 +35,30 @@ selection, and restores Default component choices for the next game. **Use
 Default** removes the game override. Component packages must first be downloaded
 or imported on the Default Components page.
 
+FEX, DXVK and VKD3D-Proton each have an **Auto** or **Manual** mode on the Default
+Components page. Auto is the default unless a component already uses a package the
+user picked, which keeps it on Manual. In Auto, DroidDeck checks the
+DroidDeck-Components nightly release when DroidDeck is opened, at most hourly and
+never during a running session, and installs the newest build into DroidDeck-Proton.
+Valve's Proton, GE-Proton, proton-cachyos and any other tool keep their own components;
+builds an earlier Auto had placed in them go back to the original once. A build the user
+picks on a DroidDeck-Proton by hand stays until they restore the original. DXVK and
+VKD3D-Proton follow the flavour of each Proton's own files: ARM64EC/ARM64X builds get the
+`arm64ec` package, plain x64 builds the plain one. Where the Proton's own build is ARM64X, an
+`arm64ec` package is used only when every Direct3D and DXGI DLL in it is ARM64X, because native
+ARM64 programs such as `Wow-arm64.exe` cannot load an ARM64EC-only `dxgi.dll`. A rollback whose
+previous build fails that check, or was deleted, goes back to the original. Auto keeps the current build and the one
+it replaced and deletes every older stored build of the same line, including ones that were
+stored before Auto took over, and downloads the current build again if it was deleted.
+Other flavours such as gplasync and packages selected on an installed Proton or in a game
+profile are never removed. Steam's process log tells it how long each game ran. A game that ran
+for at least a minute on the previous build and then exits within 30 seconds twice
+on the new one rolls back every component line that changed since that boot, and
+each failed build is skipped until a newer one is published. Games with their own component override are
+not counted. DXVK stays on Manual while the Vulkan bridge or the PowerVR runtime chooses DXVK.
+On an Adreno 6xx, DXVK Auto keeps every DroidDeck-Proton build on DXVK-gplasync 2.7.1 instead of
+following the nightlies (see below). Manual keeps the existing download, import and restore lists.
+
 Before publishing game component choices, DroidDeck preserves each Proton build's
 original components, including an explicitly empty bundle when a component is not
 shipped. Those restore choices remain after the last override is cleared. A missing
@@ -80,7 +104,7 @@ Run the batch/reference and work-budget regressions with
 
 ## Game debug logs
 
-Under **Setup > Diagnostics**, enable **Session logs** and **Game debug logs**
+Under **Setup > Developer**, enable **Session logs** and **Game debug logs**
 before reproducing a Windows game problem. Game debug logs is off by default and
 is available when Session logs is enabled. It applies to the next game launch through DroidDeck's
 Valve or third-party Proton wrapper, including added games and store shortcuts.
@@ -118,7 +142,7 @@ that diagnostics were skipped instead of writing uncollected files elsewhere.
 
 ## Enhanced diagnostics
 
-Use **Setup > Diagnostics > Enhanced diagnostics for next session** when normal
+Use **Setup > Developer > Enhanced diagnostics for next session** when normal
 session logs are not enough. The setting is one-shot: DroidDeck creates and
 retains the next session's log directory, records the diagnostic profile, then
 turns the setting off. It also enables the existing game diagnostic environment
@@ -202,6 +226,9 @@ On an Adreno 6xx, Turnip does not expose `storageBuffer8BitAccess`, which DXVK 3
 requires. A Steam or desktop session installs DXVK 2.7.1 into any Proton whose
 DXVK is still the copy that Proton shipped, including after a Proton update put
 that copy back. A DXVK package chosen in Components stays for that Proton build.
+With DXVK on Auto, DroidDeck-Proton builds get DXVK-gplasync 2.7.1 instead, replacing the
+shipped copy, the forced DXVK 2.7.1 or an older Auto choice; other Proton builds keep DXVK 2.7.1.
+Adreno 7xx and 8xx follow the DXVK nightlies as before.
 
 The variable-name picker offers 24 predefined variables and a Custom entry. Like
 WinNative, known variables use toggles, value dropdowns, multi-select lists, or
@@ -227,6 +254,14 @@ The former feature-level rules for Caravan SandWitch, RoboCop: Rogue City,
 ReSkate and Cyberpunk 2077 compensated for the global `12_2` override and are
 removed. Stellar Blade also uses automatic detection. The separate Deep Rock
 Galactic GDK ray-tracing opt-out and Mali bridge capability cap remain.
+
+"Skip GL error checks" (under "Client interface") sets `MESA_NO_ERROR=1` for the client
+interface and Chromium apps only. Games keep Mesa's GL error checks: with
+`MESA_NO_ERROR`, an invalid call such as `glBufferData` with no buffer bound reads
+a NULL buffer object instead of returning `GL_INVALID_OPERATION`, and the game's
+render thread stops. A game profile entry, or `MESA_NO_ERROR` in the session's own
+environment, still applies to games.
+
 Other picker suggestions are editable starting values and are enabled only when
 added and saved. Older or
 custom components can support a different set of options. Android Wine wrapper,
@@ -248,7 +283,12 @@ DroidDeck instead publishes an atomic JSON snapshot at
 `/root/.config/droiddeck/game-environment.json`. Both its Valve ARM64 Proton
 wrapper and adopted third-party Proton wrappers execute `droiddeck-game-env`,
 which reads that snapshot for each real game launch and uses `execvpe` to start
-Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. Malformed
+Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. A game launch
+adds `tabtip.exe=d` to `WINEDLLOVERRIDES` unless the launch has `SteamDeck=1`
+or the overrides already set `tabtip.exe` (also as `*tabtip.exe` or
+`tabtip.exe.dll`): Proton's tabtip only opens Steam's
+keyboard with `SteamDeck=1`, but it always runs UI Automation queries inside the
+focused game, which crash games that answer them (Godot 4.5 AccessKit). Malformed
 configuration falls back to the inherited environment without evaluating its
 contents. Both component and environment selection normalize signed non-Steam
 prefix IDs to unsigned IDs.

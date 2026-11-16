@@ -11,12 +11,4 @@ object PipPolicy {
         height.toDouble() / width > 2.39 -> 100 to 239
         else -> width to height
     }
-
-    fun outputSize(width: Int, height: Int, outputWidth: Int, outputHeight: Int): Pair<Int, Int>? {
-        if (width <= 0 || height <= 0 || outputWidth <= 0 || outputHeight <= 0) return null
-        val scale = minOf(width.toFloat() / outputWidth, height.toFloat() / outputHeight)
-        val fittedWidth = ((outputWidth * scale).toInt() and 1.inv()).coerceAtLeast(2)
-        val fittedHeight = ((outputHeight * scale).toInt() and 1.inv()).coerceAtLeast(2)
-        return fittedWidth to fittedHeight
-    }
 }

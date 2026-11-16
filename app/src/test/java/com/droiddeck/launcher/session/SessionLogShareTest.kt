@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.assumeFilePermissionsEnforced
 import com.droiddeck.launcher.core.LogRedactor
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -147,6 +148,7 @@ class SessionLogShareTest {
         val folder = tmp.newFolder("2026-10-06-06-steam")
         File(folder, "session.log").writeText("$secret\n")
         org.junit.Assume.assumeFalse(System.getProperty("os.name").startsWith("Windows"))
+        assumeFilePermissionsEnforced()
         folder.setWritable(false)
         try {
             SessionArtifacts.scrubAndMark(folder)

@@ -81,6 +81,28 @@ class GameStorageTest {
         assertFalse(GameStorage.attached(volume, Environment.MEDIA_UNKNOWN, externalStoragePath = true))
     }
 
+    @Test fun aRawVolumePathIsCheckedAsItsStorageVolume() {
+        val asked = mutableListOf<String>()
+        val mounted = { file: File -> asked += file.path; if (file.path.startsWith("/storage/B2BD-BCFC")) Environment.MEDIA_MOUNTED else Environment.MEDIA_UNKNOWN }
+        assertTrue(GameStorage.attached(File("/mnt/media_rw/B2BD-BCFC/STEAM GAMES"), mounted))
+        assertEquals("/storage/B2BD-BCFC/STEAM GAMES", asked.single())
+        assertTrue(GameStorage.attached(File("/storage/B2BD-BCFC/STEAM GAMES"), mounted))
+    }
+
+    @Test fun aRawVolumePathOnARemovedCardIsNotAttached() {
+        assertFalse(GameStorage.attached(File("/mnt/media_rw/B2BD-BCFC/STEAM GAMES")) { Environment.MEDIA_REMOVED })
+        assertFalse(GameStorage.attached(File("/mnt/media_rw/B2BD-BCFC/STEAM GAMES")) { Environment.MEDIA_UNKNOWN })
+        assertFalse(GameStorage.attached(File("/mnt/media_rw/B2BD-BCFC/STEAM GAMES")) { null })
+    }
+
+    @Test fun aSavedFolderThatIsThereIsAttachedWhateverItsVolumeReports() {
+        val folder = tmp.newFolder("card", "STEAM GAMES")
+        listOf(Environment.MEDIA_UNKNOWN, Environment.MEDIA_UNMOUNTED, Environment.MEDIA_REMOVED, null).forEach {
+            assertTrue(GameStorage.attached(folder, it, externalStoragePath = true))
+        }
+        assertTrue(GameStorage.attached(folder) { Environment.MEDIA_UNKNOWN })
+    }
+
     @Test fun onlyASavedDriveThatIsMissingCountsAsDisconnected() {
         SessionPrefs.setGameStorage(app, "", "")
         assertFalse(GameStorage.disconnected(app))

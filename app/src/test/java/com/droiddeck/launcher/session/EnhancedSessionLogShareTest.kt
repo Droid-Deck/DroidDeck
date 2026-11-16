@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.assumeFilePermissionsEnforced
 import android.content.Intent
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -403,6 +404,7 @@ class EnhancedSessionLogShareTest {
     }
 
     @Test fun unreadableDiscoverySubtreeKeepsOtherLogsAndMarksTheManifestPartial() {
+        assumeFilePermissionsEnforced()
         assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         val session = tmp.newFolder("2026-11-04-12-partial-discovery")
         session.resolve("session.log").writeText("safe\n")

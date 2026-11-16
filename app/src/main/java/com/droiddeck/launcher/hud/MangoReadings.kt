@@ -2,13 +2,18 @@ package com.droiddeck.launcher.hud
 
 import android.os.Environment
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.BatteryRuntimeEstimator
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 internal class MangoReadings(private val sessionDir: File, private val rootDir: File) {
     class Cpu(val percent: Int, val perCore: IntArray)
     class Memory(val usedBytes: Long, val totalBytes: Long, val swapUsedBytes: Long, val swapTotalBytes: Long)
-    class Battery(val percent: Int?, val watts: Float, val charging: Boolean)
+    class Battery(val percent: Int?, val watts: Float, val charging: Boolean, val runtimeText: String?)
+
+    private val batteryRuntimeEstimator = BatteryRuntimeEstimator()
+    private var lastBatteryDischarging: Boolean? = null
 
     private val cpuTimes = HashMap<String, LongArray>()
     private val cpuPercents = HashMap<String, Int>()
@@ -106,32 +111,113 @@ internal class MangoReadings(private val sessionDir: File, private val rootDir: 
     fun vramBytes(): Long? = fresh(File(rootDir, VRAM_FILE), VRAM_FRESH_MS)?.let(::readLong)?.takeIf { it > 0 }
 
     fun battery(): Battery? {
-        val dirs = File(sessionDir, "sys/power_supply").listFiles { f -> f.name.contains("BAT") }?.sortedBy { it.name }
+        val dirs = File(sessionDir, "sys/power_supply").listFiles { f -> f.name.contains("BAT") }?.sortedBy { it.name }?.take(2)
         if (dirs.isNullOrEmpty()) return null
-        var chargeNow = 0f
-        var chargeFull = 0f
-        var watts = 0f
-        var charging = false
+
+        var weightedChargeNow = 0.0
+        var weightedChargeFull = 0.0
+        var allHaveWeightedCharge = true
+        val perBatteryPercents = ArrayList<Int>()
+        var runtimeChargeUah = 0.0
+        var runtimeChargeComplete = true
+        var aggregateCurrentUa = 0.0
+        var currentComplete = true
+        var watts = 0.0
+        var anyDischarging = false
+        var anyChargingStatus = false
+        var allFull = true
+        var suppliedRuntimeSeconds: Long? = null
+
         for (dir in dirs) {
             val status = runCatching { File(dir, "status").readLines().firstOrNull() }.getOrNull()
-            if (status == "Charging" || status == "Unknown" || status == "Full") charging = true
-            val now = File(dir, "charge_now").takeIf { it.exists() } ?: File(dir, "energy_now")
-            val full = File(dir, "charge_full").takeIf { it.exists() } ?: File(dir, "energy_full")
-            if (now.exists()) {
-                chargeNow += (readFloat(now) ?: 0f) / 1_000_000f
-                chargeFull += (readFloat(full) ?: 0f) / 1_000_000f
-            } else {
-                chargeNow += (readFloat(File(dir, "capacity")) ?: 0f) / 100f
-                chargeFull = dirs.size.toFloat()
+            val isDischarging = status == "Discharging" || status == "Not charging"
+            if (isDischarging) anyDischarging = true
+            if (status == "Charging" || status == "Unknown") anyChargingStatus = true
+            if (status != "Full") allFull = false
+
+            val chargeNowFile = File(dir, "charge_now")
+            val chargeFullFile = File(dir, "charge_full")
+            val energyNowFile = File(dir, "energy_now")
+            val energyFullFile = File(dir, "energy_full")
+            val voltageFile = File(dir, "voltage_now")
+            val chargeNow = if (chargeNowFile.isFile) readFloat(chargeNowFile)?.toDouble() else null
+            val chargeFull = if (chargeFullFile.isFile) readFloat(chargeFullFile)?.toDouble() else null
+            val energyNow = if (energyNowFile.isFile) readFloat(energyNowFile)?.toDouble() else null
+            val energyFull = if (energyFullFile.isFile) readFloat(energyFullFile)?.toDouble() else null
+            val voltageUv = if (voltageFile.isFile) readFloat(voltageFile)?.toDouble() else null
+
+            val nowForPercent: Double? = when {
+                chargeNow != null && chargeNow >= 0.0 -> chargeNow
+                energyNow != null && voltageUv != null -> BatteryRuntimeEstimator.chargeMicroampHoursFromEnergy(energyNow, voltageUv)
+                else -> null
             }
-            if (!charging) {
-                val power = File(dir, "power_now")
-                watts += if (power.exists()) kotlin.math.abs(readFloat(power) ?: 0f) / 1_000_000f
-                else kotlin.math.abs((readFloat(File(dir, "current_now")) ?: 0f) * (readFloat(File(dir, "voltage_now")) ?: 0f)) / 1e12f
+            val fullForPercent: Double? = when {
+                chargeFull != null && chargeFull > 0.0 -> chargeFull
+                energyFull != null && voltageUv != null -> BatteryRuntimeEstimator.chargeMicroampHoursFromEnergy(energyFull, voltageUv)
+                else -> null
+            }
+            if (nowForPercent != null && fullForPercent != null && fullForPercent > 0.0) {
+                weightedChargeNow += nowForPercent
+                weightedChargeFull += fullForPercent
+                perBatteryPercents += (nowForPercent * 100.0 / fullForPercent).roundToInt().coerceIn(0, 100)
+            } else {
+                allHaveWeightedCharge = false
+                readFloat(File(dir, "capacity"))?.roundToInt()?.coerceIn(0, 100)?.let { perBatteryPercents += it }
+            }
+
+            when {
+                chargeNow != null && chargeNow >= 0.0 -> runtimeChargeUah += chargeNow
+                energyNow != null && voltageUv != null ->
+                    BatteryRuntimeEstimator.chargeMicroampHoursFromEnergy(energyNow, voltageUv)?.let { runtimeChargeUah += it }
+                        ?: run { runtimeChargeComplete = false }
+                else -> runtimeChargeComplete = false
+            }
+
+            if (dirs.size == 1) {
+                suppliedRuntimeSeconds = readLong(File(dir, "time_to_empty_avg"))?.takeIf { it > 0L }
+                    ?: readLong(File(dir, "time_to_empty_now"))?.takeIf { it > 0L }
+                    ?: suppliedRuntimeSeconds
+            }
+
+            val currentFile = File(dir, "current_now")
+            val powerFile = File(dir, "power_now")
+            val currentNow = if (currentFile.isFile) readFloat(currentFile)?.toDouble() else null
+            val currentForEta = when {
+                currentNow != null -> abs(currentNow)
+                powerFile.isFile && voltageUv != null -> readFloat(powerFile)?.toDouble()?.let {
+                    BatteryRuntimeEstimator.currentMicroampsFromPower(it, voltageUv)
+                }
+                else -> null
+            }
+            if (currentForEta == null) currentComplete = false else aggregateCurrentUa += currentForEta
+
+            if (isDischarging) {
+                val power = if (powerFile.isFile) readFloat(powerFile)?.toDouble() else null
+                if (power != null) watts += abs(power) / 1_000_000.0
+                else if (currentNow != null && voltageUv != null) watts += abs(currentNow * voltageUv) / 1_000_000_000_000.0
             }
         }
-        val percent = if (chargeFull > 0f) Math.round(chargeNow / chargeFull * 100f) else null
-        return Battery(percent, if (charging) 0f else watts, charging)
+
+        val percent = when {
+            allHaveWeightedCharge && weightedChargeFull > 0.0 -> (weightedChargeNow * 100.0 / weightedChargeFull).roundToInt().coerceIn(0, 100)
+            perBatteryPercents.isNotEmpty() -> perBatteryPercents.average().roundToInt().coerceIn(0, 100)
+            else -> null
+        }
+        if (lastBatteryDischarging != null && lastBatteryDischarging != anyDischarging) {
+            batteryRuntimeEstimator.reset()
+        }
+        lastBatteryDischarging = anyDischarging
+        val estimatedHours = if (anyDischarging && runtimeChargeComplete && currentComplete)
+            batteryRuntimeEstimator.estimateHours(runtimeChargeUah, aggregateCurrentUa) else null
+        val runtimeHours = suppliedRuntimeSeconds?.let { it / 3600.0 } ?: estimatedHours
+        val charging = !anyDischarging && anyChargingStatus
+        val runtimeText = when {
+            anyDischarging -> BatteryRuntimeEstimator.formatDuration(runtimeHours)
+            charging -> "Charging"
+            allFull -> "Full"
+            else -> null
+        }
+        return Battery(percent, if (anyDischarging) watts.toFloat() else 0f, charging, runtimeText)
     }
 
     private fun fresh(file: File, maxAgeMs: Long = FEED_FRESH_MS): File? =

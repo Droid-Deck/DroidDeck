@@ -26,6 +26,7 @@ class EffectsSourceResolutionTest(unittest.TestCase):
         header = (REPO / 'app/src/main/cpp/waylandcomp/src/vk_present.h').read_text()
         effects = (REPO / 'app/src/main/cpp/waylandcomp/src/effects_chain.c').read_text()
         functions = '\n'.join(function(source, signature) for signature in (
+            'static void release_external_client_image(', 'static void release_external_client_draws(',
             'static int map_draw(', 'static int draw_to_blit(',
             'static int draw_to_scene_blit(', 'static int effects_source_draw(',
             'static void effects_source_note(',
@@ -37,11 +38,13 @@ class EffectsSourceResolutionTest(unittest.TestCase):
         image = source[source.index('struct vkp_image {'):source.index('\n};', source.index('struct vkp_image {')) + 3]
         draw = header[header.index('struct vkp_draw {'):header.index('\n};', header.index('struct vkp_draw {')) + 3]
         hdr = header[header.index('struct vkp_hdr_frame {'):header.index('\n};', header.index('struct vkp_hdr_frame {')) + 3]
-        constants = sorted(set(re.findall(r'\bVK_[A-Z0-9_]+\b', functions + image)) -
+        sync = (REPO / 'app/src/main/cpp/waylandcomp/src/vk_external_image_sync.h').read_text()
+        sync = re.sub(r'^#(include|ifndef|define|endif).*$', '', sync, flags=re.M)
+        constants = sorted(set(re.findall(r'\bVK_[A-Z0-9_]+\b', functions + image + sync)) -
                            {'VK_FORMAT_R8G8B8A8_UNORM'})
         definitions = '\n'.join(f'#define {name} {0 if name in ("VK_SUCCESS", "VK_NULL_HANDLE") else i + 1}'
                                 for i, name in enumerate(constants))
-        code = TYPES + definitions + '\n' + image + '\n' + draw + '\n' + hdr + STUBS + functions + CASES
+        code = TYPES + definitions + '\n' + sync + '\n' + image + '\n' + draw + '\n' + hdr + STUBS + functions + CASES
         cls.temp = tempfile.TemporaryDirectory(prefix='droiddeck-effects-resolution-')
         cls.addClassCleanup(cls.temp.cleanup)
         folder = Path(cls.temp.name)
@@ -148,10 +151,12 @@ typedef struct {
 #define droiddeck_log(...) ((void)0)
 #define LOGE(...) ((void)0)
 struct droiddeck_color { uint32_t identity; };
+typedef struct AHardwareBuffer AHardwareBuffer;
 '''
 
 
 STUBS = r'''
+static void quarantine_pending_work(VkResult result, const char *where) { (void)result; (void)where; }
 static int noop(int handle, ...) { return VK_SUCCESS; }
 static VkImageMemoryBarrier recorded_barriers[64];
 static int barrier_count;
@@ -173,7 +178,7 @@ static struct {
     int (*EndCommandBuffer)(int, ...), (*ResetFences)(int, ...);
     int (*QueueSubmit)(int, ...), (*QueuePresentKHR)(int, ...);
 } g_vk = {noop, noop, note_barriers, noop, noop, noop, noop, noop};
-static int g_dev_state, g_window = 1, g_swapchain, g_swap_extra;
+static int g_dev_state = 1, g_window = 1, g_swapchain, g_swap_extra;
 static int g_colorspace_ext, g_swap_hdr_unavailable, g_swap_is_hdr, g_swap_hdr_want;
 static int g_plain_frame, g_first_frame_done, g_base_black;
 static int g_qfam, g_queue, g_dev, g_fence, g_swap_fmt = SCENE_FMT;
@@ -195,7 +200,7 @@ static VkImageBlit copied;
 static struct vkp_draw recorded_draws[16];
 static VkImageBlit recorded_blits[16];
 static VkImage recorded_targets[16];
-static int recorded_after_effects[16];
+static int recorded_after_effects[16], recorded_barrier_marks[16];
 static void vkp_apply_window_request(void) {}
 static void sc_layer_hide_base(void) {}
 static void check_surface_changed(void) {}
@@ -238,6 +243,7 @@ static void record_draw(int cmd, const struct vkp_draw *draw, const VkImageBlit 
     assert(copy_count < 16);
     recorded_draws[copy_count] = *draw; recorded_blits[copy_count] = *blit;
     recorded_targets[copy_count] = target; recorded_after_effects[copy_count] = effects_count > 0;
+    recorded_barrier_marks[copy_count] = barrier_count;
     copy_count++; copied = *blit;
     copied_w = draw->dw; copied_h = draw->dh; target_w = w; target_h = h;
 }
@@ -509,11 +515,16 @@ static void check_overlay_barriers(void) {
         reset();
         struct vkp_draw layers[] = {background_draw(), fullscreen(), cursor_draw()};
         run_path(offscreen, layers, 3, NULL); check_input(1280, 720);
-        int acquired = find_barrier(cursor.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        int acquired = find_barrier(cursor.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         assert(acquired >= 0 && recorded_barriers[acquired].srcQueueFamilyIndex == VK_QUEUE_FAMILY_FOREIGN_EXT);
         int writable = find_barrier(4, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         int readable = find_barrier(4, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         assert(writable > acquired && readable > writable);
+        int released = find_barrier(cursor.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+        assert(released > acquired && recorded_barriers[released].dstQueueFamilyIndex == VK_QUEUE_FAMILY_FOREIGN_EXT);
+        int last_cursor_draw = -1;
+        for (int i = 0; i < copy_count; i++) if (recorded_draws[i].img == &cursor) last_cursor_draw = i;
+        assert(last_cursor_draw >= 0 && released >= recorded_barrier_marks[last_cursor_draw]);
     }
 }
 static void check_postprocessing(void) {

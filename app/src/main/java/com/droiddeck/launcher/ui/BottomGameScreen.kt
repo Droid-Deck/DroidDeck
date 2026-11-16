@@ -19,6 +19,7 @@ class BottomGameScreen(
     display: Display,
     private val callback: SurfaceHolder.Callback,
     private val onTouch: (MotionEvent) -> Boolean,
+    private val onHover: (MotionEvent) -> Boolean,
 ) : Presentation(activity, display) {
     val surfaceView = SurfaceView(getContext())
     val holder: SurfaceHolder get() = surfaceView.holder
@@ -51,7 +52,7 @@ class BottomGameScreen(
         activity.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
-        activity.dispatchGenericMotionEvent(event) || super.dispatchGenericMotionEvent(event)
+        onHover(event) || activity.dispatchGenericMotionEvent(event) || super.dispatchGenericMotionEvent(event)
 }
 
 object GameScreenSwap {

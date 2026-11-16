@@ -4,6 +4,12 @@ import android.content.Context
 import com.droiddeck.launcher.core.AppUiPrefs
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.InputAction
+import com.droiddeck.launcher.input.InputControl
+import com.droiddeck.launcher.input.InputProfile
+import com.droiddeck.launcher.input.InputProfiles
+import com.droiddeck.launcher.input.InputRole
+import com.droiddeck.launcher.input.InputSurfaceLayout
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -20,7 +26,7 @@ class SettingsResetTest {
     private val session get() = prefs("session")
 
     @Before fun clear() {
-        listOf("session", "controller", "app-ui", "frame_gen", "steam_touch", "agent").forEach {
+        listOf("session", "controller", "input-profiles", "input-surfaces", "app-ui", "frame_gen", "steam_touch", "agent").forEach {
             prefs(it).edit().clear().commit()
         }
     }
@@ -28,6 +34,9 @@ class SettingsResetTest {
     @Test fun settingsGoBackToTheirDefaults() {
         SessionPrefs.setTheme(app, "ocean")
         SessionPrefs.setBackDoubleTapMs(app, 100)
+        SessionPrefs.setPenSetting(app, "pen", SessionPrefs.PEN_TOUCH)
+        SessionPrefs.setPenSetting(app, "penButton", SessionPrefs.PEN_BUTTON_OFF)
+        SessionPrefs.setPenSeen(app)
         SessionPrefs.setUnfoldedControlsWithController(app, true)
         SessionPrefs.setNoXalia(app, false)
         session.edit().putInt("fpsLimit.steam", 30).commit()
@@ -52,6 +61,8 @@ class SettingsResetTest {
 
         assertEquals("graphite", SessionPrefs.theme(app))
         assertEquals(500, SessionPrefs.backDoubleTapMs(app))
+        assertEquals(SessionPrefs.Pen(), SessionPrefs.pen(app))
+        assertTrue(SessionPrefs.penSeen(app))
         assertFalse(SessionPrefs.unfoldedControlsWithController(app))
         assertTrue(SessionPrefs.noXalia(app))
         assertFalse(session.contains("fpsLimit.steam"))
@@ -74,6 +85,26 @@ class SettingsResetTest {
         assertEquals(AppUiPrefs.DEFAULT_SCALE, AppUiPrefs.scale(app))
         assertEquals(FrameGen.Mode.OFF.engine, FrameGen.engine(app))
         assertFalse(prefs("steam_touch").contains("gyro"))
+    }
+
+    @Test fun penSettingsKeepOnlyKnownValues() {
+        val settings = mapOf(
+            "pen" to listOf(SessionPrefs.PEN_MOUSE, SessionPrefs.PEN_TOUCH),
+            "penButton" to listOf(SessionPrefs.PEN_BUTTON_RIGHT, SessionPrefs.PEN_BUTTON_MIDDLE, SessionPrefs.PEN_BUTTON_OFF),
+        )
+        fun read(key: String) = if (key == "pen") SessionPrefs.penMode(app) else SessionPrefs.penButton(app)
+        for ((key, values) in settings) {
+            assertTrue(key, SettingsReset.isSessionSetting(key))
+            assertEquals(key, values.first(), read(key))
+            for (value in values.drop(1)) {
+                SessionPrefs.setPenSetting(app, key, value)
+                assertEquals(key, value, read(key))
+            }
+            session.edit().putString(key, "left").commit()
+            assertEquals(key, values.first(), read(key))
+            assertThrows(IllegalArgumentException::class.java) { SessionPrefs.setPenSetting(app, key, "left") }
+        }
+        assertFalse(SettingsReset.isSessionSetting("penSeen"))
     }
 
     @Test fun aFailedDebugOptOutDoesNotHideTheEnabledPreference() {
@@ -117,6 +148,39 @@ class SettingsResetTest {
         assertEquals("/storage/ABCD-1234", SessionPrefs.gameStorage(app))
         assertTrue(SessionPrefs.micAsked(app))
         assertEquals("a:1,2", prefs("steam_touch").getString("copiedLayout", null))
+    }
+
+    @Test fun inputProfilesAndSurfacesResetWithoutRestoringLegacyMappings() {
+        val defaultGame = InputProfiles.read(app, InputProfile.GAME)
+        val defaultDesktop = InputProfiles.read(app, InputProfile.DESKTOP)
+        val defaultSurface = InputSurfaceLayout.read(app, InputProfile.DESKTOP)
+        ControllerPrefs.setTarget(app, "a", "b")
+        InputProfiles.select(app, InputProfile.DESKTOP)
+        InputProfiles.save(app, InputProfile.defaults(InputProfile.GAME)
+            .withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.Disabled))
+        InputSurfaceLayout.save(app, InputProfile.DESKTOP, emptyList())
+
+        assertTrue(SettingsReset.resetAll(app, gameProfiles = false))
+
+        assertEquals(InputProfiles.AUTO, InputProfiles.selection(app))
+        assertEquals(defaultGame, InputProfiles.read(app, InputProfile.GAME))
+        assertEquals(defaultDesktop, InputProfiles.read(app, InputProfile.DESKTOP))
+        assertEquals(defaultSurface, InputSurfaceLayout.read(app, InputProfile.DESKTOP))
+    }
+
+    @Test fun inputLayoutsAndQuickButtonVisibilityReset() {
+        val original = com.droiddeck.launcher.input.InputLibraries.read(app)
+        val gamepad = original.layouts.first { it.id == com.droiddeck.launcher.input.InputLibraries.OVERLAY }
+        com.droiddeck.launcher.input.InputLibraries.update(app) { library ->
+            library.withLayout(gamepad.withQuickButton(com.droiddeck.launcher.input.InputCommand.STEAM, false)
+                .copy(elements = gamepad.elements.map { it.copy(x = 0f, y = 0f) })).copyLayout(gamepad.id, "Mine", "mine")
+        }
+
+        assertTrue(SettingsReset.resetAll(app, gameProfiles = false))
+
+        val reset = com.droiddeck.launcher.input.InputLibraries.read(app)
+        assertEquals(original.layouts.map { it.id }.toSet(), reset.layouts.map { it.id }.toSet())
+        assertEquals(gamepad, reset.layouts.first { it.id == gamepad.id })
     }
 
     @Test fun gameTextureFilteringIsKeptUnlessGameProfilesAreReset() {

@@ -66,10 +66,11 @@ class PhysicalShortcutsDialogTest {
         }
     }
 
-    @Test fun buttonMappingPageOpensPhysicalShortcutAssignments() {
+    @Test fun inputSettingsPageOpensPhysicalShortcutAssignments() {
         compose.setContent {
-            DroidDeckTheme { ControllerMappingPage(emptyMap(), { _, _ -> }, {}, {}) }
+            DroidDeckTheme { InputSettingsPage(onBack = {}) }
         }
+        compose.onNodeWithTag("shortcuts-assign-STEAM").performScrollTo()
         compose.onNodeWithTag("shortcuts-assign-STEAM").assertExists()
         compose.onNodeWithTag("shortcuts-assign-QAM").assertExists()
         compose.onNodeWithTag("shortcuts-assign-DROIDDECK").assertExists()
@@ -134,12 +135,12 @@ class PhysicalShortcutsDialogTest {
         compose.setContent { DroidDeckTheme { PhysicalShortcutRows() } }
         assign(PhysicalShortcuts.Action.STEAM)
         send(KeyEvent.KEYCODE_F3, KeyEvent.ACTION_DOWN)
-        compose.onNodeWithTag("shortcuts-remove").performScrollTo().performClick()
+        compose.onNodeWithTag("shortcuts-restore-default").performScrollTo().performClick()
         compose.runOnIdle {
             assertEquals(PhysicalShortcuts.Action.QAM, PhysicalShortcuts.read(context).single().action)
             assertTrue(ControllerPrefs.read(context).selectSteam)
         }
-        compose.onNodeWithTag("shortcuts-assign-STEAM").assertTextContains(context.getString(R.string.game_settings_default))
+        compose.onNodeWithTag("shortcuts-assign-STEAM").assertTextContains(context.getString(R.string.input_shortcut_guide))
     }
 
     @Test fun retryRecoversFromAMissingReleaseWithoutSavingTheOldButton() {
@@ -172,7 +173,7 @@ class PhysicalShortcutsDialogTest {
         val label = compose.onNodeWithText(context.getString(R.string.drawer_steam_menu)).getUnclippedBoundsInRoot()
         assertTrue(control.right - control.left < 200.dp)
         assertTrue("Menu label must not wrap vertically: $label", label.bottom - label.top <= 48.dp)
-        compose.onNodeWithTag("shortcuts-assign-STEAM").assertTextContains(context.getString(R.string.ctrl_custom))
+        compose.onNodeWithTag("shortcuts-assign-STEAM").assertTextContains(button.label)
         compose.onNodeWithText("${button.label} · ${button.name}").assertExists()
     }
 

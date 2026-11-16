@@ -23,7 +23,7 @@ object AgentAccess {
     fun requireCommands(context: Context) {
         if (!commandsAllowed(context)) throw AgentException(
             "AGENT_COMMANDS_DISABLED",
-            "Debugging tools are off: turn on Setup > Diagnostics > Debugging tools on the device",
+            "Debugging tools are off: turn on Setup > Developer > Debugging tools on the device",
         )
     }
 

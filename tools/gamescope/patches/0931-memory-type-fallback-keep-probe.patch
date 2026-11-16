@@ -1,0 +1,55 @@
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index d344a99..e699c85 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -331,7 +331,10 @@ bool CVulkanDevice::BInit(VkInstance instance, VkSurfaceKHR surface)
+ 			if ( !createLayouts() )
+ 				return false;
+ 		}
+-		VkPipeline probe = compilePipeline( 1, 0, SHADER_TYPE_BLIT, 1, 0, 0, 0, false );
++		// Forced off: no probe. Through Venus a pipeline the host refused can still come back as a
++		// handle, and destroying it later is a command the render server rejects - it killed the
++		// whole vtest context (Mali-G615: "vkDestroyPipeline resulted in CS error", exit 137).
++		VkPipeline probe = m_bYcbcrImmutableSamplers ? compilePipeline( 1, 0, SHADER_TYPE_BLIT, 1, 0, 0, 0, false ) : VK_NULL_HANDLE;
+ 		if ( probe == VK_NULL_HANDLE && m_bYcbcrImmutableSamplers )
+ 		{
+ 			vk_log.errorf( "composite pipeline refused; retrying without immutable YCbCr samplers" );
+@@ -343,8 +346,8 @@ bool CVulkanDevice::BInit(VkInstance instance, VkSurfaceKHR surface)
+ 			probe = compilePipeline( 1, 0, SHADER_TYPE_BLIT, 1, 0, 0, 0, false );
+ 			vk_log.infof( "composite pipeline without immutable YCbCr samplers: %s", probe ? "accepted" : "STILL refused" );
+ 		}
+-		if ( probe != VK_NULL_HANDLE )
+-			vk.DestroyPipeline( device(), probe, nullptr );
++		// The probe is kept, never destroyed (see above): one pipeline.
++		(void)probe;
+ 	}
+ 	if (!createScratchResources())
+ 		return false;
+@@ -1380,7 +1383,26 @@ int32_t CVulkanDevice::findMemoryType( VkMemoryPropertyFlags properties, uint32_
+ 		
+ 		return i;
+ 	}
+-	
++
++	// A device that lists its host-visible memory without DEVICE_LOCAL (the Mali bridge models a
++	// unified-memory GPU that way, as a discrete one would) still has it all on the GPU: settle for
++	// host-visible memory rather than fail ("findMemoryType failed", then no backend).
++	if ( properties & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT && properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT )
++	{
++		int32_t nFallback = findMemoryType( properties & ~VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, requiredTypeBits );
++		static bool s_bLogged = false;
++		if ( !s_bLogged )
++		{
++			s_bLogged = true;
++			vk_log.infof( "no memory type with properties 0x%x in type bits 0x%x; without DEVICE_LOCAL: %d", properties, requiredTypeBits, nFallback );
++		}
++		if ( nFallback >= 0 )
++			return nFallback;
++	}
++
++	vk_log.errorf( "findMemoryType: no memory type with properties 0x%x in type bits 0x%x (%u types)", properties, requiredTypeBits, m_memoryProperties.memoryTypeCount );
++	for ( uint32_t i = 0; i < m_memoryProperties.memoryTypeCount; i++ )
++		vk_log.errorf( "  memory type %u: flags 0x%x heap %u", i, m_memoryProperties.memoryTypes[ i ].propertyFlags, m_memoryProperties.memoryTypes[ i ].heapIndex );
+ 	return -1;
+ }
+ 
