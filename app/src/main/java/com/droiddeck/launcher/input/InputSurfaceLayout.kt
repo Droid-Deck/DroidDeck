@@ -20,6 +20,10 @@ enum class InputElementKind(val control: InputControl) {
 
 enum class InputButtonShape { ROUNDED, PILL, CIRCLE, RECTANGLE }
 
+enum class InputStickShape { STICK, DPAD }
+
+enum class InputDpadWays { EIGHT, FOUR }
+
 data class InputSurfaceElement(
     val control: InputControl, val x: Float, val y: Float, val width: Float, val height: Float,
     val id: String = "legacy:${control.id}",
@@ -35,6 +39,8 @@ data class InputSurfaceElement(
     val buttonShape: InputButtonShape = InputButtonShape.ROUNDED,
     val showLabel: Boolean = true,
     val alwaysShown: Boolean = false,
+    val stickShape: InputStickShape = InputStickShape.STICK,
+    val dpadWays: InputDpadWays = InputDpadWays.EIGHT,
 ) {
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
 

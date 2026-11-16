@@ -121,6 +121,12 @@
     <string name="input_shape_pill">Pill</string>
     <string name="input_shape_circle">Circle</string>
     <string name="input_shape_rectangle">Rectangle</string>
+    <string name="input_stick_shape">Style</string>
+    <string name="input_stick_shape_stick">Stick</string>
+    <string name="input_stick_shape_dpad">D-pad</string>
+    <string name="input_dpad_ways">Directions</string>
+    <string name="input_dpad_4way">4-way</string>
+    <string name="input_dpad_8way">8-way</string>
     <string name="input_button_symbol">Button label</string>
     <string name="input_button_text">Text</string>
     <string name="input_imported_image">Imported image</string>

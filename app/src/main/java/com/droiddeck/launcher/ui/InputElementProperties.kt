@@ -67,8 +67,18 @@ internal fun InputElementProperties(element: InputSurfaceElement, action: InputA
     }
     if (element.kind == InputElementKind.STICK) {
         val host = rememberMenuHost()
-        ToggleRow(host, "element-floating", stringResource(R.string.input_floating_stick), null, element.floating) { onChange(element.copy(floating = it)) }
-        ToggleRow(host, "element-hide-idle", stringResource(R.string.input_hide_idle), null, element.hideWhenIdle) { onChange(element.copy(hideWhenIdle = it)) }
+        ChoiceRow(host, "element-stick-shape", stringResource(R.string.input_stick_shape), null,
+            InputStickShape.entries.map { it to stringResource(when (it) { InputStickShape.STICK -> R.string.input_stick_shape_stick; InputStickShape.DPAD -> R.string.input_stick_shape_dpad }) },
+            element.stickShape) { onChange(element.copy(stickShape = it)) }
+        if (element.stickShape == InputStickShape.STICK) {
+            ToggleRow(host, "element-floating", stringResource(R.string.input_floating_stick), null, element.floating) { onChange(element.copy(floating = it)) }
+            ToggleRow(host, "element-hide-idle", stringResource(R.string.input_hide_idle), null, element.hideWhenIdle) { onChange(element.copy(hideWhenIdle = it)) }
+        }
+    }
+    if (element.kind == InputElementKind.DPAD || element.kind == InputElementKind.STICK && element.stickShape == InputStickShape.DPAD) {
+        ChoiceRow(rememberMenuHost(), "element-dpad-ways", stringResource(R.string.input_dpad_ways), null,
+            listOf(InputDpadWays.FOUR to stringResource(R.string.input_dpad_4way), InputDpadWays.EIGHT to stringResource(R.string.input_dpad_8way)),
+            element.dpadWays) { onChange(element.copy(dpadWays = it)) }
     }
     val host = rememberMenuHost()
     if ((element.kind == InputElementKind.BUTTON || element.kind == InputElementKind.TRIGGER) && element.icon == 0 && element.image.isEmpty() ||
