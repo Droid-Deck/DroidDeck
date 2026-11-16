@@ -291,6 +291,13 @@ object SessionPrefs {
         prefs(context).edit().putStringSet("libraryFavorites", keys.toSet()).apply()
     }
 
+    fun storesTabOrderCustomized(context: Context): Boolean =
+        prefs(context).getBoolean("storesTabOrderCustomized", false)
+
+    fun setStoresTabOrderCustomized(context: Context, customized: Boolean) {
+        prefs(context).edit().putBoolean("storesTabOrderCustomized", customized).apply()
+    }
+
     fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
 
     fun setStoresTabOrder(context: Context, order: List<String>) {
