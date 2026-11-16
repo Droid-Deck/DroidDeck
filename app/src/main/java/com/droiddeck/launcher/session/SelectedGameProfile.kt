@@ -20,6 +20,7 @@ data class SelectedGameProfile(
     val startWithoutSteam: Boolean = false,
     val frameGen: FrameGen.Mode = FrameGen.Mode.OFF,
     val frameGenInherited: Boolean = true,
+    val locale: String? = null,
 ) {
     val hasOverrides: Boolean
         get() = !fexPreset.inherited ||
@@ -28,7 +29,8 @@ data class SelectedGameProfile(
             environmentOverrides > 0 ||
             windowsComponentNames.isNotEmpty() ||
             startWithoutSteam ||
-            !frameGenInherited
+            !frameGenInherited ||
+            locale != null
 
     companion object {
         fun resolve(
@@ -59,7 +61,8 @@ data class SelectedGameProfile(
                 )
             }
             val otherEnvironment = environment.games[game.profileKey].orEmpty().keys - FexPreset.environmentKeys -
-                GameEnvironment.NO_STEAM - GameEnvironment.GAME_RESOLUTION
+                GameEnvironment.NO_STEAM - GameEnvironment.GAME_RESOLUTION -
+                GameEnvironment.LOCALE
             return SelectedGameProfile(
                 appId = selectedAppId,
                 name = game.name,
@@ -76,6 +79,7 @@ data class SelectedGameProfile(
                 startWithoutSteam = GameEnvironment.gameNoSteam(environment, game.profileKey),
                 frameGen = frameGenMode,
                 frameGenInherited = frameGenInherited,
+                locale = GameEnvironment.gameLocale(environment, game.profileKey),
             )
         }
     }

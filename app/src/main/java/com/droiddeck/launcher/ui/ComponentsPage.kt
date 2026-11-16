@@ -240,10 +240,12 @@ fun ComponentsPage(
                     ComponentsManager.gameComponents(ctx, game.profileKey),
                 )
             }
+            val current = withContext(Dispatchers.IO) { GameEnvironmentStore.read(ctx) }
             if (profileLoadGeneration == generation && selectedGameKey == game.profileKey) {
                 gameProtonChoice = choice
                 gameProtonId = id
                 gameComponents = components
+                environment = current
             }
         } catch (error: CancellationException) {
             throw error

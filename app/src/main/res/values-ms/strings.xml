@@ -528,6 +528,7 @@
     <string name="game_settings_default">Lalai</string>
     <string name="game_settings_default_detail">Mengembalikan semua yang diubah untuk permainan ini kepada tetapan apl.</string>
     <string name="game_sync_custom">Pemboleh ubah segerak tersuai</string>
+    <string name="game_locale_title">Wilayah</string>
     <string name="comp_game_proton_live">Pilihan Proton %1$s disimpan dan tersedia dalam Steam sekarang.</string>
     <string name="comp_game_proton_next">Pilihan Proton %1$s disimpan. Mulakan semula Steam sebelum melancarkan permainan.</string>
     <string name="comp_game_proton_not_runnable">%1$s tidak boleh menggunakan Proton yang dipilih pada peranti ini.</string>

@@ -534,6 +534,7 @@
     <string name="game_settings_default">По умолчанию</string>
     <string name="game_settings_default_detail">Возвращает всё, что изменено для этой игры, к настройкам приложения.</string>
     <string name="game_sync_custom">Свои переменные синхронизации</string>
+    <string name="game_locale_title">Регион</string>
     <string name="comp_game_proton_live">Выбор Proton для %1$s сохранен и уже доступен в Steam.</string>
     <string name="comp_game_proton_next">Выбор Proton для %1$s сохранен. Перезапустите Steam перед запуском игры.</string>
     <string name="comp_game_proton_not_runnable">%1$s не может использовать выбранный Proton на этом устройстве.</string>

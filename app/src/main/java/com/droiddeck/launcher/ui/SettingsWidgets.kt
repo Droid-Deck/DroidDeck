@@ -2,6 +2,7 @@ package com.droiddeck.launcher.ui
 
 import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.GameEnvironment
 import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
 import androidx.compose.animation.AnimatedContent
@@ -872,3 +873,6 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
         }
     }
 }
+
+internal fun localeLabel(tag: String) = GameEnvironment.localeName(tag) ?: tag
+

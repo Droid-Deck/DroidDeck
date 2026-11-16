@@ -530,6 +530,7 @@
     <string name="game_settings_default">Προεπιλογή</string>
     <string name="game_settings_default_detail">Επαναφέρει ό,τι άλλαξε για αυτό το παιχνίδι στις ρυθμίσεις της εφαρμογής.</string>
     <string name="game_sync_custom">Προσαρμοσμένες μεταβλητές συγχρονισμού</string>
+    <string name="game_locale_title">Περιοχή</string>
     <string name="comp_game_proton_live">Η επιλογή Proton του %1$s αποθηκεύτηκε και είναι διαθέσιμη στο Steam τώρα.</string>
     <string name="comp_game_proton_next">Η επιλογή Proton του %1$s αποθηκεύτηκε. Κάντε επανεκκίνηση του Steam πριν εκκινήσετε το παιχνίδι.</string>
     <string name="comp_game_proton_not_runnable">Το %1$s δεν μπορεί να χρησιμοποιήσει το επιλεγμένο Proton σε αυτή τη συσκευή.</string>

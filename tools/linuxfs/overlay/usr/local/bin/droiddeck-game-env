@@ -722,6 +722,43 @@ def without_pack(chosen_env, env):
     return result
 
 
+def locale_present(name, root=Path("/usr/lib/locale")):
+    base, _, encoding = name.partition(".")
+    encoding = encoding.lower().replace("utf-8", "utf8")
+    return (root / (base + ("." + encoding if encoding else "")) / "LC_CTYPE").is_file()
+
+
+def configured_lang(config, app_id):
+    try:
+        return "LANG" in (config.get("games", {}).get(str(app_id)) or {})
+    except AttributeError:
+        return False
+
+
+def locale_language(name):
+    full = name.split(".", 1)[0].split("@", 1)[0]
+    short = full.split("_", 1)[0]
+    if short == "en":
+        return full
+    if full == "zh_HK":
+        return "zh_HK:zh_TW:zh"
+    return "%s:%s" % (full, short)
+
+
+def game_locale(env, configured=False):
+    name = env.get("LANG", "") if configured else env.get("DROIDDECK_LOCALE") or ""
+    if not name or name in ("C", "POSIX", "C.UTF-8"):
+        return env
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_-]+)?(?:@[A-Za-z0-9_-]+)?", name):
+        print("droiddeck-game-env: locale %s ignored" % name, file=sys.stderr)
+        return env
+    if not locale_present(name):
+        print("droiddeck-game-env: the runtime has no %s; the session language stays" % name, file=sys.stderr)
+        return env
+    print("droiddeck-game-env: locale %s" % name, file=sys.stderr)
+    return dict(env, LANG=name, LANGUAGE=locale_language(name))
+
+
 SSBS_LIB = "/usr/local/lib/libssbs.so"
 
 
@@ -1306,12 +1343,14 @@ def main():
     launch_config = None
     launch_config_valid = True
     effective_env = env
+    configured = False
     if waiting:
         path = Path.home() / ".config/droiddeck/game-environment.json"
         try:
             with path.open(encoding="utf-8") as source:
                 config = json.load(source)
             launch_config = config
+            configured = configured_lang(config, app_id)
         except FileNotFoundError:
             launch_config = {"version": 1}
         except (OSError, ValueError, TypeError, AttributeError):
@@ -1389,6 +1428,7 @@ def main():
             try:
                 with path.open(encoding="utf-8") as source:
                     config = json.load(source)
+                configured = configured_lang(config, app_id)
                 env = apply_config(env, sync_config(config, app_id), app_id)
             except FileNotFoundError:
                 pass
@@ -1414,6 +1454,7 @@ def main():
     note = bridge_feature_level(env)
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)
+    env = game_locale(env, configured)
     env = force_ssbs(command, env)
     game_cores(env)
     cpu_topology(env, command)
