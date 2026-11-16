@@ -212,6 +212,8 @@ internal fun inPane(o: Origin): Origin =
 private fun Backdrop(art: File?) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    // True black keeps the page unlit: no art wash and no corner glow.
+    if (pal.id == Themes.TRUE_BLACK) return
     Crossfade(targetState = art, animationSpec = Motion.tw(700), label = "backdrop") { a ->
         if (a != null && Build.VERSION.SDK_INT >= 31) {
             Box(modifier = Modifier.fillMaxSize().alpha(0.26f).blur(70.dp)) {

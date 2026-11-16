@@ -11,6 +11,10 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyPress
+import androidx.compose.ui.test.requestFocus
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import org.junit.After
@@ -44,23 +48,23 @@ class NavTabsTest {
     }
 
     @Test fun showingMusicOnceKeepsItShownAfterReload() {
-        NavTabs.setPlace(ctx, "soundtracks", TabPlace.BAR)
+        place("soundtracks", TabPlace.BAR)
         NavTabs.load(ctx)
         assertEquals(listOf("steam", "games", "soundtracks", "stores", "desktop", "components", "setup", "updates", "trinkets"), navigationKeys(state()))
     }
 
     @Test fun shelvedTabsLeaveTheBarAndAddMoreAtTheEnd() {
-        NavTabs.setPlace(ctx, "stores", TabPlace.MORE)
-        NavTabs.setPlace(ctx, "components", TabPlace.MORE)
+        place("stores", TabPlace.MORE)
+        place("components", TabPlace.MORE)
         val s = state()
-        assertEquals(listOf("soundtracks", "stores", "components"), NavTabs.more(s))
+        assertEquals(listOf("components", "soundtracks", "stores"), NavTabs.more(s))
         assertEquals(NavTabs.MORE, navigationKeys(s).last())
         assertFalse("stores" in navigationKeys(s))
     }
 
     @Test fun hiddenTabsAreNowhereAndSetupCannotBeHidden() {
-        NavTabs.setPlace(ctx, "updates", TabPlace.HIDDEN)
-        NavTabs.setPlace(ctx, "setup", TabPlace.HIDDEN)
+        place("updates", TabPlace.HIDDEN)
+        place("setup", TabPlace.HIDDEN)
         val s = state()
         assertFalse("updates" in navigationKeys(s))
         assertFalse("updates" in NavTabs.more(s))
@@ -72,8 +76,8 @@ class NavTabsTest {
     }
 
     @Test fun movingSwapsWithTheNextVisibleTabAndPersists() {
-        NavTabs.setPlace(ctx, "soundtracks", TabPlace.BAR)
-        NavTabs.move(ctx, state(), "stores", -1)
+        place("soundtracks", TabPlace.BAR)
+        moveTab("stores", -1)
         assertEquals(listOf("steam", "games", "stores", "soundtracks"), navigationKeys(state()).take(4))
         NavTabs.load(ctx)
         assertEquals(listOf("steam", "games", "stores", "soundtracks"), navigationKeys(state()).take(4))
@@ -87,18 +91,18 @@ class NavTabsTest {
     }
 
     @Test fun moreCarriesTheDownloadCountAndBadgesOfShelvedTabs() {
-        NavTabs.setPlace(ctx, "stores", TabPlace.MORE)
-        NavTabs.setPlace(ctx, "setup", TabPlace.MORE)
+        place("stores", TabPlace.MORE)
+        place("setup", TabPlace.MORE)
         val s = state(downloads = 3, setupReady = false)
         assertEquals(3, railCount(s, NavTabs.MORE))
         assertTrue(railBadge(s, NavTabs.MORE))
-        NavTabs.setPlace(ctx, "stores", TabPlace.BAR)
+        place("stores", TabPlace.BAR)
         assertEquals(0, railCount(s, NavTabs.MORE))
         assertEquals(3, railCount(s, "stores"))
     }
 
     @Test fun sideRailShowsTheDownloadCountOnMoreWhenStoresIsShelved() {
-        NavTabs.setPlace(ctx, "stores", TabPlace.MORE)
+        place("stores", TabPlace.MORE)
         val s = state(downloads = 2)
         compose.setContent {
             DroidDeckTheme {
@@ -113,8 +117,8 @@ class NavTabsTest {
     }
 
     @Test fun morePageListsShelvedTabsWithTheirCount() {
-        NavTabs.setPlace(ctx, "stores", TabPlace.MORE)
-        NavTabs.setPlace(ctx, "components", TabPlace.MORE)
+        place("stores", TabPlace.MORE)
+        place("components", TabPlace.MORE)
         val s = state(downloads = 4)
         compose.setContent {
             DroidDeckTheme {
@@ -129,7 +133,7 @@ class NavTabsTest {
     }
 
     @Test fun backFromAShelvedTabReturnsToMore() {
-        NavTabs.setPlace(ctx, "desktop", TabPlace.MORE)
+        place("desktop", TabPlace.MORE)
         var back: androidx.activity.OnBackPressedDispatcher? = null
         compose.mainClock.autoAdvance = false
         compose.setContent {
@@ -148,14 +152,53 @@ class NavTabsTest {
     }
 
     @Test fun startupWithSteamHiddenNeverLandsOnABareComponentsSelection() {
-        NavTabs.setPlace(ctx, "steam", TabPlace.HIDDEN)
-        repeat(NavTabs.ALL.size) { NavTabs.move(ctx, state(), "components", -1) }
+        place("steam", TabPlace.HIDDEN)
+        repeat(NavTabs.ALL.size) { moveTab("components", -1) }
         assertEquals("components", navigationKeys(state()).first())
         compose.mainClock.autoAdvance = false
         compose.setContent { DroidDeckTheme { FrontEndScreen(state(), actions(), page = null) } }
         compose.mainClock.advanceTimeBy(2_000)
         compose.onNode(hasText(ctx.getString(com.droiddeck.launcher.R.string.content_page_gone))).assertDoesNotExist()
         compose.onNode(hasTestTag("rail-games") and androidx.compose.ui.test.isSelected()).assertExists()
+    }
+
+    @Test fun setupListMovesATabAcrossTheMoreLineWithTheControllerAndHidesWithItsSwitch() {
+        compose.setContent {
+            DroidDeckTheme {
+                CompositionLocalProvider(LocalFrontFocus provides FrontFocus()) {
+                    androidx.compose.foundation.layout.Column(Modifier.height(752.dp).verticalScroll(rememberScrollState())) {
+                        TabsSettingsGroup(MenuHost(), state(), actions())
+                    }
+                }
+            }
+        }
+        val last = navigationKeys(state()).last { it != NavTabs.MORE }
+        compose.onNodeWithTag("tab-row-$last").requestFocus()
+        compose.onNodeWithTag("tab-row-$last").performKeyPress(pad(android.view.KeyEvent.KEYCODE_BUTTON_Y))
+        compose.onNodeWithTag("tab-row-$last").performKeyPress(pad(android.view.KeyEvent.KEYCODE_DPAD_DOWN))
+        compose.onNodeWithTag("tab-row-$last").performKeyPress(pad(android.view.KeyEvent.KEYCODE_BUTTON_Y))
+        compose.runOnIdle { assertEquals(last, NavTabs.more(state()).first()) }
+        compose.onNodeWithTag("tab-shown-desktop").performClick()
+        compose.runOnIdle { assertFalse("desktop" in navigationKeys(state())) }
+        compose.onNodeWithTag("tab-shown-setup").performClick()
+        compose.runOnIdle { assertTrue("setup" in navigationKeys(state())) }
+    }
+
+    private fun pad(code: Int) = androidx.compose.ui.input.key.KeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, code))
+
+    private fun place(key: String, where: TabPlace, s: FrontEndState = state()) {
+        NavTabs.setHidden(ctx, key, where == TabPlace.HIDDEN)
+        if (where == TabPlace.HIDDEN) return
+        val keys = NavTabs.listed(s)
+        val more = keys.filter { if (it == key) where == TabPlace.MORE else it in NavTabs.shelved }
+        NavTabs.rearrange(ctx, s, keys - more.toSet(), more)
+    }
+
+    private fun moveTab(key: String, step: Int, s: FrontEndState = state()) {
+        val keys = NavTabs.listed(s)
+        val rows = moveTabRow(tabRows(keys.filter { it !in NavTabs.shelved }, keys.filter { it in NavTabs.shelved }), key, step) ?: return
+        val split = rows.indexOf(rows.first { it !in keys })
+        NavTabs.rearrange(ctx, s, rows.subList(0, split), rows.subList(split + 1, rows.size))
     }
 
     private fun hasParentTag(tag: String) = androidx.compose.ui.test.hasAnyAncestor(hasTestTag(tag))

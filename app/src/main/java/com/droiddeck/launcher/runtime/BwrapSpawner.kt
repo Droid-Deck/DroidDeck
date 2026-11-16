@@ -384,7 +384,7 @@ object BwrapSpawner {
             val program = plan.argv.firstOrNull()?.takeIf { it.startsWith("/") }?.let(::host)?.canonicalFile
                 ?.takeIf { it.isFile && isStaticElf(it) } ?: return null
             if (!linkMounts(plan)) return null
-            return (listOf(program.path) + plan.argv.drop(1)) to plan.env
+            return (NativeGuest.execPrefix(program.path) + listOf(program.path) + plan.argv.drop(1)) to plan.env
         }
         val loader = SANDBOX_LOADERS.map(::host).firstOrNull { it.isFile }?.canonicalFile ?: return null
         val libc = SANDBOX_LIBCS.map(::host).firstOrNull { it.isFile }?.canonicalFile ?: return null
@@ -411,13 +411,14 @@ object BwrapSpawner {
             plan.env.map { (k, v) -> "$k=$v" } + plan.argv
         val env = linkedMapOf(
             "DDNATV_ROOT" to sandbox,
+            "DDNATV_EXEC" to NativeGuest.execLoader.orEmpty(),
             "DDNATV_LINK_ROOT" to rootfs.path,
             "DDNATV_BINDS" to plan.binds.joinToString("|") { "${it.host}:${it.guest}" },
             "DDNATV_HOSTNAME" to SessionPrefs.guestHostname(context),
             "LD_LIBRARY_PATH" to SANDBOX_LIB_DIRS.map(::host).filter { it.isDirectory }.joinToString(":") { it.path },
             "LD_PRELOAD" to hook.path,
         ).filterValues { it.isNotEmpty() }
-        return (NativeGuest.simulator(rootfs)?.let { it + launch } ?: launch) to env
+        return (NativeGuest.simulator(rootfs)?.let { it + launch } ?: (NativeGuest.execPrefix(loader.path) + launch)) to env
     }
 
     private val runpathDirs = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
@@ -542,7 +543,7 @@ object BwrapSpawner {
                 .also { b -> b.environment().apply { clear(); putAll(native.second) } }
         } else {
             val cmd = LinuxRuntime.prootPrefix(context, plan.root, plan.cwd)
-            if (verbose != null) { cmd.add(1, "-v"); cmd.add(2, verbose.toString()) }
+            if (verbose != null) { cmd.add("-v"); cmd.add(verbose.toString()) }
             plan.binds.forEach { cmd.add("-b"); cmd.add(it.spec) }
             val envTool = hasEnvTool(plan)
             if (envTool) {

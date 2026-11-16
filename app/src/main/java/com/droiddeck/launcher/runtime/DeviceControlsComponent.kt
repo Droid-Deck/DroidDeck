@@ -95,10 +95,13 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
             permissionNotified = false
             context.contentResolver.registerContentObserver(Settings.System.CONTENT_URI, true, observer)
             requests.startWatching()
-            context.registerReceiver(volumeSteps, IntentFilter().apply {
+            val volumeFilter = IntentFilter().apply {
                 addAction(VOLUME_CHANGED_ACTION)
                 addAction(STREAM_MUTE_CHANGED_ACTION)
-            }, null, handler)
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 33)
+                context.registerReceiver(volumeSteps, volumeFilter, null, handler, Context.RECEIVER_NOT_EXPORTED)
+            else context.registerReceiver(volumeSteps, volumeFilter, null, handler)
             refresh.run()
         }
     }

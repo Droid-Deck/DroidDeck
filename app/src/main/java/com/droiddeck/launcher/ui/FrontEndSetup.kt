@@ -147,6 +147,7 @@ internal fun SetupPanel(
 ) {
     val host = rememberMenuHost()
     val ctx = LocalContext.current
+    var hideHomeFromRecents by remember { mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.hideHomeFromRecents(ctx)) }
     var processLimitBusy by remember { mutableStateOf(false) }
     var processLimitMessage by remember { mutableStateOf<String?>(null) }
     val setProcessLimit: (Boolean) -> Unit = { enabled ->
@@ -435,6 +436,7 @@ internal fun SetupPanel(
                                 }
                                 if (s.theme == Themes.INNER_GAMER) RgbSpeedRow()
                                 if (s.theme == Themes.GRADIENT) GradientColorRows()
+                                if (s.theme == Themes.TRUE_BLACK) HighlightColorRow()
                                 ChoiceRow(
                                     host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
                                     com.droiddeck.launcher.core.AppUiPrefs.scales.map { percent ->
@@ -470,6 +472,13 @@ internal fun SetupPanel(
                                 ) { a.onHomeScreen(it) }
                                 if (s.homeScreenEnabled) {
                                     ActionRow(stringResource(R.string.setup_default_home), s.defaultHomeLabel ?: stringResource(R.string.setup_choose_home), stringResource(R.string.setup_choose), a.onHomeApp)
+                                    ToggleRow(
+                                        host, "hide-home-from-recents", stringResource(R.string.setup_hide_home_from_recents),
+                                        stringResource(R.string.setup_hide_home_from_recents_hint), hideHomeFromRecents,
+                                    ) { hidden ->
+                                        hideHomeFromRecents = hidden
+                                        com.droiddeck.launcher.core.AppUiPrefs.setHideHomeFromRecents(ctx, hidden)
+                                    }
                                     ChoiceRow(
                                         host, "home-page", stringResource(R.string.setup_home_page), stringResource(R.string.setup_home_page_hint),
                                         com.droiddeck.launcher.core.AppUiPrefs.homePageOptions.map { (value, label) -> value to stringResource(label) },
@@ -1167,6 +1176,16 @@ private fun LanguageRow(host: MenuHost, chosen: String, onPick: (String) -> Unit
 private fun RgbSpeedRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
     SliderRow(stringResource(R.string.theme_rgb_speed), stringResource(R.string.theme_rgb_speed_hint), Themes.rgbSpeed, 1..Themes.RGB_SPEEDS) { Themes.setRgbSpeed(ctx, it) }
+}
+
+@Composable
+private fun HighlightColorRow() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val highlight = Themes.trueBlackHighlight
+    var picking by remember { mutableStateOf(false) }
+    val label = stringResource(R.string.theme_true_black_highlight)
+    SettingsRow(label, stringResource(R.string.theme_true_black_highlight_hint)) { ColorCube(androidx.compose.ui.graphics.Color(highlight), label) { picking = true } }
+    if (picking) ColorPickerDialog(label, highlight, onDismiss = { picking = false }) { argb -> Themes.setTrueBlackHighlight(ctx, argb) }
 }
 
 @Composable

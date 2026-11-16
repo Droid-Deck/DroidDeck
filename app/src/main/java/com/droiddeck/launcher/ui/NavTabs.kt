@@ -69,23 +69,18 @@ internal object NavTabs {
         return if (more(s).isEmpty()) shown else shown + MORE
     }
 
-    fun move(context: Context, s: FrontEndState, key: String, step: Int) {
-        val visible = listed(s)
-        val at = visible.indexOf(key)
-        val other = visible.getOrNull(at + step) ?: return
-        val next = order.toMutableList()
-        val i = next.indexOf(key)
-        val j = next.indexOf(other)
-        next[i] = other
-        next[j] = key
-        order = next
-        SessionPrefs.setNavTabOrder(context, next)
+    fun setHidden(context: Context, key: String, hide: Boolean) {
+        hidden = if (hide && hideable(key) && key !in FEATURES) hidden + key else hidden - key
+        SessionPrefs.setNavTabHidden(context, hidden)
     }
 
-    fun setPlace(context: Context, key: String, place: TabPlace) {
-        shelved = if (place == TabPlace.MORE) shelved + key else shelved - key
-        hidden = if (place == TabPlace.HIDDEN && hideable(key) && key !in FEATURES) hidden + key else hidden - key
+    fun rearrange(context: Context, s: FrontEndState, bar: List<String>, more: List<String>) {
+        val placed = bar + more
+        if (placed.toSet() != listed(s).toSet()) return
+        val next = placed.iterator()
+        order = order.map { if (it in placed) next.next() else it }
+        shelved = shelved - placed.toSet() + more
+        SessionPrefs.setNavTabOrder(context, order)
         SessionPrefs.setNavTabShelved(context, shelved)
-        SessionPrefs.setNavTabHidden(context, hidden)
     }
 }

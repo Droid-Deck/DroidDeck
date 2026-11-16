@@ -416,19 +416,19 @@ static void add_to_interface(struct module *m, uint32_t id)
 }
 
 /* A standalone distance variable becomes Private, and its decorations go. */
-static void privatize(struct module *m, const struct distance_var *var)
+static void privatize(struct module *m, uint32_t id)
 {
-    size_t d = definition(m, var->id);
+    size_t d = definition(m, id);
     uint32_t storage, pointee;
     pointer_parts(m, m->w[d + 1], &storage, &pointee);
     m->w[d + 1] = pointer_type(m, SpvStorageClassPrivate, pointee);
     m->w[d + 3] = SpvStorageClassPrivate;
-    mark_private(m, var->id);
+    mark_private(m, id);
     /* Before SPIR-V 1.4 an entry point lists only its inputs and outputs. */
     if (m->version < VERSION_1_4)
-        m->interface_remove[var->id] = 1;
+        m->interface_remove[id] = 1;
     for (size_t i = 5; i < m->first_declaration; i += LENGTH(m->w[i])) {
-        if (OPCODE(m->w[i]) == SpvOpDecorate && m->w[i + 1] == var->id)
+        if (OPCODE(m->w[i]) == SpvOpDecorate && m->w[i + 1] == id)
             edit(m, i, INSTEAD);
     }
 }
@@ -667,7 +667,7 @@ static void strip(struct module *m, const struct analysis *a, uint32_t keep)
 {
     for (uint32_t i = 0; i < a->var_count; i++) {
         if (a->vars[i].id != keep)
-            privatize(m, &a->vars[i]);
+            privatize(m, a->vars[i].id);
     }
     struct stand_in stand_ins[16];
     uint32_t count = make_stand_ins(m, a, stand_ins, 16);
@@ -683,6 +683,50 @@ bool spirv_strip_distances(const uint32_t *words, size_t count, struct spirv_cod
     struct analysis a;
     analyze(&m, &a);
     strip(&m, &a, 0);
+    bool done = finish(&m, out);
+    unload(&m);
+    return done;
+}
+
+static bool is_second_source(const uint32_t *w)
+{
+    return OPCODE(w[0]) == SpvOpDecorate && LENGTH(w[0]) == 4 && w[2] == SpvDecorationIndex && w[3] == 1;
+}
+
+bool spirv_uses_dual_source(const uint32_t *words, size_t count)
+{
+    if (count <= 5 || words[0] != SpvMagicNumber)
+        return false;
+    for (size_t i = 5; i < count && LENGTH(words[i]) && i + LENGTH(words[i]) <= count; i += LENGTH(words[i])) {
+        if (is_declaration(OPCODE(words[i])))
+            break;
+        if (is_second_source(&words[i]))
+            return true;
+    }
+    return false;
+}
+
+bool spirv_strip_dual_source(const uint32_t *words, size_t count, struct spirv_code *out)
+{
+    struct module m;
+    if (!load(&m, words, count))
+        return false;
+    uint32_t outputs[8];
+    uint32_t output_count = 0;
+    for (size_t i = 5; i < m.first_declaration; i += LENGTH(m.w[i])) {
+        if (!is_second_source(&m.w[i]))
+            continue;
+        size_t d = definition(&m, m.w[i + 1]);
+        uint32_t storage, pointee;
+        if (output_count == 8 || !d || OPCODE(m.w[d]) != SpvOpVariable ||
+            !pointer_parts(&m, m.w[d + 1], &storage, &pointee) || storage != SpvStorageClassOutput)
+            m.failed = true;
+        else
+            outputs[output_count++] = m.w[i + 1];
+    }
+    for (uint32_t i = 0; i < output_count && !m.failed; i++)
+        privatize(&m, outputs[i]);
+    retarget_accesses(&m, NULL, 0);
     bool done = finish(&m, out);
     unload(&m);
     return done;

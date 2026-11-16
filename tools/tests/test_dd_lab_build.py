@@ -10,6 +10,30 @@ import unittest
 SCRIPT = Path(__file__).resolve().parents[1] / 'agent/dd-lab-build'
 
 
+class LabBuildOptionsTest(unittest.TestCase):
+    def run_script(self, *args):
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox = Path(tmp) / 'agent'
+            inbox.mkdir()
+            env = {**os.environ, 'HOME': tmp, 'DD_AGENT': '1', 'DD_AGENT_INBOX': str(inbox)}
+            env.pop('DD_LAB_DETACHED', None)
+            result = subprocess.run(['bash', str(SCRIPT), *args], env=env,
+                                    capture_output=True, text=True, timeout=10)
+            return result, (inbox / 'lab-request').exists()
+
+    def test_help_prints_usage_without_starting_a_build(self):
+        result, requested = self.run_script('--help')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn('Usage: dd-lab-build', result.stdout)
+        self.assertFalse(requested)
+
+    def test_unknown_options_are_refused_without_starting_a_build(self):
+        result, requested = self.run_script('--bogus')
+        self.assertEqual(2, result.returncode)
+        self.assertIn('unknown option --bogus', result.stderr)
+        self.assertFalse(requested)
+
+
 class LabBuildPackageTest(unittest.TestCase):
     def test_package_override_survives_app_handoff_without_its_environment(self):
         with tempfile.TemporaryDirectory() as tmp:
