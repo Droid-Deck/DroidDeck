@@ -159,18 +159,20 @@ def under(path, root):
 
 
 def internal_target(target):
-    return any(under(target, root) for root in INTERNAL_ROOTS)
+    path = os.path.normpath(target)
+    return any(under(path, root) for root in INTERNAL_ROOTS)
 
 
 def removable_mount(target):
     """The guest mountpoint holding target, when it is storage the user can unplug."""
+    path = os.path.normpath(target)
     for root in REMOVABLE_ROOTS:
-        if under(target, root):
+        if under(path, root):
             return root
     for family in REMOVABLE_FAMILIES:
         prefix = family + "/"
-        if target.startswith(prefix):
-            return prefix + target[len(prefix):].split("/", 1)[0]
+        if path.startswith(prefix):
+            return prefix + path[len(prefix):].split("/", 1)[0]
     return None
 
 

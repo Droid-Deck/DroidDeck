@@ -146,6 +146,18 @@ class ShortcutsTest(unittest.TestCase):
         self.assertEqual('"%s/Other.exe"' % card, entry['Exe'])
         self.assertEqual('"%s/data"' % GUEST, entry['StartDir'])
 
+    def test_a_steam_target_is_classified_by_its_resolved_path(self):
+        games = self.root / 'games'
+        stores = games / 'Stores'
+        stores.mkdir(parents=True)
+        card = self.root / 'card'
+        card.mkdir()
+        self.patched(INTERNAL_ROOTS=(str(stores),), REMOVABLE_ROOTS=(str(card),))
+        target = '"%s/../../card/Other.exe"' % stores
+        entry = self.merge_target(target, StartDir='"%s/data"' % GUEST)
+        self.assertEqual(target, entry['Exe'])
+        self.assertEqual('"%s/data"' % GUEST, entry['StartDir'])
+
     def test_a_steam_target_under_a_bare_store_mountpoint_is_kept(self):
         stores = self.root / 'stores'
         mount = stores / 'abcd1234'
