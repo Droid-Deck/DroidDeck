@@ -1148,7 +1148,7 @@
     <string name="lab_off_title">Η έκδοση Lab απενεργοποιήθηκε</string>
     <string name="lab_off_other_install">Δημιουργήθηκε για άλλη έκδοση του DroidDeck. Διατηρείται στις Ενημερώσεις.</string>
     <string name="lab_off_did_not_start">Το DroidDeck δεν ξεκίνησε με αυτό δύο φορές</string>
-    <string name="rail_agent">Πράκτορας</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Πράκτορας</string>
     <string name="agent_working">Ο πράκτορας εργάζεται</string>
     <string name="agent_missing">Εγκατέστησε το Claude Code στο περιβάλλον χρήστη του Linux για να χρησιμοποιήσεις τον πράκτορα.</string>

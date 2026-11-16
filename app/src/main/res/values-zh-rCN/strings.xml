@@ -1228,7 +1228,7 @@
     <string name="lab_off_title">实验构建已停用</string>
     <string name="lab_off_other_install">它为其他版本的 DroidDeck 构建，已保留在更新中。</string>
     <string name="lab_off_did_not_start">DroidDeck 在该构建上两次启动失败</string>
-    <string name="rail_agent">智能体</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">智能体</string>
     <string name="agent_working">智能体正在工作</string>
     <string name="agent_missing">在 Linux 用户空间中安装 Claude Code 才能使用智能体。</string>

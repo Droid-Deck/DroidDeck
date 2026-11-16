@@ -1148,7 +1148,7 @@
     <string name="lab_off_title">Lab-build slået fra</string>
     <string name="lab_off_other_install">Den blev bygget til en anden version af DroidDeck. Den ligger stadig i Opdateringer.</string>
     <string name="lab_off_did_not_start">DroidDeck startede ikke på den to gange</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agenten arbejder</string>
     <string name="agent_missing">Installer Claude Code i Linux-brugermiljøet for at bruge agenten.</string>

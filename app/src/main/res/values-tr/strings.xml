@@ -1140,7 +1140,7 @@
     <string name="lab_off_title">Lab derlemesi kapatıldı</string>
     <string name="lab_off_other_install">DroidDeck\'in başka bir sürümü için derlendi. Güncellemeler\'de saklanıyor.</string>
     <string name="lab_off_did_not_start">DroidDeck bu derlemeyle iki kez başlatılamadı</string>
-    <string name="rail_agent">Ajan</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Ajan</string>
     <string name="agent_working">Ajan çalışıyor</string>
     <string name="agent_missing">Ajanı kullanmak için Claude Code\'u Linux kullanıcı alanına yükleyin.</string>

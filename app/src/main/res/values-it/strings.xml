@@ -1143,7 +1143,7 @@
     <string name="lab_off_title">Build Lab disattivata</string>
     <string name="lab_off_other_install">È stata compilata per un\'altra versione di DroidDeck. È conservata in Aggiornamenti.</string>
     <string name="lab_off_did_not_start">DroidDeck non si è avviato con essa due volte</string>
-    <string name="rail_agent">Agente</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agente</string>
     <string name="agent_working">L\'agente sta lavorando</string>
     <string name="agent_missing">Installa Claude Code nella userland Linux per usare l\'agente.</string>

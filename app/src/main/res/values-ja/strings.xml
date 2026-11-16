@@ -1145,7 +1145,7 @@
     <string name="lab_off_title">Lab ビルドをオフにしました</string>
     <string name="lab_off_other_install">別のバージョンの DroidDeck 用にビルドされました。アップデートに保管されています。</string>
     <string name="lab_off_did_not_start">そのビルドで DroidDeck が 2 回起動しませんでした</string>
-    <string name="rail_agent">エージェント</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">エージェント</string>
     <string name="agent_working">エージェントが作業中です</string>
     <string name="agent_missing">エージェントを使うには、Linux ユーザーランドに Claude Code をインストールしてください。</string>

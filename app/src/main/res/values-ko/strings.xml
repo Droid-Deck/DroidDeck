@@ -1145,7 +1145,7 @@
     <string name="lab_off_title">Lab 빌드 사용 중지</string>
     <string name="lab_off_other_install">다른 버전의 DroidDeck용으로 빌드되었습니다. 업데이트에 보관되어 있습니다.</string>
     <string name="lab_off_did_not_start">이 빌드로 DroidDeck을 두 번 시작하지 못했습니다.</string>
-    <string name="rail_agent">에이전트</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">에이전트</string>
     <string name="agent_working">에이전트가 작업 중입니다</string>
     <string name="agent_missing">에이전트를 사용하려면 Linux 사용자 영역에 Claude Code를 설치하세요.</string>

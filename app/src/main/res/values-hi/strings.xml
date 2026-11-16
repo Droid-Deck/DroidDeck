@@ -1148,7 +1148,7 @@
     <string name="lab_off_title">लैब बिल्ड बंद कर दिया गया</string>
     <string name="lab_off_other_install">यह DroidDeck के किसी दूसरे वर्जन के लिए बनाया गया था। इसे अपडेट्स में रखा गया है।</string>
     <string name="lab_off_did_not_start">DroidDeck इस पर दो बार शुरू नहीं हुआ</string>
-    <string name="rail_agent">एजेंट</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">एजेंट</string>
     <string name="agent_working">एजेंट काम कर रहा है</string>
     <string name="agent_missing">एजेंट इस्तेमाल करने के लिए Linux यूज़रलैंड में Claude Code इंस्टॉल करें।</string>
