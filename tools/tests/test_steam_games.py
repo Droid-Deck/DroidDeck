@@ -713,6 +713,21 @@ class ImportsTest(unittest.TestCase):
         self.assert_not_imported_as(480)
         self.assertEqual(b'game', self.exe.read_bytes())
 
+    def test_spacewar_import_is_released_for_a_program_that_is_not_the_steam_apps_own(self):
+        self.import_as(480)
+        other = dict(self.game, appid=0x87654322, route=False)
+        with patch('builtins.print'):
+            self.assertEqual(([other], {}), imports.route(self.steam, self.acct, [other]))
+        self.assert_not_imported_as(480)
+        self.assertEqual(b'game', self.exe.read_bytes())
+
+    def test_a_steam_import_stays_when_another_program_of_the_install_is_listed(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        other = dict(self.game, appid=0x87654322, route=False)
+        imports.route(self.steam, self.acct, [other])
+        self.assertTrue((self.steam / 'steamapps/appmanifest_42.acf').is_file())
+
     def test_import_follows_the_app_the_files_name_now(self):
         self.snapshot()
         imports.route(self.steam, self.acct, [self.game])

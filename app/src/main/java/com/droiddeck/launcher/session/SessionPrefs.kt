@@ -1553,7 +1553,7 @@ object SessionPrefs {
     fun adoptAddedGameExe(context: Context, folderPath: String, expected: String, path: String, seen: Int): Boolean =
         synchronized(addedGameLock) {
             val unchanged = addedGameExe(context, folderPath) == expected
-            if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
+            if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putString("addedAdopted:Exe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
             unchanged
         }
 
