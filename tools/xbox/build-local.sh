@@ -8,7 +8,6 @@ build='
         curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$version"
     fi
     bash tools/xbox/build.sh
-    chown -R "$HOST_UID:$HOST_GID" /src/app/src/main/assets/linuxfs /src/app/build 2>/dev/null || true
 '
 if [[ $(uname -m) = x86_64 ]]; then
     binfmt_magics=$(cat /proc/sys/fs/binfmt_misc/* 2>/dev/null || true)
@@ -33,6 +32,10 @@ else
 '"$build"
 fi
 mkdir -p "$cache"
+threads=()
+[[ -n "${RUST_TEST_THREADS:-}" ]] && threads=(-e RUST_TEST_THREADS="$RUST_TEST_THREADS")
 docker run --rm --platform "$platform" -v "$repo:/src" -v "$cache:/work" -w /src \
-    -e CARGO_HOME=/work/cargo -e RUSTUP_HOME=/work/rustup -e XBOX_BUILD_DIR=/work/build     -e RUST_TEST_THREADS="${RUST_TEST_THREADS:-}" "$image"     bash -lc "set -euo pipefail
+    -e CARGO_HOME=/work/cargo -e RUSTUP_HOME=/work/rustup -e XBOX_BUILD_DIR=/work/build \
+    ${threads[@]+"${threads[@]}"} "$image" \
+    bash -lc "set -euo pipefail
     trap 'chown -R $(id -u):$(id -g) /work /src/app/src/main/assets/linuxfs /src/app/build 2>/dev/null || true' EXIT$build"
