@@ -1,7 +1,6 @@
 #pragma once
 #include <stdint.h>
 
-/* Generated from smaa.frag by glslangValidator. */
 static const uint32_t smaa_code[] = {
     0x07230203u, 0x00010000u, 0x0008000bu, 0x00000200u, 0x00000000u, 0x00020011u, 0x00000001u, 0x0006000bu,
     0x00000001u, 0x4c534c47u, 0x6474732eu, 0x3035342eu, 0x00000000u, 0x0003000eu, 0x00000000u, 0x00000001u,
