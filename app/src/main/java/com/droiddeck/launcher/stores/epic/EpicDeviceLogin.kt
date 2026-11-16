@@ -13,6 +13,7 @@ import android.provider.Browser
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import com.droiddeck.launcher.DeviceCodeActivity
 import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.Store
@@ -40,11 +41,13 @@ internal object EpicDeviceLogin {
         val start = EpicNative.call("auth.deviceStart")
         val url = start?.optString("url").orEmpty()
         val deviceCode = start?.optString("deviceCode").orEmpty()
+        val userCode = start?.optString("userCode").orEmpty()
         if (url.isEmpty() || deviceCode.isEmpty()) {
             Log.w(TAG, "device sign-in did not start: ${start?.optString("error").orEmpty().ifEmpty { "no answer" }}")
             return fail(app, mine)
         }
-        if (!openBrowser(app, url)) return fail(app, mine)
+        val floated = main.await { DeviceCodeActivity.show(app, userCode, url, 0, Store.EPIC.label) }
+        if (!floated && !openBrowser(app, url)) return fail(app, mine)
         val intervalMs = start!!.optLong("interval", 10).coerceAtLeast(1) * 1000
         val deadline = System.currentTimeMillis() + start.optLong("expiresIn", 600) * 1000
         while (attempt.get() == mine && System.currentTimeMillis() < deadline) {
@@ -55,6 +58,7 @@ internal object EpicDeviceLogin {
             val tokens = EpicCredentialStore.TokenResult.from(answer)
             if (tokens == null) {
                 Log.w(TAG, "device sign-in failed: ${answer.optString("error").ifEmpty { "no token" }}")
+                main.post { DeviceCodeActivity.close() }
                 return fail(app, mine)
             }
             try {
@@ -69,7 +73,10 @@ internal object EpicDeviceLogin {
             }
             return
         }
-        if (attempt.get() == mine) Log.w(TAG, "device sign-in expired before it was confirmed")
+        if (attempt.get() == mine) {
+            Log.w(TAG, "device sign-in expired before it was confirmed")
+            main.post { DeviceCodeActivity.close() }
+        }
     }
 
     private fun openBrowser(app: Context, url: String): Boolean {
@@ -85,9 +92,11 @@ internal object EpicDeviceLogin {
         return false
     }
 
-    // Android lets an app in the background bring itself forward only while it may draw over
-    // other apps; without that, a tap on DroidDeck's own notification is what brings it back.
+    // Android lets an app in the background bring itself forward only while one of its windows is
+    // visible (the floating code) or it may draw over other apps; otherwise a tap on DroidDeck's
+    // own notification is what brings it back.
     private fun bringBack(app: Context, name: String?) {
+        if (DeviceCodeActivity.returnToApp()) return
         val front = Intent(app, FrontEndActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         if (Settings.canDrawOverlays(app) && runCatching { app.startActivity(front) }.isSuccess) return
@@ -107,6 +116,14 @@ internal object EpicDeviceLogin {
                 .setCategory(Notification.CATEGORY_STATUS)
                 .build())
         }.onFailure { Log.w(TAG, "could not post the return notice: ${it.javaClass.simpleName}") }
+    }
+
+    private fun Handler.await(block: () -> Boolean): Boolean {
+        val done = java.util.concurrent.CountDownLatch(1)
+        var result = false
+        post { result = runCatching(block).getOrDefault(false); done.countDown() }
+        done.await()
+        return result
     }
 
     private fun fail(app: Context, mine: Int) {

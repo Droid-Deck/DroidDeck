@@ -44,6 +44,8 @@ import java.lang.ref.WeakReference
 /** Floats a sign-in code over the browser page that asks for it. */
 class DeviceCodeActivity : ComponentActivity() {
     private var code by mutableStateOf("")
+    private var label by mutableStateOf("")
+    private var agent = true
     private var url = ""
     private var display: Int? = null
     private var inPip by mutableStateOf(false)
@@ -94,12 +96,14 @@ class DeviceCodeActivity : ComponentActivity() {
     private fun read(intent: Intent) {
         code = intent.getStringExtra(EXTRA_CODE).orEmpty()
         url = intent.getStringExtra(EXTRA_URL).orEmpty()
+        label = intent.getStringExtra(EXTRA_LABEL) ?: getString(R.string.agent_step_github)
+        agent = intent.getBooleanExtra(EXTRA_AGENT, true)
         display = intent.getIntExtra(EXTRA_DISPLAY, -1).takeIf { it > 0 }
-        copy()
+        if (agent) copy()
     }
 
     private fun copy() {
-        runCatching { getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("GitHub", code)) }
+        runCatching { getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(label, code)) }
     }
 
     private fun enterPip() {
@@ -116,7 +120,8 @@ class DeviceCodeActivity : ComponentActivity() {
             if (at == null) startActivity(intent)
             else startActivity(intent, ActivityOptions.makeBasic().setLaunchDisplayId(at).toBundle())
         }.recoverCatching { startActivity(intent) }.isSuccess
-        com.droiddeck.launcher.agent.AgentHost.deviceCodeOpened(applicationContext, opened)
+        if (agent) com.droiddeck.launcher.agent.AgentHost.deviceCodeOpened(applicationContext, opened)
+        else if (!opened) finish()
     }
 
     @androidx.compose.runtime.Composable
@@ -130,7 +135,7 @@ class DeviceCodeActivity : ComponentActivity() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(if (inPip) 2.dp else 16.dp),
             ) {
-                Text(stringResource(R.string.agent_step_github), style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
+                Text(label, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
                 FitText(code, maxSize = if (inPip) 40.sp else 56.sp, fontWeight = FontWeight.Bold, color = accent,
                     modifier = Modifier.fillMaxWidth())
                 Text(Uri.parse(url).let { it.host + it.path }, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, maxLines = 1)
@@ -146,13 +151,16 @@ class DeviceCodeActivity : ComponentActivity() {
         private const val EXTRA_CODE = "code"
         private const val EXTRA_URL = "url"
         private const val EXTRA_DISPLAY = "display"
+        private const val EXTRA_LABEL = "label"
+        private const val EXTRA_AGENT = "agent"
         private var current: WeakReference<DeviceCodeActivity>? = null
 
         /** False when this device cannot float a window, so the caller opens the page itself. */
-        fun show(context: Context, code: String, url: String, display: Int): Boolean {
+        fun show(context: Context, code: String, url: String, display: Int, label: String? = null): Boolean {
             if (!PairingGuideActivity.canFloat(context)) return false
             val intent = Intent(context, DeviceCodeActivity::class.java)
                 .putExtra(EXTRA_CODE, code).putExtra(EXTRA_URL, url).putExtra(EXTRA_DISPLAY, display)
+                .putExtra(EXTRA_AGENT, label == null).also { if (label != null) it.putExtra(EXTRA_LABEL, label) }
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             return runCatching {
                 if (display > 0) context.startActivity(intent, ActivityOptions.makeBasic().setLaunchDisplayId(display).toBundle())
@@ -162,6 +170,17 @@ class DeviceCodeActivity : ComponentActivity() {
 
         fun close() {
             current?.get()?.finish()
+        }
+
+        /** While the float is on screen, Android lets it bring DroidDeck back in front of the browser. */
+        fun returnToApp(): Boolean {
+            val float = current?.get()?.takeIf { !it.isFinishing && !it.isDestroyed } ?: return false
+            val opened = runCatching {
+                float.startActivity(Intent(float, FrontEndActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+            }.isSuccess
+            float.finish()
+            return opened
         }
     }
 }
