@@ -228,6 +228,14 @@ class SessionGestureRoutingTest {
             override fun cancel() {}
         }).also { it.configure(config) }
         setField("directTouchHold", directHold)
+        setField("twoFingerGestures", TwoFingerGestures(16f, object : TwoFingerGestures.Listener {
+            override fun cancelTouch() {}
+            override fun replay(event: MotionEvent) {}
+            override fun rightClick(x: Float, y: Float) {}
+            override fun scrollStart(x: Float, y: Float) {}
+            override fun scroll(dx: Float, dy: Float) {}
+            override fun scrollEnd() {}
+        }))
         launcherScroll = ScrollTouchGestures(8f, 50f, object : ScrollTouchGestures.Listener {
             override fun onMove(x: Float, y: Float) { scrollPositions += x to y }
             override fun onButton(button: Int, pressed: Boolean) {}
@@ -237,7 +245,7 @@ class SessionGestureRoutingTest {
         setField("scrollTouch", launcherScroll)
     }
 
-    @Test fun pointerLockedTapsAreDroppedWhileMouseButtonsAreShownAndSwipesStillAim() {
+    @Test fun pointerLockedTapsAreDroppedWhileTapClicksAreOffButHoldAndSwipesStillWork() {
         prepare(SessionPrefs.TOUCH_DIRECT)
         setField("pointerLocked", true)
         SessionState.outputSize = 1000 to 600
@@ -254,16 +262,20 @@ class SessionGestureRoutingTest {
             forward(MotionEvent.ACTION_UP, 300f, 300f)
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
         }
-        setField("directTouchTapsOff", true)
+        directHold.tapClicks = false
         tap()
         assertTrue(directTouches.isEmpty())
         assertTrue(directButtons.isEmpty())
+        forward(MotionEvent.ACTION_DOWN, 300f, 300f)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(700))
+        assertEquals(listOf(PointerGestures.BTN_RIGHT to true, PointerGestures.BTN_RIGHT to false), directButtons)
+        forward(MotionEvent.ACTION_UP, 300f, 300f)
         CompositorShadow.sceneInputs = 0
         forward(MotionEvent.ACTION_DOWN, 300f, 300f)
         forward(MotionEvent.ACTION_MOVE, 400f, 300f)
         assertTrue(CompositorShadow.sceneInputs > 0)
         forward(MotionEvent.ACTION_UP, 400f, 300f)
-        setField("directTouchTapsOff", false)
+        directHold.tapClicks = true
         tap()
         assertEquals(1, directTouches.size)
     }
@@ -279,55 +291,22 @@ class SessionGestureRoutingTest {
             visibility = android.view.View.VISIBLE
         }
         setField("onScreenControls", controls)
-        fun stream(profile: InputProfile): Boolean {
+        fun tapWith(profile: InputProfile): Int {
             setField("inputProfile", profile)
+            directTouches.clear()
             val now = SystemClock.uptimeMillis()
-            var duringStream = false
             for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
                 val event = MotionEvent.obtain(now, now, action, 300f, 300f, 0)
                 try { ReflectionHelpers.callInstanceMethod<Any?>(activity, "dispatchDirectTouch",
                     ReflectionHelpers.ClassParameter.from(MotionEvent::class.java, event)) } finally { event.recycle() }
-                if (action == MotionEvent.ACTION_DOWN) duringStream = ReflectionHelpers.getField(activity, "directTouchTapsOff")
             }
-            assertFalse(ReflectionHelpers.getField<Boolean>(activity, "directTouchTapsOff"))
-            return duringStream
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
+            return directTouches.size
         }
-        assertFalse(stream(InputProfile.defaults(InputProfile.DESKTOP)))
-        assertTrue(stream(InputProfile.defaults(InputProfile.DESKTOP)
+        assertEquals(1, tapWith(InputProfile.defaults(InputProfile.DESKTOP)))
+        assertEquals(0, tapWith(InputProfile.defaults(InputProfile.DESKTOP)
             .withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274))))
-    }
-
-    @Test fun lockedSwipeAnchorsToTheRemainingFingerWhenPointerZeroLiftsDuringSuppressedStream() {
-        prepare(SessionPrefs.TOUCH_DIRECT)
-        SessionState.outputSize = 1000 to 600
-        val controls = OnScreenControls(activity, null).apply {
-            updateLayout(SavedInputLayout("test", "Test", listOf(InputSurfaceElement(InputControl.A, .7f, .3f, .2f, .3f)), aspect = 1000f / 600f))
-            measure(android.view.View.MeasureSpec.makeMeasureSpec(1000, android.view.View.MeasureSpec.EXACTLY),
-                android.view.View.MeasureSpec.makeMeasureSpec(600, android.view.View.MeasureSpec.EXACTLY))
-            layout(0, 0, 1000, 600)
-            visibility = android.view.View.VISIBLE
-        }
-        setField("onScreenControls", controls)
-        setField("inputProfile", InputProfile.defaults(InputProfile.DESKTOP)
-            .withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(274)))
-        val down = SystemClock.uptimeMillis()
-        fun send(action: Int, index: Int, xs: List<Float>) {
-            val properties = Array(xs.size) { MotionEvent.PointerProperties().apply { id = it; toolType = MotionEvent.TOOL_TYPE_FINGER } }
-            val coordinates = Array(xs.size) { MotionEvent.PointerCoords().apply { x = xs[it]; y = 300f; pressure = 1f } }
-            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action or (index shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),
-                xs.size, properties, coordinates, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
-            try { ReflectionHelpers.callInstanceMethod<Any?>(activity, "dispatchDirectTouch",
-                ReflectionHelpers.ClassParameter.from(MotionEvent::class.java, event)) } finally { event.recycle() }
-        }
-        send(MotionEvent.ACTION_DOWN, 0, listOf(100f))
-        send(MotionEvent.ACTION_POINTER_DOWN, 1, listOf(100f, 500f))
-        send(MotionEvent.ACTION_POINTER_UP, 0, listOf(100f, 500f))
-        assertEquals(500f, ReflectionHelpers.getField<Float>(activity, "lockedSwipeX"))
-        setField("directTouchTapsOff", false)
-        setField("pointerLocked", true)
-        CompositorShadow.sceneInputs = 0
-        send(MotionEvent.ACTION_MOVE, 0, listOf(500f))
-        assertEquals(0, CompositorShadow.sceneInputs)
+        assertEquals(1, tapWith(InputProfile.defaults(InputProfile.DESKTOP)))
     }
 
     private fun tapThreeFingers(expectSteamGesture: Boolean) {

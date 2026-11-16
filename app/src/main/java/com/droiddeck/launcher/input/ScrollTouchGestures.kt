@@ -113,7 +113,7 @@ class ScrollTouchGestures(
                     }
                     dragging -> listener.onButton(PointerGestures.BTN_LEFT, false)
                     held -> click(PointerGestures.BTN_RIGHT)
-                    !stoppedFling -> click(PointerGestures.BTN_LEFT)
+                    !stoppedFling && tapClicks -> click(PointerGestures.BTN_LEFT)
                 }
                 dragging = false
                 held = false
@@ -153,7 +153,6 @@ class ScrollTouchGestures(
     }
 
     private fun click(button: Int) {
-        if (!tapClicks) return
         releaseClick()
         listener.onButton(button, true)
         clicked = button

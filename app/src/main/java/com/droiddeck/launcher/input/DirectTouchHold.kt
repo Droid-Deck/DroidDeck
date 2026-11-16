@@ -23,6 +23,7 @@ class DirectTouchHold(
     private var downId = 0
     private var delayMs = 0L
     private var holdBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_CLICK
+    var tapClicks = true
     private var forwarded = false
     private var held = false
     private var pressing = false
@@ -88,8 +89,8 @@ class DirectTouchHold(
             downX = event.x
             downY = event.y
             downId = event.getPointerId(0)
-            if (holdBehavior == TouchGestureConfig.MOUSE_BEHAVIOR_NONE) forwardDown()
-            else handler.postDelayed(hold, delayMs)
+            if (holdBehavior != TouchGestureConfig.MOUSE_BEHAVIOR_NONE) handler.postDelayed(hold, delayMs)
+            else if (tapClicks) forwardDown()
             return true
         }
         if (held) {
@@ -121,6 +122,7 @@ class DirectTouchHold(
             }
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(hold)
+                if (!forwarded && !tapClicks) return true
                 if (!forwarded) forwardDown()
                 upX = event.x
                 upY = event.y

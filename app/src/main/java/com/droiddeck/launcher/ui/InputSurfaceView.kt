@@ -158,7 +158,10 @@ class InputSurfaceView(
         }
     }
 
-    fun shownElements() = customLayout
+    fun shownElements(): List<InputSurfaceElement> {
+        val canvas = customCanvas ?: return customLayout
+        return customLayout.filterIndexed { index, _ -> (canvas.getChildAt(index) as? StickView)?.drawn != false }
+    }
 
     fun releaseInputs() {
         val now = android.os.SystemClock.uptimeMillis()
@@ -516,6 +519,8 @@ class InputSurfaceView(
 
         val adaptive get() = adaptive(element)
 
+        val drawn get() = !hideWhenIdle || touching
+
         fun reach() = min(width, height) * if (classic(element)) CLASSIC_REACH else PANEL_REACH
 
         fun captures(x: Float, y: Float): Boolean {
@@ -532,7 +537,7 @@ class InputSurfaceView(
         }
 
         override fun onDraw(canvas: Canvas) {
-            if (hideWhenIdle && !touching) return
+            if (!drawn) return
             val cx = if (touching) originX else centreX()
             val cy = if (touching) originY else height / 2f
             val color = tint

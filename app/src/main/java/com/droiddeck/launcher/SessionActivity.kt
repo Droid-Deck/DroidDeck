@@ -884,8 +884,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     scrollRestY = 0f
                 }
                 override fun replay(event: MotionEvent) {
-                    if (directTouchTapsOff && !programLocksPointer()) moveDirectPointer(event.x, event.y)
-                    else drawnRect()?.let { forwardTouch(event, it) }
+                    drawnRect()?.let { forwardTouch(event, it) }
                 }
                 override fun rightClick(x: Float, y: Float) {
                     pointerListener.onLongPress()
@@ -4871,12 +4870,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         showCursor(cx, cy)
     }
 
-    private var directTouchTapsOff = false
     private var swappedControls: com.droiddeck.launcher.ui.InputSurfaceView? = null
-
-    private fun moveDirectPointer(x: Float, y: Float) {
-        if (pointerLocked) gestureOutput.moveTo(x, y) else movePointer(x, y)
-    }
 
     private fun dispatchDirectTouch(event: MotionEvent): Boolean {
         val rect = drawnRect() ?: return false
@@ -4892,32 +4886,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             return true
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            directTouchTapsOff = onScreenMouseButtonShown()
-            if (::twoFingerGestures.isInitialized) twoFingerGestures.tapClicks = !directTouchTapsOff
-            if (directTouchTapsOff && !programLocksPointer()) {
-                gesturePointerReady = false
-                directTouchHold.cancel()
-                WaylandCompositor.nativeSendTouch(3, -1, 0, 0)
-            }
-        }
-        if (directTouchTapsOff && !programLocksPointer()) {
-            anchorLockedSwipe(event)
-            val handled = SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)
-            if (!handled && event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL)
-                moveDirectPointer(event.x, event.y)
-            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) directTouchTapsOff = false
-            return true
+            val tapClicks = !onScreenMouseButtonShown()
+            directTouchHold.tapClicks = tapClicks
+            twoFingerGestures.tapClicks = tapClicks
         }
         if (SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)) return true
-        val forwarded = forwardTouch(event, rect)
-        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) directTouchTapsOff = false
-        return forwarded
-    }
-
-    private fun anchorLockedSwipe(event: MotionEvent) {
-        val anchor = if (event.actionMasked == MotionEvent.ACTION_POINTER_UP && event.actionIndex == 0 && event.pointerCount > 1) 1 else 0
-        lockedSwipeX = event.getX(anchor)
-        lockedSwipeY = event.getY(anchor)
+        return forwardTouch(event, rect)
     }
 
     private fun forwardTouch(event: MotionEvent, rect: android.graphics.RectF): Boolean {
@@ -4925,7 +4899,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val swipeY = lockedSwipeY
         if (programLocksPointer() && event.actionMasked == MotionEvent.ACTION_MOVE && !lockedSwipeUsed &&
             abs(event.x - swipeX) <= touchSlop && abs(event.y - swipeY) <= touchSlop) return true
-        anchorLockedSwipe(event)
+        val anchor = if (event.actionMasked == MotionEvent.ACTION_POINTER_UP && event.actionIndex == 0 && event.pointerCount > 1) 1 else 0
+        lockedSwipeX = event.getX(anchor)
+        lockedSwipeY = event.getY(anchor)
         if ((event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) && lockedSwipeUsed) {
             lockedSwipeUsed = false
             directTouchHold.cancel()
@@ -4948,7 +4924,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 }
             }
         }
-        if (!directTouchTapsOff) directTouchHold.onTouch(event)
+        directTouchHold.onTouch(event)
         return true
     }
 
