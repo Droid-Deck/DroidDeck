@@ -82,6 +82,18 @@ echo "== Bannerlator assets (pinned): Wayland adapter, FFmpeg 8"
 fetch "$BL_ASSETS/wayland/adapter/libvulkan_wrapper.so" "$ADAPTER_SHA256" "$PACK/adapter/libvulkan_wrapper.so"
 fetch "$BL_ASSETS/wayland/adapter/adapter.json" "$ADAPTER_JSON_SHA256" "$PACK/adapter/adapter.json"
 fetch "$BL_ASSETS/ffmpeg8.tzst" "$FFMPEG8_SHA256" "$WORK/ffmpeg8.tzst"
+# OpenGL: Bannerlator's bionic Mesa (EGL + GLX + Zink, x11 and wayland platforms; Banners-Turnip exp/egl-x11-platform
+# ab76cba3, run 36862058991) for winex11's EGL backend, as Bannerlator's Fast OpenGL uses it
+mkdir -p "$PACK/egl"
+for e in libEGL.so.1:e86f32844cb2f8f5d67df261afaacb7c7ea392d1af2b8d6f584d6b54010838dd \
+         libGL.so.1:e29c6b870af456069452e4cf2c036959fbbfa7fd4bca12da64883e671191c9ce \
+         libGLESv2.so.2:f277208f38f2c9e107f7cb3a32fc4b6e8bd1dc3d90f2f4ec9e90b12de75e99fb \
+         libgallium-26.3.0-devel.so:0aef4d32b3c28a2cc2158df1cd768a44683a98a56ef0ed3188c48939a7451bef \
+         libwayland-client.so:8f1dfc29c0e3f009da04c97b7de1f3ce6e351e0642bd9ae1da7ebc2117555bd5 \
+         libarchive.so:eb3b13634bd2c188d71e886f8c690ef32f6b4a2a0e8a7197a7f974b2d341b7ab \
+         x11egl.json:baf5fd4f91aa1551ecc4b67710bb2a7c506128b0022d27427457f24f0de8cacd; do
+  fetch "$BL_ASSETS/x11/egl/${e%%:*}" "${e#*:}" "$PACK/egl/${e%%:*}"
+done
 cp "$HERE/icd.json" "$PACK/adapter/icd.json"
 
 echo "== libraries from the imagefs"
@@ -152,7 +164,7 @@ cp "$HERE/NOTICE" "$PACK/NOTICE"
 {
   echo "droiddeck-bionic-runtime $REV ($(date -u +%Y-%m-%dT%H:%M:%SZ), Android API $API, NDK $(basename "$NDK"))"
   echo "imagefs $IMAGEFS_URL sha256 $IMAGEFS_SHA256"
-  echo "bannerlator $BL_COMMIT (wayland/adapter, ffmpeg8.tzst)"
+  echo "bannerlator $BL_COMMIT (wayland/adapter, ffmpeg8.tzst, x11/egl: Mesa EGL + GLX + Zink)"
   echo "layer $LAYER_URL sha256 $LAYER_SHA256 (not packed)"
   echo "gamescope $GAMESCOPE_TAG $GAMESCOPE_COMMIT + $GAMESCOPE_PATCHES; vkroots $(git -C "$GS/subprojects/vkroots" rev-parse HEAD); Vulkan-Headers $VULKAN_HEADERS_TAG"
   echo

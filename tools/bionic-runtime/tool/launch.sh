@@ -30,6 +30,7 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     FAKE_*|SDL_*|BL_WIDTH|BL_HEIGHT|BL_VK_DRIVER|WINEDLLOVERRIDES) ;;
     DISPLAY|GAMESCOPE_WAYLAND_DISPLAY|FEX_*) ;;
     TU_DEBUG|MESA_NO_ERROR|DXVK_CONFIG|DXVK_HUD|DROIDDECK_FORCE_SSBS) ;;
+    mesa_glthread|vblank_mode|ZINK_*|GALLIUM_HUD) ;;
     BL_SYNC|BL_FSYNC_FIRST|BL_SYNC_FALLBACK|PROTON_NO_ESYNC|PROTON_NO_FSYNC|PROTON_NO_NTSYNC|WINEESYNC) ;;
     *) unset "$v" 2>/dev/null ;;
   esac
@@ -57,7 +58,7 @@ export XDG_RUNTIME_DIR=$RTD DROIDDECK_WSI_BYPASS_CHECK_MS=100 GAMESCOPE_WSI_FORC
 
 # Wine: DXVK/VKD3D over the builtins, X11 inside gamescope (winewayland would pick DroidDeck's compositor),
 # FEX for x86 code, userspace ntsync (no /dev/ntsync on Android), Valve's Android Steam client library.
-export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:+$WINEDLLOVERRIDES;}d3d9,d3d10core,d3d11,dxgi,d3d12,d3d12core=n,b;winewayland.drv=d"
+export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:+$WINEDLLOVERRIDES;}d3d8,d3d9,d3d10core,d3d11,dxgi,d3d12,d3d12core=n,b;winewayland.drv=d"
 # Sync as chosen in DroidDeck (Wine sync, per-game PROTON_NO_*): ntsync is userspace ntsync (no /dev/ntsync on
 # Android) with esync as its fallback; Android has no futex_waitv, so an fsync choice runs ntsync.
 on() { case "$1" in 1|on|true|yes) return 0 ;; esac; return 1; }
@@ -98,7 +99,12 @@ export WINE_ADDITIONAL_CERTS_DIR=$PACK/etc/tls/cert.pem
 export FAKE_EVDEV_STEAM_PAD_AS_X360=1
 export SDL_GAMECONTROLLER_IGNORE_DEVICES="$(echo "${SDL_GAMECONTROLLER_IGNORE_DEVICES:-}" | sed -e 's#0x045e/0x028e,##' -e 's#,0x045e/0x028e$##')"
 
-LIBS=$F/lib:$PACK/lib:/system/lib64
+# OpenGL, and WineD3D on it (DirectDraw, Direct3D 1-8 without DXVK): Mesa's Zink on Vulkan through winex11's EGL
+# backend (the runtime's egl/), the way Bannerlator's Fast OpenGL runs it; DroidDeck's GL settings above are kept.
+export WINE_USE_EGL=1 WINE_X11FORCEGLX=1 GALLIUM_DRIVER=zink MESA_LOADER_DRIVER_OVERRIDE=zink LIBGL_KOPPER_DRI2=1
+export ZINK_DESCRIPTORS=${ZINK_DESCRIPTORS:-lazy} ZINK_DEBUG=${ZINK_DEBUG:-compact} vblank_mode=${vblank_mode:-0}
+
+LIBS=$F/lib:$PACK/egl:$PACK/lib:/system/lib64
 PRELOAD=$PACK/preload/libexecshim.so:$PACK/preload/libnotag.so:$PACK/preload/libfakeinput.so
 wine_() { LD_LIBRARY_PATH=$LIBS LD_PRELOAD=$PRELOAD "$LINKER" "$F/lib/wine/aarch64-unix/wine" "$@"; }
 wineserver_() { LD_LIBRARY_PATH=$LIBS LD_PRELOAD=$PRELOAD "$LINKER" "$F/bin/wineserver" "$@"; }

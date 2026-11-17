@@ -22,6 +22,10 @@ Taken unchanged from The412Banner's Bannerlator (GPL-3.0, https://github.com/The
 - adapter/libvulkan_wrapper.so: the Wayland adapter built from https://github.com/The412Banner/bionic-vulkan-wrapper
   (branch banner/wayland-wsi-bgra-native), a Mesa tree (MIT) in the line of Pipetto-crypto's wrapper and leegao's
   bionic Vulkan wrapper. adapter/adapter.json records the exact build.
+- egl/: Mesa (MIT, https://gitlab.freedesktop.org/mesa/mesa) EGL, GLX and Gallium with Zink, built for the bionic
+  userland with the x11 and wayland platforms in The412Banner/Banners-Turnip (exp/egl-x11-platform ab76cba3),
+  with libwayland-client (MIT) and libarchive (BSD-2-Clause); egl/x11egl.json records the build. Bannerlator ships
+  the same set for its Fast OpenGL.
 
 Not in this pack: the bionic DroidDeck-Proton layer (The412Banner/proton-wine releases), GPU drivers, DXVK/VKD3D
 and FEX (DroidDeck components).
