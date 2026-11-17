@@ -32,6 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusGroup
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -39,6 +45,7 @@ import com.droiddeck.launcher.R
 
 internal object MoreTabs {
     var editing by mutableStateOf(false)
+    val button = FocusRequester()
 }
 
 @Composable
@@ -64,23 +71,48 @@ internal fun SyncTabPage(s: FrontEndState, modifier: Modifier) {
     }
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun EditTabsSheet(s: FrontEndState, a: FrontEndActions) {
     val pal = LocalPalette.current
     BackHandler(enabled = MoreTabs.editing) { MoreTabs.editing = false }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { MoreTabs.editing = false } }
+    var wasOpen by remember { mutableStateOf(false) }
+    val closeInput = androidx.compose.ui.platform.LocalInputModeManager.current
+    LaunchedEffect(MoreTabs.editing) {
+        if (MoreTabs.editing) wasOpen = true
+        else if (wasOpen && closeInput.inputMode == androidx.compose.ui.input.InputMode.Keyboard) focusSoon { MoreTabs.button }
+    }
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(MoreTabs.editing, enter = fadeIn(), exit = fadeOut()) {
             Box(
                 Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))
+                    .focusProperties { canFocus = false }
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { MoreTabs.editing = false },
             )
         }
         BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
             val width = minOf(560.dp, maxWidth * 0.92f)
             AnimatedVisibility(MoreTabs.editing, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
+                val inside = remember { FocusRequester() }
+                var holds by remember { mutableStateOf(false) }
+                val openInput = androidx.compose.ui.platform.LocalInputModeManager.current
+                // The launcher only takes focus in controller mode, so opening by touch switches to it like startup does.
+                LaunchedEffect(Unit) {
+                    repeat(60) {
+                        androidx.compose.runtime.withFrameNanos { }
+                        if (holds) return@LaunchedEffect
+                        if (openInput.inputMode != androidx.compose.ui.input.InputMode.Keyboard) openInput.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard)
+                        runCatching { inside.requestFocus() }
+                    }
+                }
                 Column(
-                    Modifier.width(width).fillMaxHeight().background(MaterialTheme.colorScheme.background)
+                    Modifier.width(width).fillMaxHeight()
+                        .onFocusChanged { holds = it.hasFocus }
+                        .focusRequester(inside)
+                        .focusProperties { exit = { if (MoreTabs.editing) FocusRequester.Cancel else FocusRequester.Default } }
+                        .focusGroup()
+                        .background(MaterialTheme.colorScheme.background)
                         .border(1.dp, pal.line).padding(horizontal = 18.dp, vertical = 16.dp).testTag("edit-tabs-sheet"),
                 ) {
                     PageHeader(stringResource(R.string.more_edit_tabs)) {
