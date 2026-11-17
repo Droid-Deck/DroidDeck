@@ -10,6 +10,20 @@ import com.droiddeck.launcher.session.SessionPrefs
 
 internal enum class TabPlace { BAR, MORE, HIDDEN }
 
+internal object DeveloperTools {
+    var on by mutableStateOf(false)
+        private set
+
+    fun load(context: Context) {
+        on = SessionPrefs.developerTools(context)
+    }
+
+    fun set(context: Context, enabled: Boolean) {
+        on = enabled
+        SessionPrefs.setDeveloperTools(context, enabled)
+    }
+}
+
 internal object NavTabs {
     const val MORE = "more"
     val FEATURES = setOf("stores", "soundtracks", "agent")
@@ -41,7 +55,7 @@ internal object NavTabs {
 
     fun available(s: FrontEndState, key: String): Boolean = when (key) {
         "android-apps" -> s.isHomeApp
-        "agent" -> AgentHost.available
+        "agent" -> AgentHost.available && DeveloperTools.on
         else -> true
     }
 

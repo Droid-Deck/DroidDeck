@@ -279,6 +279,59 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("agentTab", show).apply()
     }
 
+    fun developerTools(context: Context): Boolean =
+        prefs(context).getBoolean("developerTools", agentTab(context) || com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(context))
+
+    fun setDeveloperTools(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("developerTools", on).apply()
+    }
+
+    fun savedFpsLimit(context: Context, game: String?): Int {
+        val p = prefs(context)
+        if (game != null && p.contains("fpsLimit.game.$game")) return p.getInt("fpsLimit.game.$game", 0).coerceAtLeast(0)
+        return p.getInt("fpsLimit.all", 0)
+    }
+
+    fun fpsLimitScope(context: Context, game: String?): String {
+        val p = prefs(context)
+        return when {
+            game != null && p.contains("fpsLimit.game.$game") -> if (p.getInt("fpsLimit.game.$game", 0) < 0) SCOPE_SESSION else SCOPE_GAME
+            p.contains("fpsLimit.all") -> SCOPE_ALL
+            else -> SCOPE_SESSION
+        }
+    }
+
+    fun saveFpsLimit(context: Context, scope: String, game: String?, fps: Int) {
+        val e = prefs(context).edit()
+        when (scope) {
+            SCOPE_GAME -> if (game != null) e.putInt("fpsLimit.game.$game", fps)
+            SCOPE_ALL -> { e.putInt("fpsLimit.all", fps); if (game != null) e.remove("fpsLimit.game.$game") }
+            else -> when {
+                game == null -> e.remove("fpsLimit.all")
+                prefs(context).contains("fpsLimit.all") -> e.putInt("fpsLimit.game.$game", -1)
+                else -> e.remove("fpsLimit.game.$game")
+            }
+        }
+        e.apply()
+    }
+
+    const val SCOPE_SESSION = "session"
+    const val SCOPE_GAME = "game"
+    const val SCOPE_ALL = "all"
+
+    fun drawerCornerTap(context: Context): Boolean =
+        prefs(context).getBoolean("drawerCornerTap", android.os.Build.MANUFACTURER.equals("Oculus", true) || android.os.Build.MANUFACTURER.equals("Meta", true))
+
+    fun setDrawerCornerTap(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("drawerCornerTap", on).apply()
+    }
+
+    fun drawerHintShown(context: Context): Int = prefs(context).getInt("drawerHintShown", 0)
+
+    fun countDrawerHint(context: Context) {
+        prefs(context).edit().putInt("drawerHintShown", drawerHintShown(context) + 1).apply()
+    }
+
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
 
     fun setLibraryShowUninstalled(context: Context, show: Boolean) {

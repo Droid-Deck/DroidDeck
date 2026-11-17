@@ -246,6 +246,7 @@ class FrontEndActions(
     val onAddonDelete: (com.droiddeck.launcher.runtime.WowAddons.Target, String) -> Unit = { _, _ -> },
     val onSaveExport: (Library.SteamGame, com.droiddeck.launcher.session.GameSaves.Layout) -> Unit = { _, _ -> },
     val onPerformance: () -> Unit,
+    val performancePanel: @Composable () -> Unit = {},
     val onRoms: () -> Unit,
     val onFiles: () -> Unit,
     val onBrowseFiles: (File) -> Unit = {},
@@ -465,6 +466,8 @@ fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -
     }
 }
 
+private val SETTINGS_NAV = SettingsSection.entries.map { "settings:${it.key}" }.toSet() + "settings"
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)?, frontFocus: FrontFocus) {
@@ -480,6 +483,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
             com.droiddeck.launcher.sync.SyncthingService.NAV -> com.droiddeck.launcher.sync.Syncthing.requestOpen()
             "setup:integration" -> { SetupTabs.openOverview = true; selected = "setup" }
+            in SETTINGS_NAV -> { SetupTabs.openSection = SettingsSection.of(target.removePrefix("settings:")) ?: SettingsSection.OVERVIEW; selected = "setup" }
             com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_APPS -> {
                 // Home lands on the apps page itself, so a page open over the rail (Components, Performance) closes first.
                 if (s.pageKey != null) a.onPageBack()
@@ -595,7 +599,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
 
     val openTab = when {
         Hops.origin != null && s.pageKey == Hops.origin?.page -> Hops.origin!!.dest
-        s.pageKey == "performance" -> "steam"
+        s.pageKey == "performance" -> "setup"
         s.pageKey == "controller-mapping" -> "setup"
         selected.startsWith("app:") -> "games"
         selected.startsWith("sound:") -> "soundtracks"
@@ -620,6 +624,9 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     }
     LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
         if (com.droiddeck.launcher.sync.Syncthing.openPending) showRailPage("setup", true)
+    }
+    LaunchedEffect(SetupTabs.openSection) {
+        if (SetupTabs.openSection != null && railSelection != "setup") showRailPage("setup", true)
     }
     val onRailFocus: (String) -> Unit = { key ->
         if (key != railSelection) showRailPage(key, false)

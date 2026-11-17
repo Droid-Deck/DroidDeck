@@ -502,6 +502,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private var drawerGameProfileSelectionMade = false
     private var fpsLimit by mutableStateOf(SessionState.fpsLimit)
+    private var fpsLimitScope by mutableStateOf(SessionPrefs.SCOPE_SESSION)
+    private var cornerTap by mutableStateOf(false)
+    private fun fpsLimitGameKey(): String? = if (SessionState.mode == SessionService.MODE_RUN)
+        (SessionState.gameId ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID))?.takeIf { it.isNotBlank() } else null
     private var blackFrameInsertion by mutableStateOf(false)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
@@ -795,9 +799,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         com.droiddeck.launcher.gpu.SteamVrHealth.begin(this, SessionState.sessionId)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
-            SessionState.fpsLimit = 0
-            fpsLimit = 0
+            SessionState.fpsLimit = SessionPrefs.savedFpsLimit(this, fpsLimitGameKey())
         }
+        fpsLimit = SessionState.fpsLimit
+        fpsLimitScope = SessionPrefs.fpsLimitScope(this, fpsLimitGameKey())
+        cornerTap = SessionPrefs.drawerCornerTap(this)
         applyOutputPacing()
         if (!SessionState.running) {
             SessionState.followScreen = followChoice()
@@ -1138,6 +1144,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) {
                     drawerPage = com.droiddeck.launcher.ui.SessionDrawerPage.GLASSES
                     drawerOpen = true
+                }
+                if (!drawerOpen && !pcKeyboardOpen && !loading.visible) {
+                    com.droiddeck.launcher.ui.DrawerEntryHint(SessionState.mode == SessionService.MODE_STEAM, backActionsInverted) { drawerOpen = true }
+                    if (cornerTap) com.droiddeck.launcher.ui.DrawerCornerTap { drawerOpen = true }
                 }
                 if (loading.visible) LoadingOverlay(
                     loading.step, loading.percent, loading.elapsed, loading.hint, loading.ended,
@@ -1609,8 +1619,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onFpsLimit = { fps ->
                 SessionState.fpsLimit = fps
                 fpsLimit = fps
+                if (fpsLimitScope != SessionPrefs.SCOPE_SESSION) SessionPrefs.saveFpsLimit(this@SessionActivity, fpsLimitScope, fpsLimitGameKey(), fps)
                 applyOutputPacing()
             },
+            fpsLimitScope = fpsLimitScope,
+            fpsLimitForGame = fpsLimitGameKey() != null,
+            onFpsLimitScope = { scope ->
+                SessionPrefs.saveFpsLimit(this@SessionActivity, scope, fpsLimitGameKey(), fpsLimit)
+                fpsLimitScope = SessionPrefs.fpsLimitScope(this@SessionActivity, fpsLimitGameKey())
+            },
+            cornerTap = cornerTap,
+            onCornerTap = { on -> SessionPrefs.setDrawerCornerTap(this@SessionActivity, on); cornerTap = on },
             blackFrameInsertion = blackFrameInsertion,
             blackFrameInsertionAvailable = blackFrameInsertion || blackFrameInsertionAvailable(),
             onBlackFrameInsertion = { on ->

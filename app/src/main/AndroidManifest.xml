@@ -150,6 +150,7 @@
                 <category android:name="android.intent.category.CAR_LAUNCHER" />
                 <data android:scheme="droiddeck" android:host="game" />
                 <data android:scheme="droiddeck" android:host="soundtrack" />
+                <data android:scheme="droiddeck" android:host="settings" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.CREATE_SHORTCUT" />
