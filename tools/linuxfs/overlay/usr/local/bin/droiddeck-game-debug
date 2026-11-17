@@ -3,11 +3,14 @@ import json
 import os
 import re
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 GAME_DEBUG_CHANNELS = (
     "timestamp", "pid", "tid", "seh", "unwind", "threadname", "debugstr", "loaddll", "mscoree",
 )
+PROTON_RUN_LOGS = "proton-runs"
 WINE_DEBUG_SELECTOR = re.compile(r"(?:(trace|warn|err|fixme))?([+-])([A-Za-z_][A-Za-z0-9_]*)")
 
 
@@ -47,6 +50,31 @@ def session_debug_dir(env):
     return env.get("BL_DEBUG_DIR", "")
 
 
+def proton_log_free(folder, game_id):
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return False
+    if game_id:
+        return "steam-%s.log" % game_id not in names
+    return not any(name.startswith("steam-") and name.endswith(".log") for name in names)
+
+
+def proton_log_dir(env, debug_dir):
+    game_id = env.get("SteamGameId")
+    runs = os.path.join(debug_dir, PROTON_RUN_LOGS)
+    current = env.get("PROTON_LOG_DIR")
+    if isinstance(current, str) and os.path.dirname(current) == runs and proton_log_free(current, game_id):
+        return current
+    if proton_log_free(debug_dir, game_id):
+        return debug_dir
+    try:
+        os.makedirs(runs, exist_ok=True)
+        return tempfile.mkdtemp(prefix=time.strftime("%H%M%S-"), dir=runs)
+    except OSError:
+        return debug_dir
+
+
 def apply_game_debug_logs(env, config=None, debug_dir=None):
     if config is None:
         config = load_config()
@@ -58,12 +86,13 @@ def apply_game_debug_logs(env, config=None, debug_dir=None):
             or not os.path.isabs(debug_dir) or not os.path.isdir(debug_dir)):
         print("droiddeck-game-env: game debug logs skipped; session log directory unavailable", file=sys.stderr)
         return env
+    log_dir = proton_log_dir(env, debug_dir)
     result = dict(env)
     result.update({
         "PROTON_LOG": "1",
-        "PROTON_LOG_DIR": debug_dir,
-        "PROTON_CRASH_REPORT_DIR": debug_dir,
-        "DXVK_LOG_PATH": debug_dir,
+        "PROTON_LOG_DIR": log_dir,
+        "PROTON_CRASH_REPORT_DIR": log_dir,
+        "DXVK_LOG_PATH": log_dir,
         "DXVK_LOG_LEVEL": "debug",
         "VKD3D_DEBUG": "info",
         "WINEDEBUG": game_debug_channels(env.get("WINEDEBUG"), env.get("PROTON_LOG")),

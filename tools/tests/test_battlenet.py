@@ -69,6 +69,16 @@ class StoreDebugEnvironmentTest(Temp):
         self.assertEqual(result["PROTON_LOG_DIR"], str(self.tmp / "session"))
         self.assertIn("+seh", result["WINEDEBUG"])
 
+    def test_store_handoff_does_not_replace_the_running_clients_proton_log(self):
+        self.config(True)
+        with mock.patch.dict(os.environ, self.env({"SteamGameId": "11150221161898442752"}), clear=True):
+            client = BNET["proton_env"]()
+            (self.tmp / "session/steam-11150221161898442752.log").write_text("client\n")
+            handoff = BNET["proton_env"]()
+        self.assertEqual(client["PROTON_LOG_DIR"], str(self.tmp / "session"))
+        self.assertEqual(Path(handoff["PROTON_LOG_DIR"]).parent, self.tmp / "session/proton-runs")
+        self.assertEqual(handoff["DXVK_LOG_PATH"], handoff["PROTON_LOG_DIR"])
+
     def test_store_proton_command_keeps_debug_off_when_disabled(self):
         self.config(False)
         with mock.patch.dict(os.environ, self.env(), clear=True):
