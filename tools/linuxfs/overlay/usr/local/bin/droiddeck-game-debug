@@ -131,11 +131,14 @@ def desktop_program_logs(env):
         print("droiddeck-game-env: desktop diagnostics unavailable (%s)" % error, file=sys.stderr)
         yield env, None
         return
-    if env.get("WINEDEBUG", "-all") in ("", "-all"):
-        env["WINEDEBUG"] = "-all,err+all,+mscoree,+loaddll"
-    print("droiddeck-game-env: desktop program %s; first 1048576 diagnostic bytes: %s" % (program, path),
-          file=sys.stderr, flush=True)
     try:
+        if env.get("WINEDEBUG", "-all") in ("", "-all"):
+            env["WINEDEBUG"] = "-all,err+all,+mscoree,+loaddll"
+        try:
+            print("droiddeck-game-env: desktop program %s; first 1048576 diagnostic bytes: %s" % (program, path),
+                  file=sys.stderr, flush=True)
+        except OSError:
+            pass
         yield env, output
     finally:
         os.close(output)

@@ -1160,7 +1160,10 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
     with GAME_DEBUG["desktop_program_logs"](launch_env) as (env, output):
         code = start_process(launch, env, digest, after, diagnostic_app_id, output)
         if output is not None:
-            print("droiddeck-game-env: desktop program exited with status %d" % code, file=sys.stderr, flush=True)
+            try:
+                print("droiddeck-game-env: desktop program exited with status %d" % code, file=sys.stderr, flush=True)
+            except OSError:
+                pass
         return code
 
 

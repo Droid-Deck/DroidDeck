@@ -96,3 +96,26 @@ class DesktopProgramDiagnosticsTest(unittest.TestCase):
             logs = list(Path(folder).glob("desktop-program-*.log"))
             self.assertEqual(len(logs), 2)
             self.assertTrue(all(path.stat().st_size == 1048576 for path in logs))
+
+    def test_broken_stderr_does_not_abort_launch_or_replace_exit_status(self):
+        class BrokenStderr:
+            def write(self, data):
+                raise BrokenPipeError("closed")
+
+            def flush(self):
+                raise BrokenPipeError("closed")
+
+        game_env = runpy.run_path(str(BIN / "droiddeck-game-env"))
+        with tempfile.TemporaryDirectory() as folder:
+            env = dict(os.environ, BL_DEBUG_DIR=folder, WINEDEBUG="-all", PROTON_LOG="0",
+                       DROIDDECK_DESKTOP_PROGRAM="managed.exe")
+            with contextlib.redirect_stderr(BrokenStderr()):
+                code = game_env["start"](
+                    [sys.executable, "-c", "import sys; sys.stderr.write('err:child_line\\n'); sys.exit(7)"],
+                    env,
+                    None,
+                )
+            self.assertEqual(code, 7)
+            logs = list(Path(folder).glob("desktop-program-*.log"))
+            self.assertEqual(len(logs), 1)
+            self.assertIn("err:child_line", logs[0].read_text())
