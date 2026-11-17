@@ -85,10 +85,10 @@ void main() {
     float crossingPattern = smoothstep(threshold, threshold * 2.5, crossingContrast);
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
     float diagonalContrast = max(abs(nw - se), abs(ne - sw));
-    float cornerFactor = 1.0 - 0.18 * smoothstep(threshold, threshold * 3.0, diagonalContrast);
+    float cornerFactor = 1.0 - 0.35 * smoothstep(threshold, threshold * 3.0, diagonalContrast);
     float baseWeight = areaWeight * endpointArea * edgeConfidence * cornerFactor;
 
-    float diagonalStrength = abs(abs(nw - se) - abs(ne - sw));
+    float diagonalStrength = min(vertical, horizontal);
     float diagonalPattern = smoothstep(threshold, threshold * 2.5, diagonalStrength);
     float diagonalFallback = 0.16 * diagonalPattern * edgeConfidence * cornerFactor;
 
