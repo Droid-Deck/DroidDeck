@@ -9,7 +9,7 @@
 #include "ahb_swapchain.h"
 #include "droiddeck_color.h"
 
-enum host_kind { HOST_CLIPBOARD = 1, HOST_TEXT_COMMIT, HOST_TEXT_PREEDIT, HOST_TEXT_DELETE, HOST_ZERO_COPY, HOST_HDR_OUTPUT };
+enum host_kind { HOST_CLIPBOARD = 1, HOST_TEXT_COMMIT, HOST_TEXT_PREEDIT, HOST_TEXT_DELETE, HOST_ZERO_COPY, HOST_HDR_OUTPUT, HOST_KEY };
 
 struct host_msg {
     enum host_kind kind;
@@ -63,6 +63,9 @@ void droiddeck_host_zero_copy(int on, int live) {
 void droiddeck_host_hdr_output(int on) {
     host_post(HOST_HDR_OUTPUT, NULL, 0, on, 0);
 }
+void droiddeck_host_key(int evdev, int state) {
+    host_post(HOST_KEY, NULL, 0, evdev, state);
+}
 
 static int on_wake(int fd, uint32_t mask, void *data) {
     char buf[64];
@@ -79,7 +82,8 @@ static int on_wake(int fd, uint32_t mask, void *data) {
             m->text = NULL;
             break;
         case HOST_TEXT_COMMIT:
-            text_input_host_commit(m->text ? m->text : "", m->len);
+            if (!text_input_host_commit(m->text ? m->text : "", m->len))
+                droiddeck_on_text_input_fallback(m->text ? m->text : "", (int)m->len);
             break;
         case HOST_TEXT_PREEDIT:
             text_input_host_preedit(m->text ? m->text : "", m->len, m->a, m->b);
@@ -92,6 +96,9 @@ static int on_wake(int fd, uint32_t mask, void *data) {
             break;
         case HOST_HDR_OUTPUT:
             droiddeck_color_set_output(m->a);
+            break;
+        case HOST_KEY:
+            droiddeck_inject_key((uint32_t)m->a, m->b);
             break;
         }
         free(m->text);

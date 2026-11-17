@@ -122,6 +122,60 @@ class WindowsVrBuildTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'configuration differs'):
             self.validate()
 
+    def test_build_image_selection_and_platform_validation(self):
+        outputs = vr.read_outputs(self.out, self.root)
+        cases = [
+            ('cached_amd64', vr.IMAGE, [(0, 'sha256:cached linux/amd64\n')], False, 'sha256:cached', None),
+            ('missing_default', vr.IMAGE, [(1, ''), (0, 'sha256:rebuilt linux/amd64\n')], True, 'sha256:rebuilt', None),
+            ('default_arm64', vr.IMAGE, [(0, 'sha256:old linux/arm64\n'), (0, 'sha256:rebuilt linux/amd64\n')], True, 'sha256:rebuilt', None),
+            ('default_windows', vr.IMAGE, [(0, 'sha256:old windows/amd64\n'), (0, 'sha256:rebuilt linux/amd64\n')], True, 'sha256:rebuilt', None),
+            ('custom_arm64', 'custom:vr', [(0, 'sha256:custom linux/arm64\n')], False, None, r'linux/amd64.*custom:vr'),
+            ('rebuild_still_arm64', vr.IMAGE, [(0, 'sha256:old linux/arm64\n'), (0, 'sha256:bad linux/arm64\n')], True, None, r'linux/amd64'),
+        ]
+        for name, image, inspects, expect_build, expected_id, err in cases:
+            with self.subTest(name=name):
+                calls, queue = [], list(inspects)
+                def fake_run(cmd, **kw):
+                    calls.append(cmd)
+                    if cmd[1:3] == ['image', 'inspect']:
+                        rc, out = queue.pop(0)
+                        return vr.subprocess.CompletedProcess(cmd, rc, stdout=out, stderr='')
+                    return vr.subprocess.CompletedProcess(cmd, 0, stdout='linux\n', stderr='')
+                with mock.patch.object(vr.shutil, 'which', return_value='docker'), \
+                     mock.patch.object(vr.subprocess, 'run', side_effect=fake_run), \
+                     mock.patch.object(vr.subprocess, 'check_output', return_value=b'sha256:legacy\n'), \
+                     mock.patch.object(vr, 'read_outputs', return_value=outputs) as m_read, \
+                     mock.patch.object(vr, 'validate', return_value=(outputs, self.manifest)) as m_val:
+                    if err:
+                        with self.assertRaisesRegex(ValueError, err):
+                            vr.build(self.out, self.include, self.root, image=image)
+                        m_read.assert_not_called()
+                        m_val.assert_not_called()
+                    else:
+                        self.assertEqual(vr.build(self.out, self.include, self.root, image=image), (outputs, self.manifest))
+                        m_read.assert_called_once()
+                        m_val.assert_called_once_with(self.out, self.include, self.root)
+                inspect_cmds = [c for c in calls if c[1:3] == ['image', 'inspect']]
+                build_cmds = [c for c in calls if c[1] == 'build']
+                run_cmds = [c for c in calls if c[1] == 'run']
+                self.assertEqual(len(inspect_cmds), len(inspects))
+                for c in inspect_cmds:
+                    self.assertEqual(c[:5], ['docker', 'image', 'inspect', '--format', '{{.Id}} {{.Os}}/{{.Architecture}}'])
+                if expect_build:
+                    self.assertEqual(len(build_cmds), 1)
+                    self.assertEqual(build_cmds[0][:6], ['docker', 'build', '--platform', 'linux/amd64', '--tag', image])
+                else:
+                    self.assertEqual(build_cmds, [])
+                if expected_id:
+                    self.assertEqual(len(run_cmds), 1)
+                    self.assertIn(expected_id, run_cmds[0])
+                    self.assertNotIn(image, run_cmds[0])
+                    self.assertTrue(all('linux/amd64' not in a or a == 'linux/amd64' for a in run_cmds[0]))
+                    manifest = json.loads((self.out / vr.MANIFEST).read_text(encoding='utf-8'))
+                    self.assertEqual(manifest['compiler_image'], expected_id)
+                else:
+                    self.assertEqual(run_cmds, [])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -31,7 +31,7 @@ class BottomDesktopCompositorService : Service() {
                 MSG_RESIZE -> resize(msg.arg1, msg.arg2)
                 MSG_TOUCH -> WaylandCompositor.nativeSendTouch(msg.arg1 and 0xff, msg.arg1 shr 8,
                     msg.arg2 ushr 16, msg.arg2 and 0xffff)
-                MSG_KEY -> WaylandCompositor.nativeSendKey(msg.arg1, msg.arg2)
+                MSG_KEY -> WaylandCompositor.nativeSendKeyOrdered(msg.arg1, msg.arg2)
                 MSG_POINTER -> WaylandCompositor.nativeSendPointer(1, msg.arg1, msg.arg2)
                 MSG_SCENE -> WaylandCompositor.nativeSendSceneInput(msg.arg1, msg.arg2, msg.peekData()?.getInt(KEY_B) ?: 0)
                 MSG_CURSOR -> if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(msg.arg1 != 0)

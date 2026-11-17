@@ -76,6 +76,7 @@ import com.droiddeck.launcher.input.InputSpace
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
+import com.droiddeck.launcher.input.SessionTextInput
 import com.droiddeck.launcher.input.OnScreenControls
 import com.droiddeck.launcher.input.InputRouter
 import com.droiddeck.launcher.input.InputOutput
@@ -287,6 +288,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
         SessionClipboard(this) {
+            window.decorView.hasWindowFocus() || secondScreenPresentation?.window?.decorView?.hasWindowFocus() == true
+        }
+    }
+    private val sessionTextInput by lazy {
+        SessionTextInput(this) {
             window.decorView.hasWindowFocus() || secondScreenPresentation?.window?.decorView?.hasWindowFocus() == true
         }
     }
@@ -5539,6 +5545,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             heldButtons.clear()
             hidePrimaryKeyboard()
             sessionClipboard.stop()
+            sessionTextInput.stop()
             padMotion?.stop()
             cursorVisible = false
             closeSecondScreen(reset = false)
@@ -5554,7 +5561,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         } else if (!isFinishing && !isDestroyed) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             updateOnScreenControls()
-            if (resumed) { sessionClipboard.start(); updatePadMotion() }
+            if (resumed) { sessionClipboard.start(); sessionTextInput.start(); updatePadMotion() }
             if (started) {
                 settleDualScreenControls()
                 refreshSecondScreenDisplays()
@@ -5620,6 +5627,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
         contentResolver.unregisterContentObserver(refreshSettingObserver)
         if (!screenIsOff()) closeSecondScreen(reset = false)
+        sessionTextInput.stop()
         startedScreens = (startedScreens - 1).coerceAtLeast(0)
         updateGlassesScreen()
         updateBottomGame()
@@ -5701,7 +5709,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onCancel = { padBridge?.cancelHomeGuide() },
         )
         updatePointerCapture()
-        if (!pipUi) sessionClipboard.start()
+        if (!pipUi) { sessionClipboard.start(); sessionTextInput.start() }
         updatePadMotion()
         ControllerPrefs.prefs(this).registerOnSharedPreferenceChangeListener(shortcutPrefListener)
         SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
@@ -6449,6 +6457,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         relativeMouseRequests.shutdownNow()
         backQamInput.cancel()
         steamVrRecovery.close()
+        sessionTextInput.stop()
         uiHandler.removeCallbacks(steamTouchRetry)
         uiHandler.removeCallbacks(cursorResync)
         uiHandler.removeCallbacks(usbMouseFallback)

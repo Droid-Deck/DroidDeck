@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 from pathlib import Path, PurePosixPath
 import shutil
 import struct
@@ -49,8 +50,14 @@ LOCAL_ANDROID_SOURCES = {'app/src/main/cpp/CMakeLists.txt',
                          'app/src/main/cpp/waylandcomp/src/waylandcomp_jni.c',
                          'app/src/main/cpp/waylandcomp/src/spatialpose.c',
                          'app/src/main/cpp/waylandcomp/CMakeLists.txt'}
-LOCAL_SESSION_HELPERS = {'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat',
-                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr'}
+LOCAL_SESSION_HELPERS = {'tools/linuxfs/overlay/usr/local/bin/droiddeck-session',
+                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-compat',
+                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-steam-ime',
+                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-steamvr',
+                         'tools/linuxfs/overlay/usr/local/bin/droiddeck-text-input'}
+IME_SOURCES = {'tools/ime/packages.json', 'tools/ime/prepare.py', 'tools/ime/smoke.py'}
+IME_MANIFEST = 'usr/local/share/droiddeck/ime-files.json'
+IME_PACKAGES = 'build/windows-setup/ime-packages'
 VR_PREFIX = 'assets/linuxfs/usr/local/lib/droiddeck-vr/'
 CHECK_PATHS = list(dict.fromkeys(runtime.SOURCE_PATHS + [
     'app/src/main/cpp', 'app/src/main/jniLibs', 'app/src/main/rust/stores', 'tools/vr']))
@@ -82,20 +89,23 @@ def check_sources():
     if git('merge-tree', '--write-tree', DONOR_PR_SOURCE, DONOR_MAIN_SOURCE).decode().splitlines()[0] != DONOR_TREE:
         raise ValueError('The donor CI merge does not match the audited source tree')
     helper_sources = {path.relative_to(ROOT).as_posix() for path in source_assets()}
-    reviewed = LOCAL_BUILD_PLUMBING | LOCAL_ANDROID_SOURCES | (LOCAL_SESSION_HELPERS & helper_sources)
+    reviewed = (LOCAL_BUILD_PLUMBING | LOCAL_ANDROID_SOURCES | IME_SOURCES |
+                (LOCAL_SESSION_HELPERS & helper_sources))
     unexpected = {p for p in changed(AUDITED_SOURCE, 'HEAD') - reviewed if not vr_build.is_source(p)}
     if unexpected:
         raise ValueError('Sources changed since the component audit:\n' + '\n'.join(sorted(unexpected)))
     local = changed('HEAD')
     untracked = set(filter(None, git('ls-files', '--others', '--exclude-standard', '-z',
                                     '--', *CHECK_PATHS).decode().split('\0')))
-    unexpected = {p for p in (local - reviewed) | (untracked - LOCAL_ANDROID_SOURCES)
+    unexpected = {p for p in (local - reviewed) | (untracked - LOCAL_ANDROID_SOURCES - IME_SOURCES)
                   if not vr_build.is_source(p)}
     if unexpected:
         raise ValueError('Unreviewed runtime/native/Rust changes:\n' + '\n'.join(sorted(unexpected)))
     classifications = {}
     for path in sorted(changed(DONOR_TREE, 'HEAD') | local | untracked):
-        if vr_build.is_source(path):
+        if path in IME_SOURCES:
+            action = 'regenerated from checksum-pinned RPMs; never reused from donor'
+        elif vr_build.is_source(path):
             action = 'VR component rebuilt from current source and verified; never imported from donor'
         elif path in LOCAL_ANDROID_SOURCES:
             action = 'Android native source compiled by Gradle; not imported from donor'
@@ -161,6 +171,92 @@ def read_gamescope(path):
     return files, pins
 
 
+def find_docker():
+    docker = shutil.which('docker')
+    if docker:
+        return docker
+    desktop = Path(os.environ.get('ProgramFiles', 'C:/Program Files')) / 'Docker/Docker/resources/bin/docker.exe'
+    if desktop.is_file():
+        return str(desktop)
+    raise ValueError('Docker is required to prepare IME files on Windows; install Docker Desktop or add docker to PATH')
+
+
+def prepare_ime(image):
+    workspace = ROOT / 'build/windows-setup'
+    workspace.mkdir(parents=True, exist_ok=True)
+    packages = ROOT / IME_PACKAGES
+    packages.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='droiddeck-ime-', dir=workspace) as folder:
+        temporary = Path(folder)
+        linuxfs = temporary / 'linuxfs'
+        linuxfs.mkdir()
+        script = ROOT / 'tools/ime/prepare.py'
+        if sys.platform == 'win32':
+            docker = find_docker()
+            inspect_cmd = [docker, 'image', 'inspect', '--format', '{{.Id}} {{.Os}}/{{.Architecture}}', image]
+            inspected = subprocess.run(inspect_cmd, capture_output=True, text=True, check=False)
+            fields = inspected.stdout.strip().split() if inspected.returncode == 0 else []
+            image_id = fields[0] if len(fields) == 2 and fields[0] and fields[1] == 'linux/amd64' else ''
+            if not image_id and image == vr_build.IMAGE:
+                dockerfile = (ROOT / 'tools/local-cross.Dockerfile').read_bytes().replace(b'\r\n', b'\n')
+                try:
+                    subprocess.run([docker, 'build', '--platform', 'linux/amd64', '--tag', image,
+                                    '--file', '-', str(temporary)], input=dockerfile, check=True)
+                except subprocess.CalledProcessError as error:
+                    raise ValueError('IME preparation failed to build default compiler Docker image ' + image +
+                                     '; inspect the Docker build output above, resolve the build error, and rerun preparation') from error
+                inspected = subprocess.run(inspect_cmd, capture_output=True, text=True, check=False)
+                fields = inspected.stdout.strip().split() if inspected.returncode == 0 else []
+                image_id = fields[0] if len(fields) == 2 and fields[0] and fields[1] == 'linux/amd64' else ''
+            if not image_id:
+                detail = inspected.stdout.strip() if inspected.returncode == 0 else inspected.stderr.strip()
+                detail = detail or 'no image id or platform returned'
+                raise ValueError('IME preparation requires the existing Docker image ' + image +
+                                 ' for linux/amd64; build or load it first (inspect result: ' + detail + ')')
+            snapshot = temporary / 'src'
+            (snapshot / 'tools/ime').mkdir(parents=True)
+            shutil.copy2(script, snapshot / 'tools/ime/prepare.py')
+            shutil.copy2(ROOT / 'tools/ime/packages.json', snapshot / 'tools/ime/packages.json')
+            command = [docker, 'run', '--rm', '--platform', 'linux/amd64',
+                       '-v', str(snapshot) + ':/src:ro',
+                       '-v', str(packages) + ':/cache',
+                       '-v', str(linuxfs) + ':/out',
+                       image_id, 'sh', '-c',
+                       'for tool in rpm2cpio cpio; do command -v "$tool" >/dev/null 2>&1 || { '
+                       'echo "missing $tool; rebuild compiler image using tools/local-cross.Dockerfile" >&2; exit 1; }; done; '
+                       'exec python3 /src/tools/ime/prepare.py --packages /cache --download --output /out']
+        else:
+            command = [sys.executable, str(script), '--packages', str(packages), '--download',
+                       '--output', str(linuxfs)]
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as error:
+            if sys.platform == 'win32':
+                raise ValueError('IME preparation failed; ensure Docker is running and image ' + image +
+                                 ' is available') from error
+            raise
+        manifest_path = linuxfs / IME_MANIFEST
+        if not manifest_path.is_file():
+            raise ValueError('IME preparation did not produce ' + IME_MANIFEST)
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        if manifest.get('version') != 1 or not isinstance(manifest.get('files'), dict):
+            raise ValueError('Unexpected IME manifest format')
+        files = {}
+        for relative, entry in sorted(manifest['files'].items()):
+            if not isinstance(entry, dict):
+                raise ValueError('Unexpected IME manifest entry: ' + str(relative))
+            validate_relative(relative)
+            path = linuxfs / relative
+            if not path.is_file():
+                raise ValueError('IME manifest references a missing file: ' + relative)
+            data = path.read_bytes()
+            if hashlib.sha256(data).hexdigest() != entry.get('sha256'):
+                raise ValueError('IME file checksum mismatch: ' + relative)
+            files[relative] = data
+        files[IME_MANIFEST] = manifest_path.read_bytes()
+        return files, manifest
+
+
 def validate_rebuilt(path, machine):
     data = path.read_bytes()
     if len(data) < 20 or data[:4] != b'\x7fELF' or data[5] != 1 or struct.unpack('<H', data[18:20])[0] != machine:
@@ -212,6 +308,7 @@ def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None, rebuilt_vr=None, vk_in
         vr_files, vr_manifest = vr_build.build(ROOT / 'build/windows-setup/vr', vk_include, root=ROOT, image=vr_image)
     else:
         vr_files, vr_manifest = vr_build.validate(rebuilt_vr, vk_include, root=ROOT)
+    ime_files, ime_manifest = prepare_ime(vr_image)
     helpers = source_assets()
     helper_assets = set(helpers.values())
     plan = {}
@@ -257,6 +354,11 @@ def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None, rebuilt_vr=None, vk_in
         checked_output(target)
         plan[target] = data
         origins[target] = 'VR rebuilt from current source; source and output checksums verified'
+    for name, data in ime_files.items():
+        target = 'app/src/main/assets/linuxfs/' + name
+        checked_output(target)
+        plan[target] = data
+        origins[target] = 'regenerated from checksum-pinned RPMs; never reused from donor'
     expected = set(plan) | {'app/src/main/' + name for name in helper_assets}
     for tree in ('linuxfs', 'directaudio', 'droiddeck-esync'):
         base = ROOT / 'app/src/main/assets' / tree
@@ -293,6 +395,7 @@ def prepare(apk, rebuilt_dir, gamescope, llvm_strip=None, rebuilt_vr=None, vk_in
                       'archive_sha256': pins['GAMESCOPE_SHA256']},
         'tracked_files_verified': tracked,
         'vr_build': vr_manifest,
+        'ime_build': ime_manifest,
         'outputs': {name: {'origin': origins[name], 'sha256': hashlib.sha256(data).hexdigest()}
                     for name, data in sorted(plan.items())},
         'preload_sources': {path.relative_to(ROOT).as_posix(): runtime.digest(path)
@@ -318,7 +421,8 @@ def main():
                         'AppData/Local/Android/Sdk/ndk/27.3.13750724/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe')
     parser.add_argument('--rebuilt-vr', type=Path, help='Reuse a VR build with vr-build.json; default rebuilds in Docker')
     parser.add_argument('--vk-include', type=Path, help='NDK Vulkan headers; defaults to the sysroot beside --llvm-strip')
-    parser.add_argument('--vr-image', default=vr_build.IMAGE, help='Docker compiler image for a fresh VR build')
+    parser.add_argument('--vr-image', default=vr_build.IMAGE,
+                        help='Docker compiler image for VR/IME preparation; default is built if missing')
     parser.add_argument('--check-sources', action='store_true', help='Audit source differences without extracting files')
     args = parser.parse_args()
     zstd = ROOT / 'build/windows-setup/tools/zstd/zstd.exe'

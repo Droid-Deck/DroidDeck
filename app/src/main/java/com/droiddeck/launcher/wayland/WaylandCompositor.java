@@ -128,6 +128,26 @@ public final class WaylandCompositor {
         if (l != null) l.onTextInput(enabled, program, x, y, w, h);
     }
 
+    public interface TextInputFallbackListener {
+        void onTextInputFallback(String text);
+    }
+
+    private static volatile TextInputFallbackListener textInputFallbackListener;
+
+    public static void setTextInputFallbackListener(TextInputFallbackListener l) { textInputFallbackListener = l; }
+
+    public static boolean isTextInputFallbackListener(TextInputFallbackListener l) { return textInputFallbackListener == l; }
+
+    public static void clearTextInputFallbackListener(TextInputFallbackListener l) {
+        if (textInputFallbackListener == l) textInputFallbackListener = null;
+    }
+
+    @SuppressWarnings("unused")
+    static void onTextInputFallback(byte[] utf8) {
+        TextInputFallbackListener l = textInputFallbackListener;
+        if (l != null && utf8 != null) l.onTextInputFallback(new String(utf8, java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private static byte[] utf8(String s) {
         return s == null ? new byte[0] : s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
@@ -173,6 +193,9 @@ public final class WaylandCompositor {
     public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
 
     public static native void nativeSendKey(int evdev, int state);
+
+    // Ordered delivery: key events share the host queue with text commits so keys cannot overtake pending text.
+    public static native void nativeSendKeyOrdered(int evdev, int state);
 
     public static native boolean nativeFocusTakesTouch();
 
