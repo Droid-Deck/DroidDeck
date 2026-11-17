@@ -87,7 +87,8 @@ internal class ProtonMenu(
     }
 
     fun refreshProtons() {
-        protonRows = ProtonExtras.tools.map {
+        val bionic = com.droiddeck.launcher.runtime.NativeGuest.enabled(activity)
+        protonRows = ProtonExtras.tools.filter { it.id != ProtonExtras.BIONIC || bionic }.map {
             val all = ProtonExtras.installedAll(activity, it)
             ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it))
         }

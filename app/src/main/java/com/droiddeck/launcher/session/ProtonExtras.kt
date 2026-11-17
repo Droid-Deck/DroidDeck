@@ -23,17 +23,21 @@ object ProtonExtras {
     @Volatile
     private var replacing = false
 
-    class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex)
+    class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex,
+               val prereleases: Boolean = false)
 
     internal data class Asset(val tag: String, val name: String, val url: String, val sha512: String?, val size: Long,
                              val sha256: String? = null)
 
     const val OWN = "droiddeck"
+    const val BIONIC = "bionic"
 
     val tools = listOf(
         Tool("ge", "GE-Proton", "GE-Proton", "GloriousEggroll/proton-ge-custom", Regex("aarch64\\.tar\\.(gz|xz)$")),
         Tool("cachyos", "proton-cachyos", "proton-cachyos", "CachyOS/proton-cachyos", Regex("arm64\\.tar\\.(gz|xz)$")),
-        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "Droid-Deck/DroidDeck-Proton", Regex("aarch64\\.tar\\.(gz|xz)$")),
+        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "Droid-Deck/DroidDeck-Proton", Regex("^DroidDeck-Proton-.*aarch64\\.tar\\.(gz|xz)$")),
+        // Bionic (Android libc) Proton started outside the Linux userland; test builds are prereleases. No-proot only.
+        Tool(BIONIC, "DroidDeck-Bionic", "DroidDeck-Bionic", "Droid-Deck/DroidDeck-Proton", Regex("^DroidDeck-Bionic-.*aarch64\\.tar\\.(gz|xz)$"), prereleases = true),
     )
 
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")
@@ -314,7 +318,7 @@ object ProtonExtras {
                 archive.delete()
                 unqueue(context, tool)
                 record(context, tool, placed, asset.tag)
-                if (tool.id == OWN) replaceOlder(context, tool)
+                if (tool.id == OWN || tool.id == BIONIC) replaceOlder(context, tool)
                 if (EsyncPacks.enabled(context)) {
                     onProgress(context.getString(R.string.esync_fetching), -1)
                     try {
@@ -344,7 +348,7 @@ object ProtonExtras {
     internal fun pickAsset(tool: Tool, array: JSONArray): Asset? {
         for (i in 0 until array.length()) {
             val release = array.getJSONObject(i)
-            if (release.optBoolean("draft", false) || release.optBoolean("prerelease", false)) continue
+            if (release.optBoolean("draft", false) || (!tool.prereleases && release.optBoolean("prerelease", false))) continue
             val assets = release.optJSONArray("assets") ?: continue
             val entries = (0 until assets.length()).map { assets.getJSONObject(it) }
             val archive = entries.sortedBy { it.optString("name") }.firstOrNull { tool.assetPattern.containsMatchIn(it.optString("name")) } ?: continue
