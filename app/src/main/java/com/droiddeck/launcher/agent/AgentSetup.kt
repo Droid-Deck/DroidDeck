@@ -27,6 +27,28 @@ object AgentSetup {
     val detail = mutableStateMapOf<Step, String>()
     var runtimeInstalled by mutableStateOf(true)
         private set
+    /** The harness has a key from its [AgentHarness.keyPage] saved; signed in without one means its free models. */
+    var keySaved by mutableStateOf(false)
+        private set
+
+    /** Saves a pasted key for a harness that signs in with one, then checks the sign-in again. */
+    fun saveKey(context: Context, key: String) = signInLocally(context) { harness, root -> harness.saveKey(root, key) }
+
+    fun useFree(context: Context) = signInLocally(context) { harness, root -> harness.useFree(root) }
+
+    private fun signInLocally(context: Context, write: (AgentHarness, File) -> Unit) {
+        val app = context.applicationContext
+        val harness = AgentHost.harness
+        set(Step.SIGN_IN, Status.WORKING)
+        Thread({
+            val result = runCatching { write(harness, LinuxRuntime.rootDir(app)) }
+            main.post {
+                status[Step.SIGN_IN] = Status.UNKNOWN
+                result.exceptionOrNull()?.let { detail[Step.SIGN_IN] = it.message ?: "failed" }
+                check(app)
+            }
+        }, "agent-sign-in").start()
+    }
 
     val ready: Boolean get() = Step.entries.filter { it.required }.all { status[it] == Status.DONE }
 
@@ -53,6 +75,7 @@ object AgentSetup {
         if (!runtimeInstalled) return
         AgentHost.refresh(app)
         val harness = AgentHost.harness
+        keySaved = harness.hasKey(LinuxRuntime.rootDir(app))
         val probes = mutableListOf<Pair<Step, List<String>>>()
         for (step in Step.entries) if (status[step] != Status.WORKING) {
             when (step) {

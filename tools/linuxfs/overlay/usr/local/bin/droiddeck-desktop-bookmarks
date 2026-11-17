@@ -67,7 +67,25 @@ def place_uri(uri):
     return uri
 
 
-def update_places(path, libraries):
+def removable_volumes():
+    listing = os.environ.get("BL_DESKTOP_VOLUMES")
+    if not listing:
+        return {}
+    volumes = {}
+    for entry in json.loads(Path(listing).read_text()):
+        path = Path(entry["path"])
+        if not path.is_absolute():
+            continue
+        try:
+            with os.scandir(path):
+                pass
+        except OSError:
+            continue
+        volumes[path.as_uri()] = " ".join(str(entry["label"]).split()) or path.name
+    return volumes
+
+
+def update_places(path, libraries, mark=MARK, icon_name="steam", id_prefix="droiddeck-steam-"):
     if path.is_file():
         parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True, insert_pis=True))
         root = ET.fromstring(path.read_bytes(), parser=parser)
@@ -80,10 +98,10 @@ def update_places(path, libraries):
     before = ET.tostring(root)
     seen = set()
     personal = {place_uri(b.get("href")) for b in root.findall("bookmark")
-                if b.find("info/metadata[@owner='" + KDE_OWNER + "']/" + MARK) is None}
+                if b.find("info/metadata[@owner='" + KDE_OWNER + "']/" + mark) is None}
     for bookmark in root.findall("bookmark"):
         metadata = bookmark.find("info/metadata[@owner='" + KDE_OWNER + "']")
-        if metadata is None or metadata.find(MARK) is None:
+        if metadata is None or metadata.find(mark) is None:
             continue
         uri = place_uri(bookmark.get("href"))
         if uri not in libraries or uri in seen or uri in personal:
@@ -101,10 +119,10 @@ def update_places(path, libraries):
         ET.SubElement(bookmark, "title").text = label
         info = ET.SubElement(bookmark, "info")
         icon = ET.SubElement(info, "metadata", {"owner": "http://freedesktop.org"})
-        ET.SubElement(icon, "{" + ICON_NS + "}icon", {"name": "steam"})
+        ET.SubElement(icon, "{" + ICON_NS + "}icon", {"name": icon_name})
         metadata = ET.SubElement(info, "metadata", {"owner": KDE_OWNER})
-        ET.SubElement(metadata, "ID").text = "droiddeck-steam-" + hashlib.sha256(uri.encode()).hexdigest()[:16]
-        ET.SubElement(metadata, MARK).text = "true"
+        ET.SubElement(metadata, "ID").text = id_prefix + hashlib.sha256(uri.encode()).hexdigest()[:16]
+        ET.SubElement(metadata, mark).text = "true"
         ET.SubElement(metadata, "isSystemItem").text = "false"
     if ET.tostring(root) != before:
         atomic_write(path, ET.tostring(root, encoding="unicode", xml_declaration=True))
@@ -154,7 +172,9 @@ def main():
     available = bool(label) and (LIBRARY / "steamapps").is_dir()
     update_bookmark(bookmarks_file(home, config), label if available else None)
     data = Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")
-    update_places(data / "user-places.xbel", steam_libraries(home, data))
+    places = data / "user-places.xbel"
+    update_places(places, steam_libraries(home, data))
+    update_places(places, removable_volumes(), "DroidDeckRemovableVolume", "drive-removable-media", "droiddeck-volume-")
 
 
 if __name__ == "__main__":

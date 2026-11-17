@@ -251,7 +251,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     stringResource(R.string.display_integer_scaling_hint),
                     listOf(
                         false to stringResource(R.string.display_scaling_fit),
-                        true to stringResource(R.string.display_scaling_auto),
+                        true to stringResource(R.string.display_scaling_integer),
                     ),
                     enabled, onPick = a.onIntegerScaling,
                 )

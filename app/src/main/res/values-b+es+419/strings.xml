@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">Los gráficos de SteamVR se detuvieron</string>
     <string name="steamvr_recovery_countdown">DroidDeck se reiniciará en %1$d segundos para restablecer los gráficos y volver a abrir SteamVR. Tu juego en curso se cerrará; el progreso no guardado no se podrá recuperar.</string>
@@ -712,7 +712,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Fijar posición</string>
-    <string name="hud_locked_hint">Arrastra el HUD para moverlo; una pulsación larga lo bloquea o lo desbloquea. Mientras está bloqueado, los controles en pantalla que tiene debajo siguen funcionando.</string>
+    <string name="hud_locked_hint">Arrastra el HUD para moverlo. Mientras está bloqueado, los controles en pantalla que tiene debajo siguen funcionando.</string>
+    <string name="hud_hold">Pulsación larga</string>
+    <string name="hud_hold_collapse">Contraer o expandir</string>
+    <string name="hud_hold_lock">Bloquear o desbloquear</string>
     <string name="hud_snap">Ajustar a los lados</string>
     <string name="hud_snap_hint">Al soltar el HUD, se mueve al lado más cercano de la pantalla. Un gesto rápido lo lanza en esa dirección.</string>
     <string name="hud_group_look">Aspecto</string>
@@ -1175,7 +1178,7 @@
     <string name="lab_off_title">Compilación de Lab desactivada</string>
     <string name="lab_off_other_install">Se creó para otra versión de DroidDeck. Se conserva en Actualizaciones.</string>
     <string name="lab_off_did_not_start">DroidDeck no arrancó con ella dos veces</string>
-    <string name="rail_agent">Agente</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agente</string>
     <string name="agent_working">El agente está trabajando</string>
     <string name="agent_missing">Instala Claude Code en el entorno de usuario de Linux para usar el agente.</string>
@@ -4120,7 +4123,9 @@
     <string name="hud_readings_shown">Mostrados</string>
     <string name="hud_readings_count">%1$d de %2$d</string>
     <string name="exit_hint_back">Presiona atrás una vez más para salir</string>
-
     <string name="display_integer_scaling">Escalado de píxeles enteros</string>
-    <string name="display_integer_scaling_hint">Usa el mayor factor de escala entero que quepa. Si la imagen de origen es demasiado grande, ajusta la imagen completa para evitar recortes. La resolución se configura por separado.</string>
+    <string name="display_integer_scaling_hint">Usa la mayor escala entera que cabe. Puede recortar los bordes. Si la imagen original supera el tamaño de salida, el escalado fraccional muestra la imagen completa. La resolución se configura por separado.</string>
+    <string name="display_scaling_integer">Entero</string>
+    <string name="display_scaling_fit">Ajustar</string>
+    <string name="drawer_antialiasing">Antialiasing</string>
 </resources>

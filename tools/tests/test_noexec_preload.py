@@ -127,12 +127,14 @@ static void mapping(void *addr, char *out) {
   fclose(maps);
 }
 int main(int argc, char **argv) {
-  if (argc != 2) return 2;
+  if (argc < 2) return 2;
+  int anonymous = argc > 2;
   size_t page = sysconf(_SC_PAGESIZE);
   int fd = open(argv[1], O_RDONLY);
-  char *addr = mmap(NULL, page * 2, PROT_NONE, MAP_PRIVATE, fd, 0);
-  if (addr == MAP_FAILED || mmap(addr + page, page, PROT_READ | PROT_WRITE,
-      MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != addr + page) return 3;
+  char *addr = anonymous ? mmap(NULL, page * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)
+                         : mmap(NULL, page * 2, PROT_NONE, MAP_PRIVATE, fd, 0);
+  if (addr == MAP_FAILED || (!anonymous && mmap(addr + page, page, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) != addr + page)) return 3;
   addr[page] = 73;
   char before[1024], after[1024], tail_before[1024], tail_after[1024];
   mapping(addr, before);
@@ -211,6 +213,12 @@ class NoexecPreloadTest(unittest.TestCase):
     def test_failed_copy_protection_preserves_original_mappings(self):
         env = dict(os.environ, LD_PRELOAD=f"{self.lib}:{self.failures}", FAIL_COPY="1")
         result = subprocess.run([str(self.tmp / "failure_image"), str(self.code)], env=env,
+                                capture_output=True, text=True, check=True)
+        self.assertEqual(result.stdout.strip(), "result -1 13 preserved 1 1 tail 73 calls 0 0 1")
+
+    def test_anonymous_memory_is_never_replaced(self):
+        env = dict(os.environ, LD_PRELOAD=f"{self.lib}:{self.failures}", ALLOW_FIXED="1")
+        result = subprocess.run([str(self.tmp / "failure_image"), str(self.code), "anonymous"], env=env,
                                 capture_output=True, text=True, check=True)
         self.assertEqual(result.stdout.strip(), "result -1 13 preserved 1 1 tail 73 calls 0 0 1")
 
