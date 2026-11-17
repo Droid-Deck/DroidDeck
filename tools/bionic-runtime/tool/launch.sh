@@ -17,7 +17,7 @@ mkdir -p "$COMPAT"
 LOG=$COMPAT/droiddeck-bionic.log
 [ "$verb" = runinprefix ] || { [ -f "$LOG" ] && mv -f "$LOG" "$LOG.1"; }
 exec >> "$LOG" 2>&1
-echo "$(date +%H:%M:%S) $verb $EXE ($VERSION, uid $(id -u))"
+echo "$(date +%H:%M:%S) $verb $EXE ($VERSION, uid $(id -u), DISPLAY ${DISPLAY:-unset})"
 
 # Keep Steam's game identity and DroidDeck's input/display settings; drop the glibc guest's environment.
 for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
@@ -25,11 +25,14 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     SteamAppId|SteamGameId|SteamOverlayGameId|SteamClientLaunch|SteamEnv|SteamAppUser|SteamUser|STEAM_COMPAT_*) ;;
     ANDROID_*|BOOTCLASSPATH|DEX2OATBOOTCLASSPATH|SYSTEMSERVERCLASSPATH|EXTERNAL_STORAGE|ASEC_MOUNTPOINT) ;;
     FAKE_*|SDL_*|BL_WIDTH|BL_HEIGHT|BL_VK_DRIVER|WINEDLLOVERRIDES) ;;
+    DISPLAY|GAMESCOPE_WAYLAND_DISPLAY) ;;
     *) unset "$v" 2>/dev/null ;;
   esac
 done
 export PATH=/system/bin:/system/xbin
-export HOME=$COMPAT WINEPREFIX=$COMPAT/pfx TMPDIR=$ROOTFS/tmp LANG=en_US.UTF-8 DISPLAY=:0
+# DISPLAY: the X server Steam gives games. DroidDeck's gamescope runs two (Steam's UI on :0, games on
+# STEAM_GAME_DISPLAY_0), so Steam's menus do not take X focus from the game.
+export HOME=$COMPAT WINEPREFIX=$COMPAT/pfx TMPDIR=$ROOTFS/tmp LANG=en_US.UTF-8 DISPLAY=${DISPLAY:-:0}
 # Proton's user name: the same C:\users\steamuser (saves, settings) as DroidDeck-Proton in a shared prefix
 export USER=steamuser LOGNAME=steamuser
 
@@ -43,7 +46,7 @@ echo "driver $DRVDIR"
 RTD=$APP/.wayland-rt
 export VK_ICD_FILENAMES=$PACK/adapter/icd.json ADRENOTOOLS_DRIVER_PATH=$DRVDIR/ ADRENOTOOLS_HOOKS_PATH=$PACK/lib
 export ADRENOTOOLS_DRIVER_NAME=libvulkan_freedreno.so
-export VK_ADD_IMPLICIT_LAYER_PATH=$PACK/layer ENABLE_GAMESCOPE_WSI=1 GAMESCOPE_WAYLAND_DISPLAY=gamescope-0
+export VK_ADD_IMPLICIT_LAYER_PATH=$PACK/layer ENABLE_GAMESCOPE_WSI=1 GAMESCOPE_WAYLAND_DISPLAY=${GAMESCOPE_WAYLAND_DISPLAY:-gamescope-0}
 export XDG_RUNTIME_DIR=$RTD DROIDDECK_WSI_BYPASS_CHECK_MS=100 GAMESCOPE_WSI_FORCE_BYPASS=1
 [ -e "$RTD/droiddeck-gamescope-limiter" ] && export GAMESCOPE_LIMITER_FILE=$RTD/droiddeck-gamescope-limiter
 
@@ -155,7 +158,8 @@ WP=$!
 # never shows them.
 GT=
 if [ "${SteamAppId:-0}" != 0 ]; then
-  "$LINKER" "$PACK/bin/gstag" 0 "$SteamAppId" .exe 86400 > "$COMPAT/gstag.log" 2>&1 &
+  XD=${DISPLAY#*:}; XD=${XD%%.*}
+  "$LINKER" "$PACK/bin/gstag" "${XD:-0}" "$SteamAppId" .exe 86400 > "$COMPAT/gstag.log" 2>&1 &
   GT=$!
 fi
 trap 'echo "$(date +%H:%M:%S) stopped by Steam"; [ -n "$GT" ] && kill $GT 2>/dev/null; stop_wine; exit 0' TERM INT HUP
