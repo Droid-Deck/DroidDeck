@@ -90,7 +90,9 @@ void main() {
 
     float diagonalStrength = min(vertical, horizontal);
     float diagonalPattern = smoothstep(threshold, threshold * 2.5, diagonalStrength);
-    float diagonalFallback = 0.16 * diagonalPattern * edgeConfidence * cornerFactor;
+    float diagonalContinuity = smoothstep(1.0, 3.0, span);
+    float diagonalFallback = 0.16 * diagonalPattern * edgeConfidence
+        * cornerFactor * diagonalContinuity * crossingPattern;
 
     float weight = clamp(max(baseWeight, diagonalFallback), 0.0, 0.42);
     vec3 across = texture(InputTexture, uv + normal * px).rgb;
