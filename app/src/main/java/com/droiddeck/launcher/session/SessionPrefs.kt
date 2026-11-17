@@ -1500,7 +1500,7 @@ object SessionPrefs {
     }
 
     val upscalerChoices = listOf(
-        0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
+        2 to "Nearest", 0 to "Linear", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
     )
 
