@@ -29,6 +29,7 @@ static const char *ctl;
 static size_t size, page;
 static volatile int stop;
 static unsigned char *shared;
+static unsigned char *probe_page;
 static volatile sig_atomic_t urg_tid;
 static volatile sig_atomic_t usr_tid;
 static int urg_count, usr_count;
@@ -91,18 +92,34 @@ static void wait_ack(void) {
   exit(5);
 }
 
+static int probe_swapped(void) {
+  if (!probe_page) return 0;
+  int fd = open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return 0;
+  uint64_t entry = 0;
+  off_t offset = (off_t)((uintptr_t)probe_page / page * sizeof(uint64_t));
+  int swapped = pread(fd, &entry, sizeof(entry), offset) == (ssize_t)sizeof(entry) &&
+                (entry & (1ULL << 62)) != 0;
+  close(fd);
+  return swapped;
+}
+
 static void wait_read_back(long before_swap) {
   long limit = before_swap / 4;
   for (int i = 0; i < 1200; i++) {
     long now = status("VmSwap:");
-    if (before_swap <= 0 || (now >= 0 && now < limit)) return;
+    if (!probe_swapped() && (before_swap <= 0 || (now >= 0 && now < limit))) return;
     usleep(10000);
   }
   exit(15);
 }
 
 static void request(char mode) {
-  long before_swap = mode == '0' ? status("VmSwap:") : 0;
+  long before_swap = 0;
+  if (mode == '0') {
+    if (probe_page) madvise(probe_page, page, 21);
+    before_swap = status("VmSwap:");
+  }
   send_request(mode);
   if (mode == '1') {
     wait_ack();
@@ -141,6 +158,8 @@ int main(int argc, char **argv) {
   uint64_t before = sum(data, size);
   shared = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   memset(shared, 0, size);
+  probe_page = mmap(NULL, page, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  memset(probe_page, 0x3c, page);
   pthread_t t[2];
   for (uintptr_t i = 0; i < 2; i++) pthread_create(&t[i], NULL, writer, (void *)i);
   struct sigaction sa;

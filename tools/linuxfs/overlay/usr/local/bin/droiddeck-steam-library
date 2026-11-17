@@ -69,7 +69,11 @@ def installdirs(libraries):
             except OSError:
                 continue
             if m:
-                found.add(m.group(1).replace('\\"', '"').replace("\\\\", "\\"))
+                raw = m.group(1)
+                found.add(raw)
+                unescaped = raw.replace('\\"', '"').replace("\\\\", "\\")
+                if unescaped != raw and os.path.isdir(os.path.join(library, "steamapps", "common", unescaped)) and not os.path.isdir(os.path.join(library, "steamapps", "common", raw)):
+                    found.add(unescaped)
     return found
 
 

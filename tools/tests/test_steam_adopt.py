@@ -46,6 +46,7 @@ class AdoptTest(unittest.TestCase):
             51: record("Game", "Twin", "Twin Two"),
             60: record("Game", 'Game "Special"', 'Game "Special"'),
             70: record("Game", r"A\B", "Backslash Game"),
+            71: record("Game", r"A\\B", "Double Backslash Game"),
         })
         for patcher in (patch.object(library, "BIN_DIR", str(BIN)),
                         patch("builtins.print")):
@@ -136,6 +137,14 @@ class AdoptTest(unittest.TestCase):
         self.assertEqual(self.adopt(), 0)
         self.assertEqual({n: self.manifest(n).read_text() for n in (10, 20, 60, 70)}, first)
         self.assertEqual(list(self.steam.glob("steamapps/appmanifest_*")), [])
+
+    def test_legacy_unquoted_backslash_manifest_does_not_hide_distinct_folder(self):
+        self.folder(r"A\B")
+        self.folder(r"A\\B")
+        self.manifest(71).write_text('"AppState"\n{\n\t"appid"\t"71"\n\t"installdir"\t"A\\\\B"\n}\n')
+        self.assertEqual(self.adopt(), 1)
+        self.assertTrue(self.manifest(70).exists())
+        self.assertTrue(self.manifest(71).exists())
 
     def test_main_adopts_every_registered_library(self):
         self.folder("Beta")

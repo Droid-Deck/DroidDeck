@@ -115,11 +115,14 @@ def main():
     description = "APK source validation failed"
     target = f"https://github.com/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
     superseded = False
+    refreshed = not bool(pr_number)
 
     def refresh_pr():
-        nonlocal pr, state, description, target, superseded
+        nonlocal pr, state, description, target, superseded, refreshed
         if not pr_number:
+            refreshed = True
             return True
+        refreshed = False
         pr = api(f"repos/{repo}/pulls/{pr_number}")
         if pr["state"] != "open" or pr["head"]["sha"] != sha:
             superseded = True
@@ -129,6 +132,7 @@ def main():
             state = "failure"
             description = "APK source validation failed"
             target = f"https://github.com/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+        refreshed = True
         return True
 
     try:
@@ -141,13 +145,13 @@ def main():
             raise RuntimeError("\n".join(errors))
         print(f"Source and metadata validated for {len(commits)} commits")
         if pr and documentation_only(sha):
-            state = "success"
-            description = "Source validated; no APK source changes"
             if pr_number and not refresh_pr():
                 print("Ignoring a superseded or closed pull request event")
                 return
-            if state == "failure":
+            if state == "failure" and pr and event_violations({"pull_request": pr}):
                 raise RuntimeError("\n".join(event_violations({"pull_request": pr})))
+            state = "success"
+            description = "Source validated; no APK source changes"
             return
         query = urlencode({"head_sha": sha, "event": source_event, "per_page": 20})
         runs = api(f"repos/{repo}/actions/workflows/build.yml/runs?{query}")["workflow_runs"]
@@ -155,23 +159,39 @@ def main():
         if runs:
             latest = max(runs, key=lambda item: item["id"])
             jobs = api(f"repos/{repo}/actions/runs/{latest['id']}/jobs?per_page=100")["jobs"]
-            state = compilation_state(latest, jobs)
-            target = latest["html_url"]
+            next_state = compilation_state(latest, jobs)
+            next_target = latest["html_url"]
         else:
-            state = "pending"
-        description = {"pending": "Source validated; awaiting APK compilation",
-                       "success": "Source validation and APK compilation passed",
-                       "failure": "APK compilation failed"}[state]
+            next_state = "pending"
+            next_target = target
+        next_description = {"pending": "Source validated; awaiting APK compilation",
+                            "success": "Source validation and APK compilation passed",
+                            "failure": "APK compilation failed"}[next_state]
         if pr_number and not refresh_pr():
             print("Ignoring a superseded or closed pull request event")
             return
-        if state == "failure" and description == "APK source validation failed":
+        if pr and event_violations({"pull_request": pr}):
             raise RuntimeError("\n".join(event_violations({"pull_request": pr})))
+        state = next_state
+        target = next_target
+        description = next_description
     finally:
-        if not superseded and not (pr_number and state == "failure" and not refresh_pr()):
+        if pr_number and not refreshed and not superseded:
+            try:
+                refresh_pr()
+            except Exception:
+                state = "failure"
+                description = "APK source validation failed"
+                target = f"https://github.com/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+        if not superseded and (state != "success" or refreshed):
             for attempt in range(3):
-                if attempt > 0 and pr_number and not refresh_pr():
-                    break
+                if attempt > 0 and pr_number:
+                    try:
+                        if not refresh_pr():
+                            break
+                    except Exception:
+                        if state == "success":
+                            break
                 post_args = ["--method", "POST", "-f", "context=Build APK", "-f", f"state={state}",
                              "-f", f"description={description}", "-f", f"target_url={target}"]
                 try:
