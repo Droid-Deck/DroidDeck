@@ -1697,6 +1697,18 @@ class GameEnvironmentTest(unittest.TestCase):
                 config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
                 self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
 
+    def test_kcd2_runs_at_feature_level_12_0_by_app_id_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Bin/Win64MasterMasterSteamPGO/KingdomCome.exe"
+            exe.parent.mkdir(parents=True)
+            exe.touch()
+            env, extra, notes = MODULE["engine_fixes"](str(exe), [], "1771300")
+            self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_0"})
+            self.assertTrue(notes)
+            config = {"version": 1, "shared": {}, "games": {"1771300": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "1771300", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+            self.assertEqual(MODULE["engine_fixes"](str(exe), [], "42")[0], {})
+
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             def game(*names):
