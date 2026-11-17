@@ -638,7 +638,7 @@ def apply_config(env, config, app_id, fixes=None):
             if name not in game and name in result:
                 result.pop(name)
                 result["DROIDDECK_VKD3D_CAPS"] = "driver"
-    return result
+    return game_gpu(result)
 
 
 def render_path_defaults(command, env):

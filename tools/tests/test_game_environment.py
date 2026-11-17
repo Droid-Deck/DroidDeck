@@ -1093,6 +1093,11 @@ class GameEnvironmentTest(unittest.TestCase):
         env = gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": ""})
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
+        config = {"version": 1, "games": {"42": {"DROIDDECK_GAME_TU_DEBUG": "gmem"}, "43": {"DROIDDECK_GAME_TU_DEBUG": ""}}}
+        applied = MODULE["apply_config"]({"TU_DEBUG": "sysmem"}, config, "42")
+        self.assertEqual((applied["TU_DEBUG"], "DROIDDECK_GAME_TU_DEBUG" in applied), ("gmem", False))
+        applied = MODULE["apply_config"]({"TU_DEBUG": "sysmem"}, config, "43")
+        self.assertEqual(("TU_DEBUG" in applied, "DROIDDECK_GAME_TU_DEBUG" in applied), (False, False))
 
     def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
         gpu = MODULE["game_gpu"]
