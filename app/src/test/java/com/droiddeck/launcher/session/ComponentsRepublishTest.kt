@@ -48,6 +48,15 @@ class ComponentsRepublishTest {
         assertEquals(fex, ComponentsManager.gameComponents(context, scope)["fex"])
     }
 
+    @Test fun aGameFexChoiceSkipsDroidDeckBionic() {
+        proton("DroidDeck-Proton 11-12.8", "DroidDeck-Proton-11-12.8")
+        proton("DroidDeck-Bionic-12.8-r6", "DroidDeck-Bionic-12.8-r6")
+        packageFile()
+        ComponentsManager.setGameComponent(context, scope, "fex", fex)
+        assertEquals(setOf("DroidDeck-Proton 11-12.8"), scopedTools())
+        assertTrue(rows().none { it[1] == "DroidDeck-Bionic-12.8-r6" && it[3] == "fex" })
+    }
+
     @Test fun nothingIsRewrittenWhileTheToolsAreUnchanged() {
         proton("DroidDeck-Proton 11-11.8", "DroidDeck-Proton-11-11.8")
         packageFile()

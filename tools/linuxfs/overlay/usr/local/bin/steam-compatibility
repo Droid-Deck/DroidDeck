@@ -186,6 +186,8 @@ bl_components() {
     # The selected system PowerVR runtime supplies DXVK at launch. Keep saved selections
     # for a later manual-driver session without rewriting this Proton's bundled files now.
     [ "$comp" = dxvk ] && [ -n "${DROIDDECK_POWERVR_RUNTIME:-}" ] && continue
+    # DroidDeck-Bionic carries Android-built FEX unix libraries; FEX packages are glibc builds.
+    [ "$comp" = fex ] && [[ "$cm_tool" == DroidDeck-Bionic* ]] && continue
     cm_rows+=("$comp"$'\\t'"$rel"$'\\t'"$sum"$'\\t'"$src")
     [ "$src" != "-" ] && [ -f "$base/$rel" ] && cm_files+=("$base/$rel")
   done <<< "$cm_selected"

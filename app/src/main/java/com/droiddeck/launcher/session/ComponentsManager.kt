@@ -620,6 +620,7 @@ object ComponentsManager {
         }
         val active = state.sub("active")
         for (p in all) for (comp in COMPONENTS) {
+            if (comp == "fex" && !fexManaged(p)) continue
             val entry = active.optJSONObject(p.id)?.optJSONObject(comp)
             val selected = entry?.takeIf { it.optString("protonVersion") == p.version }?.let { choice(p, comp, it) }
             if (selected != null) append("*", p, comp, selected.first, selected.second)
@@ -638,7 +639,7 @@ object ComponentsManager {
                 val wcp = File(packagesDir(context), file)
                 if (!wcp.isFile) continue
                 val key = safeName(file.removeSuffix(".wcp"))
-                for (p in all) append(scope, p, comp, key, wcp)
+                for (p in all) if (comp != "fex" || fexManaged(p)) append(scope, p, comp, key, wcp)
             }
         }
         return PreparedLaunchState(lines.toString(), keep)
@@ -1127,8 +1128,10 @@ object ComponentsManager {
     }
 
     // DroidDeck-Bionic carries Android-built FEX unix libraries; the FEX packages here are glibc builds.
+    private fun fexManaged(p: Proton): Boolean = !p.dir.name.startsWith("DroidDeck-Bionic")
+
     fun supports(p: Proton, comp: String): Boolean =
-        if (comp == "fex") File(p.dir, FEX_FILES.first()).isFile && !p.dir.name.startsWith("DroidDeck-Bionic") else File(p.dir, "${COMP_DIR.getValue(comp)}/aarch64-windows").isDirectory
+        if (comp == "fex") File(p.dir, FEX_FILES.first()).isFile && fexManaged(p) else File(p.dir, "${COMP_DIR.getValue(comp)}/aarch64-windows").isDirectory
 
     fun hardwareDxvk(context: Context): Boolean =
         runtimeManaged(context, "dxvk") || FORCED_PACKAGES.any { it.comp == "dxvk" && it.matches(GpuInfo.detect()) } ||
