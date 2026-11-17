@@ -48,12 +48,27 @@ object FlatpakData {
 
     internal fun internalDir(context: Context, id: String) = File(LinuxRuntime.rootDir(context), "$HOST/$id")
 
-    fun binds(context: Context, writable: (File) -> Boolean = { it.canWrite() }): List<String> = synchronized(lock) {
+    fun binds(
+        context: Context,
+        unmark: (String) -> Boolean = { SessionPrefs.setFlatpakDataMoving(context, it, false) },
+        writable: (File) -> Boolean = { it.canWrite() },
+    ): List<String> = synchronized(lock) {
         pins(context).toSortedMap().flatMap { (id, storage) ->
-            bind(context, id, storage, writable).also {
-                if (it.isEmpty()) SessionPrefs.setFlatpakDataMoving(context, marker(id, internalDir(context, id)), false)
-            }
+            bind(context, id, storage, writable).ifEmpty { internalSession(context, id, unmark) }
         }
+    }
+
+    private fun internalSession(context: Context, id: String, unmark: (String) -> Boolean): List<String> {
+        val internal = internalDir(context, id)
+        val marker = marker(id, internal)
+        if (marker !in SessionPrefs.flatpakDataMoving(context) || unmark(marker)) return emptyList()
+        Log.w(TAG, "$id: the move-back journal could not be cleared; the session gets an empty data folder")
+        val scratch = File(internal.parentFile, ".${internal.name}.unsaved")
+        if (!remove(scratch) || !scratch.mkdirs()) {
+            Log.w(TAG, "$id: the empty data folder could not be prepared")
+            return emptyList()
+        }
+        return listOf("${scratch.path}:$GUEST/$id")
     }
 
     private fun bind(context: Context, id: String, storage: File, writable: (File) -> Boolean): List<String> {
@@ -64,7 +79,7 @@ object FlatpakData {
         val card = cardIn(storage, id)
         val guest = internalDir(context, id)
         val kept = File(guest, KEPT)
-        if (isLink(card) || isLink(guest)) {
+        if (linked(card) || linked(guest)) {
             Log.w(TAG, "$id: a data folder is a symbolic link; internal this session")
             return emptyList()
         }
@@ -103,7 +118,7 @@ object FlatpakData {
         val marker = marker(id, to)
         val placed = ArrayList<File>()
         try {
-            if (isLink(to) || hasSymlink(from)) return@synchronized context.getString(R.string.store_data_symlinks)
+            if (linked(to) || linked(from) || hasSymlink(from)) return@synchronized context.getString(R.string.store_data_symlinks)
             if (!to.isDirectory && !to.mkdirs()) throw IOException("could not create ${to.path}")
             if (card.exists() && !writable(card)) throw IOException("${card.path} is read-only")
             purge(from)
@@ -203,6 +218,8 @@ object FlatpakData {
     private fun walk(top: File) = top.walkTopDown().onFail { _, e -> throw e }
 
     private fun isLink(dir: File) = Files.isSymbolicLink(dir.toPath())
+
+    private fun linked(dir: File) = isLink(dir) || dir.parentFile?.let(::isLink) == true
 
     internal fun hasSymlink(dir: File): Boolean =
         isLink(dir) || entries(dir).any { top -> walk(top).any { Files.isSymbolicLink(it.toPath()) } }

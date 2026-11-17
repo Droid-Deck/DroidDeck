@@ -871,11 +871,15 @@ class SessionService : Service() {
             }
             return
         }
-        guestLaunch.end()
         if (pid > 1) {
-            raiseTracer(pid, gen)
-            SessionEvents.guestStarted(pid)
+            try {
+                raiseTracer(pid, gen)
+                SessionEvents.guestStarted(pid)
+            } finally {
+                guestLaunch.end()
+            }
         } else {
+            guestLaunch.end()
             SessionEvents.record("guest.start_failed", mapOf("pid" to pid))
             failSession(gen, "GUEST_START_FAILED", "The guest process could not be started", pid)
             stopSession(-1, gen)

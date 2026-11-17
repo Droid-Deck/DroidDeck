@@ -458,4 +458,65 @@ class FlatpakDataTest {
         assertEquals(setOf(id), FlatpakData.enabled(app))
         assertEquals(1000, File(cardFolder(), ".srb2kart/addons/map.pk3").length())
     }
+
+    @Test fun aSymlinkAtTheCardDataParentIsNeverBoundAndRefusesTheMoveBack() {
+        seed()
+        assertNull(move(id, true))
+        val parent = File(card, "flatpak-data")
+        val real = File(tmp.newFolder("redirected"), "flatpak-data")
+        assertTrue(parent.renameTo(real))
+        Files.createSymbolicLink(parent.toPath(), real.toPath())
+        assertTrue(FlatpakData.binds(app).isEmpty())
+        assertEquals(app.getString(R.string.store_data_symlinks), move(id, false))
+        assertEquals(1000, File(real, "$id/.srb2kart/addons/map.pk3").length())
+        assertEquals(setOf(id), FlatpakData.enabled(app))
+    }
+
+    @Test fun aSymlinkAtTheCardDataParentRefusesTheMoveToTheCard() {
+        seed()
+        val real = File(tmp.newFolder("redirected"), "flatpak-data").apply { mkdirs() }
+        Files.createSymbolicLink(File(card, "flatpak-data").toPath(), real.toPath())
+        assertEquals(app.getString(R.string.store_data_symlinks), move(id, true))
+        assertTrue(real.list()!!.isEmpty())
+        assertEquals(1000, File(FlatpakData.internalDir(app, id), ".srb2kart/addons/map.pk3").length())
+        assertTrue(FlatpakData.enabled(app).isEmpty())
+    }
+
+    @Test fun aSymlinkAtTheInternalDataParentRefusesTheMove() {
+        seed()
+        val appDir = FlatpakData.internalDir(app, id).parentFile!!
+        val real = File(tmp.newFolder("redirected"), "app")
+        assertTrue(appDir.renameTo(real))
+        Files.createSymbolicLink(appDir.toPath(), real.toPath())
+        assertEquals(app.getString(R.string.store_data_symlinks), move(id, true))
+        assertEquals(1000, File(real, "$id/.srb2kart/addons/map.pk3").length())
+        assertTrue(FlatpakData.enabled(app).isEmpty())
+    }
+
+    @Test fun aJournalThatCannotBeClearedGivesTheSessionAnEmptyFolderInsteadOfInternalData() {
+        seed()
+        assertNull(move(id, true))
+        val internal = FlatpakData.internalDir(app, id)
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, FlatpakData.marker(id, internal), true))
+        File(internal, "partial.bin").writeText("half")
+        pinTo(gone)
+        val binds = FlatpakData.binds(app, unmark = { false })
+        assertEquals(1, binds.size)
+        val scratch = binds.single().substringBefore(":")
+        assertNotEquals(internal.path, scratch)
+        assertTrue(binds.single().endsWith(":/root/.var/app/$id"))
+        assertTrue(File(scratch).list()!!.isEmpty())
+        assertEquals("half", File(internal, "partial.bin").readText())
+        assertTrue(SessionPrefs.flatpakDataMoving(app).contains(FlatpakData.marker(id, internal)))
+    }
+
+    @Test fun aClearedJournalLetsTheSessionUseInternalData() {
+        seed()
+        assertNull(move(id, true))
+        val internal = FlatpakData.internalDir(app, id)
+        assertTrue(SessionPrefs.setFlatpakDataMoving(app, FlatpakData.marker(id, internal), true))
+        pinTo(gone)
+        assertTrue(FlatpakData.binds(app).isEmpty())
+        assertTrue(SessionPrefs.flatpakDataMoving(app).isEmpty())
+    }
 }
