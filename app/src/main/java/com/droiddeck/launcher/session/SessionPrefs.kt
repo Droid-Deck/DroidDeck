@@ -288,14 +288,14 @@ object SessionPrefs {
 
     fun savedFpsLimit(context: Context, game: String?): Int {
         val p = prefs(context)
-        if (game != null && p.contains("fpsLimit.game.$game")) return p.getInt("fpsLimit.game.$game", 0).coerceAtLeast(0)
+        if (game != null && p.contains("fpsLimit.game.$game")) return p.getInt("fpsLimit.game.$game", 0)
         return p.getInt("fpsLimit.all", 0)
     }
 
     fun fpsLimitScope(context: Context, game: String?): String {
         val p = prefs(context)
         return when {
-            game != null && p.contains("fpsLimit.game.$game") -> if (p.getInt("fpsLimit.game.$game", 0) < 0) SCOPE_SESSION else SCOPE_GAME
+            game != null && p.contains("fpsLimit.game.$game") -> SCOPE_GAME
             p.contains("fpsLimit.all") -> SCOPE_ALL
             else -> SCOPE_SESSION
         }
@@ -306,11 +306,7 @@ object SessionPrefs {
         when (scope) {
             SCOPE_GAME -> if (game != null) e.putInt("fpsLimit.game.$game", fps)
             SCOPE_ALL -> { e.putInt("fpsLimit.all", fps); if (game != null) e.remove("fpsLimit.game.$game") }
-            else -> when {
-                game == null -> e.remove("fpsLimit.all")
-                prefs(context).contains("fpsLimit.all") -> e.putInt("fpsLimit.game.$game", -1)
-                else -> e.remove("fpsLimit.game.$game")
-            }
+            else -> if (game == null) e.remove("fpsLimit.all") else e.remove("fpsLimit.game.$game")
         }
         e.apply()
     }

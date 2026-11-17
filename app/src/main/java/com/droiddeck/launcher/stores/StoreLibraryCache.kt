@@ -14,7 +14,10 @@ internal object StoreLibraryCache {
         return runCatching { decode(store, f.readText()) }.getOrNull()
     }
 
-    fun save(context: Context, store: Store, items: List<CatalogItem>) {
+    private val locks = Store.entries.associateWith { Any() }
+
+    fun save(context: Context, store: Store, items: List<CatalogItem>, current: () -> Boolean) = synchronized(locks.getValue(store)) {
+        if (!current()) return@synchronized
         val f = file(context, store)
         runCatching {
             f.parentFile?.mkdirs()
@@ -24,7 +27,7 @@ internal object StoreLibraryCache {
         }
     }
 
-    fun clear(context: Context, store: Store) {
+    fun clear(context: Context, store: Store) = synchronized(locks.getValue(store)) {
         file(context, store).delete()
     }
 

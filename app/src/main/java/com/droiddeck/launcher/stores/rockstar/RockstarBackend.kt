@@ -167,7 +167,10 @@ object RockstarLibrary {
             val cached = StoreLibraryCache.load(app, Store.ROCKSTAR)
             post(gen) {
                 if (StoresState.library[Store.ROCKSTAR] == null) {
-                    if (cached != null) StoresState.library[Store.ROCKSTAR] = cached
+                    if (cached != null) {
+                        StoresState.library[Store.ROCKSTAR] = cached
+                        StoresState.shelves[Store.ROCKSTAR]?.let { StoresState.shelves[Store.ROCKSTAR] = StoreFront.markOwned(it, cached, RockstarCatalog::sameGame) }
+                    }
                     else StoresState.status[Store.ROCKSTAR] = app.getString(R.string.stores_sync_game_list)
                 }
             }
@@ -182,7 +185,7 @@ object RockstarLibrary {
                 StoresState.library[Store.ROCKSTAR] = games
                 StoresState.shelves[Store.ROCKSTAR]?.let { StoresState.shelves[Store.ROCKSTAR] = StoreFront.markOwned(it, games, RockstarCatalog::sameGame) }
             }
-            if (generation.get() == gen) StoreLibraryCache.save(app, Store.ROCKSTAR, games)
+            StoreLibraryCache.save(app, Store.ROCKSTAR, games) { generation.get() == gen }
             StoresState.logLine("Rockstar: ${games.size} owned games")
         } catch (e: Exception) {
             StoresState.logLine("Rockstar: library sync failed: ${e.javaClass.simpleName} ${e.message.orEmpty().take(300)}")

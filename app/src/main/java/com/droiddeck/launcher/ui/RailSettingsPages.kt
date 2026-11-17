@@ -101,7 +101,7 @@ internal fun EditTabsSheet(s: FrontEndState, a: FrontEndActions) {
                 LaunchedEffect(Unit) {
                     repeat(60) {
                         androidx.compose.runtime.withFrameNanos { }
-                        if (holds) return@LaunchedEffect
+                        if (holds || !MoreTabs.editing) return@LaunchedEffect
                         if (openInput.inputMode != androidx.compose.ui.input.InputMode.Keyboard) openInput.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard)
                         runCatching { inside.requestFocus() }
                     }

@@ -504,8 +504,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var fpsLimit by mutableStateOf(SessionState.fpsLimit)
     private var fpsLimitScope by mutableStateOf(SessionPrefs.SCOPE_SESSION)
     private var cornerTap by mutableStateOf(false)
-    private fun fpsLimitGameKey(): String? = if (SessionState.mode == SessionService.MODE_RUN)
-        (SessionState.gameId ?: intent.getStringExtra(SessionService.EXTRA_GAME_ID))?.takeIf { it.isNotBlank() } else null
+    private fun fpsLimitGameKey(): String? {
+        val mode = if (SessionState.running) SessionState.mode else intent.getStringExtra(SessionService.EXTRA_MODE)
+        if (mode != SessionService.MODE_RUN) return null
+        val id = if (SessionState.running) SessionState.gameId else intent.getStringExtra(SessionService.EXTRA_GAME_ID)?.trim()
+        return id?.takeIf { it.isNotBlank() }
+    }
     private var blackFrameInsertion by mutableStateOf(false)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
@@ -1400,6 +1404,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             systemPowerVr = com.droiddeck.launcher.gpu.SystemVulkanDriver.usesDefault(
                 SessionPrefs.linuxDriver(this@SessionActivity)),
             direct = noSteamSession(),
+            nowPlaying = if (SessionState.mode == SessionService.MODE_STEAM) frameGenActiveGameName else null,
             title = if (SessionState.mode == SessionService.MODE_RUN)
                 com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_title_game) else null,
             isHomeApp = isHomeApp,
@@ -1626,7 +1631,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             fpsLimitForGame = fpsLimitGameKey() != null,
             onFpsLimitScope = { scope ->
                 SessionPrefs.saveFpsLimit(this@SessionActivity, scope, fpsLimitGameKey(), fpsLimit)
-                fpsLimitScope = SessionPrefs.fpsLimitScope(this@SessionActivity, fpsLimitGameKey())
+                fpsLimitScope = scope
             },
             cornerTap = cornerTap,
             onCornerTap = { on -> SessionPrefs.setDrawerCornerTap(this@SessionActivity, on); cornerTap = on },

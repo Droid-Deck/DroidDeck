@@ -642,7 +642,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         RailRequest.key = null
     }
     LaunchedEffect(SetupTabs.openSection) {
-        if (SetupTabs.openSection != null && railSelection != "setup") showRailPage("setup", true)
+        if (SetupTabs.openSection != null && (railSelection != "setup" || s.pageKey != null)) showRailPage("setup", true)
     }
     val onRailFocus: (String) -> Unit = { key ->
         if (key != railSelection) showRailPage(key, false)

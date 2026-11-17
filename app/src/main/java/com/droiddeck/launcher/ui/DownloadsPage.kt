@@ -20,6 +20,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -33,6 +36,9 @@ internal object DownloadsNav {
 internal fun DownloadsPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     var settings by rememberSaveable { mutableStateOf(DownloadsNav.showSettings) }
     DownloadsNav.showSettings = false
+    var hostAt by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.drop() } }
+    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().onGloballyPositioned { hostAt = it.positionInRoot() }) {
     Column(modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         PageHeader(stringResource(R.string.stores_tab_downloads)) {
             Spacer(Modifier.weight(1f))
@@ -47,5 +53,15 @@ internal fun DownloadsPage(s: FrontEndState, a: FrontEndActions, modifier: Modif
             }
         }
         StoresDownloadsPane(s, a)
+    }
+    StoresMotion.step?.let { ask ->
+        androidx.compose.runtime.key(ask) {
+            StepOut(
+                open = StoresMotion.stepOpen, pill = ask.anchor.translate(-hostAt), preferredSide = ask.side, accent = ask.accent,
+                onDismiss = { StoresMotion.fold() }, onClosed = { StoresMotion.closed(ask) },
+                pillCorner = ask.pillCorner, maxWidth = ask.maxWidth, items = ask.items, handle = ask.handle, content = ask.content,
+            )
+        }
+    }
     }
 }

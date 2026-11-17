@@ -210,7 +210,10 @@ object UbisoftLibrary {
             val cached = StoreLibraryCache.load(app, Store.UBISOFT)
             post(gen) {
                 if (StoresState.library[Store.UBISOFT] == null) {
-                    if (cached != null) StoresState.library[Store.UBISOFT] = cached
+                    if (cached != null) {
+                        StoresState.library[Store.UBISOFT] = cached
+                        StoresState.shelves[Store.UBISOFT]?.let { StoresState.shelves[Store.UBISOFT] = StoreFront.markOwned(it, cached, UbisoftStore::sameGame) }
+                    }
                     else StoresState.status[Store.UBISOFT] = app.getString(R.string.stores_sync_game_list)
                 }
             }
@@ -248,7 +251,7 @@ object UbisoftLibrary {
                 StoresState.library[Store.UBISOFT] = games
                 StoresState.shelves[Store.UBISOFT]?.let { StoresState.shelves[Store.UBISOFT] = StoreFront.markOwned(it, games, UbisoftStore::sameGame) }
             }
-            if (generation.get() == gen) StoreLibraryCache.save(app, Store.UBISOFT, games)
+            StoreLibraryCache.save(app, Store.UBISOFT, games) { generation.get() == gen }
             StoresState.logLine("Ubisoft: ${games.size} owned games")
         } catch (e: Exception) {
             StoresState.logLine("Ubisoft: library sync failed: ${e.javaClass.simpleName} ${e.message.orEmpty().take(200)}")

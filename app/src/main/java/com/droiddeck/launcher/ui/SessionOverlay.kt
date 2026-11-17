@@ -215,6 +215,7 @@ class DrawerActions(
     val desktop: Boolean,
     val direct: Boolean = false,
     val title: String? = null,
+    val nowPlaying: String? = null,
     val isHomeApp: Boolean,
     val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
@@ -562,7 +563,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     if (!docked) StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
                 Text(
-                    (a.title ?: a.frameGenTargetGameName ?: if (a.steam) stringResource(R.string.rail_steam) else if (a.desktop) stringResource(R.string.rail_desktop) else null)
+                    (a.title ?: a.nowPlaying ?: if (a.steam) stringResource(R.string.rail_steam) else if (a.desktop) stringResource(R.string.rail_desktop) else null)
                         ?.let { stringResource(R.string.drawer_now_playing, it) + " · " + stringResource(R.string.drawer_now_live) }
                         ?: stringResource(R.string.drawer_now_live),
                     fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
