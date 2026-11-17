@@ -345,7 +345,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             pointerLocked = locked
             Log.i(TAG, "pointer lock " + if (locked) "taken by a program" else "released")
             if (locked) desktopGrabTaps = 0
-            if (evdevMouseOn) openEvdevMouse() else closeEvdevMouse()
+            refreshEvdevMouse()
             padMouseCheckedAt = 0L
             if (::padMouse.isInitialized) padMouseMode()
             if (locked && ::touchpad.isInitialized) {
@@ -1674,7 +1674,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onEvdevMouse = { on ->
                 SessionPrefs.setEvdevMouse(this@SessionActivity, on)
                 evdevMouseOn = on
-                if (on) { if (programLocksPointer()) openEvdevMouse() } else releaseEvdevMouse()
+                if (on) refreshEvdevMouse() else releaseEvdevMouse()
             },
             directCursor = directCursorOn,
             onDirectCursor = { on ->
@@ -2472,7 +2472,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         backDoubleTapMs = SessionPrefs.backDoubleTapMs(this)
         lowLatency = SessionPrefs.lowLatency(this)
         evdevMouseOn = SessionPrefs.evdevMouse(this)
-        if (!evdevMouseOn) releaseEvdevMouse()
+        if (evdevMouseOn) refreshEvdevMouse() else releaseEvdevMouse()
         directCursorOn = SessionPrefs.directCursor(this)
         padType = SessionPrefs.steamController(this)
     }
@@ -4614,6 +4614,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionState.outputSize.first / rect.width()
 
     // Clearing button owners emits releases, so backend transitions share their lock with all mouse writes.
+    private val evdevMouseRetry = Runnable { if (evdevMouseOn && !evdevMouseActive) openEvdevMouse() }
+
+    /**
+     * The raw channel writes into the guest's dev/input, which does not exist yet when the
+     * setting is restored before the session starts, so retry a couple of times after it opens.
+     */
+    private fun refreshEvdevMouse() {
+        uiHandler.removeCallbacks(evdevMouseRetry)
+        if (!evdevMouseOn) {
+            closeEvdevMouse()
+            return
+        }
+        openEvdevMouse()
+        uiHandler.postDelayed(evdevMouseRetry, 1500)
+        uiHandler.postDelayed(evdevMouseRetry, 5000)
+    }
+
     private fun openEvdevMouse(): Unit = synchronized(heldButtons) {
         if (evdevMouseActive || !evdevMouseOn) return
         val writer = mouseWriter ?: com.droiddeck.launcher.input.FakeInputWriter(
@@ -4637,6 +4654,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun releaseEvdevMouse(): Unit = synchronized(heldButtons) {
+        uiHandler.removeCallbacks(evdevMouseRetry)
+        capturedButtons = 0
         if (evdevMouseActive) heldButtons.clear()
         evdevMouseActive = false
         mouseWriter?.destroy()
@@ -4974,6 +4993,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 if (v != 0f) sendSceneWheel(-Math.round(v))
             }
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {
+                if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y, fromMouse = true)
                 val state = when {
                     event.buttonState != 0 -> event.buttonState
                     event.actionMasked == MotionEvent.ACTION_DOWN -> MotionEvent.BUTTON_PRIMARY
@@ -4981,6 +5001,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 }
                 syncHeldButtons(state)
             }
+            MotionEvent.ACTION_CANCEL -> syncHeldButtons(0)
             else -> return false
         }
         return true
@@ -5175,6 +5196,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 }
                 syncHeldButtons(state)
             }
+            MotionEvent.ACTION_CANCEL -> syncHeldButtons(0)
             else -> return false
         }
         return true
@@ -5384,6 +5406,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         mouseBackInput.cancel()
         cancelPen(releaseKey = true)
         heldButtons.release(1 or 2 or 8 or 16)
+        capturedButtons = 0
         guestKeysDown.toList().forEach { sendGuestKey(it, false) }
         heldKeys.release(8 or 16 or 32)
     }
