@@ -1111,6 +1111,9 @@ object SessionPrefs {
     fun detailedGraphicsLogs(context: Context): Boolean =
         prefs(context).getBoolean("detailedGraphicsLogs", false)
 
+    fun extendedLogs(context: Context): Boolean = prefs(context).getBoolean("extendedLogs", false)
+    fun setExtendedLogs(context: Context, on: Boolean) { prefs(context).edit().putBoolean("extendedLogs", on).apply() }
+
     fun setDetailedGraphicsLogs(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("detailedGraphicsLogs", on).apply()
     }
