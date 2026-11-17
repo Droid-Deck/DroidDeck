@@ -93,17 +93,15 @@ def capped_log(path, limit, mirror=False):
                     break
                 saved = chunk[:remaining]
                 remaining -= len(saved)
-                if not saved:
-                    continue
-                try:
-                    handle.write(saved)
-                    handle.flush()
-                except (OSError, ValueError):
-                    remaining = 0
-                    continue
+                if saved:
+                    try:
+                        handle.write(saved)
+                        handle.flush()
+                    except (OSError, ValueError):
+                        remaining = 0
                 if mirror_ok:
                     try:
-                        sys.stderr.write(saved.decode("utf-8", "replace"))
+                        sys.stderr.write(chunk.decode("utf-8", "replace"))
                         sys.stderr.flush()
                     except (OSError, ValueError):
                         mirror_ok = False

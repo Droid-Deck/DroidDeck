@@ -71,6 +71,20 @@ class DesktopProgramDiagnosticsTest(unittest.TestCase):
             self.assertFalse(thread.is_alive())
             self.assertEqual(path.read_bytes(), b"x" * 1024)
 
+    def test_capped_log_continues_mirroring_after_file_limit_and_survives_mirror_errors(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "mirrored.log"
+            mirrored = io.StringIO()
+            with contextlib.redirect_stderr(mirrored):
+                output, thread = DEBUG["capped_log"](str(path), 4, mirror=True)
+                try:
+                    os.write(output, b"abcdef")
+                finally:
+                    os.close(output)
+                    thread.join(timeout=2)
+            self.assertEqual(path.read_bytes(), b"abcd")
+            self.assertEqual(mirrored.getvalue(), "abcdef")
+
     def test_desktop_logs_have_unique_names_and_a_hard_byte_limit(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stderr(io.StringIO()):
             env = {"DROIDDECK_DESKTOP_PROGRAM": "managed.exe", "BL_DEBUG_DIR": folder}
