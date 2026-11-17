@@ -6,6 +6,7 @@ import com.droiddeck.launcher.input.InputSurfaceElement
 import com.droiddeck.launcher.input.OnScreenLayout
 import com.droiddeck.launcher.input.SavedInputLayout
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -13,8 +14,9 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE)
+@Config(sdk = [34], application = android.app.Application::class)
 class InputSurfaceEditorViewTest {
+    @get:Rule val compose = createRobolectricComposeRule()
     private val context get() = RuntimeEnvironment.getApplication()
     private val layout = SavedInputLayout("custom", "Custom", listOf(InputSurfaceElement(InputControl.A, .1f, .2f, .2f, .2f)), aspect = 2f)
 
