@@ -17,10 +17,13 @@ object SessionLogCapture {
     private var writer: BufferedWriter? = null
     private var target: File? = null
     private var syncer: Thread? = null
+    internal var capture = 0
+        private set
 
     @Synchronized
     fun start(target: File, sinceMillis: Long) {
         stop()
+        val own = ++capture
         try {
             val out = target.bufferedWriter()
             out.write("The app's own log for this session (logcat, this process only).\n")
@@ -31,14 +34,7 @@ object SessionLogCapture {
             pid = HostProcess.start(
                 command(Process.myPid(), sinceMillis),
                 null, target.parentFile, null,
-            ) { line ->
-                synchronized(this) {
-                    try {
-                        writer?.apply { write(line); newLine(); flush() }
-                    } catch (e: Exception) {
-                    }
-                }
-            }
+            ) { line -> append(own, line) }
             if (pid == -1) {
                 out.write("logcat could not be started; this ROM may not hand an app its own entries.\n")
                 out.flush()
@@ -47,6 +43,16 @@ object SessionLogCapture {
             Log.i(TAG, "app log -> $target (logcat pid $pid)")
         } catch (e: Exception) {
             Log.w(TAG, "could not start the app log", e)
+        }
+    }
+
+    @Synchronized
+    internal fun append(owner: Int, line: String) {
+        // A replaced logcat can still deliver a line it read before it was killed.
+        if (owner != capture) return
+        try {
+            writer?.apply { write(line); newLine(); flush() }
+        } catch (e: Exception) {
         }
     }
 
