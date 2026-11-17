@@ -29,7 +29,7 @@
     <string name="input_element_dpad">Хрестовина</string>
     <string name="input_element_trigger">Тригер</string>
     <string name="input_editor_done">Готово</string>
-    <string name="input_editor_undo">Скасувати</string>
+    <string name="input_editor_undo">Скасувати дію</string>
     <string name="input_editor_add">+ Додати</string>
     <string name="input_editor_hint">Перетягніть, щоб перемістити. Потягніть за кут, щоб змінити розмір. Торкніться «Властивості», щоб призначити дію.</string>
     <string name="input_editor_remote">Редагування на другому екрані</string>

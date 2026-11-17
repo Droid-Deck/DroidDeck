@@ -112,6 +112,40 @@ class BwrapSpawnerPlanTest {
         .put("cwd", "/app")
         .put("ops", JSONArray().apply { ops.forEach { put(it) } })
 
+    @Test fun desktopSandboxesGetTheRuntimeGpuWithoutReplacingExplicitChoices() {
+        val lib = File(runtime, "usr/lib/aarch64-linux-gnu/libvulkan_freedreno.so")
+        lib.parentFile!!.mkdirs()
+        lib.writeText("")
+        val root = File(dir, "root").apply { mkdirs() }
+        for (session in listOf(emptyMap(), mapOf("BL_DESKTOP" to "1"),
+            mapOf("BL_DESKTOP" to "1", "GALLIUM_DRIVER" to "zink", "MESA_LOADER_DRIVER_OVERRIDE" to "zink"))) {
+            val env = session.toMutableMap()
+            val binds = BwrapSpawner.gpu(runtime.path, root, env, true)!!
+            assertTrue(binds.any { it.host == lib.canonicalPath && it.guest == "/run/droiddeck-gpu/libvulkan_freedreno.so" })
+            assertEquals("/run/droiddeck-gpu/freedreno_icd.json", env["VK_DRIVER_FILES"])
+            assertEquals("zink", env["GALLIUM_DRIVER"])
+            assertEquals(session["BL_DESKTOP"], env["BL_DESKTOP"])
+        }
+        for (choice in listOf(mapOf("VK_DRIVER_FILES" to "/custom/icd.json"),
+            mapOf("VK_ICD_FILENAMES" to ""), mapOf("LIBGL_ALWAYS_SOFTWARE" to "1"))) {
+            val env = (choice + ("BL_DESKTOP" to "1")).toMutableMap()
+            val original = env.toMap()
+            assertEquals(null, BwrapSpawner.gpu(runtime.path, root, env, true))
+            assertEquals(original, env)
+        }
+        val env = mutableMapOf("BL_DESKTOP" to "1", "GALLIUM_DRIVER" to "llvmpipe")
+        assertTrue(BwrapSpawner.gpu(runtime.path, root, env, true)!!.isNotEmpty())
+        assertEquals("llvmpipe", env["GALLIUM_DRIVER"])
+        val gamescope = mutableMapOf("BL_DESKTOP" to "1", "LIBGL_ALWAYS_SOFTWARE" to "1", "GAMESCOPE_WAYLAND_DISPLAY" to "gamescope-0")
+        assertTrue(BwrapSpawner.gpu(runtime.path, root, gamescope, true)!!.isNotEmpty())
+        val unavailable = mutableMapOf("BL_DESKTOP" to "1")
+        assertEquals(null, BwrapSpawner.gpu(runtime.path, root, unavailable, false))
+        assertEquals(mapOf("BL_DESKTOP" to "1"), unavailable)
+        assertTrue(lib.delete())
+        assertEquals(null, BwrapSpawner.gpu(runtime.path, root, unavailable, true))
+        assertEquals(mapOf("BL_DESKTOP" to "1"), unavailable)
+    }
+
     @Test fun buildsTheTreeFlatpakAsksFor() {
         val context = RuntimeEnvironment.getApplication()
         val info = Base64.encodeToString("[Application]\nname=org.example.Game\n".toByteArray(), Base64.NO_WRAP)
