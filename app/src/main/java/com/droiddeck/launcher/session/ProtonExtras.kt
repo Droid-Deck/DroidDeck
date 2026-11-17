@@ -168,12 +168,20 @@ object ProtonExtras {
 
     fun remove(context: Context, tool: Tool, dir: String? = null) {
         val name = if (dir != null) dir.takeIf { it in installedAll(context, tool) } ?: return else installed(context, tool) ?: return
-        if (File(toolsDir(context), name).deleteRecursively()) ComponentsManager.forgetProton(context, name)
+        if (deleteTool(context, name)) ComponentsManager.forgetProton(context, name)
+    }
+
+    // A tool folder can hold links that point out of it (a prefix template's dosdevices/z: -> /), and
+    // File.deleteRecursively() follows links into directories: remove each link itself, never what it points to.
+    private fun deleteTool(context: Context, name: String): Boolean {
+        val dir = File(toolsDir(context), name)
+        FileUtils.delete(dir)
+        return !dir.exists() && !java.nio.file.Files.isSymbolicLink(dir.toPath())
     }
 
     fun removeOlder(context: Context, tool: Tool) {
         installedAll(context, tool).dropLast(1).forEach {
-            if (File(toolsDir(context), it).deleteRecursively()) ComponentsManager.forgetProton(context, it)
+            if (deleteTool(context, it)) ComponentsManager.forgetProton(context, it)
         }
     }
 
@@ -189,7 +197,7 @@ object ProtonExtras {
                 if (runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }.isFailure) continue
                 if (runCatching { keepUserSettings(context, old, newest) }.onFailure { Log.w(TAG, "user settings of $old", it) }.isFailure) continue
                 if (runCatching { ProtonDefault.moveGames(context, setOf(old), newest) }.onFailure { Log.w(TAG, "per-game picks of $old", it) }.isFailure) continue
-                if (File(toolsDir(context), old).deleteRecursively()) ComponentsManager.forgetProton(context, old)
+                if (deleteTool(context, old)) ComponentsManager.forgetProton(context, old)
                 else Log.w(TAG, "could not remove $old")
             }
         } finally {

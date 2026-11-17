@@ -194,6 +194,22 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun removingDeletesLinksButNeverWhatTheyPointTo() {
+        val context = RuntimeEnvironment.getApplication()
+        val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")
+        val outside = temp.newFolder("outside").apply { File(this, "keep.txt").writeText("x") }
+        for (name in listOf("DroidDeck-Bionic-12.8-r3", "DroidDeck-Bionic-12.8-r5")) {
+            val dosdevices = File(installTool(tools, name), "files/default_pfx/dosdevices").apply { mkdirs() }
+            java.nio.file.Files.createSymbolicLink(File(dosdevices, "z:").toPath(), outside.toPath())
+        }
+        ProtonExtras.removeOlder(context, tool("bionic"))
+        ProtonExtras.remove(context, tool("bionic"), "DroidDeck-Bionic-12.8-r5")
+        assertFalse(File(tools, "DroidDeck-Bionic-12.8-r3").exists())
+        assertFalse(File(tools, "DroidDeck-Bionic-12.8-r5").exists())
+        assertTrue(File(outside, "keep.txt").isFile)
+    }
+
+    @Test
     fun removingDeletesOneBuildOrEveryOlderOne() {
         val context = RuntimeEnvironment.getApplication()
         val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")

@@ -169,10 +169,9 @@ mkdir -p "$T/files" "$T/bionic"
 tar --zstd -xf "$WORK/layer.wcp" -C "$T/files" bin lib share prefixPack.txz
 mkdir -p "$WORK/pfx" && tar -xJf "$T/files/prefixPack.txz" -C "$WORK/pfx" && rm "$T/files/prefixPack.txz"
 mv "$WORK/pfx/.wine" "$T/files/default_pfx"
-# the template's drives point into Winlator: keep C:, Z: is the Android root (Wine sees Android paths here)
-rm -f "$T/files/default_pfx/dosdevices/"* "$T/files/default_pfx/dosdevices/".[!.]*
-ln -s ../drive_c "$T/files/default_pfx/dosdevices/c:"
-ln -s / "$T/files/default_pfx/dosdevices/z:"
+# No drives in the template: its links point into Winlator, and a Z: -> / link here once let DroidDeck's tool delete
+# walk the whole device. launch.sh makes C: and Z: in each game's own prefix.
+rm -rf "$T/files/default_pfx/dosdevices"
 for c in FEX:"$FEX_URL":"$FEX_SHA256" DXVK:"$DXVK_URL":"$DXVK_SHA256" VKD3D:"$VKD3D_URL":"$VKD3D_SHA256"; do
   n=${c%%:*}; rest=${c#*:}; sha=${rest##*:}; url=${rest%:*}
   fetch "$url" "$sha" "$WORK/$n.wcp"
@@ -195,6 +194,22 @@ echo "$(date -u +%s) $NAME" > "$T/version"
   echo "vkd3d $VKD3D_URL sha256 $VKD3D_SHA256"
 } > "$T/SOURCES.txt"
 python3 "$HERE/check-needed.py" "$READELF" "$T/files" --available "$T/files/lib"
+echo "== no link may point out of the tool (DroidDeck deletes old tool folders)"
+python3 - "$T" <<'PY'
+import os, sys
+root = os.path.realpath(sys.argv[1])
+bad = []
+for d, dirs, files in os.walk(root):
+    for n in dirs + files:
+        p = os.path.join(d, n)
+        if os.path.islink(p):
+            t = os.path.realpath(p)
+            if t != root and not t.startswith(root + os.sep):
+                bad.append("%s -> %s" % (os.path.relpath(p, root), os.readlink(p)))
+if bad:
+    sys.exit("links out of the tool:\n" + "\n".join(bad))
+print("no links out of the tool")
+PY
 tar -C "$WORK/tool" -cf - "$NAME" | xz -T0 -6 > "$OUT/$NAME-aarch64.tar.xz"
 (cd "$OUT" && sha512sum "$NAME-aarch64.tar.xz" > "$NAME-aarch64.sha512sum")
 du -sh "$T" "$OUT/$NAME-aarch64.tar.xz"
