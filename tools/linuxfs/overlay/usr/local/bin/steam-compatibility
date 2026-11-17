@@ -86,6 +86,7 @@ bl_run() {
     set -- /usr/local/bin/droiddeck-steamvr-game "$@"
   fi
   if [ -n "${BL_STORE_EXIT:-}" ]; then
+    trap : INT TERM HUP
     "$@"
     rc=$?
     /usr/local/bin/droiddeck-store-launch --exited --code "$rc" "${BL_STORE_ARGS[@]}" || true
@@ -892,7 +893,10 @@ def appinfo_entries(path, wanted=None):
         deck = common.get("steam_deck_compatibility")
         configuration = deck.get("configuration") if isinstance(deck, dict) else None
         recommended = configuration.get("recommended_runtime", "") if isinstance(configuration, dict) else ""
+        config = info.get("config") if isinstance(info.get("config"), dict) else {}
         entry = {
+            "name": str(common.get("name", "")),
+            "installdir": str(config.get("installdir", "")),
             "oslist": {part.strip().lower() for part in str(common.get("oslist", "")).split(",") if part.strip()},
             "osarch": str(common.get("osarch", "")).lower(),
             "type": str(common.get("type", "")).lower(),
@@ -957,6 +961,13 @@ def native_targets(steam_root, apps):
             continue
         targets[app] = FEX_TOOL
     return targets
+
+
+def manifest_text(appid, name, installdir, bare=False):
+    title = name.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
+    text = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
+            + f'    "StateFlags" "4"\n    "installdir" "{installdir}"\n' + '}\n')
+    return text[:-2] + '    "AutoUpdateBehavior" "1"\n}\n' if bare else text
 
 
 def app_manifest(steam_root, app):
@@ -1540,7 +1551,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             auto = followers(state, current)
             known = {app for app in state.get("owned", ()) if isinstance(app, str)} if isinstance(state.get("owned"), list) else set()
             pinned = {app: current[app] for app in set(owned) - known
-                      if current.get(app) in {TOOL, previous} | gone and app not in auto}
+                      if app in current and current.get(app) in {TOOL, previous} | gone and app not in auto}
             if pinned and isinstance(auto, dict):
                 state["auto"] = dict(auto, **pinned)
             state["owned"] = sorted(set(owned), key=app_order)

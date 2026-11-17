@@ -33,6 +33,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,10 +71,13 @@ import com.droiddeck.launcher.frontend.AddedGameArt
 import com.droiddeck.launcher.frontend.AddedGameEdits
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.LogoPosition
+import com.droiddeck.launcher.frontend.SoundtrackCollectionArt
 import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.frontend.SteamGridDb
+import com.droiddeck.launcher.frontend.SteamInputOverride
 import com.droiddeck.launcher.frontend.SteamLaunchOptions
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -179,6 +183,16 @@ internal class ArtTarget(
             { c, value -> AddedGameEdits.setLogoPosition(c, game.folder.path, value) },
         )
 
+        fun ofCollection(id: Int, name: String, root: java.io.File? = null) = ArtTarget(
+            name,
+            { c, _ -> SoundtrackCollectionArt.source(c, id) },
+            { c, _ -> AddedGameArt.Choices(SoundtrackCollectionArt.options(c, id, root), SteamGridDb.Status.OK) },
+            { c, _, option -> SoundtrackCollectionArt.choose(c, id, option) },
+            { c, _ -> SoundtrackCollectionArt.reset(c, id) },
+            { _ -> null },
+            { _, _ -> false },
+        )
+
         fun of(game: com.droiddeck.launcher.frontend.Library.SteamGame) = ArtTarget(
             game.name,
             { c, slot -> SteamGameArt.chosenSource(c, game.appId, slot).second },
@@ -200,6 +214,12 @@ internal fun SteamGameArtEditor(
 }
 
 @Composable
+internal fun CollectionArtEditor(id: Int, name: String, root: java.io.File? = null, onClose: () -> Unit, onChanged: () -> Unit) {
+    val target = remember(id, root) { ArtTarget.ofCollection(id, name, root) }
+    ArtOnlyEditor(name, target, id, { SoundtrackCollectionArt.describe(it, id, root) }, onClose, onChanged, listOf(AddedGameArt.Slot.COVER))
+}
+
+@Composable
 internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Unit, onChanged: () -> Unit) {
     val app = LocalContext.current.applicationContext
     var game by remember(folder) { mutableStateOf<AddedGames.Game?>(null) }
@@ -212,7 +232,7 @@ internal fun StoreGameArtEditor(folder: String, name: String, onClose: () -> Uni
 @Composable
 private fun ArtOnlyEditor(
     name: String, target: ArtTarget?, refresh: Any?, describe: (Context) -> List<AddedGameArt.SlotState>,
-    onClose: () -> Unit, onChanged: () -> Unit,
+    onClose: () -> Unit, onChanged: () -> Unit, slots: List<AddedGameArt.Slot> = AddedGameArt.Slot.values().toList(),
 ) {
     val app = LocalContext.current.applicationContext
     val shown = rememberShown(onClose)
@@ -233,7 +253,7 @@ private fun ArtOnlyEditor(
             modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
         ) {
             Text(stringResource(R.string.edit_artwork), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
-            for (slot in AddedGameArt.Slot.values()) key(slot) {
+            for (slot in slots) key(slot) {
                 val state = arts.firstOrNull { it.slot == slot }
                 FieldRow(slot.label(), focus = if (slot == AddedGameArt.Slot.COVER) first else null, onClick = { if (target != null) artSlot = slot }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -242,7 +262,7 @@ private fun ArtOnlyEditor(
                     }
                 }
             }
-            PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = target != null && position != null) { logoOpen = true }
+            if (AddedGameArt.Slot.LOGO in slots) PickerRow(Icons.Outlined.Tune, stringResource(R.string.art_adjust_logo), logoPositionSummary(position?.value), enabled = target != null && position != null) { logoOpen = true }
         }
     }
     val chosen = target ?: return
@@ -316,6 +336,107 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
                 saving = false
             }
         }
+    }
+}
+
+@Composable
+internal fun SteamInputOverridePanel(appId: Int) {
+    val app = LocalContext.current.applicationContext
+    val colors = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var selected by remember(appId) { mutableStateOf<SteamInputOverride.Mode?>(null) }
+    var version by remember(appId) { mutableIntStateOf(0) }
+    var saving by remember(appId) { mutableStateOf(false) }
+    var loading by remember(appId) { mutableStateOf(true) }
+    var error by remember(appId) { mutableStateOf<Int?>(null) }
+    var saves by remember(appId) { mutableIntStateOf(0) }
+    // SessionState.running is not snapshot state, so the panel polls it while shown.
+    val sessionRunning by produceState(SessionState.running) {
+        while (true) {
+            value = SessionState.running
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    LaunchedEffect(appId, version) {
+        val savesAtStart = saves
+        val read = withContext(Dispatchers.IO) { SteamInputOverride.current(app, appId) }
+        // A save that finished while this read ran already set the selection; the read may predate it.
+        if (!saving && saves == savesAtStart) selected = read
+        loading = false
+    }
+    var wasRunning by remember(appId) { mutableStateOf(SessionState.running) }
+    LaunchedEffect(sessionRunning) {
+        // Steam may have changed the override while it ran, so every stop reloads it.
+        if (wasRunning && !sessionRunning) {
+            if (error == R.string.edit_steam_input_running) error = null
+            loading = true
+            version++
+        }
+        wasRunning = sessionRunning
+    }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, appId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && !saving) {
+                loading = true
+                version++
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+
+    val choices = listOf(
+        SteamInputOverride.Mode.DEFAULT to R.string.edit_steam_input_default,
+        SteamInputOverride.Mode.ENABLED to R.string.edit_steam_input_enable,
+        SteamInputOverride.Mode.DISABLED to R.string.edit_steam_input_disable,
+    )
+    Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            stringResource(R.string.edit_steam_input_override),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
+        )
+        choices.forEach { (mode, label) ->
+            MenuItem(
+                stringResource(label),
+                checked = selected == mode,
+                enabled = selected != null && !saving && !loading && !sessionRunning && selected != mode,
+            ) {
+                val before = selected ?: return@MenuItem
+                saving = true
+                scope.launch {
+                    try {
+                        val saved = withContext(Dispatchers.IO) { SteamInputOverride.set(app, appId, mode, before) }
+                        error = when (saved) {
+                            SteamInputOverride.Saved.YES -> null
+                            SteamInputOverride.Saved.NO -> R.string.edit_steam_input_not_saved
+                            SteamInputOverride.Saved.RUNNING -> R.string.edit_steam_input_running
+                        }
+                        if (saved == SteamInputOverride.Saved.YES) {
+                            saves++
+                            selected = mode
+                        } else version++
+                    } finally {
+                        saving = false
+                    }
+                }
+            }
+        }
+        val message = error ?: when {
+            sessionRunning -> R.string.edit_steam_input_running
+            selected == null && !loading -> R.string.edit_steam_input_unavailable
+            else -> R.string.edit_steam_input_hint
+        }
+        Text(
+            stringResource(message),
+            fontSize = 12.sp,
+            color = if (error == null) colors.onSurfaceVariant else colors.error,
+            modifier = Modifier.padding(start = 4.dp),
+        )
     }
 }
 

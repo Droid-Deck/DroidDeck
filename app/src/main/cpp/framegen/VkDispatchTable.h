@@ -1,0 +1,106 @@
+#pragma once
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_android.h>
+
+struct VkTable {
+
+    PFN_vkCreateInstance CreateInstance;
+
+    PFN_vkDestroyInstance DestroyInstance;
+    PFN_vkEnumeratePhysicalDevices EnumeratePhysicalDevices;
+    PFN_vkGetPhysicalDeviceProperties GetPhysicalDeviceProperties;
+    PFN_vkGetPhysicalDeviceMemoryProperties GetPhysicalDeviceMemoryProperties;
+    PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR GetPhysicalDeviceSurfaceCapabilitiesKHR;
+    PFN_vkGetPhysicalDeviceSurfaceFormatsKHR GetPhysicalDeviceSurfaceFormatsKHR;
+    PFN_vkGetPhysicalDeviceSurfacePresentModesKHR GetPhysicalDeviceSurfacePresentModesKHR;
+    PFN_vkGetPhysicalDeviceQueueFamilyProperties GetPhysicalDeviceQueueFamilyProperties;
+    PFN_vkGetPhysicalDeviceSurfaceSupportKHR GetPhysicalDeviceSurfaceSupportKHR;
+    PFN_vkGetPhysicalDeviceFormatProperties GetPhysicalDeviceFormatProperties;
+    PFN_vkGetPhysicalDeviceFeatures2 GetPhysicalDeviceFeatures2;
+    PFN_vkCreateDevice CreateDevice;
+    PFN_vkDestroySurfaceKHR DestroySurfaceKHR;
+    PFN_vkCreateAndroidSurfaceKHR CreateAndroidSurfaceKHR;
+
+    PFN_vkGetDeviceProcAddr GetDeviceProcAddr;
+    PFN_vkDestroyDevice DestroyDevice;
+    PFN_vkGetDeviceQueue GetDeviceQueue;
+    PFN_vkDeviceWaitIdle DeviceWaitIdle;
+    PFN_vkCreateSwapchainKHR CreateSwapchainKHR;
+    PFN_vkDestroySwapchainKHR DestroySwapchainKHR;
+    PFN_vkGetSwapchainImagesKHR GetSwapchainImagesKHR;
+    PFN_vkAcquireNextImageKHR AcquireNextImageKHR;
+    PFN_vkQueuePresentKHR QueuePresentKHR;
+    PFN_vkQueueSubmit QueueSubmit;
+    PFN_vkCreateQueryPool CreateQueryPool;
+    PFN_vkDestroyQueryPool DestroyQueryPool;
+    PFN_vkCmdResetQueryPool CmdResetQueryPool;
+    PFN_vkCmdWriteTimestamp CmdWriteTimestamp;
+    PFN_vkGetQueryPoolResults GetQueryPoolResults;
+    PFN_vkCreateRenderPass CreateRenderPass;
+    PFN_vkDestroyRenderPass DestroyRenderPass;
+    PFN_vkCreateFramebuffer CreateFramebuffer;
+    PFN_vkDestroyFramebuffer DestroyFramebuffer;
+    PFN_vkCreateImageView CreateImageView;
+    PFN_vkDestroyImageView DestroyImageView;
+    PFN_vkCreateImage CreateImage;
+    PFN_vkDestroyImage DestroyImage;
+    PFN_vkCreateBuffer CreateBuffer;
+    PFN_vkDestroyBuffer DestroyBuffer;
+    PFN_vkAllocateMemory AllocateMemory;
+    PFN_vkFreeMemory FreeMemory;
+    PFN_vkMapMemory MapMemory;
+    PFN_vkFlushMappedMemoryRanges FlushMappedMemoryRanges;
+    PFN_vkBindBufferMemory BindBufferMemory;
+    PFN_vkBindImageMemory BindImageMemory;
+    PFN_vkGetBufferMemoryRequirements GetBufferMemoryRequirements;
+    PFN_vkGetImageMemoryRequirements GetImageMemoryRequirements;
+    PFN_vkCreateDescriptorSetLayout CreateDescriptorSetLayout;
+    PFN_vkDestroyDescriptorSetLayout DestroyDescriptorSetLayout;
+    PFN_vkCreateDescriptorPool CreateDescriptorPool;
+    PFN_vkDestroyDescriptorPool DestroyDescriptorPool;
+    PFN_vkAllocateDescriptorSets AllocateDescriptorSets;
+    PFN_vkFreeDescriptorSets FreeDescriptorSets;
+    PFN_vkUpdateDescriptorSets UpdateDescriptorSets;
+    PFN_vkCreatePipelineLayout CreatePipelineLayout;
+    PFN_vkDestroyPipelineLayout DestroyPipelineLayout;
+    PFN_vkCreateShaderModule CreateShaderModule;
+    PFN_vkDestroyShaderModule DestroyShaderModule;
+    PFN_vkCreateGraphicsPipelines CreateGraphicsPipelines;
+    PFN_vkDestroyPipeline DestroyPipeline;
+    PFN_vkCreateCommandPool CreateCommandPool;
+    PFN_vkDestroyCommandPool DestroyCommandPool;
+    PFN_vkAllocateCommandBuffers AllocateCommandBuffers;
+    PFN_vkFreeCommandBuffers FreeCommandBuffers;
+    PFN_vkBeginCommandBuffer BeginCommandBuffer;
+    PFN_vkEndCommandBuffer EndCommandBuffer;
+    PFN_vkResetCommandBuffer ResetCommandBuffer;
+    PFN_vkCmdBeginRenderPass CmdBeginRenderPass;
+    PFN_vkCmdEndRenderPass CmdEndRenderPass;
+    PFN_vkCmdBindPipeline CmdBindPipeline;
+    PFN_vkCmdBindDescriptorSets CmdBindDescriptorSets;
+    PFN_vkCmdDraw CmdDraw;
+    PFN_vkCmdPushConstants CmdPushConstants;
+    PFN_vkCmdSetViewport CmdSetViewport;
+    PFN_vkCmdSetScissor CmdSetScissor;
+    PFN_vkCmdPipelineBarrier CmdPipelineBarrier;
+    PFN_vkCmdCopyImage CmdCopyImage;
+    PFN_vkCmdBlitImage CmdBlitImage;
+
+    PFN_vkCmdDispatch CmdDispatch;
+    PFN_vkCreateComputePipelines CreateComputePipelines;
+    PFN_vkUnmapMemory UnmapMemory;
+    PFN_vkCmdClearColorImage CmdClearColorImage;
+    PFN_vkResetDescriptorPool ResetDescriptorPool;
+    PFN_vkCmdCopyBufferToImage CmdCopyBufferToImage;
+    PFN_vkCreateSampler CreateSampler;
+    PFN_vkDestroySampler DestroySampler;
+    PFN_vkCreateSemaphore CreateSemaphore;
+    PFN_vkDestroySemaphore DestroySemaphore;
+    PFN_vkCreateFence CreateFence;
+    PFN_vkDestroyFence DestroyFence;
+    PFN_vkWaitForFences WaitForFences;
+    PFN_vkResetFences ResetFences;
+    PFN_vkGetFenceStatus GetFenceStatus;
+
+    PFN_vkGetAndroidHardwareBufferPropertiesANDROID GetAndroidHardwareBufferPropertiesANDROID;
+};

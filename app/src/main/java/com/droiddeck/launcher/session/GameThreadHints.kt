@@ -8,6 +8,7 @@ import android.os.Process
 import android.system.Os
 import android.system.OsConstants
 import android.util.Log
+import com.droiddeck.launcher.gpu.SocNames
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import kotlin.math.abs
@@ -26,13 +27,14 @@ object GameThreadHints {
     private const val PACE_TOLERANCE = 0.08
 
     private val NOT_GAMES = setOf("steam", "steamwebhelper")
+    private val SOCS = setOf("CQ8725S", "SM8750")
 
     private var worker: Thread? = null
 
     @Synchronized
     fun start(context: Context): String {
         if (!SessionPrefs.gameThreadHints(context)) return "game thread hints: off"
-        if (Build.VERSION.SDK_INT < 31 || Build.SOC_MODEL != "CQ8725S") return "game thread hints: Odin 3 only"
+        if (Build.VERSION.SDK_INT < 31 || !supported(Build.SOC_MODEL)) return "game thread hints: Snapdragon 8 Elite only"
         val hm = context.getSystemService(PerformanceHintManager::class.java)
             ?: return "game thread hints: no PerformanceHintManager"
         val pm = context.getSystemService(PowerManager::class.java)
@@ -98,6 +100,8 @@ object GameThreadHints {
             null
         }
     }
+
+    internal fun supported(soc: String): Boolean = SocNames.normalizedModel(soc) in SOCS
 
     internal fun holdsPace(fps: Double, refreshHz: Double): Boolean =
         fps >= 10 && refreshHz > 0 && (1..4).any { k -> abs(fps - refreshHz / k) < PACE_TOLERANCE * refreshHz / k }

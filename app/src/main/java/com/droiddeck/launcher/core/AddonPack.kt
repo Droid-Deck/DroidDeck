@@ -3,6 +3,7 @@ package com.droiddeck.launcher.core
 import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.BuildConfig
+import com.droiddeck.launcher.lab.LabOverlay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,6 +17,7 @@ import java.io.FileInputStream
 internal class AddonPack(
     val name: String, private val sha256: String, val size: Long, private val required: List<String>,
     private val reuseDeviceCopy: Boolean = sha256.isEmpty() && !BuildConfig.CI_BUILD,
+    private val labBuild: Boolean = LabOverlay.active != null,
     private val bundle: (Context) -> java.io.InputStream = { it.assets.open("packs/$name.tar.zst") },
 ) {
     sealed interface State {
@@ -28,6 +30,9 @@ internal class AddonPack(
     private val mutableState = MutableStateFlow<State>(State.Missing)
     val state: StateFlow<State> = mutableState.asStateFlow()
     private val lock = Any()
+
+    @Volatile var failure: String? = null
+        private set
 
     val available: Boolean get() = sha256.isNotEmpty()
     private val tag get() = "pack-$name-${sha256.take(16)}"
@@ -42,7 +47,8 @@ internal class AddonPack(
 
     fun installed(context: Context): Boolean = version(context).isNotEmpty() && File(dir(context), COMPLETE).isFile
 
-    private fun version(context: Context): String = if (!reuseDeviceCopy) sha256 else deviceCopy(context).orEmpty()
+    private fun version(context: Context): String =
+        if (reuseDeviceCopy || labBuild) deviceCopy(context) ?: sha256 else sha256
 
     private fun deviceCopy(context: Context): String? = root(context).listFiles().orEmpty()
         .filter { dir ->
@@ -64,9 +70,13 @@ internal class AddonPack(
             if (installed(app)) { mutableState.value = State.Ready; return }
             if (mutableState.value is State.Downloading) return
             mutableState.value = State.Downloading(0f)
+            failure = null
         }
         scope.launch {
-            val ok = runCatching { install(app) }.onFailure { Log.w(TAG, "$name: install failed", it) }.getOrDefault(false)
+            val ok = runCatching { install(app) }.onFailure {
+                Log.w(TAG, "$name: install failed", it)
+                failure = it.toString()
+            }.getOrDefault(false)
             mutableState.value = if (ok) State.Ready else State.Failed
             if (ok) onReady(app)
         }
@@ -90,20 +100,28 @@ internal class AddonPack(
 
     private fun install(context: Context): Boolean {
         if (!available) {
-            Log.w(TAG, if (reuseDeviceCopy) "$name: this build has no pack and none is installed" else "$name: this build has no pack")
+            failure = if (reuseDeviceCopy) "this build has no pack and none is installed" else "this build has no pack"
+            Log.w(TAG, "$name: $failure")
             return false
         }
         val root = root(context).apply { mkdirs() }
         val archive = File(root, "$sha256.tar.zst")
+        val problems = mutableListOf<String>()
         val downloaded = bundled(context, archive) || urls.any { url ->
             Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
-                .also { if (!it) archive.delete() }
+                .also { if (!it) { archive.delete(); Downloader.lastFailure()?.let(problems::add) } }
         }
-        if (!downloaded) return false
+        if (!downloaded) {
+            failure = problems.joinToString("; ").ifEmpty { "download failed" }
+            return false
+        }
         val staging = File(root, "$sha256.partial")
         staging.deleteRecursively()
         try {
-            if (!FileInputStream(archive).use { TarZst.extract(it, staging) }) return false
+            if (!FileInputStream(archive).use { TarZst.extract(it, staging) }) {
+                failure = "could not unpack the pack"
+                return false
+            }
             check(required.all { File(staging, it).isFile }) { "$name pack is incomplete" }
             File(staging, COMPLETE).writeText(sha256)
             val target = dir(context)
@@ -154,5 +172,8 @@ internal class AddonPack(
             listOf("runtime.tzst", "version.txt"))
         val UBISOFT = AddonPack("ubisoft", BuildConfig.PACK_UBISOFT_SHA256, BuildConfig.PACK_UBISOFT_SIZE,
             listOf("droiddeck-upc.exe"))
+        val ROCKSTAR = AddonPack("rockstar", BuildConfig.PACK_ROCKSTAR_SHA256, BuildConfig.PACK_ROCKSTAR_SIZE,
+            listOf("Launcher32.exe", "Launcher64.exe"))
+        val DIRT = AddonPack("dirt", BuildConfig.PACK_DIRT_SHA256, BuildConfig.PACK_DIRT_SIZE, listOf("ws2_32.dll"))
     }
 }

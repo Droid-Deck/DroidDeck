@@ -11,6 +11,7 @@ import android.view.Display
 
 object PerfMode {
     private const val TAG = "PerfMode"
+    const val BFI_MIN_REFRESH_HZ = 100f
 
     fun apply(a: Activity, fpsLimit: Int = 0, refreshLimit: Int = 0): String {
         val parts = ArrayList<String>(2)
