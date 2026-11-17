@@ -77,6 +77,9 @@ export NTSYNC_SHM=$COMPAT/ntsync-shm
 on "${DROIDDECK_FORCE_SSBS:-}" && export WINE_FORCE_SSBS=1
 export HODLL=libwow64fex.dll WINEDEBUG=err+all,fixme-all
 export XENVIRONMENT=$TOOL/bionic/Xdefaults
+# The adapter's Wayland swapchain gets its buffers back from gamescope later than DroidDeck-Proton's Turnip does;
+# with gamescope's default three images the game waits for one about a fifth of the time at high frame rates.
+export GAMESCOPE_WSI_MIN_IMAGE_COUNT=${GAMESCOPE_WSI_MIN_IMAGE_COUNT:-4} GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=${GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT:-1}
 # FEX: DroidDeck-Proton's defaults (its share/fex-emu/Config.json: x87 in 64-bit precision, TSO without the vector
 # and memcpy parts); droiddeck-game-env's per-game choices (FEX_* in the environment, e.g. .NET, Unity) win.
 export FEX_TSOENABLED=${FEX_TSOENABLED:-1} FEX_VECTORTSOENABLED=${FEX_VECTORTSOENABLED:-0} \
