@@ -47,6 +47,8 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.SdStorage
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
@@ -200,15 +202,18 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "agent" -> R.string.rail_agent to Icons.Outlined.Terminal
     "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
     "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    "storage" -> R.string.rail_storage to Icons.Outlined.SdStorage
+    "sync" -> R.string.rail_sync to Icons.Outlined.Sync
     NavTabs.MORE -> R.string.rail_more to Icons.Outlined.MoreHoriz
     else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
 }
 
 internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
-    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus) || com.droiddeck.launcher.sync.Syncthing.needsAttention
+    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
 
 internal fun railBadge(s: FrontEndState, key: String, setupNeedsAttention: Boolean = setupNeedsAttention(s)): Boolean = when (key) {
     "setup" -> setupNeedsAttention
+    "sync" -> com.droiddeck.launcher.sync.Syncthing.needsAttention
     "updates" -> s.updates.hasUpdate
     NavTabs.MORE -> NavTabs.more(s).any { it != NavTabs.MORE && railBadge(s, it, setupNeedsAttention) }
     else -> false

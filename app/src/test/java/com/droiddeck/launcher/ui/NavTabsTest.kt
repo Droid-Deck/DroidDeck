@@ -42,22 +42,22 @@ class NavTabsTest {
 
     @Test fun musicStartsInMore() {
         assertEquals(listOf("steam", "games", "stores", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
-        assertEquals(listOf("soundtracks"), NavTabs.more(state()))
-        assertEquals(setOf("soundtracks", "agent"), NavTabs.shelved)
+        assertEquals(listOf("soundtracks", "storage", "sync"), NavTabs.more(state()))
+        assertEquals(setOf("soundtracks", "agent", "storage", "sync"), NavTabs.shelved)
         assertFalse(com.droiddeck.launcher.agent.AgentTab.shown)
     }
 
     @Test fun showingMusicOnceKeepsItShownAfterReload() {
         place("soundtracks", TabPlace.BAR)
         NavTabs.load(ctx)
-        assertEquals(listOf("steam", "games", "soundtracks", "stores", "desktop", "components", "setup", "updates"), navigationKeys(state()))
+        assertEquals(listOf("steam", "games", "soundtracks", "stores", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
     }
 
     @Test fun shelvedTabsLeaveTheBarAndAddMoreAtTheEnd() {
         place("stores", TabPlace.MORE)
         place("components", TabPlace.MORE)
         val s = state()
-        assertEquals(listOf("components", "soundtracks", "stores"), NavTabs.more(s))
+        assertEquals(listOf("components", "soundtracks", "stores", "storage", "sync"), NavTabs.more(s))
         assertEquals(NavTabs.MORE, navigationKeys(s).last())
         assertFalse("stores" in navigationKeys(s))
     }
@@ -84,10 +84,21 @@ class NavTabsTest {
     }
 
     @Test fun tabsMissingFromASavedOrderSlotInAfterTheirDefaultNeighbour() {
-        assertEquals(listOf("updates", "steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "setup"),
+        assertEquals(listOf("updates", "steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup"),
             NavTabs.arrange(listOf("updates", "steam")))
-        assertEquals(listOf("games", "soundtracks", "steam", "setup", "stores", "desktop", "agent", "components", "android-apps", "updates"),
+        assertEquals(listOf("games", "soundtracks", "steam", "setup", "stores", "desktop", "agent", "components", "android-apps", "storage", "sync", "updates"),
             NavTabs.arrange(listOf("games", "steam", "setup", "stores", "desktop", "components", "android-apps", "updates", "bogus")))
+    }
+
+    @Test fun storageAndSyncJoinMoreForUsersWithASavedLayout() {
+        ctx.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .putString("navTabOrder", "steam,games,soundtracks,stores,desktop,agent,components,android-apps,setup,updates")
+            .putString("navTabShelved", "soundtracks").commit()
+        NavTabs.load(ctx)
+        assertEquals(listOf("soundtracks", "storage", "sync"), NavTabs.more(state()))
+        place("sync", TabPlace.BAR)
+        NavTabs.load(ctx)
+        assertTrue("sync" in navigationKeys(state()))
     }
 
     @Test fun moreCarriesTheDownloadCountAndBadgesOfShelvedTabs() {

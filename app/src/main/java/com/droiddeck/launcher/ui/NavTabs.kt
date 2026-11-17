@@ -27,7 +27,8 @@ internal object DeveloperTools {
 internal object NavTabs {
     const val MORE = "more"
     val FEATURES = setOf("stores", "soundtracks", "agent")
-    val ALL = listOf("steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "setup", "updates")
+    val ALL = listOf("steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup", "updates")
+    private val SHELVED_WHEN_NEW = setOf("storage", "sync")
 
     var order by mutableStateOf(ALL)
         private set
@@ -37,8 +38,10 @@ internal object NavTabs {
         private set
 
     fun load(context: Context) {
-        order = arrange(SessionPrefs.navTabOrder(context))
-        shelved = SessionPrefs.navTabShelved(context).intersect(ALL.toSet())
+        val saved = SessionPrefs.navTabOrder(context)
+        order = arrange(saved)
+        shelved = SessionPrefs.navTabShelved(context).intersect(ALL.toSet()) +
+            if (saved.isEmpty()) emptySet() else SHELVED_WHEN_NEW - saved.toSet()
         hidden = SessionPrefs.navTabHidden(context).intersect(ALL.toSet()) - FEATURES - "setup"
     }
 

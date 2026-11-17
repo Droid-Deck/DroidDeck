@@ -620,10 +620,20 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
     }
     LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
-        if (com.droiddeck.launcher.storage.StorageState.openPending) showRailPage("setup", true)
+        if (com.droiddeck.launcher.storage.StorageState.openPending) {
+            com.droiddeck.launcher.storage.StorageState.openPending = false
+            showRailPage("storage", true)
+        }
     }
     LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
-        if (com.droiddeck.launcher.sync.Syncthing.openPending) showRailPage("setup", true)
+        if (com.droiddeck.launcher.sync.Syncthing.openPending) {
+            com.droiddeck.launcher.sync.Syncthing.openPending = false
+            showRailPage("sync", true)
+        }
+    }
+    LaunchedEffect(RailRequest.key) {
+        RailRequest.key?.let { showRailPage(it, true) }
+        RailRequest.key = null
     }
     LaunchedEffect(SetupTabs.openSection) {
         if (SetupTabs.openSection != null && railSelection != "setup") showRailPage("setup", true)

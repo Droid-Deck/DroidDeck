@@ -4227,6 +4227,9 @@
     <string name="settings_place_sheet">Steam or Desktop options (swipe up)</string>
     <string name="settings_place_steam_qam">Steam quick menu (•••)</string>
     <string name="dev_group_logs">Logs</string>
+    <string name="settings_place_tab">Tabs</string>
+    <string name="rail_storage">Storage</string>
+    <string name="rail_sync">Sync</string>
     <string name="dev_tools_title">Developer tools</string>
     <string name="dev_tools_hint">Agent, graphics logs and other tools for testing DroidDeck</string>
     <string name="sheet_lip">Options</string>

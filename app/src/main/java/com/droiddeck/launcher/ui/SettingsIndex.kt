@@ -2,14 +2,14 @@ package com.droiddeck.launcher.ui
 
 import android.content.Context
 import androidx.annotation.StringRes
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
 
 internal enum class SettingsSection(val key: String, @StringRes val title: Int) {
     OVERVIEW("overview", R.string.setup_tab_overview),
     PERFORMANCE("performance", R.string.setup_tab_performance),
     CONTROLLER("controller", R.string.setup_tab_controller),
-    STORAGE("storage", R.string.setup_tab_storage),
-    SYNC("sync", R.string.setup_tab_sync),
     GLASSES("glasses", R.string.setup_tab_glasses),
     LAUNCHER("launcher", R.string.setup_tab_launcher),
     DEVELOPER("developer", R.string.setup_tab_diagnostics);
@@ -19,8 +19,13 @@ internal enum class SettingsSection(val key: String, @StringRes val title: Int) 
     }
 }
 
+internal object RailRequest {
+    var key by androidx.compose.runtime.mutableStateOf<String?>(null)
+}
+
 internal enum class SettingsPlace(@StringRes val title: Int) {
     SETTINGS(R.string.settings_place_settings),
+    TAB(R.string.settings_place_tab),
     DRAWER(R.string.settings_place_drawer),
     SHEET(R.string.settings_place_sheet),
     STEAM_QAM(R.string.settings_place_steam_qam),
@@ -33,8 +38,9 @@ internal class SettingsEntry(
     val section: SettingsSection? = null,
     val words: List<String> = emptyList(),
     val developer: Boolean = false,
+    val tab: String? = null,
 ) {
-    val within: Int? get() = section?.title ?: group
+    val within: Int? get() = section?.title ?: tab?.let { railLabelIcon(it).first } ?: group
 
     fun path(context: Context): List<String> =
         listOfNotNull(context.getString(place.title), within?.let(context::getString), context.getString(title))
@@ -89,8 +95,8 @@ internal object SettingsIndex {
         s(SettingsSection.PERFORMANCE, R.string.perf_hostname, "name"),
 
         s(SettingsSection.CONTROLLER, R.string.setup_tab_controller, "gamepad", "buttons", "mapping", "profile", "remap"),
-        s(SettingsSection.STORAGE, R.string.setup_tab_storage, "sd card", "space", "uninstall", "disk"),
-        s(SettingsSection.SYNC, R.string.setup_tab_sync, "syncthing", "saves"),
+        SettingsEntry(SettingsPlace.TAB, R.string.rail_storage, tab = "storage", words = listOf("sd card", "space", "uninstall", "disk")),
+        SettingsEntry(SettingsPlace.TAB, R.string.rail_sync, tab = "sync", words = listOf("syncthing", "saves")),
         s(SettingsSection.GLASSES, R.string.setup_tab_glasses, "xreal", "viture", "vr", "ar"),
 
         s(SettingsSection.LAUNCHER, R.string.setup_theme, "color", "dark"),
@@ -99,7 +105,7 @@ internal object SettingsIndex {
         s(SettingsSection.LAUNCHER, R.string.setup_animations),
         s(SettingsSection.LAUNCHER, R.string.setup_rail_labels, "sidebar"),
         s(SettingsSection.LAUNCHER, R.string.setup_language, "translate"),
-        s(SettingsSection.LAUNCHER, R.string.setup_group_tabs, "tabs", "hide", "reorder", "agent", "stores"),
+        SettingsEntry(SettingsPlace.TAB, R.string.setup_group_tabs, tab = NavTabs.MORE, words = listOf("tabs", "hide", "reorder", "agent", "stores", "edit tabs")),
         s(SettingsSection.LAUNCHER, R.string.setup_home, "home screen", "launcher"),
         s(SettingsSection.LAUNCHER, R.string.setup_launcher_orientation, "rotate", "portrait"),
         s(SettingsSection.LAUNCHER, R.string.setup_session_orientation, "rotate", "portrait"),

@@ -43,10 +43,8 @@ internal fun MorePage(s: FrontEndState, a: FrontEndActions, onSelect: (String) -
     Column(modifier.verticalScroll(rememberScrollState())) {
         PageHeader(stringResource(R.string.rail_more)) {
             Spacer(Modifier.weight(1f))
-            SecondaryButton(stringResource(R.string.more_edit_tabs), compact = true) {
-                SetupTabs.openLauncher = true
-                SetupTabs.focusTabs = true
-                onSelect("setup")
+            SecondaryButton(stringResource(R.string.more_edit_tabs), compact = true, modifier = Modifier.testTag("more-edit-tabs")) {
+                MoreTabs.editing = true
             }
         }
         BoxWithConstraints(Modifier.fillMaxWidth()) {

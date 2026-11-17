@@ -37,8 +37,6 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Draw the cursor inside gamescope | Settings › Performance (`droiddeck://settings/performance`) | mouse, cursor |
 | Host name | Settings › Performance (`droiddeck://settings/performance`) | name |
 | Controller | Settings › Controller (`droiddeck://settings/controller`) | gamepad, buttons, mapping, profile, remap |
-| Storage | Settings › Storage (`droiddeck://settings/storage`) | sd card, space, uninstall, disk |
-| Sync | Settings › Sync (`droiddeck://settings/sync`) | syncthing, saves |
 | Smart glasses | Settings › Smart glasses (`droiddeck://settings/glasses`) | xreal, viture, vr, ar |
 | Theme | Settings › Launcher (`droiddeck://settings/launcher`) | color, dark |
 | App scale | Settings › Launcher (`droiddeck://settings/launcher`) | size, zoom |
@@ -46,7 +44,6 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Animations | Settings › Launcher (`droiddeck://settings/launcher`) |  |
 | Sidebar labels | Settings › Launcher (`droiddeck://settings/launcher`) | sidebar |
 | Language | Settings › Launcher (`droiddeck://settings/launcher`) | translate |
-| Tabs | Settings › Launcher (`droiddeck://settings/launcher`) | tabs, hide, reorder, agent, stores |
 | Use as Home screen | Settings › Launcher (`droiddeck://settings/launcher`) | home screen, launcher |
 | Launcher orientation | Settings › Launcher (`droiddeck://settings/launcher`) | rotate, portrait |
 | Session orientation | Settings › Launcher (`droiddeck://settings/launcher`) | rotate, portrait |
@@ -63,6 +60,14 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Reset all settings | Settings › Developer (`droiddeck://settings/developer`) | default |
 | Developer tools | Settings › Developer (`droiddeck://settings/developer`) | agent, ai, claude, codex |
 | Detailed graphics logs | Settings › Developer (`droiddeck://settings/developer`) | logs, gpu |
+
+## Tabs
+
+| Setting | Where | Also matches |
+| --- | --- | --- |
+| Storage | Tabs › Storage | sd card, space, uninstall, disk |
+| Sync | Tabs › Sync | syncthing, saves |
+| Tabs | Tabs › More | tabs, hide, reorder, agent, stores, edit tabs |
 
 ## In-game menu
 

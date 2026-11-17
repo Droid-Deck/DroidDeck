@@ -912,7 +912,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun readGameIntent(request: Intent) {
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         request.data?.takeIf { it.scheme == "droiddeck" && it.host == "settings" }?.let { uri ->
-            navRequest = "settings:" + (uri.pathSegments.firstOrNull() ?: com.droiddeck.launcher.ui.SettingsSection.OVERVIEW.key)
+            val section = uri.pathSegments.firstOrNull() ?: com.droiddeck.launcher.ui.SettingsSection.OVERVIEW.key
+            navRequest = if (section in setOf("storage", "sync")) section else "settings:$section"
             request.data = null
             request.action = Intent.ACTION_MAIN
             return

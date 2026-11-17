@@ -49,8 +49,14 @@ internal fun SettingsSearchResults(query: String, onOpen: (SettingsSection) -> U
                     val within = entry.within?.let { stringResource(it) }
                     val title = stringResource(entry.title)
                     val section = entry.section
+                    val tab = entry.tab
                     if (section != null) {
                         ActionRow(title, within, stringResource(R.string.store_open), onClick = { onOpen(section) })
+                    } else if (tab != null) {
+                        ActionRow(title, within, stringResource(R.string.store_open), onClick = {
+                            if (tab == NavTabs.MORE) MoreTabs.editing = true
+                            RailRequest.key = tab
+                        })
                     } else {
                         SettingsRow(title, entry.path(ctx).dropLast(1).joinToString(" › ")) {}
                     }

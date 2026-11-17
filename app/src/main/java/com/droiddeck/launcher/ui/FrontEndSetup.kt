@@ -89,8 +89,6 @@ internal enum class CheckState { OK, WARN, BUSY }
 private val OVERVIEW_TAB = SettingsSection.OVERVIEW.ordinal
 private val PERFORMANCE_TAB = SettingsSection.PERFORMANCE.ordinal
 private val CONTROLLER_TAB = SettingsSection.CONTROLLER.ordinal
-private val STORAGE_TAB = SettingsSection.STORAGE.ordinal
-private val SYNC_TAB = SettingsSection.SYNC.ordinal
 private val GLASSES_TAB = SettingsSection.GLASSES.ordinal
 private val LAUNCHER_TAB = SettingsSection.LAUNCHER.ordinal
 private val DEVELOPER_TAB = SettingsSection.DEVELOPER.ordinal
@@ -214,29 +212,11 @@ internal fun SetupPanel(
     var tabTurned by remember { mutableStateOf(false) }
     val pick: (Int) -> Unit = { i -> tab = i; tabTurned = true; searching = false; query = ""; if (i == DEVELOPER_TAB) logsRefresh++ }
     val inputModeManager = LocalInputModeManager.current
-    LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
-        if (com.droiddeck.launcher.storage.StorageState.openPending) {
-            com.droiddeck.launcher.storage.StorageState.openPending = false
-            tab = STORAGE_TAB
-        }
-    }
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(2_000)
             a.onRefreshPhantomStatus()
         }
-    }
-    LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
-        if (com.droiddeck.launcher.sync.Syncthing.openPending) {
-            com.droiddeck.launcher.sync.Syncthing.openPending = false
-            tab = SYNC_TAB
-        }
-    }
-    var syncAdvanced by rememberSaveable { mutableStateOf(false) }
-    if (syncAdvanced) {
-        androidx.activity.compose.BackHandler { syncAdvanced = false }
-        SyncAdvancedPage(host) { syncAdvanced = false }
-        return
     }
     LaunchedEffect(tab) {
         if (tabTurned && inputModeManager.inputMode == InputMode.Keyboard) {
@@ -484,7 +464,6 @@ internal fun SetupPanel(
                                 LanguageRow(host, s.language, a.onLanguage)
                                 if (s.soundtracksEnabled) ToggleRow(host, "soundtracks-ingame", stringResource(R.string.setup_soundtracks_ingame), stringResource(R.string.setup_soundtracks_ingame_hint), s.soundtracksIngame, onChange = a.onSoundtracksIngame)
                             }
-                            TabsSettingsGroup(host, s, a)
                         }
                         val device: @Composable () -> Unit = {
                             SettingsGroup(stringResource(R.string.setup_group_device)) {
@@ -611,8 +590,6 @@ internal fun SetupPanel(
                             } else Column { look(); device(); art(); download() }
                         }
                     }
-                    STORAGE_TAB -> StoragePanel(s, a)
-                    SYNC_TAB -> SyncPanel(host, runtimeOk) { syncAdvanced = true }
                     DEVELOPER_TAB -> {
                         val devContext = LocalContext.current
                         SettingsGroup(stringResource(R.string.dev_tools_title)) {
