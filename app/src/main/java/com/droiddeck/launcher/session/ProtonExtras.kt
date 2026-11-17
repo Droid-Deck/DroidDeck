@@ -8,6 +8,7 @@ import android.util.Log
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.NativeGuest
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
@@ -39,6 +40,9 @@ object ProtonExtras {
         // Bionic (Android libc) Proton started outside the Linux userland; test builds are prereleases. No-proot only.
         Tool(BIONIC, "DroidDeck-Bionic", "DroidDeck-Bionic", "Droid-Deck/DroidDeck-Proton", Regex("^DroidDeck-Bionic-.*aarch64\\.tar\\.(gz|xz)$"), prereleases = true),
     )
+
+    /** The sources offered on this device: DroidDeck-Bionic only with Run without proot on. */
+    fun offered(context: Context): List<Tool> = tools.filter { it.id != BIONIC || NativeGuest.enabled(context) }
 
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")
     private fun requests(context: Context) = File(home(context), ".bl-proton-extra")
@@ -117,7 +121,7 @@ object ProtonExtras {
         synchronized(checkLock) {
             val file = latestFile(context)
             val cache = readJson(file)
-            val due = tools.filter { tool ->
+            val due = offered(context).filter { tool ->
                 val at = cache.optJSONObject(tool.id)?.optLong("at", 0L) ?: 0L
                 force || (now - at) !in 0 until CHECK_EVERY_MS
             }
