@@ -19,6 +19,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,6 +56,7 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Pets
@@ -95,6 +97,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -737,7 +740,15 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
             if (AgentAttachments.gameFrame != null) GameFrameButton()
             Box(Modifier.weight(1f).padding(start = 8.dp, top = 10.dp, bottom = 10.dp)) {
                 if (draft.isEmpty()) Text(
-                    stringResource(if (working) R.string.agent_hint_working else R.string.agent_hint), fontSize = 16.sp,
+                    stringResource(
+                        when {
+                            voice.listening && !voice.locked -> R.string.agent_voice_hold
+                            voice.listening -> R.string.agent_voice_listening
+                            working -> R.string.agent_hint_working
+                            else -> R.string.agent_hint
+                        },
+                    ),
+                    fontSize = 16.sp,
                     color = pal.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 BasicTextField(
@@ -764,8 +775,12 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
             }
             val canSend = draft.isNotBlank() || AgentAttachments.pending.isNotEmpty()
             // An empty message has nothing to send, so the button there dictates one instead.
-            if ((!canSend || voice.listening) && voiceAvailable) VoiceButton(voice) { voice.start(draft) }
-            else RoundButton(
+            if ((!canSend || voice.listening) && voiceAvailable) VoiceButton(voice, onStart = { voice.start(draft) }, onSend = send)
+            if (voice.listening && voice.locked) RoundButton(
+                Icons.AutoMirrored.Outlined.Send, stringResource(if (working) R.string.agent_queue else R.string.agent_send),
+                pal.primary, pal.onPrimary, "agent-send",
+            ) { voice.finish(send) }
+            else if (!((!canSend || voice.listening) && voiceAvailable)) RoundButton(
                 Icons.AutoMirrored.Outlined.Send, stringResource(if (working) R.string.agent_queue else R.string.agent_send),
                 if (canSend) pal.primary else pal.surfaceVariant, if (canSend) pal.onPrimary else pal.onSurfaceVariant, "agent-send", enabled = canSend,
             ) {
@@ -776,23 +791,101 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     }
 }
 
+/**
+ * Held, it listens until let go and then sends; slid up, it keeps listening hands-free; slid left, it puts the text back.
+ * A tap or a controller press also listens hands-free.
+ */
 @Composable
-private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit) {
+private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit, onSend: () -> Unit) {
     val context = LocalContext.current
     val pal = LocalPalette.current
+    val start by rememberUpdatedState(onStart)
+    val send by rememberUpdatedState(onSend)
+    val handsFree = {
+        start()
+        if (voice.listening) voice.locked = true
+    }
     val ask = if (LocalActivityResultRegistryOwner.current != null) rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) onStart() else android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
+        if (granted) handsFree() else android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
     } else null
-    RoundButton(
-        if (voice.listening) Icons.Outlined.MicOff else Icons.Outlined.Mic, stringResource(if (voice.listening) R.string.agent_voice_stop else R.string.agent_voice),
-        if (voice.listening) pal.primary else pal.surfaceVariant, if (voice.listening) pal.onPrimary else pal.onBackground, "agent-voice",
-    ) {
+    val granted = { context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+    val askPermission = {
+        if (ask != null) ask.launch(android.Manifest.permission.RECORD_AUDIO)
+        else android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
+    }
+    val toggle = {
         when {
             voice.listening -> voice.finish()
-            context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED -> onStart()
-            ask != null -> ask.launch(android.Manifest.permission.RECORD_AUDIO)
-            else -> android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
+            granted() -> handsFree()
+            else -> askPermission()
         }
+    }
+    val density = LocalDensity.current
+    val lockPx = with(density) { 56.dp.toPx() }
+    val cancelPx = with(density) { 72.dp.toPx() }
+    var drag by remember { mutableStateOf(Offset.Zero) }
+    val holding = voice.listening && !voice.locked
+    val icon = when {
+        voice.locked -> Icons.Outlined.MicOff
+        holding && -drag.x > cancelPx / 2 && -drag.x > -drag.y -> Icons.Outlined.Close
+        holding && -drag.y > lockPx / 2 -> Icons.Outlined.Lock
+        else -> Icons.Outlined.Mic
+    }
+    val scale = if (holding) 1.12f + 0.12f * voice.level else 1f
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.padding(start = 6.dp).size(42.dp).graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }.clip(CircleShape).background(if (voice.listening) pal.primary else pal.surfaceVariant)
+            .pointerInput(voice) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(pass = PointerEventPass.Initial)
+                    down.consume()
+                    if (voice.listening || !granted()) {
+                        waitForUpOrCancellation(PointerEventPass.Initial)?.let {
+                            it.consume()
+                            if (voice.listening) voice.finish() else askPermission()
+                        }
+                        return@awaitEachGesture
+                    }
+                    start()
+                    var resolved = !voice.listening
+                    try {
+                        while (!resolved) {
+                            val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                            change.consume()
+                            drag = change.position - down.position
+                            when {
+                                !voice.listening -> resolved = true
+                                drag.y < -lockPx -> {
+                                    voice.locked = true
+                                    resolved = true
+                                }
+                                drag.x < -cancelPx -> {
+                                    voice.cancel()
+                                    resolved = true
+                                }
+                                !change.pressed -> {
+                                    val tap = change.uptimeMillis - down.uptimeMillis < viewConfiguration.longPressTimeoutMillis / 2 &&
+                                        drag.getDistance() < viewConfiguration.touchSlop
+                                    if (tap) voice.locked = true else voice.finish(send)
+                                    resolved = true
+                                }
+                            }
+                        }
+                    } finally {
+                        drag = Offset.Zero
+                        if (!resolved && voice.listening && !voice.locked) voice.finish()
+                    }
+                }
+            }
+            .clickable(onClick = toggle).testTag("agent-voice"),
+    ) {
+        Icon(
+            icon, stringResource(if (voice.listening) R.string.agent_voice_stop else R.string.agent_voice),
+            tint = if (voice.listening) pal.onPrimary else pal.onBackground, modifier = Modifier.size(21.dp),
+        )
     }
 }
 
