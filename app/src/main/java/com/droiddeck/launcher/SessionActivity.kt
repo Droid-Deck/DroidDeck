@@ -3139,6 +3139,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun onSessionEnded(status: Int) {
         ended = true
+        uiHandler.removeCallbacks(guardWhenRunning)
+        com.droiddeck.launcher.session.KeepTopActivity.release()
         ++steamVrRequestGeneration
         if (isInPictureInPictureMode) {
             runOnUiThread { finish() }
@@ -5498,6 +5500,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun onStop() {
+        if (bouncePausedLight) { bouncePausedLight = false; departureCleanup() }
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
         if (::hud.isInitialized) hud.setBackgrounded(true)
@@ -5640,14 +5643,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (!com.droiddeck.launcher.session.KeepTopActivity.guardOtherDisplays(this, display?.displayId ?: android.view.Display.DEFAULT_DISPLAY)) return
         if (!wasResumed) return
         focusBounce = true
-        uiHandler.postDelayed({ focusBounce = false }, 1_000)
+        uiHandler.postDelayed({ focusBounce = false }, 500)
     }
 
     override fun onPause() {
-        if (focusBounce) { focusBounce = false; bouncePausedLight = true; super.onPause(); return }
+        if (focusBounce) { focusBounce = false; bouncePausedLight = true } else departureCleanup()
+        super.onPause()
+    }
+
+    private fun departureCleanup() {
         com.droiddeck.launcher.input.SystemKeyCapture.detach(this)
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
-        if (runtimeRemovalBlocked) { super.onPause(); return }
+        if (runtimeRemovalBlocked) return
         physicalShortcuts.clear()
         backQamInput.cancel()
         mouseBackInput.cancel()
@@ -5688,7 +5695,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
         ControllerPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(shortcutPrefListener)
         updateHeadTracker()
-        super.onPause()
     }
 
     private fun steamVrAction(action: String) {

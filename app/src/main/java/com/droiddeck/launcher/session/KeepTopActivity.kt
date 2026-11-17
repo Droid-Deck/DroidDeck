@@ -21,6 +21,10 @@ class KeepTopActivity : Activity() {
             finish()
             return
         }
+        if (intent.getIntExtra(EXTRA_GENERATION, -1) != generation) {
+            finishAndRemoveTask()
+            return
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         val id = display?.displayId ?: Display.INVALID_DISPLAY
         starting.remove(id)
@@ -35,6 +39,8 @@ class KeepTopActivity : Activity() {
     companion object {
         private const val TAG = "KeepTop"
         private const val EXTRA_BOUNCE = "bounce"
+        private const val EXTRA_GENERATION = "generation"
+        private var generation = 0
         private val guards = HashMap<Int, KeepTopActivity>()
         private val starting = HashSet<Int>()
 
@@ -57,6 +63,7 @@ class KeepTopActivity : Activity() {
         }
 
         fun release() {
+            generation++
             guards.values.toList().forEach { it.finishAndRemoveTask() }
             guards.clear()
             starting.clear()
@@ -66,6 +73,7 @@ class KeepTopActivity : Activity() {
             val intent = Intent(context, KeepTopActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
                 .putExtra(EXTRA_BOUNCE, bounce)
+                .putExtra(EXTRA_GENERATION, generation)
             context.startActivity(intent, ActivityOptions.makeBasic().setLaunchDisplayId(displayId).toBundle())
         }
     }
