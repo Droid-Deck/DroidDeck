@@ -67,6 +67,8 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | --- | --- | --- |
 | Storage | Tabs › Storage | sd card, space, uninstall, disk |
 | Syncthing | Tabs › Syncthing | syncthing, saves |
+| Download speed tier | Tabs › Downloads | download, speed, bandwidth, slow |
+| Downloads at a time | Tabs › Downloads | download, parallel, queue, at once |
 | Tabs | Tabs › More | tabs, hide, reorder, agent, stores, edit tabs |
 
 ## In-game menu
