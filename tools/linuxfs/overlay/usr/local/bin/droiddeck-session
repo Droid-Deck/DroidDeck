@@ -887,8 +887,10 @@ case $mode in
             _bl_fall=$((_bl_sample_available - _bl_available))
             [ "$_saved_growth" -gt "$_bl_growth" ] && _bl_growth=$_saved_growth
             [ "$_saved_fall" -gt "$_bl_fall" ] && _bl_fall=$_saved_fall
-            _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
-            _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
+            if [ $((SECONDS - _bl_sample_at)) -ge 5 ]; then
+              _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
+              _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
+            fi
           fi
           _bl_real_available=$_bl_available
           [ "$_bl_real_available" -ge 0 ] && _bl_real_available=$((_bl_real_available - _bl_growth))

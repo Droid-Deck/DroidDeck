@@ -214,6 +214,17 @@ SECONDS=30; bl_session_pressure
         self.assertEqual(['send:1:session'], self.run_policy(
             f'cp {falling} {meminfo}\nSECONDS=5; bl_session_pressure'))
 
+    def test_a_fall_split_across_one_second_polls_still_reclaims(self):
+        self.memory(total=15255, available=6300)
+        steps = []
+        for second, available in ((5, 6100), (6, 6020), (7, 5940), (8, 5860), (9, 5780)):
+            sample = self.root / f'meminfo-{second}'
+            sample.write_text(
+                f'MemTotal: {15255 * 1024} kB\nMemAvailable: {available * 1024} kB\n'
+                f'SwapTotal: {8192 * 1024} kB\nSwapFree: {6144 * 1024} kB\n')
+            steps.append(f'cp {sample} {self.root / "meminfo"}; SECONDS={second}; bl_session_pressure')
+        self.assertEqual(['send:1:session'], self.run_policy('\n'.join(steps)))
+
     def test_no_game_does_not_compress_the_session(self):
         self.assertEqual([], self.run_policy('_bl_game=0; bl_session_pressure'))
 
