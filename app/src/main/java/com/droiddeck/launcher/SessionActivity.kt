@@ -814,7 +814,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     pointerCaptureRefused = false
                     if (usbMouse.active) updatePointerCapture()
                 } else {
-                    releaseHeldPointerInput()
+                    releaseHeldInputOnCaptureLoss()
                     uiHandler.postDelayed(::updatePointerCapture, 250)
                 }
             }
@@ -5322,6 +5322,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun keyboardCoversPad() =
         SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
+
+    private fun releaseHeldInputOnCaptureLoss() {
+        if (drawerOpen) releaseHeldGuestInput() else releaseHeldPointerInput()
+    }
 
     private fun releaseHeldPointerInput() {
         mouseBackInput.cancel()

@@ -201,6 +201,15 @@ class SessionInputPointerTest {
         assertEquals(17 to 0, CompositorShadow.keys.last())
     }
 
+    @Test fun losingPointerCaptureToTheSessionMenuReleasesKeyboardKeys() {
+        val open: androidx.compose.runtime.MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerOpenState\$delegate")
+        open.value = true
+        ReflectionHelpers.getField<HeldInput>(activity, "heldKeys").set(16, 17, true)
+        CompositorShadow.keys.clear()
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "releaseHeldInputOnCaptureLoss")
+        assertEquals(17 to 0, CompositorShadow.keys.last())
+    }
+
     @Test fun horizontalWheelUsesTheSameDirectionInBothMouseBackends() {
         output.scrollHorizontal(2)
         assertEquals(listOf(Triple(11, 0, 240)), CompositorShadow.events)
