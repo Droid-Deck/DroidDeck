@@ -335,6 +335,10 @@ x64_fetch() {
 }
 
 x64_prepare() {
+if x64_cpu_lacks cpuid; then
+  step "FEX can't run here: Linux $(uname -r) does not let programs read the CPU's features (no cpuid in /proc/cpuinfo), which needs Linux 4.11 or newer"
+  exit 1
+fi
 fex_ready || { step "FEX could not be installed; see $LOG"; exit 1; }
 step "FEX ready ($FEX_NOW, $FEX_FROM)"
 mkdir -p "$STEAM_X64" && : > "$STEAM_X64/.steam-enable-steamrt64-client"
@@ -782,14 +786,18 @@ x64_gpu_watch() {
 }
 
 x64_arm_webhelper_cpu_supported() {
+  ! x64_cpu_lacks atomics
+}
+
+x64_cpu_lacks() {
   local status=0
-  awk -F: '
+  awk -F: -v want="$1" '
     $1 ~ /^[[:space:]]*Features[[:space:]]*$/ {
-      if ($2 !~ /(^|[[:space:]])atomics([[:space:]]|$)/) unsupported = 1
+      if ($2 !~ ("(^|[[:space:]])" want "([[:space:]]|$)")) missing = 1
     }
-    END { exit unsupported ? 1 : 0 }
+    END { exit missing ? 1 : 0 }
   ' /proc/cpuinfo 2>/dev/null || status=$?
-  [ "$status" != 1 ]
+  [ "$status" = 1 ]
 }
 
 x64_exec() {

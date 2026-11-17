@@ -3753,6 +3753,7 @@
     <string name="sync_not_running">Syncthing çalışmıyor.</string>
     <string name="session_end_steam_sigill">Steam geçersiz bir komutla durdu (SIGILL). Bu bir CPU komut uyumluluğu sorunu veya istemci çökmesi olabilir. Günlükleri cihaz bilgilerinizle paylaşın.</string>
     <string name="session_end_steam_try_x64">Steam ayarları → Steam istemcisi → x86-64 (deneysel) seçeneğini deneyebilirsiniz. Ek bir indirme gerektirir ve daha yavaş çalışabilir.</string>
+    <string name="session_end_fex_kernel">x86 programları ve x86-64 Steam istemcisi FEX üzerinden çalışır; FEX bu cihazın Linux çekirdeğinde (%1$s) çalışamaz.</string>
     <string name="session_end_vulkan_device">Linux grafik sürücüsü kullanılabilir bir Vulkan cihazı bulamadı. Seçilen Linux GPU sürücüsünün bu GPU\'yu desteklediğini kontrol edin.</string>
     <string name="session_end_gpu_unsupported">Bu GPU için geçerli kurulumda uyumlu bir Linux Vulkan sürücüsü olmadığından bu oturum başlatılamıyor. Adreno Turnip sürücüleri MediaTek/Mali GPU\'lar için destek sağlayamaz.</string>
     <string name="setup_group_memory">Bellek</string>

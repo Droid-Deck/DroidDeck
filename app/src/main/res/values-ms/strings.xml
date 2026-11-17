@@ -3725,6 +3725,7 @@
     <string name="sync_not_running">Syncthing tidak berjalan.</string>
     <string name="session_end_steam_sigill">Steam berhenti dengan arahan tidak sah (SIGILL). Ini mungkin masalah keserasian arahan CPU atau ranap klien. Kongsi log bersama butiran peranti anda.</string>
     <string name="session_end_steam_try_x64">Anda boleh cuba Tetapan Steam → Klien Steam → x86-64 (eksperimen). Ia memerlukan muat turun tambahan dan mungkin berjalan lebih perlahan.</string>
+    <string name="session_end_fex_kernel">Program x86 dan klien Steam x86-64 berjalan melalui FEX, yang tidak boleh berjalan pada kernel Linux peranti ini (%1$s).</string>
     <string name="session_end_vulkan_device">Pemacu grafik Linux tidak menemui peranti Vulkan yang boleh digunakan. Pastikan pemacu GPU Linux yang dipilih menyokong GPU ini.</string>
     <string name="session_end_gpu_unsupported">Sesi ini tidak dapat bermula kerana GPU ini tiada pemacu Vulkan Linux yang serasi dalam persediaan semasa. Pemacu Adreno Turnip tidak dapat mendayakan sokongan untuk GPU MediaTek/Mali.</string>
     <string name="setup_group_memory">Memori</string>

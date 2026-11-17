@@ -75,5 +75,37 @@ class SteamX64CpuTest(unittest.TestCase):
         self.assertEqual(result, 'x86|stock')
 
 
+
+class SteamX64KernelTest(unittest.TestCase):
+    def prepare(self, features):
+        with tempfile.TemporaryDirectory() as tmp:
+            cpuinfo = Path(tmp) / 'cpuinfo'
+            cpuinfo.write_text(features)
+            text = SCRIPT.read_text()
+            helper = text[text.index('x64_cpu_lacks() {'):text.index('x64_exec() {')]
+            start = text.index('x64_prepare() {')
+            prepare = text[start:text.index('fex_ready || {', start)] + 'fex_ready\n}\n'
+            shell = ('step() { echo "STEP $*"; }\nfex_ready() { echo FEX_READY; exit 0; }\n'
+                     + helper.replace('/proc/cpuinfo', str(cpuinfo)) + prepare + 'x64_prepare\n')
+            result = subprocess.run(['bash', '-eu', '-c', shell], capture_output=True, text=True)
+            return result.returncode, result.stdout
+
+    def test_a_kernel_without_cpuid_stops_before_fex_is_downloaded(self):
+        rc, out = self.prepare('processor : 0\nFeatures : fp asimd evtstrm aes pmull sha1 sha2 crc32\n')
+        self.assertEqual(rc, 1)
+        self.assertIn("STEP FEX can't run here", out)
+        self.assertNotIn('FEX_READY', out)
+
+    def test_an_armv80_cpu_with_cpuid_still_gets_fex(self):
+        rc, out = self.prepare('Features : fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid\n')
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), 'FEX_READY')
+
+    def test_absent_features_preserves_existing_behavior(self):
+        rc, out = self.prepare('processor : 0\n')
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), 'FEX_READY')
+
+
 if __name__ == '__main__':
     unittest.main()

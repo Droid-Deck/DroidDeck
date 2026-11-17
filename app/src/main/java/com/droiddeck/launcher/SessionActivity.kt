@@ -3278,12 +3278,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
             val steamSetup = com.droiddeck.launcher.session.SteamClientSetupFailure.find(text.lineSequence())
             val launchFailure = com.droiddeck.launcher.session.SessionLaunchFailure.find(text.lineSequence())
+            val fexKernel by lazy {
+                if (com.droiddeck.launcher.session.FexHost.kernelHidesCpuFeatures())
+                    getString(R.string.session_end_fex_kernel, System.getProperty("os.version").orEmpty()) else null
+            }
             if (steamSetup != null) {
                 val message = getString(if (steamSetup.download) R.string.session_end_steam_download else R.string.session_end_steam_setup)
-                EndHint(listOfNotNull(message, steamSetup.curlError).joinToString("\n"))
+                val x64Kernel = if (SessionState.steamClientArch == "x86_64") fexKernel else null
+                EndHint(x64Kernel ?: listOfNotNull(message, steamSetup.curlError).joinToString("\n"))
             } else if (launchFailure == com.droiddeck.launcher.session.SessionLaunchFailure.STEAM_ILLEGAL_INSTRUCTION) {
                 val message = getString(R.string.session_end_steam_sigill)
-                val fallback = if (SessionState.steamClientArch == "arm64") getString(R.string.session_end_steam_try_x64) else null
+                val fallback = when (SessionState.steamClientArch) {
+                    "arm64" -> fexKernel ?: getString(R.string.session_end_steam_try_x64)
+                    "x86_64" -> fexKernel
+                    else -> null
+                }
                 EndHint(listOfNotNull(message, fallback).joinToString("\n"))
             } else if (launchFailure == com.droiddeck.launcher.session.SessionLaunchFailure.VULKAN_DEVICE_MISSING) {
                 val gpu = com.droiddeck.launcher.gpu.GpuInfo.detect()
@@ -3294,7 +3303,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 EndHint(if (adreno) message else "${gpu.name} (${family.label(gpu.name)})\n$message")
             } else if (fexMissing) {
                 val what = com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_end_program)
-                EndHint(getString(R.string.session_end_fex_missing, what), evenOnSuccess = true)
+                EndHint(fexKernel ?: getString(R.string.session_end_fex_missing, what), evenOnSuccess = true)
             } else if (enosys >= 8) {
                 EndHint(resources.getQuantityString(R.plurals.session_hint_enosys, enosys, enosys,
                     getString(R.string.perf_title), getString(R.string.perf_seccomp), getString(R.string.perf_xalia)))

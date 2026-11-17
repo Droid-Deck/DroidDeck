@@ -3792,6 +3792,7 @@
     <string name="sync_not_running">Syncthing non è in esecuzione.</string>
     <string name="session_end_steam_sigill">Steam si è arrestato con un\'istruzione non valida (SIGILL). Può trattarsi di un problema di compatibilità delle istruzioni della CPU o di un crash del client. Condividi i log con i dettagli del tuo dispositivo.</string>
     <string name="session_end_steam_try_x64">Puoi provare Impostazioni di Steam → Client Steam → x86-64 (sperimentale). Richiede un download aggiuntivo e potrebbe essere più lento.</string>
+    <string name="session_end_fex_kernel">I programmi x86 e il client Steam x86-64 funzionano tramite FEX, che non può funzionare con il kernel Linux di questo dispositivo (%1$s).</string>
     <string name="session_end_vulkan_device">Il driver grafico Linux non ha trovato un dispositivo Vulkan utilizzabile. Verifica che il driver GPU Linux selezionato supporti questa GPU.</string>
     <string name="session_end_gpu_unsupported">Questa sessione non può avviarsi perché questa GPU non ha un driver Vulkan Linux compatibile nella configurazione attuale. I driver Adreno Turnip non possono abilitare il supporto per le GPU MediaTek/Mali.</string>
     <string name="setup_group_memory">Memoria</string>

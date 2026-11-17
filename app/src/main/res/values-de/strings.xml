@@ -3756,6 +3756,7 @@
     <string name="sync_not_running">Syncthing läuft nicht.</string>
     <string name="session_end_steam_sigill">Steam wurde mit einer ungültigen Anweisung (SIGILL) beendet. Das kann ein Kompatibilitätsproblem mit CPU-Befehlen oder ein Absturz des Clients sein. Teile die Logs zusammen mit den Details deines Geräts.</string>
     <string name="session_end_steam_try_x64">Du kannst Steam-Einstellungen → Steam-Client → x86-64 (experimentell) ausprobieren. Das erfordert einen zusätzlichen Download und kann langsamer laufen.</string>
+    <string name="session_end_fex_kernel">x86-Programme und der x86-64-Steam-Client laufen über FEX, das mit dem Linux-Kernel dieses Geräts (%1$s) nicht laufen kann.</string>
     <string name="session_end_vulkan_device">Der Linux-Grafiktreiber hat kein nutzbares Vulkan-Gerät gefunden. Prüfe, ob der ausgewählte Linux-GPU-Treiber diese GPU unterstützt.</string>
     <string name="session_end_gpu_unsupported">Diese Sitzung kann nicht starten, weil es für diese GPU in der aktuellen Konfiguration keinen kompatiblen Linux-Vulkan-Treiber gibt. Adreno-Turnip-Treiber können keine Unterstützung für MediaTek/Mali-GPUs aktivieren.</string>
     <string name="setup_group_memory">Arbeitsspeicher</string>
