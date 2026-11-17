@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Angränsande riktningar</string>
     <string name="input_imported_keys_hint">Dina gamla skärmtangenter är sparade som importerade profiler nedan. Välj en för att använda eller redigera den. Dina nuvarande profilval har behållits.</string>
     <string name="input_import_failed">De gamla skärmtangenterna kunde inte importeras automatiskt. De ursprungliga inställningarna har behållits.</string>
+    <string name="input_stick_shape">Stil</string>
+    <string name="input_stick_shape_stick">Spak</string>
+    <string name="input_stick_shape_dpad">Styrkors</string>
+    <string name="input_dpad_ways">Riktningar</string>
+    <string name="input_dpad_4way">4 riktningar</string>
+    <string name="input_dpad_8way">8 riktningar</string>
+    <string name="input_dpad_style">Form</string>
+    <string name="input_dpad_style_cross">Kors</string>
+    <string name="input_dpad_style_buttons">Knappar</string>
 </resources>

@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Sousední směry</string>
     <string name="input_imported_keys_hint">Vaše staré klávesy na obrazovce jsou uloženy níže jako importované profily. Vyberte jeden k použití nebo úpravě. Vaše aktuální volby profilu byly zachovány.</string>
     <string name="input_import_failed">Staré klávesy na obrazovce se nepodařilo importovat automaticky. Původní nastavení bylo zachováno.</string>
+    <string name="input_stick_shape">Styl</string>
+    <string name="input_stick_shape_stick">Páčka</string>
+    <string name="input_stick_shape_dpad">Křížový ovladač</string>
+    <string name="input_dpad_ways">Směry</string>
+    <string name="input_dpad_4way">4 směry</string>
+    <string name="input_dpad_8way">8 směrů</string>
+    <string name="input_dpad_style">Tvar</string>
+    <string name="input_dpad_style_cross">Kříž</string>
+    <string name="input_dpad_style_buttons">Tlačítka</string>
 </resources>

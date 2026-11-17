@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Komşu yönler</string>
     <string name="input_imported_keys_hint">Eski ekran tuşlarınız aşağıda içe aktarılmış profiller olarak kaydedildi. Kullanmak veya düzenlemek için birini seçin. Geçerli profil seçimleriniz korundu.</string>
     <string name="input_import_failed">Eski ekran tuşları otomatik olarak içe aktarılamadı. Özgün ayarlar korundu.</string>
+    <string name="input_stick_shape">Stil</string>
+    <string name="input_stick_shape_stick">Çubuk</string>
+    <string name="input_stick_shape_dpad">Yön tuşları</string>
+    <string name="input_dpad_ways">Yönler</string>
+    <string name="input_dpad_4way">4 yön</string>
+    <string name="input_dpad_8way">8 yön</string>
+    <string name="input_dpad_style">Şekil</string>
+    <string name="input_dpad_style_cross">Artı</string>
+    <string name="input_dpad_style_buttons">Düğmeler</string>
 </resources>

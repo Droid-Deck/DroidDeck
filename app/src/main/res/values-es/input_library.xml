@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Direcciones vecinas</string>
     <string name="input_imported_keys_hint">Tus antiguas teclas en pantalla se guardaron como perfiles importados abajo. Selecciona uno para usarlo o editarlo. Se mantuvieron tus selecciones de perfil actuales.</string>
     <string name="input_import_failed">Las antiguas teclas en pantalla no se pudieron importar automáticamente. Se conservó la configuración original.</string>
+    <string name="input_stick_shape">Estilo</string>
+    <string name="input_stick_shape_stick">Stick</string>
+    <string name="input_stick_shape_dpad">Cruceta</string>
+    <string name="input_dpad_ways">Direcciones</string>
+    <string name="input_dpad_4way">4 direcciones</string>
+    <string name="input_dpad_8way">8 direcciones</string>
+    <string name="input_dpad_style">Forma</string>
+    <string name="input_dpad_style_cross">Cruz</string>
+    <string name="input_dpad_style_buttons">Botones</string>
 </resources>

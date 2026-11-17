@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Benachbarte Richtungen</string>
     <string name="input_imported_keys_hint">Ihre alten Bildschirmtasten sind unten als importierte Profile gespeichert. Wählen Sie eines zum Verwenden oder Bearbeiten. Ihre aktuellen Profilauswahlen bleiben erhalten.</string>
     <string name="input_import_failed">Die alten Bildschirmtasten konnten nicht automatisch importiert werden. Die ursprünglichen Einstellungen wurden beibehalten.</string>
+    <string name="input_stick_shape">Stil</string>
+    <string name="input_stick_shape_stick">Stick</string>
+    <string name="input_stick_shape_dpad">Steuerkreuz</string>
+    <string name="input_dpad_ways">Richtungen</string>
+    <string name="input_dpad_4way">4-Wege</string>
+    <string name="input_dpad_8way">8-Wege</string>
+    <string name="input_dpad_style">Form</string>
+    <string name="input_dpad_style_cross">Kreuz</string>
+    <string name="input_dpad_style_buttons">Tasten</string>
 </resources>

@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">相鄰方向</string>
     <string name="input_imported_keys_hint">舊的螢幕按鍵已存為下方的匯入設定檔。選一個使用或編輯。目前選取的設定檔保持不變。</string>
     <string name="input_import_failed">無法自動匯入舊的螢幕按鍵。原設定已保留。</string>
+    <string name="input_stick_shape">樣式</string>
+    <string name="input_stick_shape_stick">搖桿</string>
+    <string name="input_stick_shape_dpad">十字鍵</string>
+    <string name="input_dpad_ways">方向</string>
+    <string name="input_dpad_4way">四向</string>
+    <string name="input_dpad_8way">八向</string>
+    <string name="input_dpad_style">形狀</string>
+    <string name="input_dpad_style_cross">一體十字</string>
+    <string name="input_dpad_style_buttons">分離按鍵</string>
 </resources>

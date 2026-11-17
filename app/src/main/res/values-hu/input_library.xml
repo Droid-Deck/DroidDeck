@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Szomszédos irányok</string>
     <string name="input_imported_keys_hint">A régi képernyőgombok lent importált profilként vannak mentve. Válasszon egyet használathoz vagy szerkesztéshez. A jelenlegi profilválasztások megmaradtak.</string>
     <string name="input_import_failed">A régi képernyőgombokat nem sikerült automatikusan importálni. Az eredeti beállítások megmaradtak.</string>
+    <string name="input_stick_shape">Stílus</string>
+    <string name="input_stick_shape_stick">Kar</string>
+    <string name="input_stick_shape_dpad">Kereszt</string>
+    <string name="input_dpad_ways">Irányok</string>
+    <string name="input_dpad_4way">4 irány</string>
+    <string name="input_dpad_8way">8 irány</string>
+    <string name="input_dpad_style">Alak</string>
+    <string name="input_dpad_style_cross">Kereszt</string>
+    <string name="input_dpad_style_buttons">Gombok</string>
 </resources>

@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Съседни посоки</string>
     <string name="input_imported_keys_hint">Старите ви екранни клавиши са запазени като импортирани профили по-долу. Изберете един за използване или редактиране. Текущите избори на профил са запазени.</string>
     <string name="input_import_failed">Старите екранни клавиши не можаха да се импортират автоматично. Оригиналните настройки са запазени.</string>
+    <string name="input_stick_shape">Стил</string>
+    <string name="input_stick_shape_stick">Стик</string>
+    <string name="input_stick_shape_dpad">D-pad</string>
+    <string name="input_dpad_ways">Посоки</string>
+    <string name="input_dpad_4way">4 посоки</string>
+    <string name="input_dpad_8way">8 посоки</string>
+    <string name="input_dpad_style">Форма</string>
+    <string name="input_dpad_style_cross">Кръст</string>
+    <string name="input_dpad_style_buttons">Бутони</string>
 </resources>

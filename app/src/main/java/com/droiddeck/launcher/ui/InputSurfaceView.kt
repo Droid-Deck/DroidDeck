@@ -36,6 +36,7 @@ import com.droiddeck.launcher.input.InputElementKind
 import com.droiddeck.launcher.input.InputAction
 import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
+import com.droiddeck.launcher.input.InputDpadStyle
 import com.droiddeck.launcher.input.InputDpadWays
 import com.droiddeck.launcher.input.InputStickShape
 import com.droiddeck.launcher.input.InputButtonImages
@@ -649,6 +650,20 @@ class InputSurfaceView(
             val half = size / 2f
             val thick = size / 6f
             val accent = tint ?: ACCENT
+            if (element.dpadStyle == InputDpadStyle.BUTTONS) {
+                if (builtFor != width to height) {
+                    builtFor = width to height
+                    buildButtons(cx, cy, half, thick)
+                    gradient = null
+                }
+                arm.color = KNOB
+                canvas.drawRect(cx - thick, cy - thick, cx + thick, cy + thick, arm)
+                for (i in 0..3) canvas.drawPath(armPaths[i], arm)
+                arm.color = accent
+                for (i in 0..3) if (held and (1 shl i) != 0) canvas.drawPath(armPaths[i], arm)
+                drawKeys(canvas, cx, cy, half, thick)
+                return
+            }
             drawCircle(canvas, cx, cy, half + 2 * density,
                 tint?.let { (it and 0x00ffffff) or (48 shl 24) } ?: SURFACE,
                 tint?.let { (it and 0x00ffffff) or (160 shl 24) } ?: LINE)
@@ -664,6 +679,10 @@ class InputSurfaceView(
             canvas.drawPath(silhouette, rim)
             arm.color = accent
             for (i in 0..3) if (held and (1 shl i) != 0) canvas.drawPath(armPaths[i], arm)
+            drawKeys(canvas, cx, cy, half, thick)
+        }
+
+        private fun drawKeys(canvas: Canvas, cx: Float, cy: Float, half: Float, thick: Float) {
             if (!element.showLabel) return
             labelPaint.color = TEXT
             if (drawDirectionLabels(canvas, source, element.dpadWays == InputDpadWays.FOUR, cx, cy, (half + thick) / 2f, thick * 1.7f, labelPaint)) return
@@ -719,6 +738,14 @@ class InputSurfaceView(
             armPaths[1].addRoundRect(RectF(cx + thick, cy - thick, cx + half, cy + thick), floatArrayOf(ri, ri, ro, ro, ro, ro, ri, ri), Path.Direction.CW)
             armPaths[2].addRoundRect(RectF(cx - thick, cy + thick, cx + thick, cy + half), floatArrayOf(ri, ri, ri, ri, ro, ro, ro, ro), Path.Direction.CW)
             armPaths[3].addRoundRect(RectF(cx - half, cy - thick, cx - thick, cy + thick), floatArrayOf(ro, ro, ri, ri, ri, ri, ro, ro), Path.Direction.CW)
+        }
+
+        private fun buildButtons(cx: Float, cy: Float, half: Float, thick: Float) {
+            val r = 8 * density
+            armPaths[0].addRoundRect(RectF(cx - thick, cy - half, cx + thick, cy - thick), r, r, Path.Direction.CW)
+            armPaths[1].addRoundRect(RectF(cx + thick, cy - thick, cx + half, cy + thick), r, r, Path.Direction.CW)
+            armPaths[2].addRoundRect(RectF(cx - thick, cy + thick, cx + thick, cy + half), r, r, Path.Direction.CW)
+            armPaths[3].addRoundRect(RectF(cx - half, cy - thick, cx - thick, cy + thick), r, r, Path.Direction.CW)
         }
 
         private fun sectors(dx: Float, dy: Float): Int {

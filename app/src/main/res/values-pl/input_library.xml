@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Sąsiednie kierunki</string>
     <string name="input_imported_keys_hint">Twoje stare klawisze ekranowe są zapisane poniżej jako zaimportowane profile. Wybierz jeden, aby go użyć lub edytować. Bieżące wybory profili zostały zachowane.</string>
     <string name="input_import_failed">Nie udało się automatycznie zaimportować starych klawiszy ekranowych. Oryginalne ustawienia zostały zachowane.</string>
+    <string name="input_stick_shape">Styl</string>
+    <string name="input_stick_shape_stick">Drążek</string>
+    <string name="input_stick_shape_dpad">Krzyżak</string>
+    <string name="input_dpad_ways">Kierunki</string>
+    <string name="input_dpad_4way">4 kierunki</string>
+    <string name="input_dpad_8way">8 kierunków</string>
+    <string name="input_dpad_style">Kształt</string>
+    <string name="input_dpad_style_cross">Krzyż</string>
+    <string name="input_dpad_style_buttons">Przyciski</string>
 </resources>

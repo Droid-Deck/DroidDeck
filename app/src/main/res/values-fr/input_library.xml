@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Directions voisines</string>
     <string name="input_imported_keys_hint">Vos anciennes touches à l\'écran sont enregistrées comme profils importés ci-dessous. Sélectionnez-en un pour l\'utiliser ou le modifier. Vos sélections de profil actuelles ont été conservées.</string>
     <string name="input_import_failed">Les anciennes touches à l\'écran n\'ont pas pu être importées automatiquement. Les réglages d\'origine ont été conservés.</string>
+    <string name="input_stick_shape">Style</string>
+    <string name="input_stick_shape_stick">Stick</string>
+    <string name="input_stick_shape_dpad">Croix directionnelle</string>
+    <string name="input_dpad_ways">Directions</string>
+    <string name="input_dpad_4way">4 directions</string>
+    <string name="input_dpad_8way">8 directions</string>
+    <string name="input_dpad_style">Forme</string>
+    <string name="input_dpad_style_cross">Croix</string>
+    <string name="input_dpad_style_buttons">Boutons</string>
 </resources>

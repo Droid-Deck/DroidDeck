@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Aangrenzende richtingen</string>
     <string name="input_imported_keys_hint">Je oude schermtoetsen zijn hieronder opgeslagen als geïmporteerde profielen. Selecteer er een om te gebruiken of te bewerken. Je huidige profielkeuzes zijn behouden.</string>
     <string name="input_import_failed">De oude schermtoetsen konden niet automatisch worden geïmporteerd. De oorspronkelijke instellingen zijn behouden.</string>
+    <string name="input_stick_shape">Stijl</string>
+    <string name="input_stick_shape_stick">Stick</string>
+    <string name="input_stick_shape_dpad">Kruis</string>
+    <string name="input_dpad_ways">Richtingen</string>
+    <string name="input_dpad_4way">4 richtingen</string>
+    <string name="input_dpad_8way">8 richtingen</string>
+    <string name="input_dpad_style">Vorm</string>
+    <string name="input_dpad_style_cross">Kruis</string>
+    <string name="input_dpad_style_buttons">Knoppen</string>
 </resources>

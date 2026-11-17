@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Hướng bên cạnh</string>
     <string name="input_imported_keys_hint">Các phím màn hình cũ được lưu thành hồ sơ đã nhập bên dưới. Chọn một để dùng hoặc chỉnh sửa. Các lựa chọn hồ sơ hiện tại được giữ nguyên.</string>
     <string name="input_import_failed">Không thể nhập tự động các phím màn hình cũ. Cài đặt gốc được giữ nguyên.</string>
+    <string name="input_stick_shape">Kiểu</string>
+    <string name="input_stick_shape_stick">Cần</string>
+    <string name="input_stick_shape_dpad">Phím điều hướng</string>
+    <string name="input_dpad_ways">Hướng</string>
+    <string name="input_dpad_4way">4 hướng</string>
+    <string name="input_dpad_8way">8 hướng</string>
+    <string name="input_dpad_style">Dạng</string>
+    <string name="input_dpad_style_cross">Chữ thập</string>
+    <string name="input_dpad_style_buttons">Nút</string>
 </resources>

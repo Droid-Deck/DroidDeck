@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Direcții vecine</string>
     <string name="input_imported_keys_hint">Vechile tale taste de pe ecran sunt salvate mai jos ca profiluri importate. Selectează unul pentru a-l folosi sau edita. Selecțiile actuale de profil au fost păstrate.</string>
     <string name="input_import_failed">Vechile taste de pe ecran nu au putut fi importate automat. Setările originale au fost păstrate.</string>
+    <string name="input_stick_shape">Stil</string>
+    <string name="input_stick_shape_stick">Manetă</string>
+    <string name="input_stick_shape_dpad">Cruce</string>
+    <string name="input_dpad_ways">Direcții</string>
+    <string name="input_dpad_4way">4 direcții</string>
+    <string name="input_dpad_8way">8 direcții</string>
+    <string name="input_dpad_style">Formă</string>
+    <string name="input_dpad_style_cross">Cruce</string>
+    <string name="input_dpad_style_buttons">Butoane</string>
 </resources>

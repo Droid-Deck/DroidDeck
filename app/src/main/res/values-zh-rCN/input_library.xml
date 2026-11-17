@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">相邻方向</string>
     <string name="input_imported_keys_hint">旧的屏幕按键已存为下方的导入配置。选一个使用或编辑。当前选中的配置保持不变。</string>
     <string name="input_import_failed">无法自动导入旧的屏幕按键。原设置已保留。</string>
+    <string name="input_stick_shape">样式</string>
+    <string name="input_stick_shape_stick">摇杆</string>
+    <string name="input_stick_shape_dpad">十字键</string>
+    <string name="input_dpad_ways">方向</string>
+    <string name="input_dpad_4way">四向</string>
+    <string name="input_dpad_8way">八向</string>
+    <string name="input_dpad_style">形状</string>
+    <string name="input_dpad_style_cross">一体十字</string>
+    <string name="input_dpad_style_buttons">分离按键</string>
 </resources>

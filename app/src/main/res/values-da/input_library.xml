@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Naboretninger</string>
     <string name="input_imported_keys_hint">Dine gamle skærmtaster er gemt som importerede profiler nedenfor. Vælg en for at bruge eller redigere den. Dine nuværende profilvalg er bevaret.</string>
     <string name="input_import_failed">De gamle skærmtaster kunne ikke importeres automatisk. De oprindelige indstillinger er bevaret.</string>
+    <string name="input_stick_shape">Stil</string>
+    <string name="input_stick_shape_stick">Styrepind</string>
+    <string name="input_stick_shape_dpad">Retningskryds</string>
+    <string name="input_dpad_ways">Retninger</string>
+    <string name="input_dpad_4way">4 retninger</string>
+    <string name="input_dpad_8way">8 retninger</string>
+    <string name="input_dpad_style">Form</string>
+    <string name="input_dpad_style_cross">Kryds</string>
+    <string name="input_dpad_style_buttons">Knapper</string>
 </resources>

@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Γειτονικές κατευθύνσεις</string>
     <string name="input_imported_keys_hint">Τα παλιά πλήκτρα οθόνης αποθηκεύτηκαν ως εισαγόμενα προφίλ παρακάτω. Επιλέξτε ένα για χρήση ή επεξεργασία. Οι τρέχουσες επιλογές προφίλ διατηρήθηκαν.</string>
     <string name="input_import_failed">Τα παλιά πλήκτρα οθόνης δεν μπόρεσαν να εισαχθούν αυτόματα. Οι αρχικές ρυθμίσεις διατηρήθηκαν.</string>
+    <string name="input_stick_shape">Στυλ</string>
+    <string name="input_stick_shape_stick">Μοχλός</string>
+    <string name="input_stick_shape_dpad">Σταυρός</string>
+    <string name="input_dpad_ways">Κατευθύνσεις</string>
+    <string name="input_dpad_4way">4 κατευθύνσεις</string>
+    <string name="input_dpad_8way">8 κατευθύνσεις</string>
+    <string name="input_dpad_style">Σχήμα</string>
+    <string name="input_dpad_style_cross">Σταυρός</string>
+    <string name="input_dpad_style_buttons">Κουμπιά</string>
 </resources>

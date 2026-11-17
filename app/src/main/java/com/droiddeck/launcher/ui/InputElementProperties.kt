@@ -76,7 +76,11 @@ internal fun InputElementProperties(element: InputSurfaceElement, action: InputA
         }
     }
     if (element.kind == InputElementKind.DPAD || element.kind == InputElementKind.STICK && element.stickShape == InputStickShape.DPAD) {
-        ChoiceRow(rememberMenuHost(), "element-dpad-ways", stringResource(R.string.input_dpad_ways), null,
+        val host = rememberMenuHost()
+        ChoiceRow(host, "element-dpad-style", stringResource(R.string.input_dpad_style), null,
+            listOf(InputDpadStyle.CROSS to stringResource(R.string.input_dpad_style_cross), InputDpadStyle.BUTTONS to stringResource(R.string.input_dpad_style_buttons)),
+            element.dpadStyle) { onChange(element.copy(dpadStyle = it)) }
+        ChoiceRow(host, "element-dpad-ways", stringResource(R.string.input_dpad_ways), null,
             listOf(InputDpadWays.FOUR to stringResource(R.string.input_dpad_4way), InputDpadWays.EIGHT to stringResource(R.string.input_dpad_8way)),
             element.dpadWays) { onChange(element.copy(dpadWays = it)) }
     }

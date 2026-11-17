@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Arah tetangga</string>
     <string name="input_imported_keys_hint">Tombol layar lama Anda disimpan sebagai profil impor di bawah. Pilih satu untuk dipakai atau diedit. Pilihan profil Anda saat ini dipertahankan.</string>
     <string name="input_import_failed">Tombol layar lama tidak dapat diimpor otomatis. Setelan asli dipertahankan.</string>
+    <string name="input_stick_shape">Gaya</string>
+    <string name="input_stick_shape_stick">Stik</string>
+    <string name="input_stick_shape_dpad">D-pad</string>
+    <string name="input_dpad_ways">Arah</string>
+    <string name="input_dpad_4way">4 arah</string>
+    <string name="input_dpad_8way">8 arah</string>
+    <string name="input_dpad_style">Bentuk</string>
+    <string name="input_dpad_style_cross">Silang</string>
+    <string name="input_dpad_style_buttons">Tombol</string>
 </resources>

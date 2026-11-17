@@ -129,4 +129,13 @@
     <string name="input_diagonal_neighbors">Viereiset suunnat</string>
     <string name="input_imported_keys_hint">Vanhat näyttönäppäimesi on tallennettu alle tuotuina profiileina. Valitse yksi käyttääksesi tai muokataksesi sitä. Nykyiset profiilivalintasi on säilytetty.</string>
     <string name="input_import_failed">Vanhoja näyttönäppäimiä ei voitu tuoda automaattisesti. Alkuperäiset asetukset on säilytetty.</string>
+    <string name="input_stick_shape">Tyyli</string>
+    <string name="input_stick_shape_stick">Tikku</string>
+    <string name="input_stick_shape_dpad">Ristikko-ohjain</string>
+    <string name="input_dpad_ways">Suunnat</string>
+    <string name="input_dpad_4way">4 suuntaa</string>
+    <string name="input_dpad_8way">8 suuntaa</string>
+    <string name="input_dpad_style">Muoto</string>
+    <string name="input_dpad_style_cross">Risti</string>
+    <string name="input_dpad_style_buttons">Painikkeet</string>
 </resources>
