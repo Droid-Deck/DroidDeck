@@ -44,6 +44,7 @@ class AdoptTest(unittest.TestCase):
             41: record("Demo", "Shared", "Shared Demo"),
             50: record("Game", "Twin", "Twin One"),
             51: record("Game", "Twin", "Twin Two"),
+            60: record("Game", 'Game "Special"', 'Game "Special"'),
         })
         for patcher in (patch.object(library, "BIN_DIR", str(BIN)),
                         patch("builtins.print")):
@@ -67,13 +68,15 @@ class AdoptTest(unittest.TestCase):
 
     def test_matched_folder_gets_a_validating_manifest(self):
         self.folder("Alpha")
-        self.assertEqual(self.adopt(), 1)
+        self.folder('Game "Special"')
+        self.assertEqual(self.adopt(), 2)
         text = self.manifest(10).read_text()
         for line in ('"appid" "10"', '"Universe" "1"', '"StateFlags" "4"', '"installdir" "Alpha"',
                      '"name" "Alpha \\"Deluxe\\""', '"AutoUpdateBehavior" "1"'):
             self.assertIn(line, text)
         self.assertNotIn("buildid", text)
         self.assertNotIn("InstalledDepots", text)
+        self.assertIn('"installdir" "Game \\"Special\\""', self.manifest(60).read_text())
 
     def test_existing_manifest_is_untouched(self):
         self.folder("Alpha")

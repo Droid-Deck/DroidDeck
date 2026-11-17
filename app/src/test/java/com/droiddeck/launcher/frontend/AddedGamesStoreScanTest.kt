@@ -50,11 +50,13 @@ class AddedGamesStoreScanTest {
     }
 
     @Test fun anEpicGameAlwaysUsesItsLauncherWrapperEvenAfterAnExeIsPicked() {
-        val folder = install(Store.EPIC, "picked", "Picked Epic", "Binaries/Game.exe", launcher = true)
-        AddedExes.put(app, AddedExes.Entry(folder.path, File(folder, "Binaries/Game.exe").path, picked = true))
-        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
-        assertEquals("Binaries/Game.exe", game.exe.relativeTo(folder).path)
-        assertTrue(game.guestExe.endsWith("/" + StoreLaunch.LAUNCHER))
+        for (store in listOf(Store.EPIC, Store.AMAZON, Store.GOG)) {
+            val folder = install(store, "picked-${store.id}", "Picked ${store.id}", "Binaries/Game.exe", launcher = true)
+            AddedExes.put(app, AddedExes.Entry(folder.path, File(folder, "Binaries/Game.exe").path, picked = true))
+            val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+            assertEquals("Binaries/Game.exe", game.exe.relativeTo(folder).path)
+            assertTrue(game.guestExe.endsWith("/" + StoreLaunch.LAUNCHER))
+        }
     }
 
     @Test fun aDifferentPickedExeOnAnEpicGameIsRunDirectly() {

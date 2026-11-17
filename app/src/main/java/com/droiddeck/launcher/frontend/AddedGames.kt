@@ -336,7 +336,8 @@ object AddedGames {
         val owner = ownerFolder(app, exe)
         if (owner != null && owner.path !in SessionPrefs.removedAddedGames(app)) {
             single(app, owner.path)?.takeIf { canonical(it.exe) == path }?.let {
-                if (guestPath(app, exe) != null) AddedExes.put(app, AddedExes.Entry(owner.path, exe.path))
+                val chosen = if (guestPath(app, exe) != null) exe.path else it.exe.path
+                AddedExes.put(app, AddedExes.Entry(owner.path, chosen))
                 return AddResult.Existing(it)
             }
         }
@@ -442,7 +443,7 @@ object AddedGames {
             val chosen = picked.takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
                 ?: single?.takeIf { it.picked }?.let { File(it.exe) }?.takeIf { it.isFile }
             val found = chosen ?: sidecar?.exeFile(folder)?.takeIf { it.isFile } ?: candidates.firstOrNull() ?: return
-            val epicLauncher = sidecar?.takeIf { it.store == Store.EPIC && (chosen == null || canonical(chosen) == canonical(it.exeFile(folder))) }
+            val epicLauncher = sidecar?.takeIf { chosen == null || canonical(chosen) == canonical(it.exeFile(folder)) }
                 ?.launcherFile(folder)?.takeIf { it.isFile }
             val launch = epicLauncher ?: if (chosen == null) sidecar?.launcherFile(folder)?.takeIf { it.isFile } ?: found else found
             val foundGuest = guestPath(context, launch)

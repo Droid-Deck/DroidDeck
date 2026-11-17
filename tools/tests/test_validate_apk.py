@@ -121,6 +121,49 @@ class ValidateApkTest(unittest.TestCase):
         self.validate(filename=".github/trusted-test-builds.txt", permission="admin", role_name="admin")
         self.assertEqual(self.statuses[-1]["state"], "success")
 
+    def test_revalidates_pr_metadata_and_recovers_rate_limited_status_post(self):
+        (self.root / "source.kt").write_text("clean")
+        self.git("add", "source.kt")
+        self.git("commit", "--allow-empty", "-qm", "Clean change")
+        sha = self.git("rev-parse", "HEAD")
+        pulls = [
+            {"number": 1, "state": "open", "head": {"sha": sha}, "user": {"login": "human", "type": "User"}, "title": "Clean", "body": ""},
+            {"number": 1, "state": "open", "head": {"sha": sha}, "user": {"login": "human", "type": "User"}, "title": "Clean", "body": ""},
+            {"number": 1, "state": "open", "head": {"sha": sha}, "user": {"login": "human", "type": "User"}, "title": "Clean", "body": "Co-authored-by: Claude <claude@example.org>"},
+        ]
+        event = {"number": 1, "pull_request": {"head": {"sha": sha}}}
+        path = self.root / "event.json"
+        path.write_text(json.dumps(event))
+        status_attempts = 0
+
+        def api(endpoint, *args):
+            nonlocal status_attempts
+            if endpoint.endswith("/pulls/1"):
+                return pulls.pop(0) if len(pulls) > 1 else pulls[0]
+            if "workflows/build.yml/runs?" in endpoint:
+                return {"workflow_runs": [{"id": 7, "head_sha": sha, "status": "completed", "html_url": "https://example.org/build"}]}
+            if endpoint.endswith("/jobs?per_page=100"):
+                return {"jobs": [{"name": "Compile and test APK", "status": "completed", "conclusion": "success"}]}
+            if "/statuses/" in endpoint:
+                status_attempts += 1
+                if status_attempts == 1:
+                    raise subprocess.CalledProcessError(1, ["gh", "api", endpoint], "", "gh: You have exceeded a secondary rate limit.")
+                self.statuses.append(dict(value.split("=", 1) for value in args if "=" in value))
+                return {}
+            raise AssertionError(endpoint)
+
+        env = {"GITHUB_EVENT_PATH": str(path), "GITHUB_REPOSITORY": "owner/repo",
+               "GITHUB_EVENT_NAME": "pull_request_target", "GITHUB_RUN_ID": "8"}
+        with contextlib.chdir(self.root), patch.dict(os.environ, env), \
+                patch.object(validate_apk, "api", side_effect=api), \
+                patch.object(validate_apk, "fetch_source"), \
+                patch.object(validate_apk, "rate_limit_wait", return_value=7), \
+                patch.object(validate_apk.time, "sleep") as sleep:
+            validate_apk.main()
+        self.assertEqual(status_attempts, 2)
+        sleep.assert_called_once_with(60)
+        self.assertEqual(self.statuses[-1]["state"], "failure")
+
     def test_renaming_code_to_documentation_still_requires_compilation(self):
         (self.root / "source.kt").write_text("source")
         self.git("add", "source.kt")
@@ -156,6 +199,12 @@ class RateLimitTest(unittest.TestCase):
         self.assertEqual(result, {"number": 1})
         self.assertEqual(len(runs), 2)
         sleep.assert_called_once_with(7)
+
+    def test_secondary_rate_limit_waits_at_least_one_minute(self):
+        result, runs, sleep = self.call([(1, "", "gh: You have exceeded a secondary rate limit."), (0, '{"number": 1}', "")])
+        self.assertEqual(result, {"number": 1})
+        self.assertEqual(len(runs), 2)
+        sleep.assert_called_once_with(60)
 
     def test_other_errors_fail_without_waiting(self):
         result, runs, sleep = self.call([(1, "", "gh: Not Found (HTTP 404)")])

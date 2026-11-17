@@ -4,6 +4,7 @@ import signal
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
@@ -60,7 +61,14 @@ static long status(const char *key) {
   return v;
 }
 
+static void clear_ack(void) {
+  char ack[256];
+  snprintf(ack, sizeof(ack), "%s.ack.%d", ctl, getpid());
+  unlink(ack);
+}
+
 static void send_request(char mode) {
+  if (mode == '1') clear_ack();
   int fd = open(ctl, O_WRONLY | O_TRUNC);
   if (fd < 0 || write(fd, &mode, 1) != 1) exit(3);
   close(fd);
@@ -83,12 +91,24 @@ static void wait_ack(void) {
   exit(5);
 }
 
+static void wait_read_back(long before_swap) {
+  long limit = before_swap / 4;
+  for (int i = 0; i < 1200; i++) {
+    long now = status("VmSwap:");
+    if (before_swap <= 0 || (now >= 0 && now <= limit)) return;
+    usleep(10000);
+  }
+  exit(15);
+}
+
 static void request(char mode) {
+  long before_swap = mode == '0' ? status("VmSwap:") : 0;
   send_request(mode);
   if (mode == '1') {
     wait_ack();
+  } else {
+    wait_read_back(before_swap);
   }
-  usleep(1000000);
 }
 
 static uint64_t sum(const unsigned char *p, size_t n) {
@@ -190,7 +210,7 @@ int main(int argc, char **argv) {
         if (fd < 0 || write(fd, "1", 1) != 1) _exit(9);
         close(fd);
         clock_gettime(CLOCK_MONOTONIC, &start);
-        int requests = !strcmp(argv[4], "timed-inline-single") ? 1 : 64;
+        int requests = !strcmp(argv[4], "timed-inline-single") ? 1 : 256;
         for (int i = 0; i < requests; i++) {
           send_request('1');
         }
@@ -207,6 +227,7 @@ int main(int argc, char **argv) {
     } else if (!strcmp(argv[4], "timed")) {
       struct timespec previous, current, deadline;
       long max_gap = 0;
+      clear_ack();
       int fd = open(ctl, O_WRONLY | O_TRUNC);
       if (fd < 0 || write(fd, "1", 1) != 1) exit(7);
       close(fd);
@@ -334,10 +355,17 @@ class ZramPreloadTest(unittest.TestCase):
             self.assertEqual("ready", ready[0])
             worker = None
             task_dir = Path("/proc") / ready[1] / "task"
-            for task in task_dir.iterdir():
-                if (task / "comm").read_text().strip() == "zr-worker":
-                    worker = int(task.name)
-                    break
+            deadline = time.monotonic() + 5.0
+            while worker is None and time.monotonic() < deadline:
+                for task in task_dir.iterdir():
+                    try:
+                        if (task / "comm").read_text().strip() == "zr-worker":
+                            worker = int(task.name)
+                            break
+                    except OSError:
+                        continue
+                if worker is None:
+                    time.sleep(0.01)
             self.assertIsNotNone(worker)
             self.assertEqual(os.sched_getscheduler(process.pid), os.sched_getscheduler(worker))
             process.stdin.write(f"{worker}\n")

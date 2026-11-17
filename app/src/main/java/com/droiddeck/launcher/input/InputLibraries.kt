@@ -138,6 +138,18 @@ object InputLibraries {
         update(context) { library -> library.layouts.firstOrNull { it.id == layoutId && it.editable }?.let { library.withLayout(it.withQuickButton(button, shown)) } ?: library }
     }.isSuccess
 
+    fun defaultAspect(context: Context, library: InputLibrary, layout: SavedInputLayout): Float {
+        val origin = layout.origin ?: layout.id
+        InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.aspect }
+        if (origin == OVERLAY || origin.startsWith("migrated.layout.")) {
+            val (_, metrics) = primaryDisplay(context)
+            val size = if (origin == OVERLAY) listOf(metrics.widthPixels, metrics.heightPixels)
+                else origin.removePrefix("migrated.layout.").split('x').mapNotNull { it.toIntOrNull() }
+            if (size.size == 2 && size.all { side -> side > 0 }) return (size[0].toFloat() / size[1]).coerceIn(.05f, 20f)
+        }
+        return library.layouts.firstOrNull { it.id == origin && it.id != layout.id }?.aspect ?: layout.aspect
+    }
+
     fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): List<InputSurfaceElement>? {
         val origin = layout.origin ?: layout.id
         InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements }

@@ -68,10 +68,11 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
 
     fun onKey(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_L2 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R2) {
-            if (event.repeatCount == 0 && !hasTriggerAxes(event)) {
+            val left = event.keyCode == KeyEvent.KEYCODE_BUTTON_L2
+            if (event.repeatCount == 0 && !hasAnalogTrigger(event, left)) {
                 val sticks = physical.getOrPut(event.deviceId) { Sticks() }
                 val value = if (event.action == KeyEvent.ACTION_DOWN) 1f else 0f
-                if (event.keyCode == KeyEvent.KEYCODE_BUTTON_L2) sticks.leftTrigger = value else sticks.rightTrigger = value
+                if (left) sticks.leftTrigger = value else sticks.rightTrigger = value
                 wake()
             }
             return true
@@ -97,11 +98,10 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
         sticks.rightY = scrollAxis(event, if (rxRyStick) MotionEvent.AXIS_RY else MotionEvent.AXIS_RZ)
         val signedLeft = PadBridge.signedZTriggers(event, device, wired, rxRyStick, true)
         val signedRight = PadBridge.signedZTriggers(event, device, wired, rxRyStick, false)
-        val analogTriggers = hasTriggerAxes(event)
-        if (analogTriggers || signedLeft) {
+        if (hasAnalogTrigger(event, true) || signedLeft) {
             sticks.leftTrigger = PadBridge.triggerValue(event, device, wired, rxRyStick, true)
         }
-        if (analogTriggers || signedRight) {
+        if (hasAnalogTrigger(event, false) || signedRight) {
             sticks.rightTrigger = PadBridge.triggerValue(event, device, wired, rxRyStick, false)
         }
         val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
@@ -213,11 +213,9 @@ class PadMouse(private val listener: Listener, private val clock: () -> Long = S
         }
     }
 
-    private fun hasTriggerAxes(event: android.view.InputEvent): Boolean = triggerAxes.getOrPut(event.deviceId) {
-        val device = event.device ?: return@getOrPut true
-        device.getMotionRange(MotionEvent.AXIS_LTRIGGER) != null || device.getMotionRange(MotionEvent.AXIS_BRAKE) != null ||
-            device.getMotionRange(MotionEvent.AXIS_RTRIGGER) != null || device.getMotionRange(MotionEvent.AXIS_GAS) != null ||
-            (event is MotionEvent && wiredLayout.getOrPut(event.deviceId) { PadBridge.wiredXboxLayout(event) })
+    private fun hasAnalogTrigger(event: android.view.InputEvent, left: Boolean): Boolean {
+        val device = event.device ?: return true
+        return PadBridge.analogTrigger(device, event.deviceId, rightStickLayouts, left)
     }
 
     private fun heldDirection(): Int {

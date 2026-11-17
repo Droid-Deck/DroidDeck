@@ -12,7 +12,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], manifest = Config.NONE)
+@Config(sdk = [34], manifest = Config.NONE,
+    shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class, PadBridgeRoutingTest.RegisteredMotionEvent::class])
 class PadMouseTest {
     private val events = mutableListOf<String>()
     private var scrolledX = 0f
@@ -198,6 +199,56 @@ class PadMouseTest {
         motion()
         pad.step(0.1f)
         assertEquals(listOf("scroll start", "key 183 down", "key 183 up"), events)
+    }
+
+    @Test fun nonWiredRxRyDevicesScrollAndRespectSignedZTriggerAxes() {
+        val manager = org.robolectric.RuntimeEnvironment.getApplication().getSystemService(android.hardware.input.InputManager::class.java)
+        val rxRyOnly = org.robolectric.shadows.InputDeviceBuilder.newBuilder().setId(71).setName("rxry-only")
+            .setDescriptor("rxry-only").setExternal(true)
+            .setSources(android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_JOYSTICK)
+            .addMotionRange(MotionEvent.AXIS_X, android.view.InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
+            .addMotionRange(MotionEvent.AXIS_RX, android.view.InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
+            .addMotionRange(MotionEvent.AXIS_RY, android.view.InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
+            .build().also { org.robolectric.Shadows.shadowOf(manager).addInputDevice(it) }
+        deviceMotion(rxRyOnly.id, MotionEvent.AXIS_RY to 0.5f)
+        pad.step(0.1f)
+        assertEquals(33.9f, scrolledY, 0.1f)
+        deviceMotion(rxRyOnly.id, MotionEvent.AXIS_RY to 0f)
+        scrolledY = 0f
+        key(KeyEvent.KEYCODE_BUTTON_R2, true, device = rxRyOnly.id)
+        pad.step(0.1f)
+        assertEquals(200f, scrolledY, 0.1f)
+        key(KeyEvent.KEYCODE_BUTTON_R2, false, device = rxRyOnly.id)
+
+        scrolledY = 0f
+        val rxRySigned = org.robolectric.shadows.InputDeviceBuilder.newBuilder().setId(72).setName("rxry-signed")
+            .setDescriptor("rxry-signed").setExternal(true)
+            .setSources(android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_JOYSTICK)
+            .addMotionRange(MotionEvent.AXIS_X, android.view.InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
+            .addMotionRange(MotionEvent.AXIS_RX, android.view.InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
+            .addMotionRange(MotionEvent.AXIS_RY, android.view.InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
+            .addMotionRange(MotionEvent.AXIS_Z, android.view.InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
+            .addMotionRange(MotionEvent.AXIS_RZ, android.view.InputDevice.SOURCE_JOYSTICK, -1f, 1f, 0f, 0f, 0f)
+            .build().also { org.robolectric.Shadows.shadowOf(manager).addInputDevice(it) }
+        deviceMotion(rxRySigned.id, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        deviceMotion(rxRySigned.id, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to 0f)
+        key(KeyEvent.KEYCODE_BUTTON_R2, true, device = rxRySigned.id)
+        pad.step(0.1f)
+        val halfTriggerScroll = (0.5f - 0.15f) / 0.85f * 200f
+        assertEquals(halfTriggerScroll, scrolledY, 0.5f)
+    }
+
+    private fun deviceMotion(device: Int, vararg axes: Pair<Int, Float>) {
+        val properties = arrayOf(MotionEvent.PointerProperties().apply { id = 0 })
+        val coords = arrayOf(MotionEvent.PointerCoords().apply {
+            for ((axis, value) in axes) setAxisValue(axis, value)
+        })
+        val event = MotionEvent.obtain(0, 0, MotionEvent.ACTION_MOVE, 1, properties, coords, 0, 0, 1f, 1f, device, 0,
+            android.view.InputDevice.SOURCE_JOYSTICK, 0)
+        pad.onMotion(event)
+        event.recycle()
     }
 
     private fun key(code: Int, down: Boolean, device: Int = 0) {

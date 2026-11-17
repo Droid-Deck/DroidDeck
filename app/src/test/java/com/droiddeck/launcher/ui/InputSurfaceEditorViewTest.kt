@@ -26,9 +26,8 @@ class InputSurfaceEditorViewTest {
         snap = false
     }
 
-    private fun center() = OnScreenLayout.editorElements(context, layout, 1000, 1000).first().let { (it.x + it.width / 2) * 1000 to (it.y + it.height / 2) * 1000 }
-    @Suppress("UNCHECKED_CAST")
-    private fun InputSurfaceEditorView.rendered() = javaClass.getDeclaredField("visibleElements").also { it.isAccessible = true }.get(this) as List<InputSurfaceElement>
+    private fun center(target: SavedInputLayout = layout, width: Int = 1000, height: Int = 1000) =
+        OnScreenLayout.editorElements(context, target, width, height).first().let { (it.x + it.width / 2) * width to (it.y + it.height / 2) * height }
 
     private fun InputSurfaceEditorView.touch(action: Int, x: Float, y: Float) {
         MotionEvent.obtain(0, 10, action, x, y, 0).also { onTouchEvent(it); it.recycle() }
@@ -66,11 +65,34 @@ class InputSurfaceEditorViewTest {
 
     @Test fun savedAspectRemainsStableForRenamesAndResizes() {
         val view = view()
+        var selection: String? = null
+        view.onSelect = { selection = it }
         val renamed = layout.elements.map { it.copy(name = "Renamed") }
         view.elements = renamed
         view.aspect = 2f
-        assertEquals(OnScreenLayout.editorElements(context, layout.copy(elements = renamed, aspect = 2f), 1000, 1000), view.rendered())
+        val (rx, ry) = center(layout.copy(elements = renamed, aspect = 2f), 1000, 1000)
+        view.touch(MotionEvent.ACTION_DOWN, rx, ry)
+        assertEquals("legacy:a", selection)
+        selection = null
         view.layout(0, 0, 800, 1000)
-        assertEquals(OnScreenLayout.editorElements(context, layout.copy(elements = renamed, aspect = 2f), 800, 1000), view.rendered())
+        val (lx, ly) = center(layout.copy(elements = renamed, aspect = 2f), 800, 1000)
+        view.touch(MotionEvent.ACTION_DOWN, lx, ly)
+        assertEquals("legacy:a", selection)
+    }
+
+    @Test fun resetPositionsRestoresDefaultCoordinatesAndReferenceAspect() {
+        val library = com.droiddeck.launcher.input.InputLibraries.read(context)
+        val deck = library.layouts.first { it.id == com.droiddeck.launcher.input.InputLibraries.DECK }
+        val preset = library.bindings.first { it.layoutId == deck.id }
+        val draft = SurfaceDraft(deck, preset, com.droiddeck.launcher.input.InputLibraries.defaultPositions(context, library, deck),
+            defaultAspect = com.droiddeck.launcher.input.InputLibraries.defaultAspect(context, library, deck))
+        val displayed = OnScreenLayout.editorElements(context, deck, 1000, 1000)
+        draft.beginEdit(displayed.map { if (it.control == InputControl.L4) it.copy(y = .60f, height = .15f) else it }, 1f)
+        assertEquals(1f, draft.aspect, .0001f)
+        draft.resetPositions()
+        assertEquals(deck.aspect, draft.aspect, .0001f)
+        val l4 = draft.elements.first { it.control == InputControl.L4 }
+        assertEquals(.78f, l4.y, .0001f)
+        assertEquals(.20f, l4.height, .0001f)
     }
 }
