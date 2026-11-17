@@ -241,9 +241,15 @@ object BattleNet {
         val registry = if (!registryFile.exists()) emptyList()
         else runCatching { registryFile.useLines { uninstallEntries(it) } }.getOrNull() ?: return null
         val products = agent.filter { it.product.isNotEmpty() }.associate { it.uid.lowercase() to it.product }
-        val canonical = title(id)?.uid ?: id
+        val requested = title(id)
+        val canonical = requested?.uid ?: id
+        val flavor = requested?.flavor
+        val folders = buildSet {
+            add(folder.absolutePath)
+            if (flavor != null && folder.name == flavor) folder.parentFile?.let { add(it.absolutePath) }
+        }
         return (registry + agent.map { it.uid to it.path }).mapNotNull { (uid, path) ->
-            if (hostFolder(context, path)?.absolutePath != folder.absolutePath) return@mapNotNull null
+            if (hostFolder(context, path)?.absolutePath !in folders) return@mapNotNull null
             val title = title(uid) ?: products[uid.lowercase()]?.let(::titleForProduct)
             if (title?.uid == canonical) uid else null
         }.distinct()

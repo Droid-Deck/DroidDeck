@@ -217,6 +217,11 @@ object BattleNetInstall {
             val key = DownloadEntry(Store.BATTLENET, pending.id, pending.id).key
             if (!DownloadQueue.holdForRemoval(key)) continue
             try {
+                val current = BattleNetCleanup.get(context, pending.folder)
+                if (current == null || current.stamp != pending.stamp || current.id != pending.id ||
+                    current.createdFolder != pending.createdFolder || current.state != pending.state ||
+                    current.attempts != pending.attempts || current.nextAt != pending.nextAt
+                ) continue
                 val found = runCatching { BattleNet.registrationsAt(context, pending.id, pending.folder) }.getOrNull()
                 if (found == null) {
                     retry(context, pending, "the registrations could not be read")

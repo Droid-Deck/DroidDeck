@@ -679,6 +679,15 @@ class BattleNetTest {
         while (BattleNetCleanup.get(context, folder)?.state == BattleNetCleanup.PENDING && System.nanoTime() < until) Thread.sleep(10)
     }
 
+    @Test fun aCleanupMarkerRewrittenForAReplacementHasANewStamp() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        BattleNetCleanup.mark(context, folder, "osi", createdFolder = false, state = BattleNetCleanup.PENDING)
+        val first = BattleNetCleanup.get(context, folder)!!
+        BattleNetCleanup.mark(context, folder, "osi", createdFolder = true, state = BattleNetCleanup.PENDING)
+        val second = BattleNetCleanup.get(context, folder)!!
+        assertTrue(second.stamp > first.stamp)
+    }
+
     @Test fun aCleanupMarkerIsRestoredWithoutTheTask() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         BattleNetCleanup.mark(context, folder, "osi", createdFolder = true, state = BattleNetCleanup.PENDING)
@@ -776,6 +785,8 @@ class BattleNetTest {
         ))
         val sidecar = StoreGameSidecar(Store.BATTLENET, "wow_classic", "World of Warcraft Classic", "")
         assertEquals("wow_classic", BattleNetInstall.installUid(context, InstalledStoreGame(sidecar, wow)))
+        assertEquals(listOf("wow"), BattleNet.registrationsAt(context, "wow", File(wow, "_retail_")))
+        assertEquals(listOf("wow_classic"), BattleNet.registrationsAt(context, "wow_classic", File(wow, "_classic_")))
         val single = StoreGameSidecar(Store.BATTLENET, "wow", "World of Warcraft", "")
         assertNull(BattleNetInstall.installUid(context, InstalledStoreGame(single, File(wow, "missing"))))
     }

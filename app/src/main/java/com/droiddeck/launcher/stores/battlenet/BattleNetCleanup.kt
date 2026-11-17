@@ -27,13 +27,14 @@ internal object BattleNetCleanup {
         val state: String,
         val attempts: Int,
         val nextAt: Long,
+        val stamp: Long,
     )
 
     internal fun dir(context: Context): File = File(context.filesDir, DIR)
 
     internal fun mark(context: Context, folder: File, id: String, createdFolder: Boolean, state: String = ACTIVE) {
         val current = get(context, folder)
-        write(context, Pending(folder, id, createdFolder, state, current?.attempts ?: 0, current?.nextAt ?: 0L))
+        write(context, Pending(folder, id, createdFolder, state, current?.attempts ?: 0, current?.nextAt ?: 0L, System.nanoTime()))
     }
 
     internal fun update(context: Context, folder: File, state: String, attempts: Int, nextAt: Long) {
@@ -52,6 +53,7 @@ internal object BattleNetCleanup {
                 state = json.optString("state", PENDING),
                 attempts = json.optInt("attempts"),
                 nextAt = json.optLong("nextAt"),
+                stamp = json.optLong("stamp"),
             )
         }.getOrNull()
     }
@@ -68,6 +70,7 @@ internal object BattleNetCleanup {
                     state = json.optString("state", PENDING),
                     attempts = json.optInt("attempts"),
                     nextAt = json.optLong("nextAt"),
+                    stamp = json.optLong("stamp"),
                 )
             }.getOrNull()
         }
@@ -95,6 +98,7 @@ internal object BattleNetCleanup {
             put("state", pending.state)
             put("attempts", pending.attempts)
             put("nextAt", pending.nextAt)
+            put("stamp", pending.stamp)
         }
         val tmp = File(target.parentFile, "${target.name}.tmp")
         runCatching {
