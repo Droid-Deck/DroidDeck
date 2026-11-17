@@ -1,0 +1,2 @@
+! DroidDeck-Bionic: an empty X resource file. XENVIRONMENT points here so libX11 has a resource database to
+! keep; with no file at all it looks for ~/.Xdefaults again on every XGetDefault call (each GDI font selection).

@@ -76,6 +76,7 @@ export NTSYNC_SHM=$COMPAT/ntsync-shm
 # DroidDeck's Force SSBS (its glibc libssbs.so preload) is bionic Wine's own WINE_FORCE_SSBS
 on "${DROIDDECK_FORCE_SSBS:-}" && export WINE_FORCE_SSBS=1
 export HODLL=libwow64fex.dll WINEDEBUG=err+all,fixme-all
+export XENVIRONMENT=$TOOL/bionic/Xdefaults
 # FEX: DroidDeck-Proton's defaults (its share/fex-emu/Config.json: x87 in 64-bit precision, TSO without the vector
 # and memcpy parts); droiddeck-game-env's per-game choices (FEX_* in the environment, e.g. .NET, Unity) win.
 export FEX_TSOENABLED=${FEX_TSOENABLED:-1} FEX_VECTORTSOENABLED=${FEX_VECTORTSOENABLED:-0} \
