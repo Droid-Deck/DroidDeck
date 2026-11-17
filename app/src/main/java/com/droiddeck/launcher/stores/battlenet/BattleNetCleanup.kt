@@ -32,16 +32,35 @@ internal object BattleNetCleanup {
 
     internal fun dir(context: Context): File = File(context.filesDir, DIR)
 
+    @Synchronized
     internal fun mark(context: Context, folder: File, id: String, createdFolder: Boolean, state: String = ACTIVE) {
         val current = get(context, folder)
-        write(context, Pending(folder, id, createdFolder, state, current?.attempts ?: 0, current?.nextAt ?: 0L, System.nanoTime()))
+        write(
+            context,
+            Pending(folder, id, createdFolder || current?.createdFolder == true, state, current?.attempts ?: 0, current?.nextAt ?: 0L, System.nanoTime()),
+        )
     }
 
+    @Synchronized
+    internal fun markActive(context: Context, folder: File, id: String, createdFolder: Boolean) {
+        val current = get(context, folder)
+        write(
+            context,
+            Pending(
+                folder, id, createdFolder || current?.createdFolder == true,
+                current?.state?.takeIf { it != ACTIVE } ?: ACTIVE,
+                current?.attempts ?: 0, current?.nextAt ?: 0L, System.nanoTime(),
+            ),
+        )
+    }
+
+    @Synchronized
     internal fun update(context: Context, folder: File, state: String, attempts: Int, nextAt: Long) {
         val current = get(context, folder) ?: return
         write(context, current.copy(state = state, attempts = attempts, nextAt = nextAt))
     }
 
+    @Synchronized
     internal fun get(context: Context, folder: File): Pending? {
         val file = file(context, folder)
         val json = runCatching { JSONObject(file.readText()) }.getOrNull() ?: return null
@@ -78,6 +97,7 @@ internal object BattleNetCleanup {
         ?.sortedBy { it.nextAt }
         .orEmpty()
 
+    @Synchronized
     internal fun clear(context: Context, folder: File) {
         file(context, folder).delete()
     }

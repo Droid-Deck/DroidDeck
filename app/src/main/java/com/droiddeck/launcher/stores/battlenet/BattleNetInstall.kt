@@ -441,7 +441,7 @@ internal class BattleNetInstaller(
         val uid = item.extra[BattleNetInstall.INSTALL_UID] ?: title.uid
         if (!update && folder.mkdirs()) {
             ownership.createdFolder.set(true)
-            BattleNetCleanup.mark(app, folder, item.id, createdFolder = true, state = BattleNetCleanup.ACTIVE)
+            BattleNetCleanup.markActive(app, folder, item.id, createdFolder = true)
         }
         val guest = AddedGames.guestPath(app, folder) ?: throw IllegalStateException(app.getString(R.string.bnet_dl_failed, folder.path))
         val (country, region) = BattleNetInstall.country(Locale.getDefault())

@@ -679,6 +679,15 @@ class BattleNetTest {
         while (BattleNetCleanup.get(context, folder)?.state == BattleNetCleanup.PENDING && System.nanoTime() < until) Thread.sleep(10)
     }
 
+    @Test fun anActiveMarkerCannotOverwriteACancellation() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        BattleNetCleanup.mark(context, folder, "osi", createdFolder = false, state = BattleNetCleanup.PENDING)
+        BattleNetCleanup.markActive(context, folder, "osi", createdFolder = true)
+        val pending = BattleNetCleanup.get(context, folder)!!
+        assertEquals(BattleNetCleanup.PENDING, pending.state)
+        assertTrue(pending.createdFolder)
+    }
+
     @Test fun aCleanupMarkerRewrittenForAReplacementHasANewStamp() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         BattleNetCleanup.mark(context, folder, "osi", createdFolder = false, state = BattleNetCleanup.PENDING)
