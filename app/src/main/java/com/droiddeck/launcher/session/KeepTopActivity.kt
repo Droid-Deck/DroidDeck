@@ -68,6 +68,10 @@ class KeepTopActivity : Activity() {
                 .onFailure { Log.w(TAG, "could not return focus to display $sessionDisplay", it) }.isSuccess
         }
 
+        fun hasPendingStarts() = starting.isNotEmpty()
+
+        const val RETRY_MS = START_TIMEOUT_MS + 250
+
         fun release() {
             generation++
             guards.values.toList().forEach { it.finishAndRemoveTask() }

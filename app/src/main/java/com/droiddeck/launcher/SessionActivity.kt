@@ -5647,7 +5647,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun guardOtherDisplays() {
         if (!SessionState.running || isFinishing) return
         val wasResumed = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
-        if (!com.droiddeck.launcher.session.KeepTopActivity.guardOtherDisplays(this, display?.displayId ?: android.view.Display.DEFAULT_DISPLAY)) return
+        val bounced = com.droiddeck.launcher.session.KeepTopActivity.guardOtherDisplays(this, display?.displayId ?: android.view.Display.DEFAULT_DISPLAY)
+        if (com.droiddeck.launcher.session.KeepTopActivity.hasPendingStarts()) {
+            uiHandler.removeCallbacks(guardWhenRunning)
+            uiHandler.postDelayed(guardWhenRunning, com.droiddeck.launcher.session.KeepTopActivity.RETRY_MS)
+        }
+        if (!bounced) return
         if (!wasResumed) return
         focusBounce = true
         uiHandler.postDelayed({ focusBounce = false }, 500)
