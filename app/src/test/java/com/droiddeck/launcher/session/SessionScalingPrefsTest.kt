@@ -115,4 +115,17 @@ class SessionScalingPrefsTest {
         SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_SESSION, null, 60)
         assertEquals(30, SessionPrefs.savedFpsLimit(ctx, null))
     }
+
+    @Test fun aRecreatedSessionKeepsThisSessionAndItsSliderLeavesAllGamesAlone() {
+        val ctx = fpsContext()
+        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_ALL, null, 30)
+        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_SESSION, "123", 30)
+        val held = SessionPrefs.SCOPE_SESSION
+        val scope = SessionPrefs.fpsLimitScope(ctx, "123", held)
+        assertEquals(SessionPrefs.SCOPE_SESSION, scope)
+        SessionPrefs.fpsLimitMoved(ctx, scope, "123", 60)
+        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, "123"))
+        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, null))
+        assertEquals(SessionPrefs.SCOPE_ALL, SessionPrefs.fpsLimitScope(ctx, "123", null))
+    }
 }

@@ -301,6 +301,12 @@ object SessionPrefs {
         }
     }
 
+    fun fpsLimitScope(context: Context, game: String?, held: String?): String = held ?: fpsLimitScope(context, game)
+
+    fun fpsLimitMoved(context: Context, scope: String, game: String?, fps: Int) {
+        if (scope != SCOPE_SESSION) saveFpsLimit(context, scope, game, fps)
+    }
+
     fun saveFpsLimit(context: Context, scope: String, game: String?, fps: Int) {
         val e = prefs(context).edit()
         when (scope) {
