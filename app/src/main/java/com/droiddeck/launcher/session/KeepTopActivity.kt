@@ -10,7 +10,7 @@ import android.util.Log
 import android.view.Display
 import android.view.WindowManager
 
-// Once a session hits memory pressure, sits invisibly on top of every other display until it ends, so
+// While a session runs, sits invisibly on top of every other display until it ends, so
 // that display's home launcher is not its top activity. lmkd kills the launcher first; restarted as a
 // top activity it takes focus from the session, which then drops to adj 50 and is killed next.
 class KeepTopActivity : Activity() {
@@ -48,7 +48,7 @@ class KeepTopActivity : Activity() {
                     launch(context, id, bounce = false)
                     starting += id
                     started = true
-                    Log.i(TAG, "guarding display $id from a launcher restart under memory pressure")
+                    Log.i(TAG, "guarding display $id from a home launcher restart")
                 }.onFailure { Log.w(TAG, "could not guard display $id", it) }
             }
             if (!started) return false

@@ -5541,7 +5541,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onResume() {
         super.onResume()
-        if (focusBounce) { focusBounce = false; return }
+        if (bouncePausedLight) { bouncePausedLight = false; return }
         drawerGameInventoryRevision++
         com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
             com.droiddeck.launcher.input.GuestKeys.send(event) { code, down -> sendGuestKey(code, down, 8) }
@@ -5607,7 +5607,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private var memoryPressureAt = 0L
     private var focusBounce = false
+    private var bouncePausedLight = false
+    private var topResumed = false
+    private val guardWhenRunning = object : Runnable {
+        override fun run() {
+            if (!topResumed || isFinishing) return
+            if (SessionState.running) guardOtherDisplays() else uiHandler.postDelayed(this, 2_000)
+        }
+    }
 
+    // RUNNING_LOW and RUNNING_CRITICAL are not delivered from API 34, so the guard also goes up
+    // as soon as a running session is on top.
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         if (!com.droiddeck.launcher.session.TopUnderPressure.isPressure(level)) return
@@ -5617,19 +5627,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
         super.onTopResumedActivityChanged(isTopResumedActivity)
-        if (!isTopResumedActivity && com.droiddeck.launcher.session.TopUnderPressure.shouldReclaim(
+        topResumed = isTopResumedActivity
+        uiHandler.removeCallbacks(guardWhenRunning)
+        if (isTopResumedActivity) uiHandler.post(guardWhenRunning)
+        else if (com.droiddeck.launcher.session.TopUnderPressure.shouldReclaim(
                 android.os.SystemClock.elapsedRealtime(), memoryPressureAt, SessionState.running, isFinishing)) guardOtherDisplays()
     }
 
     private fun guardOtherDisplays() {
         if (!SessionState.running || isFinishing) return
+        val wasResumed = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
         if (!com.droiddeck.launcher.session.KeepTopActivity.guardOtherDisplays(this, display?.displayId ?: android.view.Display.DEFAULT_DISPLAY)) return
+        if (!wasResumed) return
         focusBounce = true
         uiHandler.postDelayed({ focusBounce = false }, 1_000)
     }
 
     override fun onPause() {
-        if (focusBounce) { super.onPause(); return }
+        if (focusBounce) { focusBounce = false; bouncePausedLight = true; super.onPause(); return }
         com.droiddeck.launcher.input.SystemKeyCapture.detach(this)
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
         if (runtimeRemovalBlocked) { super.onPause(); return }
@@ -6282,6 +6297,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun onDestroy() {
+        uiHandler.removeCallbacks(guardWhenRunning)
         com.droiddeck.launcher.session.KeepTopActivity.release()
         synchronized(frameGenGlobalLock) {
             frameGenActivityActive = false
