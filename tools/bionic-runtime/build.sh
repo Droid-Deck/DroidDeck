@@ -21,8 +21,11 @@ IMAGEFS_URL=https://github.com/The412Banner/winlator-contents/releases/download/
 IMAGEFS_SHA256=7838756e6a05c91afff68f4bf12aa2780f815877753f8dd354e203e99b9caf8a   # same pin as Bannerlator app/build.gradle
 BL_COMMIT=410c969dfe37ed0c687d6a5ee3327ea21a53e0f8                                  # The412Banner/Bannerlator
 BL_ASSETS=https://raw.githubusercontent.com/The412Banner/Bannerlator/$BL_COMMIT/app/src/main/assets
-ADAPTER_SHA256=c572b590faf3e14066a1ed86887a6f4502fd01ecd4efadf9eac70db0954d8120   # wayland/adapter/libvulkan_wrapper.so
-ADAPTER_JSON_SHA256=a161ea72366fac8b4248d3e2e1469c3122b21aad62a495728ea645ce678b0c0f
+# The Wayland adapter: Bannerlator's (bionic-vulkan-wrapper banner/wayland-wsi-bgra-native f970b6c) plus the placed-
+# mapping fixes 32-bit OpenGL / WineD3D need (branch banner/wayland-wsi-placed-export), from that repository's release.
+ADAPTER_URL=https://github.com/The412Banner/bionic-vulkan-wrapper/releases/download/wayland-adapter-placed-export-r1
+ADAPTER_SHA256=653791c2c2ea904a5122909f01d26689553e91cc4dc7a981478c1303adc96ea5   # libvulkan_wrapper.so
+ADAPTER_JSON_SHA256=5448fd64f15fa13ca3c805967c2b4788eb5f86d29a2d2755e15498130cdef9b3
 FFMPEG8_SHA256=34ca9076b6b69bc96ee0d53fcb7b9d0d8df869b9f1255dd686bf89cc590b1b08   # ffmpeg8.tzst
 GAMESCOPE_TAG=3.16.29
 GAMESCOPE_COMMIT=8f212644c46460549035971ab914421180f61a7c
@@ -84,9 +87,10 @@ mkdir -p "$WORK/layer"
 tar --zstd -xf "$WORK/layer.wcp" -C "$WORK/layer" lib
 LAYERLIB="$WORK/layer/lib"
 
-echo "== Bannerlator assets (pinned): Wayland adapter, FFmpeg 8"
-fetch "$BL_ASSETS/wayland/adapter/libvulkan_wrapper.so" "$ADAPTER_SHA256" "$PACK/adapter/libvulkan_wrapper.so"
-fetch "$BL_ASSETS/wayland/adapter/adapter.json" "$ADAPTER_JSON_SHA256" "$PACK/adapter/adapter.json"
+echo "== Wayland adapter (pinned release)"
+fetch "$ADAPTER_URL/libvulkan_wrapper.so" "$ADAPTER_SHA256" "$PACK/adapter/libvulkan_wrapper.so"
+fetch "$ADAPTER_URL/adapter.json" "$ADAPTER_JSON_SHA256" "$PACK/adapter/adapter.json"
+echo "== Bannerlator assets (pinned): FFmpeg 8"
 fetch "$BL_ASSETS/ffmpeg8.tzst" "$FFMPEG8_SHA256" "$WORK/ffmpeg8.tzst"
 
 echo "== D7VK ddraw.dll (DroidDeck-Proton 11-12.8 release, that file only)"
@@ -175,7 +179,8 @@ cp "$HERE/NOTICE" "$PACK/NOTICE"
 {
   echo "droiddeck-bionic-runtime $REV ($(date -u +%Y-%m-%dT%H:%M:%SZ), Android API $API, NDK $(basename "$NDK"))"
   echo "imagefs $IMAGEFS_URL sha256 $IMAGEFS_SHA256"
-  echo "bannerlator $BL_COMMIT (wayland/adapter, ffmpeg8.tzst, x11/egl: Mesa EGL + GLX + Zink)"
+  echo "bannerlator $BL_COMMIT (ffmpeg8.tzst, x11/egl: Mesa EGL + GLX + Zink)"
+  echo "adapter $ADAPTER_URL (libvulkan_wrapper.so sha256 $ADAPTER_SHA256)"
   echo "layer $LAYER_URL sha256 $LAYER_SHA256 (not packed)"
   echo "d7vk $D7VK_COMMIT: i386 ddraw.dll from $D7VK_FROM"
   echo "gamescope $GAMESCOPE_TAG $GAMESCOPE_COMMIT + $GAMESCOPE_PATCHES; vkroots $(git -C "$GS/subprojects/vkroots" rev-parse HEAD); Vulkan-Headers $VULKAN_HEADERS_TAG"

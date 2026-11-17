@@ -19,13 +19,16 @@ Taken unchanged from The412Banner's Bannerlator (GPL-3.0, https://github.com/The
   alsa-lib, libiconv (LGPL-2.1 or later), FreeType (FTL or GPL-2.0), Fontconfig (MIT), libxml2 (MIT), libffi (MIT),
   PCRE2 (BSD-3-Clause), zlib (zlib), and FFmpeg 8 libraries (LGPL-2.1 or later) from Bannerlator's ffmpeg8.tzst.
   share/X11 and etc/ (fonts, tls) come from the same imagefs.
-- adapter/libvulkan_wrapper.so: the Wayland adapter built from https://github.com/The412Banner/bionic-vulkan-wrapper
-  (branch banner/wayland-wsi-bgra-native), a Mesa tree (MIT) in the line of Pipetto-crypto's wrapper and leegao's
-  bionic Vulkan wrapper. adapter/adapter.json records the exact build.
 - egl/: Mesa (MIT, https://gitlab.freedesktop.org/mesa/mesa) EGL, GLX and Gallium with Zink, built for the bionic
   userland with the x11 and wayland platforms in The412Banner/Banners-Turnip (exp/egl-x11-platform ab76cba3),
   with libwayland-client (MIT) and libarchive (BSD-2-Clause); egl/x11egl.json records the build. Bannerlator ships
   the same set for its Fast OpenGL.
+
+From The412Banner/bionic-vulkan-wrapper (https://github.com/The412Banner/bionic-vulkan-wrapper, release
+wayland-adapter-placed-export-r1):
+- adapter/libvulkan_wrapper.so: the Wayland adapter Bannerlator ships (branch banner/wayland-wsi-bgra-native) plus
+  placed-mapping fixes for 32-bit OpenGL / WineD3D (branch banner/wayland-wsi-placed-export), a Mesa tree (MIT) in
+  the line of Pipetto-crypto's wrapper and leegao's bionic Vulkan wrapper. adapter/adapter.json records the build.
 
 Taken unchanged from DroidDeck-Proton (https://github.com/Droid-Deck/DroidDeck-Proton, release DroidDeck-Proton-11-12.8):
 - d7vk/ddraw.dll: D7VK by WinterSnowfall (zlib, https://github.com/WinterSnowfall/d7vk, commit 06656b9e), Direct3D 7
