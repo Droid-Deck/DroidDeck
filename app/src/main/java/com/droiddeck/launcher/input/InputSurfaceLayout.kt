@@ -26,6 +26,8 @@ enum class InputDpadWays { EIGHT, FOUR }
 
 enum class InputDpadStyle { CROSS, BUTTONS }
 
+enum class InputButtonStyle { SOLID, OUTLINE }
+
 data class InputSurfaceElement(
     val control: InputControl, val x: Float, val y: Float, val width: Float, val height: Float,
     val id: String = "legacy:${control.id}",
@@ -39,6 +41,7 @@ data class InputSurfaceElement(
     val image: String = "",
     val opacity: Float = 1f,
     val buttonShape: InputButtonShape = InputButtonShape.ROUNDED,
+    val buttonStyle: InputButtonStyle = InputButtonStyle.SOLID,
     val showLabel: Boolean = true,
     val alwaysShown: Boolean = false,
     val stickShape: InputStickShape = InputStickShape.STICK,

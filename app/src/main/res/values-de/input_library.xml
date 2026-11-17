@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Form</string>
     <string name="input_dpad_style_cross">Kreuz</string>
     <string name="input_dpad_style_buttons">Tasten</string>
+    <string name="input_button_style">Füllung</string>
+    <string name="input_button_style_solid">Gefüllt</string>
+    <string name="input_button_style_outline">Umriss</string>
 </resources>

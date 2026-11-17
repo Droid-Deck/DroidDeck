@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Form</string>
     <string name="input_dpad_style_cross">Kors</string>
     <string name="input_dpad_style_buttons">Knappar</string>
+    <string name="input_button_style">Fyllning</string>
+    <string name="input_button_style_solid">Solid</string>
+    <string name="input_button_style_outline">Kontur</string>
 </resources>

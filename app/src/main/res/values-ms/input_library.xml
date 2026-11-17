@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Bentuk</string>
     <string name="input_dpad_style_cross">Silang</string>
     <string name="input_dpad_style_buttons">Butang</string>
+    <string name="input_button_style">Isi</string>
+    <string name="input_button_style_solid">Penuh</string>
+    <string name="input_button_style_outline">Rangka</string>
 </resources>

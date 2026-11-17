@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Tvar</string>
     <string name="input_dpad_style_cross">Kříž</string>
     <string name="input_dpad_style_buttons">Tlačítka</string>
+    <string name="input_button_style">Výplň</string>
+    <string name="input_button_style_solid">Plný</string>
+    <string name="input_button_style_outline">Obrys</string>
 </resources>

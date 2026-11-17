@@ -138,4 +138,7 @@
     <string name="input_dpad_style">形状</string>
     <string name="input_dpad_style_cross">十字</string>
     <string name="input_dpad_style_buttons">ボタン</string>
+    <string name="input_button_style">塗り</string>
+    <string name="input_button_style_solid">塗りつぶし</string>
+    <string name="input_button_style_outline">枠線</string>
 </resources>

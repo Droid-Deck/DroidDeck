@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Σχήμα</string>
     <string name="input_dpad_style_cross">Σταυρός</string>
     <string name="input_dpad_style_buttons">Κουμπιά</string>
+    <string name="input_button_style">Γέμισμα</string>
+    <string name="input_button_style_solid">Συμπαγές</string>
+    <string name="input_button_style_outline">Περίγραμμα</string>
 </resources>

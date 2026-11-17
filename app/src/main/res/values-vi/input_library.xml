@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Dạng</string>
     <string name="input_dpad_style_cross">Chữ thập</string>
     <string name="input_dpad_style_buttons">Nút</string>
+    <string name="input_button_style">Đổ</string>
+    <string name="input_button_style_solid">Đặc</string>
+    <string name="input_button_style_outline">Viền</string>
 </resources>

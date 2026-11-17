@@ -138,4 +138,7 @@
     <string name="input_dpad_style">形状</string>
     <string name="input_dpad_style_cross">一体十字</string>
     <string name="input_dpad_style_buttons">分离按键</string>
+    <string name="input_button_style">填充</string>
+    <string name="input_button_style_solid">实心</string>
+    <string name="input_button_style_outline">描边</string>
 </resources>

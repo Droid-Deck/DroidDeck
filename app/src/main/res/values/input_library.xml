@@ -128,6 +128,9 @@
     <string name="input_dpad_style">Shape</string>
     <string name="input_dpad_style_cross">Cross</string>
     <string name="input_dpad_style_buttons">Buttons</string>
+    <string name="input_button_style">Fill</string>
+    <string name="input_button_style_solid">Solid</string>
+    <string name="input_button_style_outline">Outline</string>
     <string name="input_dpad_4way">4-way</string>
     <string name="input_dpad_8way">8-way</string>
     <string name="input_button_symbol">Button label</string>

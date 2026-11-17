@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Formă</string>
     <string name="input_dpad_style_cross">Cruce</string>
     <string name="input_dpad_style_buttons">Butoane</string>
+    <string name="input_button_style">Umplere</string>
+    <string name="input_button_style_solid">Plin</string>
+    <string name="input_button_style_outline">Contur</string>
 </resources>

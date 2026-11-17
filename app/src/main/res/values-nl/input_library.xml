@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Vorm</string>
     <string name="input_dpad_style_cross">Kruis</string>
     <string name="input_dpad_style_buttons">Knoppen</string>
+    <string name="input_button_style">Vulling</string>
+    <string name="input_button_style_solid">Effen</string>
+    <string name="input_button_style_outline">Omtrek</string>
 </resources>

@@ -138,4 +138,7 @@
     <string name="input_dpad_style">आकार</string>
     <string name="input_dpad_style_cross">क्रॉस</string>
     <string name="input_dpad_style_buttons">बटन</string>
+    <string name="input_button_style">भराव</string>
+    <string name="input_button_style_solid">ठोस</string>
+    <string name="input_button_style_outline">रूपरेखा</string>
 </resources>

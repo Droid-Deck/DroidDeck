@@ -75,6 +75,11 @@ internal fun InputElementProperties(element: InputSurfaceElement, action: InputA
             ToggleRow(host, "element-hide-idle", stringResource(R.string.input_hide_idle), null, element.hideWhenIdle) { onChange(element.copy(hideWhenIdle = it)) }
         }
     }
+    if (element.kind == InputElementKind.BUTTON || element.kind == InputElementKind.TRIGGER) {
+        ChoiceRow(rememberMenuHost(), "element-button-style", stringResource(R.string.input_button_style), null,
+            listOf(InputButtonStyle.SOLID to stringResource(R.string.input_button_style_solid), InputButtonStyle.OUTLINE to stringResource(R.string.input_button_style_outline)),
+            element.buttonStyle) { onChange(element.copy(buttonStyle = it)) }
+    }
     if (element.kind == InputElementKind.DPAD || element.kind == InputElementKind.STICK && element.stickShape == InputStickShape.DPAD) {
         val host = rememberMenuHost()
         ChoiceRow(host, "element-dpad-style", stringResource(R.string.input_dpad_style), null,

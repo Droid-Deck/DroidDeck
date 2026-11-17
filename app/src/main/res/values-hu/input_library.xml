@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Alak</string>
     <string name="input_dpad_style_cross">Kereszt</string>
     <string name="input_dpad_style_buttons">Gombok</string>
+    <string name="input_button_style">Kitöltés</string>
+    <string name="input_button_style_solid">Tömör</string>
+    <string name="input_button_style_outline">Körvonal</string>
 </resources>

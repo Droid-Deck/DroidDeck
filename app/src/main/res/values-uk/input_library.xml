@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Форма</string>
     <string name="input_dpad_style_cross">Хрест</string>
     <string name="input_dpad_style_buttons">Кнопки</string>
+    <string name="input_button_style">Заливка</string>
+    <string name="input_button_style_solid">Суцільний</string>
+    <string name="input_button_style_outline">Контур</string>
 </resources>

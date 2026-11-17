@@ -138,4 +138,7 @@
     <string name="input_dpad_style">모양</string>
     <string name="input_dpad_style_cross">십자</string>
     <string name="input_dpad_style_buttons">버튼</string>
+    <string name="input_button_style">채우기</string>
+    <string name="input_button_style_solid">채움</string>
+    <string name="input_button_style_outline">외곽선</string>
 </resources>

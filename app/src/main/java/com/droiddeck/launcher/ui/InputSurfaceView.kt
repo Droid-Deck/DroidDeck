@@ -36,6 +36,7 @@ import com.droiddeck.launcher.input.InputElementKind
 import com.droiddeck.launcher.input.InputAction
 import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
+import com.droiddeck.launcher.input.InputButtonStyle
 import com.droiddeck.launcher.input.InputDpadStyle
 import com.droiddeck.launcher.input.InputDpadWays
 import com.droiddeck.launcher.input.InputStickShape
@@ -286,23 +287,27 @@ class InputSurfaceView(
             color = TEXT_DIM
         }
 
-        protected fun drawSurface(canvas: Canvas, lit: Boolean, shape: InputButtonShape = InputButtonShape.ROUNDED, classic: Boolean = false) {
+        protected fun drawSurface(canvas: Canvas, lit: Boolean, shape: InputButtonShape = InputButtonShape.ROUNDED, classic: Boolean = false, outline: Boolean = false) {
             val inset = if (classic && tint != null) 0.75f * density else density
             rect.set(inset, inset, width - inset, height - inset)
             val radius = when (shape) { InputButtonShape.CIRCLE, InputButtonShape.PILL -> min(width, height) / 2f; InputButtonShape.RECTANGLE -> 2 * density; else -> CORNER * density }
             val color = tint
             if (classic && color != null) {
                 val corner = if (shape == InputButtonShape.PILL) radius * 0.55f else radius
-                fill.color = if (lit) shade(color, 160, 1f) else shade(color, 80, 0.12f)
-                canvas.drawRoundRect(rect, corner, corner, fill)
-                stroke.color = if (lit) light(color, 230, 0.7f) else light(color, 150, 0.25f)
-                stroke.strokeWidth = 1.5f * density
+                if (!outline) {
+                    fill.color = if (lit) shade(color, 160, 1f) else shade(color, 80, 0.12f)
+                    canvas.drawRoundRect(rect, corner, corner, fill)
+                }
+                stroke.color = if (lit) light(color, 230, 0.7f) else light(color, 150, if (outline) 0.5f else 0.25f)
+                stroke.strokeWidth = (if (lit) 2f else if (outline) 1.5f else 1.5f) * density
                 canvas.drawRoundRect(rect, corner, corner, stroke)
                 return
             }
-            fill.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 140 else 48) shl 24) } ?: if (lit) ACCENT_WASH else SURFACE
-            canvas.drawRoundRect(rect, radius, radius, fill)
-            stroke.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 255 else 160) shl 24) } ?: if (lit) ACCENT else LINE
+            if (!outline) {
+                fill.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 140 else 48) shl 24) } ?: if (lit) ACCENT_WASH else SURFACE
+                canvas.drawRoundRect(rect, radius, radius, fill)
+            }
+            stroke.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 255 else if (outline) 210 else 160) shl 24) } ?: if (lit) ACCENT else if (outline) light(ACCENT, 190, 0.6f) else LINE
             stroke.strokeWidth = (if (lit) 2f else 1f) * density
             canvas.drawRoundRect(rect, radius, radius, stroke)
         }
@@ -352,7 +357,7 @@ class InputSurfaceView(
         override fun onDraw(canvas: Canvas) {
             val lit = if (element.toggle) source?.latched == true else down
             val classic = classic(element)
-            drawSurface(canvas, lit, element.buttonShape, classic)
+            drawSurface(canvas, lit, element.buttonShape, classic, element.buttonStyle == InputButtonStyle.OUTLINE)
             val cx = width / 2f
             labelPaint.color = if (classic && tint != null) textColor(lit) else if (lit) ACCENT else TEXT
             bitmap?.let {

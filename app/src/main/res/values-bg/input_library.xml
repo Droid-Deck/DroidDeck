@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Форма</string>
     <string name="input_dpad_style_cross">Кръст</string>
     <string name="input_dpad_style_buttons">Бутони</string>
+    <string name="input_button_style">Запълване</string>
+    <string name="input_button_style_solid">Плътен</string>
+    <string name="input_button_style_outline">Контур</string>
 </resources>

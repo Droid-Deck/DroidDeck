@@ -138,4 +138,7 @@
     <string name="input_dpad_style">รูปทรง</string>
     <string name="input_dpad_style_cross">กากบาท</string>
     <string name="input_dpad_style_buttons">ปุ่ม</string>
+    <string name="input_button_style">การเติม</string>
+    <string name="input_button_style_solid">ทึบ</string>
+    <string name="input_button_style_outline">เส้นขอบ</string>
 </resources>

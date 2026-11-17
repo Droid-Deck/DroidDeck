@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Muoto</string>
     <string name="input_dpad_style_cross">Risti</string>
     <string name="input_dpad_style_buttons">Painikkeet</string>
+    <string name="input_button_style">Täyttö</string>
+    <string name="input_button_style_solid">Yhtenäinen</string>
+    <string name="input_button_style_outline">Ääriviiva</string>
 </resources>

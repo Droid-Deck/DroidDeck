@@ -138,4 +138,7 @@
     <string name="input_dpad_style">Forma</string>
     <string name="input_dpad_style_cross">Croce</string>
     <string name="input_dpad_style_buttons">Pulsanti</string>
+    <string name="input_button_style">Riempimento</string>
+    <string name="input_button_style_solid">Pieno</string>
+    <string name="input_button_style_outline">Contorno</string>
 </resources>
