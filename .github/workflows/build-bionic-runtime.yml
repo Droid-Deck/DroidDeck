@@ -1,4 +1,4 @@
-name: Build bionic runtime pack
+name: Build bionic runtime pack and DroidDeck-Bionic tool
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Host tools
@@ -26,6 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           export NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          export BUILD_NUMBER=${{ github.run_number }}
           tools/bionic-runtime/build.sh "$RUNNER_TEMP/bionic-runtime" "$PWD/out"
       - uses: actions/upload-artifact@v4
         with:

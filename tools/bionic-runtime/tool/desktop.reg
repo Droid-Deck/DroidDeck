@@ -1,0 +1,13 @@
+Windows Registry Editor Version 5.00
+
+; Wine's desktop as a black screen behind games: background colour, and no shell/taskbar or tray on the
+; "Default" virtual desktop launch.sh starts.
+[HKEY_CURRENT_USER\Control Panel\Colors]
+"Background"="0 0 0"
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ThemeManager\Control Panel\Colors]
+"Background"="0 0 0"
+
+[HKEY_CURRENT_USER\Software\Wine\Explorer\Desktops\Default]
+"EnableShell"=dword:00000000
+"ShowSystray"=dword:00000000

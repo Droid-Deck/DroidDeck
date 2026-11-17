@@ -31,6 +31,15 @@ VULKAN_HEADERS_TAG=v1.4.341
 # The bionic DroidDeck-Proton layer the pack is made for: linked against (libwayland-client) and checked against, not packed.
 LAYER_URL=https://github.com/The412Banner/proton-wine/releases/download/build-bionic-layers-20261030-v16/DroidDeck-proton-11.0-12.8-arm64ec.wcp
 LAYER_SHA256=a5e05e35214f34603f8cf9a362bb6b4bce9f18d773ee689ecfaff6136a1e9003   # proton-wine 067c719d, layer v16
+LAYER_VERSION=12.8
+# Packed into the DroidDeck-Bionic tool next to the layer: FEX with Android-built unix libraries, and default
+# DXVK / VKD3D-Proton (DroidDeck components can swap these in files/lib/wine/{dxvk,vkd3d-proton} later).
+FEX_URL=https://github.com/The412Banner/Nightlies/releases/download/FEXCore-2611.1/FEXCore-2611.1-unix.wcp
+FEX_SHA256=caca997e5e077feb5d9b7cf0f2c680cd93b442278903e3f3e7b1bd9cd544770c
+DXVK_URL=https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync-Linux/dxvk-gplasync-2.4.1-1-pre-reg-linux.wcp
+DXVK_SHA256=379b5dcde331de45a5f0ac7775d2c657c9c1510616afb9143ab8cdfbfa8e5342
+VKD3D_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/linux-nightly/DD-vkd3d-proton-arm64ec-3.1%2B64-nightly.wcp
+VKD3D_SHA256=92b8aa023e5242a6f7a69770b808b213474de7869f0d387ea99867a59e539b4e
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64) NDK_HOST=linux-x86_64 ;;
@@ -130,6 +139,7 @@ echo "== DroidDeck fake input (app/src/main/cpp/fakeinput_steam.cpp), heap-taggi
 "$CXX" -shared -fPIC -O2 -Wall -Wno-attributes -pthread -std=c++17 "$ROOT/app/src/main/cpp/fakeinput_steam.cpp" \
   -ldl -static-libstdc++ -o "$PACK/preload/libfakeinput.so"
 "$CC" -shared -fPIC -O2 -Wall "$HERE/notag.c" -ldl -o "$PACK/preload/libnotag.so"
+"$CC" -shared -fPIC -O2 -Wall "$HERE/execshim.c" -ldl -o "$PACK/preload/libexecshim.so"
 "$CC" -O2 -Wall "$HERE/gstag.c" -o "$PACK/bin/gstag"
 "$STRIP" --strip-unneeded "$PACK/layer/"*.so "$PACK/preload/"*.so "$PACK/bin/gstag"
 
@@ -151,3 +161,40 @@ cp "$HERE/NOTICE" "$PACK/NOTICE"
 tar --zstd -cf "$OUT/droiddeck-bionic-runtime-$REV.tar.zst" -C "$WORK" droiddeck-bionic-runtime
 (cd "$OUT" && sha256sum "droiddeck-bionic-runtime-$REV.tar.zst" > "droiddeck-bionic-runtime-$REV.tar.zst.sha256")
 du -sh "$PACK" "$OUT"/*.tar.zst
+
+echo "== DroidDeck-Bionic tool: layer + this pack + FEX + DXVK/VKD3D + tool scripts, in Proton's layout"
+NAME="DroidDeck-Bionic-$LAYER_VERSION-r${BUILD_NUMBER:-0}"
+T="$WORK/tool/$NAME"
+mkdir -p "$T/files" "$T/bionic"
+tar --zstd -xf "$WORK/layer.wcp" -C "$T/files" bin lib share prefixPack.txz
+mkdir -p "$WORK/pfx" && tar -xJf "$T/files/prefixPack.txz" -C "$WORK/pfx" && rm "$T/files/prefixPack.txz"
+mv "$WORK/pfx/.wine" "$T/files/default_pfx"
+# the template's drives point into Winlator: keep C:, Z: is the Android root (Wine sees Android paths here)
+rm -f "$T/files/default_pfx/dosdevices/"* "$T/files/default_pfx/dosdevices/".[!.]*
+ln -s ../drive_c "$T/files/default_pfx/dosdevices/c:"
+ln -s / "$T/files/default_pfx/dosdevices/z:"
+for c in FEX:"$FEX_URL":"$FEX_SHA256" DXVK:"$DXVK_URL":"$DXVK_SHA256" VKD3D:"$VKD3D_URL":"$VKD3D_SHA256"; do
+  n=${c%%:*}; rest=${c#*:}; sha=${rest##*:}; url=${rest%:*}
+  fetch "$url" "$sha" "$WORK/$n.wcp"
+  mkdir -p "$WORK/$n" && tar --zstd -xf "$WORK/$n.wcp" -C "$WORK/$n"
+done
+cp "$WORK/FEX/aarch64-unix/"*.so "$T/files/lib/wine/aarch64-unix/"
+cp "$WORK/FEX/system32/"*.dll "$T/files/lib/wine/aarch64-windows/"
+cp -r "$WORK/DXVK/files/lib/wine/dxvk" "$WORK/VKD3D/files/lib/wine/vkd3d-proton" "$T/files/lib/wine/"
+cp -a "$PACK" "$T/files/runtime"
+install -m 755 "$HERE/tool/proton" "$T/proton"
+install -m 755 "$HERE/tool/launch.sh" "$T/bionic/launch.sh"
+cp "$HERE/tool/desktop.reg" "$T/bionic/"
+cp "$HERE/tool/toolmanifest.vdf" "$T/"
+sed -e "s/@NAME@/$NAME/" -e "s/@DISPLAY@/DroidDeck-Bionic $LAYER_VERSION r${BUILD_NUMBER:-0}/" "$HERE/tool/compatibilitytool.vdf.in" > "$T/compatibilitytool.vdf"
+echo "$(date -u +%s) $NAME" > "$T/version"
+{
+  echo "$NAME: DroidDeck runtime pack $REV + layer + FEX/DXVK/VKD3D"
+  echo "fex $FEX_URL sha256 $FEX_SHA256"
+  echo "dxvk $DXVK_URL sha256 $DXVK_SHA256"
+  echo "vkd3d $VKD3D_URL sha256 $VKD3D_SHA256"
+} > "$T/SOURCES.txt"
+python3 "$HERE/check-needed.py" "$READELF" "$T/files" --available "$T/files/lib"
+tar -C "$WORK/tool" -cf - "$NAME" | xz -T0 -6 > "$OUT/$NAME-aarch64.tar.xz"
+(cd "$OUT" && sha512sum "$NAME-aarch64.tar.xz" > "$NAME-aarch64.sha512sum")
+du -sh "$T" "$OUT/$NAME-aarch64.tar.xz"

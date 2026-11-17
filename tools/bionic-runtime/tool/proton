@@ -1,0 +1,46 @@
+#!/bin/bash
+# DroidDeck-Bionic: a Steam compatibility tool that runs Windows games on the bionic (Android libc) Proton layer
+# under files/, outside the Linux userland. Steam calls it inside DroidDeck's no-proot guest; it turns guest paths
+# into Android paths and hands over to bionic/launch.sh, an Android /system/bin/sh script.
+# Verbs: run/waitforexitandrun (start the game), runinprefix (run a program in the prefix), getcompatpath/
+# getnativepath (path conversion); the rest are accepted and ignored.
+set -u
+verb=${1:-}
+[ $# -gt 0 ] && shift
+
+if [ -z "${DDNATV_ROOT:-}" ]; then
+  echo "DroidDeck-Bionic needs Settings > Run without proot" >&2
+  exit 1
+fi
+
+# guest path -> Android path: the longest no-proot bind whose guest side starts the path, else inside the rootfs
+real() {
+  local p="$1" best="" host="" b g h
+  local -a binds
+  IFS='|' read -r -a binds <<< "${DDNATV_BINDS:-}"
+  for b in "${binds[@]}"; do
+    h="${b%%:*}"; g="${b#*:}"
+    case "$p" in "$g"|"$g"/*) [ ${#g} -gt ${#best} ] && { best="$g"; host="$h"; } ;; esac
+  done
+  if [ -n "$best" ]; then echo "$host${p#"$best"}"; return; fi
+  case "$p" in /data/*|/storage/*|/sdcard/*|/system/*|/apex/*|/vendor/*) echo "$p" ;; *) echo "$DDNATV_ROOT$p" ;; esac
+}
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+tool=$(real "$here")
+compat=$(real "${STEAM_COMPAT_DATA_PATH:-$HOME/.local/share/Steam/steamapps/compatdata/0}")
+
+case "$verb" in
+  run|waitforexitandrun|runinprefix)
+    [ $# -gt 0 ] || exit 0
+    exe=$(real "$1"); shift
+    export DROIDDECK_BIONIC_ROOT="$DDNATV_ROOT"
+    exec /system/bin/sh "$tool/bionic/launch.sh" "$verb" "$compat" "$exe" "$@" ;;
+  getcompatpath)
+    p=$(real "${1:-}")
+    printf 'Z:%s\n' "${p//\//\\}" ;;
+  getnativepath)
+    p=${1:-}; p=${p#[Zz]:}; p=${p//\\//}
+    echo "$p" ;;
+  *) exit 0 ;;
+esac
