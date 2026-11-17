@@ -94,5 +94,14 @@ class InputSurfaceEditorViewTest {
         val l4 = draft.elements.first { it.control == InputControl.L4 }
         assertEquals(.78f, l4.y, .0001f)
         assertEquals(.20f, l4.height, .0001f)
+
+        val gamepad = GamepadScaler(context, 1080, 1920)
+        val migrated = SavedInputLayout("migrated.layout.1920x1080", "Gamepad 1920 × 1080",
+            com.droiddeck.launcher.input.LegacyGamepadLayout(context, 1080, 1920).elements().map { if (it.id == "legacy:a") it.copy(x = .4f) else it },
+            aspect = 1920f / 1080f)
+        val rescaledDraft = SurfaceDraft(migrated, preset, com.droiddeck.launcher.input.InputLibraries.defaultPositions(context, library, migrated),
+            gamepad = gamepad, defaultAspect = com.droiddeck.launcher.input.InputLibraries.defaultAspect(context, library, migrated))
+        rescaledDraft.resetPositions()
+        assertEquals(gamepad.aspect, rescaledDraft.aspect, .0001f)
     }
 }

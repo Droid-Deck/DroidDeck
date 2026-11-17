@@ -444,7 +444,7 @@ object AddedGames {
                 ?: single?.takeIf { it.picked }?.let { File(it.exe) }?.takeIf { it.isFile }
             val found = chosen ?: sidecar?.exeFile(folder)?.takeIf { it.isFile } ?: candidates.firstOrNull() ?: return
             val epicLauncher = sidecar?.takeIf { chosen == null || canonical(chosen) == canonical(it.exeFile(folder)) }
-                ?.launcherFile(folder)?.takeIf { it.isFile }
+                ?.launcherFile(folder)?.takeIf { it.isFile && (sidecar.store == Store.EPIC || guestPath(context, it) != null) }
             val launch = epicLauncher ?: if (chosen == null) sidecar?.launcherFile(folder)?.takeIf { it.isFile } ?: found else found
             val foundGuest = guestPath(context, launch)
             if (foundGuest == null) { Log.w(TAG, "${folder.name}: the session cannot see ${launch.path}"); return }

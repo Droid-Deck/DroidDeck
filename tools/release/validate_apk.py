@@ -143,6 +143,11 @@ def main():
         if pr and documentation_only(sha):
             state = "success"
             description = "Source validated; no APK source changes"
+            if pr_number and not refresh_pr():
+                print("Ignoring a superseded or closed pull request event")
+                return
+            if state == "failure":
+                raise RuntimeError("\n".join(event_violations({"pull_request": pr})))
             return
         query = urlencode({"head_sha": sha, "event": source_event, "per_page": 20})
         runs = api(f"repos/{repo}/actions/workflows/build.yml/runs?{query}")["workflow_runs"]

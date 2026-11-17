@@ -95,7 +95,7 @@ static void wait_read_back(long before_swap) {
   long limit = before_swap / 4;
   for (int i = 0; i < 1200; i++) {
     long now = status("VmSwap:");
-    if (before_swap <= 0 || (now >= 0 && now <= limit)) return;
+    if (before_swap <= 0 || (now >= 0 && now < limit)) return;
     usleep(10000);
   }
   exit(15);

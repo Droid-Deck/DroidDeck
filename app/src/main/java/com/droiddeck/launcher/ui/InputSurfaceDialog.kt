@@ -63,6 +63,7 @@ internal data class SurfaceSnapshot(val elements: List<InputSurfaceElement>, val
 
 internal class GamepadScaler(private val context: android.content.Context, private val width: Int, private val height: Int) {
     private fun generator(scale: Float) = LegacyGamepadLayout(context, width, height, scale = scale)
+    val aspect = (width.coerceAtLeast(1).toFloat() / height.coerceAtLeast(1)).coerceIn(.05f, 20f)
     val ids = generator(1f).elements().map { it.id }.toSet()
     fun rescale(stored: List<InputSurfaceElement>, from: Float, to: Float) = generator(to).rescale(stored, generator(from))
     fun reset(stored: List<InputSurfaceElement>) = generator(1f).regenerate(stored).associateBy { it.id }.let { placed -> stored.map { placed[it.id] ?: it } }
@@ -92,8 +93,9 @@ internal class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInput
         rescales -> (layoutScale * 100).roundToInt()
         else -> 100
     }
+    private val resetAspect get() = if (rescales) gamepad!!.aspect else defaultAspect
     val positioned get() = (if (rescales) gamepad!!.reset(elements) else defaults?.let { elements.withPositionsOf(it) })
-        ?.takeIf { it != elements || aspect != defaultAspect || rescales && layoutScale != 1f }
+        ?.takeIf { it != elements || aspect != resetAspect || rescales && layoutScale != 1f }
     val element get() = elements.firstOrNull { it.id == selected }
     val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale || aspect != layout.aspect
     fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale, aspect)).takeLast(40) }
@@ -113,7 +115,7 @@ internal class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInput
         } else base.first.scaled(factor)
         scaleValue = percent; scaleBase = Triple(base.first, elements, base.third)
     }
-    fun resetPositions() { positioned?.let { checkpoint(); elements = it; aspect = defaultAspect; if (rescales) layoutScale = 1f } }
+    fun resetPositions() { positioned?.let { checkpoint(); elements = it; aspect = resetAspect; if (rescales) layoutScale = 1f } }
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
 }

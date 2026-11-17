@@ -45,6 +45,7 @@ class AdoptTest(unittest.TestCase):
             50: record("Game", "Twin", "Twin One"),
             51: record("Game", "Twin", "Twin Two"),
             60: record("Game", 'Game "Special"', 'Game "Special"'),
+            70: record("Game", r"A\B", "Backslash Game"),
         })
         for patcher in (patch.object(library, "BIN_DIR", str(BIN)),
                         patch("builtins.print")):
@@ -128,10 +129,12 @@ class AdoptTest(unittest.TestCase):
     def test_adoption_is_idempotent_and_only_touches_the_given_library(self):
         self.folder("Alpha")
         self.folder("Beta")
-        self.assertEqual(self.adopt(), 2)
-        first = {n: self.manifest(n).read_text() for n in (10, 20)}
+        self.folder('Game "Special"')
+        self.folder(r"A\B")
+        self.assertEqual(self.adopt(), 4)
+        first = {n: self.manifest(n).read_text() for n in (10, 20, 60, 70)}
         self.assertEqual(self.adopt(), 0)
-        self.assertEqual({n: self.manifest(n).read_text() for n in (10, 20)}, first)
+        self.assertEqual({n: self.manifest(n).read_text() for n in (10, 20, 60, 70)}, first)
         self.assertEqual(list(self.steam.glob("steamapps/appmanifest_*")), [])
 
     def test_main_adopts_every_registered_library(self):

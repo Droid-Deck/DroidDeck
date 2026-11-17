@@ -597,9 +597,14 @@ public final class PadBridge {
         int dedicated = left ? MotionEvent.AXIS_LTRIGGER : MotionEvent.AXIS_RTRIGGER;
         int alternate = left ? MotionEvent.AXIS_BRAKE : MotionEvent.AXIS_GAS;
         int signed = left ? MotionEvent.AXIS_Z : MotionEvent.AXIS_RZ;
+        boolean hasRxRy = hasAxis(device, source, MotionEvent.AXIS_RX)
+                && hasAxis(device, source, MotionEvent.AXIS_RY);
+        boolean hasZRz = hasAxis(device, source, MotionEvent.AXIS_Z)
+                && hasAxis(device, source, MotionEvent.AXIS_RZ);
+        boolean rxRyStick = hasRxRy && (!hasZRz || Boolean.TRUE.equals(layouts.get(deviceId)));
         return wiredXboxLayout(device, source)
                 || hasAxis(device, source, dedicated, alternate)
-                || (Boolean.TRUE.equals(layouts.get(deviceId)) && hasAxis(device, source, signed));
+                || (rxRyStick && hasAxis(device, source, signed));
     }
 
     static boolean hasAxis(InputDevice device, int source, int... axes) {
