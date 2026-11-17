@@ -227,6 +227,20 @@ class OnScreenControlsTest {
         assertFalse(view.hasPinned)
     }
 
+    @Test fun shownElementsFollowPinnedOnlyAndQuickHide() {
+        val key = InputSurfaceElement(InputControl.B, .45f, .1f, .1f, .1f, "imported:0", name = "Find", alwaysShown = true)
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button, key), aspect = ASPECT))
+        measure(view)
+        assertEquals(listOf(left, button, key).map { it.id }, view.shownElements().map { it.id })
+        view.setQuickHidden(true)
+        assertEquals(listOf("imported:0"), view.shownElements().map { it.id })
+        view.setQuickHidden(false)
+        view.setPinnedOnly(true)
+        assertEquals(listOf("imported:0"), view.shownElements().map { it.id })
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button), aspect = ASPECT))
+        assertTrue(view.shownElements().isEmpty())
+    }
+
     private companion object { const val ASPECT = 1000f / 600f }
 
     private fun touch(action: Int, vararg pointers: Pair<Int, Pair<Float, Float>>, flags: Int = 0): Boolean {

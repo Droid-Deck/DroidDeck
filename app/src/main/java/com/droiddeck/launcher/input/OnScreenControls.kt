@@ -80,6 +80,8 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         }
     }
 
+    fun shownElements() = surface.shownElements()
+
     private fun render() {
         val elements = placed()
         surface.updateCustomLayout(when {

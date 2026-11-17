@@ -39,6 +39,23 @@ class TwoFingerGesturesTest {
         assertEquals(listOf("cancel", "right 400.0,300.0"), calls)
     }
 
+    @Test fun tapClicksOffSwallowsTheTapButKeepsHoldAndScroll() {
+        gestures.tapClicks = false
+        touch(MotionEvent.ACTION_DOWN, 0, a)
+        time += 20
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, a, b)
+        time += 80
+        assertTrue(touch(MotionEvent.ACTION_POINTER_UP, 1, a, b))
+        assertTrue(touch(MotionEvent.ACTION_UP, 0, a))
+        assertEquals(listOf("cancel"), calls)
+        calls.clear()
+        touch(MotionEvent.ACTION_DOWN, 0, a)
+        time += 20
+        touch(MotionEvent.ACTION_POINTER_DOWN, 1, a, b)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(TwoFingerGestures.HOLD_MS + 10))
+        assertEquals(listOf("cancel", "right 400.0,300.0"), calls)
+    }
+
     @Test fun holdRightClicksOnce() {
         touch(MotionEvent.ACTION_DOWN, 0, a)
         time += 20

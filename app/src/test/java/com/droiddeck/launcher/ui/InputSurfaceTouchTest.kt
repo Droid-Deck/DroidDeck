@@ -229,6 +229,18 @@ class InputSurfaceTouchTest {
         assertFalse(view.takesTouchAt(815f, 300f))
     }
 
+    @Test fun shownElementsSkipSticksThatHideWhileIdleUntilTouched() {
+        val hidden = InputSurfaceElement(InputControl.LS, .3f, .3f, .2f, .4f, hideWhenIdle = true)
+        show(a, hidden, b)
+        assertEquals(listOf(a.id, b.id), view.shownElements().map { it.id })
+        touch(MotionEvent.ACTION_DOWN, 1 to (50f to 300f))
+        assertEquals(listOf(a.id, hidden.id, b.id), view.shownElements().map { it.id })
+        touch(MotionEvent.ACTION_UP, 1 to (50f to 300f))
+        assertEquals(listOf(a.id, b.id), view.shownElements().map { it.id })
+        show(a, hidden.copy(hideWhenIdle = false), b)
+        assertEquals(listOf(a.id, hidden.id, b.id), view.shownElements().map { it.id })
+    }
+
     private fun element(root: View, id: String): View = descendants(root).first { (it.tag as? InputSurfaceElement)?.id == id }
     private fun centre(target: View): Pair<Float, Float> {
         var x = target.width / 2f

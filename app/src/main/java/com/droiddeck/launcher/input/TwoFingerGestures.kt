@@ -18,6 +18,8 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
 
     private enum class State { IDLE, PENDING, CANDIDATE, TAPPED, HELD, SCROLLING, PASSING }
 
+    var tapClicks = true
+
     private val handler = Handler(Looper.getMainLooper())
     private var state = State.IDLE
     private var x = 0f
@@ -151,7 +153,7 @@ class TwoFingerGestures(private val slopPx: Float, private val listener: Listene
                 when (was) {
                     State.TAPPED -> {
                         listener.cancelTouch()
-                        listener.rightClick(x, y)
+                        if (tapClicks) listener.rightClick(x, y)
                         return true
                     }
                     State.SCROLLING, State.HELD -> return true

@@ -36,6 +36,7 @@ sealed interface InputAction {
 
 data class InputProfile(
     val id: String,
+    val base: String = id,
     val bindings: Map<InputRole, Map<InputControl, InputAction>> = emptyMap(),
     val keys: List<PhysicalInputBinding> = emptyList(),
     val elements: Map<InputRole, Map<String, InputAction>> = emptyMap(),
@@ -49,6 +50,16 @@ data class InputProfile(
 
     fun elementAction(role: InputRole, id: String, control: InputControl): InputAction =
         elements[role]?.get(id) ?: if (id == "legacy:${control.id}") action(role, control) else InputAction.Disabled
+
+    fun hasMouseButton(role: InputRole, elements: List<InputSurfaceElement>): Boolean {
+        val stock = defaults(base)
+        fun chosen(action: InputAction, shipped: InputAction) = action is InputAction.MouseButton && action != shipped
+        return elements.any {
+            val pressable = it.kind == InputElementKind.BUTTON || it.kind == InputElementKind.TRIGGER
+            pressable && chosen(elementAction(role, it.id, it.control), stock.elementAction(role, it.id, it.control)) ||
+                it.hasClick && chosen(elementClickAction(role, it), stock.elementClickAction(role, it))
+        }
+    }
 
     fun elementClickAction(role: InputRole, element: InputSurfaceElement): InputAction = clicks[role]?.get(element.id)
         ?: defaultElementClick(element, elementAction(role, element.id, element.control)) { action(role, it) }
@@ -72,7 +83,7 @@ data class InputProfile(
                 InputControl.LEFT_PAD to InputAction.Scroll(), InputControl.RIGHT_PAD to InputAction.Pointer(),
                 InputControl.LEFT_CLICK to InputAction.MouseButton(273), InputControl.RIGHT_CLICK to InputAction.MouseButton(272),
             )
-            return InputProfile(DESKTOP, InputRole.entries.associateWith { desktop })
+            return InputProfile(DESKTOP, bindings = InputRole.entries.associateWith { desktop })
         }
     }
 }

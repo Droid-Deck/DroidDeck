@@ -4778,7 +4778,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) gesturePointerReady = false
                 touchscreenGestures.onTouch(event)
             }
-            com.droiddeck.launcher.input.TouchRouter.Route.SCROLL -> scrollTouch.onTouch(event)
+            com.droiddeck.launcher.input.TouchRouter.Route.SCROLL -> {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) scrollTouch.tapClicks = !onScreenMouseButtonShown()
+                scrollTouch.onTouch(event)
+            }
             else -> {
                 if (com.droiddeck.launcher.input.TouchRouter.steamKeyboardZone(snapshot)) {
                     val wasActive = threeFingerTap.active && event.actionMasked != MotionEvent.ACTION_DOWN
@@ -4801,6 +4804,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
+    private fun onScreenMouseButtonShown(): Boolean {
+        if (steamTouchControls?.visibility == View.VISIBLE) return false
+        val primary = listOfNotNull(unfoldedPanel, bottomInputControls, onScreenControls)
+            .filter { it.visibility == View.VISIBLE }.map { it.shownElements() } +
+            listOfNotNull(unfoldedDeckSurface?.takeIf { it.visibility == View.VISIBLE }?.shownElements())
+        val secondary = secondScreenPresentation?.shownControlElements().orEmpty() +
+            swappedControls?.takeIf { it.isShown }?.shownElements().orEmpty()
+        return primary.any { inputProfile.hasMouseButton(InputRole.PRIMARY, it) } ||
+            inputProfile.hasMouseButton(InputRole.SECONDARY, secondary)
+    }
+
     private fun uiBlocksTouch(): Boolean =
         drawerOpen || achievementsOpen || gestureSettingsOpen || inputSettingsOpen || pipUi || SessionState.suspended
 
@@ -4821,6 +4835,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             touchpad.desktop = SessionState.mode == SessionService.MODE_DESKTOP
+            touchpad.tapClicks = !onScreenMouseButtonShown()
             placeTouchpadAtGuest(rect)
         }
         return touchpad.onTouch(event)
@@ -4903,6 +4918,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         showCursor(cx, cy)
     }
 
+    private var swappedControls: com.droiddeck.launcher.ui.InputSurfaceView? = null
+
     private fun dispatchDirectTouch(event: MotionEvent): Boolean {
         val rect = drawnRect() ?: return false
         if (event.actionMasked == MotionEvent.ACTION_DOWN)
@@ -4915,6 +4932,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) ignoreGameTouch = false
             return true
+        }
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            val tapClicks = !onScreenMouseButtonShown()
+            directTouchHold.tapClicks = tapClicks
+            twoFingerGestures.tapClicks = tapClicks
         }
         if (SessionState.mode == SessionService.MODE_DESKTOP && twoFingerGestures.onTouch(event)) return true
         return forwardTouch(event, rect)
@@ -4943,7 +4965,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             return true
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            if (!pointerLocked) showCursor(event.x.coerceIn(rect.left, rect.right), event.y.coerceIn(rect.top, rect.bottom))
+            if (!pointerLocked) {
+                val x = event.x.coerceIn(rect.left, rect.right)
+                val y = event.y.coerceIn(rect.top, rect.bottom)
+                if (directTouchHold.tapClicks) showCursor(x, y) else movePointer(x, y)
+            }
             if (WaylandCompositor.nativeFocusTakesTouch()) {
                 listOf(PointerGestures.BTN_LEFT, PointerGestures.BTN_RIGHT, PointerGestures.BTN_MIDDLE).forEach {
                     heldButtons.set(1, it, false)
@@ -6045,7 +6071,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         androidx.compose.runtime.key(profileLayout) {
                             androidx.compose.ui.viewinterop.AndroidView(
                                 factory = { context -> com.droiddeck.launcher.ui.InputSurfaceView(context, padBridge, profileLayout?.elements.orEmpty(),
-                                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle()) },
+                                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
+                                    .also { swappedControls = it } },
+                                onRelease = { if (swappedControls === it) swappedControls = null },
                                 modifier = Modifier.fillMaxWidth().weight(1f),
                             )
                         }

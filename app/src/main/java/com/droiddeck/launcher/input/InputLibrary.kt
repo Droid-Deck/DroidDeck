@@ -94,9 +94,11 @@ data class InputLibrary(
     fun panelPart(isDesktop: Boolean, panel: String?): InputPart =
         panel?.let { id -> bindings.firstOrNull { it.id == id } }?.let { InputPart(it.id, it.layoutId) } ?: activePart(isDesktop, InputRole.SECONDARY)
     fun panelLayout(isDesktop: Boolean, panel: String?) = panelPart(isDesktop, panel).layout?.let { id -> layouts.firstOrNull { it.id == id } }
-    fun compileActive(isDesktop: Boolean, panel: String? = null): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith {
-        preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel).bindings else activePart(isDesktop, it).bindings)
-    })
+    fun compileActive(isDesktop: Boolean, panel: String? = null): InputProfile = activeId(isDesktop).let { id ->
+        compileParts(id, InputRole.entries.associateWith {
+            preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel).bindings else activePart(isDesktop, it).bindings)
+        }, profile(id).base)
+    }
 
     fun saveSelection(isDesktop: Boolean, name: String, id: String = newInputId()): InputLibrary {
         val current = profile(activeId(isDesktop))
@@ -109,14 +111,14 @@ data class InputLibrary(
     fun compile(id: String): InputProfile {
         val profile = profile(id)
         val parts = InputRole.entries.associateWith { preset(profile.binding(it)) }
-        return compileParts(id, parts)
+        return compileParts(id, parts, profile.base)
     }
 
-    private fun compileParts(id: String, parts: Map<InputRole, SavedInputBindings>): InputProfile {
-        return InputProfile(id, parts.mapValues { it.value.controls }.filterValues { it.isNotEmpty() },
-            parts.getValue(InputRole.PHYSICAL).keys,
-            parts.mapValues { it.value.elements }.filterValues { it.isNotEmpty() },
-            parts.mapValues { it.value.clicks }.filterValues { it.isNotEmpty() })
+    private fun compileParts(id: String, parts: Map<InputRole, SavedInputBindings>, base: String): InputProfile {
+        return InputProfile(id, base = base, bindings = parts.mapValues { it.value.controls }.filterValues { it.isNotEmpty() },
+            keys = parts.getValue(InputRole.PHYSICAL).keys,
+            elements = parts.mapValues { it.value.elements }.filterValues { it.isNotEmpty() },
+            clicks = parts.mapValues { it.value.clicks }.filterValues { it.isNotEmpty() })
     }
 
     fun usersOfBindings(id: String) = profiles.filter { p -> p.parts.values.any { it.bindings == id } }

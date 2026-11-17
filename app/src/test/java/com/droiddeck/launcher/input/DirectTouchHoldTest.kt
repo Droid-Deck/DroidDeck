@@ -67,6 +67,54 @@ class DirectTouchHoldTest {
         assertEquals("up 0 at 60.0,30.0", touches.last())
     }
 
+    @Test fun tapForwardsNothingWhileTapClicksAreOff() {
+        hold.tapClicks = false
+        touch(MotionEvent.ACTION_DOWN)
+        advance(100)
+        touch(MotionEvent.ACTION_UP, 50f)
+        advance(100)
+        assertTrue(touches.isEmpty())
+        assertTrue(buttons.isEmpty())
+    }
+
+    @Test fun holdStillRightClicksWhileTapClicksAreOff() {
+        hold.tapClicks = false
+        touch(MotionEvent.ACTION_DOWN)
+        advance(550)
+        assertEquals(listOf("true at 40.0,30.0", "false at 40.0,30.0"), buttons)
+        touch(MotionEvent.ACTION_UP)
+        advance(100)
+        assertTrue(touches.isEmpty())
+    }
+
+    @Test fun dragAndSecondFingerStillForwardWhileTapClicksAreOff() {
+        hold.tapClicks = false
+        touch(MotionEvent.ACTION_DOWN)
+        touch(MotionEvent.ACTION_MOVE, 60f)
+        assertEquals(listOf("down 0 at 40.0,30.0", "move 0 at 60.0,30.0"), touches)
+        touch(MotionEvent.ACTION_UP, 60f)
+        advance(50)
+        touches.clear()
+        touch(MotionEvent.ACTION_DOWN)
+        touch(MotionEvent.ACTION_POINTER_DOWN, 60f)
+        assertEquals(listOf("down 0 at 40.0,30.0", "down 0 at 60.0,30.0"), touches)
+        touch(MotionEvent.ACTION_UP, 60f)
+    }
+
+    @Test fun noneBehaviorWaitsForMovementWhileTapClicksAreOff() {
+        hold.configure(TouchGestureConfig(directHoldBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_NONE))
+        hold.tapClicks = false
+        touch(MotionEvent.ACTION_DOWN)
+        assertTrue(touches.isEmpty())
+        touch(MotionEvent.ACTION_UP)
+        advance(100)
+        assertTrue(touches.isEmpty())
+        touch(MotionEvent.ACTION_DOWN)
+        touch(MotionEvent.ACTION_MOVE, 60f)
+        assertEquals(listOf("down 0 at 40.0,30.0", "move 0 at 60.0,30.0"), touches)
+        touch(MotionEvent.ACTION_UP, 60f)
+    }
+
     @Test fun dragForwardsTheTouchOnceItMoves() {
         touch(MotionEvent.ACTION_DOWN)
         touch(MotionEvent.ACTION_MOVE, 60f)
