@@ -204,6 +204,16 @@ SECONDS=30; bl_session_pressure
         self.memory(total=16384, available=3072, psi='1.23')
         self.assertEqual(['send:1:session'], self.run_policy('bl_session_pressure'))
 
+    def test_a_fast_fall_on_a_large_device_reclaims_above_the_fixed_headroom(self):
+        self.memory(total=15255, available=6176)
+        falling = self.root / 'falling'
+        falling.write_text(
+            f'MemTotal: {15255 * 1024} kB\nMemAvailable: {5367 * 1024} kB\n'
+            f'SwapTotal: {8192 * 1024} kB\nSwapFree: {6144 * 1024} kB\n')
+        meminfo = self.root / 'meminfo'
+        self.assertEqual(['send:1:session'], self.run_policy(
+            f'cp {falling} {meminfo}\nSECONDS=5; bl_session_pressure'))
+
     def test_no_game_does_not_compress_the_session(self):
         self.assertEqual([], self.run_policy('_bl_game=0; bl_session_pressure'))
 

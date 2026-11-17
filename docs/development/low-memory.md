@@ -58,7 +58,7 @@ and the RAM cap are unaffected.
 The session request runs when real headroom falls below a quarter of RAM (bounded to
 768–2560 MiB), or below one and a half times that with at least 1% `some` or `full avg10`
 memory stall. Real headroom subtracts positive growth in KGSL allocation, `Unevictable`, and
-`Shmem` from `MemAvailable`; a rapid fall also qualifies near twice the headroom. The monitor
+`Shmem` from `MemAvailable`; a rapid fall also qualifies below twice the headroom or two fifths of RAM, whichever is larger (a 15 GB Thor Max was killed with 5.3 GB still available while memory fell about 400 MB per tick). The monitor
 may first request page-out of idle Steam and hidden launchers, subject to the Performance
 setting and client reclaim limits. When both qualify, both requests are sent before waiting
 for either to complete, so a slow launcher acknowledgement does not delay the game request. Until the client
