@@ -440,7 +440,18 @@ static void pacer_lock(void) {
 static void pacer_submit(ASurfaceTransaction *tx, int64_t slot_ns) {
     if (slot_ns) pthread_once(&g_pacer_once, pacer_init);
     pacer_lock();
-    if (slot_ns) filler_ensure_locked();
+    if (slot_ns) {
+        filler_ensure_locked();
+        if (!g_filler_sc) {
+            static int said;
+            if (!said) {
+                said = 1;
+                droiddeck_log("layer", "presenter: the filler layer could not be created, so game frames are shown as "
+                                       "soon as they are ready instead of being held to their refresh");
+            }
+            slot_ns = 0;
+        }
+    }
     if (!g_pacer_ok || (!slot_ns && !g_pacer_n)) {
         api.txApply(tx);
         api.txDelete(tx);
