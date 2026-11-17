@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -20,11 +21,14 @@
 #endif
 #define ZR_SWAPPED (1ULL << 62)
 #define ZR_BATCH 512
+#define ZR_FUTEX_WAIT 0
+#define ZR_FUTEX_WAKE 1
 
 static long (*zr_sys)(long, ...);
 static unsigned long zr_page;
 static int zr_busy;
 static int zr_pending;
+static int zr_worker;
 static char zr_maps[8192];
 static uint64_t zr_entries[ZR_BATCH];
 static struct iovec zr_iov[ZR_BATCH];
@@ -143,19 +147,36 @@ static void zr_ack(int done) {
   zr_sys(SYS_close, fd);
 }
 
+static void zr_request(void) {
+  int mode = zr_mode();
+  if (mode == 1) zr_ack(0);
+  if (mode >= 0) zr_walk(mode);
+  if (mode == 1) zr_ack(1);
+}
+
+static void *zr_worker_main(void *unused) {
+  (void)unused;
+  prctl(PR_SET_NAME, "zr-worker", 0, 0, 0);
+  for (;;) {
+    while (!__atomic_exchange_n(&zr_pending, 0, __ATOMIC_SEQ_CST))
+      zr_sys(SYS_futex, &zr_pending, ZR_FUTEX_WAIT, 0, NULL, NULL, 0);
+    zr_request();
+  }
+  return NULL;
+}
+
 static void zr_handler(int sig, siginfo_t *info, void *context) {
   (void)sig;
   (void)context;
   if (info == NULL || info->si_code != SI_USER) return;
   int saved = errno;
   __atomic_store_n(&zr_pending, 1, __ATOMIC_SEQ_CST);
-  while (__atomic_load_n(&zr_pending, __ATOMIC_SEQ_CST)
-         && !__atomic_exchange_n(&zr_busy, 1, __ATOMIC_SEQ_CST)) {
+  if (__atomic_load_n(&zr_worker, __ATOMIC_ACQUIRE)) {
+    zr_sys(SYS_futex, &zr_pending, ZR_FUTEX_WAKE, 1, NULL, NULL, 0);
+  } else while (__atomic_load_n(&zr_pending, __ATOMIC_SEQ_CST)
+                && !__atomic_exchange_n(&zr_busy, 1, __ATOMIC_SEQ_CST)) {
     __atomic_store_n(&zr_pending, 0, __ATOMIC_SEQ_CST);
-    int mode = zr_mode();
-    if (mode == 1) zr_ack(0);
-    if (mode >= 0) zr_walk(mode);
-    if (mode == 1) zr_ack(1);
+    zr_request();
     __atomic_store_n(&zr_busy, 0, __ATOMIC_SEQ_CST);
   }
   errno = saved;
@@ -164,6 +185,7 @@ static void zr_handler(int sig, siginfo_t *info, void *context) {
 static void zr_child(void) {
   __atomic_store_n(&zr_busy, 0, __ATOMIC_SEQ_CST);
   __atomic_store_n(&zr_pending, 0, __ATOMIC_SEQ_CST);
+  __atomic_store_n(&zr_worker, 0, __ATOMIC_RELEASE);
 }
 
 __attribute__((constructor)) static void zr_init(void) {
@@ -184,5 +206,21 @@ __attribute__((constructor)) static void zr_init(void) {
   sa.sa_sigaction = zr_handler;
   sa.sa_flags = SA_SIGINFO | SA_RESTART;
   sigemptyset(&sa.sa_mask);
-  if (sigaction(SIGURG, &sa, NULL) == 0) pthread_atfork(NULL, NULL, zr_child);
+  if (sigaction(SIGURG, &sa, NULL) == 0) {
+    pthread_atfork(NULL, NULL, zr_child);
+    pthread_attr_t attr;
+    if (pthread_attr_init(&attr) == 0) {
+      pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+      pthread_t thread;
+      sigset_t blocked;
+      sigset_t previous;
+      if (sigfillset(&blocked) == 0 &&
+          pthread_sigmask(SIG_SETMASK, &blocked, &previous) == 0) {
+        if (pthread_create(&thread, &attr, zr_worker_main, NULL) == 0)
+          __atomic_store_n(&zr_worker, 1, __ATOMIC_RELEASE);
+        pthread_sigmask(SIG_SETMASK, &previous, NULL);
+      }
+      pthread_attr_destroy(&attr);
+    }
+  }
 }
