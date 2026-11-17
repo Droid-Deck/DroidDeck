@@ -603,7 +603,6 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     dev->handle = *device;
     dev->gdpa = gdpa;
     dev->emulated = requested;
-    dev->active = inst->active;
     pthread_mutex_init(&dev->lock, NULL);
 #define LOAD(name) \
     dev->name = (PFN_vk##name)gdpa(*device, "vk" #name); \
@@ -616,6 +615,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     inst->GetPhysicalDeviceMemoryProperties(physical_device, &dev->memory_properties);
     VkPhysicalDeviceProperties properties;
     inst->GetPhysicalDeviceProperties(physical_device, &properties);
+    dev->active = inst->active && (requested != 0 || properties.apiVersion >= VK_API_VERSION_1_2);
     uint32_t components = properties.limits.maxVertexOutputComponents;
     if (properties.limits.maxFragmentInputComponents < components)
         components = properties.limits.maxFragmentInputComponents;
