@@ -5501,7 +5501,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun onStop() {
-        if (bouncePausedLight) { bouncePausedLight = false; departureCleanup() }
+        if (lightPause.stopped()) departureCleanup()
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
         if (::hud.isInitialized) hud.setBackgrounded(true)
@@ -5546,10 +5546,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     override fun onResume() {
         super.onResume()
         uiHandler.removeCallbacks(lightPauseCheck)
-        if (bouncePausedLight) {
-            bouncePausedLight = false
-            if (com.droiddeck.launcher.session.KeepTopActivity.bounces != bouncesAtPause) return
-            departureCleanup()
+        when (lightPause.resumed(com.droiddeck.launcher.session.KeepTopActivity.bounces)) {
+            com.droiddeck.launcher.session.LightPause.Resume.LIGHT -> return
+            com.droiddeck.launcher.session.LightPause.Resume.CLEANUP_FIRST -> departureCleanup()
+            com.droiddeck.launcher.session.LightPause.Resume.NORMAL -> Unit
         }
         drawerGameInventoryRevision++
         com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
@@ -5616,14 +5616,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private var memoryPressureAt = 0L
     private var focusBounce = false
-    private var bouncePausedLight = false
-    private var bouncesAtPause = 0
-    private val lightPauseCheck = Runnable {
-        if (bouncePausedLight && com.droiddeck.launcher.session.KeepTopActivity.bounces == bouncesAtPause) {
-            bouncePausedLight = false
-            departureCleanup()
-        }
-    }
+    private val lightPause = com.droiddeck.launcher.session.LightPause()
+    private val lightPauseCheck = Runnable { if (lightPause.timedOut()) departureCleanup() }
     private var topResumed = false
     private val guardWhenRunning = object : Runnable {
         override fun run() {
@@ -5662,8 +5656,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     override fun onPause() {
         if (focusBounce) {
             focusBounce = false
-            bouncePausedLight = true
-            bouncesAtPause = com.droiddeck.launcher.session.KeepTopActivity.bounces
+            lightPause.paused(com.droiddeck.launcher.session.KeepTopActivity.bounces)
             uiHandler.postDelayed(lightPauseCheck, 200)
         } else departureCleanup()
         super.onPause()
