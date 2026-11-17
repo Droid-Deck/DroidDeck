@@ -7,6 +7,37 @@ import org.junit.Test
 
 class MaliAutoRouteTest {
     @Test
+    fun explicitBridgeWithVenusOffWinsOverAvailableVenus() {
+        assertFalse(MaliAutoRoute.preferVenus(true, true, true, false))
+    }
+
+    @Test
+    fun defaultBridgeStillLetsAutoChooseVenus() {
+        assertTrue(MaliAutoRoute.preferVenus(true, true, false, false))
+    }
+
+    @Test
+    fun autoOwnedBridgeStillLetsAutoChooseVenus() {
+        val explicit = MaliAutoRoute.userChoice(true, MaliAutoRoute.BRIDGE, MaliAutoRoute.BRIDGE)
+        assertTrue(MaliAutoRoute.preferVenus(true, true, explicit, false))
+    }
+
+    @Test
+    fun explicitlyDisabledBridgeDoesNotBlockVenus() {
+        assertTrue(MaliAutoRoute.preferVenus(true, false, true, false))
+    }
+
+    @Test
+    fun bothEnabledKeepTheExistingVenusPriority() {
+        assertTrue(MaliAutoRoute.preferVenus(true, true, true, true))
+    }
+
+    @Test
+    fun unavailableVenusStillUsesTheBridge() {
+        assertFalse(MaliAutoRoute.preferVenus(false, false, false, false))
+    }
+
+    @Test
     fun defaultBridgeIsOwnedByAuto() {
         assertEquals(MaliAutoRoute.BRIDGE, MaliAutoRoute.initialOwnership(true, false, false, false))
     }
