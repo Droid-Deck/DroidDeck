@@ -104,7 +104,8 @@ export SDL_GAMECONTROLLER_IGNORE_DEVICES="$(echo "${SDL_GAMECONTROLLER_IGNORE_DE
 export WINE_USE_EGL=1 WINE_X11FORCEGLX=1 GALLIUM_DRIVER=zink MESA_LOADER_DRIVER_OVERRIDE=zink LIBGL_KOPPER_DRI2=1
 export ZINK_DESCRIPTORS=${ZINK_DESCRIPTORS:-lazy} ZINK_DEBUG=${ZINK_DEBUG:-compact} vblank_mode=${vblank_mode:-0}
 
-LIBS=$F/lib:$PACK/egl:$PACK/lib:/system/lib64
+# egl/ first: the layer's own lib/ carries a Wayland-only Mesa EGL of the same names, which winex11 cannot use
+LIBS=$PACK/egl:$F/lib:$PACK/lib:/system/lib64
 PRELOAD=$PACK/preload/libexecshim.so:$PACK/preload/libnotag.so:$PACK/preload/libfakeinput.so
 wine_() { LD_LIBRARY_PATH=$LIBS LD_PRELOAD=$PRELOAD "$LINKER" "$F/lib/wine/aarch64-unix/wine" "$@"; }
 wineserver_() { LD_LIBRARY_PATH=$LIBS LD_PRELOAD=$PRELOAD "$LINKER" "$F/bin/wineserver" "$@"; }
