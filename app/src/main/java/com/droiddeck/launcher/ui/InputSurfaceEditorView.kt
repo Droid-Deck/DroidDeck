@@ -9,6 +9,8 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
+import com.droiddeck.launcher.input.OnScreenLayout
+import com.droiddeck.launcher.input.SavedInputLayout
 import com.droiddeck.launcher.input.InputSurfaceElement
 import com.droiddeck.launcher.input.InputSurfaceStyle
 import com.droiddeck.launcher.input.snapSurfaceElement
@@ -16,7 +18,11 @@ import kotlin.math.abs
 
 internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     var elements: List<InputSurfaceElement> = emptyList()
-        set(value) { field = value; preview.updateCustomLayout(value); invalidate() }
+        set(value) { field = value; refreshElements(); invalidate() }
+    var aspect = 1f
+        set(value) { field = value; refreshElements(); invalidate() }
+    var sourceLayout: SavedInputLayout? = null
+        set(value) { field = value; refreshElements(); invalidate() }
     var style = InputSurfaceStyle()
         set(value) { field = value; preview.updateStyle(value) }
     var snap = true
@@ -26,7 +32,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     var selected: String? = null
         set(value) { field = value; invalidate() }
     var onSelect: (String?) -> Unit = {}
-    var onBeginEdit: () -> Unit = {}
+    var onBeginEdit: (List<InputSurfaceElement>, Float) -> Unit = { _, _ -> }
     var onChange: (InputSurfaceElement) -> Unit = {}
     private val preview = InputSurfaceView(context)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(26, 159, 255); strokeWidth = 2 * resources.displayMetrics.density }
@@ -37,9 +43,23 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     private var corner = 0
     private var dragging = false
 
+    private var visibleElements: List<InputSurfaceElement> = emptyList()
+
     init {
         setBackgroundColor(Color.rgb(10, 11, 13))
         addView(preview, LayoutParams(-1, -1))
+    }
+
+    private fun refreshElements() {
+        visibleElements = sourceLayout?.let { layout ->
+            OnScreenLayout.editorElements(context, layout.copy(elements = elements, aspect = aspect), width, height)
+        } ?: elements
+        preview.updateCustomLayout(visibleElements)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        refreshElements()
     }
 
     override fun dispatchDraw(canvas: Canvas) {
@@ -47,7 +67,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
         paint.style = Paint.Style.STROKE
         guideX?.let { canvas.drawLine(width * it, 0f, width * it, height.toFloat(), paint) }
         guideY?.let { canvas.drawLine(0f, height * it, width.toFloat(), height * it, paint) }
-        val e = elements.firstOrNull { it.id == selected } ?: return
+        val e = visibleElements.firstOrNull { it.id == selected } ?: return
         val l = width * e.x; val t = height * e.y; val r = l + width * e.width; val b = t + height * e.height
         paint.style = Paint.Style.STROKE; canvas.drawRect(l, t, r, b, paint)
         paint.style = Paint.Style.FILL
@@ -65,7 +85,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
             MotionEvent.ACTION_DOWN -> {
                 clearGuides()
                 downX = event.x; downY = event.y; dragging = false; corner = 0
-                val current = elements.firstOrNull { it.id == selected }
+                val current = visibleElements.firstOrNull { it.id == selected }
                 if (current != null) {
                     val left = width * current.x; val top = height * current.y
                     val right = left + width * current.width; val bottom = top + height * current.height
@@ -73,7 +93,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
                     val vertical = if (abs(downY - top) < radius) 4 else if (abs(downY - bottom) < radius) 8 else 0
                     if (horizontal != 0 && vertical != 0) corner = horizontal or vertical
                 }
-                original = if (corner != 0) current else elements.asReversed().firstOrNull {
+                original = if (corner != 0) current else visibleElements.asReversed().firstOrNull {
                     downX / width in it.x..(it.x + it.width) && downY / height in it.y..(it.y + it.height)
                 }
                 selected = original?.id; onSelect(selected)
@@ -81,7 +101,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
             MotionEvent.ACTION_MOVE -> {
                 val e = original ?: return true
                 if (!dragging && abs(event.x - downX) + abs(event.y - downY) > ViewConfiguration.get(context).scaledTouchSlop) {
-                    dragging = true; onBeginEdit()
+                    dragging = true; onBeginEdit(visibleElements, width.toFloat() / height)
                 }
                 if (!dragging) return true
                 val dx = (event.x - downX) / width; val dy = (event.y - downY) / height
@@ -93,7 +113,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
                         val bottom = if (corner and 8 != 0) (e.y + e.height + dy).coerceIn(top + .03f, 1f) else e.y + e.height
                         e.copy(x = left, y = top, width = right - left, height = bottom - top).bounded()
                     }
-                val aligned = if (snap) snapSurfaceElement(next, elements.filter { it.id != e.id }, 9 * resources.displayMetrics.density / width,
+                val aligned = if (snap) snapSurfaceElement(next, visibleElements.filter { it.id != e.id }, 9 * resources.displayMetrics.density / width,
                     9 * resources.displayMetrics.density / height, corner) else null
                 if (aligned != null && (aligned.x != null && aligned.x != guideX || aligned.y != null && aligned.y != guideY)) performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                 guideX = aligned?.x; guideY = aligned?.y
