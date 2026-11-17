@@ -158,6 +158,10 @@ prepare_prefix() {
   wineserver_ -w
   echo "$VERSION" > "$P/.droiddeck-bionic"
   echo "$VERSION" > "$COMPAT/version"
+  # Proton (DroidDeck-Proton, GE, ...) reads tracked_files when it takes this prefix over; one this tool made has
+  # none. The version above is not a Proton prefix version, so Proton updates the prefix and never treats it as
+  # one from a newer Proton (which would delete its tracked files).
+  [ -e "$COMPAT/tracked_files" ] || : > "$COMPAT/tracked_files"
   echo "$(date +%H:%M:%S) prefix ready"
 }
 
