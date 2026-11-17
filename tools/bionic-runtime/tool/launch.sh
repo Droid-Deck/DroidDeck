@@ -33,6 +33,8 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     mesa_glthread|vblank_mode|ZINK_*|GALLIUM_HUD|GALLIUM_THREAD) ;;
     BL_SYNC|BL_FSYNC_FIRST|BL_SYNC_FALLBACK|PROTON_NO_ESYNC|PROTON_NO_FSYNC|PROTON_NO_NTSYNC|WINEESYNC) ;;
     PROTON_USE_D7VK) ;;
+    WINE_OFFSCREEN_CHECK_MS|WINE_CPU_TOPOLOGY|WINE_LARGE_ADDRESS_AWARE|TZ) ;;
+    DXVK_LOG_LEVEL|DXVK_HDR|VKD3D_DEBUG|VKD3D_SHADER_DEBUG) ;;
     *) unset "$v" 2>/dev/null ;;
   esac
 done
