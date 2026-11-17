@@ -167,6 +167,7 @@ internal class GameFrameFeed(
     private val onFrame: ((Long, Long) -> Unit)? = null,
     private val keepBacklog: Boolean = false,
     private val notBeforeNs: Long = Long.MIN_VALUE,
+    private val ring: FrameRing = NativeFrameRing,
 ) {
     private var handle = 0L
     private var lastGuestNs = Long.MIN_VALUE
@@ -204,11 +205,11 @@ internal class GameFrameFeed(
         if (handle == 0L) {
             if (nowNs < nextOpenNs) return compositorAdded
             nextOpenNs = nowNs + REOPEN_NS
-            handle = runCatching { HudFrames.nativeOpen(file.path) }.getOrDefault(0L)
+            handle = runCatching { ring.open(file.path) }.getOrDefault(0L)
             if (handle == 0L) return compositorAdded
-            if (!keepBacklog) HudFrames.nativePoll(handle, frametimes, times)
+            if (!keepBacklog) ring.poll(handle, frametimes, times)
         }
-        val n = HudFrames.nativePoll(handle, frametimes, times)
+        val n = ring.poll(handle, frametimes, times)
         var shift = 0L
         if (n > 0) {
             shift = guestClockShift(nowNs, if (keepBacklog) 0L else SHIFT_NS)
@@ -263,12 +264,12 @@ internal class GameFrameFeed(
     }
 
     fun close() {
-        if (handle != 0L) HudFrames.nativeClose(handle)
+        if (handle != 0L) ring.close(handle)
         handle = 0L
     }
 
     private fun readInfo() {
-        val name = if (handle != 0L && fromGamescope) HudFrames.nativeInfo(handle, info) else null
+        val name = if (handle != 0L && fromGamescope) ring.info(handle, info) else null
         if (name == null) {
             engine = ""
             return
