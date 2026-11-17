@@ -41,8 +41,9 @@ FEX_URL=https://github.com/The412Banner/Nightlies/releases/download/FEXCore-2611
 FEX_SHA256=caca997e5e077feb5d9b7cf0f2c680cd93b442278903e3f3e7b1bd9cd544770c
 DXVK_URL=https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasync-Linux/dxvk-gplasync-2.4.1-1-pre-reg-linux.wcp
 DXVK_SHA256=379b5dcde331de45a5f0ac7775d2c657c9c1510616afb9143ab8cdfbfa8e5342
-VKD3D_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/linux-nightly/DD-vkd3d-proton-arm64ec-3.1%2B64-nightly.wcp
-VKD3D_SHA256=92b8aa023e5242a6f7a69770b808b213474de7869f0d387ea99867a59e539b4e
+# VKD3D-Proton from DroidDeck-Components' stable release: the linux-nightly files are replaced as nightlies land.
+VKD3D_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/linux-stable/DD-vkd3d-proton-arm64ec-3.1.wcp
+VKD3D_SHA256=bd458d8adb08631d7d5da93c51ad02ce224178127d3408ca693b2947bf85bdd0
 # D7VK's 32-bit ddraw.dll (PROTON_USE_D7VK): the same file DroidDeck-Proton 11-12.8 ships, built there from
 # WinterSnowfall/d7vk; only that file is taken out of the release archive.
 D7VK_FROM=https://github.com/Droid-Deck/DroidDeck-Proton/releases/download/DroidDeck-Proton-11-12.8/DroidDeck-Proton-11-12.8-aarch64.tar.gz
