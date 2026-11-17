@@ -40,6 +40,12 @@ DXVK_URL=https://github.com/The412Banner/Nightlies/releases/download/Dxvk-gplasy
 DXVK_SHA256=379b5dcde331de45a5f0ac7775d2c657c9c1510616afb9143ab8cdfbfa8e5342
 VKD3D_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/linux-nightly/DD-vkd3d-proton-arm64ec-3.1%2B64-nightly.wcp
 VKD3D_SHA256=92b8aa023e5242a6f7a69770b808b213474de7869f0d387ea99867a59e539b4e
+# D7VK's 32-bit ddraw.dll (PROTON_USE_D7VK): the same file DroidDeck-Proton 11-12.8 ships, built there from
+# WinterSnowfall/d7vk; only that file is taken out of the release archive.
+D7VK_FROM=https://github.com/Droid-Deck/DroidDeck-Proton/releases/download/DroidDeck-Proton-11-12.8/DroidDeck-Proton-11-12.8-aarch64.tar.gz
+D7VK_MEMBER="DroidDeck-Proton 11-12.8/files/lib/wine/d7vk/i386-windows/ddraw.dll"
+D7VK_SHA256=aaf28d3dee147fd359d14bb08228f9d21335fb5fec334415e396353a967574aa
+D7VK_COMMIT=06656b9e94bf275854e3d83d6426517253937738
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64) NDK_HOST=linux-x86_64 ;;
@@ -82,6 +88,11 @@ echo "== Bannerlator assets (pinned): Wayland adapter, FFmpeg 8"
 fetch "$BL_ASSETS/wayland/adapter/libvulkan_wrapper.so" "$ADAPTER_SHA256" "$PACK/adapter/libvulkan_wrapper.so"
 fetch "$BL_ASSETS/wayland/adapter/adapter.json" "$ADAPTER_JSON_SHA256" "$PACK/adapter/adapter.json"
 fetch "$BL_ASSETS/ffmpeg8.tzst" "$FFMPEG8_SHA256" "$WORK/ffmpeg8.tzst"
+
+echo "== D7VK ddraw.dll (DroidDeck-Proton 11-12.8 release, that file only)"
+mkdir -p "$PACK/d7vk"
+curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "$D7VK_FROM" | tar -xzO -f - "$D7VK_MEMBER" > "$PACK/d7vk/ddraw.dll"
+echo "$D7VK_SHA256  $PACK/d7vk/ddraw.dll" | sha256sum -c -
 # OpenGL: Bannerlator's bionic Mesa (EGL + GLX + Zink, x11 and wayland platforms; Banners-Turnip exp/egl-x11-platform
 # ab76cba3, run 36862058991) for winex11's EGL backend, as Bannerlator's Fast OpenGL uses it
 mkdir -p "$PACK/egl"
@@ -166,6 +177,7 @@ cp "$HERE/NOTICE" "$PACK/NOTICE"
   echo "imagefs $IMAGEFS_URL sha256 $IMAGEFS_SHA256"
   echo "bannerlator $BL_COMMIT (wayland/adapter, ffmpeg8.tzst, x11/egl: Mesa EGL + GLX + Zink)"
   echo "layer $LAYER_URL sha256 $LAYER_SHA256 (not packed)"
+  echo "d7vk $D7VK_COMMIT: i386 ddraw.dll from $D7VK_FROM"
   echo "gamescope $GAMESCOPE_TAG $GAMESCOPE_COMMIT + $GAMESCOPE_PATCHES; vkroots $(git -C "$GS/subprojects/vkroots" rev-parse HEAD); Vulkan-Headers $VULKAN_HEADERS_TAG"
   echo
   (cd "$PACK" && find . -type f ! -name MANIFEST.txt | sort | xargs sha256sum)

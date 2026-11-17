@@ -27,5 +27,10 @@ Taken unchanged from The412Banner's Bannerlator (GPL-3.0, https://github.com/The
   with libwayland-client (MIT) and libarchive (BSD-2-Clause); egl/x11egl.json records the build. Bannerlator ships
   the same set for its Fast OpenGL.
 
+Taken unchanged from DroidDeck-Proton (https://github.com/Droid-Deck/DroidDeck-Proton, release DroidDeck-Proton-11-12.8):
+- d7vk/ddraw.dll: D7VK by WinterSnowfall (zlib, https://github.com/WinterSnowfall/d7vk, commit 06656b9e), Direct3D 7
+  and older on Vulkan, based on DXVK by Philip Rebohle and contributors (zlib, https://github.com/doitsujin/dxvk);
+  32-bit build from DroidDeck-Proton's CI.
+
 Not in this pack: the bionic DroidDeck-Proton layer (The412Banner/proton-wine releases), GPU drivers, DXVK/VKD3D
 and FEX (DroidDeck components).

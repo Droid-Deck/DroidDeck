@@ -32,6 +32,7 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     TU_DEBUG|MESA_NO_ERROR|DXVK_CONFIG|DXVK_HUD|DROIDDECK_FORCE_SSBS) ;;
     mesa_glthread|vblank_mode|ZINK_*|GALLIUM_HUD) ;;
     BL_SYNC|BL_FSYNC_FIRST|BL_SYNC_FALLBACK|PROTON_NO_ESYNC|PROTON_NO_FSYNC|PROTON_NO_NTSYNC|WINEESYNC) ;;
+    PROTON_USE_D7VK) ;;
     *) unset "$v" 2>/dev/null ;;
   esac
 done
@@ -203,6 +204,21 @@ fi
 prefix_busy || rm -f "$NTSYNC_SHM".v*
 
 prepare_prefix
+
+# D7VK (Direct3D 7 and older on Vulkan) for 32-bit games when PROTON_USE_D7VK is set and not 0, as DroidDeck-Proton:
+# its ddraw.dll in syswow64 with Wine's own beside it as ddraw_.dll. Switched off, Wine's link goes back. Only the
+# links in the prefix are removed, never the files they point to.
+S=$COMPAT/pfx/drive_c/windows/syswow64
+if [ -n "${PROTON_USE_D7VK:-}" ] && [ "$PROTON_USE_D7VK" != 0 ] && [ -f "$PACK/d7vk/ddraw.dll" ]; then
+  rm -f "$S/ddraw.dll" "$S/ddraw_.dll"
+  ln -s "$PACK/d7vk/ddraw.dll" "$S/ddraw.dll" && ln -s "$F/lib/wine/i386-windows/ddraw.dll" "$S/ddraw_.dll"
+  export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;ddraw=n,b"
+  echo "$(date +%H:%M:%S) D7VK on (32-bit ddraw)"
+elif [ -L "$S/ddraw_.dll" ] || [ -e "$S/ddraw_.dll" ]; then
+  rm -f "$S/ddraw.dll" "$S/ddraw_.dll"
+  ln -s "$F/lib/wine/i386-windows/ddraw.dll" "$S/ddraw.dll"
+  echo "$(date +%H:%M:%S) D7VK off: Wine's ddraw again"
+fi
 cd "$(dirname "$EXE")" || exit 1
 
 if [ "$verb" = runinprefix ]; then
