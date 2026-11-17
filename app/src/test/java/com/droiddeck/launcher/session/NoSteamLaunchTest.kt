@@ -101,4 +101,22 @@ class NoSteamLaunchTest {
         assertNull(NoSteamLaunch.nameFor("/usr/bin/retroarch", emptyList()))
         assertNull(NoSteamLaunch.nameFor(NoSteamLaunch.PROTON_RUN, listOf("/x/a.exe")))
     }
+
+    @Test fun windowsGameSessionsAreSteamTheDesktopAndProtonLaunchesFromTheLibrary() {
+        assertTrue(NoSteamLaunch.windowsGames(SessionService.MODE_STEAM, null))
+        assertTrue(NoSteamLaunch.windowsGames(SessionService.MODE_DESKTOP, null))
+        for (program in listOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC, NoSteamLaunch.BATTLENET)) {
+            assertTrue(program, NoSteamLaunch.running(SessionService.MODE_RUN, program))
+            assertTrue(program, NoSteamLaunch.windowsGames(SessionService.MODE_RUN, program))
+        }
+    }
+
+    @Test fun otherProgramsAreNotWindowsGameSessions() {
+        for (program in listOf("/usr/bin/retroarch", "/usr/local/bin/droiddeck-session", null)) {
+            assertFalse("$program", NoSteamLaunch.running(SessionService.MODE_RUN, program))
+            assertFalse("$program", NoSteamLaunch.windowsGames(SessionService.MODE_RUN, program))
+        }
+        assertFalse(NoSteamLaunch.running(SessionService.MODE_STEAM, NoSteamLaunch.PROTON_RUN))
+        assertFalse(NoSteamLaunch.running(SessionService.MODE_DESKTOP, null))
+    }
 }
