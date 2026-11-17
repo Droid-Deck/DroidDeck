@@ -165,62 +165,106 @@ static int is_proc_self_exe(const char *path) {
     return 0;
 }
 
+static void exe_from_cmdline(const char *cmdline_path, char *out, size_t outsz) {
+    int fd = open(cmdline_path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return;
+    char cmdline[8192];
+    ssize_t n = read(fd, cmdline, sizeof(cmdline) - 1);
+    close(fd);
+    if (n <= 0) return;
+    cmdline[n] = '\0';
+    char *args[64] = {0};
+    int ac = 0;
+    char *p = cmdline;
+    while (p < cmdline + n && ac < 64) {
+        args[ac++] = p;
+        p += strlen(p) + 1;
+    }
+    for (int i = 0; i < ac; i++) {
+        if (strcmp(args[i], "--argv0") == 0 && i + 2 < ac) {
+            ddnatv_copy_cstr(out, outsz, args[i + 2]);
+            return;
+        }
+    }
+    if (ac > 0 && args[0] && args[0][0] != '\0') ddnatv_copy_cstr(out, outsz, args[0]);
+}
+
+static ssize_t copy_guest_exe(const char *real_exe, char *buf, size_t bufsiz) {
+    const char *out_path = real_exe;
+    if (g_ddnatv_root[0] != '\0') {
+        size_t rlen = g_ddnatv_root_len;
+        if (strncmp(real_exe, g_ddnatv_root, rlen) == 0 &&
+            (real_exe[rlen] == '/' || real_exe[rlen] == '\0')) {
+            out_path = real_exe + rlen;
+            if (out_path[0] == '\0') out_path = "/";
+        }
+    }
+    size_t len = strlen(out_path);
+    size_t copy_len = (len < bufsiz) ? len : bufsiz;
+    memcpy(buf, out_path, copy_len);
+    return (ssize_t)copy_len;
+}
+
 static ssize_t handle_proc_self_exe(char *buf, size_t bufsiz) {
     if (!buf || bufsiz == 0) {
         errno = EINVAL;
         return -1;
     }
     init_ddnatv_hook();
-    if (g_real_exe[0] == '\0') {
-        int fd = open("/proc/self/cmdline", O_RDONLY);
-        if (fd >= 0) {
-            char cmdline[8192];
-            ssize_t n = read(fd, cmdline, sizeof(cmdline) - 1);
-            close(fd);
-            if (n > 0) {
-                cmdline[n] = '\0';
-                char *args[64] = {0};
-                int ac = 0;
-                char *p = cmdline;
-                while (p < cmdline + n && ac < 64) {
-                    args[ac++] = p;
-                    p += strlen(p) + 1;
-                }
-                for (int i = 0; i < ac; i++) {
-                    if (strcmp(args[i], "--argv0") == 0 && i + 2 < ac) {
-                        strncpy(g_real_exe, args[i + 2], sizeof(g_real_exe) - 1);
-                        g_real_exe[sizeof(g_real_exe) - 1] = '\0';
-                        break;
-                    }
-                }
-                if (g_real_exe[0] == '\0' && ac > 0 && args[0] && args[0][0] != '\0') {
-                    strncpy(g_real_exe, args[0], sizeof(g_real_exe) - 1);
-                    g_real_exe[sizeof(g_real_exe) - 1] = '\0';
-                }
-            }
-        }
-    }
-
-    if (g_real_exe[0] != '\0') {
-        char stripped[PATH_MAX];
-        const char *out_path = g_real_exe;
-        if (g_ddnatv_root[0] != '\0') {
-            size_t rlen = g_ddnatv_root_len;
-            if (strncmp(g_real_exe, g_ddnatv_root, rlen) == 0 &&
-                (g_real_exe[rlen] == '/' || g_real_exe[rlen] == '\0')) {
-                out_path = g_real_exe + rlen;
-                if (out_path[0] == '\0') out_path = "/";
-            }
-        }
-        strncpy(stripped, out_path, sizeof(stripped) - 1);
-        stripped[sizeof(stripped) - 1] = '\0';
-
-        size_t len = strlen(stripped);
-        size_t copy_len = (len < bufsiz) ? len : bufsiz;
-        memcpy(buf, stripped, copy_len);
-        return (ssize_t)copy_len;
-    }
+    if (g_real_exe[0] == '\0') exe_from_cmdline("/proc/self/cmdline", g_real_exe, sizeof(g_real_exe));
+    if (g_real_exe[0] != '\0') return copy_guest_exe(g_real_exe, buf, bufsiz);
     return -1;
+}
+
+// The kernel's /proc/<pid>/exe of every other guest program is the loader that started it. KWin
+// grants its screencast protocol by matching that path to a desktop file's Exec, so it is the
+// program the loader runs, as for the calling process.
+static ssize_t handle_proc_other_exe(const char *path, char *buf, size_t bufsiz) {
+    if (!path || !buf || bufsiz == 0 || strncmp(path, "/proc/", 6) != 0) return -1;
+    const char *p = path + 6;
+    if (*p < '1' || *p > '9') return -1;
+    while (*p >= '0' && *p <= '9') p++;
+    if (strcmp(p, "/exe") != 0) return -1;
+    pid_t pid = (pid_t)atoi(path + 6);
+    if (pid == getpid()) return -1;
+    init_ddnatv_hook();
+    if (g_ddnatv_root[0] == '\0') return -1;
+    static ssize_t (*real_readlinkat)(int, const char *, char *, size_t) = NULL;
+    if (!real_readlinkat) real_readlinkat = (ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat");
+    if (!real_readlinkat) return -1;
+    char loader[PATH_MAX];
+    ssize_t n = real_readlinkat(AT_FDCWD, path, loader, sizeof(loader) - 1);
+    if (n <= 0) return -1;
+    loader[n] = '\0';
+    const char *base = strrchr(loader, '/');
+    base = base ? base + 1 : loader;
+    if (strcmp(base, "libddexec.so") != 0 && strncmp(base, "ld-linux", 8) != 0) return -1;
+
+    char real_exe[PATH_MAX] = "";
+    char proc_file[64];
+    snprintf(proc_file, sizeof(proc_file), "/proc/%d/environ", (int)pid);
+    int fd = open(proc_file, O_RDONLY | O_CLOEXEC);
+    if (fd >= 0) {
+        static const char key[] = "DDNATV_REAL_EXE=";
+        char env[65536];
+        size_t used = 0;
+        ssize_t got;
+        while (used < sizeof(env) - 1 && (got = read(fd, env + used, sizeof(env) - 1 - used)) > 0) used += (size_t)got;
+        close(fd);
+        env[used] = '\0';
+        for (char *e = env; e < env + used; e += strlen(e) + 1) {
+            if (strncmp(e, key, sizeof(key) - 1) == 0 && e[sizeof(key) - 1] != '\0') {
+                ddnatv_copy_cstr(real_exe, sizeof(real_exe), e + sizeof(key) - 1);
+                break;
+            }
+        }
+    }
+    if (real_exe[0] == '\0') {
+        snprintf(proc_file, sizeof(proc_file), "/proc/%d/cmdline", (int)pid);
+        exe_from_cmdline(proc_file, real_exe, sizeof(real_exe));
+    }
+    if (real_exe[0] != '/') return -1;
+    return copy_guest_exe(real_exe, buf, bufsiz);
 }
 
 static const char *rewrite_path(const char *path, char *buffer, size_t bufsize) {

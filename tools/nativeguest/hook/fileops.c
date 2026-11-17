@@ -423,6 +423,9 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
     if (is_proc_self_exe(pathname)) {
         ssize_t exe_len = handle_proc_self_exe(buf, bufsiz);
         if (exe_len >= 0) return exe_len;
+    } else {
+        ssize_t exe_len = handle_proc_other_exe(pathname, buf, bufsiz);
+        if (exe_len >= 0) return exe_len;
     }
     static ssize_t (*orig_readlink)(const char *, char *, size_t) = NULL;
     if (!orig_readlink) orig_readlink = (ssize_t (*)(const char *, char *, size_t))dlsym(RTLD_NEXT, "readlink");
@@ -445,6 +448,9 @@ ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
     // after the remap: "proc/self/exe" relative to a descriptor for "/" is /proc/self/exe as well
     if (is_proc_self_exe(pathname)) {
         ssize_t exe_len = handle_proc_self_exe(buf, bufsiz);
+        if (exe_len >= 0) return exe_len;
+    } else {
+        ssize_t exe_len = handle_proc_other_exe(pathname, buf, bufsiz);
         if (exe_len >= 0) return exe_len;
     }
     char pbuf[PATH_MAX];

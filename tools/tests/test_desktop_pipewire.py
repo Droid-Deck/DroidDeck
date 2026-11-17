@@ -44,10 +44,6 @@ pipewire() {
         self.assertLess(plasma, stop)
         self.assertLess(stop, DESKTOP.index('droiddeck-steam-launch bigpicture'))
 
-    def test_portals_can_use_kwin_screencast(self):
-        self.assertLess(DESKTOP.index('export KWIN_WAYLAND_NO_PERMISSION_CHECKS=1'),
-                        DESKTOP.index('dbus-run-session -- startplasma-wayland'))
-
     def test_steam_session_keeps_its_pipewire_startup(self):
         self.assertEqual(1, SESSION.count(HELPER + ' start'))
         self.assertIn('if [ "$mode" = steam ]; then\n    if ' + HELPER + ' start', SESSION)
