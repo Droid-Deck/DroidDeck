@@ -102,6 +102,12 @@ Added by DroidDeck:
   `libblsession.so`'s robust.c never sees: `libopenvr_api.so` opens it `RTLD_DEEPBIND`. Steam
   aborted on "futex robust_list not initialized by pthreads" as soon as SteamVR was registered.
 
+- `0029-proc-pid-root-guest.patch` - `/proc/<pid>/root` of a tracee resolved to the rootfs's host
+  path, which does not exist inside the guest, so opening it failed with `ENOENT`. It now reads
+  as `/`, like `exe` and `cwd` read as guest paths. xdg-desktop-portal opens it for every caller to
+  tell sandboxed apps from host ones, so every portal request failed with "Unable to open
+  /proc/<pid>/root", Sunshine's screen capture included.
+
 Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-performance.md`):
 
 - `0014-fastpath-trampoline.patch` - with `PROOT_FASTPATH`, every `SECCOMP_RET_TRACE` in the filter
