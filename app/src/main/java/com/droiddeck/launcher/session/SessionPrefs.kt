@@ -637,7 +637,12 @@ object SessionPrefs {
         val unsupported = unsupportedXclipse(xclipse) {
             com.droiddeck.launcher.gpu.GpuInfo.systemDriverName(SystemVulkanDriver.gpuName(), device)
         }
-        if (!unsupported && com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
+        val activeKey = com.droiddeck.launcher.gpu.DriverBundle.active(context)
+            ?.id
+            ?.let(com.droiddeck.launcher.gpu.DriverPairs::nonAdreno)
+        val upstreamBundle = activeKey == com.droiddeck.launcher.gpu.DriverPairs.NAD_RADV_XCLIPSE_UPSTREAM ||
+            (activeKey != null && activeKey.startsWith("${com.droiddeck.launcher.gpu.DriverPairs.NAD_RADV_XCLIPSE_UPSTREAM}-"))
+        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context) && (!unsupported || upstreamBundle)) return
         ensurePowerVrAutoDrivers(context, powerVr, unsupported)
     }
 

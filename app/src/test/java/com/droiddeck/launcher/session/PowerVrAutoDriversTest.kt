@@ -46,16 +46,19 @@ class PowerVrAutoDriversTest {
         context.getSharedPreferences("driver_bundles", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    private fun installAndSelectNonAdrenoBundle(): DriverBundle.Bundle {
+    private fun installAndSelectNonAdrenoBundle(
+        tag: String = "RADV-Xclipse",
+        packageName: String = "RADV-Xclipse",
+    ): DriverBundle.Bundle {
         fun library(libc: String) = ByteArray(64).also {
             byteArrayOf(0x7f, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte(), 2, 1).copyInto(it)
             it[18] = 0xB7.toByte()
         } + libc.toByteArray() + ByteArray(1)
 
         val manifest = JSONObject()
-            .put("package", "RADV-Xclipse")
+            .put("package", packageName)
             .put("version", "0.1.0")
-            .put("tag", "RADV-Xclipse-test")
+            .put("tag", tag)
             .put(
                 "drivers",
                 JSONObject()
@@ -210,6 +213,23 @@ class PowerVrAutoDriversTest {
         assertFalse(DeviceSupport.openDriverActive(context))
         assertEquals("", SessionPrefs.linuxDriver(context))
         assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+    }
+
+    @Test fun sessionStartUnsupportedXclipseKeepsAutoOwnedUpstreamBundle() {
+        DriverMenusAutoTest.XclipseDriver.enabled = true
+        val bundle = installAndSelectNonAdrenoBundle(
+            tag = "RADV-Xclipse-upstream",
+            packageName = "RADV-Xclipse-upstream",
+        )
+        assertTrue(DeviceSupport.openDriverActive(context))
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setGpuAutoInstalled(context, setOf(bundle.androidId, bundle.linuxId))
+        SessionPrefs.reconcilePowerVrAutoDrivers(context, powerVr = true, xclipse = true) {
+            mapOf("device" to "Samsung Xclipse 540")
+        }
+        assertTrue(DeviceSupport.openDriverActive(context))
+        assertEquals(bundle.linuxId, SessionPrefs.linuxDriver(context))
+        assertEquals(bundle.androidId, SessionPrefs.androidDriver(context))
     }
 
     @Test fun sessionStartSupportedXclipseKeepsActiveOpenDriverBundle() {
