@@ -189,6 +189,10 @@ class ShortcutsRelay : Service(), InputManager.InputDeviceListener {
         private val release = Runnable { unbind() }
 
         fun install(application: android.app.Application) {
+            app?.unregisterActivityLifecycleCallbacks(this)
+            handler.removeCallbacks(release)
+            started = 0
+            bound = false
             app = application
             application.registerActivityLifecycleCallbacks(this)
         }
