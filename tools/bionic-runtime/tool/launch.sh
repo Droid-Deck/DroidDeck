@@ -68,6 +68,10 @@ NT=1; ES=1
 on "${PROTON_NO_NTSYNC:-}" && NT=0
 { on "${PROTON_NO_ESYNC:-}" || [ "${WINEESYNC:-}" = 0 ]; } && ES=0
 export WINENTSYNC=$NT WINEESYNC=$ES
+# Userspace ntsync keeps its state in one file. Per prefix, not in the shared TMPDIR (DroidDeck-Proton's ntsync
+# uses that too), and cleared before Wine starts in this prefix: a process killed while it held the file's lock
+# leaves it held, and every later start in that prefix hangs at its first ntsync wait.
+export NTSYNC_SHM=$COMPAT/ntsync-shm
 # DroidDeck's Force SSBS (its glibc libssbs.so preload) is bionic Wine's own WINE_FORCE_SSBS
 on "${DROIDDECK_FORCE_SSBS:-}" && export WINE_FORCE_SSBS=1
 export HODLL=libwow64fex.dll WINEDEBUG=err+all,fixme-all
@@ -151,6 +155,14 @@ prepare_prefix() {
   echo "$(date +%H:%M:%S) prefix ready"
 }
 
+prefix_busy() { # a process of this prefix is running
+  for p in /proc/[0-9]*; do
+    [ "${p#/proc/}" = "$$" ] && continue
+    tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -qx "WINEPREFIX=$COMPAT/pfx" && return 0
+  done
+  return 1
+}
+
 stop_wine() { # wineserver -k, then whatever of this prefix is left (e.g. a game's crash reporter)
   wineserver_ -k 2>/dev/null
   sleep 1
@@ -168,6 +180,12 @@ for f in aarch64-unix/libwow64fex.so aarch64-unix/libarm64ecfex.so aarch64-windo
   [ -f "$PACK/fex/$f" ] || continue
   cmp -s "$PACK/fex/$f" "$F/lib/wine/$f" || { cat "$PACK/fex/$f" > "$F/lib/wine/$f" && echo "$(date +%H:%M:%S) restored the tool's FEX $f"; }
 done
+
+if [ "$verb" != runinprefix ] && prefix_busy; then
+  echo "$(date +%H:%M:%S) Wine left running in this prefix; stopping it"
+  stop_wine
+fi
+prefix_busy || rm -f "$NTSYNC_SHM".v*
 
 prepare_prefix
 cd "$(dirname "$EXE")" || exit 1
