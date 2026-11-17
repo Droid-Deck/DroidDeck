@@ -4997,10 +4997,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun relativeMouseAttached(): Boolean = !isInMultiWindowMode && !glassesOutputActive && mouseAttached()
 
+    private fun sessionOwnsInput() =
+        resumed && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !inputSettingsOpen &&
+            !pipUi && !bottomOutputActive && !touchEditorOpen && !wowChatOnTop
+
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
-        val want = (pointerLocked || relativeMouseAttached()) && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !inputSettingsOpen && !pipUi && !bottomOutputActive && !touchEditorOpen && !wowChatOnTop && mouseAttached()
+        val want = (pointerLocked || relativeMouseAttached()) && sessionOwnsInput() && hasWindowFocus() && mouseAttached()
         releaseDesktopMouseGrab()
         updateUsbMouse(want)
         if (want == view.hasPointerCapture()) return
@@ -5324,7 +5328,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
 
     private fun releaseHeldInputOnCaptureLoss() {
-        if (drawerOpen) releaseHeldGuestInput() else releaseHeldPointerInput()
+        if (sessionOwnsInput()) releaseHeldPointerInput() else releaseHeldGuestInput()
     }
 
     private fun releaseHeldPointerInput() {
