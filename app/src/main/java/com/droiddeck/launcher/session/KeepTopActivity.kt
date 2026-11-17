@@ -18,6 +18,7 @@ class KeepTopActivity : Activity() {
         super.onCreate(savedInstanceState)
         @Suppress("DEPRECATION") overridePendingTransition(0, 0)
         if (intent.getBooleanExtra(EXTRA_BOUNCE, false)) {
+            bounces++
             finish()
             return
         }
@@ -41,6 +42,8 @@ class KeepTopActivity : Activity() {
         private const val EXTRA_BOUNCE = "bounce"
         private const val EXTRA_GENERATION = "generation"
         private var generation = 0
+        var bounces = 0
+            private set
         private val guards = HashMap<Int, KeepTopActivity>()
         private val starting = HashSet<Int>()
 
