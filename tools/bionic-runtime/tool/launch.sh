@@ -161,6 +161,13 @@ stop_wine() { # wineserver -k, then whatever of this prefix is left (e.g. a game
   done
 }
 
+# DroidDeck's component check (before a fix in the app) put its own FEX into this tool for games with a per-game
+# FEX choice; its unix libraries are glibc builds bionic Wine cannot load. Put the tool's FEX back.
+for f in aarch64-unix/libwow64fex.so aarch64-unix/libarm64ecfex.so aarch64-windows/libwow64fex.dll aarch64-windows/libarm64ecfex.dll; do
+  [ -f "$PACK/fex/$f" ] || continue
+  cmp -s "$PACK/fex/$f" "$F/lib/wine/$f" || { cat "$PACK/fex/$f" > "$F/lib/wine/$f" && echo "$(date +%H:%M:%S) restored the tool's FEX $f"; }
+done
+
 prepare_prefix
 cd "$(dirname "$EXE")" || exit 1
 

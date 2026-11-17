@@ -181,6 +181,11 @@ cp "$WORK/FEX/aarch64-unix/"*.so "$T/files/lib/wine/aarch64-unix/"
 cp "$WORK/FEX/system32/"*.dll "$T/files/lib/wine/aarch64-windows/"
 cp -r "$WORK/DXVK/files/lib/wine/dxvk" "$WORK/VKD3D/files/lib/wine/vkd3d-proton" "$T/files/lib/wine/"
 cp -a "$PACK" "$T/files/runtime"
+# a spare copy of the tool's FEX for launch.sh, which puts it back if DroidDeck's component check swapped in its
+# own FEX (glibc unix libraries) for a game with a per-game FEX choice
+mkdir -p "$T/files/runtime/fex/aarch64-unix" "$T/files/runtime/fex/aarch64-windows"
+cp "$WORK/FEX/aarch64-unix/"*.so "$T/files/runtime/fex/aarch64-unix/"
+cp "$WORK/FEX/system32/"*.dll "$T/files/runtime/fex/aarch64-windows/"
 install -m 755 "$HERE/tool/proton" "$T/proton"
 install -m 755 "$HERE/tool/launch.sh" "$T/bionic/launch.sh"
 cp "$HERE/tool/desktop.reg" "$T/bionic/"
