@@ -3778,7 +3778,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
             else -> return super.dispatchGenericMotionEvent(event)
         }
-        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) && !drawerOpen) {
+        if ((event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) ||
+                event.isFromSource(android.view.InputDevice.SOURCE_TOUCHPAD)) && !drawerOpen) {
             if (appUiOwnsPointer()) {
                 if (super.dispatchGenericMotionEvent(event)) return true
                 if (touchEditorOpen) return false
@@ -3961,7 +3962,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             steamSession = SessionState.mode == SessionService.MODE_STEAM,
             steamDesktopUi = SessionState.steamUi == "desktop",
         )) == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
-        val mode = com.droiddeck.launcher.input.TouchGestureConfig.gamescopeRelativeMouse(wanted, mouseAttached(), touchpadRoute)
+        val mode = com.droiddeck.launcher.input.TouchGestureConfig.gamescopeRelativeMouse(wanted, pointerAttached(), touchpadRoute)
         if (appliedRelativeMouseMode == mode) return
         if (AgentGuest.setGamescopeConvar(this, "relative_mouse", mode)) appliedRelativeMouseMode = mode
         else if (relativeMouseRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestRelativeMouse() }, 2_000)
@@ -5172,7 +5173,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun handleTouch(event: MotionEvent): Boolean {
         val pen = PenStream.penIndex(event)
         val penRouted = if (pen >= 0) routePen(event, pen).takeIf { it != PenRouter.Route.TOUCH } else null
-        if (penRouted == null && event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
+        if (penRouted == null && (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE) ||
+                event.isFromSource(android.view.InputDevice.SOURCE_TOUCHPAD))) return onMouse(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 sessionTouchDown = true
@@ -5418,7 +5420,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun isHardwareMouse(d: InputDevice?): Boolean =
         d != null && !d.isVirtual && !d.supportsSource(InputDevice.SOURCE_STYLUS) &&
-            (d.supportsSource(InputDevice.SOURCE_MOUSE) || d.supportsSource(InputDevice.SOURCE_MOUSE_RELATIVE))
+            (d.supportsSource(InputDevice.SOURCE_MOUSE) || d.supportsSource(InputDevice.SOURCE_MOUSE_RELATIVE) ||
+                d.supportsSource(InputDevice.SOURCE_TOUCHPAD))
+
+    private fun isTouchpad(d: InputDevice?): Boolean =
+        d?.supportsSource(InputDevice.SOURCE_TOUCHPAD) == true
 
     /** Android also sends the Back and Forward buttons as key events, so they are handled as keys. */
     private fun guestMouseButton(actionButton: Int): Int? = when (actionButton) {
@@ -5428,9 +5434,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         else -> PointerGestures.BTN_LEFT
     }
 
+    private fun pointerAttached(): Boolean = usbMouse.active || InputDevice.getDeviceIds().any { id ->
+        isHardwareMouse(InputDevice.getDevice(id))
+    }
+
+    /** A touchpad keeps Android's cursor and gestures until a game holds the pointer, so only a mouse is captured for the whole session. */
     private fun mouseAttached(): Boolean = usbMouse.active || InputDevice.getDeviceIds().any { id ->
         val d = InputDevice.getDevice(id)
-        isHardwareMouse(d) && d?.supportsSource(InputDevice.SOURCE_TOUCHPAD) != true
+        isHardwareMouse(d) && !isTouchpad(d)
     }
 
     private fun externalMouseAttached(): Boolean {
@@ -5448,7 +5459,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
-        val want = (pointerLocked || relativeMouseAttached()) && sessionOwnsInput() && hasWindowFocus() && mouseAttached()
+        val want = (pointerLocked || relativeMouseAttached()) && sessionOwnsInput() && hasWindowFocus() && pointerAttached()
         releaseDesktopMouseGrab()
         updateUsbMouse(want)
         if (want == view.hasPointerCapture()) return
@@ -5501,7 +5512,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun dropMouseCursor() {
-        if (!mouseOwnsCursor || mouseAttached()) return
+        if (!mouseOwnsCursor || pointerAttached()) return
         mouseOwnsCursor = false
         uiHandler.removeCallbacks(cursorResync)
         cursorVisible = false
@@ -5552,17 +5563,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun onCapturedPointer(event: MotionEvent): Boolean {
-        if (!event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
+        if (!com.droiddeck.launcher.input.PointerCapture.accepts(event)) return false
         notePress(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
-                var dx = event.x
-                var dy = event.y
-                for (i in 0 until event.historySize) {
-                    dx += event.getHistoricalX(i)
-                    dy += event.getHistoricalY(i)
-                }
-                onRelativeMouse(dx, dy)
+                if (com.droiddeck.launcher.input.PointerCapture.isTouchpad(event) && event.pointerCount > 1) return true
+                val delta = com.droiddeck.launcher.input.PointerCapture.delta(event)
+                onRelativeMouse(delta[0], delta[1])
             }
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE ->
                 guestMouseButton(event.actionButton)?.let { heldButtons.set(8, it, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS) }
