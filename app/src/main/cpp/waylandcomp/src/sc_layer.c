@@ -305,7 +305,8 @@ static int64_t g_pacer_fill_until_ns;
 static int g_filler_flip;
 static ASurfaceControl *g_filler_sc;
 static ANativeWindow *g_filler_win;
-static atomic_uint g_pacer_fillers, g_pacer_overdue, g_pacer_woke_late;
+static atomic_uint g_pacer_fillers, g_pacer_overdue, g_pacer_woke_late, g_pacer_skipped;
+static int64_t g_pacer_last_slot_ns;
 static _Atomic int64_t g_pacer_lead_ns;
 
 static void pacer_apply_head_locked(void) {
@@ -399,8 +400,12 @@ static void *pacer_main(void *arg) {
         }
         const int64_t at = slot - lead - PRESENT_CADENCE_APPLY_NS;
         const struct timespec ts = {(time_t)(at / 1000000000LL), (long)(at % 1000000000LL)};
-        if (pthread_cond_timedwait(&g_pacer_cond, &g_pacer_lock, &ts) != ETIMEDOUT) continue;
+        if (pthread_cond_timedwait(&g_pacer_cond, &g_pacer_lock, &ts) != ETIMEDOUT && now_ns() < at) continue;
         if (now_ns() > at + PRESENT_CADENCE_APPLY_NS) atomic_fetch_add(&g_pacer_woke_late, 1u);
+        if (g_pacer_last_slot_ns && present_cadence_slot_order(g_pacer_last_slot_ns + period, slot, period) < 0 &&
+            slot - g_pacer_last_slot_ns < PACER_FILL_NS)
+            atomic_fetch_add(&g_pacer_skipped, (unsigned)((slot - g_pacer_last_slot_ns + period / 2) / period - 1));
+        g_pacer_last_slot_ns = slot;
         if (g_pacer_n && present_cadence_slot_order(g_pacer_q[g_pacer_head].slot_ns, slot, period) <= 0) {
             while (g_pacer_n && present_cadence_slot_order(g_pacer_q[g_pacer_head].slot_ns, slot, period) <= 0)
                 pacer_apply_head_locked();
@@ -969,6 +974,7 @@ void sc_layer_cadence_take(struct present_cadence_stats *out) {
     out->fillers = atomic_exchange(&g_pacer_fillers, 0u);
     out->overdue = atomic_exchange(&g_pacer_overdue, 0u);
     out->woke_late = atomic_exchange(&g_pacer_woke_late, 0u);
+    out->skipped = atomic_exchange(&g_pacer_skipped, 0u);
     out->lead_ns = atomic_load(&g_pacer_lead_ns);
 }
 

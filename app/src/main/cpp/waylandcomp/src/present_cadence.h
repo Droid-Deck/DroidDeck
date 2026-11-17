@@ -34,7 +34,7 @@ struct present_cadence_stats {
     unsigned paced, late, unpaced;
     unsigned interval;
     int64_t latency_ns, latency_max_ns;
-    unsigned fillers, overdue, woke_late;
+    unsigned fillers, overdue, woke_late, skipped;
     int64_t lead_ns;
 };
 
