@@ -30,7 +30,7 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     FAKE_*|SDL_*|BL_WIDTH|BL_HEIGHT|BL_VK_DRIVER|WINEDLLOVERRIDES) ;;
     DISPLAY|GAMESCOPE_WAYLAND_DISPLAY|FEX_*) ;;
     TU_DEBUG|MESA_NO_ERROR|DXVK_CONFIG|DXVK_HUD|DROIDDECK_FORCE_SSBS) ;;
-    mesa_glthread|vblank_mode|ZINK_*|GALLIUM_HUD) ;;
+    mesa_glthread|vblank_mode|ZINK_*|GALLIUM_HUD|GALLIUM_THREAD) ;;
     BL_SYNC|BL_FSYNC_FIRST|BL_SYNC_FALLBACK|PROTON_NO_ESYNC|PROTON_NO_FSYNC|PROTON_NO_NTSYNC|WINEESYNC) ;;
     PROTON_USE_D7VK) ;;
     *) unset "$v" 2>/dev/null ;;
@@ -108,6 +108,9 @@ export SDL_GAMECONTROLLER_IGNORE_DEVICES="$(echo "${SDL_GAMECONTROLLER_IGNORE_DE
 # backend (the runtime's egl/), the way Bannerlator's Fast OpenGL runs it; DroidDeck's GL settings above are kept.
 export WINE_USE_EGL=1 WINE_X11FORCEGLX=1 GALLIUM_DRIVER=zink MESA_LOADER_DRIVER_OVERRIDE=zink LIBGL_KOPPER_DRI2=1
 export ZINK_DESCRIPTORS=${ZINK_DESCRIPTORS:-lazy} ZINK_DEBUG=${ZINK_DEBUG:-compact} vblank_mode=${vblank_mode:-0}
+# Gallium's threaded context off, as in Bannerlator's Fast OpenGL: with it, WineD3D (DirectDraw / Direct3D 1-7)
+# crashed in native code within seconds (AIO Direct3D 7, SIGSEGV).
+export GALLIUM_THREAD=${GALLIUM_THREAD:-0}
 
 # egl/ first: the layer's own lib/ carries a Wayland-only Mesa EGL of the same names, which winex11 cannot use
 LIBS=$PACK/egl:$F/lib:$PACK/lib:/system/lib64
