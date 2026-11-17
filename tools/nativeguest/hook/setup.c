@@ -216,6 +216,8 @@ static ssize_t handle_proc_self_exe(char *buf, size_t bufsiz) {
     return -1;
 }
 
+static int is_ld_linux(const char *path);
+
 static ssize_t (*real_readlinkat_fn(void))(int, const char *, char *, size_t) {
     static ssize_t (*fn)(int, const char *, char *, size_t) = NULL;
     if (!fn) fn = (ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat");
@@ -312,7 +314,7 @@ static ssize_t handle_proc_other_exe(const char *path, char *buf, size_t bufsiz)
     loader[n] = '\0';
     const char *base = strrchr(loader, '/');
     base = base ? base + 1 : loader;
-    if (strcmp(base, "libddexec.so") != 0 && strncmp(base, "ld-linux", 8) != 0) return -1;
+    if (strcmp(base, "libddexec.so") != 0 && !is_ld_linux(loader)) return -1;
 
     char real_exe[PATH_MAX] = "";
     if (!proc_env_value(pid, "DDNATV_REAL_EXE", real_exe, sizeof(real_exe))) {

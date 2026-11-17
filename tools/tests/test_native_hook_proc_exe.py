@@ -3,7 +3,6 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-import time
 import unittest
 
 from tools.tests.test_usr2_preload import runner
@@ -35,8 +34,9 @@ int main(int argc, char **argv) {
 """
 
 SLEEPER = r"""
+#include <stdio.h>
 #include <unistd.h>
-int main(void) { sleep(60); return 0; }
+int main(void) { puts("ready"); fflush(stdout); sleep(60); return 0; }
 """
 
 
@@ -78,13 +78,11 @@ class NativeHookProcExeTest(unittest.TestCase):
             env["DDNATV_REAL_EXE"] = real_exe
         program = program or Path(self.tmp.name) / "sleeper"
         cmd = ([str(self.loader), *self.loader_args] if loader else list(self.prefix)) + [str(program)]
-        child = subprocess.Popen(cmd, env=env)
+        child = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, text=True)
+        self.addCleanup(child.stdout.close)
         self.addCleanup(child.wait)
         self.addCleanup(child.kill)
-        for _ in range(250):
-            if Path(program).name.encode() in Path(f"/proc/{child.pid}/cmdline").read_bytes():
-                break
-            time.sleep(0.02)
+        self.assertEqual("ready", child.stdout.readline().strip())
         return child.pid
 
     def readlink(self, *paths):
