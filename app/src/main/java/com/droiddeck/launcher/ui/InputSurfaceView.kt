@@ -702,9 +702,9 @@ class InputSurfaceView(
             tip(cx + thick - 2 * outer, cy + half - 2 * outer, cx + thick, cy + half, 0f)
             silhouette.lineTo(cx - thick + outer, cy + half)
             tip(cx - thick, cy + half - 2 * outer, cx - thick + 2 * outer, cy + half, 90f)
-            silhouette.lineTo(cx - thick - inner, cy + thick)
+            silhouette.lineTo(cx - thick, cy + thick + inner)
             fillet(cx - thick - 2 * inner, cy + thick, cx - thick, cy + thick + 2 * inner, 0f)
-            silhouette.lineTo(cx - half, cy + thick - outer)
+            silhouette.lineTo(cx - half + outer, cy + thick)
             tip(cx - half, cy + thick - 2 * outer, cx - half + 2 * outer, cy + thick, 90f)
             silhouette.lineTo(cx - half, cy - thick + outer)
             tip(cx - half, cy - thick, cx - half + 2 * outer, cy - thick + 2 * outer, 180f)
@@ -714,10 +714,11 @@ class InputSurfaceView(
             tip(cx - thick, cy - half, cx - thick + 2 * outer, cy - half + 2 * outer, 180f)
             silhouette.close()
             val ro = outer
-            armPaths[0].addRoundRect(RectF(cx - thick, cy - half, cx + thick, cy - thick), floatArrayOf(ro, ro, ro, ro, 0f, 0f, 0f, 0f), Path.Direction.CW)
-            armPaths[1].addRoundRect(RectF(cx + thick, cy - thick, cx + half, cy + thick), floatArrayOf(0f, 0f, ro, ro, ro, ro, 0f, 0f), Path.Direction.CW)
-            armPaths[2].addRoundRect(RectF(cx - thick, cy + thick, cx + thick, cy + half), floatArrayOf(0f, 0f, 0f, 0f, ro, ro, ro, ro), Path.Direction.CW)
-            armPaths[3].addRoundRect(RectF(cx - half, cy - thick, cx - thick, cy + thick), floatArrayOf(ro, ro, 0f, 0f, 0f, 0f, ro, ro), Path.Direction.CW)
+            val ri = inner
+            armPaths[0].addRoundRect(RectF(cx - thick, cy - half, cx + thick, cy - thick), floatArrayOf(ro, ro, ro, ro, ri, ri, ri, ri), Path.Direction.CW)
+            armPaths[1].addRoundRect(RectF(cx + thick, cy - thick, cx + half, cy + thick), floatArrayOf(ri, ri, ro, ro, ro, ro, ri, ri), Path.Direction.CW)
+            armPaths[2].addRoundRect(RectF(cx - thick, cy + thick, cx + thick, cy + half), floatArrayOf(ri, ri, ri, ri, ro, ro, ro, ro), Path.Direction.CW)
+            armPaths[3].addRoundRect(RectF(cx - half, cy - thick, cx - thick, cy + thick), floatArrayOf(ro, ro, ri, ri, ri, ri, ro, ro), Path.Direction.CW)
         }
 
         private fun sectors(dx: Float, dy: Float): Int {
