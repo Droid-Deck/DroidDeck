@@ -6,6 +6,12 @@ import java.util.function.Consumer
 
 object HostProcess {
     private const val TAG = "HostProcess"
+    private const val LINKER = "/system/bin/linker64"
+
+    /** Android 10+ refuses to execute app data files for targetSdk 29+; its linker still loads them. */
+    @JvmStatic
+    fun dataExecutable(path: String): List<String> =
+        if (android.os.Build.VERSION.SDK_INT >= 29) listOf(LINKER, path) else listOf(path)
 
     @JvmStatic
     fun start(command: String, env: Array<String>?, dir: File?, onExit: Consumer<Int>?, onLine: Consumer<String>?): Int =
@@ -13,6 +19,11 @@ object HostProcess {
 
     @JvmStatic
     fun start(command: String, env: Array<String>?, dir: File?, onExit: Consumer<Int>?, onLine: Consumer<String>?, outputFile: File?): Int {
+        return start(command, env, dir, onExit, onLine, outputFile, null)
+    }
+
+    @JvmStatic
+    fun start(command: String, env: Array<String>?, dir: File?, onExit: Consumer<Int>?, onLine: Consumer<String>?, outputFile: File?, onOutputComplete: Runnable?): Int {
         val argv = split(command)
         if (argv.isEmpty()) return -1
         return try {
@@ -35,6 +46,8 @@ object HostProcess {
                     try {
                         process.inputStream.bufferedReader().useLines { lines -> lines.forEach { onLine.accept(it) } }
                     } catch (e: Exception) {
+                    } finally {
+                        onOutputComplete?.run()
                     }
                 }, "proc-out-$pid").apply { priority = Thread.NORM_PRIORITY - 1; isDaemon = true; start() }
             }

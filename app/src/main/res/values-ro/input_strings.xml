@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Profiluri de intrare</string>
+    <string name="input_profiles">Profiluri</string>
+    <string name="input_physical">Controller fizic</string>
+    <string name="input_primary">Ecran principal</string>
+    <string name="input_secondary">Ecran secundar</string>
+    <string name="input_native">Nativ / Steam Input</string>
+    <string name="input_native_target">Nativ: %1$s</string>
+    <string name="input_remap_native">Trimite altă comandă a controllerului</string>
+    <string name="input_disabled">Dezactivat</string>
+    <string name="input_keys">Tastă sau combinație de taste</string>
+    <string name="input_direction_keys">Taste direcționale</string>
+    <string name="input_pointer">Mută indicatorul</string>
+    <string name="input_pointer_speed">Viteza indicatorului: %1$d</string>
+    <string name="input_scroll">Derulează</string>
+    <string name="input_scroll_vertical">Derulează vertical</string>
+    <string name="input_mouse_left">Butonul stâng al mouse-ului</string>
+    <string name="input_mouse_right">Butonul drept al mouse-ului</string>
+    <string name="input_mouse_middle">Butonul din mijloc al mouse-ului</string>
+    <string name="input_command_menu">Deschide meniul DroidDeck</string>
+    <string name="input_command_keyboard">Afișează tastatura</string>
+    <string name="input_command_steam">Deschide meniul Steam</string>
+    <string name="input_command_qam">Deschide accesul rapid Steam</string>
+    <string name="input_remove_element">Elimină controlul</string>
+    <string name="input_add_element">Adaugă control</string>
+    <string name="input_extra_keys">Butoane specifice dispozitivului</string>
+    <string name="input_capture">Atribuie un buton fizic</string>
+    <string name="input_capture_confirm">Eliberează butonul, apoi alege Editează, Reîncearcă sau Anulează. B sau Înapoi anulează după eliberare.</string>
+    <string name="input_capture_retry">Reîncearcă</string>
+    <string name="input_capture_hint">Apasă un buton, inclusiv un buton Înapoi raportat ca tastă. Tastele de volum și tastele de sistem Android sunt rezervate. Atribuirea se aplică doar acestui dispozitiv.</string>
+    <string name="input_remove_binding">Elimină atribuirea</string>
+    <string name="input_latency">Diagnoză intrare</string>
+    <string name="input_measure">Înregistrează timpul de trimitere a intrării</string>
+    <string name="input_read_timing">Citește măsurătorile</string>
+    <string name="input_latency_hint">Măsoară trimiterea de la Android până la publicarea în transportul de intrare existent. Nu include sosirea prin Bluetooth, interogarea invitatului, randarea și latența ecranului. Înregistrarea este oprită implicit.</string>
+    <string name="input_normal_binding">Folosește atribuirea normală de intrare</string>
+</resources>

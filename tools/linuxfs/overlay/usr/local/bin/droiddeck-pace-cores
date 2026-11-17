@@ -1,0 +1,266 @@
+#!/usr/bin/python3
+import os
+import signal
+import struct
+import sys
+import time
+from pathlib import Path
+
+MAGIC = 0x46484444
+HEADER = 128
+POLL = 0.5
+SETTLE = 3.0
+WINDOW = 1.0
+LATE = 1.5
+PACED_LATE_SHARE = 0.02
+RELEASE_LATE_SHARE = 0.05
+SLOWER = 1.04
+MAX_INTERVAL = 1e9 / 30
+SPREAD = 0.08
+BACKOFF = 30.0
+BACKOFF_MAX = 600.0
+
+
+def log(message):
+    print("droiddeck-pace-cores: " + message, flush=True)
+
+
+def parse_cores(text):
+    cores = set()
+    for part in text.strip().split(","):
+        if not part:
+            continue
+        first, _, last = part.partition("-")
+        cores.update(range(int(first), int(last or first) + 1))
+    return cores
+
+
+def efficient_cores(cpu=Path("/sys/devices/system/cpu"), own=None):
+    try:
+        online = parse_cores((cpu / "online").read_text())
+    except (OSError, ValueError):
+        online = set(range(os.cpu_count() or 0))
+    online &= own if own is not None else os.sched_getaffinity(0)
+    for name in ("cpu_capacity", "cpufreq/cpuinfo_max_freq"):
+        try:
+            speed = {core: int((cpu / f"cpu{core}/{name}").read_text()) for core in online}
+        except (OSError, ValueError):
+            continue
+        top = max(speed.values(), default=0)
+        return {core for core, value in speed.items() if value < top}
+    return set()
+
+
+class Frames:
+    """gamescope's per-frame feed for the HUD: frame intervals of the focused app, its pid and whether Steam is in front."""
+
+    def __init__(self, path):
+        self.path = Path(path)
+        self.count = None
+
+    def read(self):
+        try:
+            data = self.path.read_bytes()
+        except OSError:
+            return None
+        if len(data) < HEADER or struct.unpack_from("<I", data, 0)[0] != MAGIC:
+            return None
+        capacity, pid = struct.unpack_from("<II", data, 8)
+        count, = struct.unpack_from("<Q", data, 16)
+        steam, = struct.unpack_from("<I", data, 40)
+        last = self.count if self.count is not None else count
+        self.count = count
+        first = max(last, count - capacity)
+        intervals = [struct.unpack_from("<Q", data, HEADER + (i % capacity) * 16)[0] for i in range(first, count)]
+        return pid, bool(steam), intervals
+
+
+def median(values):
+    ordered = sorted(values)
+    return ordered[len(ordered) // 2]
+
+
+def late_share(intervals, period):
+    return sum(1 for value in intervals if value > LATE * period) / len(intervals)
+
+
+def paced_interval(intervals):
+    """The interval of a game a cap holds at 30 fps or more; a starved or uncapped game spreads."""
+    if len(intervals) < 2:
+        return None
+    ordered = sorted(intervals)
+    held = ordered[len(ordered) // 2]
+    if held > 1.04 * MAX_INTERVAL:
+        return None
+    if ordered[len(ordered) // 10] < (1 - SPREAD) * held or ordered[len(ordered) * 9 // 10] > (1 + SPREAD) * held:
+        return None
+    if late_share(intervals, held) > PACED_LATE_SHARE:
+        return None
+    return held
+
+
+class Cores:
+
+    def get(self, tid):
+        return os.sched_getaffinity(tid)
+
+    def set(self, tid, cpus):
+        os.sched_setaffinity(tid, cpus)
+
+
+class Parker:
+    """Keeps one process's threads off the fastest cores and puts back what each had."""
+
+    def __init__(self, efficient, proc=Path("/proc"), cores=None):
+        self.efficient = efficient
+        self.proc = proc
+        self.cores = cores or Cores()
+        self.pid = None
+        self.before = {}
+        self.present = None
+        self.own = set()
+
+    def tasks(self, pid):
+        try:
+            return [int(tid) for tid in os.listdir(self.proc / str(pid) / "task") if tid.isdigit()]
+        except OSError:
+            return []
+
+    def park(self, pid):
+        self.pid = pid
+        tids = self.tasks(pid)
+        if self.present is None:
+            self.present = set(tids)
+        masks = {}
+        for tid in tids:
+            if tid not in self.before:
+                try:
+                    masks[tid] = self.cores.get(tid)
+                except OSError:
+                    continue
+        # A mask the game gave one of its own threads may be passed on by it, not by a parked thread.
+        self.own.update(frozenset(now) for tid, now in masks.items() if tid in self.present)
+        inherited = {}
+        for before, parked in self.before.values():
+            inherited[frozenset(parked)] = inherited.get(frozenset(parked), set()) | before
+        for tid, now in masks.items():
+            try:
+                wanted = now & self.efficient
+                if wanted and wanted != now:
+                    self.cores.set(tid, wanted)
+                    self.before[tid] = (now, wanted)
+                elif tid not in self.present and frozenset(now) in inherited and frozenset(now) not in self.own:
+                    self.before[tid] = (inherited[frozenset(now)], now)
+            except OSError:
+                continue
+
+    def release(self):
+        for tid, (before, parked) in self.before.items():
+            try:
+                if self.cores.get(tid) == parked:
+                    self.cores.set(tid, before)
+            except OSError:
+                continue
+        self.pid = None
+        self.present = None
+        self.own.clear()
+        self.before.clear()
+
+
+class Governor:
+    def __init__(self, frames, parker, clock=time.monotonic):
+        self.frames = frames
+        self.parker = parker
+        self.clock = clock
+        self.pid = None
+        self.window = []
+        self.since = None
+        self.held = None
+        self.blocked = {}
+
+    def tick(self):
+        read = self.frames.read()
+        if read is None:
+            return
+        pid, steam, intervals = read
+        now = self.clock()
+        if steam or not pid or pid != self.pid:
+            if self.parker.pid is not None:
+                self.release(now, "focus left the game", backoff=False)
+            self.pid = None if steam else pid
+            self.window, self.since = [], now
+            return
+        self.window.extend((now, value) for value in intervals)
+        if self.parker.pid is None and not intervals:
+            self.window, self.since = [], now
+            return
+        if self.parker.pid is None:
+            self.consider(now)
+        else:
+            self.watch(now)
+
+    def consider(self, now):
+        self.window = [entry for entry in self.window if entry[0] >= now - SETTLE]
+        if now - self.since < SETTLE or now < self.blocked.get(self.pid, (0, 0))[0]:
+            return
+        intervals = [value for _, value in self.window]
+        if sum(intervals) < 0.9 * SETTLE * 1e9:
+            return
+        held = paced_interval(intervals)
+        if held is None:
+            return
+        self.held = held
+        self.parker.park(self.pid)
+        if self.parker.before:
+            self.window = []
+            self.since = now
+            log(f"pid {self.pid} holds {1e9 / held:.0f} fps, {len(self.parker.before)} thread(s) off the fastest cores")
+        else:
+            self.parker.release()
+
+    def watch(self, now):
+        self.parker.park(self.pid)
+        self.window = [entry for entry in self.window if entry[0] >= now - WINDOW]
+        intervals = [value for _, value in self.window]
+        if now - self.since < WINDOW:
+            return
+        if len(intervals) < 0.5 * WINDOW * 1e9 / self.held:
+            self.release(now, "frames stalled")
+            return
+        if late_share(intervals, self.held) > RELEASE_LATE_SHARE or median(intervals) > SLOWER * self.held:
+            self.release(now, "frames fell behind")
+
+    def release(self, now, why, backoff=True):
+        pid = self.parker.pid
+        self.parker.release()
+        if backoff:
+            _, wait = self.blocked.get(pid, (0, BACKOFF / 2))
+            wait = min(wait * 2, BACKOFF_MAX)
+            self.blocked[pid] = (now + wait, wait)
+            log(f"pid {pid} back on every core: {why}; not again for {wait:.0f} s")
+        else:
+            log(f"pid {pid} back on every core: {why}")
+        self.window, self.since = [], now
+
+    def stop(self, *_):
+        self.parker.release()
+        sys.exit(0)
+
+
+def main(argv):
+    if len(argv) != 1:
+        print("usage: droiddeck-pace-cores <gamescope HUD frames file>", file=sys.stderr)
+        return 2
+    efficient = efficient_cores()
+    if not efficient:
+        return 0
+    governor = Governor(Frames(argv[0]), Parker(efficient))
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        signal.signal(sig, governor.stop)
+    while True:
+        governor.tick()
+        time.sleep(POLL)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

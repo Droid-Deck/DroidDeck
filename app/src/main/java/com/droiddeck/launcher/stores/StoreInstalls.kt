@@ -89,16 +89,62 @@ object StoreInstalls {
         StoresState.logLine("uninstalled \"${game.sidecar.title}\"")
     }
 
+    private val discarding = HashMap<String, Int>()
+
+    fun isDiscarding(folder: File): Boolean = synchronized(discarding) { folder.absolutePath in discarding }
+
+    internal fun beginDiscard(folder: File) { synchronized(discarding) { discarding.merge(folder.absolutePath, 1, Int::plus) } }
+
+    internal fun endDiscard(folder: File) {
+        synchronized(discarding) {
+            discarding.computeIfPresent(folder.absolutePath) { _, n -> (n - 1).takeIf { it > 0 } }
+            (discarding as Object).notifyAll()
+        }
+    }
+
+    fun awaitDiscard(folder: File) {
+        synchronized(discarding) { while (folder.absolutePath in discarding) (discarding as Object).wait() }
+    }
+
+    private val started = ThreadLocal<MutableList<Thread>?>()
+
+    fun collectingDiscards(into: MutableList<Thread> = ArrayList(), block: () -> Unit): List<Thread> {
+        val previous = started.get()
+        started.set(into)
+        try {
+            block()
+        } finally {
+            started.set(previous)
+            previous?.addAll(into)
+        }
+        return into
+    }
+
     fun discard(context: Context, folder: File, caches: List<File>) {
         val app = context.applicationContext
-        Thread({
-            val sidecar = StoreGameSidecar.read(folder)
-            val keep = sidecar?.isInstalled == true || sidecar?.state == StoreGameSidecar.STATE_UPDATING
-            caches.forEach { deleteTree(it) }
-            if (!keep) deleteTree(folder)
-            StoresState.logLine(if (keep) "removed update caches for ${folder.name}; verified file swaps are retained" else "removed ${folder.name}")
-            StoresState.notifyLibraryChanged(app)
-        }, "store-cancel-clean").start()
+        beginDiscard(folder)
+        val worker = Thread({
+            try {
+                discardNow(app, folder, caches)
+            } finally {
+                endDiscard(folder)
+            }
+        }, "store-cancel-clean")
+        started.get()?.add(worker)
+        worker.start()
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal var beforeDiscard: (File) -> Unit = {}
+
+    private fun discardNow(app: Context, folder: File, caches: List<File>) {
+        beforeDiscard(folder)
+        val sidecar = StoreGameSidecar.read(folder)
+        val keep = sidecar?.isInstalled == true || sidecar?.state == StoreGameSidecar.STATE_UPDATING
+        caches.forEach { deleteTree(it) }
+        if (!keep) deleteTree(folder)
+        StoresState.logLine(if (keep) "removed update caches for ${folder.name}; verified file swaps are retained" else "removed ${folder.name}")
+        StoresState.notifyLibraryChanged(app)
     }
 
     fun deleteTree(dir: File) {

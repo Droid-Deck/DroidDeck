@@ -127,6 +127,7 @@ jobs:
           name: xbox-arm64
           path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
           retention-days: 14
+          overwrite: true
       - uses: actions/upload-artifact@v4
         with:
           name: xbox-corresponding-source
@@ -135,6 +136,7 @@ jobs:
             app/build/xbox/runtime/*-source.tar.xz
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
 
   components-runner:
     needs: source
@@ -150,6 +152,9 @@ jobs:
     runs-on: ${{ fromJSON(needs.components-runner.outputs.labels) }}
     timeout-minutes: 40
     steps:
+      - name: Reclaim files a cancelled container build left owned by root
+        if: runner.environment == 'self-hosted'
+        run: sudo -n chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" || echo "::warning::could not reclaim $GITHUB_WORKSPACE"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -330,6 +335,7 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+          overwrite: true
 
   build-runner:
     needs: [components]
@@ -347,6 +353,9 @@ jobs:
     outputs:
       variants: ${{ steps.variants.outputs.list }}
     steps:
+      - name: Reclaim files a cancelled container build left owned by root
+        if: runner.environment == 'self-hosted'
+        run: sudo -n chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" || echo "::warning::could not reclaim $GITHUB_WORKSPACE"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -562,6 +571,12 @@ jobs:
           command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
           bash tools/ubisoft-launcher/build.sh
 
+      - name: Rockstar launcher service (32-bit and 64-bit)
+        run: |
+          set -euo pipefail
+          command -v i686-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-i686; }
+          bash tools/rockstar-launcher/build.sh
+
       - uses: actions/download-artifact@v4
         with:
           name: xbox-arm64
@@ -617,12 +632,11 @@ jobs:
       - name: Check out MaliBridge
         run: git submodule update --init external/MaliBridge
       - name: Fetch the Mali (Venus) component (tools/venus/release.env)
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           . tools/venus/release.env
-          gh release download "${VENUS_TAG}" -R "${VENUS_REPO}" -p venus.tzst -O venus.tzst
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o venus.tzst \
+            "https://github.com/${VENUS_REPO}/releases/download/${VENUS_TAG}/venus.tzst"
           echo "${VENUS_SHA256}  venus.tzst" | sha256sum -c -
           tar --use-compress-program=unzstd -xf venus.tzst -C app/src/main
           test -f app/src/main/jniLibs/arm64-v8a/libvirgl_test_server.so
@@ -659,6 +673,7 @@ jobs:
           name: stores-cargo-lock
           path: app/src/main/rust/stores/Cargo.lock
           if-no-files-found: ignore
+          overwrite: true
 
       - name: Unit tests
         id: unit-tests
@@ -682,6 +697,7 @@ jobs:
             app/build/reports/tests/testReleaseUnitTest/
           if-no-files-found: ignore
           retention-days: 14
+          overwrite: true
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |
@@ -719,6 +735,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -727,6 +744,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'
@@ -798,9 +816,11 @@ jobs:
           set -o pipefail
           cd app/src/main/rust/stores
           cargo test --locked 2>&1 | tail -60
-      - name: Ubisoft launcher service host unit tests
+      - name: Windows launcher service host unit tests
         timeout-minutes: 10
-        run: cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
+        run: |
+          cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
+          cargo test --locked --manifest-path tools/rockstar-launcher/Cargo.toml
 
   python-tests:
     name: Python and native regression tests
@@ -835,7 +855,7 @@ jobs:
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
       - name: Install Python test dependencies
         timeout-minutes: 7
-        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers
+        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers spirv-tools
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
 
@@ -864,6 +884,16 @@ jobs:
             tools/vr/tests/test_presenter_shutdown.cpp tools/vr/src/presenter.cpp /tmp/test-wayland-stub.o /tmp/test-xdg-shell.o \
             -ldl -o /tmp/test-presenter-shutdown
           timeout 10 /tmp/test-presenter-shutdown
+
+      - name: Fetch the Mali compatibility layer's headers
+        run: |
+          set -euo pipefail
+          sdk=$(sed -n 's/^SDK=//p' tools/venus/ci-build.sh)
+          bcdec=$(grep -o 'https://raw.githubusercontent.com/iOrange/bcdec/[^ ]*' tools/venus/ci-build.sh)
+          mkdir -p build/layer-deps/bcdec
+          git -c advice.detachedHead=false clone -q --depth 1 -b "$sdk" https://github.com/KhronosGroup/Vulkan-Headers.git build/layer-deps/vulkan
+          git -c advice.detachedHead=false clone -q --depth 1 -b "$sdk" https://github.com/KhronosGroup/SPIRV-Headers.git build/layer-deps/spirv
+          curl -sSfL -o build/layer-deps/bcdec/bcdec.h "$bcdec"
 
       - name: Steam import and game environment tests
         run: bash tools/ci/run-python-tests.sh
@@ -923,7 +953,7 @@ jobs:
       pull-requests: read
     env:
       CI_REPO: Droid-Deck/DroidDeck-CI
-      KEEP: 10
+      KEEP_DAYS: 14
     steps:
       - uses: actions/checkout@v4
         with:
@@ -966,5 +996,37 @@ jobs:
   catalog:
     needs: announce
     if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.announce.result != 'skipped' }}
+    uses: ./.github/workflows/update-catalog.yml
+    secrets: inherit
+
+  retire-tests:
+    needs: catalog
+    if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.catalog.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+      - name: Delete the test builds this Preview build replaces
+        env:
+          SOURCE_GITHUB_TOKEN: ${{ github.token }}
+          CI_GITHUB_TOKEN: ${{ steps.ci-token.outputs.token }}
+        run: python3 tools/release/retire_test_builds.py
+
+  catalog-after-retire:
+    needs: retire-tests
+    if: ${{ always() && needs.retire-tests.result == 'success' }}
     uses: ./.github/workflows/update-catalog.yml
     secrets: inherit

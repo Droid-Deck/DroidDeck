@@ -162,6 +162,80 @@ class DolphinPlacesTest(unittest.TestCase):
         self.assertEqual(1, len(root.findall("bookmark")))
         self.assertEqual("My games", root.findtext("bookmark/title"))
 
+    def volumes(self, entries):
+        listing = self.home / "volumes.json"
+        listing.write_text(json.dumps(entries))
+        os.environ["BL_DESKTOP_VOLUMES"] = str(listing)
+        return MODULE["removable_volumes"]()
+
+    def update_volumes(self, volumes):
+        MODULE["update_places"](self.places, volumes, "DroidDeckRemovableVolume", "drive-removable-media", "droiddeck-volume-")
+        return ET.parse(self.places).getroot()
+
+    def test_all_readable_volumes_without_steam_libraries(self):
+        card = self.home / "ABCD-1234"
+        usb = self.home / "USB café & <disk>"
+        card.mkdir()
+        usb.mkdir()
+        missing = self.home / "unplugged"
+        entries = [{"path": str(card), "label": "Card"}, {"path": str(usb), "label": "USB & <disk>"},
+                   {"path": str(missing), "label": "Gone"}, {"path": "relative", "label": "Invalid"}]
+        volumes = self.volumes(entries)
+        self.assertEqual({card.as_uri(): "Card", usb.as_uri(): "USB & <disk>"}, volumes)
+        root = self.update_volumes(volumes)
+        self.assertEqual(2, len(root.findall("bookmark")))
+        self.assertEqual("USB & <disk>", root.findall("bookmark")[1].findtext("title"))
+        self.assertFalse((card / "steamapps").exists())
+        self.assertEqual("drive-removable-media", root.find("bookmark/info/metadata/{" + MODULE["ICON_NS"] + "}icon").get("name"))
+
+    def test_main_adds_volumes_without_changing_gtk_or_steam_selection(self):
+        card = self.home / "card"
+        card.mkdir()
+        self.volumes([{"path": str(card), "label": "Card"}])
+        with patch.object(Path, "home", return_value=self.home), patch.dict(os.environ, {"XDG_DATA_HOME": str(self.data)}):
+            MODULE["main"]()
+            root = ET.parse(self.places).getroot()
+            self.assertEqual({self.steam.as_uri(), card.as_uri()}, {b.get("href") for b in root.findall("bookmark")})
+            self.assertFalse((self.home / ".config/gtk-3.0/bookmarks").exists())
+            self.volumes([])
+            MODULE["main"]()
+            root = ET.parse(self.places).getroot()
+            self.assertEqual([self.steam.as_uri()], [b.get("href") for b in root.findall("bookmark")])
+
+    def test_unreadable_volume_is_not_offered(self):
+        card = self.home / "card"
+        card.mkdir()
+        with patch("os.scandir", side_effect=PermissionError):
+            self.assertEqual({}, self.volumes([{"path": str(card), "label": "Card"}]))
+
+    def test_volume_refresh_preserves_steam_personal_and_hidden_places(self):
+        card = self.home / "card"
+        card.mkdir()
+        self.update({self.steam.as_uri(): "Steam"})
+        root = self.update_volumes({card.as_uri(): "Card"})
+        volume = root.findall("bookmark")[1]
+        metadata = volume.find("info/metadata[@owner='http://www.kde.org']")
+        ET.SubElement(metadata, "IsHidden").text = "true"
+        ET.SubElement(root, "bookmark", {"href": "file:///root/Documents"})
+        self.places.write_bytes(ET.tostring(root))
+        root = self.update_volumes({card.as_uri(): "Renamed"})
+        self.assertEqual("true", root.findall("bookmark")[1].findtext("info/metadata/IsHidden"))
+        before = self.places.read_bytes()
+        self.update_volumes({card.as_uri(): "Renamed"})
+        self.assertEqual(before, self.places.read_bytes())
+        self.update({self.steam.as_uri(): "Steam"})
+        root = self.update_volumes({})
+        self.assertEqual([self.steam.as_uri(), "file:///root/Documents"], [b.get("href") for b in root.findall("bookmark")])
+
+    def test_personal_volume_place_is_not_duplicated_or_removed(self):
+        card = self.home / "card"
+        card.mkdir()
+        self.places.write_text(f'<xbel><bookmark href="{card.as_uri()}/"><title>My card</title></bookmark></xbel>')
+        before = self.places.read_bytes()
+        self.update_volumes({card.as_uri(): "Card"})
+        self.update_volumes({})
+        self.assertEqual(before, self.places.read_bytes())
+
     def test_invalid_xml_is_not_overwritten(self):
         self.places.write_text("<xbel>unfinished")
         with self.assertRaises(ET.ParseError):

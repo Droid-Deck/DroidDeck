@@ -38,6 +38,74 @@ class DroidDeckHudPanelTest {
         assertEquals("1", DroidDeckHudConfig.DEFAULTS["hudLocked"])
     }
 
+    @Test fun aLongPressCollapsesTheHudUnlessTheUserChoseToLockWithIt() {
+        assertEquals("collapse", DroidDeckHudConfig.DEFAULTS["hudHold"])
+        for ((hold, locked) in listOf("collapse" to "1", "collapse" to "0", "lock" to "1", "lock" to "0")) {
+            val app = RuntimeEnvironment.getApplication()
+            val hud = DroidDeckHudView(app)
+            val parent = FrameLayout(app)
+            parent.addView(hud, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+            hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudHold" to hold) + ("hudLocked" to locked)))
+            hud.showForTest(SNAPSHOT, "DXVK", 0L)
+            val exactly = View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY)
+            parent.measure(exactly, exactly)
+            parent.layout(0, 0, 2000, 2000)
+            val holds = ArrayList<Pair<Float, Float>>()
+            val locks = ArrayList<Boolean>()
+            hud.setOnHoldListener { x, y -> holds += x to y }
+            hud.setOnLockChangedListener { locks += it }
+            val down = SystemClock.uptimeMillis()
+            MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, 30f, 20f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ViewConfiguration.getLongPressTimeout() + 300L))
+            MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, 30f, 20f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+            shadowOf(Looper.getMainLooper()).idle()
+            if (hold == "collapse") {
+                assertEquals("$hold/$locked collapses from where the press began", listOf(30f to 20f), holds)
+                assertTrue("$hold/$locked leaves the lock alone", locks.isEmpty())
+            } else {
+                assertTrue("$hold/$locked does not collapse", holds.isEmpty())
+                assertEquals("$hold/$locked toggles the lock", listOf(locked != "1"), locks)
+            }
+        }
+    }
+
+    @Test fun releasingTheFingerThatCollapsedTheHudDoesNotExpandItAgain() {
+        val app = RuntimeEnvironment.getApplication()
+        val hud = DroidDeckHudView(app)
+        val parent = FrameLayout(app)
+        parent.addView(hud, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        val config = DroidDeckHudConfig.DEFAULTS + ("hudSize" to "full")
+        hud.applyConfig(DroidDeckHudConfig.encode(config))
+        hud.showForTest(SNAPSHOT, "DXVK", 0L)
+        val exactly = View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY)
+        parent.measure(exactly, exactly)
+        parent.layout(0, 0, 2000, 2000)
+        val docks = ArrayList<String>()
+        hud.setOnDockChangedListener { docks += it }
+        hud.setOnHoldListener { _, _ -> hud.applyConfig(DroidDeckHudConfig.encode(config + ("hudDock" to "float"))) }
+        val down = SystemClock.uptimeMillis()
+        MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, 30f, 20f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ViewConfiguration.getLongPressTimeout() + 300L))
+        assertEquals(DroidDeckHudDock.FLOAT, hud.dock)
+        MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, 30f, 20f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue("the release of the collapsing press is not a tap on the tab: $docks", docks.isEmpty())
+        val next = SystemClock.uptimeMillis()
+        MotionEvent.obtain(next, next, MotionEvent.ACTION_DOWN, 5f, 5f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        MotionEvent.obtain(next, next + 40, MotionEvent.ACTION_UP, 5f, 5f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        assertEquals("a later tap on the tab expands it", listOf("none"), docks)
+    }
+
+    @Test fun aFloatingTabIsATabWithoutAnEdge() {
+        assertEquals(DroidDeckHudDock.FLOAT, DroidDeckHudDock.from("float"))
+        val hud = DroidDeckHudView(RuntimeEnvironment.getApplication())
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "full") + ("hudDock" to "float")))
+        hud.showForTest(SNAPSHOT, "DXVK", 0L)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        hud.measure(unspecified, unspecified)
+        assertTrue("a tab, not the panel: ${hud.measuredWidth}x${hud.measuredHeight}", hud.measuredWidth < 400 && hud.measuredHeight < 200)
+    }
+
     @Test fun lowMetricsCanBeHiddenIndependentlyInEveryLayoutThatShowsThem() {
         val metrics = listOf("showLow1" to "1%", "showLow01" to "0.1%", "showLow001" to "0.01%")
         for (size in DroidDeckHudSize.values().filter { it != DroidDeckHudSize.PILL }) {
@@ -51,11 +119,12 @@ class DroidDeckHudPanelTest {
                     key to if (mask and (1 shl index) != 0) "1" else "0"
                 }.toMap()
                 view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS +
-                    ("hudSize" to size.token) + settings))
+                    DroidDeckHudConfig.ORDER.associateWith { "0" } + settings + mapOf(
+                    "hudSize" to size.token, "showFPSGraph" to "0", "showClock" to "0")))
                 view.showForTest(SNAPSHOT, "DXVK", 0L)
                 val lines = view.linesForTest().joinToString(" ")
                 for ((index, metric) in metrics.withIndex()) {
-                    val supported = size != DroidDeckHudSize.TILES || index == 0
+                    val supported = metrics[index].first in size.rows
                     val expected = supported && mask and (1 shl index) != 0
                     val label = Regex("(?<![0-9.])${Regex.escape(metric.second)}")
                     assertEquals("$size, mask=$mask, ${metric.second}: $lines", expected, label.containsMatchIn(lines))
@@ -98,6 +167,70 @@ class DroidDeckHudPanelTest {
                 assertTrue("$size graph clears the round side", graph.right <= edge)
             }
         }
+    }
+
+    @Test fun aSwitchTurnsItsRowOff() {
+        fun full(vararg settings: Pair<String, String>): List<String> {
+            val values = LinkedHashMap(DroidDeckHudConfig.DEFAULTS)
+            values["hudSize"] = DroidDeckHudSize.FULL.token
+            for ((key, value) in settings) values[key] = value
+            val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+            view.applyConfig(DroidDeckHudConfig.encode(values))
+            view.showForTest(SNAPSHOT, "DXVK", 0L)
+            return view.linesForTest()
+        }
+        assertTrue(full().toString(), full().any { "RAM67%" in it })
+        val noRam = full("showRAM" to "0")
+        assertFalse(noRam.toString(), noRam.any { "RAM67%" in it })
+        assertTrue(noRam.toString(), noRam.any { "FPS0.0" in it })
+    }
+
+    @Test fun theSavedOrderDecidesTheRowOrder() {
+        fun only(order: String): List<String> {
+            val off = DroidDeckHudConfig.ORDER.associateWith { "0" }
+            val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+            view.applyConfig(DroidDeckHudConfig.encode(
+                DroidDeckHudConfig.DEFAULTS + off + mapOf(
+                    "hudSize" to DroidDeckHudSize.FULL.token,
+                    "showPower" to "1", "showFPS" to "1", "showRAM" to "1",
+                    "showFPSGraph" to "0", "showClock" to "0", "hudOrder" to order,
+                )))
+            view.showForTest(SNAPSHOT, "DXVK", 0L)
+            return view.linesForTest().filter { !it.startsWith("DroidDeck") }
+        }
+        val powerFirst = only("full:showPower|showFPS|showRAM")
+        assertEquals(powerFirst.toString(), listOf("PWR", "FPS", "RAM"), powerFirst.map { it.take(3) })
+        val ramFirst = only("full:showRAM|showFPS|showPower")
+        assertEquals(ramFirst.toString(), listOf("RAM", "FPS", "PWR"), ramFirst.map { it.take(3) })
+    }
+
+    @Test fun aSaveKeepsTheLegacyOrderForTheOtherSizes() {
+        val app = RuntimeEnvironment.getApplication()
+        SessionPrefs.setDroidDeckHudConfig(app, "hudSize=strip,hudOrder=showRAM|showFPS")
+        val saved = DroidDeckHudConfig.choose(app, emptyMap(), listOf("showFPS", "showRAM"))
+        assertEquals(listOf("showRAM", "showFPS"), DroidDeckHudConfig.storedOrder(saved, DroidDeckHudSize.FULL))
+        assertEquals(listOf("showFPS", "showRAM"), DroidDeckHudConfig.storedOrder(saved, DroidDeckHudSize.STRIP))
+    }
+
+    @Test fun thePillHeroIsWhicheverRowTheUserPutsFirst() {
+        fun pill(order: String): List<String> {
+            val off = DroidDeckHudConfig.ORDER.associateWith { "0" }
+            val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
+            view.applyConfig(DroidDeckHudConfig.encode(
+                DroidDeckHudConfig.DEFAULTS + off + mapOf(
+                    "hudSize" to DroidDeckHudSize.PILL.token,
+                    "showFPS" to "1", "showRAM" to "1", "showPower" to "1",
+                    "showFPSGraph" to "0", "showClock" to "0",
+                    "hudOrder" to order,
+                )))
+            view.showForTest(SNAPSHOT, "DXVK", 0L)
+            return view.linesForTest()
+        }
+        val fpsFirst = pill("pill:showFPS|showRAM|showPower")
+        assertTrue(fpsFirst.toString(), fpsFirst.any { it.trim() == "0.0fps" })
+        val fpsLast = pill("pill:showRAM|showPower|showFPS")
+        assertTrue(fpsLast.toString(), fpsLast.any { it.trim().startsWith("FPS") })
+        assertFalse(fpsLast.toString(), fpsLast.any { it.trim() == "0.0fps" })
     }
 
     @Test fun stripIsOneLineAcrossTheParentWithTheClockOnTheRight() {
@@ -232,27 +365,24 @@ class DroidDeckHudPanelTest {
     }
 
     @Test fun pillShowsEachBatteryPartOnItsOwnSwitch() {
-        fun pill(vararg settings: Pair<String, String>): List<String> {
+        fun pill(vararg settings: Pair<String, String>): String {
             val view = DroidDeckHudView(RuntimeEnvironment.getApplication())
             view.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to DroidDeckHudSize.PILL.token) + settings))
             view.showForTest(SNAPSHOT, "DXVK", 0L)
-            return view.linesForTest()
+            return view.linesForTest().toString()
         }
-        val all = pill("showBattery" to "1")
-        assertTrue(all.toString(), all.any { "BAT 79% · 34°C · 16.0W" in it })
-        assertEquals(all.toString(), 1, all.count { "BAT" in it })
-        assertFalse(all.toString(), all.single { "RAM" in it }.contains("BAT"))
-
-        val noMemory = pill("showBattery" to "1", "showRAM" to "0")
-        assertTrue(noMemory.toString(), noMemory.none { "RAM" in it })
-        assertTrue(noMemory.toString(), noMemory.any { "BAT 79% · 34°C · 16.0W" in it })
-
         val defaults = pill()
-        assertTrue(defaults.toString(), defaults.any { "BAT 34°C · 16.0W" in it })
-        val wattsOnly = pill("showBatteryTemp" to "0")
-        assertTrue(wattsOnly.toString(), wattsOnly.any { "BAT 16.0W" in it })
-        val nothing = pill("showBatteryTemp" to "0", "showPower" to "0")
-        assertTrue(nothing.toString(), nothing.none { "BAT" in it })
+        assertTrue(defaults, defaults.contains("BAT.T"))
+        assertTrue(defaults, defaults.contains("PWR"))
+        assertFalse(defaults, defaults.contains("BAT79%"))
+        val levelOn = pill("showBattery" to "1")
+        assertTrue(levelOn, levelOn.contains("BAT79%"))
+        val tempOff = pill("showBatteryTemp" to "0")
+        assertFalse(tempOff, tempOff.contains("BAT.T"))
+        assertTrue(tempOff, tempOff.contains("PWR"))
+        val powerOff = pill("showPower" to "0")
+        assertFalse(powerOff, powerOff.contains("PWR"))
+        assertTrue(powerOff, powerOff.contains("BAT.T"))
     }
 
     @Test fun aLockedHudLetsTouchesThroughOnlyWhereAControlTakesThem() {
@@ -269,7 +399,7 @@ class DroidDeckHudPanelTest {
         hud.passesTouchAt = { _, _ -> control }
         val locks = ArrayList<Boolean>()
         hud.setOnLockChangedListener { locks += it }
-        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "0")))
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "0") + ("hudHold" to "lock")))
         hud.showForTest(SNAPSHOT, "DXVK", 0L)
         val exactly = View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY)
         parent.measure(exactly, exactly)
@@ -286,7 +416,7 @@ class DroidDeckHudPanelTest {
         control = true
         touch()
         assertEquals("an unlocked HUD keeps the touch (tap, drag, long press)", 0, reached)
-        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "1")))
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "1") + ("hudHold" to "lock")))
         touch()
         assertEquals("a locked HUD passes it to the control under it", 1, reached)
         control = false
@@ -315,7 +445,7 @@ class DroidDeckHudPanelTest {
         assertEquals("a locked, docked HUD still answers a tap", listOf("none"), docks)
     }
 
-    private companion object {
+    internal companion object {
         val SNAPSHOT = HudMetrics.Snapshot(64, 52, 3302, 1050, 89, 79, 10_800_000_000L, 16_000_000_000L, 67f,
             1_800_000_000L, HudMetrics.Battery(16f, false, 79, 34, null),
             intArrayOf(91, 91, 48, 50, 48, 19, 17, 73), intArrayOf(2265, 2265, 3148, 3148, 3148, 2956, 2956, 3302),
