@@ -46,8 +46,6 @@ object FlatpakData {
 
     private fun cardIn(storage: File, id: String) = File(File(SecondaryLibrary.contentPath(storage), DIR), id)
 
-    internal fun cardDir(context: Context, id: String): File? = storage(context, id)?.let { cardIn(it, id) }
-
     internal fun internalDir(context: Context, id: String) = File(LinuxRuntime.rootDir(context), "$HOST/$id")
 
     fun binds(context: Context, writable: (File) -> Boolean = { it.canWrite() }): List<String> = synchronized(lock) {
