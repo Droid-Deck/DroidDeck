@@ -64,6 +64,7 @@ libpulsecommon-13.0.so
 libsndfile.so
 libunistring.so
 libvulkan.so.1
+libxcb-composite.so
 libxcb-composite.so.0
 libxcb-dri3.so
 libxcb-present.so
