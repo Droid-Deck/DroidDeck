@@ -85,4 +85,34 @@ class SessionScalingPrefsTest {
         SessionPrefs.setUpscaler(context, 1)
         assertEquals(0, prefs.getInt("upscaler", -1))
     }
+
+    private fun fpsContext(): Context = RuntimeEnvironment.getApplication().also {
+        it.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
+    @Test fun anAllGamesFrameLimitAppliesWhereNoGameHasItsOwn() {
+        val ctx = fpsContext()
+        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_ALL, null, 30)
+        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, null))
+        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, "123"))
+        assertEquals(SessionPrefs.SCOPE_ALL, SessionPrefs.fpsLimitScope(ctx, "123"))
+    }
+
+    @Test fun aGameFrameLimitOverridesAllGamesForThatGameOnly() {
+        val ctx = fpsContext()
+        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_ALL, null, 30)
+        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_GAME, "123", 45)
+        assertEquals(45, SessionPrefs.savedFpsLimit(ctx, "123"))
+        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, "456"))
+    }
+
+    @Test fun thisSessionDropsOnlyTheGameFrameLimitAndKeepsAllGames() {
+        val ctx = fpsContext()
+        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_ALL, null, 30)
+        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_GAME, "123", 45)
+        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_SESSION, "123", 60)
+        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, "123"))
+        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_SESSION, null, 60)
+        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, null))
+    }
 }
