@@ -416,13 +416,12 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         MaliAutoRoute.userChoice(SessionPrefs.venusExplicit(activity), SessionPrefs.maliFallbackByAuto(activity), MaliAutoRoute.VENUS)
 
     /**
-     * A Mali with no open driver pair to install ([missing] names the unpublished pair, or null when
-     * no PanVK build covers this GPU) runs through the phone's own driver: Mali (Venus) where this
-     * apk carries it (Steam runs on it from the G57 to the G1 series), the Mali bridge otherwise.
-     * Venus needs Vulkan 1.2 from the phone's driver; the bridge raises a Vulkan 1.1 driver
-     * (r32p1 on the G77, G78 and G610) for gamescope itself, so there the bridge stands in.
-     * The Linux driver choice is left alone (it is the bridge's fallback), and Auto
-     * switches only its own choice off again once a pair is installed ([endMaliFallback]).
+     * Preserves explicit user settings for both route switches. Otherwise, a Mali without an available
+     * open driver pair uses the phone's driver through Venus when available, or the Mali bridge.
+     * Venus requires a host Vulkan 1.2 driver; the bridge also handles Vulkan 1.1.
+     * [missing] names an unpublished pair, or is null when no PanVK build covers this GPU.
+     * The Linux driver choice stays as the bridge's fallback. Auto only clears its own fallback
+     * after installing a pair ([endMaliFallback]).
      */
     private fun useMaliFallback(missing: String?): String {
         if (bridgeExplicit() || venusExplicit()) return ""
