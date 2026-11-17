@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.core
 
+import android.content.Context
 import android.os.Process
 import android.util.Log
 import java.io.BufferedWriter
@@ -113,7 +114,17 @@ object SessionLogCapture {
         }
     }
 
-    fun dumpMemoryPressure(target: File) {
+    internal const val LMKD_COMMAND = "logcat -d -b main,events -v threadtime -s lowmemorykiller:D killinfo:I" +
+        " | grep -v -E 'pgskip|zoneinfo_parse|polling check|thrashing:' | tail -n 120"
+
+    private fun lowMemoryKiller(context: Context?): String = when {
+        context == null -> "(not captured)\n"
+        !WirelessAdbFix.hasSavedPairing(context) -> "(not captured: pair DroidDeck with Wireless debugging in Settings > Diagnostics)\n"
+        else -> runCatching { WirelessAdbFix.shell(context, LMKD_COMMAND) }
+            .fold({ it.ifBlank { "(no lmkd lines in the log)\n" } }, { "(not captured: ${it.message})\n" })
+    }
+
+    fun dumpMemoryPressure(target: File, context: Context? = null) {
         var temporary: File? = null
         try {
             val staged = File.createTempFile(target.name, ".part", target.parentFile).also { temporary = it }
@@ -150,7 +161,8 @@ object SessionLogCapture {
                         body.isNotEmpty() -> body
                         else -> "(no readable events were returned)\n"
                     } +
-                    "\n/proc/pressure/memory:\n$pressure\n/proc/meminfo:\n$meminfo\n/sys/class/kgsl/kgsl/page_alloc:\n$gpu"
+                    "\n/proc/pressure/memory:\n$pressure\n/proc/meminfo:\n$meminfo\n/sys/class/kgsl/kgsl/page_alloc:\n$gpu" +
+                    "\nAndroid's low memory killer (lmkd), read over Wireless debugging:\n${lowMemoryKiller(context)}"
             )
             Files.move(
                 staged.toPath(), target.toPath(),

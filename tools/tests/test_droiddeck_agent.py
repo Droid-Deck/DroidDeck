@@ -867,6 +867,82 @@ const value = subscribe => {
             return e
 
 
+class FocusSnapshotTest(unittest.TestCase):
+    def test_publication_failure_retries_unknown_and_recovers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'focus.json'
+            watcher = agent.FocusWatcher(path)
+            watcher.publish({'focusedApp': 42})
+            write_json = agent.write_json
+            writes = []
+
+            def write(path, value):
+                writes.append(value)
+                if len(writes) == 1:
+                    raise OSError('unavailable')
+                write_json(path, value)
+
+            with patch.object(threading.Thread, 'start'), \
+                 patch.object(watcher.changed, 'wait', side_effect=[True, True, True, StopIteration]), \
+                 patch.object(agent, 'vr_scene_app', return_value=None), \
+                 patch.object(agent, 'focus_snapshot', side_effect=[OSError('unavailable'), OSError('unavailable'), {'focusedApp': 42}]), \
+                 patch.object(agent, 'write_json', side_effect=write), \
+                 patch.object(agent.time, 'sleep'), \
+                 patch.object(agent, 'log'):
+                with self.assertRaises(StopIteration):
+                    watcher.run()
+            self.assertEqual(writes, [{'seq': 2}, {'seq': 2}, {'focusedApp': 42, 'seq': 3}])
+            self.assertEqual(json.loads(path.read_text()), {'focusedApp': 42, 'seq': 3})
+
+    def test_successful_snapshot_write_failure_retries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'focus.json'
+            watcher = agent.FocusWatcher(path)
+            with patch.object(agent, 'write_json', side_effect=OSError('unavailable')), patch.object(agent, 'log'):
+                watcher.publish({'focusedApp': 42})
+            self.assertIsNone(watcher.last)
+            self.assertEqual(watcher.seq, 0)
+            self.assertTrue(watcher.changed.is_set())
+            watcher.publish({'focusedApp': 42})
+            self.assertEqual(json.loads(path.read_text()), {'focusedApp': 42, 'seq': 1})
+
+    def test_collection_failure_invalidates_and_recovery_republishes(self):
+        for error in (OSError('unavailable'), agent.AgentError('X', 'unavailable')):
+            with self.subTest(error=type(error).__name__), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'focus.json'
+                watcher = agent.FocusWatcher(path)
+                snapshot = {'focusedApp': 42, 't': 1}
+                watcher.publish(snapshot)
+                observed = []
+
+                def collect():
+                    observed.append(json.loads(path.read_text()))
+                    if len(observed) == 1:
+                        raise error
+                    return dict(snapshot, t=2)
+
+                with patch.object(threading.Thread, 'start'), \
+                     patch.object(watcher.changed, 'wait', side_effect=[True, True, StopIteration]), \
+                     patch.object(agent, 'vr_scene_app', return_value=None), \
+                     patch.object(agent, 'focus_snapshot', side_effect=collect), \
+                     patch.object(agent.time, 'sleep'), \
+                     patch.object(agent, 'log'):
+                    with self.assertRaises(StopIteration):
+                        watcher.run()
+                self.assertEqual(observed, [dict(snapshot, seq=1), {'seq': 2}])
+                self.assertEqual(json.loads(path.read_text()), {'focusedApp': 42, 't': 2, 'seq': 3})
+
+    def test_unchanged_successful_focus_stays_valid(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'focus.json'
+            watcher = agent.FocusWatcher(path)
+            watcher.publish({'focusedApp': 769, 't': 1})
+            with patch.object(agent, 'write_json') as write:
+                watcher.publish({'focusedApp': 769, 't': 100})
+            write.assert_not_called()
+            self.assertEqual(json.loads(path.read_text()), {'focusedApp': 769, 't': 1, 'seq': 1})
+
+
 class VrFocusTest(unittest.TestCase):
     def test_scene_dashboard_and_external_focus_changes(self):
         focus = agent.VrSceneFocus()

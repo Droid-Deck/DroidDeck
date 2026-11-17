@@ -244,6 +244,8 @@ class DrawerActions(
     val fexPreset: String,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
+    val integerScaling: Boolean = false,
+    val onIntegerScaling: (Boolean) -> Unit = {},
     val effects: ScreenEffects = ScreenEffects.OFF,
     val screenEffectsTarget: String = "auto",
     val screenEffectsTargets: List<Pair<String, String>> = emptyList(),
@@ -260,6 +262,7 @@ class DrawerActions(
     val secondScreenNone: Boolean = true,
     val gameOnBottom: Boolean = false,
     val gameSwapAvailable: Boolean = false,
+    val gameSwapBuiltIn: Boolean = true,
     val onGameOnBottom: (Boolean) -> Unit = {},
     val dashboardAvailable: Boolean = false,
     val desktopAvailable: Boolean = false,
@@ -275,6 +278,9 @@ class DrawerActions(
     val onFrameGenReset: () -> Unit = {},
     val fpsLimit: Int = 0,
     val onFpsLimit: (Int) -> Unit = {},
+    val blackFrameInsertion: Boolean = false,
+    val blackFrameInsertionAvailable: Boolean = false,
+    val onBlackFrameInsertion: (Boolean) -> Unit = {},
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
@@ -615,6 +621,16 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     onChange = { a.onFpsLimit(if (it <= SessionPrefs.FPS_LIMIT_OFF) 0 else it) })
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
+                                if (a.steam) SettingsRow(stringResource(R.string.display_integer_scaling), null) {
+                                    PadTextButton(
+                                        onClick = { a.onIntegerScaling(!a.integerScaling) }
+                                    ) {
+                                        Text(stringResource(
+                                            if (a.integerScaling) R.string.display_scaling_integer
+                                            else R.string.display_scaling_fit
+                                        ))
+                                    }
+                                }
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
                                     SessionPrefs.upscalerChoices(LocalContext.current), a.upscaler,
                                     note = stringResource(R.string.display_filter_note),
@@ -1107,11 +1123,31 @@ private fun ScreenEffectsGroup(
                 a.onEffects(picked.effects)
             }
         }
-        ToggleRow(host, "fxaa", stringResource(R.string.drawer_fxaa), null, e.fxaa, chipModifier = track("fxaa")) { a.onEffects(e.copy(fxaa = it)) }
+        ChoiceRow(host, "antialiasing", stringResource(R.string.drawer_antialiasing), null,
+            listOf(
+                "off" to stringResource(R.string.frame_gen_off),
+                "fxaa" to stringResource(R.string.drawer_fxaa),
+                "smaa" to stringResource(R.string.drawer_smaa),
+            ),
+            when (e.aaMode) {
+                ScreenEffects.AA_FXAA -> "fxaa"
+                ScreenEffects.AA_SMAA -> "smaa"
+                else -> "off"
+            }, chipModifier = track("antialiasing")) { mode ->
+            val aaMode = when (mode) {
+                "fxaa" -> ScreenEffects.AA_FXAA
+                "smaa" -> ScreenEffects.AA_SMAA
+                else -> ScreenEffects.AA_OFF
+            }
+            a.onEffects(e.copy(aaMode = aaMode))
+        }
         ToggleRow(host, "toon", stringResource(R.string.drawer_toon), null, e.toon, chipModifier = track("toon")) { a.onEffects(e.copy(toon = it)) }
         ToggleRow(host, "crt", stringResource(R.string.drawer_crt), null, e.crt, chipModifier = track("crt")) { a.onEffects(e.copy(crt = it)) }
         ToggleRow(host, "ntsc", stringResource(R.string.drawer_ntsc), null, e.ntsc, chipModifier = track("ntsc")) { a.onEffects(e.copy(ntsc = it)) }
         ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
+        if (a.blackFrameInsertionAvailable) ToggleRow(host, "bfi", stringResource(R.string.drawer_bfi),
+            stringResource(R.string.drawer_bfi_note), a.blackFrameInsertion,
+            chipModifier = track("bfi"), onChange = a.onBlackFrameInsertion)
     }
     val source = remember { MutableInteractionSource() }
     val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
@@ -1268,7 +1304,8 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
     }
     if (a.gameSwapAvailable || a.gameOnBottom) SettingsGroup(stringResource(R.string.swap_game_screen_group)) {
         ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
-            listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom)),
+            if (a.gameSwapBuiltIn) listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom))
+            else listOf(false to stringResource(R.string.main_primary), true to stringResource(R.string.main_secondary)),
             a.gameOnBottom, chipModifier = track("game-screen"), onPick = a.onGameOnBottom)
     }
 }

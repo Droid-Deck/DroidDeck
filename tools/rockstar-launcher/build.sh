@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-out=${1:-"$here/../../app/src/main/resources/rockstar/helpers"}
+out=${1:-"$here/../../app/src/main/assets/linuxfs/usr/local/lib/droiddeck-rockstar"}
 mkdir -p "$out"
 for target in i686-pc-windows-gnu x86_64-pc-windows-gnu; do
     rustup target add "$target" >/dev/null 2>&1 || true

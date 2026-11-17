@@ -82,6 +82,7 @@ internal fun AgentEntry(
                 if (reply.options.isNotEmpty()) AgentChoices(reply.options, answerable, onSent)
             }
         }
+        is Entry.Notice -> Text(entry.text, color = colors.error, modifier = Modifier.padding(horizontal = 4.dp))
         is Entry.Thought -> AgentThought(entry.text, live = false)
         is Entry.Used -> if (entry.tool == "TodoWrite") AgentTodos(entry.input) else AgentToolCall(entry, running, children)
         is Entry.Result -> Unit
