@@ -11,10 +11,28 @@
 static char g_ddnatv_root[PATH_MAX] = {0};
 static size_t g_ddnatv_root_len = 0;
 
+// The path the kernel reports for [path] (/proc/self/fd, getcwd(), realpath()): for a targetSdk 30+
+// app, Android's own /data/user/0 is a link to /data/data, so the app's paths are not what the kernel
+// gives back for them. Into out, or path itself when it cannot be resolved; returns out's length.
+static size_t ddnatv_kernel_path(const char *path, size_t len, char *out, size_t outsz) {
+    static char *(*libc_realpath)(const char *, char *) = NULL;
+    if (!libc_realpath) libc_realpath = (char *(*)(const char *, char *))dlsym(RTLD_NEXT, "realpath");
+    char given[PATH_MAX];
+    if (len >= sizeof(given)) len = sizeof(given) - 1;
+    memcpy(given, path, len);
+    given[len] = '\0';
+    char resolved[PATH_MAX];
+    const char *use = (libc_realpath && libc_realpath(given, resolved)) ? resolved : given;
+    size_t n = strlen(use);
+    if (n >= outsz) n = outsz - 1;
+    memcpy(out, use, n);
+    out[n] = '\0';
+    return n;
+}
+
 static void ddnatv_set_root(const char *root, size_t len) {
     if (!root) len = 0;
-    if (len > sizeof(g_ddnatv_root) - 1) len = sizeof(g_ddnatv_root) - 1;
-    if (len > 0) memcpy(g_ddnatv_root, root, len);
+    if (len > 0) len = ddnatv_kernel_path(root, len, g_ddnatv_root, sizeof(g_ddnatv_root));
     g_ddnatv_root[len] = '\0';
     g_ddnatv_root_len = len;
 }
@@ -61,6 +79,11 @@ static void ddnatv_load_binds(const char *spec) {
         if (colon) *colon = '\0';
         if (src[0] != '/' || dst[0] != '/' || strcmp(dst, "/") == 0) continue;
         struct ddnatv_bind *b = &g_binds[g_nbinds++];
+        char kernel_src[PATH_MAX];
+        if (strcmp(src, dst) != 0) {
+            ddnatv_kernel_path(src, strlen(src), kernel_src, sizeof(kernel_src));
+            src = kernel_src;
+        }
         b->src = strdup(src);
         b->dst = strdup(dst);
         b->src_len = strlen(src);

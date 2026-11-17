@@ -37,6 +37,11 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
                 DroidDeckHudSize.STRIP to stringResource(R.string.hud_size_strip),
             ),
             size, chipModifier = track("hud-size")) { a.onHudSetting("hudSize", it.token) }
+        ChoiceRow(host, "hud-hold", stringResource(R.string.hud_hold), null,
+            listOf("collapse" to stringResource(R.string.hud_hold_collapse),
+                DroidDeckHudConfig.HOLD_LOCKS to stringResource(R.string.hud_hold_lock)),
+            if (cfg["hudHold"] == DroidDeckHudConfig.HOLD_LOCKS) DroidDeckHudConfig.HOLD_LOCKS else "collapse",
+            chipModifier = track("hud-hold")) { a.onHudSetting("hudHold", it) }
         ToggleRow(host, "hud-locked", stringResource(R.string.hud_locked), stringResource(R.string.hud_locked_hint), on("hudLocked"),
             chipModifier = track("hud-locked")) { a.onHudSetting("hudLocked", flag(it)) }
         ToggleRow(host, "hud-snap", stringResource(R.string.hud_snap), stringResource(R.string.hud_snap_hint), on("hudSnap"),

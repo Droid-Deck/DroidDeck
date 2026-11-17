@@ -24,6 +24,7 @@ extern int droiddeck_wayland_run(void);
 extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
 extern void droiddeck_wayland_send_pointer(int action, int x, int y);
 extern void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y);
+extern void droiddeck_wayland_send_pen(int flags, int x, int y);
 extern int  droiddeck_cursor_snapshot(int *out, int cap);
 extern int  droiddeck_cursor_serial(void);
 extern int droiddeck_hud_frame_times(float *out, int len, int64_t *total);
@@ -41,6 +42,8 @@ extern void droiddeck_wayland_set_output_refresh_rate(int mhz);
 extern volatile int g_fps_limit;
 extern volatile int g_release_unpaced;
 extern volatile int g_render_on_commit;
+extern volatile int g_bfi;
+extern volatile int g_bfi_picture_hold;
 extern volatile int g_hide_shell;
 extern volatile int g_zero_copy;
 extern volatile unsigned g_zero_copy_last;
@@ -253,12 +256,13 @@ static char *dup_jstr(JNIEnv *env, jstring s) {
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeStartWithSurface(
         JNIEnv *env, jclass clazz, jobject surface, jstring xdgRuntimeDir,
-        jstring driverPath, jstring libraryName, jstring nativeLibDir) {
+        jstring driverPath, jstring libraryName, jstring nativeLibDir, jboolean allowDriverFallback) {
     set_runtime_dir(env, xdgRuntimeDir);
     char *dp = dup_jstr(env, driverPath);
     char *ln = dup_jstr(env, libraryName);
     char *nl = dup_jstr(env, nativeLibDir);
     vk_present_set_driver(dp, ln, nl);
+    vk_present_set_driver_fallback(allowDriverFallback == JNI_TRUE);
     free(dp); free(ln); free(nl);
     if (surface) {
         ANativeWindow *win = ANativeWindow_fromSurface(env, surface);
@@ -278,6 +282,12 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendTouch(
         JNIEnv *env, jclass clazz, jint action, jint pointer_id, jint x, jint y) {
     droiddeck_wayland_send_touch(action, pointer_id, x, y);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendPen(
+        JNIEnv *env, jclass clazz, jint flags, jint x, jint y) {
+    droiddeck_wayland_send_pen(flags, x, y);
 }
 
 JNIEXPORT jint JNICALL
@@ -448,6 +458,18 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeGamePictureRect(JNIE
     return JNI_TRUE;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeOutputSize(JNIEnv *env, jclass clazz, jintArray out) {
+    (void)clazz;
+    if (!out || (*env)->GetArrayLength(env, out) < 2) return JNI_FALSE;
+    int width = 0, height = 0;
+    vkp_output_size(&width, &height);
+    if (width <= 0 || height <= 0) return JNI_FALSE;
+    jint size[2] = {(jint)width, (jint)height};
+    (*env)->SetIntArrayRegion(env, out, 0, 2, size);
+    return JNI_TRUE;
+}
+
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetUpscaler(JNIEnv *env, jclass clazz, jint mode) {
     vkp_effects_set_scaling(mode);
@@ -475,8 +497,8 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetDeband(JNIEnv *en
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScreenEffects(JNIEnv *env, jclass clazz, jfloat brightness,
-        jfloat contrast, jfloat gamma, jfloat saturation, jboolean fxaa, jboolean toon, jboolean crt, jboolean ntsc) {
-    vkp_effects_set_screen(brightness, contrast, gamma, saturation, fxaa ? 1 : 0, toon ? 1 : 0, crt ? 1 : 0, ntsc ? 1 : 0);
+        jfloat contrast, jfloat gamma, jfloat saturation, jint aa_mode, jboolean toon, jboolean crt, jboolean ntsc) {
+    vkp_effects_set_screen(brightness, contrast, gamma, saturation, aa_mode, toon ? 1 : 0, crt ? 1 : 0, ntsc ? 1 : 0);
 }
 
 JNIEXPORT void JNICALL
@@ -647,6 +669,17 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetRenderOnCommit(JNIEnv *env, jclass clazz, jboolean on) {
     g_render_on_commit = on ? 1 : 0;
     __android_log_print(ANDROID_LOG_INFO, TAG, "render on commit %s", on ? "on" : "off");
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetBlackFrameInsertion(JNIEnv *env, jclass clazz, jboolean on) {
+    g_bfi = on ? 1 : 0;
+    __android_log_print(ANDROID_LOG_INFO, TAG, "black frame insertion %s", on ? "requested" : "off");
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetPictureHold(JNIEnv *env, jclass clazz, jboolean on) {
+    g_bfi_picture_hold = on ? 1 : 0;
 }
 
 JNIEXPORT void JNICALL

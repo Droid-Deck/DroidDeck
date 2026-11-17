@@ -416,7 +416,7 @@ private fun ToolsRow(title: String, detail: String, action: @Composable () -> Un
 }
 
 @Composable
-private fun ToolsField(value: String, onValue: (String) -> Unit, hint: String, tag: String) {
+internal fun ToolsField(value: String, onValue: (String) -> Unit, hint: String, tag: String) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Box(Modifier.fillMaxWidth().clip(Shape12).background(pal.surfaceVariant).padding(horizontal = 12.dp, vertical = 10.dp)) {

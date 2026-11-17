@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">Τα γραφικά του SteamVR σταμάτησαν</string>
     <string name="steamvr_recovery_countdown">Το DroidDeck θα κάνει επανεκκίνηση σε %1$d δευτερόλεπτα για να επαναφέρει τα γραφικά και να ανοίξει ξανά το SteamVR. Το παιχνίδι που εκτελείται θα κλείσει· η μη αποθηκευμένη πρόοδος δεν μπορεί να ανακτηθεί.</string>
@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">Το DroidDeck δεν μπόρεσε να κάνει αυτόματη επανεκκίνηση. Κλείστε εντελώς την εφαρμογή και ανοίξτε την ξανά.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>Η πρώτη εκτέλεση κάνει λήψη του Steam. Αυτό μπορεί να διαρκέσει μερικά λεπτά.</item>
-        <item>Από προεπιλογή, η έξοδος από την εφαρμογή θέτει το Steam σε παύση· συνεχίζει από εκεί που είχε μείνει όταν επιστρέψετε.</item>
-        <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια στην οθόνη.</item>
+        <item>Η πρώτη εκτέλεση κατεβάζει το Steam. Μπορεί να διαρκέσει μερικά λεπτά.</item>
+        <item>Το χειριστήριό σας εμφανίζεται στο Steam ως χειριστήριο Steam Deck. Αλλάξτε το σε Steam Controller, DualShock 4, DualSense ή Xbox 360 στις ρυθμίσεις συνεδρίας· εφαρμόζεται στην επόμενη συνεδρία.</item>
+        <item>Κρατήστε πατημένο το Πίσω στο χειριστήριό σας για να ανοίξετε το μενού Quick Access του Steam. Η επιλογή «Παρατεταμένο Πίσω για συντομεύσεις Steam» πρέπει να είναι ενεργή στις ρυθμίσεις συνεδρίας.</item>
+        <item>Η Συμπεριφορά παρασκηνίου καθορίζει τι γίνεται όταν φεύγετε από την εφαρμογή: το Εγγενής ετοιμάζει το Steam για αναστολή λειτουργίας, το Αυτόματο το θέτει σε παύση, το Μη αυτόματο περιμένει τη Συνέχιση, το Ποτέ το αφήνει να τρέχει.</item>
+        <item>Τα παιχνίδια Steam χρησιμοποιούν το Frame Limit του Steam στο Quick Access. Η οθόνη αλλάζει σε ρυθμό ανανέωσης που διαιρείται ακριβώς με το όριο, όταν υπάρχει τέτοιος.</item>
+        <item>Η Λειτουργία χαμηλής καθυστέρησης στο μενού συνεδρίας στέλνει την είσοδο του χειριστηρίου στα 1000 Hz αντί για 250 Hz, με λίγο μεγαλύτερη χρήση CPU και μπαταρίας.</item>
+        <item>Κάθε παιχνίδι έχει το δικό του προφίλ με Proton, FEX, στοιχεία και ρυθμίσεις περιβάλλοντος.</item>
+        <item>Το μενού συνεδρίας έχει διακόπτη μικροφώνου για φωνητική συνομιλία και κουμπί Αναστολή τώρα για να παγώνετε τη συνεδρία όποτε θέλετε.</item>
+        <item>Σύρετε το HUD του DroidDeck για να το μετακινήσετε, τσιμπήστε για να αλλάξετε μέγεθος και σπρώξτε το προς μια άκρη για να καρφιτσωθεί ως μικρή καρτέλα FPS.</item>
+        <item>Σε φορητές κονσόλες με δύο οθόνες, η κάτω οθόνη μπορεί να δείχνει λήψεις, ειδοποιήσεις, στιγμιότυπα οθόνης και τη συνομιλία του Steam. Η Εναλλαγή οθονών βάζει εκεί το παιχνίδι.</item>
+        <item>Προσθέστε βιβλιοθήκες Steam από κάρτα SD, μονάδα USB ή SSD, και το DroidDeck κρατά τα παιχνίδια μαζί στη Βιβλιοθήκη σας.</item>
+        <item>Τα Καταστήματα σάς επιτρέπουν να συνδεθείτε σε Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io και Game Jolt και μετά να εγκαθιστάτε και να ενημερώνετε τα παιχνίδια τους από το DroidDeck.</item>
+        <item>Στοιχεία όπως τα FEX, DXVK και VKD3D-Proton ενημερώνονται μόνα τους, και το Proton Experimental ARM64 είναι το προεπιλεγμένο, ή το Proton 11.0 ARM64 μόλις εγκατασταθεί αυτή η έκδοση.</item>
+        <item>Η επιλογή Συμπίεση του Steam όσο τρέχει παιχνίδι ελευθερώνει RAM σε συσκευές με λίγη μνήμη.</item>
+        <item>Σύρετε προς τα μέσα από τη δεξιά άκρη για να ανοίξετε το μενού συνεδρίας: λειτουργία πινακίδας αφής, Πληκτρολόγιο PC, Λειτουργία χαμηλής καθυστέρησης, προφίλ παιχνιδιού και άλλα.</item>
+        <item>Το παιχνίδι τρέχει αργά; Περιορίστε τον ρυθμό καρέ στο Quick Access και δοκιμάστε άλλη έκδοση Proton ή άλλη προεπιλογή FEX στα στοιχεία του παιχνιδιού.</item>
+        <item>Κροταλίσματα ή απουσία ήχου στο παιχνίδι; Δοκιμάστε τον διακόπτη DirectAudio για παιχνίδια στις ρυθμίσεις του Steam, στην ενότητα Ήχος.</item>
+        <item>Η Ρύθμιση και μετά η Αποθήκευση μπορεί να καθαρίσει τις κρυφές μνήμες shader και τα υπολειπόμενα prefix από παιχνίδια που αφαιρέσατε.</item>
+        <item>Αντιμετωπίσατε σφάλμα; Η Κοινή χρήση αρχείων καταγραφής στο μενού συνεδρίας συγκεντρώνει διαγνωστικά. Αναρτήστε τα στο #bug-reports στο Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Η πρώτη εκτέλεση ρυθμίζει την επιφάνεια εργασίας. Αυτό μπορεί να διαρκέσει μερικά λεπτά.</item>
-        <item>Από προεπιλογή, η έξοδος από την εφαρμογή θέτει τη συνεδρία σε παύση· συνεχίζει από εκεί που είχε μείνει όταν επιστρέψετε.</item>
-        <item>Το άγγιγμα λειτουργεί ως πινακίδα αφής: σύρετε για να μετακινήσετε τον δείκτη, πατήστε για κλικ.</item>
-        <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια στην οθόνη.</item>
+        <item>Η πρώτη εκτέλεση ρυθμίζει την επιφάνεια εργασίας. Μπορεί να διαρκέσει μερικά λεπτά.</item>
+        <item>Η αφή λειτουργεί ως πινακίδα αφής: σύρετε για να μετακινήσετε τον δείκτη, πατήστε για κλικ.</item>
+        <item>Η Συμπεριφορά παρασκηνίου καθορίζει τι γίνεται όταν φεύγετε από την εφαρμογή: το Μη αυτόματο περιμένει από προεπιλογή τη Συνέχιση, το Αυτόματο θέτει σε παύση, το Ποτέ το αφήνει να τρέχει.</item>
+        <item>Σύρετε προς τα μέσα από τη δεξιά άκρη για να ανοίξετε το μενού συνεδρίας και επιλέξτε Πληκτρολόγιο PC για να πληκτρολογείτε σε εφαρμογές που αγνοούν το πληκτρολόγιο του Android.</item>
+        <item>Το Πληκτρολόγιο PC στο μενού συνεδρίας έχει ρυθμιζόμενο μέγεθος, αδιαφάνεια και ομάδες πλήκτρων.</item>
+        <item>Το χειριστήριό σας εμφανίζεται ως χειριστήριο Xbox 360. Διαφορετικά, χρησιμοποιήστε τα χειριστήρια οθόνης.</item>
+        <item>Το μενού συνεδρίας έχει διακόπτη μικροφώνου και κουμπί Αναστολή τώρα για να παγώνετε τη συνεδρία όποτε θέλετε.</item>
+        <item>Αντιμετωπίσατε σφάλμα; Η Κοινή χρήση αρχείων καταγραφής στο μενού συνεδρίας συγκεντρώνει διαγνωστικά. Αναρτήστε τα στο #bug-reports στο Discord.</item>
     </string-array>
     <string name="session_channel">Συνεδρία</string>
     <string name="session_channel_description">Εμφανίζεται όσο μια συνεδρία Steam ή επιφάνειας εργασίας είναι ανοιχτή</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Πινακίδα αφής</string>
     <string name="mode_touch_direct">Απευθείας</string>
     <string name="mode_touch_note">Αυτόματο: πινακίδα αφής στην Επιφάνεια εργασίας, απευθείας στο Steam.</string>
+    <string name="mode_pen">Γραφίδα</string>
+    <string name="mode_pen_mouse">Ποντίκι</string>
+    <string name="mode_pen_touch">Αφή</string>
+    <string name="mode_pen_button">Πλαϊνό κουμπί</string>
     <string name="mode_osc">Χειριστήρια στην οθόνη</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Το Αυτόματο εμφανίζει τα χειριστήρια όταν δεν είναι συνδεδεμένο χειριστήριο.</string>
@@ -604,6 +628,8 @@
     <string name="perf_cap_off">Ανενεργό</string>
     <string name="perf_cap_auto">Προεπιλογή προγράμματος οδήγησης</string>
     <string name="perf_zram_client">Συμπίεση του Steam όσο τρέχει παιχνίδι</string>
+    <string name="perf_zram_idle">Συμπίεση ανενεργής μνήμης παιχνιδιού</string>
+    <string name="perf_zram_idle_hint">Σελιδοποιεί την ανενεργή μνήμη του παιχνιδιού όταν η RAM είναι χαμηλή. Απενεργοποιήστε το αν τα παιχνίδια παγώνουν για λίγα δευτερόλεπτα περίπου κάθε μισό λεπτό. Ισχύει από την επόμενη έναρξη της συνεδρίας.</string>
     <string name="perf_zram_client_hint">20 s μετά την εκκίνηση ενός παιχνιδιού, ο πελάτης Steam συμπιέζεται στη zRAM για να μείνει περισσότερη μνήμη στο παιχνίδι, και διαβάζεται πίσω όταν το παιχνίδι κλείσει. Απενεργοποιήστε το αν η συνεδρία κλείνει λίγο μετά την εκκίνηση παιχνιδιών. Ένα όριο RAM παραπάνω εξακολουθεί να συμπιέζει το Steam όταν η συνεδρία το ξεπεράσει.</string>
     <string name="perf_ram_cap">Όριο RAM</string>
     <string name="perf_ram_cap_hint">Ισχύει όσο τρέχει ο πελάτης Steam, σε λειτουργία Steam ή από την επιφάνεια εργασίας. Όταν η συνεδρία χρησιμοποιεί περισσότερη, το Steam και έπειτα οι άλλες υποστηριζόμενες διεργασίες της συνεδρίας συμπιέζονται στη zRAM. Ήπιο όριο: τίποτα δεν κλείνει, αλλά τα παιχνίδια μπορεί να κολλάνε όσο επιστρέφουν οι σελίδες.</string>
@@ -614,7 +640,7 @@
     <string name="perf_gpuclock_hint">Μόνο Adreno. Λιγότερα κολλήματα, μεγαλύτερη χρήση μπαταρίας και θερμότητα.</string>
     <string name="perf_fixes">Διορθώσεις συνεδρίας</string>
     <string name="perf_sysmem">Turnip: απόδοση sysmem</string>
-    <string name="perf_sysmem_hint">Ταχύτερο για το πρόγραμμα-πελάτη Steam· στα παιχνίδια ο οδηγός επιλέγει σε κάθε πέρασμα απόδοση με πλακίδια ή στη μνήμη συστήματος. Απαιτείται σε Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Ισχύει για το πρόγραμμα-πελάτη Steam και τα παιχνίδια. Απαιτείται σε Adreno 710/720/722.</string>
     <string name="perf_xalia">Παράβλεψη του βοηθού xalia του Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Ένα υποκατάστατο σε επίπεδο χρήστη για το πρόγραμμα οδήγησης ntsync του Linux. Όσο είναι ενεργό, το Proton το χρησιμοποιεί αντί για το droiddeck-esync και το droiddeck-fsync. Λειτουργεί με Proton Experimental ARM64, GE-Proton και proton-cachyos. Εφαρμόζεται στην επόμενη συνεδρία.</string>
@@ -649,6 +675,8 @@
     <string name="drawer_page_display">Οθόνη</string>
     <string name="drawer_frame_limit">Όριο καρέ</string>
     <string name="drawer_frame_limit_note">Περιορίζει αυτό το παιχνίδι. Η οθόνη αλλάζει σε ρυθμό ανανέωσης που διαιρείται ακριβώς με το όριο, αν υπάρχει· άλλα όρια μπορεί να φαίνονται ανομοιόμορφα. Τα παιχνίδια Steam χρησιμοποιούν το Frame Limit του Steam στο μενού Quick Access.</string>
+    <string name="drawer_bfi">Εισαγωγή μαύρων καρέ</string>
+    <string name="drawer_bfi_note">Πιο καθαρή κίνηση: κάθε καρέ ακολουθείται από μαύρη ανανέωση. Απαιτεί 100 Hz ή περισσότερα· το παιχνίδι τρέχει στον μισό ρυθμό ανανέωσης και φαίνεται πιο σκοτεινό. Ανενεργό όσο λειτουργεί η δημιουργία καρέ.</string>
     <string name="drawer_page_effects">Εφέ</string>
     <string name="drawer_page_controls">Χειριστήρια</string>
     <string name="drawer_page_components">Στοιχεία</string>
@@ -682,7 +710,10 @@
     <string name="hud_size_mega">Μέγα</string>
     <string name="hud_size_strip">Λωρίδα</string>
     <string name="hud_locked">Κλείδωμα θέσης</string>
-    <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε· ένα παρατεταμένο πάτημα το κλειδώνει ή το ξεκλειδώνει. Όσο είναι κλειδωμένο, τα χειριστήρια οθόνης από κάτω του εξακολουθούν να λειτουργούν.</string>
+    <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε. Όσο είναι κλειδωμένο, τα χειριστήρια οθόνης από κάτω του εξακολουθούν να λειτουργούν.</string>
+    <string name="hud_hold">Παρατεταμένο πάτημα</string>
+    <string name="hud_hold_collapse">Σύμπτυξη ή ανάπτυξη</string>
+    <string name="hud_hold_lock">Κλείδωμα ή ξεκλείδωμα</string>
     <string name="hud_snap">Προσκόλληση στα πλάγια</string>
     <string name="hud_snap_hint">Αφήστε το HUD και μετακινείται στην πιο κοντινή πλευρά της οθόνης. Μια γρήγορη κίνηση το πετάει προς εκείνη την κατεύθυνση.</string>
     <string name="hud_group_look">Εμφάνιση</string>
@@ -1117,7 +1148,7 @@
     <string name="lab_off_title">Η έκδοση Lab απενεργοποιήθηκε</string>
     <string name="lab_off_other_install">Δημιουργήθηκε για άλλη έκδοση του DroidDeck. Διατηρείται στις Ενημερώσεις.</string>
     <string name="lab_off_did_not_start">Το DroidDeck δεν ξεκίνησε με αυτό δύο φορές</string>
-    <string name="rail_agent">Πράκτορας</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Πράκτορας</string>
     <string name="agent_working">Ο πράκτορας εργάζεται</string>
     <string name="agent_missing">Εγκατέστησε το Claude Code στο περιβάλλον χρήστη του Linux για να χρησιμοποιήσεις τον πράκτορα.</string>
@@ -1157,6 +1188,7 @@
     <string name="agent_hint_working">Γράψτε για να προσθέσετε το επόμενο μήνυμα στην ουρά</string>
     <string name="agent_queue">Στην ουρά</string>
     <string name="agent_queued">Επόμενο: %1$s</string>
+    <string name="agent_tools_missing">Τα εργαλεία του πράκτορα δεν εγκαταστάθηκαν: %1$s</string>
     <string name="agent_unqueue">Να μην σταλεί</string>
     <string name="agent_attach">Επισύναψη</string>
     <string name="agent_remove_attachment">Αφαίρεση</string>
@@ -1561,7 +1593,6 @@
     <string name="game_file_folder">Επιλέξτε φάκελο για τα αρχεία παιχνιδιού της διεπαφής</string>
     <string name="game_file_exported">Τα αρχεία παιχνιδιού αποθηκεύτηκαν στο %1$s</string>
     <string name="game_frontend_files">Αρχεία διεπαφής</string>
-
     <string name="main_wait_runtime">Περιμένετε να ολοκληρωθεί η λειτουργία του runtime</string>
     <string name="main_wait_proton_install">Περιμένετε να ολοκληρωθεί η εγκατάσταση του εργαλείου συμβατότητας</string>
     <string name="load_compat_title">Προετοιμασία εργαλείων συμβατότητας</string>
@@ -1647,7 +1678,6 @@
     <string name="main_removing_runtime">Κατάργηση του Linux runtime</string>
     <string name="main_settings_main_screen">Δεν ήταν δυνατό το άνοιγμα των Ρυθμίσεων στην κάτω οθόνη· άνοιξαν στην κύρια οθόνη.</string>
     <string name="main_open_dev_options">Άνοιγμα Επιλογών προγραμματιστή στις Ρυθμίσεις</string>
-
     <string name="upd_unknown_apps_failed">Δεν ήταν δυνατό το άνοιγμα της ρύθμισης του Android «Εγκατάσταση άγνωστων εφαρμογών»</string>
     <string name="upd_couldnt_check">Δεν ήταν δυνατός ο έλεγχος: %1$s</string>
     <string name="upd_no_download">Αυτή η έκδοση δεν έχει λήψη για αυτό το αντίγραφο του DroidDeck</string>
@@ -1657,12 +1687,10 @@
     <string name="upd_stage_confirm">Περιμένει να επιβεβαιώσετε</string>
     <string name="upd_failed">Η ενημέρωση απέτυχε</string>
     <string name="upd_not_offered">Το Android δεν πρότεινε την εγκατάσταση της ενημέρωσης</string>
-
     <string name="decky_install_failed">Η εγκατάσταση του Decky απέτυχε: %1$s</string>
     <string name="decky_plugin_starting">Έναρξη εισαγωγής προσθέτου…</string>
     <string name="decky_plugin_failed">Η εισαγωγή προσθέτου απέτυχε: %1$s</string>
     <string name="decky_plugin_installed">Το πρόσθετο εγκαταστάθηκε. Κάντε επανεκκίνηση του Steam για να φορτωθεί.</string>
-
     <string name="drivers_not_checked">Δεν έχει ελεγχθεί ακόμα - πατήστε ανανέωση για αναζήτηση νέων προγραμμάτων οδήγησης</string>
     <string name="drivers_bundle_sets_display">Android + Linux: ορίζει το πρόγραμμα οδήγησης οθόνης μαζί με αυτό</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: ορίζει το πρόγραμμα οδήγησης runtime μαζί με αυτό</string>
@@ -1715,7 +1743,6 @@
     <string name="drivers_check_failed">ο έλεγχος απέτυχε</string>
     <string name="drivers_installed_pick_either">Εγκατεστημένο %1$s - επιλέξτε το σε οποιαδήποτε λίστα για να ορίσετε και τα δύο προγράμματα οδήγησης</string>
     <string name="drivers_installed_pick">Εγκατεστημένο %1$s - επιλέξτε το στο μενού</string>
-
     <string name="session_wait_removal">Περιμένετε να ολοκληρωθεί η κατάργηση του runtime</string>
     <string name="session_title_game">Παιχνίδι</string>
     <string name="session_touch_auto_touchpad">πινακίδα αφής</string>
@@ -1761,7 +1788,6 @@
         <item quantity="one">Το αρχείο καταγραφής δείχνει %1$d σφάλμα «Function not implemented»: η επιτάχυνση seccomp του proot αποτυγχάνει σε έναν βοηθητικό μηχανισμό σε αυτή τη συσκευή. Δοκιμάστε %2$s → «%3$s» (ή «%4$s») και ξεκινήστε ξανά.</item>
         <item quantity="other">Το αρχείο καταγραφής δείχνει %1$d σφάλματα «Function not implemented»: η επιτάχυνση seccomp του proot αποτυγχάνει σε έναν βοηθητικό μηχανισμό σε αυτή τη συσκευή. Δοκιμάστε %2$s → «%3$s» (ή «%4$s») και ξεκινήστε ξανά.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Πρόσθετα</string>
     <string name="mode_decky_plugins_hint">Εγκαταστήστε ένα ZIP προσθέτου για την επόμενη συνεδρία Steam.</string>
     <string name="mode_decky_plugin_downloading">Γίνεται λήψη…</string>
@@ -1834,6 +1860,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Καθαρισμός</string>
     <string name="game_sync_err_runtime">Εγκαταστήστε πρώτα το runtime</string>
     <string name="game_sync_err_steam_library">Η βιβλιοθήκη Steam δεν είναι διαθέσιμη</string>
     <string name="game_sync_err_previous_sd">Η προηγούμενη βιβλιοθήκη SD δεν είναι διαθέσιμη</string>
@@ -2117,7 +2144,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Η θύρα %1$d λαμβάνει δεδομένα (%2$d πακέτα των %3$d byte), αλλά σε μορφή που αυτή η σελίδα δεν μπορεί ακόμα να διαβάσει.</string>
     <string name="bottom_telemetry_port_busy">Ένα άλλο πρόγραμμα χρησιμοποιεί ήδη τη θύρα %1$s, οπότε αυτό το παιχνίδι δεν μπορεί να εμφανιστεί εδώ.</string>
-
     <string name="rtinst_removing">Κατάργηση του Linux runtime</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Κατάργηση του Linux runtime · %1$d εγγραφή</item>
@@ -2132,7 +2158,6 @@
     <string name="rtinst_channel_description">Εμφανίζεται όσο το Linux runtime εγκαθίσταται ή καταργείται</string>
     <string name="rtinst_title_installing">Εγκατάσταση του Linux runtime</string>
     <string name="rtinst_title_removing">Κατάργηση του Linux runtime</string>
-
     <string name="deskpkg_runtime_missing">Το Linux runtime δεν είναι εγκατεστημένο</string>
     <string name="deskpkg_no_checksum">Ο κατάλογος δεν έχει checksum για το %1$s</string>
     <string name="deskpkg_checksum_mismatch">Αναντιστοιχία checksum - τίποτα δεν άλλαξε</string>
@@ -2140,7 +2165,6 @@
     <string name="deskpkg_place_failed">Δεν ήταν δυνατή η τοποθέτηση του AppImage</string>
     <string name="deskpkg_extract_failed">Η εξαγωγή απέτυχε</string>
     <string name="deskpkg_install_failed">Η εγκατάσταση απέτυχε</string>
-
     <string name="flatpakmgr_setup_failed">Η ρύθμιση του Flatpak απέτυχε (έξοδος %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Η ρύθμιση του Flatpak δεν ολοκληρώθηκε</string>
     <string name="flatpakmgr_busy">Μια άλλη εργασία καταστήματος εκτελείται ήδη</string>
@@ -2159,7 +2183,6 @@
     <string name="flatpakmgr_ref_media_codecs">codecs πολυμέσων</string>
     <string name="flatpakmgr_ref_runtime">runtime %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">runtime %1$s %2$s</string>
-
     <string name="appimg_too_small">Το αρχείο είναι πολύ μικρό για να είναι AppImage</string>
     <string name="appimg_unreadable">Το αρχείο δεν μπορεί να αναγνωστεί: %1$s</string>
     <string name="appimg_not_linux">Αυτό δεν είναι AppImage (δεν είναι πρόγραμμα Linux)</string>
@@ -2174,7 +2197,6 @@
     <string name="appimg_extracting">Εξαγωγή %1$s</string>
     <string name="appimg_extract_failed">Δεν ήταν δυνατή η εξαγωγή του AppImage</string>
     <string name="appimg_extract_failed_detail">Δεν ήταν δυνατή η εξαγωγή του AppImage: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Διακόψτε την ενεργή συνεδρία πριν εγκαταστήσετε το Decky Loader</string>
     <string name="deckymgr_download_failed">Η λήψη του Decky Loader απέτυχε</string>
     <string name="deckymgr_size_mismatch">Το μέγεθος του Decky Loader δεν ταίριαζε με τα μεταδεδομένα της κυκλοφορίας</string>
@@ -2223,13 +2245,11 @@
     <string name="deckymgr_activate_failed">Δεν ήταν δυνατή η ενεργοποίηση του εισαγόμενου προσθέτου</string>
     <string name="deckymgr_settings_failed">Δεν ήταν δυνατή η ενημέρωση των ρυθμίσεων προσθέτων Decky</string>
     <string name="deckymgr_restore_failed">Δεν ήταν δυνατή η επαναφορά του υπάρχοντος προσθέτου</string>
-
     <string name="adbfix_save_failed">Δεν ήταν δυνατή η αποθήκευση της ταυτότητας ασύρματου εντοπισμού σφαλμάτων</string>
     <string name="adbfix_command_failed">Η εντολή ADB απέτυχε (%1$d)</string>
     <string name="adbfix_not_confirmed">Το Android δεν επιβεβαίωσε ότι το όριο θυγατρικών διαδικασιών άλλαξε: %1$s</string>
     <string name="adbfix_no_pairing">Δεν υπάρχει αποθηκευμένη σύζευξη ασύρματου εντοπισμού σφαλμάτων</string>
     <string name="adbfix_enter_address">Εισαγάγετε την τρέχουσα διεύθυνση IP &amp; θύρα του ασύρματου εντοπισμού σφαλμάτων</string>
-
     <string name="adbpair_timed_out">Λήξη χρόνου αναμονής για το αναδυόμενο παράθυρο σύζευξης. Δοκιμάστε ξανά από το DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Δεν ήταν δυνατή η αναζήτηση του αναδυόμενου παραθύρου σύζευξης (%1$d). Ελέγξτε ότι το Wi-Fi είναι ενεργό.</string>
     <string name="adbpair_discovery_failed">Δεν ήταν δυνατή η αναζήτηση του αναδυόμενου παραθύρου σύζευξης: %1$s</string>
@@ -2255,7 +2275,6 @@
     <string name="adbpair_title_done">Το Steam είναι έτοιμο</string>
     <string name="adbpair_done_text">Πατήστε για να επιστρέψετε στο DroidDeck. Μπορείτε να απενεργοποιήσετε τον ασύρματο εντοπισμό σφαλμάτων τώρα.</string>
     <string name="adbpair_title_failed">Η ρύθμιση ασύρματου εντοπισμού σφαλμάτων διακόπηκε</string>
-
     <string name="selfinst_download_failed">Η λήψη απέτυχε</string>
     <string name="selfinst_size_mismatch">Το μέγεθος της λήψης δεν ταίριαζε με το δημοσιευμένο APK και απορρίφθηκε - δοκιμάστε ξανά</string>
     <string name="selfinst_checksum_mismatch">Η λήψη δεν ταίριαζε με το άθροισμα ελέγχου της και απορρίφθηκε - δοκιμάστε ξανά</string>
@@ -2268,13 +2287,11 @@
     <string name="selfinst_no_signing">Το ληφθέν APK δεν έχει πληροφορίες υπογραφής</string>
     <string name="selfinst_wrong_signer">Το ληφθέν APK δεν είναι υπογεγραμμένο με το κλειδί κυκλοφορίας του DroidDeck</string>
     <string name="appupd_http">Ο κατάλογος ενημερώσεων απάντησε με HTTP %1$d</string>
-
     <string name="loadstate_starting">Εκκίνηση της συνεδρίας…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d πέρασαν · ακόμα σε εξέλιξη</string>
     <string name="loadstate_steam_update">Λήψη της ενημέρωσης του πελάτη Steam · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Εφαρμογή της ενημέρωσης του πελάτη Steam…</string>
     <string name="loadstate_steam_client">Λήψη του πελάτη Steam · %1$s</string>
-
     <string name="pextra_busy">Μια εγκατάσταση εργαλείου συμβατότητας εκτελείται ήδη</string>
     <string name="pextra_stop_session">Διακόψτε την ενεργή συνεδρία πριν εγκαταστήσετε εργαλεία συμβατότητας</string>
     <string name="pextra_no_release">Δεν βρέθηκε κυκλοφορία ARM64 για το %1$s</string>
@@ -2294,7 +2311,6 @@
     <string name="pextra_install_failed">Η εγκατάσταση του %1$s απέτυχε (έξοδος %2$d)</string>
     <string name="pextra_could_not_install">Δεν ήταν δυνατή η εγκατάσταση του %1$s</string>
     <string name="esync_fetching">Λήψη πακέτου droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">με βοηθητικά Linux</string>
     <string name="cmgr_fex_dlls_only">Μόνο DLL</string>
     <string name="cmgr_original_proton_updated">Αρχικό (το Proton ενημερώθηκε από την τελευταία εναλλαγή)</string>
@@ -2317,13 +2333,11 @@
     <string name="cmgr_nightly_replaced">Η λήψη απέτυχε: αυτή η νυχτερινή έκδοση ίσως αντικαταστάθηκε από νεότερη. Ανανεώστε τη λίστα και δοκιμάστε ξανά.</string>
     <string name="cmgr_list_predates_checksums">Αυτή η λίστα πακέτων προηγείται των αθροισμάτων ελέγχου - ανανεώστε την και δοκιμάστε ξανά</string>
     <string name="cmgr_checksum_mismatch">Αναντιστοιχία αθροίσματος ελέγχου</string>
-
     <string name="sprefs_upscaler_linear">Γραμμικό</string>
     <string name="sprefs_upscaler_nearest">Πλησιέστερο</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (ποιότητα)</string>
     <string name="sprefs_upscaler_sharpen">Μόνο όξυνση</string>
     <string name="sprefs_lod_bias_auto">Αυτόματο (αντιστοιχία κλιμάκωσης)</string>
-
     <string name="look_off_desc">Δεν εφαρμόζεται τίποτα.</string>
     <string name="look_game_clarity">Σαφήνεια παιχνιδιού</string>
     <string name="look_game_clarity_desc">Όξυνση με μια πινελιά αντίθεσης - το καθημερινό.</string>
@@ -2347,7 +2361,6 @@
     <string name="look_pixel_clean_desc">Ευκρινή pixel για 2D και παλιά παιχνίδια.</string>
     <string name="look_anime_edge">Περίγραμμα Anime</string>
     <string name="look_anime_edge_desc">Περιγράμματα τύπου toon συν όξυνση.</string>
-
     <string name="gpuinfo_not_adreno">Δεν είναι GPU Adreno</string>
     <string name="gpuinfo_powervr">Πρόγραμμα οδήγησης PowerVR του συστήματος: η συμβατότητα διαφέρει ανά συσκευή</string>
     <string name="gpuinfo_xclipse">Πειραματικό: RADV ή το πρόγραμμα οδήγησης Xclipse του συστήματος</string>
@@ -2372,7 +2385,6 @@
     <string name="gpuinfo_unsupported">Δεν υποστηρίζεται: δεν υπάρχει συμβατό υποσύστημα γραφικών για αυτήν την GPU</string>
     <string name="gpuinfo_bridge">Λειτουργεί μέσω της γέφυρας Mali, πάνω στον ενσωματωμένο οδηγό Vulkan του τηλεφώνου</string>
     <string name="gpuinfo_bridge_off">Δεν υποστηρίζεται με τη γέφυρα Mali απενεργοποιημένη: το Turnip χρειάζεται GPU Adreno (Snapdragon)</string>
-
     <string name="turnip_rate_limited">Το όριο ρυθμού του GitHub ξεπεράστηκε - δοκιμάστε ξανά αργότερα</string>
     <string name="turnip_github_http">Το GitHub απάντησε με HTTP %1$d</string>
     <string name="turnip_download_failed">Η λήψη απέτυχε</string>
@@ -2393,16 +2405,12 @@
     <string name="bundle_no_manifest">Δεν είναι πακέτο προγραμμάτων οδήγησης: δεν υπάρχει manifest.json που να ονομάζει πρόγραμμα οδήγησης android και linux</string>
     <string name="bundle_entry_outside">Δεν είναι πακέτο προγραμμάτων οδήγησης: το %1$s δείχνει έξω από αυτό</string>
     <string name="bundle_too_large">Δεν είναι πακέτο προγραμμάτων οδήγησης: αποσυμπιέζεται σε περισσότερα από %1$d MB</string>
-
     <string name="gstore_sd_card">Κάρτα SD</string>
     <string name="gstore_folder">Φάκελος</string>
-
     <string name="logshare_chooser">Κοινοποίηση αρχείων καταγραφής συνεδρίας</string>
-
     <string name="hdr_needs_android_10">απαιτεί Android 10 ή νεότερο (επίπεδα οθόνης με χρωματικό χώρο)</string>
     <string name="hdr_none">αυτή η οθόνη δεν αναφέρει υποστήριξη HDR</string>
     <string name="hdr_not_hdr10">αυτή η οθόνη υποστηρίζει %1$s, όχι HDR10</string>
-
     <string name="gpu_this_gpu">αυτό το GPU</string>
     <string name="phantom_title_on">Το όριο θυγατρικών διαδικασιών είναι ενεργό</string>
     <string name="phantom_title_unset">Το όριο θυγατρικών διαδικασιών δεν έχει οριστεί</string>
@@ -2476,7 +2484,6 @@
     <string name="device_info_copied">Αντιγράφηκε.</string>
     <string name="force_ssbs_title">Εξαναγκασμός SSBS</string>
     <string name="force_ssbs_hint">Διατηρεί μια ρύθμιση ταχύτητας CPU που το Wine απενεργοποιεί συνεχώς. Μπορεί να κάνει τα παιχνίδια Windows πιο γρήγορα σε Snapdragon 8 Elite· μικρή διαφορά σε παλαιότερα chip. Ισχύει από την επόμενη εκκίνηση παιχνιδιού.</string>
-
     <string name="rail_stores">Καταστήματα</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Προσαρμοσμένο</string>
@@ -2962,7 +2969,6 @@
     <string name="touch_icon_color">Χρώμα εικονιδίου</string>
     <string name="touch_button_color">Χρώμα κουμπιού</string>
     <string name="touch_no_icon">Χωρίς εικονίδιο</string>
-
     <string name="stores_sync_sign_in">Έλεγχος σύνδεσης…</string>
     <string name="stores_sync_library">Λήψη της βιβλιοθήκης σας…</string>
     <string name="stores_sync_game_list">Λήψη λίστας παιχνιδιών…</string>
@@ -3380,6 +3386,7 @@
     <string name="boot_movie_sound">Ήχος</string>
     <string name="boot_movie_skip">Παράλειψη ταινίας εκκίνησης</string>
     <string name="boot_movie_skip_hint">Χρησιμοποιεί ένα μαύρο κλιπ 0,1 δευτερολέπτου ως ταινία εκκίνησης του Steam. Εφαρμόζεται στην επόμενη συνεδρία.</string>
+    <string name="boot_movie_shuffle">Τυχαία σειρά</string>
     <string name="boot_movie_custom">Δικό σας βίντεο</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV ή WebM. Άλλες μορφές και αρχεία πάνω από %1$d MB μετατρέπονται στη συσκευή σε WebM 720p, έως %2$d δευτερόλεπτα.</string>
     <string name="boot_movie_import">Εισαγωγή</string>
@@ -3837,8 +3844,6 @@
     <string name="integration_shortcuts_hint">Τα Alt+Tab, Win και Αρχική μένουν στη συνεδρία</string>
     <string name="integration_shortcuts_maybe_restricted">Γκρίζο στο Android; Πληροφορίες εφαρμογής → ⋮ → Να επιτρέπονται οι περιορισμένες ρυθμίσεις</string>
     <string name="integration_shortcuts_restricted">Αποκλείεται από το Android · Πληροφορίες εφαρμογής → ⋮ → Να επιτρέπονται οι περιορισμένες ρυθμίσεις</string>
-    <string name="integration_shortcuts_service">Πλήκτρα συστήματος DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Διατηρεί τα Alt+Tab, το πλήκτρο Win και το κουμπί Αρχικής στην ενεργή συνεδρία DroidDeck αντί για το Android.</string>
     <string name="integration_brightness_needed">Ενεργοποιήστε τη Φωτεινότητα στη Ρύθμιση → Ενσωμάτωση Steam</string>
     <string name="setup_gpu_bridge_off">Γέφυρα Mali: ανενεργή</string>
     <string name="setup_gpu_bridge_unusable">Το %1$s δεν μπορεί να χρησιμοποιήσει τη γέφυρα Mali (χρειάζεται GPU Mali χωρίς διαδρομή οδηγού συστήματος), επομένως αυτός ο διακόπτης δεν έχει καμία επίδραση εδώ.</string>
@@ -3999,10 +4004,9 @@
     <string name="input_reset_positions">Επαναφορά θέσεων</string>
     <string name="input_show_label">Εμφάνιση ετικέτας</string>
     <string name="input_layout_import_failed">Δεν ήταν δυνατή η εισαγωγή αυτής της διάταξης</string>
-
+    <string name="epic_third_party_managed">Εγκαθίσταται μέσω %1$s</string>
     <string name="theme_white_red">Κατακόκκινο χιόνι</string>
     <string name="theme_white_red_detail">Λευκές επιφάνειες με κόκκινες λεπτομέρειες.</string>
-    
     <string name="rail_soundtracks">Soundtrack</string>
     <string name="rail_music">Μουσική</string>
     <string name="soundtracks_options">Επιλογές αναπαραγωγής</string>
@@ -4078,4 +4082,10 @@
     <string name="hud_metric_hdr">Κατάσταση HDR</string>
     <string name="hud_readings_shown">Εμφανίζονται</string>
     <string name="hud_readings_count">%1$d από %2$d</string>
+    <string name="exit_hint_back">Πατήστε ξανά πίσω για έξοδο</string>
+    <string name="display_integer_scaling">Ακέραια κλιμάκωση</string>
+    <string name="display_integer_scaling_hint">Χρησιμοποιεί τη μεγαλύτερη ακέραια κλίμακα που χωράει. Ενδέχεται να περικοπούν οι άκρες. Αν η πηγή είναι μεγαλύτερη από την έξοδο, η κλασματική κλιμάκωση εμφανίζει ολόκληρη την εικόνα. Η ανάλυση ρυθμίζεται ξεχωριστά.</string>
+    <string name="display_scaling_integer">Ακέραιος</string>
+    <string name="display_scaling_fit">Προσαρμογή</string>
+    <string name="drawer_antialiasing">Εξομάλυνση ακμών</string>
 </resources>
