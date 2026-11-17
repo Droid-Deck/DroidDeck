@@ -146,17 +146,25 @@ fi
 name=${EXE##*/}
 comm=$(echo "$name" | cut -c1-15)
 game_pids() { grep -lx "$comm" /proc/[0-9]*/comm 2>/dev/null | cut -d/ -f3; }
-wine_ explorer /desktop=Default,${BL_WIDTH:-1280}x${BL_HEIGHT:-720} "$name" "$@" &
+# The game's windows go straight to gamescope's X server, as with DroidDeck-Proton (no Wine desktop): the game
+# sees gamescope's real modes and refresh rate, and gamescope manages its windows.
+wine_ "$EXE" "$@" &
 WP=$!
 # Steam's overlay library marks a game's windows with the app ID Steam tracks (STEAM_GAME); that library is
-# glibc-only, so tag Wine's desktop window from outside, or gamescope never shows it.
-[ "${SteamAppId:-0}" != 0 ] && "$LINKER" "$PACK/bin/gstag" 0 "$SteamAppId" explorer.exe 86400 $WP > "$COMPAT/gstag.log" 2>&1 &
-trap 'echo "$(date +%H:%M:%S) stopped by Steam"; stop_wine; exit 0' TERM INT HUP
+# glibc-only, so this prefix's windows (WM_CLASS = the Windows program name) are tagged from outside, or gamescope
+# never shows them.
+GT=
+if [ "${SteamAppId:-0}" != 0 ]; then
+  "$LINKER" "$PACK/bin/gstag" 0 "$SteamAppId" .exe 86400 > "$COMPAT/gstag.log" 2>&1 &
+  GT=$!
+fi
+trap 'echo "$(date +%H:%M:%S) stopped by Steam"; [ -n "$GT" ] && kill $GT 2>/dev/null; stop_wine; exit 0' TERM INT HUP
 n=0
 while [ $n -lt 90 ] && [ -z "$(game_pids)" ]; do sleep 1; n=$((n + 1)); done
 echo "$(date +%H:%M:%S) game process $(game_pids | tr '\n' ' ')after ${n}s"
 while [ -n "$(game_pids)" ]; do sleep 2; done
 echo "$(date +%H:%M:%S) game exited"
+[ -n "$GT" ] && kill $GT 2>/dev/null
 stop_wine
 wait $WP
 echo "$(date +%H:%M:%S) done"

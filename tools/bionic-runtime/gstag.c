@@ -1,9 +1,10 @@
-// gstag: tags top-level X windows whose WM_CLASS contains <match> with
+// gstag: tags top-level X windows whose WM_CLASS contains <match> (any case) with
 // STEAM_GAME=<appid>, so gamescope treats a game started outside Steam's process tree
 // as the game (stand-in until a bionic winex11 sets STEAM_GAME itself).
 // Usage: gstag <display> <appid> <match> <seconds> [stop when this pid exits]
 // If gamescope still focuses another app 8 s after the tag, it sets GAMESCOPECTRL_BASELAYER_APPID once to
 // <appid>,769 (what Steam writes when it shows a game); Steam can change it again later (e.g. the Steam button).
+#define _GNU_SOURCE
 #include <errno.h>
 #include <signal.h>
 #include <stddef.h>
@@ -212,7 +213,7 @@ int main(int argc, char **argv) {
         for (int i = 0; i < npending; ) {
             char cls[512];
             uint32_t w = pending[i];
-            if (wm_class(w, cls, sizeof cls) && strstr(cls, match)) {
+            if (wm_class(w, cls, sizeof cls) && strcasestr(cls, match)) {
                 set_card(w, a_game, appid);
                 if (ntagged < 256) tagged[ntagged++] = w;
                 if (!tagged_at) tagged_at = time(NULL);

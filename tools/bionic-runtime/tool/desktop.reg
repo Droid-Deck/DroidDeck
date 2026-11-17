@@ -1,7 +1,7 @@
 Windows Registry Editor Version 5.00
 
-; Wine's desktop as a black screen behind games: background colour, and no shell/taskbar or tray on the
-; "Default" virtual desktop launch.sh starts.
+; Black instead of Wine's default colour, and no shell/taskbar or tray, if a game is run on a Wine desktop
+; (launch.sh itself runs games straight on gamescope).
 [HKEY_CURRENT_USER\Control Panel\Colors]
 "Background"="0 0 0"
 
