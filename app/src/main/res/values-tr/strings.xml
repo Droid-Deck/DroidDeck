@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">SteamVR grafikleri durdu</string>
     <string name="steamvr_recovery_countdown">DroidDeck, grafikleri sıfırlamak ve SteamVR\'ı yeniden açmak için %1$d saniye içinde yeniden başlayacak. Çalışan oyununuz kapanacak; kaydedilmemiş ilerleme geri yüklenemez.</string>
@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck otomatik olarak yeniden başlatılamadı. Uygulamayı tamamen kapatıp yeniden açın.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>İlk çalıştırmada Steam indirilir. Bu işlem birkaç dakika sürebilir.</item>
-        <item>Varsayılan olarak uygulamadan çıkınca Steam duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
+        <item>İlk çalıştırmada Steam indirilir. Bu birkaç dakika sürebilir.</item>
+        <item>Kumandan Steam\'e Steam Deck kumandası olarak görünür. Oturum ayarlarından Steam Controller, DualShock 4, DualSense veya Xbox 360 kumandasına geçebilirsin; bir sonraki oturumda geçerli olur.</item>
+        <item>Steam\'in Hızlı erişim menüsünü açmak için kumandada Geri\'yi basılı tut. Oturum ayarlarında "Steam kısayolları için Geri\'yi basılı tut" açık olmalı.</item>
+        <item>Arka plan davranışı, uygulamadan çıkınca ne olacağını belirler: Yerel Steam\'i uykuya hazırlar, Otomatik duraklatır, Manuel Devam et\'i bekler, Asla çalışmaya devam ettirir.</item>
+        <item>Steam oyunları Hızlı erişim\'deki Steam Kare sınırı ayarını kullanır. Sınırın tam bölündüğü bir yenileme hızı varsa ekran ona geçer.</item>
+        <item>Oturum menüsündeki Düşük gecikme modu, kumanda girişini 250 Hz yerine 1000 Hz ile gönderir; karşılığında biraz daha CPU ve pil harcar.</item>
+        <item>Her oyunun Proton, FEX, bileşenler ve ortam ayarlarını içeren kendi profili vardır.</item>
+        <item>Oturum menüsünde sesli sohbet için bir mikrofon düğmesi ve oturumu istediğin an dondurmak için Şimdi askıya al düğmesi bulunur.</item>
+        <item>DroidDeck HUD\'unu taşımak için sürükle, boyutlandırmak için iki parmakla yakınlaştır ve küçük bir FPS sekmesi olarak yuvalamak için kenara doğru it.</item>
+        <item>Çift ekranlı el konsollarında alt ekran indirmeleri, bildirimleri, ekran görüntülerini ve Steam sohbetini gösterebilir. Ekranları değiştir oyunu bunun yerine alta koyar.</item>
+        <item>SD karttan, USB sürücüden veya SSD\'den Steam kütüphaneleri ekle; DroidDeck oyunları Kütüphane\'nde bir arada tutar.</item>
+        <item>Mağazalar, Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ve Game Jolt\'ta oturum açmanı, ardından oyunlarını DroidDeck\'ten yüklemeni ve güncellemeni sağlar.</item>
+        <item>FEX, DXVK ve VKD3D-Proton gibi bileşenler kendini günceller; varsayılan Proton Experimental ARM64\'tür, Proton 11.0 ARM64 kurulduktan sonra ise o olur.</item>
+        <item>Oyun çalışırken Steam\'i sıkıştır, belleği az olan cihazlarda RAM boşaltır.</item>
+        <item>Oturum menüsünü açmak için sağ kenardan içeri kaydır: dokunmatik yüzey modu, PC klavyesi, düşük gecikme, oyun profili ve daha fazlası.</item>
+        <item>Oyun yavaş mı çalışıyor? Hızlı erişim\'de kare hızını sınırla, sonra oyunun bileşenlerinde başka bir Proton sürümü veya FEX ön ayarı dene.</item>
+        <item>Oyun sesinde cızırtı var ya da ses yok mu? Steam ayarlarında Ses altındaki Oyunlar için DirectAudio düğmesini dene.</item>
+        <item>Kurulum, ardından Depolama, kaldırdığın oyunlardan kalan gölgelendirici önbelleklerini ve artakalan önekleri temizleyebilir.</item>
+        <item>Bir hata mı buldun? Oturum menüsündeki Günlükleri paylaş tanılama bilgilerini paketler. Bunları Discord\'da #bug-reports kanalına gönder.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>İlk çalıştırmada masaüstü kurulur. Bu işlem birkaç dakika sürebilir.</item>
-        <item>Varsayılan olarak uygulamadan çıkınca oturum duraklatılır; geri döndüğünüzde kaldığı yerden devam eder.</item>
-        <item>Dokunma, dokunmatik yüzey gibi çalışır: işaretçiyi taşımak için sürükleyin, tıklamak için dokunun.</item>
-        <item>Kumandanız Xbox 360 kumandası olarak görünür. Kumanda yoksa ekran üstü kontrolleri kullanın.</item>
+        <item>İlk çalıştırmada masaüstü kurulur. Bu birkaç dakika sürebilir.</item>
+        <item>Dokunma, dokunmatik yüzey gibi çalışır: imleci taşımak için sürükle, tıklamak için dokun.</item>
+        <item>Arka plan davranışı, uygulamadan çıkınca ne olacağını belirler: Manuel varsayılan olarak Devam et\'i bekler, Otomatik duraklatır, Asla çalışmaya devam ettirir.</item>
+        <item>Oturum menüsünü açmak için sağ kenardan içeri kaydır, ardından Android klavyesini yok sayan uygulamalarda yazmak için PC klavyesi\'ni seç.</item>
+        <item>Oturum menüsündeki PC klavyesinin boyutu, opaklığı ve tuş grupları ayarlanabilir.</item>
+        <item>Kumandan Xbox 360 kumandası olarak görünür. Yoksa ekrandaki kontrolleri kullan.</item>
+        <item>Oturum menüsünde bir mikrofon düğmesi ve oturumu istediğin an dondurmak için Şimdi askıya al düğmesi bulunur.</item>
+        <item>Bir hata mı buldun? Oturum menüsündeki Günlükleri paylaş tanılama bilgilerini paketler. Bunları Discord\'da #bug-reports kanalına gönder.</item>
     </string-array>
     <string name="session_channel">Oturum</string>
     <string name="session_channel_description">Steam veya masaüstü oturumu açıkken gösterilir</string>
@@ -28,6 +48,8 @@
     <string name="suspend_now">Şimdi askıya al</string>
     <string name="stop_session">Oturumu durdur</string>
     <string name="frame_gen_title">Kare oluşturma</string>
+    <string name="frame_gen_scope_game">Bu oyunun ayarları</string>
+    <string name="frame_gen_scope_global">Varsayılan ayarlar</string>
     <string name="frame_gen_hint">Kare oluşturma modunu seçin</string>
     <string name="frame_gen_off">Kapalı</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -183,6 +205,7 @@
     <string name="session_powervr_missing">PowerVR grafik ortamı indirilemedi. Bağlantıyı kontrol edip tekrar deneyin.</string>
     <string name="session_directaudio_missing">DirectAudio indirilemedi, bu yüzden oyun sesi bu oturumda daha yavaş yolu kullanıyor.</string>
     <string name="session_end_program">Bu program</string>
+    <string name="session_end_present_fault">Oturum ekrana görüntü çizemedi: %1$s. Bu ekran, siyah bir ekran yerine nedenini gösteriyor; ayrıntılar oturum günlüklerinde.</string>
     <string name="session_end_steam_download">Steam istemcisi indirilemedi. Ağınız veya VPN\'iniz Steam sunucularını engelliyor olabilir; bağlantıyı kontrol edip yeniden deneyin.</string>
     <string name="session_end_steam_setup">Steam istemcisi kurulamadı. Bağlantınızı ve boş depolama alanını kontrol edip yeniden deneyin.</string>
     <string name="session_end_fex_missing">%1$s x86 PC\'ler için derlenmiş ve FEX ile çalışır, ancak FEX henüz yüklü değil. Oturum açmışken Steam\'i bir kez başlatıp FEX\'i ve Steam Linux Runtime\'ı indirmesini bekleyin, ardından bunu yeniden başlatın.</string>
@@ -266,6 +289,10 @@
     <string name="mode_touch_touchpad">Dokunmatik yüzey</string>
     <string name="mode_touch_direct">Doğrudan</string>
     <string name="mode_touch_note">Otomatik: Masaüstünde dokunmatik yüzey, Steam\'de doğrudan.</string>
+    <string name="mode_pen">Kalem</string>
+    <string name="mode_pen_mouse">Fare</string>
+    <string name="mode_pen_touch">Dokunma</string>
+    <string name="mode_pen_button">Yan düğme</string>
     <string name="mode_osc">Ekran üstü kontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatik, kumanda bağlı değilken kontrolleri gösterir.</string>
@@ -330,7 +357,7 @@
     <string name="mode_return_after_game">Oyundan sonra DroidDeck\'e dön</string>
     <string name="mode_return_after_game_hint">DroidDeck\'ten veya başka bir başlatıcıdan açtığınız oyun kapandığında Steam düzgünce kapanır (önce bulut kayıtları tamamlanır) ve oraya geri dönersiniz. Kapalı: Steam\'de kal.</string>
     <string name="mode_shader_precache">Gölgelendirici ön önbelleği</string>
-    <string name="mode_shader_precache_hint">Steam oyunlarınız için önceden derlenmiş gölgelendiricileri indirir ve arka planda işler, böylece oyunlar daha az takılır. Kapalıyken veri, depolama ve pil tasarrufu sağlanır; oyunlar gölgelendiricileri oynarken derler. Steam\'in İndirmeler > Gölgelendirici Ön Önbelleği ayarıyla aynıdır. Sonraki oturumda uygulanır.</string>
+    <string name="mode_shader_precache_hint">Steam oyunlarınız için önceden derlenmiş gölgelendiricileri indirir ve arka planda işler, böylece oyunlar daha az takılır. Kapalıyken veri, depolama ve pil tasarrufu sağlanır; oyunlar gölgelendiricileri oynarken derler. Steam\'in İndirmeler &gt; Gölgelendirici Ön Önbelleği ayarıyla aynıdır. Sonraki oturumda uygulanır.</string>
     <string name="mode_steam_repair">Steam istemcisini onar</string>
     <string name="mode_steam_repair_hint">Steam bir sonraki başlatıldığında Steam istemcisini yeniden indirir. Steam yükleme ekranında takılı kalırsa kullanın. Oyunlar, oturum bilgileri ve ayarlar korunur.</string>
     <string name="mode_steam_repair_queued">Steam istemcisi, Steam bir sonraki başlatıldığında yeniden indirilecek.</string>
@@ -385,6 +412,9 @@
     <string name="wincomp_unsupported">Burada henüz desteklenmiyor</string>
     <string name="wincomp_loading">Bileşenler yükleniyor…</string>
     <string name="wincomp_failed">Yüklenemedi: %1$s</string>
+    <string name="wincomp_repair_required">Bu indirme güncellenmeli.</string>
+    <string name="wincomp_repair_queued">Güncelleme sıraya alındı.</string>
+    <string name="wincomp_retry">Güncellemeyi yeniden dene</string>
     <string name="wincomp_downloaded">İndirildi</string>
     <string name="wincomp_downloading">%1$s indiriliyor</string>
     <string name="wincomp_installing">Yükleniyor: %1$s</string>
@@ -415,6 +445,22 @@
     <string name="mode_storage_internal">Yalnızca dahili</string>
     <string name="mode_storage_folder">Klasör: %1$s</string>
     <string name="mode_second_library">İkinci kütüphane</string>
+    <string name="libraries_title">Ek Steam kitaplıkları</string>
+    <string name="libraries_hint">Steam üzerinden oyun yüklenip oynatılabilen klasörler; her biri kendi adıyla listelenir. Birini kaldırmak oyunlarını diskte bırakır.</string>
+    <string name="libraries_add">Kitaplık ekle</string>
+    <string name="libraries_rename">Yeniden adlandır</string>
+    <string name="libraries_rename_title">Kitaplık adı</string>
+    <string name="libraries_pick">Kitaplık için bir klasör seçin</string>
+    <string name="libraries_full">En fazla %1$d kitaplık eklenebilir</string>
+    <string name="libraries_overlap">Bu klasör zaten bir kitaplık ya da bir kitaplığın içinde yer alıyor</string>
+    <string name="libraries_missing">%1$s · kullanılamıyor</string>
+    <string name="libraries_applies_next">Sonraki Steam oturumundan itibaren geçerli</string>
+    <string name="libraries_found_hint">Bu cihazda bulundu · %1$s · %2$s</string>
+    <string name="libraries_add_found">Ekle</string>
+    <string name="libraries_access_title">Dahili depolamadaki kitaplıkları bul</string>
+    <string name="libraries_access_hint">DroidDeck, diğer uygulamaların dahili depolamada sakladığı Steam kitaplıklarını görebilsin diye tüm dosyalara erişim izni verin.</string>
+    <string name="libraries_access_allow">İzin ver</string>
+    <string name="libraries_used_inner">%1$s eklendi: seçtiğiniz klasörün içindeki Steam kitaplığı</string>
     <string name="mode_storage_note">Varlıkları SD karttan veya paylaşılan depolamadan akışla yükleyen oyunlarda takılmalar olabilir.</string>
     <string name="mode_storage_diagnostics">Depolama tanılaması</string>
     <string name="mode_storage_diagnostics_hint">Ayırma sonuçlarını ve örneklenmiş depolama sürelerini “Günlükleri paylaş” çıktısına ekler. Açıkken yüklemeleri yavaşlatabilir. Sonraki oturumda uygulanır.</string>
@@ -478,6 +524,7 @@
     <string name="game_no_steam_on">Açık</string>
     <string name="game_steam_with">Steam ile başlar</string>
     <string name="game_steam_without">Steam olmadan başlar</string>
+    <string name="game_res_title">Oyun çözünürlüğü</string>
     <string name="game_settings_card">Ayarlar</string>
     <string name="game_settings_menu_title">%1$s Ayarları</string>
     <string name="game_settings_default">Varsayılan</string>
@@ -565,6 +612,8 @@
     <string name="perf_game_cores_group">Oyun çekirdekleri</string>
     <string name="perf_game_cores">Oyun çekirdekleri</string>
     <string name="perf_game_cores_hint">Oyunlar için çekirdekler. Tümü seçiliyse Android serbestçe zamanlar.</string>
+    <string name="perf_pace_cores">Kararlı oyunlarda güç tasarrufu</string>
+    <string name="perf_pace_cores_hint">Oyun kare hızını sabit tutarken onu yavaş çekirdeklerde çalıştırır, geride kalınca her zamanki çekirdeklerine geri döndürür.</string>
     <string name="perf_client_ui">İstemci arayüzü</string>
     <string name="perf_glthread">İş parçacıklı GL</string>
     <string name="perf_glthread_hint">Steam menülerinin daha hızlı tepki vermesini sağlayabilir.</string>
@@ -579,6 +628,8 @@
     <string name="perf_cap_off">Kapalı</string>
     <string name="perf_cap_auto">Sürücü varsayılanı</string>
     <string name="perf_zram_client">Oyun çalışırken Steam\'i sıkıştır</string>
+    <string name="perf_zram_idle">Oyunun boşta belleğini sıkıştır</string>
+    <string name="perf_zram_idle_hint">RAM azaldığında oyunun boşta belleğini sıkıştırır. Oyunlar yaklaşık her yarım dakikada birkaç saniye donuyorsa kapatın. Oturum bir sonraki başlatıldığında geçerli olur.</string>
     <string name="perf_zram_client_hint">Oyun başladıktan 20 sn sonra oyuna daha fazla bellek kalması için Steam istemcisi zRAM\'e sıkıştırılır ve oyun kapanınca geri okunur. Oyunlar başladıktan kısa süre sonra oturum kapanıyorsa bunu kapatın. Yukarıdaki RAM sınırı, oturum onu aştığında Steam\'i yine sıkıştırır.</string>
     <string name="perf_ram_cap">RAM sınırı</string>
     <string name="perf_ram_cap_hint">Steam istemcisi Steam oturumunda veya masaüstünden çalışırken uygulanır. Oturum bundan fazlasını kullandığında önce Steam, ardından oturumun desteklenen diğer işlemleri zRAM\'e sıkıştırılır. Yumuşak bir sınırdır: hiçbir şey kapatılmaz, ancak sayfalar geri yüklenirken oyunlar takılabilir.</string>
@@ -589,7 +640,7 @@
     <string name="perf_gpuclock_hint">Yalnızca Adreno. Daha az takılma, daha fazla pil tüketimi ve ısınma.</string>
     <string name="perf_fixes">Oturum düzeltmeleri</string>
     <string name="perf_sysmem">Turnip: sysmem işleme</string>
-    <string name="perf_sysmem_hint">Steam istemcisi için daha hızlı; oyunlarda sürücü her geçişte döşeme tabanlı veya sistem belleğinde işlemeyi seçer. Adreno 710/720/722\'de gereklidir.</string>
+    <string name="perf_sysmem_hint">Steam istemcisi ve oyunlar için geçerlidir. Adreno 710/720/722\'de gereklidir.</string>
     <string name="perf_xalia">Steam\'in xalia yardımcısını atla</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Linux ntsync sürücüsünün kullanıcı alanında çalışan bir yedeği. Açıkken Proton, droiddeck-esync ve droiddeck-fsync yerine bunu kullanır. Proton Experimental ARM64, GE-Proton ve proton-cachyos ile çalışır. Sonraki oturumda uygulanır.</string>
@@ -600,7 +651,10 @@
     <string name="perf_xalia_hint">Proton\'un her oyunda CPU harcayan kumandayla gezinme yardımcısını kapatır.</string>
     <string name="perf_seccomp">proot\'u seccomp olmadan çalıştır</string>
     <string name="perf_seccomp_hint">Bazı çekirdeklerde eksik sistem çağrısı hatalarını düzeltebilir. Performansı düşürebilir.</string>
+    <string name="perf_native_userland">proot olmadan çalıştır (deneysel)</string>
+    <string name="perf_native_userland_hint">Linux tarafını doğrudan Android üzerinde başlatır. Sonraki oturumda geçerli olur. Bir şey başlatılamazsa kapatın.</string>
     <string name="perf_fastpath">proot hızlı yolu</string>
+    <string name="perf_fastpath_needs_proot">proot olmadan kullanılmaz.</string>
     <string name="perf_fastpath_needs_seccomp">proot\'un seccomp filtresi gerekir.</string>
     <string name="perf_fastpath_hint">Daha hızlı dosya aramaları ve daha az takılma. Bir program dosyalarını bulamıyorsa kapatın.</string>
     <string name="perf_cursor_composite">İmleci gamescope içinde çiz</string>
@@ -621,6 +675,8 @@
     <string name="drawer_page_display">Ekran</string>
     <string name="drawer_frame_limit">Kare sınırı</string>
     <string name="drawer_frame_limit_note">Bu oyunu sınırlar. Ekran, varsa sınırın tam böldüğü bir yenileme hızına geçer; diğer sınırlar düzensiz görünebilir. Steam oyunları Hızlı erişim menüsündeki Steam\'in Kare Sınırı ayarını kullanır.</string>
+    <string name="drawer_bfi">Siyah kare ekleme</string>
+    <string name="drawer_bfi_note">Daha net hareket: her kareyi siyah bir yenileme izler. 100 Hz veya üzeri gerekir; oyun yenileme hızının yarısında çalışır ve daha koyu görünür. Kare üretimi açıkken kapalıdır.</string>
     <string name="drawer_page_effects">Efektler</string>
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Bileşenler</string>
@@ -654,7 +710,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Şerit</string>
     <string name="hud_locked">Yerinde kilitle</string>
-    <string name="hud_locked_hint">Taşımak için HUD\'u sürükleyin; uzun basmak onu kilitler veya kilidini açar. Kilitliyken altındaki ekran kontrolleri çalışmaya devam eder.</string>
+    <string name="hud_locked_hint">Taşımak için HUD\'u sürükleyin. Kilitliyken altındaki ekran kontrolleri çalışmaya devam eder.</string>
+    <string name="hud_hold">Uzun basma</string>
+    <string name="hud_hold_collapse">Daralt veya genişlet</string>
+    <string name="hud_hold_lock">Kilitle veya kilidini aç</string>
     <string name="hud_snap">Yanlara yapıştır</string>
     <string name="hud_snap_hint">HUD\'u bıraktığınızda ekranın daha yakın tarafına gider. Hızlı bir kaydırma onu o yöne fırlatır.</string>
     <string name="hud_group_look">Görünüm</string>
@@ -683,6 +742,7 @@
     <string name="hud_metric_vram">Grafik belleği</string>
     <string name="hud_metric_swap">Takas alanı</string>
     <string name="hud_metric_battery">Pil seviyesi</string>
+    <string name="hud_metric_battery_time">Kalan pil süresi</string>
     <string name="hud_metric_power">Güç tüketimi</string>
     <string name="hud_metric_network">Ağ</string>
     <string name="hud_metric_resolution">Çözünürlük</string>
@@ -809,6 +869,7 @@
     <string name="setup_gpu_supported">Cihaz destekleniyor</string>
     <string name="setup_gpu_untested">Test edilmemiş GPU</string>
     <string name="setup_gpu_unsupported">GPU desteklenmiyor</string>
+    <string name="setup_gpu_bridged">Mali köprüsü üzerinden GPU</string>
     <string name="setup_gpu_detail">%1$s · %2$s</string>
     <string name="setup_gpu_untested_detail">%1$s: %2$s</string>
     <string name="setup_gpu_unsupported_detail">%1$s için uyumlu bir grafik arka ucu yok. Steam siyah ekran gösterebilir.</string>
@@ -838,15 +899,38 @@
     <string name="setup_session">Oturum</string>
     <string name="setup_logs">Oturum günlükleri</string>
     <string name="setup_logs_hint">Her oturumdan sonra kaydedilir</string>
+    <string name="setup_enhanced_diagnostics">Sonraki oturum için gelişmiş tanılama</string>
+    <string name="setup_enhanced_diagnostics_hint">Bir oturum için ayrıntılı günlükler kaydeder. Performansı düşürebilir ve daha fazla depolama alanı kullanabilir. Oturum başladığında kendiliğinden kapanır; paylaşmadan önce günlükleri inceleyin.</string>
     <string name="setup_game_debug_logs">Oyun hata ayıklama günlükleri</string>
     <string name="setup_game_debug_logs_hint">Sonraki oyun başlatmada Proton, Wine ve grafik tanılamalarını ekler. Performansı düşürebilir ve daha fazla depolama kullanabilir.</string>
     <string name="setup_game_debug_logs_restart">Oyun hata ayıklama günlüklerini kaydetmek için bu oturumu yeniden başlatın</string>
     <string name="setup_logging_update_failed">Günlük kaydı güncellenemedi. Anahtarı kontrol edip tekrar deneyin.</string>
     <string name="setup_agent_commands">Hata ayıklama araçları</string>
+    <string name="setup_graphics_logs">Ayrıntılı grafik günlükleri</string>
+    <string name="setup_steam_gpu_drawing">Steam arayüzü: GPU ile çizim</string>
+    <string name="setup_steam_gpu_drawing_hint">Xclipse sürücü ikilisi kullanıldığında Steam, sayfalarını yazılımla çizer (GPU ile çizimde bozuk döşemeler görüldü). Bu telefonda düzgün görünüyorsa daha hızlı bir Steam arayüzü için açın.</string>
+    <string name="drivers_built_on">%1$s tarihinde derlendi</string>
+    <string name="drivers_pair_updated">%1$s en yeni derlemeye güncellendi</string>
+    <string name="setup_gpu_bridge_fell_back">Mali köprüsü son oturumda %1$s üzerinde kendi kendini testini geçemedi (görüntüler veya çizimler), bu nedenle oturum yerine PanVK sürücü çiftini kullandı.</string>
+    <string name="setup_gpu_bridge_no_memory_sharing">Mali köprüsü son oturumda %1$s üzerinde sürücüyle bellek paylaşmanın bir yolunu bulamadı, bu nedenle oturum yerine PanVK sürücü çiftini kullandı. Köprü bu telefonda çalışamaz; kapatmak PanVK çiftini korur.</string>
+    <string name="setup_graphics_logs_hint">Her oyunun Proton, DXVK ve sürücü günlükleri oturumun günlüklerinde yer alır. GPU bir Adreno değilse her zaman açıktır.</string>
     <string name="setup_latest_logs">Son oturum günlükleri</string>
     <string name="setup_saved_logs">Kayıtlı oturum günlükleri</string>
     <string name="setup_saved_logs_hint">En yeni %1$d tanesini saklar</string>
     <string name="setup_clear_logs">Günlükleri temizle</string>
+    <string name="setup_log_sessions">Kullanılabilir oturum günlükleri</string>
+    <string name="setup_log_empty">Henüz kaydedilmiş oturum günlüğü yok.</string>
+    <string name="setup_log_export_hint">Paylaşılan ve kaydedilen ZIP dosyaları, seçili oturumun yanı sıra ilgili Steam, mağaza, araç ve Battle.net tanılama verilerini içerir.</string>
+    <string name="setup_log_size_date">%1$s · %2$s</string>
+    <string name="setup_log_current">Geçerli oturum</string>
+    <string name="setup_log_share">Paylaş</string>
+    <string name="setup_log_save">Cihaza kaydet</string>
+    <string name="setup_log_delete">Sil</string>
+    <string name="setup_log_delete_title">Oturum günlükleri silinsin mi?</string>
+    <string name="setup_log_delete_message">%1$s silinsin mi? Bu işlem geri alınamaz.</string>
+    <string name="setup_log_export_saved">Oturum günlükleri kaydedildi.</string>
+    <string name="setup_log_export_failed">Oturum günlükleri kaydedilemedi.</string>
+    <string name="setup_log_delete_failed">Oturum günlükleri silinemedi.</string>
     <string name="setup_offline">Çevrimdışı mod</string>
     <string name="setup_sign_in_first">Önce Steam\'de oturum açın</string>
     <string name="setup_launcher">Başlatıcı</string>
@@ -865,6 +949,8 @@
     <string name="setup_home">Ana ekran olarak kullan</string>
     <string name="setup_home_on">DroidDeck ana ekran uygulaması olabilir</string>
     <string name="setup_home_off">DroidDeck hiçbir zaman ana ekran uygulaması olarak sunulmaz</string>
+    <string name="setup_home_page">Ana ekran tuşunun açtığı sayfa</string>
+    <string name="setup_home_page_hint">DroidDeck Ana ekran uygulamasıyken Ana ekran tuşuna bastığınızda gösterilen sayfa</string>
     <string name="setup_home_game_space_first">Oyun Ekle bölümünde DroidDeck\'i Dahil Et olarak ayarlayın</string>
     <string name="setup_orientation">Yön</string>
     <string name="setup_launcher_orientation">Başlatıcı yönü</string>
@@ -878,15 +964,22 @@
     <string name="setup_fullscreen">Tam ekran</string>
     <string name="setup_fullscreen_on">Android durum ve gezinme çubuklarını gizler</string>
     <string name="setup_fullscreen_off">Android durum ve gezinme çubuklarını gösterir</string>
+    <string name="setup_dual_screen_launcher">Çift ekranlı başlatıcı</string>
+    <string name="setup_dual_screen_launcher_hint">Otomatik, yerleşik ikinci ekranı olan el konsollarında başlatıcı bölümlerini (Steam, Kitaplık, Mağazalar ve diğerleri) ikinci ekrana yerleştirir. Açık, herhangi bir ikinci ekranı kullanır. Kapalı, başlatıcıyı tek ekranda tutar.</string>
+    <string name="setup_dual_screen_sessions">Çift ekranlı oturumlar</string>
+    <string name="setup_dual_screen_sessions_hint">Otomatik, oyun içi menüyü açılır pencere yerine yerleşik ikinci ekrana sabitler. Açık, herhangi bir ikinci ekranı kullanır. Kapalı, menüyü oyun ekranında tutar; yine de menüden ikinci bir ekran seçebilirsiniz.</string>
     <string name="setup_dual_screen_auto">Otomatik</string>
     <string name="setup_dual_screen_on">Açık</string>
     <string name="setup_dual_screen_off">Kapalı</string>
     <string name="setup_dual_screen_controls">Oyunlarda alt ekran kontrolleri</string>
+    <string name="setup_android_text_field_keyboard">Metin alanları için Android klavyesi</string>
     <string name="setup_dual_screen_controls_hint">Bir oturum başladığında ikinci ekranda dokunmatik yüzeyi ve klavyeyi açar.</string>
     <string name="dual_typing_title">Üst ekran için yazılıyor</string>
     <string name="dual_typing_done">Bitti</string>
     <string name="setup_default_home">Varsayılan ana ekran uygulaması</string>
     <string name="setup_choose_home">Ana ekran uygulaması seçin</string>
+    <string name="setup_hide_home_from_recents">Boştayken başlatıcıyı Son kullanılanlardan gizle</string>
+    <string name="setup_hide_home_from_recents_hint">Yalnızca DroidDeck varsayılan Ana ekran uygulamasıyken ve hiçbir oturum çalışmıyorken geçerlidir.</string>
     <string name="setup_choose">Seç</string>
     <string name="setup_linux_apps">Linux uygulamaları (beta)</string>
     <string name="setup_tool_files">Dosyalar</string>
@@ -998,9 +1091,173 @@
     <string name="upd_preview">Önizleme</string>
     <string name="upd_preview_hint">En yeni düzeltmeler, Kararlı\'dan önce</string>
     <string name="upd_preview_current">Güncel</string>
+    <string name="upd_copy_build">Derleme ayrıntılarını kopyala</string>
+    <string name="upd_copied">Derleme ayrıntıları kopyalandı</string>
+    <string name="upd_ahead_preview_status">Önizlemeden yeni</string>
+    <string name="upd_ahead_preview_headline">Önizlemenin önündesiniz</string>
+    <string name="upd_ahead_preview_detail">Bu derleme en son Önizlemeden daha yeni. Bir sonraki Önizleme derlemesi onu güncelleyecek.</string>
+    <string name="upd_preview_pick">Değişiklikleri görmek veya yüklemek için bir derleme seçin.</string>
+    <string name="upd_installed_tag">Yüklü</string>
+    <string name="upd_install_this">Bu derlemeyi yükle%1$s</string>
+    <string name="upd_rollback_this">Bu derlemeye geri dön%1$s</string>
+    <string name="upd_version_code">versionCode %1$d</string>
+    <string name="upd_link_commit">Commit %1$s</string>
+    <string name="upd_link_release">Sürüm sayfası</string>
+    <string name="upd_newer_commit">PR\'de daha yeni bir commit var (%1$s). Test derlemesi henüz hazır değil, bu yüzden bu derleme onu içermiyor.</string>
+    <string name="upd_newer_commit_short">Yeni commit var, derleme bekleniyor</string>
+    <string name="upd_tests_find">PR numarası, başlık veya yazar</string>
+    <string name="upd_tests_no_match">Eşleşen test derlemesi yok</string>
+    <string name="upd_tests_old_row">Yeniden derlenmeli (versionCode %1$d)</string>
+    <string name="upd_watch_channel">Test derlemesi güncellemeleri</string>
+    <string name="upd_watch_title">PR #%1$d için yeni test derlemesi</string>
+    <string name="upd_watch_text">%1$s. Yüklemek için Güncellemeler\'i açın.</string>
+    <string name="upd_show_more">Daha fazla göster (%1$d)</string>
+    <string name="upd_tests_old">versionCode %2$d için yeniden derlenmeli (%1$d)</string>
+    <string name="upd_main_moved">Bu test derlemesinden beri main üzerindeki Önizleme derlemeleri: %1$d</string>
     <string name="upd_tests">Test derlemeleri</string>
     <string name="upd_tests_hint">Yayınlanmadan önce bir düzeltmeyi deneyin</string>
     <string name="upd_tests_none">Şu anda yok</string>
+    <string name="upd_lab">Deneysel derleme</string>
+    <string name="lab_builds">Deneysel derlemeler</string>
+    <string name="lab_in_use">Kullanımda</string>
+    <string name="lab_paused_row">Android, DroidDeck uygulamasını yeniden optimize ettikten sonra duraklatıldı</string>
+    <string name="lab_not_loaded">Yüklenmedi: %1$s</string>
+    <string name="lab_waiting">Yeniden başlatma bekleniyor</string>
+    <string name="lab_kept">Korundu</string>
+    <string name="lab_other_install">Başka bir sürüm için</string>
+    <string name="lab_rebuild">Yeniden derle</string>
+    <string name="lab_delete_warning">Bu derlemeyi cihazdan siler</string>
+    <string name="lab_restart">Bu derlemeyle yeniden başlat</string>
+    <string name="lab_turn_off">Kapat</string>
+    <string name="lab_use">Kullan</string>
+    <string name="lab_delete">Sil</string>
+    <string name="lab_delete_confirm">Şimdi sil</string>
+    <string name="lab_restart_failed">Yeniden başlatma hazırlanamadı: %1$s. Ayarlar bölümünde kablosuz hata ayıklamayı eşleştirip yeniden deneyin.</string>
+    <string name="lab_installed_title">Deneysel derleme yüklendi</string>
+    <string name="lab_installed_text">DroidDeck, %1$s ile yeniden başlatıldı</string>
+    <string name="lab_paused_title">Lab derlemesi duraklatıldı</string>
+    <string name="lab_paused_text">Android, DroidDeck\'i yeniden optimize ettiği için %1$s yüklenmedi. Bu derlemeyle yeniden başlatmak için Güncellemeler\'i açın.</string>
+    <string name="lab_off_title">Lab derlemesi kapatıldı</string>
+    <string name="lab_off_other_install">DroidDeck\'in başka bir sürümü için derlendi. Güncellemeler\'de saklanıyor.</string>
+    <string name="lab_off_did_not_start">DroidDeck bu derlemeyle iki kez başlatılamadı</string>
+    <string name="rail_agent">Dev Harness</string>
+    <string name="agent_channel_name">Ajan</string>
+    <string name="agent_working">Ajan çalışıyor</string>
+    <string name="agent_missing">Ajanı kullanmak için Claude Code\'u Linux kullanıcı alanına yükleyin.</string>
+    <string name="agent_hint">Bir oyun, bir çökme ya da DroidDeck\'te bir değişiklik hakkında sorun</string>
+    <string name="agent_send">Gönder</string>
+    <string name="agent_new">Yeni sohbet</string>
+    <string name="agent_stop">Durdur</string>
+    <string name="agent_storage_title">Depolama</string>
+    <string name="agent_storage_remove">Kaldır</string>
+    <string name="agent_storage_confirm">Şimdi kaldır</string>
+    <string name="agent_storage_claude">Claude Code</string>
+    <string name="agent_storage_codex">Codex</string>
+    <string name="agent_storage_source">DroidDeck kaynak kodu</string>
+    <string name="agent_storage_caches">İndirme önbellekleri</string>
+    <string name="agent_storage_source_warning">Gönderilmeyen değişiklikler kaybolur</string>
+    <string name="agent_storage_caches_warning">Derlemeler bunları yeniden indirir</string>
+    <string name="agent_storage_reinstall_warning">Kurulum bunu yeniden yükleyebilir; oturum bilgileri korunur</string>
+    <string name="agent_resumed">DroidDeck, Lab derlemenizle yeniden başlatıldı. Kaldığınız yerden devam edin.</string>
+    <string name="agent_empty">Bir oyunun neden açılmadığını sorun, bir günlüğü açıklamasını isteyin ya da DroidDeck\'i değiştirip değişikliği bu cihazda denemesini isteyin.</string>
+    <string name="agent_failed">Başarısız: %1$s</string>
+    <string name="agent_exited">%1$s sonlandı (çıkış %2$d)</string>
+    <string name="agent_stopped">Durduruldu</string>
+    <string name="agent_no_reply">Yanıt vermeden sonlandı</string>
+    <string name="agent_retry">Yeniden dene</string>
+    <string name="agent_setting_up">Ajan kuruluyor</string>
+    <string name="agent_rebuild_lab">%1$s Lab derlememi yüklü DroidDeck sürümü için yeniden derle ve bu derlemeyle yeniden başlat.</string>
+    <string name="agent_tokens">%1$s giriş · %2$s çıkış</string>
+    <string name="agent_thinking">Düşünüyor</string>
+    <string name="agent_thought">Düşünce</string>
+    <string name="agent_thinking_for">Düşünüyor · %1$s</string>
+    <string name="agent_running">%1$s · %2$s</string>
+    <string name="agent_tool_input">GİRDİ</string>
+    <string name="agent_tool_output">ÇIKTI</string>
+    <string name="agent_tool_running">Çalışıyor…</string>
+    <string name="agent_tool_no_result">Sonuç yok: tur önce sona erdi</string>
+    <string name="agent_tool_empty">Çıktı yok</string>
+    <string name="agent_hint_working">Sonraki mesajı sıraya almak için yazın</string>
+    <string name="agent_queue">Sıraya ekle</string>
+    <string name="agent_queued">Sıradaki: %1$s</string>
+    <string name="agent_tools_missing">Ajan araçları yüklenmedi: %1$s</string>
+    <string name="agent_unqueue">Gönderme</string>
+    <string name="agent_attach">Ekle</string>
+    <string name="agent_remove_attachment">Kaldır</string>
+    <string name="agent_model_default">Varsayılan</string>
+    <string name="agent_effort">Akıl yürütme çabası</string>
+    <string name="agent_plan_go">Devam et</string>
+    <string name="agent_plan_revise">Revize et</string>
+    <string name="agent_plan_untouched">Henüz bir şey değişmedi</string>
+    <string name="agent_plan_go_message">Planla devam et.</string>
+    <string name="agent_send_now">Şimdi gönder</string>
+    <string name="agent_more">Diğer</string>
+    <string name="agent_close">Kapat</string>
+    <string name="agent_latest">En son</string>
+    <string name="agent_working_short">Çalışıyor</string>
+    <string name="agent_usage_context">Bağlam</string>
+    <string name="agent_usage_of">%1$s / %2$s</string>
+    <string name="agent_usage_conversation">Bu konuşma · %1$s</string>
+    <string name="agent_usage_unknown">Kullanım ilk yanıttan sonra görünür</string>
+    <string name="agent_limit_hours">%1$d saatlik sınır</string>
+    <string name="agent_limit_minutes">%1$d dakikalık sınır</string>
+    <string name="agent_limit_week">Haftalık sınır</string>
+    <string name="agent_limit_resets">%1$d%% · %2$s sıfırlanır</string>
+    <plurals name="agent_files_changed">
+        <item quantity="one">%1$d dosya</item>
+        <item quantity="other">%1$d dosya</item>
+    </plurals>
+    <string name="agent_plan">Önce planla</string>
+    <string name="agent_plan_short">Plan</string>
+    <string name="agent_plan_hint">Hiçbir şeyi değiştirmeden bir plan önerir</string>
+    <string name="agent_history">Konuşmalar</string>
+    <string name="agent_history_empty">Henüz konuşma yok</string>
+    <string name="agent_just_now">Az önce</string>
+    <string name="agent_history_delete">Sil</string>
+    <string name="agent_history_delete_warning">Konuşmayı ve eklerini siler</string>
+    <string name="agent_processes">Süreçler</string>
+    <string name="agent_processes_empty">Linux kullanıcı alanında hiçbir şey çalışmıyor</string>
+    <string name="agent_process_agent">AJAN</string>
+    <string name="agent_process_stop">Durdur</string>
+    <string name="agent_lab_building">Lab derlemesi</string>
+    <string name="agent_lab_preparing">Lab derlemeleri hazırlanıyor</string>
+    <string name="agent_lab_progress">%1$d%% · yaklaşık %2$s kaldı</string>
+    <string name="agent_lab_left">yaklaşık %1$s kaldı</string>
+    <string name="agent_lab_cancel">İptal</string>
+    <string name="agent_lab_cancel_confirm">Derlemeyi iptal et</string>
+    <string name="agent_lab_stage_starting">Başlatılıyor</string>
+    <string name="agent_lab_stage_building">%1$d%%</string>
+    <string name="agent_lab_stage_packaging">Paketleniyor</string>
+    <string name="agent_lab_stage_restarting">DroidDeck üzerinde yeniden başlatılıyor</string>
+    <string name="agent_lab_stage_ready">Tamamlandı</string>
+    <string name="agent_lab_stage_failed">Başarısız: %1$s</string>
+    <string name="agent_setup_title">Ajanı kur</string>
+    <string name="agent_setup_runtime">Önce Kurulum\'da Linux çalışma zamanını yükleyin.</string>
+    <string name="agent_setup_retry">Yeniden dene</string>
+    <string name="agent_setup_done">Sohbete başla</string>
+    <string name="agent_step_connection">Cihaz bağlantısı</string>
+    <string name="agent_step_connection_hint">Kablosuz hata ayıklama; ajan DroidDeck\'i görüp yönetebilsin diye</string>
+    <string name="agent_step_install">%1$s yükle</string>
+    <string name="agent_step_install_hint">git, gh ve adb ile Linux kullanıcı alanına</string>
+    <string name="agent_step_sign_in">%1$s hesabına giriş yap</string>
+    <string name="agent_step_sign_in_hint">Tarayıcınızı açar</string>
+    <string name="agent_step_github">GitHub</string>
+    <string name="agent_step_github_hint">İsteğe bağlı, pull request açmak için</string>
+    <string name="agent_step_build">Derleme araçları</string>
+    <string name="agent_step_build_hint">İsteğe bağlı, bu cihazda Lab derlemeleri için · yaklaşık 5 GB</string>
+    <string name="agent_summary_ready">Aracı hazır</string>
+    <string name="agent_summary_not_ready">Aracı kurulumunu tamamla</string>
+    <string name="agent_summary_signed_in">%1$s hesabına giriş yapıldı</string>
+    <string name="agent_summary_lab">Lab derlemeleri</string>
+    <string name="agent_summary_fast">hızlı derlemeler</string>
+    <string name="agent_step_prepare">Hızlı Lab derlemeleri</string>
+    <string name="agent_step_prepare_hint">Bu sürümü önceden derler, böylece Lab derlemeleri dakikalar sürer · tek seferlik yaklaşık 20 dakika</string>
+    <string name="agent_prepare_progress">Derleniyor · %1$d%% · yaklaşık %2$s kaldı</string>
+    <string name="agent_action_prepare">Hazırla</string>
+    <string name="agent_connection_off">Kablosuz hata ayıklamaya ulaşılamıyor; Eşleştir ile açılır</string>
+    <string name="agent_action_pair">Eşleştir</string>
+    <string name="agent_action_install">Yükle</string>
+    <string name="agent_action_sign_in">Giriş yap</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Bu DroidDeck kopyası için derlenmedi</string>
     <string name="upd_updated">Güncellendi %1$s</string>
@@ -1240,6 +1497,9 @@
     <string name="rail_apps">Uygulamalar</string>
     <string name="rail_setup">Kurulum</string>
     <string name="rail_updates">Güncellemeler</string>
+    <string name="rail_more">Diğer</string>
+    <string name="more_edit_tabs">Sekmeleri düzenle</string>
+    <string name="setup_group_tabs">Sekmeler</string>
     <string name="rail_percent">%%%1$d</string>
     <string name="rail_resume_named">Devam et: %1$s</string>
     <string name="roms_text">Her oturumda /root/ROMs olarak görünür. Dahili depolama /root/Storage konumundadır.</string>
@@ -1261,6 +1521,15 @@
     <string name="proton_cancel_queued">Sıradakini iptal et</string>
     <string name="pckb_android">Android klavyesi</string>
     <string name="pckb_hide">Gizle  ✕</string>
+    <string name="pckb_size">Ekrandaki boyut</string>
+    <string name="pckb_size_hint">Başlık dahil, klavyenin ekranda kapladığı oran.</string>
+    <string name="pckb_opacity">Opaklık</string>
+    <string name="pckb_opacity_hint">Klavyenin arkasındaki oyunu görmek için azaltın.</string>
+    <string name="pckb_hidden_keys">Gizli tuşlar</string>
+    <string name="pckb_hidden_keys_hint">Az kullandığınız tuşlar klavyede gösterilmez.</string>
+    <string name="pckb_group_function">Esc ve işlev tuşları sırası</string>
+    <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
+    <string name="pckb_group_arrows">Ok tuşları</string>
     <string name="main_launch_named">Başlat: %1$s</string>
     <string name="main_choose_screen">Bir ekran seçin. İkincil: %1$s.</string>
     <string name="main_secondary_gone">İkincil ekran artık kullanılamıyor.</string>
@@ -1316,7 +1585,6 @@
     <string name="game_file_folder">Ön yüz oyun dosyaları için bir klasör seçin</string>
     <string name="game_file_exported">Oyun dosyaları şuraya kaydedildi: %1$s</string>
     <string name="game_frontend_files">Ön yüz dosyaları</string>
-
     <string name="main_wait_runtime">Çalışma ortamı işleminin bitmesini bekleyin</string>
     <string name="main_wait_proton_install">Uyumluluk aracı yüklemesinin bitmesini bekleyin</string>
     <string name="load_compat_title">Uyumluluk araçları hazırlanıyor</string>
@@ -1402,7 +1670,6 @@
     <string name="main_removing_runtime">Linux çalışma ortamı kaldırılıyor</string>
     <string name="main_settings_main_screen">Ayarlar alt ekranda açılamadı; ana ekranda açıldı.</string>
     <string name="main_open_dev_options">Ayarlar\'da Geliştirici seçeneklerini açın</string>
-
     <string name="upd_unknown_apps_failed">Android\'in “Bilinmeyen uygulamaları yükle” ayarı açılamadı</string>
     <string name="upd_couldnt_check">Kontrol edilemedi: %1$s</string>
     <string name="upd_no_download">Bu sürümde DroidDeck\'in bu kopyası için indirme yok</string>
@@ -1412,12 +1679,10 @@
     <string name="upd_stage_confirm">Onayınız bekleniyor</string>
     <string name="upd_failed">Güncelleme başarısız oldu</string>
     <string name="upd_not_offered">Android güncellemeyi yüklemeyi önermedi</string>
-
     <string name="decky_install_failed">Decky yüklemesi başarısız oldu: %1$s</string>
     <string name="decky_plugin_starting">Eklenti içe aktarma başlatılıyor…</string>
     <string name="decky_plugin_failed">Eklenti içe aktarma başarısız oldu: %1$s</string>
     <string name="decky_plugin_installed">Eklenti yüklendi. Etkinleştirmek için Steam\'i yeniden başlatın.</string>
-
     <string name="drivers_not_checked">Henüz kontrol edilmedi - yeni sürücüleri aramak için yenile düğmesine dokunun</string>
     <string name="drivers_bundle_sets_display">Android + Linux: ekran sürücüsünü de birlikte ayarlar</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: çalışma ortamı sürücüsünü de birlikte ayarlar</string>
@@ -1470,7 +1735,6 @@
     <string name="drivers_check_failed">kontrol başarısız oldu</string>
     <string name="drivers_installed_pick_either">%1$s yüklendi - iki sürücüyü de ayarlamak için listelerden birinde seçin</string>
     <string name="drivers_installed_pick">%1$s yüklendi - menüden seçin</string>
-
     <string name="session_wait_removal">Çalışma ortamının kaldırılmasının bitmesini bekleyin</string>
     <string name="session_title_game">Oyun</string>
     <string name="session_touch_auto_touchpad">dokunmatik yüzey</string>
@@ -1516,7 +1780,6 @@
         <item quantity="one">Günlükte %1$d “Function not implemented” hatası görünüyor: proot\'un seccomp hızlandırması bu cihazda bir yardımcı işlemi bozuyor. %2$s → “%3$s” (veya “%4$s”) seçeneğini deneyip yeniden başlatın.</item>
         <item quantity="other">Günlükte %1$d “Function not implemented” hatası görünüyor: proot\'un seccomp hızlandırması bu cihazda bir yardımcı işlemi bozuyor. %2$s → “%3$s” (veya “%4$s”) seçeneğini deneyip yeniden başlatın.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Eklentiler</string>
     <string name="mode_decky_plugins_hint">Sonraki Steam oturumu için bir eklenti ZIP dosyası yükleyin.</string>
     <string name="mode_decky_plugin_downloading">İndiriliyor…</string>
@@ -1589,6 +1852,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Temizle</string>
     <string name="game_sync_err_runtime">Önce çalışma ortamını yükleyin</string>
     <string name="game_sync_err_steam_library">Steam kütüphanesi kullanılamıyor</string>
     <string name="game_sync_err_previous_sd">Önceki SD kütüphanesi kullanılamıyor</string>
@@ -1762,7 +2026,24 @@
     <string name="second_mode_terminal">Terminal</string>
     <string name="second_mode_deck_controls">Deck tutamakları + dokunmatik yüzeyler</string>
     <string name="second_mode_dashboard">Gösterge paneli</string>
+    <string name="second_mode_desktop">Masaüstü</string>
+    <string name="bottom_desktop_start">Masaüstünü başlat</string>
+    <string name="bottom_desktop_title">Masaüstü · %1$s</string>
+    <string name="bottom_desktop_mode_trackpad">Dokunmatik yüzey</string>
+    <string name="bottom_desktop_mode_touch">Doğrudan dokunma</string>
+    <string name="bottom_desktop_trackpad">Dokunmatik yüzey. Doğrudan dokunmaya geçmek için dokun</string>
+    <string name="bottom_desktop_direct_touch">Doğrudan dokunma. Dokunmatik yüzeye geçmek için dokun</string>
+    <string name="bottom_desktop_starting">KDE masaüstü başlatılıyor…</string>
+    <string name="bottom_desktop_ended">Masaüstü kapandı.</string>
+    <string name="bottom_desktop_failed">Masaüstü başlatılamadı. Günlükleri bu oturumun bottom-desktop klasöründe.</string>
+    <string name="bottom_desktop_off">Masaüstü kapalı.</string>
     <string name="bottom_dashboard_empty">Burada henüz gösterilecek bir şey yok.</string>
+    <string name="swap_screens">Ekranları değiştir</string>
+    <string name="swap_screens_unavailable">Alt ekran şu anda boş değil</string>
+    <string name="swap_game_screen_group">Oyun ekranı</string>
+    <string name="swap_game_screen">Oyunun gösterileceği ekran</string>
+    <string name="swap_game_screen_top">Üst ekran</string>
+    <string name="swap_game_screen_bottom">Alt ekran</string>
     <string name="bottom_page_downloads">İndirmeler</string>
     <string name="bottom_downloads_none">Devam eden indirme yok.</string>
     <string name="bottom_downloads_steam">Steam</string>
@@ -1797,6 +2078,20 @@
     <string name="stats_fuel_t">Yakıt, t</string>
     <string name="stats_fuel_main">Ana %1$s t</string>
     <string name="stats_fuel_reserve">Yedek %1$s t</string>
+    <string name="stats_hud_frametime">Kare süresi</string>
+    <string name="stats_hud_last_seconds">son %1$d sn</string>
+    <string name="stats_hud_avg_frame">ort. kare</string>
+    <string name="stats_hud_low">En düşük yüzde 1</string>
+    <string name="stats_hud_slow_frames">33 ms üzeri kareler</string>
+    <string name="stats_hud_per_minute">%1$d / dk</string>
+    <string name="stats_hud_playing_for">%1$s süredir oynanıyor</string>
+    <string name="stats_hud_core_group">%1$d çekirdek, en fazla %2$s GHz</string>
+    <string name="stats_hud_core_group_unknown">%1$d çekirdek</string>
+    <string name="stats_hud_game_cores">oyun</string>
+    <string name="stats_hud_fps_of">%1$d Hz\'de FPS</string>
+    <string name="stats_hud_red_mark">Kırmızı işaret, sıcaklığın HUD üzerinde kırmızı göründüğü yerdir.</string>
+    <string name="stats_hud_whole_device">tüm cihaz</string>
+    <string name="stats_hud_battery_temp">pil</string>
     <string name="bottom_telemetry_send_title">Gösterge verilerini gönder</string>
     <string name="bottom_telemetry_send_auto">Otomatik</string>
     <string name="bottom_telemetry_send_auto_hint">Sonradan bulunanlar dahil, burada listelenen her oyun için açar. Kapattığınız oyunlar kapalı kalır.</string>
@@ -1820,6 +2115,10 @@
     <string name="bottom_chat_mic_unavailable">Bu oyun için mikrofon kapalı. Konuşmak için DroidDeck\'in Steam ayarlarında (Ses) Mikrofon\'u açın ve oyunu yeniden başlatın.</string>
     <string name="bottom_chat_volume">Ses düzeyi %1$d%%</string>
     <string name="bottom_page_telemetry">Oyun içi istatistikler</string>
+    <string name="bottom_hud_group">Alt ekrandaki HUD</string>
+    <string name="bottom_strip_tabs">Her sekmede şerit</string>
+    <string name="bottom_strip_lows" formatted="false">En düşük yüzde 1 ve 0,1</string>
+    <string name="bottom_strip_cpu_temp">CPU sıcaklığı</string>
     <string name="bottom_telemetry_fps">FPS</string>
     <string name="bottom_telemetry_cpu">CPU</string>
     <string name="bottom_telemetry_gpu">GPU</string>
@@ -1837,7 +2136,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">%1$d portu veri alıyor (%3$d baytlık %2$d paket), ancak bu sayfanın henüz okuyamadığı bir biçimde.</string>
     <string name="bottom_telemetry_port_busy">%1$s portunu zaten başka bir program kullanıyor, bu yüzden o oyun burada gösterilemez.</string>
-
     <string name="rtinst_removing">Linux çalışma ortamı kaldırılıyor</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Linux çalışma ortamı kaldırılıyor · %1$d öğe</item>
@@ -1852,7 +2150,6 @@
     <string name="rtinst_channel_description">Linux çalışma ortamı yüklenirken veya kaldırılırken gösterilir</string>
     <string name="rtinst_title_installing">Linux çalışma ortamı yükleniyor</string>
     <string name="rtinst_title_removing">Linux çalışma ortamı kaldırılıyor</string>
-
     <string name="deskpkg_runtime_missing">Linux çalışma ortamı yüklü değil</string>
     <string name="deskpkg_no_checksum">Katalogda %1$s için sağlama toplamı yok</string>
     <string name="deskpkg_checksum_mismatch">Sağlama toplamı uyuşmuyor - hiçbir şey değiştirilmedi</string>
@@ -1860,7 +2157,6 @@
     <string name="deskpkg_place_failed">AppImage yerleştirilemedi</string>
     <string name="deskpkg_extract_failed">Ayıklama başarısız oldu</string>
     <string name="deskpkg_install_failed">Yükleme başarısız oldu</string>
-
     <string name="flatpakmgr_setup_failed">Flatpak kurulumu başarısız oldu (çıkış %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Flatpak kurulumu tamamlanmadı</string>
     <string name="flatpakmgr_busy">Başka bir mağaza görevi çalışıyor</string>
@@ -1879,7 +2175,6 @@
     <string name="flatpakmgr_ref_media_codecs">medya kodekleri</string>
     <string name="flatpakmgr_ref_runtime">%1$s çalışma ortamı</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s çalışma ortamı %2$s</string>
-
     <string name="appimg_too_small">Dosya, AppImage olamayacak kadar küçük</string>
     <string name="appimg_unreadable">Dosya okunamıyor: %1$s</string>
     <string name="appimg_not_linux">Bu bir AppImage değil (Linux programı değil)</string>
@@ -1894,7 +2189,6 @@
     <string name="appimg_extracting">%1$s ayıklanıyor</string>
     <string name="appimg_extract_failed">AppImage ayıklanamadı</string>
     <string name="appimg_extract_failed_detail">AppImage ayıklanamadı: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Decky Loader\'ı yüklemeden önce etkin oturumu durdurun</string>
     <string name="deckymgr_download_failed">Decky Loader indirilemedi</string>
     <string name="deckymgr_size_mismatch">Decky Loader boyutu yayın meta verileriyle eşleşmedi</string>
@@ -1943,13 +2237,11 @@
     <string name="deckymgr_activate_failed">İçe aktarılan eklenti etkinleştirilemedi</string>
     <string name="deckymgr_settings_failed">Decky eklenti ayarları güncellenemedi</string>
     <string name="deckymgr_restore_failed">Mevcut eklenti geri yüklenemedi</string>
-
     <string name="adbfix_save_failed">Kablosuz hata ayıklama kimliği kaydedilemedi</string>
     <string name="adbfix_command_failed">ADB komutu başarısız oldu (%1$d)</string>
     <string name="adbfix_not_confirmed">Android, alt süreç sınırının değiştirildiğini onaylamadı: %1$s</string>
     <string name="adbfix_no_pairing">Kayıtlı bir Kablosuz hata ayıklama eşleşmesi yok</string>
     <string name="adbfix_enter_address">Geçerli Kablosuz hata ayıklama IP adresini ve bağlantı noktasını girin</string>
-
     <string name="adbpair_timed_out">Eşleştirme açılır penceresi beklenirken zaman aşımına uğradı. DroidDeck\'ten yeniden deneyin.</string>
     <string name="adbpair_discovery_failed_code">Eşleştirme açılır penceresi aranamadı (%1$d). Wi-Fi\'nin açık olduğunu kontrol edin.</string>
     <string name="adbpair_discovery_failed">Eşleştirme açılır penceresi aranamadı: %1$s</string>
@@ -1975,7 +2267,6 @@
     <string name="adbpair_title_done">Steam hazır</string>
     <string name="adbpair_done_text">DroidDeck\'e geri dönmek için dokunun. Kablosuz hata ayıklamayı şimdi kapatabilirsiniz.</string>
     <string name="adbpair_title_failed">Kablosuz hata ayıklama kurulumu durdu</string>
-
     <string name="selfinst_download_failed">İndirme başarısız</string>
     <string name="selfinst_size_mismatch">İndirme boyutu yayınlanan APK ile eşleşmedi ve atıldı - yeniden deneyin</string>
     <string name="selfinst_checksum_mismatch">İndirme, sağlama toplamıyla eşleşmedi ve atıldı - yeniden deneyin</string>
@@ -1988,12 +2279,11 @@
     <string name="selfinst_no_signing">İndirilen APK\'da imza bilgisi yok</string>
     <string name="selfinst_wrong_signer">İndirilen APK, DroidDeck\'in yayın anahtarıyla imzalanmamış</string>
     <string name="appupd_http">Güncelleme kataloğu HTTP %1$d yanıtı verdi</string>
-
     <string name="loadstate_starting">Oturum başlatılıyor…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d geçti · hâlâ çalışıyor</string>
     <string name="loadstate_steam_update">Steam istemcisi güncellemesi indiriliyor · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">Steam istemcisi güncellemesi uygulanıyor…</string>
     <string name="loadstate_steam_client">Steam istemcisi indiriliyor · %1$s</string>
-
     <string name="pextra_busy">Zaten çalışan bir uyumluluk aracı yüklemesi var</string>
     <string name="pextra_stop_session">Uyumluluk araçlarını yüklemeden önce etkin oturumu durdurun</string>
     <string name="pextra_no_release">%1$s için bir ARM64 yayını bulunamadı</string>
@@ -2013,7 +2303,6 @@
     <string name="pextra_install_failed">%1$s yüklemesi başarısız oldu (çıkış %2$d)</string>
     <string name="pextra_could_not_install">%1$s yüklenemedi</string>
     <string name="esync_fetching">droiddeck-esync paketi getiriliyor</string>
-
     <string name="cmgr_fex_linux_helpers">Linux yardımcılarıyla</string>
     <string name="cmgr_fex_dlls_only">Yalnızca DLL\'ler</string>
     <string name="cmgr_original_proton_updated">Orijinal (son değişimden sonra Proton güncellendi)</string>
@@ -2036,13 +2325,11 @@
     <string name="cmgr_nightly_replaced">İndirme başarısız: bu nightly derleme daha yenisiyle değiştirilmiş olabilir. Listeyi yenileyip tekrar deneyin.</string>
     <string name="cmgr_list_predates_checksums">Bu paket listesi sağlama toplamlarından önceki bir tarihe ait - yenileyip yeniden deneyin</string>
     <string name="cmgr_checksum_mismatch">Sağlama toplamı uyuşmuyor</string>
-
     <string name="sprefs_upscaler_linear">Doğrusal</string>
     <string name="sprefs_upscaler_nearest">En yakın</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (kalite)</string>
     <string name="sprefs_upscaler_sharpen">Yalnızca keskinleştirme</string>
     <string name="sprefs_lod_bias_auto">Otomatik (ölçeklemeye göre)</string>
-
     <string name="look_off_desc">Hiçbir şey uygulanmadı.</string>
     <string name="look_game_clarity">Oyun Netliği</string>
     <string name="look_game_clarity_desc">Hafif kontrastla keskinleştirme - günlük kullanım için.</string>
@@ -2066,14 +2353,30 @@
     <string name="look_pixel_clean_desc">2D ve eski oyunlar için net pikseller.</string>
     <string name="look_anime_edge">Anime Kenar</string>
     <string name="look_anime_edge_desc">Çizgi film konturları ve keskinleştirme.</string>
-
     <string name="gpuinfo_not_adreno">Adreno GPU değil</string>
+    <string name="gpuinfo_powervr">Sistem PowerVR sürücüsü: uyumluluk cihaza göre değişir</string>
+    <string name="gpuinfo_xclipse">Deneysel: RADV veya sistem Xclipse sürücüsü</string>
+    <string name="gpu_system_powervr">Sistem PowerVR</string>
+    <string name="gpu_auto_system_hint">Bu GPU için yerleşik sürücüleri kullanır</string>
+    <string name="drivers_powervr_builtin">Çalışma zamanı ve ekran için sistem PowerVR sürücüsü seçili.</string>
+    <string name="drivers_mali_bridge_auto">Bu Mali modelini henüz açık kaynaklı bir sürücü desteklemiyor: Mali köprüsü açık.</string>
+    <string name="upd_block_non_adreno_test">Bu, Snapdragon olmayan test sürümü: buradaki resmi sürümler yalnızca Adreno üzerinde çalışır, bu yüzden bunun üzerine kurulmaz. Yeni test sürümleri github.com/The412Banner/droiddeck-nonadreno-drivers adresinde.</string>
+    <string name="session_killed_for_memory">Son oturum bir çökme yüzünden değil, Android bellek açmak için DroidDeck uygulamasını kapattığı için sona erdi. Diğer uygulamaları kapatın veya oyunun doku ayarlarını düşürün, ardından yeniden deneyin.</string>
+    <string name="drivers_route_venus">Mali (Venus)</string>
+    <string name="drivers_route_bridge">Mali köprüsü</string>
+    <string name="drivers_mali_no_pair_auto">Bu Mali modelini henüz açık kaynaklı bir sürücü desteklemiyor: telefonun kendi sürücüsü üzerinde %1$s kullanılıyor.</string>
+    <string name="drivers_mali_unpublished_auto">%1$s henüz yayınlanmadı: yayınlanana kadar %2$s kullanılıyor.</string>
+    <string name="drivers_mali_old_vulkan_bridge">%1$s kullanılamıyor ve bu telefonun sürücüsü Vulkan %2$s sürümünü bildiriyor (Venus için 1.2 gerekli): Mali köprüsü kullanılıyor.</string>
+    <string name="drivers_mali_bridge_fallback">%1$s henüz yayınlanmadı: yayınlanana kadar Mali köprüsü açık.</string>
+    <string name="cmgr_powervr_dxvk_queued">Sırada: %1$s (farklı bir çalışma zamanı sürücüsü bekleniyor)</string>
+    <string name="cmgr_powervr_dxvk_managed">DXVK, sistem PowerVR çalışma zamanı tarafından sağlanır. Diğer DXVK paketleri saklanabilir, ancak bu sürücüyle uygulanmaz.</string>
     <string name="gpuinfo_supported">Destekleniyor</string>
     <string name="gpuinfo_experimental">Deneysel: sürücüleri test derlemeleri</string>
     <string name="gpuinfo_a850_experimental">Deneysel Adreno 850 desteği: uyumlu deneysel ekran ve oyun sürücüleri gerekir; bu cihazda doğrulanmadı</string>
     <string name="gpuinfo_below_tested">Test edilen donanımın altında (Adreno 725 ve daha yenisi): çalışmayabilir</string>
     <string name="gpuinfo_unsupported">Desteklenmiyor: bu GPU için uyumlu bir grafik arka ucu yok</string>
-
+    <string name="gpuinfo_bridge">Telefonun kendi Vulkan sürücüsü üzerinde, Mali köprüsü aracılığıyla çalışır</string>
+    <string name="gpuinfo_bridge_off">Mali köprüsü kapalıyken desteklenmez: Turnip, Adreno (Snapdragon) GPU gerektirir</string>
     <string name="turnip_rate_limited">GitHub\'ın hız sınırına ulaşıldı - daha sonra yeniden deneyin</string>
     <string name="turnip_github_http">GitHub HTTP %1$d yanıtı verdi</string>
     <string name="turnip_download_failed">İndirme başarısız</string>
@@ -2094,16 +2397,12 @@
     <string name="bundle_no_manifest">Bir sürücü paketi değil: bir android ve bir linux sürücüsü belirten manifest.json yok</string>
     <string name="bundle_entry_outside">Bir sürücü paketi değil: %1$s dışına işaret ediyor</string>
     <string name="bundle_too_large">Bir sürücü paketi değil: %1$d MB\'den fazla alana açılıyor</string>
-
     <string name="gstore_sd_card">SD kart</string>
     <string name="gstore_folder">Klasör</string>
-
     <string name="logshare_chooser">Oturum günlüklerini paylaş</string>
-
     <string name="hdr_needs_android_10">Android 10 veya daha yenisi gerekir (renk uzayına sahip ekran katmanları)</string>
     <string name="hdr_none">bu ekran HDR desteği bildirmiyor</string>
     <string name="hdr_not_hdr10">bu ekran HDR10 değil, %1$s destekliyor</string>
-
     <string name="gpu_this_gpu">bu GPU</string>
     <string name="phantom_title_on">Alt süreç sınırı açık</string>
     <string name="phantom_title_unset">Alt süreç sınırı ayarlanmamış</string>
@@ -2177,11 +2476,9 @@
     <string name="device_info_copied">Kopyalandı.</string>
     <string name="force_ssbs_title">SSBS\'i zorla</string>
     <string name="force_ssbs_hint">Wine\'ın sürekli kapattığı bir CPU hız ayarını açık tutar. Snapdragon 8 Elite\'te Windows oyunlarını hızlandırabilir; daha eski yongalarda pek fark görülmez. Bir sonraki oyun başlatmasında uygulanır.</string>
-
     <string name="rail_stores">Mağazalar</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Özel</string>
-    <string name="setup_stores">Mağazalar</string>
     <string name="setup_stores_speed">İndirme hızı katmanı</string>
     <string name="stores_tier_balanced">Dengeli</string>
     <string name="stores_tier_fast">Hızlı</string>
@@ -2220,6 +2517,7 @@
     <string name="bnet_dl_queued">Diğer Battle.net indirmesi bekleniyor…</string>
     <string name="bnet_dl_client_first">Battle.net\'i açıp bir kez oturum açın, ardından oyunlarını buradan yükleyin.</string>
     <string name="bnet_dl_failed">Blizzard indiricisi durdu: %1$s</string>
+    <string name="bnet_dl_stalled">Blizzard indiricisi ilerlemeyi durdurdu.</string>
     <string name="bnet_dl_agent_error">Blizzard hatası %1$s</string>
     <string name="bnet_update">Güncelle</string>
     <string name="bnet_store">Blizzard oyunları</string>
@@ -2227,6 +2525,7 @@
     <string name="stores_dl_interrupted">Kesintiye uğradı</string>
     <string name="stores_install_size">Yükle · %1$s</string>
     <string name="stores_get_free">Ücretsiz al</string>
+    <string name="stores_claiming">Kitaplığa ekleniyor…</string>
     <string name="stores_view_on">%1$s\'te görüntüle</string>
     <string name="stores_buy_price">Satın al · %1$s</string>
     <string name="stores_installed_chip">Yüklü</string>
@@ -2273,6 +2572,12 @@
     <string name="stores_sort">Sırala</string>
     <string name="setup_rail_labels">Kenar çubuğu etiketleri</string>
     <string name="setup_rail_labels_hint">Kenar çubuğu simgelerinin altında adları gösterir. Daha ince bir kenar çubuğu için kapatın.</string>
+    <string name="setup_agent_pet">Ajan evcil hayvanı</string>
+    <string name="setup_agent_pet_hint">DeeDee başlatıcının ve oyunların üzerinde görünür; ajanın ne yaptığını gösterir.</string>
+    <string name="setup_agent_pet_float">Diğer uygulamaların üzerinde</string>
+    <string name="setup_agent_pet_float_hint">DeeDee\'nin her uygulamanın üzerinde görünmesine ve sohbetini orada açmasına izin ver</string>
+    <string name="setup_agent_pet_allow">İzin ver</string>
+    <string name="agent_pet_open">DeeDee ile sohbet et</string>
     <string name="library_display">Görünüm</string>
     <string name="library_display_larger">Daha büyük kartlar</string>
     <string name="library_display_smaller">Daha küçük kartlar</string>
@@ -2554,7 +2859,14 @@
     <string name="gpu_chip_restart">%1$s · yeniden başlatma bekliyor</string>
     <string name="comp_this_device">Bu cihaz</string>
     <string name="proton_remove_title">%1$s kaldırılsın mı?</string>
-    <string name="setup_tab_diagnostics">Tanılama</string>
+    <string name="setup_tab_diagnostics">Geliştirici</string>
+    <string name="setup_build_watermark">Derleme etiketi filigranı</string>
+    <string name="setup_build_watermark_hint">Test veya Lab derlemesinin etiketini ekranda gösterir. Varsayılan olarak açıktır.</string>
+    <string name="diagnostics_share_title">Tanılama paketlerini paylaş</string>
+    <string name="diagnostics_share_session">Oturum ve cihaz</string>
+    <string name="diagnostics_share_graphics">Grafikler</string>
+    <string name="diagnostics_share_games">Oyunlar ve uyumluluk</string>
+    <string name="diagnostics_share_all">Tüm paketler</string>
     <string name="setup_ready">Oynamaya hazır</string>
     <string name="setup_not_ready">Henüz oynamaya hazır değil</string>
     <string name="setup_ready_runtime">çalışma ortamı %1$s</string>
@@ -2593,6 +2905,9 @@
     <string name="gog_achievements_enable_store">Mağaza ayarlarında GOG başarımlarını aç</string>
     <string name="gog_achievements_unavailable">Başarımlar kullanılamıyor; oturum günlüklerini kontrol et</string>
     <string name="achievement_unlocked">Başarımın kilidi açıldı</string>
+    <string name="setup_gpu_venus_off">Mali (Venus): kapalı</string>
+    <string name="setup_gpu_venus_on">Mali (Venus): açık</string>
+    <string name="setup_gpu_venus_host_too_old">%1$s üzerindeki sürücü Vulkan %2$s sürümünü bildiriyor. Mali (Venus) için Vulkan 1.2 veya üzeri gerekir (daha eski sürümlerde gamescope başlamaz), bu yüzden oturumlar Venus yerine PanVK sürücü çiftini kullanır.</string>
     <string name="touch_paste">Yapıştır</string>
     <string name="touch_left_stick">Sol analog çubuk</string>
     <string name="touch_right_stick">Sağ analog çubuk</string>
@@ -2643,7 +2958,6 @@
     <string name="touch_icon_color">Simge rengi</string>
     <string name="touch_button_color">Düğme rengi</string>
     <string name="touch_no_icon">Simge yok</string>
-
     <string name="stores_sync_sign_in">Oturum açma durumu kontrol ediliyor…</string>
     <string name="stores_sync_library">Kitaplığın alınıyor…</string>
     <string name="stores_sync_game_list">Oyun listesi alınıyor…</string>
@@ -2890,7 +3204,7 @@
     <string name="storage_default_choose_folder">Klasör seç…</string>
     <string name="storage_default_choose_folder_detail">SD kart veya USB sürücüdeki herhangi bir klasörü kullanın</string>
     <string name="storage_default_note">Oyunlar, seçilen konumdaki bir Games klasörüne yüklenir. Mevcut oyunlar taşınmaz.</string>
-    <string name="storage_where">Nereye gidiyor</string>
+    <string name="storage_where">Yer kaplayanlar</string>
     <string name="storage_games">Steam oyunları</string>
     <string name="storage_game_data">Oyun verileri</string>
     <string name="storage_game_data_hint">Önekler %1$s · atölye %2$s · gölgelendiriciler %3$s</string>
@@ -2959,6 +3273,7 @@
     <string name="storage_tool_redist">Oyunların istediği VC++ ve DirectX yükleyicileri</string>
     <string name="storage_tool_fex">Linux x86 oyunlarını çalıştırır</string>
     <string name="storage_tool_steam">Steam aracı</string>
+    <string name="storage_tool_anticheat">Steam, anti-cheat ile gelen oyunlar için bunu anti-cheat kapalıyken de indirir. Kaldırırsanız bu oyunların kurulumu 0% noktasında takılır.</string>
     <string name="storage_tool_old_runtime">DroidDeck oyunları bu çalışma zamanı olmadan çalıştırır</string>
     <string name="storage_tool_x86_proton">x86 Proton, DroidDeck bunu çalıştıramaz</string>
     <string name="storage_tool_custom_default">Her oyun için varsayılan</string>
@@ -3022,6 +3337,19 @@
     <string name="storage_data_other">Korunan</string>
     <string name="storage_data_other_title">Steam dışı oyunlar ve Steam\'in ortak öneki</string>
     <string name="storage_data_other_detail">Mağazalardan veya elle eklenen oyunların önekleri</string>
+    <string name="storage_shared_prefix">Steam\'in ortak öneki</string>
+    <string name="storage_shared_prefix_detail">Steam kendi Windows yardımcılarını burada çalıştırır</string>
+    <string name="storage_reset_shared_confirm">Siler (%1$s). Steam bir dahaki ihtiyacında yenisini oluşturur.</string>
+    <string name="storage_launcher_prefix">Bir mağaza uygulaması ve onunla çalışan oyunlar</string>
+    <string name="storage_launcher_used_by">Kullanan: %1$s</string>
+    <string name="storage_shortcut_app">Steam dışı oyun %1$s</string>
+    <string name="storage_unknown_prefix_detail">Bir oyunla eşleşmedi, bu yüzden korunuyor</string>
+    <string name="storage_remove_selected">Seçilenleri kaldır · %1$s</string>
+    <string name="storage_uninstall_selected">Seçilenlerin yüklemesini kaldır · %1$s</string>
+    <string name="storage_bulk_prefixes">Wine önekleri</string>
+    <string name="storage_bulk_prefixes_detail">İçindeki kayıtlar ve ayarlar kaybolur; Steam Cloud kayıtları hesabınızda kalır.</string>
+    <string name="storage_bulk_shaders">Gölgelendirici önbellekleri</string>
+    <string name="storage_prefix_shaders">Önek %1$s · gölgelendiriciler %2$s</string>
     <string name="storage_components_packages">İndirilen paketler</string>
     <string name="storage_components_originals">Kaydedilen orijinaller</string>
     <string name="storage_components_none">İndirilmiş bileşen paketi yok.</string>
@@ -3056,6 +3384,9 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d fps</string>
     <string name="boot_movie_note">60 fps daha akıcı görünür ama Steam açılırken işlemciyi daha çok kullanır. Steam\'in kendi ayarlarında seçilen bir video da burada görünür.</string>
     <string name="boot_movie_sound">Ses</string>
+    <string name="boot_movie_skip">Açılış videosunu atla</string>
+    <string name="boot_movie_skip_hint">Steam\'in açılış videosu olarak 0,1 saniyelik siyah bir klip kullanılır. Sonraki oturumda geçerli olur.</string>
+    <string name="boot_movie_shuffle">Karıştır</string>
     <string name="boot_movie_custom">Kendi videon</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV veya WebM. Diğer biçimler ve %1$d MB üzeri dosyalar cihazda 720p WebM\'e dönüştürülür, en fazla %2$d saniye.</string>
     <string name="boot_movie_import">İçe aktar</string>
@@ -3513,10 +3844,9 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win tuşu ve Ana Ekran düğmesi oturumda kalır</string>
     <string name="integration_shortcuts_maybe_restricted">Android\'de gri mi görünüyor? Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
     <string name="integration_shortcuts_restricted">Android tarafından engellendi · Uygulama bilgileri → ⋮ → Kısıtlanmış ayarlara izin ver</string>
-    <string name="integration_shortcuts_service">DroidDeck sistem tuşları</string>
-    <string name="integration_shortcuts_service_description">Alt+Tab, Win tuşu ve Ana Ekran düğmesini Android yerine etkin DroidDeck oturumunda tutar.</string>
     <string name="integration_brightness_needed">Kurulum → Steam entegrasyonu bölümünde Parlaklık\'ı açın</string>
     <string name="setup_gpu_bridge_off">Mali köprüsü: kapalı</string>
+    <string name="setup_gpu_bridge_unusable">%1$s Mali köprüsünü kullanamaz (sistem sürücüsü yolu olmayan bir Mali GPU gerekir), bu yüzden bu anahtarın burada etkisi yok.</string>
     <string name="setup_gpu_bridge_on">Mali köprüsü: açık</string>
     <string name="setup_gpu_bridge_detail">%1$s bir Adreno değil. Deneysel Vulkan köprüsü açık: oturum, telefonun kendi sürücüsü üzerinden çizer. Hatalar olabilir; oturum günlüklerini gönderin.</string>
     <string name="setup_bridge_safe">Güvenli mod</string>
@@ -3542,6 +3872,25 @@
     <string name="apps_widget_move_later">Arkaya taşı</string>
     <string name="apps_widget_configure">Widget ayarları</string>
     <string name="apps_widget_remove">Widget’ı kaldır</string>
+    <string name="apps_appearance">Görünüm</string>
+    <string name="apps_icon_pack">Simge paketi</string>
+    <string name="apps_icon_pack_system">Sistem varsayılanı</string>
+    <string name="apps_icon_app_colors">Uygulama rengi arka plan</string>
+    <string name="apps_icon_size">Simge boyutu</string>
+    <string name="apps_icon_small">Küçük</string>
+    <string name="apps_icon_medium">Orta</string>
+    <string name="apps_icon_large">Büyük</string>
+    <string name="apps_hide_names">Uygulama adlarını gizle</string>
+    <string name="apps_spacing">Aralık</string>
+    <string name="apps_spacing_tight">Dar</string>
+    <string name="apps_spacing_normal">Normal</string>
+    <string name="apps_spacing_roomy">Geniş</string>
+    <string name="apps_change_icon">Simgeyi değiştir</string>
+    <string name="apps_reset_icon">Simgeyi sıfırla</string>
+    <string name="apps_icons_search">Simge ara</string>
+    <string name="apps_icons_loading">Simgeler yükleniyor…</string>
+    <string name="apps_icons_none">Simge bulunamadı.</string>
+    <string name="apps_icons_custom">Özel simgeler</string>
     <string name="apps_add_to_folder">Klasöre ekle</string>
     <string name="apps_new_folder">Yeni klasör</string>
     <string name="apps_remove_from_folder">Klasörden çıkar</string>
@@ -3655,7 +4004,88 @@
     <string name="input_reset_positions">Konumları sıfırla</string>
     <string name="input_show_label">Etiketi göster</string>
     <string name="input_layout_import_failed">Bu düzen içe aktarılamadı</string>
-
+    <string name="epic_third_party_managed">%1$s üzerinden yüklenir</string>
     <string name="theme_white_red">Kızıl Kar</string>
-    
+    <string name="theme_white_red_detail">Kırmızı vurgulu beyaz yüzeyler.</string>
+    <string name="rail_soundtracks">Oyun müzikleri</string>
+    <string name="rail_music">Müzik</string>
+    <string name="soundtracks_options">Oynatma seçenekleri</string>
+    <string name="soundtracks_favorites">Favoriler</string>
+    <string name="soundtracks_collections">Koleksiyonlar</string>
+    <string name="soundtracks_collections_empty">Henüz koleksiyon yok. Oluşturmak için yer imi simgesine dokun.</string>
+    <string name="soundtracks_saved">Kaydedilenler</string>
+    <string name="soundtracks_create_collection">Koleksiyon oluştur</string>
+    <string name="soundtracks_organise">Kayıtlarını düzenle</string>
+    <string name="soundtracks_new">Yeni</string>
+    <string name="soundtracks_create">Oluştur</string>
+    <string name="soundtracks_collection_name">Koleksiyon adı</string>
+    <string name="soundtracks_name_invalid">Başka bir koleksiyonun kullanmadığı bir ad gir</string>
+    <string name="soundtracks_manage">Yönet</string>
+    <string name="soundtracks_rename">Yeniden adlandır</string>
+    <string name="soundtracks_add_tracks">Parça ekle</string>
+    <string name="soundtracks_add_count">Ekle (%1$d)</string>
+    <string name="soundtracks_remove_tracks">Parçaları kaldır</string>
+    <string name="soundtracks_delete_collection">Koleksiyonu sil</string>
+    <string name="soundtracks_delete_title">%1$s silinsin mi?</string>
+    <string name="soundtracks_delete_body">Parçalar cihazında kalır. Yalnızca koleksiyon kaldırılır.</string>
+    <string name="soundtracks_select">Seç</string>
+    <string name="soundtracks_select_all">Tümünü seç</string>
+    <string name="soundtracks_deselect_all">Tüm seçimleri kaldır</string>
+    <string name="soundtracks_selected">%1$d seçildi</string>
+    <string name="soundtracks_add_to_collection">Koleksiyona ekle</string>
+    <string name="soundtracks_add_favorites">Favorilere ekle</string>
+    <string name="soundtracks_remove_from_collection">Koleksiyondan kaldır</string>
+    <string name="soundtracks_search_tracks">Parça ara</string>
+    <string name="soundtracks_sort_default">Albüm sırası</string>
+    <string name="soundtracks_sort_longest">Önce en uzun</string>
+    <string name="soundtracks_sort_shortest">Önce en kısa</string>
+    <string name="soundtracks_tracks_heading">Parçalar</string>
+    <string name="soundtracks_pitch">Perde</string>
+    <string name="soundtracks_reset">Sıfırla</string>
+    <string name="soundtracks_skip_silence">Sessizliği atla</string>
+    <string name="soundtracks_sleep">Uyku zamanlayıcısı</string>
+    <string name="soundtracks_sleep_minutes">%1$d dk</string>
+    <string name="soundtracks_sleep_track_end">Parçanın sonu</string>
+    <string name="soundtracks_sleep_left">%1$s kaldı</string>
+    <string name="soundtracks_equalizer">Ekolayzır</string>
+    <string name="soundtracks_bass">Bas güçlendirme</string>
+    <string name="soundtracks_eq_unavailable">Ekolayzır bu cihazda kullanılamıyor</string>
+    <string name="setup_soundtracks_ingame">Oyun içinde etkinleştir</string>
+    <string name="setup_soundtracks_ingame_hint">Oyun çalışırken oyun müziği çalmaya devam etsin</string>
+    <string name="soundtracks_empty">Henüz oyun müziği yüklenmedi.</string>
+    <string name="soundtracks_search">Oyun müziklerinde ara</string>
+    <string name="soundtracks_add_title">Oyun müziği klasörü ekle</string>
+    <string name="soundtracks_add_empty">Bu klasörde ses dosyası yok</string>
+    <string name="soundtracks_total_length">Toplam süre</string>
+    <string name="soundtracks_length_value">%1$d parça / %2$s</string>
+    <string name="soundtracks_disc">Disk %1$s</string>
+    <string name="soundtracks_shuffle">Karıştır</string>
+    <string name="soundtracks_previous">Önceki</string>
+    <string name="soundtracks_play">Oynat</string>
+    <string name="soundtracks_pause">Duraklat</string>
+    <string name="soundtracks_next">Sonraki</string>
+    <string name="soundtracks_repeat_off">Tekrar kapalı</string>
+    <string name="soundtracks_repeat_all">Tümünü tekrarla</string>
+    <string name="soundtracks_repeat_one">Birini tekrarla</string>
+    <string name="soundtracks_volume">Ses düzeyi</string>
+    <string name="soundtracks_no_tracks">Bu oyun müziğinde ses dosyası yok</string>
+    <string name="stores_rockstar_launch_unavailable">Başlatma kullanılamıyor</string>
+    <string name="agent_browser_unavailable">Bu bağlantıyı açmak için kullanılabilir bir web tarayıcısı yok.</string>
+    <string name="hud_hint_grab">Tut</string>
+    <string name="hud_hint_drop">Bırak</string>
+    <string name="hud_hint_save">Kaydet</string>
+    <string name="hud_hint_reset">Sıfırlamak için basılı tut</string>
+    <string name="setup_stores">Mağazalar</string>
+    <string name="hud_metric_latency">Kare süresi</string>
+    <string name="hud_metric_avg">Ortalama kare hızı</string>
+    <string name="hud_metric_display">Görüntü sunucusu</string>
+    <string name="hud_metric_hdr">HDR durumu</string>
+    <string name="hud_readings_shown">Gösterilen</string>
+    <string name="hud_readings_count">%1$d / %2$d</string>
+    <string name="exit_hint_back">Çıkmak için bir kez daha geri basın</string>
+    <string name="display_integer_scaling">Tam sayı ölçeklendirme</string>
+    <string name="display_integer_scaling_hint">Ekrana sığan en büyük tam sayı ölçeğini kullanır. Ekran kenarları kırpılabilir. Kaynak görüntü çıktıdan büyükse kesirli ölçekleme görüntünün tamamını gösterir. Çözünürlük ayrı ayarlanır.</string>
+    <string name="display_scaling_integer">Tam sayı</string>
+    <string name="display_scaling_fit">Sığdır</string>
+    <string name="drawer_antialiasing">Kenar yumuşatma</string>
 </resources>

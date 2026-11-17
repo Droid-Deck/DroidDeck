@@ -13,7 +13,7 @@ SOURCE = ROOT / 'app/src/main/cpp/waylandcomp/src/compositor.c'
 
 
 def extract_function(source, name):
-    match = re.search(r'^(?:static )?(?:void|int|uint32_t) ' + re.escape(name) + r'\([^;]*?\) \{',
+    match = re.search(r'^(?:static )?(?:void |int |uint32_t |const char \*)' + re.escape(name) + r'\([^;]*?\) \{',
                       source, re.MULTILINE)
     if match is None:
         raise AssertionError(f'Missing compositor function: {name}')
@@ -70,6 +70,7 @@ static void send_toplevel_configure(struct surface *s) { (void)s; resizes++; }
 #define stream_forget_all(...) ((void)0)
 #define pointer_delta(...) ((void)0)
 #define deliver_touch(m) ((void)0)
+#define deliver_pen(m) ((void)0)
 #define deliver_pointer(m) (pointers++)
 static void on_vsync(int64_t ns) { assert(ns > 0); ticks++; }
 static void vk_present_set_scale_mode(int mode, int alignment) {
