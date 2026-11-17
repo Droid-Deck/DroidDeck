@@ -887,8 +887,10 @@ case $mode in
             _bl_fall=$((_bl_sample_available - _bl_available))
             [ "$_saved_growth" -gt "$_bl_growth" ] && _bl_growth=$_saved_growth
             [ "$_saved_fall" -gt "$_bl_fall" ] && _bl_fall=$_saved_fall
-            _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
-            _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
+            if [ $((SECONDS - _bl_sample_at)) -ge 5 ]; then
+              _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
+              _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
+            fi
           fi
           _bl_real_available=$_bl_available
           [ "$_bl_real_available" -ge 0 ] && _bl_real_available=$((_bl_real_available - _bl_growth))
@@ -898,6 +900,8 @@ case $mode in
           _bl_tier_headroom=$((_bl_mem_total / 4))
           [ "$_bl_tier_headroom" -ge $((768 * 1024)) ] || _bl_tier_headroom=$((768 * 1024))
           [ "$_bl_tier_headroom" -le $((2560 * 1024)) ] || _bl_tier_headroom=$((2560 * 1024))
+          _bl_fall_headroom=$((_bl_tier_headroom * 2))
+          [ "$_bl_fall_headroom" -ge $((_bl_mem_total * 2 / 5)) ] || _bl_fall_headroom=$((_bl_mem_total * 2 / 5))
           _bl_swap_reserve=$((_bl_swap_total / 5))
           [ "$_bl_swap_reserve" -ge $((256 * 1024)) ] || _bl_swap_reserve=$((256 * 1024))
         }
@@ -967,7 +971,7 @@ case $mode in
           [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_available" -ge 0 ] &&
             { [ "$_bl_real_available" -lt "$_bl_tier_headroom" ] ||
               { [ "$_bl_psi" -ge 100 ] && [ "$_bl_real_available" -lt $((_bl_tier_headroom * 3 / 2)) ]; } ||
-              { [ "$_bl_fall" -ge $((256 * 1024)) ] && [ "$_bl_real_available" -lt $((_bl_tier_headroom * 2)) ]; }; }
+              { [ "$_bl_fall" -ge $((256 * 1024)) ] && [ "$_bl_real_available" -lt "$_bl_fall_headroom" ]; }; }
         }
         bl_session_pressure() {
           bl_memory_read
@@ -1030,7 +1034,7 @@ case $mode in
         }
         bl_watch_nap() {
           local _i
-          if [ "$_bl_game" = 1 ] && [ "$_bl_available" -ge 0 ] && [ "$_bl_real_available" -lt $((_bl_tier_headroom * 2)) ]; then
+          if [ "$_bl_game" = 1 ] && [ "$_bl_available" -ge 0 ] && [ "$_bl_real_available" -lt "$_bl_fall_headroom" ]; then
             for _i in 1 2 3 4 5; do
               nap 1
               bl_memory_read

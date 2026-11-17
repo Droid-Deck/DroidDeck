@@ -544,6 +544,7 @@ object SessionArtifacts {
                             "session died of a crash, the entry is in there unless the device rebooted.\n" +
                             (if (newest) exitReasons(context) else "")
                     )
+                    restartNote(File(dir, "device.txt").lastModified(), bootedAt())?.let { recoveryNote.appendText(it) }
                     if (newest && lastExitForMemory(context)) killedForMemory = true
                 }
                 if (recoveryPreviouslyAttempted && !runtimeCaptured.exists() &&
@@ -685,6 +686,22 @@ object SessionArtifacts {
         Log.i(TAG, "cleared ${gone.size} session folder(s)")
         return gone.size
     }
+
+    private fun bootedAt(): Long = System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()
+
+    internal fun restartNote(sessionStartedAt: Long, bootedAt: Long): String? {
+        if (sessionStartedAt <= 0L) return null
+        val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        return if (bootedAt > sessionStartedAt + BOOT_CLOCK_SLACK_MS) {
+            "The device itself probably restarted after this session began (estimated boot ${stamp.format(Date(bootedAt))}, from the clock and uptime, so a clock change can fake it):\n" +
+                "if so, the whole system went down and crash.log is the new boot's buffer and says nothing about the session.\n"
+        } else {
+            "The device does not appear to have restarted since this session began (estimated boot ${stamp.format(Date(bootedAt))}, from the clock and uptime):\n" +
+                "only this app's processes ended, so crash.log and the exit records cover the end.\n"
+        }
+    }
+
+    private const val BOOT_CLOCK_SLACK_MS = 60_000L
 
     private fun now(): String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
 }
