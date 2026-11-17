@@ -14,6 +14,7 @@ import com.droiddeck.launcher.stores.StoreFront
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoreShelves
+import com.droiddeck.launcher.stores.StoreLibraryCache
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.WebCookies
 import com.droiddeck.launcher.stores.download.DownloadEntry
@@ -163,7 +164,13 @@ object RockstarLibrary {
                 post(gen) { StoresState.status.remove(Store.ROCKSTAR); StoresState.problems[Store.ROCKSTAR] = app.getString(R.string.stores_sync_sign_in) }
                 return
             }
-            if (StoresState.library[Store.ROCKSTAR].isNullOrEmpty()) post(gen) { StoresState.status[Store.ROCKSTAR] = app.getString(R.string.stores_sync_game_list) }
+            val cached = StoreLibraryCache.load(app, Store.ROCKSTAR)
+            post(gen) {
+                if (StoresState.library[Store.ROCKSTAR] == null) {
+                    if (cached != null) StoresState.library[Store.ROCKSTAR] = cached
+                    else StoresState.status[Store.ROCKSTAR] = app.getString(R.string.stores_sync_game_list)
+                }
+            }
             val account = RockstarApps.fetch(t.ticket) { StoresState.logLine(it) }
             val games = games(account)
             owned(account).filter { o -> games.none { it.id == o.id } }.takeIf { it.isNotEmpty() }?.let { elsewhere ->
@@ -175,6 +182,7 @@ object RockstarLibrary {
                 StoresState.library[Store.ROCKSTAR] = games
                 StoresState.shelves[Store.ROCKSTAR]?.let { StoresState.shelves[Store.ROCKSTAR] = StoreFront.markOwned(it, games, RockstarCatalog::sameGame) }
             }
+            if (generation.get() == gen) StoreLibraryCache.save(app, Store.ROCKSTAR, games)
             StoresState.logLine("Rockstar: ${games.size} owned games")
         } catch (e: Exception) {
             StoresState.logLine("Rockstar: library sync failed: ${e.javaClass.simpleName} ${e.message.orEmpty().take(300)}")

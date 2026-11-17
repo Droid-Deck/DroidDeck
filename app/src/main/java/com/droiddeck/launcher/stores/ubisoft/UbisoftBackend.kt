@@ -15,6 +15,7 @@ import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.StoreLoginActivity
+import com.droiddeck.launcher.stores.StoreLibraryCache
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.WebCookies
 import org.json.JSONObject
@@ -206,7 +207,13 @@ object UbisoftLibrary {
                 post(gen) { StoresState.status.remove(Store.UBISOFT); StoresState.problems[Store.UBISOFT] = app.getString(R.string.stores_sync_sign_in) }
                 return
             }
-            if (StoresState.library[Store.UBISOFT].isNullOrEmpty()) post(gen) { StoresState.status[Store.UBISOFT] = app.getString(R.string.stores_sync_game_list) }
+            val cached = StoreLibraryCache.load(app, Store.UBISOFT)
+            post(gen) {
+                if (StoresState.library[Store.UBISOFT] == null) {
+                    if (cached != null) StoresState.library[Store.UBISOFT] = cached
+                    else StoresState.status[Store.UBISOFT] = app.getString(R.string.stores_sync_game_list)
+                }
+            }
             val all = ArrayList<CatalogItem>()
             var offset = 0
             while (true) {
@@ -241,6 +248,7 @@ object UbisoftLibrary {
                 StoresState.library[Store.UBISOFT] = games
                 StoresState.shelves[Store.UBISOFT]?.let { StoresState.shelves[Store.UBISOFT] = StoreFront.markOwned(it, games, UbisoftStore::sameGame) }
             }
+            if (generation.get() == gen) StoreLibraryCache.save(app, Store.UBISOFT, games)
             StoresState.logLine("Ubisoft: ${games.size} owned games")
         } catch (e: Exception) {
             StoresState.logLine("Ubisoft: library sync failed: ${e.javaClass.simpleName} ${e.message.orEmpty().take(200)}")
