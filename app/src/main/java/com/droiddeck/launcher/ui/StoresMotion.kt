@@ -1,5 +1,8 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -66,6 +69,13 @@ internal object StoresMotion {
     fun takeInstall(): Rect? = installFrom.takeIf { SystemClock.uptimeMillis() - installAt < 20_000 }.also { installAt = 0L }
 
     var downloadsChip by mutableStateOf<Rect?>(null)
+
+    private var touch: Offset? = null
+    private var touchAt = 0L
+
+    fun touched(at: Offset) { touch = at; touchAt = SystemClock.uptimeMillis() }
+
+    fun recentTouch(): Offset? = touch.takeIf { SystemClock.uptimeMillis() - touchAt < 4_000 }
 
     var landed by mutableIntStateOf(0)
 
@@ -300,4 +310,29 @@ internal fun <T> AnimatedRows(
             AnimatedVisibility(st, enter = enter(i, later[k] == true), exit = exit(item, i, shown.size)) { content(item, later[k] == true) }
         }
     }
+}
+
+@Composable
+internal fun DownloadFlights() {
+    val glide = LocalFocusGlide.current
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    val active = com.droiddeck.launcher.stores.StoresState.downloads.filter { it.isActive }.map { it.key }.toSet()
+    val seen = remember { mutableSetOf<String>().also { it.addAll(active) } }
+    LaunchedEffect(active) {
+        val fresh = active - seen
+        seen.clear(); seen.addAll(active)
+        if (fresh.isEmpty()) return@LaunchedEffect
+        val from = StoresMotion.takeInstall() ?: focusAnchor(glide, origin)
+        if (from != null) StoresMotion.fly(from) else StoresMotion.landed++
+    }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) { FlightLayer(origin) }
+}
+
+internal fun focusAnchor(glide: FocusGlide?, origin: Offset): Rect? {
+    val ring = glide?.let { g ->
+        val src = g.current ?: return@let null
+        val host = g.host?.takeIf { it.isAttached } ?: return@let null
+        g.boundsOf(src)?.translate(host.positionInRoot())
+    }
+    return ring ?: StoresMotion.recentTouch()?.let { Rect(it + origin - Offset(24f, 24f), androidx.compose.ui.geometry.Size(48f, 48f)) }
 }

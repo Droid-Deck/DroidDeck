@@ -389,7 +389,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             },
         ) { key -> GameDetail(key, s, a, heroFocus, backLabel, hopRail = null, onBack = { closeGame() }, inStore = true) }
     }
-    FlightLayer(hostAt)
     StoresMotion.step?.let { ask ->
         key(ask) {
             StepOut(
@@ -402,13 +401,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     SignInFloodLayer(hostAt)
     }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.drop() } }
-    val activeKeys = StoresState.downloads.filter { it.isActive }.map { it.key }.toSet()
-    val seenActive = remember { mutableSetOf<String>().also { it.addAll(activeKeys) } }
-    LaunchedEffect(activeKeys) {
-        val fresh = activeKeys - seenActive
-        seenActive.clear(); seenActive.addAll(activeKeys)
-        if (fresh.isNotEmpty()) StoresMotion.takeInstall()?.let { StoresMotion.fly(it) }
-    }
 }
 
 @Composable

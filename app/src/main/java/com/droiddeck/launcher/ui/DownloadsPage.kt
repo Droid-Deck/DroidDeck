@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -34,22 +35,23 @@ internal object DownloadsNav {
 
 @Composable
 internal fun DownloadsPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
-    var settings by rememberSaveable { mutableStateOf(DownloadsNav.showSettings) }
-    DownloadsNav.showSettings = false
+    val pal = LocalPalette.current
+    val live = androidx.compose.runtime.rememberUpdatedState(s)
+    var gearAt by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    val openSettings = { gearAt?.let { StoresMotion.ask(downloadsSettingsStep(it, live, a, pal.signal)) } }
+    androidx.compose.runtime.LaunchedEffect(gearAt != null) {
+        if (gearAt != null && DownloadsNav.showSettings) { DownloadsNav.showSettings = false; openSettings() }
+    }
     var hostAt by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.drop() } }
     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().onGloballyPositioned { hostAt = it.positionInRoot() }) {
     Column(modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         PageHeader(stringResource(R.string.stores_tab_downloads)) {
             Spacer(Modifier.weight(1f))
-            SmallIconButton(
-                Icons.Filled.Settings, stringResource(R.string.downloads_settings),
-                tint = if (settings) LocalPalette.current.signal else MaterialTheme.colorScheme.onSurfaceVariant,
-            ) { settings = !settings }
-        }
-        AnimatedVisibility(settings, enter = expandVertically(Motion.sp(1f)) + fadeIn(Motion.sp(1f)), exit = shrinkVertically(Motion.sp(1f)) + fadeOut(Motion.sp(1f))) {
-            SettingsGroup(stringResource(R.string.downloads_settings)) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp).testTag("downloads-settings")) { DownloadControls(s, a) }
+            androidx.compose.foundation.layout.Box(Modifier.onGloballyPositioned { gearAt = it.boundsInRoot() }) {
+                SmallIconButton(Icons.Filled.Settings, stringResource(R.string.downloads_settings), tint = MaterialTheme.colorScheme.onSurfaceVariant) {
+                    openSettings()
+                }
             }
         }
         StoresDownloadsPane(s, a)
