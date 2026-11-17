@@ -30,6 +30,10 @@ class KeepTopActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         val id = display?.displayId ?: Display.INVALID_DISPLAY
         starting.remove(id)
+        if (guards[id]?.isFinishing == false) {
+            finishAndRemoveTask()
+            return
+        }
         guards[id] = this
     }
 
