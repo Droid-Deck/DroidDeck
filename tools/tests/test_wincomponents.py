@@ -587,6 +587,24 @@ class WinComponentsTest(unittest.TestCase):
         self.assertIsNone(registry.get(key, "System.Core"))
         self.assertEqual(registry.get(key, "*"), '\"*\"=\"Gac=y\"')
 
+    def test_explicit_registry_value_in_earlier_component_wins_over_later_generated_gac_override(self):
+        key = "Software\\Wine\\Mono\\AsmOverrides"
+        self.component("first", [], {})
+        (self.store / "first/registry.json").write_text(json.dumps({"values": [
+            {"hive": "HKCU", "key": key, "name": "System", "type": "sz", "data": "Gac=y"},
+        ]}))
+        self.component("second", ["mscoree=n"], {
+            "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4/System.dll": b"system",
+        })
+        self.mono("System")
+        self.pfx.parent.mkdir(parents=True)
+        user = self.compat / "pfx/user.reg"
+        user.write_text("WINE REGISTRY Version 2\n")
+        self.pick("first", "second")
+        self.apply()
+        registry = MODULE["RegistryFile"](user)
+        self.assertEqual(registry.get(key, "System"), '"System"="Gac=y"')
+
     def test_unselected_framework_and_non_framework_components_do_not_change_mono(self):
         gac = "drive_c/windows/Microsoft.NET/assembly/GAC_MSIL/System/v4/System.dll"
         self.component("framework", ["mscoree=n"], {gac: b"system"})

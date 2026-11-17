@@ -81,7 +81,7 @@ def component(store, cid, mono=frozenset()):
                 assemblies.add(Path(rel).stem)
         assemblies = sorted(assemblies)
         values = [{"hive": "HKCU", "key": "Software\\Wine\\Mono\\AsmOverrides", "name": name,
-                   "type": "sz", "data": "Gac=n"} for name in assemblies] + values
+                   "type": "sz", "data": "Gac=n", "generated": True} for name in assemblies] + values
     return overrides, files, requires, values
 
 
@@ -452,7 +452,8 @@ def apply_registry(pfx, values, state, held=()):
             files[hive] = RegistryFile(pfx / name)
     old = state.get("registry") if isinstance(state.get("registry"), dict) else {}
     keep, notes, written, waiting = {}, [], 0, 0
-    for cid, value in values:
+    ordered = [item for item in values if item[1].get("generated")] + [item for item in values if not item[1].get("generated")]
+    for cid, value in ordered:
         reg = files.get(value["hive"])
         if reg is None:
             waiting += 1
