@@ -425,11 +425,9 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
      * switches only its own choice off again once a pair is installed ([endMaliFallback]).
      */
     private fun useMaliFallback(missing: String?): String {
+        if (bridgeExplicit() || venusExplicit()) return ""
         val oldVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(activity)
-        val venus = MaliAutoRoute.preferVenus(
-            oldVulkan == null && com.droiddeck.launcher.session.VenusComponent.available(activity),
-            SessionPrefs.vkBridge(activity), bridgeExplicit(), SessionPrefs.venus(activity), venusExplicit(),
-        )
+        val venus = oldVulkan == null && com.droiddeck.launcher.session.VenusComponent.available(activity)
         if (oldVulkan != null) Log.i(TAG, "auto: Mali driver reports Vulkan $oldVulkan; Venus needs 1.2, the bridge stands in")
         val ownership = MaliAutoRoute.fallbackOwnership(
             venus,

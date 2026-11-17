@@ -12,14 +12,6 @@ internal object MaliAutoRoute {
             else -> NONE
         }
 
-    fun preferVenus(
-        venusAvailable: Boolean,
-        bridgeOn: Boolean,
-        bridgeExplicit: Boolean,
-        venusOn: Boolean,
-        venusExplicit: Boolean,
-    ): Boolean = venusAvailable && (venusOn || !bridgeOn || (!bridgeExplicit && !venusExplicit))
-
     fun fallbackOwnership(
         venusAvailable: Boolean,
         bridgeOn: Boolean,

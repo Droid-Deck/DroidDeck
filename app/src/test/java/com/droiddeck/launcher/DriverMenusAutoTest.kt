@@ -86,6 +86,51 @@ class DriverMenusAutoTest {
         assertEquals("chosen-linux", SessionPrefs.linuxDriver(activity))
     }
 
+    @Test fun autoFallbackPreservesEveryExplicitRouteConfiguration() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        for ((bridge, venus) in listOf(false to false, false to true, true to false, true to true)) {
+            SessionPrefs.setVkBridge(activity, bridge)
+            SessionPrefs.setVenus(activity, venus)
+            SessionPrefs.setMaliFallbackByAuto(activity, "")
+            runMaliFallback(activity)
+            assertEquals(bridge, SessionPrefs.vkBridge(activity))
+            assertEquals(venus, SessionPrefs.venus(activity))
+            assertEquals("", SessionPrefs.maliFallbackByAuto(activity))
+        }
+    }
+
+    @Test fun anExplicitVenusSettingLeavesTheDefaultBridgeUntouched() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val bridge = SessionPrefs.vkBridge(activity)
+        SessionPrefs.setVenus(activity, false)
+        runMaliFallback(activity)
+        assertFalse(activity.getSharedPreferences("session", Context.MODE_PRIVATE).contains("vkBridge"))
+        assertEquals(bridge, SessionPrefs.vkBridge(activity))
+        assertFalse(SessionPrefs.venus(activity))
+        assertEquals("", SessionPrefs.maliFallbackByAuto(activity))
+    }
+
+    @Test fun autoFallbackCanFillInUnconfiguredRoutes() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        assertTrue(runMaliFallback(activity).isNotEmpty())
+        assertTrue(SessionPrefs.maliFallbackByAuto(activity).isNotEmpty())
+        assertTrue(SessionPrefs.vkBridge(activity) || SessionPrefs.venus(activity))
+    }
+
+    @Test fun autoFallbackCanRevisitItsOwnRoute() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setVkBridge(activity, true)
+        SessionPrefs.setMaliFallbackByAuto(activity, MaliAutoRoute.BRIDGE)
+        assertTrue(runMaliFallback(activity).isNotEmpty())
+        assertTrue(SessionPrefs.maliFallbackByAuto(activity).isNotEmpty())
+    }
+
+    private fun runMaliFallback(activity: Activity): String =
+        ReflectionHelpers.callInstanceMethod<String>(
+            DriverMenus(activity, Handler(Looper.getMainLooper())), "useMaliFallback",
+            ReflectionHelpers.ClassParameter.from(String::class.java, null),
+        )
+
     @Test fun driverMenusCanBeConstructedBeforeActivityContextIsAttached() {
         val menus = DriverMenus(Activity(), Handler(Looper.getMainLooper()))
         assertEquals(SessionPrefs.TP_UBWC_AUTO, menus.tpUbwcMode)
