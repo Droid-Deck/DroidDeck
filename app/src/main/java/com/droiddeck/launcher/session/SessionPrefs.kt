@@ -306,7 +306,7 @@ object SessionPrefs {
         when (scope) {
             SCOPE_GAME -> if (game != null) e.putInt("fpsLimit.game.$game", fps)
             SCOPE_ALL -> { e.putInt("fpsLimit.all", fps); if (game != null) e.remove("fpsLimit.game.$game") }
-            else -> if (game == null) e.remove("fpsLimit.all") else e.remove("fpsLimit.game.$game")
+            else -> if (game != null) e.remove("fpsLimit.game.$game")
         }
         e.apply()
     }

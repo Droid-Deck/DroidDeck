@@ -412,6 +412,7 @@ class SessionService : Service() {
             ?: steamUrlGameId
         SessionState.gameId = resolvedGameId
         SessionState.fpsLimit = SessionPrefs.savedFpsLimit(this, resolvedGameId.takeIf { SessionState.mode == MODE_RUN })
+        SessionState.fpsLimitScope = null
         SessionPrefs.setActiveScreenEffectsProfile(
             this,
             SessionPrefs.screenEffectsProfileId(SessionState.mode, resolvedGameId, SessionState.program),

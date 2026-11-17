@@ -806,7 +806,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             SessionState.fpsLimit = SessionPrefs.savedFpsLimit(this, fpsLimitGameKey())
         }
         fpsLimit = SessionState.fpsLimit
-        fpsLimitScope = SessionPrefs.fpsLimitScope(this, fpsLimitGameKey())
+        if (!SessionState.running) SessionState.fpsLimitScope = null
+        fpsLimitScope = SessionState.fpsLimitScope ?: SessionPrefs.fpsLimitScope(this, fpsLimitGameKey())
         cornerTap = SessionPrefs.drawerCornerTap(this)
         applyOutputPacing()
         if (!SessionState.running) {
@@ -1632,6 +1633,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onFpsLimitScope = { scope ->
                 SessionPrefs.saveFpsLimit(this@SessionActivity, scope, fpsLimitGameKey(), fpsLimit)
                 fpsLimitScope = scope
+                SessionState.fpsLimitScope = scope
             },
             cornerTap = cornerTap,
             onCornerTap = { on -> SessionPrefs.setDrawerCornerTap(this@SessionActivity, on); cornerTap = on },
