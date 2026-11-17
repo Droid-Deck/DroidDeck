@@ -1154,7 +1154,7 @@
     <string name="lab_off_title">Laboratorní sestavení vypnuto</string>
     <string name="lab_off_other_install">Bylo vytvořeno pro jinou verzi aplikace DroidDeck. Zůstává v Aktualizacích.</string>
     <string name="lab_off_did_not_start">DroidDeck se na něm dvakrát nespustil.</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agent pracuje</string>
     <string name="agent_missing">Chcete-li používat agenta, nainstalujte Claude Code v uživatelském prostředí Linuxu.</string>

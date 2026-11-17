@@ -1148,7 +1148,7 @@
     <string name="lab_off_title">Lab-versio poistettu käytöstä</string>
     <string name="lab_off_other_install">Se rakennettiin DroidDeckin toiselle versiolle. Se on tallessa Päivityksissä.</string>
     <string name="lab_off_did_not_start">DroidDeck ei käynnistynyt sillä kahdesti</string>
-    <string name="rail_agent">Agentti</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agentti</string>
     <string name="agent_working">Agentti työskentelee</string>
     <string name="agent_missing">Asenna Claude Code Linux-ympäristöön käyttääksesi agenttia.</string>

@@ -1144,7 +1144,7 @@
     <string name="lab_off_title">實驗版已關閉</string>
     <string name="lab_off_other_install">它是為另一個 DroidDeck 版本建置的，現保留在「更新」。</string>
     <string name="lab_off_did_not_start">DroidDeck 兩次都無法在該版本啟動</string>
-    <string name="rail_agent">代理</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">代理</string>
     <string name="agent_working">代理正在運作</string>
     <string name="agent_missing">在 Linux 用戶空間安裝 Claude Code，才可使用代理。</string>

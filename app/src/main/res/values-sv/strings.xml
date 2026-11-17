@@ -1148,7 +1148,7 @@
     <string name="lab_off_title">Lab-bygget avstängt</string>
     <string name="lab_off_other_install">Det byggdes för en annan version av DroidDeck. Det behålls i Uppdateringar.</string>
     <string name="lab_off_did_not_start">DroidDeck startade inte på det två gånger</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agenten arbetar</string>
     <string name="agent_missing">Installera Claude Code i Linux-användarmiljön för att använda agenten.</string>

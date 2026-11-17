@@ -1145,7 +1145,7 @@
     <string name="lab_off_title">Đã tắt bản dựng thử nghiệm</string>
     <string name="lab_off_other_install">Bản dựng này được tạo cho một phiên bản DroidDeck khác. Bản dựng vẫn được giữ trong Cập nhật.</string>
     <string name="lab_off_did_not_start">DroidDeck đã không khởi động được bằng bản dựng này hai lần</string>
-    <string name="rail_agent">Trợ lý</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Trợ lý</string>
     <string name="agent_working">Trợ lý đang xử lý</string>
     <string name="agent_missing">Cài Claude Code trong môi trường người dùng Linux để sử dụng trợ lý.</string>
