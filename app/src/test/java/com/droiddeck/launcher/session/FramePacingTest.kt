@@ -83,4 +83,33 @@ class FramePacingTest {
         assertTrue(line, line.contains("5000 ms worst, 1 over 50 ms, 1 over 250 ms"))
         assertTrue(line, line.endsWith("1% low 62.5 fps, 0.1% low 62.5 fps"))
     }
+
+    @Test fun aStoppedLoggerNeverWritesAnotherLine() {
+        val lines = mutableListOf<String>()
+        val pacing = FramePacing()
+        var now = 1_000 * ms
+        val run = FrameLogRun(pacing, now) { lines += it }
+        repeat(150) { now += 20 * ms; pacing.add(20 * ms, now) }
+        run.tick(now)
+        assertEquals(1, lines.size)
+        repeat(100) { now += 20 * ms; pacing.add(20 * ms, now) }
+        run.stop(now, flush = true)
+        assertEquals(2, lines.size)
+        assertTrue(lines[1], lines[1].startsWith("last 2 s: 100 frames"))
+        repeat(200) { now += 20 * ms; pacing.add(20 * ms, now) }
+        run.tick(now)
+        run.stop(now, flush = true)
+        assertEquals("the logger wrote after it was stopped: $lines", 2, lines.size)
+    }
+
+    @Test fun aReplacedLoggerStopsWithoutFlushing() {
+        val lines = mutableListOf<String>()
+        val pacing = FramePacing()
+        var now = 1_000 * ms
+        val run = FrameLogRun(pacing, now) { lines += it }
+        repeat(100) { now += 20 * ms; pacing.add(20 * ms, now) }
+        run.stop(now, flush = false)
+        run.tick(now + 10_000 * ms)
+        assertTrue("$lines", lines.isEmpty())
+    }
 }

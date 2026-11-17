@@ -84,47 +84,76 @@ internal class FramePacing {
     }
 }
 
+/**
+ * One logger's output. Every line goes out under this object's lock, so once [stop] returns nothing more is
+ * written, even if the logger thread is still finishing a poll.
+ */
+internal class FrameLogRun(private val pacing: FramePacing, startNs: Long, private val sink: (String) -> Unit) {
+    private var lastNs = startNs
+    private var stopped = false
+
+    @Synchronized
+    fun tick(nowNs: Long) {
+        if (stopped || nowNs - lastNs < PERIOD_NS) return
+        pacing.line(nowNs, (nowNs - lastNs) / 1_000_000L)?.let(sink)
+        lastNs = nowNs
+    }
+
+    /** Ends the run; with [flush] it first logs the frames since the last line. */
+    @Synchronized
+    fun stop(nowNs: Long, flush: Boolean) {
+        if (stopped) return
+        stopped = true
+        if (flush && nowNs - lastNs >= 1_000_000_000L) pacing.line(nowNs, (nowNs - lastNs) / 1_000_000L)?.let(sink)
+    }
+
+    companion object {
+        const val PERIOD_NS = 3_000_000_000L
+    }
+}
+
 object FrameLog {
     private const val TAG = "Frames"
     private const val POLL_MS = 1_000L
-    private const val PERIOD_MS = 3_000L
     private var thread: Thread? = null
+    private var run: FrameLogRun? = null
     private var owner = 0
 
     /** Logs frame pacing for session [gen], replacing a logger an older session left running. */
     @Synchronized
     fun start(root: File, gen: Int) {
         if (thread != null && owner == gen) return
+        run?.stop(System.nanoTime(), flush = false)
         thread?.interrupt()
         owner = gen
+        val pacing = FramePacing()
+        val current = FrameLogRun(pacing, System.nanoTime()) { android.util.Log.i(TAG, it) }
+        run = current
         thread = Thread({
-            val pacing = FramePacing()
             val feed = runCatching { GameFrameFeed.forRoot(root) { ft, at -> pacing.add(ft, at) } }.getOrNull() ?: return@Thread
-            var last = System.nanoTime()
             try {
                 while (!Thread.currentThread().isInterrupted) {
                     val now = System.nanoTime()
                     runCatching { feed.poll(now) }
-                    if (now - last >= PERIOD_MS * 1_000_000L) {
-                        pacing.line(now, (now - last) / 1_000_000L)?.let { android.util.Log.i(TAG, it) }
-                        last = now
-                    }
+                    current.tick(now)
                     Thread.sleep(POLL_MS)
                 }
             } catch (_: InterruptedException) {
             } finally {
-                val now = System.nanoTime()
-                runCatching { feed.poll(now) }
-                if (now - last >= 1_000_000_000L) pacing.line(now, (now - last) / 1_000_000L)?.let { android.util.Log.i(TAG, it) }
                 feed.close()
             }
         }, "frame-log").apply { isDaemon = true; start() }
     }
 
-    /** Stops the logger if session [gen] started it; a stale session's teardown leaves a newer one running. */
+    /**
+     * Stops the logger if session [gen] started it and logs its last partial period on the caller's thread,
+     * while that session still owns app.log. A stale session's teardown leaves a newer logger running.
+     */
     @Synchronized
     fun stop(gen: Int) {
         if (gen != owner) return
+        run?.stop(System.nanoTime(), flush = true)
+        run = null
         thread?.interrupt()
         thread = null
     }
