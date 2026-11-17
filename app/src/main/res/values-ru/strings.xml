@@ -714,7 +714,10 @@
     <string name="hud_size_mega">Мега</string>
     <string name="hud_size_strip">Полоса</string>
     <string name="hud_locked">Закрепить на месте</string>
-    <string name="hud_locked_hint">Перетащите HUD, чтобы переместить его; долгое нажатие закрепляет или открепляет его. Пока он закреплён, экранные элементы управления под ним продолжают работать.</string>
+    <string name="hud_locked_hint">Перетащите HUD, чтобы переместить его. Пока он закреплён, экранные элементы управления под ним продолжают работать.</string>
+    <string name="hud_hold">Долгое нажатие</string>
+    <string name="hud_hold_collapse">Свернуть или развернуть</string>
+    <string name="hud_hold_lock">Закрепить или открепить</string>
     <string name="hud_snap">Прилипание к бокам</string>
     <string name="hud_snap_hint">Отпустите HUD, и он переместится к ближайшей стороне экрана. Резкий жест отбросит его в ту сторону.</string>
     <string name="hud_group_look">Внешний вид</string>
@@ -1151,7 +1154,7 @@
     <string name="lab_off_title">Лабораторная сборка отключена</string>
     <string name="lab_off_other_install">Сборка создана для другой версии DroidDeck. Она сохранена в «Обновления».</string>
     <string name="lab_off_did_not_start">DroidDeck дважды не запустился на ней</string>
-    <string name="rail_agent">Агент</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Агент</string>
     <string name="agent_working">Агент работает</string>
     <string name="agent_missing">Установите Claude Code в пользовательской среде Linux, чтобы использовать агента.</string>

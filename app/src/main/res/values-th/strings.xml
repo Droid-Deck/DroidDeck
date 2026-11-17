@@ -708,7 +708,10 @@
     <string name="hud_size_mega">เมกะ</string>
     <string name="hud_size_strip">แถบ</string>
     <string name="hud_locked">ล็อกตำแหน่ง</string>
-    <string name="hud_locked_hint">ลาก HUD เพื่อย้าย กดค้างเพื่อล็อกหรือปลดล็อก ขณะล็อก ปุ่มควบคุมบนหน้าจอที่อยู่ด้านล่างยังใช้งานได้</string>
+    <string name="hud_locked_hint">ลาก HUD เพื่อย้าย ขณะล็อก ปุ่มควบคุมบนหน้าจอที่อยู่ด้านล่างยังใช้งานได้</string>
+    <string name="hud_hold">กดค้าง</string>
+    <string name="hud_hold_collapse">ย่อหรือขยาย</string>
+    <string name="hud_hold_lock">ล็อกหรือปลดล็อก</string>
     <string name="hud_snap">ยึดติดด้านข้าง</string>
     <string name="hud_snap_hint">ปล่อย HUD แล้วจะย้ายไปด้านที่ใกล้กว่าของหน้าจอ ปัดเร็วๆ เพื่อเหวี่ยงไปทางนั้น</string>
     <string name="hud_group_look">รูปลักษณ์</string>
@@ -1142,7 +1145,7 @@
     <string name="lab_off_title">ปิดบิลด์ Lab แล้ว</string>
     <string name="lab_off_other_install">บิลด์นี้สร้างสำหรับ DroidDeck เวอร์ชันอื่น และถูกเก็บไว้ใน Updates</string>
     <string name="lab_off_did_not_start">DroidDeck เริ่มด้วยบิลด์นี้ไม่สำเร็จ 2 ครั้ง</string>
-    <string name="rail_agent">ผู้ช่วย</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">ผู้ช่วย</string>
     <string name="agent_working">ผู้ช่วยกำลังทำงาน</string>
     <string name="agent_missing">ติดตั้ง Claude Code ในพื้นที่ผู้ใช้ Linux เพื่อใช้ผู้ช่วย</string>

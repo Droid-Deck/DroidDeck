@@ -710,7 +710,10 @@
     <string name="hud_size_mega">Μέγα</string>
     <string name="hud_size_strip">Λωρίδα</string>
     <string name="hud_locked">Κλείδωμα θέσης</string>
-    <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε· ένα παρατεταμένο πάτημα το κλειδώνει ή το ξεκλειδώνει. Όσο είναι κλειδωμένο, τα χειριστήρια οθόνης από κάτω του εξακολουθούν να λειτουργούν.</string>
+    <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε. Όσο είναι κλειδωμένο, τα χειριστήρια οθόνης από κάτω του εξακολουθούν να λειτουργούν.</string>
+    <string name="hud_hold">Παρατεταμένο πάτημα</string>
+    <string name="hud_hold_collapse">Σύμπτυξη ή ανάπτυξη</string>
+    <string name="hud_hold_lock">Κλείδωμα ή ξεκλείδωμα</string>
     <string name="hud_snap">Προσκόλληση στα πλάγια</string>
     <string name="hud_snap_hint">Αφήστε το HUD και μετακινείται στην πιο κοντινή πλευρά της οθόνης. Μια γρήγορη κίνηση το πετάει προς εκείνη την κατεύθυνση.</string>
     <string name="hud_group_look">Εμφάνιση</string>
@@ -1145,7 +1148,7 @@
     <string name="lab_off_title">Η έκδοση Lab απενεργοποιήθηκε</string>
     <string name="lab_off_other_install">Δημιουργήθηκε για άλλη έκδοση του DroidDeck. Διατηρείται στις Ενημερώσεις.</string>
     <string name="lab_off_did_not_start">Το DroidDeck δεν ξεκίνησε με αυτό δύο φορές</string>
-    <string name="rail_agent">Πράκτορας</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Πράκτορας</string>
     <string name="agent_working">Ο πράκτορας εργάζεται</string>
     <string name="agent_missing">Εγκατέστησε το Claude Code στο περιβάλλον χρήστη του Linux για να χρησιμοποιήσεις τον πράκτορα.</string>

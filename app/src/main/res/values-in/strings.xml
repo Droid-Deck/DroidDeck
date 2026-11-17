@@ -708,7 +708,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Bilah</string>
     <string name="hud_locked">Kunci posisi</string>
-    <string name="hud_locked_hint">Seret HUD untuk memindahkannya; tekan lama untuk mengunci atau membuka kuncinya. Saat terkunci, kontrol layar di bawahnya tetap berfungsi.</string>
+    <string name="hud_locked_hint">Seret HUD untuk memindahkannya. Saat terkunci, kontrol layar di bawahnya tetap berfungsi.</string>
+    <string name="hud_hold">Tekan lama</string>
+    <string name="hud_hold_collapse">Ciutkan atau perluas</string>
+    <string name="hud_hold_lock">Kunci atau buka kunci</string>
     <string name="hud_snap">Tempel ke sisi</string>
     <string name="hud_snap_hint">Lepaskan HUD dan HUD akan pindah ke sisi layar yang lebih dekat. Jentikan cepat melemparnya ke arah itu.</string>
     <string name="hud_group_look">Tampilan</string>
@@ -1142,7 +1145,7 @@
     <string name="lab_off_title">Build Lab dinonaktifkan</string>
     <string name="lab_off_other_install">Build itu dibuat untuk versi DroidDeck lain. Disimpan di Pembaruan.</string>
     <string name="lab_off_did_not_start">DroidDeck gagal dimulai dengannya dua kali.</string>
-    <string name="rail_agent">Agen</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agen</string>
     <string name="agent_working">Agen sedang bekerja</string>
     <string name="agent_missing">Pasang Claude Code di lingkungan pengguna Linux untuk menggunakan agen.</string>

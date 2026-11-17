@@ -710,7 +710,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">List</string>
     <string name="hud_locked">Lås på plats</string>
-    <string name="hud_locked_hint">Dra HUD:en för att flytta den; ett långt tryck låser eller låser upp den. När den är låst fungerar skärmkontrollerna under den fortfarande.</string>
+    <string name="hud_locked_hint">Dra HUD:en för att flytta den. När den är låst fungerar skärmkontrollerna under den fortfarande.</string>
+    <string name="hud_hold">Långt tryck</string>
+    <string name="hud_hold_collapse">Fäll ihop eller fäll ut</string>
+    <string name="hud_hold_lock">Lås eller lås upp</string>
     <string name="hud_snap">Fäst mot sidorna</string>
     <string name="hud_snap_hint">Släpp HUD:en så flyttas den till skärmens närmaste sida. En snabb svepning kastar den åt det hållet.</string>
     <string name="hud_group_look">Utseende</string>
@@ -1145,7 +1148,7 @@
     <string name="lab_off_title">Lab-bygget avstängt</string>
     <string name="lab_off_other_install">Det byggdes för en annan version av DroidDeck. Det behålls i Uppdateringar.</string>
     <string name="lab_off_did_not_start">DroidDeck startade inte på det två gånger</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agenten arbetar</string>
     <string name="agent_missing">Installera Claude Code i Linux-användarmiljön för att använda agenten.</string>

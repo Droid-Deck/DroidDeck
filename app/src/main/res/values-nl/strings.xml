@@ -710,7 +710,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Balk</string>
     <string name="hud_locked">Vastzetten</string>
-    <string name="hud_locked_hint">Sleep de HUD om hem te verplaatsen; lang drukken zet hem vast of los. Zolang hij vastzit, blijven de schermknoppen eronder werken.</string>
+    <string name="hud_locked_hint">Sleep de HUD om hem te verplaatsen. Zolang hij vastzit, blijven de schermknoppen eronder werken.</string>
+    <string name="hud_hold">Lang drukken</string>
+    <string name="hud_hold_collapse">Samenvouwen of uitklappen</string>
+    <string name="hud_hold_lock">Vastzetten of losmaken</string>
     <string name="hud_snap">Vastklikken aan zijkanten</string>
     <string name="hud_snap_hint">Laat de HUD los en hij gaat naar de dichtstbijzijnde kant van het scherm. Met een snelle veeg gooi je hem die kant op.</string>
     <string name="hud_group_look">Weergave</string>
@@ -1145,7 +1148,7 @@
     <string name="lab_off_title">Lab-build uitgeschakeld</string>
     <string name="lab_off_other_install">Deze build is gebouwd voor een andere versie van DroidDeck. Hij wordt bewaard in Updates.</string>
     <string name="lab_off_did_not_start">DroidDeck is er twee keer niet mee opgestart.</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">De agent is aan het werk</string>
     <string name="agent_missing">Installeer Claude Code in de Linux-gebruikersomgeving om de agent te gebruiken.</string>
