@@ -3848,7 +3848,7 @@
     <string name="spatial_saved_views_hint">Saved views can be recalculated. Start a new calibration to capture in the current tracking frame.</string>
     <string name="spatial_model_checksum_error">Hand model checksum mismatch</string>
     <string name="spatial_opencv_load_error">OpenCV could not load</string>
-    <string name="setup_tab_sync">Sync</string>
+    <string name="setup_tab_sync">Syncthing</string>
     <string name="sync_group">Syncthing</string>
     <string name="sync_enable">Sync with Syncthing</string>
     <string name="sync_enable_hint">Based on Syncthing-Fork, this is a Syncthing implementation that lets you sync files in DroidDeck\'s internal file system with other Syncthing instances. This is only for files you are storing within DroidDeck\'s internal file system.</string>
@@ -4229,7 +4229,7 @@
     <string name="dev_group_logs">Logs</string>
     <string name="settings_place_tab">Tabs</string>
     <string name="rail_storage">Storage</string>
-    <string name="rail_sync">Sync</string>
+    <string name="rail_sync">Syncthing</string>
     <string name="dev_tools_title">Developer tools</string>
     <string name="dev_tools_hint">Agent, graphics logs and other tools for testing DroidDeck</string>
     <string name="sheet_lip">Options</string>

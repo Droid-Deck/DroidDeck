@@ -66,7 +66,7 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Setting | Where | Also matches |
 | --- | --- | --- |
 | Storage | Tabs › Storage | sd card, space, uninstall, disk |
-| Sync | Tabs › Sync | syncthing, saves |
+| Syncthing | Tabs › Syncthing | syncthing, saves |
 | Tabs | Tabs › More | tabs, hide, reorder, agent, stores, edit tabs |
 
 ## In-game menu
