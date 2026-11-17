@@ -117,7 +117,10 @@ object FrameLog {
     private const val POLL_MS = 1_000L
     private var thread: Thread? = null
     private var run: FrameLogRun? = null
-    private var owner = 0
+    internal var owner = 0
+        private set
+    internal val running: Boolean
+        @Synchronized get() = thread != null
 
     /** Logs frame pacing for session [gen], replacing a logger an older session left running. */
     @Synchronized

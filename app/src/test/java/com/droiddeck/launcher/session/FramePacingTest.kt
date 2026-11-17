@@ -1,9 +1,11 @@
 package com.droiddeck.launcher.session
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class FramePacingTest {
     private val ms = 1_000_000L
@@ -111,5 +113,20 @@ class FramePacingTest {
         run.stop(now, flush = false)
         run.tick(now + 10_000 * ms)
         assertTrue("$lines", lines.isEmpty())
+    }
+
+    @Test fun onlyTheSessionThatStartedTheLoggerStopsIt() {
+        val root = File("unused-root")
+        try {
+            FrameLog.start(root, 1)
+            FrameLog.start(root, 2)
+            assertEquals(2, FrameLog.owner)
+            FrameLog.stop(1)
+            assertTrue("a stale session's teardown stopped the newer logger", FrameLog.running)
+            FrameLog.stop(2)
+            assertFalse(FrameLog.running)
+        } finally {
+            FrameLog.stop(FrameLog.owner)
+        }
     }
 }
