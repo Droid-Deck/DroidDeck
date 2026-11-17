@@ -21,8 +21,9 @@ echo "$(date +%H:%M:%S) $verb $EXE ($VERSION, uid $(id -u), DISPLAY ${DISPLAY:-u
 
 # Keep Steam's game identity, DroidDeck's input/display/driver/sync settings and its game environment (the names
 # ../proton lists in DROIDDECK_BIONIC_KEEP); drop the rest of the glibc guest's environment.
+KEEP=" ${DROIDDECK_BIONIC_KEEP:-} "
 for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
-  case " ${DROIDDECK_BIONIC_KEEP:-} " in *" $v "*) continue ;; esac
+  case "$KEEP" in *" $v "*) continue ;; esac
   case "$v" in
     SteamAppId|SteamGameId|SteamOverlayGameId|SteamClientLaunch|SteamEnv|SteamAppUser|SteamUser|STEAM_COMPAT_*) ;;
     ANDROID_*|BOOTCLASSPATH|DEX2OATBOOTCLASSPATH|SYSTEMSERVERCLASSPATH|EXTERNAL_STORAGE|ASEC_MOUNTPOINT) ;;
@@ -76,7 +77,7 @@ export FEX_TSOENABLED=${FEX_TSOENABLED:-1} FEX_VECTORTSOENABLED=${FEX_VECTORTSOE
   FEX_MEMCPYSETTSOENABLED=${FEX_MEMCPYSETTSOENABLED:-0} FEX_HALFBARRIERTSOENABLED=${FEX_HALFBARRIERTSOENABLED:-1} \
   FEX_X87REDUCEDPRECISION=${FEX_X87REDUCEDPRECISION:-1} FEX_MULTIBLOCK=${FEX_MULTIBLOCK:-1} FEX_MAXINST=${FEX_MAXINST:-500}
 echo "fex $(env | grep '^FEX_' | sort | tr '\n' ' ')"
-echo "sync ntsync=$WINENTSYNC esync=$WINEESYNC ssbs=${WINE_FORCE_SSBS:-0} tu_debug=${TU_DEBUG:-} kept=${DROIDDECK_BIONIC_KEEP:-}"
+echo "sync ntsync=$WINENTSYNC esync=$WINEESYNC ssbs=${WINE_FORCE_SSBS:-0} tu_debug=${TU_DEBUG:-} kept=$(echo $KEEP)"
 export WINESTEAMCLIENTPATH64=$ROOTFS/root/.local/share/Steam/androidarm64/libsteamclient.so
 export DXVK_LOG_PATH=$COMPAT PULSE_SERVER=unix:$APP/pulseaudio/PS0
 export ANDROID_SYSVSHM_SERVER=$COMPAT/.no-sysvshm-server  # its client faults on an unset name, inside a Wine lock
