@@ -409,6 +409,10 @@ def launch(command, env):
                 owned_env.pop(name, None)
             if reply.get('playfab'):
                 owned_env['XODUS_XSTS_PLAYFAB'] = reply['playfab']
+            # The runtime mounts DLC only inside this backend-owned workspace (E_NOTIMPL without it).
+            mount_root = reply.get('mountRoot')
+            if isinstance(mount_root, str) and mount_root.startswith('/'):
+                owned_env['XODUS_MOUNT_ROOT'] = 'Z:' + mount_root.replace('/', '\\')
             content = folder / '.xbox-content'
             roots = []
             if content.is_dir():

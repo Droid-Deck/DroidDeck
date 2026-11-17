@@ -47,7 +47,7 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
@@ -197,7 +197,7 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
-    "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
+    "agent" -> R.string.rail_agent to Icons.Outlined.Terminal
     "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
     "setup" -> R.string.rail_setup to Icons.Outlined.Tune
     NavTabs.MORE -> R.string.rail_more to Icons.Outlined.MoreHoriz

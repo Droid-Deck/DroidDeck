@@ -61,7 +61,7 @@ internal object XboxRuntime {
             val view = result.get(90, java.util.concurrent.TimeUnit.SECONDS)
             check(renew(app, id, token) && synchronized(state) { generation == current }) { "Xbox launch was cancelled" }
             return JSONObject().put("ok", true).put("socket", socket.path).put("lease", token)
-                .put("exe", view.getString("exe")).put("playfab", view.opt("playfab"))
+                .put("exe", view.getString("exe")).put("playfab", view.opt("playfab")).put("mountRoot", view.opt("mountRoot"))
         } catch (e: Exception) { released(token); throw e }
     }
 

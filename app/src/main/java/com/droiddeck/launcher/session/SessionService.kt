@@ -540,7 +540,7 @@ class SessionService : Service() {
             }
         }
         if (!LinuxRuntime.patchedProot(this)) {
-            if (SessionPrefs.allowStockProot(this)) {
+            if (LinuxRuntime.stockProotAllowed(this)) {
                 Log.w(TAG, "proot: patched proot missing; droiddeck-stock-proot allows the rootfs copy")
             } else {
                 val message = getString(R.string.session_proot_missing)
@@ -1427,6 +1427,28 @@ class SessionService : Service() {
             guest.add(envAt, "BL_STEAM_LIBRARIES=" + listing.path)
         } catch (e: Exception) {
             Log.w(TAG, "steam library: the list could not be written; the card alone this session", e)
+        }
+        if (SessionState.mode == MODE_DESKTOP) {
+            try {
+                val listing = File(filesDir, "session/desktop-volumes.json").apply { parentFile?.mkdirs() }
+                val volumes = org.json.JSONArray()
+                var room = if (ProotFastPath.enabled(this)) {
+                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                } else Int.MAX_VALUE
+                for (root in com.droiddeck.launcher.files.StorageRoots.list(this)) {
+                    if (!root.removable || !root.readable) continue
+                    val path = root.dir.absolutePath
+                    if (':' in path || '|' in path || room <= 0) continue
+                    binds.add(path)
+                    room--
+                    volumes.put(org.json.JSONObject().put("path", path).put("label", root.label))
+                }
+                listing.writeText(volumes.toString())
+                val envAt = guest.indexOf(LinuxRuntime.SESSION_SCRIPT).takeIf { it >= 0 } ?: guest.size
+                guest.add(envAt, "BL_DESKTOP_VOLUMES=" + listing.path)
+            } catch (e: Exception) {
+                Log.w(TAG, "desktop volumes: the list could not be written", e)
+            }
         }
         return binds
     }

@@ -135,12 +135,103 @@ static int in_exec_rehearsal(void) {
            pthread_equal(pthread_self(), g_exec_rehearsal_thread);
 }
 
+// Android's own programs, and the app's extracted libraries, may still be executed directly.
+static int exec_directly(const char *path) {
+    static const char *const prefixes[] = {"/system/", "/vendor/", "/apex/", "/product/", "/odm/", "/system_ext/", "/data/app/"};
+    if (g_exec_loader[0] == '\0' || !path || path[0] != '/' || strcmp(path, g_exec_loader) == 0) return 1;
+    for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); i++)
+        if (strncmp(path, prefixes[i], strlen(prefixes[i])) == 0) return 1;
+    return 0;
+}
+
+// ENOENT when the program names a dynamic linker that is not there (a glibc program's
+// "/lib/ld-linux-aarch64.so.1" on Android), as the kernel answers: callers try another way.
+static int exec_interp_missing(int fd) {
+    Elf64_Ehdr eh;
+    if (syscall(SYS_pread64, fd, &eh, sizeof(eh), 0) != (long)sizeof(eh) || eh.e_ident[EI_CLASS] != ELFCLASS64 ||
+        eh.e_machine != EM_AARCH64 || (eh.e_type != ET_EXEC && eh.e_type != ET_DYN) ||
+        eh.e_phentsize != sizeof(Elf64_Phdr) || eh.e_phnum == 0 || eh.e_phnum > 64)
+        return ENOEXEC;
+    for (int i = 0; i < eh.e_phnum; i++) {
+        Elf64_Phdr ph;
+        if (syscall(SYS_pread64, fd, &ph, sizeof(ph), (long)(eh.e_phoff + (Elf64_Off)i * sizeof(ph))) != (long)sizeof(ph))
+            return ENOEXEC;
+        if (ph.p_type != PT_INTERP) continue;
+        char interp[PATH_MAX];
+        if (ph.p_filesz == 0 || ph.p_filesz >= sizeof(interp) ||
+            syscall(SYS_pread64, fd, interp, ph.p_filesz, (long)ph.p_offset) != (long)ph.p_filesz)
+            return ENOEXEC;
+        interp[ph.p_filesz] = 0;
+        int ifd = (int)syscall(SYS_openat, AT_FDCWD, interp, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+        if (ifd < 0) return errno;
+        syscall(SYS_close, ifd);
+        return 0;
+    }
+    return 0;
+}
+
+// The errors execve() itself would give for [path], which the loader cannot report once it runs:
+// a shell walking $PATH moves on at ENOENT and EACCES, and runs a file without "#!" as a script at
+// ENOEXEC.
+static int exec_preflight(const char *path) {
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+    if (fd < 0) return errno;
+    struct stat st;
+    int err = 0;
+    unsigned char magic[4];
+    if (syscall(SYS_fstat, fd, &st) != 0) err = errno;
+    else if (!S_ISREG(st.st_mode)) err = EACCES;
+    else if (syscall(SYS_faccessat, AT_FDCWD, path, X_OK, 0) != 0) err = EACCES;
+    else if (syscall(SYS_read, fd, magic, 2) == 2 && magic[0] == '#' && magic[1] == '!') err = -1;
+    else if (syscall(SYS_pread64, fd, magic, sizeof(magic), 0) != (long)sizeof(magic) ||
+             magic[0] != 0x7f || magic[1] != 'E' || magic[2] != 'L' || magic[3] != 'F') err = ENOEXEC;
+    else err = exec_interp_missing(fd);
+    syscall(SYS_close, fd);
+    return err;
+}
+
+// "libddexec.so <path> <argv...>"; NULL when [path] is executed directly, as a "#!" script the
+// kernel hands to its interpreter is. *err is set when the exec would fail.
+static char **loader_argv(const char *path, char *const argv[], int *err) {
+    *err = 0;
+    if (exec_directly(path)) return NULL;
+    int preflight = exec_preflight(path);
+    if (preflight == -1) return NULL;
+    *err = preflight;
+    if (*err) return NULL;
+    int argc = 0;
+    while (argv && argv[argc]) argc++;
+    char **out = (char **)malloc(sizeof(char *) * (size_t)(argc + 4));
+    if (!out) {
+        *err = ENOMEM;
+        return NULL;
+    }
+    out[0] = g_exec_loader;
+    out[1] = (char *)path;
+    int n = 2;
+    if (argc == 0) out[n++] = (char *)path;
+    for (int i = 0; i < argc; i++) out[n++] = argv[i];
+    out[n] = NULL;
+    return out;
+}
+
 static int run_execve(orig_execve_f_type f, const char *path, char *const argv[], char *const envp[]) {
     if (in_exec_rehearsal()) {
         errno = 0;
         return 0;
     }
-    return f(path, argv, envp);
+    int err;
+    char **via = loader_argv(path, argv, &err);
+    if (err) {
+        errno = err;
+        return -1;
+    }
+    if (!via) return f(path, argv, envp);
+    int ret = f(g_exec_loader, via, envp);
+    int saved_errno = errno;
+    free(via);
+    errno = saved_errno;
+    return ret;
 }
 
 // ldconfig does nothing in The native userland (its cache is for paths that ld.so opens without the hook), but the
@@ -701,6 +792,17 @@ static orig_posix_spawn_f_type real_posix_spawn(void) {
     return orig_posix_spawn;
 }
 
+static int run_spawn(orig_posix_spawn_f_type f, pid_t *pid, const char *path, const posix_spawn_file_actions_t *file_actions,
+                     const posix_spawnattr_t *attrp, char *const argv[], char *const envp[]) {
+    int err;
+    char **via = loader_argv(path, argv, &err);
+    if (err) return err;
+    if (!via) return f(pid, path, file_actions, attrp, argv, envp);
+    int ret = f(pid, g_exec_loader, file_actions, attrp, via, envp);
+    free(via);
+    return ret;
+}
+
 static int ddnatv_posix_spawn(pid_t *pid, const char *path,
                               const posix_spawn_file_actions_t *file_actions,
                               const posix_spawnattr_t *attrp,
@@ -856,10 +958,10 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
             ret = ENOMEM;
         } else {
             if (orig_posix_spawn) {
-                ret = orig_posix_spawn(pid, ld_so, file_actions, attrp, new_argv, new_envp);
+                ret = run_spawn(orig_posix_spawn, pid, ld_so, file_actions, attrp, new_argv, new_envp);
                 if (ret == EACCES && chmod(ld_so, 0755) == 0) {
                     // ld.so without its exec bit (an unusual restore): fix it once and retry
-                    ret = orig_posix_spawn(pid, ld_so, file_actions, attrp, new_argv, new_envp);
+                    ret = run_spawn(orig_posix_spawn, pid, ld_so, file_actions, attrp, new_argv, new_envp);
                 }
             }
             free(new_argv);
@@ -867,7 +969,7 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
     } else {
         if (in_root && probe.is_elf && !probe.is_dynamic) prepare_static_program(elf_target);
         if (orig_posix_spawn) {
-            ret = orig_posix_spawn(pid, target, file_actions, attrp, argv, new_envp);
+            ret = run_spawn(orig_posix_spawn, pid, target, file_actions, attrp, argv, new_envp);
         }
     }
 
