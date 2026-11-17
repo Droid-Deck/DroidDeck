@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import com.droiddeck.launcher.DriverMenusAutoTest
 import org.robolectric.RuntimeEnvironment
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.TurnipDriver
@@ -12,11 +13,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [28], manifest = Config.NONE)
+@Config(sdk = [28], manifest = Config.NONE, shadows = [DriverMenusAutoTest.XclipseDriver::class])
 class PowerVrAutoDriversTest {
     private val context: Context = RuntimeEnvironment.getApplication()
 
     @Before fun reset() {
+        DriverMenusAutoTest.XclipseDriver.enabled = false
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
         SessionPrefs.setLinuxDriver(context, "imported-linux")
         SessionPrefs.setAndroidDriver(context, "imported-display")
@@ -124,6 +126,7 @@ class PowerVrAutoDriversTest {
     }
 
     @Test fun sessionStartWithANamedXclipseClearsOnlyAutoOwnedSelections() {
+        DriverMenusAutoTest.XclipseDriver.enabled = true
         SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
         SessionPrefs.setGpuAutoInstalled(context, setOf("imported-linux"))
         SessionPrefs.reconcilePowerVrAutoDrivers(context, powerVr = true, xclipse = true) {
@@ -131,6 +134,16 @@ class PowerVrAutoDriversTest {
         }
         assertEquals("", SessionPrefs.linuxDriver(context))
         assertEquals("imported-display", SessionPrefs.androidDriver(context))
+    }
+
+    @Test fun sessionStartWithASupportedXclipseClearsUnownedSelections() {
+        DriverMenusAutoTest.XclipseDriver.enabled = true
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.reconcilePowerVrAutoDrivers(context, powerVr = true, xclipse = true) {
+            mapOf("device" to "Samsung Xclipse 920")
+        }
+        assertEquals("", SessionPrefs.linuxDriver(context))
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
     }
 
     @Test fun sessionStartReadsNoVulkanNameOffXclipse() {
