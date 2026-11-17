@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.Display
 import android.view.WindowManager
@@ -45,17 +46,19 @@ class KeepTopActivity : Activity() {
         var bounces = 0
             private set
         private val guards = HashMap<Int, KeepTopActivity>()
-        private val starting = HashSet<Int>()
+        private const val START_TIMEOUT_MS = 2_000L
+        private val starting = HashMap<Int, Long>()
 
         fun guardOtherDisplays(context: Context, sessionDisplay: Int): Boolean {
             val displays = context.getSystemService(DisplayManager::class.java)?.displays ?: return false
             var started = false
             for (display in displays) {
                 val id = display.displayId
-                if (id == sessionDisplay || display.state != Display.STATE_ON || guards[id]?.isFinishing == false || id in starting) continue
+                if (id == sessionDisplay || display.state != Display.STATE_ON || guards[id]?.isFinishing == false ||
+                    starting[id]?.let { SystemClock.elapsedRealtime() - it < START_TIMEOUT_MS } == true) continue
                 runCatching {
                     launch(context, id, bounce = false)
-                    starting += id
+                    starting[id] = SystemClock.elapsedRealtime()
                     started = true
                     Log.i(TAG, "guarding display $id from a home launcher restart")
                 }.onFailure { Log.w(TAG, "could not guard display $id", it) }

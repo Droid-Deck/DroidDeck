@@ -5468,7 +5468,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
-        if (::pip.isInitialized && (requestCode >= 0 || intent.component?.packageName == packageName ||
+        if (::pip.isInitialized && intent.component?.className != com.droiddeck.launcher.session.KeepTopActivity::class.java.name &&
+            (requestCode >= 0 || intent.component?.packageName == packageName ||
                 intent.action in setOf(Intent.ACTION_CHOOSER, Intent.ACTION_SEND, Intent.ACTION_OPEN_DOCUMENT,
                     Intent.ACTION_GET_CONTENT, "android.settings.PICTURE_IN_PICTURE_SETTINGS"))) pip.background()
         super.startActivityForResult(intent, requestCode, options)
