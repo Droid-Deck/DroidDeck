@@ -43,6 +43,7 @@ class App : Application() {
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic" ||
             process == "$packageName:shortcuts_sync" || process == "$packageName:bottom_desktop") return
         CrashHandler.install(this)
+        com.droiddeck.launcher.input.ShortcutsRelay.Holder.install(this)
         com.droiddeck.launcher.agent.AgentHost.refresh(this)
         com.droiddeck.launcher.agent.AgentTab.load(this)
         com.droiddeck.launcher.ui.NavTabs.load(this)

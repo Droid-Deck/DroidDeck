@@ -178,4 +178,52 @@ class ShortcutsRelay : Service(), InputManager.InputDeviceListener {
     private companion object {
         const val KEY_TIMEOUT_MS = 200L
     }
+
+    // Frontends such as Cocoon treat a running player process as an open game, so the relay runs only while a screen is started.
+    object Holder : android.app.Application.ActivityLifecycleCallbacks, android.content.ServiceConnection {
+        private const val RELEASE_MS = 1_000L
+        private val handler = Handler(Looper.getMainLooper())
+        private var app: android.app.Application? = null
+        private var started = 0
+        private var bound = false
+        private val release = Runnable { unbind() }
+
+        fun install(application: android.app.Application) {
+            app = application
+            application.registerActivityLifecycleCallbacks(this)
+        }
+
+        override fun onActivityStarted(activity: android.app.Activity) {
+            started++
+            handler.removeCallbacks(release)
+            if (!bound) bind()
+        }
+
+        override fun onActivityStopped(activity: android.app.Activity) {
+            started = (started - 1).coerceAtLeast(0)
+            if (started == 0) handler.postDelayed(release, RELEASE_MS)
+        }
+
+        private fun bind() {
+            val context = app ?: return
+            if (runCatching { context.packageManager.getPackageInfo(Relay.PACKAGE, 0) }.isFailure) return
+            bound = runCatching {
+                context.bindService(Intent(context, ShortcutsRelay::class.java), this, Context.BIND_AUTO_CREATE)
+            }.getOrDefault(false)
+        }
+
+        private fun unbind() {
+            if (!bound) return
+            bound = false
+            runCatching { app?.unbindService(this) }
+        }
+
+        override fun onServiceConnected(name: android.content.ComponentName?, service: IBinder?) = Unit
+        override fun onServiceDisconnected(name: android.content.ComponentName?) = Unit
+        override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
+        override fun onActivityResumed(activity: android.app.Activity) = Unit
+        override fun onActivityPaused(activity: android.app.Activity) = Unit
+        override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
+        override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+    }
 }
