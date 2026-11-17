@@ -11,13 +11,22 @@ from tools.tests.test_usr2_preload import runner
 HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 
 PROBE = r"""
+#include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 int main(int argc, char **argv) {
   for (int i = 1; i < argc; i++) {
     char buf[4096];
-    ssize_t n = readlink(argv[i], buf, sizeof(buf) - 1);
+    ssize_t n;
+    if (strncmp(argv[i], "at:", 3) == 0) {
+      int dfd = open(argv[i] + 3, O_RDONLY | O_DIRECTORY);
+      n = dfd >= 0 ? readlinkat(dfd, "exe", buf, sizeof(buf) - 1) : -1;
+      if (dfd >= 0) close(dfd);
+    } else {
+      n = readlink(argv[i], buf, sizeof(buf) - 1);
+    }
     buf[n > 0 ? n : 0] = 0;
     printf("%s\t%s\n", argv[i], n > 0 ? buf : "-");
   }
@@ -46,6 +55,8 @@ class NativeHookProcExeTest(unittest.TestCase):
             subprocess.run([cls.cc, "-O1", "-o", str(tmp / name), str(tmp / f"{name}.c")], check=True)
         cls.root = tmp / "root"
         (cls.root / "usr/bin").mkdir(parents=True)
+        cls.kwin = cls.root / "usr/bin/kwin_wayland"
+        shutil.copy(tmp / "sleeper", cls.kwin)
         # The child's /proc/<pid>/exe must name the loader, as DroidDeck's libddexec.so does.
         cls.loader = tmp / "lib/libddexec.so"
         cls.loader.parent.mkdir()
@@ -61,16 +72,17 @@ class NativeHookProcExeTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def start(self, loader, real_exe=None):
+    def start(self, loader, real_exe=None, program=None):
         env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "DDNATV_REAL_EXE")}
         if real_exe:
             env["DDNATV_REAL_EXE"] = real_exe
-        cmd = ([str(self.loader), *self.loader_args] if loader else list(self.prefix)) + [str(Path(self.tmp.name) / "sleeper")]
+        program = program or Path(self.tmp.name) / "sleeper"
+        cmd = ([str(self.loader), *self.loader_args] if loader else list(self.prefix)) + [str(program)]
         child = subprocess.Popen(cmd, env=env)
         self.addCleanup(child.wait)
         self.addCleanup(child.kill)
         for _ in range(250):
-            if b"sleeper" in Path(f"/proc/{child.pid}/cmdline").read_bytes():
+            if Path(program).name.encode() in Path(f"/proc/{child.pid}/cmdline").read_bytes():
                 break
             time.sleep(0.02)
         return child.pid
@@ -89,20 +101,29 @@ class NativeHookProcExeTest(unittest.TestCase):
         return {line.split("\t")[0]: line.split("\t")[1] for line in out.stdout.splitlines()}
 
     def test_another_guest_program_names_the_program_its_loader_runs(self):
-        pid = self.start(loader=True, real_exe=f"{self.root}/usr/bin/kwin_wayland")
+        pid = self.start(loader=True, real_exe=str(self.kwin), program=self.kwin)
         link = f"/proc/{pid}/exe"
         self.assertEqual("/usr/bin/kwin_wayland", self.readlink(link)[link])
 
-    def test_a_process_not_started_by_the_loader_is_unchanged(self):
-        pid = self.start(loader=False, real_exe=f"{self.root}/usr/bin/kwin_wayland")
+    def test_a_descriptor_for_the_process_directory_gives_the_same_program(self):
+        pid = self.start(loader=True, real_exe=str(self.kwin), program=self.kwin)
+        at = f"at:/proc/{pid}"
+        self.assertEqual("/usr/bin/kwin_wayland", self.readlink(at)[at])
+
+    def test_a_program_named_only_in_the_environment_is_not_believed(self):
+        pid = self.start(loader=True, real_exe=str(self.kwin))
         link = f"/proc/{pid}/exe"
-        self.assertNotEqual("/usr/bin/kwin_wayland", self.readlink(link)[link])
+        self.assertEqual(os.readlink(link), self.readlink(link)[link])
+
+    def test_a_process_not_started_by_the_loader_is_unchanged(self):
+        pid = self.start(loader=False, real_exe=str(self.kwin))
+        link = f"/proc/{pid}/exe"
+        self.assertEqual(os.readlink(link), self.readlink(link)[link])
 
     def test_a_loader_without_a_known_program_keeps_the_kernel_link(self):
         pid = self.start(loader=True)
         link = f"/proc/{pid}/exe"
         self.assertEqual(os.readlink(link), self.readlink(link)[link])
-
 
 if __name__ == "__main__":
     unittest.main()

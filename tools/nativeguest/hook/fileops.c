@@ -446,6 +446,10 @@ ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
     if (!orig_readlinkat) orig_readlinkat = (ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat");
     DDNATV_AT_REMAP(dirfd, pathname);
     // after the remap: "proc/self/exe" relative to a descriptor for "/" is /proc/self/exe as well
+    {
+        ssize_t exe_len = handle_proc_exe_at(dirfd, pathname, buf, bufsiz);
+        if (exe_len >= 0) return exe_len;
+    }
     if (is_proc_self_exe(pathname)) {
         ssize_t exe_len = handle_proc_self_exe(buf, bufsiz);
         if (exe_len >= 0) return exe_len;
