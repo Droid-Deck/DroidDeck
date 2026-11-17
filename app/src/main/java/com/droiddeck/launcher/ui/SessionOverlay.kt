@@ -215,7 +215,6 @@ class DrawerActions(
     val desktop: Boolean,
     val direct: Boolean = false,
     val title: String? = null,
-    val nowPlaying: String? = null,
     val isHomeApp: Boolean,
     val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
@@ -279,9 +278,6 @@ class DrawerActions(
     val onFrameGenReset: () -> Unit = {},
     val fpsLimit: Int = 0,
     val onFpsLimit: (Int) -> Unit = {},
-    val fpsLimitScope: String = SessionPrefs.SCOPE_SESSION,
-    val fpsLimitForGame: Boolean = false,
-    val onFpsLimitScope: (String) -> Unit = {},
     val cornerTap: Boolean = false,
     val onCornerTap: (Boolean) -> Unit = {},
     val blackFrameInsertion: Boolean = false,
@@ -562,13 +558,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     )
                     if (!docked) StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
-                Text(
-                    (a.title ?: a.nowPlaying ?: if (a.steam) stringResource(R.string.rail_steam) else if (a.desktop) stringResource(R.string.rail_desktop) else null)
-                        ?.let { stringResource(R.string.drawer_now_playing, it) + " · " + stringResource(R.string.drawer_now_live) }
-                        ?: stringResource(R.string.drawer_now_live),
-                    fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(start = 6.dp, top = 6.dp).testTag("drawer-now-playing"),
-                )
                 a.onAchievements?.let { show ->
                     DrawerAchievementsRow(a.achievementsProgress, Modifier.padding(top = if (short) 6.dp else 10.dp).then(focus.track(page, "achievements"))) {
                         host.open = null; show()
@@ -632,8 +621,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     format = { if (it <= SessionPrefs.FPS_LIMIT_OFF) offLabel else it.toString() },
                                     modifier = focus.track(page, "fps-limit"),
                                     onChange = { a.onFpsLimit(if (it <= SessionPrefs.FPS_LIMIT_OFF) 0 else it) })
-                                if (a.direct) ScopeRow(a.fpsLimitScope, a.fpsLimitForGame, focus.track(page, "fps-limit-scope"), a.onFpsLimitScope)
-                                if (a.steam && !a.direct && a.onQam != null) SettingsRow(
+                                                if (a.steam && !a.direct && a.onQam != null) SettingsRow(
                                     stringResource(R.string.drawer_frame_limit), stringResource(R.string.drawer_frame_limit_steam_hint),
                                 ) {
                                     DrawerOutlineButton(stringResource(R.string.drawer_open_steam_qam), modifier = focus.track(page, "fps-limit-steam")) {
@@ -952,18 +940,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             },
             onDismiss = { appToChooseDisplay = null },
         )
-    }
-}
-
-@Composable
-private fun ScopeRow(scope: String, forGame: Boolean, modifier: Modifier, onScope: (String) -> Unit) {
-    val choices = listOfNotNull(
-        SessionPrefs.SCOPE_SESSION to stringResource(R.string.scope_session),
-        (SessionPrefs.SCOPE_GAME to stringResource(R.string.scope_game)).takeIf { forGame },
-        SessionPrefs.SCOPE_ALL to stringResource(R.string.scope_all),
-    )
-    SettingsRow(stringResource(R.string.scope_keep_for), null, stacked = true) {
-        SegmentedTabs(choices, scope, modifier = Modifier.fillMaxWidth().then(modifier).testTag("scope-row"), tabModifier = { Modifier.testTag("scope-$it") }) { onScope(it) }
     }
 }
 

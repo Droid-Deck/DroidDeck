@@ -90,42 +90,18 @@ class SessionScalingPrefsTest {
         it.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    @Test fun anAllGamesFrameLimitAppliesWhereNoGameHasItsOwn() {
+    @Test fun aFrameLimitStaysWithTheGameOrDesktopItWasSetIn() {
         val ctx = fpsContext()
-        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_ALL, null, 30)
-        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, null))
-        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, "123"))
-        assertEquals(SessionPrefs.SCOPE_ALL, SessionPrefs.fpsLimitScope(ctx, "123"))
-    }
-
-    @Test fun aGameFrameLimitOverridesAllGamesForThatGameOnly() {
-        val ctx = fpsContext()
-        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_ALL, null, 30)
-        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_GAME, "123", 45)
-        assertEquals(45, SessionPrefs.savedFpsLimit(ctx, "123"))
-        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, "456"))
-    }
-
-    @Test fun thisSessionDropsOnlyTheGameFrameLimitAndKeepsAllGames() {
-        val ctx = fpsContext()
-        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_ALL, null, 30)
-        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_GAME, "123", 45)
-        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_SESSION, "123", 60)
-        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, "123"))
-        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_SESSION, null, 60)
-        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, null))
-    }
-
-    @Test fun aRecreatedSessionKeepsThisSessionAndItsSliderLeavesAllGamesAlone() {
-        val ctx = fpsContext()
-        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_ALL, null, 30)
-        SessionPrefs.saveFpsLimit(ctx, SessionPrefs.SCOPE_SESSION, "123", 30)
-        val held = SessionPrefs.SCOPE_SESSION
-        val scope = SessionPrefs.fpsLimitScope(ctx, "123", held)
-        assertEquals(SessionPrefs.SCOPE_SESSION, scope)
-        SessionPrefs.fpsLimitMoved(ctx, scope, "123", 60)
-        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, "123"))
-        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, null))
-        assertEquals(SessionPrefs.SCOPE_ALL, SessionPrefs.fpsLimitScope(ctx, "123", null))
+        val game = SessionPrefs.fpsLimitKey(SessionService.MODE_RUN, "123")
+        val desktop = SessionPrefs.fpsLimitKey(SessionService.MODE_DESKTOP, null)
+        SessionPrefs.saveFpsLimit(ctx, game, 45)
+        SessionPrefs.saveFpsLimit(ctx, desktop, 30)
+        assertEquals(45, SessionPrefs.savedFpsLimit(ctx, game))
+        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, desktop))
+        assertEquals(0, SessionPrefs.savedFpsLimit(ctx, SessionPrefs.fpsLimitKey(SessionService.MODE_RUN, "456")))
+        assertEquals(null, SessionPrefs.fpsLimitKey(SessionService.MODE_STEAM, "123"))
+        assertEquals(null, SessionPrefs.fpsLimitKey(SessionService.MODE_RUN, "not-a-game"))
+        SessionPrefs.saveFpsLimit(ctx, game, 0)
+        assertEquals(0, SessionPrefs.savedFpsLimit(ctx, game))
     }
 }

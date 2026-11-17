@@ -502,14 +502,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private var drawerGameProfileSelectionMade = false
     private var fpsLimit by mutableStateOf(SessionState.fpsLimit)
-    private var fpsLimitScope by mutableStateOf(SessionPrefs.SCOPE_SESSION)
     private var cornerTap by mutableStateOf(false)
-    private fun fpsLimitGameKey(): String? {
-        val mode = if (SessionState.running) SessionState.mode else intent.getStringExtra(SessionService.EXTRA_MODE)
-        if (mode != SessionService.MODE_RUN) return null
-        val id = if (SessionState.running) SessionState.gameId else intent.getStringExtra(SessionService.EXTRA_GAME_ID)?.trim()
-        return id?.takeIf { it.isNotBlank() }
-    }
+    private fun fpsLimitKey(): String? = if (SessionState.running) SessionPrefs.fpsLimitKey(SessionState.mode, SessionState.gameId)
+        else SessionPrefs.fpsLimitKey(intent.getStringExtra(SessionService.EXTRA_MODE), intent.getStringExtra(SessionService.EXTRA_GAME_ID))
     private var blackFrameInsertion by mutableStateOf(false)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
@@ -803,11 +798,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         com.droiddeck.launcher.gpu.SteamVrHealth.begin(this, SessionState.sessionId)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
-            SessionState.fpsLimit = SessionPrefs.savedFpsLimit(this, fpsLimitGameKey())
+            SessionState.fpsLimit = SessionPrefs.savedFpsLimit(this, fpsLimitKey())
         }
         fpsLimit = SessionState.fpsLimit
-        if (!SessionState.running) SessionState.fpsLimitScope = null
-        fpsLimitScope = SessionPrefs.fpsLimitScope(this, fpsLimitGameKey(), SessionState.fpsLimitScope)
         cornerTap = SessionPrefs.drawerCornerTap(this)
         applyOutputPacing()
         if (!SessionState.running) {
@@ -1405,7 +1398,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             systemPowerVr = com.droiddeck.launcher.gpu.SystemVulkanDriver.usesDefault(
                 SessionPrefs.linuxDriver(this@SessionActivity)),
             direct = noSteamSession(),
-            nowPlaying = if (SessionState.mode == SessionService.MODE_STEAM) frameGenActiveGameName else null,
             title = if (SessionState.mode == SessionService.MODE_RUN)
                 com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_title_game) else null,
             isHomeApp = isHomeApp,
@@ -1625,15 +1617,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onFpsLimit = { fps ->
                 SessionState.fpsLimit = fps
                 fpsLimit = fps
-                SessionPrefs.fpsLimitMoved(this@SessionActivity, fpsLimitScope, fpsLimitGameKey(), fps)
+                SessionPrefs.saveFpsLimit(this@SessionActivity, fpsLimitKey(), fps)
                 applyOutputPacing()
-            },
-            fpsLimitScope = fpsLimitScope,
-            fpsLimitForGame = fpsLimitGameKey() != null,
-            onFpsLimitScope = { scope ->
-                SessionPrefs.saveFpsLimit(this@SessionActivity, scope, fpsLimitGameKey(), fpsLimit)
-                fpsLimitScope = scope
-                SessionState.fpsLimitScope = scope
             },
             cornerTap = cornerTap,
             onCornerTap = { on -> SessionPrefs.setDrawerCornerTap(this@SessionActivity, on); cornerTap = on },

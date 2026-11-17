@@ -286,40 +286,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("developerTools", on).apply()
     }
 
-    fun savedFpsLimit(context: Context, game: String?): Int {
-        val p = prefs(context)
-        if (game != null && p.contains("fpsLimit.game.$game")) return p.getInt("fpsLimit.game.$game", 0)
-        return p.getInt("fpsLimit.all", 0)
+    fun fpsLimitKey(mode: String?, game: String?): String? = when (mode) {
+        SessionService.MODE_RUN -> game?.trim()?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)?.let { "fpsLimit.game.$it" }
+        SessionService.MODE_DESKTOP -> "fpsLimit.desktop"
+        else -> null
     }
 
-    fun fpsLimitScope(context: Context, game: String?): String {
-        val p = prefs(context)
-        return when {
-            game != null && p.contains("fpsLimit.game.$game") -> SCOPE_GAME
-            p.contains("fpsLimit.all") -> SCOPE_ALL
-            else -> SCOPE_SESSION
-        }
+    fun savedFpsLimit(context: Context, key: String?): Int = key?.let { prefs(context).getInt(it, 0) } ?: 0
+
+    fun saveFpsLimit(context: Context, key: String?, fps: Int) {
+        key ?: return
+        prefs(context).edit().apply { if (fps > 0) putInt(key, fps) else remove(key) }.apply()
     }
-
-    fun fpsLimitScope(context: Context, game: String?, held: String?): String = held ?: fpsLimitScope(context, game)
-
-    fun fpsLimitMoved(context: Context, scope: String, game: String?, fps: Int) {
-        if (scope != SCOPE_SESSION) saveFpsLimit(context, scope, game, fps)
-    }
-
-    fun saveFpsLimit(context: Context, scope: String, game: String?, fps: Int) {
-        val e = prefs(context).edit()
-        when (scope) {
-            SCOPE_GAME -> if (game != null) e.putInt("fpsLimit.game.$game", fps)
-            SCOPE_ALL -> { e.putInt("fpsLimit.all", fps); if (game != null) e.remove("fpsLimit.game.$game") }
-            else -> if (game != null) e.remove("fpsLimit.game.$game")
-        }
-        e.apply()
-    }
-
-    const val SCOPE_SESSION = "session"
-    const val SCOPE_GAME = "game"
-    const val SCOPE_ALL = "all"
 
     fun drawerCornerTap(context: Context): Boolean =
         prefs(context).getBoolean("drawerCornerTap", android.os.Build.MANUFACTURER.equals("Oculus", true) || android.os.Build.MANUFACTURER.equals("Meta", true))

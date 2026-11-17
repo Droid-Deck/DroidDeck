@@ -4239,12 +4239,6 @@
     <string name="sheet_scope_other">Defaults · used each time this mode starts</string>
     <string name="sheet_all_settings">All settings</string>
     <string name="sheet_all_settings_hint">Applies to every mode</string>
-    <string name="drawer_now_playing">Now playing · %1$s</string>
-    <string name="drawer_now_live">Changes apply now</string>
-    <string name="scope_keep_for">Keep for</string>
-    <string name="scope_session">This session</string>
-    <string name="scope_game">This game</string>
-    <string name="scope_all">All games</string>
     <string name="drawer_frame_limit_steam">Set in Steam</string>
     <string name="drawer_frame_limit_steam_hint">Steam games use the Frame Limit in Steam\'s quick menu › Performance</string>
     <string name="drawer_open_steam_qam">Open</string>

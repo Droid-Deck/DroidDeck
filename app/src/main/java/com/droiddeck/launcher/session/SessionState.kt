@@ -153,7 +153,6 @@ object SessionState {
 
     @Volatile
     var fpsLimit: Int = 0
-    var fpsLimitScope: String? = null
 
     @Volatile
     var firstFrameSeen = false
