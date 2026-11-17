@@ -2315,7 +2315,10 @@ static void render_scene(void) {
         static int fell_back;
         vkp_apply_window_request();
         sc_layer_hide_overlay();
-        if (sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color) == 0) {
+        const void *hdr_frame = NULL;
+        for (int i = dl.n - 1; i >= 0 && !hdr_frame; i--)
+            if (hs.is_hdr && hs.is_hdr[i]) hdr_frame = dl.d[i].img;
+        if (sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color, hdr_frame) == 0) {
             rendered = vkp_base_black(w, h) == 0;
             if (fell_back) { fell_back = 0; droiddeck_log("color", "the composed picture is on the game's display layer again"); }
         } else {

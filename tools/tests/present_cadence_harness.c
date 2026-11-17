@@ -182,6 +182,16 @@ static void test_pause_and_missing_timeline_start_over(void) {
     assert(target != 0 && c.pacing);
 }
 
+static void test_slot_order_tolerates_grid_drift(void) {
+    const int64_t p = P120, target = 1000 * MS;
+    for (int64_t drift = -100000; drift <= 100000; drift += 25000) {
+        const int64_t slot = target + drift;
+        assert(present_cadence_slot_order(target, slot, p) == 0);
+        assert(present_cadence_slot_order(target, slot + p, p) == -1);
+        assert(present_cadence_slot_order(target, slot - p, p) == 1);
+    }
+}
+
 static void test_timeline(void) {
     int64_t grid, lead, period;
     present_cadence_set_timeline(0, 0, 0, 0);
@@ -213,6 +223,7 @@ int main(int argc, char **argv) {
     test_switching_rates_drops_nothing();
     test_latency_comes_back_after_load_drops();
     test_pause_and_missing_timeline_start_over();
+    test_slot_order_tolerates_grid_drift();
     test_timeline();
     puts("PASS");
     return 0;

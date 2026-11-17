@@ -303,6 +303,8 @@ static struct pacer_item g_pacer_q[PACER_QUEUE];
 static int g_pacer_head, g_pacer_n;
 static int64_t g_pacer_fill_until_ns;
 static int g_filler_flip;
+static ASurfaceControl *g_filler_sc;
+static ANativeWindow *g_filler_win;
 static atomic_uint g_pacer_fillers, g_pacer_overdue, g_pacer_woke_late;
 static _Atomic int64_t g_pacer_lead_ns;
 
@@ -319,14 +321,53 @@ static void pacer_flush_locked(void) {
     while (g_pacer_n) pacer_apply_head_locked();
 }
 
+static void filler_retire_locked(void) {
+    if (!g_filler_sc) return;
+    ASurfaceTransaction *tx = api.txCreate();
+    if (tx) {
+        api.reparent(tx, g_filler_sc, NULL);
+        api.txApply(tx);
+        api.txDelete(tx);
+    }
+    api.release(g_filler_sc);
+    g_filler_sc = NULL;
+    g_filler_win = NULL;
+}
+
+static void filler_ensure_locked(void) {
+    ANativeWindow *win = vkp_window();
+    if (g_filler_sc && g_filler_win == win) return;
+    filler_retire_locked();
+    if (!win || !blank_buffer() || !make_blank(&g_blank2)) return;
+    ASurfaceControl *sc = api.createFromWindow(win, "droiddeck_wayland_pacer");
+    if (!sc) return;
+    ASurfaceTransaction *tx = api.txCreate();
+    if (!tx) {
+        api.release(sc);
+        return;
+    }
+    const ARect r = {0, 0, 16, 16};
+    api.setBuffer(tx, sc, g_blank, -1);
+    api.setBufferTransparency(tx, sc, ASC_TRANSPARENCY_TRANSLUCENT);
+    api.setZOrder(tx, sc, 0);
+    api.setGeometry(tx, sc, &r, &r, 0);
+    api.setVisibility(tx, sc, ASC_VISIBILITY_SHOW);
+    api.txApply(tx);
+    api.txDelete(tx);
+    g_filler_sc = sc;
+    g_filler_win = win;
+    g_filler_flip = 0;
+}
+
 /* SurfaceFlinger shows a frame one refresh early when nothing was presented on the refresh before
- * it, and whether it manages that is a race: a buffer swap on the black base layer under the game
- * keeps every refresh presented while a held frame is pending, so each frame lands on its own. */
+ * it, and whether it manages that is a race: swapping the buffer of a transparent 16x16 layer under
+ * the game keeps every refresh presented while a held frame is pending, so each frame lands on its
+ * own refresh. */
 static void filler_locked(void) {
-    if (!g_base_sc || !g_base_shown || !g_blank || !g_blank2) return;
+    if (!g_filler_sc || !g_blank || !g_blank2) return;
     ASurfaceTransaction *tx = api.txCreate();
     if (!tx) return;
-    api.setBuffer(tx, g_base_sc, g_filler_flip ? g_blank : g_blank2, -1);
+    api.setBuffer(tx, g_filler_sc, g_filler_flip ? g_blank : g_blank2, -1);
     api.txApply(tx);
     api.txDelete(tx);
     g_filler_flip ^= 1;
@@ -348,7 +389,7 @@ static void *pacer_main(void *arg) {
         }
         atomic_store(&g_pacer_lead_ns, lead);
         const int64_t slot = present_cadence_vsync_at_or_after(now + lead + PRESENT_CADENCE_APPLY_NS, grid, period);
-        while (g_pacer_n && g_pacer_q[g_pacer_head].slot_ns < slot) {
+        while (g_pacer_n && present_cadence_slot_order(g_pacer_q[g_pacer_head].slot_ns, slot, period) < 0) {
             pacer_apply_head_locked();
             atomic_fetch_add(&g_pacer_overdue, 1u);
         }
@@ -360,8 +401,9 @@ static void *pacer_main(void *arg) {
         const struct timespec ts = {(time_t)(at / 1000000000LL), (long)(at % 1000000000LL)};
         if (pthread_cond_timedwait(&g_pacer_cond, &g_pacer_lock, &ts) != ETIMEDOUT) continue;
         if (now_ns() > at + PRESENT_CADENCE_APPLY_NS) atomic_fetch_add(&g_pacer_woke_late, 1u);
-        if (g_pacer_n && g_pacer_q[g_pacer_head].slot_ns == slot) {
-            while (g_pacer_n && g_pacer_q[g_pacer_head].slot_ns == slot) pacer_apply_head_locked();
+        if (g_pacer_n && present_cadence_slot_order(g_pacer_q[g_pacer_head].slot_ns, slot, period) <= 0) {
+            while (g_pacer_n && present_cadence_slot_order(g_pacer_q[g_pacer_head].slot_ns, slot, period) <= 0)
+                pacer_apply_head_locked();
         } else if (now_ns() < g_pacer_fill_until_ns) {
             filler_locked();
         }
@@ -393,7 +435,7 @@ static void pacer_lock(void) {
 static void pacer_submit(ASurfaceTransaction *tx, int64_t slot_ns) {
     if (slot_ns) pthread_once(&g_pacer_once, pacer_init);
     pacer_lock();
-    if (slot_ns && !g_blank2) make_blank(&g_blank2);
+    if (slot_ns) filler_ensure_locked();
     if (!g_pacer_ok || (!slot_ns && !g_pacer_n)) {
         api.txApply(tx);
         api.txDelete(tx);
@@ -1109,7 +1151,7 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
 static uint32_t g_hdr_pool_fmt = AHB_RGB10A2;
 
 int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct vkp_hdr_frame *hf,
-                               int scene_w, int scene_h, const struct droiddeck_color *color) {
+                               int scene_w, int scene_h, const struct droiddeck_color *color, const void *frame) {
     struct layer *l = layer_of(SC_LAYER_GAME);
     const int64_t arrival = now_ns();
     int rw = 0, rh = 0, r[8];
@@ -1130,7 +1172,7 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
     }
     if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, tm ? NULL : color, 0, arrival, draws[0].img) != 0) return -1;
+    if (present_slot(l, idx, r, tm ? NULL : color, 0, arrival, frame) != 0) return -1;
     if (color && color->dataspace)
         droiddeck_color_frame_shown(color, tm ? DROIDDECK_HDR_TONEMAPPED : DROIDDECK_HDR_COMPOSED, tm ? AHB_RGBA8 : g_hdr_pool_fmt);
     static int said = -1;
@@ -1239,6 +1281,10 @@ void sc_layer_hide_overlay(void) {
 
 void sc_layer_window_gone(void) {
     base_hide(1);
+    pacer_lock();
+    pacer_flush_locked();
+    filler_retire_locked();
+    pthread_mutex_unlock(&g_pacer_lock);
     if (api.state != 1) return;
     layers_init();
     for (int i = SC_LAYER_COUNT - 1; i >= 0; i--) retire_sc(&g_layers[i]);

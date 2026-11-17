@@ -39,6 +39,11 @@ int64_t present_cadence_vsync_at_or_after(int64_t t_ns, int64_t grid_ns, int64_t
     return grid_ns + n * period_ns;
 }
 
+int present_cadence_slot_order(int64_t target_ns, int64_t slot_ns, int64_t period_ns) {
+    if (target_ns < slot_ns - period_ns / 2) return -1;
+    return target_ns < slot_ns + period_ns / 2 ? 0 : 1;
+}
+
 static int64_t max_wait(const struct present_cadence *c) {
     int64_t m = 0;
     for (unsigned i = 0; i < c->n_waits; i++)

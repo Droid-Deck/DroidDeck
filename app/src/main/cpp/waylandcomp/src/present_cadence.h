@@ -48,6 +48,9 @@ int64_t present_cadence_plan(struct present_cadence *c, int64_t arrival_ns, int6
 int present_cadence_applied(struct present_cadence *c, int64_t applied_ns);
 void present_cadence_reset(struct present_cadence *c);
 int64_t present_cadence_vsync_at_or_after(int64_t t_ns, int64_t grid_ns, int64_t period_ns);
+/* Where a frame planned for target_ns stands against the refresh at slot_ns: -1 that refresh is past
+ * its own, 0 it is this refresh, 1 a later one. Two reads of the refresh grid can differ slightly. */
+int present_cadence_slot_order(int64_t target_ns, int64_t slot_ns, int64_t period_ns);
 
 void present_cadence_set_timeline(int64_t expected_present_ns, int64_t deadline_ns, int64_t period_ns,
                                   int64_t now_ns);

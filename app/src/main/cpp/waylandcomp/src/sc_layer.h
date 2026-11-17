@@ -23,8 +23,9 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
 int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int scene_h);
 
 struct vkp_hdr_frame;
+/* frame identifies the game frame the scene shows, so a repeat of it is not paced as a new one. */
 int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct vkp_hdr_frame *hf,
-                               int scene_w, int scene_h, const struct droiddeck_color *color);
+                               int scene_w, int scene_h, const struct droiddeck_color *color, const void *frame);
 
 int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, void *token,
                          int scene_w, int scene_h, const struct droiddeck_color *color, uint32_t ahb_format);
