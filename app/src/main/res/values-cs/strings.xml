@@ -714,7 +714,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Lišta</string>
     <string name="hud_locked">Zamknout na místě</string>
-    <string name="hud_locked_hint">Přetažením HUD přesunete; dlouhým stiskem ho zamknete nebo odemknete. Když je zamknutý, ovládací prvky na obrazovce pod ním dál fungují.</string>
+    <string name="hud_locked_hint">Přetažením HUD přesunete. Když je zamknutý, ovládací prvky na obrazovce pod ním dál fungují.</string>
+    <string name="hud_hold">Dlouhý stisk</string>
+    <string name="hud_hold_collapse">Sbalit nebo rozbalit</string>
+    <string name="hud_hold_lock">Zamknout nebo odemknout</string>
     <string name="hud_snap">Přichytit ke stranám</string>
     <string name="hud_snap_hint">Pusťte HUD a přesune se k bližší straně obrazovky. Rychlým švihnutím ho hodíte tím směrem.</string>
     <string name="hud_group_look">Vzhled</string>
@@ -1151,7 +1154,7 @@
     <string name="lab_off_title">Laboratorní sestavení vypnuto</string>
     <string name="lab_off_other_install">Bylo vytvořeno pro jinou verzi aplikace DroidDeck. Zůstává v Aktualizacích.</string>
     <string name="lab_off_did_not_start">DroidDeck se na něm dvakrát nespustil.</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agent pracuje</string>
     <string name="agent_missing">Chcete-li používat agenta, nainstalujte Claude Code v uživatelském prostředí Linuxu.</string>

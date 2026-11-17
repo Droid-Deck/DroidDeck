@@ -718,7 +718,10 @@
     <string name="hud_size_mega">ضخم</string>
     <string name="hud_size_strip">شريط</string>
     <string name="hud_locked">تثبيت في مكانه</string>
-    <string name="hud_locked_hint">اسحب HUD لتحريكه؛ والضغط مطولًا يثبّته أو يلغي تثبيته. أثناء تثبيته، تظل عناصر التحكم على الشاشة الموجودة تحته تعمل.</string>
+    <string name="hud_locked_hint">اسحب HUD لتحريكه. أثناء تثبيته، تظل عناصر التحكم على الشاشة الموجودة تحته تعمل.</string>
+    <string name="hud_hold">ضغط مطوّل</string>
+    <string name="hud_hold_collapse">طيّ أو توسيع</string>
+    <string name="hud_hold_lock">تثبيت أو إلغاء التثبيت</string>
     <string name="hud_snap">الالتصاق بالجانبين</string>
     <string name="hud_snap_hint">اترك الواجهة لتنتقل إلى أقرب جانب من الشاشة. اسحبها بسرعة لترميها في ذلك الاتجاه.</string>
     <string name="hud_group_look">المظهر</string>
@@ -1157,7 +1160,7 @@
     <string name="lab_off_title">تم إيقاف نسخة المختبر</string>
     <string name="lab_off_other_install">بُنيت لإصدار آخر من DroidDeck. وهي محفوظة في التحديثات.</string>
     <string name="lab_off_did_not_start">لم يبدأ DroidDeck عليها مرتين</string>
-    <string name="rail_agent">الوكيل</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">الوكيل</string>
     <string name="agent_working">الوكيل يعمل</string>
     <string name="agent_missing">ثبّت Claude Code في بيئة مستخدم Linux لاستخدام الوكيل.</string>

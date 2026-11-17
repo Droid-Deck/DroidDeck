@@ -710,7 +710,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Sáv</string>
     <string name="hud_locked">Rögzítés a helyén</string>
-    <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez; hosszú nyomással rögzítheted vagy feloldhatod. Rögzítve is működnek az alatta lévő képernyős vezérlők.</string>
+    <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez. Rögzítve is működnek az alatta lévő képernyős vezérlők.</string>
+    <string name="hud_hold">Hosszú nyomás</string>
+    <string name="hud_hold_collapse">Összecsukás vagy kinyitás</string>
+    <string name="hud_hold_lock">Rögzítés vagy feloldás</string>
     <string name="hud_snap">Igazítás az oldalakhoz</string>
     <string name="hud_snap_hint">Engedd el a HUD-ot, és a képernyő közelebbi oldalára ugrik. Egy gyors pöccintés abba az irányba dobja.</string>
     <string name="hud_group_look">Megjelenés</string>
@@ -1145,7 +1148,7 @@
     <string name="lab_off_title">A Lab build kikapcsolva</string>
     <string name="lab_off_other_install">A DroidDeck egy másik verziójához készült. A Frissítések tartalmazza.</string>
     <string name="lab_off_did_not_start">A DroidDeck kétszer nem indult el rajta</string>
-    <string name="rail_agent">Ügynök</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Ügynök</string>
     <string name="agent_working">Az ügynök dolgozik</string>
     <string name="agent_missing">Az ügynök használatához telepítse a Claude Code alkalmazást a Linux felhasználói terébe.</string>

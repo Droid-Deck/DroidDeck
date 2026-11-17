@@ -712,7 +712,10 @@
     <string name="hud_size_mega">Méga</string>
     <string name="hud_size_strip">Bandeau</string>
     <string name="hud_locked">Verrouiller la position</string>
-    <string name="hud_locked_hint">Faites glisser le HUD pour le déplacer ; un appui long le verrouille ou le déverrouille. Tant qu\'il est verrouillé, les commandes à l\'écran situées dessous restent utilisables.</string>
+    <string name="hud_locked_hint">Faites glisser le HUD pour le déplacer. Tant qu\'il est verrouillé, les commandes à l\'écran situées dessous restent utilisables.</string>
+    <string name="hud_hold">Appui long</string>
+    <string name="hud_hold_collapse">Réduire ou développer</string>
+    <string name="hud_hold_lock">Verrouiller ou déverrouiller</string>
     <string name="hud_snap">Aimanter sur les côtés</string>
     <string name="hud_snap_hint">Relâchez le HUD et il rejoint le côté de l’écran le plus proche. Un geste rapide le lance dans cette direction.</string>
     <string name="hud_group_look">Apparence</string>
@@ -1148,7 +1151,7 @@
     <string name="lab_off_title">Version Lab désactivée</string>
     <string name="lab_off_other_install">Elle a été créée pour une autre version de DroidDeck. Elle est conservée dans Mises à jour.</string>
     <string name="lab_off_did_not_start">DroidDeck n\'a pas démarré dessus à deux reprises</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">L\'agent travaille</string>
     <string name="agent_missing">Installez Claude Code dans l\'environnement utilisateur Linux pour utiliser l\'agent.</string>

@@ -44,7 +44,7 @@ class NavTabsTest {
         assertEquals(listOf("steam", "games", "stores", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
         assertEquals(listOf("soundtracks"), NavTabs.more(state()))
         assertEquals(setOf("soundtracks", "agent"), NavTabs.shelved)
-        assertTrue(com.droiddeck.launcher.agent.AgentTab.shown)
+        assertFalse(com.droiddeck.launcher.agent.AgentTab.shown)
     }
 
     @Test fun showingMusicOnceKeepsItShownAfterReload() {

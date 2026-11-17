@@ -708,7 +708,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Jalur</string>
     <string name="hud_locked">Kunci di tempat</string>
-    <string name="hud_locked_hint">Seret HUD untuk mengalihkannya; tekan lama untuk mengunci atau membuka kuncinya. Semasa dikunci, kawalan skrin di bawahnya masih berfungsi.</string>
+    <string name="hud_locked_hint">Seret HUD untuk mengalihkannya. Semasa dikunci, kawalan skrin di bawahnya masih berfungsi.</string>
+    <string name="hud_hold">Tekan lama</string>
+    <string name="hud_hold_collapse">Kuncupkan atau kembangkan</string>
+    <string name="hud_hold_lock">Kunci atau buka kunci</string>
     <string name="hud_snap">Lekap ke sisi</string>
     <string name="hud_snap_hint">Lepaskan HUD dan ia akan beralih ke sisi skrin yang lebih dekat. Kuis pantas melemparkannya ke arah itu.</string>
     <string name="hud_group_look">Rupa</string>
@@ -1142,7 +1145,7 @@
     <string name="lab_off_title">Binaan Lab dimatikan</string>
     <string name="lab_off_other_install">Ia dibina untuk versi DroidDeck yang lain. Ia disimpan dalam Kemas Kini.</string>
     <string name="lab_off_did_not_start">DroidDeck tidak dimulakan padanya dua kali</string>
-    <string name="rail_agent">Ejen</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Ejen</string>
     <string name="agent_working">Ejen sedang bekerja</string>
     <string name="agent_missing">Pasang Claude Code dalam ruang pengguna Linux untuk menggunakan ejen.</string>

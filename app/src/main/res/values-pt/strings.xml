@@ -712,7 +712,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Travar posição</string>
-    <string name="hud_locked_hint">Arraste o HUD para movê-lo; um toque longo o trava ou destrava. Enquanto estiver travado, os controles na tela embaixo dele continuam funcionando.</string>
+    <string name="hud_locked_hint">Arraste o HUD para movê-lo. Enquanto estiver travado, os controles na tela embaixo dele continuam funcionando.</string>
+    <string name="hud_hold">Toque longo</string>
+    <string name="hud_hold_collapse">Recolher ou expandir</string>
+    <string name="hud_hold_lock">Travar ou destravar</string>
     <string name="hud_snap">Encaixar nas laterais</string>
     <string name="hud_snap_hint">Solte o HUD e ele vai para a lateral mais próxima da tela. Um gesto rápido o lança nessa direção.</string>
     <string name="hud_group_look">Aparência</string>
@@ -1147,7 +1150,7 @@
     <string name="lab_off_title">Build do Lab desativado</string>
     <string name="lab_off_other_install">Ele foi compilado para outra versão do DroidDeck. Está guardado em Atualizações.</string>
     <string name="lab_off_did_not_start">O DroidDeck não iniciou com ele duas vezes</string>
-    <string name="rail_agent">Agente</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agente</string>
     <string name="agent_working">O agente está trabalhando</string>
     <string name="agent_missing">Instale o Claude Code no espaço de usuário do Linux para usar o agente.</string>

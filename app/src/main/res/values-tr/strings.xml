@@ -710,7 +710,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Şerit</string>
     <string name="hud_locked">Yerinde kilitle</string>
-    <string name="hud_locked_hint">Taşımak için HUD\'u sürükleyin; uzun basmak onu kilitler veya kilidini açar. Kilitliyken altındaki ekran kontrolleri çalışmaya devam eder.</string>
+    <string name="hud_locked_hint">Taşımak için HUD\'u sürükleyin. Kilitliyken altındaki ekran kontrolleri çalışmaya devam eder.</string>
+    <string name="hud_hold">Uzun basma</string>
+    <string name="hud_hold_collapse">Daralt veya genişlet</string>
+    <string name="hud_hold_lock">Kilitle veya kilidini aç</string>
     <string name="hud_snap">Yanlara yapıştır</string>
     <string name="hud_snap_hint">HUD\'u bıraktığınızda ekranın daha yakın tarafına gider. Hızlı bir kaydırma onu o yöne fırlatır.</string>
     <string name="hud_group_look">Görünüm</string>
@@ -1137,7 +1140,7 @@
     <string name="lab_off_title">Lab derlemesi kapatıldı</string>
     <string name="lab_off_other_install">DroidDeck\'in başka bir sürümü için derlendi. Güncellemeler\'de saklanıyor.</string>
     <string name="lab_off_did_not_start">DroidDeck bu derlemeyle iki kez başlatılamadı</string>
-    <string name="rail_agent">Ajan</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Ajan</string>
     <string name="agent_working">Ajan çalışıyor</string>
     <string name="agent_missing">Ajanı kullanmak için Claude Code\'u Linux kullanıcı alanına yükleyin.</string>

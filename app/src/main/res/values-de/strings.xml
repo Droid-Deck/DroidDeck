@@ -710,7 +710,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Leiste</string>
     <string name="hud_locked">Position sperren</string>
-    <string name="hud_locked_hint">Ziehe das HUD, um es zu verschieben; langes Drücken sperrt oder entsperrt es. Solange es gesperrt ist, funktionieren die Bildschirmsteuerungen darunter weiter.</string>
+    <string name="hud_locked_hint">Ziehe das HUD, um es zu verschieben. Solange es gesperrt ist, funktionieren die Bildschirmsteuerungen darunter weiter.</string>
+    <string name="hud_hold">Langes Drücken</string>
+    <string name="hud_hold_collapse">Ein- oder ausklappen</string>
+    <string name="hud_hold_lock">Sperren oder entsperren</string>
     <string name="hud_snap">An Seiten einrasten</string>
     <string name="hud_snap_hint">Lass das HUD los, und es springt an die nähere Bildschirmseite. Ein Wischen wirft es in diese Richtung.</string>
     <string name="hud_group_look">Aussehen</string>
@@ -1137,7 +1140,7 @@
     <string name="lab_off_title">Lab-Build deaktiviert</string>
     <string name="lab_off_other_install">Er wurde für eine andere Version von DroidDeck erstellt. Er bleibt in Updates erhalten.</string>
     <string name="lab_off_did_not_start">DroidDeck ist damit zweimal nicht gestartet</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agent arbeitet</string>
     <string name="agent_missing">Installiere Claude Code in der Linux-Umgebung, um den Agenten zu verwenden.</string>
