@@ -238,8 +238,12 @@ object AddedGames {
         for (entry in AddedExes.list(context)) {
             val folder = File(entry.folder)
             if (folder.path in removed || !folder.isDirectory) continue
-            out.removeAll { it.folder.canonicalPath == folder.canonicalPath }
-            scanGame(context, folder, out, single = entry, reuse = true)
+            val picked = ArrayList<Game>(1)
+            scanGame(context, folder, picked, single = entry, reuse = true)
+            if (picked.isNotEmpty()) {
+                out.removeAll { it.folder.canonicalPath == folder.canonicalPath }
+                out.addAll(picked)
+            }
         }
         for (folder in libraryDepotInstalls(context)) if (folder.path !in removed) scanGame(context, folder, out, reuse = true)
         for (folder in StoreInstallRoot.gameFolders(context)) if (StoreInstallRoot.isFinished(folder)) scanGame(context, folder, out, reuse = true)
