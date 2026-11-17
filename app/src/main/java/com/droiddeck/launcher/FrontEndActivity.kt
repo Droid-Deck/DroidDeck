@@ -1016,7 +1016,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onHandled()
                 if (isDestroyed) return@post
                 if (command == null) {
-                    android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
+                    val message = if (game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id) {
+                        R.string.game_link_battlenet_missing
+                    } else {
+                        R.string.game_link_failed
+                    }
+                    android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
                     return@post
                 }
                 com.droiddeck.launcher.session.NoSteamLaunch.remember(command)
