@@ -62,6 +62,9 @@ class EffectsSourceResolutionTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(result.stdout.strip(), 'PASS')
 
+    def test_framegen_stays_low_resolution_and_scales_every_present(self):
+        self.check_case('framegen-upscale')
+
     def test_low_resolution_viewport_is_copied_at_native_buffer_size(self):
         self.check_case('helper')
 
@@ -145,7 +148,7 @@ typedef struct {
 #define HDR_FMT 101
 #define FG_HDR_FMT 102
 #define VK_FORMAT_R8G8B8A8_UNORM SCENE_FMT
-#define VKP_FG_MAX_GENERATIONS 2
+#define VKP_FG_MAX_GENERATIONS 3
 #define HDRC_OUT_PQ 1
 #define HDRC_OUT_SDR 2
 #define droiddeck_log(...) ((void)0)
@@ -182,7 +185,7 @@ static int g_dev_state = 1, g_window = 1, g_swapchain, g_swap_extra;
 static int g_colorspace_ext, g_swap_hdr_unavailable, g_swap_is_hdr, g_swap_hdr_want;
 static int g_plain_frame, g_first_frame_done, g_base_black;
 static int g_qfam, g_queue, g_dev, g_fence, g_swap_fmt = SCENE_FMT;
-static int g_cmds[3], g_acqs[3], g_rnds[3], images[1] = {2}, *g_images = images;
+static int g_cmds[4], g_acqs[4], g_rnds[4], images[1] = {2}, *g_images = images;
 static uint32_t g_swap_md_identity;
 static VkExtent2D g_extent = {1920, 1080};
 static struct { float kx, ky, off_x, off_y; int rx, ry, rw, rh; } g_map;
@@ -254,8 +257,31 @@ static VkImage vkp_effects_run(int cmd, int source, int w, int h, int ow, int oh
     if (fail_effects) { *rw = w; *rh = h; return source; }
     *rw = ow; *rh = oh; return 4;
 }
-static int vkp_framegen_run(int cmd, int result, int depth, int w, int h, int format, int *generated) { return 0; }
+static int vkp_effects_prepare_generated(void) {
+    return g_cur.scaling >= 3 && g_cur.scaling <= 8 && g_cur.scaling != 6 && !postprocessing;
+}
+static VkImage vkp_effects_run_before_generated(int cmd, int source, int w, int h, int *rw, int *rh) {
+    return vkp_effects_run(cmd, source, w, h, w, h, rw, rh);
+}
+static int generations, post_count, fg_w, fg_h;
+static int post_sources[4], screen_widths[4], screen_heights[4];
+static int vkp_framegen_run(int cmd, int result, int depth, int w, int h, int format, int *generated) {
+    fg_w = w; fg_h = h;
+    for (int i = 0; i < generations; i++) generated[i] = 20 + i;
+    return generations;
+}
+static void vkp_effects_release_generated_sources(void) {}
+static VkImage vkp_effects_run_generated(int cmd, int source, int w, int h, int ow, int oh,
+                                        int slot, int *rw, int *rh) {
+    assert(slot == post_count && slot < 4);
+    assert(w == fg_w && h == fg_h);
+    post_sources[post_count++] = source;
+    *rw = fail_effects ? w : ow; *rh = fail_effects ? h : oh;
+    return source;
+}
 static void record_screen_blit(int cmd, int result, int w, int h, int sw, int sh, int image, int filter, int cb) {
+    assert(screen_count < 4);
+    screen_widths[screen_count] = w; screen_heights[screen_count] = h;
     screen_count++; logical_w = sw; logical_h = sh;
 }
 static void device_lost(const char *reason) {}
@@ -278,6 +304,7 @@ static void reset(void) {
     copy_count = effects_count = screen_count = hdr_count = barrier_count = 0;
     effects_active = 1; g_cur.scaling = 4;
     framegen = cardboard = fail_scene = fail_effects = postprocessing = g_plain_frame = 0;
+    generations = post_count = fg_w = fg_h = 0;
     g_pass.active = 0; g_extent = (VkExtent2D){1920, 1080};
     image.w = 1280; image.h = 720;
 }
@@ -552,9 +579,40 @@ static void check_allocation(void) {
     assert(recorded_blits[1].dstOffsets[1].x == 1920 && recorded_blits[1].dstOffsets[1].y == 1080);
     assert(target_w == 1920 && target_h == 1080);
 }
+static void check_framegen_upscale(void) {
+    for (int count = 0; count <= VKP_FG_MAX_GENERATIONS; count++) {
+        reset(); framegen = 1; generations = count;
+        struct vkp_draw draw = fullscreen();
+        run_path(0, &draw, 1, NULL);
+        assert(fg_w == 1280 && fg_h == 720);
+        assert(post_count == count + 1 && screen_count == count + 1);
+        for (int k = 0; k < screen_count; k++) {
+            assert(screen_widths[k] == 1920 && screen_heights[k] == 1080);
+            assert(post_sources[k] == (k < count ? 20 + k : 4));
+        }
+    }
+    for (int mode = 0; mode <= 8; mode++) {
+        reset(); framegen = 1; g_cur.scaling = mode;
+        struct vkp_draw draw = fullscreen();
+        run_path(0, &draw, 1, NULL);
+        assert(post_count == (mode >= 3 && mode != 6));
+    }
+    reset(); framegen = 1; fail_effects = 1;
+    struct vkp_draw draw = fullscreen();
+    run_path(0, &draw, 1, NULL);
+    assert(post_count == 1 && screen_widths[0] == 1280 && screen_heights[0] == 720);
+    reset(); framegen = 1; postprocessing = 1;
+    run_path(0, &draw, 1, NULL); assert(post_count == 0);
+    reset(); framegen = 1; cardboard = 1;
+    run_path(0, &draw, 1, NULL); assert(post_count == 0);
+    reset(); framegen = 1;
+    struct vkp_hdr_frame hdr = {0};
+    run_path(0, &draw, 1, &hdr); assert(post_count == 0);
+}
 int main(int argc, char **argv) {
     assert(argc == 2); reset();
-    if (!strcmp(argv[1], "helper")) check_helper();
+    if (!strcmp(argv[1], "framegen-upscale")) check_framegen_upscale();
+    else if (!strcmp(argv[1], "helper")) check_helper();
     else if (!strcmp(argv[1], "near-full")) check_near_full_source();
     else if (!strcmp(argv[1], "rejections")) check_rejections();
     else if (!strcmp(argv[1], "render")) check_path(0);

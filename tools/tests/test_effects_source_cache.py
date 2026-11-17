@@ -57,6 +57,12 @@ class EffectsSourceCacheTest(unittest.TestCase):
     def test_resize_replaces_the_cached_view_and_descriptor(self):
         self.check_cache('resize')
 
+    def test_generated_frames_keep_separate_descriptors_until_completion(self):
+        self.check_cache('generated')
+
+    def test_generated_settings_snapshot_and_source_layout_restoration(self):
+        self.check_cache('generated-layout')
+
 
 if __name__ == '__main__':
     unittest.main()
