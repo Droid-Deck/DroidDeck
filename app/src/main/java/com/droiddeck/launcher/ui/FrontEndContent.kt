@@ -251,6 +251,10 @@ private fun Content(
         }
         return
     }
+    if (selected == "downloads") {
+        DownloadsPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
     if (selected == "storage") {
         StorageTabPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
         return

@@ -4230,6 +4230,7 @@
     <string name="settings_place_tab">Tabs</string>
     <string name="rail_storage">Storage</string>
     <string name="rail_sync">Syncthing</string>
+    <string name="downloads_settings">Download settings</string>
     <string name="dev_tools_title">Developer tools</string>
     <string name="dev_tools_hint">Agent, graphics logs and other tools for testing DroidDeck</string>
     <string name="sheet_lip">Options</string>

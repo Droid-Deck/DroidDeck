@@ -105,6 +105,8 @@ internal object SettingsIndex {
         s(SettingsSection.LAUNCHER, R.string.setup_animations),
         s(SettingsSection.LAUNCHER, R.string.setup_rail_labels, "sidebar"),
         s(SettingsSection.LAUNCHER, R.string.setup_language, "translate"),
+        SettingsEntry(SettingsPlace.TAB, R.string.setup_stores_speed, tab = "downloads", words = listOf("download", "speed", "bandwidth", "slow")),
+        SettingsEntry(SettingsPlace.TAB, R.string.stores_parallel, tab = "downloads", words = listOf("download", "parallel", "queue", "at once")),
         SettingsEntry(SettingsPlace.TAB, R.string.setup_group_tabs, tab = NavTabs.MORE, words = listOf("tabs", "hide", "reorder", "agent", "stores", "edit tabs")),
         s(SettingsSection.LAUNCHER, R.string.setup_home, "home screen", "launcher"),
         s(SettingsSection.LAUNCHER, R.string.setup_launcher_orientation, "rotate", "portrait"),

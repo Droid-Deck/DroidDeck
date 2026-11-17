@@ -41,7 +41,7 @@ class NavTabsTest {
     }
 
     @Test fun musicStartsInMore() {
-        assertEquals(listOf("steam", "games", "stores", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
+        assertEquals(listOf("steam", "games", "stores", "downloads", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
         assertEquals(listOf("soundtracks", "storage", "sync"), NavTabs.more(state()))
         assertEquals(setOf("soundtracks", "agent", "storage", "sync"), NavTabs.shelved)
         assertFalse(com.droiddeck.launcher.agent.AgentTab.shown)
@@ -50,7 +50,7 @@ class NavTabsTest {
     @Test fun showingMusicOnceKeepsItShownAfterReload() {
         place("soundtracks", TabPlace.BAR)
         NavTabs.load(ctx)
-        assertEquals(listOf("steam", "games", "soundtracks", "stores", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
+        assertEquals(listOf("steam", "games", "soundtracks", "stores", "downloads", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
     }
 
     @Test fun shelvedTabsLeaveTheBarAndAddMoreAtTheEnd() {
@@ -73,6 +73,7 @@ class NavTabsTest {
 
     @Test fun disabledStoresFeatureReadsAsHidden() {
         assertEquals(TabPlace.HIDDEN, NavTabs.place(state(storesOn = false), "stores"))
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(storesOn = false), "downloads"))
     }
 
     @Test fun movingSwapsWithTheNextVisibleTabAndPersists() {
@@ -84,9 +85,9 @@ class NavTabsTest {
     }
 
     @Test fun tabsMissingFromASavedOrderSlotInAfterTheirDefaultNeighbour() {
-        assertEquals(listOf("updates", "steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup"),
+        assertEquals(listOf("updates", "steam", "games", "soundtracks", "stores", "downloads", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup"),
             NavTabs.arrange(listOf("updates", "steam")))
-        assertEquals(listOf("games", "soundtracks", "steam", "setup", "stores", "desktop", "agent", "components", "android-apps", "storage", "sync", "updates"),
+        assertEquals(listOf("games", "soundtracks", "steam", "setup", "stores", "downloads", "desktop", "agent", "components", "android-apps", "storage", "sync", "updates"),
             NavTabs.arrange(listOf("games", "steam", "setup", "stores", "desktop", "components", "android-apps", "updates", "bogus")))
     }
 
@@ -102,18 +103,19 @@ class NavTabsTest {
     }
 
     @Test fun moreCarriesTheDownloadCountAndBadgesOfShelvedTabs() {
-        place("stores", TabPlace.MORE)
+        place("downloads", TabPlace.MORE)
         place("setup", TabPlace.MORE)
         val s = state(downloads = 3, setupReady = false)
         assertEquals(3, railCount(s, NavTabs.MORE))
         assertTrue(railBadge(s, NavTabs.MORE))
-        place("stores", TabPlace.BAR)
+        place("downloads", TabPlace.BAR)
         assertEquals(0, railCount(s, NavTabs.MORE))
-        assertEquals(3, railCount(s, "stores"))
+        assertEquals(3, railCount(s, "downloads"))
+        assertEquals(0, railCount(s, "stores"))
     }
 
-    @Test fun sideRailShowsTheDownloadCountOnMoreWhenStoresIsShelved() {
-        place("stores", TabPlace.MORE)
+    @Test fun sideRailShowsTheDownloadCountOnMoreWhenDownloadsIsShelved() {
+        place("downloads", TabPlace.MORE)
         val s = state(downloads = 2)
         compose.setContent {
             DroidDeckTheme {
@@ -122,13 +124,13 @@ class NavTabsTest {
                 }
             }
         }
-        compose.onNodeWithTag("rail-stores").assertDoesNotExist()
+        compose.onNodeWithTag("rail-downloads").assertDoesNotExist()
         compose.onNode(hasTestTag("rail-more")).assertIsDisplayed()
         compose.onNode(hasText("2") and hasParentTag("rail-more"), useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test fun morePageListsShelvedTabsWithTheirCount() {
-        place("stores", TabPlace.MORE)
+        place("downloads", TabPlace.MORE)
         place("components", TabPlace.MORE)
         val s = state(downloads = 4)
         compose.setContent {
@@ -138,9 +140,9 @@ class NavTabsTest {
                 }
             }
         }
-        compose.onNodeWithTag("more-stores").assertIsDisplayed()
+        compose.onNodeWithTag("more-downloads").assertIsDisplayed()
         compose.onNodeWithTag("more-components").assertIsDisplayed()
-        compose.onNode(hasText("4") and hasParentTag("more-stores"), useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasText("4") and hasParentTag("more-downloads"), useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test fun backFromAShelvedTabReturnsToMore() {

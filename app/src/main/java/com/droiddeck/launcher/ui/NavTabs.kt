@@ -27,7 +27,7 @@ internal object DeveloperTools {
 internal object NavTabs {
     const val MORE = "more"
     val FEATURES = setOf("stores", "soundtracks", "agent")
-    val ALL = listOf("steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup", "updates")
+    val ALL = listOf("steam", "games", "soundtracks", "stores", "downloads", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup", "updates")
     private val SHELVED_WHEN_NEW = setOf("storage", "sync")
 
     var order by mutableStateOf(ALL)
@@ -71,7 +71,7 @@ internal object NavTabs {
     }
 
     private fun featureOff(s: FrontEndState, key: String) = when (key) {
-        "stores" -> !s.gameStoresEnabled
+        "stores", "downloads" -> !s.gameStoresEnabled
         "soundtracks" -> !s.soundtracksEnabled
         "agent" -> !AgentTab.shown
         else -> false

@@ -47,6 +47,7 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.SdStorage
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Terminal
@@ -197,6 +198,7 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
     "soundtracks" -> R.string.rail_music to SoundtrackIcon
     "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
+    "downloads" -> R.string.stores_tab_downloads to Icons.Outlined.Download
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
     "agent" -> R.string.rail_agent to Icons.Outlined.Terminal
@@ -220,8 +222,8 @@ internal fun railBadge(s: FrontEndState, key: String, setupNeedsAttention: Boole
 }
 
 internal fun railCount(s: FrontEndState, key: String): Int = when (key) {
-    "stores" -> s.storeDownloadsActive
-    NavTabs.MORE -> if ("stores" in NavTabs.more(s)) s.storeDownloadsActive else 0
+    "downloads" -> s.storeDownloadsActive
+    NavTabs.MORE -> if ("downloads" in NavTabs.more(s)) s.storeDownloadsActive else 0
     else -> 0
 }
 
@@ -231,13 +233,15 @@ private fun NavigationItems(
     place: (String) -> Modifier, onSelect: (String) -> Unit, onFocusSelect: (String) -> Unit,
 ) {
     val setupNeedsAttention = setupNeedsAttention(s)
+    val downloadsAt = if ("downloads" in NavTabs.more(s)) NavTabs.MORE else "downloads"
     for (key in navigationKeys(s)) {
         val (label, icon) = railLabelIcon(key)
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
                 badge = railBadge(s, key, setupNeedsAttention),
                 count = railCount(s, key),
-                place = place, onFocus = { onFocusSelect(key) }) { onSelect(key) }
+                place = { k -> if (k == downloadsAt) place(k).onGloballyPositioned { StoresMotion.downloadsChip = it.boundsInRoot() } else place(k) },
+                onFocus = { onFocusSelect(key) }) { onSelect(key) }
         }
     }
 }

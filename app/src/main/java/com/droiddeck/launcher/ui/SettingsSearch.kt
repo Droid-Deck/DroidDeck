@@ -55,6 +55,7 @@ internal fun SettingsSearchResults(query: String, onOpen: (SettingsSection) -> U
                     } else if (tab != null) {
                         ActionRow(title, within, stringResource(R.string.store_open), onClick = {
                             if (tab == NavTabs.MORE) MoreTabs.editing = true
+                            if (tab == "downloads") DownloadsNav.showSettings = true
                             RailRequest.key = tab
                         })
                     } else {

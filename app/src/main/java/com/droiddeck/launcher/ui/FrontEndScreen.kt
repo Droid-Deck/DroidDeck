@@ -478,7 +478,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(s.navigate) {
         val target = s.navigate ?: return@LaunchedEffect
         when (target) {
-            "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
+            "stores:downloads" -> selected = "downloads"
             "components" -> a.onComponents(true)
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
             com.droiddeck.launcher.sync.SyncthingService.NAV -> com.droiddeck.launcher.sync.Syncthing.requestOpen()
@@ -629,6 +629,12 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         if (com.droiddeck.launcher.sync.Syncthing.openPending) {
             com.droiddeck.launcher.sync.Syncthing.openPending = false
             showRailPage("sync", true)
+        }
+    }
+    LaunchedEffect(com.droiddeck.launcher.stores.StoresState.openDownloads) {
+        if (com.droiddeck.launcher.stores.StoresState.openDownloads) {
+            com.droiddeck.launcher.stores.StoresState.openDownloads = false
+            showRailPage("downloads", true)
         }
     }
     LaunchedEffect(RailRequest.key) {

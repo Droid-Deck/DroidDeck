@@ -535,7 +535,6 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
                     }
                 }
             }
-            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(st, a) }
             var gogAchievements by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.droiddeck.launcher.stores.gog.GogComet.enabled(context)) }
             androidx.compose.runtime.LaunchedEffect(Unit) {
                 if (gogAchievements) com.droiddeck.launcher.core.AddonPack.COMET.ensure(context)
