@@ -71,7 +71,8 @@ public class ShortcutsService extends AccessibilityService {
         filter.addAction(Intent.ACTION_PACKAGE_ADDED);
         filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
         filter.addDataScheme("package");
-        registerReceiver(packages, filter);
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(packages, filter, Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(packages, filter);
         receiving = true;
         bindAll();
     }
