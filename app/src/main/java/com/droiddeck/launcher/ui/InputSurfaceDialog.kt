@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.ui
 
 import android.app.Presentation
+import android.content.Context
+import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.os.Handler
@@ -69,8 +71,8 @@ private class GamepadScaler(private val context: android.content.Context, privat
 }
 
 private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings, val defaults: List<InputSurfaceElement>? = null,
-    private val gamepad: GamepadScaler? = null, snap: Boolean = true) {
-    var elements by mutableStateOf(layout.elements)
+    private val gamepad: GamepadScaler? = null, snap: Boolean = true, private val initial: List<InputSurfaceElement> = layout.elements) {
+    var elements by mutableStateOf(initial)
     var actions by mutableStateOf(preset.elements)
     var clicks by mutableStateOf(preset.clicks)
     var selected by mutableStateOf<String?>(null)
@@ -94,7 +96,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     val positioned get() = (if (rescales) gamepad!!.reset(elements) else defaults?.let { elements.withPositionsOf(it) })
         ?.takeIf { it != elements || rescales && layoutScale != 1f }
     val element get() = elements.firstOrNull { it.id == selected }
-    val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale
+    val dirty get() = elements != initial || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale
     fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale)).takeLast(40) }
     fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; history = history.dropLast(1) } }
     fun scaleAll(percent: Int) {
@@ -116,6 +118,12 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
 private fun displayAspect(display: Display): Float? = android.util.DisplayMetrics().also(display::getRealMetrics)
     .takeIf { it.widthPixels > 0 && it.heightPixels > 0 }?.let { (it.widthPixels.toFloat() / it.heightPixels).coerceIn(.05f, 20f) }
 
+private fun editorElements(context: Context, display: Display?, layout: SavedInputLayout): List<InputSurfaceElement> {
+    if (display == null) return layout.elements
+    val metrics = android.util.DisplayMetrics().also(display::getRealMetrics)
+    return OnScreenLayout.elements(context, layout, metrics.widthPixels.coerceAtLeast(1), metrics.heightPixels.coerceAtLeast(1), Rect())
+}
+
 @Composable
 fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> Unit,
     role: InputRole = InputRole.SECONDARY, layoutId: String? = null, bindingsId: String? = null) {
@@ -126,14 +134,6 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
     val savedBindings = remember { library.preset(bindingsId ?: library.profile(profile).binding(role)) }
     val layoutUsers = library.usersOfLayout(savedLayout.id).size
     val bindingUsers = library.usersOfBindings(savedBindings.id).size
-    val draft = remember {
-        val (display, metrics) = InputLibraries.primaryDisplay(context)
-        val gamepad = savedLayout.elements.takeIf { e -> e.any { it.id.startsWith("legacy:") } }?.let {
-            val (w, h) = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels) ?: (metrics.widthPixels to metrics.heightPixels)
-            GamepadScaler(display, w, h)
-        }
-        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), gamepad, ControllerPrefs.snap(context))
-    }
     val manager = remember { context.getSystemService(DisplayManager::class.java) }
     var revision by remember { mutableIntStateOf(0) }
     var discard by remember { mutableStateOf(false) }
@@ -145,6 +145,15 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             val displays = SecondScreenDisplays.available(manager, host?.window?.decorView?.display?.displayId ?: Display.DEFAULT_DISPLAY)
             manager.getDisplay(displays.firstOrNull { it.id == SessionState.secondScreenDisplay }?.id ?: displays.firstOrNull()?.id ?: -1)
         }
+    }
+    val draft = remember {
+        val (display, metrics) = InputLibraries.primaryDisplay(context)
+        val gamepad = savedLayout.elements.takeIf { e -> e.any { it.id.startsWith("legacy:") } }?.let {
+            val (w, h) = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels) ?: (metrics.widthPixels to metrics.heightPixels)
+            GamepadScaler(display, w, h)
+        }
+        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), gamepad, ControllerPrefs.snap(context),
+            editorElements(context, target ?: host?.window?.decorView?.display, savedLayout))
     }
     val remote = target != null && target.displayId != host?.window?.decorView?.display?.displayId
     fun leave() { if (draft.dirty) discard = true else onDismiss() }
