@@ -693,10 +693,10 @@ object SessionArtifacts {
         if (sessionStartedAt <= 0L) return null
         val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
         return if (bootedAt > sessionStartedAt + BOOT_CLOCK_SLACK_MS) {
-            "The device itself restarted after this session began (it came up at ${stamp.format(Date(bootedAt))}):\n" +
-                "the whole system went down, so crash.log is the new boot's buffer and says nothing about the session.\n"
+            "The device itself probably restarted after this session began (estimated boot ${stamp.format(Date(bootedAt))}, from the clock and uptime, so a clock change can fake it):\n" +
+                "if so, the whole system went down and crash.log is the new boot's buffer and says nothing about the session.\n"
         } else {
-            "The device has not restarted since this session began (up since ${stamp.format(Date(bootedAt))}):\n" +
+            "The device does not appear to have restarted since this session began (estimated boot ${stamp.format(Date(bootedAt))}, from the clock and uptime):\n" +
                 "only this app's processes ended, so crash.log and the exit records cover the end.\n"
         }
     }

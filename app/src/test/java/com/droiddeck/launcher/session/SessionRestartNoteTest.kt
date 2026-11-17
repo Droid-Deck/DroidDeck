@@ -11,17 +11,17 @@ class SessionRestartNoteTest {
     @Test fun aBootAfterTheSessionBeganIsReportedAsARestart() {
         val note = SessionArtifacts.restartNote(started, started + 20 * 60_000L)
         assertNotNull(note)
-        assertTrue(note!!.startsWith("The device itself restarted"))
+        assertTrue(note!!.startsWith("The device itself probably restarted"))
     }
 
     @Test fun aBootBeforeTheSessionBeganMeansOnlyTheAppEnded() {
         val note = SessionArtifacts.restartNote(started, started - 3 * 3_600_000L)
-        assertTrue(note!!.startsWith("The device has not restarted"))
+        assertTrue(note!!.startsWith("The device does not appear to have restarted"))
     }
 
     @Test fun clockCorrectionsWithinAMinuteAreNotARestart() {
         val note = SessionArtifacts.restartNote(started, started + 30_000L)
-        assertTrue(note!!.startsWith("The device has not restarted"))
+        assertTrue(note!!.startsWith("The device does not appear to have restarted"))
     }
 
     @Test fun aFolderWithoutAStartTimeSaysNothing() {
