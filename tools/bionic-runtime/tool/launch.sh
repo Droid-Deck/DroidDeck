@@ -19,13 +19,17 @@ LOG=$COMPAT/droiddeck-bionic.log
 exec >> "$LOG" 2>&1
 echo "$(date +%H:%M:%S) $verb $EXE ($VERSION, uid $(id -u), DISPLAY ${DISPLAY:-unset})"
 
-# Keep Steam's game identity and DroidDeck's input/display settings; drop the glibc guest's environment.
+# Keep Steam's game identity, DroidDeck's input/display/driver/sync settings and its game environment (the names
+# ../proton lists in DROIDDECK_BIONIC_KEEP); drop the rest of the glibc guest's environment.
 for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
+  case " ${DROIDDECK_BIONIC_KEEP:-} " in *" $v "*) continue ;; esac
   case "$v" in
     SteamAppId|SteamGameId|SteamOverlayGameId|SteamClientLaunch|SteamEnv|SteamAppUser|SteamUser|STEAM_COMPAT_*) ;;
     ANDROID_*|BOOTCLASSPATH|DEX2OATBOOTCLASSPATH|SYSTEMSERVERCLASSPATH|EXTERNAL_STORAGE|ASEC_MOUNTPOINT) ;;
     FAKE_*|SDL_*|BL_WIDTH|BL_HEIGHT|BL_VK_DRIVER|WINEDLLOVERRIDES) ;;
     DISPLAY|GAMESCOPE_WAYLAND_DISPLAY|FEX_*) ;;
+    TU_DEBUG|MESA_NO_ERROR|DXVK_CONFIG|DXVK_HUD|DROIDDECK_FORCE_SSBS) ;;
+    BL_SYNC|BL_FSYNC_FIRST|BL_SYNC_FALLBACK|PROTON_NO_ESYNC|PROTON_NO_FSYNC|PROTON_NO_NTSYNC|WINEESYNC) ;;
     *) unset "$v" 2>/dev/null ;;
   esac
 done
@@ -53,13 +57,26 @@ export XDG_RUNTIME_DIR=$RTD DROIDDECK_WSI_BYPASS_CHECK_MS=100 GAMESCOPE_WSI_FORC
 # Wine: DXVK/VKD3D over the builtins, X11 inside gamescope (winewayland would pick DroidDeck's compositor),
 # FEX for x86 code, userspace ntsync (no /dev/ntsync on Android), Valve's Android Steam client library.
 export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:+$WINEDLLOVERRIDES;}d3d9,d3d10core,d3d11,dxgi,d3d12,d3d12core=n,b;winewayland.drv=d"
-export HODLL=libwow64fex.dll WINENTSYNC=1 WINEESYNC=1 WINEDEBUG=err+all,fixme-all
+# Sync as chosen in DroidDeck (Wine sync, per-game PROTON_NO_*): ntsync is userspace ntsync (no /dev/ntsync on
+# Android) with esync as its fallback; Android has no futex_waitv, so an fsync choice runs ntsync.
+on() { case "$1" in 1|on|true|yes) return 0 ;; esac; return 1; }
+NT=1; ES=1
+[ "${BL_SYNC:-1}" = 0 ] && NT=0
+[ "${BL_FSYNC_FIRST:-0}" = 1 ] && NT=1
+[ "${BL_SYNC:-1}" = 0 ] && [ "${BL_SYNC_FALLBACK:-1}" = 0 ] && ES=0
+on "${PROTON_NO_NTSYNC:-}" && NT=0
+{ on "${PROTON_NO_ESYNC:-}" || [ "${WINEESYNC:-}" = 0 ]; } && ES=0
+export WINENTSYNC=$NT WINEESYNC=$ES
+# DroidDeck's Force SSBS (its glibc libssbs.so preload) is bionic Wine's own WINE_FORCE_SSBS
+on "${DROIDDECK_FORCE_SSBS:-}" && export WINE_FORCE_SSBS=1
+export HODLL=libwow64fex.dll WINEDEBUG=err+all,fixme-all
 # FEX: DroidDeck-Proton's defaults (its share/fex-emu/Config.json: x87 in 64-bit precision, TSO without the vector
 # and memcpy parts); droiddeck-game-env's per-game choices (FEX_* in the environment, e.g. .NET, Unity) win.
 export FEX_TSOENABLED=${FEX_TSOENABLED:-1} FEX_VECTORTSOENABLED=${FEX_VECTORTSOENABLED:-0} \
   FEX_MEMCPYSETTSOENABLED=${FEX_MEMCPYSETTSOENABLED:-0} FEX_HALFBARRIERTSOENABLED=${FEX_HALFBARRIERTSOENABLED:-1} \
   FEX_X87REDUCEDPRECISION=${FEX_X87REDUCEDPRECISION:-1} FEX_MULTIBLOCK=${FEX_MULTIBLOCK:-1} FEX_MAXINST=${FEX_MAXINST:-500}
 echo "fex $(env | grep '^FEX_' | sort | tr '\n' ' ')"
+echo "sync ntsync=$WINENTSYNC esync=$WINEESYNC ssbs=${WINE_FORCE_SSBS:-0} tu_debug=${TU_DEBUG:-} kept=${DROIDDECK_BIONIC_KEEP:-}"
 export WINESTEAMCLIENTPATH64=$ROOTFS/root/.local/share/Steam/androidarm64/libsteamclient.so
 export DXVK_LOG_PATH=$COMPAT PULSE_SERVER=unix:$APP/pulseaudio/PS0
 export ANDROID_SYSVSHM_SERVER=$COMPAT/.no-sysvshm-server  # its client faults on an unset name, inside a Wine lock

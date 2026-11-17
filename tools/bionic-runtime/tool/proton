@@ -35,6 +35,22 @@ case "$verb" in
     [ $# -gt 0 ] || exit 0
     exe=$(real "$1"); shift
     export DROIDDECK_BIONIC_ROOT="$DDNATV_ROOT"
+    # DroidDeck's game environment (shared entries and this game's), already applied by droiddeck-game-env: the
+    # names launch.sh keeps when it drops the rest of the guest environment.
+    DROIDDECK_BIONIC_KEEP=$(python3 - "${STEAM_COMPAT_DATA_PATH:-}" 2>/dev/null <<'PY'
+import json, os, re, sys
+try:
+    config = json.load(open(os.path.expanduser("~/.config/droiddeck/game-environment.json"), encoding="utf-8"))
+except (OSError, ValueError):
+    sys.exit(0)
+scope = os.path.basename(sys.argv[1].rstrip("/"))
+names = set((config.get("shared") or {}).keys())
+if re.fullmatch(r"[1-9][0-9]{0,9}", scope):
+    names |= set(((config.get("games") or {}).get(scope) or {}).keys())
+print(" ".join(sorted(n for n in names if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", n) and n in os.environ)))
+PY
+)
+    export DROIDDECK_BIONIC_KEEP
     exec /system/bin/sh "$tool/bionic/launch.sh" "$verb" "$compat" "$exe" "$@" ;;
   getcompatpath)
     p=$(real "${1:-}")
