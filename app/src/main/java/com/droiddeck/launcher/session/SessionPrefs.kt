@@ -633,14 +633,12 @@ object SessionPrefs {
     internal fun reconcilePowerVrAutoDrivers(
         context: Context, powerVr: Boolean, xclipse: Boolean, vulkan: () -> Map<String, String>?,
     ) {
-        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
         val device = if (xclipse) vulkan() ?: return else null
-        ensurePowerVrAutoDrivers(
-            context, powerVr,
-            unsupportedXclipse(xclipse) {
-                com.droiddeck.launcher.gpu.GpuInfo.systemDriverName(SystemVulkanDriver.gpuName(), device)
-            },
-        )
+        val unsupported = unsupportedXclipse(xclipse) {
+            com.droiddeck.launcher.gpu.GpuInfo.systemDriverName(SystemVulkanDriver.gpuName(), device)
+        }
+        if (!unsupported && com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
+        ensurePowerVrAutoDrivers(context, powerVr, unsupported)
     }
 
     internal fun unsupportedXclipse(xclipse: Boolean, gpuName: () -> String): Boolean =

@@ -1,16 +1,27 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import android.net.Uri
 import com.droiddeck.launcher.DriverMenusAutoTest
-import org.robolectric.RuntimeEnvironment
+import com.droiddeck.launcher.core.DeviceSupport
+import com.droiddeck.launcher.gpu.DriverBundle
 import com.droiddeck.launcher.gpu.GpuInfo
+import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.TurnipDriver
+import org.json.JSONObject
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE, shadows = [DriverMenusAutoTest.XclipseDriver::class])
@@ -19,9 +30,60 @@ class PowerVrAutoDriversTest {
 
     @Before fun reset() {
         DriverMenusAutoTest.XclipseDriver.enabled = false
+        clearBundles()
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
         SessionPrefs.setLinuxDriver(context, "imported-linux")
         SessionPrefs.setAndroidDriver(context, "imported-display")
+    }
+
+    @After fun cleanupBundles() {
+        clearBundles()
+    }
+
+    private fun clearBundles() {
+        File(context.filesDir, "graphics_driver").deleteRecursively()
+        File(context.filesDir, LinuxVulkanDriverManager.DIR_NAME).deleteRecursively()
+        context.getSharedPreferences("driver_bundles", Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
+    private fun installAndSelectNonAdrenoBundle(): DriverBundle.Bundle {
+        fun library(libc: String) = ByteArray(64).also {
+            byteArrayOf(0x7f, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte(), 2, 1).copyInto(it)
+            it[18] = 0xB7.toByte()
+        } + libc.toByteArray() + ByteArray(1)
+
+        val manifest = JSONObject()
+            .put("package", "RADV-Xclipse")
+            .put("version", "0.1.0")
+            .put("tag", "RADV-Xclipse-test")
+            .put(
+                "drivers",
+                JSONObject()
+                    .put("android", JSONObject().put("path", "android"))
+                    .put("linux", JSONObject().put("path", "linux")),
+            )
+        val entries = mapOf(
+            "android/meta.json" to JSONObject().put("name", "radv v0.1.0").put("libraryName", "libvulkan_radeon.so").toString().toByteArray(),
+            "android/libvulkan_radeon.so" to library("libc.so"),
+            "linux/meta.json" to JSONObject().put("name", "radv v0.1.0").put("driverVersion", "radv-test").toString().toByteArray(),
+            "linux/libvulkan_radeon.so" to library("libc.so.6"),
+            "manifest.json" to manifest.toString().toByteArray(),
+        )
+        val file = File.createTempFile("radv-bundle", ".zip", context.cacheDir)
+        return try {
+            ZipOutputStream(file.outputStream()).use { z ->
+                for ((name, data) in entries) {
+                    z.putNextEntry(ZipEntry(name))
+                    z.write(data)
+                    z.closeEntry()
+                }
+            }
+            val bundle = DriverBundle.install(context, Uri.fromFile(file))
+            DriverBundle.select(context, bundle)
+            bundle
+        } finally {
+            file.delete()
+        }
     }
 
     @Test fun autoRepairsStaleAdrenoSelectionsOnPowerVr() {
@@ -134,6 +196,34 @@ class PowerVrAutoDriversTest {
         }
         assertEquals("", SessionPrefs.linuxDriver(context))
         assertEquals("imported-display", SessionPrefs.androidDriver(context))
+    }
+
+    @Test fun sessionStartUnsupportedXclipseResetsAutoOwnedEvenWithBothOpenDriversSelected() {
+        DriverMenusAutoTest.XclipseDriver.enabled = true
+        val bundle = installAndSelectNonAdrenoBundle()
+        assertTrue(DeviceSupport.openDriverActive(context))
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setGpuAutoInstalled(context, setOf(bundle.androidId, bundle.linuxId))
+        SessionPrefs.reconcilePowerVrAutoDrivers(context, powerVr = true, xclipse = true) {
+            mapOf("device" to "Samsung Xclipse 540")
+        }
+        assertFalse(DeviceSupport.openDriverActive(context))
+        assertEquals("", SessionPrefs.linuxDriver(context))
+        assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(context))
+    }
+
+    @Test fun sessionStartSupportedXclipseKeepsActiveOpenDriverBundle() {
+        DriverMenusAutoTest.XclipseDriver.enabled = true
+        val bundle = installAndSelectNonAdrenoBundle()
+        assertTrue(DeviceSupport.openDriverActive(context))
+        SessionPrefs.setGpuDriverMode(context, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setGpuAutoInstalled(context, setOf(bundle.androidId, bundle.linuxId))
+        SessionPrefs.reconcilePowerVrAutoDrivers(context, powerVr = true, xclipse = true) {
+            mapOf("device" to "Samsung Xclipse 920")
+        }
+        assertTrue(DeviceSupport.openDriverActive(context))
+        assertEquals(bundle.linuxId, SessionPrefs.linuxDriver(context))
+        assertEquals(bundle.androidId, SessionPrefs.androidDriver(context))
     }
 
     @Test fun sessionStartWithASupportedXclipseClearsUnownedSelections() {
