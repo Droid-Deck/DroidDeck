@@ -1515,12 +1515,12 @@ object SessionPrefs {
     fun canonicalUpscaler(mode: Int): Int = when (mode) {
         1 -> 0
         5 -> 4
-        else -> mode.takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+        else -> mode.takeIf { m -> upscalerChoices.any { it.first == m } } ?: 2
     }
 
     fun upscalerHasSharpness(mode: Int): Boolean = canonicalUpscaler(mode) in 3..8
 
-    fun upscaler(context: Context): Int = canonicalUpscaler(prefs(context).getInt("upscaler", 0))
+    fun upscaler(context: Context): Int = canonicalUpscaler(prefs(context).getInt("upscaler", 2))
 
     fun setUpscaler(context: Context, mode: Int) {
         prefs(context).edit().putInt("upscaler", canonicalUpscaler(mode)).apply()
