@@ -659,6 +659,26 @@ class BattleNetTest {
         assertNull(BattleNetCleanup.get(context, folder))
     }
 
+    @Test fun aCancellationRecordsItsMarkerBeforeItWaitsForTheWorker() {
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
+        val item = CatalogItem(
+            Store.BATTLENET, "osi", "Diablo II: Resurrected", null,
+            extra = mapOf(BattleNetInstall.PREEXISTING to "0"),
+        )
+        val installer = BattleNetInstaller(context, item, folder, false, registrationWaitMs = 0, cleanupVerifyMs = 0) {
+            emptyList()
+        }
+        BattleNetInstaller::class.java.getDeclaredField("started").apply { isAccessible = true }
+            .set(installer, AtomicBoolean(true))
+        val ended = BattleNetInstaller::class.java.getDeclaredField("ended").apply { isAccessible = true }
+            .get(installer) as CountDownLatch
+        installer.cancel(true)
+        assertEquals(BattleNetCleanup.PENDING, BattleNetCleanup.get(context, folder)?.state)
+        ended.countDown()
+        val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
+        while (BattleNetCleanup.get(context, folder)?.state == BattleNetCleanup.PENDING && System.nanoTime() < until) Thread.sleep(10)
+    }
+
     @Test fun aCleanupMarkerIsRestoredWithoutTheTask() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         BattleNetCleanup.mark(context, folder, "osi", createdFolder = true, state = BattleNetCleanup.PENDING)

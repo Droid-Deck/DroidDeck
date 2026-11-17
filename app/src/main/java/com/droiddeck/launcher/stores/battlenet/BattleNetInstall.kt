@@ -172,6 +172,7 @@ object BattleNetInstall {
             return false
         }
         if (!done) Log.i(TAG, "uninstall $uid: registration gone after the Agent stopped")
+        BattleNetCleanup.clear(context, game.folder)
         StoresState.post { StoresState.notifyLibraryChanged(context.applicationContext) }
         return true
     }
@@ -211,38 +212,44 @@ object BattleNetInstall {
         val now = System.currentTimeMillis()
         for (pending in BattleNetCleanup.pending(context)) {
             if (pending.nextAt > now) continue
+            if (pending.folder.absolutePath in cleanupRunning) continue
             if (StoreInstalls.isDiscarding(pending.folder)) continue
-            if (DownloadQueue.isActive(DownloadEntry(Store.BATTLENET, pending.id, pending.id).key)) continue
-            val found = runCatching { BattleNet.registrationsAt(context, pending.id, pending.folder) }.getOrNull()
-            if (found == null) {
-                retry(context, pending, "the registrations could not be read")
-                continue
-            }
-            if (found.isEmpty()) {
+            val key = DownloadEntry(Store.BATTLENET, pending.id, pending.id).key
+            if (!DownloadQueue.holdForRemoval(key)) continue
+            try {
+                val found = runCatching { BattleNet.registrationsAt(context, pending.id, pending.folder) }.getOrNull()
+                if (found == null) {
+                    retry(context, pending, "the registrations could not be read")
+                    continue
+                }
+                if (found.isEmpty()) {
+                    if (pending.createdFolder && pending.folder.exists() && !deleteFolder(pending.folder)) {
+                        retry(context, pending, "the folder could not be deleted")
+                        continue
+                    }
+                    if (pending.state == BattleNetCleanup.WATCHING && pending.attempts < CLEANUP_MAX_ATTEMPTS) {
+                        BattleNetCleanup.update(context, pending.folder, BattleNetCleanup.WATCHING, pending.attempts + 1, now + watchMs)
+                        continue
+                    }
+                    BattleNetCleanup.clear(context, pending.folder)
+                    Log.i(TAG, "cleanup of ${pending.folder.path}: no registration remains")
+                    continue
+                }
+                for (uid in found) uninstall(uid)
+                val left = registrationsGone(context, pending.id, pending.folder, verifyMs)
+                if (left == null || left.isNotEmpty()) {
+                    retry(context, pending, "the registration in ${pending.folder.path} is still there")
+                    continue
+                }
                 if (pending.createdFolder && pending.folder.exists() && !deleteFolder(pending.folder)) {
                     retry(context, pending, "the folder could not be deleted")
                     continue
                 }
-                if (pending.state == BattleNetCleanup.WATCHING && pending.attempts < CLEANUP_MAX_ATTEMPTS) {
-                    BattleNetCleanup.update(context, pending.folder, BattleNetCleanup.WATCHING, pending.attempts + 1, now + watchMs)
-                    continue
-                }
                 BattleNetCleanup.clear(context, pending.folder)
-                Log.i(TAG, "cleanup of ${pending.folder.path}: no registration remains")
-                continue
+                Log.i(TAG, "cleanup of ${pending.folder.path}: ${if (pending.createdFolder) "removed" else "registration removed; folder kept"}")
+            } finally {
+                DownloadQueue.releaseRemoval(key)
             }
-            for (uid in found) uninstall(uid)
-            val left = registrationsGone(context, pending.id, pending.folder, verifyMs)
-            if (left == null || left.isNotEmpty()) {
-                retry(context, pending, "the registration in ${pending.folder.path} is still there")
-                continue
-            }
-            if (pending.createdFolder && pending.folder.exists() && !deleteFolder(pending.folder)) {
-                retry(context, pending, "the folder could not be deleted")
-                continue
-            }
-            BattleNetCleanup.clear(context, pending.folder)
-            Log.i(TAG, "cleanup of ${pending.folder.path}: ${if (pending.createdFolder) "removed" else "registration removed; folder kept"}")
         }
     }
 
@@ -494,16 +501,25 @@ internal class BattleNetInstaller(
         }
         if (!cleanupStarted.compareAndSet(false, true)) return
         if (!started.get() && !ownership.known) ownership.preexisting = true
-        val createdFolder = BattleNetCleanup.get(app, folder)?.createdFolder ?: ownership.createdFolder.get()
+        val initialCreated = BattleNetCleanup.get(app, folder)?.createdFolder ?: ownership.createdFolder.get()
+        val path = folder.absolutePath
+        cleanupRunning.add(path)
+        if (!ownership.preexisting) {
+            BattleNetCleanup.mark(app, folder, item.id, initialCreated, BattleNetCleanup.PENDING)
+        }
         val cleanup = Thread({
             var discarding = false
             try {
                 val stopped = !started.get() || ended.await(END_WAIT_S, TimeUnit.SECONDS)
-                if (!stopped) {
-                    pending(createdFolder, "the cancelled install is still stopping")
-                } else if (ownership.preexisting) {
+                val createdFolder = ownership.createdFolder.get() || (BattleNetCleanup.get(app, folder)?.createdFolder ?: false)
+                if (!ownership.preexisting && createdFolder != initialCreated) {
+                    BattleNetCleanup.mark(app, folder, item.id, createdFolder, BattleNetCleanup.PENDING)
+                }
+                if (ownership.preexisting) {
                     BattleNetCleanup.clear(app, folder)
                     Log.i("BattleNetInstall", "cancelled install left the pre-existing registration in ${folder.path}")
+                } else if (!stopped) {
+                    pending(createdFolder, "the cancelled install is still stopping")
                 } else {
                     StoreInstalls.beginDiscard(folder)
                     discarding = true
@@ -532,6 +548,7 @@ internal class BattleNetInstaller(
                     }
                 }
             } finally {
+                cleanupRunning.remove(path)
                 if (discarding) StoreInstalls.endDiscard(folder)
                 DownloadQueue.cleanupFinished(queueKey)
             }
@@ -539,6 +556,7 @@ internal class BattleNetInstaller(
         try {
             cleanup.start()
         } catch (t: Throwable) {
+            cleanupRunning.remove(path)
             DownloadQueue.cleanupFinished(queueKey)
             throw t
         }
@@ -562,6 +580,7 @@ internal class BattleNetInstaller(
 
 private const val END_WAIT_S = 120L
 private const val REGISTRATION_WAIT_MS = 5_000L
+private val cleanupRunning = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 private const val CLEANUP_VERIFY_MS = 30_000L
 private const val CLEANUP_WATCH_MS = 15_000L
 private const val CLEANUP_RETRY_MS = 60_000L
