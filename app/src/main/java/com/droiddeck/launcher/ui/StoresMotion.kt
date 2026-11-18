@@ -97,6 +97,16 @@ internal object StoresMotion {
         stepOpen = true
     }
 
+    private var host: Any? = null
+
+    fun hosting(page: Any) { host = page }
+
+    fun release(page: Any) {
+        if (host !== page) return
+        host = null
+        drop()
+    }
+
     fun drop() {
         step?.let { step = null; it.onDismiss() }
         stepOpen = false

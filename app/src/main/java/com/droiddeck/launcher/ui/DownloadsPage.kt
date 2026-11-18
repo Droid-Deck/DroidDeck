@@ -43,7 +43,8 @@ internal fun DownloadsPage(s: FrontEndState, a: FrontEndActions, modifier: Modif
         if (gearAt != null && DownloadsNav.showSettings) { DownloadsNav.showSettings = false; openSettings() }
     }
     var hostAt by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.drop() } }
+    androidx.compose.runtime.DisposableEffect(Unit) { val page = Any(); StoresMotion.hosting(page); onDispose { StoresMotion.release(page) } }
+    androidx.activity.compose.BackHandler(enabled = StoresMotion.stepOpen) { StoresMotion.fold() }
     androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().onGloballyPositioned { hostAt = it.positionInRoot() }) {
     Column(modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         PageHeader(stringResource(R.string.stores_tab_downloads)) {

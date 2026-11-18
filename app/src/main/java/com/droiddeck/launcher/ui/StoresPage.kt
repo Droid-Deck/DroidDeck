@@ -400,7 +400,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     }
     SignInFloodLayer(hostAt)
     }
-    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.drop() } }
+    androidx.compose.runtime.DisposableEffect(Unit) { val page = Any(); StoresMotion.hosting(page); onDispose { StoresMotion.release(page) } }
 }
 
 @Composable
