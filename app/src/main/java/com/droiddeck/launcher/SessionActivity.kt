@@ -1631,6 +1631,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 CompositorHost.setBlackFrameInsertion(on, refreshHz(), outputFpsLimit())
             },
             presentCadence = presentCadence,
+            presentCadenceAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
             onPresentCadence = { on ->
                 SessionPrefs.setPresentCadence(this@SessionActivity, on)
                 presentCadence = on
@@ -2886,6 +2887,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         glassesOutputActive = false
         bottomOutputActive = false
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(false)
+        CompositorHost.setGameOnOtherDisplay(false)
         CompositorHost.detach(holder.surface)
         bottomGame?.takeIf { it.holder === holder }?.let { screen -> uiHandler.post { recoverBottomOutput(screen) } }
     }
@@ -6063,6 +6065,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         updatePointerCapture()
         if (bottomOutputActive) bottomRecoveries = 0
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || bottomOutputActive)
+        CompositorHost.setGameOnOtherDisplay(glassesOutputActive || bottomOutputActive)
         surfaceView.visibility = if (glassesOutputActive || bottomOutputActive) View.INVISIBLE else View.VISIBLE
         Log.i(TAG, "compositor output attached: " +
             if (glassesOutputActive) "glasses display ${glassesScreen?.display?.displayId}"

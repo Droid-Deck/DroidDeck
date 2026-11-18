@@ -18,7 +18,8 @@ Measured on an AYN Thor (Adreno 740, Android 13) with Skyrim SE.
 - The presenter thread `dd-present` (`sc_layer.c`) applies each held frame 1 ms before SurfaceFlinger's deadline for its refresh.
   - On every refresh in between, it swaps the buffer of a transparent 16×16 layer (`droiddeck_wayland_pacer`) under the game, so every refresh is presented and a frame can't land early.
   - Every other layer transaction goes through the same queue in order. NDK layers have no buffer backpressure, so a frame ready on the same refresh as another would replace it.
-- The compositor turns pacing off, and logs why, while something else paces every refresh: black frame insertion, frame generation, streaming, Cardboard VR, or a headset composing its own layers (`cadence_blocked` in `compositor.c`).
+- The compositor turns pacing off, and logs why, while something else paces every refresh: black frame insertion, frame generation, streaming, Cardboard VR, or a headset composing its own layers. It also waits while the game is shown on glasses or the bottom screen, because the frame timeline describes the phone screen's refreshes (`cadence_blocked` in `compositor.c`).
+- The toggle only shows on Android 13 and later, which have the frame timeline.
 
 Cost: frames reach the screen later (about 34 ms from arrival at 40 fps on 120 Hz with Skyrim, against about 18 ms unpaced), and SurfaceFlinger composes on every refresh while a capped game is paced.
 
@@ -43,4 +44,4 @@ adb shell dumpsys SurfaceFlinger --frametimeline -all    # Early / On Time / Lat
 droiddeckctl pacing --seconds 10                         # present-to-present histogram from timestats
 ```
 
-The `--latency` window holds the last 128 frames and the frame timeline the last 64 display frames, so sample them about once a second.
+The `--latency` window holds the last 128 game frames, so once a second is enough for it. The frame timeline holds the last 64 display frames, and with fillers that is one display frame per refresh, about 0.53 s at 120 Hz, so sample it at least twice a second.

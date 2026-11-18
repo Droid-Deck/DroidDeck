@@ -307,7 +307,8 @@ volatile int g_fps_limit;
 volatile int g_release_unpaced;
 
 volatile int g_bfi;
-volatile int g_present_cadence;
+atomic_int g_present_cadence;
+atomic_int g_game_on_other_display;
 static int g_cadence_running = -1;
 static const char *g_cadence_blocked;
 volatile int g_bfi_picture_hold;
@@ -2539,11 +2540,12 @@ static const char *cadence_blocked(void) {
     if (atomic_load(&g_stream_on)) return "the picture is being streamed";
     if (vkp_cardboard_active()) return "Cardboard VR is on";
     if (vkp_quest_layer_presentation()) return "this headset composes its own layers";
+    if (atomic_load(&g_game_on_other_display)) return "the game is shown on another screen than the one whose refreshes it follows";
     return NULL;
 }
 
 static void cadence_update(void) {
-    const int on = g_present_cadence;
+    const int on = atomic_load(&g_present_cadence);
     const char *why = on ? cadence_blocked() : NULL;
     const int run = on && !why;
     if (on && why && why != g_cadence_blocked)

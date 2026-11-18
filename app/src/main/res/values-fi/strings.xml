@@ -676,7 +676,7 @@
     <string name="drawer_frame_limit">Kuvanopeusraja</string>
     <string name="drawer_frame_limit_note">Rajoittaa tätä peliä. Näyttö vaihtaa virkistystaajuuteen, joka on rajan tasakerrannainen, jos sellainen on; muut rajat voivat näyttää epätasaisilta. Steam-pelit käyttävät Steamin Frame Limit -asetusta Pikavalikossa.</string>
     <string name="drawer_even_pacing">Tasainen kuvatahti</string>
-    <string name="drawer_even_pacing_note">Näyttää virkistystaajuutta alemmaksi rajoitetun pelin, kuten 30 tai 40 fps 120 Hz:llä, tasaisessa tahdissa. Lisää hieman viivettä. Pois päältä kehysten generoinnin tai mustien kuvien lisäyksen aikana.</string>
+    <string name="drawer_even_pacing_note">Näyttää rajoitetun pelin tasaisessa tahdissa, kun raja jakaa virkistystaajuuden tasan, kuten 30 tai 40 fps 120 Hz:llä; muilla rajoilla kuvat vaihtelevat yhä kahden keston välillä. Lisää hieman viivettä. Pois päältä kehysten generoinnin tai mustien kuvien lisäyksen aikana.</string>
     <string name="drawer_bfi">Mustien kuvien lisäys</string>
     <string name="drawer_bfi_note">Terävämpi liike: jokaista kuvaa seuraa musta päivitys. Vaatii vähintään 100 Hz; peli pyörii puolella virkistystaajuudesta ja näyttää tummemmalta. Pois päältä kuvien generoinnin aikana.</string>
     <string name="drawer_page_effects">Tehosteet</string>

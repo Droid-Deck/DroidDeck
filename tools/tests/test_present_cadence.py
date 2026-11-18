@@ -32,7 +32,8 @@ YIELD_HARNESS = r'''
 static int g_bfi_running, framegen, cardboard, quest, layer_on = -1, logs;
 static atomic_int g_stream_on;
 static char last_log[256];
-static volatile int g_present_cadence = 1;
+static atomic_int g_present_cadence = 1;
+static atomic_int g_game_on_other_display;
 static int g_cadence_running = -1;
 static const char *g_cadence_blocked;
 static int vkp_framegen_active(void) { return framegen; }
@@ -65,14 +66,20 @@ int main(void) {
     cadence_update();
     assert(logs == before);
     atomic_store(&g_stream_on, 0);
+    atomic_store(&g_game_on_other_display, 1);
+    cadence_update();
+    assert(layer_on == 0 && strstr(last_log, "another screen") != NULL);
+    atomic_store(&g_game_on_other_display, 0);
+    cadence_update();
+    assert(layer_on == 1);
     framegen = 1;
     cadence_update();
     assert(layer_on == 0);
-    g_present_cadence = 0;
+    atomic_store(&g_present_cadence, 0);
     framegen = 0;
     cadence_update();
     assert(layer_on == 0);
-    g_present_cadence = 1;
+    atomic_store(&g_present_cadence, 1);
     cadence_update();
     assert(layer_on == 1);
     puts("PASS");

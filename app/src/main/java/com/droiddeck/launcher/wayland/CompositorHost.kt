@@ -117,6 +117,11 @@ object CompositorHost {
         WaylandCompositor.nativeSetPresentCadence(on)
     }
 
+    /** Pacing follows the phone screen's refreshes, so it waits while the game is shown on glasses or another screen. */
+    fun setGameOnOtherDisplay(on: Boolean) {
+        WaylandCompositor.nativeSetGameOnOtherDisplay(on)
+    }
+
     @Synchronized
     fun setBlackFrameInsertion(on: Boolean, refreshHz: Float, fpsLimit: Int) {
         blackFrameInsertion = on

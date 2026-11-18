@@ -678,7 +678,7 @@
     <string name="drawer_frame_limit">Límite de fotogramas</string>
     <string name="drawer_frame_limit_note">Limita este juego. La pantalla cambia a una frecuencia de actualización que sea múltiplo exacto del límite cuando la hay; otros límites pueden verse irregulares. Los juegos de Steam usan el Límite de fotogramas de Steam en el menú Quick Access.</string>
     <string name="drawer_even_pacing">Ritmo de fotogramas uniforme</string>
-    <string name="drawer_even_pacing_note">Muestra a un ritmo uniforme un juego limitado por debajo de la frecuencia de actualización, como 30 o 40 fps a 120 Hz. Añade un poco de retraso. Desactivado con la generación de fotogramas o la inserción de fotogramas negros.</string>
+    <string name="drawer_even_pacing_note">Muestra un juego limitado a un ritmo uniforme cuando el límite divide la frecuencia de actualización, como 30 o 40 fps a 120 Hz; con otros límites, los fotogramas siguen alternando entre dos duraciones. Añade un poco de retraso. Desactivado con la generación de fotogramas o la inserción de fotogramas negros.</string>
     <string name="drawer_bfi">Inserción de fotogramas negros</string>
     <string name="drawer_bfi_note">Movimiento más nítido: cada fotograma va seguido de un refresco negro. Requiere 100 Hz o más; el juego va a la mitad de la frecuencia y se ve más oscuro. Desactivado con la generación de fotogramas.</string>
     <string name="drawer_page_effects">Efectos</string>

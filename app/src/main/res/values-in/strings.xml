@@ -674,7 +674,7 @@
     <string name="drawer_frame_limit">Batas frame</string>
     <string name="drawer_frame_limit_note">Membatasi gim ini. Layar beralih ke refresh rate yang habis dibagi batas tersebut jika ada; batas lain bisa terlihat tidak rata. Gim Steam menggunakan Frame Limit milik Steam di menu Quick Access.</string>
     <string name="drawer_even_pacing">Ritme frame merata</string>
-    <string name="drawer_even_pacing_note">Menampilkan game yang dibatasi di bawah refresh rate, seperti 30 atau 40 fps pada 120 Hz, dengan ritme yang merata. Menambah sedikit jeda. Mati saat pembuatan frame atau penyisipan bingkai hitam aktif.</string>
+    <string name="drawer_even_pacing_note">Menampilkan game yang dibatasi dengan ritme merata jika batasnya membagi refresh rate, seperti 30 atau 40 fps pada 120 Hz; pada batas lain, frame tetap bergantian di antara dua durasi. Menambah sedikit jeda. Mati saat pembuatan frame atau penyisipan bingkai hitam aktif.</string>
     <string name="drawer_bfi">Penyisipan bingkai hitam</string>
     <string name="drawer_bfi_note">Gerakan lebih tajam: setiap bingkai diikuti refresh hitam. Butuh 100 Hz atau lebih; game berjalan di setengah refresh rate dan terlihat lebih gelap. Mati saat pembuatan bingkai aktif.</string>
     <string name="drawer_page_effects">Efek</string>

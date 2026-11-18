@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdatomic.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +45,8 @@ extern void droiddeck_wayland_set_output_refresh_rate(int mhz);
 extern volatile int g_fps_limit;
 extern volatile int g_release_unpaced;
 extern volatile int g_render_on_commit;
-extern volatile int g_present_cadence;
+extern atomic_int g_present_cadence;
+extern atomic_int g_game_on_other_display;
 extern volatile int g_bfi;
 extern volatile int g_bfi_picture_hold;
 extern volatile int g_hide_shell;
@@ -383,8 +385,14 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeVsyncTimeline(JNIEnv
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetPresentCadence(JNIEnv *env, jclass clazz, jboolean on) {
     (void)env; (void)clazz;
-    g_present_cadence = on ? 1 : 0;
+    atomic_store(&g_present_cadence, on ? 1 : 0);
     __android_log_print(ANDROID_LOG_INFO, TAG, "even frame pacing %s", on ? "on" : "off");
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetGameOnOtherDisplay(JNIEnv *env, jclass clazz, jboolean on) {
+    (void)env; (void)clazz;
+    atomic_store(&g_game_on_other_display, on ? 1 : 0);
 }
 
 JNIEXPORT void JNICALL

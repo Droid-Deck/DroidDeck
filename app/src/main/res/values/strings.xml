@@ -704,7 +704,7 @@
     <string name="drawer_frame_limit">Frame limit</string>
     <string name="drawer_frame_limit_note">Remembered for this game, or for Desktop. The display switches to a refresh rate the cap divides evenly; other caps can look uneven.</string>
     <string name="drawer_even_pacing">Even frame pacing</string>
-    <string name="drawer_even_pacing_note">Shows a game capped below the refresh rate, such as 30 or 40 fps at 120 Hz, at an even rhythm. Adds a little delay. Off while frame generation or black frame insertion is on.</string>
+    <string name="drawer_even_pacing_note">Shows a capped game at an even rhythm when the cap divides the refresh rate, such as 30 or 40 fps at 120 Hz; other caps still alternate between two frame lengths. Adds a little delay. Off while frame generation or black frame insertion is on.</string>
     <string name="drawer_bfi">Black frame insertion</string>
     <string name="drawer_bfi_note">Sharper motion: a black refresh follows every frame. Needs 100 Hz or more; the game runs at half the refresh rate and looks dimmer. Off while frame generation is on.</string>
     <string name="drawer_page_effects">Effects</string>

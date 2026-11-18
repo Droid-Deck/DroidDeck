@@ -64,7 +64,8 @@ static int vkp_cardboard_active(void) { return cardboard; }
 static int vkp_quest_layer_presentation(void) { return quest; }
 static int vkp_render_plain(int w, int h) { blacks++; return 0; }
 static void droiddeck_log(const char *tag, const char *fmt, ...) {}
-static volatile int g_present_cadence = 1;
+static atomic_int g_present_cadence = 1;
+static atomic_int g_game_on_other_display;
 static int g_cadence_running = -1, cadence_layer = -1;
 static const char *g_cadence_blocked;
 static void sc_layer_set_present_cadence(int on) { cadence_layer = on; }

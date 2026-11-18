@@ -680,7 +680,7 @@
     <string name="drawer_frame_limit">Limit snímků</string>
     <string name="drawer_frame_limit_note">Omezí tuto hru. Displej se přepne na obnovovací frekvenci, kterou limit beze zbytku dělí, pokud nějakou má; jiné limity mohou působit nerovnoměrně. Hry ze Steamu používají Limit snímků Steamu v nabídce Rychlý přístup.</string>
     <string name="drawer_even_pacing">Rovnoměrné tempo snímků</string>
-    <string name="drawer_even_pacing_note">Zobrazí hru omezenou pod obnovovací frekvenci, třeba 30 nebo 40 fps při 120 Hz, v rovnoměrném rytmu. Přidá malé zpoždění. Vypnuto při generování snímků nebo vkládání černých snímků.</string>
+    <string name="drawer_even_pacing_note">Zobrazí omezenou hru v rovnoměrném rytmu, když limit dělí obnovovací frekvenci, třeba 30 nebo 40 fps při 120 Hz; při jiných limitech se snímky dál střídají mezi dvěma délkami. Přidá malé zpoždění. Vypnuto při generování snímků nebo vkládání černých snímků.</string>
     <string name="drawer_bfi">Vkládání černých snímků</string>
     <string name="drawer_bfi_note">Ostřejší pohyb: po každém snímku následuje černé obnovení. Vyžaduje 100 Hz a více; hra běží na polovině obnovovací frekvence a je tmavší. Vypnuto při generování snímků.</string>
     <string name="drawer_page_effects">Efekty</string>
