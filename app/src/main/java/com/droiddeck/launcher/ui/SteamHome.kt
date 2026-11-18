@@ -86,7 +86,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     rememberHiddenSync()
     val featuredAll = com.droiddeck.launcher.frontend.SteamFeatured.games
     val signedIn = s.offlineAccount != null
-    val ownedAll by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn, LibraryHidden.steam) {
+    val ownedAll by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn, LibraryHidden.steam, LibraryHidden.account) {
         value = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
     }
     val concealed = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) {
