@@ -143,7 +143,7 @@ internal object StoresMotion {
     fun takeCard(key: String): CardMark? = card?.takeIf { it.key == key && SystemClock.uptimeMillis() - cardAt < 1_000 }.also { card = null }
 }
 
-internal class CardMark(val key: String, val bounds: Rect, val corner: Float, val art: String?)
+internal class CardMark(val key: String, val bounds: Rect, val corner: Float, val art: String?, val hero: String? = art)
 
 internal class StepAsk(
     val anchor: Rect,
@@ -157,7 +157,7 @@ internal class StepAsk(
     val content: @Composable StepOutScope.() -> Unit,
 )
 
-internal class SignInFlood(val store: Store, val from: Rect, val start: Color, val color: Color) {
+internal class SignInFlood(val store: Store, val from: Rect, val start: Color, val color: Color, val home: Rect? = null) {
     var away by mutableStateOf(false)
     var drainTo by mutableStateOf<Rect?>(null)
 }
@@ -335,7 +335,10 @@ internal fun DownloadFlights() {
         val from = StoresMotion.takeInstall() ?: focusAnchor(glide, origin)
         if (from != null) StoresMotion.fly(from) else StoresMotion.landed++
     }
-    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) { FlightLayer(origin) }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
+        FlightLayer(origin)
+        SignInFloodLayer(origin)
+    }
 }
 
 internal fun focusAnchor(glide: FocusGlide?, origin: Offset): Rect? {

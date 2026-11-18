@@ -398,7 +398,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             )
         }
     }
-    SignInFloodLayer(hostAt)
     }
     androidx.compose.runtime.DisposableEffect(Unit) { val page = Any(); StoresMotion.hosting(page); onDispose { StoresMotion.release(page) } }
 }
@@ -458,14 +457,14 @@ internal fun InstallWhere(item: CatalogItem) {
 }
 
 @Composable
-private fun SignInFloodLayer(hostAt: Offset) {
+internal fun SignInFloodLayer(hostAt: Offset) {
     val f = StoresMotion.signIn ?: return
     val ctx = LocalContext.current
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     val density = androidx.compose.ui.platform.LocalDensity.current
     key(f) {
         var paused by remember { mutableStateOf(false) }
-        fun back() { if (f.drainTo == null) f.drainTo = if (StoresState.isSignedIn(f.store)) StoresMotion.dots[f.store] ?: f.from else f.from }
+        fun back() { if (f.drainTo == null) f.drainTo = f.home ?: if (StoresState.isSignedIn(f.store)) StoresMotion.dots[f.store] ?: f.from else f.from }
         androidx.compose.runtime.DisposableEffect(lifecycle) {
             val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
                 if (e == androidx.lifecycle.Lifecycle.Event.ON_PAUSE && f.away) paused = true
@@ -1278,7 +1277,7 @@ private fun GameCard(
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     val open = {
-        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, item.imageUrl ?: item.tallImageUrl)) }
+        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, item.imageUrl ?: item.tallImageUrl, item.imageUrl ?: item.tallImageUrl)) }
         onOpen(item.key)
     }
     val screen = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
