@@ -2399,6 +2399,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
             uiHandler.post {
                 drawerGameLocaleSaving = false
+                if (isFinishing || isDestroyed) return@post
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                 refreshDrawerGameProfile()
             }

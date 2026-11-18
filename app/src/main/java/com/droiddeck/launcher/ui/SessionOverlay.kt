@@ -1388,7 +1388,7 @@ private fun DrawerLocaleRow(host: MenuHost, a: DrawerActions, modifier: Modifier
     ChoiceRow(
         host, "locale", stringResource(R.string.game_locale_title), null, options, profile.locale,
         enabled = !a.gameLocaleSaving, chipModifier = modifier,
-    ) { locale -> a.onGameLocale(appId, locale) }
+    ) { locale -> if (locale != profile.locale) a.onGameLocale(appId, locale) }
 }
 
 @Composable
