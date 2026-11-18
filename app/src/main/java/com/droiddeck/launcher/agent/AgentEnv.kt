@@ -130,6 +130,8 @@ object AgentEnv {
         val state = load(context)
         val active = strings(state.optJSONArray("pending"))
         val overrides = strings(state.optJSONArray("pendingOverrides"))
+        val legacy = File(bin(context), LEGACY_FAST_PATH)
+        if (FAST_PATH in overrides && legacy.isFile && !File(bin(context), FAST_PATH).exists()) legacy.renameTo(File(bin(context), FAST_PATH))
         bin(context).listFiles()
             ?.filter { it.name !in overrides }?.forEach { it.delete() }
         val lines = strings(state.optJSONArray("persistent")) + active
@@ -158,6 +160,9 @@ object AgentEnv {
         save(context, state)
     }
 
+    private const val FAST_PATH = "libddfastpath.so"
+    private const val LEGACY_FAST_PATH = "libblfastpath.so"
+
     private fun pathOf(lines: List<String>) =
         lines.lastOrNull { it.startsWith("PATH=") }?.substringAfter('=')?.takeIf { it.isNotBlank() } ?: LinuxRuntime.GUEST_PATH
 
@@ -185,6 +190,9 @@ object AgentEnv {
         val state = try { if (file.isFile) JSONObject(file.readText()) else JSONObject() } catch (e: Exception) { JSONObject() }
         for (key in listOf("pending", "active", "persistent", "pendingOverrides", "activeOverrides")) {
             if (!state.has(key)) state.put(key, JSONArray())
+        }
+        for (key in listOf("pendingOverrides", "activeOverrides")) {
+            state.put(key, JSONArray(strings(state.optJSONArray(key)).map { if (it == LEGACY_FAST_PATH) FAST_PATH else it }.distinct()))
         }
         return state
     }

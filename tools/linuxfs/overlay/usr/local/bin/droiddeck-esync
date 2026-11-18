@@ -796,7 +796,7 @@ def keep_live(root, command, env, tool):
         return None
     if not os.path.isfile(kept_command) or not server_running(prefix):
         return None
-    kept_pack = row["env"].get("DD_SYNC_PACK")
+    kept_pack = row["env"].get("DD_SYNC_PACK", row["env"].get("BL_SYNC_PACK"))
     if isinstance(kept_pack, str) and kept_pack and command[1:2] == ["waitforexitandrun"]:
         try:
             cache = HashCache(root)
@@ -808,10 +808,13 @@ def keep_live(root, command, env, tool):
             pack = {"id": kept_pack}
         if pack is None or pack["id"] != kept_pack:
             return None
+    kept = {("DD_" + name[3:] if name.startswith("BL_") else name): value
+            for name, value in row["env"].items() if name.startswith("BL_")}
+    kept.update((name, value) for name, value in row["env"].items() if not name.startswith("BL_"))
     command, env = list(command), dict(env)
     command[0] = kept_command
     for name in LIVE_KEYS:
-        value = row["env"].get(name)
+        value = kept.get(name)
         if isinstance(value, str):
             env[name] = value
         else:

@@ -53,10 +53,9 @@ object GameEnvironmentStore {
 
     @Synchronized
     fun save(context: Context, config: GameEnvironment.Config) {
-        val json = encode(config)
-        decode(json)
-        write(File(context.filesDir, SETTINGS), json.toString())
-        publish(context, config)
+        val normalized = decode(encode(config))
+        write(File(context.filesDir, SETTINGS), encode(normalized).toString())
+        publish(context, normalized)
     }
 
     @Synchronized

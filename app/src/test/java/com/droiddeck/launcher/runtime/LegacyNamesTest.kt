@@ -112,4 +112,12 @@ class LegacyNamesTest {
         assertFalse(File(root, "usr/local/lib/droiddeck-fex/x86_64/libblsession.so").exists())
         assertEquals("new", File(root, "usr/local/lib/libddsession.so").readText())
     }
+
+    @Test fun queuedRequestsUnderBothNamesAreAllKept() {
+        write("root/.bl-proton-extra", "ge")
+        write("root/.dd-proton-extra", "em\n")
+        LegacyNames.migrateRootfs(root)
+        assertEquals("em\nge\n", File(root, "root/.dd-proton-extra").readText())
+        assertFalse(File(root, "root/.bl-proton-extra").exists())
+    }
 }

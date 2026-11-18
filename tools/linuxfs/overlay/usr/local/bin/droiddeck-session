@@ -273,6 +273,9 @@ if [ "${DD_VKBRIDGE:-0}" = 1 ]; then
       while IFS='=' read -r _k _v; do
         case "$_k" in VKBRIDGE_*|DD_VKBRIDGE_*) export "$_k=$_v" ;; esac
       done < /root/.vkbridge-env
+      while IFS='=' read -r _k _v; do
+        case "$_k" in BL_VKBRIDGE_*) grep -q "^DD_${_k#BL_}=" /root/.vkbridge-env || export "DD_${_k#BL_}=$_v" ;; esac
+      done < /root/.vkbridge-env
       [ -z "${DD_INSIDE:-}" ] && echo "== vkbridge: development settings from /root/.vkbridge-env: $(cut -d= -f1 /root/.vkbridge-env | tr '\n' ' ')"
     fi
     export VKD3D_FEATURE_LEVEL=${VKD3D_FEATURE_LEVEL:-12_0}
