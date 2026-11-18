@@ -11,6 +11,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.SteamHidden
 import com.droiddeck.launcher.session.SessionPrefs
@@ -20,7 +21,7 @@ internal const val LIBRARY_HIDDEN = "hidden"
 internal object LibraryHidden {
     var keys by mutableStateOf<Set<String>>(emptySet())
         private set
-    private var cachedRoot: java.io.File? = null
+    private var cachedAccount: java.io.File? = null
     var steam by mutableStateOf<Set<Long>>(emptySet())
         private set
 
@@ -31,8 +32,9 @@ internal object LibraryHidden {
 
     fun refreshSteam(context: Context) {
         val root = SessionPrefs.activeSteamRoot(context)
-        if (root != cachedRoot) {
-            cachedRoot = root
+        val account = AddedGames.accountConfig(root)
+        if (account != cachedAccount) {
+            cachedAccount = account
             steam = emptySet()
         }
         SteamHidden.readOrNull(root)?.let { steam = it }
@@ -49,7 +51,7 @@ internal object LibraryHidden {
         val root = SessionPrefs.activeSteamRoot(context)
         val written = id?.let { SteamHidden.write(root, it, hidden) }
         if (id != null) {
-            cachedRoot = root
+            cachedAccount = AddedGames.accountConfig(root)
             steam = written?.hidden ?: SteamHidden.readOrNull(root) ?: steam
         }
         keys = if (hidden && (id == null || written == null)) keys + key else keys - key

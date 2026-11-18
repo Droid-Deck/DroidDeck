@@ -86,11 +86,14 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     rememberHiddenSync()
     val featuredAll = com.droiddeck.launcher.frontend.SteamFeatured.games
     val signedIn = s.offlineAccount != null
-    val ownedAll by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn) {
+    val ownedAll by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn, LibraryHidden.steam) {
         value = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
     }
-    val owned = remember(ownedAll, LibraryHidden.steam) { ownedAll.filter { it.first.toLong() !in LibraryHidden.steam } }
-    val featured = remember(featuredAll, LibraryHidden.steam) { featuredAll.filter { it.appId.toLong() !in LibraryHidden.steam } }
+    val concealed = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) {
+        LibraryHidden.steam + s.steamGames.filter { Library.fromSteamClient(it) && LibraryHidden.isHidden(hideKey(it), it) }.map { it.appId.toLong() }
+    }
+    val owned = remember(ownedAll, concealed) { ownedAll.filter { it.first.toLong() !in concealed } }
+    val featured = remember(featuredAll, concealed) { featuredAll.filter { it.appId.toLong() !in concealed } }
     val games = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) { s.steamGames.filterNot { LibraryHidden.isHidden(hideKey(it), it) }.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     var words by remember { mutableStateOf<Rect?>(null) }
