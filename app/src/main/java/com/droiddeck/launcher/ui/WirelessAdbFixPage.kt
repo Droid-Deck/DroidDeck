@@ -386,7 +386,8 @@ internal fun AdbTextField(
     fun typeOnBottom(editText: EditText): Boolean {
         if (!bottomTypingLatest.value || !DualScreenPanel.attached) return false
         val text = editText.text.toString()
-        val request = TypingRequest(
+        lateinit var request: TypingRequest
+        request = TypingRequest(
             TextFieldValue(text, TextRange(editText.selectionStart.coerceIn(0, text.length), editText.selectionEnd.coerceIn(0, text.length))),
             ImeOptions(singleLine = true, keyboardType = keyboardType, imeAction = imeAction),
             { next ->
@@ -394,7 +395,7 @@ internal fun AdbTextField(
                 editText.setSelection(next.selection.start.coerceIn(0, next.text.length), next.selection.end.coerceIn(0, next.text.length))
             },
             { action -> editText.onEditorAction(imeActionFlag(action)) },
-            { editText.post { onBackLatest.value?.invoke() ?: editText.clearFocus() } },
+            { editText.post { if (typingRequest[0] === request) onBackLatest.value?.invoke() ?: editText.clearFocus() } },
         )
         typingRequest[0] = request
         DualScreenPanel.startTyping(request)
