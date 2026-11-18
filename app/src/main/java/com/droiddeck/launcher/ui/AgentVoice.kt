@@ -125,6 +125,11 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
         next?.invoke()
     }
 
+    /** Stops listening, but a send already waiting on the last words goes ahead with what was heard. */
+    fun settle() {
+        if (finishing) done() else stop()
+    }
+
     /** Stops and puts back the text typed before listening began. */
     fun cancel() {
         val restore = draft() == written

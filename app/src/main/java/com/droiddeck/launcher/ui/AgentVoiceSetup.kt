@@ -62,7 +62,7 @@ private fun adb(context: Context, command: String, done: (Boolean) -> Unit) {
     val app = context.applicationContext
     Thread({
         // The pairing can be with another device, where the grant would land instead of here.
-        val ok = WirelessAdbFix.savedPairingIsLocal(app) && runCatching { WirelessAdbFix.shell(app, command) }.isSuccess
+        val ok = runCatching { WirelessAdbFix.savedPairingIsLocal(app) }.getOrDefault(false) && runCatching { WirelessAdbFix.shell(app, command) }.isSuccess
         android.os.Handler(android.os.Looper.getMainLooper()).post { done(ok) }
     }, "agent-voice-setup").start()
 }

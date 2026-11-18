@@ -707,7 +707,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     val pal = LocalPalette.current
     var draft by draftState
     val voice = remember { AgentVoice(context.applicationContext, { draftState.value }) { draftState.value = it } }
-    DisposableEffect(voice) { onDispose { voice.stop() } }
+    DisposableEffect(voice) { onDispose { voice.settle() } }
     var voiceSetup by remember { mutableStateOf(false) }
     LaunchedEffect(voice.serviceMicBlocked) {
         if (voice.serviceMicBlocked) {
@@ -715,7 +715,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
             voiceSetup = true
         }
     }
-    LaunchedEffect(visible) { if (!visible) voice.stop() }
+    LaunchedEffect(visible) { if (!visible) voice.settle() }
     // Sends once dictation has written its last words; while a send already waits on them, there is nothing more to do.
     val sendNow = {
         when {
