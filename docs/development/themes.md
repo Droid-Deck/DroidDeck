@@ -24,6 +24,18 @@ square. It opens `ColorPickerDialog`: a wheel (hue and saturation, touch), hue /
 brightness sliders (they work with a controller) and a hex box, with the old and new colour side by
 side. OK applies it.
 
+## Personalizado theme
+
+`Themes.CUSTOM` stores a separate preference for every configurable palette colour:
+background, surfaces, borders, text, accent, button text, signals, success and error.
+`SessionPrefs.customThemeColors` restores the saved values, while `Themes.customColors`
+is Compose state so changes update the interface immediately.
+
+The custom palette does not derive its surfaces from the accent. `primary2` intentionally
+equals `primary`, keeping components that use the existing two-stop button and launch
+effects visually solid. The colour picker reused from Gradient supports the wheel, sliders
+and hexadecimal input.
+
 ## Inner Gamer theme
 
 `Themes.INNER_GAMER` is an RGB theme: the accent walks round the colour wheel. It sits just above
