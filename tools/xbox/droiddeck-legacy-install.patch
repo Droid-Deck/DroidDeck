@@ -1633,6 +1633,125 @@ index 0000000..d626fb2
 +        assert_eq!(element("<A></A>", "A").as_deref(), Some(""));
 +    }
 +}
+diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
+index a0136f8..589f90e 100644
+--- a/crates/xodus-cli/src/commands/streaming.rs
++++ b/crates/xodus-cli/src/commands/streaming.rs
+@@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+ use msixvc::streaming;
+ use msixvc::xvd::{SegmentFile, XvdFile};
+ use tokio::fs::{File, OpenOptions};
+-use tokio::io::AsyncRead;
++use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeekExt};
+ use tokio::sync::mpsc::{Receiver, Sender};
+ use uuid::Uuid;
+ use xodus::tokens::TokenManager;
+@@ -354,6 +354,15 @@ where
+         Ok(file) => file,
+         Err(error) => { failure::report(&error); return ExitCode::FAILURE; }
+     };
++    let mut magic = [0u8; 4];
++    let plain = remote_file.read_exact(&mut magic).await.is_ok() && magic == [0x50, 0x4b, 0x03, 0x04];
++    if let Err(error) = remote_file.seek(std::io::SeekFrom::Start(0)).await {
++        failure::report(&error);
++        return ExitCode::FAILURE;
++    }
++    if plain {
++        return plain_package(remote_file, l, out).await;
++    }
+     let remote_xvd = match XvdFile::parse(&mut remote_file).await {
+         Ok(xvd) => xvd,
+         Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
+@@ -692,3 +701,89 @@ where
+     }
+     ExitCode::SUCCESS
+ }
++
++const PLAIN_LIMIT: u64 = 1 << 30;
++
++async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &Path) -> ExitCode {
++    if length > PLAIN_LIMIT {
++        eprintln!("NEXUS_TRANSFER_DIAGNOSTIC_V1 plain-package-too-large 0");
++        eprintln!("This package is a plain archive larger than this installer unpacks.");
++        return ExitCode::FAILURE;
++    }
++    let archive = out.join(".xodus-plain-package.zip");
++    let written = async {
++        let mut file = File::create(&archive).await?;
++        let copied = tokio::io::copy(&mut remote, &mut file).await?;
++        tokio::io::AsyncWriteExt::flush(&mut file).await?;
++        Ok::<u64, std::io::Error>(copied)
++    }
++    .await;
++    match written {
++        Ok(copied) if copied == length => {}
++        Ok(_) => {
++            std::fs::remove_file(&archive).ok();
++            eprintln!("NEXUS_TRANSFER_DIAGNOSTIC_V1 transfer-short 0");
++            eprintln!("The package ended early. Retry this installation to obtain a fresh package link.");
++            return ExitCode::FAILURE;
++        }
++        Err(error) => {
++            std::fs::remove_file(&archive).ok();
++            failure::report(&error);
++            return ExitCode::FAILURE;
++        }
++    }
++    let unpacked = crate::commands::unzip::extract(&archive, out);
++    std::fs::remove_file(&archive).ok();
++    match unpacked {
++        Ok(()) => ExitCode::SUCCESS,
++        Err(error) => {
++            eprintln!("NEXUS_TRANSFER_DIAGNOSTIC_V1 plain-package-invalid 0");
++            eprintln!("Could not unpack the package: {error}");
++            ExitCode::FAILURE
++        }
++    }
++}
++
++#[cfg(test)]
++mod plain_tests {
++    fn stored_zip(name: &str, data: &[u8]) -> Vec<u8> {
++        let mut out = Vec::new();
++        let n = name.len() as u16;
++        let size = data.len() as u32;
++        out.extend_from_slice(&[0x50, 0x4b, 0x03, 0x04, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
++        out.extend_from_slice(&size.to_le_bytes());
++        out.extend_from_slice(&size.to_le_bytes());
++        out.extend_from_slice(&n.to_le_bytes());
++        out.extend_from_slice(&0u16.to_le_bytes());
++        out.extend_from_slice(name.as_bytes());
++        out.extend_from_slice(data);
++        let central = out.len() as u32;
++        out.extend_from_slice(&[0x50, 0x4b, 0x01, 0x02, 20, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
++        out.extend_from_slice(&size.to_le_bytes());
++        out.extend_from_slice(&size.to_le_bytes());
++        out.extend_from_slice(&n.to_le_bytes());
++        out.extend_from_slice(&[0u8; 12]);
++        out.extend_from_slice(&0u32.to_le_bytes());
++        out.extend_from_slice(name.as_bytes());
++        let central_size = out.len() as u32 - central;
++        out.extend_from_slice(&[0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0, 1, 0, 1, 0]);
++        out.extend_from_slice(&central_size.to_le_bytes());
++        out.extend_from_slice(&central.to_le_bytes());
++        out.extend_from_slice(&0u16.to_le_bytes());
++        out
++    }
++
++    #[tokio::test]
++    async fn a_plain_archive_is_downloaded_whole_and_unpacked() {
++        let out = std::env::temp_dir().join(format!("xodus-plain-{}", std::process::id()));
++        std::fs::create_dir_all(&out).unwrap();
++        let zip = stored_zip("AppxManifest.xml", b"<Package/>");
++        let code = super::plain_package(std::io::Cursor::new(zip.clone()), zip.len() as u64, &out).await;
++        assert_eq!(code, std::process::ExitCode::SUCCESS);
++        assert_eq!(std::fs::read(out.join("AppxManifest.xml")).unwrap(), b"<Package/>");
++        assert!(!out.join(".xodus-plain-package.zip").exists());
++        let short = super::plain_package(std::io::Cursor::new(zip[..10].to_vec()), zip.len() as u64, &out).await;
++        assert_eq!(short, std::process::ExitCode::FAILURE);
++        std::fs::remove_dir_all(&out).ok();
++    }
++}
 diff --git a/crates/xodus-cli/src/commands/unzip.rs b/crates/xodus-cli/src/commands/unzip.rs
 new file mode 100644
 index 0000000..1a503e1
