@@ -43,10 +43,10 @@ index 088a6d0..825c24e 100644
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..ca21f40
+index 0000000..680eb70
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1111 @@
+@@ -0,0 +1,1135 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -368,21 +368,24 @@ index 0000000..ca21f40
 +        Ok(client) => client,
 +        Err(error) => return fail("update-client-failed", &error),
 +    };
-+    let install = match from_xbox_service(client, tokens, &product, &region, selected_content_id.as_deref()).await {
-+        Ok(install) => install,
++    let mut builds: Vec<Install> = match from_xbox_service(client, tokens, &product, &region, selected_content_id.as_deref()).await {
++        Ok(install) => vec![install],
 +        Err(xbox_error) => {
 +            // The content service does not serve legacy desktop bundles, so the
 +            // Windows Update route is the one that has to work.
-+            match crate::commands::store_delivery::resolve(&delivery_client, &product, &region).await {
-+                Ok(delivery) => Install {
-+                    content_id: delivery.content_id,
-+                    containers: delivery
-+                        .files
-+                        .into_iter()
-+                        .map(|file| Container { name: file.name, url: file.url, size: file.size })
-+                        .collect(),
-+                    note: "windows-update".into(),
-+                },
++            match crate::commands::store_delivery::resolve_builds(&delivery_client, &product, &region).await {
++                Ok(deliveries) => deliveries
++                    .into_iter()
++                    .map(|delivery| Install {
++                        content_id: delivery.content_id,
++                        containers: delivery
++                            .files
++                            .into_iter()
++                            .map(|file| Container { name: file.name, url: file.url, size: file.size })
++                            .collect(),
++                        note: "windows-update".into(),
++                    })
++                    .collect(),
 +                Err(update_error) => {
 +                    return fail(
 +                        "no-container",
@@ -392,21 +395,56 @@ index 0000000..ca21f40
 +            }
 +        }
 +    };
++    if resolve_only {
++        // Printing locations is what makes a failure diagnosable without spending
++        // hours on a download, so this stops before any byte is written.
++        for install in &builds {
++            println!("content-id: {} ({})", install.content_id, install.note);
++            for container in &install.containers {
++                println!("{} {} {}", container.size, container.name, container.url);
++            }
++        }
++        return ExitCode::SUCCESS;
++    }
++
++    // The license verb already writes the [Keys] text eappx reads, so reuse it
++    // rather than re-deriving the content keys here.
++    let keys = destination.join(KEYS_DIR);
++    if let Err(error) = tokio::fs::create_dir_all(&keys).await {
++        return fail("keys-folder-failed", &format!("Could not prepare the key folder: {error}"));
++    }
++    // The standalone verb defaults to "neutral" and that is the market this path
++    // was proven against, so default the same way rather than forwarding a
++    // region the license service may not accept.
++    let license_market = market.clone().unwrap_or("neutral".into());
++    let refused = xodus::licensing::content::LicenseContentError::DeviceUnregistrable.to_string();
++    let install = loop {
++        let candidate = builds.remove(0);
++        match crate::commands::license::dump(
++            client,
++            tokens,
++            candidate.content_id.clone(),
++            license_market.clone(),
++            keys.display().to_string(),
++        )
++        .await
++        {
++            Ok(()) => break candidate,
++            Err(error) if error == refused && !builds.is_empty() => {
++                eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 newest build has no license for this device, trying an older build");
++            }
++            Err(error) => {
++                eprintln!("{error}");
++                return fail("license-failed", &format!("No license for content {} ({})", candidate.content_id, candidate.note));
++            }
++        }
++    };
 +    if install.containers.is_empty() {
 +        return fail("no-container", "No package files were listed for this title");
 +    }
 +    let total: u64 = install.containers.iter().map(|container| container.size).sum();
 +    let largest = install.containers.iter().map(|container| container.size).max().unwrap_or(0);
 +    progress.total(total);
-+    if resolve_only {
-+        // Printing locations is what makes a failure diagnosable without spending
-+        // hours on a download, so this stops before any byte is written.
-+        println!("content-id: {} ({})", install.content_id, install.note);
-+        for container in &install.containers {
-+            println!("{} {} {}", container.size, container.name, container.url);
-+        }
-+        return ExitCode::SUCCESS;
-+    }
 +    let mut names = std::collections::HashSet::new();
 +    for container in &install.containers {
 +        let Some(name) = Path::new(&container.name).file_name() else {
@@ -414,6 +452,14 @@ index 0000000..ca21f40
 +        };
 +        if !names.insert(name.to_string_lossy().to_ascii_lowercase()) {
 +            return fail("duplicate-container", "Microsoft listed two packages under one name");
++        }
++    }
++    if let Ok(entries) = std::fs::read_dir(destination.join(CONTAINER_DIR)) {
++        for entry in entries.flatten() {
++            let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
++            if !names.contains(&name) && entry.file_type().is_ok_and(|kind| kind.is_file()) {
++                let _ = std::fs::remove_file(entry.path());
++            }
 +        }
 +    }
 +    let mut held = 0u64;
@@ -443,28 +489,6 @@ index 0000000..ca21f40
 +                ),
 +            );
 +        }
-+    }
-+
-+    // The license verb already writes the [Keys] text eappx reads, so reuse it
-+    // rather than re-deriving the content keys here.
-+    let keys = destination.join(KEYS_DIR);
-+    if let Err(error) = tokio::fs::create_dir_all(&keys).await {
-+        return fail("keys-folder-failed", &format!("Could not prepare the key folder: {error}"));
-+    }
-+    // The standalone verb defaults to "neutral" and that is the market this path
-+    // was proven against, so default the same way rather than forwarding a
-+    // region the license service may not accept.
-+    let license_market = market.clone().unwrap_or("neutral".into());
-+    let licensed = crate::commands::license::run(
-+        client,
-+        tokens,
-+        install.content_id.clone(),
-+        license_market,
-+        keys.display().to_string(),
-+    )
-+    .await;
-+    if licensed != ExitCode::SUCCESS {
-+        return fail("license-failed", &format!("No license for content {} ({})", install.content_id, install.note));
 +    }
 +    let key_file = keys.join("eappx-keys.txt");
 +    if !key_file.is_file() {
@@ -1158,12 +1182,53 @@ index 0000000..ca21f40
 +        std::fs::remove_dir_all(&root).ok();
 +    }
 +}
+diff --git a/crates/xodus-cli/src/commands/license.rs b/crates/xodus-cli/src/commands/license.rs
+index b9fd91c..4b5f3bd 100644
+--- a/crates/xodus-cli/src/commands/license.rs
++++ b/crates/xodus-cli/src/commands/license.rs
+@@ -14,13 +14,24 @@ pub async fn run(
+     market: String,
+     ciks: String,
+ ) -> ExitCode {
+-    let license = get_license(client, tokens, content_id, market, None, false).await;
+-    if let Err(err) = license {
+-        eprintln!("{}", err);
+-        return ExitCode::FAILURE;
++    match dump(client, tokens, content_id, market, ciks).await {
++        Ok(()) => ExitCode::SUCCESS,
++        Err(err) => {
++            eprintln!("{}", err);
++            ExitCode::FAILURE
++        }
+     }
++}
+ 
+-    let (key, game_splicense) = license.unwrap();
++/// Writes the content keys of `content_id` to `ciks`, or returns why Microsoft refused them.
++pub async fn dump(
++    client: &reqwest::Client,
++    tokens: &TokenManager,
++    content_id: String,
++    market: String,
++    ciks: String,
++) -> Result<(), String> {
++    let (key, game_splicense) = get_license(client, tokens, content_id, market, None, false).await?;
+     tokio::fs::create_dir_all(&ciks).await.unwrap();
+     // eappx-rs reads a text [Keys] file with base64 Key IDs, while the .cik
+     // format below is the binary form other tools expect. Write both so the
+@@ -54,5 +65,5 @@ pub async fn run(
+     keys_file.write_all(eappx_keys.as_bytes()).await.unwrap();
+     keys_file.flush().await.unwrap();
+ 
+-    ExitCode::SUCCESS
++    Ok(())
+ }
 diff --git a/crates/xodus-cli/src/commands/store_delivery.rs b/crates/xodus-cli/src/commands/store_delivery.rs
 new file mode 100644
-index 0000000..d626fb2
+index 0000000..4192cfd
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/store_delivery.rs
-@@ -0,0 +1,492 @@
+@@ -0,0 +1,559 @@
 +//! Windows Update delivery for Store packages.
 +//!
 +//! The Xbox content service (`GetBasePackage`) serves MSIXVC titles but answers a
@@ -1373,6 +1438,7 @@ index 0000000..d626fb2
 +    name: String,
 +    size: u64,
 +    moniker: String,
++    content_id: String,
 +}
 +
 +fn package_identity(moniker: &str) -> Option<((String, String), Vec<u64>)> {
@@ -1485,6 +1551,7 @@ index 0000000..d626fb2
 +                name,
 +                size: attribute(&attributes, "Size").and_then(|size| size.parse().ok()).unwrap_or(0),
 +                moniker: attribute(&combined, "PackageMoniker").unwrap_or_default(),
++                content_id: attribute(&combined, "PackageContentId").unwrap_or_default(),
 +            });
 +        }
 +    }
@@ -1535,6 +1602,53 @@ index 0000000..d626fb2
 +) -> Result<Delivery, String> {
 +    let category = category(client, product, market).await?;
 +    resolve_category(client, &category).await
++}
++
++/// Every build of a Store product Windows Update lists, newest first. Each build
++/// has its own content id, and Microsoft can refuse keys for one but not another.
++pub async fn resolve_builds(
++    client: &reqwest::Client,
++    product: &str,
++    market: &str,
++) -> Result<Vec<Delivery>, String> {
++    let category = category(client, product, market).await?;
++    let (cookie, expiration) = cookie(client).await?;
++    let (found, _) = revisions(client, &cookie, &expiration, &category, title_container).await?;
++    let mut builds = Vec::new();
++    for group in builds_newest_first(found) {
++        let content_id = group.first().map(|revision| revision.content_id.clone()).unwrap_or_default();
++        let mut files = Vec::new();
++        for revision in &group {
++            let url = download_url(client, &cookie, &expiration, revision).await?;
++            files.push(DeliveryFile { name: revision.name.clone(), url, size: revision.size });
++        }
++        builds.push(Delivery { content_id: if content_id.is_empty() { category.clone() } else { content_id }, files });
++    }
++    if builds.is_empty() {
++        return Err("Windows Update lists no package files for this product".into());
++    }
++    Ok(builds)
++}
++
++fn title_container(name: &str) -> bool {
++    let lower = name.to_ascii_lowercase();
++    lower.ends_with(".eappx") || lower.ends_with(".eappxbundle")
++}
++
++fn builds_newest_first(revisions: Vec<Revision>) -> Vec<Vec<Revision>> {
++    let mut groups: Vec<(String, Vec<Revision>)> = Vec::new();
++    for revision in revisions {
++        match groups.iter_mut().find(|(id, _)| *id == revision.content_id) {
++            Some((_, group)) => group.push(revision),
++            None => groups.push((revision.content_id.clone(), vec![revision])),
++        }
++    }
++    let mut groups: Vec<Vec<Revision>> = groups.into_iter().map(|(_, group)| newest_builds(group)).collect();
++    let newest = |group: &Vec<Revision>| {
++        group.iter().filter_map(|revision| package_identity(&revision.moniker)).map(|(_, version)| version).max()
++    };
++    groups.sort_by(|a, b| newest(b).cmp(&newest(a)));
++    groups.into_iter().filter(|group| !group.is_empty()).collect()
 +}
 +
 +/// The packages a Windows Update category lists, in the containers a title is
@@ -1608,7 +1722,25 @@ index 0000000..d626fb2
 +    }
 +
 +    fn build(name: &str, moniker: &str) -> Revision {
-+        Revision { update_id: String::new(), revision: "1".into(), digest: String::new(), name: name.into(), size: 1, moniker: moniker.into() }
++        Revision { update_id: String::new(), revision: "1".into(), digest: String::new(), name: name.into(), size: 1, moniker: moniker.into(), content_id: String::new() }
++    }
++
++    fn licensed(name: &str, moniker: &str, content_id: &str) -> Revision {
++        Revision { content_id: content_id.into(), ..build(name, moniker) }
++    }
++
++    #[test]
++    fn each_build_is_offered_under_its_own_content_id_newest_first() {
++        let builds = builds_newest_first(vec![
++            licensed("old.eappx", "Microsoft.MSEsper_1.3.25854.2_x64__8wekyb3d8bbwe", "old-id"),
++            licensed("new.eappx", "Microsoft.MSEsper_1.3.25854.70_x64__8wekyb3d8bbwe", "new-id"),
++            licensed("new-arm.eappx", "Microsoft.MSEsper_1.3.25854.70_arm64__8wekyb3d8bbwe", "new-id"),
++        ]);
++        let shape: Vec<(String, Vec<String>)> = builds
++            .iter()
++            .map(|group| (group[0].content_id.clone(), group.iter().map(|r| r.name.clone()).collect()))
++            .collect();
++        assert_eq!(shape, [("new-id".to_string(), vec!["new.eappx".to_string()]), ("old-id".to_string(), vec!["old.eappx".to_string()])]);
 +    }
 +
 +    #[test]
@@ -2169,3 +2301,73 @@ index b2a3383..870a37e 100644
          #[cfg(unix)]
          SubCommand::Run {
              source,
+diff --git a/crates/xodus/src/licensing/content_response.rs b/crates/xodus/src/licensing/content_response.rs
+index e87421d..a59b2f9 100644
+--- a/crates/xodus/src/licensing/content_response.rs
++++ b/crates/xodus/src/licensing/content_response.rs
+@@ -53,6 +53,10 @@ pub enum LicenseContentError {
+         "Microsoft Store device limit reached. Open https://account.microsoft.com/devices/content, unlink an old device you no longer use, then try again. You do not need to sign out or reset the wallet."
+     )]
+     DeviceLimit,
++    #[error(
++        "Microsoft refused a license for this version of the package on this device."
++    )]
++    DeviceUnregistrable,
+     #[error(
+         "Microsoft returned a content license without a key. Share the backend diagnostic log."
+     )]
+@@ -87,6 +91,7 @@ impl LicenseContentError {
+             Self::Schema => "content-schema",
+             Self::NotEntitled => "content-not-entitled",
+             Self::DeviceLimit => "content-device-limit",
++            Self::DeviceUnregistrable => "content-device-name",
+             Self::EmptyKeys => "content-empty-keys",
+             Self::Base64 => "content-base64",
+             Self::Utf8 => "content-utf8",
+@@ -133,6 +138,12 @@ async fn receive(
+     let result = async {
+         // A valid-looking license inside a refused HTTP response is not permission.
+         if !response.status().is_success() {
++            if status == 400 {
++                let body = response.bytes().await.unwrap_or_default();
++                if unregistrable(&body) {
++                    return Err(LicenseContentError::DeviceUnregistrable);
++                }
++            }
+             return Err(LicenseContentError::http(status));
+         }
+         if response
+@@ -167,6 +178,12 @@ async fn receive(
+     result
+ }
+ 
++fn unregistrable(body: &[u8]) -> bool {
++    body.len() <= MAX_BODY
++        && serde_json::from_slice::<serde_json::Value>(body)
++            .is_ok_and(|value| value["innererror"]["code"] == "DeviceNameNotHexBinary")
++}
++
+ fn parse(bytes: &[u8]) -> Result<(LicenseContent, License), LicenseContentError> {
+     if bytes.len() > MAX_BODY {
+         return Err(LicenseContentError::Size);
+diff --git a/crates/xodus/src/licensing/content_response_tests.rs b/crates/xodus/src/licensing/content_response_tests.rs
+index 205aab3..f6a540f 100644
+--- a/crates/xodus/src/licensing/content_response_tests.rs
++++ b/crates/xodus/src/licensing/content_response_tests.rs
+@@ -373,3 +373,16 @@ async fn content_license_transport_timeout_and_cancellation_have_no_background_r
+     );
+     server.await.unwrap();
+ }
++
++#[tokio::test]
++async fn a_refused_device_name_claim_has_its_own_stage() {
++    let refused = serde_json::to_vec(&json!({"code":"BadRequest","innererror":{"faultcode":3043,"code":"DeviceNameNotHexBinary","message":"private"}})).unwrap();
++    let other = serde_json::to_vec(&json!({"code":"BadRequest","innererror":{"code":"Other"}})).unwrap();
++    for (body, expected) in [(refused, "content-device-name"), (other, "content-http"), (b"not json".to_vec(), "content-http")] {
++        let (url, server) = server(format!("HTTP/1.1 400 Fixture\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()), body).await;
++        let error = fetch(reqwest::Client::new().get(url)).await.err().unwrap();
++        assert_eq!(error.stage(), expected);
++        assert!(!error.to_string().contains("private"));
++        server.await.unwrap();
++    }
++}
