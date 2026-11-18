@@ -1562,12 +1562,15 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
                 chipModifier = track("cmp-proton"),
                 onPick = { id -> a.onGameProton(gameProfile.appId, id) },
             )
+            val gameTool = snap.protons.firstOrNull { it.proton.id == gameProfile.protonId }?.proton?.dir?.name
             for (comp in ComponentsManager.COMPONENTS) {
                 val value = gameProfile.components.getValue(comp)
                 val managedDxvk = ComponentsManager.runtimeManaged(comp, a.systemPowerVr)
                 val options: List<Pair<String?, String>> =
                     listOf(null to stringResource(R.string.comp_game_use_general)) +
-                        if (managedDxvk) emptyList() else snap.packages.filter { it.comp == comp }.map { it.file to it.version }
+                        if (managedDxvk) emptyList() else ComponentsManager.forTool(
+                            comp, gameTool, snap.packages.filter { it.comp == comp }, gameProfile.componentFiles[comp],
+                        ) { it.file }.map { it.file to it.version }
                 DrawerStackedChoice(
                     host = host,
                     key = "game-cmp-$comp",
@@ -1650,7 +1653,7 @@ private fun ComponentsDrawerPage(host: MenuHost, a: DrawerActions, track: (Strin
             val managedDxvk = ComponentsManager.runtimeManaged(comp, a.systemPowerVr)
             val originals = view.originals.filter { it.comp == comp }
             val options = originals.map { "orig:${it.protonVersion}" to (if (it.protonVersion == build) originalLabel else stringResource(R.string.comp_original, it.protonVersion)) } +
-                snap.packages.filter { it.comp == comp }.map { it.file to it.version }
+                ComponentsManager.forTool(comp, p.dir.name, snap.packages.filter { it.comp == comp }, st.activeFile) { it.file }.map { it.file to it.version }
             if (options.isEmpty() && !managedDxvk) continue
             val current = st.activeFile ?: "orig:$build"
             val shown = options.firstOrNull { it.first == current }?.second
