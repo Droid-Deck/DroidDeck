@@ -35,7 +35,7 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     PROTON_USE_D7VK) ;;
     WINE_OFFSCREEN_CHECK_MS|WINE_CPU_TOPOLOGY|WINE_LARGE_ADDRESS_AWARE|TZ) ;;
     DXVK_LOG_LEVEL|DXVK_HDR|VKD3D_DEBUG|VKD3D_SHADER_DEBUG) ;;
-    DROIDDECK_GPU_LOAD|DROIDDECK_GPU_LOAD_DIR|DROIDDECK_VRAM_CAP|DROIDDECK_VRAM_CAP_MB) ;;
+    DROIDDECK_GPU_LOAD|DROIDDECK_GPU_LOAD_DIR|DROIDDECK_VRAM_CAP|DROIDDECK_VRAM_CAP_MB|DROIDDECK_DISPLAY_DRIVER) ;;
     VKD3D_FEATURE_LEVEL|VKD3D_SHADER_MODEL|vk_x11_strict_image_count) ;;
     *) unset "$v" 2>/dev/null ;;
   esac
@@ -49,14 +49,27 @@ export USER=steamuser LOGNAME=steamuser
 
 # Graphics: DroidDeck's chosen Turnip (its Android half) through Bannerlator's Wayland adapter, and gamescope's
 # WSI layer handing the swapchain to gamescope (zero copy).
-DRVDIR=$APP/graphics_driver/$(basename "$(dirname "${BL_VK_DRIVER:-/x/none/icd.json}")")
-if [ ! -f "$DRVDIR/libvulkan_freedreno.so" ]; then
-  for d in "$APP"/graphics_driver/*/; do [ -f "$d/libvulkan_freedreno.so" ] && { DRVDIR=${d%/}; break; }; done
+drvlib() { # an Android driver folder's library: meta.json's libraryName, else libvulkan_freedreno.so
+  l=$(sed -n 's/.*"libraryName"[[:space:]]*:[[:space:]]*"\([^"/]*\)".*/\1/p' "$1/meta.json" 2>/dev/null | head -1)
+  echo "${l:-libvulkan_freedreno.so}"
+}
+DRV=$(basename "$(dirname "${BL_VK_DRIVER:-/x/none/icd.json}")")
+DRVDIR=$APP/graphics_driver/$DRV
+if [ ! -f "$DRVDIR/$(drvlib "$DRVDIR")" ]; then
+  # The runtime driver has no Android build: the one DroidDeck's display uses, else the first one installed.
+  DRVDIR=
+  if [ -n "${DROIDDECK_DISPLAY_DRIVER:-}" ] && [ "${DROIDDECK_DISPLAY_DRIVER#*/}" = "$DROIDDECK_DISPLAY_DRIVER" ] && \
+     [ -f "$APP/graphics_driver/$DROIDDECK_DISPLAY_DRIVER/$(drvlib "$APP/graphics_driver/$DROIDDECK_DISPLAY_DRIVER")" ]; then
+    DRVDIR=$APP/graphics_driver/$DROIDDECK_DISPLAY_DRIVER
+  else
+    for d in "$APP"/graphics_driver/*/; do [ -f "$d$(drvlib "${d%/}")" ] && { DRVDIR=${d%/}; break; }; done
+  fi
+  echo "driver $DRV has no Android build; using ${DRVDIR:+$(basename "$DRVDIR")}${DRVDIR:-none} (display driver ${DROIDDECK_DISPLAY_DRIVER:-unknown})"
 fi
 echo "driver $DRVDIR"
 RTD=$APP/.wayland-rt
 export VK_ICD_FILENAMES=$PACK/adapter/icd.json ADRENOTOOLS_DRIVER_PATH=$DRVDIR/ ADRENOTOOLS_HOOKS_PATH=$PACK/lib
-export ADRENOTOOLS_DRIVER_NAME=libvulkan_freedreno.so
+export ADRENOTOOLS_DRIVER_NAME=$(drvlib "$DRVDIR")
 export VK_ADD_IMPLICIT_LAYER_PATH=$PACK/layer ENABLE_GAMESCOPE_WSI=1 GAMESCOPE_WAYLAND_DISPLAY=${GAMESCOPE_WAYLAND_DISPLAY:-gamescope-0}
 export XDG_RUNTIME_DIR=$RTD DROIDDECK_WSI_BYPASS_CHECK_MS=100 GAMESCOPE_WSI_FORCE_BYPASS=1
 [ -e "$RTD/droiddeck-gamescope-limiter" ] && export GAMESCOPE_LIMITER_FILE=$RTD/droiddeck-gamescope-limiter
@@ -208,12 +221,19 @@ stop_wine() { # wineserver -k, then whatever of this prefix is left (e.g. a game
   done
 }
 
-# DroidDeck's component check (before a fix in the app) put its own FEX into this tool for games with a per-game
-# FEX choice; its unix libraries are glibc builds bionic Wine cannot load. Put the tool's FEX back.
-for f in aarch64-unix/libwow64fex.so aarch64-unix/libarm64ecfex.so aarch64-windows/libwow64fex.dll aarch64-windows/libarm64ecfex.dll; do
-  [ -f "$PACK/fex/$f" ] || continue
-  cmp -s "$PACK/fex/$f" "$F/lib/wine/$f" || { cat "$PACK/fex/$f" > "$F/lib/wine/$f" && echo "$(date +%H:%M:%S) restored the tool's FEX $f"; }
+# A FEX from DroidDeck's components runs here only as an Android build (its unix libraries link Android's libc).
+# Missing or glibc unix libraries (an older app put its glibc FEX here): put the tool's own FEX back.
+fex_ok=1
+for f in aarch64-unix/libwow64fex.so aarch64-unix/libarm64ecfex.so; do
+  if [ ! -f "$F/lib/wine/$f" ] || grep -q "ld-linux-aarch64" "$F/lib/wine/$f"; then fex_ok=0; fi
 done
+if [ $fex_ok = 0 ]; then
+  for f in aarch64-unix/libwow64fex.so aarch64-unix/libarm64ecfex.so aarch64-windows/libwow64fex.dll aarch64-windows/libarm64ecfex.dll; do
+    [ -f "$PACK/fex/$f" ] || continue
+    cmp -s "$PACK/fex/$f" "$F/lib/wine/$f" || { cat "$PACK/fex/$f" > "$F/lib/wine/$f" && echo "$(date +%H:%M:%S) restored the tool's FEX $f"; }
+  done
+fi
+echo "fex build: $(grep -a -o -m1 'FEX-[0-9][0-9.]*[0-9A-Za-z.+-]*' "$F/lib/wine/aarch64-windows/libarm64ecfex.dll" | head -1)"
 
 if [ "$verb" != runinprefix ] && prefix_busy; then
   echo "$(date +%H:%M:%S) Wine left running in this prefix; stopping it"
