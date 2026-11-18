@@ -104,6 +104,12 @@ object ProtonExtras {
     fun cachedLatest(context: Context, tool: Tool): String? =
         readJson(latestFile(context)).optJSONObject(tool.id)?.optString("tag")?.ifEmpty { null }
 
+    fun testBuild(context: Context, tool: Tool): String? =
+        testFor(installedTags(context, tool), readJson(latestFile(context)).optJSONObject(tool.id)?.optString("test")?.ifEmpty { null })
+
+    internal fun testFor(installed: List<String>, test: String?): String? =
+        test?.takeIf { it !in installed && (installed.isEmpty() || updateFor(installed, it) != null) }
+
     private val checkLock = Any()
     private const val RETRY_MS = 15L * 60 * 1000
     private const val USER_SETTINGS = "user_settings.py"
@@ -120,8 +126,11 @@ object ProtonExtras {
             if (due.isEmpty() || !force && (now - lastAttempt) in 0 until RETRY_MS) return false
             lastAttempt = now
             for (tool in due) {
-                val tag = findLatestAsset(tool)?.tag ?: continue
-                cache.put(tool.id, JSONObject().put("tag", tag).put("at", now))
+                val array = releases(tool) ?: continue
+                val tag = pickAsset(tool, array)?.tag ?: continue
+                val entry = JSONObject().put("tag", tag).put("at", now)
+                if (tool.id == OWN) pickAsset(tool, array, test = true)?.let { entry.put("test", it.tag) }
+                cache.put(tool.id, entry)
             }
             runCatching { file.writeText(cache.toString()) }
             return true
@@ -208,17 +217,17 @@ object ProtonExtras {
     }
 
     @Synchronized
-    fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+    fun install(context: Context, tool: Tool, test: Boolean = false, onProgress: (String, Int) -> Unit): String? {
         if (installInProgress) return context.getString(R.string.pextra_busy)
         installInProgress = true
-        return try { installNow(context, tool, onProgress) } finally { installInProgress = false }
+        return try { installNow(context, tool, test, onProgress) } finally { installInProgress = false }
     }
 
-    private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+    private fun installNow(context: Context, tool: Tool, test: Boolean, onProgress: (String, Int) -> Unit): String? {
         if (SessionState.running) return context.getString(R.string.pextra_stop_session)
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
 
-        val asset = findLatestAsset(tool) ?: return context.getString(R.string.pextra_no_release, tool.name)
+        val asset = releases(tool)?.let { pickAsset(tool, it, test && tool.id == OWN) } ?: return context.getString(R.string.pextra_no_release, tool.name)
         val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
         val archive = File(downloads, "${tool.id}-${asset.name}")
         if (asset.size > 0 && archive.length() > asset.size) archive.delete()
@@ -331,20 +340,23 @@ object ProtonExtras {
         }
     }
 
-    private fun findLatestAsset(tool: Tool): Asset? {
+    private fun releases(tool: Tool): JSONArray? {
         val releases = Downloader.downloadString(RELEASES.format(tool.repo)) ?: return null
         return try {
-            pickAsset(tool, JSONArray(releases))
+            JSONArray(releases)
         } catch (e: Exception) {
             Log.w(TAG, "release metadata for ${tool.id}", e)
             null
         }
     }
 
-    internal fun pickAsset(tool: Tool, array: JSONArray): Asset? {
+    internal fun pickAsset(tool: Tool, array: JSONArray, test: Boolean = false): Asset? {
+        val stable = if (test) pickAsset(tool, array)?.tag else null
         for (i in 0 until array.length()) {
             val release = array.getJSONObject(i)
-            if (release.optBoolean("draft", false) || release.optBoolean("prerelease", false)) continue
+            if (release.optBoolean("draft", false) || release.optBoolean("prerelease", false) != test) continue
+            if (test && !release.optString("tag_name").startsWith(tool.prefix)) continue
+            if (stable != null && updateFor(listOf(stable), release.optString("tag_name")) == null) return null
             val assets = release.optJSONArray("assets") ?: continue
             val entries = (0 until assets.length()).map { assets.getJSONObject(it) }
             val archive = entries.sortedBy { it.optString("name") }.firstOrNull { tool.assetPattern.containsMatchIn(it.optString("name")) } ?: continue

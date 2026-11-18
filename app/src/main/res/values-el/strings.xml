@@ -576,6 +576,7 @@
     <string name="comp_nightlies_count">Στα Nightlies · %1$d</string>
     <string name="comp_channel_stable">Σταθερή</string>
     <string name="comp_channel_nightly">Νυχτερινή</string>
+    <string name="comp_channel_test">Δοκιμαστική</string>
     <string name="comp_refresh_to_list">Ανανεώστε για να εμφανιστούν τα πακέτα στα Nightlies και στο DroidDeck.</string>
     <string name="comp_nothing_new">Τίποτα νέο από τον τελευταίο έλεγχο.</string>
     <string name="comp_import_wcp">Εισαγωγή .wcp</string>

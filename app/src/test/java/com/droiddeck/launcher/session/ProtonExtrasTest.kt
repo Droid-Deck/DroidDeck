@@ -242,4 +242,32 @@ class ProtonExtrasTest {
         assertNull(ProtonExtras.missing(context, tool("droiddeck")))
         assertEquals("DroidDeck-Proton-11-11.4", ProtonExtras.update(context, tool("droiddeck")))
     }
+
+    @Test
+    fun theNewestPrereleaseAheadOfTheLatestReleaseIsTheTestBuild() {
+        val releases = JSONArray()
+            .put(release("DroidDeck-Bionic-12.8-r25", asset("DroidDeck-Bionic-12.8-r25-aarch64.tar.xz"), prerelease = true))
+            .put(droiddeckRelease("11-12.9", prerelease = true))
+            .put(droiddeckRelease("11-12.8"))
+        assertEquals("DroidDeck-Proton-11-12.9", ProtonExtras.pickAsset(tool("droiddeck"), releases, test = true)!!.tag)
+        assertEquals("DroidDeck-Proton-11-12.8", ProtonExtras.pickAsset(tool("droiddeck"), releases)!!.tag)
+    }
+
+    @Test
+    fun aPrereleaseOlderThanTheLatestReleaseIsNotOffered() {
+        val releases = JSONArray()
+            .put(droiddeckRelease("11-12.9"))
+            .put(droiddeckRelease("11-12.8", prerelease = true))
+        assertNull(ProtonExtras.pickAsset(tool("droiddeck"), releases, test = true))
+        assertNull(ProtonExtras.pickAsset(tool("droiddeck"), JSONArray().put(droiddeckRelease("11-12.8")), test = true))
+    }
+
+    @Test
+    fun aTestBuildIsOfferedOnlyWhenNotInstalledAndNewer() {
+        assertEquals("DroidDeck-Proton-11-12.9", ProtonExtras.testFor(emptyList(), "DroidDeck-Proton-11-12.9"))
+        assertEquals("DroidDeck-Proton-11-12.9", ProtonExtras.testFor(listOf("DroidDeck-Proton-11-12.8"), "DroidDeck-Proton-11-12.9"))
+        assertNull(ProtonExtras.testFor(listOf("DroidDeck-Proton-11-12.9"), "DroidDeck-Proton-11-12.9"))
+        assertNull(ProtonExtras.testFor(listOf("DroidDeck-Proton-11-13.0"), "DroidDeck-Proton-11-12.9"))
+        assertNull(ProtonExtras.testFor(listOf("DroidDeck-Proton-11-12.8"), null))
+    }
 }

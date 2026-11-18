@@ -580,6 +580,7 @@
     <string name="comp_nightlies_count">Na Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabilní</string>
     <string name="comp_channel_nightly">Noční</string>
+    <string name="comp_channel_test">Testovací</string>
     <string name="comp_refresh_to_list">Obnovte pro zobrazení balíčků na Nightlies a DroidDeck.</string>
     <string name="comp_nothing_new">Od poslední kontroly nic nového.</string>
     <string name="comp_import_wcp">Importovat .wcp</string>

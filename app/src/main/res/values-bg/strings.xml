@@ -576,6 +576,7 @@
     <string name="comp_nightlies_count">В Nightlies · %1$d</string>
     <string name="comp_channel_stable">Стабилна</string>
     <string name="comp_channel_nightly">Нощна</string>
+    <string name="comp_channel_test">Тестова</string>
     <string name="comp_refresh_to_list">Обновете, за да видите пакетите в Nightlies и DroidDeck.</string>
     <string name="comp_nothing_new">Нищо ново от последната проверка.</string>
     <string name="comp_import_wcp">Импортиране на .wcp</string>
