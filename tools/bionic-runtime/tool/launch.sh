@@ -241,6 +241,20 @@ if [ "$verb" != runinprefix ] && prefix_busy; then
 fi
 prefix_busy || rm -f "$NTSYNC_SHM".v*
 
+# Links into a tool that is gone (an older DroidDeck-Bionic, a deleted DroidDeck-Proton) or to a file it no longer has.
+# Wine's update cannot write over them, so drivers (network, controller) and other files stay missing. Drop them and
+# clear both stamps: prepare_prefix relinks this tool's files and Wine's update puts its own back.
+dead=0
+for d in system32 syswow64 system32/drivers Fonts; do
+  for f in "$COMPAT/pfx/drive_c/windows/$d"/*; do
+    [ -L "$f" ] && [ ! -e "$f" ] && rm -f "$f" && dead=$((dead + 1))
+  done
+done
+if [ $dead -gt 0 ]; then
+  rm -f "$COMPAT/pfx/.update-timestamp" "$COMPAT/pfx/.droiddeck-bionic"
+  echo "$(date +%H:%M:%S) removed $dead dead link(s) from the prefix; relinking and Wine's update follow"
+fi
+
 prepare_prefix
 
 # Steam's Windows client files in the prefix, the ones Proton copies from Steam's legacycompat folder: a game's
