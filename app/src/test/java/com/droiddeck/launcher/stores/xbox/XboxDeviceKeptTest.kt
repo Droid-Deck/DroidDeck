@@ -8,6 +8,7 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,6 +40,21 @@ class XboxDeviceKeptTest {
         val slots = record.getJSONObject("slots")
         assertEquals(listOf(XboxCredentials.DEVICE_SLOT), slots.keys().asSequence().toList())
         assertEquals(device.toString(), slots.getJSONArray(XboxCredentials.DEVICE_SLOT).toString())
+    }
+
+    @Test fun aFailedDeviceRewriteStillSignsOutAndRevokes() {
+        var sealing = true
+        StoreAccounts.keys = object : CredentialCipher.KeyProvider {
+            override fun key() = if (sealing) key else throw java.security.KeyStoreException("sealing refused")
+            override fun existing() = key
+        }
+        StoreAccounts.write(app, Store.XBOX, JSONObject().put("username", "player")
+            .put("slots", JSONObject().put(XboxCredentials.DEVICE_SLOT, JSONArray(listOf(1)))))
+        sealing = false
+        var revoked = false
+        XboxCredentials.invalidate(app) { revoked = true }
+        assertTrue(revoked)
+        assertNull(StoreAccounts.signedInAs(app, Store.XBOX))
     }
 
     @Test fun signingOutWithoutADeviceLeavesNoRecord() {

@@ -49,7 +49,7 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
             // format the catalogue recorded rather than fail after a download.
             val command = if (legacy) "legacy-install" else "streaming"
             Xodus.start(app, if (legacy) {
-                listOf(command, source, guestFolder, "--market", market, "--progress-json") + selection
+                listOf(command, source, guestFolder, "--market", market, "--progress-json", "--store-id", item.id) + selection
             } else {
                 listOf(command, source, guestFolder, "--market", market, "--progress-json", "--control-stdin") + selection
             }).use { process ->
@@ -94,8 +94,7 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
                 if (exit != 0 || !complete) {
                     val tail = errors.toList().takeLast(MAX_ERROR_LINES)
                     report(command, source, market, exit, tail)
-                    if (tail.any { it.startsWith(DEVICE_GROUP_FULL) }) error(app.getString(com.droiddeck.launcher.R.string.stores_xbox_device_group_full))
-                    if (tail.any { it.startsWith(DEVICE_UNREGISTRABLE) }) error(app.getString(com.droiddeck.launcher.R.string.stores_xbox_license_refused))
+                    licenseRefusal(tail)?.let { error(app.getString(it)) }
                     error("Xbox download did not complete. Resume to retry with fresh licenses." +
                         tail.takeLast(3).joinToString("") { "\n$it" })
                 }
@@ -154,8 +153,13 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
     companion object {
         private const val MAX_ERROR_LINES = 40
         const val DEVICES_URL = "https://account.microsoft.com/devices/content"
-        internal const val DEVICE_GROUP_FULL = "NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-device-limit "
-        internal const val DEVICE_UNREGISTRABLE = "NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-device-name "
+        private const val LICENSE_DIAGNOSTIC = "NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 "
+        internal fun licenseRefusal(tail: List<String>): Int? = when (tail.lastOrNull { it.startsWith(LICENSE_DIAGNOSTIC) }
+            ?.removePrefix(LICENSE_DIAGNOSTIC)?.substringBefore(' ')) {
+            "content-device-limit" -> com.droiddeck.launcher.R.string.stores_xbox_device_group_full
+            "content-device-name" -> com.droiddeck.launcher.R.string.stores_xbox_license_refused
+            else -> null
+        }
         internal fun executable(folder: File): String = XboxManifest.executable(folder)
     }
 }

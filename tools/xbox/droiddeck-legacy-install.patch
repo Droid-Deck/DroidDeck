@@ -43,10 +43,10 @@ index 088a6d0..825c24e 100644
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..680eb70
+index 0000000..17ff3f3
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1135 @@
+@@ -0,0 +1,1162 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -259,6 +259,8 @@ index 0000000..680eb70
 +    containers: Vec<Container>,
 +    /// Why the other route was not used, for the failure message.
 +    note: String,
++    /// A Windows Update build whose download locations are asked for once it is licensed.
++    build: Option<usize>,
 +}
 +
 +/// Resolves the legacy containers the Xbox content service is willing to serve.
@@ -327,7 +329,7 @@ index 0000000..680eb70
 +                        size: file.file_size.max(0) as u64,
 +                    });
 +                }
-+                return Ok(Install { content_id: candidate.clone(), containers, note: probe.join(" ") });
++                return Ok(Install { content_id: candidate.clone(), containers, note: probe.join(" "), build: None });
 +            }
 +            Err(error) => probe.push(format!("c{index} {error}")),
 +        }
@@ -342,6 +344,7 @@ index 0000000..680eb70
 +    destination: String,
 +    market: Option<String>,
 +    selected_content_id: Option<String>,
++    store_id: Option<String>,
 +    progress_json: bool,
 +    resolve_only: bool,
 +) -> ExitCode {
@@ -368,24 +371,27 @@ index 0000000..680eb70
 +        Ok(client) => client,
 +        Err(error) => return fail("update-client-failed", &error),
 +    };
++    let mut update = None;
 +    let mut builds: Vec<Install> = match from_xbox_service(client, tokens, &product, &region, selected_content_id.as_deref()).await {
 +        Ok(install) => vec![install],
 +        Err(xbox_error) => {
 +            // The content service does not serve legacy desktop bundles, so the
-+            // Windows Update route is the one that has to work.
-+            match crate::commands::store_delivery::resolve_builds(&delivery_client, &product, &region).await {
-+                Ok(deliveries) => deliveries
-+                    .into_iter()
-+                    .map(|delivery| Install {
-+                        content_id: delivery.content_id,
-+                        containers: delivery
-+                            .files
-+                            .into_iter()
-+                            .map(|file| Container { name: file.name, url: file.url, size: file.size })
-+                            .collect(),
-+                        note: "windows-update".into(),
-+                    })
-+                    .collect(),
++            // Windows Update route is the one that has to work. Its catalogue is
++            // keyed by the Store product, also for an add-on named by content id.
++            let catalogue = store_id.as_deref().unwrap_or(&product);
++            match crate::commands::store_delivery::resolve_builds(&delivery_client, catalogue, &region).await {
++                Ok(list) => {
++                    let found = (0..list.len())
++                        .map(|index| Install {
++                            content_id: list.content_id(index),
++                            containers: Vec::new(),
++                            note: "windows-update".into(),
++                            build: Some(index),
++                        })
++                        .collect();
++                    update = Some(list);
++                    found
++                }
 +                Err(update_error) => {
 +                    return fail(
 +                        "no-container",
@@ -403,6 +409,12 @@ index 0000000..680eb70
 +            for container in &install.containers {
 +                println!("{} {} {}", container.size, container.name, container.url);
 +            }
++            if let (Some(index), Some(list)) = (install.build, update.as_ref()) {
++                match list.locate(&delivery_client, index).await {
++                    Ok(files) => files.iter().for_each(|file| println!("{} {} {}", file.size, file.name, file.url)),
++                    Err(error) => println!("unavailable: {error}"),
++                }
++            }
 +        }
 +        return ExitCode::SUCCESS;
 +    }
@@ -419,7 +431,7 @@ index 0000000..680eb70
 +    let license_market = market.clone().unwrap_or("neutral".into());
 +    let refused = xodus::licensing::content::LicenseContentError::DeviceUnregistrable.to_string();
 +    let install = loop {
-+        let candidate = builds.remove(0);
++        let mut candidate = builds.remove(0);
 +        match crate::commands::license::dump(
 +            client,
 +            tokens,
@@ -429,7 +441,22 @@ index 0000000..680eb70
 +        )
 +        .await
 +        {
-+            Ok(()) => break candidate,
++            Ok(()) => {
++                let (Some(index), Some(list)) = (candidate.build, update.as_ref()) else { break candidate };
++                match list.locate(&delivery_client, index).await {
++                    Ok(files) => {
++                        candidate.containers = files
++                            .into_iter()
++                            .map(|file| Container { name: file.name, url: file.url, size: file.size })
++                            .collect();
++                        break candidate;
++                    }
++                    Err(_) if !builds.is_empty() => {
++                        eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 a licensed build has no download location, trying an older build");
++                    }
++                    Err(error) => return fail("no-container", &error),
++                }
++            }
 +            Err(error) if error == refused && !builds.is_empty() => {
 +                eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 newest build has no license for this device, trying an older build");
 +            }
@@ -1225,10 +1252,10 @@ index b9fd91c..4b5f3bd 100644
  }
 diff --git a/crates/xodus-cli/src/commands/store_delivery.rs b/crates/xodus-cli/src/commands/store_delivery.rs
 new file mode 100644
-index 0000000..4192cfd
+index 0000000..7fec6e5
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/store_delivery.rs
-@@ -0,0 +1,559 @@
+@@ -0,0 +1,577 @@
 +//! Windows Update delivery for Store packages.
 +//!
 +//! The Xbox content service (`GetBasePackage`) serves MSIXVC titles but answers a
@@ -1606,28 +1633,46 @@ index 0000000..4192cfd
 +
 +/// Every build of a Store product Windows Update lists, newest first. Each build
 +/// has its own content id, and Microsoft can refuse keys for one but not another.
-+pub async fn resolve_builds(
-+    client: &reqwest::Client,
-+    product: &str,
-+    market: &str,
-+) -> Result<Vec<Delivery>, String> {
++pub struct Builds {
++    cookie: String,
++    expiration: String,
++    category: String,
++    groups: Vec<Vec<Revision>>,
++}
++
++impl Builds {
++    pub fn len(&self) -> usize {
++        self.groups.len()
++    }
++
++    pub fn content_id(&self, index: usize) -> String {
++        self.groups[index]
++            .first()
++            .map(|revision| revision.content_id.clone())
++            .filter(|id| !id.is_empty())
++            .unwrap_or_else(|| self.category.clone())
++    }
++
++    /// Download locations for one build, asked for only when that build is used.
++    pub async fn locate(&self, client: &reqwest::Client, index: usize) -> Result<Vec<DeliveryFile>, String> {
++        let mut files = Vec::new();
++        for revision in &self.groups[index] {
++            let url = download_url(client, &self.cookie, &self.expiration, revision).await?;
++            files.push(DeliveryFile { name: revision.name.clone(), url, size: revision.size });
++        }
++        Ok(files)
++    }
++}
++
++pub async fn resolve_builds(client: &reqwest::Client, product: &str, market: &str) -> Result<Builds, String> {
 +    let category = category(client, product, market).await?;
 +    let (cookie, expiration) = cookie(client).await?;
 +    let (found, _) = revisions(client, &cookie, &expiration, &category, title_container).await?;
-+    let mut builds = Vec::new();
-+    for group in builds_newest_first(found) {
-+        let content_id = group.first().map(|revision| revision.content_id.clone()).unwrap_or_default();
-+        let mut files = Vec::new();
-+        for revision in &group {
-+            let url = download_url(client, &cookie, &expiration, revision).await?;
-+            files.push(DeliveryFile { name: revision.name.clone(), url, size: revision.size });
-+        }
-+        builds.push(Delivery { content_id: if content_id.is_empty() { category.clone() } else { content_id }, files });
-+    }
-+    if builds.is_empty() {
++    let groups = builds_newest_first(found);
++    if groups.is_empty() {
 +        return Err("Windows Update lists no package files for this product".into());
 +    }
-+    Ok(builds)
++    Ok(Builds { cookie, expiration, category, groups })
 +}
 +
 +fn title_container(name: &str) -> bool {
@@ -1789,7 +1834,7 @@ index 0000000..4192cfd
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index a0136f8..dceef4e 100644
+index a0136f8..fa0f6fb 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -1817,7 +1862,7 @@ index a0136f8..dceef4e 100644
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
          Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
-@@ -692,3 +701,174 @@ where
+@@ -692,3 +701,202 @@ where
      }
      ExitCode::SUCCESS
  }
@@ -1825,17 +1870,45 @@ index a0136f8..dceef4e 100644
 +const PLAIN_LIMIT: u64 = 1 << 30;
 +
 +fn publish(staging: &Path, out: &Path) -> Result<(), String> {
-+    let entries = std::fs::read_dir(staging).map_err(|error| format!("staged package unreadable: {error}"))?;
-+    for entry in entries {
-+        let entry = entry.map_err(|error| format!("staged package unreadable: {error}"))?;
-+        let target = out.join(entry.file_name());
-+        if let Ok(meta) = std::fs::symlink_metadata(&target) {
-+            if meta.is_dir() { std::fs::remove_dir_all(&target) } else { std::fs::remove_file(&target) }
-+                .map_err(|error| format!("could not replace {}: {error}", target.display()))?;
++    let previous = out.join(".xodus-plain-previous");
++    std::fs::remove_dir_all(&previous).ok();
++    std::fs::create_dir_all(&previous).map_err(|error| format!("could not prepare the replacement: {error}"))?;
++    let names: Vec<std::ffi::OsString> = std::fs::read_dir(staging)
++        .map_err(|error| format!("staged package unreadable: {error}"))?
++        .map(|entry| entry.map(|entry| entry.file_name()))
++        .collect::<Result<_, _>>()
++        .map_err(|error| format!("staged package unreadable: {error}"))?;
++    let mut moved = Vec::new();
++    let mut placed = Vec::new();
++    let result = (|| {
++        for name in &names {
++            let target = out.join(name);
++            if std::fs::symlink_metadata(&target).is_ok() {
++                std::fs::rename(&target, previous.join(name))
++                    .map_err(|error| format!("could not replace {}: {error}", target.display()))?;
++                moved.push(name.clone());
++            }
++            std::fs::rename(staging.join(name), &target)
++                .map_err(|error| format!("could not place {}: {error}", target.display()))?;
++            placed.push(name.clone());
 +        }
-+        std::fs::rename(entry.path(), &target).map_err(|error| format!("could not place {}: {error}", target.display()))?;
++        Ok(())
++    })();
++    if result.is_err() {
++        for name in &placed {
++            let target = out.join(name);
++            match std::fs::symlink_metadata(&target) {
++                Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(&target).ok(),
++                Ok(_) => std::fs::remove_file(&target).ok(),
++                Err(_) => None,
++            };
++        }
++        for name in &moved {
++            std::fs::rename(previous.join(name), out.join(name)).ok();
++        }
 +    }
-+    Ok(())
++    std::fs::remove_dir_all(&previous).ok();
++    result
 +}
 +
 +async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &Path) -> ExitCode {
@@ -1994,7 +2067,7 @@ index a0136f8..dceef4e 100644
 +}
 diff --git a/crates/xodus-cli/src/commands/unzip.rs b/crates/xodus-cli/src/commands/unzip.rs
 new file mode 100644
-index 0000000..accedcb
+index 0000000..10e92fb
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/unzip.rs
 @@ -0,0 +1,219 @@
@@ -2086,7 +2159,7 @@ index 0000000..accedcb
 +    starts.sort_unstable();
 +    starts.dedup();
 +    for Listed { name, method, compressed, size, local } in listed {
-+        let limit = starts.iter().copied().find(|start| *start > local).unwrap_or(directory);
++        let limit = starts.get(starts.partition_point(|start| *start <= local)).copied().unwrap_or(directory).min(directory);
 +        if name.ends_with('/') {
 +            continue;
 +        }
@@ -2243,10 +2316,10 @@ index 0000000..63467d7
 +Jwl/Yj1geeWS8UUquaUC5GC7/nornGCntZkU8rC+8LsFllZWj8Fo
 +-----END CERTIFICATE-----
 diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
-index b2a3383..870a37e 100644
+index b2a3383..855f667 100644
 --- a/crates/xodus-cli/src/main.rs
 +++ b/crates/xodus-cli/src/main.rs
-@@ -166,6 +166,27 @@ enum SubCommand {
+@@ -166,6 +166,29 @@ enum SubCommand {
          #[arg(short, long)]
          market: Option<String>,
      },
@@ -2260,6 +2333,8 @@ index b2a3383..870a37e 100644
 +        market: Option<String>,
 +        #[arg(long, help = "Content ID explicitly selected from resolve-package for this Store product")]
 +        selected_content_id: Option<String>,
++        #[arg(long, help = "Store product ID for the Windows Update catalogue when PRODUCT is a content ID")]
++        store_id: Option<String>,
 +        #[arg(
 +            long,
 +            help = "Emit Nexus progress protocol v1 as newline-delimited JSON"
@@ -2274,7 +2349,7 @@ index b2a3383..870a37e 100644
      #[cfg(unix)]
      #[command(about = "Run a Game with xodus wine")]
      Run {
-@@ -435,6 +456,26 @@ async fn main() -> ExitCode {
+@@ -435,6 +458,28 @@ async fn main() -> ExitCode {
              )
              .await
          }
@@ -2283,6 +2358,7 @@ index b2a3383..870a37e 100644
 +            destination,
 +            market,
 +            selected_content_id,
++            store_id,
 +            progress_json,
 +            resolve_only,
 +        } => {
@@ -2293,6 +2369,7 @@ index b2a3383..870a37e 100644
 +                destination,
 +                market,
 +                selected_content_id,
++                store_id,
 +                progress_json,
 +                resolve_only,
 +            )
@@ -2302,7 +2379,7 @@ index b2a3383..870a37e 100644
          SubCommand::Run {
              source,
 diff --git a/crates/xodus/src/licensing/content_response.rs b/crates/xodus/src/licensing/content_response.rs
-index e87421d..a59b2f9 100644
+index e87421d..8b5b570 100644
 --- a/crates/xodus/src/licensing/content_response.rs
 +++ b/crates/xodus/src/licensing/content_response.rs
 @@ -53,6 +53,10 @@ pub enum LicenseContentError {
@@ -2328,22 +2405,37 @@ index e87421d..a59b2f9 100644
      let result = async {
          // A valid-looking license inside a refused HTTP response is not permission.
          if !response.status().is_success() {
-+            if status == 400 {
-+                let body = response.bytes().await.unwrap_or_default();
-+                if unregistrable(&body) {
-+                    return Err(LicenseContentError::DeviceUnregistrable);
-+                }
++            if status == 400
++                && let Some(body) = bounded_body(&mut response, REFUSAL_BODY).await
++                && unregistrable(&body)
++            {
++                return Err(LicenseContentError::DeviceUnregistrable);
 +            }
              return Err(LicenseContentError::http(status));
          }
          if response
-@@ -167,6 +178,12 @@ async fn receive(
+@@ -167,6 +178,27 @@ async fn receive(
      result
  }
  
++const REFUSAL_BODY: usize = 64 * 1024;
++
++async fn bounded_body(response: &mut reqwest::Response, limit: usize) -> Option<Vec<u8>> {
++    if response.content_length().is_some_and(|length| length > limit as u64) {
++        return None;
++    }
++    let mut body = Vec::new();
++    while let Some(chunk) = response.chunk().await.ok()? {
++        if chunk.len() > limit - body.len() {
++            return None;
++        }
++        body.extend_from_slice(&chunk);
++    }
++    Some(body)
++}
++
 +fn unregistrable(body: &[u8]) -> bool {
-+    body.len() <= MAX_BODY
-+        && serde_json::from_slice::<serde_json::Value>(body)
++    serde_json::from_slice::<serde_json::Value>(body)
 +            .is_ok_and(|value| value["innererror"]["code"] == "DeviceNameNotHexBinary")
 +}
 +
@@ -2351,10 +2443,10 @@ index e87421d..a59b2f9 100644
      if bytes.len() > MAX_BODY {
          return Err(LicenseContentError::Size);
 diff --git a/crates/xodus/src/licensing/content_response_tests.rs b/crates/xodus/src/licensing/content_response_tests.rs
-index 205aab3..f6a540f 100644
+index 205aab3..93c138b 100644
 --- a/crates/xodus/src/licensing/content_response_tests.rs
 +++ b/crates/xodus/src/licensing/content_response_tests.rs
-@@ -373,3 +373,16 @@ async fn content_license_transport_timeout_and_cancellation_have_no_background_r
+@@ -373,3 +373,18 @@ async fn content_license_transport_timeout_and_cancellation_have_no_background_r
      );
      server.await.unwrap();
  }
@@ -2363,7 +2455,9 @@ index 205aab3..f6a540f 100644
 +async fn a_refused_device_name_claim_has_its_own_stage() {
 +    let refused = serde_json::to_vec(&json!({"code":"BadRequest","innererror":{"faultcode":3043,"code":"DeviceNameNotHexBinary","message":"private"}})).unwrap();
 +    let other = serde_json::to_vec(&json!({"code":"BadRequest","innererror":{"code":"Other"}})).unwrap();
-+    for (body, expected) in [(refused, "content-device-name"), (other, "content-http"), (b"not json".to_vec(), "content-http")] {
++    let mut oversized = refused.clone();
++    oversized.splice(1..1, std::iter::repeat_n(b' ', 70 * 1024));
++    for (body, expected) in [(refused, "content-device-name"), (other, "content-http"), (b"not json".to_vec(), "content-http"), (oversized, "content-http")] {
 +        let (url, server) = server(format!("HTTP/1.1 400 Fixture\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()), body).await;
 +        let error = fetch(reqwest::Client::new().get(url)).await.err().unwrap();
 +        assert_eq!(error.stage(), expected);
