@@ -16,8 +16,9 @@ internal object SteamHidden {
 
     fun readOrNull(root: File): Set<Long>? = runCatching {
         val entries = JSONArray(file(root)?.readText() ?: return null)
-        val entry = (0 until entries.length()).map { entries.getJSONArray(it) }
-            .firstOrNull { it.optString(0) == KEY }?.optJSONObject(1)
+        val slot = (0 until entries.length()).map { entries.getJSONArray(it) }.firstOrNull { it.optString(0) == KEY }
+        val entry = slot?.optJSONObject(1)
+        if (slot != null && entry == null) return null
         if (entry == null || entry.optBoolean("is_deleted")) emptySet() else {
             val collection = JSONObject(entry.optString("value"))
             ids(collection, "added").toSet() - ids(collection, "removed").toSet()

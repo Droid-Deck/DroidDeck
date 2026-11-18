@@ -20,6 +20,7 @@ internal const val LIBRARY_HIDDEN = "hidden"
 internal object LibraryHidden {
     var keys by mutableStateOf<Set<String>>(emptySet())
         private set
+    private var cachedRoot: java.io.File? = null
     var steam by mutableStateOf<Set<Long>>(emptySet())
         private set
 
@@ -29,7 +30,12 @@ internal object LibraryHidden {
     }
 
     fun refreshSteam(context: Context) {
-        SteamHidden.readOrNull(SessionPrefs.activeSteamRoot(context))?.let { steam = it }
+        val root = SessionPrefs.activeSteamRoot(context)
+        if (root != cachedRoot) {
+            cachedRoot = root
+            steam = emptySet()
+        }
+        SteamHidden.readOrNull(root)?.let { steam = it }
     }
 
     fun steamId(game: Library.SteamGame?): Long? = game?.takeIf { Library.fromSteamClient(it) }?.appId?.toLong()
@@ -42,7 +48,10 @@ internal object LibraryHidden {
         val id = steamId(game)
         val root = SessionPrefs.activeSteamRoot(context)
         val written = id?.let { SteamHidden.write(root, it, hidden) }
-        if (id != null) steam = written ?: SteamHidden.readOrNull(root) ?: steam
+        if (id != null) {
+            cachedRoot = root
+            steam = written ?: SteamHidden.readOrNull(root) ?: steam
+        }
         keys = if (hidden && written == null) keys + key else keys - key
         SessionPrefs.setLibraryHidden(context, keys)
         return id == null || written != null
