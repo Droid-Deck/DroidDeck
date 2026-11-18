@@ -929,7 +929,6 @@ class SessionService : Service() {
         }
     }
 
-    // stopSession can run while runSession is still starting; this undoes what runSession began after it.
     private fun abandonStart(gen: Int, sessionDir: File, started: List<SessionPart> = emptyList()) {
         val (ended, endedArch) = synchronized(stopLock) {
             if (gen != sessionGen || SessionState.running) return
