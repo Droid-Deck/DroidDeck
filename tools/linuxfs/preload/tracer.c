@@ -16,7 +16,7 @@
 #define STATUS_MAX 16384
 #define TRACER_FIELD "\nTracerPid:\t"
 
-int bl_from_ntdll(const void *caller) __attribute__((visibility("hidden")));
+int dd_from_ntdll(const void *caller) __attribute__((visibility("hidden")));
 
 static const char *skip_digits(const char *s) {
   const char *end = s;
@@ -41,7 +41,7 @@ static int is_web_helper(const void *caller) {
   if (strcmp(program_invocation_short_name, "steamwebhelper") != 0 &&
       strcmp(program_invocation_short_name, "vrwebhelper") != 0)
     return 0;
-  const char *hide = getenv("BL_WEBHELPER_HIDE_TRACER");
+  const char *hide = getenv("DD_WEBHELPER_HIDE_TRACER");
   Dl_info info;
   if (hide && hide[0] == '1' && caller && dladdr(caller, &info) && info.dli_fname
       && strstr(info.dli_fname, "libtier0_s.so"))
@@ -72,14 +72,14 @@ static int read_only_copy(const char *data, size_t len, int flags) {
   return ro;
 }
 
-__attribute__((visibility("hidden"))) int bl_status_without_tracer(const char *path, int flags, const void *caller) {
+__attribute__((visibility("hidden"))) int dd_status_without_tracer(const char *path, int flags, const void *caller) {
   char text[STATUS_MAX];
   size_t len = 0;
   int saved = errno;
   int out = -1;
 
   long pid;
-  if ((flags & O_ACCMODE) != O_RDONLY || (pid = status_pid(path)) < 0 || is_web_helper(caller) || bl_from_ntdll(caller))
+  if ((flags & O_ACCMODE) != O_RDONLY || (pid = status_pid(path)) < 0 || is_web_helper(caller) || dd_from_ntdll(caller))
     return -1;
   // through the next open(): the native userland's hook gives the app's ids as root's there
   static int (*next_open)(const char *, int, ...) = NULL;

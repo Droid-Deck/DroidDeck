@@ -122,12 +122,12 @@ class TracerPreloadTest(unittest.TestCase):
         (tmp / "ntdll.c").write_text(NTDLL)
         (tmp / "prog.c").write_text(PROGRAM)
         sources = sorted(str(p) for p in PRELOAD.glob("*.c"))
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(tmp / "libblsession.so"), *sources, "-ldl"],
+        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(tmp / "libddsession.so"), *sources, "-ldl"],
                        check=True)
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-o", str(tmp / "ntdll.so"), str(tmp / "ntdll.c")], check=True)
         subprocess.run(["cc", "-O1", "-o", str(tmp / "prog"), str(tmp / "prog.c"), str(tmp / "ntdll.so"), "-Wl,-rpath," + str(tmp)],
                        check=True)
-        env = dict(os.environ, LD_PRELOAD=str(tmp / "libblsession.so"))
+        env = dict(os.environ, LD_PRELOAD=str(tmp / "libddsession.so"))
         out = subprocess.run([str(tmp / "prog")], env=env, capture_output=True, text=True, timeout=60)
         if out.returncode != 0:
             raise AssertionError(out.stdout + out.stderr)

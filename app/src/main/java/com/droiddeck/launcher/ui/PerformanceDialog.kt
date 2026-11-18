@@ -83,15 +83,12 @@ fun PerformancePage(
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
     onDismiss: () -> Unit,
+    embedded: Boolean = false,
 ) {
     val host = rememberMenuHost()
     val colors = MaterialTheme.colorScheme
     val coreItems = cores.map { it.core to it.label }
-    SettingsPage(
-        host, title = stringResource(R.string.perf_title),
-        lede = stringResource(R.string.perf_lede),
-        onBack = onDismiss,
-    ) {
+    val body: @Composable () -> Unit = {
         SettingsGroup(stringResource(R.string.perf_client_cores_group)) {
             ToggleRow(
                 host, "override", stringResource(R.string.perf_override),
@@ -252,4 +249,12 @@ fun PerformancePage(
             }
         }
     }
+    if (embedded) Column {
+        Text(stringResource(R.string.perf_lede), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
+        body()
+    } else SettingsPage(
+        host, title = stringResource(R.string.perf_title),
+        lede = stringResource(R.string.perf_lede),
+        onBack = onDismiss,
+    ) { body() }
 }

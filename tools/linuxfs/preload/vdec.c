@@ -4,7 +4,7 @@
 #include <poll.h>
 #include <stddef.h>
 
-#if defined(__aarch64__) || defined(BL_VDEC_ANY_ARCH)
+#if defined(__aarch64__) || defined(DD_VDEC_ANY_ARCH)
 
 #include <fcntl.h>
 #include <linux/videodev2.h>
@@ -220,12 +220,12 @@ static int vd_have_ffmpeg(void) {
     return vd_ffmpeg > 0;
 }
 
-__attribute__((visibility("hidden"))) int bl_venc_connect(void);
+__attribute__((visibility("hidden"))) int dd_venc_connect(void);
 
 static int vd_enabled(void) {
     pthread_mutex_lock(&vd_lock);
     if (vd_state == 0) {
-        const char *flag = getenv("BL_REMOTE_PLAY_DECODE"), *socket = getenv("BL_VENC_SOCKET");
+        const char *flag = getenv("DD_REMOTE_PLAY_DECODE"), *socket = getenv("DD_VENC_SOCKET");
         vd_state = -1;
         if (strcmp(program_invocation_short_name, "streaming_client") == 0 && (flag == NULL || strcmp(flag, "0") != 0)) {
             vd_heap = open("/dev/dma_heap/system", O_RDONLY | O_CLOEXEC);
@@ -245,7 +245,7 @@ static struct vdec *vd_find(int fd) {
     return NULL;
 }
 
-__attribute__((visibility("hidden"))) int bl_vdec_open(const char *path, int flags) {
+__attribute__((visibility("hidden"))) int dd_vdec_open(const char *path, int flags) {
     (void)flags;
     if (path == NULL || strcmp(path, VDEC_DEVICE) != 0 || !vd_enabled()) return -2;
     int fd = memfd_create("droiddeck-vdec", 0);
@@ -314,7 +314,7 @@ static void vd_send_capture(struct vdec *v, uint32_t index) {
 
 static int vd_open_hardware(struct vdec *v) {
     if (v->hw_failed) return -1;
-    int sock = bl_venc_connect();
+    int sock = dd_venc_connect();
     if (sock < 0) return -1;
     struct vdec_config c = {
         .type = VDEC_CONFIG, .codec = v->fourcc == V4L2_PIX_FMT_HEVC ? VENC_HEVC : VENC_H264,
@@ -740,7 +740,7 @@ static int vd_ioctl(struct vdec *v, unsigned long req, void *arg) {
     }
 }
 
-__attribute__((visibility("hidden"))) int bl_vdec_ioctl(int fd, unsigned long req, void *arg, int *rc) {
+__attribute__((visibility("hidden"))) int dd_vdec_ioctl(int fd, unsigned long req, void *arg, int *rc) {
     struct vdec *v = vd_find(fd);
     if (v == NULL) return 0;
     pthread_mutex_lock(&vd_lock);
@@ -755,7 +755,7 @@ __attribute__((visibility("hidden"))) int bl_vdec_ioctl(int fd, unsigned long re
     return 1;
 }
 
-__attribute__((visibility("hidden"))) void bl_vdec_closed(int fd) {
+__attribute__((visibility("hidden"))) void dd_vdec_closed(int fd) {
     struct vdec *v = vd_find(fd);
     if (v == NULL) return;
     pthread_mutex_lock(&vd_lock);
@@ -768,7 +768,7 @@ __attribute__((visibility("hidden"))) void bl_vdec_closed(int fd) {
     pthread_mutex_unlock(&vd_lock);
 }
 
-__attribute__((visibility("hidden"))) int bl_vdec_poll(struct pollfd *fds, nfds_t n, int timeout_ms,
+__attribute__((visibility("hidden"))) int dd_vdec_poll(struct pollfd *fds, nfds_t n, int timeout_ms,
                                                        int (*real)(struct pollfd *, nfds_t, int), int *ret) {
     if (n != 1 || vd_find(fds[0].fd) == NULL) return 0;
     struct vdec *v = vd_find(fds[0].fd);
@@ -949,13 +949,13 @@ void SDL_UnloadObject(void *handle) {
 
 #else
 
-__attribute__((visibility("hidden"))) int bl_vdec_open(const char *path, int flags) {
+__attribute__((visibility("hidden"))) int dd_vdec_open(const char *path, int flags) {
     (void)path;
     (void)flags;
     return -2;
 }
 
-__attribute__((visibility("hidden"))) int bl_vdec_ioctl(int fd, unsigned long req, void *arg, int *rc) {
+__attribute__((visibility("hidden"))) int dd_vdec_ioctl(int fd, unsigned long req, void *arg, int *rc) {
     (void)fd;
     (void)req;
     (void)arg;
@@ -963,9 +963,9 @@ __attribute__((visibility("hidden"))) int bl_vdec_ioctl(int fd, unsigned long re
     return 0;
 }
 
-__attribute__((visibility("hidden"))) void bl_vdec_closed(int fd) { (void)fd; }
+__attribute__((visibility("hidden"))) void dd_vdec_closed(int fd) { (void)fd; }
 
-__attribute__((visibility("hidden"))) int bl_vdec_poll(struct pollfd *fds, nfds_t n, int timeout_ms,
+__attribute__((visibility("hidden"))) int dd_vdec_poll(struct pollfd *fds, nfds_t n, int timeout_ms,
                                                        int (*real)(struct pollfd *, nfds_t, int), int *ret) {
     (void)fds;
     (void)n;

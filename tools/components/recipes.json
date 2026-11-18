@@ -29,6 +29,7 @@
     "ndk": true,
     "packages": [
       "gcc-aarch64-linux-gnu",
+      "libc6-dev-arm64-cross",
       "g++-aarch64-linux-gnu",
       "libvulkan1",
       "mesa-vulkan-drivers"
@@ -62,10 +63,10 @@
     ],
     "outputs": [
       "app/src/main/assets/linuxfs/x86_64/libfakeinput.so",
-      "app/src/main/assets/linuxfs/x86_64/libblsession.so",
+      "app/src/main/assets/linuxfs/x86_64/libddsession.so",
       "app/src/main/assets/linuxfs/x86_64/libfaultreport.so",
       "app/src/main/assets/linuxfs/i386/libfakeinput.so",
-      "app/src/main/assets/linuxfs/i386/libblsession.so",
+      "app/src/main/assets/linuxfs/i386/libddsession.so",
       "app/src/main/assets/linuxfs/i386/libfaultreport.so",
       "app/src/main/assets/linuxfs/x86_64/libwebkitinput.so",
       "app/src/main/assets/linuxfs/x86_64/libvulkan-thunk.so"
@@ -83,10 +84,10 @@
     ],
     "snapshot_outputs": [
       "x86_64/libfakeinput.so",
-      "x86_64/libblsession.so",
+      "x86_64/libddsession.so",
       "x86_64/libfaultreport.so",
       "i386/libfakeinput.so",
-      "i386/libblsession.so",
+      "i386/libddsession.so",
       "i386/libfaultreport.so",
       "x86_64/libwebkitinput.so",
       "x86_64/libvulkan-thunk.so"
@@ -155,7 +156,8 @@
       "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet/version"
     ],
     "packages": [
-      "gcc-aarch64-linux-gnu"
+      "gcc-aarch64-linux-gnu",
+      "libc6-dev-arm64-cross"
     ]
   },
   "arm64-preloads": {
@@ -169,15 +171,16 @@
     ],
     "outputs": [
       "app/src/main/assets/linuxfs/libfakeinput.so",
-      "app/src/main/assets/linuxfs/libblsession.so",
-      "app/src/main/assets/linuxfs/libblfastpath.so",
-      "app/src/main/assets/linuxfs/libblaudit.so",
+      "app/src/main/assets/linuxfs/libddsession.so",
+      "app/src/main/assets/linuxfs/libddfastpath.so",
+      "app/src/main/assets/linuxfs/libddaudit.so",
       "app/src/main/assets/linuxfs/libssbs.so",
       "app/src/main/assets/linuxfs/usr/local/bin/droiddeck-clipboard",
       "app/src/main/assets/linuxfs/libddnatv-hook.so"
     ],
     "packages": [
       "gcc-aarch64-linux-gnu",
+      "libc6-dev-arm64-cross",
       "g++-aarch64-linux-gnu"
     ],
     "source_inputs": [
@@ -194,9 +197,9 @@
     ],
     "snapshot_outputs": [
       "libfakeinput.so",
-      "libblsession.so",
-      "libblfastpath.so",
-      "libblaudit.so",
+      "libddsession.so",
+      "libddfastpath.so",
+      "libddaudit.so",
       "libssbs.so",
       "usr/local/bin/droiddeck-clipboard",
       "libddnatv-hook.so"
@@ -245,7 +248,8 @@
       "app/src/main/assets/linuxfs/usr/local/bin/droiddeck-vkbridge-smoke"
     ],
     "packages": [
-      "gcc-aarch64-linux-gnu"
+      "gcc-aarch64-linux-gnu",
+      "libc6-dev-arm64-cross"
     ]
   },
   "dirt-ws2": {

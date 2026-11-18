@@ -39,6 +39,7 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Layers
@@ -907,19 +908,31 @@ private fun SelectBox(on: Boolean, enabled: Boolean, onToggle: () -> Unit) {
 
 @Composable
 private fun ConfirmDialog(title: String, body: String, confirm: String, danger: Boolean = true, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(body, fontSize = 14.sp) },
-        confirmButton = { FocusText(confirm, if (danger) colors.error else pal.signal) { onDismiss(); onConfirm() } },
-        dismissButton = {
-            val cancel = remember { FocusRequester() }
-            LaunchedEffect(Unit) { runCatching { cancel.requestFocus() } }
-            FocusText(stringResource(R.string.common_cancel), colors.onBackground, modifier = Modifier.focusRequester(cancel), onClick = onDismiss)
-        },
-    )
+    val accent = if (danger) MaterialTheme.colorScheme.error else LocalPalette.current.signal
+    val cancel = stringResource(R.string.common_cancel)
+    val glide = LocalFocusGlide.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    val confirmNow = androidx.compose.runtime.rememberUpdatedState(onConfirm)
+    val dismissNow = androidx.compose.runtime.rememberUpdatedState(onDismiss)
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val at = focusAnchor(glide, androidx.compose.ui.geometry.Offset.Zero)
+            ?: androidx.compose.ui.geometry.Rect(androidx.compose.ui.geometry.Offset(view.rootView.width / 2f, view.rootView.height / 2f), 1f)
+        var confirmed = false
+        val ask = StepAsk(
+            anchor = at, side = StepSide.Left, accent = accent, items = 3, pillCorner = 12.dp, maxWidth = 360.dp,
+            onDismiss = { dismissNow.value(); if (confirmed) confirmNow.value() },
+            handle = { Icon(if (danger) Icons.Outlined.Delete else Icons.Filled.Check, null, tint = accent, modifier = Modifier.size(18.dp)) },
+        ) {
+            StepTitle(title)
+            Text(body, fontSize = 13.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth().stepItem(2)) {
+                StepChoice(cancel, enabled = open, modifier = Modifier.focusRequester(first)) { Steps.fold() }
+                StepChoice(confirm, danger = danger, enabled = open) { confirmed = true; Steps.fold() }
+            }
+        }
+        Steps.ask(ask)
+        onDispose { if (Steps.step === ask) Steps.drop() }
+    }
 }
 
 private class DataTarget(val key: String, val label: String, val prefixes: List<Pair<java.io.File, Long>>, val shaders: List<Pair<java.io.File, Long>>)

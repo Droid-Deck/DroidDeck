@@ -213,6 +213,14 @@ class SheetExtras(
 fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: SheetExtras = SheetExtras()) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
+    Text(
+        stringResource(when (s.mode) {
+            SessionService.MODE_STEAM -> R.string.sheet_scope_steam
+            SessionService.MODE_DESKTOP -> R.string.sheet_scope_desktop
+            else -> R.string.sheet_scope_other
+        }),
+        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 4.dp),
+    )
     if (tab == SheetTab.DISPLAY) {
         val context = LocalContext.current
         val portraitWindow = SessionPrefs.portrait(context)
@@ -251,7 +259,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     stringResource(R.string.display_integer_scaling_hint),
                     listOf(
                         false to stringResource(R.string.display_scaling_fit),
-                        true to stringResource(R.string.display_scaling_auto),
+                        true to stringResource(R.string.display_scaling_integer),
                     ),
                     enabled, onPick = a.onIntegerScaling,
                 )

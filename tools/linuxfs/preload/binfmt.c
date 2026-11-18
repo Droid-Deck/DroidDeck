@@ -19,7 +19,7 @@
 typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
                         char *const[], char *const[]);
 __attribute__((visibility("hidden")))
-char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
+char *const *dd_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
 
 #if defined(__aarch64__) || defined(BINFMT_TEST)
 
@@ -29,7 +29,7 @@ static int flag(const char *name) {
 }
 
 static int handing_off(void) {
-  return flag("BL_DESKTOP") || flag("BL_BINFMT");
+  return flag("DD_DESKTOP") || flag("DD_BINFMT");
 }
 
 static int foreign(const char *path, int error) {
@@ -105,36 +105,36 @@ static int spawn_handler(pid_t *pid, const char *path, const posix_spawn_file_ac
   return real(pid, BINFMT_HANDLER, fa, attr, args, envp);
 }
 
-__attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
+__attribute__((visibility("hidden"))) void dd_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
   if (handing_off() && foreign(path, ENOEXEC)) hand_off(path, argv, envp);
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
+__attribute__((visibility("hidden"))) int dd_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
   if (wanted(path, error)) hand_off(path, argv, envp);
   errno = error;
   return -1;
 }
 
-__attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
+__attribute__((visibility("hidden"))) void dd_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
   char path[PATH_MAX];
-  if (handing_off() && lookup(file, path, sizeof path)) bl_binfmt_before(path, argv, envp);
+  if (handing_off() && lookup(file, path, sizeof path)) dd_binfmt_before(path, argv, envp);
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
+__attribute__((visibility("hidden"))) int dd_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
   char path[PATH_MAX];
-  if (handing_off() && lookup(file, path, sizeof path)) return bl_binfmt_retry(path, argv, envp, error);
+  if (handing_off() && lookup(file, path, sizeof path)) return dd_binfmt_retry(path, argv, envp, error);
   errno = error;
   return -1;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode) {
+__attribute__((visibility("hidden"))) int dd_binfmt_runnable(const char *path, int mode) {
   if (mode != X_OK || !handing_off()) return 0;
   int runs = foreign(path, EACCES) != 0;
   errno = EACCES;
   return runs;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
+__attribute__((visibility("hidden"))) int dd_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real) {
   if (handing_off() && foreign(path, ENOEXEC)) return spawn_handler(pid, path, fa, attr, argv, envp, real);
@@ -145,54 +145,54 @@ __attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
   char resolved[PATH_MAX];
   const char *path = lookup(file, resolved, sizeof resolved) ? resolved : file;
-  char *const *adjusted = bl_webhelper_argv(path, argv, envp);
+  char *const *adjusted = dd_webhelper_argv(path, argv, envp);
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execvpe");
-  bl_binfmt_before_search(file, (char *const *)adjusted, envp);
+  dd_binfmt_before_search(file, (char *const *)adjusted, envp);
   real(file, (char *const *)adjusted, envp);
-  return bl_binfmt_after_search(file, (char *const *)adjusted, envp, errno);
+  return dd_binfmt_after_search(file, (char *const *)adjusted, envp, errno);
 }
 
 int posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *attr,
                  char *const argv[], char *const envp[]) {
   char path[PATH_MAX];
   int found = lookup(file, path, sizeof path);
-  char *const *adjusted = bl_webhelper_argv(found ? path : file, argv, envp);
+  char *const *adjusted = dd_webhelper_argv(found ? path : file, argv, envp);
   static spawn_fn real, spawn;
   if (!real) real = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawnp");
   if (!spawn) spawn = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawn");
   if (!handing_off() || !found) return real(pid, file, fa, attr, (char *const *)adjusted, envp);
-  return bl_binfmt_spawn(pid, path, fa, attr, (char *const *)adjusted, envp, spawn);
+  return dd_binfmt_spawn(pid, path, fa, attr, (char *const *)adjusted, envp, spawn);
 }
 
 #else
 
-__attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode) {
+__attribute__((visibility("hidden"))) int dd_binfmt_runnable(const char *path, int mode) {
   (void)path, (void)mode;
   return 0;
 }
 
-__attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
+__attribute__((visibility("hidden"))) void dd_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
   (void)path, (void)argv, (void)envp;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
+__attribute__((visibility("hidden"))) int dd_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
   (void)path, (void)argv, (void)envp;
   errno = error;
   return -1;
 }
 
-__attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
+__attribute__((visibility("hidden"))) void dd_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
   (void)file, (void)argv, (void)envp;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
+__attribute__((visibility("hidden"))) int dd_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
   (void)file, (void)argv, (void)envp;
   errno = error;
   return -1;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
+__attribute__((visibility("hidden"))) int dd_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real) {
   return real(pid, path, fa, attr, argv, envp);

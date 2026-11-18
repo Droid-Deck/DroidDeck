@@ -109,11 +109,11 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
             "usr/local/bin/droiddeck-steam-taskset" to "usr/local/libexec/droiddeck-steam/taskset",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
-            "libblsession.so" to "usr/local/lib/libblsession.so",
+            "libddsession.so" to "usr/local/lib/libddsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
-            "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libddfastpath.so" to "usr/local/lib/libddfastpath.so",
             "libddnatv-hook.so" to "usr/lib/libddnatv-hook.so",
-            "libblaudit.so" to "usr/local/lib/libblaudit.so",
+            "libddaudit.so" to "usr/local/lib/libddaudit.so",
             "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
             "usr/local/bin/droiddeck-fonts" to "usr/local/bin/droiddeck-fonts",
@@ -238,7 +238,7 @@ object SessionFiles {
             "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_vram_cap.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json",
         )
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
-            listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
+            listOf("libddsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         // The Mali compatibility layer (tools/venus/layer, David Cimo): an implicit Vulkan layer that
         // fills in the features DXVK requires and Mali lacks. Idle outside Wine and on GPUs that have them.
@@ -315,7 +315,7 @@ object SessionFiles {
         for (pack in SERVICE_PACKS.keys) stageStoreService(context, root, pack, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
-        val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
+        val preload = StringBuilder("/usr/local/lib/libddsession.so\n")
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }

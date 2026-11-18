@@ -39,7 +39,7 @@ class SessionSuspendControllerTest {
         assertEquals(listOf(Triple(1, 1_000_000L, 3_000_000L)), fixture.pagedOut)
         assertEquals(0, fixture.unacknowledged)
         assertTrue(fixture.game.threads.all { it.state == 't' })
-        assertFalse(File(fixture.control.parentFile, ".bl-zram.ack.$GAME").exists())
+        assertFalse(File(fixture.control.parentFile, ".dd-zram.ack.$GAME").exists())
     }
 
     @Test fun unchangedSwapIsNotTakenForAFinishedPageOut() {
@@ -478,8 +478,8 @@ class SessionSuspendControllerTest {
         var emptyGameTasks = false
         var rootGone = false
         var afterSleep: (() -> Unit)? = null
-        val control = File(tmp, ".bl-zram")
-        val clock = File(tmp, ".bl-clock")
+        val control = File(tmp, ".dd-zram")
+        val clock = File(tmp, ".dd-clock")
         var clockAtContinue: Long? = null
         var clockAtMapping: Long? = null
         val pagedOut = mutableListOf<Triple<Int, Long, Long>>()
@@ -582,7 +582,7 @@ class SessionSuspendControllerTest {
                     "TracerPid: ${group.tracer}\n" +
                         if (group == game) "VmRSS:\t$gameResidentKb kB\nVmSwap:\t$gameSwapKb kB\n" else "",
                 )
-                if (group == game) File(dir, "maps").writeText("7f00000000-7f00001000 r-xp 00000000 fe:05 42  /usr/local/lib/libblsession.so\n")
+                if (group == game) File(dir, "maps").writeText("7f00000000-7f00001000 r-xp 00000000 fe:05 42  /usr/local/lib/libddsession.so\n")
                 val taskDir = File(dir, "task")
                 if (group == game && missingGameTasks) { taskDir.deleteRecursively(); continue }
                 taskDir.mkdirs()
