@@ -47,7 +47,7 @@ internal fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions, labeled
     var open by remember { androidx.compose.runtime.mutableStateOf(false) }
     Box {
         if (labeled) SecondaryButton(stringResource(R.string.game_frontend_files), compact = true) { open = !open }
-        else HeaderIconButton(stringResource(R.string.game_frontend_files), androidx.compose.material.icons.Icons.Outlined.Sync, "frontend-files") { open = !open }
+        else HeaderIconButton(stringResource(R.string.game_frontend_files), androidx.compose.material.icons.Icons.Outlined.Sync, "frontend-files", Modifier.downToFirstTile()) { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = s.gameSyncFolder ?: stringResource(R.string.game_frontend_files)) { first ->
             MenuItem(stringResource(R.string.game_file_sync), checked = false, focusRequester = first) {
                 open = false; a.onSyncGameFiles()

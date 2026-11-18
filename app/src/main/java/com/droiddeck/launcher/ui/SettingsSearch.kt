@@ -33,6 +33,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 
 // Grows out of the search button over the section pills, with the same spring as the other page searches.
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -58,7 +60,10 @@ internal fun SettingsPillSearch(
             Modifier.fillMaxWidth().padding(end = 52.dp)
                 .graphicsLayer { alpha = 1f - open; translationX = -24.dp.toPx() * open }
                 .focusProperties { enter = { if (searching) FocusRequester.Cancel else FocusRequester.Default } }
-                .focusGroup(),
+                .focusGroup()
+                .then(if (searching) Modifier.pointerInput(Unit) {
+                    awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() } }
+                } else Modifier),
         ) { pills() }
         if (searching || open > 0.01f) {
             val w = lerp(44.dp, (full - 40.dp).coerceIn(44.dp, 640.dp), open)
