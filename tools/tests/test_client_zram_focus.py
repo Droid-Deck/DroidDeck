@@ -117,6 +117,11 @@ run() { for NOW in $(seq "$1" "$2"); do dd_memory_tick; done; }
         self.assertEqual(['trim:3'], self.tick(
             ': > /tmp/.dd-zram.hold; run 0 2\nrm /tmp/.dd-zram.hold; run 3 3\n'))
 
+    def test_nothing_is_read_back_while_memory_is_still_needed(self):
+        self.assertEqual(['trim:0'], self.tick(
+            'run 0 0\ngame=0 available=4000; dd_memory_need() { _dd_need=1 _dd_hard=0 _dd_force=0; }\n'
+            'dd_memory_relieve() { dd_memory_need; }; run 1 40\n'))
+
     def test_game_exit_reads_the_client_back_after_a_quiet_half_minute(self):
         self.assertEqual(['trim:0', 'back:30'], self.tick('run 0 0\ngame=0 available=4000; run 1 40\n'))
 

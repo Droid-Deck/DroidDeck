@@ -1043,7 +1043,7 @@ case $mode in
           [ ! -e /tmp/.dd-zram.hold ] || return 0
           dd_memory_relieve
           dd_memory_note
-          dd_client_readback
+          [ "$_dd_need" -gt 0 ] || dd_client_readback
         }
         declare -A _dd_deaf=() _dd_preloaded=()
         _dd_scan_at=-5 _dd_session_at=-1 _dd_session=() _dd_focus=1 _dd_away=
