@@ -39,9 +39,14 @@ object UbisoftActivation {
                     val owner = synchronized(watching) { owners[product] }
                     val marker = File(dir, INVALIDATE)
                     if (marker.exists()) {
-                        val issuer = runCatching { marker.readText().trim() }.getOrNull()?.takeIf { it.isNotEmpty() } ?: owner
+                        val named = runCatching { marker.readText().trim() }.getOrNull()?.takeIf { it.isNotEmpty() }
+                        val issuer = named ?: owner
                         if (invalidate(app, product, issuer)) marker.delete()
-                        else if (issuer != null) runCatching { marker.writeText(issuer) }
+                        else if (named == null && issuer != null) runCatching {
+                            val part = File(dir, "$INVALIDATE.part")
+                            part.writeText(issuer)
+                            check(part.renameTo(marker))
+                        }
                     }
                     val pending = marker.exists()
                     dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }?.forEach { answer(app, product, it, owner, pending) }

@@ -390,7 +390,12 @@ object CloudSaves {
         saveBaseline(context, store, id, next)
         val left = if (force) take.filter { it !in written } else (plan.conflicts + saved.filter { it !in written }).distinct()
         saveConflicts(context, store, id, left)
-        return Result("ok", take.size, bytes, if (take.isEmpty()) "up-to-date" else "downloaded", left.size)
+        val reason = when {
+            take.isEmpty() -> "up-to-date"
+            written.size < take.size -> "changed-locally"
+            else -> "downloaded"
+        }
+        return Result(if (written.size < take.size) "partial" else "ok", written.size, bytes, reason, left.size)
     }
 
     internal fun upWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
@@ -435,7 +440,7 @@ object CloudSaves {
             }
         }
         saveBaseline(context, store, id, next)
-        val left = if (force) emptyList() else plan.conflicts + drifted
+        val left = if (force) emptyList() else (plan.conflicts + drifted + conflicts(context, store, id).filter { it !in send && it in files }).distinct()
         saveConflicts(context, store, id, left)
         return Result("ok", send.size, send.sumOf { files.getValue(it).length() }, if (send.isEmpty()) "up-to-date" else "uploaded", left.size)
     }
@@ -478,9 +483,18 @@ object CloudSaves {
         prune(root, kind)
     }
 
-    private fun hasUbisoftMark(file: File): Boolean = runCatching {
-        file.inputStream().use { input -> ByteArray(40).also { input.read(it) } }
-    }.getOrNull()?.let { UbisoftCloud.mark(it) != null } == true
+    private fun hasUbisoftMark(file: File): Boolean {
+        val head = ByteArray(40)
+        var filled = 0
+        file.inputStream().use { input ->
+            while (filled < head.size) {
+                val n = input.read(head, filled, head.size - filled)
+                if (n < 0) break
+                filled += n
+            }
+        }
+        return filled == head.size && UbisoftCloud.mark(head) != null
+    }
 
     private fun backupCloud(context: Context, store: Store, id: String, cloud: CloudTransport, files: List<CloudFile>): Map<String, String> {
         if (files.isEmpty()) return emptyMap()
