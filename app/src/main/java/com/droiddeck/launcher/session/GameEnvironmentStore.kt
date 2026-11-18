@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.util.AtomicFile
+import android.util.Log
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -9,6 +10,7 @@ import org.json.JSONObject
 import java.io.File
 
 object GameEnvironmentStore {
+    private const val TAG = "GameEnvironmentStore"
     private const val SETTINGS = "game-environment.json"
     private const val GUEST_FILE = "root/.config/droiddeck/game-environment.json"
     const val DXVK_CONFIG = "dxvkConfig"
@@ -19,7 +21,16 @@ object GameEnvironmentStore {
     fun read(context: Context): GameEnvironment.Config {
         val file = AtomicFile(File(context.filesDir, SETTINGS))
         val bytes = try { file.readFully() } catch (_: java.io.FileNotFoundException) { return GameEnvironment.Config() }
-        return decode(JSONObject(bytes.toString(Charsets.UTF_8)))
+        return try {
+            decode(JSONObject(bytes.toString(Charsets.UTF_8)))
+        } catch (error: Exception) {
+            if (error !is org.json.JSONException && error !is IllegalArgumentException) throw error
+            val aside = File(context.filesDir, "$SETTINGS.unreadable")
+            Log.w(TAG, "game environment settings are unreadable, set aside as ${aside.name}", error)
+            aside.delete()
+            file.baseFile.renameTo(aside)
+            GameEnvironment.Config()
+        }
     }
 
     fun decode(json: JSONObject): GameEnvironment.Config {
