@@ -22,7 +22,6 @@
         <item>可加入 SD 卡、USB 隨身碟或 SSD 上的 Steam 遊戲庫，DroidDeck 會把這些遊戲集中在你的收藏庫中。</item>
         <item>「商店」讓你登入 Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io 和 Game Jolt，然後在 DroidDeck 中安裝和更新它們的遊戲。</item>
         <item>FEX、DXVK 和 VKD3D-Proton 等元件會自動更新，預設使用 Proton Experimental ARM64，安裝 Proton 11.0 ARM64 後則預設使用它。</item>
-        <item>「遊戲執行時壓縮 Steam」可在記憶體不足的裝置上釋放 RAM。</item>
         <item>從右邊緣向內滑動可開啟工作階段選單：觸控板模式、電腦鍵盤、低延遲、遊戲設定檔等。</item>
         <item>遊戲執行緩慢？先在快速存取中限制影格率，再到遊戲的元件中嘗試其他 Proton 版本或 FEX 預設。</item>
         <item>遊戲音訊爆音或沒有聲音？請在 Steam 設定的「音訊」下嘗試「遊戲使用 DirectAudio」開關。</item>
@@ -622,18 +621,7 @@
     <string name="perf_gsrealtime">gamescope：即時 GPU 佇列</string>
     <string name="perf_gsrealtime_hint">優先處理合成器的 GPU 工作。可令幀間隔更平穩，但會犧牲少許遊戲效能。</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">記憶體</string>
     <string name="perf_cap_off">關閉</string>
-    <string name="perf_cap_auto">驅動程式預設</string>
-    <string name="perf_zram_client">遊戲執行時壓縮 Steam</string>
-    <string name="perf_zram_idle">壓縮遊戲閒置記憶體</string>
-    <string name="perf_zram_idle_hint">RAM 偏低時壓縮遊戲閒置記憶體。如果遊戲大約每半分鐘凍結幾秒，請關閉此項。下次啟動工作階段時生效。</string>
-    <string name="perf_zram_client_hint">遊戲啟動 20 秒後，Steam 用戶端會被壓縮到 zRAM，為遊戲騰出更多記憶體，並在遊戲關閉時讀回。如果會話在遊戲啟動後不久就關閉，請關閉此選項。若超過上方的 RAM 上限，會話仍會壓縮 Steam。</string>
-    <string name="perf_ram_cap">RAM 上限</string>
-    <string name="perf_ram_cap_hint">在 Steam 用戶端執行時生效，無論是 Steam 模式或從桌面啟動。當會話的用量超過此值時，會先將 Steam、再將會話中其他受支援的程序壓縮到 zRAM。這是軟性上限：不會關閉任何程式，但在分頁讀回時遊戲可能會卡頓。</string>
-    <string name="perf_ram_cap_unavailable">需要 zRAM 交換空間，但此裝置沒有。</string>
-    <string name="perf_vram_cap">VRAM 上限</string>
-    <string name="perf_vram_cap_hint">向 Direct3D 9 至 12 遊戲報告此顯存預算，以促使遊戲減少記憶體用量。遊戲可能超出預算；此功能不提供 GPU 分頁，也不保證避免因記憶體不足而崩潰。下次工作階段生效。</string>
     <string name="perf_gpuclock">讓 GPU 保持最高頻率</string>
     <string name="perf_gpuclock_hint">只限 Adreno。減少卡頓，但更耗電、更發熱。</string>
     <string name="perf_fixes">會話修正</string>

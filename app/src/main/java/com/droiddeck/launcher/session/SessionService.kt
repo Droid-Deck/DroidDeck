@@ -909,10 +909,9 @@ class SessionService : Service() {
                         ))
                     }
                 },
-                readBackAllowed = { SessionPrefs.ramCapMb(this) == 0 },
                 pagedIn = { processes, swapKb, swapBeforeKb, availableKb, millis ->
                     if (processes == 0) {
-                        Log.i(TAG, "left ${swapBeforeKb / 1024} MB in zram after resume (RAM cap, or ${availableKb / 1024} MB available is too little)")
+                        Log.i(TAG, "left ${swapBeforeKb / 1024} MB in zram after resume (${availableKb / 1024} MB available is too little)")
                     } else {
                         Log.i(TAG, "read back $processes processes in $millis ms: zram ${swapBeforeKb / 1024} -> ${swapKb / 1024} MB")
                     }
@@ -1083,11 +1082,7 @@ class SessionService : Service() {
         relativeMouseForSession().takeIf { it != 0 }?.let { guest.add("gamescope_relative_mouse=$it") }
         if (com.droiddeck.launcher.core.ZramSupport.supported()) {
             guest.add("DD_ZRAM=1")
-            if (steamHere) SessionPrefs.ramCapMb(this).takeIf { it > 0 }?.let { guest.add("DD_RAM_CAP_MB=$it") }
-            if (!SessionPrefs.zramClient(this)) guest.add("DD_ZRAM_CLIENT=0")
-            if (!SessionPrefs.zramIdle(this)) guest.add("DD_ZRAM_IDLE=0")
         }
-        SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("DD_VRAM_MB=$it") }
         guest.add("AUDIO_DIRECT_DECAY=0")
         val extra = extraEnv() + agentEnvironment
         guest.addAll(TurnipEnvironment.gameEnvironment(tuOverride, tuDriver, SessionPrefs.tuSysmem(this), extra))

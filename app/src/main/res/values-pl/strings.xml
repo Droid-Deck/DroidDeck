@@ -22,7 +22,6 @@
         <item>Dodaj biblioteki Steam z karty SD, dysku USB lub SSD, a DroidDeck zbierze gry razem w Twojej Bibliotece.</item>
         <item>Sklepy pozwalają zalogować się do Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io i Game Jolt, a następnie instalować i aktualizować ich gry z poziomu DroidDeck.</item>
         <item>Komponenty takie jak FEX, DXVK i VKD3D-Proton aktualizują się same, a domyślny jest Proton Experimental ARM64 albo Proton 11.0 ARM64, gdy ta wersja jest zainstalowana.</item>
-        <item>Kompresuj Steam podczas gry zwalnia pamięć RAM na urządzeniach, którym jej brakuje.</item>
         <item>Przesuń palcem od prawej krawędzi, aby otworzyć menu sesji: tryb touchpada, Klawiatura PC, Tryb niskiego opóźnienia, profil gry i więcej.</item>
         <item>Gra działa wolno? Ogranicz liczbę klatek w menu Szybki dostęp, a potem wypróbuj inną wersję Proton lub inny preset FEX w komponentach gry.</item>
         <item>Trzaski lub brak dźwięku w grze? Wypróbuj przełącznik DirectAudio dla gier w ustawieniach Steam w sekcji Dźwięk.</item>
@@ -628,18 +627,7 @@
     <string name="perf_gsrealtime">gamescope: kolejka GPU czasu rzeczywistego</string>
     <string name="perf_gsrealtime_hint">Nadaje priorytet pracy GPU kompozytora. Może wygładzić tempo klatek kosztem części wydajności gier.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Pamięć</string>
     <string name="perf_cap_off">Wyłączony</string>
-    <string name="perf_cap_auto">Domyślny sterownika</string>
-    <string name="perf_zram_client">Kompresuj Steam podczas gry</string>
-    <string name="perf_zram_idle">Kompresuj nieużywaną pamięć gry</string>
-    <string name="perf_zram_idle_hint">Kompresuje nieużywaną pamięć gry przy małej ilości RAM. Wyłącz, jeśli gry zawieszają się na kilka sekund mniej więcej co pół minuty. Działa od następnego uruchomienia sesji.</string>
-    <string name="perf_zram_client_hint">20 s po starcie gry klient Steam jest kompresowany do zRAM, aby zostawić grze więcej pamięci, i wczytywany z powrotem po zamknięciu gry. Wyłącz, jeśli sesja zamyka się wkrótce po starcie gier. Powyższy limit RAM nadal kompresuje Steam, gdy sesja go przekroczy.</string>
-    <string name="perf_ram_cap">Limit RAM</string>
-    <string name="perf_ram_cap_hint">Działa, gdy działa klient Steam, w trybie Steam lub z pulpitu. Gdy sesja używa więcej, Steam, a następnie inne obsługiwane procesy sesji są kompresowane do zRAM. Miękki limit: nic nie jest zamykane, ale gry mogą się zacinać podczas wczytywania stron z powrotem.</string>
-    <string name="perf_ram_cap_unavailable">Wymaga swapu zRAM, którego to urządzenie nie ma.</string>
-    <string name="perf_vram_cap">Limit VRAM</string>
-    <string name="perf_vram_cap_hint">Zgłasza ten budżet pamięci wideo grom Direct3D od 9 do 12, aby ograniczyć zużycie pamięci. Gry mogą go przekroczyć; nie dodaje to stronicowania GPU ani nie gwarantuje ochrony przed awariami z powodu braku pamięci. Działa od następnej sesji.</string>
     <string name="perf_gpuclock">Utrzymuj GPU na najwyższym taktowaniu</string>
     <string name="perf_gpuclock_hint">Tylko Adreno. Mniej przycięć, większe zużycie baterii i więcej ciepła.</string>
     <string name="perf_fixes">Poprawki sesji</string>

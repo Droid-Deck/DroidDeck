@@ -19,10 +19,6 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Skip GL error checks | Settings › Performance (`droiddeck://settings/performance`) |  |
 | gamescope: realtime GPU queue | Settings › Performance (`droiddeck://settings/performance`) | gamescope |
 | Hold the GPU at its top clock | Settings › Performance (`droiddeck://settings/performance`) | gpu, clock, max |
-| RAM cap | Settings › Performance (`droiddeck://settings/performance`) | ram, memory |
-| VRAM cap | Settings › Performance (`droiddeck://settings/performance`) | vram, memory |
-| Compress idle game memory | Settings › Performance (`droiddeck://settings/performance`) | zram, swap, memory |
-| Compress Steam while a game runs | Settings › Performance (`droiddeck://settings/performance`) | zram, swap, memory |
 | Clear cached apps before a session | Settings › Performance (`droiddeck://settings/performance`) | memory, ram, crash, sleep, killed |
 | Background apps during a session | Settings › Performance (`droiddeck://settings/performance`) | memory, ram, background apps |
 | Memory readout | Settings › Performance (`droiddeck://settings/performance`) | memory, ram, overlay |

@@ -22,7 +22,6 @@
         <item>SD karttan, USB sürücüden veya SSD\'den Steam kütüphaneleri ekle; DroidDeck oyunları Kütüphane\'nde bir arada tutar.</item>
         <item>Mağazalar, Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ve Game Jolt\'ta oturum açmanı, ardından oyunlarını DroidDeck\'ten yüklemeni ve güncellemeni sağlar.</item>
         <item>FEX, DXVK ve VKD3D-Proton gibi bileşenler kendini günceller; varsayılan Proton Experimental ARM64\'tür, Proton 11.0 ARM64 kurulduktan sonra ise o olur.</item>
-        <item>Oyun çalışırken Steam\'i sıkıştır, belleği az olan cihazlarda RAM boşaltır.</item>
         <item>Oturum menüsünü açmak için sağ kenardan içeri kaydır: dokunmatik yüzey modu, PC klavyesi, düşük gecikme, oyun profili ve daha fazlası.</item>
         <item>Oyun yavaş mı çalışıyor? Hızlı erişim\'de kare hızını sınırla, sonra oyunun bileşenlerinde başka bir Proton sürümü veya FEX ön ayarı dene.</item>
         <item>Oyun sesinde cızırtı var ya da ses yok mu? Steam ayarlarında Ses altındaki Oyunlar için DirectAudio düğmesini dene.</item>
@@ -624,18 +623,7 @@
     <string name="perf_gsrealtime">gamescope: gerçek zamanlı GPU kuyruğu</string>
     <string name="perf_gsrealtime_hint">Bileştiricinin GPU işine öncelik verir. Oyunlardan biraz feda ederek kare zamanlamasını yumuşatabilir.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Bellek</string>
     <string name="perf_cap_off">Kapalı</string>
-    <string name="perf_cap_auto">Sürücü varsayılanı</string>
-    <string name="perf_zram_client">Oyun çalışırken Steam\'i sıkıştır</string>
-    <string name="perf_zram_idle">Oyunun boşta belleğini sıkıştır</string>
-    <string name="perf_zram_idle_hint">RAM azaldığında oyunun boşta belleğini sıkıştırır. Oyunlar yaklaşık her yarım dakikada birkaç saniye donuyorsa kapatın. Oturum bir sonraki başlatıldığında geçerli olur.</string>
-    <string name="perf_zram_client_hint">Oyun başladıktan 20 sn sonra oyuna daha fazla bellek kalması için Steam istemcisi zRAM\'e sıkıştırılır ve oyun kapanınca geri okunur. Oyunlar başladıktan kısa süre sonra oturum kapanıyorsa bunu kapatın. Yukarıdaki RAM sınırı, oturum onu aştığında Steam\'i yine sıkıştırır.</string>
-    <string name="perf_ram_cap">RAM sınırı</string>
-    <string name="perf_ram_cap_hint">Steam istemcisi Steam oturumunda veya masaüstünden çalışırken uygulanır. Oturum bundan fazlasını kullandığında önce Steam, ardından oturumun desteklenen diğer işlemleri zRAM\'e sıkıştırılır. Yumuşak bir sınırdır: hiçbir şey kapatılmaz, ancak sayfalar geri yüklenirken oyunlar takılabilir.</string>
-    <string name="perf_ram_cap_unavailable">Bu cihazda olmayan zRAM takası gerekir.</string>
-    <string name="perf_vram_cap">VRAM sınırı</string>
-    <string name="perf_vram_cap_hint">Bellek kullanımını azaltmak için Direct3D 9–12 oyunlarına bu video belleği bütçesini bildirir. Oyunlar bütçeyi aşabilir; GPU sayfalaması eklemez veya bellek yetersizliğinden kaynaklanan çökmeleri önlemeyi garanti etmez. Sonraki oturumda geçerli olur.</string>
     <string name="perf_gpuclock">GPU\'yu en yüksek saat hızında tut</string>
     <string name="perf_gpuclock_hint">Yalnızca Adreno. Daha az takılma, daha fazla pil tüketimi ve ısınma.</string>
     <string name="perf_fixes">Oturum düzeltmeleri</string>

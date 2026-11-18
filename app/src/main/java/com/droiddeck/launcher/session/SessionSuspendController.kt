@@ -27,7 +27,6 @@ internal class SessionSuspendController(
     private val nowNanos: () -> Long = System::nanoTime,
     private val pagedOut: (processes: Int, unacknowledged: Int, residentKb: Long, swapKb: Long, swapBeforeKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _, _ -> },
-    private val readBackAllowed: () -> Boolean = { true },
     private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _ -> },
 ) {
@@ -318,7 +317,7 @@ internal class SessionSuspendController(
         if (targets.isEmpty() || closing) return
         val before = memoryKb(targets).second
         val (total, available) = meminfoKb()
-        if (!readBackAllowed() || !canTake(before, total, available)) {
+        if (!canTake(before, total, available)) {
             pagedIn(0, before, before, available, 0)
             return
         }

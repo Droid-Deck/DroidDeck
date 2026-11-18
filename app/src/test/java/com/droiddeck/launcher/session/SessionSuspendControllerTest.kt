@@ -151,18 +151,6 @@ class SessionSuspendControllerTest {
         assertEquals(listOf(Triple(0, 3_000_000L, 3_000_000L)), fixture.pagedIn)
     }
 
-    @Test fun noReadBackWithARamCap() {
-        val fixture = fixture(17)
-        fixture.control.writeText("0")
-        fixture.readBackAllowed = false
-        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
-        val before = fixture.signals.size
-        fixture.controller.resume { assertTrue(it) }
-        assertFalse(fixture.signals.drop(before).any { it.signal == URG })
-        assertEquals("1", fixture.control.readText())
-        assertEquals(listOf(Triple(0, 3_000_000L, 3_000_000L)), fixture.pagedIn)
-    }
-
     @Test fun cancelledFreezeReadsBackWhatThePageOutAlreadyMoved() {
         val fixture = fixture(17)
         fixture.control.writeText("0")
@@ -486,7 +474,6 @@ class SessionSuspendControllerTest {
         val pagedIn = mutableListOf<Triple<Int, Long, Long>>()
         var availableKb = 8_000_000L
         var totalKb = 16_000_000L
-        var readBackAllowed = true
         private var gameResidentKb = 4_000_000L
         private var gameSwapKb = 0L
         private var pagingOut = false
@@ -506,7 +493,6 @@ class SessionSuspendControllerTest {
                 pagedOut += Triple(processes, resident, swap)
                 this.unacknowledged = unacknowledged
             },
-            readBackAllowed = { readBackAllowed },
             pagedIn = { processes, swap, swapBefore, _, _ -> pagedIn += Triple(processes, swap, swapBefore) },
         )
 

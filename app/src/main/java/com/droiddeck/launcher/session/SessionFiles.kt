@@ -234,8 +234,6 @@ object SessionFiles {
         val gpuLoad = listOf(
             "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
             "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_gpu_load.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_gpu_load.json",
-            "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so",
-            "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_vram_cap.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json",
         )
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libddsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
@@ -263,6 +261,8 @@ object SessionFiles {
         }
         val all = (if (DesktopCatalog.desktopInstalled(root)) files + DESKTOP_FILES else files) + optional
         val ledger = StageLedger(File(root, STAGED_LEDGER), apkIdentity(context))
+        ledger.remove("usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so", File(root, "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so"))
+        ledger.remove("usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json", File(root, "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json"))
         for ((asset, relative) in all) {
             val target = File(root, relative)
             if (ledger.current(relative, target)) continue
@@ -447,6 +447,11 @@ object SessionFiles {
 
         fun staged(relative: String, target: File) {
             mark(target)?.let { after[relative] = it }
+        }
+
+        fun remove(relative: String, target: File) {
+            target.delete()
+            after.remove(relative)
         }
 
         fun save() {
