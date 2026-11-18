@@ -820,6 +820,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 onCapturedPointer(event) || super.dispatchCapturedPointerEvent(event)
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {
                 super.dispatchPointerCaptureChanged(hasCapture)
+                com.droiddeck.launcher.input.PointerCapture.reset()
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
                 if (hasCapture) {
                     pointerCaptureRefused = false
@@ -5232,6 +5233,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun onCapturedPointer(event: MotionEvent): Boolean {
         if (!com.droiddeck.launcher.input.PointerCapture.accepts(event)) return false
+        com.droiddeck.launcher.input.PointerCapture.track(event)
         notePress(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {

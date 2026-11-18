@@ -5,6 +5,7 @@ import android.view.MotionEvent
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -13,6 +14,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE)
 class PointerCaptureTest {
+    @Before fun setUp() = PointerCapture.reset()
+
     @Test fun aCapturedMouseReportsItsPositionAsMovement() {
         val event = event(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_MOUSE_RELATIVE, x = 12f, y = -7f)
         try {
@@ -43,6 +46,60 @@ class PointerCaptureTest {
             assertFalse(PointerCapture.accepts(event))
         } finally {
             event.recycle()
+        }
+    }
+
+    @Test fun aCapturedTouchpadWithoutRelativeAxesFallsBackToItsPositions() {
+        val down = event(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHPAD, x = 500f, y = 300f)
+        try {
+            PointerCapture.track(down)
+        } finally {
+            down.recycle()
+        }
+        val move = event(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHPAD, x = 510f, y = 295f)
+        try {
+            assertArrayEquals(floatArrayOf(10f, -5f), PointerCapture.delta(move), 0.001f)
+        } finally {
+            move.recycle()
+        }
+    }
+
+    @Test fun theRelativeAxesWinWhenTheTouchpadReportsThem() {
+        val down = event(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHPAD, x = 500f, y = 300f)
+        try {
+            PointerCapture.track(down)
+        } finally {
+            down.recycle()
+        }
+        val move = event(
+            MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHPAD,
+            x = 800f, y = 400f, relativeX = 3f, relativeY = -5f,
+        )
+        try {
+            assertArrayEquals(floatArrayOf(3f, -5f), PointerCapture.delta(move), 0.001f)
+        } finally {
+            move.recycle()
+        }
+    }
+
+    @Test fun aLiftedTouchpadPointerStartsFromANewPosition() {
+        val down = event(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHPAD, x = 500f, y = 300f)
+        try {
+            PointerCapture.track(down)
+        } finally {
+            down.recycle()
+        }
+        val up = event(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHPAD, x = 500f, y = 300f)
+        try {
+            PointerCapture.track(up)
+        } finally {
+            up.recycle()
+        }
+        val move = event(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHPAD, x = 800f, y = 400f)
+        try {
+            assertArrayEquals(floatArrayOf(0f, 0f), PointerCapture.delta(move), 0.001f)
+        } finally {
+            move.recycle()
         }
     }
 
