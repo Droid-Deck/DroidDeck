@@ -36,8 +36,10 @@ object UbisoftActivation {
             var idleSince = 0L
             while (true) {
                 runCatching {
-                    val owner = synchronized(watching) { owners[product] }
                     val marker = File(dir, INVALIDATE)
+                    val (owner, requests) = synchronized(watching) {
+                        owners[product] to dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }.orEmpty()
+                    }
                     if (marker.exists()) {
                         val named = runCatching { marker.readText().trim() }.getOrNull()?.takeIf { it.isNotEmpty() }
                         val issuer = named ?: owner
@@ -49,7 +51,7 @@ object UbisoftActivation {
                         }
                     }
                     val pending = marker.exists()
-                    dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }?.forEach { answer(app, product, it, owner, pending) }
+                    requests.forEach { answer(app, product, it, owner, pending) }
                 }
                     .onFailure { StoresState.logLine("Ubisoft: activation for $product: ${it.javaClass.simpleName}") }
                 val now = System.currentTimeMillis()
