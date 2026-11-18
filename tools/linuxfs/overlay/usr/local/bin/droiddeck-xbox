@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import hashlib
 import hmac
 import json
 import os
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import xml.etree.ElementTree as ElementTree
 
 BIN = Path(__file__).resolve().parent
 RUNTIME = Path('/usr/local/lib/droiddeck-xbox')
@@ -137,6 +139,117 @@ def register_classes(proton, prefix, env):
         print('droiddeck-xbox: Windows Runtime class registration failed; launching without it', file=sys.stderr)
 
 
+def game_config(exe):
+    path = Path(exe)
+    if not path.is_absolute():
+        return None
+    for folder in list(path.parents)[:4]:
+        config = folder / 'MicrosoftGame.config'
+        if config.is_file():
+            return config
+    return None
+
+
+def windows_arguments(text):
+    arguments, current, quoted, started, at = [], [], False, False, 0
+    while at < len(text):
+        char = text[at]
+        if char == '\\':
+            run = len(text) - at - len(text[at:].lstrip('\\'))
+            at += run
+            if at < len(text) and text[at] == '"':
+                current.append('\\' * (run // 2))
+                if run % 2:
+                    current.append('"')
+                    at += 1
+            else:
+                current.append('\\' * run)
+            started = True
+            continue
+        if char == '"':
+            if quoted and text[at + 1:at + 2] == '"':
+                current.append('"')
+                at += 2
+                continue
+            quoted = not quoted
+            started = True
+        elif char in ' \t' and not quoted:
+            if started:
+                arguments.append(''.join(current))
+                current, started = [], False
+        else:
+            current.append(char)
+            started = True
+        at += 1
+    if started:
+        arguments.append(''.join(current))
+    return arguments
+
+
+def install_actions(config):
+    try:
+        root = ElementTree.fromstring(config.read_bytes())
+    except (OSError, ElementTree.ParseError):
+        return []
+    actions = []
+    for registration in root.iter():
+        if registration.tag.rsplit('}', 1)[-1] != 'CustomInstallActions':
+            continue
+        folder = next((node.text or '' for node in registration if node.tag.rsplit('}', 1)[-1] == 'Folder'), '')
+        for node in registration.iter():
+            if node.tag.rsplit('}', 1)[-1] != 'InstallAction':
+                continue
+            name, file = node.get('Name', ''), node.get('File', '')
+            parts = [part for part in (folder.strip() + '\\' + file).replace('/', '\\').split('\\') if part]
+            if not name or not file or any(part in ('.', '..') or ':' in part for part in parts):
+                continue
+            target = config.parent.joinpath(*parts)
+            try:
+                inside = target.resolve().is_relative_to(config.parent.resolve())
+            except OSError:
+                inside = False
+            if inside and target.is_file() and target.suffix.lower() in ('.msi', '.exe'):
+                actions.append((name, target, windows_arguments(node.get('Arguments', ''))))
+    return actions
+
+
+def run_install_actions(proton, prefix, exe, env):
+    config = game_config(exe)
+    if config is None:
+        return
+    done = prefix / 'drive_c' / 'ProgramData' / 'DroidDeck' / 'install-actions'
+    for name, target, arguments in install_actions(config):
+        try:
+            content = hashlib.sha256()
+            with target.open('rb') as source:
+                for block in iter(lambda: source.read(1 << 20), b''):
+                    content.update(block)
+            identity = hashlib.sha256(name.encode('utf-8') + b'\0' + content.digest()).hexdigest()[:24]
+            marker = done / ('%s-%s' % (''.join(c for c in name if c.isalnum() or c in '-_')[:64], identity))
+            if marker.exists():
+                continue
+        except OSError as error:
+            print('droiddeck-xbox: install action %s could not be read (%s); launching without it' % (name, error), file=sys.stderr)
+            continue
+        windows = 'Z:' + str(target).replace('/', '\\')
+        if target.suffix.lower() == '.msi':
+            command = [proton, 'run', 'msiexec', '/i', windows, *arguments]
+        else:
+            command = [proton, 'run', windows, *arguments]
+        try:
+            code = subprocess.run(command, stdout=sys.stderr, env=env, timeout=600).returncode
+        except (OSError, subprocess.TimeoutExpired):
+            code = None
+        if code != 0:
+            print('droiddeck-xbox: install action %s did not finish; launching without it' % name, file=sys.stderr)
+            continue
+        try:
+            done.mkdir(parents=True, exist_ok=True)
+            marker.touch()
+        except OSError as error:
+            print('droiddeck-xbox: install action %s finished but could not be recorded (%s)' % (name, error), file=sys.stderr)
+
+
 def view_drive(prefix, exe):
     path = Path(exe)
     view = next((parent for parent in path.parents if parent.name.startswith('droiddeck-xbox-')), None)
@@ -184,6 +297,7 @@ def wine(argv, source_env=None):
             target.unlink()
         shutil.copyfile(RUNTIME / 'windows' / name, target)
     register_classes(command[0], prefix, env)
+    run_install_actions(command[0], prefix, argv[0], env)
     overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
     env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
     exe, drive = view_drive(prefix, argv[0])
