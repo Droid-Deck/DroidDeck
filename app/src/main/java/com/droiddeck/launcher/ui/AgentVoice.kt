@@ -1,22 +1,22 @@
 package com.droiddeck.launcher.ui
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.content.ServiceConnection
+import android.os.Build
+import android.os.IBinder
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import com.droiddeck.launcher.R
 
 /**
  * Dictation into the Agent editor: what is heard so far follows the text already typed, until the user edits the draft.
@@ -30,6 +30,8 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
     /** How loud the speech is, from 0 to 1. */
     var level by mutableFloatStateOf(0f)
         private set
+    /** Set when the speech service could not open the microphone, which a fresh install of Speech Services by Google cannot until allowed. */
+    var serviceMicBlocked by mutableStateOf(false)
     private var recognizer: SpeechRecognizer? = null
     private var typed = ""
     private var base = ""
@@ -40,8 +42,10 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
 
     fun start(typed: String) {
         stop()
-        val speech = runCatching { SpeechRecognizer.createSpeechRecognizer(context) }.getOrNull() ?: return
+        val service = component(context)
+        val speech = runCatching { SpeechRecognizer.createSpeechRecognizer(context, service) }.getOrNull() ?: return
         recognizer = speech
+        if (service != null && !isDefault(context)) lend(service)
         this.typed = typed
         base = continued(typed)
         written = typed
@@ -58,7 +62,7 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
                 // The recognizer gives up on a pause; the user is still talking until they let go or stop.
                 if (!finishing && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) relisten(speech) else {
                     done()
-                    if (error == SpeechRecognizer.ERROR_AUDIO || error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) micBlocked()
+                    if (error == SpeechRecognizer.ERROR_AUDIO || error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) serviceMicBlocked = true
                 }
             }
             override fun onResults(results: Bundle?) {
@@ -97,14 +101,6 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
         onText(written)
     }
 
-    // Speech Services by Google does not ask for the microphone itself, so a fresh install fails until it is allowed in its settings.
-    private fun micBlocked() {
-        val service = context.packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0).firstOrNull()?.serviceInfo?.packageName ?: return
-        Toast.makeText(context, R.string.agent_voice_service_mic, Toast.LENGTH_LONG).show()
-        val settings = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", service, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { context.startActivity(settings) }
-    }
-
     /** Ends listening but keeps the recognizer until its final result arrives, then runs [then]. */
     fun finish(then: (() -> Unit)? = null) {
         val speech = recognizer ?: return
@@ -131,7 +127,23 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
         if (restore) onText(typed)
     }
 
+    private var lent: ServiceConnection? = null
+
+    // Android passes the microphone only to the default speech service on its own; any other one records silence unless
+    // the app in front binds it with its own capabilities for as long as it listens.
+    private fun lend(service: ComponentName) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {}
+            override fun onServiceDisconnected(name: ComponentName?) {}
+        }
+        val intent = Intent(RecognitionService.SERVICE_INTERFACE).setComponent(service)
+        if (runCatching { context.bindService(intent, connection, Context.BIND_AUTO_CREATE or Context.BIND_INCLUDE_CAPABILITIES) }.getOrDefault(false)) lent = connection
+    }
+
     fun stop() {
+        lent?.let { runCatching { context.unbindService(it) } }
+        lent = null
         then = null
         listening = false
         locked = false
@@ -146,5 +158,35 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
         private const val FINAL_RESULT_TIMEOUT_MS = 3000L
 
         fun available(context: Context) = SpeechRecognizer.isRecognitionAvailable(context)
+
+        /** The package that turns speech into text, if one is installed. */
+        fun service(context: Context): String? = component(context)?.packageName
+
+        const val DEFAULT_SETTING = "voice_recognition_service"
+
+        private fun chosen(context: Context) = android.provider.Settings.Secure.getString(context.contentResolver, DEFAULT_SETTING)
+            ?.takeIf { it.isNotBlank() }?.let(ComponentName::unflattenFromString)
+
+        private fun installed(context: Context) = context.packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
+            .map { ComponentName(it.serviceInfo.packageName, it.serviceInfo.name) }
+
+        // Installing a speech service does not always make it the system's choice, and without one Android refuses to listen.
+        fun component(context: Context): ComponentName? {
+            val chosen = chosen(context)
+            val installed = installed(context)
+            return installed.firstOrNull { it == chosen } ?: installed.firstOrNull()
+        }
+
+        /**
+         * Whether the installed service is the system's chosen one. Android only passes DroidDeck's right to the microphone on to that one;
+         * any other service hears silence once DroidDeck is in front.
+         */
+        fun isDefault(context: Context): Boolean {
+            val chosen = chosen(context) ?: return false
+            return chosen in installed(context)
+        }
+
+        fun serviceHears(context: Context, service: String) =
+            context.packageManager.checkPermission(android.Manifest.permission.RECORD_AUDIO, service) == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 }

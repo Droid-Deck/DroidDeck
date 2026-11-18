@@ -708,6 +708,13 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     var draft by draftState
     val voice = remember { AgentVoice(context.applicationContext, { draftState.value }) { draftState.value = it } }
     DisposableEffect(voice) { onDispose { voice.stop() } }
+    var voiceSetup by remember { mutableStateOf(false) }
+    LaunchedEffect(voice.serviceMicBlocked) {
+        if (voice.serviceMicBlocked) {
+            voice.serviceMicBlocked = false
+            voiceSetup = true
+        }
+    }
     LaunchedEffect(visible) { if (!visible) voice.stop() }
     val working = AgentHost.state == AgentHost.State.WORKING
     if (draft.startsWith("/") && !draft.contains(' ')) {
@@ -728,6 +735,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     ) {
         for (path in AgentAttachments.pending.toList()) AttachmentChip(path) { AgentAttachments.pending.remove(path) }
     }
+    if (voiceSetup) AgentVoiceSetup(onReady = { voiceSetup = false }, onClose = { voiceSetup = false })
     var focused by remember { mutableStateOf(false) }
     val field = remember { FocusRequester() }
     LaunchedEffect(composer.focusRequests) { if (composer.hasUnconsumedFocusRequest()) runCatching { field.requestFocus() } }
@@ -775,7 +783,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
             }
             val canSend = draft.isNotBlank() || AgentAttachments.pending.isNotEmpty()
             // An empty message has nothing to send, so the button there dictates one instead.
-            if (!canSend || voice.listening) VoiceButton(voice, onStart = { voice.start(draft) }, onSend = send)
+            if (!canSend || voice.listening) VoiceButton(voice, onStart = { voice.start(draft) }, onSend = send, onSetup = { voiceSetup = true })
             if (voice.listening && voice.locked) RoundButton(
                 Icons.AutoMirrored.Outlined.Send, stringResource(if (working) R.string.agent_queue else R.string.agent_send),
                 pal.primary, pal.onPrimary, "agent-send",
@@ -811,37 +819,21 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
  * A tap or a controller press also listens hands-free.
  */
 @Composable
-private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit, onSend: () -> Unit) {
+private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit, onSend: () -> Unit, onSetup: () -> Unit) {
     val context = LocalContext.current
     val pal = LocalPalette.current
     val start by rememberUpdatedState(onStart)
     val send by rememberUpdatedState(onSend)
+    val setup by rememberUpdatedState(onSetup)
     val handsFree = {
         start()
         if (voice.listening) voice.locked = true
     }
-    val ask = if (LocalActivityResultRegistryOwner.current != null) rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) handsFree() else android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
-    } else null
-    val granted = { context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED }
-    val askPermission = {
-        if (ask != null) ask.launch(android.Manifest.permission.RECORD_AUDIO)
-        else android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
-    }
-    // Without a speech service there is nothing to listen with, so the mic offers Google's.
-    val missing = {
-        android.widget.Toast.makeText(context, R.string.agent_voice_missing, android.widget.Toast.LENGTH_SHORT).show()
-        val store = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=$SPEECH_SERVICES"))
-            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { context.startActivity(store) }
-        Unit
-    }
     val toggle = {
         when {
             voice.listening -> voice.finish()
-            !AgentVoice.available(context) -> missing()
-            granted() -> handsFree()
-            else -> askPermission()
+            !voiceReady(context) -> setup()
+            else -> handsFree()
         }
     }
     val density = LocalDensity.current
@@ -866,7 +858,7 @@ private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit, onSend: () -> Un
                 awaitEachGesture {
                     val down = awaitFirstDown(pass = PointerEventPass.Initial)
                     down.consume()
-                    if (voice.listening || !granted() || !AgentVoice.available(context)) {
+                    if (voice.listening || !voiceReady(context)) {
                         waitForUpOrCancellation(PointerEventPass.Initial)?.let {
                             it.consume()
                             toggle()
@@ -912,8 +904,6 @@ private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit, onSend: () -> Un
         )
     }
 }
-
-private const val SPEECH_SERVICES = "com.google.android.tts"
 
 /** Attaches what the running game shows, taken from its own surface so nothing drawn over it is in the picture. */
 @Composable
