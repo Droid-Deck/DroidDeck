@@ -103,6 +103,21 @@ class PointerCaptureTest {
         }
     }
 
+    @Test fun positionsAreKeptPerDevice() {
+        val down = event(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHPAD, x = 500f, y = 300f, device = 1)
+        try {
+            PointerCapture.track(down)
+        } finally {
+            down.recycle()
+        }
+        val other = event(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHPAD, x = 800f, y = 400f, device = 2)
+        try {
+            assertArrayEquals(floatArrayOf(0f, 0f), PointerCapture.delta(other), 0.001f)
+        } finally {
+            other.recycle()
+        }
+    }
+
     @Test fun batchedTouchpadSamplesAddUp() {
         val event = event(
             MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHPAD,
@@ -135,6 +150,7 @@ class PointerCaptureTest {
         y: Float,
         relativeX: Float = 0f,
         relativeY: Float = 0f,
+        device: Int = 0,
     ): MotionEvent {
         val properties = arrayOf(MotionEvent.PointerProperties().apply {
             id = 0
@@ -143,7 +159,7 @@ class PointerCaptureTest {
         return MotionEvent.obtain(
             0L, 0L, action, 1, properties,
             arrayOf(coords(x, y, relativeX, relativeY)),
-            0, 0, 1f, 1f, 0, 0, source, 0,
+            0, 0, 1f, 1f, device, 0, source, 0,
         )
     }
 }
