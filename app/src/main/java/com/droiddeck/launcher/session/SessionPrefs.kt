@@ -315,6 +315,16 @@ object SessionPrefs {
 
     fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
 
+    private val LEGACY_STORES_TAB_ORDER = listOf("gog", "epic", "amazon", "xbox", "itch", "gamejolt", "battlenet", "ubisoft", "ea", "rockstar")
+
+    /** Moves an order the user never arranged onto the current default, which the Library pills follow too. */
+    fun settleStoresTabOrder(context: Context, defaults: List<String>) {
+        if (storesTabOrderCustomized(context)) return
+        val saved = storesTabOrder(context)
+        if (saved.isNotEmpty() && saved != LEGACY_STORES_TAB_ORDER) setStoresTabOrderCustomized(context, true)
+        else setStoresTabOrder(context, defaults)
+    }
+
     fun setStoresTabOrder(context: Context, order: List<String>) {
         prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
     }

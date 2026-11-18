@@ -155,18 +155,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val padH = if (narrow) 14.dp else 22.dp
     val tabs = remember {
         androidx.compose.runtime.mutableStateListOf<StoreTab>().apply {
-            val savedOrder = SessionPrefs.storesTabOrder(ctx)
-            if (!SessionPrefs.storesTabOrderCustomized(ctx)) {
-                val legacyOrder = listOf(
-                    "gog", "epic", "amazon", "xbox", "itch",
-                    "gamejolt", "battlenet", "ubisoft", "ea", "rockstar"
-                )
-                if (savedOrder.isNotEmpty() && savedOrder != legacyOrder) {
-                    SessionPrefs.setStoresTabOrderCustomized(ctx, true)
-                } else {
-                    SessionPrefs.setStoresTabOrder(ctx, Store.entries.map { it.id })
-                }
-            }
+            SessionPrefs.settleStoresTabOrder(ctx, Store.entries.map { it.id })
             addAll(arrangeStoreTabs(SessionPrefs.storesTabOrder(ctx), SessionPrefs.storesTabHidden(ctx)))
         }
     }
