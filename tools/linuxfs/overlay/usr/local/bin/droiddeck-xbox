@@ -150,6 +150,42 @@ def game_config(exe):
     return None
 
 
+def windows_arguments(text):
+    arguments, current, quoted, started, at = [], [], False, False, 0
+    while at < len(text):
+        char = text[at]
+        if char == '\\':
+            run = len(text) - at - len(text[at:].lstrip('\\'))
+            at += run
+            if at < len(text) and text[at] == '"':
+                current.append('\\' * (run // 2))
+                if run % 2:
+                    current.append('"')
+                    at += 1
+            else:
+                current.append('\\' * run)
+            started = True
+            continue
+        if char == '"':
+            if quoted and text[at + 1:at + 2] == '"':
+                current.append('"')
+                at += 2
+                continue
+            quoted = not quoted
+            started = True
+        elif char in ' \t' and not quoted:
+            if started:
+                arguments.append(''.join(current))
+                current, started = [], False
+        else:
+            current.append(char)
+            started = True
+        at += 1
+    if started:
+        arguments.append(''.join(current))
+    return arguments
+
+
 def install_actions(config):
     try:
         root = ElementTree.fromstring(config.read_bytes())
@@ -173,7 +209,7 @@ def install_actions(config):
             except OSError:
                 inside = False
             if inside and target.is_file() and target.suffix.lower() in ('.msi', '.exe'):
-                actions.append((name, target, node.get('Arguments', '').split()))
+                actions.append((name, target, windows_arguments(node.get('Arguments', ''))))
     return actions
 
 
@@ -183,9 +219,17 @@ def run_install_actions(proton, prefix, exe, env):
         return
     done = prefix / 'drive_c' / 'ProgramData' / 'DroidDeck' / 'install-actions'
     for name, target, arguments in install_actions(config):
-        digest = hashlib.sha256(target.read_bytes()).hexdigest()[:16]
-        marker = done / ('%s-%s' % (''.join(c for c in name if c.isalnum() or c in '-_')[:64], digest))
-        if marker.exists():
+        try:
+            content = hashlib.sha256()
+            with target.open('rb') as source:
+                for block in iter(lambda: source.read(1 << 20), b''):
+                    content.update(block)
+            identity = hashlib.sha256(name.encode('utf-8') + b'\0' + content.digest()).hexdigest()[:24]
+            marker = done / ('%s-%s' % (''.join(c for c in name if c.isalnum() or c in '-_')[:64], identity))
+            if marker.exists():
+                continue
+        except OSError as error:
+            print('droiddeck-xbox: install action %s could not be read (%s); launching without it' % (name, error), file=sys.stderr)
             continue
         windows = 'Z:' + str(target).replace('/', '\\')
         if target.suffix.lower() == '.msi':
@@ -194,13 +238,16 @@ def run_install_actions(proton, prefix, exe, env):
             command = [proton, 'run', windows, *arguments]
         try:
             code = subprocess.run(command, stdout=sys.stderr, env=env, timeout=600).returncode
-        except subprocess.TimeoutExpired:
+        except (OSError, subprocess.TimeoutExpired):
             code = None
-        if code == 0:
+        if code != 0:
+            print('droiddeck-xbox: install action %s did not finish; launching without it' % name, file=sys.stderr)
+            continue
+        try:
             done.mkdir(parents=True, exist_ok=True)
             marker.touch()
-        else:
-            print('droiddeck-xbox: install action %s did not finish; launching without it' % name, file=sys.stderr)
+        except OSError as error:
+            print('droiddeck-xbox: install action %s finished but could not be recorded (%s)' % (name, error), file=sys.stderr)
 
 
 def view_drive(prefix, exe):

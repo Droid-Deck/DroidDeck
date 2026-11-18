@@ -167,12 +167,12 @@ index 825c24e..c23f637 100644
  pub mod native_social;
 diff --git a/crates/xodus-cli/src/commands/msixvc2.rs b/crates/xodus-cli/src/commands/msixvc2.rs
 new file mode 100644
-index 0000000..68904af
+index 0000000..0422d5b
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/msixvc2.rs
-@@ -0,0 +1,565 @@
-+use std::collections::HashMap;
-+use std::io::{Read, Write};
+@@ -0,0 +1,708 @@
++use std::collections::{HashMap, HashSet};
++use std::io::{ErrorKind, Read, Write};
 +use std::path::{Component, Path, PathBuf};
 +
 +use aes::cipher::{BlockModeDecrypt, KeyIvInit, block_padding::NoPadding};
@@ -187,6 +187,9 @@ index 0000000..68904af
 +const PARALLEL: usize = 6;
 +const BROTLI: u64 = 2;
 +const DEFLATE: u64 = 1;
++const STATE: &str = ".droiddeck-install";
++const PARTIAL: &str = "partial";
++const VERIFIED: &str = "verified";
 +
 +pub fn is_package(folder: &Path) -> bool {
 +    folder.join("XboxPackage.cbor").is_file()
@@ -231,12 +234,72 @@ index 0000000..68904af
 +    }
 +
 +    pub fn remaining(&self, out: &Path) -> u64 {
-+        self.entries
-+            .iter()
-+            .filter(|entry| !std::fs::metadata(out.join(&entry.path)).is_ok_and(|meta| meta.is_file() && meta.len() == entry.size))
-+            .map(|entry| entry.size)
-+            .sum()
++        let root = out.canonicalize().unwrap_or_else(|_| out.to_path_buf());
++        let verified = verified(&root);
++        self.entries.iter().filter(|entry| !complete(&root, entry, &verified)).map(|entry| entry.size).sum()
 +    }
++}
++
++fn identity(entry: &Entry) -> String {
++    let mut digest = Sha384::new();
++    digest.update(entry.path.to_string_lossy().as_bytes());
++    digest.update([0]);
++    digest.update(entry.size.to_be_bytes());
++    match &entry.hash {
++        Some(hash) => digest.update(hash),
++        None => entry.segments.iter().for_each(|segment| digest.update(&segment.hash)),
++    }
++    digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
++}
++
++fn verified(root: &Path) -> HashSet<String> {
++    let record = root.join(STATE).join(VERIFIED);
++    if !std::fs::symlink_metadata(&record).is_ok_and(|meta| meta.is_file()) {
++        return HashSet::new();
++    }
++    std::fs::read_to_string(record).unwrap_or_default().lines().map(str::to_owned).collect()
++}
++
++fn complete(root: &Path, entry: &Entry, verified: &HashSet<String>) -> bool {
++    verified.contains(&identity(entry))
++        && std::fs::symlink_metadata(root.join(&entry.path)).is_ok_and(|meta| meta.is_file() && meta.len() == entry.size)
++}
++
++fn folder(root: &Path, relative: &Path) -> Result<PathBuf, String> {
++    let mut at = root.to_path_buf();
++    for part in relative.components() {
++        at.push(part);
++        match std::fs::symlink_metadata(&at) {
++            Ok(meta) if meta.is_dir() => {}
++            Ok(_) => return Err("The game folder holds a link or file where a folder belongs".into()),
++            Err(error) if error.kind() == ErrorKind::NotFound => match std::fs::create_dir(&at) {
++                Ok(()) => {}
++                Err(error) if error.kind() == ErrorKind::AlreadyExists && std::fs::symlink_metadata(&at).is_ok_and(|meta| meta.is_dir()) => {}
++                Err(error) => return Err(format!("Could not create a game folder: {error}")),
++            },
++            Err(error) => return Err(format!("Could not read the game folder: {error}")),
++        }
++    }
++    Ok(at)
++}
++
++fn place(root: &Path, relative: &Path) -> Result<PathBuf, String> {
++    let parent = folder(root, relative.parent().unwrap_or(Path::new("")))?;
++    let target = parent.join(relative.file_name().ok_or("The package names an unusable file path")?);
++    match std::fs::symlink_metadata(&target) {
++        Ok(meta) if !meta.is_file() => Err("The game folder holds a link or folder where a file belongs".into()),
++        _ => Ok(target),
++    }
++}
++
++pub fn reclaim(out: &Path) -> Result<(), String> {
++    let partial = out.join(STATE).join(PARTIAL);
++    match std::fs::symlink_metadata(&partial) {
++        Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(&partial),
++        Ok(_) => std::fs::remove_file(&partial),
++        Err(_) => Ok(()),
++    }
++    .map_err(|error| format!("Could not clear an unfinished download: {error}"))
 +}
 +
 +pub async fn plan(client: &reqwest::Client, folder: &Path, content_keys: &HashMap<[u8; 16], [u8; 32]>) -> Result<Plan, String> {
@@ -292,20 +355,25 @@ index 0000000..68904af
 +}
 +
 +pub async fn install(client: &reqwest::Client, plan: &Plan, out: &Path, progress: &(dyn Fn(u64) + Sync)) -> Result<(), String> {
-+    for entry in &plan.entries {
-+        let target = out.join(&entry.path);
-+        if std::fs::metadata(&target).is_ok_and(|meta| meta.is_file() && meta.len() == entry.size) {
++    let root = out.canonicalize().map_err(|error| format!("Could not open the game folder: {error}"))?;
++    let verified = verified(&root);
++    let record = place(&root, &Path::new(STATE).join(VERIFIED))?;
++    for (index, entry) in plan.entries.iter().enumerate() {
++        if complete(&root, entry, &verified) {
 +            progress(entry.size);
 +            continue;
 +        }
-+        if let Some(parent) = target.parent() {
-+            std::fs::create_dir_all(parent).map_err(|error| format!("Could not create a game folder: {error}"))?;
++        let target = place(&root, &entry.path)?;
++        let partial = folder(&root, &Path::new(STATE).join(PARTIAL))?.join(index.to_string());
++        match std::fs::remove_file(&partial) {
++            Err(error) if error.kind() != ErrorKind::NotFound => return Err(format!("Could not clear an unfinished download: {error}")),
++            _ => {}
 +        }
-+        let partial = target.with_file_name(format!(
-+            "{}.part",
-+            target.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()
-+        ));
-+        let mut file = std::fs::File::create(&partial).map_err(|error| format!("Could not write a game file: {error}"))?;
++        let mut file = std::fs::OpenOptions::new()
++            .write(true)
++            .create_new(true)
++            .open(&partial)
++            .map_err(|error| format!("Could not write a game file: {error}"))?;
 +        let mut digest = Sha384::new();
 +        let mut results = stream::iter(requests(&entry.segments))
 +            .map(|request| fetch_request(client, plan, request))
@@ -317,7 +385,7 @@ index 0000000..68904af
 +                progress(plain.len() as u64);
 +            }
 +        }
-+        file.flush().map_err(|error| format!("Could not write a game file: {error}"))?;
++        file.sync_all().map_err(|error| format!("Could not write a game file: {error}"))?;
 +        drop(file);
 +        if let Some(expected) = &entry.hash
 +            && digest.finalize().as_slice() != expected.as_slice()
@@ -325,9 +393,18 @@ index 0000000..68904af
 +            std::fs::remove_file(&partial).ok();
 +            return Err("A downloaded game file failed verification".into());
 +        }
++        if place(&root, &entry.path)? != target {
++            return Err("The game folder changed during the install".into());
++        }
 +        std::fs::rename(&partial, &target).map_err(|error| format!("Could not finish a game file: {error}"))?;
++        std::fs::OpenOptions::new()
++            .create(true)
++            .append(true)
++            .open(&record)
++            .and_then(|mut file| writeln!(file, "{}", identity(entry)))
++            .map_err(|error| format!("Could not record a finished game file: {error}"))?;
 +    }
-+    Ok(())
++    reclaim(&root)
 +}
 +
 +struct Request<'a> {
@@ -539,7 +616,11 @@ index 0000000..68904af
 +
 +fn relative(name: &str) -> Result<PathBuf, String> {
 +    let path = PathBuf::from(name.replace('\\', "/"));
-+    if name.is_empty() || name.contains(':') || !path.components().all(|part| matches!(part, Component::Normal(_))) {
++    if name.is_empty()
++        || name.contains(':')
++        || !path.components().all(|part| matches!(part, Component::Normal(_)))
++        || path.components().next().is_some_and(|part| part.as_os_str().to_string_lossy().eq_ignore_ascii_case(STATE))
++    {
 +        return Err("The package names an unusable file path".into());
 +    }
 +    Ok(path)
@@ -703,22 +784,84 @@ index 0000000..68904af
 +        assert_eq!(found[2].wrap_iv[14..], [0x01, 0x01]);
 +    }
 +
++    fn empty(path: &str) -> Entry {
++        Entry { path: PathBuf::from(path), size: 0, hash: Some(Sha384::digest(b"").to_vec()), segments: vec![] }
++    }
++
++    fn plan_of(entries: Vec<Entry>) -> Plan {
++        Plan { entries, boxes: vec![], package_key: [0; 32] }
++    }
++
++    async fn run(plan: &Plan, out: &Path) -> Result<(), String> {
++        install(&reqwest::Client::new(), plan, out, &|_| {}).await
++    }
++
 +    #[test]
-+    fn only_files_not_yet_complete_count_toward_the_space_needed() {
++    fn only_files_verified_by_an_install_count_as_complete() {
 +        let root = tempfile::tempdir().unwrap();
 +        let (segment, _) = sealed(b"x", &[1; 32]);
 +        let entry = |path: &str, size: u64| Entry { path: PathBuf::from(path), size, hash: None, segments: vec![segment.clone()] };
-+        let plan = Plan { entries: vec![entry("done.bin", 4), entry("partial.bin", 10), entry("missing.bin", 7)], boxes: vec![], package_key: [0; 32] };
++        let plan = plan_of(vec![entry("done.bin", 4), entry("partial.bin", 10), entry("missing.bin", 7)]);
 +        std::fs::write(root.path().join("done.bin"), b"abcd").unwrap();
 +        std::fs::write(root.path().join("partial.bin"), b"abc").unwrap();
 +        assert_eq!(plan.total(), 21);
++        assert_eq!(plan.remaining(root.path()), 21);
++        std::fs::create_dir(root.path().join(STATE)).unwrap();
++        std::fs::write(root.path().join(STATE).join(VERIFIED), format!("{}\n", identity(&plan.entries[0]))).unwrap();
 +        assert_eq!(plan.remaining(root.path()), 17);
++        std::fs::write(root.path().join("done.bin"), b"abcde").unwrap();
++        assert_eq!(plan.remaining(root.path()), 21);
++    }
++
++    #[tokio::test]
++    async fn a_planned_name_never_serves_as_another_files_partial() {
++        let root = tempfile::tempdir().unwrap();
++        let plan = plan_of(vec![empty("data.bin.part"), empty("data.bin")]);
++        run(&plan, root.path()).await.unwrap();
++        assert!(root.path().join("data.bin.part").is_file());
++        assert!(root.path().join("data.bin").is_file());
++        assert_eq!(plan.remaining(root.path()), 0);
++        assert!(!root.path().join(STATE).join(PARTIAL).exists());
++    }
++
++    #[cfg(unix)]
++    #[tokio::test]
++    async fn a_linked_folder_inside_the_install_is_refused_and_a_linked_root_is_followed() {
++        let root = tempfile::tempdir().unwrap();
++        let outside = tempfile::tempdir().unwrap();
++        std::os::unix::fs::symlink(outside.path(), root.path().join("Data")).unwrap();
++        assert!(run(&plan_of(vec![empty("Data/game.bin")]), root.path()).await.is_err());
++        assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
++        std::fs::create_dir_all(root.path().join(STATE).join(PARTIAL)).unwrap();
++        std::fs::write(outside.path().join("victim"), b"keep").unwrap();
++        std::os::unix::fs::symlink(outside.path().join("victim"), root.path().join(STATE).join(PARTIAL).join("0")).unwrap();
++        run(&plan_of(vec![empty("game.bin")]), root.path()).await.unwrap();
++        assert_eq!(std::fs::read(outside.path().join("victim")).unwrap(), b"keep");
++        let real = tempfile::tempdir().unwrap();
++        let link = root.path().join("linked-root");
++        std::os::unix::fs::symlink(real.path(), &link).unwrap();
++        run(&plan_of(vec![empty("Bin/game.bin")]), &link).await.unwrap();
++        assert!(real.path().join("Bin/game.bin").is_file());
++    }
++
++    #[test]
++    fn reclaiming_clears_only_unfinished_downloads() {
++        let root = tempfile::tempdir().unwrap();
++        std::fs::create_dir_all(root.path().join(STATE).join(PARTIAL)).unwrap();
++        std::fs::write(root.path().join(STATE).join(PARTIAL).join("0"), vec![0; 4096]).unwrap();
++        std::fs::write(root.path().join(STATE).join(VERIFIED), b"x\n").unwrap();
++        std::fs::write(root.path().join("game.bin"), b"done").unwrap();
++        reclaim(root.path()).unwrap();
++        assert!(!root.path().join(STATE).join(PARTIAL).exists());
++        assert!(root.path().join(STATE).join(VERIFIED).is_file());
++        assert!(root.path().join("game.bin").is_file());
++        reclaim(root.path()).unwrap();
 +    }
 +
 +    #[test]
 +    fn package_paths_stay_inside_the_install_folder() {
 +        assert_eq!(relative("EmuMenu\\EmuMenu.exe").unwrap(), PathBuf::from("EmuMenu/EmuMenu.exe"));
-+        for bad in ["", "..\\x", "/abs", "a\\..\\..\\b", "C:\\x"] {
++        for bad in ["", "..\\x", "/abs", "a\\..\\..\\b", "C:\\x", ".DroidDeck-Install\\verified"] {
 +            assert!(relative(bad).is_err(), "{bad}");
 +        }
 +    }
@@ -775,7 +918,7 @@ index 7fec6e5..d34b402 100644
  pub async fn resolve_frameworks(client: &reqwest::Client, category: &str) -> Result<Delivery, String> {
      resolve_wanted(client, category, false, |name| name.to_ascii_lowercase().ends_with(".appx")).await
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index 8e9d0e0..05a4880 100644
+index 8e9d0e0..426de96 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -361,7 +361,11 @@ where
@@ -791,7 +934,7 @@ index 8e9d0e0..05a4880 100644
      }
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
-@@ -853,6 +857,79 @@ async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &P
+@@ -853,6 +857,82 @@ async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &P
      }
  }
  
@@ -832,6 +975,9 @@ index 8e9d0e0..05a4880 100644
 +        Ok(plan) => plan,
 +        Err(error) => return fail(&error),
 +    };
++    if let Err(error) = crate::commands::msixvc2::reclaim(out) {
++        return fail(&error);
++    }
 +    let total = plan.total();
 +    let needed = plan.remaining(out);
 +    if let Ok(free) = available_space(out)

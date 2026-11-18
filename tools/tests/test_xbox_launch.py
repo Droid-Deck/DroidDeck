@@ -213,6 +213,66 @@ class XboxLaunchTest(unittest.TestCase):
             self.assertEqual(child.call_count, 2)
             self.assertEqual(child.call_args.args[0][:2], ['/p', 'run'])
 
+    def test_install_action_arguments_follow_windows_command_line_rules(self):
+        parse = xbox['windows_arguments']
+        self.assertEqual(parse('/quiet /log "C:\\ProgramData\\Game Setup\\install.log"'),
+                         ['/quiet', '/log', 'C:\\ProgramData\\Game Setup\\install.log'])
+        self.assertEqual(parse('a\\\\b "x\\"y" "\\\\" ""  c""d "e""f"'), ['a\\\\b', 'x"y', '\\', '', 'cd', 'e"f'])
+        self.assertEqual(parse('  '), [])
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            game.mkdir()
+            (game / 'setup.msi').write_bytes(b'msi')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><CustomInstallActions><InstallActionList><InstallAction File="setup.msi" Name="Setup" '
+                'Arguments="/quiet /log &quot;C:\\ProgramData\\Game Setup\\install.log&quot;"/>'
+                '</InstallActionList></CustomInstallActions></Game>')
+            with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.msi'), {})
+            self.assertEqual(child.call_args.args[0][5:], ['/quiet', '/log', 'C:\\ProgramData\\Game Setup\\install.log'])
+
+    def test_actions_whose_names_differ_only_in_punctuation_each_run(self):
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            game.mkdir()
+            (game / 'setup.exe').write_bytes(b'exe')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><CustomInstallActions><InstallActionList>'
+                '<InstallAction File="setup.exe" Name="Setup A" Arguments="/a"/>'
+                '<InstallAction File="setup.exe" Name="SetupA" Arguments="/b"/>'
+                '</InstallActionList></CustomInstallActions></Game>')
+            with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.exe'), {})
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.exe'), {})
+            self.assertEqual([call.args[0][-1] for call in child.call_args_list], ['/a', '/b'])
+
+    def test_an_install_action_error_never_stops_the_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            game.mkdir()
+            (game / 'first.exe').write_bytes(b'exe')
+            (game / 'second.exe').write_bytes(b'exe')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><CustomInstallActions><InstallActionList>'
+                '<InstallAction File="first.exe" Name="First"/><InstallAction File="second.exe" Name="Second"/>'
+                '</InstallActionList></CustomInstallActions></Game>')
+            real_open = Path.open
+            def unreadable(path, *args, **kwargs):
+                if path.name == 'first.exe':
+                    raise PermissionError('denied')
+                return real_open(path, *args, **kwargs)
+            with patch.object(Path, 'open', unreadable), \
+                    patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/p', prefix, str(game / 'first.exe'), {})
+            self.assertEqual(child.call_count, 1)
+            self.assertTrue(child.call_args.args[0][2].endswith('second.exe'))
+            with patch('subprocess.run', side_effect=OSError('no proton')):
+                xbox['run_install_actions']('/p', prefix, str(game / 'first.exe'), {})
+            with patch.object(Path, 'touch', side_effect=OSError('read-only')), \
+                    patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/p', prefix / 'other', str(game / 'first.exe'), {})
+            self.assertEqual(child.call_count, 2)
+
     def test_missing_runtime_classes_are_registered_once(self):
         with tempfile.TemporaryDirectory() as root:
             prefix = Path(root)

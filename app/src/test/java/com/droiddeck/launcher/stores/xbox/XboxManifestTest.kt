@@ -28,6 +28,21 @@ class XboxManifestTest {
         assertEquals("EmuMenu/EmuMenu.exe", XboxInstaller.executable(root))
         java.io.File(root, "EmuMenu/EmuMenuLaunchArguments.txt").writeText("titlename=Game\r\n")
         assertEquals("EmuMenu/EmuMenu.exe", XboxInstaller.executable(root))
+        java.io.File(root, "EmuMenu/EmuMenuLaunchArguments.txt").writeText("exe=..\\EMU.EXE\r\n")
+        assertEquals("Emu.exe", XboxInstaller.executable(root))
+        java.io.File(root, "emu.exe").writeText("other")
+        if (root.listFiles().orEmpty().count { it.name.equals("emu.exe", true) } == 2)
+            assertEquals("EmuMenu/EmuMenu.exe", XboxInstaller.executable(root))
+    }
+    @Test fun anUnreadableForwardingFileFallsBackToTheDeclaredProgram() {
+        val root = temporary.newFolder()
+        java.io.File(root, "EmuMenu").mkdir()
+        java.io.File(root, "EmuMenu/EmuMenu.exe").writeText("menu")
+        java.io.File(root, "Emu.exe").writeText("emulator")
+        java.io.File(root, "MicrosoftGame.config").writeText("<Game><ExecutableList><Executable Name=\"EmuMenu\\EmuMenu.exe\"/></ExecutableList></Game>")
+        val arguments = java.io.File(root, "EmuMenu/EmuMenuLaunchArguments.txt").apply { writeText("exe=..\\Emu.exe\r\n") }
+        org.junit.Assume.assumeTrue(arguments.setReadable(false, false) && !arguments.canRead())
+        try { assertEquals("EmuMenu/EmuMenu.exe", XboxInstaller.executable(root)) } finally { arguments.setReadable(true, false) }
     }
     @Test fun aForwardedProgramStaysRelativeWhenTheFolderIsReachedThroughALink() {
         val real = temporary.newFolder()
