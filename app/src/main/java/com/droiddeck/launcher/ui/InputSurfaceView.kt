@@ -646,6 +646,7 @@ class InputSurfaceView(
         private val silhouette = Path()
         private val armPaths = Array(4) { Path() }
         private var builtFor = 0 to 0
+        private var builtStyle: InputDpadStyle? = null
         private var gradient: LinearGradient? = null
 
         override fun onDraw(canvas: Canvas) {
@@ -655,17 +656,23 @@ class InputSurfaceView(
             val half = size / 2f
             val thick = size / 6f
             val color = tint
-            if (element.dpadStyle == InputDpadStyle.BUTTONS) {
-                if (builtFor != width to height) {
-                    builtFor = width to height
+            if (builtFor != width to height || builtStyle != element.dpadStyle) {
+                builtFor = width to height
+                builtStyle = element.dpadStyle
+                if (element.dpadStyle == InputDpadStyle.BUTTONS) {
                     buildButtons(cx, cy, half, thick)
                     gradient = null
+                } else {
+                    buildPath(cx, cy, half, thick)
+                    gradient = LinearGradient(cx, cy - half, cx, cy + half, light(KNOB, 255, 0.14f), KNOB, Shader.TileMode.CLAMP)
                 }
+            }
+            if (element.dpadStyle == InputDpadStyle.BUTTONS) {
                 if (color != null) {
-                    fill.color = if (held != 0) shade(color, 160, 1f) else shade(color, 80, 0.12f)
+                    fill.color = shade(color, 80, 0.12f)
                     canvas.drawRect(cx - thick, cy - thick, cx + thick, cy + thick, fill)
-                    stroke.color = if (held != 0) light(color, 230, 0.7f) else light(color, 150, 0.25f)
-                    stroke.strokeWidth = (if (held != 0) 2f else 1.5f) * density
+                    stroke.color = light(color, 150, 0.25f)
+                    stroke.strokeWidth = 1.5f * density
                     canvas.drawRect(cx - thick, cy - thick, cx + thick, cy + thick, stroke)
                     for (i in 0..3) {
                         val lit = held and (1 shl i) != 0
@@ -687,33 +694,25 @@ class InputSurfaceView(
             }
             if (color != null) {
                 drawCircle(canvas, cx, cy, half + 2 * density,
-                (color and 0x00ffffff) or ((if (held != 0) 90 else 48) shl 24),
-                light(color, if (held != 0) 230 else 150, if (held != 0) 0.7f else 0.25f))
-                if (builtFor != width to height) {
-                    builtFor = width to height
-                    buildPath(cx, cy, half, thick)
-                    gradient = null
-                }
-                fill.color = if (held != 0) shade(color, 160, 1f) else shade(color, 80, 0.12f)
+                (color and 0x00ffffff) or (48 shl 24),
+                light(color, 150, 0.25f))
+                fill.color = shade(color, 80, 0.12f)
                 canvas.drawPath(silhouette, fill)
-                stroke.color = if (held != 0) light(color, 230, 0.7f) else light(color, 150, 0.25f)
-                stroke.strokeWidth = (if (held != 0) 2f else 1.5f) * density
+                stroke.color = light(color, 150, 0.25f)
+                stroke.strokeWidth = 1.5f * density
                 canvas.drawPath(silhouette, stroke)
+                arm.color = shade(color, 160, 1f)
+                for (i in 0..3) if (held and (1 shl i) != 0) canvas.drawPath(armPaths[i], arm)
             } else {
                 drawCircle(canvas, cx, cy, half + 2 * density, SURFACE, LINE)
-                if (builtFor != width to height) {
-                    builtFor = width to height
-                    buildPath(cx, cy, half, thick)
-                    gradient = LinearGradient(cx, cy - half, cx, cy + half, light(KNOB, 255, 0.14f), KNOB, Shader.TileMode.CLAMP)
-                }
                 cross.shader = gradient
                 canvas.drawPath(silhouette, cross)
                 rim.strokeWidth = density
                 rim.color = light(KNOB, 120, 0.3f)
                 canvas.drawPath(silhouette, rim)
+                arm.color = ACCENT
+                for (i in 0..3) if (held and (1 shl i) != 0) canvas.drawPath(armPaths[i], arm)
             }
-            arm.color = if (color != null && held != 0) shade(color, 160, 1f) else ACCENT
-            for (i in 0..3) if (held and (1 shl i) != 0) canvas.drawPath(armPaths[i], arm)
             drawKeys(canvas, cx, cy, half, thick)
         }
 
@@ -730,6 +729,7 @@ class InputSurfaceView(
         }
 
         private fun buildPath(cx: Float, cy: Float, half: Float, thick: Float) {
+            armPaths.forEach { it.rewind() }
             val outer = thick * 0.42f
             val inner = thick * 0.34f
             fun tip(l: Float, t: Float, r: Float, b: Float, start: Float) {
@@ -776,6 +776,7 @@ class InputSurfaceView(
         }
 
         private fun buildButtons(cx: Float, cy: Float, half: Float, thick: Float) {
+            armPaths.forEach { it.rewind() }
             val r = 8 * density
             armPaths[0].addRoundRect(RectF(cx - thick, cy - half, cx + thick, cy - thick), r, r, Path.Direction.CW)
             armPaths[1].addRoundRect(RectF(cx + thick, cy - thick, cx + half, cy + thick), r, r, Path.Direction.CW)
