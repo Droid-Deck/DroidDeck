@@ -374,6 +374,31 @@ def offline_without_anticheat(command, env):
     return command[:2] + [game] + command[3:]
 
 
+# Both launch helpers are staged by name (SessionFiles), so a shared parser would need another
+# staged file; this copy is kept here and in droiddeck-proton-run, and the two must change together.
+def merge_overrides(*values):
+    """One entry per DLL, the last setting winning; a comma-separated name list is split, and an
+    entry that is not NAME=mode stays as it was written."""
+    kept, modes = [], {}
+    for value in values:
+        for entry in (value or "").split(";"):
+            entry = entry.strip()
+            if '"' in entry or "'" in entry:
+                continue
+            name, equals, mode = entry.partition("=")
+            if not equals or not name:
+                if entry:
+                    kept.append(entry)
+                continue
+            for part in re.split(r"[, \t]+", name):
+                part = part.strip().lower()
+                if part.endswith(".dll"):
+                    part = part[:-4]
+                if part:
+                    modes[part] = mode.strip()
+    return ";".join([name + "=" + mode for name, mode in modes.items()] + kept)
+
+
 def engine_fixes(exe, args, app_id=""):
     game = Game(exe, args, app_id)
     env, extra, notes = {}, [], []
@@ -381,8 +406,8 @@ def engine_fixes(exe, args, app_id=""):
         found = check(game)
         if found:
             for name, value in found[0].items():
-                if name == "WINEDLLOVERRIDES" and env.get(name):
-                    value = env[name] + ";" + value
+                if name == "WINEDLLOVERRIDES" and isinstance(value, str):
+                    value = merge_overrides(env.get(name, ""), value)
                 env[name] = value
             extra += found[1]
             notes.append(found[2])
@@ -615,18 +640,17 @@ def apply_config(env, config, app_id, fixes=None):
     result = env.copy()
     entries = split_game_gpu(config.get("shared", {}))
     for name, value in (fixes or {}).items():
-        if name == "WINEDLLOVERRIDES" and entries.get(name, env.get(name)):
-            value = entries.get(name, env.get(name)) + ";" + value
+        if name == "WINEDLLOVERRIDES" and entries.get(name) and isinstance(value, str):
+            value = merge_overrides(entries[name], value)
         entries[name] = value
     game = split_game_gpu(config.get("games", {}).get(app_id, {}))
-    fix = (fixes or {}).get("WINEDLLOVERRIDES")
-    if fix and isinstance(game.get("WINEDLLOVERRIDES"), str):
-        own = game["WINEDLLOVERRIDES"]
-        combined = fix + ";" + own if own else fix
-        if len(combined) > 8192:
-            print("droiddeck-game-env: game WINEDLLOVERRIDES too long to add DroidDeck's overrides; using the game value only", file=sys.stderr)
-            combined = own
-        game = dict(game, WINEDLLOVERRIDES=combined)
+    stored, own = entries.get("WINEDLLOVERRIDES"), game.get("WINEDLLOVERRIDES")
+    if isinstance(stored, str) and isinstance(own, str) and stored and own:
+        merged = merge_overrides(stored, own)
+        if len(merged) <= 8192:
+            game = dict(game, WINEDLLOVERRIDES=merged)
+        else:
+            print("droiddeck-game-env: game WINEDLLOVERRIDES too long to combine; using both as stored", file=sys.stderr)
     entries.update(game)
     for name, value in entries.items():
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
@@ -634,6 +658,13 @@ def apply_config(env, config, app_id, fixes=None):
         if value is None:
             result.pop(name, None)
         elif isinstance(value, str) and "\0" not in value and len(value) <= 8192:
+            # The launcher adds overrides the game needs before this runs; merge the stored setting
+            # into them so each DLL keeps one entry and the stored setting has the last word. An
+            # empty stored value keeps none of them.
+            if name == "WINEDLLOVERRIDES" and value and result.get(name):
+                merged = merge_overrides(result[name], value)
+                if len(merged) <= 8192:
+                    value = merged
             result[name] = value
         else:
             raise ValueError("invalid environment value")
@@ -1419,12 +1450,10 @@ def main():
                 print("droiddeck-game-env: " + note, file=sys.stderr)
             command += extra
             if components:
-                own = fixes.get("WINEDLLOVERRIDES")
-                fixes["WINEDLLOVERRIDES"] = components + ";" + own if own else components
+                fixes["WINEDLLOVERRIDES"] = merge_overrides(components, fixes.get("WINEDLLOVERRIDES", ""))
             dirt_prefix = dirt_ws2_wanted(command, env)
             if dirt_prefix:
-                own = fixes.get("WINEDLLOVERRIDES")
-                fixes["WINEDLLOVERRIDES"] = own + ";ws2_32=n,b" if own else "ws2_32=n,b"
+                fixes["WINEDLLOVERRIDES"] = merge_overrides(fixes.get("WINEDLLOVERRIDES", ""), "ws2_32=n,b")
         if waiting:
             if launch_config_valid:
                 if "vblank_mode" in config.get("shared", {}):
