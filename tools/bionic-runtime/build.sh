@@ -37,7 +37,7 @@ VULKAN_HEADERS_TAG=v1.4.341
 # The bionic DroidDeck-Proton layer the pack is made for: linked against (libwayland-client) and checked against, not packed.
 # Layer v16 (067c719d) plus the ARM64EC code-map fix for 39-bit hosts (d4c9ffa7, run 44291095238).
 LAYER_URL=https://github.com/The412Banner/proton-wine/releases/download/build-bionic-layers-20261118-v16-unwind/DroidDeck-Proton-11.0-12.8-arm64ec.wcp
-LAYER_SHA256=3cc74b877bc8707d75aa2cc22e335373b6a6c0b6b1937c7b3c2cd98e55de2e89   # proton-wine d4c9ffa7
+LAYER_SHA256=3cc74b877bc8707d75aa2cc22e335373b6a6c0b6b1937c7b3c2cd98e55de2e89   # proton-wine d48e30a1 (a188791d + fecf7376 on d4c9ffa7)
 LAYER_VERSION=12.8
 # Packed into the DroidDeck-Bionic tool next to the layer: FEX with Android-built unix libraries, and default
 # DXVK / VKD3D-Proton (DroidDeck components can swap these in files/lib/wine/{dxvk,vkd3d-proton} later).
@@ -237,7 +237,11 @@ install -m 755 "$HERE/tool/proton" "$T/proton"
 install -m 755 "$HERE/tool/launch.sh" "$T/bionic/launch.sh"
 cp "$HERE/tool/desktop.reg" "$HERE/tool/Xdefaults" "$T/bionic/"
 cp "$HERE/tool/toolmanifest.vdf" "$T/"
-sed -e "s/@NAME@/$NAME/" -e "s/@DISPLAY@/DroidDeck-Bionic $LAYER_VERSION r${BUILD_NUMBER:-0}/" "$HERE/tool/compatibilitytool.vdf.in" > "$T/compatibilitytool.vdf"
+# The name Steam registers the tool under ends in -Proton: Steam maps Windows save folders (WinAppDataLocal, WinMyDocuments
+# ...) into compatdata/<app>/pfx only for tools whose name contains "proton" (a case-insensitive search in
+# steamclient.so's compat manager); without it Steam Cloud skipped every such save rule. The folder, the version file and
+# the release keep $NAME, which is what DroidDeck matches on.
+sed -e "s/@NAME@/$NAME-Proton/" -e "s/@DISPLAY@/DroidDeck-Bionic $LAYER_VERSION r${BUILD_NUMBER:-0}/" "$HERE/tool/compatibilitytool.vdf.in" > "$T/compatibilitytool.vdf"
 echo "$(date -u +%s) $NAME" > "$T/version"
 {
   echo "$NAME: DroidDeck runtime pack $REV + layer + FEX/DXVK/VKD3D"
