@@ -116,7 +116,7 @@ def through_client(folder, sidecar, timeout=CLIENT_TIMEOUT):
     return str(answer.get("reason") or "failed")
 
 
-def ask(channel, request, timeout=TIMEOUT):
+def ask(channel, request, timeout=TIMEOUT, claim=False):
     req_dir, resp_dir = channel / "req", channel / "resp"
     req_dir.mkdir(parents=True, exist_ok=True)
     resp_dir.mkdir(parents=True, exist_ok=True)
@@ -125,19 +125,33 @@ def ask(channel, request, timeout=TIMEOUT):
     tmp.write_text(json.dumps(request))
     os.rename(tmp, req_dir / (rid + ".json"))
     answer = resp_dir / (rid + ".json")
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+
+    def wait(seconds):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            try:
+                value = json.loads(answer.read_text())
+                answer.unlink()
+                return value
+            except (OSError, ValueError):
+                time.sleep(0.05)
+        return None
+
+    value = wait(timeout)
+    if value is not None:
+        return value
+    for pending in (req_dir / (rid + ".json"), resp_dir / (rid + ".taken")):
+        abandoned = pending.with_name(rid + ".abandoned")
         try:
-            value = json.loads(answer.read_text())
-            answer.unlink()
-            return value
-        except (OSError, ValueError):
-            time.sleep(0.05)
-    try:
-        (req_dir / (rid + ".json")).unlink()
-    except OSError:
-        pass
-    return None
+            os.rename(pending, abandoned)
+        except OSError:
+            continue
+        try:
+            abandoned.unlink()
+        except OSError:
+            pass
+        return None
+    return wait(CLAIMED_TIMEOUT) if claim else None
 
 
 def windows_path(unix):
@@ -255,6 +269,7 @@ def create_prefix(compat_data, proton, timeout=120):
 
 
 CLOUD_TIMEOUT = 15.0
+CLAIMED_TIMEOUT = 120.0
 CLOUD_STORES = ("gog", "epic", "ea", "ubisoft")
 STORE_GAME = 10
 RAN = 11
@@ -1679,7 +1694,7 @@ def main(argv):
         return STORE_GAME if store == "ea" else 0
     if launch_dir:
         try:
-            answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT)
+            answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT, claim=True)
         except OSError as error:
             log("cloud %s %s down result=failed reason=%s" % (store, game, type(error).__name__))
             return STORE_GAME

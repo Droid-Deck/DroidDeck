@@ -92,6 +92,19 @@ class CloudSavesTest {
         assertEquals("played", String(memory.files.getValue("SaveData/slot.sav").first))
     }
 
+    @Test fun aDownloadTheLaunchStoppedWaitingForWritesNothing() {
+        val game = id; val dir = dir()
+        File(dir, "slot0.sav").writeText("local")
+        val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L }
+        val r = CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = true, claim = { false })
+        assertEquals("skipped", r.result); assertEquals("launch-moved-on", r.reason)
+        assertEquals("local", File(dir, "slot0.sav").readText())
+        assertFalse(File(app.filesDir, "stores/cloud-backups/gog-$game").exists())
+        var claimed = 0
+        assertEquals("ok", CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = true, claim = { claimed++; true }).result)
+        assertEquals(1, claimed); assertEquals("v1", File(dir, "slot0.sav").readText())
+    }
+
     @Test fun aFileChangedOnBothSidesIsLeftForTheUser() {
         val game = id; val dir = dir()
         val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L }

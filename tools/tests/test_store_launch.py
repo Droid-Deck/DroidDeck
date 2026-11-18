@@ -106,6 +106,50 @@ class Asking(unittest.TestCase):
             self.assertIsNone(store.ask(channel, {'op': 'epic-code'}, timeout=0.2))
             self.assertEqual([], list((channel / 'req').iterdir()))
 
+    def test_a_cloud_download_the_launcher_stops_waiting_for_loses_its_claim(self):
+        with tempfile.TemporaryDirectory() as root:
+            channel = Path(root) / 'stores'
+            taken = []
+
+            def app():
+                while not taken:
+                    for request in (channel / 'req').glob('*.json') if (channel / 'req').is_dir() else []:
+                        target = channel / 'resp' / (request.stem + '.taken')
+                        os.rename(request, target)
+                        taken.append(target)
+                    time.sleep(0.02)
+
+            t = threading.Thread(target=app)
+            t.start()
+            self.assertIsNone(store.ask(channel, {'op': 'cloud-down'}, timeout=0.3, claim=True))
+            t.join()
+            with self.assertRaises(OSError):
+                os.rename(taken[0], taken[0].with_suffix('.writing'))
+
+    def test_a_claimed_cloud_download_is_waited_for(self):
+        with tempfile.TemporaryDirectory() as root:
+            channel = Path(root) / 'stores'
+
+            def app():
+                while True:
+                    names = list((channel / 'req').glob('*.json')) if (channel / 'req').is_dir() else []
+                    if names:
+                        writing = channel / 'resp' / (names[0].stem + '.writing')
+                        os.rename(names[0], writing)
+                        time.sleep(0.6)
+                        tmp = channel / 'resp' / (names[0].name + '.tmp')
+                        tmp.write_text(json.dumps({'ok': True, 'result': 'ok'}))
+                        os.rename(tmp, channel / 'resp' / names[0].name)
+                        writing.unlink()
+                        return
+                    time.sleep(0.02)
+
+            t = threading.Thread(target=app)
+            t.start()
+            answer = store.ask(channel, {'op': 'cloud-down'}, timeout=0.2, claim=True)
+            t.join()
+            self.assertEqual({'ok': True, 'result': 'ok'}, answer)
+
     def test_a_stale_code_is_dropped_before_asking(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root)
@@ -214,7 +258,7 @@ class CloudHooks(unittest.TestCase):
             try:
                 original = store.ask
                 asked = []
-                store.ask = lambda channel, request, timeout=5.0: asked.append((request, timeout)) or {'ok': True, 'files': 2, 'reason': 'ok'}
+                store.ask = lambda channel, request, timeout=5.0, claim=False: asked.append((request, timeout)) or {'ok': True, 'files': 2, 'reason': 'ok'}
                 self.assertEqual(store.STORE_GAME, store.main([bat]))
                 self.assertEqual(0, store.main(['--exited', bat]))
             finally:
@@ -233,7 +277,7 @@ class CloudHooks(unittest.TestCase):
             bat = str(folder / '.droiddeck-launch.bat')
             asked = []
 
-            def ask(channel, request, timeout=5.0):
+            def ask(channel, request, timeout=5.0, claim=False):
                 asked.append(request['op'])
                 if request['op'] in ('cloud-down', 'cloud-up'):
                     raise PermissionError(13, 'read-only')
@@ -253,7 +297,7 @@ class CloudHooks(unittest.TestCase):
             bat = str(folder / '.droiddeck-launch.bat')
             asked = []
             env = {'DD_LAUNCH_DIR': str(Path(root) / 'session')}
-            record = lambda channel, request, timeout=5.0: asked.append(request) or {'result': 'ok'}
+            record = lambda channel, request, timeout=5.0, claim=False: asked.append(request) or {'result': 'ok'}
             with patch.dict(os.environ, env), \
                     patch.object(store, 'prepare_ea', side_effect=lambda *a: asked.append({'op': 'prepared'})), \
                     patch.object(store, 'create_prefix', side_effect=AssertionError('EA prepares its own prefix')), \
@@ -293,7 +337,7 @@ class CloudHooks(unittest.TestCase):
 
             env = {'DD_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': str(compat), 'DD_STORE_PROTON': str(proton)}
             with patch.dict(os.environ, env), patch.object(store.subprocess, 'run', side_effect=run), \
-                    patch.object(store, 'ask', side_effect=lambda channel, request, timeout=5.0: order.append(request) or {'result': 'ok'}):
+                    patch.object(store, 'ask', side_effect=lambda channel, request, timeout=5.0, claim=False: order.append(request) or {'result': 'ok'}):
                 self.assertEqual(store.STORE_GAME, store.main([str(folder / store.LAUNCHER)]))
                 self.assertEqual([str(proton), 'run', 'cmd.exe', '/d', '/c', 'exit'], order[0])
                 self.assertEqual({'op': 'cloud-down', 'store': 'epic', 'id': 'fa4240e5'}, order[-1])

@@ -341,21 +341,21 @@ object CloudSaves {
     private fun settled(plan: CloudPlan.Plan, alike: List<String>): CloudPlan.Plan =
         if (alike.isEmpty()) plan else CloudPlan.Plan(plan.transfer, plan.conflicts - alike.toSet(), plan.same + alike, plan.refused)
 
-    fun download(context: Context, store: Store, id: String, force: Boolean = false): Result =
-        sync(context, store, id, "down") { dir, cloud -> downWith(context, store, id, dir, cloud, force) }
+    fun download(context: Context, store: Store, id: String, force: Boolean = false, claim: () -> Boolean = { true }): Result =
+        sync(context, store, id, "down") { dir, cloud -> downWith(context, store, id, dir, cloud, force, claim) }
 
     fun upload(context: Context, store: Store, id: String, force: Boolean = false): Result =
         sync(context, store, id, "up") { dir, cloud -> upWith(context, store, id, dir, cloud, force) }
 
-    fun downloadOrDefer(context: Context, store: Store, id: String): Result =
-        downloadOrDefer(context, store, id, Executor { Thread(it, "cloud-deferred").start() })
+    fun downloadOrDefer(context: Context, store: Store, id: String, claim: () -> Boolean): Result =
+        downloadOrDefer(context, store, id, Executor { Thread(it, "cloud-deferred").start() }, claim)
 
-    internal fun downloadOrDefer(context: Context, store: Store, id: String, executor: Executor): Result {
+    internal fun downloadOrDefer(context: Context, store: Store, id: String, executor: Executor, claim: () -> Boolean = { true }): Result {
         val app = context.applicationContext
         val g = game(app, store, id) ?: return done(store, id, "down", Result("skipped", 0, 0, "not-installed"))
         if (!g.second.cloud) return done(store, id, "down", Result("skipped", 0, 0, "off"))
         val ready = { (if (store == Store.UBISOFT) File(UbisoftConnect.prefix(app), "pfx") else prefix(app, g.first))?.let { CloudSavePaths.profile(it).isDirectory } == true }
-        if (ready()) return download(app, store, id)
+        if (ready()) return download(app, store, id, claim = claim)
         executor.execute {
             val end = System.currentTimeMillis() + PREFIX_WAIT_MS
             while (System.currentTimeMillis() < end) {
@@ -435,7 +435,7 @@ object CloudSaves {
         return files.associateBy { it.name }
     }
 
-    internal fun downWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
+    internal fun downWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean, claim: () -> Boolean = { true }): Result {
         val files = localFiles(dir).filterKeys(cloud::wants)
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
@@ -446,21 +446,24 @@ object CloudSaves {
         val plan = settled(planned, alike)
         val saved = savedConflicts(context, store, key).filter { it in remote && it !in alike }
         val take = if (force) (plan.transfer + plan.conflicts + saved).distinct() else plan.transfer
-        val inside = dir.canonicalPath + File.separator
-        val replaced = take.mapNotNull { name ->
-            files[name] ?: File(dir, name).takeIf { it.isFile && runCatching { it.canonicalPath.startsWith(inside) }.getOrDefault(false) }
-        }
-        if (!backupReplaced(context, store, id, dir, replaced)) return Result("failed", 0, 0, "backup-failed")
         val next = HashMap(base.orEmpty())
         var bytes = 0L
         val written = HashSet<String>()
         val changed = ArrayList<String>()
         val blocked = ArrayList<String>()
+        val fetched = LinkedHashMap<String, Pair<CloudFile, Pair<ByteArray, Long>>>()
         for (name in take) {
             val f = remote[name] ?: continue
+            if (!File(dir, name).canonicalPath.startsWith(dir.canonicalPath + File.separator)) { blocked += name; continue }
+            fetched[name] = f to cloud.get(f)
+        }
+        if (fetched.isNotEmpty() && !claim()) return Result("skipped", 0, 0, "launch-moved-on")
+        val replaced = fetched.keys.mapNotNull { name -> files[name] ?: File(dir, name).takeIf { it.isFile } }
+        if (!backupReplaced(context, store, id, dir, replaced)) return Result("failed", 0, 0, "backup-failed")
+        for ((name, got) in fetched) {
+            val (f, content) = got
+            val (data, modified) = content
             val dest = File(dir, name)
-            if (!dest.canonicalPath.startsWith(dir.canonicalPath + File.separator)) { blocked += name; continue }
-            val (data, modified) = cloud.get(f)
             if ((if (dest.isFile) md5(dest) else null) != local[name]?.md5) { changed += name; continue }
             dest.parentFile?.mkdirs()
             dest.writeBytes(data)
