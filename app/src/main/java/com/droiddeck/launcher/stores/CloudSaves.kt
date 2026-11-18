@@ -345,6 +345,8 @@ object CloudSaves {
                     when {
                         dir == null -> Result("skipped", 0, 0, reason)
                         cloud == null -> Result("skipped", 0, 0, "not-signed-in")
+                        cloud is EaCloud && cloud.localDir?.canonicalPath != dir.canonicalPath -> Result("skipped", 0, 0, "rules-changed")
+                        cloud is EaCloud && localFiles(dir).keys.groupBy { it.lowercase() }.any { it.value.size > 1 } -> Result("failed", 0, 0, "case-collision")
                         else -> body(dir, cloud).also { if (it.result == "ok") markSynced(context, store, id) }
                     }
                 }
@@ -368,7 +370,9 @@ object CloudSaves {
         if (!dir.isDirectory) return emptyMap()
         val root = runCatching { dir.canonicalPath + File.separator }.getOrNull() ?: return emptyMap()
         val inside = { f: File -> runCatching { (f.canonicalPath + File.separator).startsWith(root) }.getOrDefault(false) }
-        return dir.walkTopDown().onEnter(inside).filter { it.isFile && inside(it) }
+        val seen = HashSet<String>()
+        val enter = { d: File -> inside(d) && runCatching { seen.add(d.canonicalPath) }.getOrDefault(false) }
+        return dir.walkTopDown().onEnter(enter).filter { it.isFile && inside(it) }
             .associateBy { it.relativeTo(dir).path.replace(File.separatorChar, '/') }
     }
 

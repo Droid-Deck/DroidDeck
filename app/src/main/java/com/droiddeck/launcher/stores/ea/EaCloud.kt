@@ -13,7 +13,7 @@ internal class EaCloud(
     private val keys: List<String>,
     private val base: String,
     private val rules: EaSaveRules,
-    private val localDir: File? = null,
+    val localDir: File? = null,
 ) : CloudTransport {
     class Entry(val size: Long, val href: String, val md5: String, val created: String, val modified: String, val localName: String)
 
@@ -50,7 +50,8 @@ internal class EaCloud(
         val out = ArrayList<String>()
         for (part in parts) {
             val match = dir.listFiles()?.filter { it.name.equals(part, ignoreCase = true) }.orEmpty()
-            val pick = match.singleOrNull() ?: match.firstOrNull { it.name == part }
+            check(match.size <= 1) { "The save folder holds more than one file named $part in different cases" }
+            val pick = match.singleOrNull()
             if (pick == null) return (out + parts.drop(out.size)).joinToString("/")
             out += pick.name
             dir = pick
