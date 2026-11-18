@@ -4254,4 +4254,11 @@
     <string name="drawer_corner_tap_hint">Double-tap the top-right corner, for devices without a Back button</string>
     <string name="drawer_handle">Open the session menu</string>
     <string name="play_needs_you">Settings need you</string>
+    <string name="library_accounts">Store accounts</string>
+    <string name="library_account_sign_in">Sign in</string>
+    <string name="library_account_sign_out">Sign out</string>
+    <string name="tabs_reset">Reset</string>
+    <string name="tabs_reset_title">Reset tabs</string>
+    <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>
+    <string name="tabs_reset_body">Your tab order and what sits under More or is hidden go back to the defaults.</string>
 </resources>
