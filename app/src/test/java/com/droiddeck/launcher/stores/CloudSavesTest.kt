@@ -92,6 +92,13 @@ class CloudSavesTest {
         assertEquals("played", String(memory.files.getValue("SaveData/slot.sav").first))
     }
 
+    @Test fun onlySelectedSavesCanCollideByCase() {
+        val names = listOf("Logs/A.txt", "Logs/a.txt", "SaveGame/1")
+        assertFalse(CloudSaves.caseCollision(names) { !it.startsWith("Logs/") })
+        assertTrue(CloudSaves.caseCollision(names) { true })
+        assertTrue(CloudSaves.caseCollision(listOf("SaveGame/1", "savegame/1")) { it.lowercase().startsWith("savegame/") })
+    }
+
     @Test fun aDownloadTheLaunchStoppedWaitingForWritesNothing() {
         val game = id; val dir = dir()
         File(dir, "slot0.sav").writeText("local")

@@ -385,7 +385,7 @@ object CloudSaves {
                         cloud == null && store == Store.EA && signedIn(context, store) -> Result("failed", 0, 0, "sign-in-unreachable")
                         cloud == null -> Result("skipped", 0, 0, "not-signed-in")
                         cloud is EaCloud && cloud.localDir?.canonicalPath != dir.canonicalPath -> Result("skipped", 0, 0, "rules-changed")
-                        cloud is EaCloud && localFiles(dir).keys.groupBy { it.lowercase() }.any { it.value.size > 1 } -> Result("failed", 0, 0, "case-collision")
+                        cloud is EaCloud && caseCollision(localFiles(dir).keys, cloud::wants) -> Result("failed", 0, 0, "case-collision")
                         else -> body(dir, cloud).also { if (it.result == "ok") markSynced(context, store, id) }
                     }
                 }
@@ -398,6 +398,9 @@ object CloudSaves {
         }
         return done(store, id, way, result)
     }
+
+    internal fun caseCollision(names: Collection<String>, wants: (String) -> Boolean): Boolean =
+        names.filter(wants).groupBy { it.lowercase() }.any { it.value.size > 1 }
 
     private fun done(store: Store, id: String, way: String, r: Result): Result {
         Log.i(TAG, "cloud ${store.id} $id $way ${r.line}")

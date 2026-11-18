@@ -134,7 +134,7 @@ object EaAuth {
         val json = runCatching { JSONObject(reply.text) }.getOrNull()
         if (!reply.ok || json == null || json.optString("access_token").isEmpty()) {
             val message = "EA token request failed (${reply.status}): ${json?.optString("error_description")?.ifEmpty { json.optString("error") } ?: ""}"
-            throw if (reply.status == 400 || reply.status == 401 || reply.status == 403) Rejected(message) else IllegalStateException(message)
+            throw if (json?.optString("error") == "invalid_grant") Rejected(message) else IllegalStateException(message)
         }
         return json
     }

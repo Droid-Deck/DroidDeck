@@ -415,7 +415,7 @@ class EaTest {
         assertNull(EaAuth.load(app))
     }
 
-    private fun tokenServer(status: String): java.net.ServerSocket {
+    private fun tokenServer(status: String, error: String = "invalid_grant"): java.net.ServerSocket {
         val server = java.net.ServerSocket(0)
         Thread {
             runCatching {
@@ -425,7 +425,7 @@ class EaTest {
                     while (!head.endsWith("\r\n\r\n")) head.append(input.read().takeIf { it >= 0 }?.toChar() ?: break)
                     val length = Regex("(?i)content-length: *(\\d+)").find(head)?.groupValues?.get(1)?.toInt() ?: 0
                     repeat(length) { input.read() }
-                    val body = """{"error":"invalid_grant"}""".toByteArray()
+                    val body = """{"error":"$error"}""".toByteArray()
                     socket.getOutputStream().apply {
                         write("HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
                         write(body)
@@ -446,7 +446,12 @@ class EaTest {
             EaAuth.tokenUrl = "http://127.0.0.1:1/"
             assertNull(EaAuth.accessToken(app))
             assertTrue(CloudSaves.status(app, Store.EA, "x").signedIn)
-            tokenServer("503 Service Unavailable").use { server ->
+            tokenServer("503 Service Unavailable", "temporarily_unavailable").use { server ->
+                EaAuth.tokenUrl = "http://127.0.0.1:${server.localPort}/"
+                assertNull(EaAuth.accessToken(app))
+            }
+            assertTrue(CloudSaves.status(app, Store.EA, "x").signedIn)
+            tokenServer("400 Bad Request", "invalid_client").use { server ->
                 EaAuth.tokenUrl = "http://127.0.0.1:${server.localPort}/"
                 assertNull(EaAuth.accessToken(app))
             }
