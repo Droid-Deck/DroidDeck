@@ -40,8 +40,9 @@ internal object LibraryHidden {
 
     fun set(context: Context, key: String, game: Library.SteamGame?, hidden: Boolean): Boolean {
         val id = steamId(game)
-        val written = id?.let { SteamHidden.write(SessionPrefs.activeSteamRoot(context), it, hidden) }
-        if (written != null) steam = written
+        val root = SessionPrefs.activeSteamRoot(context)
+        val written = id?.let { SteamHidden.write(root, it, hidden) }
+        if (id != null) steam = written ?: SteamHidden.read(root)
         keys = if (hidden && written == null) keys + key else keys - key
         SessionPrefs.setLibraryHidden(context, keys)
         return id == null || written != null
