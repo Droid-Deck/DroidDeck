@@ -65,11 +65,15 @@ def installdirs(libraries):
                 continue
             try:
                 with open(os.path.join(steamapps, name), encoding="utf-8", errors="replace") as f:
-                    m = re.search(r'"installdir"\s+"([^"]*)"', f.read(), re.I)
+                    m = re.search(r'"installdir"\s+"((?:\\.|[^"\\])*)"', f.read(), re.I)
             except OSError:
                 continue
             if m:
-                found.add(m.group(1))
+                raw = m.group(1)
+                found.add(raw)
+                unescaped = raw.replace('\\"', '"').replace("\\\\", "\\")
+                if unescaped != raw and os.path.isdir(os.path.join(library, "steamapps", "common", unescaped)) and not os.path.isdir(os.path.join(library, "steamapps", "common", raw)):
+                    found.add(unescaped)
     return found
 
 
@@ -87,7 +91,7 @@ def adoptable(library, known):
         names = sorted(os.listdir(common))
     except OSError:
         return []
-    return [n for n in names if n not in known and not n.startswith(".")
+    return [n for n in names if n not in known and not n.startswith(".") and "\n" not in n and "\r" not in n
             and os.path.isdir(os.path.join(common, n)) and populated(os.path.join(common, n))]
 
 

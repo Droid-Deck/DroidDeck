@@ -44,6 +44,9 @@ class AdoptTest(unittest.TestCase):
             41: record("Demo", "Shared", "Shared Demo"),
             50: record("Game", "Twin", "Twin One"),
             51: record("Game", "Twin", "Twin Two"),
+            60: record("Game", 'Game "Special"', 'Game "Special"'),
+            70: record("Game", r"A\B", "Backslash Game"),
+            71: record("Game", r"A\\B", "Double Backslash Game"),
         })
         for patcher in (patch.object(library, "BIN_DIR", str(BIN)),
                         patch("builtins.print")):
@@ -67,13 +70,15 @@ class AdoptTest(unittest.TestCase):
 
     def test_matched_folder_gets_a_validating_manifest(self):
         self.folder("Alpha")
-        self.assertEqual(self.adopt(), 1)
+        self.folder('Game "Special"')
+        self.assertEqual(self.adopt(), 2)
         text = self.manifest(10).read_text()
         for line in ('"appid" "10"', '"Universe" "1"', '"StateFlags" "4"', '"installdir" "Alpha"',
                      '"name" "Alpha \\"Deluxe\\""', '"AutoUpdateBehavior" "1"'):
             self.assertIn(line, text)
         self.assertNotIn("buildid", text)
         self.assertNotIn("InstalledDepots", text)
+        self.assertIn('"installdir" "Game \\"Special\\""', self.manifest(60).read_text())
 
     def test_existing_manifest_is_untouched(self):
         self.folder("Alpha")
@@ -125,11 +130,21 @@ class AdoptTest(unittest.TestCase):
     def test_adoption_is_idempotent_and_only_touches_the_given_library(self):
         self.folder("Alpha")
         self.folder("Beta")
-        self.assertEqual(self.adopt(), 2)
-        first = {n: self.manifest(n).read_text() for n in (10, 20)}
+        self.folder('Game "Special"')
+        self.folder(r"A\B")
+        self.assertEqual(self.adopt(), 4)
+        first = {n: self.manifest(n).read_text() for n in (10, 20, 60, 70)}
         self.assertEqual(self.adopt(), 0)
-        self.assertEqual({n: self.manifest(n).read_text() for n in (10, 20)}, first)
+        self.assertEqual({n: self.manifest(n).read_text() for n in (10, 20, 60, 70)}, first)
         self.assertEqual(list(self.steam.glob("steamapps/appmanifest_*")), [])
+
+    def test_legacy_unquoted_backslash_manifest_does_not_hide_distinct_folder(self):
+        self.folder(r"A\B")
+        self.folder(r"A\\B")
+        self.manifest(71).write_text('"AppState"\n{\n\t"appid"\t"71"\n\t"installdir"\t"A\\\\B"\n}\n')
+        self.assertEqual(self.adopt(), 1)
+        self.assertTrue(self.manifest(70).exists())
+        self.assertTrue(self.manifest(71).exists())
 
     def test_main_adopts_every_registered_library(self):
         self.folder("Beta")

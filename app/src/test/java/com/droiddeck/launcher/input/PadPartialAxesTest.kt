@@ -244,6 +244,35 @@ class PadPartialAxesTest {
         assertEquals(0.2f, pad().rightTrigger, 0.0001f)
     }
 
+    @Test fun nonWiredRxRySignedZTriggerKeysDoNotOverrideTheirAxes() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to -1f, MotionEvent.AXIS_RZ to -1f)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f,
+            MotionEvent.AXIS_Z to 0f, MotionEvent.AXIS_RZ to -0.6f)
+        key(device, KeyEvent.KEYCODE_BUTTON_L2)
+        key(device, KeyEvent.KEYCODE_BUTTON_R2)
+        assertEquals(0.5f, pad().leftTrigger, 0.0001f)
+        assertEquals(0.2f, pad().rightTrigger, 0.0001f)
+        key(device, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.ACTION_UP)
+        key(device, KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.ACTION_UP)
+        assertEquals(0.5f, pad().leftTrigger, 0.0001f)
+        assertEquals(0.2f, pad().rightTrigger, 0.0001f)
+    }
+
+    @Test fun singleSignedZTriggerWithRxRyStickDoesNotGetReplacedByKey() {
+        val device = device(MotionEvent.AXIS_RX, MotionEvent.AXIS_RY, MotionEvent.AXIS_Z)
+        motion(device, MotionEvent.AXIS_RX to 0f, MotionEvent.AXIS_RY to 0f, MotionEvent.AXIS_Z to 0f)
+        key(device, KeyEvent.KEYCODE_BUTTON_L2)
+        key(device, KeyEvent.KEYCODE_BUTTON_R2)
+        assertEquals(0.5f, pad().leftTrigger, 0.0001f)
+        assertEquals(1f, pad().rightTrigger, 0.0001f)
+        key(device, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.ACTION_UP)
+        key(device, KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.ACTION_UP)
+        assertEquals(0.5f, pad().leftTrigger, 0.0001f)
+        assertEquals(0f, pad().rightTrigger, 0.0001f)
+    }
+
     @Test fun digitalTriggerKeysStillPressAndRelease() {
         val device = device()
         key(device, KeyEvent.KEYCODE_BUTTON_L2)

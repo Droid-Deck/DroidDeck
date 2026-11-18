@@ -25,10 +25,14 @@ def api(path, *args, attempts=3):
         done = subprocess.run(["gh", "api", path, *args], text=True, capture_output=True)
         if done.returncode == 0:
             return json.loads(done.stdout)
-        if "--method" in args or "rate limit" not in done.stderr.lower() or attempt == attempts - 1:
+        err = done.stderr.lower()
+        if "--method" in args or "rate limit" not in err or attempt == attempts - 1:
             sys.stderr.write(done.stderr)
             raise subprocess.CalledProcessError(done.returncode, done.args, done.stdout, done.stderr)
-        time.sleep(rate_limit_wait())
+        wait = rate_limit_wait()
+        if "secondary rate limit" in err:
+            wait = max(wait, 60)
+        time.sleep(wait)
 
 
 def compilation_state(run, jobs):
@@ -110,6 +114,27 @@ def main():
     state = "failure"
     description = "APK source validation failed"
     target = f"https://github.com/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+    superseded = False
+    refreshed = not bool(pr_number)
+
+    def refresh_pr():
+        nonlocal pr, state, description, target, superseded, refreshed
+        if not pr_number:
+            refreshed = True
+            return True
+        refreshed = False
+        pr = api(f"repos/{repo}/pulls/{pr_number}")
+        if pr["state"] != "open" or pr["head"]["sha"] != sha:
+            superseded = True
+            return False
+        violations = event_violations({"pull_request": pr})
+        if violations:
+            state = "failure"
+            description = "APK source validation failed"
+            target = f"https://github.com/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+        refreshed = True
+        return True
+
     try:
         fetch_source(ref, sha)
         commits, errors = check_revision(sha)
@@ -120,6 +145,11 @@ def main():
             raise RuntimeError("\n".join(errors))
         print(f"Source and metadata validated for {len(commits)} commits")
         if pr and documentation_only(sha):
+            if pr_number and not refresh_pr():
+                print("Ignoring a superseded or closed pull request event")
+                return
+            if state == "failure" and pr and event_violations({"pull_request": pr}):
+                raise RuntimeError("\n".join(event_violations({"pull_request": pr})))
             state = "success"
             description = "Source validated; no APK source changes"
             return
@@ -129,17 +159,52 @@ def main():
         if runs:
             latest = max(runs, key=lambda item: item["id"])
             jobs = api(f"repos/{repo}/actions/runs/{latest['id']}/jobs?per_page=100")["jobs"]
-            state = compilation_state(latest, jobs)
-            target = latest["html_url"]
+            next_state = compilation_state(latest, jobs)
+            next_target = latest["html_url"]
         else:
-            state = "pending"
-        description = {"pending": "Source validated; awaiting APK compilation",
-                       "success": "Source validation and APK compilation passed",
-                       "failure": "APK compilation failed"}[state]
+            next_state = "pending"
+            next_target = target
+        next_description = {"pending": "Source validated; awaiting APK compilation",
+                            "success": "Source validation and APK compilation passed",
+                            "failure": "APK compilation failed"}[next_state]
+        if pr_number and not refresh_pr():
+            print("Ignoring a superseded or closed pull request event")
+            return
+        if pr and event_violations({"pull_request": pr}):
+            raise RuntimeError("\n".join(event_violations({"pull_request": pr})))
+        state = next_state
+        target = next_target
+        description = next_description
     finally:
-        api(f"repos/{repo}/statuses/{sha}", "--method", "POST",
-            "-f", "context=Build APK", "-f", f"state={state}",
-            "-f", f"description={description}", "-f", f"target_url={target}")
+        if pr_number and not refreshed and not superseded:
+            try:
+                refresh_pr()
+            except Exception:
+                state = "failure"
+                description = "APK source validation failed"
+                target = f"https://github.com/{repo}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+        if not superseded and (state != "success" or refreshed):
+            for attempt in range(3):
+                if attempt > 0 and pr_number:
+                    try:
+                        if not refresh_pr():
+                            break
+                    except Exception:
+                        if state == "success":
+                            break
+                post_args = ["--method", "POST", "-f", "context=Build APK", "-f", f"state={state}",
+                             "-f", f"description={description}", "-f", f"target_url={target}"]
+                try:
+                    api(f"repos/{repo}/statuses/{sha}", *post_args)
+                    break
+                except subprocess.CalledProcessError as error:
+                    err = (error.stderr or "").lower()
+                    if "rate limit" not in err or attempt == 2:
+                        raise
+                    wait = rate_limit_wait()
+                    if "secondary rate limit" in err:
+                        wait = max(wait, 60)
+                    time.sleep(wait)
 
 
 if __name__ == "__main__":

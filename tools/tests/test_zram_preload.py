@@ -4,6 +4,7 @@ import signal
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
@@ -28,6 +29,7 @@ static const char *ctl;
 static size_t size, page;
 static volatile int stop;
 static unsigned char *shared;
+static unsigned char *probe_page;
 static volatile sig_atomic_t urg_tid;
 static volatile sig_atomic_t usr_tid;
 static int urg_count, usr_count;
@@ -60,7 +62,14 @@ static long status(const char *key) {
   return v;
 }
 
+static void clear_ack(void) {
+  char ack[256];
+  snprintf(ack, sizeof(ack), "%s.ack.%d", ctl, getpid());
+  unlink(ack);
+}
+
 static void send_request(char mode) {
+  if (mode == '1') clear_ack();
   int fd = open(ctl, O_WRONLY | O_TRUNC);
   if (fd < 0 || write(fd, &mode, 1) != 1) exit(3);
   close(fd);
@@ -83,12 +92,40 @@ static void wait_ack(void) {
   exit(5);
 }
 
+static int probe_swapped(void) {
+  if (!probe_page) return 0;
+  int fd = open("/proc/self/pagemap", O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return 0;
+  uint64_t entry = 0;
+  off_t offset = (off_t)((uintptr_t)probe_page / page * sizeof(uint64_t));
+  int swapped = pread(fd, &entry, sizeof(entry), offset) == (ssize_t)sizeof(entry) &&
+                (entry & (1ULL << 62)) != 0;
+  close(fd);
+  return swapped;
+}
+
+static void wait_read_back(long before_swap) {
+  long limit = before_swap / 4;
+  for (int i = 0; i < 1200; i++) {
+    long now = status("VmSwap:");
+    if (!probe_swapped() && (before_swap <= 0 || (now >= 0 && now < limit))) return;
+    usleep(10000);
+  }
+  exit(15);
+}
+
 static void request(char mode) {
+  long before_swap = 0;
+  if (mode == '0') {
+    if (probe_page) madvise(probe_page, page, 21);
+    before_swap = status("VmSwap:");
+  }
   send_request(mode);
   if (mode == '1') {
     wait_ack();
+  } else {
+    wait_read_back(before_swap);
   }
-  usleep(1000000);
 }
 
 static uint64_t sum(const unsigned char *p, size_t n) {
@@ -121,6 +158,8 @@ int main(int argc, char **argv) {
   uint64_t before = sum(data, size);
   shared = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   memset(shared, 0, size);
+  probe_page = mmap(NULL, page, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  memset(probe_page, 0x3c, page);
   pthread_t t[2];
   for (uintptr_t i = 0; i < 2; i++) pthread_create(&t[i], NULL, writer, (void *)i);
   struct sigaction sa;
@@ -190,7 +229,7 @@ int main(int argc, char **argv) {
         if (fd < 0 || write(fd, "1", 1) != 1) _exit(9);
         close(fd);
         clock_gettime(CLOCK_MONOTONIC, &start);
-        int requests = !strcmp(argv[4], "timed-inline-single") ? 1 : 64;
+        int requests = !strcmp(argv[4], "timed-inline-single") ? 1 : 256;
         for (int i = 0; i < requests; i++) {
           send_request('1');
         }
@@ -207,6 +246,7 @@ int main(int argc, char **argv) {
     } else if (!strcmp(argv[4], "timed")) {
       struct timespec previous, current, deadline;
       long max_gap = 0;
+      clear_ack();
       int fd = open(ctl, O_WRONLY | O_TRUNC);
       if (fd < 0 || write(fd, "1", 1) != 1) exit(7);
       close(fd);
@@ -334,10 +374,17 @@ class ZramPreloadTest(unittest.TestCase):
             self.assertEqual("ready", ready[0])
             worker = None
             task_dir = Path("/proc") / ready[1] / "task"
-            for task in task_dir.iterdir():
-                if (task / "comm").read_text().strip() == "zr-worker":
-                    worker = int(task.name)
-                    break
+            deadline = time.monotonic() + 5.0
+            while worker is None and time.monotonic() < deadline:
+                for task in task_dir.iterdir():
+                    try:
+                        if (task / "comm").read_text().strip() == "zr-worker":
+                            worker = int(task.name)
+                            break
+                    except OSError:
+                        continue
+                if worker is None:
+                    time.sleep(0.01)
             self.assertIsNotNone(worker)
             self.assertEqual(os.sched_getscheduler(process.pid), os.sched_getscheduler(worker))
             process.stdin.write(f"{worker}\n")

@@ -419,11 +419,11 @@ public final class PadBridge {
                 break;
             case KeyEvent.KEYCODE_BUTTON_L2:
                 pad.leftTrigger = keyTrigger(pad.leftTrigger, pressed, event.getRepeatCount(),
-                        analogTrigger(device, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE), keyTriggers[slot], 0);
+                        analogTrigger(device, event.getDeviceId(), rightStickLayouts, true), keyTriggers[slot], 0);
                 break;
             case KeyEvent.KEYCODE_BUTTON_R2:
                 pad.rightTrigger = keyTrigger(pad.rightTrigger, pressed, event.getRepeatCount(),
-                        analogTrigger(device, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS), keyTriggers[slot], 1);
+                        analogTrigger(device, event.getDeviceId(), rightStickLayouts, false), keyTriggers[slot], 1);
                 break;
             case KeyEvent.KEYCODE_DPAD_UP: pad.up = pressed; break;
             case KeyEvent.KEYCODE_DPAD_RIGHT: pad.right = pressed; break;
@@ -592,9 +592,19 @@ public final class PadBridge {
         return value;
     }
 
-    static boolean analogTrigger(InputDevice device, int... axes) {
-        return wiredXboxLayout(device, InputDevice.SOURCE_JOYSTICK)
-                || hasAxis(device, InputDevice.SOURCE_JOYSTICK, axes);
+    static boolean analogTrigger(InputDevice device, int deviceId, Map<Integer, Boolean> layouts, boolean left) {
+        int source = InputDevice.SOURCE_JOYSTICK;
+        int dedicated = left ? MotionEvent.AXIS_LTRIGGER : MotionEvent.AXIS_RTRIGGER;
+        int alternate = left ? MotionEvent.AXIS_BRAKE : MotionEvent.AXIS_GAS;
+        int signed = left ? MotionEvent.AXIS_Z : MotionEvent.AXIS_RZ;
+        boolean hasRxRy = hasAxis(device, source, MotionEvent.AXIS_RX)
+                && hasAxis(device, source, MotionEvent.AXIS_RY);
+        boolean hasZRz = hasAxis(device, source, MotionEvent.AXIS_Z)
+                && hasAxis(device, source, MotionEvent.AXIS_RZ);
+        boolean rxRyStick = hasRxRy && (!hasZRz || Boolean.TRUE.equals(layouts.get(deviceId)));
+        return wiredXboxLayout(device, source)
+                || hasAxis(device, source, dedicated, alternate)
+                || (rxRyStick && hasAxis(device, source, signed));
     }
 
     static boolean hasAxis(InputDevice device, int source, int... axes) {

@@ -6,6 +6,7 @@ import com.droiddeck.launcher.input.InputSurfaceElement
 import com.droiddeck.launcher.input.OnScreenLayout
 import com.droiddeck.launcher.input.SavedInputLayout
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -13,8 +14,9 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE)
+@Config(sdk = [34], application = android.app.Application::class)
 class InputSurfaceEditorViewTest {
+    @get:Rule val compose = createRobolectricComposeRule()
     private val context get() = RuntimeEnvironment.getApplication()
     private val layout = SavedInputLayout("custom", "Custom", listOf(InputSurfaceElement(InputControl.A, .1f, .2f, .2f, .2f)), aspect = 2f)
 
@@ -26,9 +28,8 @@ class InputSurfaceEditorViewTest {
         snap = false
     }
 
-    private fun center() = OnScreenLayout.editorElements(context, layout, 1000, 1000).first().let { (it.x + it.width / 2) * 1000 to (it.y + it.height / 2) * 1000 }
-    @Suppress("UNCHECKED_CAST")
-    private fun InputSurfaceEditorView.rendered() = javaClass.getDeclaredField("visibleElements").also { it.isAccessible = true }.get(this) as List<InputSurfaceElement>
+    private fun center(target: SavedInputLayout = layout, width: Int = 1000, height: Int = 1000) =
+        OnScreenLayout.editorElements(context, target, width, height).first().let { (it.x + it.width / 2) * width to (it.y + it.height / 2) * height }
 
     private fun InputSurfaceEditorView.touch(action: Int, x: Float, y: Float) {
         MotionEvent.obtain(0, 10, action, x, y, 0).also { onTouchEvent(it); it.recycle() }
@@ -66,11 +67,43 @@ class InputSurfaceEditorViewTest {
 
     @Test fun savedAspectRemainsStableForRenamesAndResizes() {
         val view = view()
+        var selection: String? = null
+        view.onSelect = { selection = it }
         val renamed = layout.elements.map { it.copy(name = "Renamed") }
         view.elements = renamed
         view.aspect = 2f
-        assertEquals(OnScreenLayout.editorElements(context, layout.copy(elements = renamed, aspect = 2f), 1000, 1000), view.rendered())
+        val (rx, ry) = center(layout.copy(elements = renamed, aspect = 2f), 1000, 1000)
+        view.touch(MotionEvent.ACTION_DOWN, rx, ry)
+        assertEquals("legacy:a", selection)
+        selection = null
         view.layout(0, 0, 800, 1000)
-        assertEquals(OnScreenLayout.editorElements(context, layout.copy(elements = renamed, aspect = 2f), 800, 1000), view.rendered())
+        val (lx, ly) = center(layout.copy(elements = renamed, aspect = 2f), 800, 1000)
+        view.touch(MotionEvent.ACTION_DOWN, lx, ly)
+        assertEquals("legacy:a", selection)
+    }
+
+    @Test fun resetPositionsRestoresDefaultCoordinatesAndReferenceAspect() {
+        val library = com.droiddeck.launcher.input.InputLibraries.read(context)
+        val deck = library.layouts.first { it.id == com.droiddeck.launcher.input.InputLibraries.DECK }
+        val preset = library.bindings.first { it.layoutId == deck.id }
+        val draft = SurfaceDraft(deck, preset, com.droiddeck.launcher.input.InputLibraries.defaultPositions(context, library, deck),
+            defaultAspect = com.droiddeck.launcher.input.InputLibraries.defaultAspect(context, library, deck))
+        val displayed = OnScreenLayout.editorElements(context, deck, 1000, 1000)
+        draft.beginEdit(displayed.map { if (it.control == InputControl.L4) it.copy(y = .60f, height = .15f) else it }, 1f)
+        assertEquals(1f, draft.aspect, .0001f)
+        draft.resetPositions()
+        assertEquals(deck.aspect, draft.aspect, .0001f)
+        val l4 = draft.elements.first { it.control == InputControl.L4 }
+        assertEquals(.78f, l4.y, .0001f)
+        assertEquals(.20f, l4.height, .0001f)
+
+        val gamepad = GamepadScaler(context, 1080, 1920)
+        val migrated = SavedInputLayout("migrated.layout.1920x1080", "Gamepad 1920 × 1080",
+            com.droiddeck.launcher.input.LegacyGamepadLayout(context, 1080, 1920).elements().map { if (it.id == "legacy:a") it.copy(x = .4f) else it },
+            aspect = 1920f / 1080f)
+        val rescaledDraft = SurfaceDraft(migrated, preset, com.droiddeck.launcher.input.InputLibraries.defaultPositions(context, library, migrated),
+            gamepad = gamepad, defaultAspect = com.droiddeck.launcher.input.InputLibraries.defaultAspect(context, library, migrated))
+        rescaledDraft.resetPositions()
+        assertEquals(gamepad.aspect, rescaledDraft.aspect, .0001f)
     }
 }

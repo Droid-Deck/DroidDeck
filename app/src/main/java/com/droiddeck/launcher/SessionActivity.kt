@@ -4879,7 +4879,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val route = com.droiddeck.launcher.input.TouchRouter.decide(snapshot)
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             screenTapsClick = !onScreenMouseButtonShown()
-            if (::touchpad.isInitialized) touchpad.clicks = screenTapsClick
             if (::scrollTouch.isInitialized) scrollTouch.clicks = screenTapsClick
         }
         if (route != touchRoute) {
@@ -4935,6 +4934,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             if (fresh) touchpad.place(rect.centerX(), rect.centerY())
         }
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            touchpad.clicks = !onScreenMouseButtonShown()
             touchpad.desktop = SessionState.mode == SessionService.MODE_DESKTOP
             placeTouchpadAtGuest(rect)
         }
