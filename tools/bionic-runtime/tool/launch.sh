@@ -91,6 +91,9 @@ export FEX_TSOENABLED=${FEX_TSOENABLED:-1} FEX_VECTORTSOENABLED=${FEX_VECTORTSOE
 echo "fex $(env | grep '^FEX_' | sort | tr '\n' ' ')"
 echo "sync ntsync=$WINENTSYNC esync=$WINEESYNC ssbs=${WINE_FORCE_SSBS:-0} tu_debug=${TU_DEBUG:-} kept=$(echo $KEEP)"
 export WINESTEAMCLIENTPATH64=$ROOTFS/root/.local/share/Steam/androidarm64/libsteamclient.so
+# The layer sends a game's steamclient(64).dll to lsteamclient (and so to DroidDeck's Steam through the library
+# above) only with WINE_LSTEAMCLIENT set; without it Valve's Windows steamclient runs alone and SteamAPI_Init fails.
+export WINE_LSTEAMCLIENT=${WINE_LSTEAMCLIENT:-1}
 export DXVK_LOG_PATH=$COMPAT PULSE_SERVER=unix:$APP/pulseaudio/PS0
 export ANDROID_SYSVSHM_SERVER=$COMPAT/.no-sysvshm-server  # its client faults on an unset name, inside a Wine lock
 
@@ -213,6 +216,21 @@ fi
 prefix_busy || rm -f "$NTSYNC_SHM".v*
 
 prepare_prefix
+
+# Steam's Windows client files in the prefix, the ones Proton copies from Steam's legacycompat folder: a game's
+# steam_api loads C:\Program Files (x86)\Steam\steamclient64.dll, and a prefix this tool made has none.
+SC=$ROOTFS/root/.local/share/Steam/legacycompat
+D="$COMPAT/pfx/drive_c/Program Files (x86)/Steam"
+if [ -d "$SC" ]; then
+  mkdir -p "$D"
+  for c in steamclient.dll:steamclient.dll steamclient64.dll:steamclient64.dll GameOverlayRenderer64.dll:GameOverlayRenderer64.dll \
+           SteamService.exe:steam.exe Steam.dll:Steam.dll; do
+    s=$SC/${c%%:*}; d=$D/${c#*:}
+    [ -f "$s" ] || continue
+    [ -f "$d" ] && [ ! "$s" -nt "$d" ] && continue
+    cp "$s" "$d.new" && mv -f "$d.new" "$d" && touch -r "$s" "$d" && echo "$(date +%H:%M:%S) Steam client file ${c#*:}"
+  done
+fi
 
 # D7VK (Direct3D 7 and older on Vulkan) for 32-bit games when PROTON_USE_D7VK is set and not 0, as DroidDeck-Proton:
 # its ddraw.dll in syswow64 with Wine's own beside it as ddraw_.dll. Switched off, Wine's link goes back. Only the
