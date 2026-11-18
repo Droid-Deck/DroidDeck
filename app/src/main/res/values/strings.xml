@@ -1771,6 +1771,7 @@
     <string name="game_link_missing">This game is no longer in your DroidDeck library.</string>
     <string name="game_link_session_busy">Stop the current session before launching a Steam game.</string>
     <string name="game_link_failed">Could not send the game to Steam. Try launching it again.</string>
+    <string name="game_needs_app_model">%1$s is a UWP app. This runtime has no Windows app-model host to start it.</string>
     <string name="setup_retry_removal">Retry removal</string>
     <string name="runtime_removing">Removing</string>
     <string name="runtime_removal_incomplete">Removal incomplete</string>
@@ -2992,6 +2993,9 @@
     <string name="stores_login_close">Close</string>
     <string name="stores_login_retry">Try again</string>
     <string name="stores_login_finishing">Finishing sign-in…</string>
+    <string name="stores_xbox_device_group_full">This Microsoft account is at its device limit. Remove an old device under Manage devices, then resume.</string>
+    <string name="stores_xbox_manage_devices">Manage devices</string>
+    <string name="stores_xbox_license_refused">Microsoft does not license any available version of this game to this device.</string>
     <string name="stores_xbox_sign_in_again">Microsoft rejected the Xbox sign-in. Sign out of Xbox in Stores, sign in again, then resume.</string>
     <string name="stores_login_error_network">The sign-in page could not be loaded: %1$s</string>
     <string name="stores_login_error_idp_blocked">This provider refuses to sign in from an embedded page. Sign in with your store password instead.</string>

@@ -32,7 +32,10 @@ else
 '"$build"
 fi
 mkdir -p "$cache"
+threads=()
+[[ -n "${RUST_TEST_THREADS:-}" ]] && threads=(-e RUST_TEST_THREADS="$RUST_TEST_THREADS")
 docker run --rm --platform "$platform" -v "$repo:/src" -v "$cache:/work" -w /src \
-    -e CARGO_HOME=/work/cargo -e RUSTUP_HOME=/work/rustup -e XBOX_BUILD_DIR=/work/build "$image" \
+    -e CARGO_HOME=/work/cargo -e RUSTUP_HOME=/work/rustup -e XBOX_BUILD_DIR=/work/build \
+    ${threads[@]+"${threads[@]}"} "$image" \
     bash -lc "set -euo pipefail
-    trap 'chown -R $(id -u):$(id -g) /work /src/app/src/main/assets/linuxfs 2>/dev/null || true' EXIT$build"
+    trap 'chown -R $(id -u):$(id -g) /work /src/app/src/main/assets/linuxfs /src/app/build 2>/dev/null || true' EXIT$build"
