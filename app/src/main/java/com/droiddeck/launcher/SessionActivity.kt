@@ -205,6 +205,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private val inputMotion = InputMotion { inputRouter }
     private val heldKeys = HeldInput { code, down -> WaylandCompositor.nativeSendKey(code, if (down) 1 else 0) }
     private val heldButtons = HeldInput(::sendSceneButton)
+    private var capturedButtons = 0
     private val inputOutput = object : InputOutput {
         override fun key(code: Int, down: Boolean) { heldKeys.set(4, code, down) }
         override fun button(code: Int, down: Boolean) { heldButtons.set(4, code, down) }
@@ -346,7 +347,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             pointerLocked = locked
             Log.i(TAG, "pointer lock " + if (locked) "taken by a program" else "released")
             if (locked) desktopGrabTaps = 0
-            if (programLocksPointer()) openEvdevMouse() else closeEvdevMouse()
+            refreshEvdevMouse()
             padMouseCheckedAt = 0L
             if (::padMouse.isInitialized) padMouseMode()
             if (locked && ::touchpad.isInitialized) {
@@ -1695,7 +1696,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onEvdevMouse = { on ->
                 SessionPrefs.setEvdevMouse(this@SessionActivity, on)
                 evdevMouseOn = on
-                if (on) { if (programLocksPointer()) openEvdevMouse() } else releaseEvdevMouse()
+                if (on) refreshEvdevMouse() else releaseEvdevMouse()
             },
             directCursor = directCursorOn,
             onDirectCursor = { on ->
@@ -2525,7 +2526,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         backDoubleTapMs = SessionPrefs.backDoubleTapMs(this)
         lowLatency = SessionPrefs.lowLatency(this)
         evdevMouseOn = SessionPrefs.evdevMouse(this)
-        if (!evdevMouseOn) releaseEvdevMouse()
+        if (evdevMouseOn) refreshEvdevMouse() else releaseEvdevMouse()
         directCursorOn = SessionPrefs.directCursor(this)
         padType = SessionPrefs.steamController(this)
     }
@@ -4717,6 +4718,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionState.outputSize.first / rect.width()
 
     // Clearing button owners emits releases, so backend transitions share their lock with all mouse writes.
+    private val evdevMouseRetry = Runnable { if (evdevMouseOn && !evdevMouseActive) openEvdevMouse() }
+
+    /**
+     * The raw channel writes into the guest's dev/input, which does not exist yet when the
+     * setting is restored before the session starts, so retry a couple of times after it opens.
+     */
+    private fun refreshEvdevMouse() {
+        uiHandler.removeCallbacks(evdevMouseRetry)
+        if (!evdevMouseOn) {
+            closeEvdevMouse()
+            return
+        }
+        openEvdevMouse()
+        uiHandler.postDelayed(evdevMouseRetry, 1500)
+        uiHandler.postDelayed(evdevMouseRetry, 5000)
+    }
+
     private fun openEvdevMouse(): Unit = synchronized(heldButtons) {
         if (evdevMouseActive || !evdevMouseOn) return
         val writer = mouseWriter ?: com.droiddeck.launcher.input.FakeInputWriter(
@@ -4740,6 +4758,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun releaseEvdevMouse(): Unit = synchronized(heldButtons) {
+        uiHandler.removeCallbacks(evdevMouseRetry)
+        capturedButtons = 0
         if (evdevMouseActive) heldButtons.clear()
         evdevMouseActive = false
         mouseWriter?.destroy()
@@ -4754,6 +4774,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun sendSceneButton(code: Int, down: Boolean): Unit = synchronized(heldButtons) {
+        traceInput("scene button $code $down")
         val raw = if (down) evdevMouseActive.also { guestButtonsDown[code] = it }
             else guestButtonsDown.remove(code) ?: evdevMouseActive
         val writer = if (raw) mouseWriter else null
@@ -5082,12 +5103,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                 if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y, fromMouse = true)
                 guestMouseButton(event.actionButton)?.let { heldButtons.set(8, it, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS) }
+                capturedButtons = if (event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS) {
+                    capturedButtons or event.actionButton
+                } else {
+                    capturedButtons and event.actionButton.inv()
+                }
             }
             MotionEvent.ACTION_SCROLL -> {
                 val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
                 if (v != 0f) sendSceneWheel(-Math.round(v))
             }
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {}
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {
+                if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y, fromMouse = true)
+                val state = when {
+                    event.buttonState != 0 -> event.buttonState
+                    event.actionMasked == MotionEvent.ACTION_DOWN -> MotionEvent.BUTTON_PRIMARY
+                    else -> 0
+                }
+                syncHeldButtons(state)
+            }
+            MotionEvent.ACTION_CANCEL -> syncHeldButtons(0)
             else -> return false
         }
         return true
@@ -5103,6 +5138,32 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         MotionEvent.BUTTON_TERTIARY -> PointerGestures.BTN_MIDDLE
         MotionEvent.BUTTON_BACK, MotionEvent.BUTTON_FORWARD -> null
         else -> PointerGestures.BTN_LEFT
+    }
+
+    /** Writes to the app's external files dir, which adb can read even when this ROM hides the app's logcat. */
+    private fun traceInput(line: String) {
+        val dir = getExternalFilesDir(null) ?: return
+        runCatching {
+            java.io.File(dir, "input-trace.txt").appendText("${android.os.SystemClock.uptimeMillis()} $line\n")
+        }
+    }
+
+    /**
+     * Derives button edges from MotionEvent.getButtonState().
+     * Some ROMs never turn a buttonState change into ACTION_BUTTON_PRESS while the pointer is captured,
+     * and a mouse without pointer capture reports presses as ACTION_DOWN/ACTION_UP.
+     */
+    private fun syncHeldButtons(buttons: Int) {
+        val changed = buttons xor capturedButtons
+        if (changed == 0) return
+        capturedButtons = buttons
+        for (button in intArrayOf(MotionEvent.BUTTON_PRIMARY, MotionEvent.BUTTON_SECONDARY, MotionEvent.BUTTON_TERTIARY)) {
+            if ((changed and button) == 0) continue
+            val guest = guestMouseButton(button) ?: continue
+            val down = (buttons and button) != 0
+            heldButtons.set(8, guest, down)
+            traceInput("button $guest ${if (down) "down" else "up"} state=0x${Integer.toHexString(buttons)}")
+        }
     }
 
     private fun mouseAttached(): Boolean = usbMouse.active || InputDevice.getDeviceIds().any { id ->
@@ -5125,7 +5186,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         releaseDesktopMouseGrab()
         updateUsbMouse(want)
         if (want == view.hasPointerCapture()) return
-        if (want) view.requestPointerCapture() else view.releasePointerCapture()
+        if (want) {
+            view.requestPointerCapture()
+        } else {
+            view.releasePointerCapture()
+            syncHeldButtons(0)
+        }
+        traceInput("capture want=$want")
     }
 
     private fun updateUsbMouse(want: Boolean) {
@@ -5230,15 +5297,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     dx += event.getHistoricalX(i)
                     dy += event.getHistoricalY(i)
                 }
+                syncHeldButtons(event.buttonState)
                 onRelativeMouse(dx, dy)
             }
-            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE ->
-                guestMouseButton(event.actionButton)?.let { heldButtons.set(8, it, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS) }
+            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
+                val down = event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS
+                guestMouseButton(event.actionButton)?.let { heldButtons.set(8, it, down) }
+                capturedButtons = if (down) capturedButtons or event.actionButton else capturedButtons and event.actionButton.inv()
+            }
             MotionEvent.ACTION_SCROLL -> {
                 val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
                 if (v != 0f) sendSceneWheel(-Math.round(v))
             }
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {}
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {
+                val state = when {
+                    event.buttonState != 0 -> event.buttonState
+                    event.actionMasked == MotionEvent.ACTION_DOWN -> MotionEvent.BUTTON_PRIMARY
+                    else -> 0
+                }
+                syncHeldButtons(state)
+            }
+            MotionEvent.ACTION_CANCEL -> syncHeldButtons(0)
             else -> return false
         }
         return true
@@ -5448,6 +5527,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         mouseBackInput.cancel()
         cancelPen(releaseKey = true)
         heldButtons.release(1 or 2 or 8 or 16)
+        capturedButtons = 0
         guestKeysDown.toList().forEach { sendGuestKey(it, false) }
         heldKeys.release(8 or 16 or 32)
     }
