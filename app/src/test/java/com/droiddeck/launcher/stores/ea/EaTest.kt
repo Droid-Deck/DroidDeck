@@ -461,6 +461,10 @@ class EaTest {
         val again = EaCloud.parse(EaCloud.write(m))
         assertEquals(m.files.single().localName, again.files.single().localName)
         assertEquals(m.files.single().href, again.files.single().href)
+        assertEquals(m.files.single().created, again.files.single().created)
+        assertEquals(m.files.single().modified, again.files.single().modified)
+        assertEquals(m.files.single().size, again.files.single().size)
+        assertEquals(m.files.single().md5, again.files.single().md5)
         assertEquals(listOf("80cmnqT/rIKQRmciINSVhQ=="), again.snapshots)
         assertEquals(m.lineage, again.lineage)
     }
@@ -478,6 +482,8 @@ class EaTest {
     @Test fun aTruncatedManifestIsRefused() {
         val cut = runCatching { EaCloud.parse("""<manifest lineage="{1}"><file size="1" href="content/1-a" md5="x5lr6ApuONH47yiGaxFPiw==">""") }
         assertTrue(cut.isFailure)
+        val open = runCatching { EaCloud.parse("""<manifest lineage="{1}"><file size="1" href="content/1-a" md5="x5lr6ApuONH47yiGaxFPiw=="><localName>%Documents%/a</localName></manifest>""") }
+        assertTrue(open.isFailure)
     }
 
     @Test fun snapshotEntitiesAreDecodedOnceAndWrittenBackTheSame() {

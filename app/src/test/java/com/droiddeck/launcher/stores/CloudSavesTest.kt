@@ -50,6 +50,21 @@ class CloudSavesTest {
         assertEquals("v1", File(kept, "slot0.sav").readText())
     }
 
+    @Test fun aFolderAliasNeverHidesTheRealSaveFromARestore() {
+        val game = id; val dir = dir()
+        File(dir, "SaveData").mkdirs(); File(dir, "SaveData/slot.sav").writeText("local")
+        val link = runCatching { java.nio.file.Files.createSymbolicLink(File(dir, "Cache").toPath(), File(dir, "SaveData").toPath()) }
+        org.junit.Assume.assumeTrue(link.isSuccess)
+        val memory = Memory().apply { files["SaveData/slot.sav"] = "cloud".toByteArray() to 1000L }
+        val cloud = object : CloudTransport by memory {
+            override fun wants(name: String) = name.startsWith("SaveData/")
+        }
+        CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = true)
+        assertEquals("cloud", File(dir, "SaveData/slot.sav").readText())
+        val kept = File(app.filesDir, "stores/cloud-backups/gog-$game").listFiles { f -> f.name.startsWith("local-") }!!.single()
+        assertEquals("local", File(kept, "SaveData/slot.sav").readText())
+    }
+
     @Test fun aFileChangedOnBothSidesIsLeftForTheUser() {
         val game = id; val dir = dir()
         val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L }

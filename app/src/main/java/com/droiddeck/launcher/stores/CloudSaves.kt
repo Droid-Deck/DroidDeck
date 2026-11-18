@@ -368,10 +368,12 @@ object CloudSaves {
 
     private fun localFiles(dir: File): Map<String, File> {
         if (!dir.isDirectory) return emptyMap()
-        val root = runCatching { dir.canonicalPath + File.separator }.getOrNull() ?: return emptyMap()
+        val real = runCatching { dir.canonicalFile }.getOrNull() ?: return emptyMap()
+        val root = real.path + File.separator
         val inside = { f: File -> runCatching { (f.canonicalPath + File.separator).startsWith(root) }.getOrDefault(false) }
-        val seen = HashSet<String>()
-        val enter = { d: File -> inside(d) && runCatching { seen.add(d.canonicalPath) }.getOrDefault(false) }
+        val enter = { d: File ->
+            runCatching { d == dir || d.canonicalFile == File(real, d.relativeTo(dir).path) }.getOrDefault(false)
+        }
         return dir.walkTopDown().onEnter(enter).filter { it.isFile && inside(it) }
             .associateBy { it.relativeTo(dir).path.replace(File.separatorChar, '/') }
     }
@@ -395,7 +397,11 @@ object CloudSaves {
         val base = baseline(context, store, id)
         val plan = CloudPlan.down(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
         val take = if (force) plan.transfer + plan.conflicts else plan.transfer
-        if (!backupReplaced(context, store, id, dir, take.mapNotNull { files[it] })) return Result("failed", 0, 0, "backup-failed")
+        val inside = dir.canonicalPath + File.separator
+        val replaced = take.mapNotNull { name ->
+            files[name] ?: File(dir, name).takeIf { it.isFile && runCatching { it.canonicalPath.startsWith(inside) }.getOrDefault(false) }
+        }
+        if (!backupReplaced(context, store, id, dir, replaced)) return Result("failed", 0, 0, "backup-failed")
         val next = HashMap(base.orEmpty())
         var bytes = 0L
         for (name in take) {
@@ -512,7 +518,7 @@ object CloudSaves {
         if (replaced.isEmpty()) return true
         val base = runCatching { dir.canonicalPath + File.separator }.getOrNull() ?: return false
         val root = backupRoot(context, store, id)
-        val stamp = System.currentTimeMillis()
+        val stamp = "${System.currentTimeMillis()}-${java.util.UUID.randomUUID().toString().take(8)}"
         val staging = File(root, "staging-$stamp")
         val copied = runCatching {
             for (f in replaced) {

@@ -1,11 +1,14 @@
 package com.droiddeck.launcher.stores.ea
 
 import android.util.Base64
+import android.util.Xml
 import com.droiddeck.launcher.stores.CloudFile
 import com.droiddeck.launcher.stores.CloudTransport
 import java.io.File
+import java.io.StringReader
 import java.security.MessageDigest
 import java.time.Instant
+import org.xmlpull.v1.XmlPullParser
 
 internal class EaCloud(
     private val token: String,
@@ -40,6 +43,8 @@ internal class EaCloud(
             val md5 = hex(e.md5) ?: error("EA listed ${path.substring(base.length)} without a valid checksum")
             CloudFile(localName(path.substring(base.length)), parseTime(e.modified), md5, readLink = e.href)
         }
+        val twins = files.groupBy { it.name.lowercase() }.values.firstOrNull { it.size > 1 }
+        check(twins == null) { "EA lists more than one save named ${twins!!.first().name} in different cases" }
         listed = files.associate { it.name.lowercase() to it.md5 }
         return files
     }
@@ -112,7 +117,7 @@ internal class EaCloud(
 
     private fun pick(): Manifest? {
         for (candidate in keys) {
-            val manifest = locked("read", candidate) { _, body -> manifestUrl(body)?.let { fetchManifest(it) } }
+            val manifest = locked("read", candidate, missing = { null }) { _, body -> manifestUrl(body)?.let { fetchManifest(it) } }
             if (manifest != null) {
                 key = candidate
                 found = true
@@ -136,8 +141,9 @@ internal class EaCloud(
         return parse(reply.text)
     }
 
-    private fun <T> locked(kind: String, key: String, body: (String, String) -> T): T {
+    private fun <T> locked(kind: String, key: String, missing: (() -> T)? = null, body: (String, String) -> T): T {
         val reply = EaHttp.request("$HOST/lock/$kind/$uid/$key", "POST", mapOf(AUTH to token, "Content-Type" to "application/xml"), ByteArray(0))
+        if (reply.status == 404 && missing != null) return missing()
         check(reply.ok) { "EA cloud saves answered ${reply.status}" }
         val lock = reply.header(LOCK) ?: error("EA did not grant a cloud save lock")
         try {
@@ -179,7 +185,7 @@ internal class EaCloud(
         fun manifestUrl(lockBody: String): String? = Regex("<manifest>([^<]+)</manifest>").find(lockBody)?.groupValues?.get(1)?.let(::unescape)
 
         fun parse(xml: String): Manifest {
-            check(xml.trimEnd().endsWith("</manifest>")) { "EA sent an incomplete cloud save manifest" }
+            check(wellFormed(xml)) { "EA sent an incomplete cloud save manifest" }
             val lineage = attr(Regex("<manifest\\b([^>]*)>").find(xml)?.groupValues?.get(1).orEmpty(), "lineage")
                 ?: "{00000000-0000-0000-0000-000000000000}"
             val files = FILE.findAll(xml).mapNotNull { m ->
@@ -190,6 +196,19 @@ internal class EaCloud(
             }.toList()
             return Manifest(lineage, files, SNAPSHOT.findAll(xml).map { unescape(it.groupValues[1]) }.toList())
         }
+
+        private fun wellFormed(xml: String): Boolean = runCatching {
+            val p = Xml.newPullParser()
+            p.setInput(StringReader(xml))
+            var root: String? = null
+            var depth = 0
+            var closed = false
+            while (p.next() != XmlPullParser.END_DOCUMENT) when (p.eventType) {
+                XmlPullParser.START_TAG -> { if (root == null) root = p.name; depth++ }
+                XmlPullParser.END_TAG -> { depth--; if (depth == 0) closed = true }
+            }
+            root == "manifest" && depth == 0 && closed
+        }.getOrDefault(false)
 
         fun write(m: Manifest): String = buildString {
             append("<manifest xmlns=\"http://origin.com/cloudsaves/manifest\" lineage=\"").append(escape(m.lineage)).append("\">\n")
