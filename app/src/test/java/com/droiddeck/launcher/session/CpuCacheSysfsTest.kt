@@ -145,6 +145,27 @@ class CpuCacheSysfsTest {
         assertEquals("512K\n", File(second, "index0/size").readText())
     }
 
+    @Test fun aDelayedWorkerFromARecreatedServiceKeepsItsOwnFolder() {
+        val host = tmp.newFolder("host")
+        cache(host, 0, 2 to null)
+        val root = tmp.newFolder("out")
+        val ready = java.util.concurrent.CountDownLatch(2)
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        try {
+            val starts = List(2) {
+                pool.submit<String> {
+                    ready.countDown()
+                    ready.await()
+                    CpuCacheSysfs.binds(root, host = host, process = "p").single().substringBefore(':')
+                }
+            }.map { it.get(10, java.util.concurrent.TimeUnit.SECONDS) }
+            assertEquals(2, starts.toSet().size)
+            starts.forEach { assertEquals("512K\n", File(it, "index0/size").readText()) }
+        } finally {
+            pool.shutdownNow()
+        }
+    }
+
     @Test fun aCoreWhoseMetadataCannotBeCopiedIsSkippedAndTheOthersStayBound() {
         val host = tmp.newFolder("host")
         cache(host, 0, 2 to null)
