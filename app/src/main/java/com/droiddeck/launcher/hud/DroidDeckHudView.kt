@@ -290,11 +290,9 @@ class DroidDeckHudView(context: Context) : View(context) {
             periodDone.trySend(Unit)
         }
         if (graphRect == null) return
-        if (stripRect != null) {
-            val now = SystemClock.uptimeMillis()
-            if (now - lastGraphDrawMs < STRIP_GRAPH_REDRAW_MS) return
-            lastGraphDrawMs = now
-        }
+        val now = SystemClock.uptimeMillis()
+        if (now - lastGraphDrawMs < GRAPH_REDRAW_MS) return
+        lastGraphDrawMs = now
         invalidate()
     }
 
@@ -1267,7 +1265,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         const val TAB_PAD_X_SP = 7f
         const val TAB_PAD_Y_SP = 5.5f
         const val REFRESH_MS = 500L
-        const val STRIP_GRAPH_REDRAW_MS = 66L
+        const val GRAPH_REDRAW_MS = 66L
         private const val HUE_IDLE_MS = 500L
         const val MIN_SCALE = 0.5f
         const val MAX_SCALE = 2f
