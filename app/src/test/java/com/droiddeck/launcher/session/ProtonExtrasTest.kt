@@ -270,4 +270,27 @@ class ProtonExtrasTest {
         assertNull(ProtonExtras.testFor(listOf("DroidDeck-Proton-11-13.0"), "DroidDeck-Proton-11-12.9"))
         assertNull(ProtonExtras.testFor(listOf("DroidDeck-Proton-11-12.8"), null))
     }
+
+    @Test
+    fun theHighestEligibleTestBuildWinsWhateverTheListOrder() {
+        val releases = JSONArray()
+            .put(droiddeckRelease("11-12.7", prerelease = true))
+            .put(droiddeckRelease("11-12.9", prerelease = true))
+            .put(droiddeckRelease("11-12.8.5", prerelease = true))
+            .put(droiddeckRelease("11-12.8"))
+        assertEquals("DroidDeck-Proton-11-12.9", ProtonExtras.pickAsset(tool("droiddeck"), releases, test = true)!!.tag)
+    }
+
+    @Test
+    fun noTestBuildWithoutAStableBaseline() {
+        val releases = JSONArray().put(droiddeckRelease("11-12.9", prerelease = true))
+        assertNull(ProtonExtras.pickAsset(tool("droiddeck"), releases, test = true))
+    }
+
+    @Test
+    fun malformedReleaseEntriesAreSkipped() {
+        val releases = JSONArray("[null, 5, {\"tag_name\": \"x\", \"assets\": [null]}]").put(droiddeckRelease("11-12.8"))
+        assertEquals("DroidDeck-Proton-11-12.8", ProtonExtras.pickAsset(tool("droiddeck"), releases)!!.tag)
+        assertNull(ProtonExtras.pickAsset(tool("droiddeck"), JSONArray("[null]")))
+    }
 }
