@@ -160,6 +160,12 @@ def ff7_rebirth_feature_level(game):
 
 
 @fix
+def hades2_feature_level(game):
+    if game.stem == "hades2":
+        return {"VKD3D_FEATURE_LEVEL": "12_2"}, [], "Hades II: D3D12 feature level 12_2 (on Adreno 6xx/7xx it finds no D3D12 adapter at the detected level)"
+
+
+@fix
 def kcd2_feature_level(game):
     if game.app_id == "1771300":
         return {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"}, [], "Kingdom Come: Deliverance II: D3D12 feature level 12_2 and shader model 6_9 (the detected level fails its startup check, and 12_0 alone stalls on the splash screen)"
