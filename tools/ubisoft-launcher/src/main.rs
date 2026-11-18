@@ -27,7 +27,7 @@ mod service {
     use std::fs::OpenOptions;
     use std::io::Write;
     use std::path::PathBuf;
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::{Duration, Instant};
@@ -43,6 +43,7 @@ mod service {
         log: Mutex<Option<std::fs::File>>,
         event: Handle,
         game: AtomicU32,
+        stale_token: AtomicBool,
         started: Instant,
     }
 
@@ -185,7 +186,8 @@ mod service {
         let _ = std::fs::remove_file(&rsp);
         let part = dir.join(format!("denuvo-{rid}.req.part"));
         std::fs::write(&part, challenge).ok()?;
-        std::fs::rename(&part, dir.join(format!("denuvo-{rid}.req"))).ok()?;
+        let kind = if state.stale_token.swap(false, Ordering::SeqCst) { "req" } else { "cache.req" };
+        std::fs::rename(&part, dir.join(format!("denuvo-{rid}.{kind}"))).ok()?;
         let deadline = Instant::now() + DENUVO_WAIT;
         while Instant::now() < deadline {
             if let Ok(token) = std::fs::read(&rsp) {
@@ -214,6 +216,14 @@ mod service {
                         }
                         None => state.say(&format!("aux: no game token for activation {rid}")),
                     }
+                }
+                AuxReq::Invalidate(rid) => {
+                    state.stale_token.store(true, Ordering::SeqCst);
+                    if !state.cfg.bridge.is_empty() {
+                        let _ = std::fs::write(PathBuf::from(&state.cfg.bridge).join("denuvo-invalidate"), b"");
+                    }
+                    send(&pipe, &launcher::aux_invalidated(rid));
+                    state.say(&format!("aux: token invalidated by request {rid}"));
                 }
                 AuxReq::Other(rid) => state.say(&format!("aux: request {rid} not handled ({} B)", req.len())),
             }
@@ -304,6 +314,7 @@ mod service {
             log: Mutex::new(log),
             event: win::inheritable_event(),
             game: AtomicU32::new(0),
+            stale_token: AtomicBool::new(false),
             started: Instant::now(),
         });
         state.say(&format!("product {} on {}*", state.cfg.product, state.prefix));

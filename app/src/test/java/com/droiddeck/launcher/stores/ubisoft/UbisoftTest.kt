@@ -98,4 +98,19 @@ class UbisoftTest {
         assertArrayEquals(bytes, UbisoftActivation.unhex("00017fff802a"))
         assertNull(UbisoftActivation.unhex("abc"))
     }
+
+    @Test fun keptGameTokensBelongToOneAccountAndProductUntilDropped() {
+        val dir = kotlin.io.path.createTempDirectory().toFile()
+        val cache = UbisoftActivation.TokenCache(dir)
+        assertNull(cache.get("u-1", 109))
+        assertTrue(cache.put("u-1", 109, byteArrayOf(1, 2, 3)))
+        assertArrayEquals(byteArrayOf(1, 2, 3), cache.get("u-1", 109))
+        assertNull(cache.get("u-1", 82))
+        assertNull(cache.get("u-2", 109))
+        assertTrue(cache.put("../u-1", 82, byteArrayOf(4)))
+        assertTrue(dir.listFiles()!!.all { it.parentFile == dir })
+        assertTrue(cache.drop("u-1", 109))
+        assertNull(cache.get("u-1", 109))
+        dir.deleteRecursively()
+    }
 }

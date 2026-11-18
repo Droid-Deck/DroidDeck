@@ -16,6 +16,8 @@ object UbisoftActivation {
     private const val IDLE_MS = 60_000L
     private val watching = HashMap<Long, Long>()
 
+    private const val INVALIDATE = "denuvo-invalidate"
+
     fun bridge(context: Context, product: Long) = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/ubisoft/bridge-$product")
 
     /** Starts answering the product's activations; stale requests are cleared before this returns. */
@@ -31,7 +33,10 @@ object UbisoftActivation {
         Thread({
             var idleSince = 0L
             while (true) {
-                runCatching { dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }?.forEach { answer(app, product, it) } }
+                runCatching {
+                    File(dir, INVALIDATE).takeIf { it.delete() }?.let { invalidate(app, product) }
+                    dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }?.forEach { answer(app, product, it) }
+                }
                     .onFailure { StoresState.logLine("Ubisoft: activation for $product: ${it.javaClass.simpleName}") }
                 val now = System.currentTimeMillis()
                 if (SessionState.running) idleSince = 0L
@@ -47,15 +52,25 @@ object UbisoftActivation {
     private fun answer(app: Context, product: Long, request: File) {
         val challenge = runCatching { request.readBytes() }.getOrNull() ?: return
         request.delete()
-        val reply = File(request.parentFile, request.name.removeSuffix(".req") + ".rsp")
-        val token = activate(app, product, challenge)
+        val reply = File(request.parentFile, request.name.removeSuffix(".req").removeSuffix(".cache") + ".rsp")
+        val token = activate(app, product, challenge, cached = request.name.endsWith(".cache.req"))
         val part = File(reply.path + ".part")
         part.writeBytes(token ?: ByteArray(0))
         part.renameTo(reply)
     }
 
-    private fun activate(app: Context, product: Long, challenge: ByteArray): ByteArray? {
+    private fun invalidate(app: Context, product: Long) {
+        val user = UbisoftAuth.current(app)?.userId ?: return
+        if (TokenCache(cacheDir(app)).drop(user, product)) StoresState.logLine("Ubisoft: activation for $product: kept game token dropped")
+    }
+
+    private fun activate(app: Context, product: Long, challenge: ByteArray, cached: Boolean): ByteArray? {
         val s = UbisoftAuth.current(app) ?: return null.also { StoresState.logLine("Ubisoft: activation for $product: signed out") }
+        val cache = TokenCache(cacheDir(app))
+        if (cached) cache.get(s.userId, product)?.let {
+            StoresState.logLine("Ubisoft: activation for $product: kept ${it.size} B game token")
+            return it
+        }
         val answer = UbisoftNative.call("denuvo", JSONObject().put("ticket", s.ticket).put("sessionId", s.sessionId)
             .put("productId", product).put("challenge", hex(challenge)))
         answer?.optString("error")?.takeIf { it.isNotEmpty() }?.let {
@@ -64,7 +79,26 @@ object UbisoftActivation {
         }
         val token = answer?.optString("token")?.takeIf { it.isNotEmpty() }?.let(::unhex)
         StoresState.logLine("Ubisoft: activation for $product: ${token?.size ?: 0} B game token")
+        if (token != null && !cache.put(s.userId, product, token)) StoresState.logLine("Ubisoft: activation for $product: game token not kept")
         return token
+    }
+
+    private fun cacheDir(app: Context) = File(app.filesDir, "ubisoft/denuvo")
+
+    internal class TokenCache(private val dir: File) {
+        private fun file(user: String, product: Long) = File(dir, "${user.filter { it.isLetterOrDigit() || it == '-' }}-$product.token")
+
+        fun get(user: String, product: Long): ByteArray? = runCatching { file(user, product).readBytes() }.getOrNull()?.takeIf { it.isNotEmpty() }
+
+        fun put(user: String, product: Long, token: ByteArray): Boolean = runCatching {
+            dir.mkdirs()
+            val target = file(user, product)
+            val part = File(target.path + ".part")
+            part.writeBytes(token)
+            check(part.renameTo(target))
+        }.isSuccess
+
+        fun drop(user: String, product: Long): Boolean = file(user, product).delete()
     }
 
     internal fun hex(b: ByteArray): String = b.joinToString("") { "%02x".format(it) }
