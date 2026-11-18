@@ -87,6 +87,12 @@ class VkBridgeSocketWaitTest(unittest.TestCase):
         out, _ = self.run_wait(200)
         self.assertTrue(out.endswith("UNAVAILABLE\n"), out)
 
+    def test_wall_clock_changes_do_not_extend_socket_deadline(self):
+        out, elapsed = self.run_wait(200, prelude="unset EPOCHREALTIME\ndate() { echo 0; }\n")
+        self.assertTrue(out.endswith("UNAVAILABLE\n"), out)
+        self.assertGreaterEqual(self.waited_ms(out), 200)
+        self.assertLess(elapsed, 3)
+
     def test_a_stopping_session_does_not_wait(self):
         out, elapsed = self.run_wait(10000, prelude="dd_stopping=1\n")
         self.assertTrue(out.endswith("UNAVAILABLE\n"), out)

@@ -6,7 +6,6 @@ import android.util.Log
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
 import org.json.JSONObject
 import java.io.File
@@ -53,7 +52,7 @@ object DriverBundle {
         false
     }
 
-    fun install(context: Context, uri: Uri, beforeReplace: () -> Unit = {}): Bundle {
+    fun install(context: Context, uri: Uri): Bundle {
         val work = File(context.cacheDir, "bundle-${System.nanoTime()}")
         val td = TurnipDriver(context)
         val lm = LinuxVulkanDriverManager(context)
@@ -90,10 +89,8 @@ object DriverBundle {
 
             val base = LinuxVulkanDriverManager.sanitizeId(manifest.tag.ifEmpty { "${manifest.name}-${manifest.version}" })
             return synchronized(SessionPrefs) {
-                beforeReplace()
                 val old = get(context, base)?.takeIf { DriverPairs.isNonAdreno(it.id) }
-                if (old != null) require(!SessionState.running && SessionState.phase != SessionPhase.STARTING_COMPOSITOR &&
-                    SessionState.phase != SessionPhase.STARTING_GUEST) {
+                if (old != null) require(!SessionState.usesDrivers()) {
                     context.getString(R.string.drivers_auto_waits_for_session)
                 }
                 val followDisplay = old != null && SessionPrefs.androidDriver(context) == old.androidId
@@ -170,7 +167,11 @@ object DriverBundle {
         return all(context).firstOrNull { it.androidId == android && it.linuxId == linux }
     }
 
-    fun select(context: Context, bundle: Bundle) {
+    fun select(context: Context, bundle: Bundle): Unit = synchronized(SessionPrefs) {
+        val installed = get(context, bundle.id)
+        require(installed?.androidId == bundle.androidId && installed.linuxId == bundle.linuxId) {
+            context.getString(R.string.drivers_not_a_driver)
+        }
         SessionPrefs.setAndroidDriver(context, bundle.androidId)
         SessionPrefs.setLinuxDriver(context, bundle.linuxId)
     }
@@ -181,7 +182,8 @@ object DriverBundle {
         if (left != null && left.androidId != id) SessionPrefs.setLinuxDriver(context, "")
     }
 
-    fun remove(context: Context, bundle: Bundle) {
+    fun remove(context: Context, bundle: Bundle): Unit = synchronized(SessionPrefs) {
+        require(!SessionState.usesDrivers()) { context.getString(R.string.drivers_auto_waits_for_session) }
         TurnipDriver(context).remove(bundle.androidId)
         LinuxVulkanDriverManager(context).removeDriver(bundle.linuxId)
         if (SessionPrefs.linuxDriver(context) == bundle.linuxId) SessionPrefs.setLinuxDriver(context, "")

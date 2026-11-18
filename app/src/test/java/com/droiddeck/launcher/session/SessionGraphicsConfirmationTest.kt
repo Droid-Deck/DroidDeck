@@ -48,9 +48,10 @@ class SessionGraphicsConfirmationTest {
         File(old, MaliGraphics.PATH_FILE).writeText("bridge")
         File(recent, MaliGraphics.PATH_FILE).writeText("panvk")
         assertEquals(MaliGraphicsMode.PANVK, SessionPaths.graphicsConfirmation(context)?.path)
-        File(recent, MaliGraphics.PATH_FILE).delete()
-        assertNull(SessionPaths.graphicsConfirmation(context)?.path)
-        SessionPaths.beginOrCurrent(context, "active")
+        val active = SessionPaths.beginOrCurrent(context, "active")
+        assertEquals(MaliGraphicsMode.PANVK, MaliGraphics.actual(recent))
+        assertEquals(active.name, SessionPaths.graphicsConfirmation(context)?.sessionId)
+        assertNotEquals(recent.name, SessionPaths.graphicsConfirmation(context)?.sessionId)
         assertNull(SessionPaths.graphicsConfirmation(context)?.path)
     }
 }

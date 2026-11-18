@@ -210,12 +210,10 @@ dd_webhelper_layout() {
   fi
 }
 dd_now_ms() {
-  if [ -n "${EPOCHREALTIME:-}" ]; then
-    local t=${EPOCHREALTIME/[.,]/}
-    echo $((10#$t / 1000))
-  else
-    date +%s%3N
-  fi
+  local uptime idle fraction
+  read -r uptime idle < /proc/uptime
+  fraction=${uptime#*.}000
+  echo $((10#${uptime%.*} * 1000 + 10#${fraction:0:3}))
 }
 vkbridge_wait_socket() {
   local sock=$1 limit=${2:-10000} name=${3:-vkbridge} start now waited
@@ -1977,10 +1975,8 @@ case $mode in
     ) &
     stop_watcher=$!
     if [ "${DD_VENUS:-0}" = 1 ] && [ -x /usr/local/bin/droiddeck-glprobe ] && [ "${GALLIUM_DRIVER:-}" = zink ]; then
-      dd_gl_log="${DD_DEBUG_DIR:-/tmp}/glprobe.txt"
-      LIBGL_DEBUG=verbose MESA_LOG_LEVEL=debug timeout 20 /usr/local/bin/droiddeck-glprobe > "$dd_gl_log" 2>&1
-      dd_gl_status=$?
-      grep -v drirc "$dd_gl_log" | head -60 | sed 's/^/== glprobe: /'
+      LIBGL_DEBUG=verbose MESA_LOG_LEVEL=debug timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | sed '/drirc/d' | sed -n '1,60s/^/== glprobe: /p'
+      dd_gl_status=${PIPESTATUS[0]}
       [ -z "${dd_stopping:-}" ] || exit 0
       if [ "$dd_gl_status" != 0 ]; then
         VK_LOADER_DEBUG=error,warn timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -40 | sed 's/^/== glprobe (loader): /'
@@ -1991,9 +1987,8 @@ case $mode in
         command -v vulkaninfo >/dev/null 2>&1 && DROIDDECK_MALI_COMPAT_TRACE=1 timeout 20 vulkaninfo --summary 2>&1 | head -40 | sed 's/^/== glprobe (vulkaninfo): /'
         dd_gl_ok=
         for dd_variant in "ZINK_DEBUG=" "ZINK_DEBUG= ZINK_DESCRIPTORS=auto" "ZINK_DEBUG= LIBGL_KOPPER_DISABLE=true" "ZINK_DEBUG= DROIDDECK_MALI_COMPAT=0"; do
-          env $dd_variant timeout 20 /usr/local/bin/droiddeck-glprobe > "$dd_gl_log" 2>&1
-          dd_gl_status=$?
-          grep -v drirc "$dd_gl_log" | head -20 | sed "s/^/== glprobe ($dd_variant): /"
+          env $dd_variant timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | sed '/drirc/d' | sed -n "1,20s/^/== glprobe ($dd_variant): /p"
+          dd_gl_status=${PIPESTATUS[0]}
           [ -z "${dd_stopping:-}" ] || exit 0
           if [ "$dd_gl_status" = 0 ]; then
             dd_gl_ok=$dd_variant
@@ -2017,7 +2012,7 @@ case $mode in
       else
         mali_graphics_used venus
       fi
-      unset dd_gl_log dd_gl_status
+      unset dd_gl_status
     fi
     rm -f "$HOME/.dd-restart-game" "$HOME/.dd-restarted-for"
     while :; do

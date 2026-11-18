@@ -24,11 +24,15 @@ object AutoDriverTrial {
     fun current(context: Context): Trial? {
         val p = prefs(context)
         val release = p.getString("release", null) ?: return null
+        val display = p.getString("display", "").orEmpty()
+        val previousDisplay = p.getString("previousDisplay", "").orEmpty()
+        val displayStarts = if (display.isNotEmpty() && display != TurnipDriver.AUTO && display != previousDisplay)
+            p.getInt("displayStarts", 0) else 0
         return Trial(
             release, p.getString("name", "").orEmpty(),
             p.getString("display", "").orEmpty(), p.getString("linux", "").orEmpty(),
             p.getString("previousDisplay", "").orEmpty(), p.getString("previousLinux", "").orEmpty(),
-            maxOf(p.getInt("starts", 0), p.getInt("displayStarts", 0)),
+            maxOf(p.getInt("starts", 0), displayStarts),
         )
     }
 
@@ -92,7 +96,8 @@ object AutoDriverTrial {
         prune(context, setOf(trial.previousDisplay, trial.previousLinux, SessionPrefs.androidDriver(context), SessionPrefs.linuxDriver(context)))
     }
 
-    fun prune(context: Context, keep: Set<String>) {
+    fun prune(context: Context, keep: Set<String>): Unit = synchronized(SessionPrefs) {
+        if (com.droiddeck.launcher.session.SessionState.usesDrivers()) return
         val lm = LinuxVulkanDriverManager(context)
         val td = TurnipDriver(context)
         val owned = SessionPrefs.gpuAutoInstalled(context)

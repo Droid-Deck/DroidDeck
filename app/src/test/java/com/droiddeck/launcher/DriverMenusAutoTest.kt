@@ -157,7 +157,8 @@ class DriverMenusAutoTest {
             assertEquals("imported-panvk", SessionPrefs.androidDriver(activity))
             com.droiddeck.launcher.session.SessionState.running = false
             for (phase in listOf(com.droiddeck.launcher.session.SessionPhase.STARTING_COMPOSITOR,
-                com.droiddeck.launcher.session.SessionPhase.STARTING_GUEST)) {
+                com.droiddeck.launcher.session.SessionPhase.STARTING_GUEST,
+                com.droiddeck.launcher.session.SessionPhase.STOPPING)) {
                 com.droiddeck.launcher.session.SessionState.phase = phase
                 menus.ensureAuto(true)
                 assertEquals("imported-panvk", SessionPrefs.androidDriver(activity))
@@ -170,7 +171,10 @@ class DriverMenusAutoTest {
         }
     }
 
-    @Test fun fixedPanvkRollsBackDueTrialWithoutRestoringAnotherRouteOrOverwritingLaterChoice() {
+    @Test
+    @Config(instrumentedPackages = ["com.droiddeck.launcher.gpu.GpuInfo"],
+        shadows = [com.droiddeck.launcher.session.MaliGraphicsPrefsTest.DetectedGpu::class])
+    fun fixedPanvkRollsBackDueTrialWithoutRestoringAnotherRouteOrOverwritingLaterChoice() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
         ReflectionHelpers.setField(menus, "gpu", GpuInfo("Mali-G720", 720, GpuInfo.Family.MALI_G720, "", false))
@@ -199,6 +203,7 @@ class DriverMenusAutoTest {
         menus.ensureAuto(true)
         assertEquals("previous-panvk", SessionPrefs.linuxDriver(activity))
         assertEquals(MaliGraphicsMode.PANVK, SessionPrefs.maliGraphicsMode(activity))
+        assertEquals(activity.getString(R.string.drivers_rolled_back, "PanVK"), menus.autoStatus)
     }
 
     @Test fun refreshingDriversLoadsTheSavedUbwcModeAfterContextAttachment() {

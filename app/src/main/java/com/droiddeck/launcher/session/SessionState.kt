@@ -7,6 +7,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 object SessionState {
+    fun usesDrivers(): Boolean = running || phase == SessionPhase.STARTING_COMPOSITOR ||
+        phase == SessionPhase.STARTING_GUEST || phase == SessionPhase.STOPPING
+
     @Volatile
     var phase = SessionPhase.IDLE
 

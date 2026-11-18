@@ -45,7 +45,7 @@ class DriverMenusPairUpdateTest {
 
     @Before fun setUp() {
         activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        for (name in listOf("session", "driver_bundles", "turnip_releases")) {
+        for (name in listOf("session", "driver_bundles", "turnip_releases", "gpu_auto_trial")) {
             activity.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
         }
         File(activity.filesDir, "graphics_driver").deleteRecursively()
@@ -228,7 +228,7 @@ class DriverMenusPairUpdateTest {
         SessionState.phase = com.droiddeck.launcher.session.SessionPhase.IDLE
     }
 
-    @Test fun automaticCallbackWaitsForCompositorStartupBeforeSelectingOrPruning() {
+    @Test fun automaticActivationAndTrialAreVisibleTogetherBeforeUiCallbackAndLaunch() {
         installed()
         offerUpdate()
         SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_AUTO)
@@ -239,15 +239,21 @@ class DriverMenusPairUpdateTest {
             Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
             .apply { isAccessible = true }.invoke(menus, pair, true, false, true)
         waitForInstallThread()
+        val runtime = DriverBundle.get(activity, tag)!!.linuxId
+        assertEquals(runtime, SessionPrefs.linuxDriver(activity))
+        assertEquals(runtime, com.droiddeck.launcher.gpu.AutoDriverTrial.current(activity)?.linux)
         SessionState.phase = com.droiddeck.launcher.session.SessionPhase.STARTING_COMPOSITOR
+        com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(activity, TurnipDriver.AUTO, runtime)
         shadowOf(Looper.getMainLooper()).idle()
-        assertEquals("launch-linux", SessionPrefs.linuxDriver(activity))
-        assertNull(com.droiddeck.launcher.gpu.AutoDriverTrial.current(activity))
-        assertEquals(activity.getString(R.string.drivers_auto_waits_for_session), menus.autoStatus)
+        assertEquals(runtime, SessionPrefs.linuxDriver(activity))
+        assertEquals(1, com.droiddeck.launcher.gpu.AutoDriverTrial.current(activity)?.starts)
         SessionState.phase = com.droiddeck.launcher.session.SessionPhase.IDLE
     }
 
-    @Test fun automaticReplacementDoesNotRollBackToTheSameNewRuntime() {
+    @Test
+    @Config(instrumentedPackages = ["com.droiddeck.launcher.gpu.TurnipReleases", "com.droiddeck.launcher.gpu.GpuInfo"],
+        shadows = [LocalDownload::class, com.droiddeck.launcher.session.MaliGraphicsPrefsTest.DetectedGpu::class])
+    fun automaticReplacementDoesNotRollBackToTheSameNewRuntime() {
         val old = DriverBundle.install(activity, Uri.fromFile(bundle("old")))
         SessionPrefs.setLinuxDriver(activity, old.linuxId)
         SessionPrefs.setAndroidDriver(activity, TurnipDriver.AUTO)
@@ -266,7 +272,81 @@ class DriverMenusPairUpdateTest {
         menus.ensureAuto(true)
         assertEquals("", SessionPrefs.linuxDriver(activity))
         assertEquals(MaliGraphicsMode.PANVK, SessionPrefs.maliGraphicsMode(activity))
+        assertEquals(activity.getString(R.string.mali_panvk_missing), menus.autoStatus)
         assertTrue(com.droiddeck.launcher.gpu.AutoDriverTrial.release(pair) in com.droiddeck.launcher.gpu.AutoDriverTrial.bad(activity))
+    }
+
+    @Test fun pendingPairCallbackBlocksImportAndRemovalAcrossMenus() {
+        installed()
+        offerUpdate()
+        menus.updatePair(key)
+        waitForInstallThread()
+        val replacement = DriverBundle.get(activity, tag)!!
+        val other = DriverMenus(activity, Handler(Looper.getMainLooper()))
+        other.importDriver(Uri.fromFile(bundle("import")), null)
+        other.deleteDriver(replacement.linuxId, true)
+        assertEquals(replacement.linuxId, DriverBundle.get(activity, tag)?.linuxId)
+        shadowOf(Looper.getMainLooper()).idle()
+        other.importDriver(Uri.fromFile(bundle("import")), null)
+        waitForThread("import-driver")
+        assertEquals("import", DriverBundle.get(activity, tag)?.version)
+        menus.updatePair(key)
+        menus.downloadReleaseDriver(asset("new").name)
+        assertEquals("import", DriverBundle.get(activity, tag)?.version)
+        SessionPrefs.setLinuxDriver(activity, "later-choice")
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("later-choice", SessionPrefs.linuxDriver(activity))
+        assertNull(other.pairBusy)
+    }
+
+    @Test fun removalRechecksAfterConfirmationAndStoppingProtectsEvenInactiveBundles() {
+        val old = installed()
+        SessionPrefs.setLinuxDriver(activity, "different-runtime")
+        val confirmDelete = { menus.deleteDriver(old.linuxId, true) }
+        for (phase in listOf(com.droiddeck.launcher.session.SessionPhase.STARTING_COMPOSITOR,
+            com.droiddeck.launcher.session.SessionPhase.STOPPING)) {
+            SessionState.phase = phase
+            confirmDelete()
+            assertNotNull(DriverBundle.get(activity, tag))
+            assertTrue(runCatching { DriverBundle.install(activity, Uri.fromFile(bundle("blocked"))) }.isFailure)
+            assertEquals("old", DriverBundle.get(activity, tag)?.version)
+        }
+        SessionState.phase = com.droiddeck.launcher.session.SessionPhase.IDLE
+        confirmDelete()
+        assertNull(DriverBundle.get(activity, tag))
+    }
+
+    @Test fun standaloneRemovalAlsoWaitsUntilStoppingEnds() {
+        val old = installed()
+        activity.getSharedPreferences("driver_bundles", Context.MODE_PRIVATE).edit().clear().commit()
+        SessionPrefs.setLinuxDriver(activity, old.linuxId)
+        SessionState.phase = com.droiddeck.launcher.session.SessionPhase.STOPPING
+        menus.deleteDriver(old.linuxId, true)
+        assertTrue(LinuxVulkanDriverManager(activity).isInstalled(old.linuxId))
+        SessionState.phase = com.droiddeck.launcher.session.SessionPhase.IDLE
+        menus.deleteDriver(old.linuxId, true)
+        assertFalse(LinuxVulkanDriverManager(activity).isInstalled(old.linuxId))
+        assertEquals("", SessionPrefs.linuxDriver(activity))
+    }
+
+    @Test fun automaticInstallDeferredByLaunchDoesNotKeepTheHourlyThrottle() {
+        installed()
+        offerUpdate()
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_AUTO)
+        SessionPrefs.setMaliGraphicsMode(activity, MaliGraphicsMode.AUTO)
+        ReflectionHelpers.setField(menus, "lastAutoCheck", System.currentTimeMillis())
+        pauseDownload()
+        val pair = DriverPairs.from(TurnipReleases.cached(activity)).single()
+        DriverMenus::class.java.getDeclaredMethod("installPair", DriverPairs.DriverPair::class.java,
+            Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }.invoke(menus, pair, true, false, true)
+        assertTrue(LocalDownload.entered!!.await(10, TimeUnit.SECONDS))
+        SessionState.phase = com.droiddeck.launcher.session.SessionPhase.STOPPING
+        LocalDownload.resume!!.countDown()
+        finishInstall()
+        assertEquals("old", DriverBundle.get(activity, tag)?.version)
+        assertEquals(0L, ReflectionHelpers.getField<Long>(menus, "lastAutoCheck"))
+        SessionState.phase = com.droiddeck.launcher.session.SessionPhase.IDLE
     }
 
     private fun finishInstall() {
@@ -276,7 +356,11 @@ class DriverMenusPairUpdateTest {
     }
 
     private fun waitForInstallThread() {
-        Thread.getAllStackTraces().keys.filter { it.name == "gpu-driver-pair" }.forEach {
+        waitForThread("gpu-driver-pair")
+    }
+
+    private fun waitForThread(name: String) {
+        Thread.getAllStackTraces().keys.filter { it.name == name }.forEach {
             it.join(10_000)
             assertFalse("driver install did not finish", it.isAlive)
         }

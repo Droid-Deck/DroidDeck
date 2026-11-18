@@ -458,17 +458,17 @@ class SessionService : Service() {
         }
     }
 
-    private fun extraEnv(): List<String> {
+    private fun extraEnv(graphics: MaliGraphics.Launch, agentEnvironment: List<String>): List<String> {
         if (File(Environment.getExternalStorageDirectory(), LEGACY_ENV_SWITCH).isFile) {
             Log.w(TAG, "ignoring $LEGACY_ENV_SWITCH: any app with storage access can write there; " +
                 "the file now lives at ${envSwitchFile(this)?.path ?: "(not available before Android 11)"}")
         }
-        val file = envSwitchFile(this)?.takeIf { it.isFile } ?: return emptyList()
-        val lines = FileUtils.readString(file)?.lines().orEmpty()
+        val file = envSwitchFile(this)?.takeIf { it.isFile }
+        val lines = file?.let { FileUtils.readString(it) }?.lines().orEmpty()
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains('=') && !it.startsWith("=") }
-        if (lines.isNotEmpty()) Log.i(TAG, "extra environment keys from ${file.path}: ${lines.map { it.substringBefore('=') }}")
-        return lines
+        if (lines.isNotEmpty()) Log.i(TAG, "extra environment keys from ${file?.path}: ${lines.map { it.substringBefore('=') }}")
+        return MaliGraphics.diagnosticOverrides(graphics, lines + agentEnvironment)
     }
 
     /** Whether a kernel release ("6.1.157-android14-11") is older than [major].[minor]; false if unreadable. */
@@ -1066,7 +1066,7 @@ class SessionService : Service() {
         }
         SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("DD_VRAM_MB=$it") }
         guest.add("AUDIO_DIRECT_DECAY=0")
-        val extra = extraEnv() + agentEnvironment
+        val extra = extraEnv(graphics, agentEnvironment)
         guest.addAll(TurnipEnvironment.gameEnvironment(tuOverride, tuDriver, SessionPrefs.tuSysmem(this), extra))
         if (extra.none { it.startsWith("MESA_NO_ERROR=") }) guest.add("${GAME_PREFIX}MESA_NO_ERROR=")
         extra.forEach { guest.add(it) }

@@ -22,6 +22,8 @@ class MaliGraphicsSessionTest(unittest.TestCase):
             file.touch()
         self.bin = self.root / "bin"
         self.bin.mkdir()
+        self.runtime = self.root / "runtime"
+        self.runtime.mkdir()
         for tool in ("sed", "head", "grep", "rm", "dirname", "env", "timeout", "tail", "sleep", "mktemp"):
             (self.bin / tool).symlink_to(shutil.which(tool))
         self.vulkaninfo = self.bin / "vulkaninfo"
@@ -51,12 +53,13 @@ exit "$GL_STATUS"
 
     def run_graphics(self, mode="bridge", smoke="FAIL memory sharing", status=1, path="bridge", vulkan_status=0, driver="",
                      vulkan_info="nullDescriptor = true", with_vulkaninfo=True, gl_status=None, gl_variant="",
-                     sock=None, stopping=False, verbose=False, nested=False):
+                     sock=None, stopping=False, verbose=False, nested=False, polling=False):
         for name in ("mali-graphics-path", "mali-graphics-error", "steam-exit"):
             (self.root / name).unlink(missing_ok=True)
         if not with_vulkaninfo:
             self.vulkaninfo.unlink(missing_ok=True)
         env = dict(os.environ, DD_MALI_GRAPHICS_MODE=mode, DD_MALI_GRAPHICS_PATH=path,
+                   XDG_RUNTIME_DIR=str(self.runtime),
                    DD_DEBUG_DIR=str(self.root), DD_VKBRIDGE="1" if path == "bridge" else "0",
                     DD_VENUS="1" if path == "venus" else "0", DD_INSIDE="",
                     DD_VK_DRIVER=driver,
@@ -64,6 +67,7 @@ exit "$GL_STATUS"
                    VTEST_SOCKET_NAME=str(sock or self.root / "server.sock"), DD_VENUS_WAIT_MS="300", DD_VKBRIDGE_WAIT_MS="300",
                    DD_STEAM_EXIT_FILE=str(self.root / "steam-exit"), dd_stopping="1" if stopping is True else "",
                    STOP_IN_WAIT="1" if stopping == "wait" else "0",
+                   POLL_ACK=str(self.root / "poll") if polling else "",
                    GL_VERBOSE="1" if verbose else "0",
                    SMOKE=smoke, PATH=str(self.bin), GALLIUM_DRIVER="zink", LIBGL_ALWAYS_SOFTWARE="0",
                    MESA_LOADER_DRIVER_OVERRIDE="zink", LIBGL_KOPPER_DRI2="true",
@@ -72,6 +76,14 @@ exit "$GL_STATUS"
         stubs = '''
 step() { :; }
 sleep() {
+  if [ -n "$POLL_ACK" ]; then
+    echo polling > "$POLL_ACK"
+    for ((i=0; i<200; i++)); do
+      [ -S "$VTEST_SOCKET_NAME" ] && return 0
+      command sleep 0.01
+    done
+    return 1
+  fi
   if [ "$STOP_IN_WAIT" = 1 ]; then dd_stopping=1; else command sleep "$@"; fi
 }
 timeout() {
@@ -208,17 +220,24 @@ timeout() {
         sock = self.root / "delayed.sock"
         ready = socket.socket(socket.AF_UNIX)
         self.addCleanup(ready.close)
+        polled = threading.Event()
         def bind():
-            time.sleep(0.1)
+            deadline = time.monotonic() + 3
+            while not (self.root / "poll").exists() and time.monotonic() < deadline:
+                time.sleep(0.005)
+            if not (self.root / "poll").exists():
+                return
+            polled.set()
             ready.bind(str(sock))
             ready.listen(1)
         worker = threading.Thread(target=bind)
         worker.start()
         try:
-            result = self.run_graphics(mode="venus", path="venus", with_vulkaninfo=False, gl_status=0, sock=sock)
+            result = self.run_graphics(mode="venus", path="venus", with_vulkaninfo=False, gl_status=0, sock=sock, polling=True)
         finally:
             worker.join()
         self.assertEqual(0, result.returncode, result.stderr + result.stdout)
+        self.assertTrue(polled.is_set(), "the server must bind only after shell polling starts")
         self.assertIn("venus: server socket ready", result.stdout)
 
     def test_venus_socket_timeout_is_distinct_from_probe_failure(self):
@@ -245,6 +264,15 @@ timeout() {
         self.assertEqual(69, result.returncode, result.stderr + result.stdout)
         self.assertIn("Zink starts only without the Mali compatibility layer", result.stdout)
         self.assertFalse((self.root / "mali-graphics-path").exists())
+
+    def test_unwritable_probe_log_does_not_change_real_gl_result(self):
+        (self.root / "glprobe.txt").mkdir()
+        for status, variant, expected in ((0, "", 0), (1, "descriptors", 0), (1, "", 69), (124, "", 69)):
+            with self.subTest(status=status, variant=variant):
+                result = self.run_graphics(mode="venus", path="venus", with_vulkaninfo=False,
+                                           gl_status=status, gl_variant=variant, verbose=True)
+                self.assertEqual(expected, result.returncode, result.stderr + result.stdout)
+                self.assertEqual(expected == 0, (self.root / "mali-graphics-path").exists())
 
 
 if __name__ == "__main__":

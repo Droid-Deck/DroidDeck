@@ -51,6 +51,11 @@ Disabling the toggle clears queued and persistent agent environment settings and
 overrides. Disabled settings cannot apply at the next session start. Already running commands and
 effects already applied to a session are not undone; stop and restart that session to discard them.
 
+On Mali, session environment overrides preserve the captured graphics route. Routing
+keys from agent settings or the private `droiddeck-env` file are ignored; diagnostic
+options remain available. See [Mali graphics selection](development/mali-venus.md#mali-graphics-selection)
+for the owned keys and fixed-path behavior.
+
 Program overrides prepend their directory to the normal session PATH, including `/usr/games`
 where Ubuntu installs `gamescopereaper`. An explicit `PATH=...` environment entry replaces that
 default. If an old persistent PATH hides runtime tools, inspect `tools/droiddeckctl env list`

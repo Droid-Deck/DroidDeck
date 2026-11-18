@@ -26,6 +26,15 @@ object MaliGraphics {
     data class Launch(val choice: MaliGraphicsMode, val path: MaliGraphicsMode?, val linux: String,
         val icd: String?, val problem: String?, val driverMode: String, val display: String)
 
+    private val ROUTING_KEYS = setOf(
+        "DD_MALI_GRAPHICS_MODE", "DD_MALI_GRAPHICS_PATH", "DD_VENUS", "DD_VKBRIDGE", "DD_VK_DRIVER", "DD_OPEN_DRIVER",
+        "VK_ICD_FILENAMES", "VK_DRIVER_FILES", "VK_ADD_DRIVER_FILES", "VK_LOADER_DRIVERS_SELECT", "VK_LOADER_DRIVERS_DISABLE",
+        "VKBRIDGE_SOCKET", "VTEST_SOCKET_NAME", "VN_DEBUG", "GALLIUM_DRIVER", "MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_ALWAYS_SOFTWARE",
+    )
+
+    fun diagnosticOverrides(graphics: Launch, extra: List<String>): List<String> = if (graphics.path == null) extra else
+        extra.filter { it.substringBefore('=').removePrefix("DROIDDECK_GAME_") !in ROUTING_KEYS }
+
     fun capture(context: Context): Launch = synchronized(SessionPrefs) {
         val choice = SessionPrefs.maliGraphicsMode(context)
         val linux = SessionPrefs.linuxDriver(context)

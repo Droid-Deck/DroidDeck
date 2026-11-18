@@ -171,6 +171,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var maliGraphicsMode by mutableStateOf(com.droiddeck.launcher.session.MaliGraphicsMode.AUTO)
     private var maliGraphicsPath by mutableStateOf<com.droiddeck.launcher.session.MaliGraphicsMode?>(null)
     private var maliGraphicsActual by mutableStateOf<SessionPaths.GraphicsConfirmation?>(null)
+    private var maliSessionBusy by mutableStateOf(false)
     private var maliGraphicsProblem by mutableStateOf<String?>(null)
     private var vkBridgeSafe by mutableStateOf(true)
     private var bridgeProtonDxvk by mutableStateOf(false)
@@ -1321,7 +1322,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         packageBusyId = pkgId,
                         packageStage = pkgStage,
                         packagePercent = pkgPercent,
-                        sessionRunning = SessionState.running,
+                        sessionRunning = if (com.droiddeck.launcher.core.DeviceSupport.mali()) maliSessionBusy else SessionState.running,
                         battleNetInstalled = battleNetInstalled,
                         backActionsInverted = backActionsInverted,
                         buildLabel = BuildConfig.BUILD_LABEL,
@@ -3021,6 +3022,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun refreshMaliGraphics() {
+        maliSessionBusy = SessionState.usesDrivers()
         maliGraphicsMode = SessionPrefs.maliGraphicsMode(this)
         maliGraphicsPath = com.droiddeck.launcher.session.MaliGraphics.resolve(this)
         maliGraphicsActual = SessionPaths.graphicsConfirmation(this)

@@ -19,13 +19,16 @@ it before MaliBridge.
 a requirement for the gaming runtime. When absent, PanVK and Venus keep their
 resolved path and skip this probe without recording a successful self-test. When
 present, a failed or timed-out probe stops startup. Both host routes wait for their
-server socket with a deadline; cancellation does not record a driver failure.
+server socket with a monotonic deadline; wall-clock changes cannot extend the wait,
+and cancellation does not record a driver failure.
 Venus checks Zink with `droiddeck-glprobe` in the Steam branch when that tool is
 available and `GALLIUM_DRIVER=zink`; direct game launches do not run this GL probe.
 Fixed Venus stops if Zink cannot start, while
 Auto may use software GL with Venus Vulkan. The same distinction applies when
 `vulkaninfo` reports no `nullDescriptor` support.
-Probe exit status is captured before log output is shortened. A successful initial
+Probe output is fully consumed while only a bounded number of lines are printed;
+the actual exit/timeout status decides success even if a diagnostic file cannot be
+created. A successful initial
 or accepted GL probe can confirm Venus without `vulkaninfo`; software GL alone
 cannot. Failures use the existing Steam child exit file so a successful gamescope
 exit cannot hide a failed nested Steam startup.
@@ -38,19 +41,42 @@ They are diagnostics, not configuration.
 The last ended confirmation is captured before logs-off cache cleanup. Within the
 process, a newer unconfirmed session replaces that result; after restart, Setup
 reads the latest retained session. A running session only shows its own marker.
+The visible Setup poll also publishes the session's driver-use state, so teardown
+updates the current/last label and enables the chooser even when the marker is unchanged.
 
 Bundle downloads prepare new files before checking Auto eligibility and replacing
 the old bundle. Only slots still pointing at the old bundle follow its replacement;
 choices made during download and independent Mix slots survive. Replacement and
-session startup share the preferences lock, and replacement is refused while a
-session is starting its compositor/guest or running. After preparation waits, startup captures one graphics decision
+session startup share the preferences lock, and replacement/removal is refused while a
+session is starting its compositor/guest, running, or stopping. Import, update and
+Auto installation share a busy boundary through their UI callback. Activation and
+trial registration happen together under the lock; callbacks only publish results.
+An Auto installation deferred by a session remains eligible on the next idle check.
+After preparation waits, startup captures one graphics decision
 for validation, environment, components and reporting. Fixed PanVK keeps its intent
 after trial rollback; if no previous PanVK remains available, startup explains the
-missing driver instead of selecting a different backend.
+missing driver instead of selecting a different backend; the driver menu also shows
+that missing-runtime problem immediately after rollback.
 Auto's idle display repair and pending-trial rollback also run with a fixed Mali
 choice. The phone's system display does not count as a trial of a downloaded
 PanVK pair: Bridge/Venus sessions cannot reject an unused PanVK runtime. Imported
-display drivers still count when they are actually started.
+display drivers still count when they are actually started. Persisted display-only
+counts for the system display or an unchanged previous display are ignored; actual
+runtime starts and imported-display trial evidence remain usable.
+
+The report identifies a PanVK bundle by the captured Linux driver, independently
+of the compositor choice. Standalone PanVK ZIPs report the same PanVK path without
+claiming bundle provenance.
+
+The app-private `Android/data/com.droiddeck.launcher/files/droiddeck-env` and agent
+environment can add diagnostics, but cannot replace a captured Mali launch's route.
+Owned keys are `DD_MALI_GRAPHICS_MODE`, `DD_MALI_GRAPHICS_PATH`, `DD_VENUS`,
+`DD_VKBRIDGE`, `DD_VK_DRIVER`, `DD_OPEN_DRIVER`, the Vulkan loader's ICD/driver-file
+and driver select/disable keys, `VKBRIDGE_SOCKET`, `VTEST_SOCKET_NAME`, `VN_DEBUG`
+(required for Venus vtest), `GALLIUM_DRIVER`, `MESA_LOADER_DRIVER_OVERRIDE`, and
+`LIBGL_ALWAYS_SOFTWARE`, including their `DROIDDECK_GAME_` forms. Unrelated options
+such as `VK_LOADER_DEBUG`, `MESA_DEBUG`, `ZINK_DEBUG`, and socket wait diagnostics
+remain available. The legacy shared `Download/droiddeck-env` remains ignored.
 
 Legacy migration runs once, then removes `vkBridge`, `venus`, and
 `maliFallbackByAuto`. Previously bridge defaulted to true on Mali, Venus to false;

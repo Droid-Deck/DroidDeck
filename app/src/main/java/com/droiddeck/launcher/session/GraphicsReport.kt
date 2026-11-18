@@ -78,9 +78,9 @@ object GraphicsReport {
         val now = "display ${display.ifEmpty { "(auto)" }}, runtime ${linux.ifEmpty { "(default)" }}, bridge ${maliPath == MaliGraphicsMode.BRIDGE}, venus ${maliPath == MaliGraphicsMode.VENUS}"
         appendLine("previous session's drivers: " + (previous ?: "(none recorded)") + if (previous != null && previous != now) "  << CHANGED" else "")
         prefs.edit().putString("lastDrivers", now).apply()
-        DriverBundle.all(context).firstOrNull { it.androidId == display && it.linuxId == linux }?.let { b ->
-            appendLine("pair: ${b.name} ${b.version} (bundle ${b.id})")
-            release(context, b.id)?.let { appendLine("pair release: $it") }
+        DriverBundle.all(context).firstOrNull { it.linuxId == linux }?.let { b ->
+            appendLine("runtime bundle: ${b.name} ${b.version} (bundle ${b.id})")
+            release(context, b.id)?.let { appendLine("runtime bundle release: $it") }
         }
         if (gpu != null) {
             val pairs = DriverPairs.from(TurnipReleases.cached(context))
@@ -126,7 +126,7 @@ object GraphicsReport {
         DeviceSupport.adreno() -> "Turnip (Adreno, KGSL)"
         maliPath == MaliGraphicsMode.VENUS -> "Mali (Venus): Mesa Venus over vtest to the phone's own Vulkan driver, with the Mali compatibility layer"
         maliPath == MaliGraphicsMode.BRIDGE -> "Mali bridge (#517): the phone's own Vulkan driver through the bridge"
-        maliPath == MaliGraphicsMode.PANVK -> "open driver pair (PanVK)"
+        maliPath == MaliGraphicsMode.PANVK -> "PanVK"
         SystemVulkanDriver.usesDefault(linux) && SystemVulkanDriver.isAvailable() ->
             "system Vulkan (#570): ${SystemVulkanDriver.gpuName()} driver through libhybris"
         linux.isNotEmpty() -> "imported runtime driver $linux"

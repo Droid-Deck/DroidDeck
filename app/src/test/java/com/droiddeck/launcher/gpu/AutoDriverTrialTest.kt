@@ -104,4 +104,22 @@ class AutoDriverTrialTest {
         AutoDriverTrial.displayStarting(context, "new-display")
         assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
     }
+
+    @Test fun legacySystemOrUnchangedDisplayCountsDoNotRejectAnUnusedRuntime() {
+        for (display in listOf(TurnipDriver.AUTO, "previous-display")) {
+            AutoDriverTrial.begin(context, "panvk@new", "PanVK", display, "panvk", display, "old")
+            context.getSharedPreferences("gpu_auto_trial", Context.MODE_PRIVATE).edit()
+                .putInt("displayStarts", 4).putInt("starts", 1).commit()
+            assertEquals(1, AutoDriverTrial.current(context)?.starts)
+            assertNull(AutoDriverTrial.rollbackDue(context))
+            assertTrue(AutoDriverTrial.bad(context).isEmpty())
+            AutoDriverTrial.sessionStarting(context, display, "panvk")
+            assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
+        }
+    }
+
+    @Test fun legacyImportedDisplayCrashEvidenceStillRejectsTheTrial() {
+        context.getSharedPreferences("gpu_auto_trial", Context.MODE_PRIVATE).edit().putInt("displayStarts", 2).commit()
+        assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
+    }
 }
