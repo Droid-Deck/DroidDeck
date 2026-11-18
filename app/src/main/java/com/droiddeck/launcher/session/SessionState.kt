@@ -12,6 +12,13 @@ object SessionState {
 
     @Volatile
     var sessionId: String? = null
+        set(value) {
+            field = value
+            sessionIdListener?.invoke()
+        }
+
+    @Volatile
+    var sessionIdListener: (() -> Unit)? = null
 
     @Volatile
     var lastTransitionAt = 0L
