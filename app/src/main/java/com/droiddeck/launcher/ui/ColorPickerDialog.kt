@@ -83,12 +83,8 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
         hue = h.coerceIn(0f, 360f); sat = s.coerceIn(0f, 1f); value = v.coerceIn(0f, 1f)
         hexText = ThemeColors.hex(ThemeColors.fromHsv(hue, sat, value))
     }
-    // A screen wider than tall has no room for one tall column: the wheel goes beside the sliders, and nothing has to scroll.
-    // A small landscape window is too narrow for the closing row, so it keeps the column.
     val screen = LocalConfiguration.current
     val beside = screen.screenWidthDp > screen.screenHeightDp && screen.screenWidthDp >= 600
-    // Title, closing row, gaps and the dialog's margins take about 164 dp of the height; the wheel gets the rest less a little
-    // spare, up to 216 dp. A short screen also gets shorter slider rows, so OK stays on screen down to about 360 dp.
     val wheelSize = if (beside) (screen.screenHeightDp - 176).coerceIn(160, 216).dp else 168.dp
     val short = beside && wheelSize < 216.dp
     AppDialog(shown, close, "colorPicker", wide = false, maxWidth = if (beside) 680.dp else 460.dp, scrollState = scroll) {
@@ -125,7 +121,6 @@ internal fun ColorPickerDialog(title: String, initial: Int, onDismiss: () -> Uni
                     CompositionLocalProvider(LocalCompactSettings provides true) { sliders() }
                 }
             }
-            // One closing row holds the comparison, the hex field and both buttons, which keeps the dialog clear of the screen edges.
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 BeforeAfter(Color(initial), Color(current), Modifier.size(96.dp, 44.dp))
                 hex(Modifier.weight(1f))
@@ -156,7 +151,6 @@ private fun Swatch(color: Color) {
     Box(Modifier.size(48.dp).clip(shape).background(color).border(1.dp, LocalPalette.current.line2, shape))
 }
 
-/** The color the dialog opened with and the one being picked, as two halves of one chip. */
 @Composable
 private fun BeforeAfter(before: Color, after: Color, modifier: Modifier) {
     val shape = RoundedCornerShape(10.dp)
