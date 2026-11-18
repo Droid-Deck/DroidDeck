@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.stores
 
 import com.droiddeck.launcher.stores.ubisoft.MemorySlots
+import com.droiddeck.launcher.stores.ubisoft.UbisoftCloud
 import com.droiddeck.launcher.stores.ubisoft.UbisoftCloudTransport
 import java.io.File
 import java.util.concurrent.Executor
@@ -190,6 +191,22 @@ class CloudSavesTest {
         File(dir, "1.save").writeBytes(MemorySlots.save("a3 local"))
         slots.store("1", MemorySlots.save("a3 cloud"))
         assertEquals(1, CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false).conflicts)
+    }
+
+    @Test fun aNewUbisoftSaveWithAnEmptyIdentifierIsStampedAndUploaded() {
+        val game = id; val dir = ubisoftDir("u1")
+        val slots = MemorySlots().apply { store("1", MemorySlots.save("a1")) }
+        CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        File(dir, "2.save").writeBytes("UBISAVE0".toByteArray() + ByteArray(32) + "fresh slot".toByteArray())
+        File(dir, "3.save").writeBytes("UBISAVE0".toByteArray() + "not-an-identifier-but-not-empty!".toByteArray())
+        val up = CloudSaves.upWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        assertEquals("uploaded", up.reason)
+        val stamped = UbisoftCloud.mark(File(dir, "2.save").readBytes())
+        assertTrue(stamped != null)
+        assertEquals("fresh slot", String(File(dir, "2.save").readBytes().copyOfRange(40, 50)))
+        assertEquals(stamped, UbisoftCloud.mark(slots.data.getValue("2")))
+        assertFalse("3" in slots.data)
+        assertEquals("not-an-identifier-but-not-empty!", String(File(dir, "3.save").readBytes().copyOfRange(8, 40)))
     }
 
     @Test fun aSlotCommittedBeforeALaterOneFailsReachesTheBaseline() {

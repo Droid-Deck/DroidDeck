@@ -106,6 +106,8 @@ internal class UbisoftCloud(private val session: UbisoftAuth.Session, val produc
 
         private val MARK = Regex("[0-9a-f]{32}")
 
+        internal fun freshMark(): String = java.util.UUID.randomUUID().toString().replace("-", "")
+
         internal fun mark(save: ByteArray): String? =
             if (save.size < 40) null else String(save, 8, 32, Charsets.ISO_8859_1).takeIf { MARK.matches(it) }
 

@@ -496,7 +496,7 @@ object CloudSaves {
     internal fun upWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
         val key = scope(store, id, dir)
         val base = baseline(context, store, key) ?: return Result("skipped", 0, 0, "no-baseline")
-        val files = localFiles(dir).filterKeys(cloud::wants).let { all -> if (cloud is UbisoftCloudTransport) all.filterValues(::hasUbisoftMark) else all }
+        val files = localFiles(dir).filterKeys(cloud::wants).let { all -> if (cloud is UbisoftCloudTransport) all.filterValues(::markUbisoftSave) else all }
         if (files.isEmpty()) return Result("skipped", 0, 0, "nothing-local")
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
@@ -598,7 +598,7 @@ object CloudSaves {
     private fun backupRoot(context: Context, store: Store, id: String) =
         File(context.filesDir, "stores/cloud-backups/${store.id}-${id.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
 
-    private fun hasUbisoftMark(file: File): Boolean {
+    private fun markUbisoftSave(file: File): Boolean {
         val head = ByteArray(40)
         var filled = 0
         file.inputStream().use { input ->
@@ -608,7 +608,11 @@ object CloudSaves {
                 filled += n
             }
         }
-        return filled == head.size && UbisoftCloud.mark(head) != null
+        if (filled < head.size) return false
+        if (UbisoftCloud.mark(head) != null) return true
+        if (head.copyOfRange(8, 40).any { it != 0.toByte() }) return false
+        java.io.RandomAccessFile(file, "rw").use { it.seek(8); it.write(UbisoftCloud.freshMark().toByteArray(Charsets.ISO_8859_1)) }
+        return true
     }
 
     private fun backupCloud(context: Context, store: Store, id: String, cloud: CloudTransport, files: List<CloudFile>): Map<String, String> {
