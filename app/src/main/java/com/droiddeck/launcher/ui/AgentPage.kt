@@ -128,7 +128,7 @@ import kotlinx.coroutines.launch
 internal enum class AgentPanel { NONE, MODEL, USAGE, HISTORY, PROCESSES, TOOLS }
 
 /** Slash commands the app handles itself; others go to the CLI, which has its own. */
-private val LOCAL_COMMANDS = listOf("/new", "/model", "/plan", "/history", "/processes", "/stop")
+private val LOCAL_COMMANDS = listOf("/new", "/model", "/permissions", "/plan", "/history", "/processes", "/stop")
 private val CLI_COMMANDS = listOf("/compact", "/cost", "/review", "/init")
 
 /**
@@ -354,7 +354,7 @@ private fun AgentTopBar(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstC
     }
 }
 
-/** The harness, model, effort and plan mode, opening the model picker; [compact] names only the model. */
+/** The harness, model, effort, a permission mode other than asking first and plan mode, opening the model picker; [compact] names only the model. */
 @Composable
 private fun ModelChip(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstControl: Modifier, modifier: Modifier = Modifier, compact: Boolean = false) {
     val context = LocalContext.current
@@ -366,7 +366,11 @@ private fun ModelChip(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstCon
             .clickable { onPanel(AgentPanel.MODEL) }.padding(horizontal = 8.dp).testTag("agent-model"),
     ) {
         val parts = if (compact) listOf(model)
-        else listOfNotNull(AgentHost.harness.name, model, AgentHost.effort, stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans })
+        else listOfNotNull(
+            AgentHost.harness.name, model, AgentHost.effort,
+            AgentHost.harness.permissions.drop(1).firstOrNull { it.id == AgentHost.permission }?.let { stringResource(it.label) },
+            stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans },
+        )
         Text(parts.joinToString(" · "), fontSize = 13.sp, color = if (panel == AgentPanel.MODEL) pal.primary else pal.onSurfaceVariant,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         Icon(Icons.Outlined.ExpandMore, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(16.dp))
@@ -523,6 +527,38 @@ internal fun clock(seconds: Long): String {
     }
 }
 
+/** The oldest tool call that waits for the user; tapping its input shows all of it. */
+@Composable
+private fun AgentApprovalCard(approval: AgentHost.Approval, more: Int) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    var open by remember(approval.id) { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, AttentionAmber, Shape14)
+            .padding(horizontal = 14.dp, vertical = 10.dp).testTag("agent-approval"),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.agent_approval_title, approval.tool), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                if (more > 0) Text(stringResource(R.string.agent_approval_more, more), fontSize = 12.5.sp, color = pal.onSurfaceVariant)
+            }
+            SecondaryButton(stringResource(R.string.agent_approval_deny), compact = true, modifier = Modifier.testTag("agent-approval-deny")) {
+                AgentHost.answer(context, approval, allow = false)
+            }
+            PrimaryButton(stringResource(R.string.agent_approval_allow), compact = true, modifier = Modifier.testTag("agent-approval-allow")) {
+                AgentHost.answer(context, approval, allow = true)
+            }
+        }
+        val body = approval.input.ifBlank { approval.detail }
+        if (body.isNotBlank()) Text(
+            body, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = pal.onSurfaceVariant,
+            maxLines = if (open) 40 else 4, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).clickable { open = !open },
+        )
+    }
+}
+
 @Composable
 private fun AgentLabCard() {
     val context = LocalContext.current
@@ -675,7 +711,7 @@ private fun AgentComposer(
         val text = draft.trim()
         when (text.substringBefore(' ')) {
             "/new" -> AgentHost.forget(context)
-            "/model" -> onPanel(AgentPanel.MODEL)
+            "/model", "/permissions" -> onPanel(AgentPanel.MODEL)
             "/plan" -> AgentHost.choosePlan(context, !AgentHost.plan)
             "/history" -> onPanel(AgentPanel.HISTORY)
             "/processes" -> onPanel(AgentPanel.PROCESSES)
@@ -692,6 +728,7 @@ private fun AgentComposer(
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     Column(Modifier.fillMaxWidth().padding(bottom = if (keyboardOpen) 4.dp else 8.dp)) {
         if (labOpen) AgentLabCard()
+        AgentHost.approvals.firstOrNull()?.let { AgentApprovalCard(it, AgentHost.approvals.size - 1) }
         if (hasActivity()) Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),

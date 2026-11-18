@@ -16,7 +16,7 @@ internal object AgentNotice {
     private const val CHANNEL_ID = "agent_done"
     private const val NOTIFICATION_ID = 4108
 
-    enum class Kind { DONE, FAILED, QUESTION }
+    enum class Kind { DONE, FAILED, QUESTION, APPROVAL }
 
     fun post(context: Context, kind: Kind, text: String) {
         if (onScreen(context)) return
@@ -31,6 +31,7 @@ internal object AgentNotice {
             Kind.DONE -> R.string.agent_done
             Kind.FAILED -> R.string.agent_done_failed
             Kind.QUESTION -> R.string.agent_done_question
+            Kind.APPROVAL -> R.string.agent_done_approval
         })
         runCatching {
             manager.notify(NOTIFICATION_ID, Notification.Builder(context, CHANNEL_ID)

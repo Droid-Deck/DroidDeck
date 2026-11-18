@@ -21,8 +21,8 @@ import java.nio.file.Files
 
 /**
  * The launcher's agent: a coding agent CLI ([AgentHarness]) from the Linux userland, run headless
- * outside any game or desktop session: one process per turn, or for a CLI that takes its messages over
- * stdin one process kept open between turns, so background work can start a turn of its own. Conversations are kept on disk
+ * outside any game or desktop session as one process that takes its messages over stdin and stays open
+ * between turns, so background work can start a turn of its own. Conversations are kept on disk
  * ([AgentChats]), so a restart (a Lab build, a crash) continues the same one.
  */
 object AgentHost {
@@ -55,6 +55,9 @@ object AgentHost {
 
     /** A message typed while the agent was working, sent when the turn ends. */
     data class Queued(val text: String, val files: List<String>)
+
+    /** A tool call the CLI waits on the user to allow; [payload] is what its protocol needs to answer. */
+    data class Approval(val id: String, val tool: String, val detail: String, val input: String, val payload: String = "")
 
     enum class State { MISSING, IDLE, WORKING }
 
@@ -94,6 +97,11 @@ object AgentHost {
         private set
     var plan by mutableStateOf(false)
         private set
+    /** The chosen [AgentHarness.Permission] of [harness]; asking first until the user picks another. */
+    var permission by mutableStateOf(AgentHarness.ASK)
+        private set
+    /** Tool calls of the running turn that wait for the user, oldest first. */
+    val approvals = mutableStateListOf<Approval>()
     var chat by mutableStateOf<String?>(null)
         private set
     /** A reply finished since the conversation was last on screen. */
@@ -123,7 +131,9 @@ object AgentHost {
     var lab by mutableStateOf<LabProgress?>(null)
         private set
 
-    private class Turn(val process: Process, val pid: Int, val stdin: java.io.OutputStream? = null) {
+    private class Turn(val process: Process, val pid: Int, val protocol: AgentProtocol, val stdin: java.io.OutputStream) {
+        fun write(lines: List<String>) = synchronized(this) { stdin.apply { lines.forEach { write((it + "\n").toByteArray()) }; flush() } }
+
         var writingGeneration: Int? = null
         var exitStatus: Int? = null
         var costs: AgentCostTracker? = null
@@ -171,6 +181,8 @@ object AgentHost {
         model = prefs(app).getString(modelKey(harness), null)
         effort = prefs(app).getString(effortKey(harness), null)?.takeIf { it in harness.efforts }
         plan = prefs(app).getBoolean(PLAN_KEY, false)
+        permission = prefs(app).getString(permissionKey(harness), null)?.takeIf { id -> harness.permissions.any { it.id == id } }
+            ?: harness.permissions.first().id
         limits = decodeLimits(prefs(app).getString(limitsKey(harness), null))
         available = LinuxRuntime.hasRootfs(app)
         installed = harness.files.all { guestFileExists(app, it) }
@@ -273,6 +285,22 @@ object AgentHost {
         prefs(context).edit().putBoolean(PLAN_KEY, on).apply()
     }
 
+    /** Kept per CLI, for every conversation; the CLI process restarts with it on the next message. */
+    fun choosePermission(context: Context, id: String) {
+        if (harness.permissions.none { it.id == id }) return
+        permission = id
+        prefs(context).edit().putString(permissionKey(harness), id).apply()
+    }
+
+    /** Lets the CLI run [approval]'s tool call, or tells it the user said no. */
+    fun answer(context: Context, approval: Approval, allow: Boolean) {
+        if (!approvals.remove(approval)) return
+        val running = turn ?: session ?: return
+        val line = running.protocol.answer(approval, allow)
+        Thread({ runCatching { running.write(listOf(line)) }.onFailure { Log.w(TAG, "could not answer an approval", it) } }, "agent-approval").start()
+        if (approvals.isEmpty()) appContext?.let { AgentNotice.clear(it) }
+    }
+
     fun models(context: Context) = harness.models(LinuxRuntime.rootDir(context.applicationContext))
 
     /** Sends [text] now, or after the current turn when the agent is working. */
@@ -303,19 +331,19 @@ object AgentHost {
         val current = harness
         val prompt = AgentAttachments.prompt(message, attached)
         turnPlanned = plan && current.plans
-        val options = AgentHarness.Options(model, turnPlanned, BRIEF, effort)
-        val command = current.turn(prompt, conversation, options)
-        val line = current.input(prompt)
-        val key = "${current.id}|$id|$model|$turnPlanned|$effort"
+        val options = AgentHarness.Options(model, turnPlanned, BRIEF, effort, permission, workspace(app))
+        val key = "${current.id}|$id|$model|$turnPlanned|$effort|$permission"
+        val resumed = conversation
         background = false
+        approvals.clear()
         val kept = session
-        if (kept != null && line != null && sessionKey == key && kept.process.isAlive) {
+        if (kept != null && sessionKey == key && kept.process.isAlive) {
             main.removeCallbacks(reap)
             turn = kept
             kept.writingGeneration = gen
             kept.clearingCosts = prompt == "/clear"
             Thread({
-                val written = runCatching { synchronized(kept) { kept.stdin?.apply { write((line + "\n").toByteArray()); flush() } != null } }.getOrDefault(false)
+                val written = runCatching { kept.write(kept.protocol.input(prompt, resumed, options, started = false)) }.isSuccess
                 // The process died between turns: the same message goes to a new one, which resumes the conversation.
                 main.post {
                     if (kept.writingGeneration == gen) kept.writingGeneration = null
@@ -323,7 +351,7 @@ object AgentHost {
                         if (!written) {
                             dropSession()
                             turn = null
-                            spawn(app, gen, current, current.turn(prompt, conversation, options), line, key)
+                            spawn(app, gen, current, prompt, resumed, options, key)
                         } else kept.exitStatus?.let { processExited(app, kept, current, it) }
                     }
                 }
@@ -331,12 +359,14 @@ object AgentHost {
             return
         }
         dropSession()
-        spawn(app, gen, current, command, line, key)
+        spawn(app, gen, current, prompt, resumed, options, key)
     }
 
-    private fun spawn(app: Context, gen: Int, current: AgentHarness, command: List<String>, line: String?, key: String) {
-        val workdir = workspace(app)
-        var threadConversation = conversation
+    private fun spawn(app: Context, gen: Int, current: AgentHarness, prompt: String, resumed: String?, options: AgentHarness.Options, key: String) {
+        val workdir = options.workdir
+        val command = current.turn(prompt, resumed, options)
+        val protocol = current.protocol()
+        var threadConversation = resumed
         Thread({
             runCatching { current.prepare(LinuxRuntime.rootDir(app)) }
             runCatching { AgentSetup.installHelpers(app) }
@@ -349,17 +379,18 @@ object AgentHost {
                 main.post { if (generation == gen) finish(app, e.message ?: "could not start") }
                 return@Thread
             }
-            val started = Turn(child, AgentProcesses.pidOf(child), if (line != null) child.outputStream else null).apply {
-                if (current === ClaudeCode && line != null) costs = AgentCostTracker()
+            val started = Turn(child, AgentProcesses.pidOf(child), protocol, child.outputStream).apply {
+                if (current === ClaudeCode) costs = AgentCostTracker()
             }
             OrphanReaper.keep(started.pid)
             main.post {
                 if (generation == gen && state == State.WORKING && turn == null) {
                     turn = started
-                    if (line != null) { session = started; sessionKey = key }
+                    session = started
+                    sessionKey = key
                 } else AgentProcesses.killTree(started.pid)
             }
-            if (line != null) runCatching { child.outputStream.apply { write((line + "\n").toByteArray()); flush() } } else child.outputStream.close()
+            runCatching { started.write(protocol.input(prompt, resumed, options, started = true)) }
             val raw = runCatching {
                 val log = File(app.filesDir, TURN_LOG).apply { parentFile?.mkdirs() }
                 log.renameTo(File(app.filesDir, "$TURN_LOG.1"))
@@ -368,7 +399,8 @@ object AgentHost {
             runCatching {
                 child.inputStream.bufferedReader().forEachLine { output ->
                     runCatching { raw?.apply { write(output); newLine(); flush() } }
-                    val parsed = current.parse(output) ?: return@forEachLine
+                    val parsed = protocol.parse(output) ?: return@forEachLine
+                    if (parsed.reply.isNotEmpty()) runCatching { started.write(parsed.reply) }.onFailure { Log.w(TAG, "could not reply to ${current.name}", it) }
                     parsed.conversation?.let { threadConversation = it }
                     val done = parsed.entries.any { it is Entry.Finished }
                     val event = if (!done) parsed else runCatching { current.usage(LinuxRuntime.rootDir(app), threadConversation) }.getOrNull()
@@ -410,7 +442,7 @@ object AgentHost {
             if (background && state == State.WORKING) finish(app, event.backgroundError, usage = event.usage?.let { from.costs?.perTurn(it) ?: it })
             return
         }
-        val content = event.text != null || event.thinking != null || event.entries.any { it !is Entry.Finished }
+        val content = event.text != null || event.thinking != null || event.approval != null || event.entries.any { it !is Entry.Finished }
         if (content && state == State.IDLE && session === from) {
             main.removeCallbacks(reap)
             background = true
@@ -428,8 +460,15 @@ object AgentHost {
             from.clearingCosts = false
         }
         val applied = if (finished != null && state == State.WORKING && event.usage != null)
-            event.copy(usage = from.costs?.perTurn(event.usage) ?: event.usage) else event
+            event.copy(usage = turnCost(from.costs?.perTurn(event.usage) ?: event.usage)) else event
         apply(app, applied)
+    }
+
+    /** A CLI that reports the conversation's whole cost spent what this chat has not recorded yet. */
+    private fun turnCost(usage: Usage): Usage {
+        if (!harness.sessionCost) return usage
+        val recorded = entries.sumOf { (it as? Entry.Finished)?.usage?.costUsd ?: 0.0 }
+        return usage.copy(costUsd = (usage.costUsd - recorded).coerceAtLeast(0.0))
     }
 
     /** Ends the CLI process kept between turns, and with it whatever it still runs in the background. */
@@ -529,6 +568,11 @@ object AgentHost {
         }
         event.text?.let { live += it }
         event.thinking?.let { liveThinking += it }
+        event.resolved?.let { id -> approvals.removeAll { it.id == id } }
+        event.approval?.takeIf { a -> state == State.WORKING && approvals.none { it.id == a.id } }?.let {
+            approvals += it
+            AgentNotice.post(app, AgentNotice.Kind.APPROVAL, listOf(it.tool, it.detail).filter { s -> s.isNotEmpty() }.joinToString(": "))
+        }
         event.context?.let { context = it }
         event.window?.let { window = it }
         event.limits?.let { reported ->
@@ -549,6 +593,7 @@ object AgentHost {
     private fun finish(app: Context, error: String?, stopped: Boolean = false, usage: Usage? = null) {
         if (state != State.WORKING) return
         turn = null
+        approvals.clear()
         val answeredTask = background
         background = false
         main.removeCallbacks(reap)
@@ -762,6 +807,7 @@ object AgentHost {
     private const val LINGER_MS = 20 * 60_000L
 
     private fun modelKey(harness: AgentHarness) = "model_${harness.id}"
+    private fun permissionKey(harness: AgentHarness) = "permission_${harness.id}"
     private fun limitsKey(harness: AgentHarness) = "limits_${harness.id}"
 
     @VisibleForTesting
