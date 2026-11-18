@@ -170,12 +170,13 @@ _bl_game=1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 
 _bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_packed=-1
 rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024)) alive="999 321 654" started=100 complete=1
 step() { :; }
+meminfo=''' + repr(str(self.root / 'meminfo')) + '''
 bl_game_focused() { [ "${focused:-1}" = 1 ]; }
 bl_proc_start() { _bl_start=; case " $alive " in *" $1 "*) _bl_start=$started; return 0 ;; esac; return 1; }
 nap() { echo "nap:$1"; }
 bl_session_others() { _bl_session=(321 654); }
 bl_zram_usage() { _bl_rss=$rss _bl_anon=${anon:-$rss} _bl_swap=$swap; }
-bl_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed)); _bl_pageout_complete=$complete; }
+bl_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed)); next_available=${available_after:-$(( $(awk '/^MemAvailable:/ { print $2 }' "$meminfo") / 1024 + 128 ))}; sed -i "s/^MemAvailable:.*/MemAvailable: $((next_available * 1024)) kB/" "$meminfo"; _bl_pageout_complete=$complete; }
 ''' + functions + '\nbl_memory_read\n' + body
         result = run_bash('NOW=0\n' + harness.replace('SECONDS', 'NOW'))
         self.assertEqual(0, result.returncode, result.stderr)
@@ -203,6 +204,27 @@ SECONDS=30; bl_session_pressure
     def test_large_device_with_psi_and_moderate_headroom_reclaims(self):
         self.memory(total=16384, available=3072, psi='1.23')
         self.assertEqual(['send:1:session'], self.run_policy('bl_session_pressure'))
+
+    def test_a_fast_fall_on_a_large_device_reclaims_above_the_fixed_headroom(self):
+        self.memory(total=15255, available=6176)
+        falling = self.root / 'falling'
+        falling.write_text(
+            f'MemTotal: {15255 * 1024} kB\nMemAvailable: {5367 * 1024} kB\n'
+            f'SwapTotal: {8192 * 1024} kB\nSwapFree: {6144 * 1024} kB\n')
+        meminfo = self.root / 'meminfo'
+        self.assertEqual(['send:1:session'], self.run_policy(
+            f'cp {falling} {meminfo}\nSECONDS=5; bl_session_pressure'))
+
+    def test_a_fall_split_across_one_second_polls_still_reclaims(self):
+        self.memory(total=15255, available=6300)
+        steps = []
+        for second, available in ((5, 6100), (6, 6020), (7, 5940), (8, 5860), (9, 5780)):
+            sample = self.root / f'meminfo-{second}'
+            sample.write_text(
+                f'MemTotal: {15255 * 1024} kB\nMemAvailable: {available * 1024} kB\n'
+                f'SwapTotal: {8192 * 1024} kB\nSwapFree: {6144 * 1024} kB\n')
+            steps.append(f'cp {sample} {self.root / "meminfo"}; SECONDS={second}; bl_session_pressure')
+        self.assertEqual(['send:1:session'], self.run_policy('\n'.join(steps)))
 
     def test_no_game_does_not_compress_the_session(self):
         self.assertEqual([], self.run_policy('_bl_game=0; bl_session_pressure'))
@@ -297,6 +319,57 @@ echo "backoff:$_bl_tier_backoff"
 _bl_tier_backoff=240 _bl_tier_at=0 _bl_tier_targets=(999) _bl_tier_swaps=($((1024 * 1024))) _bl_tier_starts=(100) _bl_tier_pushed=$((1024 * 1024)) swap=0
 SECONDS=240; bl_session_pressure
 echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_no_gain_pageout_doubles_the_tier_wait(self):
+        self.assertEqual(['send:1:session', 'backoff:60', 'send:1:session', 'backoff:120'], self.run_policy('''
+available_after=1024
+SECONDS=0; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+SECONDS=30; bl_session_pressure
+SECONDS=60; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_meaningful_available_gain_keeps_the_tier_wait(self):
+        self.assertEqual(['send:1:session', 'backoff:30', 'send:1:session', 'backoff:30'], self.run_policy('''
+available_after=1300
+SECONDS=0; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+available_after=1600
+SECONDS=30; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+'''))
+
+    def test_recovered_available_memory_resets_the_tier_wait(self):
+        self.assertEqual(['send:1:session', 'backoff:60', 'backoff:30', 'send:1:session'], self.run_policy('''
+available_after=1024
+SECONDS=0; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+available_after=2000
+sed -i "s/^MemAvailable:.*/MemAvailable: 2048000 kB/" "$meminfo"
+SECONDS=30; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+available_after=1024
+sed -i "s/^MemAvailable:.*/MemAvailable: 1048576 kB/" "$meminfo"
+SECONDS=60; bl_session_pressure
+'''))
+
+    def test_critical_memory_still_compresses_after_a_no_gain_pass(self):
+        self.memory(available=512)
+        self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
+available_after=512
+SECONDS=0; bl_session_pressure
+SECONDS=30; bl_session_pressure
+'''))
+
+    def test_a_no_gain_pass_still_skips_memory_the_game_read_back(self):
+        self.memory(available=512)
+        self.assertEqual(['send:1:session'], self.run_policy('''
+available_after=512
+SECONDS=0; bl_session_pressure
+swap=0
+SECONDS=30; bl_session_pressure
 '''))
 
     def test_nearly_out_of_memory_ignores_the_backoff_but_keeps_30_seconds(self):
@@ -407,6 +480,23 @@ SECONDS=30; bl_session_pressure
 echo "backoff:$_bl_tier_backoff"
 '''))
 
+    def test_read_back_wait_holds_above_the_critical_level(self):
+        self.assertEqual(['send:1:session', 't:60', 'send:1:session'], self.run_policy('''
+SECONDS=0; bl_session_pressure
+swap=0
+SECONDS=30; bl_session_pressure
+SECONDS=60; bl_session_pressure; echo t:60
+SECONDS=90; bl_session_pressure
+'''))
+
+    def test_a_no_gain_pageout_preserves_client_timestamps(self):
+        self.assertEqual(['send:1:session', 'backoff:60', 'client:-1:-1'], self.run_policy('''
+available_after=1024
+SECONDS=0; bl_session_pressure
+echo "backoff:$_bl_tier_backoff"
+echo "client:$_bl_pressure_at:$_bl_packed"
+'''))
+
     def test_an_incomplete_pageout_does_not_restart_the_launcher_wait(self):
         self.assertEqual(['send:1:session', 'client:-1:-1'], self.run_policy('''
 complete=0
@@ -455,7 +545,7 @@ class ReclaimDispatchTest(unittest.TestCase):
             source = source.replace('/tmp/.bl-zram', str(root / 'ctl'))
             monitor = SCRIPT.read_text()
             start = monitor.index('          _bl_preserved_growth=$_bl_growth', monitor.index('while kill -0 $$'))
-            stop = monitor.index('          if [ "$_bl_game" = 1 ] && bl_game_focused', start)
+            stop = monitor.index('          _bl_focus=1\n', start)
             cycle = monitor[start:stop] if body is None else body
             script = f'''
 set -u

@@ -1234,25 +1234,7 @@ def wait_for(check, timeout, step=0.1):
 
 
 def capped_log(path):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    handle = open(path, "wb")
-    read, write = os.pipe()
-
-    def pump():
-        written = 0
-        with os.fdopen(read, "rb") as source:
-            while True:
-                chunk = source.read1(65536) if hasattr(source, "read1") else source.read(65536)
-                if not chunk:
-                    break
-                if written < LOG_CAP:
-                    handle.write(chunk[:LOG_CAP - written])
-                    handle.flush()
-                    written += len(chunk)
-        handle.close()
-
-    threading.Thread(target=pump, daemon=True).start()
-    return write
+    return GAME_DEBUG["capped_log"](path, LOG_CAP)[0]
 
 
 class Session:

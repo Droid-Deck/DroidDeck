@@ -85,4 +85,23 @@ class SessionScalingPrefsTest {
         SessionPrefs.setUpscaler(context, 1)
         assertEquals(0, prefs.getInt("upscaler", -1))
     }
+
+    private fun fpsContext(): Context = RuntimeEnvironment.getApplication().also {
+        it.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
+    @Test fun aFrameLimitStaysWithTheGameOrDesktopItWasSetIn() {
+        val ctx = fpsContext()
+        val game = SessionPrefs.fpsLimitKey(SessionService.MODE_RUN, "123")
+        val desktop = SessionPrefs.fpsLimitKey(SessionService.MODE_DESKTOP, null)
+        SessionPrefs.saveFpsLimit(ctx, game, 45)
+        SessionPrefs.saveFpsLimit(ctx, desktop, 30)
+        assertEquals(45, SessionPrefs.savedFpsLimit(ctx, game))
+        assertEquals(30, SessionPrefs.savedFpsLimit(ctx, desktop))
+        assertEquals(0, SessionPrefs.savedFpsLimit(ctx, SessionPrefs.fpsLimitKey(SessionService.MODE_RUN, "456")))
+        assertEquals(null, SessionPrefs.fpsLimitKey(SessionService.MODE_STEAM, "123"))
+        assertEquals(null, SessionPrefs.fpsLimitKey(SessionService.MODE_RUN, "not-a-game"))
+        SessionPrefs.saveFpsLimit(ctx, game, 0)
+        assertEquals(0, SessionPrefs.savedFpsLimit(ctx, game))
+    }
 }

@@ -279,6 +279,39 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("agentTab", show).apply()
     }
 
+    fun developerTools(context: Context): Boolean =
+        prefs(context).getBoolean("developerTools", agentTab(context) || com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(context))
+
+    fun setDeveloperTools(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("developerTools", on).apply()
+    }
+
+    fun fpsLimitKey(mode: String?, game: String?): String? = when (mode) {
+        SessionService.MODE_RUN -> game?.trim()?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)?.let { "fpsLimit.game.$it" }
+        SessionService.MODE_DESKTOP -> "fpsLimit.desktop"
+        else -> null
+    }
+
+    fun savedFpsLimit(context: Context, key: String?): Int = key?.let { prefs(context).getInt(it, 0) } ?: 0
+
+    fun saveFpsLimit(context: Context, key: String?, fps: Int) {
+        key ?: return
+        prefs(context).edit().apply { if (fps > 0) putInt(key, fps) else remove(key) }.apply()
+    }
+
+    fun drawerCornerTap(context: Context): Boolean =
+        prefs(context).getBoolean("drawerCornerTap", android.os.Build.MANUFACTURER.equals("Oculus", true) || android.os.Build.MANUFACTURER.equals("Meta", true))
+
+    fun setDrawerCornerTap(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("drawerCornerTap", on).apply()
+    }
+
+    fun drawerHintShown(context: Context): Int = prefs(context).getInt("drawerHintShown", 0)
+
+    fun countDrawerHint(context: Context) {
+        prefs(context).edit().putInt("drawerHintShown", drawerHintShown(context) + 1).apply()
+    }
+
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
 
     fun setLibraryShowUninstalled(context: Context, show: Boolean) {
@@ -309,7 +342,7 @@ object SessionPrefs {
         prefs(context).edit().putString("navTabOrder", order.joinToString(",")).apply()
     }
 
-    fun navTabShelved(context: Context): Set<String> = idList(prefs(context).getString("navTabShelved", "soundtracks,agent")).toSet()
+    fun navTabShelved(context: Context): Set<String> = idList(prefs(context).getString("navTabShelved", "soundtracks,agent,storage,sync")).toSet()
 
     fun setNavTabShelved(context: Context, keys: Set<String>) {
         prefs(context).edit().putString("navTabShelved", keys.joinToString(",")).apply()

@@ -143,7 +143,6 @@ import com.droiddeck.launcher.stores.formatBytes
 import androidx.compose.runtime.setValue
 
 
-private const val DOWNLOADS = "downloads"
 
 private data class PaneKey(val chip: String, val signedIn: Boolean, val accountsLoaded: Boolean)
 
@@ -196,10 +195,9 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     var query by rememberSaveable { mutableStateOf("") }
     var openGame by rememberSaveable { mutableStateOf<String?>(null) }
     val liveState = androidx.compose.runtime.rememberUpdatedState(s)
-    LaunchedEffect(StoresState.openDownloads) { if (StoresState.openDownloads) { chip = DOWNLOADS; StoresState.openDownloads = false } }
     val store = Store.byId(chip)
     LaunchedEffect(tabs.toList()) {
-        if (chip != DOWNLOADS && Store.byId(chip) !in shownStores) chip = shownStores.firstOrNull()?.id ?: DOWNLOADS
+        if (Store.byId(chip) !in shownStores) chip = shownStores.firstOrNull()?.id ?: chip
     }
     val pane = PaneKey(
         chip,
@@ -333,9 +331,8 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             StoreTheme(Store.byId(focusedChip ?: chip)) {
                 Rise(0) {
                     StoreChips(
-                        chip, focusedChip, s.storeDownloadsActive, tabs, arranging,
+                        chip, focusedChip, tabs, arranging,
                         onStore = { st -> openModes(st) },
-                        onDownloads = { if (chip != DOWNLOADS) pickChip(DOWNLOADS) else move("first") },
                         onFocusChip = { focusedChip = it },
                         onArrangeDone = { arranging = false },
                         onMoveTab = { st, to -> moveTab(st, to) },
@@ -378,7 +375,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                   .focusGroup(),
                           ) {
                             when {
-                                k.chip == DOWNLOADS -> Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { StoresDownloadsPane(s, a) }
                                 st == null -> {}
                                 !k.accountsLoaded -> Box(Modifier.fillMaxWidth().padding(top = 16.dp)) {
                                     androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp))
@@ -393,7 +389,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             },
         ) { key -> GameDetail(key, s, a, heroFocus, backLabel, hopRail = null, onBack = { closeGame() }, inStore = true) }
     }
-    FlightLayer(hostAt)
     StoresMotion.step?.let { ask ->
         key(ask) {
             StepOut(
@@ -405,14 +400,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     }
     SignInFloodLayer(hostAt)
     }
-    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { StoresMotion.drop() } }
-    val activeKeys = StoresState.downloads.filter { it.isActive }.map { it.key }.toSet()
-    val seenActive = remember { mutableSetOf<String>().also { it.addAll(activeKeys) } }
-    LaunchedEffect(activeKeys) {
-        val fresh = activeKeys - seenActive
-        seenActive.clear(); seenActive.addAll(activeKeys)
-        if (fresh.isNotEmpty()) StoresMotion.takeInstall()?.let { StoresMotion.fly(it) }
-    }
+    androidx.compose.runtime.DisposableEffect(Unit) { val page = Any(); StoresMotion.hosting(page); onDispose { StoresMotion.release(page) } }
 }
 
 @Composable
@@ -594,12 +582,12 @@ private fun RowScope.ArrangeStoreChip(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun StoreChips(
-    selected: String, focused: String?, active: Int, tabs: List<StoreTab>, arranging: Boolean,
-    onStore: (Store) -> Unit, onDownloads: () -> Unit, onSettings: (Rect?) -> Unit, onFocusChip: (String?) -> Unit,
+    selected: String, focused: String?, tabs: List<StoreTab>, arranging: Boolean,
+    onStore: (Store) -> Unit, onSettings: (Rect?) -> Unit, onFocusChip: (String?) -> Unit,
     onArrangeDone: () -> Unit, onMoveTab: (Store, Int) -> Unit, onToggleTab: (Store) -> Unit,
 ) {
     val pal = LocalPalette.current
-    val keys = tabs.filter { it.shown }.map { it.store.id } + DOWNLOADS
+    val keys = tabs.filter { it.shown }.map { it.store.id }
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, Rect>() }
     val highlighted = focused ?: selected
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode
@@ -638,25 +626,11 @@ private fun StoreChips(
                         }
                     }
                 }
-                ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown && highlighted != DOWNLOADS)
+                ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
             }
             if (arranging) {
                 IconChip(Icons.Filled.Check, stringResource(R.string.stores_tabs_arrange_done)) { onArrangeDone() }
             } else {
-                Box {
-                    StoreChip(
-                        label = null, on = selected == DOWNLOADS, under = fillShown && highlighted == DOWNLOADS, key = DOWNLOADS, mark = pal.signal,
-                        modifier = Modifier.onGloballyPositioned {
-                            bounds[DOWNLOADS] = it.boundsInParent()
-                            StoresMotion.downloadsChip = it.boundsInRoot()
-                        },
-                        lead = { Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp)) },
-                        trail = if (active > 0) { { CountPill(active) } } else null,
-                        description = stringResource(R.string.stores_tab_downloads),
-                        onFocused = onFocusChip,
-                    ) { onDownloads() }
-                    ChipGlide(keys.indexOf(DOWNLOADS), bounds[DOWNLOADS], tint, visible = fillShown && highlighted == DOWNLOADS)
-                }
                 var cogAt by remember { mutableStateOf<Rect?>(null) }
                 Box(Modifier.onGloballyPositioned { cogAt = it.boundsInRoot() }) {
                     IconChip(Icons.Filled.Settings, stringResource(R.string.stores_settings)) { onSettings(cogAt) }
