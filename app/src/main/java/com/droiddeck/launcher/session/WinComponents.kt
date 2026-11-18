@@ -488,6 +488,12 @@ object WinComponents {
         return dir
     }
 
+    internal fun nativeDlls(c: Component): List<String> = c.steps.filter { it.action == "override_dll" }.flatMap { step ->
+        listOf(step.str("dll") to step.str("type")) + (step.json.optJSONArray("bundle")?.let { b ->
+            (0 until b.length()).map { b.getJSONObject(it).let { o -> o.optString("value") to o.optString("data") } }
+        } ?: emptyList())
+    }.filter { (dll, type) -> type == "native" && validId(dll) }.map { it.first.lowercase() }.distinct()
+
     private fun installPackage(context: Context, c: Component, step: Step, staging: File, onProgress: (Progress) -> Unit): Pair<JSONObject?, String> {
         val root = LinuxRuntime.rootDir(context)
         val url = step.str("url")
@@ -505,7 +511,9 @@ object WinComponents {
             onProgress(Progress(c.name, "installing", Phase.INSTALL, 0))
             var result: JSONObject? = null
             var problem: String? = null
-            val status = GuestCommand.run(context, guest(listOf(MSI_INSTALL, "/$MSI_CACHE/${file.name}", "/$STORE/${staging.name}")),
+            val native = nativeDlls(c)
+            val flags = if (native.isEmpty()) emptyList() else listOf("--native", native.joinToString(","))
+            val status = GuestCommand.run(context, guest(listOf(MSI_INSTALL) + flags + listOf("/$MSI_CACHE/${file.name}", "/$STORE/${staging.name}")),
                 logName = "wincomponents-${c.name}") { line ->
                 when {
                     line.startsWith("progress ") -> engineLine(line.removePrefix("progress ")).let { (text, pct) -> onProgress(Progress(c.name, text, Phase.INSTALL, pct)) }

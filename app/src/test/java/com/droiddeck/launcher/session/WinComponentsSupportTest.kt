@@ -31,6 +31,14 @@ class WinComponentsSupportTest {
             step("install_msi", "url" to "$base/ps-x86.msi"), step("install_msi", "url" to "$base/ps-x64.msi"))))
     }
 
+    @Test fun onlyDllsOrderedNativeAreKeptFromDownlevelSystemComponents() {
+        val c = component("dotnet40", step("override_dll", "dll" to "MSCOREE", "type" to "native"),
+            step("override_dll", "dll" to "fusion", "type" to "builtin"), step("override_dll", "dll" to "msvcr100"),
+            step("override_dll", "dll" to "../x", "type" to "native"), step("install_exe", "url" to "$base/dotnet40.exe"))
+        assertEquals(listOf("mscoree"), WinComponents.nativeDlls(c))
+        assertEquals(emptyList<String>(), WinComponents.nativeDlls(component("xna40", step("install_msi", "url" to "$base/xna40.msi"))))
+    }
+
     @Test fun builtInArm64RuntimeIsRegistryOnlyInBothViews() {
         val c = WinComponents.builtInArm64Runtime()
         assertEquals(Support.READY, support(c))

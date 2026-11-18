@@ -29,8 +29,8 @@ def rows(columns, *values):
     return [dict(zip(names, value)) for value in values]
 
 
-def installer(tables, out="/tmp/unused", summary=None):
-    return MSI["Installer"]("fake.msi", out, FakePackage(tables, summary))
+def installer(tables, out="/tmp/unused", summary=None, native=()):
+    return MSI["Installer"]("fake.msi", out, FakePackage(tables, summary), native=native)
 
 
 class ToolsTest(unittest.TestCase):
@@ -117,6 +117,40 @@ class LayoutTest(unittest.TestCase):
         })
         inst.select()
         self.assertEqual(inst.included_components, {"Up", "Wide"})
+
+    def downlevel_shim(self, native, directory="SysShim", key="ShimDll", condition="VersionNT < 600"):
+        inst = installer({
+            "Directory": rows("Directory Directory_Parent DefaultDir",
+                              ("TARGETDIR", "", "SourceDir"),
+                              ("ProgramFilesFolder", "TARGETDIR", "PFiles"),
+                              ("AppDir", "ProgramFilesFolder", "App"),
+                              ("SysShim", "TARGETDIR", "Win")),
+            "CustomAction": rows("Action Type Source Target", ("SetSys", "51", "SysShim", "[SystemFolder]")),
+            "InstallExecuteSequence": rows("Action Condition Sequence", ("SetSys", "", "1")),
+            "Feature": rows("Feature Feature_Parent Level", ("Main", "", "1")),
+            "Component": rows("Component Directory_ Attributes Condition KeyPath",
+                              ("Shim", directory, "0", condition, key),
+                              ("Old", "SysShim", "0", "VersionNT < 600", "OldDll"),
+                              ("Vista", "SysShim", "0", "VersionNT = 600", "VistaDll")),
+            "FeatureComponents": rows("Feature_ Component_", ("Main", "Shim"), ("Main", "Old"), ("Main", "Vista")),
+            "File": rows("File Component_ FileName", ("ShimDll", "Shim", "MSCOREE.DLL|mscoree.dll"),
+                         ("OldDll", "Old", "dxva2.dll"), ("VistaDll", "Vista", "mscoree.dll")),
+        }, native=native)
+        inst.run_set_actions()
+        inst.select()
+        return inst.included_components
+
+    def test_a_native_override_keeps_a_system_file_newer_windows_ships_itself(self):
+        self.assertEqual(self.downlevel_shim(["mscoree"]), {"Shim"})
+
+    def test_without_a_native_override_os_version_conditions_still_apply(self):
+        self.assertEqual(self.downlevel_shim([]), set())
+        self.assertEqual(self.downlevel_shim(["mscorwks"]), set())
+
+    def test_only_system_folders_and_downlevel_conditions_are_relaxed(self):
+        self.assertEqual(self.downlevel_shim(["mscoree"], directory="AppDir"), set())
+        self.assertEqual(self.downlevel_shim(["mscoree"], condition="VersionNT = 600"), set())
+        self.assertEqual(self.downlevel_shim(["mscoree"], condition="VersionNT < 600 AND VersionNT64"), {"Shim"})
 
     def test_a_duplicate_onto_the_file_itself_is_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:

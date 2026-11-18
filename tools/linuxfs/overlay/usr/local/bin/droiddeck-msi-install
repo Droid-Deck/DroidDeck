@@ -50,6 +50,8 @@ SYSTEM_PROPERTIES = {
     "Msix64": "6", "ALLUSERS": "1", "Privileged": "1", "AdminUser": "1", "MsiNTProductType": "1",
     "UILevel": "2", "INSTALLLEVEL": "1", "ProgramFilesFolder": None, "VersionMsi": "5.00",
 }
+DOWNLEVEL_PROPERTIES = {"VersionNT": "502", "VersionNT64": "502", "WindowsBuild": "3790", "ServicePackLevel": "2"}
+SYSTEM_DIRS = ("drive_c/windows/system32", "drive_c/windows/syswow64")
 
 COMPONENT_64BIT = 0x100
 FILE_NONCOMPRESSED = 0x2000
@@ -318,8 +320,9 @@ def clr_version(path):
 
 
 class Installer:
-    def __init__(self, msi, out, package=None, span=None):
+    def __init__(self, msi, out, package=None, span=None, native=()):
         self.pkg = package or Package(msi)
+        self.native = {name.lower() for name in native}
         self.out = Path(out)
         self.span = span or Span()
         self.notes = []
@@ -462,9 +465,18 @@ class Installer:
             owners = mapped.get(name)
             if owners is not None and not owners & self.included_features:
                 continue
-            if not self.conditions.evaluate(row.get("Condition", ""), default=True):
+            if not self.conditions.evaluate(row.get("Condition", ""), default=True) and not self.downlevel_native(row):
                 continue
             self.included_components.add(name)
+
+    def downlevel_native(self, row):
+        if not self.native or (self.directory(row.get("Directory_", "")) or "").lower() not in SYSTEM_DIRS:
+            return False
+        key = next((f for f in self.pkg.table("File") if f["File"] == row.get("KeyPath")), None)
+        if key is None or Path(long_name(key["FileName"])).stem.lower() not in self.native:
+            return False
+        props = dict(self.props, **DOWNLEVEL_PROPERTIES)
+        return Conditions(props, self.feature_state, self.component_state).evaluate(row.get("Condition", ""), default=False)
 
     def assemblies(self):
         names = {}
@@ -874,7 +886,7 @@ def choose_packages(found, root):
     return chosen
 
 
-def install_wrapper(path, out):
+def install_wrapper(path, out, native=()):
     total = {"product": "", "version": "", "counts": {"files": 0, "assemblies": 0, "registry": 0}, "notes": [], "packages": []}
     with tempfile.TemporaryDirectory(dir=str(out.parent), prefix=".unpack-") as work:
         dest = Path(work) / "x"
@@ -887,7 +899,7 @@ def install_wrapper(path, out):
             lo, hi = 0.1 + 0.9 * index / len(packages), 0.1 + 0.9 * (index + 1) / len(packages)
             progress("package %d of %d: %s" % (index + 1, len(packages), package.name), lo)
             try:
-                result = Installer(str(package), out, span=Span(lo, hi)).install()
+                result = Installer(str(package), out, span=Span(lo, hi), native=native).install()
             except MsiError as error:
                 if "installs nothing" in str(error) and len(packages) > 1:
                     total["notes"].append("%s: %s" % (package.name, error))
@@ -939,6 +951,10 @@ def unpack_only(path, dest):
 
 def main():
     args = sys.argv[1:]
+    native = []
+    while len(args) > 1 and args[0] == "--native":
+        native += [name for name in args[1].split(",") if name]
+        args = args[2:]
     if len(args) == 3 and args[0] == "--unpack":
         try:
             result = unpack_only(Path(args[1]), Path(args[2]))
@@ -948,16 +964,16 @@ def main():
         print("result " + json.dumps(result), flush=True)
         return 0
     if len(args) != 2:
-        print("usage: droiddeck-msi-install <package.msi | installer.exe> <component dir>\n"
+        print("usage: droiddeck-msi-install [--native dll,...] <package.msi | installer.exe> <component dir>\n"
               "       droiddeck-msi-install --unpack <archive> <dir>", file=sys.stderr)
         return 2
     source, out = Path(args[0]), Path(args[1])
     out.mkdir(parents=True, exist_ok=True)
     try:
         if kind_of(source) == "msi":
-            result = Installer(str(source), out).install()
+            result = Installer(str(source), out, native=native).install()
         else:
-            result = install_wrapper(source, out)
+            result = install_wrapper(source, out, native)
     except MsiError as error:
         print("error " + str(error), flush=True)
         return 1
