@@ -157,7 +157,7 @@ internal class StepAsk(
     val content: @Composable StepOutScope.() -> Unit,
 )
 
-internal class SignInFlood(val store: Store, val from: Rect, val start: Color, val color: Color) {
+internal class SignInFlood(val store: Store, val from: Rect, val start: Color, val color: Color, val home: Rect? = null) {
     var away by mutableStateOf(false)
     var drainTo by mutableStateOf<Rect?>(null)
 }
@@ -335,7 +335,10 @@ internal fun DownloadFlights() {
         val from = StoresMotion.takeInstall() ?: focusAnchor(glide, origin)
         if (from != null) StoresMotion.fly(from) else StoresMotion.landed++
     }
-    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) { FlightLayer(origin) }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
+        FlightLayer(origin)
+        SignInFloodLayer(origin)
+    }
 }
 
 internal fun focusAnchor(glide: FocusGlide?, origin: Offset): Rect? {

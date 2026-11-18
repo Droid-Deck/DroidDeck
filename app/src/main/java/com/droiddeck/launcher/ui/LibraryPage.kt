@@ -226,6 +226,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     remember { LibraryDisplay.load(ctx) }
+    remember { FolderSizes.load(ctx) }
     remember { LibraryFavorites.load(ctx) }
     val soundMode = selected == "soundtracks" || selected.startsWith("sound:")
     val favorites = if (soundMode) emptySet() else LibraryFavorites.keys
@@ -345,7 +346,13 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     }
     var sizesWaited by remember(sizeSort) { mutableStateOf(false) }
     LaunchedEffect(sizeSort) { if (sizeSort) { kotlinx.coroutines.delay(8_000); sizesWaited = true } }
-    val sizesPending = sizeSort && !sizesWaited && candidates.any { sizeOf(it) == null }
+    fun sizeComing(e: LibraryEntry): Boolean = when {
+        e.storeKey != null && e.storeKey in installedStore -> true
+        e.game?.gameFiles != null -> true
+        e.item != null -> StoreSizes.coming(e.item)
+        else -> false
+    }
+    val sizesPending = sizeSort && !sizesWaited && candidates.any { sizeOf(it) == null && sizeComing(it) }
     val sorted = sortGames(
         candidates, sort, title = { it.title }, releaseDate = { it.item?.releaseDate.orEmpty() },
         lastPlayed = { e -> entryTime(e.game?.lastPlayed, e.storeKey?.let { lastPlayed[it] }) },

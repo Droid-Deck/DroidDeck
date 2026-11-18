@@ -1055,6 +1055,15 @@ internal fun diskSize(installed: InstalledStoreGame?, folder: File): Long? {
 internal object FolderSizes {
     val known = androidx.compose.runtime.mutableStateMapOf<String, Long>()
     private val asked = java.util.Collections.synchronizedSet(HashSet<String>())
+    private var saved: android.content.SharedPreferences? = null
+
+    // The last walk of each folder shows at once after a restart; a fresh walk still replaces it.
+    fun load(context: android.content.Context) {
+        if (saved != null) return
+        val p = context.applicationContext.getSharedPreferences("folder_sizes", android.content.Context.MODE_PRIVATE)
+        saved = p
+        p.all.forEach { (path, bytes) -> if (bytes is Long && path !in known) known[path] = bytes }
+    }
 
     fun request(folder: File) {
         if (!asked.add(folder.path)) return
@@ -1069,7 +1078,10 @@ internal object FolderSizes {
                     override fun visitFileFailed(file: java.nio.file.Path, exc: java.io.IOException): java.nio.file.FileVisitResult = java.nio.file.FileVisitResult.CONTINUE
                 })
             }.isSuccess
-            if (walked) StoresState.post { known[folder.path] = total } else asked.remove(folder.path)
+            if (walked) {
+                saved?.edit()?.putLong(folder.path, total)?.apply()
+                StoresState.post { known[folder.path] = total }
+            } else asked.remove(folder.path)
         }, "folder-size").start()
     }
 }
