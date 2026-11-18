@@ -1334,7 +1334,7 @@
     <string name="agent_plan_hint">Proposes a plan without changing anything</string>
     <string name="agent_permissions">Permissions</string>
     <string name="agent_permission_ask">Ask first</string>
-    <string name="agent_permission_ask_hint">Asks before each edit or command</string>
+    <string name="agent_permission_ask_hint">Asks before edits and commands that need your OK</string>
     <string name="agent_permission_edits">Accept edits</string>
     <string name="agent_permission_edits_hint">Edits files freely, asks before commands</string>
     <string name="agent_permission_auto">Auto</string>

@@ -61,8 +61,10 @@ class OpenCodeTest {
             val request = json(line)
             sent += request
             if (request.getString("method") == "session/prompt") break
-            // A refused option, such as an effort the model does not have, does not stop the turn.
-            line = p.parse("""{"jsonrpc":"2.0","id":${request.getInt("id")},"error":{"code":-32602,"message":"no"}}""")!!.reply.single()
+            // A refused effort, one the model does not have, does not stop the turn.
+            val refused = request.getJSONObject("params").getString("configId") == "effort"
+            val answer = if (refused) """"error":{"code":-32602,"message":"no"}""" else """"result":{}"""
+            line = p.parse("""{"jsonrpc":"2.0","id":${request.getInt("id")},$answer}""")!!.reply.single()
         }
         assertEquals(listOf("model" to "opencode/big-pickle", "effort" to "high", "mode" to "build"),
             sent.dropLast(1).map { it.getJSONObject("params").let { o -> o.getString("configId") to o.getString("value") } })
@@ -80,7 +82,9 @@ class OpenCodeTest {
         assertEquals("ses_9", resume.getJSONObject("params").getString("sessionId"))
         val resumed = p.parse("""{"jsonrpc":"2.0","id":${resume.getInt("id")},"result":{"configOptions":[]}}""")!!
         assertEquals("ses_9", resumed.conversation)
-        assertEquals("plan", json(resumed.reply.single()).getJSONObject("params").getString("value"))
+        val mode = json(resumed.reply.single())
+        assertEquals("plan", mode.getJSONObject("params").getString("value"))
+        assertEquals(listOf(Entry.Finished("Invalid mode")), p.parse("""{"jsonrpc":"2.0","id":${mode.getInt("id")},"error":{"code":-32602,"message":"Invalid mode"}}""")!!.entries)
         val gone = OpenCode.Protocol()
         val id = json(gone.input("hi", "ses_x", AgentHarness.Options(), started = true).single()).getInt("id")
         val resumeId = json(gone.parse("""{"jsonrpc":"2.0","id":$id,"result":{}}""")!!.reply.single()).getInt("id")

@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -39,6 +40,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -207,7 +209,7 @@ private fun AgentPageContent(
     var setup by rememberSaveable { mutableStateOf(false) }
     val draft = rememberSaveable { mutableStateOf("") }
     if (setup || AgentHost.state == AgentHost.State.MISSING || !(AgentSetup.ready || AgentSetup.completed(context))) {
-        AgentSetupView(modifier, onDone = { setup = false })
+        AgentSetupView(modifier, firstControl = inputModifier, onDone = { setup = false })
         return
     }
     var panel by rememberSaveable { mutableStateOf(AgentPanel.NONE) }
@@ -365,10 +367,10 @@ private fun ModelChip(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstCon
         modifier = modifier.then(if (compact) Modifier.widthIn(max = 120.dp) else Modifier).height(36.dp).clip(Shape12).then(firstControl)
             .clickable { onPanel(AgentPanel.MODEL) }.padding(horizontal = 8.dp).testTag("agent-model"),
     ) {
-        val parts = if (compact) listOf(model)
+        val mode = AgentHost.harness.permissions.drop(1).firstOrNull { it.id == AgentHost.permission }?.let { stringResource(it.label) }
+        val parts = if (compact) listOfNotNull(mode ?: model)
         else listOfNotNull(
-            AgentHost.harness.name, model, AgentHost.effort,
-            AgentHost.harness.permissions.drop(1).firstOrNull { it.id == AgentHost.permission }?.let { stringResource(it.label) },
+            AgentHost.harness.name, model, AgentHost.effort, mode,
             stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans },
         )
         Text(parts.joinToString(" · "), fontSize = 13.sp, color = if (panel == AgentPanel.MODEL) pal.primary else pal.onSurfaceVariant,
@@ -551,10 +553,11 @@ private fun AgentApprovalCard(approval: AgentHost.Approval, more: Int) {
             }
         }
         val body = approval.input.ifBlank { approval.detail }
+        val shown = Modifier.fillMaxWidth().padding(top = 6.dp)
+            .then(if (open) Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState()) else Modifier).clickable { open = !open }
         if (body.isNotBlank()) Text(
             body, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = pal.onSurfaceVariant,
-            maxLines = if (open) 40 else 4, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).clickable { open = !open },
+            maxLines = if (open) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis, modifier = shown,
         )
     }
 }

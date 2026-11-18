@@ -400,7 +400,9 @@ object Codex : AgentHarness {
     internal class Protocol : AgentProtocol {
         private var next = 1
         private var thread: String? = null
-        /** The thread/start or thread/resume request, and the turn that waits for its thread. */
+        /** The initialize request, the thread/start or thread/resume sent once it succeeds, and the turn that waits for its thread. */
+        private var initializing = -1
+        private var open: String? = null
         private var opening = -1
         private var waiting: JSONObject? = null
         private var starting = -1
@@ -425,12 +427,12 @@ object Codex : AgentHarness {
             if (conversation != null) params.put("threadId", conversation)
             waiting = turn
             opening = next++
+            open = JSONObject().put("id", opening).put("method", if (conversation != null) "thread/resume" else "thread/start").put("params", params).toString()
+            initializing = next++
             return listOf(
-                JSONObject().put("id", next++).put("method", "initialize")
+                JSONObject().put("id", initializing).put("method", "initialize")
                     .put("params", JSONObject().put("clientInfo", JSONObject().put("name", "droiddeck").put("title", "DroidDeck").put("version", "1"))
                         .put("capabilities", JSONObject.NULL)).toString(),
-                JSONObject().put("method", "initialized").toString(),
-                JSONObject().put("id", opening).put("method", if (conversation != null) "thread/resume" else "thread/start").put("params", params).toString(),
             )
         }
 
@@ -455,6 +457,12 @@ object Codex : AgentHarness {
             val id = o.optInt("id", -1)
             val error = o.optJSONObject("error")?.optString("message")?.ifEmpty { "error" }
             return when (id) {
+                initializing -> {
+                    if (error != null) return AgentEvent(entries = listOf(AgentHost.Entry.Finished(error)))
+                    val request = open ?: return null
+                    open = null
+                    AgentEvent(reply = listOf(JSONObject().put("method", "initialized").toString(), request))
+                }
                 opening -> {
                     if (error != null) return AgentEvent(entries = listOf(AgentHost.Entry.Finished(error)))
                     val started = o.optJSONObject("result")?.optJSONObject("thread")?.optString("id")?.takeIf { it.isNotEmpty() } ?: return null
@@ -848,8 +856,12 @@ object OpenCode : AgentHarness {
         private fun advance(id: String): String {
             val make = queue.removeFirst()
             val params = make(id)
+            configuring = params.optString("configId")
             return if (queue.isEmpty()) send(Stage.PROMPT, "session/prompt", params) else send(Stage.CONFIG, "session/set_config_option", params)
         }
+
+        /** The config option the pending set_config_option sets. */
+        private var configuring = ""
 
         override fun answer(approval: AgentHost.Approval, allow: Boolean): String = JSONObject(approval.payload).put("jsonrpc", "2.0")
             .put("result", JSONObject().put("outcome", JSONObject().put("outcome", "selected").put("optionId", if (allow) "once" else "reject"))).toString()
@@ -881,8 +893,9 @@ object OpenCode : AgentHarness {
                     session = id
                     AgentEvent(id, reply = listOf(advance(id)))
                 }
-                // A model without effort levels refuses one; the turn goes on with its default.
-                Stage.CONFIG -> AgentEvent(reply = listOf(advance(session ?: return null)))
+                // A model without effort levels refuses one and the turn goes on with its default; a refused
+                // mode would run a plan turn as a build one, so it ends the turn instead.
+                Stage.CONFIG -> if (error != null && configuring == "mode") failed(error) else AgentEvent(reply = listOf(advance(session ?: return null)))
                 Stage.PROMPT -> {
                     stage = Stage.IDLE
                     val usage = result.optJSONObject("usage")

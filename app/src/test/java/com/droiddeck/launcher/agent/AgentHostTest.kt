@@ -171,9 +171,11 @@ class AgentHostTest {
         assertEquals(listOf("/root/.local/bin/codex", "app-server"), command.takeLast(2))
         assertTrue(command[2].endsWith("2>/root/.cache/droiddeck/codex.log"))
         val p = Codex.Protocol()
-        val lines = p.input("hi", null, AgentHarness.Options(model = "gpt", effort = "high", brief = "brief"), started = true)
-        assertEquals(listOf("initialize", "initialized", "thread/start"), lines.map { json(it).getString("method") })
-        val start = json(lines[2])
+        val init = json(p.input("hi", null, AgentHarness.Options(model = "gpt", effort = "high", brief = "brief"), started = true).single())
+        assertEquals("initialize", init.getString("method"))
+        val lines = p.parse("""{"id":${init.getInt("id")},"result":{"userAgent":"codex"}}""")!!.reply
+        assertEquals(listOf("initialized", "thread/start"), lines.map { json(it).getString("method") })
+        val start = json(lines[1])
         val params = start.getJSONObject("params")
         assertEquals("untrusted", params.getString("approvalPolicy"))
         assertEquals("danger-full-access", params.getString("sandbox"))
@@ -188,13 +190,21 @@ class AgentHostTest {
         val next = json(p.input("again", "t1", AgentHarness.Options(), started = false).single())
         assertEquals("turn/start", next.getString("method"))
         assertEquals("t1", next.getJSONObject("params").getString("threadId"))
-        val resumed = json(Codex.Protocol().input("hi", "t9", AgentHarness.Options(permission = AgentHarness.FULL), started = true)[2])
+        fun opening(q: Codex.Protocol, conversation: String?, options: AgentHarness.Options): org.json.JSONObject {
+            val id = json(q.input("hi", conversation, options, started = true).single()).getInt("id")
+            return json(q.parse("""{"id":$id,"result":{}}""")!!.reply.last())
+        }
+        val resumed = opening(Codex.Protocol(), "t9", AgentHarness.Options(permission = AgentHarness.FULL))
         assertEquals("thread/resume", resumed.getString("method"))
         assertEquals("t9", resumed.getJSONObject("params").getString("threadId"))
         assertEquals("never", resumed.getJSONObject("params").getString("approvalPolicy"))
         assertEquals(listOf(Entry.Finished("no such thread")), Codex.Protocol().let { q ->
-            val id = json(q.input("hi", "gone", AgentHarness.Options(), started = true)[2]).getInt("id")
+            val id = opening(q, "gone", AgentHarness.Options()).getInt("id")
             q.parse("""{"id":$id,"error":{"code":-32600,"message":"no such thread"}}""")!!.entries
+        })
+        assertEquals(listOf(Entry.Finished("not signed in")), Codex.Protocol().let { q ->
+            val id = json(q.input("hi", null, AgentHarness.Options(), started = true).single()).getInt("id")
+            q.parse("""{"id":$id,"error":{"code":-32600,"message":"not signed in"}}""")!!.entries
         })
     }
 

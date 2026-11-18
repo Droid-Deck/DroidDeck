@@ -102,6 +102,7 @@ object AgentHost {
         private set
     /** Tool calls of the running turn that wait for the user, oldest first. */
     val approvals = mutableStateListOf<Approval>()
+    private var approvalNoticed = false
     var chat by mutableStateOf<String?>(null)
         private set
     /** A reply finished since the conversation was last on screen. */
@@ -297,8 +298,28 @@ object AgentHost {
         if (!approvals.remove(approval)) return
         val running = turn ?: session ?: return
         val line = running.protocol.answer(approval, allow)
-        Thread({ runCatching { running.write(listOf(line)) }.onFailure { Log.w(TAG, "could not answer an approval", it) } }, "agent-approval").start()
-        if (approvals.isEmpty()) appContext?.let { AgentNotice.clear(it) }
+        val app = context.applicationContext
+        val current = harness
+        Thread({ runCatching { running.write(listOf(line)) }.onFailure { lost(app, running, current, it) } }, "agent-approval").start()
+        approvalsChanged(app)
+    }
+
+    /** The approval notice goes once nothing waits on the user any more. */
+    private fun approvalsChanged(app: Context) {
+        if (approvals.isNotEmpty() || !approvalNoticed) return
+        approvalNoticed = false
+        AgentNotice.clear(app)
+    }
+
+    /**
+     * A line the CLI waits for could not be written, so it would wait forever: its process ends, which ends
+     * the turn, and the chat says why. A request that may have reached it is not sent again.
+     */
+    private fun lost(app: Context, from: Turn, current: AgentHarness, error: Throwable) {
+        Log.w(TAG, "could not write to ${current.name}", error)
+        main.post { if (turn === from || session === from) record(app, Entry.Notice("Could not write to ${current.name}: ${error.message ?: error.javaClass.simpleName}")) }
+        AgentProcesses.killTree(from.pid)
+        from.process.destroy()
     }
 
     fun models(context: Context) = harness.models(LinuxRuntime.rootDir(context.applicationContext))
@@ -336,6 +357,7 @@ object AgentHost {
         val resumed = conversation
         background = false
         approvals.clear()
+        approvalsChanged(app)
         val kept = session
         if (kept != null && sessionKey == key && kept.process.isAlive) {
             main.removeCallbacks(reap)
@@ -390,7 +412,7 @@ object AgentHost {
                     sessionKey = key
                 } else AgentProcesses.killTree(started.pid)
             }
-            runCatching { started.write(protocol.input(prompt, resumed, options, started = true)) }
+            runCatching { started.write(protocol.input(prompt, resumed, options, started = true)) }.onFailure { lost(app, started, current, it) }
             val raw = runCatching {
                 val log = File(app.filesDir, TURN_LOG).apply { parentFile?.mkdirs() }
                 log.renameTo(File(app.filesDir, "$TURN_LOG.1"))
@@ -400,7 +422,7 @@ object AgentHost {
                 child.inputStream.bufferedReader().forEachLine { output ->
                     runCatching { raw?.apply { write(output); newLine(); flush() } }
                     val parsed = protocol.parse(output) ?: return@forEachLine
-                    if (parsed.reply.isNotEmpty()) runCatching { started.write(parsed.reply) }.onFailure { Log.w(TAG, "could not reply to ${current.name}", it) }
+                    if (parsed.reply.isNotEmpty()) runCatching { started.write(parsed.reply) }.onFailure { lost(app, started, current, it) }
                     parsed.conversation?.let { threadConversation = it }
                     val done = parsed.entries.any { it is Entry.Finished }
                     val event = if (!done) parsed else runCatching { current.usage(LinuxRuntime.rootDir(app), threadConversation) }.getOrNull()
@@ -568,9 +590,13 @@ object AgentHost {
         }
         event.text?.let { live += it }
         event.thinking?.let { liveThinking += it }
-        event.resolved?.let { id -> approvals.removeAll { it.id == id } }
+        event.resolved?.let { id ->
+            approvals.removeAll { it.id == id }
+            approvalsChanged(app)
+        }
         event.approval?.takeIf { a -> state == State.WORKING && approvals.none { it.id == a.id } }?.let {
             approvals += it
+            approvalNoticed = true
             AgentNotice.post(app, AgentNotice.Kind.APPROVAL, listOf(it.tool, it.detail).filter { s -> s.isNotEmpty() }.joinToString(": "))
         }
         event.context?.let { context = it }
@@ -594,6 +620,7 @@ object AgentHost {
         if (state != State.WORKING) return
         turn = null
         approvals.clear()
+        approvalsChanged(app)
         val answeredTask = background
         background = false
         main.removeCallbacks(reap)

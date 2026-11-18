@@ -48,7 +48,7 @@ import com.droiddeck.launcher.agent.AgentSetup.Step
 import com.droiddeck.launcher.core.WirelessAdbPairingService
 
 @Composable
-internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
+internal fun AgentSetupView(modifier: Modifier, firstControl: Modifier = Modifier, onDone: () -> Unit = {}) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -78,7 +78,7 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             for (harness in AgentHarness.all) {
                 val chosen = harness == AgentHost.harness
-                if (chosen) PrimaryButton(harness.name, compact = true) {} else SecondaryButton(harness.name, enabled = !AgentSetup.busy, compact = true) { AgentHost.choose(context, harness) }
+                if (chosen) PrimaryButton(harness.name, compact = true, modifier = firstControl) {} else SecondaryButton(harness.name, enabled = !AgentSetup.busy, compact = true) { AgentHost.choose(context, harness) }
             }
         }
         val steps = Step.entries
