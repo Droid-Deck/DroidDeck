@@ -486,7 +486,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
             drawerLayerOpen = false
             drawerPinned = false
-            if (value) drawerDocked = dockDrawer() && openDockedMenu()
+            if (value) {
+                releaseHeldKeys()
+                drawerDocked = dockDrawer() && openDockedMenu()
+            }
             drawerOpenState = value
             if (!value && drawerDocked) closeDockedMenu()
         }
@@ -5337,10 +5340,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         heldButtons.release(1 or 2 or 8 or 16)
     }
 
-    private fun releaseHeldGuestInput() {
-        releaseHeldPointerInput()
+    private fun releaseHeldKeys() {
         guestKeysDown.toList().forEach { sendGuestKey(it, false) }
         heldKeys.release(8 or 16 or 32)
+    }
+
+    private fun releaseHeldGuestInput() {
+        releaseHeldPointerInput()
+        releaseHeldKeys()
     }
 
     private fun sendGuestKey(key: Int, down: Boolean, owner: Int = 1) {

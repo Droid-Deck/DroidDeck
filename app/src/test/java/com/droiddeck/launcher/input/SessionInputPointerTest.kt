@@ -215,6 +215,13 @@ class SessionInputPointerTest {
         }
     }
 
+    @Test fun openingTheSessionMenuReleasesHeldKeyboardKeys() {
+        ReflectionHelpers.getField<HeldInput>(activity, "heldKeys").set(16, 17, true)
+        CompositorShadow.keys.clear()
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "setDrawerOpen", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+        assertEquals(17 to 0, CompositorShadow.keys.last())
+    }
+
     @Test fun horizontalWheelUsesTheSameDirectionInBothMouseBackends() {
         output.scrollHorizontal(2)
         assertEquals(listOf(Triple(11, 0, 240)), CompositorShadow.events)
