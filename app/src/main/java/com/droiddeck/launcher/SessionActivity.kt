@@ -506,7 +506,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun fpsLimitKey(): String? = if (SessionState.running) SessionPrefs.fpsLimitKey(SessionState.mode, SessionState.gameId)
         else SessionPrefs.fpsLimitKey(intent.getStringExtra(SessionService.EXTRA_MODE), intent.getStringExtra(SessionService.EXTRA_GAME_ID))
     private var blackFrameInsertion by mutableStateOf(false)
-    private var presentCadence by mutableStateOf(true)
+    private var presentCadence by mutableStateOf(false)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
         SessionState.program in setOf(

@@ -282,7 +282,7 @@ class DrawerActions(
     val blackFrameInsertion: Boolean = false,
     val blackFrameInsertionAvailable: Boolean = false,
     val onBlackFrameInsertion: (Boolean) -> Unit = {},
-    val presentCadence: Boolean = true,
+    val presentCadence: Boolean = false,
     val onPresentCadence: (Boolean) -> Unit = {},
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,

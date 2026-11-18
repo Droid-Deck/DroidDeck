@@ -1,6 +1,6 @@
 # Even frame pacing
 
-A game capped below the panel's refresh rate, such as Steam's Frame Limit at 30 or 40 fps on a 120 Hz screen, has to stay the same number of refreshes on screen for every frame. Two things knocked frames off that rhythm. **Even frame pacing** (Display page of the session drawer, on by default, `presentCadence` in the `session` prefs) handles both.
+A game capped below the panel's refresh rate, such as Steam's Frame Limit at 30 or 40 fps on a 120 Hz screen, has to stay the same number of refreshes on screen for every frame. Two things knocked frames off that rhythm. **Even frame pacing** (Display page of the session drawer, off by default, `presentCadence` in the `session` prefs) handles both.
 
 ## Why frames landed off cadence
 

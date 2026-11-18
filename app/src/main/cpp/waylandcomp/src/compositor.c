@@ -307,7 +307,7 @@ volatile int g_fps_limit;
 volatile int g_release_unpaced;
 
 volatile int g_bfi;
-volatile int g_present_cadence = 1;
+volatile int g_present_cadence;
 static int g_cadence_running = -1;
 static const char *g_cadence_blocked;
 volatile int g_bfi_picture_hold;

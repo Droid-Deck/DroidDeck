@@ -91,7 +91,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("blackFrameInsertion", on).apply()
     }
 
-    fun presentCadence(context: Context): Boolean = prefs(context).getBoolean("presentCadence", true)
+    fun presentCadence(context: Context): Boolean = prefs(context).getBoolean("presentCadence", false)
 
     fun setPresentCadence(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("presentCadence", on).apply()
