@@ -686,10 +686,13 @@ class SessionService : Service() {
             guest.add("DXVK_HDR=1")
             Log.i(TAG, "hdr: gamescope --hdr-enabled, DXVK_HDR=1")
         }
+        guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=100")
+        guest.add("WINE_OFFSCREEN_CHECK_MS=100")
         guest.add("DD_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("DD_LOG=" + sessionLog.path)
         if (detailed) guest.add("DD_LOG_LEVEL=detailed")
         guest.add("DD_DEBUG_DIR=" + sessionDir.path)
+        if (EnhancedDiagnostics.isActive(this, sessionDir)) guest.add("DROIDDECK_ENHANCED_DIAGNOSTICS=1")
 
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
         val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
