@@ -241,7 +241,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     remember { LibraryDisplay.load(ctx) }
     remember { LibraryFavorites.load(ctx) }
-    remember { LibraryHidden.load(ctx) }
+    rememberHiddenSync()
     val soundMode = selected == "soundtracks" || selected.startsWith("sound:")
     val favorites = if (soundMode) emptySet() else LibraryFavorites.keys
     val concealed: (LibraryEntry) -> Boolean = { !soundMode && LibraryHidden.isHidden(it) }
@@ -685,7 +685,7 @@ private fun LibraryHeader(
 
 @Composable
 private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit) {
-    if (sources.size < 2) return
+    if (sources.isEmpty() || (sources.size < 2 && sources.first() != LIBRARY_HIDDEN)) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),

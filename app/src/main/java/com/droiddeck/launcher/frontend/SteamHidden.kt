@@ -22,8 +22,8 @@ internal object SteamHidden {
         }
     }.getOrDefault(emptySet())
 
-    fun write(root: File, appId: Long, hidden: Boolean, now: Long = System.currentTimeMillis() / 1000): Boolean = runCatching {
-        val target = file(root) ?: return false
+    fun write(root: File, appId: Long, hidden: Boolean, now: Long = System.currentTimeMillis() / 1000): Set<Long>? = runCatching {
+        val target = file(root) ?: return null
         val entries = JSONArray(target.readText())
         val slot = (0 until entries.length()).firstOrNull { entries.getJSONArray(it).optString(0) == KEY }
         val entry = slot?.let { entries.getJSONArray(it).optJSONObject(1) } ?: JSONObject().put("key", KEY)
@@ -41,12 +41,12 @@ internal object SteamHidden {
         val temp = File(target.parentFile, target.name + ".tmp")
         temp.writeText(entries.toString())
         if (!temp.renameTo(target)) {
-            target.writeText(temp.readText())
             temp.delete()
+            return null
         }
         markModified(File(target.parentFile, "cloud-storage-namespace-1.modified.json"))
-        true
-    }.getOrDefault(false)
+        ids(collection, "added").toSet() - ids(collection, "removed").toSet()
+    }.getOrNull()
 
     private fun markModified(file: File) {
         val pending = runCatching { JSONArray(file.readText()) }.getOrDefault(JSONArray())

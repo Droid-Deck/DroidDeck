@@ -1,6 +1,13 @@
 package com.droiddeck.launcher.ui
 
 import android.content.Context
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -18,6 +25,10 @@ internal object LibraryHidden {
 
     fun load(context: Context) {
         keys = SessionPrefs.libraryHidden(context)
+        refreshSteam(context)
+    }
+
+    fun refreshSteam(context: Context) {
         steam = SteamHidden.read(SessionPrefs.activeSteamRoot(context))
     }
 
@@ -29,9 +40,21 @@ internal object LibraryHidden {
 
     fun set(context: Context, key: String, game: Library.SteamGame?, hidden: Boolean) {
         val id = steamId(game)
-        val synced = id != null && SteamHidden.write(SessionPrefs.activeSteamRoot(context), id, hidden)
-        if (synced && id != null) steam = if (hidden) steam + id else steam - id
-        keys = if (hidden && !synced) keys + key else keys - key
+        val written = id?.let { SteamHidden.write(SessionPrefs.activeSteamRoot(context), it, hidden) }
+        if (written != null) steam = written
+        keys = if (hidden && written == null) keys + key else keys - key
         SessionPrefs.setLibraryHidden(context, keys)
+    }
+}
+
+@Composable
+internal fun rememberHiddenSync() {
+    val ctx = LocalContext.current
+    remember { LibraryHidden.load(ctx) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) LibraryHidden.refreshSteam(ctx) }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
 }

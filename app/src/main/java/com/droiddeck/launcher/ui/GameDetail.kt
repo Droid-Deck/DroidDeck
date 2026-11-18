@@ -618,7 +618,7 @@ internal fun hideKey(g: Library.SteamGame): String = g.storeId?.let { "${g.sourc
 @Composable
 internal fun HideButton(g: Library.SteamGame) {
     val ctx = LocalContext.current
-    remember { LibraryHidden.load(ctx) }
+    rememberHiddenSync()
     val key = hideKey(g)
     val hidden = LibraryHidden.isHidden(key, g)
     SecondaryButton(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), compact = true) { LibraryHidden.set(ctx, key, g, !hidden) }
@@ -635,7 +635,7 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { mutableStateOf(false) }
     val edit = rememberEditArt(g)
     val ctx = LocalContext.current
-    remember { LibraryHidden.load(ctx) }
+    rememberHiddenSync()
     val hidden = LibraryHidden.isHidden(hideKey(g), g)
     Box {
         SecondaryButton(stringResource(R.string.game_more)) { open = !open }

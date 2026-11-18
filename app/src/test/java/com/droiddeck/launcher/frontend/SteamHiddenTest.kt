@@ -5,7 +5,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -37,7 +38,7 @@ class SteamHiddenTest {
     @Test fun hidingAddsTheGameAndKeepsOtherEntries() {
         val root = steamRoot()
         val file = store(root, """[["user-collections.favorite",{"key":"user-collections.favorite","value":"{}"}],["user-collections.hidden",{"key":"user-collections.hidden","timestamp":5,"version":"7","value":"{\"id\":\"hidden\",\"name\":\"Hidden\",\"added\":[10],\"removed\":[]}"}]]""")
-        assertTrue(SteamHidden.write(root, 440, true, now = 99))
+        assertNotNull(SteamHidden.write(root, 440, true, now = 99))
         assertEquals(setOf(10L, 440L), SteamHidden.read(root))
         val entry = hiddenEntry(file)
         assertEquals(99L, entry.getLong("timestamp"))
@@ -49,14 +50,14 @@ class SteamHiddenTest {
     @Test fun unhidingTakesTheGameOutAgain() {
         val root = steamRoot()
         store(root, """[["user-collections.hidden",{"key":"user-collections.hidden","value":"{\"id\":\"hidden\",\"added\":[10,440],\"removed\":[]}"}]]""")
-        assertTrue(SteamHidden.write(root, 440, false))
+        assertNotNull(SteamHidden.write(root, 440, false))
         assertEquals(setOf(10L), SteamHidden.read(root))
     }
 
     @Test fun aMissingCollectionIsCreatedWhenHiding() {
         val root = steamRoot()
         val file = store(root, "[]")
-        assertTrue(SteamHidden.write(root, 2931908220L, true))
+        assertNotNull(SteamHidden.write(root, 2931908220L, true))
         assertEquals(setOf(2931908220L), SteamHidden.read(root))
         assertFalse(hiddenEntry(file).getBoolean("is_deleted"))
     }
@@ -65,13 +66,13 @@ class SteamHiddenTest {
         val root = steamRoot()
         store(root, """[["user-collections.hidden",{"key":"user-collections.hidden","is_deleted":true}]]""")
         assertEquals(emptySet<Long>(), SteamHidden.read(root))
-        assertTrue(SteamHidden.write(root, 7, true))
+        assertNotNull(SteamHidden.write(root, 7, true))
         assertEquals(setOf(7L), SteamHidden.read(root))
     }
 
     @Test fun withoutASteamStoreNothingIsWritten() {
         val root = steamRoot()
-        assertFalse(SteamHidden.write(root, 1, true))
+        assertNull(SteamHidden.write(root, 1, true))
         assertEquals(emptySet<Long>(), SteamHidden.read(root))
     }
 
