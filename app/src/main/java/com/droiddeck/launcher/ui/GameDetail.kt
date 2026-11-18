@@ -954,8 +954,10 @@ private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
     val context = LocalContext.current.applicationContext
     var busy by remember(g.gameId) { mutableStateOf<String?>(null) }
     var tick by remember(g.gameId) { mutableStateOf(0) }
+    var refreshing by remember(g.gameId) { mutableStateOf(false) }
     val status by produceState<CloudSaves.Status?>(null, g.gameId, tick) {
         value = withContext(Dispatchers.IO) { runCatching { CloudSaves.status(context, store, id) }.getOrNull() }
+        refreshing = false
     }
     val folder = g.gameFiles
     var enabled by remember(g.gameId) { mutableStateOf(folder?.let { StoreGameSidecar.read(it)?.cloud } ?: true) }
@@ -967,7 +969,7 @@ private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
         busy = if (up) "up" else "down"
         Thread({
             val r = if (up) CloudSaves.upload(context, store, id, force) else CloudSaves.download(context, store, id, force)
-            StoresState.post { busy = null; tick++; onSynced(); android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
+            StoresState.post { refreshing = true; busy = null; tick++; onSynced(); android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
         }, "cloud-manual").start()
     }
     MenuItem(stringResource(R.string.store_cloud_saves), checked = enabled && supported, enabled = supported,
@@ -979,7 +981,7 @@ private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
             StoresState.post { enabled = written?.cloud ?: enabled }
         }, "cloud-switch").start()
     }
-    val ready = st != null && supported && enabled && busy == null
+    val ready = st != null && supported && enabled && busy == null && !refreshing
     val pending = stringResource(R.string.cloud_pending)
     val summary = when {
         st == null || busy != null -> pending

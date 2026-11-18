@@ -22,13 +22,12 @@ object UbisoftActivation {
     fun bridge(context: Context, product: Long) = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/ubisoft/bridge-$product")
 
     /** Starts answering the product's activations; stale requests are cleared before this returns. */
-    fun watch(app: Context, product: Long, owner: String) {
-        require(owner.isNotEmpty())
+    fun watch(app: Context, product: Long, owner: String?) {
         val dir = bridge(app, product)
         synchronized(watching) {
             val running = watching.containsKey(product)
             watching[product] = System.currentTimeMillis()
-            owners[product] = owner
+            if (owner.isNullOrEmpty()) owners.remove(product) else owners[product] = owner
             if (running) return
             dir.mkdirs()
             dir.listFiles()?.forEach { if (it.name != INVALIDATE) it.delete() }
@@ -39,7 +38,11 @@ object UbisoftActivation {
                 runCatching {
                     val owner = synchronized(watching) { owners[product] }
                     val marker = File(dir, INVALIDATE)
-                    if (marker.exists() && invalidate(app, product, owner)) marker.delete()
+                    if (marker.exists()) {
+                        val issuer = runCatching { marker.readText().trim() }.getOrNull()?.takeIf { it.isNotEmpty() } ?: owner
+                        if (invalidate(app, product, issuer)) marker.delete()
+                        else if (issuer != null) runCatching { marker.writeText(issuer) }
+                    }
                     val pending = marker.exists()
                     dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }?.forEach { answer(app, product, it, owner, pending) }
                 }

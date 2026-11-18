@@ -151,6 +151,8 @@ internal class UbisoftCloudTransport(private val cloud: UbisoftCloud, val user: 
 
     override fun committed(name: String): CloudFile? = committed[name]
 
+    override fun wants(name: String): Boolean = name.endsWith(SUFFIX) && !name.contains('/')
+
     override fun list(): List<CloudFile> {
         val entity = cloud.entity()
         listed = entity

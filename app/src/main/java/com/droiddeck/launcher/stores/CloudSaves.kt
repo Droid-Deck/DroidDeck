@@ -362,7 +362,7 @@ object CloudSaves {
     }
 
     internal fun downWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
-        val files = localFiles(dir)
+        val files = localFiles(dir).filterKeys(cloud::wants)
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
         val base = baseline(context, store, id)
@@ -376,6 +376,7 @@ object CloudSaves {
             val (data, modified) = cloud.get(f)
             val dest = File(dir, name)
             if (!dest.canonicalPath.startsWith(dir.canonicalPath + File.separator)) continue
+            if ((if (dest.isFile) md5(dest) else null) != local[name]?.md5) continue
             dest.parentFile?.mkdirs()
             dest.writeBytes(data)
             if (modified > 0) dest.setLastModified(modified)
@@ -391,7 +392,7 @@ object CloudSaves {
 
     internal fun upWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
         val base = baseline(context, store, id) ?: return Result("skipped", 0, 0, "no-baseline")
-        val files = localFiles(dir)
+        val files = localFiles(dir).filterKeys(cloud::wants).let { all -> if (cloud is UbisoftCloudTransport) all.filterValues(::hasUbisoftMark) else all }
         if (files.isEmpty()) return Result("skipped", 0, 0, "nothing-local")
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
@@ -473,6 +474,10 @@ object CloudSaves {
         runCatching { dir.copyRecursively(File(root, "$kind-${System.currentTimeMillis()}"), overwrite = true) }
         prune(root, kind)
     }
+
+    private fun hasUbisoftMark(file: File): Boolean = runCatching {
+        file.inputStream().use { input -> ByteArray(40).also { input.read(it) } }
+    }.getOrNull()?.let { UbisoftCloud.mark(it) != null } == true
 
     private fun backupCloud(context: Context, store: Store, id: String, cloud: CloudTransport, files: List<CloudFile>): Map<String, String> {
         if (files.isEmpty()) return emptyMap()

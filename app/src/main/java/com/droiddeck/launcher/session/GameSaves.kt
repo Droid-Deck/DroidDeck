@@ -38,7 +38,8 @@ object GameSaves {
 
     fun game(context: Context, game: Library.SteamGame): Game {
         val root = if (ubisoft(game)) ubisoftRoot(context, game) else null
-        return Game(game, game.protonPrefix, game.protonPrefix?.let { saves(context, it, game) } ?: emptyList(), root)
+        val saves = game.protonPrefix?.let { prefix -> if (ubisoft(game)) root?.let { ubisoftSaves(prefix, it) }.orEmpty() else locate(prefix, game) }.orEmpty()
+        return Game(game, game.protonPrefix, saves, root)
     }
 
     fun saves(context: Context, prefix: File, game: Library.SteamGame): List<SaveDir> =
@@ -165,8 +166,15 @@ object GameSaves {
         if (!looksLikeSaveZip(zip)) error(context.getString(R.string.saves_not_save_zip, zip.name))
 
         val scoped = if (ubisoft(game.game)) game.root ?: error(context.getString(R.string.saves_none_found, game.game.name)) else null
+        if (scoped != null) {
+            val base = File(profile(prefix), scoped).canonicalFile
+            val eligible = ZipInputStream(BufferedInputStream(zip.inputStream())).use { zis ->
+                generateSequence { zis.nextEntry }.any { e -> !e.isDirectory && remap(e.name)?.let { File(driveC, it).canonicalFile.path.startsWith(base.path + File.separator) } == true }
+            }
+            if (!eligible) error(context.getString(R.string.saves_not_save_zip, zip.name))
+        }
         backupsDir().mkdirs()
-        val backup = File(backupsDir(), "${safe(game.game.name)}_${stamp()}.zip")
+        val backup = File(backupsDir(), "${safe(game.game.name)}_${stamp()}_${System.currentTimeMillis()}.zip")
         val backedUp = if (scoped != null && File(profile(prefix), scoped).walkTopDown().none { it.isFile }) 0
             else zipProfile(profile(prefix), scoped?.let(::listOf), Layout.GAMEHUB, backup)
         if (backedUp == 0) backup.delete()
