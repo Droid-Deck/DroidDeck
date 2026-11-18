@@ -4140,7 +4140,7 @@
     <string name="display_scaling_integer">Inteiro</string>
     <string name="display_scaling_fit">Ajustar</string>
     <string name="drawer_antialiasing">Suavização de serrilhado</string>
-</resources>
+
     <string name="input_hold_properties">Propriedades de pressionar e segurar</string>
     <string name="input_hold_name">%1$s · Pressionar e segurar</string>
     <string name="input_double_properties">Propriedades de toque duplo</string>

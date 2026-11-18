@@ -4093,7 +4093,7 @@
     <string name="display_scaling_integer">Egész szám</string>
     <string name="display_scaling_fit">Igazítás</string>
     <string name="drawer_antialiasing">Élsimítás</string>
-</resources>
+
     <string name="input_hold_properties">Hosszú nyomás tulajdonságai</string>
     <string name="input_hold_name">%1$s · Hosszú nyomás</string>
     <string name="input_double_properties">Dupla koppintás tulajdonságai</string>

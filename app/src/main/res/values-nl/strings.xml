@@ -4093,7 +4093,7 @@
     <string name="display_scaling_integer">Geheel getal</string>
     <string name="display_scaling_fit">Passend</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
-</resources>
+
     <string name="input_hold_properties">Eigenschappen voor lang indrukken</string>
     <string name="input_hold_name">%1$s · Lang indrukken</string>
     <string name="input_double_properties">Eigenschappen voor dubbeltikken</string>

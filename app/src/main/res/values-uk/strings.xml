@@ -4173,7 +4173,7 @@
     <string name="display_scaling_integer">Ціле число</string>
     <string name="display_scaling_fit">За розміром</string>
     <string name="drawer_antialiasing">Згладжування</string>
-</resources>
+
     <string name="input_hold_properties">Властивості довгого натискання</string>
     <string name="input_hold_name">%1$s · Довге натискання</string>
     <string name="input_double_properties">Властивості подвійного торкання</string>

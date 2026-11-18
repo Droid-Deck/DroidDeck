@@ -4093,7 +4093,7 @@
     <string name="display_scaling_integer">Цяло число</string>
     <string name="display_scaling_fit">Побиране</string>
     <string name="drawer_antialiasing">Заглаждане на ръбовете</string>
-</resources>
+
     <string name="input_hold_properties">Свойства на задържане</string>
     <string name="input_hold_name">%1$s · Задържане</string>
     <string name="input_double_properties">Свойства на двойно докосване</string>

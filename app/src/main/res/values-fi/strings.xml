@@ -4093,7 +4093,7 @@
     <string name="display_scaling_integer">Kokonaisluku</string>
     <string name="display_scaling_fit">Sovita</string>
     <string name="drawer_antialiasing">Reunanpehmennys</string>
-</resources>
+
     <string name="input_hold_properties">Pitkän painalluksen ominaisuudet</string>
     <string name="input_hold_name">%1$s · Pitkä painallus</string>
     <string name="input_double_properties">Kaksoisnapautuksen ominaisuudet</string>

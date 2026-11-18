@@ -4253,7 +4253,7 @@
     <string name="display_scaling_integer">عدد صحيح</string>
     <string name="display_scaling_fit">ملاءمة</string>
     <string name="drawer_antialiasing">تنعيم الحواف</string>
-</resources>
+
     <string name="input_hold_properties">خصائص الضغط المطوّل</string>
     <string name="input_hold_name">%1$s · ضغط مطوّل</string>
     <string name="input_double_properties">خصائص النقر المزدوج</string>

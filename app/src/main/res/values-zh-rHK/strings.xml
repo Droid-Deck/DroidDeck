@@ -4063,7 +4063,7 @@
     <string name="display_scaling_integer">整數</string>
     <string name="display_scaling_fit">配合畫面</string>
     <string name="drawer_antialiasing">抗鋸齒</string>
-</resources>
+
     <string name="input_hold_properties">長按屬性</string>
     <string name="input_hold_name">%1$s · 長按</string>
     <string name="input_double_properties">連按兩下屬性</string>

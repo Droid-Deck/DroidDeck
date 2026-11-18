@@ -4093,7 +4093,7 @@
     <string name="display_scaling_integer">Ακέραιος</string>
     <string name="display_scaling_fit">Προσαρμογή</string>
     <string name="drawer_antialiasing">Εξομάλυνση ακμών</string>
-</resources>
+
     <string name="input_hold_properties">Ιδιότητες παρατεταμένου πατήματος</string>
     <string name="input_hold_name">%1$s · Παρατεταμένο πάτημα</string>
     <string name="input_double_properties">Ιδιότητες διπλού πατήματος</string>

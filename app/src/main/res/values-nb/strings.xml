@@ -4093,7 +4093,7 @@
     <string name="display_scaling_integer">Heltall</string>
     <string name="display_scaling_fit">Tilpass</string>
     <string name="drawer_antialiasing">Kantutjevning</string>
-</resources>
+
     <string name="input_hold_properties">Egenskaper for langt trykk</string>
     <string name="input_hold_name">%1$s · Langt trykk</string>
     <string name="input_double_properties">Egenskaper for dobbeltklikk</string>

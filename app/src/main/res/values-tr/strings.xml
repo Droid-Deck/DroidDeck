@@ -4093,7 +4093,7 @@
     <string name="display_scaling_integer">Tam sayı</string>
     <string name="display_scaling_fit">Sığdır</string>
     <string name="drawer_antialiasing">Kenar yumuşatma</string>
-</resources>
+
     <string name="input_hold_properties">Uzun basma özellikleri</string>
     <string name="input_hold_name">%1$s · Uzun basma</string>
     <string name="input_double_properties">Çift dokunma özellikleri</string>

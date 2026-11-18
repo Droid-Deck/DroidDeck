@@ -4132,7 +4132,7 @@
     <string name="display_scaling_integer">Intero</string>
     <string name="display_scaling_fit">Adatta</string>
     <string name="drawer_antialiasing">Antialiasing</string>
-</resources>
+
     <string name="input_hold_properties">Proprietà pressione prolungata</string>
     <string name="input_hold_name">%1$s · Pressione prolungata</string>
     <string name="input_double_properties">Proprietà doppio tocco</string>

@@ -4173,7 +4173,7 @@
     <string name="display_scaling_integer">Celé číslo</string>
     <string name="display_scaling_fit">Přizpůsobit</string>
     <string name="drawer_antialiasing">Vyhlazování hran</string>
-</resources>
+
     <string name="input_hold_properties">Vlastnosti dlouhého stisku</string>
     <string name="input_hold_name">%1$s · Dlouhý stisk</string>
     <string name="input_double_properties">Vlastnosti dvojitého klepnutí</string>

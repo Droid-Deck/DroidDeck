@@ -4173,7 +4173,7 @@
     <string name="display_scaling_integer">Целое число</string>
     <string name="display_scaling_fit">По размеру</string>
     <string name="drawer_antialiasing">Сглаживание</string>
-</resources>
+
     <string name="input_hold_properties">Свойства долгого нажатия</string>
     <string name="input_hold_name">%1$s · Долгое нажатие</string>
     <string name="input_double_properties">Свойства двойного нажатия</string>

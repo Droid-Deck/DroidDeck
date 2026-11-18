@@ -4173,7 +4173,7 @@
     <string name="display_scaling_integer">Liczba całkowita</string>
     <string name="display_scaling_fit">Dopasuj</string>
     <string name="drawer_antialiasing">Wygładzanie krawędzi</string>
-</resources>
+
     <string name="input_hold_properties">Właściwości długiego naciśnięcia</string>
     <string name="input_hold_name">%1$s · Długie naciśnięcie</string>
     <string name="input_double_properties">Właściwości dwukrotnego dotknięcia</string>
