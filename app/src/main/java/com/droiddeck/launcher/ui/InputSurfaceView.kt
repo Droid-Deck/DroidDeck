@@ -156,7 +156,7 @@ class InputSurfaceView(
     fun updateCustomLayout(requested: List<InputSurfaceElement>) {
         requestedLayout = requested
         val layout = surfaceStyle.shown(requested)
-        val sameElements = customLayout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f) } == layout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f) }
+        val sameElements = customLayout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f, stickShape = InputStickShape.STICK, dpadWays = InputDpadWays.EIGHT, dpadStyle = InputDpadStyle.CROSS, buttonStyle = InputButtonStyle.SOLID) } == layout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f, stickShape = InputStickShape.STICK, dpadWays = InputDpadWays.EIGHT, dpadStyle = InputDpadStyle.CROSS, buttonStyle = InputButtonStyle.SOLID) }
         customLayout = layout
         if (sameElements) customCanvas?.requestLayout() else {
             elementSources.forEach { it.close() }; elementSources.clear()
