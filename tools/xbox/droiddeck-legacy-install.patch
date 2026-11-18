@@ -2026,7 +2026,7 @@ index 0000000..7fec6e5
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index a0136f8..23d228d 100644
+index a0136f8..8637cab 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -2054,7 +2054,7 @@ index a0136f8..23d228d 100644
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
          Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
-@@ -692,3 +701,314 @@ where
+@@ -692,3 +701,337 @@ where
      }
      ExitCode::SUCCESS
  }
@@ -2132,6 +2132,9 @@ index a0136f8..23d228d 100644
 +        if std::fs::symlink_metadata(&target).is_ok() {
 +            remove(&target).map_err(|error| format!("could not clear {}: {error}", target.display()))?;
 +        }
++    }
++    if !placed.is_empty() {
++        std::fs::write(previous.join(PENDING), b"").map_err(|error| error.to_string())?;
 +    }
 +    let entries = std::fs::read_dir(previous).map_err(|error| error.to_string())?;
 +    for entry in entries {
@@ -2304,6 +2307,26 @@ index a0136f8..23d228d 100644
 +        assert!(!out.join("stray").exists());
 +        assert_eq!(std::fs::read(out.join("data").join("old")).unwrap(), b"old");
 +        assert!(!previous.exists());
++    }
++
++    #[test]
++    fn a_restore_interrupted_after_its_removals_never_deletes_what_it_put_back() {
++        let root = tempfile::tempdir().unwrap();
++        let (staging, out) = (root.path().join("staging"), root.path().join("out"));
++        let previous = out.join(".xodus-plain-previous");
++        std::fs::create_dir_all(&staging).unwrap();
++        std::fs::create_dir_all(&previous).unwrap();
++        std::fs::write(previous.join(".pending"), "a").unwrap();
++        std::fs::write(previous.join("a"), b"old").unwrap();
++        std::fs::write(out.join("a"), b"stray").unwrap();
++        super::restore(&previous, &out).unwrap();
++        assert_eq!(std::fs::read(out.join("a")).unwrap(), b"old");
++        std::fs::create_dir_all(&previous).unwrap();
++        std::fs::write(previous.join(".pending"), "").unwrap();
++        std::fs::write(previous.join("b"), b"old-b").unwrap();
++        super::publish(&staging, &out).unwrap();
++        assert_eq!(std::fs::read(out.join("a")).unwrap(), b"old");
++        assert_eq!(std::fs::read(out.join("b")).unwrap(), b"old-b");
 +    }
 +
 +    #[test]
