@@ -1093,11 +1093,18 @@ class GameEnvironmentTest(unittest.TestCase):
         env = gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": ""})
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
-        config = {"version": 1, "games": {"42": {"DROIDDECK_GAME_TU_DEBUG": "gmem"}, "43": {"DROIDDECK_GAME_TU_DEBUG": ""}}}
-        applied = MODULE["apply_config"]({"TU_DEBUG": "sysmem"}, config, "42")
-        self.assertEqual((applied["TU_DEBUG"], "DROIDDECK_GAME_TU_DEBUG" in applied), ("gmem", False))
-        applied = MODULE["apply_config"]({"TU_DEBUG": "sysmem"}, config, "43")
-        self.assertEqual(("TU_DEBUG" in applied, "DROIDDECK_GAME_TU_DEBUG" in applied), (False, False))
+        def applied(config, app_id="42", env=None):
+            return MODULE["apply_config"](env or {"TU_DEBUG": "sysmem"}, config, app_id)
+        prefixed = "DROIDDECK_GAME_TU_DEBUG"
+        config = {"version": 1, "games": {"42": {prefixed: "gmem"}, "43": {prefixed: ""}}}
+        self.assertEqual(applied(config)["TU_DEBUG"], "gmem")
+        self.assertNotIn("TU_DEBUG", applied(config, "43"))
+        self.assertNotIn(prefixed, applied(config))
+        shared = {"version": 1, "shared": {prefixed: "gmem"}, "games": {"42": {"TU_DEBUG": "nolrz"}, "43": {"TU_DEBUG": None}}}
+        self.assertEqual(applied(shared)["TU_DEBUG"], "nolrz")
+        self.assertNotIn("TU_DEBUG", applied(shared, "43"))
+        self.assertEqual(applied(shared, "44")["TU_DEBUG"], "gmem")
+        self.assertNotIn(prefixed, applied(shared, "44"))
 
     def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
         gpu = MODULE["game_gpu"]
