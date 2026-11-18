@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Programmet är byggt för %1$s-datorer och körs via FEX, som inte har konfigurerats än. Öppna Steam en gång medan du är inloggad: DroidDeck låter Steam ladda ned FEX och den Steam Linux Runtime som behövs, sedan öppnas detta.</string>
     <string name="session_proot_missing">Det gick inte att ladda ned DroidDecks proot. Kontrollera anslutningen och försök igen. Sessionen startades inte eftersom reserv-proot är för långsam att spela på.</string>
     <string name="session_powervr_missing">PowerVR-grafikmiljön kunde inte laddas ned. Kontrollera anslutningen och försök igen.</string>
+    <string name="session_graphics_runtime_failed">Grafikmiljön kunde inte förberedas, så sessionen startades inte.</string>
+    <string name="session_game_environment_failed">Spelmiljön kunde inte konfigureras, så sessionen startades inte.</string>
     <string name="session_directaudio_missing">Det gick inte att ladda ned DirectAudio, så spelljudet använder den långsammare vägen den här sessionen.</string>
     <string name="session_end_program">Det här programmet</string>
     <string name="session_end_present_fault">Sessionen kunde inte rita på skärmen: %1$s. Den här skärmen visar orsaken i stället för att vara svart; detaljerna finns i sessionsloggarna.</string>
