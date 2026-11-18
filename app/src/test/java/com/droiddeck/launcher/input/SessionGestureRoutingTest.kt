@@ -116,6 +116,31 @@ class SessionGestureRoutingTest {
     }
 
     @Test fun openingTheTouchEditorReleasesOwnedMouseButtons() {
+        pressMainSurfaceMouse()
+        val directory = Files.createTempDirectory("edit-touch-release").toFile()
+        try {
+            SteamTouchDevice.prepare(directory)
+            val controls = SteamTouchControls(activity, requireNotNull(SteamTouchDevice.current), {}, {})
+            controls.onEditingChanged = { ReflectionHelpers.callInstanceMethod<Unit>(activity, "touchEditorChanged") }
+            setField("steamTouchControls", controls)
+            controls.startEditing()
+            assertEquals(listOf(Triple(3, PointerGestures.BTN_LEFT, 1), Triple(3, PointerGestures.BTN_LEFT, 0)),
+                CompositorShadow.sceneInputs)
+        } finally {
+            SteamTouchDevice.release()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun gainingPointerCaptureReleasesTheMainSurfaceButton() {
+        pressMainSurfaceMouse()
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "onSessionPointerCaptureChanged",
+            ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType!!, true))
+        assertEquals(listOf(Triple(3, PointerGestures.BTN_LEFT, 1), Triple(3, PointerGestures.BTN_LEFT, 0)),
+            CompositorShadow.sceneInputs)
+    }
+
+    private fun pressMainSurfaceMouse() {
         prepare(SessionPrefs.TOUCH_GESTURES)
         val surface = object : SurfaceView(activity) { override fun isShown() = true }
         surface.layout(0, 0, 1000, 600)
@@ -129,19 +154,6 @@ class SessionGestureRoutingTest {
             assertTrue(activity.dispatchGenericMotionEvent(press))
         } finally {
             press.recycle()
-        }
-        val directory = Files.createTempDirectory("edit-touch-release").toFile()
-        try {
-            SteamTouchDevice.prepare(directory)
-            val controls = SteamTouchControls(activity, requireNotNull(SteamTouchDevice.current), {}, {})
-            controls.onEditingChanged = { ReflectionHelpers.callInstanceMethod<Unit>(activity, "touchEditorChanged") }
-            setField("steamTouchControls", controls)
-            controls.startEditing()
-            assertEquals(listOf(Triple(3, PointerGestures.BTN_LEFT, 1), Triple(3, PointerGestures.BTN_LEFT, 0)),
-                CompositorShadow.sceneInputs)
-        } finally {
-            SteamTouchDevice.release()
-            directory.deleteRecursively()
         }
     }
 

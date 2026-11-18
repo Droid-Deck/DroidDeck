@@ -489,7 +489,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private val usbMouseFallback = Runnable {
         if (window.decorView.hasPointerCapture() || window.decorView.display?.displayId == android.view.Display.DEFAULT_DISPLAY) return@Runnable
         pointerCaptureRefused = true
-        if (usbMouse.grab()) Log.i(TAG, "pointer capture refused; reading the USB mouse directly")
+        if (!usbMouse.active && usbMouse.grab()) {
+            releaseMainSurfaceMouseOwnership()
+            Log.i(TAG, "pointer capture refused; reading the USB mouse directly")
+        }
     }
     private var drawerDirectionKey = KeyEvent.KEYCODE_UNKNOWN
     private var drawerDirectionDownTime = 0L
@@ -874,13 +877,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {
                 super.dispatchPointerCaptureChanged(hasCapture)
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
-                if (hasCapture) {
-                    pointerCaptureRefused = false
-                    if (usbMouse.active) updatePointerCapture()
-                } else {
-                    releaseHeldInputOnCaptureLoss()
-                    uiHandler.postDelayed(::updatePointerCapture, 250)
-                }
+                onSessionPointerCaptureChanged(hasCapture)
             }
             override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): android.view.PointerIcon? =
                 if (platformPointerShown == false && PenStream.isPen(event, pointerIndex)) pointerIcon
@@ -5290,6 +5287,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun sessionOwnsInput() =
         resumed && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !inputSettingsOpen &&
             !pipUi && !bottomOutputActive && !touchEditorOpen && !wowChatOnTop
+
+    private fun onSessionPointerCaptureChanged(hasCapture: Boolean) {
+        if (hasCapture) {
+            releaseMainSurfaceMouseOwnership()
+            pointerCaptureRefused = false
+            if (usbMouse.active) updatePointerCapture()
+        } else {
+            releaseHeldInputOnCaptureLoss()
+            uiHandler.postDelayed(::updatePointerCapture, 250)
+        }
+    }
 
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
