@@ -44,6 +44,13 @@ internal object SteamHidden {
             target.writeText(temp.readText())
             temp.delete()
         }
+        markModified(File(target.parentFile, "cloud-storage-namespace-1.modified.json"))
         true
     }.getOrDefault(false)
+
+    private fun markModified(file: File) {
+        val pending = runCatching { JSONArray(file.readText()) }.getOrDefault(JSONArray())
+        if ((0 until pending.length()).any { pending.optString(it) == KEY }) return
+        file.writeText(pending.put(KEY).toString())
+    }
 }

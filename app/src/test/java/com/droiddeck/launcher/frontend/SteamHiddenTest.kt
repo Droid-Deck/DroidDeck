@@ -74,4 +74,12 @@ class SteamHiddenTest {
         assertFalse(SteamHidden.write(root, 1, true))
         assertEquals(emptySet<Long>(), SteamHidden.read(root))
     }
+
+    @Test fun theCollectionIsMarkedAsPendingUploadOnce() {
+        val root = steamRoot()
+        val file = store(root, "[]")
+        SteamHidden.write(root, 1, true)
+        SteamHidden.write(root, 2, true)
+        assertEquals("""["user-collections.hidden"]""", File(file.parentFile, "cloud-storage-namespace-1.modified.json").readText())
+    }
 }
