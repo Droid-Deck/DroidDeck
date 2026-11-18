@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 14
+    private const val VERSION = 15
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -29,10 +29,10 @@ object InputLibraries {
         val version = raw?.let { JSONObject(it).getInt("version") } ?: 0
         if (version < 5) library = scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, library)))
         if (version < 11) library = neutralStockLayouts(library)
-        if (version < 10) library = restyleGamepads(context, library)
         if (version < 12) library = barStockLayouts(library)
         if (version < 13) library = LegacyScreenKeyMigration.pin(library)
         if (version < 14) library = deckGamepadSurfaces(context, library)
+        if (version < 15) library = kitGamepads(library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -141,11 +141,11 @@ object InputLibraries {
     fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): Pair<List<InputSurfaceElement>, Float>? {
         val origin = layout.origin ?: layout.id
         InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements to it.aspect }
-        if (origin == OVERLAY || origin.startsWith("migrated.layout.")) {
+        if (origin == OVERLAY) {
             val (surfaceContext, metrics) = primaryDisplay(context)
-            val size = if (origin == OVERLAY) listOf(metrics.widthPixels, metrics.heightPixels)
-                else origin.removePrefix("migrated.layout.").split('x').mapNotNull { it.toIntOrNull() }
-            return size.takeIf { it.size == 2 && it.all { side -> side > 0 } }?.let { LegacyGamepadLayout(surfaceContext, it[0], it[1]).elements() to it[0].toFloat() / it[1] }
+            val w = maxOf(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
+            val h = minOf(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
+            return KitLayout.elements(surfaceContext, PadKit.current(context), w, h) to w.toFloat() / h
         }
         return library.layouts.firstOrNull { it.id == origin && it.id != layout.id }?.let { it.elements to it.aspect }
     }
@@ -157,29 +157,13 @@ object InputLibraries {
         return surfaceContext to DisplayMetrics().also { if (display != null) display.getRealMetrics(it) else it.setTo(context.resources.displayMetrics) }
     }
 
-    private fun restyleGamepads(context: Context, library: InputLibrary): InputLibrary {
-        if (library.layouts.none { it.id == OVERLAY || it.id.startsWith("migrated.layout.") }) return library
-        val (surfaceContext, metrics) = primaryDisplay(context)
-        return library.copy(layouts = library.layouts.map { layout ->
-            val size = when {
-                layout.id == OVERLAY -> listOf(metrics.widthPixels, metrics.heightPixels)
-                layout.id.startsWith("migrated.layout.") -> layout.id.removePrefix("migrated.layout.").split('x').mapNotNull { it.toIntOrNull() }
-                else -> emptyList()
-            }
-            if (size.size != 2 || size.any { it <= 0 }) layout
-            else layout.copy(elements = LegacyGamepadLayout(surfaceContext, size[0], size[1]).restyle(layout.elements))
-        })
-    }
-
     private fun upgradeOverlay(context: Context, library: InputLibrary): InputLibrary {
         if (library.layouts.none { it.template == InputLayoutTemplate.OVERLAY }) return library
-        val (surfaceContext, metrics) = primaryDisplay(context)
         val settings = ControllerPrefs.read(context)
-        val elements = LegacyGamepadLayout(surfaceContext, metrics.widthPixels.coerceAtLeast(1), metrics.heightPixels.coerceAtLeast(1)).elements()
-        val style = InputSurfaceStyle(settings.tint, settings.opacity)
+        val elements = emptyList<InputSurfaceElement>()
+        val style = InputSurfaceStyle(opacity = settings.opacity)
         val replacements = library.layouts.filter { it.template == InputLayoutTemplate.OVERLAY }.associate { old ->
-            old.id to old.copy(name = "Gamepad", elements = elements, template = InputLayoutTemplate.CUSTOM, style = style,
-                aspect = (metrics.widthPixels.coerceAtLeast(1).toFloat() / metrics.heightPixels.coerceAtLeast(1)).coerceIn(.05f, 20f))
+            old.id to old.copy(name = "Gamepad", elements = elements, template = InputLayoutTemplate.CUSTOM, style = style)
         }
         var result = library.copy(layouts = library.layouts.map { replacements[it.id] ?: it })
         val migrated = mutableMapOf<Pair<String, String>, String>()
@@ -201,15 +185,6 @@ object InputLibraries {
         }
         val oldBindings = migrated.keys.map { it.first }.toSet()
         result = result.copy(bindings = result.bindings.filter { it.id !in oldBindings || result.usersOfBindings(it.id).isNotEmpty() })
-        // Older editor layouts were resolution-specific. Keep each as a selectable saved layout.
-        for (key in ControllerPrefs.prefs(context).all.keys.filter { it.startsWith("layout.") }.sorted()) {
-            val size = key.removePrefix("layout.").split('x').mapNotNull { it.toIntOrNull() }
-            if (size.size != 2 || size.any { it <= 0 } || result.layouts.size >= 128) continue
-            if (size[0] == metrics.widthPixels && size[1] == metrics.heightPixels) continue
-            val id = "migrated.$key"
-            if (result.layouts.none { it.id == id }) result = result.withLayout(SavedInputLayout(id, "Gamepad ${size[0]} × ${size[1]}",
-                LegacyGamepadLayout(surfaceContext, size[0], size[1]).elements(), style = style, aspect = (size[0].toFloat() / size[1]).coerceIn(.05f, 20f)))
-        }
         return result.validate()
     }
 
@@ -273,6 +248,17 @@ object InputLibraries {
         val saved = library.layouts.firstOrNull { it.id == DeckPanel.GAMEPAD.layout } ?: return library
         if (saved.elements != InputStockLayouts.gamepad(leftPad = false, rightStick = false)) return library
         return library.withLayout(saved.copy(elements = InputStockLayouts.gamepad(leftPad, rightStick))).validate()
+    }
+
+    /** Gamepads saved by the old editor follow the virtual controller's kit again; their positions don't map onto the new controls. */
+    private fun kitGamepads(library: InputLibrary): InputLibrary {
+        var result = library
+        for (layout in library.layouts) {
+            val origin = layout.origin ?: layout.id
+            if (origin != OVERLAY && !origin.startsWith("migrated.layout.")) continue
+            result = result.withLayout(layout.copy(elements = emptyList(), origin = if (layout.id == OVERLAY) null else OVERLAY, aspect = 0f, scale = 1f))
+        }
+        return result.validate()
     }
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {

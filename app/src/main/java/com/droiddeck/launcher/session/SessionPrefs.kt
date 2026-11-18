@@ -639,10 +639,23 @@ object SessionPrefs {
         prefs(context).getString("shape", null)
             ?: if (context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")) SHAPE_WIDE else SHAPE_AUTO
 
-    fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
+    /** Auto, Always or Never. Older builds also stored the Steam layout and a buttons-only mode here. */
+    fun oscMode(context: Context): String = when (val mode = prefs(context).getString("osc", OSC_AUTO)) {
+        OSC_ALWAYS, OSC_NEVER -> mode
+        OSC_STEAM_QAM -> OSC_ALWAYS
+        else -> OSC_AUTO
+    }
 
     fun setOscMode(context: Context, mode: String) {
         prefs(context).edit().putString("osc", mode).apply()
+    }
+
+    /** Draw Steam's touch layout for the game instead of DroidDeck's own. */
+    fun steamTouchLayout(context: Context): Boolean =
+        prefs(context).getBoolean("steamTouchLayout", prefs(context).getString("osc", null) == OSC_STEAM_TOUCH)
+
+    fun setSteamTouchLayout(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("steamTouchLayout", on).apply()
     }
 
     fun linuxDriver(context: Context): String =

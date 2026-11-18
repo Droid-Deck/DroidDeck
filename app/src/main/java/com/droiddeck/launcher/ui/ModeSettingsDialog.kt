@@ -299,8 +299,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 listOf(
                     SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto),
                     SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
-                    SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch),
-                    SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam),
                     SessionPrefs.OSC_NEVER to stringResource(R.string.common_never),
                 ), s.oscMode,
                 note = stringResource(R.string.mode_osc_note), onPick = a.onOsc,

@@ -49,7 +49,7 @@ data class SavedInputBindings(
 
     fun action(element: InputSurfaceElement) = elements[element.id]
         ?: if (element.id == "legacy:${element.control.id}") controls[element.control] ?: InputAction.Native()
-        else InputAction.Disabled
+        else defaultElementAction(element.id)
 
     fun clickAction(element: InputSurfaceElement) = clicks[element.id]
         ?: defaultElementClick(element, action(element)) { controls[it] ?: InputAction.Native() }
