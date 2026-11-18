@@ -25,7 +25,8 @@
 #define ZR_CHUNK (1UL << 20)
 #define ZR_SLOTS 32768UL
 #define ZR_PROBES 16
-#define ZR_HEAT_MAX 6
+#define ZR_HEAT_MAX 3
+#define ZR_SKIP 32U
 #define ZR_INLINE_KB (32UL << 10)
 #define ZR_INLINE_CHUNKS 512UL
 #define ZR_FAILED (~0UL)
@@ -170,7 +171,7 @@ static unsigned long zr_trim(int pagemap, unsigned long start, unsigned long end
     if (slot != NULL && slot->gen == zr_gen && slot->pushed > 0) {
       if (present > slot->kept && (present - slot->kept) * 4 > slot->pushed) {
         if (slot->heat < ZR_HEAT_MAX) slot->heat++;
-        slot->skip = (uint8_t)(1 << slot->heat);
+        slot->skip = (uint8_t)(ZR_SKIP << slot->heat > 255 ? 255 : ZR_SKIP << slot->heat);
         slot->pushed = 0;
       } else if (slot->heat > 0) {
         slot->heat--;

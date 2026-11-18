@@ -49,6 +49,14 @@ straight back. The budget is the amount to free divided by the measured saving, 
 zRAM room. With less than half the floor available the request ignores heat (`3 <kB>`), moves
 up to 1 GiB, and runs at most once every ten seconds.
 
+Two things keep memory from going in and out of zRAM. The preload remembers each 1 MiB chunk
+it paged out: when a quarter or more of those pages are resident again at the next visit, the
+chunk is hot and is passed over for the next 64 visits, then 128, then 255. And the monitor
+reads `pswpin` from `/proc/vmstat`: what was read back from swap, fading over half a minute,
+is taken off what one pass may move (1 GiB for the client, 256 MiB for the session). A device
+whose working set does not fit therefore stops being trimmed and is left to the kernel, until
+the forced level is reached.
+
 Requests go to one process at a time. The monitor waits for that process's acknowledgement
 (the kB it paged out) before the next, and stops once the budget is met. A process that has not
 started within half a second, or has not finished when the pass has waited five seconds in

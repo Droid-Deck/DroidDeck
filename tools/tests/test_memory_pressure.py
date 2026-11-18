@@ -13,7 +13,7 @@ class MemoryPressureTest(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
 
-    def sample(self, available=3000, total=7168, stall=0, zram=(6144, 0), other=(4096, 0), stored=None):
+    def sample(self, available=3000, total=7168, stall=0, zram=(6144, 0), other=(4096, 0), stored=None, swapped_in=None):
         lines = [f'MemTotal: {total * MB} kB', f'MemAvailable: {available * MB} kB',
                  f'SwapTotal: {(zram[0] + other[0]) * MB} kB',
                  f'SwapFree: {(zram[0] - zram[1] + other[0] - other[1]) * MB} kB']
@@ -25,6 +25,10 @@ class MemoryPressureTest(unittest.TestCase):
         text = "printf '%s\\n' " + ' '.join(f"'{line}'" for line in lines) + f" > {self.root}/meminfo\n"
         text += "printf '%s\\n' " + ' '.join(f"'{line}'" for line in swaps) + f" > {self.root}/swaps\n"
         text += f"echo 'some avg10=0.00 avg60=0.00 avg300=0.00 total={stall}' > {self.root}/pressure\n"
+        if swapped_in is None:
+            text += f'rm -f {self.root}/vmstat\n'
+        else:
+            text += f"printf '%s\\n' 'pgfault 9' 'pswpin {swapped_in * MB // 4}' 'pswpout 7' > {self.root}/vmstat\n"
         if stored is None:
             text += f'rm -f {self.root}/mm_stat\n'
         else:
@@ -33,7 +37,7 @@ class MemoryPressureTest(unittest.TestCase):
 
     def run_policy(self, body, *names):
         functions = '\n'.join(function_source(name) for name in ('dd_memory_read', 'dd_memory_need') + names)
-        for name in ('meminfo', 'swaps', 'pressure/memory'):
+        for name in ('meminfo', 'swaps', 'pressure/memory', 'vmstat'):
             functions = functions.replace('/proc/' + name, str(self.root / name.split('/')[0]))
         functions = functions.replace('/sys/block/zram0/mm_stat', str(self.root / 'mm_stat'))
         functions = functions.replace('/tmp/.dd-zram', str(self.root / 'ctl'))
@@ -79,6 +83,12 @@ class MemoryPressureTest(unittest.TestCase):
                 'dd_memory_read; echo $((_dd_swap_room / 1024))\n')
         self.assertEqual(['4352', '-256', '-128', '384', '2560'], self.run_policy(body))
 
+    def test_memory_read_back_from_swap_is_remembered_for_half_a_minute(self):
+        body = '_dd_page_kb=4\n' + ''.join(
+            f'NOW={now}\n' + self.sample(swapped_in=total) + 'dd_memory_read; echo $((_dd_returned / 1024))\n'
+            for now, total in ((0, 500), (1, 800), (2, 800), (16, 800), (17, None), (18, 900), (19, 1000), (60, 1000)))
+        self.assertEqual(['0', '300', '290', '154', '149', '144', '239', '0'], self.run_policy(body))
+
     def test_saving_comes_from_what_zram_really_stores(self):
         body = ''.join(self.sample(stored=stored) + 'dd_memory_read; echo $_dd_saving\n'
                        for stored in (None, (32, 30), (1000, 250), (1000, 950), (1000, 20)))
@@ -115,7 +125,7 @@ class MemoryPressureTest(unittest.TestCase):
 step() { echo "step:$*"; }
 dd_session_others() { echo others; _dd_session=(70 80); }
 dd_zram_trim() { echo "trim:$1:$(($2 / 1024)):${*:3}"; _dd_trimmed=${paged:-$2}; }
-relieve() { dd_memory_read; _dd_rate=$((${2:-0} * 1024)) _dd_target=$((_dd_floor + ${2:-0} * 10240)); dd_memory_relieve; }
+relieve() { dd_memory_read; _dd_returned=${returned:-0}; _dd_rate=$((${2:-0} * 1024)) _dd_target=$((_dd_floor + ${2:-0} * 10240)); dd_memory_relieve; }
 _dd_pids=(10 20) _dd_game=1 _dd_focus=0 _dd_saving=500
 '''
 
@@ -146,6 +156,15 @@ _dd_pids=(10 20) _dd_game=1 _dd_focus=0 _dd_saving=500
     def test_the_session_gives_what_the_client_could_not(self):
         self.assertEqual(['trim:2:660:10 20', 'others', 'trim:2:256:70 80', 'trim:2:660:10 20', 'trim:2:256:70 80'],
                          self.relieve(self.sample(available=500) + f'paged={64 * MB}; relieve 500\nNOW=1; relieve 500\n'))
+
+    def test_memory_that_keeps_coming_back_is_taken_off_what_a_pass_may_move(self):
+        self.assertEqual(['trim:2:660:10 20', 'others', 'trim:2:156:70 80', 'trim:2:660:10 20', 'trim:2:24:10 20'], self.relieve(
+            self.sample(available=500) + f'paged={64 * MB}\nreturned={100 * MB}; relieve 500\n' +
+            f'NOW=1 returned={300 * MB}; relieve 500\nNOW=2 returned={1000 * MB}; relieve 500\n'))
+
+    def test_forcing_moves_memory_whatever_came_back(self):
+        self.assertEqual(['trim:3:993:10 20', 'others', 'trim:3:993:70 80'], self.relieve(
+            self.sample(available=300) + f'paged=0 returned={2048 * MB}; relieve 300\n'))
 
     def test_the_session_is_scanned_again_after_a_new_process_scan(self):
         self.assertEqual(['others', 'others'], [line for line in self.relieve(

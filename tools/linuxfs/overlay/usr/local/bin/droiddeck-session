@@ -834,7 +834,7 @@ case $mode in
         }
         dd_memory_read() {
           local _k _v _u _kind _fields _name _type _size _used _orig _comp _mem _dt _fall
-          local _stall=-1 _swap_total=0 _swap_free=0 _total=0 _room=0 _listed=0
+          local _stall=-1 _swap_total=0 _swap_free=0 _total=0 _room=0 _listed=0 _in=-1
           _dd_mem_total=0 _dd_available=-1
           while read -r _k _v _u; do
             case $_v in ''|*[!0-9]*) continue ;; esac
@@ -871,18 +871,25 @@ case $mode in
               case $_fields in ''|*[!0-9]*) ;; *) _stall=$_fields ;; esac
             done 2>/dev/null < /proc/pressure/memory
           fi
+          while read -r _k _v; do
+            [ "$_k" = pswpin ] || continue
+            case $_v in ''|*[!0-9]*) ;; *) _in=$((_v * _dd_page_kb)) ;; esac
+            break
+          done 2>/dev/null < /proc/vmstat
           _dt=$((SECONDS - ${_dd_sample_at:-$SECONDS}))
           if [ -z "${_dd_sample_at:-}" ]; then
-            _dd_rate=0 _dd_psi=0
+            _dd_rate=0 _dd_psi=0 _dd_returned=0
           elif [ "$_dt" -gt 0 ] && [ "$_dd_available" -ge 0 ]; then
             _fall=$(((_dd_sample_available - _dd_available + _dd_freed) / _dt))
             _dd_rate=$((_dd_rate * 3 / 4))
             [ "$_fall" -le "$_dd_rate" ] || _dd_rate=$_fall
             _dd_psi=0
             [ "$_stall" -lt 0 ] || [ "$_dd_sample_stall" -lt 0 ] || _dd_psi=$(((_stall - _dd_sample_stall) / (_dt * 100)))
+            _dd_returned=$((_dt < 30 ? _dd_returned * (30 - _dt) / 30 : 0))
+            [ "$_in" -lt "$_dd_sample_in" ] || [ "$_dd_sample_in" -lt 0 ] || _dd_returned=$((_dd_returned + _in - _dd_sample_in))
           fi
           if [ "$_dd_available" -ge 0 ] && { [ -z "${_dd_sample_at:-}" ] || [ "$_dt" -gt 0 ]; }; then
-            _dd_sample_at=$SECONDS _dd_sample_available=$_dd_available _dd_sample_stall=$_stall _dd_freed=0
+            _dd_sample_at=$SECONDS _dd_sample_available=$_dd_available _dd_sample_stall=$_stall _dd_sample_in=$_in _dd_freed=0
           fi
           _dd_floor=$((_dd_mem_total / 8))
           [ "$_dd_floor" -ge $((640 * 1024)) ] || _dd_floor=$((640 * 1024))
@@ -953,7 +960,7 @@ case $mode in
           [ "${#_acks[@]}" = 0 ] || rm -f "${_acks[@]}"
         }
         dd_memory_relieve() {
-          local _mode=2 _budget _gain=0 _rest _cap=$((256 * 1024))
+          local _mode=2 _budget _gain=0 _rest _cap=$((256 * 1024)) _all=$((1024 * 1024))
           dd_memory_need
           [ "$_dd_need" -gt 0 ] || return 0
           if [ "$_dd_swap_room" -lt $((64 * 1024)) ]; then
@@ -964,13 +971,15 @@ case $mode in
             return 0
           fi
           if [ "$_dd_force" = 1 ] && [ $((SECONDS - _dd_forced_at)) -ge 10 ]; then
-            _mode=3 _dd_forced_at=$SECONDS _cap=$((1024 * 1024))
+            _mode=3 _dd_forced_at=$SECONDS _cap=$_all
+          else
+            _cap=$((_cap - _dd_returned)) _all=$((_all - _dd_returned))
           fi
-          if [ "${#_dd_pids[@]}" -gt 0 ] &&
+          if [ "${#_dd_pids[@]}" -gt 0 ] && [ "$_all" -ge 4096 ] &&
              { [ "$_dd_hard" -gt 0 ] ||
                { [ "$_dd_game" = 1 ] && [ "$_dd_focus" != 1 ] && [ $((SECONDS - _dd_back_at)) -ge 30 ]; }; }; then
             _budget=$((_dd_need * 1000 / _dd_saving))
-            [ "$_budget" -le $((1024 * 1024)) ] || _budget=$((1024 * 1024))
+            [ "$_budget" -le "$_all" ] || _budget=$_all
             [ "$_budget" -le "$_dd_swap_room" ] || _budget=$_dd_swap_room
             dd_zram_trim "$_mode" "$_budget" "${_dd_pids[@]}"
             _gain=$((_dd_trimmed * _dd_saving / 1000))
@@ -979,7 +988,7 @@ case $mode in
             [ "$_dd_trimmed" = 0 ] || _dd_trim_at=$SECONDS
           fi
           _rest=$((_dd_hard - _gain))
-          if [ "$_rest" -gt 0 ] && [ "$_dd_swap_room" -ge $((64 * 1024)) ]; then
+          if [ "$_rest" -gt 0 ] && [ "$_cap" -ge 4096 ] && [ "$_dd_swap_room" -ge $((64 * 1024)) ]; then
             [ "$_dd_session_at" = "$_dd_scan_at" ] || dd_session_others
             _dd_session_at=$_dd_scan_at
             _budget=$((_rest * 1000 / _dd_saving))
@@ -1047,6 +1056,7 @@ case $mode in
         }
         declare -A _dd_deaf=() _dd_preloaded=()
         _dd_scan_at=-5 _dd_session_at=-1 _dd_session=() _dd_focus=1 _dd_away=
+        _dd_page_kb=$(($(getconf PAGESIZE 2>/dev/null || echo 4096) / 1024)) _dd_returned=0
         _dd_sample_at= _dd_freed=0 _dd_client_out=0 _dd_note_client=0 _dd_note_session=0
         _dd_trim_at=-30 _dd_back_at=-30 _dd_forced_at=-10 _dd_full_at=-60 _dd_noted_at=-5
         while kill -0 $$ 2>/dev/null; do
