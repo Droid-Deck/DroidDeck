@@ -94,6 +94,8 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
                 if (exit != 0 || !complete) {
                     val tail = errors.toList().takeLast(MAX_ERROR_LINES)
                     report(command, source, market, exit, tail)
+                    if (tail.any { it.startsWith(DEVICE_GROUP_FULL) }) error(app.getString(com.droiddeck.launcher.R.string.stores_xbox_device_group_full))
+                    if (tail.any { it.startsWith(DEVICE_UNREGISTRABLE) }) error(app.getString(com.droiddeck.launcher.R.string.stores_xbox_license_refused))
                     error("Xbox download did not complete. Resume to retry with fresh licenses." +
                         tail.takeLast(3).joinToString("") { "\n$it" })
                 }
@@ -151,6 +153,9 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
 
     companion object {
         private const val MAX_ERROR_LINES = 40
+        const val DEVICES_URL = "https://account.microsoft.com/devices/content"
+        internal const val DEVICE_GROUP_FULL = "NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-device-limit "
+        internal const val DEVICE_UNREGISTRABLE = "NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-device-name "
         internal fun executable(folder: File): String = XboxManifest.executable(folder)
     }
 }
