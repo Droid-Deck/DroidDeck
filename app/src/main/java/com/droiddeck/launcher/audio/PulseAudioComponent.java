@@ -168,7 +168,7 @@ public class PulseAudioComponent extends SessionPart {
         env.add("HOME=" + workingDir);
         env.add("TMPDIR=" + workingDir);
 
-        String command = workingDir.getAbsolutePath() + "/libpulseaudio.so"
+        String command = String.join(" ", HostProcess.dataExecutable(workingDir.getAbsolutePath() + "/libpulseaudio.so"))
                 + " --system=false --disable-shm=true --fail=false"
                 + " -n --file=default.pa --daemonize=false --use-pid-file=false --exit-idle-time=-1"
                 + " --log-level=info";
@@ -259,7 +259,7 @@ public class PulseAudioComponent extends SessionPart {
         try {
             File modules = new File(workingDir, "modules/arm64");
             ArrayList<String> cmd = new ArrayList<>();
-            cmd.add(pactl.getAbsolutePath());
+            cmd.addAll(HostProcess.dataExecutable(pactl.getAbsolutePath()));
             java.util.Collections.addAll(cmd, args);
             ProcessBuilder builder = new ProcessBuilder(cmd);
             builder.directory(workingDir);
@@ -316,8 +316,9 @@ public class PulseAudioComponent extends SessionPart {
         java.lang.Process process = null;
         try {
             File modules = new File(workingDir, "modules/arm64");
-            ProcessBuilder builder = new ProcessBuilder(
-                    pactl.getAbsolutePath(), "suspend-" + kind, name, Boolean.toString(suspended));
+            ArrayList<String> argv = new ArrayList<>(HostProcess.dataExecutable(pactl.getAbsolutePath()));
+            argv.addAll(java.util.Arrays.asList("suspend-" + kind, name, Boolean.toString(suspended)));
+            ProcessBuilder builder = new ProcessBuilder(argv);
             builder.directory(workingDir);
             builder.redirectErrorStream(true);
             builder.redirectOutput(new File("/dev/null"));

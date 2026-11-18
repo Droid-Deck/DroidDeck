@@ -85,6 +85,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
+    fun blackFrameInsertion(context: Context): Boolean = prefs(context).getBoolean("blackFrameInsertion", false)
+
+    fun setBlackFrameInsertion(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("blackFrameInsertion", on).apply()
+    }
+
     fun animationsEnabled(context: Context): Boolean = prefs(context).getBoolean("animations", true)
 
     fun setAnimationsEnabled(context: Context, on: Boolean) {
@@ -267,10 +273,43 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
-    fun agentTab(context: Context): Boolean = prefs(context).getBoolean("agentTab", true)
+    fun agentTab(context: Context): Boolean = prefs(context).getBoolean("agentTab", false)
 
     fun setAgentTab(context: Context, show: Boolean) {
         prefs(context).edit().putBoolean("agentTab", show).apply()
+    }
+
+    fun developerTools(context: Context): Boolean =
+        prefs(context).getBoolean("developerTools", agentTab(context) || com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(context))
+
+    fun setDeveloperTools(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("developerTools", on).apply()
+    }
+
+    fun fpsLimitKey(mode: String?, game: String?): String? = when (mode) {
+        SessionService.MODE_RUN -> game?.trim()?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)?.let { "fpsLimit.game.$it" }
+        SessionService.MODE_DESKTOP -> "fpsLimit.desktop"
+        else -> null
+    }
+
+    fun savedFpsLimit(context: Context, key: String?): Int = key?.let { prefs(context).getInt(it, 0) } ?: 0
+
+    fun saveFpsLimit(context: Context, key: String?, fps: Int) {
+        key ?: return
+        prefs(context).edit().apply { if (fps > 0) putInt(key, fps) else remove(key) }.apply()
+    }
+
+    fun drawerCornerTap(context: Context): Boolean =
+        prefs(context).getBoolean("drawerCornerTap", android.os.Build.MANUFACTURER.equals("Oculus", true) || android.os.Build.MANUFACTURER.equals("Meta", true))
+
+    fun setDrawerCornerTap(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("drawerCornerTap", on).apply()
+    }
+
+    fun drawerHintShown(context: Context): Int = prefs(context).getInt("drawerHintShown", 0)
+
+    fun countDrawerHint(context: Context) {
+        prefs(context).edit().putInt("drawerHintShown", drawerHintShown(context) + 1).apply()
     }
 
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
@@ -303,7 +342,7 @@ object SessionPrefs {
         prefs(context).edit().putString("navTabOrder", order.joinToString(",")).apply()
     }
 
-    fun navTabShelved(context: Context): Set<String> = idList(prefs(context).getString("navTabShelved", "soundtracks,agent")).toSet()
+    fun navTabShelved(context: Context): Set<String> = idList(prefs(context).getString("navTabShelved", "soundtracks,agent,storage,sync")).toSet()
 
     fun setNavTabShelved(context: Context, keys: Set<String>) {
         prefs(context).edit().putString("navTabShelved", keys.joinToString(",")).apply()
@@ -641,6 +680,13 @@ object SessionPrefs {
             position.takeIf { it in listOf("top", "bottom", "left", "right", "center") } ?: "center").apply()
     }
 
+    fun integerScaling(context: Context): Boolean =
+        prefs(context).getBoolean("integerScaling", false)
+
+    fun setIntegerScaling(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean("integerScaling", enabled).apply()
+    }
+
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
 
     fun setReturnAfterGame(context: Context, on: Boolean) {
@@ -648,7 +694,7 @@ object SessionPrefs {
     }
 
     private fun shaderPrecacheApplied(context: Context) =
-        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.bl-shader-precache-applied")
+        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.dd-shader-precache-applied")
 
     fun pendingShaderPrecache(context: Context): Boolean? {
         val prefs = prefs(context)
@@ -693,6 +739,18 @@ object SessionPrefs {
     fun micEnabled(context: Context): Boolean = prefs(context).getBoolean("mic", false)
 
     fun micAsked(context: Context): Boolean = prefs(context).getBoolean("micAsked", false)
+
+    fun allFilesAsked(context: Context): Boolean = prefs(context).getBoolean("allFilesAsked", false)
+
+    fun setAllFilesAsked(context: Context) {
+        prefs(context).edit().putBoolean("allFilesAsked", true).apply()
+    }
+
+    fun bluetoothAsked(context: Context): Boolean = prefs(context).getBoolean("bluetoothAsked", false)
+
+    fun setBluetoothAsked(context: Context) {
+        prefs(context).edit().putBoolean("bluetoothAsked", true).apply()
+    }
 
     fun setMicAsked(context: Context) {
         prefs(context).edit().putBoolean("micAsked", true).apply()
@@ -939,7 +997,7 @@ object SessionPrefs {
                 prefs(context).edit().putBoolean("steamGpuCompositing", false).apply()
             return false
         }
-        return prefs(context).getBoolean("steamGpuCompositing", false)
+        return prefs(context).getBoolean("steamGpuCompositing", true)
     }
 
     fun steamGpuCompositingAllowed(): Boolean =

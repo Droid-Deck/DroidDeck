@@ -43,7 +43,7 @@ so nothing later than LSE seems to be required yet.
   `-march=armv8-a -mtune=cortex-a57`. Stock Proton 11 arm64 also SIGILLs on ARMv8.0
   (`wineboot` rc=132), so the client is not the only problem for games.
 - Some installers fall back to Valve's x86-64 client under FEX on CPUs without LSE. We already
-  have that path (`BL_STEAM_CLIENT_ARCH=x86_64`, `droiddeck-steam-x64`), but it is slower and
+  have that path (`DD_STEAM_CLIENT_ARCH=x86_64`, `droiddeck-steam-x64`), but it is slower and
   FEX itself has to be built without LSE.
 - [FrankNat996/armor](https://github.com/FrankNat996/armor) notes a separate problem: the arm64
   client's ELF segments are 4K aligned, so it SIGSEGVs at once on 16K page kernels.
@@ -62,7 +62,7 @@ preloaded, and the library would also stay idle on its own because it checks `HW
 
 `droiddeck-session` sees the library in `ld.so.preload` and exports `LSE_EMU=1` and
 `LSE_EMU_PATCH=1`, so the Steam client and everything it starts get the emulation. With a
-session debug folder it also sets `LSE_EMU_LOG=$BL_DEBUG_DIR/lse_emu.log`, and `session.log`
+session debug folder it also sets `LSE_EMU_LOG=$DD_DEBUG_DIR/lse_emu.log`, and `session.log`
 gets a line starting with `== cpu: no LSE atomics`.
 
 The app targets SDK 28, so the app domain still has `execmod` and the in-place patching can

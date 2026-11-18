@@ -227,7 +227,7 @@ def shortcut_entries(root):
     except (OSError, ValueError, IndexError, KeyError, struct.error):
         pass
     try:
-        with open(os.environ.get("BL_ADDED_GAMES", ""), encoding="utf-8") as f:
+        with open(os.environ.get("DD_ADDED_GAMES", ""), encoding="utf-8") as f:
             for game in json.load(f):
                 if isinstance(game, dict) and game.get("exe") and str(game.get("appid", "")).isdigit():
                     entries.append((int(game["appid"]) & 0xFFFFFFFF, game["exe"], game.get("dir") or ""))
@@ -524,6 +524,8 @@ def main(argv):
     os.makedirs(target.compatdata, exist_ok=True)
     env = environment(os.environ, target, folder, root, window, game_id)
     env.update(extra)
+    if app is None and verb == VERB:
+        env["DROIDDECK_DESKTOP_PROGRAM"] = program
     say("%s with %s (%s), %s prefix %s%s" % (program, name, why, target.kind, target.compatdata,
                                               ", without the Steam client" if app is not None else ""))
     try:

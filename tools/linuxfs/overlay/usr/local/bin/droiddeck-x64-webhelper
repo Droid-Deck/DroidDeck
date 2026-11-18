@@ -1,6 +1,6 @@
 #!/bin/bash
-unset BL_X64_ARM_WEBHELPER
-export BL_WEBHELPER_ARGS=stock DISABLE_GAMESCOPE_WSI=1 vk_xwayland_wait_ready=true LIBGL_KOPPER_DISABLE=true
+unset DD_X64_ARM_WEBHELPER
+export DD_WEBHELPER_ARGS=stock DISABLE_GAMESCOPE_WSI=1 vk_xwayland_wait_ready=true LIBGL_KOPPER_DISABLE=true
 if [ -x ./steamwebhelper ]; then
   exec ./steamwebhelper "$@"
 fi

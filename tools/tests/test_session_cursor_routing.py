@@ -7,7 +7,7 @@ import unittest
 SESSION = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-session'
 SOURCE = SESSION.read_text()
 MATCH = re.search(
-    r'^  if \[ "\$mode" = steam \] && \[ "\$\{BL_CURSOR_COMPOSITE:-0\}" = 1 \]; then\n.*?^  fi\n',
+    r'^  if \[ "\$mode" = steam \] && \[ "\$\{DD_CURSOR_COMPOSITE:-0\}" = 1 \]; then\n.*?^  fi\n',
     SOURCE, re.M | re.S)
 assert MATCH is not None
 CURSOR_SETUP = MATCH.group(0)
@@ -21,9 +21,9 @@ class SessionCursorRoutingTest(unittest.TestCase):
         else:
             env.pop('gamescope_cursor_composite', None)
         if composite is not None:
-            env['BL_CURSOR_COMPOSITE'] = composite
+            env['DD_CURSOR_COMPOSITE'] = composite
         else:
-            env.pop('BL_CURSOR_COMPOSITE', None)
+            env.pop('DD_CURSOR_COMPOSITE', None)
         result = subprocess.run(
             ['bash', '-c', CURSOR_SETUP + 'printf "%s\n" "${gamescope_cursor_composite-}"'],
             env=env, text=True, capture_output=True, check=True)

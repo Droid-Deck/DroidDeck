@@ -17,8 +17,10 @@ PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxf
           'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft', 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/': 'rockstar',
           'assets/linuxfs/usr/local/lib/droiddeck-dirt/': 'dirt',
           'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
-PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so'),
-                'lib/arm64-v8a/libproot-loader.so': ('proot', 'libproot-loader.so')}
+# DrWeb flags proot itself as Tool.Linux.Proot; the app runs the pack's copy through Android's linker.
+PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so')}
+# The loader is execve'd, which targetSdk 29+ allows only from the APK's native library directory.
+PROOT_LOADER = {'lib/arm64-v8a/libproot-loader.so': 'libproot-loader.so'}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
 PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
@@ -77,13 +79,13 @@ def required():
     paths = ['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst']
     paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
-    paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
-             'libblfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
+    paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libddsession.so',
+             'libddfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/droiddeck-gog-maintenance',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
              'usr/local/lib/droiddeck-pipewire.tzst']]
     for arch in ['x86_64', 'i386']:
-        paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libblsession.so']]
+        paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libddsession.so']]
     paths += ['assets/linuxfs/x86_64/' + lib for lib in
               ['libfaultreport.so', 'libvulkan-thunk.so', 'libwebkitinput.so']]
     paths += ['assets/linuxfs/i386/libfaultreport.so']
@@ -228,6 +230,9 @@ def check_apk(apk, root=ROOT):
     data = verify(root)
     packs = {name: pack_digests(root, name) for name in PACK_NAMES
              if name not in ('ubisoft', 'rockstar', 'dirt') or (root / PACKS / (name + '.tar.zst')).is_file()}
+    for name, rel in PROOT_LOADER.items():
+        if packs['proot'].get(rel) != data['outputs'][name]['sha256']:
+            raise ValueError('Add-on pack proot is missing or has a stale ' + rel)
     with ZipFile(apk) as package:
         names = set(package.namelist())
         for name in sorted(names):

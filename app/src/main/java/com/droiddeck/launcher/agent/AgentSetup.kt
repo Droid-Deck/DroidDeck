@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -26,6 +27,28 @@ object AgentSetup {
     val detail = mutableStateMapOf<Step, String>()
     var runtimeInstalled by mutableStateOf(true)
         private set
+    /** The harness has a key from its [AgentHarness.keyPage] saved; signed in without one means its free models. */
+    var keySaved by mutableStateOf(false)
+        private set
+
+    /** Saves a pasted key for a harness that signs in with one, then checks the sign-in again. */
+    fun saveKey(context: Context, key: String) = signInLocally(context) { harness, root -> harness.saveKey(root, key) }
+
+    fun useFree(context: Context) = signInLocally(context) { harness, root -> harness.useFree(root) }
+
+    private fun signInLocally(context: Context, write: (AgentHarness, File) -> Unit) {
+        val app = context.applicationContext
+        val harness = AgentHost.harness
+        set(Step.SIGN_IN, Status.WORKING)
+        Thread({
+            val result = runCatching { write(harness, LinuxRuntime.rootDir(app)) }
+            main.post {
+                status[Step.SIGN_IN] = Status.UNKNOWN
+                result.exceptionOrNull()?.let { detail[Step.SIGN_IN] = it.message ?: "failed" }
+                check(app)
+            }
+        }, "agent-sign-in").start()
+    }
 
     val ready: Boolean get() = Step.entries.filter { it.required }.all { status[it] == Status.DONE }
 
@@ -40,7 +63,9 @@ object AgentSetup {
     private val main = Handler(Looper.getMainLooper())
     private const val REPO = "https://github.com/Droid-Deck/DroidDeck.git"
     private const val CHECKOUT = "/root/DroidDeck"
-    private val HELPERS = listOf("android-open", "dd-gh-login", "droiddeckctl")
+    private val HELPERS = listOf("android-open", "dd-gh-login", "droiddeckctl", "droiddeck-scenario")
+    /** DroidDeck's own skills (tools/agent/skills), given to every harness. */
+    private const val SKILLS = "agent/skills"
     internal const val CTL = "/root/.local/share/droiddeck/ctl"
     private const val PROBE_TIMEOUT_S = 60L
 
@@ -50,6 +75,7 @@ object AgentSetup {
         if (!runtimeInstalled) return
         AgentHost.refresh(app)
         val harness = AgentHost.harness
+        keySaved = harness.hasKey(LinuxRuntime.rootDir(app))
         val probes = mutableListOf<Pair<Step, List<String>>>()
         for (step in Step.entries) if (status[step] != Status.WORKING) {
             when (step) {
@@ -187,11 +213,98 @@ object AgentSetup {
     /** Written before every step, so the helpers a step relies on are there and match this DroidDeck version. */
     internal fun installHelpers(app: Context) {
         val root = LinuxRuntime.rootDir(app)
+        val failed = mutableListOf<String>()
+        fun attempt(what: String, block: () -> Unit) = runCatching(block).onFailure {
+            android.util.Log.w("AgentSetup", "could not install $what", it)
+            failed += what
+        }
         val bin = File(root, "root/.local/bin").apply { mkdirs() }
-        for (name in HELPERS) copyAsset(app, "agent/$name", File(bin, name))
+        for (name in HELPERS) attempt(name) { copyAsset(app, "agent/$name", File(bin, name)) }
         val ctl = File(root, CTL.removePrefix("/")).apply { mkdirs() }
-        for (name in app.assets.list("agent/ctl").orEmpty()) copyAsset(app, "agent/ctl/$name", File(ctl, name))
+        for (name in app.assets.list("agent/ctl").orEmpty()) attempt("ctl/$name") { copyAsset(app, "agent/ctl/$name", File(ctl, name)) }
+        val skills = app.assets.list(SKILLS).orEmpty().associateWith { app.assets.list("$SKILLS/$it").orEmpty().toList() }
+        failed += installSkills(root, skills) { app.assets.open("$SKILLS/$it") }
+        attempt("AGENTS.md") {
+            val rules = app.assets.open("agent/ctl/AGENTS.md").use { it.readBytes().decodeToString() }
+            failed += installInstructions(root, rules)
+        }
         unpinAdbSerial(File(root, "root/.bashrc"))
+        main.post { problems.clear(); problems.addAll(failed.distinct()) }
+    }
+
+    /** What [installHelpers] could not install last time, shown in the Agent tab; empty when all is in place. */
+    val problems = mutableStateListOf<String>()
+
+    /**
+     * Writes each of DroidDeck's [skills] (name to its files) into every harness's skills folder, so
+     * Claude Code, Codex and any later harness load the same ones, as of this DroidDeck version.
+     * Skills the user added there are left alone. Returns the skills that could not be written.
+     */
+    internal fun installSkills(root: File, skills: Map<String, List<String>>, open: (String) -> java.io.InputStream): List<String> {
+        val failed = mutableListOf<String>()
+        for (harness in AgentHarness.all) for ((name, files) in skills) runCatching {
+            val dir = File(root, "${harness.skills}/$name")
+            // A folder of that name without DroidDeck's mark is the user's own skill: keep it.
+            if (dir.exists() && !File(dir, SKILL_MARK).exists()) return@runCatching
+            dir.mkdirs()
+            // Marked before copying, so a copy that fails part way is retried next turn, not taken for the user's.
+            File(dir, SKILL_MARK).writeText("Installed by DroidDeck and replaced on every turn. Delete this file to keep your own edits.\n")
+            for (file in files) open("$name/$file").use { replaceFile(it, File(dir, file), executable = false) }
+        }.onFailure {
+            android.util.Log.w("AgentSetup", "could not install skill $name for ${harness.name}", it)
+            failed += "skill $name"
+        }
+        return failed
+    }
+
+    /** Marks a skill folder as DroidDeck's, so it may be replaced; one without it belongs to the user. */
+    internal const val SKILL_MARK = ".droiddeck"
+
+    /**
+     * Where [file] really is when it is a symlink, as the guest sees it: an absolute target is a
+     * userland path, so it is looked up under [root]. A dotfiles link keeps working that way.
+     */
+    internal fun guestTarget(root: File, file: File): File {
+        var current = file
+        repeat(8) {
+            val path = current.toPath()
+            if (!java.nio.file.Files.isSymbolicLink(path)) return current
+            val target = java.nio.file.Files.readSymbolicLink(path).toString()
+            current = if (target.startsWith("/")) File(root, target.removePrefix("/")) else File(current.parentFile, target)
+        }
+        return current
+    }
+
+    internal const val BLOCK_BEGIN = "<!-- BEGIN DroidDeck: replaced on every turn. Write your own rules outside this block. -->"
+    internal const val BLOCK_END = "<!-- END DroidDeck -->"
+
+    /**
+     * Puts DroidDeck's [rules] in a marked block of every harness's global instructions file,
+     * keeping whatever the user wrote around it. Returns the files that could not be written.
+     */
+    internal fun installInstructions(root: File, rules: String): List<String> {
+        val failed = mutableListOf<String>()
+        for (harness in AgentHarness.all) runCatching {
+            val file = guestTarget(root, File(root, harness.instructions)).apply { parentFile?.mkdirs() }
+            val existing = if (file.exists()) file.readText() else null
+            val merged = withBlock(existing, rules)
+            if (merged != existing) replaceFile(merged.byteInputStream(), file, executable = false)
+        }.onFailure {
+            android.util.Log.w("AgentSetup", "could not write ${harness.instructions}", it)
+            failed += harness.instructions.substringAfterLast("root/")
+        }
+        return failed
+    }
+
+    /** [existing] with DroidDeck's block set to [rules]: replaced in place, or put first when there is none yet. */
+    internal fun withBlock(existing: String?, rules: String): String {
+        val block = "$BLOCK_BEGIN\n${rules.trim()}\n$BLOCK_END\n"
+        if (existing.isNullOrBlank()) return block
+        val start = existing.indexOf(BLOCK_BEGIN)
+        val end = existing.indexOf(BLOCK_END, start.coerceAtLeast(0))
+        if (start < 0 || end < 0) return "$block\n$existing"
+        val after = existing.substring(end + BLOCK_END.length).removePrefix("\n")
+        return existing.substring(0, start) + block + after
     }
 
     /** Older tools/agent/setup pinned the adb port in .bashrc, which overrides the live port DroidDeck passes. */
@@ -201,8 +314,24 @@ object AgentSetup {
         if (fixed != text) runCatching { bashrc.writeText(fixed) }
     }
 
+    /**
+     * Written beside [target] and renamed over it, so a symlink left there by a hand-made setup is
+     * replaced rather than followed: its absolute target is a userland path the app cannot reach,
+     * and the failed write stopped every helper after it, the droiddeckctl guide included.
+     */
     private fun copyAsset(app: Context, asset: String, target: File) {
-        app.assets.open(asset).use { input -> target.outputStream().use { input.copyTo(it) } }
-        target.setExecutable(true, false)
+        app.assets.open(asset).use { replaceFile(it, target) }
+    }
+
+    /** Replaces [target], or the symlink at it, with [input]. */
+    internal fun replaceFile(input: java.io.InputStream, target: File, executable: Boolean = true) {
+        // A unique name, since an agent turn and a setup step can install at the same time.
+        val staged = File.createTempFile(".${target.name}.", ".part", target.parentFile)
+        staged.outputStream().use { input.copyTo(it) }
+        if (executable) staged.setExecutable(true, false)
+        if (!staged.renameTo(target)) {
+            staged.delete()
+            throw java.io.IOException("could not replace $target")
+        }
     }
 }

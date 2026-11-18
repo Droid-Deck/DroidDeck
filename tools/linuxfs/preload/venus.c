@@ -14,7 +14,7 @@
 
 extern char **environ;
 
-__attribute__((constructor)) static void bl_venus_keep_kopper(void) {
+__attribute__((constructor)) static void dd_venus_keep_kopper(void) {
     static const char name[] = "LIBGL_KOPPER_DISABLE=";
     const char *debug = getenv("VN_DEBUG");
     if (!debug || !strstr(debug, "vtest") || !environ) return;

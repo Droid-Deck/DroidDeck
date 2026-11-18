@@ -145,6 +145,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         words = {
             val runtimeStatus: @Composable () -> Unit = {
                 if (s.busy || (s.available != null && s.available != s.installed)) RuntimeChip(s)
+                else if (setupNeedsAttention(s)) SecondaryButton(stringResource(R.string.play_needs_you), compact = true,
+                    modifier = Modifier.testTag("play-needs-you")) { SetupTabs.openSection = SettingsSection.OVERVIEW }
                 else if (s.integration.suggested && signedIn && !com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus))
                     IntegrationSuggestion(s.integration, { a.onSteamIntegration(null) }, a.onDismissIntegration)
             }

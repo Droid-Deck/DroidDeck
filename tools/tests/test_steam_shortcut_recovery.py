@@ -43,13 +43,13 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
         script = "nap() { :; }\nsteam_root=%s\n%s%s\nsteam_launch_game %s\n" % (
             self.root / "steam", "steam_client=(%s --exec)\n" % client if client else "",
             FUNCTIONS.replace("/usr/local/bin/droiddeck-agent", str(self.agent)), GAME)
-        env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch),
+        env = dict(os.environ, HOME=str(self.root), DD_LAUNCH_DIR=str(self.launch),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"], STEAM_LOG=str(self.steam_log),
                    AGENT_COUNT=str(self.root / "agent-count"), AGENT_STATES=states, **(extra or {}))
         result = subprocess.run(["bash", "-c", script], env=env, text=True, capture_output=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stderr)
         steam = self.steam_log.read_text().splitlines() if self.steam_log.exists() else []
-        restart = self.root / ".bl-restart-game"
+        restart = self.root / ".dd-restart-game"
         return steam, restart.read_text().strip() if restart.exists() else None, result.stdout
 
     def test_a_shortcut_that_stays_known_launches_once(self):
@@ -83,7 +83,7 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
     def test_steam_is_restarted_only_once_for_the_same_game(self):
         steam, restart, _ = self.launch_game("4")
         self.assertEqual(GAME, restart)
-        (self.root / ".bl-restart-game").unlink()
+        (self.root / ".dd-restart-game").unlink()
         self.steam_log.unlink()
         (self.root / "agent-count").unlink()
         steam, restart, out = self.launch_game("4")
@@ -93,10 +93,10 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
 
     def test_a_ready_shortcut_allows_a_later_restart_again(self):
         self.launch_game("4")
-        (self.root / ".bl-restart-game").unlink()
+        (self.root / ".dd-restart-game").unlink()
         (self.root / "agent-count").unlink()
         self.launch_game("0")
-        self.assertFalse((self.root / ".bl-restarted-for").exists())
+        self.assertFalse((self.root / ".dd-restarted-for").exists())
 
     def test_a_running_game_is_never_cut_off_by_a_restart(self):
         steam, restart, _ = self.launch_game("0 4", focusable="769,3703311242")
@@ -112,10 +112,10 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
 
     def test_the_launcher_without_its_steam_id_still_does_not_count_as_a_running_game(self):
         (self.launch / "epic-open").write_text("1\n")
-        launcher = {"BL_EPIC_APP_ID": "2702387189"}
+        launcher = {"DD_EPIC_APP_ID": "2702387189"}
         steam, restart, _ = self.launch_game("0 4", focusable="769,2702387189", extra=launcher)
         self.assertEqual(GAME, restart)
-        for marker in (".bl-restart-game", ".bl-restarted-for", "agent-count"):
+        for marker in (".dd-restart-game", ".dd-restarted-for", "agent-count"):
             (self.root / marker).unlink(missing_ok=True)
         steam, restart, _ = self.launch_game("4", focusable="769,2702387189,3703311242", extra=launcher)
         self.assertIsNone(restart)
@@ -136,10 +136,10 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
             "[ -n \"$line\" ] || exit 1\n"
             "printf '%s\\n' \"$line\"\n")
         pgrep.chmod(0o755)
-        script = "steam_root=%s\n%s\ndeclare -A _bl_ran=()\n_bl_exited=\n%s" % (
+        script = "steam_root=%s\n%s\ndeclare -A _dd_ran=()\n_dd_exited=\n%s" % (
             self.root / "steam", FUNCTIONS.replace("/usr/local/bin/droiddeck-agent", str(self.agent)),
             "steam_check_exits\n" * beats)
-        env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch),
+        env = dict(os.environ, HOME=str(self.root), DD_LAUNCH_DIR=str(self.launch),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"], STEAM_LOG=str(self.steam_log),
                    AGENT_COUNT=str(self.root / "agent-count"), AGENT_STATES=states,
                    PGREP_COUNT=str(self.root / "pgrep-count"), PGREP_RUNS="|".join(listings))
@@ -147,7 +147,7 @@ class SteamShortcutRecoveryTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         steam = self.steam_log.read_text().splitlines() if self.steam_log.exists() else []
         agent = self.root / "agent-count"
-        return steam, (self.root / ".bl-restart-lost").exists(), int(agent.read_text()) if agent.exists() else 0, result.stdout
+        return steam, (self.root / ".dd-restart-lost").exists(), int(agent.read_text()) if agent.exists() else 0, result.stdout
 
     RUNNING = "41 /root/.local/share/Steam/steamrtarm64/reaper SteamLaunch AppId=3333273269 -- /x/.droiddeck-launch.bat"
 
