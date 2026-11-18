@@ -1573,6 +1573,8 @@
     <string name="pip_unavailable">Android kunne ikke åbne billede i billede.</string>
     <string name="game_more">Mere</string>
     <string name="game_edit_art">Rediger grafik</string>
+    <string name="game_unhide">Fjern fra skjulte</string>
+    <string name="game_hide_failed">Kunne ikke synkronisere med Steam. Luk Steam og prøv igen.</string>
     <string name="stores_in_steam_label">I Steam</string>
     <string name="game_shortcut">Genvej</string>
     <string name="game_shortcut_add">Tilføj til hjemmeskærm</string>

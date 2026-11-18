@@ -1589,6 +1589,8 @@
     <string name="pip_unavailable">Android не может открыть PiP.</string>
     <string name="game_more">Ещё</string>
     <string name="game_edit_art">Изменить обложку</string>
+    <string name="game_unhide">Убрать из скрытых</string>
+    <string name="game_hide_failed">Не удалось синхронизировать со Steam. Закройте Steam и повторите попытку.</string>
     <string name="stores_in_steam_label">В Steam</string>
     <string name="game_shortcut">Ярлык</string>
     <string name="game_shortcut_add">Добавить на главный экран</string>
