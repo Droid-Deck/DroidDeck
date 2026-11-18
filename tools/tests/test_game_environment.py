@@ -1243,6 +1243,10 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertNotIn("TU_DEBUG", applied(shared, "43"))
         self.assertEqual(applied(shared, "44")["TU_DEBUG"], "gmem")
         self.assertNotIn(prefixed, applied(shared, "44"))
+        both = {"version": 1, "games": {"42": {"TU_DEBUG": "sysmem", prefixed: ""}, "43": {"TU_DEBUG": None, prefixed: "gmem"}}}
+        self.assertEqual(applied(both)["TU_DEBUG"], "sysmem")
+        self.assertNotIn("TU_DEBUG", applied(both, "43", {"TU_DEBUG": "nolrz"}))
+        self.assertNotIn(prefixed, applied(both))
 
     def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
         gpu = MODULE["game_gpu"]

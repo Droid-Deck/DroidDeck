@@ -458,7 +458,8 @@ def split_game_gpu(entries):
     for key in GAME_SPLIT_KEYS:
         if GAME_PREFIX + key in result:
             value = result.pop(GAME_PREFIX + key)
-            result[key] = None if value == "" else value
+            if key not in entries:
+                result[key] = None if value == "" else value
     return result
 
 
