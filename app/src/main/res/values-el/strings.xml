@@ -1572,6 +1572,7 @@
     <string name="pip_unavailable">Το Android δεν μπόρεσε να ανοίξει τη λειτουργία εικόνας εντός εικόνας.</string>
     <string name="game_more">Περισσότερα</string>
     <string name="game_edit_art">Επεξεργασία εικαστικών</string>
+    <string name="game_unhide">Κατάργηση από τις κρυφές</string>
     <string name="stores_in_steam_label">Στο Steam</string>
     <string name="game_shortcut">Συντόμευση</string>
     <string name="game_shortcut_add">Προσθήκη στην αρχική οθόνη</string>

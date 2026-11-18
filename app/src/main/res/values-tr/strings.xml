@@ -1564,6 +1564,7 @@
     <string name="pip_unavailable">Android, pencere içinde pencereyi açamadı.</string>
     <string name="game_more">Diğer</string>
     <string name="game_edit_art">Görseli düzenle</string>
+    <string name="game_unhide">Gizlilikten çıkar</string>
     <string name="stores_in_steam_label">Steam\'de</string>
     <string name="game_shortcut">Kısayol</string>
     <string name="game_shortcut_add">Ana ekrana ekle</string>

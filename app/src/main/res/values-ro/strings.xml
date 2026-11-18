@@ -1580,6 +1580,7 @@
     <string name="pip_unavailable">Android nu a putut deschide imaginea în imagine.</string>
     <string name="game_more">Mai multe</string>
     <string name="game_edit_art">Editează grafica</string>
+    <string name="game_unhide">Elimină din ascunse</string>
     <string name="stores_in_steam_label">În Steam</string>
     <string name="game_shortcut">Comandă rapidă</string>
     <string name="game_shortcut_add">Adaugă pe ecranul principal</string>

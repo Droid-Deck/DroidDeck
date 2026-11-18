@@ -1565,6 +1565,7 @@
     <string name="pip_unavailable">Androidがピクチャーインピクチャーを開けませんでした。</string>
     <string name="game_more">その他</string>
     <string name="game_edit_art">アートを編集</string>
+    <string name="game_unhide">非表示を解除</string>
     <string name="stores_in_steam_label">Steamに追加済み</string>
     <string name="game_shortcut">ショートカット</string>
     <string name="game_shortcut_add">ホーム画面に追加</string>

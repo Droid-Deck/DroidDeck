@@ -1572,6 +1572,7 @@
     <string name="pip_unavailable">Android पिक्चर इन पिक्चर नहीं खोल सका।</string>
     <string name="game_more">और</string>
     <string name="game_edit_art">आर्ट एडिट करें</string>
+    <string name="game_unhide">छिपे हुए से हटाएं</string>
     <string name="stores_in_steam_label">Steam में</string>
     <string name="game_shortcut">शॉर्टकट</string>
     <string name="game_shortcut_add">होम स्क्रीन पर जोड़ें</string>

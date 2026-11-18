@@ -267,6 +267,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("libraryShowSize", show).apply()
     }
 
+    fun libraryShowHidden(context: Context): Boolean = prefs(context).getBoolean("libraryShowHidden", false)
+
+    fun setLibraryShowHidden(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("libraryShowHidden", show).apply()
+    }
+
+    fun libraryHidden(context: Context): Set<String> = prefs(context).getStringSet("libraryHidden", null)?.toSet().orEmpty()
+
+    fun setLibraryHidden(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet("libraryHidden", keys.toSet()).apply()
+    }
+
     fun railLabels(context: Context): Boolean = prefs(context).getBoolean("railLabels", false)
 
     fun setRailLabels(context: Context, show: Boolean) {

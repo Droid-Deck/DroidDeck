@@ -1579,6 +1579,7 @@
     <string name="pip_unavailable">O Android não conseguiu abrir o picture-in-picture.</string>
     <string name="game_more">Mais</string>
     <string name="game_edit_art">Editar artes</string>
+    <string name="game_unhide">Remover dos ocultos</string>
     <string name="stores_in_steam_label">Na Steam</string>
     <string name="game_shortcut">Atalho</string>
     <string name="game_shortcut_add">Adicionar à tela inicial</string>

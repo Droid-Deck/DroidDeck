@@ -1571,6 +1571,7 @@
     <string name="pip_unavailable">O Android não conseguiu abrir o ecrã no ecrã.</string>
     <string name="game_more">Mais</string>
     <string name="game_edit_art">Editar imagens</string>
+    <string name="game_unhide">Remover dos ocultos</string>
     <string name="stores_in_steam_label">No Steam</string>
     <string name="game_shortcut">Atalho</string>
     <string name="game_shortcut_add">Adicionar ao ecrã principal</string>

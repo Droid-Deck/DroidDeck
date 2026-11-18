@@ -458,7 +458,10 @@ internal fun GameActions(
                     }
                     SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
                 }
-                if (game != null && !compactMenu) EditArtButton(game)
+                if (game != null && !compactMenu) {
+                    HideButton(game)
+                    EditArtButton(game)
+                }
             }
             download != null -> {
                 ActionChip(downloadLabel(download), ok = false)
@@ -610,6 +613,17 @@ internal fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
     }
 }
 
+internal fun hideKey(g: Library.SteamGame): String = g.storeId?.let { "${g.source}:$it" } ?: GameRef.key(g)
+
+@Composable
+internal fun HideButton(g: Library.SteamGame) {
+    val ctx = LocalContext.current
+    remember { LibraryHidden.load(ctx) }
+    val key = hideKey(g)
+    val hidden = LibraryHidden.isHidden(key, g)
+    SecondaryButton(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), compact = true) { LibraryHidden.set(ctx, key, g, !hidden) }
+}
+
 @Composable
 internal fun EditArtButton(g: Library.SteamGame) {
     val open = rememberEditArt(g) ?: return
@@ -620,6 +634,9 @@ internal fun EditArtButton(g: Library.SteamGame) {
 private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { mutableStateOf(false) }
     val edit = rememberEditArt(g)
+    val ctx = LocalContext.current
+    remember { LibraryHidden.load(ctx) }
+    val hidden = LibraryHidden.isHidden(hideKey(g), g)
     Box {
         SecondaryButton(stringResource(R.string.game_more)) { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.game_more), compact = true) { first ->
@@ -630,6 +647,8 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
             MenuItem(stringResource(R.string.game_shortcut_add), checked = false, focusRequester = take()) { open = false; a.onGameShortcut(g) }
             MenuItem(stringResource(R.string.game_file_export), checked = false) { open = false; a.onExportGameFile(g) }
             MenuItem(stringResource(R.string.game_link_copy), checked = false) { open = false; a.onCopyGameLink(g) }
+            val hideKey = hideKey(g)
+            MenuItem(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), checked = false) { open = false; LibraryHidden.set(ctx, hideKey, g, !hidden) }
             edit?.let { run -> MenuItem(stringResource(R.string.game_edit_art), checked = false) { open = false; run() } }
         }
     }

@@ -1588,6 +1588,7 @@
     <string name="pip_unavailable">Android nemohl otevřít obraz v obraze.</string>
     <string name="game_more">Další</string>
     <string name="game_edit_art">Upravit grafiku</string>
+    <string name="game_unhide">Odebrat ze skrytých</string>
     <string name="stores_in_steam_label">Ve Steamu</string>
     <string name="game_shortcut">Zkratka</string>
     <string name="game_shortcut_add">Přidat na domovskou obrazovku</string>

@@ -163,11 +163,17 @@ internal fun collectionEntries(all: List<LibraryEntry>, items: List<CatalogItem>
 internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = entries.partition { it.installed }.let { (on, off) -> on + off }
 
 internal const val LIBRARY_ALL = "all"
-internal fun librarySources(entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet(), favorites: Set<String> = emptySet()): List<String> =
-    (listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED + Library.SOURCE_COLLECTION)
+internal fun librarySources(
+    entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet(), favorites: Set<String> = emptySet(),
+    hidden: (LibraryEntry) -> Boolean = { false }, showHidden: Boolean = false,
+): List<String> =
+    (listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED + Library.SOURCE_COLLECTION + LIBRARY_HIDDEN)
         .filter { source ->
-            if (source == LIBRARY_FAVORITES) entries.any { it.favoriteKey in favorites }
-            else source in always || entries.any { it.source == source }
+            when (source) {
+                LIBRARY_HIDDEN -> showHidden
+                LIBRARY_FAVORITES -> entries.any { it.favoriteKey in favorites && !hidden(it) }
+                else -> source in always || entries.any { it.source == source && !hidden(it) }
+            }
         }
 
 internal object LibraryDisplay {
@@ -178,11 +184,14 @@ internal object LibraryDisplay {
         private set
     var size by mutableStateOf(true)
         private set
+    var hidden by mutableStateOf(false)
+        private set
 
     fun load(context: android.content.Context) {
         level = SessionPrefs.libraryCardLevel(context).coerceIn(0, scales.lastIndex)
         title = SessionPrefs.libraryShowTitle(context)
         size = SessionPrefs.libraryShowSize(context)
+        hidden = SessionPrefs.libraryShowHidden(context)
     }
 
     fun step(context: android.content.Context, by: Int) {
@@ -198,6 +207,11 @@ internal object LibraryDisplay {
     fun toggleSize(context: android.content.Context) {
         size = !size
         SessionPrefs.setLibraryShowSize(context, size)
+    }
+
+    fun toggleHidden(context: android.content.Context) {
+        hidden = !hidden
+        SessionPrefs.setLibraryShowHidden(context, hidden)
     }
 }
 
@@ -227,8 +241,10 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     remember { LibraryDisplay.load(ctx) }
     remember { LibraryFavorites.load(ctx) }
+    remember { LibraryHidden.load(ctx) }
     val soundMode = selected == "soundtracks" || selected.startsWith("sound:")
     val favorites = if (soundMode) emptySet() else LibraryFavorites.keys
+    val concealed: (LibraryEntry) -> Boolean = { !soundMode && LibraryHidden.isHidden(it) }
     val stores = s.gameStoresEnabled && !s.shortcutPicker && !soundMode
     val signedIn = Store.entries.filter { StoresState.isSignedIn(it) }
     LaunchedEffect(stores, signedIn) { if (stores) signedIn.forEach { StoresState.loadLibrary(ctx, it) } }
@@ -266,7 +282,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val sources = librarySources(
         all, SessionPrefs.storesTabOrder(ctx),
         listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.SOURCE_COLLECTION.takeIf { soundMode }).toSet(),
-        favorites,
+        favorites, concealed, LibraryDisplay.hidden && !soundMode,
     )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
@@ -289,7 +305,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val collectionItems = collectionId?.let { if (source == Store.GAMEJOLT.id) GameJoltCollections.gamesOf(it) else ItchCollections.gamesOf(it) }
     val pool = if (collectionId == null) all else collectionEntries(all, collectionItems.orEmpty(), Store.byId(source) ?: Store.ITCH)
     val matching = pool.filter {
-        inLibrarySource(source, it, favorites) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
+        inLibrarySource(source, it, favorites, concealed) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
     val listUninstalled = if (collectionId == null) showUninstalled else collectionShows?.takeIf { it.first == collectionId }?.second ?: true
     val trackHits by produceState<List<SoundtrackIndex.Hit>>(emptyList(), soundMode, q, source, s.soundtracks) {
@@ -529,7 +545,7 @@ private fun LibraryGrid(
         }
         val picker = s.shortcutPicker && e.game != null
         val choose = if (picker) ({ a.onSteamGame(e.game!!) }) else null
-        if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL || source == LIBRARY_FAVORITES)
+        if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL || source == LIBRARY_FAVORITES || source == LIBRARY_HIDDEN)
     }
     LazyVerticalGrid(
         columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(tileWidth), state = grid,
@@ -680,6 +696,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
             val dot = when {
                 store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
                 src == LIBRARY_FAVORITES -> FavoritesColours.dot
+                src == LIBRARY_HIDDEN -> Color(0xFF9AA0A6)
                 src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
                 else -> null
             }
@@ -688,6 +705,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
                 when (src) {
                     Library.ADDED -> stringResource(R.string.library_filter_added)
                     LIBRARY_FAVORITES -> stringResource(R.string.soundtracks_favorites)
+                    LIBRARY_HIDDEN -> stringResource(R.string.apps_filter_hidden)
                     else -> store?.shortLabel ?: sourceLabel(src)
                 },
                 source == src, dot,
@@ -1045,7 +1063,7 @@ internal fun DisplayButton() {
         HeaderIconButton(title, Icons.Filled.Visibility, "display") {
             val from = at ?: return@HeaderIconButton
             Steps.ask(StepAsk(
-                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = 4,
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = 5,
                 handle = { Icon(Icons.Filled.Visibility, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
             ) {
                 StepTitle(title)
@@ -1068,6 +1086,10 @@ internal fun DisplayButton() {
                         stringResource(R.string.library_display_size), selected = LibraryDisplay.size, enabled = open,
                         modifier = Modifier.fillMaxWidth().stepItem(3),
                     ) { LibraryDisplay.toggleSize(ctx) }
+                    StepChoice(
+                        stringResource(R.string.apps_filter_hidden), selected = LibraryDisplay.hidden, enabled = open,
+                        modifier = Modifier.fillMaxWidth().stepItem(4),
+                    ) { LibraryDisplay.toggleHidden(ctx) }
                 }
             })
         }

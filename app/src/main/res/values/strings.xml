@@ -1743,6 +1743,7 @@
     <string name="pip_unavailable">Android could not open picture in picture.</string>
     <string name="game_more">More</string>
     <string name="game_edit_art">Edit art</string>
+    <string name="game_unhide">Remove hidden</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Shortcut</string>
     <string name="game_shortcut_add">Add to home screen</string>

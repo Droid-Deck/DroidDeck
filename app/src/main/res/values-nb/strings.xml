@@ -1572,6 +1572,7 @@
     <string name="pip_unavailable">Android kunne ikke åpne bilde-i-bilde.</string>
     <string name="game_more">Mer</string>
     <string name="game_edit_art">Rediger grafikk</string>
+    <string name="game_unhide">Fjern fra skjulte</string>
     <string name="stores_in_steam_label">I Steam</string>
     <string name="game_shortcut">Snarvei</string>
     <string name="game_shortcut_add">Legg til på hjem-skjermen</string>

@@ -1572,6 +1572,7 @@
     <string name="pip_unavailable">Az Android nem tudta megnyitni a kép a képben módot.</string>
     <string name="game_more">Továbbiak</string>
     <string name="game_edit_art">Illusztrációk szerkesztése</string>
+    <string name="game_unhide">Eltávolítás a rejtettek közül</string>
     <string name="stores_in_steam_label">A Steamben</string>
     <string name="game_shortcut">Parancsikon</string>
     <string name="game_shortcut_add">Hozzáadás a kezdőképernyőhöz</string>

@@ -1588,6 +1588,7 @@
     <string name="pip_unavailable">Android не вдалося відкрити режим «Картинка в картинці».</string>
     <string name="game_more">Більше</string>
     <string name="game_edit_art">Змінити обкладинку</string>
+    <string name="game_unhide">Прибрати з прихованих</string>
     <string name="stores_in_steam_label">У Steam</string>
     <string name="game_shortcut">Ярлик</string>
     <string name="game_shortcut_add">Додати на головний екран</string>

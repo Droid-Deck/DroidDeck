@@ -1571,6 +1571,7 @@
     <string name="pip_unavailable">Android non è riuscito ad aprire il picture in picture.</string>
     <string name="game_more">Altro</string>
     <string name="game_edit_art">Modifica grafica</string>
+    <string name="game_unhide">Rimuovi dai nascosti</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Scorciatoia</string>
     <string name="game_shortcut_add">Aggiungi alla schermata Home</string>

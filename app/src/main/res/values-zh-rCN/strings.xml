@@ -1648,6 +1648,7 @@
     <string name="pip_unavailable">Android 无法打开画中画。</string>
     <string name="game_more">更多</string>
     <string name="game_edit_art">编辑封面</string>
+    <string name="game_unhide">取消隐藏</string>
     <string name="stores_in_steam_label">已在 Steam 中</string>
     <string name="game_shortcut">快捷方式</string>
     <string name="game_shortcut_add">添加到主屏幕</string>

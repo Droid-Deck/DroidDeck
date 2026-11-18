@@ -1604,6 +1604,7 @@
     <string name="pip_unavailable">تعذّر على Android فتح نافذة ضمن النافذة.</string>
     <string name="game_more">المزيد</string>
     <string name="game_edit_art">تعديل الصور</string>
+    <string name="game_unhide">إزالة من المخفية</string>
     <string name="stores_in_steam_label">في Steam</string>
     <string name="game_shortcut">اختصار</string>
     <string name="game_shortcut_add">إضافة إلى الشاشة الرئيسية</string>

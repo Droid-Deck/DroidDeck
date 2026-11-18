@@ -1588,6 +1588,7 @@
     <string name="pip_unavailable">Android nie mógł otworzyć obrazu w obrazie.</string>
     <string name="game_more">Więcej</string>
     <string name="game_edit_art">Edytuj grafiki</string>
+    <string name="game_unhide">Usuń z ukrytych</string>
     <string name="stores_in_steam_label">W Steam</string>
     <string name="game_shortcut">Skrót</string>
     <string name="game_shortcut_add">Dodaj do ekranu głównego</string>

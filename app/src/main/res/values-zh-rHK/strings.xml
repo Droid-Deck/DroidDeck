@@ -1564,6 +1564,7 @@
     <string name="pip_unavailable">Android 無法開啟畫中畫。</string>
     <string name="game_more">更多</string>
     <string name="game_edit_art">編輯圖片</string>
+    <string name="game_unhide">取消隱藏</string>
     <string name="stores_in_steam_label">在 Steam 中</string>
     <string name="game_shortcut">捷徑</string>
     <string name="game_shortcut_add">加至主畫面</string>
