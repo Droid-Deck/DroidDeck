@@ -176,6 +176,46 @@ class SteamLibraryTest(Temp):
         os.symlink(folder / "redist", folder / "vendor")
         self.assertEqual(RUN["steam_libraries"](self.target(folder)), {"steam_api64"})
 
+    def test_a_sibling_below_a_container_on_the_way_to_the_exe_is_not_searched(self):
+        start = self.tmp / "Shelf"
+        folder = start / "bin" / "A"
+        folder.mkdir(parents=True)
+        (folder / "A.exe").write_bytes(b"MZ")
+        (start / "bin" / "B").mkdir()
+        self.dll("Shelf/bin/B/steam_api64.dll")
+        self.assertEqual(RUN["steam_libraries"](self.target(folder, start)), set())
+
+    def test_a_folder_below_the_container_the_exe_sits_in_is_searched(self):
+        start = self.tmp / "Shelf"
+        folder = start / "bin" / "A"
+        (folder / "plugins").mkdir(parents=True)
+        (folder / "A.exe").write_bytes(b"MZ")
+        self.dll("Shelf/bin/A/plugins/steam_api64.dll")
+        self.assertEqual(RUN["steam_libraries"](self.target(folder, start)), {"steam_api64"})
+
+    def test_the_detectors_share_one_folder_discovery(self):
+        folder = self.game()
+        self.write("Game/steam_emu.ini", "AppId=123")
+        folders = RUN["steam_folders"]
+        calls = []
+
+        def counted(target, entries=None):
+            calls.append(target)
+            return folders(target, entries)
+
+        with mock.patch.dict(RUN, {"steam_folders": counted}):
+            RUN["steam_state"](self.target(folder))
+        self.assertEqual(len(calls), 1)
+
+    def test_one_entry_budget_covers_the_whole_scan(self):
+        folder = self.game()
+        for i in range(6):
+            (folder / ("%d.dat" % i)).write_bytes(b"")
+        self.dll("Game/steam_api64.dll")
+        with mock.patch.dict(RUN, {"STEAM_SCAN_ENTRIES": 4}):
+            libraries, own_id, emulator = RUN["steam_state"](self.target(folder))
+        self.assertEqual(libraries, set())
+
     def test_the_scan_stops_at_the_stated_number_of_folders(self):
         folder = self.game()
         (folder / "a").mkdir()

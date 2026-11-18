@@ -439,12 +439,20 @@ STEAM_SCAN_BYTES = 256 << 20
 STEAM_CLIENT_SCAN = 64 << 20
 
 
-def scan_entries(path):
+def scan_entries(path, budget=None):
+    """Sorted entries, at most STEAM_SCAN_ENTRIES from one folder and, when a budget is given, no
+    more than what the launch has left of it."""
+    limit = STEAM_SCAN_ENTRIES if budget is None else min(STEAM_SCAN_ENTRIES, budget[0])
+    if limit <= 0:
+        return []
     try:
         with os.scandir(path) as entries:
-            return sorted(itertools.islice(entries, STEAM_SCAN_ENTRIES), key=lambda entry: entry.name)
+            found = sorted(itertools.islice(entries, limit), key=lambda entry: entry.name)
     except OSError:
         return []
+    if budget is not None:
+        budget[0] -= len(found)
+    return found
 
 
 def game_folder(root, path):
@@ -454,12 +462,13 @@ def game_folder(root, path):
     return path if path.startswith(root.rstrip(os.sep) + os.sep) else None
 
 
-def steam_folders(target):
+def steam_folders(target, budget=None):
     """Where a game's Steam libraries can sit: beside the exe, at the folder it starts in, one level
     inside either, and inside the usual bin/x64 folders, since games keep them there. A start folder
     outside the exe's folder is searched itself; its known containers are searched only when the
-    exe's folder is under one of them, so a shelf's sibling bin is not adopted. A symlinked start
-    folder is resolved first, and a folder link that leaves the game root is not searched."""
+    exe's folder is under one of them, so a shelf's sibling bin is not adopted, and a container that
+    leads down to the exe's folder is searched along that branch only. A symlinked start folder is
+    resolved first, and a folder link that leaves the game root is not searched."""
     folders = []
     seen = set()
     install = os.path.realpath(target.install) if target.install else None
@@ -476,7 +485,7 @@ def steam_folders(target):
         above = bool(restricted and below.lower() in STEAM_LIBRARY_DIRS)
         if restricted and not above:
             continue
-        for entry in scan_entries(root):
+        for entry in scan_entries(root, budget):
             if len(folders) >= STEAM_SCAN_FOLDERS:
                 return folders
             if not entry.is_dir() or entry.name.startswith("."):
@@ -490,13 +499,18 @@ def steam_folders(target):
             folders.append(folder)
             if entry.name.lower() not in STEAM_LIBRARY_DIRS:
                 continue
-            for child in scan_entries(folder):
+            # A container on the way down to the exe's folder holds one game; its other children
+            # are other games, so only the branch the exe sits in is searched.
+            on_the_way = bool(install and install.startswith(folder + os.sep))
+            for child in scan_entries(folder, budget):
                 if len(folders) >= STEAM_SCAN_FOLDERS:
                     return folders
                 if child.name.startswith("."):
                     continue
                 child_folder = game_folder(root, child.path)
                 if child_folder is None or child_folder in seen or not os.path.isdir(child_folder):
+                    continue
+                if on_the_way and child_folder != install and not install.startswith(child_folder + os.sep):
                     continue
                 seen.add(child_folder)
                 folders.append(child_folder)
@@ -568,14 +582,14 @@ def implements_steam_client(entry, budget):
     return found, max(0, budget - spent)
 
 
-def steam_libraries(target):
+def steam_libraries(target, folders=None, entries=None):
     """The Steam libraries a game brings itself, told apart by the interfaces they carry rather than by
     one file name: a game that switches interfaces of the client on the machine for its own ships these."""
     found = set()
     budget = STEAM_SCAN_BYTES
     files = 0
-    for folder in steam_folders(target):
-        for entry in scan_entries(folder):
+    for folder in steam_folders(target, entries) if folders is None else folders:
+        for entry in scan_entries(folder, entries):
             name = entry.name.lower()
             if not name.endswith(".dll") or len(name) == 4:
                 continue
@@ -606,10 +620,10 @@ STEAM_EMULATOR_PROGRAMS = (
 STEAM_BUNDLED_CLIENTS = ("steamclient", "steamclient64")
 
 
-def steam_emulator(target):
+def steam_emulator(target, folders=None, entries=None):
     """Whether a shortcut ships its own Steam emulator, by the settings file, loader or client library beside it."""
-    for folder in steam_folders(target):
-        for entry in scan_entries(folder):
+    for folder in steam_folders(target, entries) if folders is None else folders:
+        for entry in scan_entries(folder, entries):
             name = entry.name.lower()
             if name in STEAM_EMULATOR_FILES:
                 return True
@@ -622,12 +636,12 @@ def steam_emulator(target):
     return False
 
 
-def steam_family(target):
+def steam_family(target, folders=None, entries=None):
     """The Steam libraries beside a game, by name: the files an emulator replaces, which Wine must take from
     the folder instead of answering with its own bridges."""
     found = set()
-    for folder in steam_folders(target):
-        for entry in scan_entries(folder):
+    for folder in steam_folders(target, entries) if folders is None else folders:
+        for entry in scan_entries(folder, entries):
             name = entry.name.lower()
             if name.endswith(".dll") and name[:-4] in STEAM_FAMILY_DLLS:
                 found.add(entry.name[:-4])
@@ -691,12 +705,16 @@ def steam_state(target):
     emulator; a Steam title or other program has none of them."""
     if target.kind != "shortcut":
         return set(), False, False
-    libraries = steam_libraries(target)
+    # One allowance for the launch: the folders are discovered once and the detectors read the same
+    # directory entries budget, so the work stays bounded however many of them look.
+    entries = [STEAM_SCAN_ENTRIES]
+    folders = steam_folders(target, entries)
+    libraries = steam_libraries(target, folders, entries)
     own_id = own_steam_id(target)
-    family = steam_family(target)
+    family = steam_family(target, folders, entries)
     # A game naming its own app id beside a Steam wrapper is the same case: the wrapper answers that file,
     # not the client on the machine.
-    emulator = steam_emulator(target) or bool(libraries) or (own_id and bool(family))
+    emulator = steam_emulator(target, folders, entries) or bool(libraries) or (own_id and bool(family))
     if emulator:
         libraries |= family
     return libraries, own_id, emulator
