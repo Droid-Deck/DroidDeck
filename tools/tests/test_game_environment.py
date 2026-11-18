@@ -1031,10 +1031,33 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertFalse(done([str(script)], env))
             (prefix / "system.reg").write_text(self.REDIST + self.SETUP)
             self.assertTrue(done([str(script)], env))
+            # Steam rewrote the file: only marked "run process" entries, so its evaluator would run nothing either
             script.write_text(self.SCRIPT.replace("x64.cmd", "x64-update.cmd"))
+            self.assertTrue(done([str(script)], env))
+            script.write_text(self.SCRIPT.replace('"Setup"', '"Setup 2"'))
             self.assertFalse(done([str(script)], env))
             script.write_text('"InstallScript" { "Registry" { "HKEY_LOCAL_MACHINE\\\\Software\\\\Game" { "string" { "Path" "%INSTALLDIR%" } } } }')
             MODULE["record_install_scripts"](MODULE["scripts_digest"]([str(script)]), env)
+            self.assertFalse(done([str(script)], env))
+
+    def test_marked_run_process_scripts_count_as_done_without_a_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "evaluatorscript_291550.vdf"
+            script.write_text(self.SCRIPT.replace('"0" { "appid" "228980"',
+                                                  '"0" { "appid" "228980" "mode" "1" "language" "english" '
+                                                  '"install_path" "/root/x" "SteamID" "7656"'))
+            prefix = Path(tmp) / "compat/pfx"
+            prefix.mkdir(parents=True)
+            env = {"STEAM_COMPAT_DATA_PATH": str(prefix.parent)}
+            done = MODULE["install_scripts_done"]
+            (prefix / "system.reg").write_text(self.REDIST)
+            self.assertFalse(done([str(script)], env))
+            (prefix / "system.reg").write_text(self.REDIST + self.SETUP)
+            self.assertTrue(done([str(script)], env))
+            (prefix / MODULE["INSTALL_STAMP"]).write_text("an older digest\n")
+            self.assertTrue(done([str(script)], env))
+            script.write_text(self.SCRIPT.replace('"run process" {',
+                                                  '"registry" { "HKEY_LOCAL_MACHINE\\\\Software\\\\Game" { "string" { "Path" "x" } } } "run process" {'))
             self.assertFalse(done([str(script)], env))
 
     def test_the_evaluator_is_skipped_once_it_finished_the_same_scripts(self):
@@ -1052,8 +1075,12 @@ class GameEnvironmentTest(unittest.TestCase):
             proton.write_text("#!/bin/sh\necho run >> %s\nexit ${EXIT_CODE:-0}\n" % shlex.quote(str(runs)))
             proton.chmod(0o755)
 
-            def evaluate(exit_code="0"):
-                script.write_text(self.SCRIPT if exit_code != "changed" else self.SCRIPT.replace("setup.exe", "setup-update.exe"))
+            # a registry action besides the marked runs: Steam's evaluator has work to do, so it runs once
+            with_registry = self.SCRIPT.replace(
+                '"run process" {', '"registry" { "HKEY_LOCAL_MACHINE\\\\Software\\\\Game" { "string" { "Path" "x" } } } "run process" {')
+
+            def evaluate(exit_code="0", text=None):
+                script.write_text(text or (with_registry if exit_code != "changed" else with_registry.replace("setup.exe", "setup-update.exe")))
                 env = dict(os.environ, HOME=tmp, STEAM_COMPAT_CLIENT_INSTALL_PATH=str(root),
                            STEAM_COMPAT_DATA_PATH=str(prefix.parent), EXIT_CODE="0" if exit_code == "changed" else exit_code)
                 result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(proton), "run",
@@ -1066,6 +1093,8 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(evaluate(), (0, 2))
             self.assertEqual(evaluate(), (0, 2))
             self.assertEqual(evaluate("changed"), (0, 3))
+            # only marked "run process" entries, all set: skipped even though the file differs from the recorded one
+            self.assertEqual(evaluate(text=self.SCRIPT.replace("x64.cmd", "x64-update.cmd")), (0, 3))
 
     def test_the_mali_bridge_caps_the_vkd3d_feature_level(self):
         bridge = {"BL_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "12_2"}
