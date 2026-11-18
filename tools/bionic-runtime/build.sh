@@ -26,6 +26,9 @@ BL_ASSETS=https://raw.githubusercontent.com/The412Banner/Bannerlator/$BL_COMMIT/
 ADAPTER_URL=https://github.com/The412Banner/bionic-vulkan-wrapper/releases/download/wayland-adapter-placed-export-r1
 ADAPTER_SHA256=653791c2c2ea904a5122909f01d26689553e91cc4dc7a981478c1303adc96ea5   # libvulkan_wrapper.so
 ADAPTER_JSON_SHA256=5448fd64f15fa13ca3c805967c2b4788eb5f86d29a2d2755e15498130cdef9b3
+# OpenGL: the Fast OpenGL Mesa set (EGL + GLX + Zink) rebuilt from Mesa main d8cfbe82766 for Zink's kopper readback
+# fixes (Banners-Turnip fix/fastgl-zink-readback e07e94d0, run 44232301491); Bannerlator's copy is the 7cda7850 build.
+FASTGL_URL=https://github.com/The412Banner/Banners-Turnip/releases/download/fastgl-x11egl-mesa-d8cfbe8-r1
 FFMPEG8_SHA256=34ca9076b6b69bc96ee0d53fcb7b9d0d8df869b9f1255dd686bf89cc590b1b08   # ffmpeg8.tzst
 GAMESCOPE_TAG=3.16.29
 GAMESCOPE_COMMIT=8f212644c46460549035971ab914421180f61a7c
@@ -98,17 +101,17 @@ echo "== D7VK ddraw.dll (DroidDeck-Proton 11-12.8 release, that file only)"
 mkdir -p "$PACK/d7vk"
 curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "$D7VK_FROM" | tar -xzO -f - "$D7VK_MEMBER" > "$PACK/d7vk/ddraw.dll"
 echo "$D7VK_SHA256  $PACK/d7vk/ddraw.dll" | sha256sum -c -
-# OpenGL: Bannerlator's bionic Mesa (EGL + GLX + Zink, x11 and wayland platforms; Banners-Turnip exp/egl-x11-platform
-# ab76cba3, run 36862058991) for winex11's EGL backend, as Bannerlator's Fast OpenGL uses it
+# OpenGL: bionic Mesa (EGL + GLX + Zink, x11 and wayland platforms) for winex11's EGL backend, the set Bannerlator's
+# Fast OpenGL uses, from the newer Mesa build pinned in FASTGL_URL
 mkdir -p "$PACK/egl"
-for e in libEGL.so.1:e86f32844cb2f8f5d67df261afaacb7c7ea392d1af2b8d6f584d6b54010838dd \
-         libGL.so.1:e29c6b870af456069452e4cf2c036959fbbfa7fd4bca12da64883e671191c9ce \
-         libGLESv2.so.2:f277208f38f2c9e107f7cb3a32fc4b6e8bd1dc3d90f2f4ec9e90b12de75e99fb \
-         libgallium-26.3.0-devel.so:0aef4d32b3c28a2cc2158df1cd768a44683a98a56ef0ed3188c48939a7451bef \
-         libwayland-client.so:8f1dfc29c0e3f009da04c97b7de1f3ce6e351e0642bd9ae1da7ebc2117555bd5 \
+for e in libEGL.so.1:7d1febabcb0cb6348128bc44885886fba6a2edc103fcfc91f5f858e460b33fd6 \
+         libGL.so.1:8de5c26d4de6dcac4dd2605d8742622711adcdb76d9fe5f5848894e439bb3826 \
+         libGLESv2.so.2:2136442182ed8d724f80b2d69ee89f654694fd84439fdeb14010034c14f57658 \
+         libgallium-27.0.0-devel.so:392ca9d6d3127b2ac5fc232d25830111c759dc672f437794731fc2778ff0eb34 \
+         libwayland-client.so:fa49c2f119b84a0cf54669de1706a6bc427bb8a7f147c977328575ccbb920126 \
          libarchive.so:eb3b13634bd2c188d71e886f8c690ef32f6b4a2a0e8a7197a7f974b2d341b7ab \
-         x11egl.json:baf5fd4f91aa1551ecc4b67710bb2a7c506128b0022d27427457f24f0de8cacd; do
-  fetch "$BL_ASSETS/x11/egl/${e%%:*}" "${e#*:}" "$PACK/egl/${e%%:*}"
+         x11egl.json:90c1dcebb746625b81b4cf5335e177a4b7cbe608b359c9be5eaa43d8f0de499b; do
+  fetch "$FASTGL_URL/${e%%:*}" "${e#*:}" "$PACK/egl/${e%%:*}"
 done
 cp "$HERE/icd.json" "$PACK/adapter/icd.json"
 
@@ -180,7 +183,8 @@ cp "$HERE/NOTICE" "$PACK/NOTICE"
 {
   echo "droiddeck-bionic-runtime $REV ($(date -u +%Y-%m-%dT%H:%M:%SZ), Android API $API, NDK $(basename "$NDK"))"
   echo "imagefs $IMAGEFS_URL sha256 $IMAGEFS_SHA256"
-  echo "bannerlator $BL_COMMIT (ffmpeg8.tzst, x11/egl: Mesa EGL + GLX + Zink)"
+  echo "bannerlator $BL_COMMIT (ffmpeg8.tzst)"
+  echo "fastgl $FASTGL_URL (egl/: Mesa EGL + GLX + Zink, Mesa main d8cfbe82766)"
   echo "adapter $ADAPTER_URL (libvulkan_wrapper.so sha256 $ADAPTER_SHA256)"
   echo "layer $LAYER_URL sha256 $LAYER_SHA256 (not packed)"
   echo "d7vk $D7VK_COMMIT: i386 ddraw.dll from $D7VK_FROM"

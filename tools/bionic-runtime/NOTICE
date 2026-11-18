@@ -19,10 +19,14 @@ Taken unchanged from The412Banner's Bannerlator (GPL-3.0, https://github.com/The
   alsa-lib, libiconv (LGPL-2.1 or later), FreeType (FTL or GPL-2.0), Fontconfig (MIT), libxml2 (MIT), libffi (MIT),
   PCRE2 (BSD-3-Clause), zlib (zlib), and FFmpeg 8 libraries (LGPL-2.1 or later) from Bannerlator's ffmpeg8.tzst.
   share/X11 and etc/ (fonts, tls) come from the same imagefs.
-- egl/: Mesa (MIT, https://gitlab.freedesktop.org/mesa/mesa) EGL, GLX and Gallium with Zink, built for the bionic
-  userland with the x11 and wayland platforms in The412Banner/Banners-Turnip (exp/egl-x11-platform ab76cba3),
-  with libwayland-client (MIT) and libarchive (BSD-2-Clause); egl/x11egl.json records the build. Bannerlator ships
-  the same set for its Fast OpenGL.
+
+From The412Banner/Banners-Turnip (https://github.com/The412Banner/Banners-Turnip, release
+fastgl-x11egl-mesa-d8cfbe8-r1):
+- egl/: Mesa (MIT, https://gitlab.freedesktop.org/mesa/mesa) EGL, GLX and Gallium with Zink at Mesa main d8cfbe82766,
+  built for the bionic userland with the x11 and wayland platforms (branch fix/fastgl-zink-readback, the
+  exp/egl-x11-platform recipe that builds Bannerlator's Fast OpenGL set), with libwayland-client (MIT) and libarchive
+  (BSD-2-Clause); egl/x11egl.json records the build. Newer Mesa brings Zink's kopper front-buffer readback fixes by
+  Mike Blumenkrantz.
 
 From The412Banner/bionic-vulkan-wrapper (https://github.com/The412Banner/bionic-vulkan-wrapper, release
 wayland-adapter-placed-export-r1):
