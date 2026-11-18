@@ -1238,6 +1238,15 @@
     <string name="agent_tools_add">Add</string>
     <string name="agent_voice">Dictate</string>
     <string name="agent_voice_stop">Stop dictating</string>
+    <string name="agent_voice_hold">Slide up to lock · left to cancel</string>
+    <string name="agent_voice_listening">Listening…</string>
+    <string name="agent_voice_setup">Set up talking to the agent</string>
+    <string name="agent_voice_setup_close">Close</string>
+    <string name="agent_voice_setup_service">Speech service</string>
+    <string name="agent_voice_setup_service_detail">Speech Services by Google turns your voice into text</string>
+    <string name="agent_voice_setup_app_mic">Microphone for DroidDeck</string>
+    <string name="agent_voice_setup_service_mic">Microphone for the speech service</string>
+    <string name="agent_voice_setup_service_mic_detail">Permissions › Microphone › Allow</string>
     <string name="agent_voice_denied">DroidDeck needs the microphone to dictate</string>
     <string name="agent_attach_game">Attach what the game shows</string>
     <string name="agent_attach_game_failed">Could not capture the game</string>
@@ -1372,10 +1381,13 @@
     <string name="agent_action_sign_in">Sign in</string>
     <string name="agent_action_free">Free models</string>
     <string name="agent_action_add_key">Add key</string>
-    <string name="agent_key_hint">Paste your API key from opencode.ai/auth</string>
+    <string name="agent_key_hint">Paste your %1$s key</string>
+    <string name="agent_key_optional_hint">API key, if the server needs one</string>
+    <string name="agent_key_server_hint">Server address, like 192.168.1.20:11434</string>
+    <string name="agent_key_get">Get key</string>
     <string name="agent_key_save">Save</string>
-    <string name="agent_step_sign_in_key_hint">Free models, or a Zen key from opencode.ai/auth</string>
-    <string name="agent_step_free_models">Free models · add a Zen key for the rest</string>
+    <string name="agent_step_sign_in_key_hint">Free models, or a key from your provider</string>
+    <string name="agent_step_free_models">Free models · add a key for more</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Not built for this copy of DroidDeck</string>
     <string name="upd_updated">Updated %1$s</string>
@@ -4254,4 +4266,11 @@
     <string name="drawer_corner_tap_hint">Double-tap the top-right corner, for devices without a Back button</string>
     <string name="drawer_handle">Open the session menu</string>
     <string name="play_needs_you">Settings need you</string>
+    <string name="library_accounts">Store accounts</string>
+    <string name="library_account_sign_in">Sign in</string>
+    <string name="library_account_sign_out">Sign out</string>
+    <string name="tabs_reset">Reset</string>
+    <string name="tabs_reset_title">Reset tabs</string>
+    <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>
+    <string name="tabs_reset_body">Your tab order and what sits under More or is hidden go back to the defaults.</string>
 </resources>

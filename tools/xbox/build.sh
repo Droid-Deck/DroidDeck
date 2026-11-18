@@ -16,7 +16,9 @@ cargo build --locked --release --no-default-features --target aarch64-unknown-li
 if [[ $(uname -m) = aarch64 || -n ${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER:-} ]]; then
     cargo test --locked --release --no-default-features --target aarch64-unknown-linux-gnu -p xodus-cli
     cargo test --locked --release --no-default-features --target aarch64-unknown-linux-gnu -p xodus credential_
-    cargo test --locked --release --no-default-features --target aarch64-unknown-linux-gnu -p msixvc streaming_
+    msixvc_env=()
+    [[ $(uname -m) = aarch64 ]] || msixvc_env=(RUST_TEST_THREADS=1)
+    env "${msixvc_env[@]}" cargo test --locked --release --no-default-features --target aarch64-unknown-linux-gnu -p msixvc streaming_
 fi
 for binary in xodus-cli xodus-service; do
     install -m755 "$CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/release/$binary" "$out/$binary"

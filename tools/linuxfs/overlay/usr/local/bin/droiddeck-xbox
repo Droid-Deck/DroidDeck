@@ -390,7 +390,7 @@ def launch(command, env):
         raise RuntimeError('No Xbox account channel; start the game from DroidDeck')
     reply = store['ask'](Path(launch_dir) / 'stores', {'op': 'xbox-prepare', 'id': sidecar['id']}, timeout=190)
     if not reply or not reply.get('ok'):
-        raise RuntimeError('Xbox account service is unavailable; sign in again and retry')
+        raise RuntimeError((reply or {}).get('reason') or 'Xbox account service is unavailable; sign in again and retry')
     stopped = threading.Event()
     close = lambda: None
     try:

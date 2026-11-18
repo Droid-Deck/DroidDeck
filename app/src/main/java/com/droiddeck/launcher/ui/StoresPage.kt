@@ -155,22 +155,24 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val padH = if (narrow) 14.dp else 22.dp
     val tabs = remember {
         androidx.compose.runtime.mutableStateListOf<StoreTab>().apply {
+            SessionPrefs.settleStoresTabOrder(ctx, Store.entries.map { it.id })
             addAll(arrangeStoreTabs(SessionPrefs.storesTabOrder(ctx), SessionPrefs.storesTabHidden(ctx)))
         }
     }
     var chip by rememberSaveable { mutableStateOf(tabs.firstOrNull { it.shown }?.store?.id ?: Store.GOG.id) }
     var arranging by remember { mutableStateOf(false) }
     val shownStores = tabs.filter { it.shown }.map { it.store }
-    fun commitTabs() {
+    fun commitTabs(markCustomized: Boolean = false) {
         SessionPrefs.setStoresTabOrder(ctx, tabs.map { it.store.id })
         SessionPrefs.setStoresTabHidden(ctx, tabs.filterNot { it.shown }.map { it.store.id }.toSet())
+        if (markCustomized) SessionPrefs.setStoresTabOrderCustomized(ctx, true)
     }
     fun shiftTab(store: Store, delta: Int) {
         val from = tabs.indexOfFirst { it.store == store }
         val to = from + delta
         if (from < 0 || to !in tabs.indices) return
         tabs.add(to, tabs.removeAt(from))
-        commitTabs()
+        commitTabs(markCustomized = true)
     }
     fun moveTab(store: Store, to: Int) {
         val from = tabs.indexOfFirst { it.store == store }
@@ -178,7 +180,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         val target = to.coerceIn(0, tabs.lastIndex)
         if (target == from) return
         tabs.add(target, tabs.removeAt(from))
-        commitTabs()
+        commitTabs(markCustomized = true)
     }
     fun toggleTab(store: Store) {
         val i = tabs.indexOfFirst { it.store == store }
@@ -398,7 +400,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
             )
         }
     }
-    SignInFloodLayer(hostAt)
     }
     androidx.compose.runtime.DisposableEffect(Unit) { val page = Any(); StoresMotion.hosting(page); onDispose { StoresMotion.release(page) } }
 }
@@ -458,14 +459,14 @@ internal fun InstallWhere(item: CatalogItem) {
 }
 
 @Composable
-private fun SignInFloodLayer(hostAt: Offset) {
+internal fun SignInFloodLayer(hostAt: Offset) {
     val f = StoresMotion.signIn ?: return
     val ctx = LocalContext.current
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     val density = androidx.compose.ui.platform.LocalDensity.current
     key(f) {
         var paused by remember { mutableStateOf(false) }
-        fun back() { if (f.drainTo == null) f.drainTo = if (StoresState.isSignedIn(f.store)) StoresMotion.dots[f.store] ?: f.from else f.from }
+        fun back() { if (f.drainTo == null) f.drainTo = f.home ?: if (StoresState.isSignedIn(f.store)) StoresMotion.dots[f.store] ?: f.from else f.from }
         androidx.compose.runtime.DisposableEffect(lifecycle) {
             val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
                 if (e == androidx.lifecycle.Lifecycle.Event.ON_PAUSE && f.away) paused = true
@@ -1278,7 +1279,7 @@ private fun GameCard(
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     val open = {
-        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, item.imageUrl ?: item.tallImageUrl)) }
+        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(item.key, it.boundsInRoot(), corner, item.imageUrl ?: item.tallImageUrl, item.imageUrl ?: item.tallImageUrl)) }
         onOpen(item.key)
     }
     val screen = with(androidx.compose.ui.platform.LocalDensity.current) { androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp.toPx() }
