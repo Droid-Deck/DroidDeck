@@ -648,6 +648,7 @@ class InputSurfaceView(
         private var builtFor = 0 to 0
         private var builtStyle: InputDpadStyle? = null
         private var activePointer = -1
+        private var tapBlocked = false
         private var gradient: LinearGradient? = null
 
         override fun onDraw(canvas: Canvas) {
@@ -805,6 +806,7 @@ class InputSurfaceView(
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     activePointer = event.getPointerId(0)
+                    tapBlocked = false
                     downAt = event.eventTime; downX = event.x; downY = event.y; travel = 0f
                     if (lastUp != 0L && event.eventTime - lastUp < CLICK_MS) setClick(true)
                     set(sectors(event.getX(0) - width / 2f, event.getY(0) - height / 2f))
@@ -814,14 +816,21 @@ class InputSurfaceView(
                     set(sectors(event.getX(index) - width / 2f, event.getY(index) - height / 2f))
                 }
                 MotionEvent.ACTION_POINTER_UP -> if (event.getPointerId(event.actionIndex) == activePointer) {
-                    val next = if (event.actionIndex == 0) 1 else 0
-                    activePointer = event.getPointerId(next)
-                    downX = event.getX(next); downY = event.getY(next); travel = 0f
+                    val next = (0 until event.pointerCount).firstOrNull { it != event.actionIndex }
+                    if (next == null) {
+                        activePointer = -1
+                        set(0)
+                    } else {
+                        activePointer = event.getPointerId(next)
+                        tapBlocked = true
+                        cancelClick()
+                        set(sectors(event.getX(next) - width / 2f, event.getY(next) - height / 2f))
+                    }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL || event.flags and MotionEvent.FLAG_CANCELED != 0
                     if (index >= 0) travel = maxOf(travel, hypot(event.getX(index) - downX, event.getY(index) - downY))
-                    lastUp = if (element.hasClick && !clicking && !cancelled && event.eventTime - downAt <= STICK_TAP_MS && travel <= tapSlop) event.eventTime else 0L
+                    lastUp = if (element.hasClick && !clicking && !cancelled && !tapBlocked && event.eventTime - downAt <= STICK_TAP_MS && travel <= tapSlop) event.eventTime else 0L
                     if (cancelled) cancelClick() else setClick(false)
                     activePointer = -1
                     set(0)
