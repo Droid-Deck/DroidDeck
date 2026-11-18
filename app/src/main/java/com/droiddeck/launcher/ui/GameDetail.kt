@@ -1000,12 +1000,13 @@ private fun CloudRows(g: Library.SteamGame) {
             StoresState.post { enabled = written?.cloud ?: enabled }
         }, "cloud-switch").start()
     }
-    val ready = st != null && supported && enabled && busy == null && st.folder != null
+    val ready = st != null && supported && enabled && busy == null && st.folder != null && st.signedIn
     val pending = stringResource(R.string.cloud_pending)
     val summary = when {
         st == null || busy != null -> pending
         !supported -> stringResource(R.string.cloud_none)
-        st.folder == null -> stringResource(if (st.reason == "not-signed-in") R.string.cloud_signed_out else R.string.cloud_not_synced)
+        !st.signedIn || st.reason == "not-signed-in" -> stringResource(R.string.cloud_signed_out)
+        st.folder == null -> stringResource(R.string.cloud_not_synced)
         conflict -> stringResource(R.string.cloud_conflict_files, st.conflicts.size)
         st.lastSync > 0 -> stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString())
         else -> stringResource(R.string.cloud_never)

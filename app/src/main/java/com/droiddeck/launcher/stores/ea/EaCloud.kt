@@ -37,7 +37,8 @@ internal class EaCloud(
         val files = manifest?.files.orEmpty().mapNotNull { e ->
             val path = EaSaveRules.normalize(e.localName)
             if (!path.startsWith(base, ignoreCase = true) || !rules.matches(path)) return@mapNotNull null
-            CloudFile(localName(path.substring(base.length)), parseTime(e.modified), hex(e.md5), readLink = e.href)
+            val md5 = hex(e.md5) ?: error("EA listed ${path.substring(base.length)} without a valid checksum")
+            CloudFile(localName(path.substring(base.length)), parseTime(e.modified), md5, readLink = e.href)
         }
         listed = files.associate { it.name.lowercase() to it.md5 }
         return files
@@ -63,7 +64,8 @@ internal class EaCloud(
             val signed = authorize(lock, listOf(Request("GET", href))).single()
             val reply = EaHttp.request(signed.url, headers = signed.headers)
             check(reply.ok) { "EA cloud save download answered ${reply.status}" }
-            file.md5?.let { want -> check(hex(b64(md5(reply.body))) == want) { "EA cloud save ${file.name} failed its checksum" } }
+            val want = file.md5 ?: error("EA listed ${file.name} without a valid checksum")
+            check(hex(b64(md5(reply.body))) == want) { "EA cloud save ${file.name} failed its checksum" }
             reply.body to file.modifiedMs
         }
     }
@@ -78,7 +80,8 @@ internal class EaCloud(
             check(locked != null || !found) { "EA's cloud save record disappeared" }
             val current = locked ?: Manifest("{00000000-0000-0000-0000-000000000000}", emptyList(), emptyList())
             if (seen != null) for (name in files.keys) {
-                val now = current.files.firstOrNull { EaSaveRules.normalize(it.localName).equals(base + name, ignoreCase = true) }?.let { hex(it.md5) }
+                val entry = current.files.firstOrNull { EaSaveRules.normalize(it.localName).equals(base + name, ignoreCase = true) }
+                val now = entry?.let { hex(it.md5) ?: error("EA lists $name without a valid checksum") }
                 check(now == seen[name.lowercase()]) { "EA's cloud saves changed since they were read" }
             }
             val now = System.currentTimeMillis()

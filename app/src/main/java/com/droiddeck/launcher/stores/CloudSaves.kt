@@ -37,7 +37,7 @@ object CloudSaves {
             if (detail.isNotEmpty()) " detail=\"$detail\"" else ""
     }
 
-    class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String, val conflicts: List<String> = emptyList())
+    class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String, val conflicts: List<String> = emptyList(), val signedIn: Boolean = true)
 
     private fun game(context: Context, store: Store, id: String): Pair<File, StoreGameSidecar>? =
         StoreInstallRoot.gameFolders(context).firstNotNullOfOrNull { f ->
@@ -75,6 +75,10 @@ object CloudSaves {
 
     fun template(context: Context, store: Store, id: String, folder: File, sidecar: StoreGameSidecar): String? {
         val p = prefs(context, store)
+        if (store == Store.EA) eaRules(context, id)?.let { fresh ->
+            if (fresh.isEmpty()) rememberNoCloud(p, id) else p.edit().putString("cloud_template_$id", fresh).remove("cloud_template_at_$id").apply()
+            return fresh
+        }
         var retryNone = false
         if (p.contains("cloud_template_$id")) {
             val cached = p.getString("cloud_template_$id", "") ?: ""
@@ -170,7 +174,7 @@ object CloudSaves {
 
     fun status(context: Context, store: Store, id: String): Status {
         val (dir, reason) = saveFolder(context, store, id)
-        return Status(reason != "no-cloud-saves" && reason != "not-installed", dir, lastSync(context, store, id), reason, conflicts(context, store, id))
+        return Status(reason != "no-cloud-saves" && reason != "not-installed", dir, lastSync(context, store, id), reason, conflicts(context, store, id), signedIn(context, store))
     }
 
 
@@ -199,6 +203,11 @@ object CloudSaves {
             else EaCloud(token, uid, EaCloud.keys(master, sidecar?.extra?.get("multiplayerId").orEmpty()), base, rules, saveFolder(context, store, id).first)
         }
         Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> null
+    }
+
+    private fun signedIn(context: Context, store: Store): Boolean = when (store) {
+        Store.EA -> EaAuth.load(context)?.userId?.isNotEmpty() == true
+        else -> true
     }
 
     private fun eaRules(context: Context, id: String): String? {
@@ -357,7 +366,8 @@ object CloudSaves {
     private fun localFiles(dir: File): Map<String, File> {
         if (!dir.isDirectory) return emptyMap()
         val root = runCatching { dir.canonicalPath + File.separator }.getOrNull() ?: return emptyMap()
-        return dir.walkTopDown().filter { it.isFile && runCatching { it.canonicalPath.startsWith(root) }.getOrDefault(false) }
+        val inside = { f: File -> runCatching { (f.canonicalPath + File.separator).startsWith(root) }.getOrDefault(false) }
+        return dir.walkTopDown().onEnter(inside).filter { it.isFile && inside(it) }
             .associateBy { it.relativeTo(dir).path.replace(File.separatorChar, '/') }
     }
 
@@ -380,7 +390,7 @@ object CloudSaves {
         val base = baseline(context, store, id)
         val plan = CloudPlan.down(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
         val take = if (force) plan.transfer + plan.conflicts else plan.transfer
-        if (take.isNotEmpty() && files.isNotEmpty()) backup(context, store, id, dir, "local")
+        if (take.isNotEmpty() && files.isNotEmpty() && !backup(context, store, id, dir, "local")) return Result("failed", 0, 0, "backup-failed")
         val next = HashMap(base.orEmpty())
         var bytes = 0L
         for (name in take) {
@@ -429,7 +439,7 @@ object CloudSaves {
                 stamped += cloud.put(data, send.associateWith { files.getValue(it).lastModified() })
                 for ((name, t) in stamped) if (t > 0) files[name]?.setLastModified(t)
             }
-            val after = remote(cloud) { it in send }
+            val after = if (send.all { cloud.committed(it) != null }) emptyMap() else remote(cloud) { it in send && cloud.committed(it) == null }
             for (name in send) {
                 val r = cloud.committed(name) ?: after[name]
                 next[name] = CloudPlan.Entry(sentMd5.getValue(name), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
@@ -473,10 +483,11 @@ object CloudSaves {
     private fun backupRoot(context: Context, store: Store, id: String) =
         File(context.filesDir, "stores/cloud-backups/${store.id}-${id.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
 
-    private fun backup(context: Context, store: Store, id: String, dir: File, kind: String) {
+    private fun backup(context: Context, store: Store, id: String, dir: File, kind: String): Boolean {
         val root = backupRoot(context, store, id)
-        runCatching { dir.copyRecursively(File(root, "$kind-${System.currentTimeMillis()}"), overwrite = true) }
+        val copied = runCatching { dir.copyRecursively(File(root, "$kind-${System.currentTimeMillis()}"), overwrite = true) }.getOrDefault(false)
         prune(root, kind)
+        return copied
     }
 
     private fun backupCloud(context: Context, store: Store, id: String, cloud: CloudTransport, files: List<CloudFile>) {
