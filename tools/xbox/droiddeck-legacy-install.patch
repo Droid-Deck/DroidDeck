@@ -1647,7 +1647,7 @@ index 0000000..d626fb2
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index a0136f8..92b1a14 100644
+index a0136f8..dceef4e 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -1675,12 +1675,26 @@ index a0136f8..92b1a14 100644
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
          Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
-@@ -692,3 +701,106 @@ where
+@@ -692,3 +701,174 @@ where
      }
      ExitCode::SUCCESS
  }
 +
 +const PLAIN_LIMIT: u64 = 1 << 30;
++
++fn publish(staging: &Path, out: &Path) -> Result<(), String> {
++    let entries = std::fs::read_dir(staging).map_err(|error| format!("staged package unreadable: {error}"))?;
++    for entry in entries {
++        let entry = entry.map_err(|error| format!("staged package unreadable: {error}"))?;
++        let target = out.join(entry.file_name());
++        if let Ok(meta) = std::fs::symlink_metadata(&target) {
++            if meta.is_dir() { std::fs::remove_dir_all(&target) } else { std::fs::remove_file(&target) }
++                .map_err(|error| format!("could not replace {}: {error}", target.display()))?;
++        }
++        std::fs::rename(entry.path(), &target).map_err(|error| format!("could not place {}: {error}", target.display()))?;
++    }
++    Ok(())
++}
 +
 +async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &Path) -> ExitCode {
 +    if length > PLAIN_LIMIT {
@@ -1710,8 +1724,11 @@ index a0136f8..92b1a14 100644
 +            return ExitCode::FAILURE;
 +        }
 +    }
-+    let unpacked = crate::commands::unzip::extract(&archive, out);
++    let staging = out.join(".xodus-plain-staging");
++    std::fs::remove_dir_all(&staging).ok();
++    let unpacked = crate::commands::unzip::extract(&archive, &staging).and_then(|()| publish(&staging, out));
 +    std::fs::remove_file(&archive).ok();
++    std::fs::remove_dir_all(&staging).ok();
 +    match unpacked {
 +        Ok(()) => ExitCode::SUCCESS,
 +        Err(error) => {
@@ -1751,6 +1768,55 @@ index a0136f8..92b1a14 100644
 +        out
 +    }
 +
++    fn stored_zip_of(entries: &[(&str, &[u8], u32)]) -> Vec<u8> {
++        let mut out = Vec::new();
++        let mut central = Vec::new();
++        for (name, data, declared) in entries {
++            let offset = out.len() as u32;
++            let n = name.len() as u16;
++            out.extend_from_slice(&[0x50, 0x4b, 0x03, 0x04, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
++            out.extend_from_slice(&declared.to_le_bytes());
++            out.extend_from_slice(&declared.to_le_bytes());
++            out.extend_from_slice(&n.to_le_bytes());
++            out.extend_from_slice(&0u16.to_le_bytes());
++            out.extend_from_slice(name.as_bytes());
++            out.extend_from_slice(data);
++            central.extend_from_slice(&[0x50, 0x4b, 0x01, 0x02, 20, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
++            central.extend_from_slice(&declared.to_le_bytes());
++            central.extend_from_slice(&declared.to_le_bytes());
++            central.extend_from_slice(&n.to_le_bytes());
++            central.extend_from_slice(&[0u8; 12]);
++            central.extend_from_slice(&offset.to_le_bytes());
++            central.extend_from_slice(name.as_bytes());
++        }
++        let at = out.len() as u32;
++        let size = central.len() as u32;
++        out.extend_from_slice(&central);
++        let count = entries.len() as u16;
++        out.extend_from_slice(&[0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0]);
++        out.extend_from_slice(&count.to_le_bytes());
++        out.extend_from_slice(&count.to_le_bytes());
++        out.extend_from_slice(&size.to_le_bytes());
++        out.extend_from_slice(&at.to_le_bytes());
++        out.extend_from_slice(&0u16.to_le_bytes());
++        out
++    }
++
++    #[tokio::test]
++    async fn an_entry_that_runs_into_the_next_header_is_refused() {
++        let out = std::env::temp_dir().join(format!("xodus-plain-next-{}", std::process::id()));
++        std::fs::create_dir_all(&out).unwrap();
++        let fine = stored_zip_of(&[("a.txt", b"aaaa", 4), ("b.txt", b"bbbb", 4)]);
++        let code = super::plain_package(std::io::Cursor::new(fine.clone()), fine.len() as u64, &out).await;
++        assert_eq!(code, std::process::ExitCode::SUCCESS);
++        assert_eq!(std::fs::read(out.join("b.txt")).unwrap(), b"bbbb");
++        let bad = stored_zip_of(&[("a.txt", b"zzzz", 10), ("b.txt", b"yyyy", 4)]);
++        let code = super::plain_package(std::io::Cursor::new(bad.clone()), bad.len() as u64, &out).await;
++        assert_eq!(code, std::process::ExitCode::FAILURE);
++        assert_eq!(std::fs::read(out.join("a.txt")).unwrap(), b"aaaa");
++        std::fs::remove_dir_all(&out).ok();
++    }
++
 +    #[tokio::test]
 +    async fn a_plain_archive_is_downloaded_whole_and_unpacked() {
 +        let out = std::env::temp_dir().join(format!("xodus-plain-{}", std::process::id()));
@@ -1779,15 +1845,17 @@ index a0136f8..92b1a14 100644
 +        let length = overrun.len() as u64;
 +        let overran = super::plain_package(std::io::Cursor::new(overrun), length, &out).await;
 +        assert_eq!(overran, std::process::ExitCode::FAILURE);
++        assert_eq!(std::fs::read(out.join("AppxManifest.xml")).unwrap(), b"<Package/>");
++        assert!(!out.join(".xodus-plain-staging").exists());
 +        std::fs::remove_dir_all(&out).ok();
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/unzip.rs b/crates/xodus-cli/src/commands/unzip.rs
 new file mode 100644
-index 0000000..0aaf52c
+index 0000000..accedcb
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/unzip.rs
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,219 @@
 +//! Plain ZIP packages, which is what the store serves for a framework.
 +//!
 +//! Framework packages (`Microsoft.VCLibs.140.00` and its siblings) arrive from the
@@ -1836,6 +1904,7 @@ index 0000000..0aaf52c
 +    }
 +    std::fs::create_dir_all(destination).map_err(|error| format!("package folder failed: {error}"))?;
 +    let directory = offset;
++    let mut listed = Vec::new();
 +    for _ in 0..entries {
 +        file.seek(SeekFrom::Start(offset)).map_err(|error| format!("package seek failed: {error}"))?;
 +        let mut header = [0u8; 46];
@@ -1869,6 +1938,13 @@ index 0000000..0aaf52c
 +            }
 +        }
 +        let name = String::from_utf8(name).map_err(|_| "a package entry has an unreadable name".to_string())?;
++        listed.push(Listed { name, method, compressed, size, local });
++    }
++    let mut starts: Vec<u64> = listed.iter().map(|entry| entry.local).collect();
++    starts.sort_unstable();
++    starts.dedup();
++    for Listed { name, method, compressed, size, local } in listed {
++        let limit = starts.iter().copied().find(|start| *start > local).unwrap_or(directory);
 +        if name.ends_with('/') {
 +            continue;
 +        }
@@ -1883,7 +1959,7 @@ index 0000000..0aaf52c
 +        let local_name = u16::from_le_bytes([local_header[26], local_header[27]]) as usize;
 +        let local_extra = u16::from_le_bytes([local_header[28], local_header[29]]) as usize;
 +        let data = local + 30 + local_name as u64 + local_extra as u64;
-+        if data.checked_add(compressed).is_none_or(|end| end > directory) {
++        if data.checked_add(compressed).is_none_or(|end| end > limit) {
 +            return Err(format!("the package entry {name} runs past its data"));
 +        }
 +        if method == 0 && compressed != size {
@@ -1968,6 +2044,14 @@ index 0000000..0aaf52c
 +        at = body + size;
 +    }
 +    wide
++}
++
++struct Listed {
++    name: String,
++    method: u16,
++    compressed: u64,
++    size: u64,
++    local: u64,
 +}
 +
 +#[derive(Default)]
