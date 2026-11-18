@@ -483,7 +483,7 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp).testTag("play-steam"), onClick = a.onPlay)
             }
         }
-        Box(Modifier.padding(top = 12.dp)) { GameFileFolderActions(s, a) }
+        Box(Modifier.padding(top = 12.dp)) { GameFileFolderActions(s, a, labeled = true) }
     }
 }
 

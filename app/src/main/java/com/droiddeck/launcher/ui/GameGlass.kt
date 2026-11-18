@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -207,11 +208,30 @@ private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, blur: androidx
                     if (fadeTop) drawRect(Brush.verticalGradient(0f to Color.Transparent, (24.dp.toPx() / size.height) to Color.Black), blendMode = BlendMode.DstIn)
                 },
         ) {
+            // A slow push-in and drift, centred where the crop leans, that starts from rest so a card flight lands on the same frame.
+            val drift = if (Motion.scale == 0f) null else androidx.compose.animation.core.rememberInfiniteTransition(label = "heroDrift").animateFloat(
+                0f, 1f,
+                androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(26_000, easing = androidx.compose.animation.core.EaseInOutSine),
+                    androidx.compose.animation.core.RepeatMode.Reverse,
+                ),
+                label = "heroDriftT",
+            )
             AsyncImage(
                 model = model, contentDescription = null, contentScale = ContentScale.Crop,
                 alignment = BiasAlignment(0.45f, -0.35f),
                 colorFilter = artFilter,
-                modifier = Modifier.matchParentSize().then(if (blur > 0.dp) Modifier.blur(blur) else Modifier),
+                modifier = Modifier.matchParentSize()
+                    .graphicsLayer {
+                        val t = drift?.value ?: 0f
+                        val zoom = 1f + 0.08f * t
+                        scaleX = zoom
+                        scaleY = zoom
+                        translationX = -size.width * 0.02f * t
+                        translationY = size.height * 0.012f * t
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.72f, 0.33f)
+                    }
+                    .then(if (blur > 0.dp) Modifier.blur(blur) else Modifier),
             )
             Box(
                 Modifier.matchParentSize().drawBehind { with(look) { shade(size, 1f) } },

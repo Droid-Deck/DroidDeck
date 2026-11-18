@@ -110,12 +110,16 @@ internal fun PageFlood(
             kotlinx.coroutines.withTimeoutOrNull(300) { snapshotFlow { get() }.first { it != null } }
         }?.translate(-at)?.takeIf { it.height > 1f && it.overlaps(Rect(Offset.Zero, size)) }
         if (target != null) {
+            // A tile with no picture yet would cover the card with a blank box, so wait briefly for the art.
+            if (!leaving) kotlinx.coroutines.withTimeoutOrNull(250) {
+                snapshotFlow { art.ready() && (ontoArt == null || ontoArt.ready()) }.first { it }
+            }
             coroutineScope {
                 if (!leaving) {
                     val runs = edges.map { launch { it.animateTo(1f, Motion.sp(0.85f, 320f)) } }
-                    snapshotFlow { edges.all { it.value >= 0.9f } }.first { it }
-                    launch { shown.animateTo(1f, Motion.tw(240)) }
-                    launch { delay(Motion.ms(140).toLong()); tile.animateTo(0f, Motion.tw(220)) }
+                    snapshotFlow { edges.all { it.value >= 0.985f } }.first { it }
+                    launch { shown.animateTo(1f, Motion.tw(220)) }
+                    launch { delay(Motion.ms(120).toLong()); tile.animateTo(0f, Motion.tw(200)) }
                     runs.forEach { it.join() }
                 } else {
                     launch { shown.animateTo(0f, Motion.tw(160)) }
@@ -167,7 +171,8 @@ internal fun PageFlood(
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = shown.value; translationY = (1f - shown.value) * 14.dp.toPx() * rise }) { content() }
         val onCorner = with(density) { ontoCorner.toPx() }
         Canvas(Modifier.fillMaxSize().graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }) {
-            if (tile.value > 0.01f) drawTile(from, edges.map { it.value }, pal.surface, pal.line2, tile.value, art, target, onCorner, ontoLook, ontoArt)
+            val live = target?.let { landed -> onto?.invoke()?.translate(-at)?.takeIf { it.height > 1f } ?: landed }
+            if (tile.value > 0.01f && (live == null || art.ready())) drawTile(from, edges.map { it.value }, pal.surface, pal.line2, tile.value, art, live, onCorner, ontoLook, ontoArt)
         }
     }
 }
@@ -252,3 +257,5 @@ private fun DrawScope.drawCropped(art: Painter, left: Float, top: Float, w: Floa
     val dh = pic.height * k
     translate(left + (w - dw) / 2f * (1f + bx), top + (h - dh) / 2f * (1f + by)) { with(art) { draw(Size(dw, dh), alpha = alpha) } }
 }
+
+private fun Painter?.ready(): Boolean = this == null || intrinsicSize.let { it.isSpecified && it.width > 0f && it.height > 0f }
