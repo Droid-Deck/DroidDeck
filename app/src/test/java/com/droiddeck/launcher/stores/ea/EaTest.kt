@@ -500,6 +500,42 @@ class EaTest {
         assertNull(EaSaveRules.parse("""<saveFileCriteria><include order="0">C:/Games/x/</include></saveFileCriteria>""")!!.base())
     }
 
+    @Test fun rulesApplyInTheirOrderAndTheFirstMatchDecides() {
+        val rules = EaSaveRules.parse("""<saveFileCriteria>
+<exclude order="1">%Documents%/Game/Config/</exclude>
+<include order="0">%Documents%/Game/Config/keys.ini</include>
+<include order="2">%Documents%/Game/</include></saveFileCriteria>""")!!
+        assertTrue(rules.matches("%Documents%/Game/Config/keys.ini"))
+        assertFalse(rules.matches("%Documents%/Game/Config/video.ini"))
+        assertTrue(rules.matches("%Documents%/Game/Save/1.sav"))
+    }
+
+    @Test fun aBarePatternMatchesFileNamesInsideTheSaveFolder() {
+        val dig = EaSaveRules.parse("""<saveFileCriteria>
+<exclude order="0">%Documents%/My Games/SteamWorld Dig/controls.cfg</exclude>
+<exclude order="2">%Documents%/My Games/SteamWorld Dig/settings.xml</exclude>
+<include order="3">*.xml</include>
+<include order="4">%Documents%/My Games/SteamWorld Dig/profile.dat</include></saveFileCriteria>""")!!
+        assertEquals("%Documents%/My Games/SteamWorld Dig/", dig.base())
+        assertTrue(dig.matches("%Documents%/My Games/SteamWorld Dig/profile1.xml"))
+        assertFalse(dig.matches("%Documents%/My Games/SteamWorld Dig/settings.xml"))
+        assertFalse(dig.matches("%Documents%/Other Game/profile1.xml"))
+        val witness = EaSaveRules.parse("""<saveFileCriteria><include order="0">%AppData%/The Witness/*</include><include order="1">*.png</include></saveFileCriteria>""")!!
+        assertEquals("%AppData%/The Witness/", witness.base())
+        assertTrue(witness.matches("%AppData%/The Witness/shot.png"))
+    }
+
+    @Test fun localLowAndInstallFoldersResolveToTheirTemplates() {
+        val fe = EaSaveRules.parse("""<saveFileCriteria><exclude order="0">%LocalLowAppData%/Zoink Games/Fe/SystemSettings.sav</exclude>
+<include order="1">%LocalLowAppData%/Zoink Games/Fe/Save1.sav</include></saveFileCriteria>""")!!
+        assertEquals("%APPLICATION_DATA_LOCAL_LOW%/Zoink Games/Fe/", EaSaveRules.template(fe.base()!!))
+        val castle = EaSaveRules.parse("""<saveFileCriteria><include order="0">%InstallDir%/x86/Lost_Castle_Data/lc_game_data</include>
+<include order="1">%InstallDir%/x64/Lost_Castle_Data/lc_game_data</include></saveFileCriteria>""")!!
+        assertEquals("%INSTALL%/", EaSaveRules.template(castle.base()!!))
+        assertTrue(castle.matches("%InstallDir%/x64/Lost_Castle_Data/lc_game_data"))
+        assertFalse(castle.matches("%InstallDir%/x64/Lost_Castle_Data/other"))
+    }
+
     @Test fun aManifestKeepsItsFilesSnapshotsAndEaTimestampsThroughAWrite() {
         val xml = """<manifest xmlns="http://origin.com/cloudsaves/manifest" lineage="{00000000-0000-0000-0000-000000000000}">
  <file size="115352" href="content/115352-c7996be80a6e38d1f8ef28866b114f8b" md5="x5lr6ApuONH47yiGaxFPiw==">

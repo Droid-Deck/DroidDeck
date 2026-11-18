@@ -1,9 +1,11 @@
 package com.droiddeck.launcher.stores.ea
 
-internal class EaSaveRules(val includes: List<String>, val excludes: List<String>) {
+internal class EaSaveRules(private val rules: List<Pair<Boolean, String>>) {
+    val includes get() = rules.filter { it.first }.map { it.second }
+    val excludes get() = rules.filterNot { it.first }.map { it.second }
 
     fun base(): String? {
-        val dirs = includes.map { pattern ->
+        val dirs = includes.filterNot(::bare).map { pattern ->
             val wild = pattern.indexOfFirst { it == '*' || it == '?' }
             val fixed = if (wild < 0) pattern else pattern.substring(0, wild)
             if (fixed.endsWith('/')) fixed else fixed.substringBeforeLast('/', "") + "/"
@@ -21,8 +23,11 @@ internal class EaSaveRules(val includes: List<String>, val excludes: List<String
 
     fun matches(path: String): Boolean {
         val p = normalize(path)
-        return includes.any { hit(it, p) } && excludes.none { hit(it, p) }
+        val inside = base()?.let { p.startsWith(it, ignoreCase = true) } ?: false
+        return rules.firstOrNull { (_, pattern) -> if (bare(pattern)) inside && hit(pattern, p.substringAfterLast('/')) else hit(pattern, p) }?.first ?: false
     }
+
+    private fun bare(pattern: String) = !pattern.startsWith('%') && '/' !in pattern
 
     private fun hit(pattern: String, path: String): Boolean = when {
         pattern.endsWith('/') -> path.startsWith(pattern, ignoreCase = true)
@@ -37,10 +42,12 @@ internal class EaSaveRules(val includes: List<String>, val excludes: List<String
 
     companion object {
         private val VARIABLE = Regex("%[A-Za-z]+%")
-        private val RULE = Regex("<(include|exclude)\\b[^>]*>([^<]*)</\\1>", RegexOption.IGNORE_CASE)
+        private val RULE = Regex("<(include|exclude)\\b([^>]*)>([^<]*)</\\1>", RegexOption.IGNORE_CASE)
+        private val ORDER = Regex("\\border\\s*=\\s*[\"']?(\\d+)")
         private val TOKENS = mapOf(
             "documents" to "%DOCUMENTS%", "savedgames" to "%SAVED_GAMES%", "appdata" to "%APPDATA%",
             "localappdata" to "%LOCALAPPDATA%", "programdata" to "%PROGRAMDATA%", "userprofile" to "%USERPROFILE%",
+            "locallowappdata" to "%APPLICATION_DATA_LOCAL_LOW%", "installdir" to "%INSTALL%",
         )
 
         private val COMMENT = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL)
@@ -49,11 +56,12 @@ internal class EaSaveRules(val includes: List<String>, val excludes: List<String
         fun normalize(path: String) = path.replace('\\', '/')
 
         fun parse(xml: String): EaSaveRules? {
-            val rules = RULE.findAll(COMMENT.replace(xml, "")).map { it.groupValues[1].lowercase() to normalize(unescape(it.groupValues[2]).trim()) }
-                .filter { it.second.isNotEmpty() }.toList()
-            val includes = rules.filter { it.first == "include" }.map { it.second }
-            if (includes.isEmpty()) return null
-            return EaSaveRules(includes, rules.filter { it.first == "exclude" }.map { it.second })
+            val rules = RULE.findAll(COMMENT.replace(xml, "")).mapIndexed { index, rule ->
+                val order = ORDER.find(rule.groupValues[2])?.groupValues?.get(1)?.toIntOrNull() ?: index
+                Triple(order, rule.groupValues[1].equals("include", true), normalize(unescape(rule.groupValues[3]).trim()))
+            }.filter { it.third.isNotEmpty() }.sortedBy { it.first }.map { it.second to it.third }.toList()
+            if (rules.none { it.first }) return null
+            return EaSaveRules(rules)
         }
 
         fun template(base: String): String? {
