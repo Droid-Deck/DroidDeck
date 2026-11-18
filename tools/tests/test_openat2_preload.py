@@ -329,12 +329,12 @@ class Openat2PreloadTest(unittest.TestCase):
         counter = cls.tmp / "counter.c"
         counter.write_text(COUNTER)
         (cls.tmp / "fp").mkdir()
-        subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-o", str(cls.tmp / "fp/libblfastpath.so"),
+        subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-o", str(cls.tmp / "fp/libddfastpath.so"),
                         str(counter), "-ldl"], check=True)
         tree = cls.tmp / "counted"
         make_tree(tree, cls.outside)
         counted = subprocess.run([str(cls.tmp / "openat2"), str(tree), str(tree)], input=cases, capture_output=True,
-                                 text=True, env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")),
+                                 text=True, env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libddfastpath.so")),
                                  timeout=60)
         if counted.returncode != 0:
             raise AssertionError(counted.stdout + counted.stderr)
@@ -345,7 +345,7 @@ class Openat2PreloadTest(unittest.TestCase):
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-o", str(cls.tmp / "raw_open"), str(raw)], check=True)
         cls.raw = subprocess.run([str(cls.tmp / "raw_open"), str(tree / "etc/hostname"), str(tree / "missing")],
                                  capture_output=True, text=True, timeout=60,
-                                 env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")))
+                                 env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libddfastpath.so")))
         lookup = cls.tmp / "raw_lookup.c"
         lookup.write_text(RAW_LOOKUP)
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-o", str(cls.tmp / "raw_lookup"), str(lookup)], check=True)
@@ -353,16 +353,16 @@ class Openat2PreloadTest(unittest.TestCase):
         cls.lookup_plain = subprocess.run([str(cls.tmp / "raw_lookup"), *cls.lookup_args], capture_output=True, text=True,
                                           timeout=60, env=dict(os.environ, LD_PRELOAD=str(cls.lib)))
         cls.lookup = subprocess.run([str(cls.tmp / "raw_lookup"), *cls.lookup_args], capture_output=True, text=True, timeout=60,
-                                    env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libblfastpath.so")))
+                                    env=dict(os.environ, LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "fp/libddfastpath.so")))
         (cls.tmp / "real").mkdir()
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-pthread", "-o",
-                        str(cls.tmp / "real/libblfastpath.so"), str(FASTPATH), "-ldl"], check=True)
+                        str(cls.tmp / "real/libddfastpath.so"), str(FASTPATH), "-ldl"], check=True)
         shutil.copy(cls.tmp / "raw_open", cls.tmp / "FEX")
         try:
             cls.fex = subprocess.run([str(cls.tmp / "FEX"), str(tree / "etc/hostname"), str(tree / "missing")],
                                      capture_output=True, text=True, timeout=20,
                                      env=dict(os.environ, PROOT_FP_ROOT="/", PROOT_FP_KEY="test",
-                                              LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "real/libblfastpath.so")))
+                                              LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "real/libddfastpath.so")))
         except subprocess.TimeoutExpired:
             cls.fex = None
         wrapper = cls.tmp / "wrapper.c"
@@ -376,7 +376,7 @@ class Openat2PreloadTest(unittest.TestCase):
         try:
             cls.fex_lookup = subprocess.run([str(cls.tmp / "fex-lookup/FEX"), *cls.lookup_args], capture_output=True, text=True,
                                             timeout=20, env=dict(os.environ, PROOT_FP_ROOT="/", PROOT_FP_KEY="test",
-                                                                 LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "real/libblfastpath.so")))
+                                                                 LD_PRELOAD="%s:%s" % (cls.lib, cls.tmp / "real/libddfastpath.so")))
         except subprocess.TimeoutExpired:
             cls.fex_lookup = None
 

@@ -14,10 +14,10 @@
 #include <time.h>
 #include <unistd.h>
 
-#if defined(__aarch64__) || defined(BL_CLOCK_ANY_ARCH)
+#if defined(__aarch64__) || defined(DD_CLOCK_ANY_ARCH)
 
 #ifndef CP_CTL
-#define CP_CTL "/tmp/.bl-clock"
+#define CP_CTL "/tmp/.dd-clock"
 #endif
 #ifndef FUTEX_LOCK_PI2
 #define FUTEX_LOCK_PI2 13
@@ -255,7 +255,7 @@ int timerfd_settime(int fd, int flags, const struct itimerspec *value, struct it
   return cp_tfd_settime(fd, flags, cp_timer(fd, flags, value, &moved), old);
 }
 
-__attribute__((visibility("hidden"))) int bl_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) {
+__attribute__((visibility("hidden"))) int dd_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) {
   struct timespec moved;
   struct itimerspec timer;
   int64_t shift;
@@ -302,7 +302,7 @@ __attribute__((visibility("hidden"))) int bl_clock_syscall(long number, const lo
 
 #else
 
-__attribute__((visibility("hidden"))) int bl_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) {
+__attribute__((visibility("hidden"))) int dd_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) {
   (void)number;
   (void)args;
   (void)real;

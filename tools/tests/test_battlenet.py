@@ -56,7 +56,7 @@ class StoreDebugEnvironmentTest(Temp):
     def env(self, values=None):
         debug_dir = self.tmp / "session"
         debug_dir.mkdir(exist_ok=True)
-        base = {"HOME": str(self.tmp), "BL_DEBUG_DIR": str(debug_dir)}
+        base = {"HOME": str(self.tmp), "DD_DEBUG_DIR": str(debug_dir)}
         base.update(values or {})
         return base
 
@@ -871,7 +871,7 @@ class OpenTest(Temp):
         self.alive.extend([(50, [str(client)]), (51, ["C:\\ProgramData\\Battle.net\\Agent\\Agent.9824\\Agent.exe"])])
         started = []
         with mock.patch.object(BNET["subprocess"], "Popen", lambda cmd, **kw: started.append((cmd, kw)) or mock.Mock()), \
-                mock.patch.dict(os.environ, {"BL_DESKTOP": "1"}), \
+                mock.patch.dict(os.environ, {"DD_DESKTOP": "1"}), \
                 mock.patch.dict(BNET, {"CACHE": str(self.tmp / "cache"), "acquire": lambda: self.fail("took the lock")}):
             self.assertIsNone(BNET["show"](self.root, wait=60, poll=0))
         cmd, kw = started[0]
@@ -1076,7 +1076,7 @@ class LaunchTest(Harness):
         self.install()
         pfx = Path(self.root) / ("steamapps/compatdata/%s/pfx" % BNET["APP_ID"])
         (pfx / "user.reg").write_text("WINE REGISTRY Version 2\n")
-        with mock.patch.dict(os.environ, {"BL_WIDTH": "160", "BL_HEIGHT": "90"}), \
+        with mock.patch.dict(os.environ, {"DD_WIDTH": "160", "DD_HEIGHT": "90"}), \
                 mock.patch.dict(BNET, {"wallpaper_bmp": lambda w, h: b"BM%dx%d" % (w, h)}):
             self.assertTrue(BNET["wallpaper"](self.root))
             self.assertTrue(BNET["wallpaper"](self.root))
@@ -1092,7 +1092,7 @@ class LaunchTest(Harness):
         self.install()
         pfx = Path(self.root) / ("steamapps/compatdata/%s/pfx" % BNET["APP_ID"])
         (pfx / "user.reg").write_text("WINE REGISTRY Version 2\n")
-        with mock.patch.dict(os.environ, {"BL_WIDTH": "2560", "BL_HEIGHT": "1600"}), \
+        with mock.patch.dict(os.environ, {"DD_WIDTH": "2560", "DD_HEIGHT": "1600"}), \
                 mock.patch.dict(BNET, {"wallpaper_bmp": lambda w, h: b"BM%dx%d" % (w, h)}):
             self.assertTrue(BNET["wallpaper"](self.root))
         image = pfx / "drive_c/users/steamuser/AppData/Local/DroidDeck/wallpaper-1152x720.bmp"
@@ -1145,17 +1145,17 @@ class LaunchTest(Harness):
         sizes = {("1280", "720"): 96, ("1920", "1080"): 96, ("2400", "1504"): 120, ("2448", "1848"): 120,
                  ("1080", "2400"): 96, ("3840", "2160"): 192, ("2560", "1600"): 120}
         for (width, height), want in sizes.items():
-            with mock.patch.dict(os.environ, {"BL_WIDTH": width, "BL_HEIGHT": height}):
+            with mock.patch.dict(os.environ, {"DD_WIDTH": width, "DD_HEIGHT": height}):
                 self.assertEqual(BNET["desktop_dpi"](), want, (width, height))
 
     def test_battle_nets_desktop_scale_is_written_once_and_follows_the_size(self):
         self.install()
         pfx = Path(self.root) / ("steamapps/compatdata/%s/pfx" % BNET["APP_ID"])
         (pfx / "user.reg").write_text('WINE REGISTRY Version 2\n\n[Control Panel\\\\Desktop] 1\n"LogPixels"=dword:00000060\n')
-        with mock.patch.dict(os.environ, {"BL_WIDTH": "1280", "BL_HEIGHT": "720"}):
+        with mock.patch.dict(os.environ, {"DD_WIDTH": "1280", "DD_HEIGHT": "720"}):
             self.assertTrue(BNET["dpi"](self.root))
         self.assertEqual((pfx / "user.reg").read_text().count("LogPixels"), 1)
-        with mock.patch.dict(os.environ, {"BL_WIDTH": "2448", "BL_HEIGHT": "1848"}):
+        with mock.patch.dict(os.environ, {"DD_WIDTH": "2448", "DD_HEIGHT": "1848"}):
             self.assertTrue(BNET["dpi"](self.root))
             self.assertTrue(BNET["dpi"](self.root))
         reg = (pfx / "user.reg").read_text()
@@ -1206,10 +1206,10 @@ class LaunchTest(Harness):
                 self.assertFalse(BNET["is_game"](argv))
 
     def test_battle_net_shows_in_the_desktops_window_or_as_the_steam_launch(self):
-        with mock.patch.dict(os.environ, {"BL_DESKTOP": "1", "SteamGameId": "123"}):
+        with mock.patch.dict(os.environ, {"DD_DESKTOP": "1", "SteamGameId": "123"}):
             self.assertEqual(BNET["proton_options"](), ["--window"])
         with mock.patch.dict(os.environ, {"SteamGameId": "11151176786366644224"}):
-            os.environ.pop("BL_DESKTOP", None)
+            os.environ.pop("DD_DESKTOP", None)
             self.assertEqual(BNET["proton_options"](), ["--game-id", "11151176786366644224"])
             os.environ["SteamGameId"] = "0"
             self.assertEqual(BNET["proton_options"](), [])
@@ -1220,32 +1220,32 @@ class LaunchTest(Harness):
             with open(gpu, "w") as out:
                 out.write("#!/bin/sh\n")
             os.chmod(gpu, 0o755)
-            with mock.patch.dict(BNET, {"BIN": tmp}), mock.patch.dict(os.environ, {"BL_DESKTOP": "1"}):
-                os.environ.pop("BL_DESKTOP_GPU", None)
-                os.environ.pop("BL_DESKTOP_GPU_CHILD", None)
+            with mock.patch.dict(BNET, {"BIN": tmp}), mock.patch.dict(os.environ, {"DD_DESKTOP": "1"}):
+                os.environ.pop("DD_DESKTOP_GPU", None)
+                os.environ.pop("DD_DESKTOP_GPU_CHILD", None)
                 self.assertEqual(BNET["desktop_gpu"](), gpu)
                 for choice in ("off", "0", "No", "false"):
-                    os.environ["BL_DESKTOP_GPU"] = choice
+                    os.environ["DD_DESKTOP_GPU"] = choice
                     self.assertIsNone(BNET["desktop_gpu"]())
-                os.environ["BL_DESKTOP_GPU"] = "on"
-                os.environ["BL_DESKTOP_GPU_CHILD"] = "1"
+                os.environ["DD_DESKTOP_GPU"] = "on"
+                os.environ["DD_DESKTOP_GPU_CHILD"] = "1"
                 self.assertIsNone(BNET["desktop_gpu"]())
-                os.environ.pop("BL_DESKTOP_GPU_CHILD")
-                os.environ["BL_DESKTOP"] = "0"
+                os.environ.pop("DD_DESKTOP_GPU_CHILD")
+                os.environ["DD_DESKTOP"] = "0"
                 self.assertIsNone(BNET["desktop_gpu"]())
-                os.environ["BL_DESKTOP"] = "1"
+                os.environ["DD_DESKTOP"] = "1"
                 os.chmod(gpu, 0o644)
                 self.assertIsNone(BNET["desktop_gpu"]())
 
     def test_on_the_gpu_battle_net_fills_the_screen_instead_of_a_window(self):
-        with mock.patch.dict(os.environ, {"BL_DESKTOP": "1", "BL_DESKTOP_GPU_CHILD": "1", "BL_WIDTH": "1280", "BL_HEIGHT": "720", "SteamGameId": "0"}):
+        with mock.patch.dict(os.environ, {"DD_DESKTOP": "1", "DD_DESKTOP_GPU_CHILD": "1", "DD_WIDTH": "1280", "DD_HEIGHT": "720", "SteamGameId": "0"}):
             self.assertEqual(BNET["proton_options"](), ["--desktop", "1280x720"])
 
     def test_under_gamescope_battle_net_gets_a_desktop_of_the_screens_size(self):
-        with mock.patch.dict(os.environ, {"BL_WIDTH": "1280", "BL_HEIGHT": "720", "SteamGameId": "0"}):
-            os.environ.pop("BL_DESKTOP", None)
+        with mock.patch.dict(os.environ, {"DD_WIDTH": "1280", "DD_HEIGHT": "720", "SteamGameId": "0"}):
+            os.environ.pop("DD_DESKTOP", None)
             self.assertEqual(BNET["proton_options"](), ["--desktop", "1280x720"])
-            os.environ["BL_DESKTOP"] = "1"
+            os.environ["DD_DESKTOP"] = "1"
             self.assertEqual(BNET["proton_options"](), ["--window"])
 
     def test_the_library_comes_before_the_action(self):
@@ -1263,7 +1263,7 @@ class LaunchTest(Harness):
                     self.assertEqual(BNET["main"](argv), 2)
             self.assertEqual(BNET["main"](["launch", "Fen"]), 0)
         self.assertEqual(self.calls, [("launch", "Fen")])
-        self.assertEqual(os.environ.get("BL_BATTLENET"), "1")
+        self.assertEqual(os.environ.get("DD_BATTLENET"), "1")
 
 
 class InstallGameTest(Harness):

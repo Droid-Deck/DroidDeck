@@ -2745,7 +2745,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val waylandLog = File(SessionPaths.beginOrCurrent(this), "wayland.log")
             WaylandCompositor.setSessionLogFile(waylandLog)
             try {
-                android.system.Os.setenv("BL_WAYLAND_LOG", waylandLog.path, true)
+                android.system.Os.setenv("DD_WAYLAND_LOG", waylandLog.path, true)
             } catch (e: Exception) {
                 Log.w(TAG, "could not point the compositor's log at $waylandLog", e)
             }

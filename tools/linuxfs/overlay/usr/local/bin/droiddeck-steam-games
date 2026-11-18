@@ -134,7 +134,7 @@ def method(obj, slot, result, *args):
 
 
 def probe(steam_root, ids):
-    library = C.CDLL(os.environ.get("BL_STEAMCLIENT") or str(Path(steam_root) / "steamrtarm64/steamclient.so"))
+    library = C.CDLL(os.environ.get("DD_STEAMCLIENT") or str(Path(steam_root) / "steamrtarm64/steamclient.so"))
     library.CreateInterface.argtypes = [C.c_char_p, C.c_void_p]
     library.CreateInterface.restype = C.c_void_p
     client = library.CreateInterface(b"SteamClient020", None)
@@ -184,8 +184,8 @@ def downloads_idle(steam_root):
 
 
 def request_restart(steam_root):
-    Path(os.environ.get("HOME", "/root"), ".bl-restart-once").touch()
-    command = shlex.split(os.environ.get("BL_STEAM_SHUTDOWN", "")) or [str(Path(steam_root) / "steamrtarm64/steam"), "-shutdown"]
+    Path(os.environ.get("HOME", "/root"), ".dd-restart-once").touch()
+    command = shlex.split(os.environ.get("DD_STEAM_SHUTDOWN", "")) or [str(Path(steam_root) / "steamrtarm64/steam"), "-shutdown"]
     subprocess.run(command,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
 
@@ -231,7 +231,7 @@ def remember_tried(steam_root, account, appids):
 
 def watch(steam_root, listing):
     games = [game for game in read_json(listing, []) if not store_game(game) and not game.get("native")]
-    if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
+    if os.environ.get("DD_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
     next_lookup = 0
@@ -259,7 +259,7 @@ def watch(steam_root, listing):
         elif candidates and (key != probed or now >= next_probe):
             probed, next_probe = key, now + 300
             try:
-                probe_env = dict(os.environ, HOME=os.environ["BL_STEAM_IPC_HOME"]) if os.environ.get("BL_STEAM_IPC_HOME") else None
+                probe_env = dict(os.environ, HOME=os.environ["DD_STEAM_IPC_HOME"]) if os.environ.get("DD_STEAM_IPC_HOME") else None
                 result = subprocess.run([sys.executable, __file__, "probe", steam_root,
                                          *map(str, sorted(set(candidates.values())))],
                                         capture_output=True, text=True, timeout=15, env=probe_env)

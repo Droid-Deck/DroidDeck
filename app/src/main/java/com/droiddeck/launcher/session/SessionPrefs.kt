@@ -694,7 +694,7 @@ object SessionPrefs {
     }
 
     private fun shaderPrecacheApplied(context: Context) =
-        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.bl-shader-precache-applied")
+        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.dd-shader-precache-applied")
 
     fun pendingShaderPrecache(context: Context): Boolean? {
         val prefs = prefs(context)

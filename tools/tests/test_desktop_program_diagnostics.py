@@ -15,7 +15,7 @@ DEBUG = runpy.run_path(str(BIN / "droiddeck-game-debug"))
 
 class DesktopProgramDiagnosticsTest(unittest.TestCase):
     def launch(self, folder, desktop=True, **settings):
-        env = dict(os.environ, BL_DEBUG_DIR=folder, WINEDEBUG="-all", PROTON_LOG="0")
+        env = dict(os.environ, DD_DEBUG_DIR=folder, WINEDEBUG="-all", PROTON_LOG="0")
         env.pop("DROIDDECK_DESKTOP_PROGRAM", None)
         if desktop:
             env["DROIDDECK_DESKTOP_PROGRAM"] = "managed.exe"
@@ -87,7 +87,7 @@ class DesktopProgramDiagnosticsTest(unittest.TestCase):
 
     def test_desktop_logs_have_unique_names_and_a_hard_byte_limit(self):
         with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stderr(io.StringIO()):
-            env = {"DROIDDECK_DESKTOP_PROGRAM": "managed.exe", "BL_DEBUG_DIR": folder}
+            env = {"DROIDDECK_DESKTOP_PROGRAM": "managed.exe", "DD_DEBUG_DIR": folder}
             for _ in range(2):
                 with DEBUG["desktop_program_logs"](env) as (launch_env, output):
                     self.assertNotIn("DROIDDECK_DESKTOP_PROGRAM", launch_env)
@@ -107,7 +107,7 @@ class DesktopProgramDiagnosticsTest(unittest.TestCase):
 
         game_env = runpy.run_path(str(BIN / "droiddeck-game-env"))
         with tempfile.TemporaryDirectory() as folder:
-            env = dict(os.environ, BL_DEBUG_DIR=folder, WINEDEBUG="-all", PROTON_LOG="0",
+            env = dict(os.environ, DD_DEBUG_DIR=folder, WINEDEBUG="-all", PROTON_LOG="0",
                        DROIDDECK_DESKTOP_PROGRAM="managed.exe")
             with contextlib.redirect_stderr(BrokenStderr()):
                 code = game_env["start"](

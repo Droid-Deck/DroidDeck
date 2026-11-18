@@ -38,7 +38,7 @@
 
 extern const struct wl_interface wl_surface_interface;
 
-static const struct wl_interface *banner_desktop_v1_types[] = {
+static const struct wl_interface *droiddeck_desktop_v1_types[] = {
 	NULL,
 	&wl_surface_interface,
 	&wl_surface_interface,
@@ -47,16 +47,16 @@ static const struct wl_interface *banner_desktop_v1_types[] = {
 	NULL,
 };
 
-static const struct wl_message banner_desktop_v1_requests[] = {
-	{ "destroy", "", banner_desktop_v1_types + 0 },
-	{ "set_desktop", "o", banner_desktop_v1_types + 1 },
-	{ "set_window", "ouii", banner_desktop_v1_types + 2 },
-	{ "set_zorder", "a", banner_desktop_v1_types + 0 },
+static const struct wl_message droiddeck_desktop_v1_requests[] = {
+	{ "destroy", "", droiddeck_desktop_v1_types + 0 },
+	{ "set_desktop", "o", droiddeck_desktop_v1_types + 1 },
+	{ "set_window", "ouii", droiddeck_desktop_v1_types + 2 },
+	{ "set_zorder", "a", droiddeck_desktop_v1_types + 0 },
 };
 
-WL_PRIVATE const struct wl_interface banner_desktop_v1_interface = {
-	"banner_desktop_v1", 1,
-	4, banner_desktop_v1_requests,
+WL_PRIVATE const struct wl_interface droiddeck_desktop_v1_interface = {
+	"droiddeck_desktop_v1", 1,
+	4, droiddeck_desktop_v1_requests,
 	0, NULL,
 };
 

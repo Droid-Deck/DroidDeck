@@ -47,7 +47,7 @@ def load_config():
 
 
 def session_debug_dir(env):
-    return env.get("BL_DEBUG_DIR", "")
+    return env.get("DD_DEBUG_DIR", "")
 
 
 def apply_game_debug_logs(env, config=None, debug_dir=None):

@@ -60,10 +60,10 @@ class BwrapSpawnerTest {
         val env = mutableMapOf(
             "DDNATV_ROOT" to rootfs, "DDNATV_BINDS" to "/dev:/dev", "HOME" to "/root",
             "SPA_PLUGIN_DIR" to "/usr/local/lib/droiddeck-pipewire/lib/spa-0.2",
-            "LD_PRELOAD" to "/run/droiddeck-preload/libblsession.so:$rootfs/usr/local/lib/libblsession.so:$rootfs/usr/lib/libddnatv-hook.so",
+            "LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so:$rootfs/usr/local/lib/libddsession.so:$rootfs/usr/lib/libddnatv-hook.so",
         )
         BwrapSpawner.withoutRootfsSettings(env, rootfs)
-        assertEquals(mapOf("HOME" to "/root", "LD_PRELOAD" to "/run/droiddeck-preload/libblsession.so"), env)
+        assertEquals(mapOf("HOME" to "/root", "LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so"), env)
         val onlySession = mutableMapOf("LD_PRELOAD" to "$rootfs/usr/lib/libddnatv-hook.so")
         BwrapSpawner.withoutRootfsSettings(onlySession, rootfs)
         assertTrue(onlySession.isEmpty())
@@ -117,33 +117,33 @@ class BwrapSpawnerPlanTest {
         lib.parentFile!!.mkdirs()
         lib.writeText("")
         val root = File(dir, "root").apply { mkdirs() }
-        for (session in listOf(emptyMap(), mapOf("BL_DESKTOP" to "1"),
-            mapOf("BL_DESKTOP" to "1", "GALLIUM_DRIVER" to "zink", "MESA_LOADER_DRIVER_OVERRIDE" to "zink"))) {
+        for (session in listOf(emptyMap(), mapOf("DD_DESKTOP" to "1"),
+            mapOf("DD_DESKTOP" to "1", "GALLIUM_DRIVER" to "zink", "MESA_LOADER_DRIVER_OVERRIDE" to "zink"))) {
             val env = session.toMutableMap()
             val binds = BwrapSpawner.gpu(runtime.path, root, env, true)!!
             assertTrue(binds.any { it.host == lib.canonicalPath && it.guest == "/run/droiddeck-gpu/libvulkan_freedreno.so" })
             assertEquals("/run/droiddeck-gpu/freedreno_icd.json", env["VK_DRIVER_FILES"])
             assertEquals("zink", env["GALLIUM_DRIVER"])
-            assertEquals(session["BL_DESKTOP"], env["BL_DESKTOP"])
+            assertEquals(session["DD_DESKTOP"], env["DD_DESKTOP"])
         }
         for (choice in listOf(mapOf("VK_DRIVER_FILES" to "/custom/icd.json"),
             mapOf("VK_ICD_FILENAMES" to ""), mapOf("LIBGL_ALWAYS_SOFTWARE" to "1"))) {
-            val env = (choice + ("BL_DESKTOP" to "1")).toMutableMap()
+            val env = (choice + ("DD_DESKTOP" to "1")).toMutableMap()
             val original = env.toMap()
             assertEquals(null, BwrapSpawner.gpu(runtime.path, root, env, true))
             assertEquals(original, env)
         }
-        val env = mutableMapOf("BL_DESKTOP" to "1", "GALLIUM_DRIVER" to "llvmpipe")
+        val env = mutableMapOf("DD_DESKTOP" to "1", "GALLIUM_DRIVER" to "llvmpipe")
         assertTrue(BwrapSpawner.gpu(runtime.path, root, env, true)!!.isNotEmpty())
         assertEquals("llvmpipe", env["GALLIUM_DRIVER"])
-        val gamescope = mutableMapOf("BL_DESKTOP" to "1", "LIBGL_ALWAYS_SOFTWARE" to "1", "GAMESCOPE_WAYLAND_DISPLAY" to "gamescope-0")
+        val gamescope = mutableMapOf("DD_DESKTOP" to "1", "LIBGL_ALWAYS_SOFTWARE" to "1", "GAMESCOPE_WAYLAND_DISPLAY" to "gamescope-0")
         assertTrue(BwrapSpawner.gpu(runtime.path, root, gamescope, true)!!.isNotEmpty())
-        val unavailable = mutableMapOf("BL_DESKTOP" to "1")
+        val unavailable = mutableMapOf("DD_DESKTOP" to "1")
         assertEquals(null, BwrapSpawner.gpu(runtime.path, root, unavailable, false))
-        assertEquals(mapOf("BL_DESKTOP" to "1"), unavailable)
+        assertEquals(mapOf("DD_DESKTOP" to "1"), unavailable)
         assertTrue(lib.delete())
         assertEquals(null, BwrapSpawner.gpu(runtime.path, root, unavailable, true))
-        assertEquals(mapOf("BL_DESKTOP" to "1"), unavailable)
+        assertEquals(mapOf("DD_DESKTOP" to "1"), unavailable)
     }
 
     @Test fun buildsTheTreeFlatpakAsksFor() {
@@ -181,8 +181,8 @@ class BwrapSpawnerPlanTest {
     @Test fun fexSandboxesStartThroughTheEnvTheyBringAndSkipArmPreloads() {
         val context = RuntimeEnvironment.getApplication()
         val rootfs = LinuxRuntime.rootDir(context)
-        val lib = File(rootfs, "usr/local/lib/libblsession.so").apply { parentFile?.mkdirs(); writeText("") }
-        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/libblsession.so\n") }
+        val lib = File(rootfs, "usr/local/lib/libddsession.so").apply { parentFile?.mkdirs(); writeText("") }
+        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/libddsession.so\n") }
         try {
             val plan = BwrapSpawner.plan(context, request(op("t" to "dir", "dest" to "/tmp"))
                 .put("envTool", "/run/droiddeck-fex/bin/env"), dir)
@@ -197,12 +197,12 @@ class BwrapSpawnerPlanTest {
     @Test fun sandboxedAppsSeeTheSessionsNetworkLink() {
         val context = RuntimeEnvironment.getApplication()
         val rootfs = LinuxRuntime.rootDir(context)
-        val lib = File(rootfs, "usr/local/lib/libblsession.so").apply { parentFile?.mkdirs(); writeText("") }
-        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/libblsession.so\n") }
+        val lib = File(rootfs, "usr/local/lib/libddsession.so").apply { parentFile?.mkdirs(); writeText("") }
+        val preload = File(rootfs, "etc/ld.so.preload").apply { parentFile?.mkdirs(); writeText("/usr/local/lib/libddsession.so\n") }
         val link = File(rootfs, "etc/droiddeck-net").apply { writeText("if wlan0 2 1500\n") }
         try {
             val plan = BwrapSpawner.plan(context, request(op("t" to "dir", "dest" to "/tmp")), dir)
-            assertEquals("/run/droiddeck-preload/libblsession.so", plan.env["LD_PRELOAD"])
+            assertEquals("/run/droiddeck-preload/libddsession.so", plan.env["LD_PRELOAD"])
             assertEquals(link.path, plan.binds.single { it.guest == "/etc/droiddeck-net" }.host)
         } finally {
             listOf(lib, preload, link).forEach { it.delete() }
