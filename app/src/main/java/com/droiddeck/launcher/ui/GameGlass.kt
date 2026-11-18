@@ -171,6 +171,10 @@ internal fun GameBackdrop(
         },
     ) {
         DisposableEffect(art == null) { onDispose { if (art == null) onArtPlaced(null) } }
+        if (art == null) androidx.compose.runtime.SideEffect {
+            StoresMotion.heroFadeTop = fadeTop
+            StoresMotion.heroDrift = { 0f }
+        }
         Box(
             Modifier.matchParentSize()
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
