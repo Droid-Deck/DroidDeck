@@ -536,6 +536,18 @@ class EaTest {
         assertFalse(castle.matches("%InstallDir%/x64/Lost_Castle_Data/other"))
     }
 
+    @Test fun aManifestWithSingleQuotedAttributesKeepsEveryField() {
+        val m = EaCloud.parse("""<manifest xmlns='http://origin.com/cloudsaves/manifest' lineage='{1}'>
+ <file size='12' href='content/12-ab' md5='q+w=='><localName created='2022-10-17T23:51:04ZZ' lastModified='2022-10-18T00:00:00ZZ'>%Documents%/A &amp; B/1</localName></file>
+ <snapshot>s1</snapshot></manifest>""")
+        val f = m.files.single()
+        assertEquals(12L, f.size); assertEquals("content/12-ab", f.href); assertEquals("q+w==", f.md5)
+        assertEquals("2022-10-17T23:51:04ZZ", f.created); assertEquals("2022-10-18T00:00:00ZZ", f.modified)
+        assertEquals("%Documents%/A & B/1", f.localName)
+        assertEquals("{1}", m.lineage); assertEquals(listOf("s1"), m.snapshots)
+        assertTrue(runCatching { EaCloud.parse("<manifest><file size='1'>") }.isFailure)
+    }
+
     @Test fun aManifestKeepsItsFilesSnapshotsAndEaTimestampsThroughAWrite() {
         val xml = """<manifest xmlns="http://origin.com/cloudsaves/manifest" lineage="{00000000-0000-0000-0000-000000000000}">
  <file size="115352" href="content/115352-c7996be80a6e38d1f8ef28866b114f8b" md5="x5lr6ApuONH47yiGaxFPiw==">

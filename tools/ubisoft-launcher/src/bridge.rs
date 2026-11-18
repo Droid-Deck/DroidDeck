@@ -138,11 +138,16 @@ mod tests {
     fn a_reply_that_stalls_never_blocks_other_connections_or_the_acknowledgement_for_long() {
         let g = Arc::new(Generation::default());
         let seen = g.current();
+        let (entered, inside) = std::sync::mpsc::channel();
+        let (release, held) = std::sync::mpsc::channel::<()>();
         let stalled = {
             let g = g.clone();
-            thread::spawn(move || g.serve(seen, || thread::sleep(Duration::from_millis(600))))
+            thread::spawn(move || g.serve(seen, move || {
+                entered.send(()).unwrap();
+                let _ = held.recv();
+            }))
         };
-        thread::sleep(Duration::from_millis(50));
+        inside.recv().unwrap();
         let started = Instant::now();
         assert_eq!(g.current(), seen);
         assert_eq!(g.serve(seen, || "other"), Some("other"));
@@ -150,6 +155,7 @@ mod tests {
         assert_eq!(g.invalidate(Duration::from_millis(100), || "acknowledged"), "acknowledged");
         assert!(started.elapsed() < Duration::from_millis(450));
         assert_eq!(g.serve(seen, || "late"), None);
+        release.send(()).unwrap();
         assert!(stalled.join().unwrap().is_some());
     }
 }

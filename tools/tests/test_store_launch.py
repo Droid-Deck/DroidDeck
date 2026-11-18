@@ -110,30 +110,39 @@ class Asking(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             channel = Path(root) / 'stores'
             taken = []
+            handed = threading.Event()
 
             def app():
-                while not taken:
+                deadline = time.monotonic() + 5
+                while not taken and time.monotonic() < deadline:
                     for request in (channel / 'req').glob('*.json') if (channel / 'req').is_dir() else []:
                         target = channel / 'resp' / (request.stem + '.taken')
                         os.rename(request, target)
                         taken.append(target)
+                        handed.set()
                     time.sleep(0.02)
 
-            t = threading.Thread(target=app)
+            t = threading.Thread(target=app, daemon=True)
             t.start()
-            self.assertIsNone(store.ask(channel, {'op': 'cloud-down'}, timeout=0.3, claim=True))
-            t.join()
+            try:
+                self.assertIsNone(store.ask(channel, {'op': 'cloud-down'}, timeout=2.0, claim=True))
+            finally:
+                t.join(5)
+            self.assertTrue(handed.is_set(), 'the app never took the request')
             with self.assertRaises(OSError):
                 os.rename(taken[0], taken[0].with_suffix('.writing'))
 
     def test_a_claimed_cloud_download_is_waited_for(self):
         with tempfile.TemporaryDirectory() as root:
             channel = Path(root) / 'stores'
+            handed = threading.Event()
 
             def app():
-                while True:
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
                     names = list((channel / 'req').glob('*.json')) if (channel / 'req').is_dir() else []
                     if names:
+                        handed.set()
                         writing = channel / 'resp' / (names[0].stem + '.writing')
                         os.rename(names[0], writing)
                         time.sleep(0.6)
@@ -144,10 +153,13 @@ class Asking(unittest.TestCase):
                         return
                     time.sleep(0.02)
 
-            t = threading.Thread(target=app)
+            t = threading.Thread(target=app, daemon=True)
             t.start()
-            answer = store.ask(channel, {'op': 'cloud-down'}, timeout=0.2, claim=True)
-            t.join()
+            try:
+                answer = store.ask(channel, {'op': 'cloud-down'}, timeout=0.2, claim=True)
+            finally:
+                t.join(5)
+            self.assertTrue(handed.is_set(), 'the app never took the request')
             self.assertEqual({'ok': True, 'result': 'ok'}, answer)
 
     def test_a_stale_code_is_dropped_before_asking(self):

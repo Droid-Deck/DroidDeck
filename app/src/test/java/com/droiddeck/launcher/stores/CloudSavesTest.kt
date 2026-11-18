@@ -100,6 +100,20 @@ class CloudSavesTest {
         assertTrue(CloudSaves.caseCollision(listOf("SaveGame/1", "savegame/1")) { it.lowercase().startsWith("savegame/") })
     }
 
+    @Test fun aSavedConflictWhoseSidesNowMatchIsCleared() {
+        val game = id; val dir = dir()
+        val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L }
+        CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false)
+        cloud.files["slot0.sav"] = "v2".toByteArray() to 50_000L
+        File(dir, "slot0.sav").writeText("v2")
+        com.droiddeck.launcher.stores.gog.GogPrefs.get(app).edit().putString("cloud_conflicts_$game", "slot0.sav").apply()
+        assertEquals("up-to-date", CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false).reason)
+        assertTrue(CloudSaves.conflicts(app, Store.GOG, game).isEmpty())
+        com.droiddeck.launcher.stores.gog.GogPrefs.get(app).edit().putString("cloud_conflicts_$game", "slot0.sav").apply()
+        CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertTrue(CloudSaves.conflicts(app, Store.GOG, game).isEmpty())
+    }
+
     @Test fun aDownloadTheLaunchStoppedWaitingForWritesNothing() {
         val game = id; val dir = dir()
         File(dir, "slot0.sav").writeText("local")

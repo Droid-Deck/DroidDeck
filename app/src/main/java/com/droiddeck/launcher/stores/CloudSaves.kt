@@ -447,7 +447,7 @@ object CloudSaves {
         val planned = CloudPlan.down(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
         val alike = alike(cloud, planned.conflicts, local, remote)
         val plan = settled(planned, alike)
-        val saved = savedConflicts(context, store, key).filter { it in remote && it !in alike }
+        val saved = savedConflicts(context, store, key).filter { it in remote && it !in alike && it !in plan.same }
         val take = if (force) (plan.transfer + plan.conflicts + saved).distinct() else plan.transfer
         val next = HashMap(base.orEmpty())
         var bytes = 0L
@@ -503,7 +503,7 @@ object CloudSaves {
         val planned = CloudPlan.up(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
         val alike = alike(cloud, planned.conflicts, local, remote)
         val plan = settled(planned, alike)
-        val saved = savedConflicts(context, store, key).filter { it !in alike }
+        val saved = savedConflicts(context, store, key).filter { it !in alike && it !in plan.same }
         var send = CloudPlan.upSend(plan, force, cloud is GogCloud, files.keys)
         val next = HashMap(base)
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }

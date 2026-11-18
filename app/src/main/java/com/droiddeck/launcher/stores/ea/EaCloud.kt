@@ -173,9 +173,6 @@ internal class EaCloud(
         private const val HOST = "https://cloudsync.juno.ea.com"
         private const val AUTH = "X-Origin-AuthToken"
         private const val LOCK = "X-Origin-Sync-Lock"
-        private val FILE = Regex("<file\\b([^>]*)>(.*?)</file>", RegexOption.DOT_MATCHES_ALL)
-        private val LOCAL = Regex("<localName\\b([^>]*)>([^<]*)</localName>")
-        private val SNAPSHOT = Regex("<snapshot>([^<]*)</snapshot>")
         private val REQUEST = Regex("<request\\b[^>]*\\bid=\"(\\d+)\"[^>]*>(.*?)</request>", RegexOption.DOT_MATCHES_ALL)
         private val HEADER = Regex("<header\\b([^>]*)/?>")
 
@@ -185,30 +182,43 @@ internal class EaCloud(
         fun manifestUrl(lockBody: String): String? = Regex("<manifest>([^<]+)</manifest>").find(lockBody)?.groupValues?.get(1)?.let(::unescape)
 
         fun parse(xml: String): Manifest {
-            check(wellFormed(xml)) { "EA sent an incomplete cloud save manifest" }
-            val lineage = attr(Regex("<manifest\\b([^>]*)>").find(xml)?.groupValues?.get(1).orEmpty(), "lineage")
-                ?: "{00000000-0000-0000-0000-000000000000}"
-            val files = FILE.findAll(xml).mapNotNull { m ->
-                val a = m.groupValues[1]
-                val local = LOCAL.find(m.groupValues[2]) ?: return@mapNotNull null
-                Entry(attr(a, "size")?.toLongOrNull() ?: 0, attr(a, "href").orEmpty(), attr(a, "md5").orEmpty(),
-                    attr(local.groupValues[1], "created").orEmpty(), attr(local.groupValues[1], "lastModified").orEmpty(), unescape(local.groupValues[2]))
-            }.toList()
-            return Manifest(lineage, files, SNAPSHOT.findAll(xml).map { unescape(it.groupValues[1]) }.toList())
-        }
-
-        private fun wellFormed(xml: String): Boolean = runCatching {
-            val p = Xml.newPullParser()
-            p.setInput(StringReader(xml))
+            val p = Xml.newPullParser().apply { setInput(StringReader(xml)) }
             var root: String? = null
+            var lineage: String? = null
             var depth = 0
             var closed = false
-            while (p.next() != XmlPullParser.END_DOCUMENT) when (p.eventType) {
-                XmlPullParser.START_TAG -> { if (root == null) root = p.name; depth++ }
-                XmlPullParser.END_TAG -> { depth--; if (depth == 0) closed = true }
-            }
-            root == "manifest" && depth == 0 && closed
-        }.getOrDefault(false)
+            val files = ArrayList<Entry>()
+            val snapshots = ArrayList<String>()
+            var file: Array<String>? = null
+            var local: Entry? = null
+            runCatching {
+                while (p.next() != XmlPullParser.END_DOCUMENT) when (p.eventType) {
+                    XmlPullParser.START_TAG -> {
+                        depth++
+                        val at = { name: String -> p.getAttributeValue(null, name).orEmpty() }
+                        when {
+                            root == null -> { root = p.name; lineage = p.getAttributeValue(null, "lineage") }
+                            depth == 2 && p.name == "file" -> { file = arrayOf(at("size"), at("href"), at("md5")); local = null }
+                            depth == 3 && p.name == "localName" && file != null -> {
+                                val f = file!!
+                                val created = at("created")
+                                val modified = at("lastModified")
+                                local = Entry(f[0].toLongOrNull() ?: 0, f[1], f[2], created, modified, p.nextText())
+                                depth--
+                            }
+                            depth == 2 && p.name == "snapshot" -> { snapshots += p.nextText(); depth-- }
+                        }
+                    }
+                    XmlPullParser.END_TAG -> {
+                        if (depth == 2 && p.name == "file") { local?.let(files::add); file = null }
+                        depth--
+                        if (depth == 0) closed = true
+                    }
+                }
+            }.onFailure { error("EA sent an incomplete cloud save manifest") }
+            check(root == "manifest" && depth == 0 && closed) { "EA sent an incomplete cloud save manifest" }
+            return Manifest(lineage ?: "{00000000-0000-0000-0000-000000000000}", files, snapshots)
+        }
 
         fun write(m: Manifest): String = buildString {
             append("<manifest xmlns=\"http://origin.com/cloudsaves/manifest\" lineage=\"").append(escape(m.lineage)).append("\">\n")
