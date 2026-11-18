@@ -11,7 +11,8 @@ VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkNegotiat
 struct object { void *dispatch; };
 static int instance_table, device_table;
 static struct object mock_instance = {&instance_table};
-static struct object mock_lacking = {&instance_table}, mock_capable = {&instance_table};
+static struct object mock_lacking = {&instance_table}, mock_capable = {&instance_table},
+                     mock_modern = {&instance_table};
 static struct object mock_device = {&device_table}, mock_command_buffer = {&device_table};
 
 static VkBool32 driver_saw_dual_source;
@@ -201,7 +202,7 @@ static VkResult VKAPI_CALL mock_extensions(VkPhysicalDevice physical, const char
 static void VKAPI_CALL mock_features(VkPhysicalDevice physical, VkPhysicalDeviceFeatures *features)
 {
     memset(features, 0, sizeof(*features));
-    features->dualSrcBlend = physical == (VkPhysicalDevice)&mock_capable;
+    features->dualSrcBlend = physical != (VkPhysicalDevice)&mock_lacking;
 }
 
 static void VKAPI_CALL mock_features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *features)
@@ -213,7 +214,9 @@ static void VKAPI_CALL mock_properties(VkPhysicalDevice physical, VkPhysicalDevi
 {
     memset(properties, 0, sizeof(*properties));
     strcpy(properties->deviceName, "mock");
-    properties->limits.maxFragmentDualSrcAttachments = physical == (VkPhysicalDevice)&mock_capable;
+    properties->limits.maxFragmentDualSrcAttachments = physical != (VkPhysicalDevice)&mock_lacking;
+    if (physical == (VkPhysicalDevice)&mock_modern)
+        properties->apiVersion = VK_API_VERSION_1_3;
 }
 
 static void VKAPI_CALL mock_properties2(VkPhysicalDevice physical, VkPhysicalDeviceProperties2 *properties)
@@ -461,6 +464,17 @@ static void test_capable_device(void)
     destroy_device(device);
 }
 
+static void test_modern_device(void)
+{
+    VkDevice device;
+    VkPhysicalDeviceFeatures enabled = {.dualSrcBlend = VK_TRUE};
+    assert(create_device((VkPhysicalDevice)&mock_modern, NULL, &enabled, &device) == VK_SUCCESS);
+    assert(layer_gdpa(device, "vkCreateShaderModule") != (PFN_vkVoidFunction)mock_create_shader_module);
+    assert(layer_gdpa(device, "vkCreateGraphicsPipelines") != (PFN_vkVoidFunction)mock_create_graphics_pipelines);
+    assert(layer_gdpa(device, "vkCmdSetColorBlendEquationEXT") == (PFN_vkVoidFunction)mock_set_blend_equation);
+    destroy_device(device);
+}
+
 int main(int argc, char **argv)
 {
     test_spirv(argc > 1 ? argv[1] : NULL);
@@ -482,6 +496,7 @@ int main(int argc, char **argv)
 
     test_lacking_device();
     test_capable_device();
+    test_modern_device();
 
     ((PFN_vkDestroyInstance)layer_gipa(instance, "vkDestroyInstance"))(instance, NULL);
     free(driver_code);
