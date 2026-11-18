@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Οθόνη</string>
     <string name="drawer_frame_limit">Όριο καρέ</string>
     <string name="drawer_frame_limit_note">Περιορίζει αυτό το παιχνίδι. Η οθόνη αλλάζει σε ρυθμό ανανέωσης που διαιρείται ακριβώς με το όριο, αν υπάρχει· άλλα όρια μπορεί να φαίνονται ανομοιόμορφα. Τα παιχνίδια Steam χρησιμοποιούν το Frame Limit του Steam στο μενού Quick Access.</string>
+    <string name="drawer_even_pacing">Ομοιόμορφος ρυθμός καρέ</string>
+    <string name="drawer_even_pacing_note">Εμφανίζει με σταθερό ρυθμό ένα παιχνίδι με όριο κάτω από τον ρυθμό ανανέωσης, π.χ. 30 ή 40 fps στα 120 Hz. Προσθέτει μικρή καθυστέρηση. Ανενεργό όσο είναι ενεργή η δημιουργία καρέ ή η εισαγωγή μαύρων καρέ.</string>
     <string name="drawer_bfi">Εισαγωγή μαύρων καρέ</string>
     <string name="drawer_bfi_note">Πιο καθαρή κίνηση: κάθε καρέ ακολουθείται από μαύρη ανανέωση. Απαιτεί 100 Hz ή περισσότερα· το παιχνίδι τρέχει στον μισό ρυθμό ανανέωσης και φαίνεται πιο σκοτεινό. Ανενεργό όσο λειτουργεί η δημιουργία καρέ.</string>
     <string name="drawer_page_effects">Εφέ</string>

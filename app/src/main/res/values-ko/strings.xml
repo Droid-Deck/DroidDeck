@@ -673,6 +673,8 @@
     <string name="drawer_page_display">디스플레이</string>
     <string name="drawer_frame_limit">프레임 제한</string>
     <string name="drawer_frame_limit_note">이 게임의 프레임을 제한합니다. 제한값으로 나누어떨어지는 주사율이 있으면 디스플레이가 그 주사율로 전환되며, 그 밖의 제한값은 고르지 않게 보일 수 있습니다. Steam 게임은 빠른 액세스 메뉴의 Steam 프레임 제한을 사용합니다.</string>
+    <string name="drawer_even_pacing">균일한 프레임 페이싱</string>
+    <string name="drawer_even_pacing_note">주사율보다 낮게 제한한 게임(120Hz에서 30 또는 40fps 등)을 일정한 리듬으로 표시합니다. 약간의 지연이 생깁니다. 프레임 생성이나 블랙 프레임 삽입 중에는 꺼집니다.</string>
     <string name="drawer_bfi">블랙 프레임 삽입</string>
     <string name="drawer_bfi_note">더 선명한 움직임: 매 프레임 뒤에 검은 화면 갱신이 들어갑니다. 100Hz 이상이 필요하며 게임은 주사율의 절반으로 실행되고 더 어둡게 보입니다. 프레임 생성 중에는 꺼집니다.</string>
     <string name="drawer_page_effects">효과</string>

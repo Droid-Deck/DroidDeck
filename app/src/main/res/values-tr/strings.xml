@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Ekran</string>
     <string name="drawer_frame_limit">Kare sınırı</string>
     <string name="drawer_frame_limit_note">Bu oyunu sınırlar. Ekran, varsa sınırın tam böldüğü bir yenileme hızına geçer; diğer sınırlar düzensiz görünebilir. Steam oyunları Hızlı erişim menüsündeki Steam\'in Kare Sınırı ayarını kullanır.</string>
+    <string name="drawer_even_pacing">Düzenli kare akışı</string>
+    <string name="drawer_even_pacing_note">Yenileme hızının altında sınırlanan bir oyunu, örneğin 120 Hz\'de 30 veya 40 fps\'yi, düzenli bir ritimle gösterir. Biraz gecikme ekler. Kare oluşturma veya siyah kare ekleme açıkken kapalıdır.</string>
     <string name="drawer_bfi">Siyah kare ekleme</string>
     <string name="drawer_bfi_note">Daha net hareket: her kareyi siyah bir yenileme izler. 100 Hz veya üzeri gerekir; oyun yenileme hızının yarısında çalışır ve daha koyu görünür. Kare üretimi açıkken kapalıdır.</string>
     <string name="drawer_page_effects">Efektler</string>

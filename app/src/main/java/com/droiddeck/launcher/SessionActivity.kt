@@ -506,6 +506,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun fpsLimitKey(): String? = if (SessionState.running) SessionPrefs.fpsLimitKey(SessionState.mode, SessionState.gameId)
         else SessionPrefs.fpsLimitKey(intent.getStringExtra(SessionService.EXTRA_MODE), intent.getStringExtra(SessionService.EXTRA_GAME_ID))
     private var blackFrameInsertion by mutableStateOf(false)
+    private var presentCadence by mutableStateOf(true)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
         SessionState.program in setOf(
@@ -1629,6 +1630,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 blackFrameInsertion = on
                 CompositorHost.setBlackFrameInsertion(on, refreshHz(), outputFpsLimit())
             },
+            presentCadence = presentCadence,
+            onPresentCadence = { on ->
+                SessionPrefs.setPresentCadence(this@SessionActivity, on)
+                presentCadence = on
+                CompositorHost.setPresentCadence(on)
+            },
             onFrameGenPick = { mode ->
                 val appId = frameGenTargetGameId()
 
@@ -2476,6 +2483,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         integerScaling = SessionPrefs.integerScaling(this)
         hudOn = SessionPrefs.hudEnabled(this)
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(this)
+        presentCadence = SessionPrefs.presentCadence(this)
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)

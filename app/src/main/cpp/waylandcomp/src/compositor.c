@@ -307,6 +307,9 @@ volatile int g_fps_limit;
 volatile int g_release_unpaced;
 
 volatile int g_bfi;
+volatile int g_present_cadence = 1;
+static int g_cadence_running = -1;
+static const char *g_cadence_blocked;
 volatile int g_bfi_picture_hold;
 static int g_bfi_running;
 static unsigned g_bfi_phase;
@@ -2530,6 +2533,29 @@ static void bfi_update(void) {
     }
 }
 
+static const char *cadence_blocked(void) {
+    if (g_bfi_running) return "black frame insertion paces every refresh";
+    if (vkp_framegen_active()) return "frame generation fills the refreshes";
+    if (atomic_load(&g_stream_on)) return "the picture is being streamed";
+    if (vkp_cardboard_active()) return "Cardboard VR is on";
+    if (vkp_quest_layer_presentation()) return "this headset composes its own layers";
+    return NULL;
+}
+
+static void cadence_update(void) {
+    const int on = g_present_cadence;
+    const char *why = on ? cadence_blocked() : NULL;
+    const int run = on && !why;
+    if (on && why && why != g_cadence_blocked)
+        droiddeck_log("pacing", "even frame pacing waits: %s", why);
+    g_cadence_blocked = why;
+    if (run == g_cadence_running) return;
+    g_cadence_running = run;
+    sc_layer_set_present_cadence(run);
+    droiddeck_log("pacing", run ? "even frame pacing on: game frames capped below the refresh rate are held to "
+                                  "an even cadence" : "even frame pacing off");
+}
+
 static void bfi_tick(void) {
     /* A capture copies the surface's last buffer: present pictures only, still composed into that surface. */
     if (g_bfi_picture_hold) {
@@ -2568,6 +2594,7 @@ static void on_vsync(int64_t frame_time_ns) {
     if (vkp_cardboard_pose_changed()) tick_change = 1;
     if (tick_change) g_dirty = 1;
     bfi_update();
+    cadence_update();
     if (g_bfi_running) {
         g_tick_held = 0;
         bfi_tick();

@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Kijelző</string>
     <string name="drawer_frame_limit">Képkockakorlát</string>
     <string name="drawer_frame_limit_note">Korlátozza ezt a játékot. A kijelző olyan frissítési frekvenciára vált, amelyet a korlát egyenletesen oszt, ha van ilyen; más korlátok egyenetlennek tűnhetnek. A Steam-játékok a Steam képkockakorlátját használják a Gyors hozzáférés menüben.</string>
+    <string name="drawer_even_pacing">Egyenletes képkocka-ütemezés</string>
+    <string name="drawer_even_pacing_note">A frissítési frekvencia alatt korlátozott játékot, például 30 vagy 40 fps-t 120 Hz-en, egyenletes ütemben jeleníti meg. Kis késleltetéssel jár. Képkocka-generálás vagy fekete képkocka beszúrása közben ki van kapcsolva.</string>
     <string name="drawer_bfi">Fekete képkocka beszúrása</string>
     <string name="drawer_bfi_note">Élesebb mozgás: minden képkockát fekete frissítés követ. Legalább 100 Hz kell; a játék a frissítési frekvencia felével fut és sötétebb. Képkocka-generálás közben ki van kapcsolva.</string>
     <string name="drawer_page_effects">Effektek</string>

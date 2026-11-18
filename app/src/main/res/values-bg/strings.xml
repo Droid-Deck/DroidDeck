@@ -675,6 +675,8 @@
     <string name="drawer_page_display">Екран</string>
     <string name="drawer_frame_limit">Ограничение на кадрите</string>
     <string name="drawer_frame_limit_note">Ограничава тази игра. Екранът преминава към честота на опресняване, която се дели точно на ограничението, ако има такава; другите ограничения може да изглеждат неравномерни. Игрите в Steam използват Frame Limit на Steam в менюто Quick Access.</string>
+    <string name="drawer_even_pacing">Равномерно темпо на кадрите</string>
+    <string name="drawer_even_pacing_note">Показва игра, ограничена под честотата на опресняване, например 30 или 40 fps при 120 Hz, с равномерен ритъм. Добавя малко забавяне. Изключено при генериране на кадри или вмъкване на черни кадри.</string>
     <string name="drawer_bfi">Вмъкване на черни кадри</string>
     <string name="drawer_bfi_note">По-ясно движение: след всеки кадър следва черно опресняване. Нужни са 100 Hz или повече; играта върви на половината честота и изглежда по-тъмна. Изключено при генериране на кадри.</string>
     <string name="drawer_page_effects">Ефекти</string>

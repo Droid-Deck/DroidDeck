@@ -113,6 +113,10 @@ object CompositorHost {
         if (started) pace(refreshHz, fpsLimit)
     }
 
+    fun setPresentCadence(on: Boolean) {
+        WaylandCompositor.nativeSetPresentCadence(on)
+    }
+
     @Synchronized
     fun setBlackFrameInsertion(on: Boolean, refreshHz: Float, fpsLimit: Int) {
         blackFrameInsertion = on

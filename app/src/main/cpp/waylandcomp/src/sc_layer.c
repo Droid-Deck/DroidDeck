@@ -970,13 +970,18 @@ static ASurfaceControl *swap_sc_begin(struct layer *l) {
     return old;
 }
 
-static atomic_int g_cadence_on = 1;
+static atomic_int g_cadence_on;
 static struct present_cadence g_cadence;
 static struct present_cadence_stats g_cadence_stats;
 static const void *g_cadence_frame;
 
 void sc_layer_set_present_cadence(int on) {
     atomic_store(&g_cadence_on, on ? 1 : 0);
+    if (on) return;
+    pacer_lock();
+    pacer_flush_locked();
+    g_pacer_fill_until_ns = 0;
+    pthread_mutex_unlock(&g_pacer_lock);
 }
 
 void sc_layer_cadence_take(struct present_cadence_stats *out) {

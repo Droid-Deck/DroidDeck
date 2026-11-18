@@ -282,6 +282,8 @@ class DrawerActions(
     val blackFrameInsertion: Boolean = false,
     val blackFrameInsertionAvailable: Boolean = false,
     val onBlackFrameInsertion: (Boolean) -> Unit = {},
+    val presentCadence: Boolean = true,
+    val onPresentCadence: (Boolean) -> Unit = {},
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
@@ -628,6 +630,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         a.onQam?.invoke()
                                     }
                                 }
+                                ToggleRow(host, "even-pacing", stringResource(R.string.drawer_even_pacing),
+                                    stringResource(R.string.drawer_even_pacing_note), a.presentCadence,
+                                    chipModifier = focus.track(page, "even-pacing"), onChange = a.onPresentCadence)
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                                 if (a.steam) SettingsRow(stringResource(R.string.display_integer_scaling), null) {

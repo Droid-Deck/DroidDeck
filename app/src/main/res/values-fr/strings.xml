@@ -677,6 +677,8 @@
     <string name="drawer_page_display">Affichage</string>
     <string name="drawer_frame_limit">Limite d\'images</string>
     <string name="drawer_frame_limit_note">Limite ce jeu. L\'écran passe à une fréquence de rafraîchissement multiple de la limite lorsqu\'il en propose une ; les autres limites peuvent paraître irrégulières. Les jeux Steam utilisent la limite d\'images de Steam dans le menu d\'accès rapide.</string>
+    <string name="drawer_even_pacing">Cadence d\'images régulière</string>
+    <string name="drawer_even_pacing_note">Affiche à un rythme régulier un jeu limité sous la fréquence de rafraîchissement, par exemple 30 ou 40 fps à 120 Hz. Ajoute un léger délai. Désactivé pendant la génération d\'images ou l\'insertion d\'images noires.</string>
     <string name="drawer_bfi">Insertion d\'images noires</string>
     <string name="drawer_bfi_note">Mouvement plus net : chaque image est suivie d\'un rafraîchissement noir. Nécessite 100 Hz ou plus ; le jeu tourne à la moitié de la fréquence et paraît plus sombre. Désactivé avec la génération d\'images.</string>
     <string name="drawer_page_effects">Effets</string>
