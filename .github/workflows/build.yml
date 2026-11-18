@@ -291,7 +291,7 @@ jobs:
       - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse layer)
         run: |
           set -euo pipefail
-          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libc6-dev-arm64-cross libvulkan-dev
           D=app/src/main/assets/linuxfs
           mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \

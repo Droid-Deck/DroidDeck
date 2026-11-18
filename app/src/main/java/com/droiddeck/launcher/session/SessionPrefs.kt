@@ -697,14 +697,42 @@ object SessionPrefs {
     }
 
     @JvmStatic
-    fun ensurePowerVrAutoDrivers(context: Context) {
-        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
-        ensurePowerVrAutoDrivers(context, SystemVulkanDriver.isPowerVr())
+    fun ensurePowerVrAutoDrivers(context: Context) = reconcilePowerVrAutoDrivers(
+        context, SystemVulkanDriver.isPowerVr(), SystemVulkanDriver.isXclipse(),
+        com.droiddeck.launcher.gpu.VulkanInfo::cachedOrNull,
+    )
+
+    fun ensurePowerVrAutoDriversAfterGpuQuery(context: Context) = reconcilePowerVrAutoDrivers(
+        context, SystemVulkanDriver.isPowerVr(), SystemVulkanDriver.isXclipse(),
+        com.droiddeck.launcher.gpu.VulkanInfo::query,
+    )
+
+    internal fun reconcilePowerVrAutoDrivers(
+        context: Context, powerVr: Boolean, xclipse: Boolean, vulkan: () -> Map<String, String>?,
+    ) {
+        val device = if (xclipse) vulkan() ?: return else null
+        val unsupported = unsupportedXclipse(xclipse) {
+            com.droiddeck.launcher.gpu.GpuInfo.systemDriverName(SystemVulkanDriver.gpuName(), device)
+        }
+        val activeKey = com.droiddeck.launcher.gpu.DriverBundle.active(context)
+            ?.id
+            ?.let(com.droiddeck.launcher.gpu.DriverPairs::nonAdreno)
+        val upstreamBundle = activeKey == com.droiddeck.launcher.gpu.DriverPairs.NAD_RADV_XCLIPSE_UPSTREAM ||
+            (activeKey != null && activeKey.startsWith("${com.droiddeck.launcher.gpu.DriverPairs.NAD_RADV_XCLIPSE_UPSTREAM}-"))
+        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context) && (!unsupported || upstreamBundle)) return
+        ensurePowerVrAutoDrivers(context, powerVr, unsupported)
     }
 
-    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean) {
+    internal fun unsupportedXclipse(xclipse: Boolean, gpuName: () -> String): Boolean =
+        xclipse && com.droiddeck.launcher.gpu.DriverPairs.xclipseNeedsUpstream(gpuName())
+
+    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean, autoOwnedOnly: Boolean = false) {
         if (!powerVr || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
-        prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
+        val owned = gpuAutoInstalled(context)
+        val edit = prefs(context).edit()
+        if (!autoOwnedOnly || linuxDriver(context) in owned) edit.putString("linuxDriver", "")
+        if (!autoOwnedOnly || androidDriver(context) in owned) edit.putString("androidDriver", TurnipDriver.AUTO)
+        edit.apply()
     }
 
     fun gpuAutoInstalled(context: Context): Set<String> =
