@@ -83,4 +83,13 @@ class SteamHiddenTest {
         SteamHidden.write(root, 2, true)
         assertEquals("""["user-collections.hidden"]""", File(file.parentFile, "cloud-storage-namespace-1.modified.json").readText())
     }
+
+    @Test fun aMalformedMemberIsRejectedAndTheFileIsLeftAlone() {
+        val root = steamRoot()
+        val json = """[["user-collections.hidden",{"key":"user-collections.hidden","value":"{\"id\":\"hidden\",\"added\":[\"x\"],\"removed\":[]}"}]]"""
+        val file = store(root, json)
+        assertNull(SteamHidden.readOrNull(root))
+        assertNull(SteamHidden.write(root, 1, true))
+        assertEquals(json, file.readText())
+    }
 }

@@ -50,11 +50,11 @@ internal object LibraryHidden {
         val written = id?.let { SteamHidden.write(root, it, hidden) }
         if (id != null) {
             cachedRoot = root
-            steam = written ?: SteamHidden.readOrNull(root) ?: steam
+            steam = written?.hidden ?: SteamHidden.readOrNull(root) ?: steam
         }
-        keys = if (hidden && written == null) keys + key else keys - key
+        keys = if (hidden && (id == null || written == null)) keys + key else keys - key
         SessionPrefs.setLibraryHidden(context, keys)
-        return id == null || written != null
+        return id == null || written?.queued == true
     }
 }
 

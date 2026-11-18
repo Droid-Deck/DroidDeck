@@ -692,13 +692,14 @@ private fun LibraryHeader(
 
 @Composable
 private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit, accounts: Boolean) {
-    if (sources.size < 2 && !accounts && sources.singleOrNull() != LIBRARY_HIDDEN) return
+    val chips = sources.size >= 2 || sources.singleOrNull() == LIBRARY_HIDDEN
+    if (!chips && !accounts) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),
     ) {
-        if (sources.size >= 2) SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
-        if (sources.size >= 2) for (src in sources) {
+        if (chips) SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
+        if (chips) for (src in sources) {
             val store = Store.byId(src)
             val dot = when {
                 store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)

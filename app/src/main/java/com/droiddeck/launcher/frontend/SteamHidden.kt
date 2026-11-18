@@ -9,8 +9,13 @@ internal object SteamHidden {
 
     private fun file(root: File): File? = AddedGames.accountConfig(root)?.let { File(it, "cloudstorage/cloud-storage-namespace-1.json") }
 
-    private fun ids(collection: JSONObject, key: String): List<Long> =
-        collection.optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optLong(it) } }.orEmpty()
+    class Saved(val hidden: Set<Long>, val queued: Boolean)
+
+    private fun ids(collection: JSONObject, key: String): List<Long> {
+        if (!collection.has(key)) return emptyList()
+        val array = collection.optJSONArray(key) ?: throw IllegalStateException(key)
+        return (0 until array.length()).map { (array.get(it) as? Number)?.toLong() ?: throw IllegalStateException(key) }
+    }
 
     fun read(root: File): Set<Long> = readOrNull(root).orEmpty()
 
@@ -25,7 +30,7 @@ internal object SteamHidden {
         }
     }.getOrNull()
 
-    fun write(root: File, appId: Long, hidden: Boolean, now: Long = System.currentTimeMillis() / 1000): Set<Long>? = runCatching {
+    fun write(root: File, appId: Long, hidden: Boolean, now: Long = System.currentTimeMillis() / 1000): Saved? = runCatching {
         val target = file(root) ?: return null
         val entries = JSONArray(target.readText())
         val slot = (0 until entries.length()).firstOrNull { entries.getJSONArray(it).optString(0) == KEY }
@@ -47,8 +52,7 @@ internal object SteamHidden {
             temp.delete()
             return null
         }
-        if (!markModified(File(target.parentFile, "cloud-storage-namespace-1.modified.json"))) return null
-        ids(collection, "added").toSet() - ids(collection, "removed").toSet()
+        Saved(ids(collection, "added").toSet() - ids(collection, "removed").toSet(), markModified(File(target.parentFile, "cloud-storage-namespace-1.modified.json")))
     }.getOrNull()
 
     private fun markModified(file: File): Boolean {

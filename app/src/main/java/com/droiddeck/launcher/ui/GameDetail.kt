@@ -468,7 +468,7 @@ internal fun GameActions(
                     SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
                 }
                 if (game != null && !compactMenu) {
-                    HideButton(game)
+                    HideButton(hideKey(game), game)
                     EditArtButton(game)
                 }
             }
@@ -497,7 +497,6 @@ internal fun GameActions(
                 }
                 if (item != null && StoresState.isUnfinished(item)) ConfirmButton(stringResource(R.string.stores_dl_clear), stringResource(R.string.stores_dl_cancel_confirm), compact = true) { StoresState.clearUnfinished(ctx, item) }
                 XboxLibraryButton(cloudId, item)
-                HideButton(game)
             }
             store == Store.BATTLENET && item != null -> InstallButton(stringResource(R.string.stores_install), leadOn) { StoresState.requestInstall(ctx, item) }
             store == Store.XBOX && item != null && !item.xboxPc && item.xboxCloud -> {
@@ -531,6 +530,8 @@ internal fun GameActions(
             }
             item != null -> PrimaryButton(buyLabel(item), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
         }
+        val entryKey = game?.let(::hideKey) ?: storeKey
+        if (!s.shortcutPicker && entryKey != null && (game == null || cloud)) HideButton(entryKey, game)
         if (cloud && (download != null || failed != null)) {
             XboxStreamButton(game.storeId.orEmpty(), game.name)
             XboxLibraryButton(game.storeId.orEmpty(), item)
@@ -626,10 +627,9 @@ internal fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
 internal fun hideKey(g: Library.SteamGame): String = g.storeId?.let { "${g.source}:$it" } ?: GameRef.key(g)
 
 @Composable
-internal fun HideButton(g: Library.SteamGame) {
+internal fun HideButton(key: String, g: Library.SteamGame?) {
     val ctx = LocalContext.current
     rememberHiddenSync()
-    val key = hideKey(g)
     val hidden = LibraryHidden.isHidden(key, g)
     val failed = stringResource(R.string.game_hide_failed)
     SecondaryButton(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), compact = true) { if (!LibraryHidden.set(ctx, key, g, !hidden)) Toast.makeText(ctx, failed, Toast.LENGTH_LONG).show() }
