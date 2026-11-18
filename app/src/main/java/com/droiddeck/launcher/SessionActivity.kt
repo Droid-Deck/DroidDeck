@@ -3647,12 +3647,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (pen >= 0) when (routePen(event, pen)) {
             PenRouter.Route.TOUCH -> {}
             PenRouter.Route.PEN -> {
-                if (!appUiOwnsPointer()) return penSample(event, pen) || super.dispatchGenericMotionEvent(event)
+                if (!appUiOwnsPointer()) return sampleWindowPen(event, pen) || super.dispatchGenericMotionEvent(event)
                 if (super.dispatchGenericMotionEvent(event)) {
                     penStream.cancel()
                     return true
                 }
-                return !touchEditorOpen && penSample(event, pen)
+                return !touchEditorOpen && sampleWindowPen(event, pen)
             }
             else -> return super.dispatchGenericMotionEvent(event)
         }
@@ -4947,8 +4947,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private val mainSurfaceMouseOwnership = MainSurfaceMouseOwnership()
 
-    override fun onTouchEvent(event: MotionEvent): Boolean =
-        if (consumesMainSurfaceActivityFallback(event.source)) true else super.onTouchEvent(event)
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.isFromSource(InputDevice.SOURCE_MOUSE) && PenStream.penIndex(event) < 0 &&
+            !drawerOpen && !touchEditorOpen && !pipUi) return dispatchMainSurfaceMouseMotion(event)
+        return if (consumesMainSurfaceActivityFallback(event.source)) true else super.onTouchEvent(event)
+    }
 
     private fun installMainSurfaceTouchListener(view: SurfaceView) {
         view.setOnTouchListener { _, event ->
@@ -4963,7 +4966,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun onSurfaceTouchEvent(event: MotionEvent): Boolean {
         val pen = PenStream.penIndex(event)
         val penRouted = if (pen >= 0) routePen(event, pen).takeIf { it != PenRouter.Route.TOUCH } else null
-        if (penRouted == null && event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
+        if (penRouted == null && event.isFromSource(InputDevice.SOURCE_MOUSE))
+            return if (pen >= 0) onMouse(event) else onSurfaceMouseMotion(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 sessionTouchDown = true
@@ -5219,17 +5223,28 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         else -> PointerGestures.BTN_LEFT
     }
 
-    private fun dispatchMainSurfaceMouseMotion(event: MotionEvent): Boolean {
+    private fun sampleWindowPen(event: MotionEvent, pen: Int): Boolean =
+        withMainSurfaceCoordinates(event) { local -> penSample(local, pen) }
+
+    private fun dispatchMainSurfaceMouseMotion(event: MotionEvent): Boolean =
+        withMainSurfaceCoordinates(event, ::onSurfaceMouseMotion)
+
+    private inline fun withMainSurfaceCoordinates(event: MotionEvent, handle: (MotionEvent) -> Boolean): Boolean {
+        if (!mainSurfaceBoundaryActive()) return handle(event)
+        val origin = IntArray(2).also(surfaceView::getLocationInWindow)
+        if (origin[0] == 0 && origin[1] == 0) return handle(event)
+        val local = MotionEvent.obtain(event)
+        return try {
+            local.offsetLocation(-origin[0].toFloat(), -origin[1].toFloat())
+            handle(local)
+        } finally {
+            local.recycle()
+        }
+    }
+
+    private fun onSurfaceMouseMotion(event: MotionEvent): Boolean {
         if (!mainSurfaceBoundaryActive()) return onMouse(event)
-        val surfaceAt = IntArray(2).also(surfaceView::getLocationInWindow)
-        val local = surfaceLocalPoint(
-            event.x,
-            event.y,
-            surfaceAt[0],
-            surfaceAt[1],
-            surfaceView.width,
-            surfaceView.height,
-        )
+        val inside = surfaceLocalPoint(event.x, event.y, 0, 0, surfaceView.width, surfaceView.height) != null
         val kind = when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> MainSurfaceMouseEvent.MOVE
             MotionEvent.ACTION_BUTTON_PRESS -> MainSurfaceMouseEvent.BUTTON_PRESS
@@ -5243,17 +5258,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             deviceId = event.deviceId,
             event = kind,
             actionButton = event.actionButton,
-            insideSurface = local != null,
+            insideSurface = inside,
         )
         releaseGuestMouseButtons(decision.releaseButtons)
         if (!decision.forward) return true
-        val translated = MotionEvent.obtain(event)
-        translated.offsetLocation(-surfaceAt[0].toFloat(), -surfaceAt[1].toFloat())
-        return try {
-            onMouse(translated, MAIN_SURFACE_MOUSE_OWNER)
-        } finally {
-            translated.recycle()
-        }
+        return onMouse(event, MAIN_SURFACE_MOUSE_OWNER)
     }
 
     private fun mainSurfaceBoundaryActive(): Boolean =

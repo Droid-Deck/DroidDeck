@@ -140,20 +140,51 @@ class SessionGestureRoutingTest {
             CompositorShadow.sceneInputs)
     }
 
+    @Test fun touchDispatchedMouseDragRetainsOwnershipOutsideUntilRelease() {
+        pressMainSurfaceMouse()
+        fun drag(x: Float) {
+            val now = SystemClock.uptimeMillis()
+            val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_MOVE, x, 300f, 0)
+            try {
+                event.source = InputDevice.SOURCE_MOUSE
+                assertTrue(activity.onTouchEvent(event))
+            } finally {
+                event.recycle()
+            }
+        }
+        val before = CompositorShadow.pointerEvents
+        drag(600f)
+        drag(1100f)
+        assertEquals(before + 2, CompositorShadow.pointerEvents)
+        sendMouseButton(MotionEvent.ACTION_BUTTON_RELEASE, 1100f)
+        val afterRelease = CompositorShadow.pointerEvents
+        drag(1100f)
+        sendMouseButton(MotionEvent.ACTION_BUTTON_PRESS, 1100f)
+        drag(600f)
+        sendMouseButton(MotionEvent.ACTION_BUTTON_RELEASE, 600f)
+        assertEquals(afterRelease, CompositorShadow.pointerEvents)
+        assertEquals(listOf(Triple(3, PointerGestures.BTN_LEFT, 1), Triple(3, PointerGestures.BTN_LEFT, 0)),
+            CompositorShadow.sceneInputs)
+    }
+
     private fun pressMainSurfaceMouse() {
         prepare(SessionPrefs.TOUCH_GESTURES)
         val surface = object : SurfaceView(activity) { override fun isShown() = true }
         surface.layout(0, 0, 1000, 600)
         setField("surfaceView", surface)
+        sendMouseButton(MotionEvent.ACTION_BUTTON_PRESS, 400f)
+    }
+
+    private fun sendMouseButton(action: Int, x: Float) {
         val now = SystemClock.uptimeMillis()
-        val press = MotionEvent.obtain(now, now, MotionEvent.ACTION_BUTTON_PRESS, 400f, 300f, 0)
+        val event = MotionEvent.obtain(now, now, action, x, 300f, 0)
         try {
-            press.source = InputDevice.SOURCE_MOUSE
-            ReflectionHelpers.callInstanceMethod<Unit>(press, "setActionButton",
+            event.source = InputDevice.SOURCE_MOUSE
+            ReflectionHelpers.callInstanceMethod<Unit>(event, "setActionButton",
                 ReflectionHelpers.ClassParameter.from(Int::class.javaPrimitiveType!!, MotionEvent.BUTTON_PRIMARY))
-            assertTrue(activity.dispatchGenericMotionEvent(press))
+            assertTrue(activity.dispatchGenericMotionEvent(event))
         } finally {
-            press.recycle()
+            event.recycle()
         }
     }
 
@@ -272,6 +303,7 @@ class SessionGestureRoutingTest {
 
     private fun prepare(mode: String, config: TouchGestureConfig = TouchGestureConfig()) {
         CompositorShadow.sceneInputs.clear()
+        CompositorShadow.pointerEvents = 0
         SessionState.mode = SessionService.MODE_STEAM
         SessionState.steamUi = "bigpicture"
         SessionState.suspended = false
@@ -363,6 +395,8 @@ class SessionGestureRoutingTest {
     class CompositorShadow {
         companion object {
             val sceneInputs = mutableListOf<Triple<Int, Int, Int>>()
+            var pointerEvents = 0
+            @JvmStatic @Implementation fun nativeSendPointer(action: Int, x: Int, y: Int) { pointerEvents++ }
             @JvmStatic @Implementation fun __staticInitializer__() {}
             @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) {}
             @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {

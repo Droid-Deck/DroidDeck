@@ -38,6 +38,8 @@ import org.robolectric.util.ReflectionHelpers
 class SessionPenRoutingTest {
     private lateinit var activity: SessionActivity
     private lateinit var surface: SurfaceView
+    private var surfaceLeft = 0
+    private var surfaceTop = 0
     private val previousSize = SessionState.outputSize
     private val previousMode = SessionState.mode
     private val previousSteamUi = SessionState.steamUi
@@ -50,7 +52,13 @@ class SessionPenRoutingTest {
         activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         activity.window.decorView
         activity.getSharedPreferences("session", 0).edit().clear().commit()
-        surface = SurfaceView(activity).apply { layout(0, 0, 1000, 600) }
+        surface = object : SurfaceView(activity) {
+            override fun isShown() = true
+            override fun getLocationInWindow(location: IntArray) {
+                location[0] = surfaceLeft
+                location[1] = surfaceTop
+            }
+        }.apply { layout(0, 0, 1000, 600) }
         field("surfaceView", surface)
         ReflectionHelpers.callInstanceMethod<Unit>(activity, "installMainSurfaceTouchListener",
             ReflectionHelpers.ClassParameter.from(SurfaceView::class.java, surface))
@@ -78,6 +86,25 @@ class SessionPenRoutingTest {
         assertEquals(Offset(600f, 300f), state<Offset>("cursorPos").value)
         assertTrue(CompositorShadow.pointers.isEmpty())
         assertTrue(CompositorShadow.touches.isEmpty())
+    }
+
+    @Test fun windowPenHoverAndSurfaceContactUseTheSameGuestPosition() {
+        surfaceLeft = 40
+        surfaceTop = 20
+        val hover = event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 140f)
+        hover.offsetLocation(0f, 20f)
+        try {
+            assertTrue(activity.dispatchGenericMotionEvent(hover))
+            assertEquals(140f, hover.x, 0f)
+            assertEquals(320f, hover.y, 0f)
+        } finally {
+            hover.recycle()
+        }
+        val contact = event(MotionEvent.ACTION_DOWN, 20, pen to 100f)
+        try { assertTrue(surface.dispatchTouchEvent(contact)) } finally { contact.recycle() }
+        val x = InputSpace.fixedX(100f, 1000)
+        val y = InputSpace.fixedY(300f, 600)
+        assertEquals(listOf(Pen(PEN_IN, x, y), Pen(PEN_IN or PEN_TIP, x, y)), CompositorShadow.pens)
     }
 
     @Test fun theSideButtonSettingDecidesWhatThePrimaryButtonSends() {
