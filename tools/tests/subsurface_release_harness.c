@@ -258,6 +258,48 @@ static void cycled_faster_than_releases(void) {
     check(&c, 0);
 }
 
+static void desync_parent_holds_sync_grandchild(void) {
+    struct surface root, middle, child;
+    struct wl_resource a, b;
+    surface_init(&root, ROLE_TOPLEVEL, NULL);
+    surface_init(&middle, ROLE_SUBSURFACE, &root);
+    surface_init(&child, ROLE_SUBSURFACE, &middle);
+    middle.sub_desync = 1;
+    buffer_init(&a); buffer_init(&b);
+    present(&a); commit(&child, &a); commit(&middle, NULL);
+    present(&b); commit(&child, &b);
+    timer_fires(g_now + 100000000LL);
+    check(&a, 0);
+    commit(&middle, NULL);
+    timer_fires(g_now + 100000000LL);
+    check(&a, 1);
+    check(&b, 0);
+}
+
+static void set_desync_frees_held_release(void) {
+    struct surface root, outer, inner;
+    struct wl_resource a, b, c, d;
+    surface_init(&root, ROLE_TOPLEVEL, NULL);
+    surface_init(&outer, ROLE_SUBSURFACE, &root);
+    surface_init(&inner, ROLE_SUBSURFACE, &outer);
+    buffer_init(&a); buffer_init(&b); buffer_init(&c); buffer_init(&d);
+    present(&a); commit(&inner, &a); commit(&root, NULL);
+    present(&b); commit(&inner, &b);
+    present(&c); commit(&outer, &c); commit(&root, NULL);
+    present(&d); commit(&outer, &d);
+    inner.sub_desync = 1;
+    pending_releases_rehold(&inner);
+    timer_fires(g_now + 100000000LL);
+    check(&a, 1);
+    check(&c, 0);
+    outer.sub_desync = 1;
+    pending_releases_rehold(&outer);
+    timer_fires(g_now + 100000000LL);
+    check(&c, 1);
+    check(&b, 0);
+    check(&d, 0);
+}
+
 int main(int argc, char **argv) {
     assert(argc == 2);
     wl_list_init(&g_surfaces);
@@ -269,6 +311,8 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[1], "toplevel")) toplevel_pacing_kept();
     else if (!strcmp(argv[1], "unpaced")) unpaced_sync_child();
     else if (!strcmp(argv[1], "destroyed")) holder_destroyed();
+    else if (!strcmp(argv[1], "nested")) desync_parent_holds_sync_grandchild();
+    else if (!strcmp(argv[1], "set-desync")) set_desync_frees_held_release();
     else return 2;
     return 0;
 }

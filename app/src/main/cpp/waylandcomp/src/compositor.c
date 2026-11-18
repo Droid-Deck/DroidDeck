@@ -457,12 +457,25 @@ static void pending_releases_apply(struct surface *holder) {
 
 static struct surface *sync_holder(struct surface *s) {
     struct surface *holder = NULL;
-    int sync = 0;
     for (int depth = 0; s && s->role == ROLE_SUBSURFACE && s->parent && depth < 8; depth++) {
-        if (!s->sub_desync) sync = 1;
-        holder = s = s->parent;
+        if (!s->sub_desync) holder = s->parent;
+        s = s->parent;
     }
-    return sync ? holder : NULL;
+    return holder;
+}
+
+static void pending_releases_rehold(struct surface *changed) {
+    struct pending_release *pr;
+    int unheld = 0;
+    wl_list_for_each(pr, &g_pending_releases, link) {
+        if (!pr->held_by || !pr->surface) continue;
+        struct surface *s = pr->surface;
+        for (int depth = 0; s && s != changed && depth < 8; depth++) s = s->parent;
+        if (s != changed) continue;
+        pr->held_by = sync_holder(pr->surface);
+        if (!pr->held_by) unheld = 1;
+    }
+    if (unheld) { release_due_buffers(); arm_release_timer(); }
 }
 
 static void on_pending_release_buffer_destroyed(struct wl_listener *l, void *data) {
@@ -1528,7 +1541,7 @@ static void subsurface_set_sync(struct wl_client *c, struct wl_resource *r) {
 }
 static void subsurface_set_desync(struct wl_client *c, struct wl_resource *r) {
     struct surface *s = wl_resource_get_user_data(r);
-    if (s) s->sub_desync = 1;
+    if (s) { s->sub_desync = 1; pending_releases_rehold(s); }
 }
 static const struct wl_subsurface_interface subsurface_impl = {
     .destroy = subsurface_destroy,

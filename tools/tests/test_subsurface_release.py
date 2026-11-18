@@ -10,7 +10,7 @@ REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / 'app/src/main/cpp/waylandcomp/src/compositor.c'
 FUNCTIONS = (
     'pending_release_free', 'pending_releases_forget_surface', 'pending_releases_cancel',
-    'pending_releases_apply', 'sync_holder', 'on_pending_release_buffer_destroyed',
+    'pending_releases_apply', 'sync_holder', 'pending_releases_rehold', 'on_pending_release_buffer_destroyed',
     'arm_release_timer', 'release_due_buffers', 'release_buffer', 'buffer_shown_elsewhere',
     'drop_dmabuf',
 )
@@ -77,12 +77,19 @@ class SubsurfaceReleaseTest(unittest.TestCase):
     def test_held_release_is_sent_when_the_parent_is_destroyed(self):
         self.check_case('destroyed')
 
+    def test_desynchronized_parent_releases_its_synchronized_child(self):
+        self.check_case('nested')
+
+    def test_set_desync_releases_what_the_old_parent_held(self):
+        self.check_case('set-desync')
+
     def test_compositor_attach_and_commit_use_the_release_hold(self):
         self.assertIn('pending_releases_cancel(buffer);', function_body(self.source, 'take_dmabuf'))
         commit = function_body(self.source, 'surface_commit')
         self.assertIn('pending_releases_apply(s);', commit)
         self.assertLess(commit.index('take_dmabuf(s, db, buffer);'), commit.index('pending_releases_apply(s);'))
         self.assertLess(commit.index('buf_trace_attach(buffer);'), commit.index('if (s->role == ROLE_CURSOR)'))
+        self.assertIn('pending_releases_rehold(s);', function_body(self.source, 'subsurface_set_desync'))
 
 
 if __name__ == '__main__':
