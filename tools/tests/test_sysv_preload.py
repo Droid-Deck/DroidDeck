@@ -16,7 +16,7 @@ class SysvPreloadTest(unittest.TestCase):
             binary = str(Path(folder) / 'test-sysv')
             subprocess.run(['gcc', '-Wall', '-Wextra', '-O2', '-pthread', '-o', binary,
                             str(Path(__file__).resolve().parent / 'sysv_otime_harness.c'), str(PRELOAD / 'sysv.c')], check=True)
-            env = dict(os.environ, BL_SYSV_DIR=folder)
+            env = dict(os.environ, DD_SYSV_DIR=folder)
             result = subprocess.run([binary], capture_output=True, text=True, timeout=10, env=env)
             self.assertIn('PASS: sysv otime', result.stdout, result.stdout + result.stderr)
 
@@ -25,7 +25,7 @@ class SysvPreloadTest(unittest.TestCase):
             binary = str(Path(folder) / 'test-sysv-msg')
             subprocess.run(['gcc', '-Wall', '-Wextra', '-O2', '-pthread', '-o', binary,
                             str(Path(__file__).resolve().parent / 'sysv_msg_harness.c'), str(PRELOAD / 'sysv.c')], check=True)
-            env = dict(os.environ, BL_SYSV_DIR=folder)
+            env = dict(os.environ, DD_SYSV_DIR=folder)
             result = subprocess.run([binary], capture_output=True, text=True, timeout=20, env=env)
             self.assertIn('PASS: sysv msg', result.stdout, result.stdout + result.stderr)
 

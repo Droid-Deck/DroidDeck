@@ -98,7 +98,7 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
                 // (Steam's GL, Xwayland's glamor) requires robustness2's nullDescriptor, which the
                 // layer stands in for. Only Auto may fall back to llvmpipe if the startup probe fails.
                 "DROIDDECK_MALI_COMPAT=1",
-                "BL_VENUS=1",
+                "DD_VENUS=1",
                 // gamescope's composite layout without immutable YCbCr samplers from the start
                 // (patch 0930): a Mali-G615 refused every composite pipeline with them, and testing
                 // that through Venus took the render server down.

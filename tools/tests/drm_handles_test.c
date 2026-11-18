@@ -110,8 +110,8 @@ static long fixture_syscall(long number, ...) {
   if (number == SYS_ioctl) {
     (void)va_arg(ap, int);
     unsigned long request = va_arg(ap, unsigned long);
-    struct bl_drm_version *v = va_arg(ap, void *);
-    assert(request == BL_DRM_VERSION);
+    struct dd_drm_version *v = va_arg(ap, void *);
+    assert(request == DD_DRM_VERSION);
     snprintf(v->name, v->name_len, "%s", driver_name);
     v->name_len = strlen(driver_name);
     va_end(ap);
@@ -184,23 +184,23 @@ static void *stress_fallback_imports(void *opaque) {
 int main(void) {
   int drm = test_open("/dev/null"), dma = test_open("/dev/zero");
   uint32_t handle = 0;
-  unsetenv("BL_POWERVR_DRM_HANDLES");
-  setenv("BL_POWERVR_RENDER_NODE", pvr_node, 1);
+  unsetenv("DD_POWERVR_DRM_HANDLES");
+  setenv("DD_POWERVR_RENDER_NODE", pvr_node, 1);
   assert(drmPrimeFDToHandle(drm, dma, &handle) != 0);
-  setenv("BL_POWERVR_DRM_HANDLES", "yes", 1);
+  setenv("DD_POWERVR_DRM_HANDLES", "yes", 1);
   assert(drmPrimeFDToHandle(drm, dma, &handle) != 0);
-  setenv("BL_POWERVR_DRM_HANDLES", "1", 1);
-  unsetenv("BL_POWERVR_RENDER_NODE");
+  setenv("DD_POWERVR_DRM_HANDLES", "1", 1);
+  unsetenv("DD_POWERVR_RENDER_NODE");
   assert(drmPrimeFDToHandle(drm, dma, &handle) != 0); /* no selected node */
-  setenv("BL_POWERVR_RENDER_NODE", "", 1);
+  setenv("DD_POWERVR_RENDER_NODE", "", 1);
   assert(drmPrimeFDToHandle(drm, dma, &handle) != 0);
-  setenv("BL_POWERVR_RENDER_NODE", "/dev/dri/renderD128", 1);
+  setenv("DD_POWERVR_RENDER_NODE", "/dev/dri/renderD128", 1);
   assert(drmPrimeFDToHandle(drm, dma, &handle) != 0); /* another GPU owns 128 */
-  setenv("BL_POWERVR_RENDER_NODE", "/dev/dri/renderD130", 1);
+  setenv("DD_POWERVR_RENDER_NODE", "/dev/dri/renderD130", 1);
   assert(drmPrimeFDToHandle(drm, dma, &handle) != 0); /* selected node is absent */
-  setenv("BL_POWERVR_RENDER_NODE", __FILE__, 1);
+  setenv("DD_POWERVR_RENDER_NODE", __FILE__, 1);
   assert(drmPrimeFDToHandle(drm, dma, &handle) != 0); /* regular files are not DRM nodes */
-  setenv("BL_POWERVR_RENDER_NODE", pvr_node, 1);
+  setenv("DD_POWERVR_RENDER_NODE", pvr_node, 1);
   driver_name = "other";
   assert(drmPrimeFDToHandle(drm, dma, &handle) != 0);
   driver_name = "pvr";
@@ -253,7 +253,7 @@ int main(void) {
   assert(drmPrimeHandleToFD(separate, handle, O_CLOEXEC | O_RDWR, &out) != 0);
   struct gem_close close_request = {.handle = handle};
   int rc = 123;
-  assert(bl_drm_gem_close(separate, GEM_CLOSE, &close_request, &rc) == 0 && rc == 123);
+  assert(dd_drm_gem_close(separate, GEM_CLOSE, &close_request, &rc) == 0 && rc == 123);
   assert(drmPrimeHandleToFD(alias, handle, O_CLOEXEC | O_RDWR, &out) == 0);
   assert(fcntl(out, F_GETFD) & FD_CLOEXEC);
   struct stat src, dst;
@@ -274,7 +274,7 @@ int main(void) {
   assert(drmCloseBufferHandle(drm, handle) != 0);
   assert(drmPrimeHandleToFD(alias, handle, O_CLOEXEC, &out) == 0);
   fixture_close(out);
-  assert(bl_drm_gem_close(alias, GEM_CLOSE, &close_request, &rc) == 1 && rc == 0);
+  assert(dd_drm_gem_close(alias, GEM_CLOSE, &close_request, &rc) == 1 && rc == 0);
   assert(drmPrimeHandleToFD(alias, handle, O_CLOEXEC, &out) != 0);
   fixture_close(alias);
   fixture_close(separate);
@@ -288,7 +288,7 @@ int main(void) {
   assert(drmPrimeHandleToFD(drm, handle, O_CLOEXEC, &out) == 0);
   fixture_close(out);
   close_request.handle = handle;
-  assert(bl_drm_gem_close(drm, GEM_CLOSE, &close_request, &rc) == 0);
+  assert(dd_drm_gem_close(drm, GEM_CLOSE, &close_request, &rc) == 0);
   assert(drmCloseBufferHandle(drm, handle) == 0);
   assert(native_imports && native_exports && native_closes);
   kernel_error = EINVAL;
@@ -321,19 +321,19 @@ int main(void) {
 
   /* Preserve the original device layout when PowerVR owns renderD128. */
   pvr_node = "/dev/dri/renderD128";
-  setenv("BL_POWERVR_RENDER_NODE", pvr_node, 1);
+  setenv("DD_POWERVR_RENDER_NODE", pvr_node, 1);
   assert(drmPrimeFDToHandle(drm, dma, &handle) == 0 && (handle & PVR_HANDLE_BIT));
   assert(drmCloseBufferHandle(drm, handle) == 0);
 
   /* Retain the old KGSL path with the PowerVR opt-in unset. */
-  unsetenv("BL_POWERVR_DRM_HANDLES");
+  unsetenv("DD_POWERVR_DRM_HANDLES");
   kgsl_present = 1;
   kgsl_state = 0;
   assert(drmPrimeFDToHandle(dma, drm, &handle) == 0 && !(handle & PVR_HANDLE_BIT));
   assert(drmPrimeHandleToFD(dma, handle, O_CLOEXEC | O_RDWR, &out) == 0);
   fixture_close(out);
   close_request.handle = handle;
-  assert(bl_drm_gem_close(dma, GEM_CLOSE, &close_request, &rc) == 1 && rc == 0);
+  assert(dd_drm_gem_close(dma, GEM_CLOSE, &close_request, &rc) == 1 && rc == 0);
   assert(drmCloseBufferHandle(dma, handle) == -EINVAL);
   empty_table();
   assert(count_fds() == baseline);

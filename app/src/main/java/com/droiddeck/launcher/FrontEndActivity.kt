@@ -209,8 +209,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var animationsEnabled by mutableStateOf(true)
     private var lowStorageWarning by mutableStateOf(true)
     private var launcherIcon by mutableStateOf(LauncherIcon.DARK)
-    private var gameStoresEnabled by mutableStateOf(true)
-    private var soundtracksEnabled by mutableStateOf(true)
     private var soundtracksIngame by mutableStateOf(false)
     private var soundtracks by mutableStateOf<List<Library.SteamGame>>(emptyList())
     private var soundtracksLoaded by mutableStateOf(false)
@@ -910,6 +908,16 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun readGameIntent(request: Intent) {
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
+        request.data?.takeIf { it.scheme == "droiddeck" && it.host == "settings" }?.let { uri ->
+            val section = uri.pathSegments.firstOrNull()
+            navRequest = if (section in setOf("storage", "sync", "downloads")) section
+                else "settings:" + (com.droiddeck.launcher.ui.SettingsSection.of(section) ?: com.droiddeck.launcher.ui.SettingsSection.OVERVIEW).key
+            request.data = null
+            gameLinkReading = false
+            pendingGameLink = null
+            syncDualPanel()
+            return
+        }
         if (navRequest == com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_APPS) {
             homeAppSelected = HomeApp.isHomeScreenEnabled(this) && HomeApp.isDefault(this)
             if (!homeAppSelected) navRequest = null
@@ -926,7 +934,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val soundtrackId = com.droiddeck.launcher.frontend.SoundtrackShortcuts.read(request)
         if (soundtrackId != null) {
             soundtrackLaunch = true
-            navRequest = if (SessionPrefs.soundtracksEnabled(this)) "sound:$soundtrackId" else "app:$soundtrackId"
+            navRequest = if ("soundtracks" !in com.droiddeck.launcher.ui.NavTabs.hidden) "sound:$soundtrackId" else "app:$soundtrackId"
             request.data = null
             request.action = Intent.ACTION_MAIN
             return
@@ -1234,8 +1242,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         lowStorageWarning = SessionPrefs.lowStorageWarning(this)
         LauncherIcon.repair(this, intent?.component)
         launcherIcon = LauncherIcon.current(this)
-        gameStoresEnabled = SessionPrefs.gameStoresEnabled(this)
-        soundtracksEnabled = SessionPrefs.soundtracksEnabled(this)
         soundtracksIngame = SessionPrefs.soundtracksIngame(this)
         gameStoresSpeedTier = SessionPrefs.gameStoresSpeedTier(this)
         storesShowMature = SessionPrefs.storesShowMature(this)
@@ -1248,6 +1254,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             androidx.compose.runtime.LaunchedEffect(prootPack) {
                 if (prootPack == com.droiddeck.launcher.core.AddonPack.State.Ready && installed == null) refresh()
             }
+            val appsTabShown = "android-apps" !in com.droiddeck.launcher.ui.NavTabs.hidden
+            androidx.compose.runtime.LaunchedEffect(appsTabShown) { if (appsTabShown && androidApps.isEmpty()) refreshAndroidApps() }
             DroidDeckTheme(theme, appScale = appScale) {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize().exposeTestTags()) {
                 if (decky.deckyPendingZip != null) com.droiddeck.launcher.ui.DeckyZipWarningDialog(
@@ -1333,8 +1341,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         animationsEnabled = animationsEnabled,
                         lowStorageWarning = lowStorageWarning,
                         launcherIcon = launcherIcon,
-                        gameStoresEnabled = gameStoresEnabled,
-                        soundtracksEnabled = soundtracksEnabled,
+                        soundtracksEnabled = "soundtracks" !in com.droiddeck.launcher.ui.NavTabs.hidden,
                         soundtracksIngame = soundtracksIngame,
                         soundtracks = soundtracks,
                         soundtracksLoaded = soundtracksLoaded,
@@ -1491,6 +1498,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
                         onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
+                        performancePanel = { PerformanceHost(embedded = true) },
                         onRoms = { showRoms = true },
                         onFiles = { startActivity(Intent(this, com.droiddeck.launcher.files.FileManagerActivity::class.java)) },
                         onBrowseFiles = { dir ->
@@ -1606,8 +1614,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             offline = OfflineMode.enabled(this)
                         },
                         onPageBack = { showPerformance = false; showComponents = false; showMapping = false },
-                        onGameStoresEnabled = { on -> SessionPrefs.setGameStoresEnabled(this, on); gameStoresEnabled = on },
-                        onSoundtracksEnabled = { on -> SessionPrefs.setSoundtracksEnabled(this, on); soundtracksEnabled = on },
                         onSoundtracksIngame = { on ->
                             SessionPrefs.setSoundtracksIngame(this, on)
                             soundtracksIngame = on
@@ -2198,13 +2204,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun refreshAndroidApps() {
-        if (!homeAppSelected) {
+        if (!homeAppSelected && "android-apps" in com.droiddeck.launcher.ui.NavTabs.hidden) {
             ++androidAppsListing
             androidApps = emptyList()
             return
         }
         val seq = ++androidAppsListing
-        HomePins.refresh(this)
+        if (homeAppSelected) HomePins.refresh(this)
         Thread({
             val apps = runCatching { HomeApp.launchableApps(this) }.getOrDefault(emptyList())
             ui.post { if (seq == androidAppsListing) androidApps = apps }
@@ -2702,7 +2708,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     @Composable
-    private fun PerformanceHost() {
+    private fun PerformanceHost(embedded: Boolean = false) {
+        if (embedded) androidx.compose.runtime.LaunchedEffect(Unit) { refreshCores() }
         PerformancePage(
             cores = CpuCores.all.map { c -> CoreRow(c, "cpu$c" + (CpuCores.maxGhz(c)?.let { String.format(java.util.Locale.US, " · %.1f GHz", it) } ?: "")) },
             clientOverride = clientOverride, clientCores = clientCores, gameCores = gameCores, paceCores = paceCores,
@@ -2748,6 +2755,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 SessionPrefs.setGameCpus(this, CpuCores.format(gameCores))
             },
             onDismiss = { showPerformance = false },
+            embedded = embedded,
         )
     }
 
@@ -3300,7 +3308,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
                 if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()
                 com.droiddeck.launcher.ui.Motion.refresh(this)
-                com.droiddeck.launcher.agent.AgentTab.load(this)
+                com.droiddeck.launcher.ui.DeveloperTools.load(this)
                 com.droiddeck.launcher.ui.NavTabs.load(this)
                 if (!switchLauncherIcon(LauncherIcon.DARK)) recreate()
             }

@@ -23,18 +23,18 @@ class MaliGraphicsSessionTest(unittest.TestCase):
         self.sock.listen(1)
         self.addCleanup(self.sock.close)
         text = SESSION.read_text()
-        self.graphics = text[text.index("mali_graphics_failed() {"):text.index('if [ "${BL_GAME_LOGS:-0}" = 1 ]')]
+        self.graphics = text[text.index("mali_graphics_failed() {"):text.index('if [ "${DD_GAME_LOGS:-0}" = 1 ]')]
         self.graphics = self.graphics.replace("/usr/local/share/vkbridge/droidbridge_icd.json", str(self.icd))
         self.graphics = self.graphics.replace("/usr/local/lib/vkbridge/libvulkan_droidbridge.so", str(self.lib))
 
     def run_graphics(self, mode="bridge", smoke="FAIL memory sharing", status=1, path="bridge", vulkan_status=0, driver="",
                      vulkan_info="nullDescriptor = true"):
-        env = dict(os.environ, BL_MALI_GRAPHICS_MODE=mode, BL_MALI_GRAPHICS_PATH=path,
-                   BL_DEBUG_DIR=str(self.root), BL_VKBRIDGE="1" if path == "bridge" else "0",
-                    BL_VENUS="1" if path == "venus" else "0", BL_INSIDE="",
-                    BL_VK_DRIVER=driver,
+        env = dict(os.environ, DD_MALI_GRAPHICS_MODE=mode, DD_MALI_GRAPHICS_PATH=path,
+                   DD_DEBUG_DIR=str(self.root), DD_VKBRIDGE="1" if path == "bridge" else "0",
+                    DD_VENUS="1" if path == "venus" else "0", DD_INSIDE="",
+                    DD_VK_DRIVER=driver,
                    VKBRIDGE_SOCKET=str(self.root / "server.sock"),
-                   BL_VKBRIDGE_FALLBACK_ICD=str(self.fallback), SMOKE=smoke,
+                   DD_VKBRIDGE_FALLBACK_ICD=str(self.fallback), SMOKE=smoke,
                     SMOKE_STATUS=str(status), VULKAN_STATUS=str(vulkan_status), VULKAN_INFO=vulkan_info)
         stubs = '''
 step() { :; }
@@ -50,7 +50,7 @@ timeout() {
 }
 '''
         return subprocess.run(["bash", "-uc", stubs + self.graphics +
-                               '\necho "CONTINUED bridge=$BL_VKBRIDGE icd=${VK_DRIVER_FILES:-}"'],
+                               '\necho "CONTINUED bridge=$DD_VKBRIDGE icd=${VK_DRIVER_FILES:-}"'],
                               env=env, capture_output=True, text=True, timeout=5)
 
     def test_fixed_bridge_failures_stop_even_with_a_fallback_installed(self):

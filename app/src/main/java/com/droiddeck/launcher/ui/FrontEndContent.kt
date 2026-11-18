@@ -251,6 +251,18 @@ private fun Content(
         }
         return
     }
+    if (selected == "downloads") {
+        DownloadsPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
+    if (selected == "storage") {
+        StorageTabPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
+    if (selected == "sync") {
+        SyncTabPage(s, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
     if (selected == "updates") {
         UpdatesPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
         return
@@ -276,14 +288,17 @@ private fun Content(
         return
     }
     if (selected == NavTabs.MORE) {
-        MorePage(s, a, onSelect, modifier.padding(horizontal = padH).padding(top = padV))
+        Box(modifier) {
+            MorePage(s, a, onSelect, Modifier.padding(horizontal = padH).padding(top = padV))
+            EditTabsSheet(s, a)
+        }
         return
     }
     if (selected == "agent") {
         AgentPage(modifier.padding(horizontal = padH).padding(top = padV))
         return
     }
-    if (selected == "android-apps" && s.isHomeApp) {
+    if (selected == "android-apps") {
         AndroidAppsPage(s, a, modifier, onAndroidAppClick)
         return
     }

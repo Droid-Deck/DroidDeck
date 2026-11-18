@@ -20,13 +20,18 @@ interface AgentHarness {
     /** A guest command that signs in through $BROWSER. */
     val signIn: List<String>
     /**
-     * Where the user makes an API key, for a CLI whose own sign-in is a terminal prompt: [signIn]
-     * then only opens this page, and the key is pasted into DroidDeck and saved by [saveKey].
+     * APIs the CLI reaches with a key pasted into DroidDeck, for a CLI whose own sign-in is a terminal
+     * prompt; empty when it signs in through [signIn].
      */
-    val keyPage: String? get() = null
-    /** Whether a key from [keyPage] is saved under [rootfs]. */
-    fun hasKey(rootfs: File): Boolean = false
-    fun saveKey(rootfs: File, key: String) {}
+    val providers: List<Provider> get() = emptyList()
+    /** Ids of the [providers] with a key saved under [rootfs]. */
+    fun keys(rootfs: File): Set<String> = emptySet()
+    /**
+     * Saves [key] for [provider]. A [Provider.custom] one also takes the [endpoint] it is served from, and
+     * [get] fetches a URL from the userland, with the key as a bearer token when it is not null.
+     */
+    fun saveKey(rootfs: File, provider: Provider, key: String, endpoint: String? = null, get: (String, String?) -> String = { url, _ -> error("Cannot reach $url") }) {}
+    fun removeKey(rootfs: File, provider: Provider) {}
     /** Whether the CLI has models that need no account; [useFree] then counts as signed in. */
     val free: Boolean get() = false
     fun useFree(rootfs: File) {}
@@ -56,6 +61,9 @@ interface AgentHarness {
     fun usage(rootfs: File, conversation: String?): AgentEvent? = null
 
     data class Model(val id: String, val label: String)
+
+    /** An API reached with a key; [keyPage] is where the key is made, and a [custom] one is any OpenAI-compatible server. */
+    data class Provider(val id: String, val name: String, val keyPage: String? = null, val custom: Boolean = false)
 
     data class Options(val model: String? = null, val plan: Boolean = false, val brief: String? = null, val effort: String? = null)
 
@@ -412,31 +420,117 @@ object OpenCode : AgentHarness {
     override val instructions = "root/.config/opencode/AGENTS.md"
     override val install = "curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path"
     private const val AUTH = "root/.local/share/opencode/auth.json"
+    private const val CONFIG = "root/.config/opencode/opencode.json"
     private const val FREE = "root/.config/opencode/.droiddeck-free"
     private const val MODELS = "root/.cache/droiddeck/opencode-models"
+    /** The provider id DroidDeck gives a server the user names, in opencode's config and auth. */
+    private const val CUSTOM = "droiddeck"
 
     // `opencode models` lists only what the saved keys reach, so the check that runs it keeps the model list current.
     override val signedIn = listOf("sh", "-c",
         "mkdir -p /${MODELS.substringBeforeLast('/')}; $binary models --verbose > /$MODELS.$$ 2>/dev/null && mv -f /$MODELS.$$ /$MODELS; rm -f /$MODELS.$$; " +
-            "grep -q '\"type\"' /$AUTH 2>/dev/null || [ -e /$FREE ]")
-    override val keyPage = "https://opencode.ai/auth"
-    override val signIn = listOf("/root/.local/bin/android-open", keyPage)
+            "grep -q '\"type\"' /$AUTH 2>/dev/null || [ -e /$FREE ] || grep -q '\"$CUSTOM\"' /$CONFIG 2>/dev/null")
+    // Ids are opencode's own (models.dev), so a saved key is what `opencode auth login` would save for that provider.
+    override val providers = listOf(
+        AgentHarness.Provider("opencode", "OpenCode Zen", "https://opencode.ai/auth"),
+        AgentHarness.Provider("ollama-cloud", "Ollama Cloud", "https://ollama.com/settings/keys"),
+        AgentHarness.Provider("openrouter", "OpenRouter", "https://openrouter.ai/settings/keys"),
+        AgentHarness.Provider("openai", "OpenAI", "https://platform.openai.com/api-keys"),
+        AgentHarness.Provider("anthropic", "Anthropic", "https://console.anthropic.com/settings/keys"),
+        AgentHarness.Provider("google", "Gemini", "https://aistudio.google.com/apikey"),
+        AgentHarness.Provider(CUSTOM, "Other server", custom = true),
+    )
+    override val signIn = listOf("/root/.local/bin/android-open", providers.first().keyPage!!)
     override val free = true
     override val plans = true
     override val efforts = listOf("low", "medium", "high")
 
-    override fun hasKey(rootfs: File) = runCatching { JSONObject(File(rootfs, AUTH).readText()).has("opencode") }.getOrDefault(false)
+    override fun keys(rootfs: File): Set<String> {
+        val auth = runCatching { JSONObject(File(rootfs, AUTH).readText()) }.getOrNull()
+        val custom = runCatching { JSONObject(File(rootfs, CONFIG).readText()).optJSONObject("provider")?.has(CUSTOM) }.getOrNull() == true
+        return providers.filter { auth?.has(it.id) == true || (it.custom && custom) }.map { it.id }.toSet()
+    }
 
-    /** The key opencode's own `auth login` would save for OpenCode Zen. */
-    override fun saveKey(rootfs: File, key: String) {
-        val file = File(rootfs, AUTH)
-        // An auth.json that cannot be read holds other providers' sign-ins too, so it is never replaced.
-        val auth = if (file.exists()) JSONObject(file.readText()) else JSONObject()
-        auth.put("opencode", JSONObject().put("type", "api").put("key", key.trim()))
+    /**
+     * Saves the key as opencode's own `auth login` would. A custom server also gets a provider in
+     * opencode's config with the models its `/models` lists, since opencode does not list them itself.
+     */
+    override fun saveKey(rootfs: File, provider: AgentHarness.Provider, key: String, endpoint: String?, get: (String, String?) -> String) {
+        val token = key.trim().takeIf { it.isNotEmpty() }
+        // Both files are read before either is written, so one that cannot be read changes nothing.
+        val authFile = File(rootfs, AUTH)
+        val auth = readJson(authFile)
+        if (token != null) auth.put(provider.id, JSONObject().put("type", "api").put("key", token)) else auth.remove(provider.id)
+        if (!provider.custom) return writeJson(authFile, auth, private = true)
+        val base = endpoint(endpoint ?: "")
+        val configFile = File(rootfs, CONFIG)
+        val before = configFile.takeIf { it.exists() }?.readText()
+        val config = readJson(configFile)
+        val models = modelIds(get("$base/models", token))
+        check(models.isNotEmpty()) { "No models at $base" }
+        if (!config.has("\$schema")) config.put("\$schema", "https://opencode.ai/config.json")
+        val all = config.optJSONObject("provider") ?: JSONObject().also { config.put("provider", it) }
+        all.put(CUSTOM, JSONObject()
+            .put("npm", "@ai-sdk/openai-compatible")
+            .put("name", runCatching { java.net.URI(base).host }.getOrNull() ?: provider.name)
+            .put("options", JSONObject().put("baseURL", base))
+            .put("models", JSONObject().apply { models.forEach { put(it, JSONObject().put("name", it)) } }))
+        writeJson(configFile, config)
+        try {
+            writeJson(authFile, auth, private = true)
+        } catch (e: Exception) {
+            val undone = runCatching {
+                if (before != null) writeFile(configFile, before) else java.nio.file.Files.deleteIfExists(configFile.toPath())
+            }
+            // First, since the setup row shows two lines of the message.
+            undone.exceptionOrNull()?.let { throw IllegalStateException("The server config could not be put back (${it.message}): ${e.message}", e) }
+            throw e
+        }
+    }
+
+    override fun removeKey(rootfs: File, provider: AgentHarness.Provider) {
+        if (File(rootfs, AUTH).exists()) editJson(File(rootfs, AUTH), private = true) { it.remove(provider.id) }
+        if (provider.custom && File(rootfs, CONFIG).exists()) editJson(File(rootfs, CONFIG)) { it.optJSONObject("provider")?.remove(CUSTOM) }
+    }
+
+    /** A server address as typed, made into the OpenAI-compatible base URL opencode calls. */
+    @VisibleForTesting
+    internal fun endpoint(typed: String): String {
+        val url = typed.trim().trimEnd('/').let { if ("://" in it) it else "http://$it" }
+        require(url.substringAfter("://").isNotEmpty()) { "No server address" }
+        return if (url.substringAfter("://").contains('/')) url else "$url/v1"
+    }
+
+    @VisibleForTesting
+    internal fun modelIds(body: String): List<String> {
+        // The userland can print its own warnings ahead of the response.
+        val json = body.substring(body.indexOf('{').coerceAtLeast(0), body.lastIndexOf('}') + 1)
+        val data = runCatching { JSONObject(json).optJSONArray("data") }.getOrNull() ?: return emptyList()
+        return (0 until data.length()).mapNotNull { data.optJSONObject(it)?.optString("id")?.takeIf { id -> id.isNotEmpty() } }.distinct()
+    }
+
+    // A file that cannot be read holds the user's other providers too, so it is never replaced.
+    private fun readJson(file: File) = if (file.exists()) JSONObject(file.readText()) else JSONObject()
+
+    private fun editJson(file: File, private: Boolean = false, edit: (JSONObject) -> Unit) =
+        writeJson(file, readJson(file).also(edit), private)
+
+    /** Writes beside [file] and moves it into place, so a write that stops partway leaves the old file. */
+    private fun writeJson(file: File, json: JSONObject, private: Boolean = false) = writeFile(file, json.toString(2) + "\n", private)
+
+    private fun writeFile(file: File, text: String, private: Boolean = false) {
         file.parentFile?.mkdirs()
-        file.writeText(auth.toString(2) + "\n")
-        file.setReadable(false, false)
-        file.setReadable(true, true)
+        val temp = File(file.parentFile, ".${file.name}.tmp")
+        try {
+            temp.writeText(text)
+            if (private) {
+                temp.setReadable(false, false)
+                temp.setReadable(true, true)
+            }
+            java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            temp.delete()
+        }
     }
 
     override fun useFree(rootfs: File) {
@@ -473,7 +567,8 @@ object OpenCode : AgentHarness {
             runCatching { JSONObject(json.toString()) }.getOrNull()?.takeIf { it.optString("status") != "deprecated" }?.let { o ->
                 val provider = o.optString("providerID")
                 val label = o.optString("name").ifEmpty { current }
-                models += AgentHarness.Model(current, if (provider.isEmpty() || provider == "opencode") label else "$label · $provider")
+                val source = if (provider == "opencode" || provider == CUSTOM) "" else providers.firstOrNull { it.id == provider }?.name ?: provider
+                models += AgentHarness.Model(current, if (source.isEmpty()) label else "$label · $source")
                 o.optJSONObject("limit")?.optLong("context")?.takeIf { it > 0 }?.let { windows[current] = it }
             }
             id = null

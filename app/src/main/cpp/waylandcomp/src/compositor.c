@@ -24,7 +24,7 @@
 #include "sc_layer.h"
 #include "ahb_swapchain.h"
 #include "viewporter-server-protocol.h"
-#include "banner-desktop-v1-server-protocol.h"
+#include "droiddeck-desktop-v1-server-protocol.h"
 #include "presentation-time-server-protocol.h"
 #include "pointer-constraints-unstable-v1-server-protocol.h"
 #include "relative-pointer-unstable-v1-server-protocol.h"
@@ -79,7 +79,7 @@ static void open_session_log(void) {
 
     localtime_r(&now, &tm);
     strftime(stamp, sizeof(stamp), "%Y-%m-%d_%H-%M-%S", &tm);
-    const char *given = getenv("BL_WAYLAND_LOG");
+    const char *given = getenv("DD_WAYLAND_LOG");
     if (given && *given) {
         snprintf(path, sizeof(path), "%s", given);
     } else {
@@ -1796,14 +1796,14 @@ static void desktop_set_zorder(struct wl_client *c, struct wl_resource *r, struc
     apply_zorder();
     schedule_render();
 }
-static const struct banner_desktop_v1_interface desktop_impl = {
+static const struct droiddeck_desktop_v1_interface desktop_impl = {
     .destroy = desktop_destroy_req,
     .set_desktop = desktop_set_desktop,
     .set_window = desktop_set_window,
     .set_zorder = desktop_set_zorder,
 };
 static void bind_desktop(struct wl_client *c, void *data, uint32_t ver, uint32_t id) {
-    struct wl_resource *r = wl_resource_create(c, &banner_desktop_v1_interface, ver, id);
+    struct wl_resource *r = wl_resource_create(c, &droiddeck_desktop_v1_interface, ver, id);
     wl_resource_set_implementation(r, &desktop_impl, NULL, NULL);
 }
 
@@ -4083,7 +4083,7 @@ int droiddeck_wayland_run(void) {
     wl_global_create(display, &zwp_linux_dmabuf_v1_interface, 4, NULL, bind_dmabuf);
     droiddeck_android_wlegl_init(display);
     wl_global_create(display, &wl_seat_interface, 9, NULL, bind_seat);
-    wl_global_create(display, &banner_desktop_v1_interface, 1, NULL, bind_desktop);
+    wl_global_create(display, &droiddeck_desktop_v1_interface, 1, NULL, bind_desktop);
     wl_global_create(display, &wp_presentation_interface, 2, NULL, bind_presentation);
     wl_global_create(display, &zwp_pointer_constraints_v1_interface, 1, NULL, bind_pointer_constraints);
     wl_global_create(display, &zwp_relative_pointer_manager_v1_interface, 1, NULL, bind_relative_pointer_manager);

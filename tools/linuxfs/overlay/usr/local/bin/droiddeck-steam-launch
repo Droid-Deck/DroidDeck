@@ -11,13 +11,13 @@ case $target in
   *) url=steam://rungameid/$target ;;
 esac
 
-if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
+if [ "$ui" = desktop ] && [ "${DD_DESKTOP:-}" = 1 ]; then
   case ",${MESA_VK_WSI_DEBUG:-}," in
     *,sw,*) ;;
     *) export MESA_VK_WSI_DEBUG=${MESA_VK_WSI_DEBUG:+$MESA_VK_WSI_DEBUG,}sw ;;
   esac
-  if [ "${BL_STEAM_CLIENT_ARCH:-}" = x86_64 ]; then
-    client_home=${BL_X64_HOME:-${HOME:-/root}/.droiddeck-x64}
+  if [ "${DD_STEAM_CLIENT_ARCH:-}" = x86_64 ]; then
+    client_home=${DD_X64_HOME:-${HOME:-/root}/.droiddeck-x64}
     client=(/usr/local/bin/droiddeck-steam-x64 --exec)
   else
     steam_root=${XDG_DATA_HOME:-${HOME:-/root}/.local/share}/Steam
@@ -25,7 +25,7 @@ if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
     client_home=$HOME
     client=("$steam_root/steamrtarm64/steam")
   fi
-  if [ "${BL_BOTTOM_DESKTOP:-}" = 1 ]; then
+  if [ "${DD_BOTTOM_DESKTOP:-}" = 1 ]; then
     pid=$(cat "$client_home/.steam/steam.pid" 2>/dev/null || true)
     if [ -p "$client_home/.steam/steam.pipe" ] && [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
       # The top screen's client takes the request, so games open there.
@@ -48,13 +48,13 @@ if [ "$ui" = desktop ] && [ "${BL_DESKTOP:-}" = 1 ]; then
     exit 69
   fi
   [ "$url" = steam://exit ] && exit 0
-  export BL_INSIDE=1 BL_STEAM_UI=desktop
+  export DD_INSIDE=1 DD_STEAM_UI=desktop
   exec /usr/local/bin/droiddeck-session steam "${url:-steam://open/library}"
 fi
 
-dir=${BL_LAUNCH_DIR:-}
+dir=${DD_LAUNCH_DIR:-}
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
-  echo "droiddeck-steam-launch: not inside a DroidDeck session (BL_LAUNCH_DIR unset)" >&2
+  echo "droiddeck-steam-launch: not inside a DroidDeck session (DD_LAUNCH_DIR unset)" >&2
   exit 69
 fi
 printf 'ui=%s\nurl=%s\n' "$ui" "$url" > "$dir/steam-launch.tmp" && mv -f "$dir/steam-launch.tmp" "$dir/steam-launch"

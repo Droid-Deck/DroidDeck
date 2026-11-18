@@ -23,9 +23,9 @@ class RunStatusTest(unittest.TestCase):
 
     def run_with(self, command, launch_dir=True):
         env = dict(os.environ)
-        env.pop("BL_LAUNCH_DIR", None)
+        env.pop("DD_LAUNCH_DIR", None)
         if launch_dir:
-            env["BL_LAUNCH_DIR"] = str(self.dir)
+            env["DD_LAUNCH_DIR"] = str(self.dir)
         return subprocess.run(["bash", "-c", run_program_function() + "run_program " + command + "; echo unreachable"],
                               env=env, capture_output=True, text=True, timeout=30)
 
@@ -45,7 +45,7 @@ class RunStatusTest(unittest.TestCase):
         self.assertEqual([], os.listdir(self.dir))
 
     def signalled(self, sig, program):
-        env = dict(os.environ, BL_LAUNCH_DIR=str(self.dir))
+        env = dict(os.environ, DD_LAUNCH_DIR=str(self.dir))
         ready = self.dir / "ready"
         proc = subprocess.Popen(["bash", "-c", run_program_function() + "run_program " + program],
                                 env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

@@ -34,9 +34,9 @@ object GraphicsReport {
 
     /** The guest keys the report repeats: everything that decides which Vulkan driver loads. */
     private val ENV_PREFIXES = listOf(
-        "VK_", "BL_VK", "BL_DRM", "BL_VKBRIDGE", "VKBRIDGE", "MESA_", "GALLIUM_", "ZINK", "TU_", "PANVK",
-        "DROIDDECK_POWERVR", "DROIDDECK_HYBRIS", "BL_GAME_LOGS", "LIBGL_", "GAMESCOPE_DISABLE", "XWAYLAND",
-        "BL_MALI_", "BL_VENUS", "VN_", "VTEST_",
+        "VK_", "DD_VK", "DD_DRM", "DD_VKBRIDGE", "VKBRIDGE", "MESA_", "GALLIUM_", "ZINK", "TU_", "PANVK",
+        "DROIDDECK_POWERVR", "DROIDDECK_HYBRIS", "DD_GAME_LOGS", "LIBGL_", "GAMESCOPE_DISABLE", "XWAYLAND",
+        "DD_MALI_", "DD_VENUS", "VN_", "VTEST_",
     )
 
     /** Per-game graphics logs and the guest's Vulkan summary: on for a non-Adreno GPU, or by Setup's switch. */

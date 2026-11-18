@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -97,21 +99,21 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
             steps.forEachIndexed { index, step ->
                 val status = AgentSetup.status[step] ?: Status.UNKNOWN
                 val harness = AgentHost.harness
-                // A harness that signs in with a pasted key: the sign-in opens its key page and this field takes the key.
-                val keyed = step == Step.SIGN_IN && harness.keyPage != null
+                // A harness that signs in with pasted keys: this row picks the provider and takes its key.
+                val keyed = step == Step.SIGN_IN && harness.providers.isNotEmpty()
                 var keyOpen by rememberSaveable(harness.id) { mutableStateOf(false) }
                 val (title, hint) = labels(step, harness.name, keyed)
                 val lab = AgentHost.lab?.takeIf { it.prepare && it.running }
                 val detail = when {
                     step == Step.PREPARE && lab != null ->
                         stringResource(R.string.agent_prepare_progress, lab.permille / 10, clock(lab.etaSeconds.toLong().coerceAtLeast(0)))
-                    keyed && status == Status.DONE && !AgentSetup.keySaved -> stringResource(R.string.agent_step_free_models)
+                    keyed && status == Status.DONE && AgentSetup.detail[step] == null ->
+                        harness.providers.filter { it.id in AgentSetup.keys }.joinToString(" · ") { it.name }.ifEmpty { stringResource(R.string.agent_step_free_models) }
                     else -> AgentSetup.detail[step] ?: hint
                 }
                 // Shown while the sign-in is pending, so it is still there after a trip to the browser for the key.
                 val pending = (status == Status.TODO || status == Status.FAILED) && AgentSetup.status[Step.INSTALL] == Status.DONE
                 val showKey = keyed && (keyOpen || pending) && status != Status.WORKING
-                var key by remember(harness.id) { mutableStateOf("") }
                 CheckRow(
                     when (status) {
                         Status.DONE -> CheckState.OK
@@ -122,33 +124,17 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
                 ) {
                     val blocked = (step in setOf(Step.SIGN_IN, Step.GITHUB, Step.BUILD_TOOLS) && AgentSetup.status[Step.INSTALL] != Status.DONE) ||
                         (step == Step.PREPARE && AgentSetup.status[Step.BUILD_TOOLS] != Status.DONE)
-                    val openKey = {
-                        keyOpen = true
-                        AgentSetup.run(context, step)
-                    }
-                    if ((status == Status.TODO || status == Status.FAILED) && !blocked) {
+                    if (keyed) {
+                        if (pending && harness.free) SecondaryButton(stringResource(R.string.agent_action_free), compact = true) { AgentSetup.useFree(context) }
+                        else if (status == Status.DONE) SecondaryButton(stringResource(if (keyOpen) R.string.common_hide else R.string.agent_action_add_key), compact = true) { keyOpen = !keyOpen }
+                    } else if ((status == Status.TODO || status == Status.FAILED) && !blocked) {
                         val label = stringResource(if (status == Status.FAILED) R.string.agent_setup_retry else action(step))
-                        val run = { if (step == Step.CONNECTION) pair(context) else if (keyed) openKey() else AgentSetup.run(context, step) }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (keyed && harness.free) SecondaryButton(stringResource(R.string.agent_action_free), compact = true) { AgentSetup.useFree(context) }
-                            if (step.required) PrimaryButton(label, compact = true, onClick = run) else SecondaryButton(label, compact = true, onClick = run)
-                        }
-                    } else if (keyed && status == Status.DONE && !AgentSetup.keySaved && !keyOpen) {
-                        SecondaryButton(stringResource(R.string.agent_action_add_key), compact = true, onClick = openKey)
+                        val run = { if (step == Step.CONNECTION) pair(context) else AgentSetup.run(context, step) }
+                        if (step.required) PrimaryButton(label, compact = true, onClick = run) else SecondaryButton(label, compact = true, onClick = run)
                     }
                 }
                 if (showKey) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth().padding(start = 56.dp, end = 14.dp, bottom = 10.dp),
-                    ) {
-                        Box(Modifier.weight(1f)) { ToolsField(key, { key = it.trim() }, stringResource(R.string.agent_key_hint), "agent-key") }
-                        PrimaryButton(stringResource(R.string.agent_key_save), enabled = key.isNotBlank(), compact = true) {
-                            keyOpen = false
-                            AgentSetup.saveKey(context, key)
-                            key = ""
-                        }
-                    }
+                    KeyPanel(harness) { keyOpen = false }
                     if (index < steps.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
                 }
             }
@@ -164,6 +150,47 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
         }
         if (AgentSetup.ready || AgentSetup.completed(context)) PrimaryButton(stringResource(R.string.agent_setup_done), main = true, onClick = onDone)
         StorageCard()
+    }
+}
+
+/** Picks one of [harness]'s providers and saves its key, or a custom server's address. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun KeyPanel(harness: AgentHarness, onSaved: () -> Unit) {
+    val context = LocalContext.current
+    val provider = harness.providers.firstOrNull { it.id == AgentSetup.provider } ?: harness.providers.first()
+    var key by remember(harness.id, provider.id) { mutableStateOf("") }
+    val saved = provider.id in AgentSetup.keys
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 56.dp, end = 14.dp, bottom = 12.dp),
+    ) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (option in harness.providers) {
+                val name = if (option.id in AgentSetup.keys) "${option.name} ✓" else option.name
+                if (option == provider) PrimaryButton(name, compact = true) {} else SecondaryButton(name, compact = true) { AgentSetup.provider = option.id }
+            }
+        }
+        if (provider.custom) ToolsField(AgentSetup.server, { AgentSetup.server = it.trim() }, stringResource(R.string.agent_key_server_hint), "agent-key-server")
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.weight(1f)) {
+                ToolsField(
+                    key, { key = it.trim() },
+                    if (provider.custom) stringResource(R.string.agent_key_optional_hint) else stringResource(R.string.agent_key_hint, provider.name),
+                    "agent-key",
+                )
+            }
+            provider.keyPage?.let { page -> SecondaryButton(stringResource(R.string.agent_key_get), compact = true) { AgentSetup.openKeyPage(context, page) } }
+            if (saved) SecondaryButton(stringResource(R.string.agent_storage_remove), compact = true) { AgentSetup.removeKey(context, provider) }
+            PrimaryButton(
+                stringResource(R.string.agent_key_save), compact = true,
+                enabled = if (provider.custom) AgentSetup.server.isNotBlank() else key.isNotBlank(),
+            ) {
+                AgentSetup.saveKey(context, provider, key, AgentSetup.server.takeIf { provider.custom })
+                key = ""
+                onSaved()
+            }
+        }
     }
 }
 

@@ -191,7 +191,7 @@ App (Kotlin/C):
   - Gives a zero row pitch a packed 64-byte row (gamescope's 1x1 root buffer).
 - `gpu/GpuInfo.kt`, `FrontEndActivity.kt`, `core/DeviceReport.kt`: wording, plus a "Venus" line in `device.txt`.
 - `session/SessionFiles.kt`: stages the Mali compatibility layer when the APK carries it.
-- `tools/linuxfs/preload/venus.c` (new, part of `libblsession`): unsets `LIBGL_KOPPER_DISABLE` when `VN_DEBUG` has `vtest`.
+- `tools/linuxfs/preload/venus.c` (new, part of `libddsession`): unsets `LIBGL_KOPPER_DISABLE` when `VN_DEBUG` has `vtest`.
   - Steam's `steamwebhelper.sh` sets it unconditionally.
   - Without kopper and without DRI3, Zink gets no GL context, and the Steam UI crash-loops.
   - Steam restores that script when it verifies its install, so it cannot be edited.
