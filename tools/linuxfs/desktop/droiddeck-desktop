@@ -118,7 +118,7 @@ if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
   # On the system PowerVR driver, Firefox's hardware WebRender on zink leaves stale, half-drawn
   # frames; its software renderer draws correctly.
   [ "${DD_STEAM_GL_PRESENT:-}" = 1 ] && export MOZ_ACCELERATED=0
-  # The system PowerVR driver's Wayland swapchain needs the app compositor's Android-buffer
+  # The system driver's (PowerVR, Xclipse) libhybris Wayland swapchain needs the app compositor's Android-buffer
   # protocol, which KWin lacks: Plasma's clients present through DRI instead.
   [ "${DD_STEAM_GL_PRESENT:-}" = 1 ] && export LIBGL_KOPPER_DISABLE=true
   if [ -z "${KWIN_RENDER_NODES:-}" ]; then
