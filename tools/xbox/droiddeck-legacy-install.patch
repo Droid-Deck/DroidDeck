@@ -1,8 +1,8 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index 0b0f1e0..c01f252 100644
+index 0b0f1e0..5dfc09a 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
-@@ -7185,6 +7185,7 @@ dependencies = [
+@@ -7185,12 +7185,14 @@ dependencies = [
   "console-subscriber",
   "ctrlc",
   "eappx",
@@ -10,11 +10,26 @@ index 0b0f1e0..c01f252 100644
   "fs2",
   "futures-util",
   "indicatif",
+  "inquire",
+  "msixvc",
+  "nix",
++ "quick-xml 0.42.0",
+  "reqwest 0.13.4",
+  "rustix",
+  "serde_json",
 diff --git a/crates/xodus-cli/Cargo.toml b/crates/xodus-cli/Cargo.toml
-index 5894ef9..faf566b 100644
+index 5894ef9..f49470b 100644
 --- a/crates/xodus-cli/Cargo.toml
 +++ b/crates/xodus-cli/Cargo.toml
-@@ -25,6 +25,7 @@ futures-util = "0.3.34"
+@@ -5,6 +5,7 @@ edition = "2024"
+ default-run = "xodus-cli"
+ 
+ [dependencies]
++quick-xml = "0.42.0"
+ xodus = { path = "../xodus" }
+ msixvc = { path = "../msixvc" }
+ eappx = { git = "https://github.com/tuxuser/eappx-rs" }
+@@ -25,6 +26,7 @@ futures-util = "0.3.34"
  uuid = "1.25.0"
  indicatif = "0.18.6"
  fs2 = "0.4.3"
@@ -41,12 +56,105 @@ index 088a6d0..825c24e 100644
  pub mod cloud_token;
  pub mod social;
  pub mod game_activity;
+diff --git a/crates/xodus-cli/src/commands/extract_eappx.rs b/crates/xodus-cli/src/commands/extract_eappx.rs
+index 5ea43da..0bad98e 100644
+--- a/crates/xodus-cli/src/commands/extract_eappx.rs
++++ b/crates/xodus-cli/src/commands/extract_eappx.rs
+@@ -51,6 +51,8 @@ pub struct Meter {
+     pub banked: std::sync::atomic::AtomicU64,
+     /// Bytes the package being unpacked now will write in total.
+     pub total: std::sync::atomic::AtomicU64,
++    /// Bytes that packages not yet opened will write.
++    pub planned: std::sync::atomic::AtomicU64,
+     turn: std::sync::Mutex<()>,
+ }
+ 
+@@ -61,7 +63,14 @@ impl Meter {
+         let _turn = self.turn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+         let banked = self.banked.load(Relaxed);
+         let total = self.total.load(Relaxed);
+-        (banked + self.written.load(Relaxed).min(total), banked + total)
++        (banked + self.written.load(Relaxed).min(total), banked + total + self.planned.load(Relaxed))
++    }
++
++    /// Announces packages that will be opened later, so the total does not grow when they are.
++    fn expect(&self, bytes: u64) {
++        use std::sync::atomic::Ordering::Relaxed;
++        let _turn = self.turn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
++        self.planned.fetch_add(bytes, Relaxed);
+     }
+ 
+     pub fn done(&self) -> u64 {
+@@ -79,6 +88,8 @@ impl Meter {
+         self.banked.fetch_add(self.total.load(Relaxed), Relaxed);
+         self.written.store(0, Relaxed);
+         self.total.store(total, Relaxed);
++        let planned = self.planned.load(Relaxed);
++        self.planned.store(planned.saturating_sub(total), Relaxed);
+     }
+ }
+ 
+@@ -260,6 +271,9 @@ fn derive(
+         return Err(Failure::at("nesting", infile, "bundle nesting exceeds the limit"));
+     }
+ 
++    if let Some(meter) = meter {
++        meter.expect(nested.iter().map(|child| package_size(child)).sum());
++    }
+     for child in nested {
+         let name = child
+             .file_stem()
+@@ -275,6 +289,14 @@ fn derive(
+     Ok(())
+ }
+ 
++/// What a package's blockmap says it will write, or nothing when its header is unreadable.
++fn package_size(path: &Path) -> u64 {
++    let Ok(file) = std::fs::File::open(path) else { return 0 };
++    EAppxFile::from_stream(&mut std::io::BufReader::new(file))
++        .map(|package| package.blockmap.files.iter().map(|entry| entry.size).sum())
++        .unwrap_or(0)
++}
++
+ /// Bytes currently on disk under `dir`.
+ ///
+ /// A bundle member is written as one file, so a per-file counter says nothing
+@@ -414,3 +436,29 @@ fn unpack(
+     }
+     Ok(())
+ }
++
++#[cfg(test)]
++mod meter_tests {
++    use super::Meter;
++
++    #[test]
++    fn announced_packages_keep_the_total_from_growing() {
++        let meter = Meter::default();
++        meter.roll(100);
++        meter.expect(300);
++        assert_eq!(meter.snapshot(), (0, 400));
++        meter.written.store(100, std::sync::atomic::Ordering::Relaxed);
++        meter.roll(300);
++        assert_eq!(meter.snapshot(), (100, 400));
++        meter.written.store(300, std::sync::atomic::Ordering::Relaxed);
++        assert_eq!(meter.snapshot(), (400, 400));
++    }
++
++    #[test]
++    fn written_bytes_never_exceed_the_package_being_unpacked() {
++        let meter = Meter::default();
++        meter.roll(10);
++        meter.written.store(25, std::sync::atomic::Ordering::Relaxed);
++        assert_eq!(meter.snapshot(), (10, 10));
++    }
++}
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..17ff3f3
+index 0000000..5e6d097
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1162 @@
+@@ -0,0 +1,1194 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -115,7 +223,7 @@ index 0000000..17ff3f3
 +/// path, URL or identifier dropped.
 +fn fail(code: &str, message: &str) -> ExitCode {
 +    eprintln!("NEXUS_LEGACY_INSTALL_DIAGNOSTIC_V1 {code}");
-+    let detail = plain(message);
++    let detail = bounded(&plain(message));
 +    if !detail.is_empty() {
 +        eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 {detail}");
 +    }
@@ -124,6 +232,15 @@ index 0000000..17ff3f3
 +}
 +
 +/// The message reduced to whatever can be shown over a diagnostic line.
++/// Android keeps a detail line only up to 220 characters, so the whole line is cut, not each part.
++fn bounded(line: &str) -> String {
++    let mut cut = line.len().min(220);
++    while !line.is_char_boundary(cut) {
++        cut -= 1;
++    }
++    line[..cut].trim_end().to_string()
++}
++
 +fn plain(message: &str) -> String {
 +    let mut detail = String::new();
 +    for word in message.split_whitespace() {
@@ -151,7 +268,7 @@ index 0000000..17ff3f3
 +
 +/// `plain` for callers outside this file.
 +pub(crate) fn plain_for_log(message: &str) -> String {
-+    plain(message)
++    bounded(&plain(message))
 +}
 +
 +/// The installer parses this and only this, so it must match the streaming
@@ -607,11 +724,10 @@ index 0000000..17ff3f3
 +                break unpacking.await.unwrap_or(ExitCode::FAILURE);
 +            }
 +            tokio::time::sleep(Duration::from_millis(700)).await;
-+            let total = meter.all();
++            let (mut done, total) = meter.snapshot();
 +            if total == 0 {
 +                continue;
 +            }
-+            let mut done = meter.done();
 +            // A bundle member is one file, so its bytes are only visible on disk.
 +            if meter.written.load(std::sync::atomic::Ordering::Relaxed) == 0 {
 +                let on_disk = crate::commands::extract_eappx::tree_size(&destination).saturating_sub(baseline);
@@ -646,7 +762,7 @@ index 0000000..17ff3f3
 +    progress.phase("frameworks");
 +    if let Err(error) = ensure_frameworks(&delivery_client, &destination, &region).await {
 +        progress.phase("frameworks");
-+        eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 dependency skipped: {}", plain(&error));
++        eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 {}", bounded(&format!("dependency skipped; {}", plain(&error))));
 +    }
 +
 +    tokio::fs::remove_dir_all(&keys).await.ok();
@@ -670,9 +786,9 @@ index 0000000..17ff3f3
 +            continue;
 +        }
 +        match install_framework(delivery, destination, &dependency, region).await {
-+            Ok(()) => eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 framework {dependency} installed"),
++            Ok(()) => eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 {}", bounded(&format!("framework {} installed", plain(&dependency)))),
 +            Err(error) => {
-+                eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 framework {dependency} skipped {}", plain(&error));
++                eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 {}", bounded(&format!("framework {} skipped {}", plain(&dependency), plain(&error))));
 +                failure.get_or_insert(format!("{dependency}: {error}"));
 +            }
 +        }
@@ -721,14 +837,35 @@ index 0000000..17ff3f3
 +        .iter()
 +        .map(|name| destination.join(name))
 +        .find(|path| path.is_file())?;
-+    let text = std::fs::read_to_string(manifest).ok()?;
-+    let application = text.split("<Application ").nth(1)?;
-+    let tag = application.split('>').next()?;
-+    let start = tag.find("EntryPoint=\"")? + "EntryPoint=\"".len();
-+    let rest = &tag[start..];
-+    let end = rest.find('"')?;
-+    let entry = rest[..end].trim();
-+    (!entry.is_empty()).then(|| entry.to_string())
++    application_entry(&std::fs::read_to_string(manifest).ok()?)
++}
++
++/// The activation of a manifest's first application: its `EntryPoint`, or `windowsApp`
++/// when it declares that runtime behaviour instead of an entry point.
++fn application_entry(text: &str) -> Option<String> {
++    use quick_xml::events::Event;
++    let mut reader = quick_xml::Reader::from_str(text);
++    loop {
++        match reader.read_event().ok()? {
++            Event::Start(tag) | Event::Empty(tag) if tag.local_name().into_inner() == "Application" => {
++                let mut entry = None;
++                let mut behavior = None;
++                for attribute in tag.attributes().flatten() {
++                    let value = attribute.unescape_value().ok()?.trim().to_string();
++                    match attribute.key.local_name().into_inner() {
++                        "EntryPoint" => entry = Some(value),
++                        "RuntimeBehavior" => behavior = Some(value),
++                        _ => {}
++                    }
++                }
++                return entry
++                    .filter(|entry| !entry.is_empty())
++                    .or_else(|| behavior.filter(|behavior| behavior.eq_ignore_ascii_case("windowsApp")));
++            }
++            Event::Eof => return None,
++            _ => {}
++        }
++    }
 +}
 +
 +/// Downloads one framework package and lays its DLLs beside the title.
@@ -1182,6 +1319,9 @@ index 0000000..17ff3f3
 +        )
 +        .unwrap();
 +        assert_eq!(entry_point(&root).as_deref(), Some("Forza.App"));
++        assert_eq!(application_entry("<Package><Applications><Application Id='App' EntryPoint='Forza.App'/></Applications></Package>").as_deref(), Some("Forza.App"));
++        assert_eq!(application_entry(r#"<Package xmlns:uap10="u"><Applications><Application Id="App" Executable="a.exe" uap10:RuntimeBehavior="windowsApp"/></Applications></Package>"#).as_deref(), Some("windowsApp"));
++        assert_eq!(application_entry(r#"<Package xmlns:uap10="u"><Applications><Application Id="App" Executable="a.exe" uap10:RuntimeBehavior="packagedClassicApp"/></Applications></Package>"#), None);
 +        std::fs::remove_dir_all(&root).ok();
 +    }
 +
@@ -1210,10 +1350,19 @@ index 0000000..17ff3f3
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/license.rs b/crates/xodus-cli/src/commands/license.rs
-index b9fd91c..4b5f3bd 100644
+index b9fd91c..fbae301 100644
 --- a/crates/xodus-cli/src/commands/license.rs
 +++ b/crates/xodus-cli/src/commands/license.rs
-@@ -14,13 +14,24 @@ pub async fn run(
+@@ -1,8 +1,6 @@
+ use std::process::ExitCode;
+ 
+ use base64::{Engine, engine::general_purpose::STANDARD};
+-use tokio::fs::OpenOptions;
+-use tokio::io::AsyncWriteExt;
+ use xodus::tokens::TokenManager;
+ 
+ use crate::license::get_license;
+@@ -14,45 +12,47 @@ pub async fn run(
      market: String,
      ciks: String,
  ) -> ExitCode {
@@ -1231,6 +1380,7 @@ index b9fd91c..4b5f3bd 100644
 +}
  
 -    let (key, game_splicense) = license.unwrap();
+-    tokio::fs::create_dir_all(&ciks).await.unwrap();
 +/// Writes the content keys of `content_id` to `ciks`, or returns why Microsoft refused them.
 +pub async fn dump(
 +    client: &reqwest::Client,
@@ -1240,12 +1390,50 @@ index b9fd91c..4b5f3bd 100644
 +    ciks: String,
 +) -> Result<(), String> {
 +    let (key, game_splicense) = get_license(client, tokens, content_id, market, None, false).await?;
-     tokio::fs::create_dir_all(&ciks).await.unwrap();
++    let unwritten = |error: std::io::Error| format!("The license was granted, but its content keys could not be written: {error}");
++    tokio::fs::create_dir_all(&ciks).await.map_err(unwritten)?;
      // eappx-rs reads a text [Keys] file with base64 Key IDs, while the .cik
      // format below is the binary form other tools expect. Write both so the
-@@ -54,5 +65,5 @@ pub async fn run(
-     keys_file.write_all(eappx_keys.as_bytes()).await.unwrap();
-     keys_file.flush().await.unwrap();
+     // same license dump serves either extractor.
+-    let mut eappx_keys = String::from("[Keys]\n");
++    let mut eappx_keys = String::from("[Keys]
++");
+     for (uuid, content_key) in game_splicense.content_keys {
+-        let unpacked = content_key.unpack(&key).expect("failed to unpack");
+-        let mut file = OpenOptions::new()
+-            .create(true)
+-            .write(true)
+-            .open(format!("{ciks}/{uuid}.cik"))
+-            .await
+-            .unwrap();
++        let unpacked = content_key
++            .unpack(&key)
++            .map_err(|_| "The content key could not be authenticated. Retry the installation or sign in again.".to_string())?;
+         let uuid_buf = uuid.to_bytes_le();
+-        file.write_all(&uuid_buf).await.unwrap();
+-        file.write_all(&*unpacked).await.unwrap();
+-        file.flush().await.unwrap();
++        let mut cik = uuid_buf.to_vec();
++        cik.extend_from_slice(&*unpacked);
++        tokio::fs::write(format!("{ciks}/{uuid}.cik"), cik).await.map_err(unwritten)?;
+         eappx_keys.push_str(&format!(
+-            "\"{}\" \"{}\"\n",
++            "\"{}\" \"{}\"
++",
+             STANDARD.encode(uuid_buf),
+             STANDARD.encode(&*unpacked),
+         ));
+     }
+-    let mut keys_file = OpenOptions::new()
+-        .create(true)
+-        .write(true)
+-        .truncate(true)
+-        .open(format!("{ciks}/eappx-keys.txt"))
+-        .await
+-        .unwrap();
+-    keys_file.write_all(eappx_keys.as_bytes()).await.unwrap();
+-    keys_file.flush().await.unwrap();
++    tokio::fs::write(format!("{ciks}/eappx-keys.txt"), eappx_keys).await.map_err(unwritten)?;
  
 -    ExitCode::SUCCESS
 +    Ok(())
@@ -1834,7 +2022,7 @@ index 0000000..7fec6e5
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index a0136f8..fa0f6fb 100644
+index a0136f8..1226210 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -1862,7 +2050,7 @@ index a0136f8..fa0f6fb 100644
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
          Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
-@@ -692,3 +701,202 @@ where
+@@ -692,3 +701,250 @@ where
      }
      ExitCode::SUCCESS
  }
@@ -1871,14 +2059,16 @@ index a0136f8..fa0f6fb 100644
 +
 +fn publish(staging: &Path, out: &Path) -> Result<(), String> {
 +    let previous = out.join(".xodus-plain-previous");
-+    std::fs::remove_dir_all(&previous).ok();
++    if previous.exists() {
++        restore(&previous, out).map_err(|error| format!("an earlier replacement could not be undone: {error}"))?;
++    }
 +    std::fs::create_dir_all(&previous).map_err(|error| format!("could not prepare the replacement: {error}"))?;
-+    let names: Vec<std::ffi::OsString> = std::fs::read_dir(staging)
++    let mut names: Vec<std::ffi::OsString> = std::fs::read_dir(staging)
 +        .map_err(|error| format!("staged package unreadable: {error}"))?
 +        .map(|entry| entry.map(|entry| entry.file_name()))
 +        .collect::<Result<_, _>>()
 +        .map_err(|error| format!("staged package unreadable: {error}"))?;
-+    let mut moved = Vec::new();
++    names.sort();
 +    let mut placed = Vec::new();
 +    let result = (|| {
 +        for name in &names {
@@ -1886,29 +2076,47 @@ index a0136f8..fa0f6fb 100644
 +            if std::fs::symlink_metadata(&target).is_ok() {
 +                std::fs::rename(&target, previous.join(name))
 +                    .map_err(|error| format!("could not replace {}: {error}", target.display()))?;
-+                moved.push(name.clone());
 +            }
 +            std::fs::rename(staging.join(name), &target)
 +                .map_err(|error| format!("could not place {}: {error}", target.display()))?;
 +            placed.push(name.clone());
 +        }
-+        Ok(())
++        Ok::<(), String>(())
 +    })();
-+    if result.is_err() {
-+        for name in &placed {
-+            let target = out.join(name);
-+            match std::fs::symlink_metadata(&target) {
-+                Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(&target).ok(),
-+                Ok(_) => std::fs::remove_file(&target).ok(),
-+                Err(_) => None,
-+            };
++    match result {
++        Ok(()) => {
++            std::fs::remove_dir_all(&previous).ok();
++            Ok(())
 +        }
-+        for name in &moved {
-+            std::fs::rename(previous.join(name), out.join(name)).ok();
++        Err(error) => {
++            for name in &placed {
++                remove(&out.join(name)).ok();
++            }
++            match restore(&previous, out) {
++                Ok(()) => Err(error),
++                Err(undo) => Err(format!("{error}; the previous files are kept in {} ({undo})", previous.display())),
++            }
 +        }
 +    }
-+    std::fs::remove_dir_all(&previous).ok();
-+    result
++}
++
++/// Moves every entry kept in `previous` back into `out`, then removes `previous`.
++/// On any failure `previous` stays, holding what has not been put back.
++fn restore(previous: &Path, out: &Path) -> Result<(), String> {
++    let entries = std::fs::read_dir(previous).map_err(|error| error.to_string())?;
++    for entry in entries {
++        let entry = entry.map_err(|error| error.to_string())?;
++        let target = out.join(entry.file_name());
++        if std::fs::symlink_metadata(&target).is_ok() {
++            remove(&target).map_err(|error| format!("could not clear {}: {error}", target.display()))?;
++        }
++        std::fs::rename(entry.path(), &target).map_err(|error| format!("could not restore {}: {error}", target.display()))?;
++    }
++    std::fs::remove_dir(previous).map_err(|error| error.to_string())
++}
++
++fn remove(path: &Path) -> std::io::Result<()> {
++    if std::fs::symlink_metadata(path)?.is_dir() { std::fs::remove_dir_all(path) } else { std::fs::remove_file(path) }
 +}
 +
 +async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &Path) -> ExitCode {
@@ -2030,6 +2238,34 @@ index a0136f8..fa0f6fb 100644
 +        assert_eq!(code, std::process::ExitCode::FAILURE);
 +        assert_eq!(std::fs::read(out.join("a.txt")).unwrap(), b"aaaa");
 +        std::fs::remove_dir_all(&out).ok();
++    }
++
++    #[test]
++    fn a_failed_swap_puts_every_replaced_entry_back() {
++        let root = tempfile::tempdir().unwrap();
++        let (staging, out) = (root.path().join("staging"), root.path().join("out"));
++        std::fs::create_dir_all(staging.join(".xodus-plain-previous")).unwrap();
++        std::fs::create_dir_all(&out).unwrap();
++        std::fs::write(staging.join("+a"), b"new").unwrap();
++        std::fs::write(out.join("+a"), b"old").unwrap();
++        assert!(super::publish(&staging, &out).is_err());
++        assert_eq!(std::fs::read(out.join("+a")).unwrap(), b"old");
++        assert!(!out.join(".xodus-plain-previous").exists());
++    }
++
++    #[test]
++    fn a_backup_left_by_an_interrupted_swap_is_restored_first() {
++        let root = tempfile::tempdir().unwrap();
++        let (staging, out) = (root.path().join("staging"), root.path().join("out"));
++        std::fs::create_dir_all(&staging).unwrap();
++        std::fs::create_dir_all(out.join(".xodus-plain-previous")).unwrap();
++        std::fs::write(out.join(".xodus-plain-previous").join("kept"), b"old").unwrap();
++        std::fs::write(out.join("kept"), b"half").unwrap();
++        std::fs::write(staging.join("fresh"), b"new").unwrap();
++        super::publish(&staging, &out).unwrap();
++        assert_eq!(std::fs::read(out.join("kept")).unwrap(), b"old");
++        assert_eq!(std::fs::read(out.join("fresh")).unwrap(), b"new");
++        assert!(!out.join(".xodus-plain-previous").exists());
 +    }
 +
 +    #[tokio::test]

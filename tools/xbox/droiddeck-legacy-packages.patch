@@ -1,8 +1,8 @@
 diff --git a/crates/xodus-cli/src/commands/extract_eappx.rs b/crates/xodus-cli/src/commands/extract_eappx.rs
-index c8d5ebf..978c351 100644
+index c8d5ebf..5ea43da 100644
 --- a/crates/xodus-cli/src/commands/extract_eappx.rs
 +++ b/crates/xodus-cli/src/commands/extract_eappx.rs
-@@ -1,80 +1,406 @@
+@@ -1,80 +1,416 @@
 -use std::path::PathBuf;
 +use std::path::{Path, PathBuf};
  use std::process::ExitCode;
@@ -16,16 +16,15 @@ index c8d5ebf..978c351 100644
 +/// alone. The crate reads a 16-byte id as `(static prefix, content id)`, so the
 +/// two never compare equal and a complete key file looks incomplete. Pair every
 +/// key the header asks for with the licence entry that carries its content id.
++const SHORT_KEY_PREFIX: uuid::Uuid = uuid::uuid!("BB1755DB-5052-4B10-B2AB-F3ABF5CA5B41");
++
 +fn align_keys(keys: &mut KeyCollection, needed: &[KeyId]) {
 +    for id in needed {
 +        if keys.keys.contains_key(id) {
 +            continue;
 +        }
-+        let KeyId::Guid((content, other)) = id else { continue };
-+        let carried = keys.keys.iter().find_map(|(candidate, data)| match candidate {
-+            KeyId::Guid((_, listed)) if listed == content && listed != other => Some(data.clone()),
-+            _ => None,
-+        });
++        let KeyId::Guid((content, _)) = id else { continue };
++        let carried = keys.keys.get(&KeyId::Guid((SHORT_KEY_PREFIX, *content))).cloned();
 +        if let Some(data) = carried {
 +            keys.add(id.clone(), data);
 +        }
@@ -80,30 +79,38 @@ index c8d5ebf..978c351 100644
 +    pub banked: std::sync::atomic::AtomicU64,
 +    /// Bytes the package being unpacked now will write in total.
 +    pub total: std::sync::atomic::AtomicU64,
++    turn: std::sync::Mutex<()>,
 +}
  
 -    println!("{eappx}");
 +impl Meter {
-+    pub fn done(&self) -> u64 {
++    /// Bytes written and bytes to write, read as one consistent pair.
++    pub fn snapshot(&self) -> (u64, u64) {
 +        use std::sync::atomic::Ordering::Relaxed;
-+        self.banked.load(Relaxed) + self.written.load(Relaxed)
++        let _turn = self.turn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
++        let banked = self.banked.load(Relaxed);
++        let total = self.total.load(Relaxed);
++        (banked + self.written.load(Relaxed).min(total), banked + total)
++    }
+ 
++    pub fn done(&self) -> u64 {
++        self.snapshot().0
 +    }
 +
 +    pub fn all(&self) -> u64 {
-+        use std::sync::atomic::Ordering::Relaxed;
-+        self.banked.load(Relaxed) + self.total.load(Relaxed)
++        self.snapshot().1
 +    }
 +
 +    /// Closes the package being unpacked and opens the next one.
 +    fn roll(&self, total: u64) {
 +        use std::sync::atomic::Ordering::Relaxed;
-+        self.banked
-+            .fetch_add(self.total.load(Relaxed), Relaxed);
++        let _turn = self.turn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
++        self.banked.fetch_add(self.total.load(Relaxed), Relaxed);
 +        self.written.store(0, Relaxed);
 +        self.total.store(total, Relaxed);
 +    }
 +}
- 
++
 +/// Extracts a package, publishing the size of the work in progress to `meter`.
 +///
 +/// `release` deletes the container once its members are on disk. A bundle of a
@@ -168,7 +175,7 @@ index c8d5ebf..978c351 100644
 +    ) {
 +        Ok(()) => ExitCode::SUCCESS,
 +        Err(failure) => report_failure(&failure, ExitCode::FAILURE),
-+    }
+     }
 +}
 +
 +/// A failure the launcher can name without printing a device path.
@@ -182,7 +189,10 @@ index c8d5ebf..978c351 100644
 +    name: String,
 +    reason: String,
 +}
-+
+ 
+-    if let Err(e) = eappx.load_keys(&key_collection) {
+-        eprintln!("Failed to load keys: {e}");
+-        return ExitCode::FAILURE;
 +impl Failure {
 +    fn new(code: &'static str, name: &str, reason: &str) -> Self {
 +        Self {
@@ -190,8 +200,12 @@ index c8d5ebf..978c351 100644
 +            name: sanitize(name, 60),
 +            reason: sanitize(reason, 120),
 +        }
-+    }
-+
+     }
+ 
+-    if !outdir.exists() {
+-        if let Err(e) = std::fs::create_dir_all(&outdir) {
+-            eprintln!("Failed to create output directory {:?}: {e}", outdir);
+-            return ExitCode::FAILURE;
 +    fn at(code: &'static str, path: &Path, reason: &str) -> Self {
 +        let name = path.file_name().map(|name| name.to_string_lossy().into_owned());
 +        Self::new(code, &name.unwrap_or_default(), reason)
@@ -287,11 +301,8 @@ index c8d5ebf..978c351 100644
 +    }
 +    if depth >= MAX_BUNDLE_DEPTH {
 +        return Err(Failure::at("nesting", infile, "bundle nesting exceeds the limit"));
-     }
- 
--    if let Err(e) = eappx.load_keys(&key_collection) {
--        eprintln!("Failed to load keys: {e}");
--        return ExitCode::FAILURE;
++    }
++
 +    for child in nested {
 +        let name = child
 +            .file_stem()
@@ -302,12 +313,8 @@ index c8d5ebf..978c351 100644
 +        // A bundle of a full title holds tens of gigabytes, and keeping every
 +        // member beside the decrypted copy doubles what the install occupies.
 +        std::fs::remove_file(&child).ok();
-     }
- 
--    if !outdir.exists() {
--        if let Err(e) = std::fs::create_dir_all(&outdir) {
--            eprintln!("Failed to create output directory {:?}: {e}", outdir);
--            return ExitCode::FAILURE;
++    }
++
 +    Ok(())
 +}
 +
@@ -348,7 +355,11 @@ index c8d5ebf..978c351 100644
 +        .unwrap_or(1)
 +        .clamp(1, 4)
 +}
-+
+ 
+-    match eappx.extract(&mut reader, &outdir) {
+-        Ok(_) => {
+-            println!("Extracted {:?} to {:?}", infile, outdir);
+-            ExitCode::SUCCESS
 +/// Writes a package's files, publishing what is left to write.
 +///
 +/// This is the crate's own `extract`, split across workers and reported as it
@@ -366,16 +377,15 @@ index c8d5ebf..978c351 100644
 +    if let Some(meter) = meter {
 +        meter.roll(total);
 +    }
- 
--    match eappx.extract(&mut reader, &outdir) {
--        Ok(_) => {
--            println!("Extracted {:?} to {:?}", infile, outdir);
--            ExitCode::SUCCESS
++
 +    eappx
 +        .extract_footprint_files(reader, outdir)
 +        .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
 +
 +    if eappx.header.is_bundle() {
++        eappx
++            .extract_blockmap_files(reader, outdir)
++            .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
 +        eappx
 +            .extract_bundle_files(reader, outdir)
 +            .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
@@ -455,7 +465,7 @@ index c8d5ebf..978c351 100644
 +    Ok(())
  }
 diff --git a/crates/xodus-cli/src/commands/license.rs b/crates/xodus-cli/src/commands/license.rs
-index f0a820b..5c3acf7 100644
+index 4540549..b9fd91c 100644
 --- a/crates/xodus-cli/src/commands/license.rs
 +++ b/crates/xodus-cli/src/commands/license.rs
 @@ -1,5 +1,6 @@
@@ -499,10 +509,10 @@ index f0a820b..5c3acf7 100644
      ExitCode::SUCCESS
  }
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index b528b14..8365c7d 100644
+index 66e4135..a0136f8 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
-@@ -157,7 +157,19 @@ pub async fn run(
+@@ -160,7 +160,19 @@ pub async fn run(
                  .iter()
                  .find(|p| p.file_name.ends_with(".msixvc"))
              else {
