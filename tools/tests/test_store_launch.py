@@ -225,6 +225,28 @@ class CloudHooks(unittest.TestCase):
             self.assertEqual(store.CLOUD_TIMEOUT, asked[1][1])
             self.assertEqual('cloud-up', asked[2][0]['op'])
 
+    def test_a_cloud_request_that_cannot_be_written_still_starts_the_game_and_uploads_on_exit(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='ubisoft', ident='space-1')
+            sc = json.loads((folder / '.droiddeck-store.json').read_text()); sc['extra'] = {'productId': '109'}
+            (folder / '.droiddeck-store.json').write_text(json.dumps(sc))
+            bat = str(folder / '.droiddeck-launch.bat')
+            asked = []
+
+            def ask(channel, request, timeout=5.0):
+                asked.append(request['op'])
+                if request['op'] in ('cloud-down', 'cloud-up'):
+                    raise PermissionError(13, 'read-only')
+                return {'ok': True}
+
+            lines = []
+            with patch.dict(os.environ, {'DD_LAUNCH_DIR': str(Path(root) / 'session')}),                     patch.object(store, 'ask', side_effect=ask),                     patch.object(store, 'prepare_ubisoft', return_value='ready'),                     patch.object(store, 'create_prefix', return_value='present'),                     patch.object(store, 'log', side_effect=lines.append):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['cloud-down', 'cloud-up'], [op for op in asked if op.startswith('cloud-')])
+            self.assertIn('cloud ubisoft space-1 down result=failed reason=PermissionError', lines)
+            self.assertIn('cloud ubisoft space-1 up not requested (PermissionError)', lines)
+
     def test_a_first_launch_creates_the_prefix_before_the_cloud_download(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='epic', ident='fa4240e5')

@@ -308,7 +308,11 @@ def exited(argv, code=0):
     if found is None or not launch_dir or not cloud_on(found[1]):
         return 0
     store, game = str(found[1].get("store")), str(found[1].get("id"))
-    ask(Path(launch_dir) / "stores", {"op": "cloud-up", "store": store, "id": game}, timeout=1.0)
+    try:
+        ask(Path(launch_dir) / "stores", {"op": "cloud-up", "store": store, "id": game}, timeout=1.0)
+    except OSError as error:
+        log("cloud %s %s up not requested (%s)" % (store, game, type(error).__name__))
+        return 0
     log("cloud %s %s up requested" % (store, game))
     return 0
 
@@ -1676,7 +1680,11 @@ def main(argv):
             log("cloud %s %s down result=skipped reason=off" % (store, game))
         return 0
     if launch_dir:
-        answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT)
+        try:
+            answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT)
+        except OSError as error:
+            log("cloud %s %s down result=failed reason=%s" % (store, game, type(error).__name__))
+            return STORE_GAME
         if answer is None:
             log("cloud %s %s down result=timeout" % (store, game))
         else:
