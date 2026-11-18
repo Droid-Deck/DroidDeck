@@ -101,7 +101,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
                     val done = m.groupValues[1].replace(",", "").toLong()
                     val total = maxOf(1L, m.groupValues[2].replace(",", "").toLong())
                     downloadPercent = (done * 100 / total).toInt()
-                } else if (p != null) {
+                } else if (p != null && p.groupValues[1].toInt() > 0 && applyingAt <= stepAt) {
                     downloadAt = at
                     downloadPercent = p.groupValues[1].toInt().coerceIn(0, 100)
                 } else if (steam && UPDATE_APPLYING.matches(line)) {

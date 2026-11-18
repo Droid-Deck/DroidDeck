@@ -98,6 +98,29 @@ class LoadingStateUpdateTest {
         assertEquals(-1, state.percent)
     }
 
+    @Test fun aVerificationOnlyPassKeepsTheScriptStep() {
+        val state = read(
+            "[2026-11-15 11:53:36] Set percent complete: 0",
+            "[2026-11-15 11:53:37] Set percent complete: -1",
+            "[2026-11-15 11:53:37] Verifying installation...",
+        )
+        assertEquals("starting the Steam client", state.step)
+        assertEquals(-1, state.percent)
+    }
+
+    @Test fun aPercentLineDoesNotReplaceApplyingInTheSameStep() {
+        assertApplying(read("Extracting package...", "[2026-11-15 11:58:52] Set percent complete: 100"))
+    }
+
+    @Test fun aPercentLineCountsAgainAfterANewStep() {
+        val state = read(
+            "Installing update...",
+            "== STEP 12:00:03 starting the Steam client",
+            "[2026-11-15 11:58:51] Set percent complete: 40",
+        )
+        assertEquals(40, state.percent)
+    }
+
     @Test fun anExistingLoadingStateFollowsUpdatesAcrossPolls() {
         val context = RuntimeEnvironment.getApplication()
         val log = log("Downloading update (100 of 100 KB)")
