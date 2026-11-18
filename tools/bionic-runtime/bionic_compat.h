@@ -6,3 +6,4 @@ extern "C" char *__progname;
 extern char *__progname;
 #endif
 #define program_invocation_name __progname
+#define program_invocation_short_name __progname

@@ -35,6 +35,8 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     PROTON_USE_D7VK) ;;
     WINE_OFFSCREEN_CHECK_MS|WINE_CPU_TOPOLOGY|WINE_LARGE_ADDRESS_AWARE|TZ) ;;
     DXVK_LOG_LEVEL|DXVK_HDR|VKD3D_DEBUG|VKD3D_SHADER_DEBUG) ;;
+    DROIDDECK_GPU_LOAD|DROIDDECK_GPU_LOAD_DIR|DROIDDECK_VRAM_CAP|DROIDDECK_VRAM_CAP_MB) ;;
+    VKD3D_FEATURE_LEVEL|VKD3D_SHADER_MODEL|vk_x11_strict_image_count) ;;
     *) unset "$v" 2>/dev/null ;;
   esac
 done
@@ -82,7 +84,11 @@ export HODLL=libwow64fex.dll WINEDEBUG=err+all,fixme-all
 export XENVIRONMENT=$TOOL/bionic/Xdefaults
 # The adapter's Wayland swapchain gets its buffers back from gamescope later than DroidDeck-Proton's Turnip does;
 # with gamescope's default three images the game waits for one about a fifth of the time at high frame rates.
-export GAMESCOPE_WSI_MIN_IMAGE_COUNT=${GAMESCOPE_WSI_MIN_IMAGE_COUNT:-4} GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=${GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT:-1}
+# droiddeck-game-env's fix for a game that needs its own image count sets vk_x11_strict_image_count instead.
+case "${vk_x11_strict_image_count:-}" in
+  true|1) ;;
+  *) export GAMESCOPE_WSI_MIN_IMAGE_COUNT=${GAMESCOPE_WSI_MIN_IMAGE_COUNT:-4} GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=${GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT:-1} ;;
+esac
 # FEX: DroidDeck-Proton's defaults (its share/fex-emu/Config.json: x87 in 64-bit precision, TSO without the vector
 # and memcpy parts); droiddeck-game-env's per-game choices (FEX_* in the environment, e.g. .NET, Unity) win.
 export FEX_TSOENABLED=${FEX_TSOENABLED:-1} FEX_VECTORTSOENABLED=${FEX_VECTORTSOENABLED:-0} \

@@ -166,6 +166,18 @@ LINK=(-L"$PACK/lib" -Wl,-rpath-link,"$PACK/lib" -L"$LAYERLIB" -Wl,-rpath-link,"$
   -o "$PACK/layer/libVkLayer_FROG_gamescope_wsi_aarch64.so"
 cp "$HERE/VkLayer_FROG_gamescope_wsi.aarch64.json" "$PACK/layer/"
 
+echo "== DroidDeck GPU-load and VRAM-cap layers (tools/gpuload), off unless their DroidDeck variables are set"
+for l in gpuload vramcap; do
+  "$CC" -std=c11 -shared -fPIC -O2 -Wall -Wno-unused-parameter -Wno-missing-field-initializers -fvisibility=hidden \
+    -pthread -Wl,-z,defs -include "$HERE/bionic_compat.h" -I"$INC" -I"$ROOT/tools/gpuload/src" \
+    "$ROOT/tools/gpuload/src/vk_layer_droiddeck_$l.c" -o "$PACK/layer/libVkLayer_droiddeck_$l.so"
+done
+for j in gpu_load:gpuload vram_cap:vramcap; do
+  sed 's#"library_path": *"[^"]*"#"library_path": "./libVkLayer_droiddeck_'"${j#*:}"'.so"#' \
+    "$ROOT/tools/gpuload/layer/VK_LAYER_DROIDDECK_${j%%:*}.json" > "$PACK/layer/VK_LAYER_DROIDDECK_${j%%:*}.json"
+  grep -q '"library_path": "./libVkLayer_droiddeck_' "$PACK/layer/VK_LAYER_DROIDDECK_${j%%:*}.json"
+done
+
 echo "== DroidDeck fake input (app/src/main/cpp/fakeinput_steam.cpp), heap-tagging off, window tagger"
 "$CXX" -shared -fPIC -O2 -Wall -Wno-attributes -pthread -std=c++17 "$ROOT/app/src/main/cpp/fakeinput_steam.cpp" \
   -ldl -static-libstdc++ -o "$PACK/preload/libfakeinput.so"

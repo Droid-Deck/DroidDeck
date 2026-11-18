@@ -35,6 +35,8 @@ case "$verb" in
     [ $# -gt 0 ] || exit 0
     exe=$(real "$1"); shift
     export DROIDDECK_BIONIC_ROOT="$DDNATV_ROOT"
+    # The HUD's GPU-load folder is a guest path; the bionic game writes to it by its Android path.
+    [ -n "${DROIDDECK_GPU_LOAD_DIR:-}" ] && { DROIDDECK_GPU_LOAD_DIR=$(real "$DROIDDECK_GPU_LOAD_DIR"); export DROIDDECK_GPU_LOAD_DIR; }
     # DroidDeck's game environment (shared entries and this game's), already applied by droiddeck-game-env: the
     # names launch.sh keeps when it drops the rest of the guest environment.
     DROIDDECK_BIONIC_KEEP=$(python3 - "${STEAM_COMPAT_DATA_PATH:-}" 2>/dev/null <<'PY'
