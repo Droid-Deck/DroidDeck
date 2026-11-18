@@ -159,7 +159,6 @@ object Themes {
         onBackground = Color(colors.onBackground),
         onSurfaceVariant = Color(colors.onSurfaceVariant),
         primary = Color(colors.primary),
-        // Keep the accent solid in buttons and launch animations.
         primary2 = Color(colors.primary),
         onPrimary = Color(colors.onPrimary),
         signal = Color(colors.signal),
