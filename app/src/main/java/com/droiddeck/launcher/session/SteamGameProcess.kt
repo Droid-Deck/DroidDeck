@@ -40,8 +40,9 @@ object SteamGameProcess {
                 val appId = args.getOrNull(i + 1)
                     ?.takeIf { it.startsWith("AppId=") }
                     ?.removePrefix("AppId=")
+                val launchOptions = args.drop(i + 2).takeWhile { it != "--" }
 
-                if (appId == expectedAppId) return true
+                if (appId == expectedAppId && "Install=1" !in launchOptions) return true
             }
 
             if (args[i] == "-applaunch" &&
