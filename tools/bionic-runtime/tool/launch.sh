@@ -227,6 +227,20 @@ prefix_busy() { # a process of this prefix is running
   return 1
 }
 
+programs_left() { # a program of this prefix is still running, apart from Wine's own services and this script's helpers
+  for p in /proc/[0-9]*; do
+    q=${p#/proc/}
+    [ -O "$p" ] || continue
+    [ "$q" = "$$" ] || [ "$q" = "${GT:-x}" ] && continue
+    c=; read -r c < "$p/comm" 2>/dev/null
+    case "$c" in
+      ""|wineserver|services.exe|winedevice.exe|plugplay.exe|explorer.exe|svchost.exe|rpcss.exe|conhost.exe|start.exe) continue ;;
+    esac
+    tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -qx "WINEPREFIX=$COMPAT/pfx" && return 0
+  done
+  return 1
+}
+
 stop_wine() { # wineserver -k, then whatever of this prefix is left (e.g. a game's crash reporter)
   wineserver_ -k 2>/dev/null
   sleep 1
@@ -360,7 +374,12 @@ if [ "${SteamAppId:-0}" != 0 ]; then
 fi
 trap 'echo "$(date +%H:%M:%S) stopped by Steam"; [ -n "$GT" ] && kill $GT 2>/dev/null; stop_wine; exit 0' TERM INT HUP
 n=0
-while [ $n -lt 90 ] && [ -z "$(game_pids)" ]; do sleep 1; n=$((n + 1)); done
+while [ $n -lt 90 ] && [ -z "$(game_pids)" ]; do
+  # A program that ended before it was seen (Steam's install-script step takes about a second) leaves nothing
+  # to wait for; a launcher that left a game running is still waited for as before.
+  if [ $n -ge 2 ] && ! kill -0 $WP 2>/dev/null && ! programs_left; then break; fi
+  sleep 1; n=$((n + 1))
+done
 echo "$(date +%H:%M:%S) game process $(game_pids | tr '\n' ' ')after ${n}s"
 while [ -n "$(game_pids)" ]; do sleep 2; done
 echo "$(date +%H:%M:%S) game exited"
