@@ -178,6 +178,7 @@ internal class EaCloud(
         fun manifestUrl(lockBody: String): String? = Regex("<manifest>([^<]+)</manifest>").find(lockBody)?.groupValues?.get(1)?.let(::unescape)
 
         fun parse(xml: String): Manifest {
+            check(xml.trimEnd().endsWith("</manifest>")) { "EA sent an incomplete cloud save manifest" }
             val lineage = attr(Regex("<manifest\\b([^>]*)>").find(xml)?.groupValues?.get(1).orEmpty(), "lineage")
                 ?: "{00000000-0000-0000-0000-000000000000}"
             val files = FILE.findAll(xml).mapNotNull { m ->

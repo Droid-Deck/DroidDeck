@@ -74,6 +74,11 @@ class EaCloudTest {
         assertEquals("%Documents%/Game/slot.sav ", EaSaveRules.normalize("%Documents%\\Game\\slot.sav "))
     }
 
+    @Test fun aTruncatedManifestIsRefused() {
+        val cut = runCatching { EaCloud.parse("""<manifest lineage="{1}"><file size="1" href="content/1-a" md5="x5lr6ApuONH47yiGaxFPiw==">""") }
+        assertTrue(cut.isFailure)
+    }
+
     @Test fun snapshotEntitiesAreDecodedOnceAndWrittenBackTheSame() {
         val m = EaCloud.parse("""<manifest lineage="{1}"><snapshot>abc&#x2B;def</snapshot></manifest>""")
         assertEquals(listOf("abc+def"), m.snapshots)

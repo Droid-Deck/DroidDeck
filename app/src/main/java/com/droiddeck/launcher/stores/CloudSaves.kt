@@ -166,7 +166,8 @@ object CloudSaves {
         val dir = when (store) {
             Store.GOG -> CloudSavePaths.gog(template, pfx, folder)
             Store.EPIC -> CloudSavePaths.epic(template, pfx, folder, EpicCredentialStore.load(context)?.accountId.orEmpty(), id)
-            Store.EA -> EaSaveRules.parse(template)?.base()?.let(EaSaveRules::template)?.let { CloudSavePaths.gog(it, pfx, folder) }
+            Store.EA -> if (sidecar.extra["masterTitleId"].isNullOrEmpty()) null
+                else EaSaveRules.parse(template)?.base()?.let(EaSaveRules::template)?.let { CloudSavePaths.gog(it, pfx, folder) }
             Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> null
         }
         return dir to (if (dir == null) "unresolved" else "ok")
@@ -390,7 +391,7 @@ object CloudSaves {
         val base = baseline(context, store, id)
         val plan = CloudPlan.down(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
         val take = if (force) plan.transfer + plan.conflicts else plan.transfer
-        if (take.isNotEmpty() && files.isNotEmpty() && !backup(context, store, id, dir, "local")) return Result("failed", 0, 0, "backup-failed")
+        if (!backupReplaced(context, store, id, dir, take.mapNotNull { files[it] })) return Result("failed", 0, 0, "backup-failed")
         val next = HashMap(base.orEmpty())
         var bytes = 0L
         for (name in take) {
@@ -501,6 +502,27 @@ object CloudSaves {
             dest.writeBytes(cloud.get(f).first)
         }
         prune(root, "cloud")
+    }
+
+    private fun backupReplaced(context: Context, store: Store, id: String, dir: File, replaced: List<File>): Boolean {
+        if (replaced.isEmpty()) return true
+        val base = runCatching { dir.canonicalPath + File.separator }.getOrNull() ?: return false
+        val root = backupRoot(context, store, id)
+        val stamp = System.currentTimeMillis()
+        val staging = File(root, "staging-$stamp")
+        val copied = runCatching {
+            for (f in replaced) {
+                check(f.canonicalPath.startsWith(base))
+                f.copyTo(File(staging, f.relativeTo(dir).path), overwrite = true)
+            }
+            check(staging.renameTo(File(root, "local-$stamp")))
+        }.isSuccess
+        if (!copied) {
+            staging.deleteRecursively()
+            return false
+        }
+        prune(root, "local")
+        return true
     }
 
     private fun prune(root: File, kind: String) {
