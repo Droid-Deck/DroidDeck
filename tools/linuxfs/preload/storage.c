@@ -13,7 +13,7 @@
 #include <unistd.h>
 
 static int (*next_fstat)(int, struct stat *);
-void bl_storage_owner(int fd, struct stat *st) __attribute__((visibility("hidden")));
+void dd_storage_owner(int fd, struct stat *st) __attribute__((visibility("hidden")));
 static int (*next_fallocate)(int, int, off_t, off_t);
 static int (*next_posix_fallocate)(int, off_t, off_t);
 static ssize_t (*next_pwrite)(int, const void *, size_t, off_t);
@@ -59,8 +59,8 @@ static void initialize(void) {
     while (__atomic_load_n(&init_state, __ATOMIC_ACQUIRE) != 2) { }
     return;
   }
-  const char *on = getenv("BL_STORAGE_DIAGNOSTICS");
-  const char *device = getenv("BL_STORAGE_DEVICE");
+  const char *on = getenv("DD_STORAGE_DIAGNOSTICS");
+  const char *device = getenv("DD_STORAGE_DEVICE");
   if (on != NULL && strcmp(on, "1") == 0 && device != NULL && *device != '\0') {
     char *end = NULL;
     errno = 0;
@@ -105,7 +105,7 @@ static void comm_name(char *out, size_t size) {
 }
 
 static void append_line(const char *line, size_t length) {
-  const char *path = getenv("BL_STORAGE_LOG");
+  const char *path = getenv("DD_STORAGE_LOG");
   struct stat st;
   int saved = errno;
   if (path == NULL || *path == '\0' || length == 0 || length > 2048) goto done;
@@ -288,7 +288,7 @@ int fstat(int fd, struct stat *out) {
   errno = entry_errno;
   if (!enabled) {
     int result = next_fstat(fd, out);
-    if (result == 0) bl_storage_owner(fd, out);
+    if (result == 0) dd_storage_owner(fd, out);
     return result;
   }
   uint64_t start = now_ns();
@@ -296,7 +296,7 @@ int fstat(int fd, struct stat *out) {
   int result = next_fstat(fd, out);
   int call_errno = errno;
   uint64_t elapsed = now_ns() - start;
-  if (result == 0) bl_storage_owner(fd, out);
+  if (result == 0) dd_storage_owner(fd, out);
   if (result == 0 && on_selected_device(fd, out)) {
     add(&stats.fstat_calls, 1);
     add(&stats.fstat_elapsed_ns, elapsed);

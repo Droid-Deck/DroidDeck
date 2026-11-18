@@ -112,7 +112,7 @@ HIDDEN_ENV = {
     "DROIDDECK_EPIC_HIDDEN": "1",
     "EGL_DISABLE_STORE_PREWARM": "1",
 }
-KEPT_ENV = ("HOME", "USER", "LOGNAME", "LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES", "TZ", "XDG_RUNTIME_DIR", "BL_LAUNCH_DIR")
+KEPT_ENV = ("HOME", "USER", "LOGNAME", "LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES", "TZ", "XDG_RUNTIME_DIR", "DD_LAUNCH_DIR", "BL_LAUNCH_DIR")
 LAUNCH_VERBS = ("waitforexitandrun", "run", "runinprefix")
 EPIC_ARGS = ("-auth_", "-epic")
 CMD_SPECIAL = "&|<>^"
@@ -720,7 +720,7 @@ def clear_playing():
 
 
 def launch_dir():
-    found = os.environ.get("BL_LAUNCH_DIR", "")
+    found = os.environ.get("DD_LAUNCH_DIR", "")
     if not found:
         try:
             with open(LAUNCH_DIR_FILE, encoding="utf-8") as f:

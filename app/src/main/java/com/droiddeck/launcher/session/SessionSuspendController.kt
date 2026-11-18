@@ -286,7 +286,7 @@ internal class SessionSuspendController(
         }
         val targets = records.values.filter { record ->
             try {
-                File(procRoot, "${record.pid}/maps").useLines { lines -> lines.any { it.endsWith("/libblsession.so") } }
+                File(procRoot, "${record.pid}/maps").useLines { lines -> lines.any { it.endsWith("/libddsession.so") } }
             } catch (_: IOException) {
                 false
             }

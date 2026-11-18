@@ -55,6 +55,7 @@ import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -237,7 +238,8 @@ private fun NavigationItems(
     val setupNeedsAttention = setupNeedsAttention(s)
     val downloadsAt = if ("downloads" in NavTabs.more(s)) NavTabs.MORE else "downloads"
     for (key in navigationKeys(s)) {
-        val (label, icon) = railLabelIcon(key)
+        val (label, base) = railLabelIcon(key)
+        val icon = if (key == NavTabs.MORE && MoreTabs.inside) Icons.AutoMirrored.Outlined.ArrowBack else base
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
                 badge = railBadge(s, key, setupNeedsAttention),
@@ -299,9 +301,9 @@ private fun RailItem(
             .selectable(selected = current, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .then(if (iconOnly) Modifier.semantics { contentDescription = label } else Modifier),
     ) {
-        if (iconOnly) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp))
+        if (iconOnly) androidx.compose.animation.Crossfade(icon, animationSpec = Motion.tw(220), label = "railIcon") { Icon(it, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp)) }
         else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(if (height < 56.dp) 20.dp else 22.dp))
+            androidx.compose.animation.Crossfade(icon, animationSpec = Motion.tw(220), label = "railIcon") { Icon(it, contentDescription = null, tint = fg, modifier = Modifier.size(if (height < 56.dp) 20.dp else 22.dp)) }
             FitText(label, maxSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp), fontWeight = FontWeight.SemiBold, color = fg)
         }
         if (badge) Box(

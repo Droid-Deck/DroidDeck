@@ -315,4 +315,12 @@ class GameEnvironmentStoreTest {
         GameEnvironmentStore.save(context, config)
         assertEquals(config, GameEnvironmentStore.read(context))
     }
+
+    @Test fun savedSettingsFromBeforeTheRenameKeepTheirValues() {
+        val json = JSONObject("""{"version":1,"shared":{"BL_SYNC":"1","DXVK_HUD":"fps"},
+            "games":{"440":{"BL_FSYNC_FIRST":"1","BL_SYNC_FALLBACK":"0","DD_SYNC_FALLBACK":"1"}}}""")
+        val config = GameEnvironmentStore.decode(json)
+        assertEquals(mapOf("DD_SYNC" to "1", "DXVK_HUD" to "fps"), config.shared)
+        assertEquals(mapOf("DD_FSYNC_FIRST" to "1", "DD_SYNC_FALLBACK" to "1"), config.games["440"])
+    }
 }

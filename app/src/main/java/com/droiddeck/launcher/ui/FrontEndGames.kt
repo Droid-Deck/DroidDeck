@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
@@ -41,11 +42,12 @@ import androidx.compose.runtime.getValue
 
 
 @Composable
-internal fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions) {
+internal fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions, labeled: Boolean = false) {
     if (s.shortcutPicker) return
     var open by remember { androidx.compose.runtime.mutableStateOf(false) }
     Box {
-        SecondaryButton(stringResource(R.string.game_frontend_files), compact = true) { open = !open }
+        if (labeled) SecondaryButton(stringResource(R.string.game_frontend_files), compact = true) { open = !open }
+        else HeaderIconButton(stringResource(R.string.game_frontend_files), androidx.compose.material.icons.Icons.Outlined.Sync, "frontend-files") { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = s.gameSyncFolder ?: stringResource(R.string.game_frontend_files)) { first ->
             MenuItem(stringResource(R.string.game_file_sync), checked = false, focusRequester = first) {
                 open = false; a.onSyncGameFiles()

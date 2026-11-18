@@ -236,12 +236,10 @@ internal fun SetupPanel(
             ),
         ) {
             PageHeader(stringResource(R.string.setup_title)) {
-                Box(Modifier.weight(1f)) { SheetChips(tabs, tab, chipFocus, onPick = pick) }
-                if (!searching) SearchIcon(stringResource(R.string.settings_search)) { searching = true }
-            }
-            if (searching) {
-                androidx.activity.compose.BackHandler { searching = false; query = "" }
-                SettingsSearchField(query, { query = it }) { searching = false; query = "" }
+                SettingsPillSearch(
+                    Modifier.weight(1f), searching, query, { query = it },
+                    onOpen = { searching = true }, onClose = { searching = false; query = "" },
+                ) { SheetChips(tabs, tab, chipFocus, onPick = pick) }
             }
             val listing = searching && query.isNotBlank()
             val fixed = tab == CONTROLLER_TAB && !listing

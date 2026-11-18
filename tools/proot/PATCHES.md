@@ -99,7 +99,7 @@ Added by DroidDeck:
   `get_robust_list`. proot still answers the first with `ENOSYS` but keeps the head each thread
   offered (cleared on `execve`, none in a new task), and answers the second for the calling thread
   with it. SteamVR's `vrclient.so` asks for the head through libc's `syscall()`, which
-  `libblsession.so`'s robust.c never sees: `libopenvr_api.so` opens it `RTLD_DEEPBIND`. Steam
+  `libddsession.so`'s robust.c never sees: `libopenvr_api.so` opens it `RTLD_DEEPBIND`. Steam
   aborted on "futex robust_list not initialized by pthreads" as soon as SteamVR was registered.
 
 - `0029-proc-pid-root-guest.patch` - `/proc/<pid>/root` of a tracee resolved to the rootfs's host

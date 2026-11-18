@@ -19,7 +19,7 @@ static int lock_name(const char *path) {
   return n > 2 && strcmp(path + n - 2, "-l") == 0;
 }
 
-__attribute__((visibility("hidden"))) int bl_link_lock(const char *oldpath, const char *newpath, int result) {
+__attribute__((visibility("hidden"))) int dd_link_lock(const char *oldpath, const char *newpath, int result) {
   static int (*real_symlink)(const char *, const char *);
   if (result == 0 || !refused(errno)) return result;
   if (moves_instead()) return renameat2(AT_FDCWD, oldpath, AT_FDCWD, newpath, RENAME_NOREPLACE);
@@ -32,7 +32,7 @@ __attribute__((visibility("hidden"))) int bl_link_lock(const char *oldpath, cons
 int link(const char *oldpath, const char *newpath) {
   static int (*real_link)(const char *, const char *);
   if (real_link == NULL) real_link = dlsym(RTLD_NEXT, "link");
-  return bl_link_lock(oldpath, newpath, real_link(oldpath, newpath));
+  return dd_link_lock(oldpath, newpath, real_link(oldpath, newpath));
 }
 #endif
 

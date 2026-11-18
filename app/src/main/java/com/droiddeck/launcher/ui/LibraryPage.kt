@@ -226,10 +226,11 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     LaunchedEffect(Unit) { StoresState.refresh(ctx) }
     remember { LibraryDisplay.load(ctx) }
+    remember { FolderSizes.load(ctx) }
     remember { LibraryFavorites.load(ctx) }
     val soundMode = selected == "soundtracks" || selected.startsWith("sound:")
     val favorites = if (soundMode) emptySet() else LibraryFavorites.keys
-    val stores = s.gameStoresEnabled && !s.shortcutPicker && !soundMode
+    val stores = !s.shortcutPicker && !soundMode
     val signedIn = Store.entries.filter { StoresState.isSignedIn(it) }
     LaunchedEffect(stores, signedIn) { if (stores) signedIn.forEach { StoresState.loadLibrary(ctx, it) } }
     val owned = if (stores) signedIn.associateWith { StoresState.library[it].orEmpty() } else emptyMap()
@@ -345,7 +346,13 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     }
     var sizesWaited by remember(sizeSort) { mutableStateOf(false) }
     LaunchedEffect(sizeSort) { if (sizeSort) { kotlinx.coroutines.delay(8_000); sizesWaited = true } }
-    val sizesPending = sizeSort && !sizesWaited && candidates.any { sizeOf(it) == null }
+    fun sizeComing(e: LibraryEntry): Boolean = when {
+        e.storeKey != null && e.storeKey in installedStore -> true
+        e.game?.gameFiles != null -> true
+        e.item != null -> StoreSizes.coming(e.item)
+        else -> false
+    }
+    val sizesPending = sizeSort && !sizesWaited && candidates.any { sizeOf(it) == null && sizeComing(it) }
     val sorted = sortGames(
         candidates, sort, title = { it.title }, releaseDate = { it.item?.releaseDate.orEmpty() },
         lastPlayed = { e -> entryTime(e.game?.lastPlayed, e.storeKey?.let { lastPlayed[it] }) },
@@ -476,7 +483,7 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.padding(top = 12.dp).testTag("play-steam"), onClick = a.onPlay)
             }
         }
-        Box(Modifier.padding(top = 12.dp)) { GameFileFolderActions(s, a) }
+        Box(Modifier.padding(top = 12.dp)) { GameFileFolderActions(s, a, labeled = true) }
     }
 }
 
@@ -545,7 +552,7 @@ private fun LibraryGrid(
             Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = Store.byId(source)?.takeIf { it == Store.ITCH || it == Store.GAMEJOLT }, soundMode = soundMode, onAddSoundtrack = onAddSoundtrack, onCollections = onCollections) }
         }
         item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(1) { LibraryFilters(sources, source, onSource) }
+            Rise(1) { LibraryFilters(sources, source, onSource, accounts = !soundMode && !s.shortcutPicker) }
         }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
@@ -668,14 +675,14 @@ private fun LibraryHeader(
 }
 
 @Composable
-private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit) {
-    if (sources.size < 2) return
+private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit, accounts: Boolean) {
+    if (sources.size < 2 && !accounts) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),
     ) {
-        SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
-        for (src in sources) {
+        if (sources.size >= 2) SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
+        if (sources.size >= 2) for (src in sources) {
             val store = Store.byId(src)
             val dot = when {
                 store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
@@ -693,6 +700,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
                 source == src, dot,
             ) { onSource(src) }
         }
+        if (accounts) StoreAccountsButton()
     }
 }
 
@@ -739,7 +747,9 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
     RequestSize(e)
     val open = {
         val art = if (capsule) tall else wide
-        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (art as? java.io.File)?.path ?: art as? String)) }
+        placed[0]?.takeIf { it.isAttached }?.let {
+            StoresMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (art as? java.io.File)?.path ?: art as? String, (wide as? java.io.File)?.path ?: wide as? String))
+        }
         onOpen(e.key)
     }
     Column(

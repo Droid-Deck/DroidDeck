@@ -57,7 +57,7 @@ class XboxLaunchTest(unittest.TestCase):
                  patch.dict(xbox['launch'].__globals__, wine=unittest.mock.Mock(return_value=7)):
                 launch = xbox['launch']
                 self.assertEqual(launch(['/proton', 'waitforexitandrun', '/encrypted/Game.exe'],
-                                        {'BL_LAUNCH_DIR': '/launch', 'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'stale',
+                                        {'DD_LAUNCH_DIR': '/launch', 'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'stale',
                                          'DROIDDECK_XBOX_CREDENTIAL_PORT': '4100', 'DROIDDECK_XBOX_CREDENTIAL_KEY': 'stale-key'}), 7)
                 wine = launch.__globals__['wine']
                 self.assertEqual(wine.call_args.args[0], ['/private/Game.exe'])
@@ -80,7 +80,7 @@ class XboxLaunchTest(unittest.TestCase):
             with patch('runpy.run_path', return_value={'find_store_game': lambda argv: (root, {'store': 'xbox', 'id': 'GAME'}), 'ask': ask}), \
                  patch.dict(xbox['launch'].__globals__, RUNTIME=root, bridge=unittest.mock.Mock(side_effect=OSError('bind failed'))):
                 with self.assertRaises(OSError):
-                    xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'], {'BL_LAUNCH_DIR': '/launch'})
+                    xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'], {'DD_LAUNCH_DIR': '/launch'})
             self.assertEqual(ask.call_args.args[1], {'op': 'xbox-released', 'lease': 'lease-1'})
 
     def test_bridge_authenticates_before_forwarding(self):
@@ -391,6 +391,6 @@ class PlayFabProxyTest(unittest.TestCase):
                      patch.dict(xbox['launch'].__globals__, RUNTIME=root, bridge=lambda path: (1, 'key', lambda: None),
                                 wine=wine, stage_playfab_proxy=stage):
                     self.assertEqual(xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'],
-                                                    {'BL_LAUNCH_DIR': '/launch', 'WINEDLLOVERRIDES': 'd3d11=n'}), 0)
+                                                    {'DD_LAUNCH_DIR': '/launch', 'WINEDLLOVERRIDES': 'd3d11=n'}), 0)
                 self.assertEqual(wine.call_args.args[1]['WINEDLLOVERRIDES'], 'd3d11=n')
             self.assertEqual(staged, [root])

@@ -5,7 +5,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.agent.AgentHost
-import com.droiddeck.launcher.agent.AgentTab
 import com.droiddeck.launcher.session.SessionPrefs
 
 internal enum class TabPlace { BAR, MORE, HIDDEN }
@@ -26,9 +25,13 @@ internal object DeveloperTools {
 
 internal object NavTabs {
     const val MORE = "more"
-    val FEATURES = setOf("stores", "soundtracks", "agent")
-    val ALL = listOf("steam", "games", "soundtracks", "stores", "downloads", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup", "updates", "trinkets")
-    private val SHELVED_WHEN_NEW = setOf("storage", "sync")
+    val ALL = listOf("steam", "desktop", "games", "downloads", "setup", "updates", "trinkets", "stores", "soundtracks", "components", "storage", "sync", "android-apps", "agent")
+    val DEFAULT_SHELVED = setOf("stores", "soundtracks", "components", "storage", "sync", "android-apps", "agent")
+    val DEFAULT_HIDDEN = setOf("android-apps", "agent")
+    private val SHELVED_WHEN_NEW = setOf("storage", "sync", "android-apps", "agent")
+    private val OLD_ORDER = listOf("steam", "games", "soundtracks", "stores", "downloads", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup", "updates")
+    private val OLD_SHELVED = setOf("soundtracks", "agent", "storage", "sync")
+    private const val LAYOUT_VERSION = 2
 
     var order by mutableStateOf(ALL)
         private set
@@ -38,11 +41,41 @@ internal object NavTabs {
         private set
 
     fun load(context: Context) {
+        migrate(context)
         val saved = SessionPrefs.navTabOrder(context)
         order = arrange(saved)
-        shelved = SessionPrefs.navTabShelved(context).intersect(ALL.toSet()) +
+        shelved = (SessionPrefs.navTabShelved(context) ?: DEFAULT_SHELVED).intersect(ALL.toSet()) +
             if (saved.isEmpty()) emptySet() else SHELVED_WHEN_NEW - saved.toSet()
-        hidden = SessionPrefs.navTabHidden(context).intersect(ALL.toSet()) - FEATURES - "setup"
+        hidden = (SessionPrefs.navTabHidden(context) ?: DEFAULT_HIDDEN).intersect(ALL.toSet()) - "setup"
+    }
+
+    fun reset(context: Context) {
+        order = ALL
+        shelved = DEFAULT_SHELVED
+        hidden = DEFAULT_HIDDEN
+        SessionPrefs.setNavTabOrder(context, order)
+        SessionPrefs.setNavTabShelved(context, shelved)
+        SessionPrefs.setNavTabHidden(context, hidden)
+    }
+
+    fun isDefault(): Boolean = order == ALL && shelved == DEFAULT_SHELVED && hidden == DEFAULT_HIDDEN
+
+    // Before layout 2, switches for game stores, soundtracks and the agent tab, and the home-screen requirement for Apps,
+    // decided which tabs existed. A layout someone had already touched keeps showing what it showed then.
+    private fun migrate(context: Context) {
+        if (SessionPrefs.navTabLayoutVersion(context) >= LAYOUT_VERSION) return
+        val legacy = SessionPrefs.legacyTabSwitches(context)
+        if (legacy.touched) {
+            if (SessionPrefs.navTabOrder(context).isEmpty()) SessionPrefs.setNavTabOrder(context, OLD_ORDER)
+            if (SessionPrefs.navTabShelved(context) == null) SessionPrefs.setNavTabShelved(context, OLD_SHELVED)
+            val hide = (SessionPrefs.navTabHidden(context) ?: emptySet()).toMutableSet()
+            if (!legacy.stores) hide += setOf("stores", "downloads")
+            if (!legacy.soundtracks) hide += "soundtracks"
+            if (!legacy.agent) hide += "agent"
+            if (!com.droiddeck.launcher.HomeApp.isHomeScreenEnabled(context) || !com.droiddeck.launcher.HomeApp.isDefault(context)) hide += "android-apps"
+            SessionPrefs.setNavTabHidden(context, hide)
+        }
+        SessionPrefs.finishTabSwitchMigration(context, LAYOUT_VERSION)
     }
 
     fun arrange(saved: List<String>): List<String> {
@@ -57,24 +90,16 @@ internal object NavTabs {
     }
 
     fun available(s: FrontEndState, key: String): Boolean = when (key) {
-        "android-apps" -> s.isHomeApp
-        "agent" -> AgentHost.available && DeveloperTools.on
+        "agent" -> AgentHost.available
         else -> true
     }
 
     fun hideable(key: String) = key != "setup"
 
     fun place(s: FrontEndState, key: String): TabPlace = when {
-        featureOff(s, key) || key in hidden -> TabPlace.HIDDEN
+        key in hidden -> TabPlace.HIDDEN
         key in shelved -> TabPlace.MORE
         else -> TabPlace.BAR
-    }
-
-    private fun featureOff(s: FrontEndState, key: String) = when (key) {
-        "stores", "downloads" -> !s.gameStoresEnabled
-        "soundtracks" -> !s.soundtracksEnabled
-        "agent" -> !AgentTab.shown
-        else -> false
     }
 
     fun listed(s: FrontEndState) = order.filter { available(s, it) }
@@ -87,7 +112,7 @@ internal object NavTabs {
     }
 
     fun setHidden(context: Context, key: String, hide: Boolean) {
-        hidden = if (hide && hideable(key) && key !in FEATURES) hidden + key else hidden - key
+        hidden = if (hide && hideable(key)) hidden + key else hidden - key
         SessionPrefs.setNavTabHidden(context, hidden)
     }
 

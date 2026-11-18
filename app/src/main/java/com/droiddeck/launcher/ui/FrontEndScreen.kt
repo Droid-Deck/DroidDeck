@@ -181,7 +181,6 @@ class FrontEndState(
     val animationsEnabled: Boolean = true,
     val lowStorageWarning: Boolean = true,
     val launcherIcon: String = com.droiddeck.launcher.LauncherIcon.DARK,
-    val gameStoresEnabled: Boolean = true,
     val soundtracksEnabled: Boolean = true,
     val soundtracksIngame: Boolean = false,
     val soundtracks: List<Library.SteamGame> = emptyList(),
@@ -290,8 +289,6 @@ class FrontEndActions(
     val onDownloadMirror: (String) -> Unit = {},
     val onDownloadPrefix: (String) -> Unit = {},
     val onDownloadProxy: (String) -> Unit = {},
-    val onGameStoresEnabled: (Boolean) -> Unit = {},
-    val onSoundtracksEnabled: (Boolean) -> Unit = {},
     val onSoundtracksIngame: (Boolean) -> Unit = {},
     val onSoundtrackAdded: (java.io.File) -> Unit = {},
     val onSoundtracksChanged: () -> Unit = {},
@@ -594,7 +591,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     BackHandler(enabled = !processSettingsPageVisible && backToMore) {
         selected = NavTabs.MORE
     }
-    LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
     LaunchedEffect(s.soundtracksEnabled) {
         if (!s.soundtracksEnabled && (selected == "soundtracks" || selected.startsWith("sound:"))) selected = "games"
     }
@@ -616,6 +612,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         else -> s.pageKey ?: selected
     }
     val railSelection = if (openTab in NavTabs.more(s)) NavTabs.MORE else openTab
+    androidx.compose.runtime.SideEffect { MoreTabs.inside = railSelection == NavTabs.MORE && openTab != NavTabs.MORE }
     val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
     var railPicks by remember { mutableStateOf(0) }
     val showRailPage: (String, Boolean) -> Unit = { key, focusContent ->

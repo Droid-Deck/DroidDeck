@@ -302,7 +302,7 @@ private fun Content(
         AgentPage(modifier.padding(horizontal = padH).padding(top = padV))
         return
     }
-    if (selected == "android-apps" && s.isHomeApp) {
+    if (selected == "android-apps") {
         AndroidAppsPage(s, a, modifier, onAndroidAppClick)
         return
     }

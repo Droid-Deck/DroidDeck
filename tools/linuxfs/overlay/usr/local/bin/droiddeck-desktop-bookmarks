@@ -23,7 +23,7 @@ ET.register_namespace("bookmark", ICON_NS)
 def steam_libraries(home, data):
     steam = data / "Steam"
     libraries = {steam: "Internal Storage"}
-    listing = os.environ.get("BL_STEAM_LIBRARIES")
+    listing = os.environ.get("DD_STEAM_LIBRARIES")
     selected = None
     if listing:
         try:
@@ -46,15 +46,15 @@ def steam_libraries(home, data):
             managed = path == LIBRARY or path.is_relative_to(home / "Games") or path.is_relative_to(ADDED)
             if selected is not None and managed and path not in selected:
                 continue
-            if path == LIBRARY and selected is None and not os.environ.get("BL_LIBRARY_LABEL"):
+            if path == LIBRARY and selected is None and not os.environ.get("DD_LIBRARY_LABEL"):
                 continue
             label = entry.get("label")
             label = re.sub(r'\\(["\\])', r'\1', label) if isinstance(label, str) else ""
             libraries[path] = label or path.name
     if selected is not None:
         libraries.update(selected)
-    elif os.environ.get("BL_LIBRARY_LABEL"):
-        libraries[LIBRARY] = os.environ["BL_LIBRARY_LABEL"]
+    elif os.environ.get("DD_LIBRARY_LABEL"):
+        libraries[LIBRARY] = os.environ["DD_LIBRARY_LABEL"]
     libraries[steam] = "Internal Storage"
     return {path.as_uri(): "Steam (" + (" ".join(label.split()) or path.name) + ")"
             for path, label in libraries.items() if path.is_absolute() and (path / "steamapps").is_dir()}
@@ -68,7 +68,7 @@ def place_uri(uri):
 
 
 def removable_volumes():
-    listing = os.environ.get("BL_DESKTOP_VOLUMES")
+    listing = os.environ.get("DD_DESKTOP_VOLUMES")
     if not listing:
         return {}
     volumes = {}
@@ -168,7 +168,7 @@ def atomic_write(path, content):
 def main():
     home = Path.home()
     config = Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config")
-    label = os.environ.get("BL_LIBRARY_LABEL")
+    label = os.environ.get("DD_LIBRARY_LABEL")
     available = bool(label) and (LIBRARY / "steamapps").is_dir()
     update_bookmark(bookmarks_file(home, config), label if available else None)
     data = Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")

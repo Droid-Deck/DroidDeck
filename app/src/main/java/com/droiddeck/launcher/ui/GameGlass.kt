@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -117,7 +118,7 @@ private fun ambientRequest(ctx: android.content.Context, model: Any?): ImageRequ
 private const val AmbientPixels = 6
 
 @Composable
-private fun rememberArtBrightness(model: Any?): Float {
+internal fun rememberArtBrightness(model: Any?): Float {
     val ctx = LocalContext.current
     val data = (model as? ImageRequest)?.data ?: model
     val brightness by produceState(0.3f, data) {
@@ -189,8 +190,9 @@ internal fun GameBackdrop(
 private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, blur: androidx.compose.ui.unit.Dp, onPlaced: (androidx.compose.ui.geometry.Rect?) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val light = colors.background.luminance() > 0.5f
-    val pale = ((rememberArtBrightness(sample) - 0.28f) / 0.5f).coerceIn(0f, 1f)
-    val dim = if (light) 1f else 1f - 0.4f * pale
+    val look = HeroLook(rememberArtBrightness(sample), light, colors.background)
+    val dim = look.dim
+    val pale = look.pale
     val artFilter = remember(dim) { ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(dim, 0f, 0f, 0f, 0f, 0f, dim, 0f, 0f, 0f, 0f, 0f, dim, 0f, 0f, 0f, 0f, 0f, 1f, 0f))) }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val height = (maxWidth * 0.4f).coerceIn(ArtMin, ArtMax)
@@ -206,24 +208,33 @@ private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, blur: androidx
                     if (fadeTop) drawRect(Brush.verticalGradient(0f to Color.Transparent, (24.dp.toPx() / size.height) to Color.Black), blendMode = BlendMode.DstIn)
                 },
         ) {
+            // A slow push-in and drift, centred where the crop leans, that starts from rest so a card flight lands on the same frame.
+            val drift = if (Motion.scale == 0f) null else androidx.compose.animation.core.rememberInfiniteTransition(label = "heroDrift").animateFloat(
+                0f, 1f,
+                androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(18_000, easing = androidx.compose.animation.core.EaseInOutSine),
+                    androidx.compose.animation.core.RepeatMode.Reverse,
+                ),
+                label = "heroDriftT",
+            )
             AsyncImage(
                 model = model, contentDescription = null, contentScale = ContentScale.Crop,
                 alignment = BiasAlignment(0.45f, -0.35f),
                 colorFilter = artFilter,
-                modifier = Modifier.matchParentSize().then(if (blur > 0.dp) Modifier.blur(blur) else Modifier),
+                modifier = Modifier.matchParentSize()
+                    .graphicsLayer {
+                        val t = drift?.value ?: 0f
+                        val zoom = 1f + 0.16f * t
+                        scaleX = zoom
+                        scaleY = zoom
+                        translationX = -size.width * 0.05f * t
+                        translationY = size.height * 0.03f * t
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.72f, 0.33f)
+                    }
+                    .then(if (blur > 0.dp) Modifier.blur(blur) else Modifier),
             )
             Box(
-                Modifier.matchParentSize().drawBehind {
-                    drawRect(colors.background.copy(alpha = if (light) 0.1f else 0.12f + 0.3f * pale))
-                    drawRect(
-                        Brush.radialGradient(
-                            0f to colors.background.copy(alpha = if (light) 0.5f else 0.66f),
-                            0.55f to colors.background.copy(alpha = if (light) 0.2f else 0.3f),
-                            1f to Color.Transparent,
-                            center = Offset(size.width * 0.22f, size.height * 0.55f), radius = size.width * 0.55f,
-                        ),
-                    )
-                },
+                Modifier.matchParentSize().drawBehind { with(look) { shade(size, 1f) } },
             )
         }
     }
@@ -264,4 +275,22 @@ internal fun Modifier.glass(shape: Shape, lift: Float = 0f): Modifier {
             drawRect(tint)
         }
         .border(1.dp, rim, shape)
+}
+
+internal class HeroLook(brightness: Float, val light: Boolean, val background: Color) {
+    val pale = ((brightness - 0.28f) / 0.5f).coerceIn(0f, 1f)
+    val dim = if (light) 1f else 1f - 0.4f * pale
+
+    fun androidx.compose.ui.graphics.drawscope.DrawScope.shade(size: androidx.compose.ui.geometry.Size, strength: Float) {
+        drawRect(background.copy(alpha = (if (light) 0.1f else 0.12f + 0.3f * pale) * strength), size = size)
+        drawRect(
+            Brush.radialGradient(
+                0f to background.copy(alpha = (if (light) 0.5f else 0.66f) * strength),
+                0.55f to background.copy(alpha = (if (light) 0.2f else 0.3f) * strength),
+                1f to Color.Transparent,
+                center = Offset(size.width * 0.22f, size.height * 0.55f), radius = size.width * 0.55f,
+            ),
+            size = size,
+        )
+    }
 }

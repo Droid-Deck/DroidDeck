@@ -39,12 +39,16 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.focusGroup
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 
 internal object MoreTabs {
     var editing by mutableStateOf(false)
+    var inside by mutableStateOf(false)
     val button = FocusRequester()
 }
 
@@ -69,6 +73,36 @@ internal fun SyncTabPage(s: FrontEndState, modifier: Modifier) {
         PageHeader(stringResource(R.string.rail_sync))
         SyncPanel(host, s.ready && !s.busy && !s.removalPending) { advanced = true }
     }
+}
+
+@Composable
+private fun ResetTabsRow() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val title = stringResource(R.string.tabs_reset_title)
+    val body = stringResource(R.string.tabs_reset_body)
+    val keep = stringResource(R.string.common_cancel)
+    val reset = stringResource(R.string.tabs_reset)
+    var at by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    Box(Modifier.padding(top = 12.dp)) { SettingsRow(stringResource(R.string.tabs_reset_title), stringResource(R.string.tabs_reset_hint)) {
+        Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+            SecondaryButton(reset, modifier = Modifier.testTag("tabs-reset")) {
+                val from = at ?: run { NavTabs.reset(ctx); return@SecondaryButton }
+                Steps.ask(StepAsk(
+                    anchor = from, side = StepSide.Left, accent = pal.signal, items = 3, pillCorner = 20.dp, maxWidth = 360.dp,
+                    handle = { androidx.compose.material3.Text(reset, fontSize = 13.sp, color = pal.signal) },
+                ) {
+                    StepTitle(title)
+                    androidx.compose.material3.Text(body, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
+                    androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.stepItem(2)) {
+                        StepChoice(keep, enabled = open, modifier = Modifier.focusRequester(first)) { Steps.fold() }
+                        StepChoice(reset, enabled = open) { Steps.fold(); NavTabs.reset(ctx) }
+                    }
+                })
+            }
+        }
+    } }
 }
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -123,6 +157,7 @@ internal fun EditTabsSheet(s: FrontEndState, a: FrontEndActions) {
                     }
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                         TabsSettingsGroup(rememberMenuHost(), s, a)
+                        if (!NavTabs.isDefault()) ResetTabsRow()
                     }
                 }
             }

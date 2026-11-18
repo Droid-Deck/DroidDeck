@@ -79,13 +79,13 @@ def required():
     paths = ['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst']
     paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
-    paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
-             'libblfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
+    paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libddsession.so',
+             'libddfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/droiddeck-gog-maintenance',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
              'usr/local/lib/droiddeck-pipewire.tzst']]
     for arch in ['x86_64', 'i386']:
-        paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libblsession.so']]
+        paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libddsession.so']]
     paths += ['assets/linuxfs/x86_64/' + lib for lib in
               ['libfaultreport.so', 'libvulkan-thunk.so', 'libwebkitinput.so']]
     paths += ['assets/linuxfs/i386/libfaultreport.so']

@@ -221,7 +221,7 @@ class LocateTest(FexTestCase):
         tool = self.fex_tool(self.steam)
         self.own_fex("fex-2610-r7", loads=False)
         calls = []
-        with mock.patch.dict(os.environ, {"BL_FEX_TAG": "fex-2610-r7"}), \
+        with mock.patch.dict(os.environ, {"DD_FEX_TAG": "fex-2610-r7"}), \
                 mock.patch.object(G["subprocess"], "call", lambda args, **kw: calls.append(args) or 1):
             FEX["update_own_fex"]()
         self.assertEqual([[str(BIN / "droiddeck-fex-update")]], calls)
@@ -236,7 +236,7 @@ class LocateTest(FexTestCase):
     def test_the_build_the_session_names_is_installed_once(self):
         self.own_fex("fex-2610-r6")
         calls = []
-        with mock.patch.dict(os.environ, {"BL_FEX_TAG": "fex-2610-r7"}), \
+        with mock.patch.dict(os.environ, {"DD_FEX_TAG": "fex-2610-r7"}), \
                 mock.patch.object(G["subprocess"], "call", lambda args, **kw: calls.append(args) or 0):
             FEX["update_own_fex"]()
             self.write(self.tmp / "own/share/fex-emu/.droiddeck-tag", "fex-2610-r7\n")
@@ -247,22 +247,22 @@ class LocateTest(FexTestCase):
         self.own_fex("fex-2610-r6")
         Path(G["STATE"]).mkdir(parents=True, exist_ok=True)
         calls = []
-        tag = {"BL_FEX_TAG": "fex-2610-r7"}
+        tag = {"DD_FEX_TAG": "fex-2610-r7"}
         with mock.patch.dict(os.environ, tag), \
-                mock.patch.object(G["subprocess"], "call", lambda args, **kw: calls.append(os.environ["BL_FEX_TAG"]) or 1):
+                mock.patch.object(G["subprocess"], "call", lambda args, **kw: calls.append(os.environ["DD_FEX_TAG"]) or 1):
             FEX["update_own_fex"]()
             FEX["update_own_fex"]()
             failed = Path(G["STATE"]) / "update-failed"
             os.utime(failed, (failed.stat().st_atime, failed.stat().st_mtime - 3601))
             FEX["update_own_fex"]()
-            os.environ["BL_FEX_TAG"] = "fex-2610-r8"
+            os.environ["DD_FEX_TAG"] = "fex-2610-r8"
             FEX["update_own_fex"]()
         self.assertEqual(["fex-2610-r7", "fex-2610-r7", "fex-2610-r8"], calls)
 
     def test_a_missing_updater_falls_back_to_the_fex_already_here(self):
         self.fex_tool(self.steam)
         Path(G["STATE"]).mkdir(parents=True, exist_ok=True)
-        with mock.patch.dict(os.environ, {"BL_FEX_TAG": "fex-2610-r7"}), \
+        with mock.patch.dict(os.environ, {"DD_FEX_TAG": "fex-2610-r7"}), \
                 mock.patch.object(G["subprocess"], "call", mock.Mock(side_effect=FileNotFoundError)):
             FEX["update_own_fex"]()
         self.assertEqual(FEX["fex_install"]()["bin"], str(self.steam / "steamapps/common/FEX-Emu/usr/bin/FEX"))
@@ -271,7 +271,7 @@ class LocateTest(FexTestCase):
         calls = []
         with mock.patch.dict(os.environ, {}, clear=False), \
                 mock.patch.object(G["subprocess"], "call", lambda args, **kw: calls.append(args) or 0):
-            os.environ.pop("BL_FEX_TAG", None)
+            os.environ.pop("DD_FEX_TAG", None)
             FEX["update_own_fex"]()
         self.assertEqual([], calls)
 
@@ -315,21 +315,21 @@ class PrepareTest(FexTestCase):
     def test_preloads_mirror_the_host_list(self):
         root = self.tmp / "root"
         for arch in ("x86_64", "i386"):
-            for name in ("libblsession.so", "libfakeinput.so"):
+            for name in ("libddsession.so", "libfakeinput.so"):
                 self.write(self.tmp / "preloads" / arch / name, arch.encode() + name.encode())
         self.write(self.tmp / "preloads/x86_64/libvulkan-thunk.so", b"pin")
-        self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libblsession.so\n/usr/local/lib/libfakeinput.so\n")
+        self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libddsession.so\n/usr/local/lib/libfakeinput.so\n")
         FEX["install_preloads"](str(root))
         self.assertEqual((root / "lib/x86_64-linux-gnu/droiddeck/vulkan/libvulkan.so.1").read_bytes(), b"pin")
         self.assertEqual(os.readlink(root / "lib/x86_64-linux-gnu/droiddeck/vulkan/libvulkan.so"), "libvulkan.so.1")
         self.assertEqual((root / "etc/ld.so.preload").read_text(),
-                         "/usr/$LIB/droiddeck/libblsession.so\n/usr/$LIB/droiddeck/libfakeinput.so\n")
+                         "/usr/$LIB/droiddeck/libddsession.so\n/usr/$LIB/droiddeck/libfakeinput.so\n")
         self.assertEqual((root / "lib/i386-linux-gnu/droiddeck/libfakeinput.so").read_bytes(), b"i386libfakeinput.so")
         self.assertEqual((root / "etc/asound.conf").read_text(),
                          "pcm.!default {\n    type pulse\n}\nctl.!default {\n    type pulse\n}\n")
-        self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libblsession.so\n")
+        self.write(self.tmp / "ld.so.preload", "/usr/local/lib/libddsession.so\n")
         FEX["install_preloads"](str(root))
-        self.assertEqual((root / "etc/ld.so.preload").read_text(), "/usr/$LIB/droiddeck/libblsession.so\n")
+        self.assertEqual((root / "etc/ld.so.preload").read_text(), "/usr/$LIB/droiddeck/libddsession.so\n")
 
     def test_only_x86_loaders_preload_the_fault_report(self):
         root = self.tmp / "root"
@@ -1366,13 +1366,13 @@ class AppInfoTest(unittest.TestCase):
             bin_dir.mkdir()
             (bin_dir / "taskset").write_text('#!/bin/sh\necho "taskset $*"\n')
             (bin_dir / "taskset").chmod(0o755)
-            env = dict(os.environ, PATH="%s:%s" % (bin_dir, os.environ.get("PATH", "")), BL_GAME_CPUS="2-7")
+            env = dict(os.environ, PATH="%s:%s" % (bin_dir, os.environ.get("PATH", "")), DD_GAME_CPUS="2-7")
             run = subprocess.run([str(tool / "droiddeck-fex-tool"), "waitforexitandrun", "/games/a/game"],
                                  env=env, capture_output=True, text=True, timeout=10)
             self.assertEqual(run.stdout,
                              "taskset -c 2-7 /usr/local/bin/droiddeck-fex steam waitforexitandrun /games/a/game\n")
             self.assertIn("game cores 2-7", run.stderr)
-            self.assertIn('exec /usr/local/bin/droiddeck-steamvr-game ${BL_TASKSET:-} '
+            self.assertIn('exec /usr/local/bin/droiddeck-steamvr-game ${DD_TASKSET:-} '
                           '/usr/local/bin/droiddeck-fex steam "$verb" "$@"', self.COMPAT["FEX_LAUNCHER_SH"])
 
 

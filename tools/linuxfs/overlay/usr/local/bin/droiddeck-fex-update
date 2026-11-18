@@ -55,11 +55,11 @@ fex_ready() {
   local have ok=
   have=$(cat /usr/local/share/fex-emu/.droiddeck-tag 2>/dev/null || true)
   [ -x /usr/local/bin/FEX ] && fex_loads / && ok=1
-  if [ -n "${BL_FEX_TAG:-}" ]; then
-    if [ -n "$ok" ] && [ "$have" = "$BL_FEX_TAG" ]; then FEX_NOW=$have FEX_FROM=catalog; return 0; fi
-    step "downloading FEX ($BL_FEX_TAG)"
-    if fex_install "$BL_FEX_TAG" "${BL_FEX_SHA256:-}" "${BL_FEX_URLS:-}"; then FEX_NOW=$BL_FEX_TAG FEX_FROM=catalog; return 0; fi
-    if [ -n "$ok" ]; then FEX_NOW=$have FEX_FROM="kept; $BL_FEX_TAG did not install"; return 0; fi
+  if [ -n "${DD_FEX_TAG:-}" ]; then
+    if [ -n "$ok" ] && [ "$have" = "$DD_FEX_TAG" ]; then FEX_NOW=$have FEX_FROM=catalog; return 0; fi
+    step "downloading FEX ($DD_FEX_TAG)"
+    if fex_install "$DD_FEX_TAG" "${DD_FEX_SHA256:-}" "${DD_FEX_URLS:-}"; then FEX_NOW=$DD_FEX_TAG FEX_FROM=catalog; return 0; fi
+    if [ -n "$ok" ]; then FEX_NOW=$have FEX_FROM="kept; $DD_FEX_TAG did not install"; return 0; fi
   fi
   if [ -n "$ok" ] && [ "$have" = "$FEX_TAG" ]; then FEX_NOW=$have FEX_FROM=built-in; return 0; fi
   step "downloading FEX ($FEX_TAG)"

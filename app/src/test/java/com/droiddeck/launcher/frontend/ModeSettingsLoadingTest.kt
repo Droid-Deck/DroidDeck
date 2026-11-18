@@ -35,7 +35,7 @@ class ModeSettingsLoadingTest {
     @Test fun desktopDoesNotConsumeSteamsAppliedShaderChoice() {
         val activity = Robolectric.buildActivity(FrontEndActivity::class.java).get()
         SessionPrefs.setShaderPrecache(activity, false)
-        val applied = File(LinuxRuntime.rootDir(activity), "root/.bl-shader-precache-applied")
+        val applied = File(LinuxRuntime.rootDir(activity), "root/.dd-shader-precache-applied")
         applied.parentFile!!.mkdirs()
         applied.writeText("0")
         load(activity, SessionService.MODE_DESKTOP)
