@@ -290,8 +290,8 @@ def ubisoft_composition_off(proton, env):
 
 C_LOCALES = ("", "C", "POSIX", "C.UTF-8", "C.utf8")
 
-UI_SECTION = "[Control Panel\\Desktop\\MuiCached]"
-PROFILE_SECTION = "[Control Panel\\International\\User Profile]"
+UI_SECTION = "[Control Panel\\\\Desktop\\\\MuiCached]"
+PROFILE_SECTION = "[Control Panel\\\\International\\\\User Profile]"
 TRADITIONAL = ("TW", "HK", "MO")
 
 
@@ -397,6 +397,7 @@ def write_prefix_locale(prefix, name, windows_name, busy):
         updated = upsert_registry(text, {"MachinePreferredUILanguages": registry_multi_sz([windows_name])}, UI_SECTION)
         updated = upsert_registry(updated, {"Languages": registry_multi_sz([windows_name])}, PROFILE_SECTION)
         if updated != text:
+            marker.unlink(missing_ok=True)
             handle, staged = tempfile.mkstemp(prefix=".user-", dir=prefix)
             try:
                 with os.fdopen(handle, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as target:
