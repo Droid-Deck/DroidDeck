@@ -44,17 +44,19 @@ internal object SteamHidden {
             temp.delete()
             return null
         }
-        markModified(File(target.parentFile, "cloud-storage-namespace-1.modified.json"))
+        if (!markModified(File(target.parentFile, "cloud-storage-namespace-1.modified.json"))) return null
         ids(collection, "added").toSet() - ids(collection, "removed").toSet()
     }.getOrNull()
 
-    private fun markModified(file: File) {
-        val pending = if (file.exists()) runCatching { JSONArray(file.readText()) }.getOrNull() ?: return else JSONArray()
-        if ((0 until pending.length()).any { pending.optString(it) == KEY }) return
+    private fun markModified(file: File): Boolean {
+        val pending = if (file.exists()) runCatching { JSONArray(file.readText()) }.getOrNull() ?: return false else JSONArray()
+        if ((0 until pending.length()).any { pending.optString(it) == KEY }) return true
         val temp = File(file.parentFile, file.name + ".tmp")
-        runCatching {
+        val saved = runCatching {
             temp.writeText(pending.put(KEY).toString())
-            if (!temp.renameTo(file)) temp.delete()
-        }.onFailure { temp.delete() }
+            temp.renameTo(file)
+        }.getOrDefault(false)
+        if (!saved) temp.delete()
+        return saved
     }
 }
