@@ -250,9 +250,13 @@ internal class XboxCredentials(private val app: Context, expectedGeneration: Str
         }
         fun invalidate(app: Context, revoked: () -> Unit = {}) = storage(app) {
             java.io.File(StoreAccounts.dir(app, Store.XBOX), "generation").writeText(UUID.randomUUID().toString())
+            val device = StoreAccounts.read(app, Store.XBOX)?.optJSONObject("slots")?.opt(DEVICE_SLOT)
             StoreAccounts.clear(app, Store.XBOX)
+            if (device != null) StoreAccounts.write(app, Store.XBOX, deviceOnly(device))
             revoked()
         }
+        internal const val DEVICE_SLOT = "dev_license"
+        internal fun deviceOnly(device: Any): JSONObject = JSONObject().put("slots", JSONObject().put(DEVICE_SLOT, device))
         fun <T> storage(app: Context, block: () -> T): T = synchronized(lock) {
             java.io.RandomAccessFile(java.io.File(StoreAccounts.dir(app, Store.XBOX), "account.lock"), "rw").use { file ->
                 file.channel.lock().use { block() }
