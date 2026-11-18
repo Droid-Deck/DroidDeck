@@ -5,6 +5,11 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.stores.ea.EaAuth
+import com.droiddeck.launcher.stores.ea.EaCloud
+import com.droiddeck.launcher.stores.ea.EaLibrary
+import com.droiddeck.launcher.stores.ea.EaPrefs
+import com.droiddeck.launcher.stores.ea.EaSaveRules
 import com.droiddeck.launcher.stores.epic.EpicApiClient
 import com.droiddeck.launcher.stores.epic.EpicCredentialStore
 import com.droiddeck.launcher.stores.epic.EpicPrefs
@@ -44,7 +49,13 @@ object CloudSaves {
         return Library.protonPrefix(context, appId and 0xFFFFFFFFL)
     }
 
-    private fun prefs(context: Context, store: Store) = if (store == Store.GOG) GogPrefs.get(context) else EpicPrefs.get(context)
+    fun supports(store: Store?): Boolean = store == Store.GOG || store == Store.EPIC || store == Store.EA
+
+    private fun prefs(context: Context, store: Store) = when (store) {
+        Store.GOG -> GogPrefs.get(context)
+        Store.EA -> EaPrefs.get(context)
+        else -> EpicPrefs.get(context)
+    }
 
     fun lastSync(context: Context, store: Store, id: String): Long = prefs(context, store).getLong("cloud_sync_$id", 0L)
 
@@ -89,7 +100,8 @@ object CloudSaves {
                 val item = sidecar.extra["catalogItemId"].orEmpty()
                 if (ns.isEmpty() || item.isEmpty()) "" else EpicApiClient.getCustomAttribute(token, ns, item, "CloudSaveFolder")
             }
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.UBISOFT, Store.ROCKSTAR -> ""
+            Store.EA -> eaRules(context, id) ?: return null
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> ""
         } ?: return null
         p.edit()
             .putString("cloud_template_$id", fetched.ifEmpty { TEMPLATE_NONE })
@@ -150,7 +162,8 @@ object CloudSaves {
         val dir = when (store) {
             Store.GOG -> CloudSavePaths.gog(template, pfx, folder)
             Store.EPIC -> CloudSavePaths.epic(template, pfx, folder, EpicCredentialStore.load(context)?.accountId.orEmpty(), id)
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.UBISOFT, Store.ROCKSTAR -> null
+            Store.EA -> EaSaveRules.parse(template)?.base()?.let(EaSaveRules::template)?.let { CloudSavePaths.gog(it, pfx, folder) }
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> null
         }
         return dir to (if (dir == null) "unresolved" else "ok")
     }
@@ -175,7 +188,23 @@ object CloudSaves {
             val account = EpicCredentialStore.load(context)?.accountId.orEmpty()
             if (token == null || account.isEmpty()) null else EpicCloud(account, id, token)
         }
-        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.UBISOFT, Store.ROCKSTAR -> null
+        Store.EA -> {
+            val sidecar = StoreGameSidecar.read(folder)
+            val rules = eaRules(context, id)?.let(EaSaveRules::parse)
+            val base = rules?.base()
+            val token = EaAuth.accessToken(context)
+            val uid = EaAuth.load(context)?.userId.orEmpty()
+            val master = sidecar?.extra?.get("masterTitleId").orEmpty()
+            if (rules == null || base == null || token == null || uid.isEmpty() || master.isEmpty()) null
+            else EaCloud(token, uid, EaCloud.keys(master, sidecar?.extra?.get("multiplayerId").orEmpty()), base, rules)
+        }
+        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> null
+    }
+
+    private fun eaRules(context: Context, id: String): String? {
+        val games = EaLibrary.cached(context)
+        if (games.isEmpty()) return null
+        return games.firstOrNull { it.offerId == id }?.cloudSaves.orEmpty()
     }
 
     private fun gogScopedToken(context: Context, id: String, clientId: String): String? {
@@ -342,7 +371,7 @@ object CloudSaves {
     }
 
     internal fun downWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
-        val files = localFiles(dir)
+        val files = localFiles(dir).filterKeys(cloud::wants)
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
         val base = baseline(context, store, id)
@@ -371,7 +400,7 @@ object CloudSaves {
 
     internal fun upWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
         val base = baseline(context, store, id) ?: return Result("skipped", 0, 0, "no-baseline")
-        val files = localFiles(dir)
+        val files = localFiles(dir).filterKeys(cloud::wants)
         if (files.isEmpty()) return Result("skipped", 0, 0, "nothing-local")
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }

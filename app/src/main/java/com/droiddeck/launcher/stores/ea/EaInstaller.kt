@@ -133,7 +133,7 @@ internal class EaInstaller(
             return StoreGameSidecar(
                 Store.EA, item.id, item.title, exe = exe, args = args,
                 installVersion = version.ifEmpty { manifest?.version.orEmpty() }, installedAt = System.currentTimeMillis(),
-                cover = cover, hero = item.imageUrl, extra = extra, cloud = false, logo = item.logoUrl,
+                cover = cover, hero = item.imageUrl, extra = extra, cloud = !game?.cloudSaves.isNullOrBlank(), logo = item.logoUrl,
             )
         }
     }
