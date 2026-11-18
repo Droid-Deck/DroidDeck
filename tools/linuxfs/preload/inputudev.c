@@ -168,7 +168,7 @@ static struct pad *pad_for_syslink(const char *path) {
 
 static void *next_symbol(const char *name) { return dlsym(RTLD_NEXT, name); }
 
-char *bl_cached_realpath(const char *path, char *resolved, char *(*real)(const char *, char *))
+char *dd_cached_realpath(const char *path, char *resolved, char *(*real)(const char *, char *))
     __attribute__((visibility("hidden")));
 
 static int caller_is_winebus(void *caller) {
@@ -178,7 +178,7 @@ static int caller_is_winebus(void *caller) {
   return strstr(info.dli_fname, "winebus.so") != NULL;
 }
 
-__attribute__((visibility("hidden"))) int bl_winebus_rumble_ioctl(int (*real)(int, unsigned long, void *), int fd,
+__attribute__((visibility("hidden"))) int dd_winebus_rumble_ioctl(int (*real)(int, unsigned long, void *), int fd,
                                                                   unsigned long request, void *arg, void *caller,
                                                                   int *rc) {
   struct ff_effect *effect = arg;
@@ -204,7 +204,7 @@ char *realpath(const char *path, char *resolved) {
   }
   if (real_realpath == NULL) real_realpath = next_symbol("realpath");
   if (real_realpath == NULL) return NULL;
-  return bl_cached_realpath(path, resolved, real_realpath);
+  return dd_cached_realpath(path, resolved, real_realpath);
 }
 
 void *udev_device_new_from_syspath(void *udev, const char *syspath) {

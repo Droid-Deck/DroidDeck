@@ -193,7 +193,7 @@ def server_socket(pfx):
         st = os.stat(pfx)
     except OSError:
         return None
-    base = os.environ.get("BL_WINE_SERVER_BASE") or "/tmp/.wine-%d" % os.getuid()
+    base = os.environ.get("DD_WINE_SERVER_BASE") or "/tmp/.wine-%d" % os.getuid()
     return Path(base) / ("server-%x-%x" % (st.st_dev, st.st_ino)) / "socket"
 
 
@@ -265,7 +265,7 @@ BATTLENET_LAUNCH = re.compile(r'(?i)^--exec=\s*"?launch\s+([A-Za-z0-9_]{1,16})"?
 
 
 def battlenet(argv, env=os.environ):
-    if env.get("BL_BATTLENET"):
+    if env.get("DD_BATTLENET"):
         return None
     exe, code = False, None
     for raw in argv:
@@ -286,7 +286,7 @@ def cloud_on(sidecar):
 
 def exited(argv, code=0):
     found = find_store_game(argv)
-    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    launch_dir = os.environ.get("DD_LAUNCH_DIR", "")
     if found is not None and launch_dir and str(found[1].get("store")) == "rockstar":
         ask(Path(launch_dir) / "stores", {"op": "rockstar-exited", "store": "rockstar", "id": str(found[1].get("id"))}, timeout=1.0)
         compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH")
@@ -825,7 +825,7 @@ def provision_galaxy(compat_data, proton, timeout=90):
                      ':existing', 'echo ready>"%s"' % answer, 'exit /b 0']
             bat.write_bytes(("\r\n".join(lines) + "\r\n").encode())
             env = os.environ.copy()
-            env["BL_COMET_BOOTSTRAP"] = "1"
+            env["DD_COMET_BOOTSTRAP"] = "1"
             run = subprocess.run([proton, "run", "cmd.exe", "/d", "/c", windows_path(str(bat))],
                                  env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
             if run.returncode or not result.is_file() or result.read_text().strip() != "ready":
@@ -846,7 +846,7 @@ def prepare_gog(sidecar, compat_data, launch_dir):
     if not isinstance(answer, dict) or not answer.get("ready"):
         log("gog achievements: " + (str(answer.get("reason", "unavailable")) if isinstance(answer, dict) else "timeout"))
         return False
-    state = provision_galaxy(compat_data, os.environ.get("BL_STORE_PROTON", ""))
+    state = provision_galaxy(compat_data, os.environ.get("DD_STORE_PROTON", ""))
     log("gog achievements prefix: " + state)
     return state == "ready"
 
@@ -1432,7 +1432,7 @@ def write_licenses(compat_data, licenses):
 
 def prepare_ea(folder, sidecar, compat_data, launch_dir):
     game = str(sidecar.get("id"))
-    proton = os.environ.get("BL_STORE_PROTON", "")
+    proton = os.environ.get("DD_STORE_PROTON", "")
     made = create_prefix(compat_data, proton)
     ready = made in ("present", "created") or (compat_data and (Path(compat_data) / "pfx/user.reg").is_file())
     stub = install_origin_stub(compat_data) if ready else "no-prefix"
@@ -1600,22 +1600,22 @@ def main(argv):
                 return RAN_FAILED
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
-    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    launch_dir = os.environ.get("DD_LAUNCH_DIR", "")
     if launch_dir and cloud_on(sidecar):
-        made = create_prefix(compat_data, os.environ.get("BL_STORE_PROTON", ""))
+        made = create_prefix(compat_data, os.environ.get("DD_STORE_PROTON", ""))
         if made != "present":
             log("cloud %s %s prefix=%s" % (store, game, made))
     if store == "gog":
         prepare_gog(sidecar, compat_data, launch_dir)
-        log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
-        log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("BL_STORE_PROTON", "")))
+        log("gog registry: " + apply_gog_registry(folder, compat_data, os.environ.get("DD_STORE_PROTON", "")))
+        log("gog support data: " + gog_support_data(folder, compat_data, os.environ.get("DD_STORE_PROTON", "")))
     if store == "rockstar":
         if game not in ROCKSTAR_TITLES and not rockstar_sdk(folder, sidecar):
             if compat_data:
                 (Path(compat_data) / "pfx" / ROCKSTAR_FOLDER / "launch.json").unlink(missing_ok=True)
             return STORE_GAME
         try:
-            state = prepare_rockstar(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))
+            state = prepare_rockstar(folder, sidecar, compat_data, launch_dir, os.environ.get("DD_STORE_PROTON", ""))
         except (OSError, ValueError, subprocess.TimeoutExpired):
             state = "preparation-failed"
         log("rockstar %s: %s" % (game, state))
@@ -1624,7 +1624,7 @@ def main(argv):
         return STORE_GAME if state == "ready" else RAN_FAILED
     if store == "ubisoft":
         try:
-            log("ubisoft %s: %s" % (game, prepare_ubisoft(folder, sidecar, compat_data, launch_dir, os.environ.get("BL_STORE_PROTON", ""))))
+            log("ubisoft %s: %s" % (game, prepare_ubisoft(folder, sidecar, compat_data, launch_dir, os.environ.get("DD_STORE_PROTON", ""))))
         except OSError as e:
             try:
                 (folder / UBISOFT_LAUNCH).unlink()

@@ -203,7 +203,7 @@ class AgentTest(unittest.TestCase):
 
     def tag(self, wins, arch="arm64"):
         snap = {"displays": {":0": [], ":1": wins}}
-        with patch.dict(os.environ, {"DISPLAY": ":0", "BL_STEAM_CLIENT_ARCH": arch}), \
+        with patch.dict(os.environ, {"DISPLAY": ":0", "DD_STEAM_CLIENT_ARCH": arch}), \
                 patch.object(agent.subprocess, "run") as run, patch.object(agent, "log"):
             run.return_value.returncode = 0
             tagged = agent.tag_game_windows(snap, proc=self.dir / "proc")
@@ -349,7 +349,7 @@ class AgentTest(unittest.TestCase):
                 connect.assert_not_called()
 
     def test_cdp_without_a_port(self):
-        os.environ.pop("BL_CDP_PORT", None)
+        os.environ.pop("DD_CDP_PORT", None)
         self.assertEqual("NO_DEVTOOLS", self.ask({"kind": "cdp", "expression": "1"})["error"]["code"])
 
     def test_cdp_eval(self):
@@ -448,7 +448,7 @@ class AgentTest(unittest.TestCase):
     def test_shortcut_state_command_exits_with_the_state(self):
         game_id = str((3333273269 << 32) | 0x02000000)
         launch = self.dir.parent
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}):
             for state, code in (("ready", 0), ("missing", 4), ("not-shortcut", 3), ("loading", 1)):
                 with self.subTest(state=state), patch.object(agent, "steam_shortcut_state", return_value=state) as ask:
                     self.assertEqual(code, agent.main(["--steam-shortcut-state", game_id, "2"]))
@@ -478,7 +478,7 @@ class AgentTest(unittest.TestCase):
             agent.steam_clear_pending_interstitial(self.dir, "0")
 
     def test_asleep_command_reports_steams_own_sleep_state(self):
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.dir.parent)}):
             for value, code in (("yes", 0), ("no", 5), ("unknown", 1), (None, 1)):
                 with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
                     self.assertEqual(code, agent.main(["--steam-asleep"]))
@@ -488,7 +488,7 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual(1, agent.main(["--steam-asleep"]))
 
     def test_supports_vr_command_separates_vr_flat_and_unknown_apps(self):
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.dir.parent)}):
             for value, code in ((True, 0), (False, 5), (None, 1)):
                 with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
                     self.assertEqual(code, agent.main(["--steam-supports-vr", "204360"]))
@@ -500,7 +500,7 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual(2, agent.main(["--steam-supports-vr"] + bad))
 
     def test_idle_inhibit_command_reports_whether_steam_reached_the_state(self):
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.dir.parent)}):
             for value, code in ((True, 0), (False, 1), (None, 1)):
                 with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
                     self.assertEqual(code, agent.main(["--steam-idle-inhibit", "on"]))
@@ -522,7 +522,7 @@ class AgentTest(unittest.TestCase):
             self.assertEqual(900, agent.steam_idle_suspend_seconds(self.dir, vpower))
         with patch.object(agent, "cdp_eval", return_value={"value": None}):
             self.assertIsNone(agent.steam_idle_suspend_seconds(self.dir, vpower))
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}), \
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.dir.parent)}), \
                 patch.object(agent, "steam_idle_suspend_seconds", return_value=None):
             self.assertEqual(1, agent.main(["--steam-idle-suspend-seconds"]))
 
@@ -538,7 +538,7 @@ class AgentTest(unittest.TestCase):
 
     def test_serve_answers_request_files(self):
         server = subprocess.Popen([sys.executable, str(SCRIPT), "--no-focus"],
-                                  env=dict(os.environ, BL_LAUNCH_DIR=str(self.dir)),
+                                  env=dict(os.environ, DD_LAUNCH_DIR=str(self.dir)),
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         def stop_server():
             server.terminate()

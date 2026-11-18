@@ -426,7 +426,7 @@ path.
   still fall back.
 
 Same workloads on the Thor, stock library against the new one (session started with
-`droiddeckctl override libblfastpath.so`, PRoot profiler on):
+`droiddeckctl override libddfastpath.so`, PRoot profiler on):
 
 | Workload | Stock | New |
 |---|---|---|

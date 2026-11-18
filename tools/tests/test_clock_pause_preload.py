@@ -15,12 +15,12 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 
 def clock_reset_command(control):
     script = (PRELOAD.parent / "overlay/usr/local/bin/droiddeck-session").read_text()
-    start = script.index('if [ -z "${BL_INSIDE:-}" ]; then\n  if [ "${BL_ZRAM:-0}"')
+    start = script.index('if [ -z "${DD_INSIDE:-}" ]; then\n  if [ "${DD_ZRAM:-0}"')
     end = script.index("\nfi", start) + len("\nfi")
-    paths = {"/tmp/.bl-clock": shlex.quote(str(control)),
-             "/tmp/.bl-zram": shlex.quote(str(control.parent / "zram"))}
+    paths = {"/tmp/.dd-clock": shlex.quote(str(control)),
+             "/tmp/.dd-zram": shlex.quote(str(control.parent / "zram"))}
     pattern = "|".join(re.escape(token) for token in paths)
-    return 'BL_INSIDE=; BL_ZRAM=0; ' + re.sub(pattern, lambda match: paths[match.group(0)], script[start:end])
+    return 'DD_INSIDE=; DD_ZRAM=0; ' + re.sub(pattern, lambda match: paths[match.group(0)], script[start:end])
 
 PROGRAM = r"""
 #define _GNU_SOURCE
@@ -120,8 +120,8 @@ class ClockPausePreloadTest(unittest.TestCase):
         build = cls.dir / "build"
         build.mkdir()
         (build / "program.c").write_text(PROGRAM)
-        cls.preload = build / "libblsession.so"
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-DBL_CLOCK_ANY_ARCH",
+        cls.preload = build / "libddsession.so"
+        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-DDD_CLOCK_ANY_ARCH",
                         '-DCP_CTL="%s"' % cls.control, "-o", str(cls.preload),
                         *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
         cls.shell = build / "plasmashell"
@@ -259,7 +259,7 @@ class ClockResetCommandTest(unittest.TestCase):
     def test_reset_does_not_rewrite_placeholders_inside_substituted_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            folder = root / "tmp/.bl-zram/$(touch injected)"
+            folder = root / "tmp/.dd-zram/$(touch injected)"
             folder.mkdir(parents=True)
             control = folder / "clock"
             control.write_bytes(struct.pack("<q", 10_000_000_000))

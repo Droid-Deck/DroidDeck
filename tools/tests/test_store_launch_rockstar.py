@@ -244,7 +244,7 @@ class RockstarLaunch(unittest.TestCase):
         if link is not None:
             (target / 'launcher.log').symlink_to(link)
         lines = []
-        with patch.dict(os.environ, {'BL_LAUNCH_DIR': str(Path(root) / 'session'), 'STEAM_COMPAT_DATA_PATH': str(prefix)}), \
+        with patch.dict(os.environ, {'DD_LAUNCH_DIR': str(Path(root) / 'session'), 'STEAM_COMPAT_DATA_PATH': str(prefix)}), \
                 patch.object(store, 'ask', return_value={'ok': True}), patch.object(store, 'log', lines.append):
             self.assertEqual(0, store.main(['--exited', str(folder / '.droiddeck-launch.bat')]))
         return lines, target / 'launcher.log'

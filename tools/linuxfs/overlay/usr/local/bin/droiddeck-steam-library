@@ -6,7 +6,7 @@ import runpy
 import sys
 
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
-LIBRARIES = (("/mnt/droiddeck-sd", os.environ.get("BL_LIBRARY_LABEL", "SD Card")),)
+LIBRARIES = (("/mnt/droiddeck-sd", os.environ.get("DD_LIBRARY_LABEL", "SD Card")),)
 MAIN_LABEL = "Internal Storage"
 
 
@@ -219,7 +219,7 @@ ADDED_DIR = "/mnt/droiddeck-lib/"
 
 
 def wanted():
-    listing = os.environ.get("BL_STEAM_LIBRARIES")
+    listing = os.environ.get("DD_STEAM_LIBRARIES")
     if not listing:
         return None
     try:

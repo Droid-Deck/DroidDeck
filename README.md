@@ -47,7 +47,7 @@ Help, Preview builds and device reports are on [Discord](https://discord.gg/JRGA
 
 ## Build
 
-Needs Docker, Java 17, the Android SDK and NDK, Rust via rustup, GitHub CLI, Python 3 and `zstd`.
+Needs Docker, Java 17, the Android SDK and NDK, Rust via rustup, Go, a host C compiler, the x86_64 and i686 MinGW-w64 compilers (i686 with DWARF-2 exceptions, as Debian and Ubuntu ship it; SJLJ builds such as Homebrew's cannot link Rust's `i686-pc-windows-gnu`), GitHub CLI, Python 3 and `zstd`. On x86_64 Linux, Docker also needs an arm64 binfmt handler (`docker run --privileged --rm tonistiigi/binfmt --install arm64`).
 
 ```bash
 tools/build_local.sh
@@ -75,8 +75,8 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 - x86 programs linking OpenSSL 3 use the copy in the [Steam Linux Runtime 4.0](https://gitlab.steamos.cloud/steamrt/steamrt). x86 Linux games get the `/etc/asound.conf` that [pressure-vessel](https://gitlab.steamos.cloud/steamrt/steam-runtime-tools) writes.
 - `WriteProcessMemory` hooks fall back to `/proc/<pid>/mem` the way [Wine](https://gitlab.winehq.org/wine/wine)'s `server/ptrace.c` did before Wine 11.
 - Windows programs on noexec storage get executable copies of their image pages, following [@yujikaido](https://github.com/yujikaido)'s finding in [droiddeck-rp4pro](https://github.com/yujikaido/droiddeck-rp4pro) that Wine's own processes need the noexec shim.
-- Wine write watches use userfaultfd support in [Proton](https://github.com/ValveSoftware/wine)'s `dlls/ntdll/unix/virtual.c` (LGPL-2.1-or-later). libblsession supplies the arm64 syscall number and answers `PAGEMAP_SCAN` from `/proc/self/pagemap`.
-- libblsession runs Wine's arm64 `SIGUSR2` context handler (`dlls/ntdll/unix/signal_arm64.c`, LGPL-2.1-or-later) in place on a frame laid out like [Linux](https://github.com/torvalds/linux)'s `arch/arm64/kernel/signal.c`, and serves `fill_vm_counters` in `dlls/ntdll/unix/process.c` the kernel's own `/proc/<pid>/status`.
+- Wine write watches use userfaultfd support in [Proton](https://github.com/ValveSoftware/wine)'s `dlls/ntdll/unix/virtual.c` (LGPL-2.1-or-later). libddsession supplies the arm64 syscall number and answers `PAGEMAP_SCAN` from `/proc/self/pagemap`.
+- libddsession runs Wine's arm64 `SIGUSR2` context handler (`dlls/ntdll/unix/signal_arm64.c`, LGPL-2.1-or-later) in place on a frame laid out like [Linux](https://github.com/torvalds/linux)'s `arch/arm64/kernel/signal.c`, and serves `fill_vm_counters` in `dlls/ntdll/unix/process.c` the kernel's own `/proc/<pid>/status`.
 - droiddeck-ntsync follows the [Linux](https://github.com/torvalds/linux) ntsync semantics in `Documentation/userspace-api/ntsync.rst` (GPL-2.0).
 - The proot fast path orders bindings like [PRoot](https://github.com/proot-me/proot)'s `path/binding.c` (GPL-2.0-or-later).
 - DiRT 3 and DiRT Showdown keep their telemetry socket the way RoccoC's DiRTTelemetryErrorFix (MIT) does, based on the fix by Carsten Gottschling.

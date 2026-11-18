@@ -1310,6 +1310,7 @@
     <string name="gate_enter_manually">Adresi elle girin</string>
     <string name="gate_from_computer">ADB\'li bir bilgisayardan:</string>
     <string name="gate_copy_command">Komutu kopyala</string>
+    <string name="gate_sidequest_steps">Başlığı bir bilgisayara bağlayın ve SideQuest’i açın. “Run ADB Command”, ardından “Custom Command” seçin, aşağıda gösterilen komutu yazın ve “Run Command” seçin.</string>
     <string name="gate_choose_display">Android Ayarları\'nın hangi ekranda açılacağını seçin.</string>
     <string name="gate_main_screen">Ana ekran</string>
     <string name="wadb_finding_port">Eşleşti. Kablosuz hata ayıklama bağlantı noktası bulunuyor…</string>
@@ -1564,6 +1565,8 @@
     <string name="pip_unavailable">Android, pencere içinde pencereyi açamadı.</string>
     <string name="game_more">Diğer</string>
     <string name="game_edit_art">Görseli düzenle</string>
+    <string name="game_unhide">Gizlilikten çıkar</string>
+    <string name="game_hide_failed">Steam ile senkronize edilemedi. Steam\'i kapatıp tekrar deneyin.</string>
     <string name="stores_in_steam_label">Steam\'de</string>
     <string name="game_shortcut">Kısayol</string>
     <string name="game_shortcut_add">Ana ekrana ekle</string>

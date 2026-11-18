@@ -502,6 +502,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var drawerGameProfileId by mutableStateOf<Long?>(null)
     private var drawerGameProfileSelectionMade = false
     private var fpsLimit by mutableStateOf(SessionState.fpsLimit)
+    private var cornerTap by mutableStateOf(false)
+    private fun fpsLimitKey(): String? = if (SessionState.running) SessionPrefs.fpsLimitKey(SessionState.mode, SessionState.gameId)
+        else SessionPrefs.fpsLimitKey(intent.getStringExtra(SessionService.EXTRA_MODE), intent.getStringExtra(SessionService.EXTRA_GAME_ID))
     private var blackFrameInsertion by mutableStateOf(false)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
@@ -795,9 +798,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         com.droiddeck.launcher.gpu.SteamVrHealth.begin(this, SessionState.sessionId)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
-            SessionState.fpsLimit = 0
-            fpsLimit = 0
+            SessionState.fpsLimit = SessionPrefs.savedFpsLimit(this, fpsLimitKey())
         }
+        fpsLimit = SessionState.fpsLimit
+        cornerTap = SessionPrefs.drawerCornerTap(this)
         applyOutputPacing()
         if (!SessionState.running) {
             SessionState.followScreen = followChoice()
@@ -1138,6 +1142,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     controllerSettings?.tint ?: android.graphics.Color.rgb(90, 160, 255), controllerSettings?.opacity ?: 100) {
                     drawerPage = com.droiddeck.launcher.ui.SessionDrawerPage.GLASSES
                     drawerOpen = true
+                }
+                if (!drawerOpen && !pcKeyboardOpen && !loading.visible) {
+                    com.droiddeck.launcher.ui.DrawerEntryHint(SessionState.mode == SessionService.MODE_STEAM, backActionsInverted) { drawerOpen = true }
+                    if (cornerTap) com.droiddeck.launcher.ui.DrawerCornerTap { drawerOpen = true }
                 }
                 if (loading.visible) LoadingOverlay(
                     loading.step, loading.percent, loading.elapsed, loading.hint, loading.ended,
@@ -1609,8 +1617,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onFpsLimit = { fps ->
                 SessionState.fpsLimit = fps
                 fpsLimit = fps
+                SessionPrefs.saveFpsLimit(this@SessionActivity, fpsLimitKey(), fps)
                 applyOutputPacing()
             },
+            cornerTap = cornerTap,
+            onCornerTap = { on -> SessionPrefs.setDrawerCornerTap(this@SessionActivity, on); cornerTap = on },
             blackFrameInsertion = blackFrameInsertion,
             blackFrameInsertionAvailable = blackFrameInsertion || blackFrameInsertionAvailable(),
             onBlackFrameInsertion = { on ->
@@ -2734,7 +2745,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val waylandLog = File(SessionPaths.beginOrCurrent(this), "wayland.log")
             WaylandCompositor.setSessionLogFile(waylandLog)
             try {
-                android.system.Os.setenv("BL_WAYLAND_LOG", waylandLog.path, true)
+                android.system.Os.setenv("DD_WAYLAND_LOG", waylandLog.path, true)
             } catch (e: Exception) {
                 Log.w(TAG, "could not point the compositor's log at $waylandLog", e)
             }
@@ -3182,6 +3193,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun onSessionEnded(status: Int) {
         ended = true
+        uiHandler.removeCallbacks(guardWhenRunning)
+        com.droiddeck.launcher.session.KeepTopActivity.release()
         ++steamVrRequestGeneration
         if (isInPictureInPictureMode) {
             runOnUiThread { finish() }
@@ -5576,7 +5589,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
-        if (::pip.isInitialized && (requestCode >= 0 || intent.component?.packageName == packageName ||
+        if (::pip.isInitialized && intent.component?.className != com.droiddeck.launcher.session.KeepTopActivity::class.java.name &&
+            (requestCode >= 0 || intent.component?.packageName == packageName ||
                 intent.action in setOf(Intent.ACTION_CHOOSER, Intent.ACTION_SEND, Intent.ACTION_OPEN_DOCUMENT,
                     Intent.ACTION_GET_CONTENT, "android.settings.PICTURE_IN_PICTURE_SETTINGS"))) pip.background()
         super.startActivityForResult(intent, requestCode, options)
@@ -5608,6 +5622,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun onStop() {
+        if (lightPause.stopped()) departureCleanup()
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
         if (::hud.isInitialized) hud.setBackgrounded(true)
@@ -5651,6 +5666,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onResume() {
         super.onResume()
+        uiHandler.removeCallbacks(lightPauseCheck)
+        when (lightPause.resumed(com.droiddeck.launcher.session.KeepTopActivity.bounces)) {
+            com.droiddeck.launcher.session.LightPause.Resume.LIGHT -> return
+            com.droiddeck.launcher.session.LightPause.Resume.CLEANUP_FIRST -> departureCleanup()
+            com.droiddeck.launcher.session.LightPause.Resume.NORMAL -> Unit
+        }
         drawerGameInventoryRevision++
         com.droiddeck.launcher.input.SystemKeyCapture.attach(this, { hasWindowFocus() && !appUiOwnsPointer() && CompositorHost.isStarted }) { event ->
             com.droiddeck.launcher.input.GuestKeys.send(event) { code, down -> sendGuestKey(code, down, 8) }
@@ -5716,10 +5737,63 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(cardboardPrefListener)
     }
 
+    private var memoryPressureAt = 0L
+    private var focusBounce = false
+    private val lightPause = com.droiddeck.launcher.session.LightPause()
+    private val lightPauseCheck = Runnable { if (lightPause.timedOut()) departureCleanup() }
+    private var topResumed = false
+    private val guardWhenRunning = object : Runnable {
+        override fun run() {
+            if (!topResumed || isFinishing) return
+            if (SessionState.running) guardOtherDisplays() else uiHandler.postDelayed(this, 2_000)
+        }
+    }
+
+    // RUNNING_LOW and RUNNING_CRITICAL are not delivered from API 34, so the guard also goes up
+    // as soon as a running session is on top.
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (!com.droiddeck.launcher.session.TopUnderPressure.isPressure(level)) return
+        memoryPressureAt = android.os.SystemClock.elapsedRealtime()
+        guardOtherDisplays()
+    }
+
+    override fun onTopResumedActivityChanged(isTopResumedActivity: Boolean) {
+        super.onTopResumedActivityChanged(isTopResumedActivity)
+        topResumed = isTopResumedActivity
+        uiHandler.removeCallbacks(guardWhenRunning)
+        if (isTopResumedActivity) uiHandler.post(guardWhenRunning)
+        else if (com.droiddeck.launcher.session.TopUnderPressure.shouldReclaim(
+                android.os.SystemClock.elapsedRealtime(), memoryPressureAt, SessionState.running, isFinishing)) guardOtherDisplays()
+    }
+
+    private fun guardOtherDisplays() {
+        if (!SessionState.running || isFinishing) return
+        val wasResumed = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
+        val bounced = com.droiddeck.launcher.session.KeepTopActivity.guardOtherDisplays(this, display?.displayId ?: android.view.Display.DEFAULT_DISPLAY)
+        if (com.droiddeck.launcher.session.KeepTopActivity.hasPendingStarts()) {
+            uiHandler.removeCallbacks(guardWhenRunning)
+            uiHandler.postDelayed(guardWhenRunning, com.droiddeck.launcher.session.KeepTopActivity.RETRY_MS)
+        }
+        if (!bounced) return
+        if (!wasResumed) return
+        focusBounce = true
+        uiHandler.postDelayed({ focusBounce = false }, 500)
+    }
+
     override fun onPause() {
+        if (focusBounce) {
+            focusBounce = false
+            lightPause.paused(com.droiddeck.launcher.session.KeepTopActivity.bounces)
+            uiHandler.postDelayed(lightPauseCheck, 200)
+        } else departureCleanup()
+        super.onPause()
+    }
+
+    private fun departureCleanup() {
         com.droiddeck.launcher.input.SystemKeyCapture.detach(this)
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
-        if (runtimeRemovalBlocked) { super.onPause(); return }
+        if (runtimeRemovalBlocked) return
         physicalShortcuts.clear()
         backQamInput.cancel()
         mouseBackInput.cancel()
@@ -5763,7 +5837,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
         ControllerPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(shortcutPrefListener)
         updateHeadTracker()
-        super.onPause()
     }
 
     private fun steamVrAction(action: String) {
@@ -6375,6 +6448,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun onDestroy() {
+        uiHandler.removeCallbacks(guardWhenRunning)
+        com.droiddeck.launcher.session.KeepTopActivity.release()
         synchronized(frameGenGlobalLock) {
             frameGenActivityActive = false
             frameGenRequests.incrementAndGet()

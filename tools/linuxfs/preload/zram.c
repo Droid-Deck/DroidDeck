@@ -17,7 +17,7 @@
 #define MADV_PAGEOUT 21
 #endif
 #ifndef ZR_CTL
-#define ZR_CTL "/tmp/.bl-zram"
+#define ZR_CTL "/tmp/.dd-zram"
 #endif
 #define ZR_SWAPPED (1ULL << 62)
 #define ZR_BATCH 512

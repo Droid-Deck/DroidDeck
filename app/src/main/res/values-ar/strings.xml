@@ -1346,6 +1346,7 @@
     <string name="gate_enter_manually">إدخال العنوان يدويًا</string>
     <string name="gate_from_computer">من جهاز كمبيوتر يحتوي على ADB:</string>
     <string name="gate_copy_command">نسخ الأمر</string>
+    <string name="gate_sidequest_steps">وصّل النظارة بالكمبيوتر وافتح SideQuest. اختر “Run ADB Command” ثم “Custom Command”، واكتب الأمر الظاهر أدناه، ثم اختر “Run Command”.</string>
     <string name="gate_choose_display">اختر الشاشة التي ستُفتَح فيها إعدادات Android.</string>
     <string name="gate_main_screen">الشاشة الرئيسية</string>
     <string name="wadb_finding_port">تم الإقران. جارٍ البحث عن منفذ تصحيح الأخطاء اللاسلكي…</string>
@@ -1604,6 +1605,8 @@
     <string name="pip_unavailable">تعذّر على Android فتح نافذة ضمن النافذة.</string>
     <string name="game_more">المزيد</string>
     <string name="game_edit_art">تعديل الصور</string>
+    <string name="game_unhide">إزالة من المخفية</string>
+    <string name="game_hide_failed">تعذّرت المزامنة مع Steam. أغلق Steam وحاول مرة أخرى.</string>
     <string name="stores_in_steam_label">في Steam</string>
     <string name="game_shortcut">اختصار</string>
     <string name="game_shortcut_add">إضافة إلى الشاشة الرئيسية</string>

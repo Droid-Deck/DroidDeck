@@ -1332,6 +1332,7 @@
     <string name="gate_enter_manually">Ввести адрес вручную</string>
     <string name="gate_from_computer">С компьютера через ADB:</string>
     <string name="gate_copy_command">Копировать команду</string>
+    <string name="gate_sidequest_steps">Подключите шлем к компьютеру и откройте SideQuest. Выберите «Run ADB Command», затем «Custom Command», введите команду, показанную ниже, и нажмите «Run Command».</string>
     <string name="gate_choose_display">Выберите экран для открытия настроек Android.</string>
     <string name="gate_main_screen">Главный экран</string>
     <string name="wadb_finding_port">Сопряжено. Поиск порта отладки по Wi-Fi…</string>
@@ -1588,6 +1589,8 @@
     <string name="pip_unavailable">Android не может открыть PiP.</string>
     <string name="game_more">Ещё</string>
     <string name="game_edit_art">Изменить обложку</string>
+    <string name="game_unhide">Убрать из скрытых</string>
+    <string name="game_hide_failed">Не удалось синхронизировать со Steam. Закройте Steam и повторите попытку.</string>
     <string name="stores_in_steam_label">В Steam</string>
     <string name="game_shortcut">Ярлык</string>
     <string name="game_shortcut_add">Добавить на главный экран</string>

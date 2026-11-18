@@ -270,7 +270,7 @@ A game's web links reach Android: `droiddeck-store-launch` sets the prefix's
 `HKCU\Software\Wine\WineBrowser` `Browsers` to `/usr/local/bin/droiddeck-open-url`, which is also
 `xdg-open` first on the game's PATH, and hands http(s) addresses to the app, which opens them in
 Android's browser. EOS uses this when a sign-in needs a one-time step ("corrective action"): it
-falls back to a browser, the user approves on the phone, and the game signs in. `BL_DEBUG_BROWSER=1`
+falls back to a browser, the user approves on the phone, and the game signs in. `DD_DEBUG_BROWSER=1`
 in droiddeck-env adds `WINEDEBUG=+shell,+winebrowser`. Epic's EOS overlay is not provisioned (with
 it games exited while loading); an `OverlayPath` an earlier build wrote is removed at launch. The
 parked overlay work is on the branch `park/epic-eos-overlay`.
