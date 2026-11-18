@@ -439,20 +439,34 @@ STEAM_SCAN_BYTES = 256 << 20
 STEAM_CLIENT_SCAN = 64 << 20
 
 
+class ScanBudget:
+    """One launch's allowance of directory entries. A folder is listed once and its entries are kept
+    for the detectors that read the same folders, so the allowance is charged once per listing and a
+    folder that spends it still answers every detector."""
+
+    def __init__(self, entries=None):
+        self.remaining = STEAM_SCAN_ENTRIES if entries is None else entries
+        self.listings = {}
+
+    def entries(self, path):
+        if path not in self.listings:
+            limit = min(STEAM_SCAN_ENTRIES, self.remaining)
+            found = []
+            if limit > 0:
+                try:
+                    with os.scandir(path) as entries:
+                        found = sorted(itertools.islice(entries, limit), key=lambda entry: entry.name)
+                except OSError:
+                    found = []
+                self.remaining -= len(found)
+            self.listings[path] = found
+        return self.listings[path]
+
+
 def scan_entries(path, budget=None):
-    """Sorted entries, at most STEAM_SCAN_ENTRIES from one folder and, when a budget is given, no
-    more than what the launch has left of it."""
-    limit = STEAM_SCAN_ENTRIES if budget is None else min(STEAM_SCAN_ENTRIES, budget[0])
-    if limit <= 0:
-        return []
-    try:
-        with os.scandir(path) as entries:
-            found = sorted(itertools.islice(entries, limit), key=lambda entry: entry.name)
-    except OSError:
-        return []
-    if budget is not None:
-        budget[0] -= len(found)
-    return found
+    """Sorted entries of a folder, at most STEAM_SCAN_ENTRIES and, when a budget is given, no more
+    than what the launch has left of it."""
+    return (ScanBudget() if budget is None else budget).entries(path)
 
 
 def game_folder(root, path):
@@ -582,21 +596,21 @@ def implements_steam_client(entry, budget):
     return found, max(0, budget - spent)
 
 
-def steam_libraries(target, folders=None, entries=None):
+def steam_libraries(target, folders=None, budget=None):
     """The Steam libraries a game brings itself, told apart by the interfaces they carry rather than by
     one file name: a game that switches interfaces of the client on the machine for its own ships these."""
     found = set()
-    budget = STEAM_SCAN_BYTES
+    left = STEAM_SCAN_BYTES
     files = 0
-    for folder in steam_folders(target, entries) if folders is None else folders:
-        for entry in scan_entries(folder, entries):
+    for folder in steam_folders(target, budget) if folders is None else folders:
+        for entry in scan_entries(folder, budget):
             name = entry.name.lower()
             if not name.endswith(".dll") or len(name) == 4:
                 continue
-            if files >= STEAM_SCAN_FILES or budget <= 0:
+            if files >= STEAM_SCAN_FILES or left <= 0:
                 return found
             files += 1
-            matched, budget = implements_steam_client(entry, budget)
+            matched, left = implements_steam_client(entry, left)
             if matched:
                 found.add(entry.name[:-4])
     return found
@@ -620,10 +634,10 @@ STEAM_EMULATOR_PROGRAMS = (
 STEAM_BUNDLED_CLIENTS = ("steamclient", "steamclient64")
 
 
-def steam_emulator(target, folders=None, entries=None):
+def steam_emulator(target, folders=None, budget=None):
     """Whether a shortcut ships its own Steam emulator, by the settings file, loader or client library beside it."""
-    for folder in steam_folders(target, entries) if folders is None else folders:
-        for entry in scan_entries(folder, entries):
+    for folder in steam_folders(target, budget) if folders is None else folders:
+        for entry in scan_entries(folder, budget):
             name = entry.name.lower()
             if name in STEAM_EMULATOR_FILES:
                 return True
@@ -636,12 +650,12 @@ def steam_emulator(target, folders=None, entries=None):
     return False
 
 
-def steam_family(target, folders=None, entries=None):
+def steam_family(target, folders=None, budget=None):
     """The Steam libraries beside a game, by name: the files an emulator replaces, which Wine must take from
     the folder instead of answering with its own bridges."""
     found = set()
-    for folder in steam_folders(target, entries) if folders is None else folders:
-        for entry in scan_entries(folder, entries):
+    for folder in steam_folders(target, budget) if folders is None else folders:
+        for entry in scan_entries(folder, budget):
             name = entry.name.lower()
             if name.endswith(".dll") and name[:-4] in STEAM_FAMILY_DLLS:
                 found.add(entry.name[:-4])
@@ -707,7 +721,7 @@ def steam_state(target):
         return set(), False, False
     # One allowance for the launch: the folders are discovered once and the detectors read the same
     # directory entries budget, so the work stays bounded however many of them look.
-    entries = [STEAM_SCAN_ENTRIES]
+    entries = ScanBudget()
     folders = steam_folders(target, entries)
     libraries = steam_libraries(target, folders, entries)
     own_id = own_steam_id(target)

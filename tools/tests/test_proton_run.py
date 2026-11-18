@@ -207,14 +207,25 @@ class SteamLibraryTest(Temp):
             RUN["steam_state"](self.target(folder))
         self.assertEqual(len(calls), 1)
 
+    def test_a_listed_folder_is_not_listed_again_against_the_allowance(self):
+        folder = self.game()
+        for i in range(3):
+            (folder / ("%d.dat" % i)).write_bytes(b"")
+        self.dll("Game/steam_api64.dll")
+        with mock.patch.dict(RUN, {"STEAM_SCAN_ENTRIES": 6}):
+            libraries, own_id, emulator = RUN["steam_state"](self.target(folder))
+        self.assertEqual(libraries, {"steam_api64"})
+
     def test_one_entry_budget_covers_the_whole_scan(self):
         folder = self.game()
         for i in range(6):
             (folder / ("%d.dat" % i)).write_bytes(b"")
-        self.dll("Game/steam_api64.dll")
-        with mock.patch.dict(RUN, {"STEAM_SCAN_ENTRIES": 4}):
-            libraries, own_id, emulator = RUN["steam_state"](self.target(folder))
-        self.assertEqual(libraries, set())
+        other = self.tmp / "Other"
+        other.mkdir()
+        (other / "steam_api64.dll").write_bytes(b"MZ")
+        budget = RUN["ScanBudget"](4)
+        RUN["scan_entries"](folder, budget)
+        self.assertEqual(RUN["scan_entries"](other, budget), [])
 
     def test_the_scan_stops_at_the_stated_number_of_folders(self):
         folder = self.game()
