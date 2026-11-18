@@ -17,19 +17,18 @@ tearing. GLX_MAX_SWAP_INTERVAL_EXT already reads as 0 on such screens.
 Cc: mesa-stable
 Signed-off-by: pgm1207 <104554896+pgm1207@users.noreply.github.com>
 ---
- src/glx/glx_pbuffer.c | 7 +++++--
- 1 file changed, 5 insertions(+), 2 deletions(-)
+ src/glx/glx_pbuffer.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
 
 diff --git a/src/glx/glx_pbuffer.c b/src/glx/glx_pbuffer.c
 index 8c09d4b..9ecee6a 100644
 --- a/src/glx/glx_pbuffer.c
 +++ b/src/glx/glx_pbuffer.c
-@@ -313,13 +313,16 @@ __glXQueryDrawable(Display * dpy, GLXDrawable drawable,
+@@ -313,13 +313,15 @@ __glXQueryDrawable(Display * dpy, GLXDrawable drawable,
  
     if (pdraw) {
        if (attribute == GLX_SWAP_INTERVAL_EXT) {
 -         *value = abs(pdraw->psc->driScreen.getSwapInterval(pdraw));
-+         /* Only DRI3 and kopper set the hook; a plain drisw screen has none. */
 +         *value = pdraw->psc->driScreen.getSwapInterval ?
 +            abs(pdraw->psc->driScreen.getSwapInterval(pdraw)) : 0;
           return 1;
