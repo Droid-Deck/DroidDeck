@@ -83,12 +83,14 @@ private const val DRIFT_STEP_NS = 15_000_000L
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { com.droiddeck.launcher.frontend.SteamFeatured.load(ctx) }
-    val featured = com.droiddeck.launcher.frontend.SteamFeatured.games
+    rememberHiddenSync()
+    val featuredAll = com.droiddeck.launcher.frontend.SteamFeatured.games
     val signedIn = s.offlineAccount != null
-    val owned by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn) {
+    val ownedAll by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn) {
         value = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
     }
-    rememberHiddenSync()
+    val owned = remember(ownedAll, LibraryHidden.steam) { ownedAll.filter { it.first.toLong() !in LibraryHidden.steam } }
+    val featured = remember(featuredAll, LibraryHidden.steam) { featuredAll.filter { it.appId.toLong() !in LibraryHidden.steam } }
     val games = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) { s.steamGames.filterNot { LibraryHidden.isHidden(hideKey(it), it) }.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     var words by remember { mutableStateOf<Rect?>(null) }
