@@ -800,19 +800,22 @@ private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: Downlo
     ArtCard(
         e.title, wide, tall, download, hot, capsule, chip,
         badge = if (showSource) ({ SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp), label = favoritesBadge(e), colours = favoritesColours(e)) }) else null,
+        fillBanner = true,
     ) { LibrarySize(e) }
 }
 
 @Composable
 internal fun ArtCard(
     title: String, wide: Any?, tall: Any?, download: DownloadEntry?, hot: Boolean, capsule: Boolean, chip: String?,
-    badge: (@Composable BoxScope.() -> Unit)? = null, detail: @Composable () -> Unit,
+    badge: (@Composable BoxScope.() -> Unit)? = null, fillBanner: Boolean = false, detail: @Composable () -> Unit,
 ) {
     val url = if (capsule) tall ?: wide else wide ?: tall
     val art = cardArtRequest(url, tall)
     val ratio = if (capsule) 5f / 7f else 16f / 9f
+    val fills = fillBanner && !capsule
     var offRatio by remember(url) { mutableStateOf(false) }
     var trim by remember(url) { mutableStateOf(false) }
+    var upright by remember(url) { mutableStateOf(false) }
     val blurs = android.os.Build.VERSION.SDK_INT >= 31
     Box(
         Modifier.fillMaxWidth().aspectRatio(ratio).background(Color(0xFF101318))
@@ -823,13 +826,17 @@ internal fun ArtCard(
             Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.18f else 0.6f)))
         }
         if (art != null) AsyncImage(
-            model = art, contentDescription = null, contentScale = if (trim) ContentScale.Crop else ContentScale.Fit, modifier = Modifier.matchParentSize(),
+            model = art, contentDescription = null, contentScale = if (fills || trim) ContentScale.Crop else ContentScale.Fit,
+            // The title sits low on a banner and a cover's subject sits high, so an upright cover is cut nearer its top.
+            alignment = if (fills && upright) androidx.compose.ui.BiasAlignment(0f, -0.4f) else Alignment.Center,
+            modifier = Modifier.matchParentSize(),
             onSuccess = { r ->
                 val d = r.result.drawable
                 if (d.intrinsicWidth > 0 && d.intrinsicHeight > 0) {
                     val shape = d.intrinsicWidth.toFloat() / d.intrinsicHeight
+                    upright = shape < 1f
                     trim = !capsule && shape > ratio * 1.25f
-                    offRatio = !trim && kotlin.math.abs(shape / ratio - 1f) > 0.03f
+                    offRatio = !fills && !trim && kotlin.math.abs(shape / ratio - 1f) > 0.03f
                 }
             },
         )

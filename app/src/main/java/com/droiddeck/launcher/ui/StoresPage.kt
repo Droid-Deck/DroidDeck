@@ -1307,7 +1307,7 @@ private fun GameCard(
                 CardMarker(item, installed, download, compact = true, status = false)
             }
         }) else null
-        ArtCard(item.title, item.imageUrl, item.tallImageUrl, download, hot, capsule = false, chip = chip, badge = pill) { CardMarker(item, installed, download, status = false) }
+        ArtCard(item.title, item.imageUrl, item.tallImageUrl, download, hot, capsule = false, chip = chip, badge = pill, fillBanner = true) { CardMarker(item, installed, download, status = false) }
     }
 }
 
