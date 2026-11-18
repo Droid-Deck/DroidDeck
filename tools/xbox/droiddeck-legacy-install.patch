@@ -1634,7 +1634,7 @@ index 0000000..d626fb2
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index a0136f8..589f90e 100644
+index a0136f8..d1f7211 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -1662,7 +1662,7 @@ index a0136f8..589f90e 100644
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
          Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
-@@ -692,3 +701,89 @@ where
+@@ -692,3 +701,98 @@ where
      }
      ExitCode::SUCCESS
  }
@@ -1749,15 +1749,24 @@ index a0136f8..589f90e 100644
 +        assert!(!out.join(".xodus-plain-package.zip").exists());
 +        let short = super::plain_package(std::io::Cursor::new(zip[..10].to_vec()), zip.len() as u64, &out).await;
 +        assert_eq!(short, std::process::ExitCode::FAILURE);
++        let mut lying = stored_zip("AppxManifest.xml", b"<Package/>");
++        lying[18] = 0xff;
++        lying[22] = 0xff;
++        let length = lying.len() as u64;
++        let central = lying.windows(4).position(|w| w == [0x50, 0x4b, 0x01, 0x02]).unwrap();
++        lying[central + 20] = 0xff;
++        lying[central + 24] = 0xff;
++        let truncated = super::plain_package(std::io::Cursor::new(lying), length, &out).await;
++        assert_eq!(truncated, std::process::ExitCode::FAILURE);
 +        std::fs::remove_dir_all(&out).ok();
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/unzip.rs b/crates/xodus-cli/src/commands/unzip.rs
 new file mode 100644
-index 0000000..1a503e1
+index 0000000..858afec
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/unzip.rs
-@@ -0,0 +1,185 @@
+@@ -0,0 +1,191 @@
 +//! Plain ZIP packages, which is what the store serves for a framework.
 +//!
 +//! Framework packages (`Microsoft.VCLibs.140.00` and its siblings) arrive from the
@@ -1853,11 +1862,17 @@ index 0000000..1a503e1
 +        let mut written = std::fs::File::create(&target).map_err(|error| format!("package write failed: {error}"))?;
 +        match method {
 +            0 => {
-+                std::io::copy(&mut body, &mut written).map_err(|error| format!("package copy failed: {error}"))?;
++                let copied = std::io::copy(&mut body, &mut written).map_err(|error| format!("package copy failed: {error}"))?;
++                if copied != compressed {
++                    return Err(format!("the package entry {name} is truncated"));
++                }
 +            }
 +            8 => {
 +                let mut inflate = flate2::read::DeflateDecoder::new(body);
-+                std::io::copy(&mut inflate, &mut written).map_err(|error| format!("package inflate failed: {error}"))?;
++                let copied = std::io::copy(&mut inflate, &mut written).map_err(|error| format!("package inflate failed: {error}"))?;
++                if uncompressed != SATURATED && copied != u64::from(uncompressed) {
++                    return Err(format!("the package entry {name} is truncated"));
++                }
 +            }
 +            _ => return Err(format!("a package entry uses compression {method}, which is not supported")),
 +        }
