@@ -1038,6 +1038,14 @@
     <string name="store_open">खोलें</string>
     <string name="store_details">जानकारी</string>
     <string name="store_remove">हटाएं</string>
+    <string name="store_data_to_card">डेटा को गेम स्टोरेज में ले जाएँ</string>
+    <string name="store_data_to_internal">डेटा को आंतरिक स्टोरेज में ले जाएँ</string>
+    <string name="store_data_moving">डेटा ले जाया जा रहा है…</string>
+    <string name="store_data_symlinks">डेटा में सिमलिंक हैं, जिन्हें कार्ड स्टोर नहीं कर सकता</string>
+    <string name="store_data_space">पर्याप्त खाली जगह नहीं है (%1$s खाली)</string>
+    <string name="store_data_failed">डेटा नहीं ले जाया जा सका</string>
+    <string name="store_data_session">पहले चल रहे सत्र को बंद करें</string>
+    <string name="store_data_no_storage">गेम स्टोरेज जुड़ा नहीं है</string>
     <string name="store_press_again">हटाने के लिए फिर से दबाएं</string>
     <string name="store_installing">इंस्टॉल हो रहा है…</string>
     <string name="store_install">इंस्टॉल करें</string>

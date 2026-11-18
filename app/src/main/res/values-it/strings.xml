@@ -1033,6 +1033,14 @@
     <string name="store_open">Apri</string>
     <string name="store_details">Dettagli</string>
     <string name="store_remove">Rimuovi</string>
+    <string name="store_data_to_card">Sposta i dati nell\'archivio dei giochi</string>
+    <string name="store_data_to_internal">Sposta i dati nella memoria interna</string>
+    <string name="store_data_moving">Spostamento dei dati…</string>
+    <string name="store_data_symlinks">I dati contengono collegamenti simbolici che la scheda non può memorizzare</string>
+    <string name="store_data_space">Spazio libero insufficiente (%1$s liberi)</string>
+    <string name="store_data_failed">Impossibile spostare i dati</string>
+    <string name="store_data_session">Chiudi prima la sessione in corso</string>
+    <string name="store_data_no_storage">L\'archivio dei giochi non è collegato</string>
     <string name="store_press_again">Premi di nuovo per rimuovere</string>
     <string name="store_installing">Installazione…</string>
     <string name="store_install">Installa</string>

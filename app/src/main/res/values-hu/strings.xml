@@ -1038,6 +1038,14 @@
     <string name="store_open">Megnyitás</string>
     <string name="store_details">Részletek</string>
     <string name="store_remove">Eltávolítás</string>
+    <string name="store_data_to_card">Adatok áthelyezése a játéktárhelyre</string>
+    <string name="store_data_to_internal">Adatok áthelyezése a belső tárhelyre</string>
+    <string name="store_data_moving">Adatok áthelyezése…</string>
+    <string name="store_data_symlinks">Az adatok szimbolikus linkeket tartalmaznak, amelyeket a kártya nem tud tárolni</string>
+    <string name="store_data_space">Nincs elég szabad hely (%1$s szabad)</string>
+    <string name="store_data_failed">Az adatokat nem sikerült áthelyezni</string>
+    <string name="store_data_session">Előbb zárd be a futó munkamenetet</string>
+    <string name="store_data_no_storage">A játéktárhely nincs csatlakoztatva</string>
     <string name="store_press_again">Nyomja meg újra az eltávolításhoz</string>
     <string name="store_installing">Telepítés…</string>
     <string name="store_install">Telepítés</string>

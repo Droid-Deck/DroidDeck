@@ -1038,6 +1038,14 @@
     <string name="store_open">Åpne</string>
     <string name="store_details">Detaljer</string>
     <string name="store_remove">Fjern</string>
+    <string name="store_data_to_card">Flytt data til spillagring</string>
+    <string name="store_data_to_internal">Flytt data til intern lagring</string>
+    <string name="store_data_moving">Flytter data…</string>
+    <string name="store_data_symlinks">Dataene inneholder symbolske lenker som kortet ikke kan lagre</string>
+    <string name="store_data_space">Ikke nok ledig plass (%1$s ledig)</string>
+    <string name="store_data_failed">Kunne ikke flytte dataene</string>
+    <string name="store_data_session">Lukk den pågående økten først</string>
+    <string name="store_data_no_storage">Spillagringen er ikke tilkoblet</string>
     <string name="store_press_again">Trykk igjen for å fjerne</string>
     <string name="store_installing">Installerer…</string>
     <string name="store_install">Installer</string>

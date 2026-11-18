@@ -1035,6 +1035,14 @@
     <string name="store_open">開く</string>
     <string name="store_details">詳細</string>
     <string name="store_remove">削除</string>
+    <string name="store_data_to_card">データをゲームストレージに移動</string>
+    <string name="store_data_to_internal">データを内部ストレージに移動</string>
+    <string name="store_data_moving">データを移動中…</string>
+    <string name="store_data_symlinks">データにシンボリックリンクが含まれており、カードには保存できません</string>
+    <string name="store_data_space">空き容量が足りません（空き %1$s）</string>
+    <string name="store_data_failed">データを移動できませんでした</string>
+    <string name="store_data_session">先に実行中のセッションを閉じてください</string>
+    <string name="store_data_no_storage">ゲームストレージが接続されていません</string>
     <string name="store_press_again">もう一度タップして削除</string>
     <string name="store_installing">インストール中…</string>
     <string name="store_install">インストール</string>

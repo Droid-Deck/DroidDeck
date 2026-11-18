@@ -67,6 +67,7 @@ class SessionService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var sessionPid = -1
+    private val guestLaunch = GuestLaunchGate()
     private val auxiliaryProcesses = HashMap<Int, Long>()
     private val auxiliaryProcessesLock = Any()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -823,17 +824,38 @@ class SessionService : Service() {
         watchLaunchRequests(sessionRoot)
         watchSyncWanted(root)
         EsyncPacks.fetchInBackground(this, root)
-        val pid = SessionEvents.step("guest-launch") { HostProcess.start(line, hostEnv.asArray(), root, { status ->
-            if (gen != sessionGen) {
-                Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
-                return@start
+        val launchHeld = synchronized(stopLock) {
+            (gen == sessionGen && SessionState.running).also { if (it) guestLaunch.begin() }
+        }
+        if (!launchHeld) {
+            Log.i(TAG, "session stopped while it was starting; not launching it")
+            if (gen == sessionGen) {
+                launchWatcher?.stopWatching()
+                launchWatcher = null
+                syncWatcher?.stopWatching()
+                syncWatcher = null
             }
-            val program = programStatus(sessionRoot)
-            Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
-            stopSession(program ?: status ?: -1, gen)
-        }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() }) }
+            return
+        }
+        val pid = try {
+            SessionEvents.step("guest-launch") { HostProcess.start(line, hostEnv.asArray(), root, { status ->
+                if (gen != sessionGen) {
+                    Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
+                    return@start
+                }
+                val program = programStatus(sessionRoot)
+                Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
+                stopSession(program ?: status ?: -1, gen)
+            }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() }) }
+        } catch (e: Throwable) {
+            guestLaunch.end()
+            throw e
+        }
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
-        if (gen != sessionGen || !SessionState.running) {
+        val stoppedDuringLaunch = synchronized(stopLock) {
+            (gen != sessionGen || !SessionState.running).also { if (!it) sessionPid = pid }
+        }
+        if (stoppedDuringLaunch) {
             Log.i(TAG, "session stopped while its guest was starting; taking it down")
             if (gen == sessionGen) {
                 launchWatcher?.stopWatching()
@@ -843,14 +865,24 @@ class SessionService : Service() {
                 components.reversed().forEach { runCatching { it.stop() } }
                 components.clear()
             }
-            if (pid > 1) Thread({ teardown(pid) }, "session-teardown").start()
+            if (pid > 1) {
+                Thread({
+                    try { teardown(pid) } finally { guestLaunch.end() }
+                }, "session-teardown").start()
+            } else {
+                guestLaunch.end()
+            }
             return
         }
-        sessionPid = pid
         if (pid > 1) {
-            raiseTracer(pid, gen)
-            SessionEvents.guestStarted(pid)
+            try {
+                raiseTracer(pid, gen)
+                SessionEvents.guestStarted(pid)
+            } finally {
+                guestLaunch.end()
+            }
         } else {
+            guestLaunch.end()
             SessionEvents.record("guest.start_failed", mapOf("pid" to pid))
             failSession(gen, "GUEST_START_FAILED", "The guest process could not be started", pid)
             stopSession(-1, gen)
@@ -1259,6 +1291,7 @@ class SessionService : Service() {
         } else {
             Log.i(TAG, "game storage: internal only")
         }
+        binds.addAll(com.droiddeck.launcher.runtime.FlatpakData.binds(this))
         if (SessionState.mode == MODE_STEAM && SessionPrefs.storageDiagnosticsEnabled(this)) {
             val target = storageDiagnosticLibrary ?: File(LinuxRuntime.rootDir(this), "root/.local/share/Steam")
             val device = StorageDiagnostics.writeSnapshot(
@@ -2180,6 +2213,7 @@ class SessionService : Service() {
     }
 
     private fun finishSessionStop(status: Int, stoppedGen: Int, afterStopped: () -> Unit = {}) {
+        guestLaunch.await()
         mainHandler.post {
             try {
                 if (stoppedGen != sessionGen || SessionState.running) {

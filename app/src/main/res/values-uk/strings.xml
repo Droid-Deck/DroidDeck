@@ -1044,6 +1044,14 @@
     <string name="store_open">Відкрити</string>
     <string name="store_details">Подробиці</string>
     <string name="store_remove">Видалити</string>
+    <string name="store_data_to_card">Перемістити дані до сховища ігор</string>
+    <string name="store_data_to_internal">Перемістити дані у внутрішню пам\'ять</string>
+    <string name="store_data_moving">Переміщення даних…</string>
+    <string name="store_data_symlinks">Дані містять символічні посилання, які картка не може зберігати</string>
+    <string name="store_data_space">Недостатньо вільного місця (вільно %1$s)</string>
+    <string name="store_data_failed">Не вдалося перемістити дані</string>
+    <string name="store_data_session">Спершу закрийте поточну сесію</string>
+    <string name="store_data_no_storage">Сховище ігор не підключено</string>
     <string name="store_press_again">Натисніть ще раз, щоб видалити</string>
     <string name="store_installing">Встановлення…</string>
     <string name="store_install">Установити</string>

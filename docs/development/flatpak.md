@@ -73,6 +73,31 @@ launcher also starts a session bus when there is none. On the Linux desktop, the
 menu entries appear in Plasma's launcher. Games are wrapped through `droiddeck-gpu` like the
 rootfs's own, since the desktop composites in software.
 
+## App data on game storage
+
+The runtime keeps `/root/.var/app/<id>` (an app's config, cache and saved or downloaded data) inside the
+rootfs on internal storage, apart from the game storage chosen for Steam libraries. With a game storage
+attached, an installed app's Store page offers "Move data to game storage". `FlatpakData.move` copies
+the folder to `flatpak-data/<id>` beside the library, checks the copy's size, and only then clears the
+internal one. `FlatpakData.binds` then binds the card folder over `/root/.var/app/<id>` in every session,
+and `BwrapSpawner` translates the sandbox's binds through it like any other session bind.
+
+- The move is per app and refused from session start until its teardown finishes, when the data holds symlinks in either location (exFAT and FAT
+  cannot store them) or either data folder itself is a symlink, when the card is read-only, or when the
+  card lacks the size plus 64 MB.
+- `.ld.so` is not moved. Flatpak fills it with a symlink to the runtime's linker cache, so it stays
+  internal and is bound over the card folder.
+- The destination and its path are journaled (`flatpakDataMoving`) before anything is written. A later
+  move clears a non-empty destination only when the journal names that same folder; otherwise it is
+  refused. The old copy is renamed to `.<id>.old` beside it and then deleted, so leftovers are always
+  recognisable and the next move or session start removes them. Live data is never deleted to tidy up. A
+  folder that cannot be listed fails the move instead of counting as empty.
+- The choice records the game storage the data was moved to (`flatpakCardData`, `<id>><storage path>`).
+  Sessions and the move back keep using that volume when the game storage setting later points elsewhere.
+- With that card detached or read-only, the app uses its internal folder for that session; the choice is kept. Those
+  files stay untouched when the card returns, and a move back is refused while they are there.
+- "Move data to internal storage" reverses it.
+
 ## The store
 
 `FlathubApi` reads flathub.org's public API: collections, search filtered to `aarch64`, and

@@ -1038,6 +1038,14 @@
     <string name="store_open">Öppna</string>
     <string name="store_details">Detaljer</string>
     <string name="store_remove">Ta bort</string>
+    <string name="store_data_to_card">Flytta data till spellagring</string>
+    <string name="store_data_to_internal">Flytta data till internt lagringsutrymme</string>
+    <string name="store_data_moving">Flyttar data…</string>
+    <string name="store_data_symlinks">Datan innehåller symboliska länkar som kortet inte kan lagra</string>
+    <string name="store_data_space">Inte tillräckligt med ledigt utrymme (%1$s ledigt)</string>
+    <string name="store_data_failed">Det gick inte att flytta datan</string>
+    <string name="store_data_session">Stäng den pågående sessionen först</string>
+    <string name="store_data_no_storage">Spellagringen är inte ansluten</string>
     <string name="store_press_again">Tryck igen för att ta bort</string>
     <string name="store_installing">Installerar…</string>
     <string name="store_install">Installera</string>

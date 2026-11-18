@@ -1988,6 +1988,21 @@ object SessionPrefs {
         prefs(context).edit().putString("gameStorage", path).putString("gameStorageLabel", label).apply()
     }
 
+    fun flatpakCardData(context: Context): Set<String> = idSet(context, "flatpakCardData")
+
+    fun setFlatpakCardData(context: Context, id: String, on: Boolean): Boolean = commitId(context, "flatpakCardData", id, on)
+
+    fun flatpakDataMoving(context: Context): Set<String> = idSet(context, "flatpakDataMoving")
+
+    fun setFlatpakDataMoving(context: Context, marker: String, on: Boolean): Boolean = commitId(context, "flatpakDataMoving", marker, on)
+
+    private fun idSet(context: Context, key: String): Set<String> = prefs(context).getStringSet(key, null)?.toSet().orEmpty()
+
+    private fun commitId(context: Context, key: String, id: String, on: Boolean): Boolean {
+        val current = idSet(context, key)
+        return prefs(context).edit().putStringSet(key, if (on) current + id else current - id).commit()
+    }
+
     fun steamLibraries(context: Context): String = prefs(context).getString("steamLibraries", "") ?: ""
 
     fun setSteamLibraries(context: Context, json: String) {

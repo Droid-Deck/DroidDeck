@@ -1044,6 +1044,14 @@
     <string name="store_open">Otwórz</string>
     <string name="store_details">Szczegóły</string>
     <string name="store_remove">Usuń</string>
+    <string name="store_data_to_card">Przenieś dane do pamięci gier</string>
+    <string name="store_data_to_internal">Przenieś dane do pamięci wewnętrznej</string>
+    <string name="store_data_moving">Przenoszenie danych…</string>
+    <string name="store_data_symlinks">Dane zawierają dowiązania symboliczne, których karta nie może przechowywać</string>
+    <string name="store_data_space">Za mało wolnego miejsca (wolne: %1$s)</string>
+    <string name="store_data_failed">Nie udało się przenieść danych</string>
+    <string name="store_data_session">Najpierw zamknij trwającą sesję</string>
+    <string name="store_data_no_storage">Pamięć gier nie jest podłączona</string>
     <string name="store_press_again">Naciśnij ponownie, aby usunąć</string>
     <string name="store_installing">Instalowanie…</string>
     <string name="store_install">Zainstaluj</string>

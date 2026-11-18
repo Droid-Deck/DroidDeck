@@ -1041,6 +1041,14 @@
     <string name="store_open">Ouvrir</string>
     <string name="store_details">Détails</string>
     <string name="store_remove">Supprimer</string>
+    <string name="store_data_to_card">Déplacer les données vers le stockage des jeux</string>
+    <string name="store_data_to_internal">Déplacer les données vers le stockage interne</string>
+    <string name="store_data_moving">Déplacement des données…</string>
+    <string name="store_data_symlinks">Les données contiennent des liens symboliques que la carte ne peut pas stocker</string>
+    <string name="store_data_space">Espace libre insuffisant (%1$s libres)</string>
+    <string name="store_data_failed">Impossible de déplacer les données</string>
+    <string name="store_data_session">Fermez d\'abord la session en cours</string>
+    <string name="store_data_no_storage">Le stockage des jeux n\'est pas connecté</string>
     <string name="store_press_again">Appuyez à nouveau pour supprimer</string>
     <string name="store_installing">Installation…</string>
     <string name="store_install">Installer</string>

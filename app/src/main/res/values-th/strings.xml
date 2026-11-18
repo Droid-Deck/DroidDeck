@@ -1035,6 +1035,14 @@
     <string name="store_open">เปิด</string>
     <string name="store_details">รายละเอียด</string>
     <string name="store_remove">ลบ</string>
+    <string name="store_data_to_card">ย้ายข้อมูลไปที่พื้นที่เก็บเกม</string>
+    <string name="store_data_to_internal">ย้ายข้อมูลไปที่พื้นที่เก็บข้อมูลภายใน</string>
+    <string name="store_data_moving">กำลังย้ายข้อมูล…</string>
+    <string name="store_data_symlinks">ข้อมูลมีซิมลิงก์ ซึ่งการ์ดไม่สามารถจัดเก็บได้</string>
+    <string name="store_data_space">พื้นที่ว่างไม่พอ (ว่าง %1$s)</string>
+    <string name="store_data_failed">ย้ายข้อมูลไม่สำเร็จ</string>
+    <string name="store_data_session">ปิดเซสชันที่กำลังทำงานก่อน</string>
+    <string name="store_data_no_storage">ไม่ได้เชื่อมต่อพื้นที่เก็บเกม</string>
     <string name="store_press_again">กดอีกครั้งเพื่อลบ</string>
     <string name="store_installing">กำลังติดตั้ง…</string>
     <string name="store_install">ติดตั้ง</string>

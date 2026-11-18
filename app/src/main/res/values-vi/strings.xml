@@ -1035,6 +1035,14 @@
     <string name="store_open">Mở</string>
     <string name="store_details">Chi tiết</string>
     <string name="store_remove">Xóa</string>
+    <string name="store_data_to_card">Chuyển dữ liệu sang bộ nhớ trò chơi</string>
+    <string name="store_data_to_internal">Chuyển dữ liệu sang bộ nhớ trong</string>
+    <string name="store_data_moving">Đang chuyển dữ liệu…</string>
+    <string name="store_data_symlinks">Dữ liệu có liên kết tượng trưng mà thẻ nhớ không thể lưu trữ</string>
+    <string name="store_data_space">Không đủ dung lượng trống (còn %1$s)</string>
+    <string name="store_data_failed">Không thể chuyển dữ liệu</string>
+    <string name="store_data_session">Hãy đóng phiên đang chạy trước</string>
+    <string name="store_data_no_storage">Bộ nhớ trò chơi chưa được kết nối</string>
     <string name="store_press_again">Nhấn lại để xóa</string>
     <string name="store_installing">Đang cài…</string>
     <string name="store_install">Cài</string>

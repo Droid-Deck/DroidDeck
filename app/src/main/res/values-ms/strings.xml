@@ -1035,6 +1035,14 @@
     <string name="store_open">Buka</string>
     <string name="store_details">Butiran</string>
     <string name="store_remove">Alih keluar</string>
+    <string name="store_data_to_card">Alih data ke storan permainan</string>
+    <string name="store_data_to_internal">Alih data ke storan dalaman</string>
+    <string name="store_data_moving">Mengalihkan data…</string>
+    <string name="store_data_symlinks">Data mengandungi pautan simbolik yang tidak dapat disimpan oleh kad</string>
+    <string name="store_data_space">Ruang kosong tidak mencukupi (%1$s kosong)</string>
+    <string name="store_data_failed">Data tidak dapat dialihkan</string>
+    <string name="store_data_session">Tutup sesi yang sedang berjalan dahulu</string>
+    <string name="store_data_no_storage">Storan permainan tidak disambungkan</string>
     <string name="store_press_again">Tekan sekali lagi untuk alih keluar</string>
     <string name="store_installing">Memasang…</string>
     <string name="store_install">Pasang</string>
