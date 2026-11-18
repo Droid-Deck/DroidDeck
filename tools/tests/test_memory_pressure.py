@@ -2,7 +2,9 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tools.tests.test_client_zram_focus import SCRIPT, function_source, run_bash
+from tools.tests.test_client_zram_focus import STATE, function_source, run_bash
+
+MB = 1024
 
 
 class MemoryPressureTest(unittest.TestCase):
@@ -10,629 +12,225 @@ class MemoryPressureTest(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        self.memory()
 
-    def memory(self, available=1024, swap_free=4096, total=7168, swap_total=6144, psi='0.00'):
-        (self.root / 'meminfo').write_text(
-            f'MemTotal: {total * 1024} kB\nMemAvailable: {available * 1024} kB\n'
-            f'SwapTotal: {swap_total * 1024} kB\nSwapFree: {swap_free * 1024} kB\n')
-        (self.root / 'pressure').write_text(f'some avg10={psi} avg60=0.00 avg300=0.00 total=1234\n')
+    def sample(self, available=3000, total=7168, stall=0, zram=(6144, 0), other=(4096, 0), stored=None):
+        lines = [f'MemTotal: {total * MB} kB', f'MemAvailable: {available * MB} kB',
+                 f'SwapTotal: {(zram[0] + other[0]) * MB} kB',
+                 f'SwapFree: {(zram[0] - zram[1] + other[0] - other[1]) * MB} kB']
+        swaps = ['Filename Type Size Used Priority']
+        if zram[0]:
+            swaps.append(f'/dev/block/zram0 partition {zram[0] * MB} {zram[1] * MB} 100')
+        if other[0]:
+            swaps.append(f'/data/swap/swapfile file {other[0] * MB} {other[1] * MB} 50')
+        text = "printf '%s\\n' " + ' '.join(f"'{line}'" for line in lines) + f" > {self.root}/meminfo\n"
+        text += "printf '%s\\n' " + ' '.join(f"'{line}'" for line in swaps) + f" > {self.root}/swaps\n"
+        text += f"echo 'some avg10=0.00 avg60=0.00 avg300=0.00 total={stall}' > {self.root}/pressure\n"
+        if stored is None:
+            text += f'rm -f {self.root}/mm_stat\n'
+        else:
+            text += f'echo "{stored[0] << 20} {stored[1] << 20} {stored[1] << 20} 0 0 0 0 0 0" > {self.root}/mm_stat\n'
+        return text
 
-    def run_policy(self, body):
-        functions = '\n'.join(function_source(name) for name in (
-            'dd_memory_read', 'dd_memory_tight', 'dd_memory_critical', 'dd_client_can_pageout',
-            'dd_client_can_readback', 'dd_client_pressure', 'dd_client_pressure_result', 'dd_zram_has_room'))
-        functions = functions.replace('/proc/meminfo', str(self.root / 'meminfo'))
-        functions = functions.replace('/proc/pressure/memory', str(self.root / 'pressure'))
-        harness = '''
-set -u
-_dd_pids=(123) _dd_game=1 _dd_packed=-1 _dd_pressure_at=-1 _dd_pressure_backoff=30
-rss=$((384 * 1024)) client_swap=$((512 * 1024)) reclaimed=$((128 * 1024))
-step() { :; }
-dd_zram_usage() { _dd_rss=$rss _dd_anon=${anon:-$rss} _dd_swap=$client_swap; }
-dd_zram_send() { echo "send:$1:$3"; rss=$((rss - reclaimed)); _dd_pageout_complete=${pageout_complete:-1}; }
-''' + functions + '\ndd_memory_read\n' + body
-        result = run_bash('NOW=0\n' + harness.replace('SECONDS', 'NOW'))
+    def run_policy(self, body, *names):
+        functions = '\n'.join(function_source(name) for name in ('dd_memory_read', 'dd_memory_need') + names)
+        for name in ('meminfo', 'swaps', 'pressure/memory'):
+            functions = functions.replace('/proc/' + name, str(self.root / name.split('/')[0]))
+        functions = functions.replace('/sys/block/zram0/mm_stat', str(self.root / 'mm_stat'))
+        functions = functions.replace('/tmp/.dd-zram', str(self.root / 'ctl'))
+        result = run_bash(('NOW=0\nset -u\n' + STATE + functions + '\n' + body).replace('SECONDS', 'NOW'))
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('', result.stderr)
         return result.stdout.splitlines()
 
-    def test_pressure_reclaims_before_the_focus_delay_and_respects_cooldown(self):
-        self.assertEqual(['send:1:client', 'send:1:client'], self.run_policy('''
-SECONDS=0; dd_client_pressure
-SECONDS=5; dd_client_pressure
-SECONDS=29; dd_client_pressure
-SECONDS=30; dd_client_pressure
-'''))
-
-    def test_no_game_or_disabled_client_compression_does_not_reclaim(self):
-        self.assertEqual([], self.run_policy('''
-_dd_game=0; dd_client_pressure
-_dd_game=1 DD_ZRAM_CLIENT=0; dd_client_pressure
-'''))
-
-    def test_high_available_memory_does_not_reclaim_even_with_stalls(self):
-        self.memory(available=4096, psi='12.34')
-        self.assertEqual([], self.run_policy('dd_client_pressure'))
-
-    def test_psi_reclaims_with_moderate_headroom(self):
-        self.memory(available=2048, psi='01.23')
-        self.assertEqual(['send:1:client'], self.run_policy('dd_client_pressure'))
-
-    def test_missing_psi_still_uses_memory_headroom(self):
-        (self.root / 'pressure').unlink()
-        self.assertEqual(['send:1:client'], self.run_policy('dd_client_pressure'))
-
-    def test_missing_meminfo_never_reclaims_or_prefetches(self):
-        (self.root / 'meminfo').write_text('SwapTotal: 6291456 kB\nSwapFree: 4194304 kB\n')
-        self.assertEqual(['no'], self.run_policy('''
-dd_client_pressure
-if dd_client_can_readback; then echo yes; else echo no; fi
-'''))
-
-    def test_missing_available_memory_does_not_trigger_pressure(self):
-        p = self.root / 'meminfo'
-        p.write_text('\n'.join(line for line in p.read_text().splitlines() if not line.startswith('MemAvailable:')))
-        self.assertEqual([], self.run_policy('dd_client_pressure'))
-
-    def test_swap_reserve_includes_the_clients_resident_memory(self):
-        self.memory(swap_free=1536)
-        self.assertEqual(['no'], self.run_policy('''
-dd_client_pressure
-if dd_client_can_pageout; then echo yes; else echo no; fi
-'''))
-
-    def test_client_swap_budget_excludes_file_backed_memory(self):
-        self.memory(swap_free=1536)
-        self.assertEqual(['send:1:client'], self.run_policy('''
-rss=$((2048 * 1024)) anon=$((256 * 1024))
-dd_client_pressure
-'''))
-
-    def test_without_swap_automatic_pageout_is_disabled(self):
-        self.memory(swap_total=0, swap_free=0)
-        self.assertEqual([], self.run_policy('dd_client_pressure'))
-
-    def test_recent_periodic_pageout_prevents_an_immediate_pressure_repeat(self):
-        self.assertEqual([], self.run_policy('_dd_packed=$SECONDS; dd_client_pressure'))
-
-    def test_ineffective_reclaim_backs_off_and_success_resets_it(self):
-        self.assertEqual(['send:1:client', 'backoff:60', 'send:1:client', 'backoff:30'], self.run_policy('''
-reclaimed=0
-SECONDS=0; dd_client_pressure
-echo "backoff:$_dd_pressure_backoff"
-SECONDS=30; dd_client_pressure
-reclaimed=$((128 * 1024))
-SECONDS=60; dd_client_pressure
-echo "backoff:$_dd_pressure_backoff"
-'''))
-
-    def test_readback_requires_room_for_the_swapped_client_plus_headroom(self):
-        self.memory(available=2048)
-        self.assertEqual(['yes', 'no'], self.run_policy('''
-if dd_client_can_readback; then echo yes; else echo no; fi
-client_swap=$((1024 * 1024))
-if dd_client_can_readback; then echo yes; else echo no; fi
-'''))
-
-    def test_unfinished_pageout_does_not_increase_the_ineffective_reclaim_backoff(self):
-        self.assertEqual(['send:1:client', 'backoff:30'], self.run_policy('''
-reclaimed=0 pageout_complete=0
-SECONDS=0; dd_client_pressure
-echo "backoff:$_dd_pressure_backoff"
-'''))
-
-    def test_pageout_completion_requires_a_finished_ack_from_every_live_target(self):
-        proc = self.root / 'proc'
-        proc.mkdir()
-        for pid in (123, 456):
-            (proc / str(pid)).mkdir()
-        source = function_source('dd_zram_wait').replace('/proc/', str(proc) + '/')
-        source = source.replace('/tmp/.dd-zram.ack.', str(self.root / 'ack.'))
-        for pending in ('done', 'running', 'not_started'):
-            with self.subTest(pending=pending):
-                (self.root / 'ack.123').write_text('1')
-                if pending != 'not_started':
-                    (self.root / 'ack.456').write_text('1' if pending == 'done' else '')
-                result = run_bash('nap() { SECONDS=$((SECONDS + 1)); }\n' + source +
-                                  '\nSECONDS=0; dd_zram_wait 123 456; echo "$_dd_pageout_complete"')
-                self.assertEqual(0, result.returncode, result.stderr)
-                self.assertEqual('1' if pending == 'done' else '0', result.stdout.strip())
-
-    def test_pressure_prevents_prefetch_even_if_the_client_would_fit(self):
-        self.memory(available=2048, psi='2.00')
-        self.assertEqual(['no'], self.run_policy('if dd_client_can_readback; then echo yes; else echo no; fi'))
-
-
-class SessionPressureTest(unittest.TestCase):
-    def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
-        self.memory()
-
-    def memory(self, available=1024, swap_free=6144, total=7168, swap_total=8192, psi='0.00'):
-        (self.root / 'meminfo').write_text(
-            f'MemTotal: {total * 1024} kB\nMemAvailable: {available * 1024} kB\n'
-            f'SwapTotal: {swap_total * 1024} kB\nSwapFree: {swap_free * 1024} kB\n')
-        (self.root / 'pressure').write_text(f'some avg10={psi} avg60=0.00 avg300=0.00 total=1234\n')
-
-    def run_policy(self, body):
-        functions = '\n'.join(function_source(name) for name in (
-            'dd_memory_read', 'dd_memory_tight', 'dd_memory_critical',
-            'dd_client_can_pageout', 'dd_client_pressure', 'dd_client_pressure_result',
-            'dd_session_pressure', 'dd_zram_has_room', 'dd_watch_nap', 'dd_zram_pick', 'dd_tier_note', 'dd_tier_readback'))
-        functions = functions.replace('/proc/meminfo', str(self.root / 'meminfo'))
-        functions = functions.replace('/proc/pressure/memory', str(self.root / 'pressure'))
-        harness = '''
-set -u
-_dd_game=1 _dd_tier_at=-1 _dd_tier_backoff=30 _dd_tier_pushed=0 _dd_tier_back=0 _dd_tier_targets=() _dd_tier_swaps=() _dd_tier_starts=() _dd_pids=(999)
-_dd_pressure_at=-1 _dd_pressure_backoff=30 _dd_packed=-1
-rss=$((1536 * 1024)) swap=0 pushed=$((1024 * 1024)) alive="999 321 654" started=100 complete=1
-step() { :; }
-meminfo=''' + repr(str(self.root / 'meminfo')) + '''
-dd_game_focused() { [ "${focused:-1}" = 1 ]; }
-dd_proc_start() { _dd_start=; case " $alive " in *" $1 "*) _dd_start=$started; return 0 ;; esac; return 1; }
-nap() { echo "nap:$1"; }
-dd_session_others() { _dd_session=(321 654); }
-dd_zram_usage() { _dd_rss=$rss _dd_anon=${anon:-$rss} _dd_swap=$swap; }
-dd_zram_send() { echo "send:$1:$3"; rss=$((rss - pushed)); swap=$((swap + pushed)); next_available=${available_after:-$(( $(awk '/^MemAvailable:/ { print $2 }' "$meminfo") / 1024 + 128 ))}; sed -i "s/^MemAvailable:.*/MemAvailable: $((next_available * 1024)) kB/" "$meminfo"; _dd_pageout_complete=$complete; }
-''' + functions + '\ndd_memory_read\n' + body
-        result = run_bash('NOW=0\n' + harness.replace('SECONDS', 'NOW'))
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        return result.stdout.splitlines()
-
-    def test_low_headroom_compresses_the_game_session_at_most_every_30_seconds(self):
-        self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
-SECONDS=0; dd_session_pressure
-SECONDS=10; dd_session_pressure
-SECONDS=29; dd_session_pressure
-SECONDS=30; dd_session_pressure
-'''))
-
-    def test_pressure_policy_is_independent_of_ram_size(self):
-        for total, expected in ((11264, ['send:1:session']), (12288, ['send:1:session']), (16384, ['send:1:session'])):
-            with self.subTest(total=total):
-                self.memory(total=total)
-                self.assertEqual(expected, self.run_policy('dd_session_pressure'))
-
-    def test_large_device_with_real_headroom_does_not_reclaim(self):
-        self.memory(total=16384, available=5120, psi='12.34')
-        self.assertEqual([], self.run_policy('dd_session_pressure'))
-
-    def test_large_device_with_psi_and_moderate_headroom_reclaims(self):
-        self.memory(total=16384, available=3072, psi='1.23')
-        self.assertEqual(['send:1:session'], self.run_policy('dd_session_pressure'))
-
-    def test_a_fast_fall_on_a_large_device_reclaims_above_the_fixed_headroom(self):
-        self.memory(total=15255, available=6176)
-        falling = self.root / 'falling'
-        falling.write_text(
-            f'MemTotal: {15255 * 1024} kB\nMemAvailable: {5367 * 1024} kB\n'
-            f'SwapTotal: {8192 * 1024} kB\nSwapFree: {6144 * 1024} kB\n')
-        meminfo = self.root / 'meminfo'
-        self.assertEqual(['send:1:session'], self.run_policy(
-            f'cp {falling} {meminfo}\nSECONDS=5; dd_session_pressure'))
-
-    def test_a_fall_split_across_one_second_polls_still_reclaims(self):
-        self.memory(total=15255, available=6300)
-        steps = []
-        for second, available in ((5, 6100), (6, 6020), (7, 5940), (8, 5860), (9, 5780)):
-            sample = self.root / f'meminfo-{second}'
-            sample.write_text(
-                f'MemTotal: {15255 * 1024} kB\nMemAvailable: {available * 1024} kB\n'
-                f'SwapTotal: {8192 * 1024} kB\nSwapFree: {6144 * 1024} kB\n')
-            steps.append(f'cp {sample} {self.root / "meminfo"}; SECONDS={second}; dd_session_pressure')
-        self.assertEqual(['send:1:session'], self.run_policy('\n'.join(steps)))
-
-    def test_no_game_does_not_compress_the_session(self):
-        self.assertEqual([], self.run_policy('_dd_game=0; dd_session_pressure'))
-
-    def test_disabled_idle_compression_does_not_compress_the_session(self):
-        self.assertEqual(['send:1:client'], self.run_policy('DD_ZRAM_IDLE=0; dd_client_pressure; dd_session_pressure'))
-
-    def test_disabled_idle_compression_signals_only_launcher_processes(self):
-        sender = (function_source('dd_zram_send') + '\n' + function_source('dd_zram_finish')).replace('/tmp/.dd-zram', str(self.root / 'control'))
-        self.assertEqual(['kill:-URG 999 998', 'mode:1'], self.run_policy('''
-_dd_pids=(999 998)
-kill() { echo "kill:$*"; }
-dd_zram_wait() { _dd_pageout_complete=1; }
-dd_zram_scan() { :; }
-''' + sender + '''
-DD_ZRAM_IDLE=0; dd_client_pressure; dd_session_pressure
-echo "mode:$(cat ''' + str(self.root / 'control') + ''')"
-'''))
-
-    def test_disabled_idle_compression_reclaims_only_the_launcher_before_focus(self):
-        self.memory(available=1700)
-        self.assertEqual(['send:1:client'], self.run_policy('''
-DD_ZRAM_IDLE=0 focused=0
-dd_client_pressure
-dd_session_pressure
-'''))
-
-    def test_disabled_idle_compression_respects_launcher_setting_and_threshold(self):
-        self.memory(available=1700)
-        self.assertEqual([], self.run_policy('DD_ZRAM_IDLE=0 DD_ZRAM_CLIENT=0; dd_client_pressure; dd_session_pressure'))
-        self.memory(available=1900)
-        self.assertEqual([], self.run_policy('DD_ZRAM_IDLE=0; dd_client_pressure; dd_session_pressure'))
-
-    def test_game_reclaim_requires_focus(self):
-        self.assertEqual([], self.run_policy('focused=0; dd_session_pressure'))
-
-    def test_game_reclaim_runs_when_focus_is_unknown(self):
-        launch = self.root / 'launch'
-        (launch / 'agent').mkdir(parents=True)
-        body = function_source('dd_game_focused') + f'\nDD_LAUNCH_DIR={launch} _dd_apps=7\n'
-        self.assertEqual(['send:1:session'], self.run_policy(body + 'dd_session_pressure'))
-        (launch / 'agent' / 'focus.json').write_text('{"focusedApp": 9}')
-        self.assertEqual([], self.run_policy(body + 'dd_session_pressure'))
-        self.assertEqual(['unfocused'], self.run_policy(body + 'dd_game_focused || echo unfocused'))
-        (launch / 'agent' / 'focus.json').unlink()
-        self.assertEqual(['unfocused'], self.run_policy(body + 'dd_game_focused || echo unfocused'))
-
-    def test_launcher_pressure_remains_available_on_larger_devices(self):
-        self.memory(total=15360, available=1400)
-        self.assertEqual(['send:1:client'], self.run_policy('DD_ZRAM_IDLE=0; dd_client_pressure; dd_session_pressure'))
-
-    def test_enough_available_memory_does_not_compress_even_with_stalls(self):
-        self.memory(available=3072, psi='5.00')
-        self.assertEqual([], self.run_policy('dd_session_pressure'))
-
-    def test_stalls_with_moderate_headroom_compress_before_the_hard_limit(self):
-        self.memory(available=2048, psi='1.50')
-        self.assertEqual(['send:1:session'], self.run_policy('dd_session_pressure'))
-
-    def test_moderate_headroom_without_stalls_waits(self):
-        self.memory(available=2048)
-        self.assertEqual([], self.run_policy('dd_session_pressure'))
-
-    def test_same_second_memory_read_preserves_the_pressure_baseline(self):
-        self.memory(available=2048)
-        meminfo = self.root / 'meminfo'
-        self.assertEqual(['1048576:524288:2097152'], self.run_policy(f'''
-SECONDS=100
-_dd_sample_at=100 _dd_sample_available=2097152 _dd_growth=0 _dd_fall=524288
-sed -i 's/MemAvailable: 2097152 kB/MemAvailable: 1048576 kB/' {meminfo}
-dd_memory_read
-echo "$_dd_available:$_dd_fall:$_dd_sample_available"
-'''))
-
-    def test_game_reading_back_most_of_a_pageout_skips_and_doubles_the_wait(self):
-        self.assertEqual(['send:1:session', 'backoff:60', 'send:1:session', 'backoff:60',
-                          'send:1:session', 'backoff:30'], self.run_policy('''
-pushed=$((512 * 1024))
-SECONDS=0; dd_session_pressure
-swap=$((swap / 4))
-SECONDS=30; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-SECONDS=60; dd_session_pressure
-SECONDS=90; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-SECONDS=150; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-'''))
-
-    def test_repeated_read_back_keeps_doubling_up_to_five_minutes(self):
-        self.assertEqual(['backoff:300'], self.run_policy('''
-_dd_tier_backoff=240 _dd_tier_at=0 _dd_tier_targets=(999) _dd_tier_swaps=($((1024 * 1024))) _dd_tier_starts=(100) _dd_tier_pushed=$((1024 * 1024)) swap=0
-SECONDS=240; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-'''))
-
-    def test_no_gain_pageout_doubles_the_tier_wait(self):
-        self.assertEqual(['send:1:session', 'backoff:60', 'send:1:session', 'backoff:120'], self.run_policy('''
-available_after=1024
-SECONDS=0; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-SECONDS=30; dd_session_pressure
-SECONDS=60; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-'''))
-
-    def test_meaningful_available_gain_keeps_the_tier_wait(self):
-        self.assertEqual(['send:1:session', 'backoff:30', 'send:1:session', 'backoff:30'], self.run_policy('''
-available_after=1300
-SECONDS=0; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-available_after=1600
-SECONDS=30; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-'''))
-
-    def test_recovered_available_memory_resets_the_tier_wait(self):
-        self.assertEqual(['send:1:session', 'backoff:60', 'backoff:30', 'send:1:session'], self.run_policy('''
-available_after=1024
-SECONDS=0; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-available_after=2000
-sed -i "s/^MemAvailable:.*/MemAvailable: 2048000 kB/" "$meminfo"
-SECONDS=30; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-available_after=1024
-sed -i "s/^MemAvailable:.*/MemAvailable: 1048576 kB/" "$meminfo"
-SECONDS=60; dd_session_pressure
-'''))
-
-    def test_critical_memory_still_compresses_after_a_no_gain_pass(self):
-        self.memory(available=512)
-        self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
-available_after=512
-SECONDS=0; dd_session_pressure
-SECONDS=30; dd_session_pressure
-'''))
-
-    def test_a_no_gain_pass_still_skips_memory_the_game_read_back(self):
-        self.memory(available=512)
-        self.assertEqual(['send:1:session'], self.run_policy('''
-available_after=512
-SECONDS=0; dd_session_pressure
-swap=0
-SECONDS=30; dd_session_pressure
-'''))
-
-    def test_nearly_out_of_memory_ignores_the_backoff_but_keeps_30_seconds(self):
-        self.memory(available=512)
-        self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
-_dd_tier_backoff=300
-SECONDS=0; dd_session_pressure
-SECONDS=20; dd_session_pressure
-SECONDS=30; dd_session_pressure
-'''))
-
-    def test_nearly_out_of_memory_still_backs_off_when_the_game_reads_its_pageout_back(self):
-        self.memory(available=512)
-        self.assertEqual(['send:1:session', 'backoff:60', 'send:1:session'], self.run_policy('''
-SECONDS=0; dd_session_pressure
-swap=0
-SECONDS=30; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-SECONDS=59; dd_session_pressure
-SECONDS=60; dd_session_pressure
-SECONDS=90; dd_session_pressure
-'''))
-
-    def test_nearly_out_of_memory_retries_a_skipped_pageout_after_30_seconds(self):
-        self.memory(available=512)
-        self.assertEqual(['send:1:session', 'send:1:session'], self.run_policy('''
-SECONDS=0; dd_session_pressure
-swap=0
-SECONDS=30; dd_session_pressure
-_dd_tier_backoff=300
-saved=$rss; rss=$((128 * 1024))
-SECONDS=330; dd_session_pressure
-rss=$saved
-SECONDS=359; dd_session_pressure
-SECONDS=360; dd_session_pressure
-'''))
-
-    def test_small_swap_headroom_skips_the_pageout(self):
-        self.memory(swap_free=1536, swap_total=2048)
-        self.assertEqual([], self.run_policy('dd_session_pressure'))
-
-    def test_file_backed_resident_memory_does_not_consume_the_swap_budget(self):
-        self.memory(swap_free=3088, swap_total=6144)
-        self.assertEqual(['send:1:session'], self.run_policy('''
-rss=$((4096 * 1024)) anon=$((1024 * 1024))
-dd_session_pressure
-'''))
-
-    def test_anonymous_memory_and_pending_client_still_need_the_full_swap_reserve(self):
-        self.memory(swap_free=3088, swap_total=6144)
-        self.assertEqual([], self.run_policy('''
-rss=$((4096 * 1024)) anon=$((2048 * 1024))
-dd_session_pressure
-'''))
-        self.assertEqual([], self.run_policy('''
-rss=$((4096 * 1024)) anon=$((1536 * 1024)) _dd_client_reserve=$((512 * 1024))
-dd_session_pressure
-'''))
-
-    def test_small_session_is_left_alone(self):
-        self.assertEqual([], self.run_policy('rss=$((128 * 1024)); dd_session_pressure'))
-
-    def test_watch_polls_every_second_near_the_limit_and_stops_when_critical(self):
-        self.memory(available=2560)
-        self.assertEqual(['nap:1', 'nap:1', 'nap:1', 'nap:1', 'nap:1'], self.run_policy('dd_watch_nap'))
-        self.memory(available=1024)
-        self.assertEqual(['nap:1'], self.run_policy('_dd_available=$((2560 * 1024)); dd_watch_nap'))
-        self.memory(available=4096)
-        self.assertEqual(['nap:5'], self.run_policy('dd_watch_nap'))
-        self.assertEqual(['nap:5'], self.run_policy('_dd_game=0; dd_watch_nap'))
-
-    def test_session_push_preserves_client_timestamps(self):
-        self.assertEqual(['send:1:session', 'pids:321 654', 'client:-1:-1'], self.run_policy('''
-SECONDS=0; dd_session_pressure
-dd_zram_pick session; echo "pids:${_pids[*]}"
-echo "client:$_dd_pressure_at:$_dd_packed"
-'''))
-
-    def test_launcher_compression_turned_off_keeps_the_launcher_out(self):
-        self.assertEqual(['pids:321 654', 'client:-1:-1'], self.run_policy('''
-DD_ZRAM_CLIENT=0
-SECONDS=0; dd_session_pressure
-dd_zram_pick session; echo "pids:${_pids[*]}"
-echo "client:$_dd_pressure_at:$_dd_packed"
-''')[1:])
-
-    def test_low_ram_devices_compress_with_a_quarter_of_memory_left(self):
-        self.memory(available=1700)
-        self.assertEqual(['send:1:session'], self.run_policy('dd_session_pressure'))
-        self.memory(available=1900)
-        self.assertEqual([], self.run_policy('dd_session_pressure'))
-
-
-    def test_a_compressed_process_that_exits_is_not_counted_as_read_back(self):
-        self.assertEqual(['send:1:session', 'send:1:session', 'backoff:30'], self.run_policy('''
-SECONDS=0; dd_session_pressure
-alive=""; swap=0
-SECONDS=30; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-'''))
-
-    def test_a_process_that_starts_after_a_pageout_is_not_in_its_read_back(self):
-        self.assertEqual(['send:1:session', 'targets:321 654', 'send:1:session', 'backoff:30'], self.run_policy('''
-SECONDS=0; dd_session_pressure
-echo "targets:${_dd_tier_targets[*]}"
-alive="999 1234"
-SECONDS=30; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-'''))
-
-    def test_read_back_wait_holds_above_the_critical_level(self):
-        self.assertEqual(['send:1:session', 't:60', 'send:1:session'], self.run_policy('''
-SECONDS=0; dd_session_pressure
-swap=0
-SECONDS=30; dd_session_pressure
-SECONDS=60; dd_session_pressure; echo t:60
-SECONDS=90; dd_session_pressure
-'''))
-
-    def test_a_no_gain_pageout_preserves_client_timestamps(self):
-        self.assertEqual(['send:1:session', 'backoff:60', 'client:-1:-1'], self.run_policy('''
-available_after=1024
-SECONDS=0; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-echo "client:$_dd_pressure_at:$_dd_packed"
-'''))
-
-    def test_an_incomplete_pageout_does_not_restart_the_launcher_wait(self):
-        self.assertEqual(['send:1:session', 'client:-1:-1'], self.run_policy('''
-complete=0
-SECONDS=0; dd_session_pressure
-echo "client:$_dd_pressure_at:$_dd_packed"
-'''))
-
-
-    def test_a_reused_process_id_is_not_counted_as_read_back(self):
-        self.assertEqual(['send:1:session', 'send:1:session', 'backoff:30'], self.run_policy('''
-SECONDS=0; dd_session_pressure
-started=200; swap=0
-SECONDS=30; dd_session_pressure
-echo "backoff:$_dd_tier_backoff"
-'''))
-
-    def test_process_start_comes_from_stat_and_zombies_have_none(self):
-        stat = self.root / 'stat'
-        source = function_source('dd_proc_start').replace('/proc/$1/stat', str(stat))
-        fields = ' '.join(['0'] * 17)
-        for state, expected in (('S', ['ok:4242']), ('Z', ['gone:'])):
-            with self.subTest(state=state):
-                stat.write_text(f'77 (Wow (arm64).exe) {state} 1 {fields} 4242 99 0\n')
-                result = run_bash(source + '\nif dd_proc_start 77; then echo "ok:$_dd_start"; else echo "gone:$_dd_start"; fi')
-                self.assertEqual(expected, result.stdout.split())
-        stat.unlink()
-        result = run_bash(source + '\ndd_proc_start 77 || echo gone')
-        self.assertEqual(['gone'], result.stdout.split())
-
-
-class ReclaimDispatchTest(unittest.TestCase):
-    def run_cycle(self, client=1, game=1, anonymous=384, complete=1, reclaimed=128, body=None, available=1024, fall=0, tick=0):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / 'meminfo').write_text(
-                f'MemTotal: 7340032 kB\nMemAvailable: {available * 1024} kB\n'
-                'SwapTotal: 6291456 kB\nSwapFree: 4194304 kB\n')
-            (root / 'pressure').write_text('some avg10=0.00 avg60=0.00 avg300=0.00 total=0\n')
-            names = ('dd_memory_read', 'dd_memory_tight', 'dd_memory_critical',
-                     'dd_zram_has_room', 'dd_client_can_pageout', 'dd_client_pressure',
-                     'dd_client_pressure_result', 'dd_client_pressure_finish',
-                     'dd_session_pressure', 'dd_zram_send', 'dd_zram_finish', 'dd_zram_pick')
-            source = '\n'.join(function_source(name) for name in names)
-            source = source.replace('/proc/meminfo', str(root / 'meminfo'))
-            source = source.replace('/proc/pressure/memory', str(root / 'pressure'))
-            source = source.replace('/tmp/.dd-zram', str(root / 'ctl'))
-            monitor = SCRIPT.read_text()
-            start = monitor.index('          _dd_preserved_growth=$_dd_growth', monitor.index('while kill -0 $$'))
-            stop = monitor.index('          _dd_focus=1\n', start)
-            cycle = monitor[start:stop] if body is None else body
-            script = f'''
-set -u
-DD_ZRAM_CLIENT={client} _dd_game={game} _dd_pids=(123) _dd_others=(321)
-_dd_pressure_at=-1 _dd_pressure_backoff=30 _dd_packed=-1
-_dd_tier_at=-1 _dd_tier_backoff=30 _dd_tier_pushed=0
-_dd_client_reserve=0 client_rss=393216 client_anon={anonymous * 1024}
-step() {{ :; }}
-dd_session_others() {{ _dd_session=(321); }}
-dd_zram_scan() {{ _dd_pids=(456); }}
-nap() {{ echo "nap:$*:at:$NOW"; }}
-dd_zram_usage() {{
-  if [ "$1" = 123 ]; then
-    _dd_rss=$client_rss _dd_anon=$client_anon _dd_swap=0
-  else
-    _dd_rss=3145728 _dd_anon=1572864 _dd_swap=0
-  fi
-}}
-kill() {{ echo "signal:$*:at:$NOW"; NOW=$((NOW + {tick})); }}
-dd_zram_wait() {{
-  echo "wait:$*:at:$NOW"
-  NOW=$((NOW + 12))
-  _dd_pageout_complete={complete}
-  [ "$1" != 123 ] || client_rss=$((client_rss - {reclaimed * 1024}))
-}}
-dd_tier_note() {{ :; }}
-dd_game_focused() {{ :; }}
-''' + source + f'''
-dd_memory_read
-_dd_fall={fall * 1024}
-''' + cycle + '''
-echo "client:$_dd_pressure_backoff:${_dd_client_reserve:-0}:${_dd_client_pending:-0}"
+    def test_the_floor_follows_device_memory_within_limits(self):
+        body = ''.join(self.sample(total=total) + 'dd_memory_read; echo $((_dd_floor / 1024))\n'
+                       for total in (3584, 7168, 15360))
+        self.assertEqual(['640', '896', '1280'], self.run_policy(body))
+
+    def test_the_target_grows_with_how_fast_memory_is_falling(self):
+        body = (self.sample(available=3000) + 'dd_memory_read; echo $_dd_rate $((_dd_target / 1024))\n' +
+                self.sample(available=2800) + 'NOW=1; dd_memory_read; echo $((_dd_rate / 1024)) $((_dd_target / 1024))\n' +
+                'NOW=2; dd_memory_read; echo $((_dd_rate / 1024)) $((_dd_target / 1024))\n' +
+                self.sample(available=3400) + 'NOW=3; dd_memory_read; echo $((_dd_rate / 1024))\n')
+        self.assertEqual(['0 896', '200 2896', '150 2396', '112'], self.run_policy(body))
+
+    def test_memory_the_monitor_freed_itself_does_not_hide_a_fall(self):
+        body = (self.sample(available=2000) + 'dd_memory_read\n_dd_freed=$((300 * 1024))\n' +
+                'NOW=2; dd_memory_read; echo $((_dd_rate / 1024)) $_dd_freed\n')
+        self.assertEqual(['150 0'], self.run_policy(body))
+
+    def test_two_reads_in_the_same_second_keep_the_sample(self):
+        body = (self.sample(available=2000) + 'dd_memory_read\n_dd_freed=4096\n' +
+                self.sample(available=1000) + 'dd_memory_read; echo $_dd_rate $_dd_freed $_dd_sample_available\n')
+        self.assertEqual([f'0 4096 {2000 * MB}'], self.run_policy(body))
+
+    def test_stall_time_becomes_a_share_of_the_interval(self):
+        body = (self.sample(stall=1000) + 'dd_memory_read; echo $_dd_psi\n' +
+                self.sample(stall=41000) + 'NOW=2; dd_memory_read; echo $_dd_psi\n' +
+                'NOW=3; dd_memory_read; echo $_dd_psi\n')
+        self.assertEqual(['0', '200', '0'], self.run_policy(body))
+
+    def test_room_counts_zram_only_and_keeps_a_reserve(self):
+        body = (self.sample(zram=(6144, 1024)) + 'dd_memory_read; echo $((_dd_swap_room / 1024))\n' +
+                self.sample(zram=(6144, 5632)) + 'dd_memory_read; echo $((_dd_swap_room / 1024))\n' +
+                self.sample(zram=(0, 0), other=(4096, 1024)) + 'dd_memory_read; echo $((_dd_swap_room / 1024))\n' +
+                self.sample(zram=(512, 0), other=(0, 0)) + 'dd_memory_read; echo $((_dd_swap_room / 1024))\n')
+        self.assertEqual(['4352', '-256', '2560', '384'], self.run_policy(body))
+
+    def test_saving_comes_from_what_zram_really_stores(self):
+        body = ''.join(self.sample(stored=stored) + 'dd_memory_read; echo $_dd_saving\n'
+                       for stored in (None, (32, 30), (1000, 250), (1000, 950), (1000, 20)))
+        self.assertEqual(['600', '600', '750', '167', '833'], self.run_policy(body))
+
+    def need(self, available, rate=0, psi=0):
+        return (self.sample(available=available) +
+                f'dd_memory_read; _dd_rate=$(({rate} * 1024)) _dd_psi={psi}\n'
+                '_dd_target=$((_dd_floor + _dd_rate * 10))\n'
+                'dd_memory_need; echo $((_dd_need / 1024)) $((_dd_hard / 1024)) $_dd_force\n')
+
+    def test_steady_memory_above_the_floor_needs_nothing(self):
+        self.assertEqual(['0 0 0'], self.run_policy(self.need(2000)))
+
+    def test_memory_under_the_floor_must_be_freed(self):
+        self.assertEqual(['96 96 0'], self.run_policy(self.need(800)))
+
+    def test_a_slow_fall_is_met_ten_seconds_ahead(self):
+        self.assertEqual(['196 0 0'], self.run_policy(self.need(1000, rate=30)))
+
+    def test_a_fast_fall_is_matched_once_memory_is_under_two_fifths(self):
+        self.assertEqual(['0 0 0', '200 0 0', '0 0 0'],
+                         self.run_policy(self.need(2500, rate=20) + self.need(2500, rate=100) + self.need(4000, rate=100)))
+
+    def test_stalls_make_a_fall_urgent(self):
+        self.assertEqual(['200 0 0', '200 200 0', '0 0 0'],
+                         self.run_policy(self.need(2500, rate=100) + self.need(2500, rate=100, psi=100) +
+                                         self.need(2000, psi=900)))
+
+    def test_half_the_floor_forces(self):
+        self.assertEqual(['446 446 0', '456 456 1'], self.run_policy(self.need(450) + self.need(440)))
+
+    RELIEVE = '''
+step() { echo "step:$*"; }
+dd_session_others() { echo others; _dd_session=(70 80); }
+dd_zram_trim() { echo "trim:$1:$(($2 / 1024)):${*:3}"; _dd_trimmed=${paged:-$2}; }
+relieve() { dd_memory_read; _dd_rate=$((${2:-0} * 1024)) _dd_target=$((_dd_floor + ${2:-0} * 10240)); dd_memory_relieve; }
+_dd_pids=(10 20) _dd_game=1 _dd_focus=0 _dd_saving=500
 '''
-            result = run_bash('NOW=0\n' + script.replace('SECONDS', 'NOW'))
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        return result.stdout.splitlines()
 
-    def test_both_requests_are_sent_before_either_wait(self):
-        self.assertEqual(['signal:-URG 123:at:0', 'signal:-URG 321:at:0',
-                          'wait:321:at:0', 'wait:123:at:12', 'client:30:0:0'], self.run_cycle())
+    def relieve(self, body):
+        return self.run_policy(self.RELIEVE + body, 'dd_memory_relieve', 'dd_memory_note')
 
-    def test_disabled_client_is_never_signalled_or_waited_for(self):
-        self.assertEqual(['signal:-URG 321:at:0', 'wait:321:at:0', 'client:30:0:0'],
-                         self.run_cycle(client=0))
+    def test_a_fall_trims_the_client_behind_a_game_by_what_zram_gives_back(self):
+        self.assertEqual(['trim:2:326:10 20', f'{196 * MB} {334506 * 600 // 1000} 334506'], self.relieve(
+            self.sample(available=1000) + 'relieve 1000 30; echo $_dd_need $_dd_freed $_dd_client_out\n'))
 
-    def test_no_game_requests_nothing(self):
-        self.assertEqual(['client:30:0:0'], self.run_cycle(game=0))
+    def test_the_client_in_front_is_left_alone_until_memory_is_under_the_floor(self):
+        self.assertEqual(['trim:2:160:10 20'], self.relieve(
+            self.sample(available=1000) + '_dd_focus=1; relieve 1000 30\n' +
+            self.sample(available=800) + 'relieve 800\n'))
 
-    def test_a_client_with_no_anonymous_pages_still_finishes_its_request(self):
-        self.assertEqual(['signal:-URG 123:at:0', 'signal:-URG 321:at:0',
-                          'wait:321:at:0', 'wait:123:at:12', 'client:30:0:0'],
-                         self.run_cycle(anonymous=0))
+    def test_unknown_focus_still_trims_the_client(self):
+        self.assertEqual(['trim:2:326:10 20'], self.relieve(self.sample(available=1000) + '_dd_focus=2; relieve 1000 30\n'))
 
-    def test_falling_headroom_survives_a_tick_between_requests(self):
-        self.assertEqual(['signal:-URG 123:at:0', 'signal:-URG 321:at:1',
-                          'wait:321:at:2', 'wait:123:at:14', 'client:30:0:0'],
-                         self.run_cycle(available=2304, fall=512, tick=1))
+    def test_the_client_is_not_trimmed_right_after_it_was_read_back(self):
+        self.assertEqual(['trim:2:326:10 20'], self.relieve(
+            self.sample(available=1000) + 'NOW=100 _dd_back_at=80; relieve 1000 30\nNOW=110; relieve 1000 30\n'))
 
-    def test_deferred_ineffective_reclaim_still_doubles_the_backoff(self):
-        self.assertEqual('client:60:0:0', self.run_cycle(reclaimed=0)[-1])
+    def test_without_a_game_only_the_floor_trims(self):
+        self.assertEqual(['trim:2:160:10 20'], self.relieve(
+            self.sample(available=1000) + '_dd_game=0 _dd_focus=1; relieve 1000 30\n' +
+            self.sample(available=800) + 'relieve 800\n'))
 
-    def test_deferred_incomplete_reclaim_does_not_double_the_backoff(self):
-        self.assertEqual('client:30:0:0', self.run_cycle(reclaimed=0, complete=0)[-1])
+    def test_the_session_gives_what_the_client_could_not(self):
+        self.assertEqual(['trim:2:660:10 20', 'others', 'trim:2:256:70 80', 'trim:2:660:10 20', 'trim:2:256:70 80'],
+                         self.relieve(self.sample(available=500) + f'paged={64 * MB}; relieve 500\nNOW=1; relieve 500\n'))
 
-    def test_explicit_combined_send_keeps_its_synchronous_wait(self):
-        self.assertEqual(['signal:-URG 321 123:at:0', 'wait:321 123:at:0', 'client:30:0:0'],
-                         self.run_cycle(body='dd_zram_send 1 cap game\n'))
-        self.assertEqual(['signal:-URG 321:at:0', 'wait:321:at:0', 'client:30:0:0'],
-                         self.run_cycle(client=0, body='dd_zram_send 1 cap game\n'))
+    def test_the_session_is_scanned_again_after_a_new_process_scan(self):
+        self.assertEqual(['others', 'others'], [line for line in self.relieve(
+            self.sample(available=500) + 'paged=0; relieve 500\n_dd_scan_at=5; relieve 500\n') if line == 'others'])
 
-    def test_readback_keeps_its_synchronous_delay(self):
-        self.assertEqual(['signal:-URG 123:at:0', 'nap:5:at:0', 'client:30:0:0'],
-                         self.run_cycle(body='dd_zram_send 0 readback client\n'))
+    def test_forcing_ignores_heat_once_in_ten_seconds(self):
+        lines = self.relieve(self.sample(available=300) + 'paged=0\nrelieve 300\nNOW=5; relieve 300\nNOW=10; relieve 300\n')
+        self.assertEqual(['3', '3', '2', '2', '3', '3'], [line.split(':')[1] for line in lines if line.startswith('trim')])
+        self.assertIn('trim:3:993:70 80', lines)
 
-    def test_usage_sums_anonymous_rss_and_falls_back_per_process(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            for pid, contents in ((123, 'VmRSS: 2000 kB\nRssAnon: 300 kB\nVmSwap: 100 kB\n'),
-                                  (321, 'VmRSS: 4000 kB\nVmSwap: 200 kB\n'),
-                                  (654, 'VmRSS: 1000 kB\nRssAnon: 0 kB\n')):
-                (root / str(pid)).mkdir()
-                (root / str(pid) / 'status').write_text(contents)
-            source = function_source('dd_zram_usage').replace('/proc/', str(root) + '/')
-            result = run_bash(source + '\ndd_zram_usage 123 321 654 > /dev/null; echo "$_dd_rss:$_dd_anon:$_dd_swap"')
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('7000:4300:300', result.stdout.strip())
+    def test_trims_stop_at_the_room_zram_has(self):
+        self.assertEqual(['trim:2:100:10 20', 'step:memory: available 800 MB and zRAM has no room left'], self.relieve(
+            self.sample(available=800, zram=(6144, 5276)) + 'relieve 800\n' +
+            self.sample(available=800, zram=(6144, 5400)) + 'relieve 800\nNOW=30; relieve 800\n'))
+
+    def test_small_trims_are_not_logged(self):
+        self.assertEqual(['step:memory: available 1000 MB, falling 30 MB/s, compressed 20 MB of the client and 0 MB of the session'],
+                         [line for line in self.relieve(
+                             self.sample(available=1000) + f'paged={10 * MB}\nrelieve 1000 30; dd_memory_note\n'
+                             'NOW=1; relieve 1000 30; dd_memory_note\nNOW=2; dd_memory_note\n')
+                          if line.startswith('step')])
+
+    TRIM = '''
+declare -A anon=() reply=()
+nap() { :; }
+dd_zram_usage() { _dd_anon=${anon[$1]}; }
+kill() {
+  echo "signal:$2:$(< "$ROOT/ctl")"
+  case ${reply[$2]} in
+    deaf) ;;
+    gone) return 1 ;;
+    *) printf %s "${reply[$2]}" > "$ROOT/ctl.ack.$2" ;;
+  esac
+}
+'''
+
+    def trim(self, body):
+        return self.run_policy(f'ROOT={self.root}\n' + self.TRIM + body + '\nls "$ROOT"; cat "$ROOT/ctl"', 'dd_zram_trim')
+
+    def test_a_trim_spends_its_budget_across_processes_in_order(self):
+        self.assertEqual(['signal:10:2 100000', 'signal:20:2 60000', '100000', 'ctl', '2 0'], self.trim('''
+anon=([10]=500000 [20]=500000 [30]=500000) reply=([10]=40000 [20]=60000 [30]=1)
+dd_zram_trim 2 100000 10 20 30
+echo $_dd_trimmed'''))
+
+    def test_a_trim_skips_small_and_gone_processes_and_stops_when_little_is_left(self):
+        self.assertEqual(['signal:20:3 50000', 'signal:30:3 50000', 'signal:40:3 50000', '47000', 'ctl', '2 0'], self.trim('''
+anon=([10]=4096 [20]=500000 [30]=500000 [40]=500000 [50]=500000) reply=([20]=gone [30]=0 [40]=47000 [50]=1)
+dd_zram_trim 3 50000 10 20 30 40 50
+echo $_dd_trimmed'''))
+
+    def test_a_process_that_never_answers_is_left_alone_for_a_minute(self):
+        self.assertEqual(['signal:10:2 9000', 'signal:20:2 9000', '500', 'signal:20:2 9000', 'signal:10:2 9000',
+                          'signal:20:2 9000', 'ctl', '2 0'], self.trim('''
+anon=([10]=500000 [20]=500000) reply=([10]=deaf [20]=500)
+dd_zram_trim 2 9000 10 20
+echo $_dd_trimmed
+NOW=59; dd_zram_trim 2 9000 10 20
+NOW=60; dd_zram_trim 2 9000 10 20'''))
+
+    READBACK = '''
+step() { echo "step:$*"; }
+kill() { echo "signal:$*:$(< "$ROOT/ctl")"; }
+dd_zram_usage() { _dd_swap=$((swap * 1024)); }
+back() { dd_memory_read; _dd_rate=0 _dd_target=$_dd_floor; dd_client_readback; }
+_dd_pids=(10 20) _dd_game=0 _dd_client_out=4096 _dd_trim_at=0 swap=400 NOW=30
+'''
+
+    def readback(self, body):
+        return self.run_policy(f'ROOT={self.root}\n' + self.READBACK + body, 'dd_client_readback')
+
+    def test_the_client_is_read_back_once_memory_can_hold_it_with_a_floor_to_spare(self):
+        self.assertEqual(['step:memory: available 2192 MB, reading 400 MB of the client back', 'signal:-URG 10 20:0',
+                          f'0 {-400 * MB * 600 // 1000} 30'], self.readback(
+            self.sample(available=2191) + 'back\n' + self.sample(available=2192) + 'back\n' +
+            'echo $_dd_client_out $_dd_freed $_dd_back_at\nback\n'))
+
+    def test_nothing_is_read_back_right_after_a_trim(self):
+        self.assertEqual([], self.readback(self.sample(available=4000) + 'NOW=29; back\n'))
+
+    def test_a_running_game_keeps_the_client_compressed_until_the_client_is_in_front(self):
+        self.assertEqual(['signal:-URG 10 20:0'], [line for line in self.readback(
+            self.sample(available=4000) + '_dd_game=1\nback\n_dd_away=27; back\n_dd_away=25; back\n')
+            if line.startswith('signal')])
+
+    def test_a_client_the_kernel_already_brought_back_needs_no_request(self):
+        self.assertEqual(['0'], self.readback(self.sample(available=4000) + 'swap=8; back; echo $_dd_client_out\n'))
 
 
 if __name__ == '__main__':

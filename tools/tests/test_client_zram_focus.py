@@ -18,6 +18,15 @@ def run_bash(script, env=None):
     return subprocess.run(['bash', '-c', script], capture_output=True, text=True, timeout=10, env=env)
 
 
+def state_source():
+    source = SCRIPT.read_text()
+    start = source.index('        declare -A _dd_deaf=()')
+    return source[start:source.index('        while kill -0', start)]
+
+
+STATE = state_source()
+
+
 class ClientZramFocusTest(unittest.TestCase):
     def test_the_hidden_epic_launcher_is_compressed_with_the_client(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -78,217 +87,50 @@ class ClientZramFocusTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('|6000021 6000022 6000020|0', result.stdout.strip())
 
-    def test_refocus_restarts_the_delay_and_game_exit_restores_a_packed_client(self):
-        source = SCRIPT.read_text()
-        start = source.index('          _dd_focus=1\n')
-        stop = source.index('          dd_watch_nap\n', start)
-        body = source[start:stop]
-        harness = '''
-_dd_since=-1 _dd_since_apps= _dd_packed=-1 _dd_unpack=0 _dd_apps=" 413150"
-_dd_pids=(123)
-dd_game_focused() { [ "$focused" = 1 ]; }
-dd_over_cap() { return 1; }
-dd_client_can_pageout() { return 0; }
-dd_client_can_readback() { return 0; }
-dd_zram_send() { echo "send:$1"; }
-tick() {
-  SECONDS=$1 _dd_game=$2 focused=$3
-''' + body + '''
-}
-tick 0 1 1
-tick 5 1 0
-tick 30 1 1
-echo "refocus:$_dd_packed"
-tick 49 1 1
-tick 50 1 1
-tick 55 1 0
-tick 60 0 0
-'''
-        result = run_bash(harness)
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual(['refocus:-1', 'send:1', 'send:0'], result.stdout.splitlines())
-
-    def monitor_harness(self):
-        source = SCRIPT.read_text()
-        start = source.index('          dd_zram_scan\n          dd_memory_read\n')
-        stop = source.index('          dd_watch_nap\n', start)
-        return '''
-_dd_since=-1 _dd_since_apps= _dd_packed=-1 _dd_measured=-1 _dd_unpack=0 _dd_capped=-1 _dd_backoff=30
-_dd_apps=" 413150"
-_dd_pids=(123)
+    TICK = '''
+dd_zram_scan() { _dd_game=$game _dd_pids=(10) _dd_others=() _dd_apps=" 413150"; }
+dd_game_focused() { return $focus; }
+dd_memory_read() { _dd_available=$((available * 1024)) _dd_mem_total=$((7168 * 1024)) _dd_floor=$((896 * 1024)); _dd_target=$((target * 1024)) _dd_swap_room=$((4096 * 1024)) _dd_saving=500 _dd_rate=0 _dd_psi=0; }
+dd_zram_trim() { echo "trim:$NOW"; _dd_trimmed=$((64 * 1024)); }
+dd_zram_usage() { _dd_swap=$((64 * 1024)); }
+dd_session_others() { :; }
 step() { :; }
-dd_zram_scan() { :; }
-dd_memory_read() { :; }
-dd_client_pressure() { :; }
-dd_client_pressure_finish() { :; }
-dd_session_pressure() { :; }
-dd_client_can_pageout() { return 0; }
-dd_client_can_readback() { [ "${readback:-1}" = 1 ]; }
-dd_game_focused() { [ "$focused" = 1 ] && return 0; [ "$focused" = 2 ] && return 2; return 1; }
-dd_cap_due() { [ "$cap_due" = 1 ]; }
-dd_over_cap() { [ "$over_cap" = 1 ]; }
-dd_zram_send() { echo "send:$1:$3"; }
-tick() {
-  SECONDS=$1 _dd_game=$2 focused=$3 over_cap=$4 cap_due=$5
-''' + source[start:stop] + '\n}\n'
+kill() { echo "back:$NOW"; }
+game=1 focus=0 available=1500 target=1600
+run() { for NOW in $(seq "$1" "$2"); do dd_memory_tick; done; }
+'''
 
-    def test_client_toggle_still_disables_automatic_compression(self):
-        result = run_bash(self.monitor_harness() + '''
-DD_ZRAM_CLIENT=0
-tick 0 1 1 0 0
-tick 25 1 1 0 0
-tick 30 0 0 0 0
-''')
+    def tick(self, body):
+        functions = '\n'.join(function_source(name) for name in (
+            'dd_memory_need', 'dd_memory_relieve', 'dd_memory_note', 'dd_client_readback', 'dd_memory_tick'))
+        with tempfile.TemporaryDirectory() as tmp:
+            functions = functions.replace('/tmp/.dd-zram', tmp + '/ctl')
+            result = run_bash(('NOW=0\nset -u\n' + STATE + functions + self.TICK + body).replace('SECONDS', 'NOW'))
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('', result.stderr)
-        self.assertEqual('', result.stdout)
+        return result.stdout.splitlines()
 
-    def test_a_new_game_restarts_the_compression_delay(self):
-        result = run_bash(self.monitor_harness() + '''
-tick 0 1 1 0 0
-_dd_apps=" 413150 1245620"
-tick 15 1 1 0 0
-tick 20 1 1 0 0
-echo "starting:$_dd_packed"
-tick 34 1 1 0 0
-tick 35 1 1 0 0
-''')
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual(['starting:-1', 'send:1:client'], result.stdout.splitlines())
+    def test_the_client_behind_a_game_is_trimmed_while_memory_is_short_of_the_target(self):
+        self.assertEqual(['trim:0', 'trim:1', 'trim:2'], self.tick('run 0 2\navailable=1700; run 3 9\n'))
 
-    def test_ram_cap_can_still_compress_an_unfocused_client(self):
-        result = run_bash(self.monitor_harness() + '''
-DD_ZRAM_CLIENT=0 DD_RAM_CAP_MB=1024
-dd_zram_usage() { _dd_rss=$((768 * 1024)); }
-tick 0 1 0 1 1
-echo "cap:$_dd_packed:$_dd_since:$_dd_backoff"
-tick 5 0 0 0 0
-''')
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual(['send:1:client', 'send:1:session', 'cap:0:-1:60', 'send:0:client'], result.stdout.splitlines())
+    def test_game_exit_reads_the_client_back_after_a_quiet_half_minute(self):
+        self.assertEqual(['trim:0', 'back:30'], self.tick('run 0 0\ngame=0 available=4000; run 1 40\n'))
 
-    def test_game_exit_defers_restore_until_the_session_is_under_the_ram_cap(self):
-        result = run_bash(self.monitor_harness() + '''
-tick 0 1 1 0 0
-tick 20 1 1 0 0
-tick 25 1 0 0 0
-tick 30 0 0 1 0
-echo "deferred:$_dd_unpack:$_dd_packed"
-tick 35 0 0 0 0
-echo "restored:$_dd_unpack"
-''')
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual(['send:1:client', 'deferred:1:-1', 'send:0:client', 'restored:0'], result.stdout.splitlines())
-
-    def test_game_exit_defers_readback_under_pressure_even_without_a_ram_cap(self):
-        result = run_bash(self.monitor_harness() + """
-tick 0 1 1 0 0
-tick 20 1 1 0 0
-readback=0
-tick 25 0 0 0 0
-echo "deferred:$_dd_unpack"
-readback=1
-tick 30 0 0 0 0
-echo "restored:$_dd_unpack"
-""")
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual(['send:1:client', 'deferred:1', 'send:0:client', 'restored:0'], result.stdout.splitlines())
-
-    def test_client_in_front_of_a_running_game_is_read_back_and_compressed_again_later(self):
-        result = run_bash(self.monitor_harness() + '''
-tick 0 1 1 0 0
-tick 20 1 1 0 0
-tick 25 1 0 0 0
-echo "away:$_dd_packed"
-tick 30 1 0 0 0
-echo "read:$_dd_packed:$_dd_unpack"
-tick 35 1 0 0 0
-tick 40 1 1 0 0
-tick 55 1 1 0 0
-tick 60 1 1 0 0
-echo "again:$_dd_packed"
-tick 65 0 0 0 0
-''')
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual(['send:1:client', 'away:20', 'send:0:client', 'read:-1:0', 'send:1:client', 'again:60', 'send:0:client'],
-                         result.stdout.splitlines())
-
-    def test_unknown_focus_keeps_the_client_compressed(self):
-        result = run_bash(self.monitor_harness() + '''
-tick 0 1 1 0 0
-tick 20 1 1 0 0
-tick 25 1 2 0 0
-tick 40 1 2 0 0
-echo "unknown:$_dd_packed:$_dd_unpack"
-tick 45 1 0 0 0
-tick 48 1 2 0 0
-tick 52 1 0 0 0
-tick 56 1 0 0 0
-echo "flicker:$_dd_packed"
-tick 57 1 0 0 0
-echo "read:$_dd_packed"
-tick 60 0 2 0 0
-''')
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual(['send:1:client', 'unknown:20:1', 'flicker:20', 'send:0:client', 'read:-1'],
-                         result.stdout.splitlines())
+    def test_client_in_front_of_a_running_game_is_read_back_and_trimmed_again_later(self):
+        self.assertEqual(['trim:0', 'back:30', 'trim:60'],
+                         self.tick('run 0 0\nfocus=1 available=4000; run 1 44\nfocus=0 available=1500; run 45 60\n'))
 
     def test_a_short_look_at_the_client_keeps_it_compressed(self):
-        result = run_bash(self.monitor_harness() + '''
-tick 0 1 1 0 0
-tick 20 1 1 0 0
-tick 25 1 0 0 0
-tick 28 1 1 0 0
-tick 30 1 0 0 0
-tick 34 1 0 0 0
-echo "packed:$_dd_packed"
-''')
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual(['send:1:client', 'packed:20'], result.stdout.splitlines())
+        self.assertEqual(['trim:0'], self.tick('run 0 0\navailable=4000; run 1 34\nfocus=1; run 35 38\nfocus=0; run 39 60\n'))
 
-    def test_client_in_front_waits_for_memory_and_a_ram_cap_keeps_it_compressed(self):
-        result = run_bash(self.monitor_harness() + '''
-tick 0 1 1 0 0
-tick 20 1 1 0 0
-readback=0
-tick 25 1 0 0 0
-tick 35 1 0 0 0
-echo "tight:$_dd_packed"
-readback=1
-tick 40 1 0 0 0
-echo "eased:$_dd_packed"
-_dd_ram_cap=1048576
-tick 60 1 1 0 0
-tick 80 1 1 0 0
-tick 85 1 0 0 0
-tick 100 1 0 0 0
-echo "capped:$_dd_packed"
-tick 105 0 0 0 0
-''')
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual(['send:1:client', 'tight:20', 'send:0:client', 'eased:-1', 'send:1:client', 'capped:80', 'send:0:client'],
-                         result.stdout.splitlines())
+    def test_unknown_focus_keeps_the_client_compressed(self):
+        self.assertEqual(['trim:0'], self.tick('run 0 0\nfocus=2 available=4000; run 1 60\n'))
 
-    def test_client_in_front_without_compression_reads_nothing_back(self):
-        result = run_bash(self.monitor_harness() + '''
-DD_ZRAM_CLIENT=0
-tick 0 1 1 0 0
-tick 25 1 0 0 0
-tick 40 1 0 0 0
-tick 45 0 0 0 0
-''')
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual('', result.stderr)
-        self.assertEqual('', result.stdout)
+    def test_client_in_front_waits_for_memory(self):
+        self.assertEqual(['trim:0', 'back:50'], self.tick('run 0 0\nfocus=1 available=1800 target=896; run 1 49\navailable=2500; run 50 60\n'))
+
+    def test_a_client_that_was_never_trimmed_reads_nothing_back(self):
+        self.assertEqual([], self.tick('focus=1 available=4000; run 0 60\n'))
 
     def test_scan_keeps_the_running_game_and_ignores_steams_own_reaper(self):
         temp = tempfile.TemporaryDirectory()

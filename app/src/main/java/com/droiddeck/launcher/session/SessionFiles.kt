@@ -261,8 +261,6 @@ object SessionFiles {
         }
         val all = (if (DesktopCatalog.desktopInstalled(root)) files + DESKTOP_FILES else files) + optional
         val ledger = StageLedger(File(root, STAGED_LEDGER), apkIdentity(context))
-        ledger.remove("usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so", File(root, "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so"))
-        ledger.remove("usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json", File(root, "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json"))
         for ((asset, relative) in all) {
             val target = File(root, relative)
             if (ledger.current(relative, target)) continue
@@ -282,6 +280,8 @@ object SessionFiles {
             if (installed) ledger.staged(relative, target) else Log.e(TAG, "$relative NOT staged")
         }
         File(root, "usr/local/bin/bannerlator-steam-compat").delete()
+        File(root, "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so").delete()
+        File(root, "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json").delete()
         LegacyNames.migrateRootfs(root)
         ComponentsManager.migrateLaunchDir(context)
         EsyncPacks.stageBundled(context, root)
@@ -447,11 +447,6 @@ object SessionFiles {
 
         fun staged(relative: String, target: File) {
             mark(target)?.let { after[relative] = it }
-        }
-
-        fun remove(relative: String, target: File) {
-            target.delete()
-            after.remove(relative)
         }
 
         fun save() {

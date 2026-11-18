@@ -20,7 +20,13 @@
 #define ZR_CTL "/tmp/.dd-zram"
 #endif
 #define ZR_SWAPPED (1ULL << 62)
+#define ZR_PRESENT (1ULL << 63)
 #define ZR_BATCH 512
+#define ZR_CHUNK (1UL << 20)
+#define ZR_SLOTS 32768UL
+#define ZR_PROBES 16
+#define ZR_HEAT_MAX 6
+#define ZR_INLINE_KB (32UL << 10)
 #define ZR_FUTEX_WAIT 0
 #define ZR_FUTEX_WAKE 1
 
@@ -33,18 +39,33 @@ static char zr_maps[8192];
 static uint64_t zr_entries[ZR_BATCH];
 static struct iovec zr_iov[ZR_BATCH];
 static char zr_sink[ZR_BATCH];
+static struct zr_slot {
+  unsigned long key;
+  uint32_t gen;
+  uint16_t pushed;
+  uint8_t heat;
+  uint8_t skip;
+} zr_slots[ZR_SLOTS];
+static uint32_t zr_gen = 1;
+static unsigned long zr_cursor;
 
 static int zr_open(const char *path) {
   return (int)zr_sys(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC, 0);
 }
 
-static int zr_mode(void) {
-  char c = 0;
+static int zr_mode(unsigned long *want) {
+  char text[24];
   int fd = zr_open(ZR_CTL);
   if (fd < 0) return -1;
-  long n = zr_sys(SYS_read, fd, &c, 1);
+  long n = zr_sys(SYS_read, fd, text, sizeof(text));
   zr_sys(SYS_close, fd);
-  return n == 1 && (c == '0' || c == '1') ? c - '0' : -1;
+  if (n < 1 || text[0] < '0' || text[0] > '3') return -1;
+  unsigned long kb = 0;
+  for (long i = 2; i < n && text[i] >= '0' && text[i] <= '9'; i++)
+    kb = kb * 10 + (unsigned long)(text[i] - '0');
+  *want = kb / (zr_page / 1024);
+  if (text[0] >= '2' && *want == 0) return -1;
+  return text[0] - '0';
 }
 
 static unsigned long zr_hex(const char **p) {
@@ -96,16 +117,81 @@ static void zr_read_back(int pagemap, unsigned long start, unsigned long end) {
   }
 }
 
-static void zr_walk(int compress) {
-  int maps = zr_open("/proc/self/maps");
-  if (maps < 0) return;
-  int pagemap = compress ? -1 : zr_open("/proc/self/pagemap");
-  if (!compress && pagemap < 0) {
-    zr_sys(SYS_close, maps);
-    return;
+static unsigned long zr_count(int pagemap, unsigned long start, unsigned long end, uint64_t bit) {
+  unsigned long count = 0;
+  if (zr_sys(SYS_lseek, pagemap, (long)(start / zr_page * sizeof(uint64_t)), SEEK_SET) < 0) return 0;
+  long got = zr_sys(SYS_read, pagemap, zr_entries, (end - start) / zr_page * sizeof(uint64_t));
+  for (long i = 0; i < got / (long)sizeof(uint64_t); i++)
+    if (zr_entries[i] & bit) count++;
+  return count;
+}
+
+static struct zr_slot *zr_slot(unsigned long addr, int create) {
+  unsigned long key = addr / zr_page + 1;
+  unsigned long home = key * 2654435761UL % ZR_SLOTS;
+  for (unsigned long i = 0; i < ZR_PROBES; i++) {
+    struct zr_slot *slot = &zr_slots[(home + i) % ZR_SLOTS];
+    if (slot->key == key) return slot;
+    if (slot->key == 0 && !create) return NULL;
+    if (slot->key == 0) {
+      slot->key = key;
+      return slot;
+    }
   }
+  if (!create) return NULL;
+  memset(&zr_slots[home], 0, sizeof(zr_slots[home]));
+  zr_slots[home].key = key;
+  return &zr_slots[home];
+}
+
+static unsigned long zr_trim(int pagemap, unsigned long start, unsigned long end,
+                             unsigned long want, int force, unsigned long lo, unsigned long hi) {
+  unsigned long done = 0;
+  for (unsigned long addr = start, next; addr < end && done < want; addr = next) {
+    next = (addr | (ZR_CHUNK - 1)) + 1;
+    if (next > end || next < addr) next = end;
+    if (addr < lo || addr >= hi) continue;
+    zr_cursor = next;
+    if (addr < (unsigned long)(zr_slots + ZR_SLOTS) && next > (unsigned long)zr_slots) continue;
+    unsigned long present = zr_count(pagemap, addr, next, ZR_PRESENT);
+    struct zr_slot *slot = zr_slot(addr, 0);
+    if (slot != NULL && slot->gen == zr_gen && slot->pushed > 0) {
+      if (present * 4 > slot->pushed) {
+        if (slot->heat < ZR_HEAT_MAX) slot->heat++;
+        slot->skip = (uint8_t)(1 << slot->heat);
+        slot->pushed = 0;
+      } else if (slot->heat > 0) {
+        slot->heat--;
+      }
+    }
+    if (slot != NULL && slot->skip > 0 && !force) {
+      slot->skip--;
+      continue;
+    }
+    if (present == 0) continue;
+    zr_sys(SYS_madvise, addr, next - addr, MADV_PAGEOUT);
+    unsigned long left = zr_count(pagemap, addr, next, ZR_PRESENT);
+    if (left >= present) continue;
+    if (slot == NULL) slot = zr_slot(addr, 1);
+    if (slot->gen != zr_gen) slot->pushed = 0;
+    slot->gen = zr_gen;
+    slot->pushed = (uint16_t)(slot->pushed + present - left);
+    done += present - left;
+  }
+  return done;
+}
+
+static unsigned long zr_walk(int mode, unsigned long want, unsigned long lo, unsigned long hi) {
+  int maps = zr_open("/proc/self/maps");
+  if (maps < 0) return 0;
+  int pagemap = mode == 1 ? -1 : zr_open("/proc/self/pagemap");
+  if (mode != 1 && pagemap < 0) {
+    zr_sys(SYS_close, maps);
+    return 0;
+  }
+  unsigned long done = 0;
   size_t have = 0;
-  for (;;) {
+  while (done < want) {
     long n = zr_sys(SYS_read, maps, zr_maps + have, sizeof(zr_maps) - 1 - have);
     if (n < 0 && errno == EINTR) continue;
     if (n <= 0) break;
@@ -113,12 +199,13 @@ static void zr_walk(int compress) {
     zr_maps[have] = 0;
     char *line = zr_maps;
     char *nl;
-    while ((nl = memchr(line, '\n', have - (size_t)(line - zr_maps))) != NULL) {
+    while (done < want && (nl = memchr(line, '\n', have - (size_t)(line - zr_maps))) != NULL) {
       *nl = 0;
       unsigned long s, e;
-      if (zr_eligible(line, compress, &s, &e) && e > s) {
-        if (compress) zr_sys(SYS_madvise, s, e - s, MADV_PAGEOUT);
-        else zr_read_back(pagemap, s, e);
+      if (zr_eligible(line, mode != 0, &s, &e) && e > s) {
+        if (mode == 0) zr_read_back(pagemap, s, e);
+        else if (mode == 1) zr_sys(SYS_madvise, s, e - s, MADV_PAGEOUT);
+        else done += zr_trim(pagemap, s, e, want - done, mode == 3, lo, hi);
       }
       line = nl + 1;
     }
@@ -128,9 +215,10 @@ static void zr_walk(int compress) {
   }
   if (pagemap >= 0) zr_sys(SYS_close, pagemap);
   zr_sys(SYS_close, maps);
+  return done;
 }
 
-static void zr_ack(int done) {
+static void zr_ack(long value) {
   static const char suffix[] = ".ack.";
   char path[sizeof(ZR_CTL) + sizeof(suffix) + 20];
   char digits[20];
@@ -143,15 +231,28 @@ static void zr_ack(int done) {
   path[n] = 0;
   int fd = (int)zr_sys(SYS_openat, AT_FDCWD, path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
   if (fd < 0) return;
-  if (done) zr_sys(SYS_write, fd, "1", 1UL);
+  for (d = 0; value >= 0 && (d == 0 || value > 0); value /= 10) digits[d++] = (char)('0' + value % 10);
+  for (n = 0; d > 0;) path[n++] = digits[--d];
+  if (n > 0) zr_sys(SYS_write, fd, path, n);
   zr_sys(SYS_close, fd);
 }
 
-static void zr_request(void) {
-  int mode = zr_mode();
-  if (mode == 1) zr_ack(0);
-  if (mode >= 0) zr_walk(mode);
-  if (mode == 1) zr_ack(1);
+static void zr_request(int worker) {
+  unsigned long want = 0;
+  int mode = zr_mode(&want);
+  if (mode < 0) return;
+  if (!worker && want > ZR_INLINE_KB / (zr_page / 1024)) want = ZR_INLINE_KB / (zr_page / 1024);
+  if (mode > 0) zr_ack(-1);
+  if (mode < 2) {
+    zr_walk(mode, 1, 0, 0);
+    zr_gen++;
+    if (mode == 1) zr_ack(1);
+    return;
+  }
+  unsigned long from = zr_cursor;
+  unsigned long done = zr_walk(mode, want, from, ~0UL);
+  if (done < want && from > 0) done += zr_walk(mode, want - done, 0, from);
+  zr_ack((long)(done * (zr_page / 1024)));
 }
 
 static void *zr_worker_main(void *unused) {
@@ -160,7 +261,7 @@ static void *zr_worker_main(void *unused) {
   for (;;) {
     while (!__atomic_exchange_n(&zr_pending, 0, __ATOMIC_SEQ_CST))
       zr_sys(SYS_futex, &zr_pending, ZR_FUTEX_WAIT, 0, NULL, NULL, 0);
-    zr_request();
+    zr_request(1);
   }
   return NULL;
 }
@@ -176,7 +277,7 @@ static void zr_handler(int sig, siginfo_t *info, void *context) {
   } else while (__atomic_load_n(&zr_pending, __ATOMIC_SEQ_CST)
                 && !__atomic_exchange_n(&zr_busy, 1, __ATOMIC_SEQ_CST)) {
     __atomic_store_n(&zr_pending, 0, __ATOMIC_SEQ_CST);
-    zr_request();
+    zr_request(0);
     __atomic_store_n(&zr_busy, 0, __ATOMIC_SEQ_CST);
   }
   errno = saved;
