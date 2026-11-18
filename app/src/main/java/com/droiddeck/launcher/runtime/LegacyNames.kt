@@ -47,7 +47,10 @@ object LegacyNames {
             val target = File(it.parentFile, ".dd-" + it.name.removePrefix(LEGACY_MARKER))
             if (it.name in QUEUED_MARKERS && it.isFile && !isLink(it) && target.isFile && !isLink(target)) {
                 val queued = it.readText()
-                if (queued.isNotBlank()) target.appendText(if (queued.endsWith("\n")) queued else queued + "\n")
+                if (queued.isNotBlank()) {
+                    val separator = if (target.length() > 0 && !target.readText().endsWith("\n")) "\n" else ""
+                    target.appendText(separator + if (queued.endsWith("\n")) queued else queued + "\n")
+                }
                 FileUtils.delete(it)
             } else {
                 move(it, target)

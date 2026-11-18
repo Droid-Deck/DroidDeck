@@ -120,4 +120,14 @@ class LegacyNamesTest {
         assertEquals("em\nge\n", File(root, "root/.dd-proton-extra").readText())
         assertFalse(File(root, "root/.bl-proton-extra").exists())
     }
+
+    @Test fun queuedRequestsStaySeparateWhenTheNewQueueIsUnterminated() {
+        write("root/.bl-proton-extra", "ge\n")
+        write("root/.dd-proton-extra", "cachyos")
+        write("root/.bl-steam-urls", "steam://run/440")
+        write("root/.dd-steam-urls", "steam://run/570")
+        LegacyNames.migrateRootfs(root)
+        assertEquals("cachyos\nge\n", File(root, "root/.dd-proton-extra").readText())
+        assertEquals("steam://run/570\nsteam://run/440\n", File(root, "root/.dd-steam-urls").readText())
+    }
 }

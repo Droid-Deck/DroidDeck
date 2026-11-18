@@ -58,6 +58,7 @@ object AgentEnv {
     fun override(context: Context, name: String): JSONObject = synchronized(lock) {
         AgentAccess.requireCommands(context)
         if (NAME.matchEntire(name) == null || name in setOf(".", "..")) throw AgentException("INVALID_NAME", "Override names are letters, digits, '.', '_' and '-'")
+        if (name == LEGACY_FAST_PATH) throw AgentException("INVALID_NAME", "The fast-path library is now $FAST_PATH")
         if (name == "libddfastpath.so" && (SessionState.running || SessionState.guestPid > 0 || SessionState.phase == SessionPhase.STOPPING)) {
             throw AgentException("SESSION_ACTIVE", "Stop the session before installing a fast-path library")
         }
@@ -129,15 +130,18 @@ object AgentEnv {
         }
         val state = load(context)
         val active = strings(state.optJSONArray("pending"))
-        val overrides = strings(state.optJSONArray("pendingOverrides"))
+        val queued = strings(state.optJSONArray("pendingOverrides"))
         val legacy = File(bin(context), LEGACY_FAST_PATH)
-        if (FAST_PATH in overrides && legacy.isFile && !File(bin(context), FAST_PATH).exists()) legacy.renameTo(File(bin(context), FAST_PATH))
+        val stranded = FAST_PATH in queued && legacy.isFile && !File(bin(context), FAST_PATH).exists() &&
+            !legacy.renameTo(File(bin(context), FAST_PATH))
+        if (stranded) Log.w(TAG, "could not rename the queued $LEGACY_FAST_PATH; it stays queued for the next session")
+        val overrides = if (stranded) queued - FAST_PATH else queued
         bin(context).listFiles()
-            ?.filter { it.name !in overrides }?.forEach { it.delete() }
+            ?.filter { it.name !in overrides && !(stranded && it.name == LEGACY_FAST_PATH) }?.forEach { it.delete() }
         val lines = strings(state.optJSONArray("persistent")) + active
         val withPath = if (overrides.none { it != "libddfastpath.so" }) lines else lines + "PATH=$GUEST_BIN:${pathOf(lines)}"
         state.put("active", JSONArray(active)).put("pending", JSONArray())
-        state.put("activeOverrides", JSONArray(overrides)).put("pendingOverrides", JSONArray())
+        state.put("activeOverrides", JSONArray(overrides)).put("pendingOverrides", JSONArray(if (stranded) listOf(FAST_PATH) else emptyList()))
         save(context, state)
         if (withPath.isNotEmpty()) Log.i(TAG, "agent environment keys for this session: ${withPath.map { it.substringBefore('=') }}")
         withPath
