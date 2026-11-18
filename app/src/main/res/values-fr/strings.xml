@@ -1324,6 +1324,7 @@
     <string name="gate_enter_manually">Saisir l\'adresse manuellement</string>
     <string name="gate_from_computer">Utiliser ADB depuis un ordinateur :</string>
     <string name="gate_copy_command">Copier la commande</string>
+    <string name="gate_sidequest_steps">Branchez le casque à un ordinateur et ouvrez SideQuest. Choisissez « Run ADB Command », puis « Custom Command », saisissez la commande affichée ci-dessous et sélectionnez « Run Command ».</string>
     <string name="gate_choose_display">Choisissez l\'écran sur lequel ouvrir les paramètres Android.</string>
     <string name="gate_main_screen">Écran principal</string>
     <string name="wadb_finding_port">Appairé. Recherche du port de débogage sans fil…</string>
@@ -1579,6 +1580,8 @@
     <string name="pip_unavailable">Android ne peut pas ouvrir le mode PiP.</string>
     <string name="game_more">Plus</string>
     <string name="game_edit_art">Modifier les illustrations</string>
+    <string name="game_unhide">Ne plus masquer</string>
+    <string name="game_hide_failed">Synchronisation avec Steam impossible. Fermez Steam et réessayez.</string>
     <string name="stores_in_steam_label">Dans Steam</string>
     <string name="game_shortcut">Raccourci</string>
     <string name="game_shortcut_add">Ajouter à l\'écran d\'accueil</string>

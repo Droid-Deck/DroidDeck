@@ -1318,6 +1318,7 @@
     <string name="gate_enter_manually">Cím kézi megadása</string>
     <string name="gate_from_computer">Egy ADB-vel rendelkező számítógépről:</string>
     <string name="gate_copy_command">Parancs másolása</string>
+    <string name="gate_sidequest_steps">Csatlakoztasd a headsetet egy számítógéphez, és nyisd meg a SideQuestet. Válaszd a „Run ADB Command”, majd a „Custom Command” lehetőséget, írd be az alább látható parancsot, és válaszd a „Run Command” gombot.</string>
     <string name="gate_choose_display">Válassza ki, melyik kijelzőn nyíljon meg az Android Beállítások.</string>
     <string name="gate_main_screen">Fő képernyő</string>
     <string name="wadb_finding_port">Párosítva. A vezeték nélküli hibakeresés portjának keresése…</string>
@@ -1572,6 +1573,8 @@
     <string name="pip_unavailable">Az Android nem tudta megnyitni a kép a képben módot.</string>
     <string name="game_more">Továbbiak</string>
     <string name="game_edit_art">Illusztrációk szerkesztése</string>
+    <string name="game_unhide">Eltávolítás a rejtettek közül</string>
+    <string name="game_hide_failed">Nem sikerült szinkronizálni a Steammel. Zárd be a Steamet, és próbáld újra.</string>
     <string name="stores_in_steam_label">A Steamben</string>
     <string name="game_shortcut">Parancsikon</string>
     <string name="game_shortcut_add">Hozzáadás a kezdőképernyőhöz</string>

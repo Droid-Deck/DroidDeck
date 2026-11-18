@@ -21,22 +21,22 @@
 #define SYS_openat2 437
 #endif
 
-#define BL_RESOLVE_BENEATH 0x08
-#define BL_RESOLVE_IN_ROOT 0x10
-#define BL_MAX_SYMLINKS 40
-#define BL_PROC_ROOT_INO 1
+#define DD_RESOLVE_BENEATH 0x08
+#define DD_RESOLVE_IN_ROOT 0x10
+#define DD_MAX_SYMLINKS 40
+#define DD_PROC_ROOT_INO 1
 
 #ifdef SYS_newfstatat
-#define BL_SYS_FSTATAT SYS_newfstatat
-#define BL_FSTATAT_NAME "fstatat"
-typedef struct stat bl_stat;
+#define DD_SYS_FSTATAT SYS_newfstatat
+#define DD_FSTATAT_NAME "fstatat"
+typedef struct stat dd_stat;
 #else
-#define BL_SYS_FSTATAT SYS_fstatat64
-#define BL_FSTATAT_NAME "fstatat64"
-typedef struct stat64 bl_stat;
+#define DD_SYS_FSTATAT SYS_fstatat64
+#define DD_FSTATAT_NAME "fstatat64"
+typedef struct stat64 dd_stat;
 #endif
 
-struct bl_open_how {
+struct dd_open_how {
   uint64_t flags;
   uint64_t mode;
   uint64_t resolve;
@@ -45,7 +45,7 @@ struct bl_open_how {
 static long (*real_syscall)(long, ...);
 static void *(*real_dlopen)(const char *, int);
 static int openat2_missing;
-static int (*next_fstatat)(int, const char *, bl_stat *, int);
+static int (*next_fstatat)(int, const char *, dd_stat *, int);
 static int (*next_openat)(int, const char *, int, ...);
 static ssize_t (*next_readlinkat)(int, const char *, char *, size_t);
 static int (*next_statx)(int, const char *, int, unsigned int, struct statx *);
@@ -53,7 +53,7 @@ static int (*next_statx)(int, const char *, int, unsigned int, struct statx *);
 static int find_fastpath(struct dl_phdr_info *info, size_t size, void *name) {
   (void)size;
   const char *slash = strrchr(info->dlpi_name, '/');
-  if (!slash || strcmp(slash + 1, "libblfastpath.so") != 0 || strlen(info->dlpi_name) >= PATH_MAX) {
+  if (!slash || strcmp(slash + 1, "libddfastpath.so") != 0 || strlen(info->dlpi_name) >= PATH_MAX) {
     return 0;
   }
   strcpy(name, info->dlpi_name);
@@ -65,16 +65,16 @@ __attribute__((constructor)) static void find_fastpath_calls(void) {
   dl_iterate_phdr(find_fastpath, name);
   void *fastpath = *name ? dlopen(name, RTLD_NOLOAD | RTLD_LAZY) : NULL;
   if (fastpath) {
-    next_fstatat = (int (*)(int, const char *, bl_stat *, int))dlsym(fastpath, BL_FSTATAT_NAME);
+    next_fstatat = (int (*)(int, const char *, dd_stat *, int))dlsym(fastpath, DD_FSTATAT_NAME);
     next_openat = (int (*)(int, const char *, int, ...))dlsym(fastpath, "openat");
     next_readlinkat = (ssize_t (*)(int, const char *, char *, size_t))dlsym(fastpath, "readlinkat");
     next_statx = (int (*)(int, const char *, int, unsigned int, struct statx *))dlsym(fastpath, "statx");
   }
 }
 
-static long path_stat(int dirfd, const char *path, bl_stat *st, int flags) {
+static long path_stat(int dirfd, const char *path, dd_stat *st, int flags) {
   if (!next_fstatat) {
-    return real_syscall(BL_SYS_FSTATAT, (long)dirfd, (long)path, (long)st, (long)flags);
+    return real_syscall(DD_SYS_FSTATAT, (long)dirfd, (long)path, (long)st, (long)flags);
   }
   return next_fstatat(dirfd, path, st, flags);
 }
@@ -112,7 +112,7 @@ void *dlopen(const char *filename, int flags) {
   return real_dlopen(filename, flags);
 }
 
-int bl_fsync_syscall(long number, const long *args, long *ret) __attribute__((visibility("hidden")));
+int dd_fsync_syscall(long number, const long *args, long *ret) __attribute__((visibility("hidden")));
 
 static struct robust_list_head *thread_robust_head(void) {
   pthread_mutexattr_t attr;
@@ -159,10 +159,10 @@ static int is_magic_link(int dirfd, char *link, size_t parent_len) {
   }
   char saved = link[parent_len];
   link[parent_len] = 0;
-  bl_stat parent;
+  dd_stat parent;
   long result = path_stat(dirfd, (parent_len ? link : "."), &parent, 0);
   link[parent_len] = saved;
-  return result != 0 || parent.st_ino != BL_PROC_ROOT_INO;
+  return result != 0 || parent.st_ino != DD_PROC_ROOT_INO;
 }
 
 static long openat_in_root(int dirfd, const char *path, int flags, long mode) {
@@ -217,16 +217,16 @@ static long openat_in_root(int dirfd, const char *path, int flags, long mode) {
     }
     memcpy(resolved + resolved_len + separator, name, len);
     resolved[candidate_len] = 0;
-    bl_stat st;
+    dd_stat st;
     int follow = !last || trailing_slash || !nofollow;
     long stat_result = follow ? path_stat(dirfd, resolved, &st, AT_SYMLINK_NOFOLLOW) : -1;
     if (stat_result == 0 && S_ISLNK(st.st_mode)) {
-      if (++symlinks > BL_MAX_SYMLINKS) {
+      if (++symlinks > DD_MAX_SYMLINKS) {
         errno = ELOOP;
         return -1;
       }
       if (!have_root) {
-        bl_stat root;
+        dd_stat root;
         struct statfs root_fs;
         if (path_stat(dirfd, ".", &root, 0) != 0) {
           return -1;
@@ -265,7 +265,7 @@ static long openat_in_root(int dirfd, const char *path, int flags, long mode) {
         while (*inside == '/') {
           inside++;
         }
-        bl_stat probe;
+        dd_stat probe;
         int host = *inside && path_stat(dirfd, inside, &probe, AT_SYMLINK_NOFOLLOW) != 0 &&
                    errno == ENOENT && path_stat(AT_FDCWD, pending, &probe, 0) == 0;
         pending[target_len] = saved;
@@ -302,22 +302,22 @@ static long openat_in_root(int dirfd, const char *path, int flags, long mode) {
 
 static long openat2_via_openat(const long *args) {
   const char *path = (const char *)args[1];
-  const struct bl_open_how *how = (const struct bl_open_how *)args[2];
+  const struct dd_open_how *how = (const struct dd_open_how *)args[2];
   if (!path || !how || (size_t)args[3] < sizeof(*how)) {
     errno = EINVAL;
     return -1;
   }
-  if ((how->resolve & BL_RESOLVE_IN_ROOT) && (int)args[0] != AT_FDCWD) {
+  if ((how->resolve & DD_RESOLVE_IN_ROOT) && (int)args[0] != AT_FDCWD) {
     return openat_in_root((int)args[0], path, (int)how->flags, (long)how->mode);
   }
-  if (how->resolve & BL_RESOLVE_IN_ROOT) {
+  if (how->resolve & DD_RESOLVE_IN_ROOT) {
     while (*path == '/') {
       path++;
     }
     if (!*path) {
       path = ".";
     }
-  } else if ((how->resolve & BL_RESOLVE_BENEATH) && *path == '/') {
+  } else if ((how->resolve & DD_RESOLVE_BENEATH) && *path == '/') {
     errno = EXDEV;
     return -1;
   }
@@ -346,14 +346,14 @@ static long openat2_call(const long *args) {
   return openat2_via_openat(args);
 }
 
-int bl_openat2(int dirfd, const char *path, void *how, size_t size) __asm__("openat2");
-int bl_openat2(int dirfd, const char *path, void *how, size_t size) {
+int dd_openat2(int dirfd, const char *path, void *how, size_t size) __asm__("openat2");
+int dd_openat2(int dirfd, const char *path, void *how, size_t size) {
   long args[6] = {dirfd, (long)path, (long)how, (long)size, 0, 0};
   return (int)openat2_call(args);
 }
 
-int bl_writewatch_syscall(long number, const long *args, long (*real)(long, ...), long *rc) __attribute__((visibility("hidden")));
-int bl_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) __attribute__((visibility("hidden")));
+int dd_writewatch_syscall(long number, const long *args, long (*real)(long, ...), long *rc) __attribute__((visibility("hidden")));
+int dd_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) __attribute__((visibility("hidden")));
 
 long syscall(long number, ...) {
   va_list ap;
@@ -374,16 +374,16 @@ long syscall(long number, ...) {
     return 0;
   }
   long handled;
-  if (bl_fsync_syscall(number, args, &handled)) {
+  if (dd_fsync_syscall(number, args, &handled)) {
     return handled;
   }
   if (!real_syscall) {
     real_syscall = (long (*)(long, ...)) dlsym(RTLD_NEXT, "syscall");
   }
-  if (bl_clock_syscall(number, args, real_syscall, &handled)) {
+  if (dd_clock_syscall(number, args, real_syscall, &handled)) {
     return handled;
   }
-  if (bl_writewatch_syscall(number, args, real_syscall, &handled)) {
+  if (dd_writewatch_syscall(number, args, real_syscall, &handled)) {
     return handled;
   }
   if (number == SYS_openat2) {
@@ -392,8 +392,8 @@ long syscall(long number, ...) {
   if (number == SYS_openat) {
     return path_open((int)args[0], (const char *)args[1], (int)args[2], args[3]);
   }
-  if (number == BL_SYS_FSTATAT) {
-    return path_stat((int)args[0], (const char *)args[1], (bl_stat *)args[2], (int)args[3]);
+  if (number == DD_SYS_FSTATAT) {
+    return path_stat((int)args[0], (const char *)args[1], (dd_stat *)args[2], (int)args[3]);
   }
   if (number == SYS_readlinkat) {
     return path_readlink((int)args[0], (const char *)args[1], (char *)args[2], (size_t)args[3]);

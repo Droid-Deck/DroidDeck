@@ -30,7 +30,7 @@ def main(argv):
     url = argv[0] if argv else ""
     if url.startswith("steam://openurl/"):
         url = url[len("steam://openurl/"):]
-    launch_dir = os.environ.get("BL_LAUNCH_DIR", "")
+    launch_dir = os.environ.get("DD_LAUNCH_DIR", "")
     if not launch_dir:
         try:
             launch_dir = open(LAUNCH_DIR_FILE).read().strip()

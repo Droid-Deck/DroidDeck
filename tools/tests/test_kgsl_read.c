@@ -4,7 +4,7 @@
 
 #include "../quest/kgsl_compat.h"
 
-void bl_kgsl_track(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
+void dd_kgsl_track(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                    void *arg, int *rc);
 
 static int read_error, wait_error, waits;
@@ -37,14 +37,14 @@ static int mock(int fd, unsigned long request, void *arg) {
 
 static int issue(unsigned long request, void *arg) {
   int rc = mock(42, request, arg);
-  bl_kgsl_track(mock, 42, request, arg, &rc);
+  dd_kgsl_track(mock, 42, request, arg, &rc);
   return rc;
 }
 
 static void submit(unsigned int timestamp) {
   struct kgsl_gpu_command command = {.context_id = 3, .timestamp = timestamp};
   int rc = 0;
-  bl_kgsl_track(mock, 42, IOCTL_KGSL_GPU_COMMAND, &command, &rc);
+  dd_kgsl_track(mock, 42, IOCTL_KGSL_GPU_COMMAND, &command, &rc);
   assert(rc == 0);
 }
 
@@ -59,7 +59,7 @@ static int read_timestamp(unsigned int context, unsigned int *timestamp) {
 static void create_context(unsigned int context) {
   struct kgsl_drawctxt_create create = {.drawctxt_id = context};
   int rc = 0;
-  bl_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_CREATE, &create, &rc);
+  dd_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_CREATE, &create, &rc);
 }
 
 int main(void) {
@@ -87,7 +87,7 @@ int main(void) {
 
   struct kgsl_cmdstream_readtimestamp_ctxtid other = {.context_id = 3, .type = KGSL_TIMESTAMP_RETIRED};
   int other_rc = mock(43, IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID, &other);
-  bl_kgsl_track(mock, 43, IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID, &other, &other_rc);
+  dd_kgsl_track(mock, 43, IOCTL_KGSL_CMDSTREAM_READTIMESTAMP_CTXTID, &other, &other_rc);
   assert(other_rc == -1 && errno == EACCES && waits == 0);
 
   submit(1);
@@ -121,7 +121,7 @@ int main(void) {
 
   struct kgsl_gpu_aux_command aux = {.context_id = 3, .timestamp = 6};
   int rc = 0;
-  bl_kgsl_track(mock, 42, IOCTL_KGSL_GPU_AUX_COMMAND, &aux, &rc);
+  dd_kgsl_track(mock, 42, IOCTL_KGSL_GPU_AUX_COMMAND, &aux, &rc);
   retired = 6;
   assert(read_timestamp(3, &timestamp) == 0 && timestamp == 6);
 
@@ -136,11 +136,11 @@ int main(void) {
   assert(read_timestamp(3, &timestamp) == 0 && timestamp == 0 && waits == 1);
 
   struct kgsl_drawctxt_destroy destroy = {.drawctxt_id = 3};
-  bl_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_DESTROY, &destroy, &rc);
+  dd_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_DESTROY, &destroy, &rc);
   assert(read_timestamp(3, &timestamp) == -1 && errno == EACCES);
 
   struct kgsl_drawctxt_create user = {.flags = KGSL_CONTEXT_USER_GENERATED_TS, .drawctxt_id = 3};
-  bl_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_CREATE, &user, &rc);
+  dd_kgsl_track(mock, 42, IOCTL_KGSL_DRAWCTXT_CREATE, &user, &rc);
   waits = 0;
   assert(read_timestamp(3, &timestamp) == -1 && errno == EACCES && waits == 0);
 

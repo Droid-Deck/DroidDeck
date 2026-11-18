@@ -104,7 +104,7 @@ class ToolPlatformsTest(unittest.TestCase):
             raise StopWatching()
 
         namespace = live.LIVE["main"].__globals__
-        with mock.patch.dict(namespace, Watcher=capture), mock.patch.dict(os.environ, BL_CDP_PORT="1"), \
+        with mock.patch.dict(namespace, Watcher=capture), mock.patch.dict(os.environ, DD_CDP_PORT="1"), \
                 mock.patch.object(live.LIVE["sys"], "argv", ["compat", str(self.steam)]):
             with self.assertRaises(StopWatching):
                 live.LIVE["main"]()

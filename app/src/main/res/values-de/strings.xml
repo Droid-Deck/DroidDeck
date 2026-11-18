@@ -1310,6 +1310,7 @@
     <string name="gate_enter_manually">Adresse manuell eingeben</string>
     <string name="gate_from_computer">Von einem Computer mit ADB:</string>
     <string name="gate_copy_command">Befehl kopieren</string>
+    <string name="gate_sidequest_steps">Verbinde das Headset mit einem Computer und öffne SideQuest. Wähle „Run ADB Command“, dann „Custom Command“, tippe den unten gezeigten Befehl ein und wähle „Run Command“.</string>
     <string name="gate_choose_display">Wähle, auf welchem Display die Android-Einstellungen geöffnet werden.</string>
     <string name="gate_main_screen">Hauptbildschirm</string>
     <string name="wadb_finding_port">Gekoppelt. Suche den Port für Debugging über WLAN…</string>
@@ -1564,6 +1565,8 @@
     <string name="pip_unavailable">Android konnte Bild im Bild nicht öffnen.</string>
     <string name="game_more">Mehr</string>
     <string name="game_edit_art">Grafiken bearbeiten</string>
+    <string name="game_unhide">Nicht mehr ausblenden</string>
+    <string name="game_hide_failed">Synchronisierung mit Steam fehlgeschlagen. Schließe Steam und versuche es erneut.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Verknüpfung</string>
     <string name="game_shortcut_add">Zum Startbildschirm hinzufügen</string>

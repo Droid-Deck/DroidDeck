@@ -50,6 +50,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.droiddeck.launcher.agent.AgentTools
@@ -416,14 +421,23 @@ private fun ToolsRow(title: String, detail: String, action: @Composable () -> Un
 }
 
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 internal fun ToolsField(value: String, onValue: (String) -> Unit, hint: String, tag: String) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    Box(Modifier.fillMaxWidth().clip(Shape12).background(pal.surfaceVariant).padding(horizontal = 12.dp, vertical = 10.dp)) {
-        if (value.isEmpty()) Text(hint, fontSize = 14.sp, color = pal.onSurfaceVariant, maxLines = 1)
-        BasicTextField(
-            value, onValue, singleLine = true, textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace, color = colors.onSurface),
-            cursorBrush = SolidColor(pal.primary), modifier = Modifier.fillMaxWidth().testTag(tag),
-        )
-    }
+    // The launcher's pane focus group sends a Compose text field's focus back to the last tile it remembers,
+    // so these fields use the EditText the rest of the launcher types into.
+    val view = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    var focused by remember { mutableStateOf(false) }
+    val window = androidx.compose.ui.platform.LocalView.current
+    // An EditText's focus does not scroll its Compose parent, so the field follows the keyboard as it opens.
+    val keyboard = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
+    LaunchedEffect(focused, keyboard) { if (focused) view.bringIntoView() }
+    AdbTextField(
+        value = value, onValueChange = onValue, label = hint, keyboardType = KeyboardType.Text, imeAction = ImeAction.Done,
+        modifier = Modifier.bringIntoViewRequester(view).testTag(tag), placeholder = hint, compact = true, showLabel = false,
+        onFocusChange = { focused = it },
+        onDone = {
+            (window.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(window.windowToken, 0)
+        },
+    )
 }

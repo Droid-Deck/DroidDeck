@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<protocol name="banner_desktop_v1">
+<protocol name="droiddeck_desktop_v1">
   <copyright>
     Copyright 2026 The412Banner
 
@@ -23,7 +23,7 @@
     DEALINGS IN THE SOFTWARE.
   </copyright>
 
-  <interface name="banner_desktop_v1" version="1">
+  <interface name="droiddeck_desktop_v1" version="1">
     <description summary="Windows virtual desktop layout">
       Each Wine process is a separate Wayland client, so a Windows virtual
       desktop can't be built from subsurfaces. Instead the process that owns

@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import platform
 import re
 import runpy
 import signal
@@ -14,9 +15,9 @@ GAME_PREFIX = "DROIDDECK_GAME_"
 GAME_SPLIT_KEYS = ("TU_DEBUG", "MESA_NO_ERROR")
 CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"}
 D3D9_DEFAULT_MEMORY_MB = 4096
-SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+SYNC_KEYS = ("DD_SYNC", "DD_SYNC_FALLBACK", "DD_FSYNC_FIRST", "DD_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
-PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
+PACK_KEYS = ("WINESERVER", "DD_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 GAME_DEBUG = runpy.run_path(str(Path(__file__).with_name("droiddeck-game-debug")))
 game_debug_channels = GAME_DEBUG["game_debug_channels"]
 apply_game_debug_logs = GAME_DEBUG["apply_game_debug_logs"]
@@ -462,7 +463,7 @@ def split_game_gpu(entries):
 
 
 def vram_cap(env):
-    value = env.get("BL_VRAM_MB", "")
+    value = env.get("DD_VRAM_MB", "")
     if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
         return env
     result = env.copy()
@@ -560,7 +561,7 @@ def cpu_topology(env, command=()):
         if env["WINE_CPU_TOPOLOGY"]:
             env["PROTON_CPU_TOPOLOGY"] = env["WINE_CPU_TOPOLOGY"]
         return
-    picked = bool(env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("BL_GAME_CPUS", "").strip())
+    picked = bool(env.get("DROIDDECK_GAME_CORES", "").strip() or env.get("DD_GAME_CPUS", "").strip())
     fastest = env.get("DROIDDECK_FASTEST_CORES", "").strip() != "0" and game_id(env) is not None
     if not (picked or fastest):
         return
@@ -641,7 +642,7 @@ def apply_config(env, config, app_id, fixes=None):
     # An open driver pair (PanVK, RADV) on a GPU that is not an Adreno: vkd3d-proton reports the
     # driver's own feature level and shader model. The app-wide 12_2 / 6_9 over-promised what PanVK
     # has, and an Unreal DX12 game took paths that crashed. A game's own setting still wins.
-    if env.get("BL_OPEN_DRIVER") == "1":
+    if env.get("DD_OPEN_DRIVER") == "1":
         game = config.get("games", {}).get(app_id, {}) or {}
         for name in ("VKD3D_FEATURE_LEVEL", "VKD3D_SHADER_MODEL"):
             if name not in game and name in result:
@@ -676,7 +677,7 @@ def render_path_defaults(command, env):
 
 
 def bridge_feature_level(env):
-    if env.get("BL_VKBRIDGE") != "1" or env.get("VKD3D_FEATURE_LEVEL") not in ("12_1", "12_2"):
+    if env.get("DD_VKBRIDGE") != "1" or env.get("VKD3D_FEATURE_LEVEL") not in ("12_1", "12_2"):
         return None
     was = env["VKD3D_FEATURE_LEVEL"]
     env["VKD3D_FEATURE_LEVEL"] = "12_0"
@@ -757,11 +758,31 @@ EVALUATOR_SCRIPT = re.compile(r"(?:^|[\\/])evaluatorscript_[0-9]+\.vdf$", re.IGN
 def mark_install_scripts(command, env):
     if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
         return []
-    root = env.get("BL_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
+    root = env.get("DD_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
     scripts = [str(Path(root) / arg.replace("\\", "/")) for arg in command if EVALUATOR_SCRIPT.search(arg)]
     scripts = [path for path in scripts if os.path.isfile(path)]
     if not scripts:
         return []
+    data = env.get("STEAM_COMPAT_DATA_PATH")
+    tool = os.path.dirname(command[0])
+    new_prefix = data and not os.path.isfile(os.path.join(data, "pfx", "system.reg"))
+    template = "default_pfx"
+    if env.get("PROTON_USE_ARM64", "1") == "1" and platform.machine() == "aarch64" and os.path.isdir(os.path.join(tool, "files/bin-arm64")):
+        template = "default_pfx_arm64"
+    if new_prefix and not os.path.isfile(os.path.join(tool, "files/share", template, "system.reg")):
+        try:
+            subprocess.run([command[0], "run", "cmd.exe", "/c", "exit", "0"], env=env,
+                           stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=False)
+        except (OSError, subprocess.SubprocessError) as error:
+            print("droiddeck-game-env: prefix initialization failed (%s)" % error, file=sys.stderr)
+        try:
+            wineserver = next((path for path in (os.path.join(tool, "files", name, "wineserver") for name in ("bin-arm64", "bin"))
+                               if os.access(path, os.X_OK)), os.path.join(tool, "files/bin-arm64/wineserver"))
+            subprocess.run([wineserver, "-w"], env=dict(env, WINEPREFIX=os.path.join(data, "pfx")),
+                           stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=True)
+        except (OSError, subprocess.SubprocessError) as error:
+            print("droiddeck-game-env: wineserver wait failed (%s)" % error, file=sys.stderr)
+            return scripts
     try:
         subprocess.run([SEED_REDISTS, root], env=dict(env, DROIDDECK_SEED_SCRIPTS="\n".join(scripts)),
                        stdout=sys.stderr, timeout=60, check=False)
@@ -989,7 +1010,7 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
         machine = pe_machine(path)
         if machine is None or PE["machine_compatible"](path, machines, machine, builtins):
             continue
-        link = path.parent / (name + ".bl-new")
+        link = path.parent / (name + ".dd-new")
         backup = path.parent / (name + FOREIGN_SUFFIX)
         if backups:
             backup = path.parent / (name + FOREIGN_SUFFIX + ".%d" % (backups[-1][0] + 1))
@@ -1166,11 +1187,22 @@ def diagnostic_game_exit(app_id, raw_code, source=None, wrapper_status=None):
 
 
 def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
+    with GAME_DEBUG["desktop_program_logs"](launch_env) as (env, output):
+        code = start_process(launch, env, digest, after, diagnostic_app_id, output)
+        if output is not None:
+            try:
+                print("droiddeck-game-env: desktop program exited with status %d" % code, file=sys.stderr, flush=True)
+            except OSError:
+                pass
+        return code
+
+
+def start_process(launch, launch_env, digest, after=None, diagnostic_app_id=None, output=None):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
-    if after or diagnostic_app_id is not None:
-        process = subprocess.Popen(launch, env=launch_env)
+    if after or diagnostic_app_id is not None or output is not None:
+        process = subprocess.Popen(launch, env=launch_env, stderr=output)
         if diagnostic_app_id is not None:
             diagnostic_game_event("game_start", diagnostic_app_id)
         try:
@@ -1247,14 +1279,14 @@ def system_graphics_launch(command, env):
 def game_logs(command, env, app_id, now=None):
     """Detailed graphics logs for one game launch, in the session's log folder: Proton's own log,
     DXVK's and vkd3d-proton's, and the Vulkan driver's startup messages. The app turns this on
-    (BL_GAME_LOGS=1) on a GPU that is not an Adreno, or with Setup's "Detailed graphics logs"."""
-    if env.get("BL_GAME_LOGS") != "1" or not env.get("BL_DEBUG_DIR") or len(command) < 3 \
+    (DD_GAME_LOGS=1) on a GPU that is not an Adreno, or with Setup's "Detailed graphics logs"."""
+    if env.get("DD_GAME_LOGS") != "1" or not env.get("DD_DEBUG_DIR") or len(command) < 3 \
             or command[1] != "waitforexitandrun":
         return env
     import time
     stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(now))
     name = app_id or re.sub(r"[^A-Za-z0-9._-]+", "_", Path(command[2]).stem)[:40] or "game"
-    parent = Path(env["BL_DEBUG_DIR"]) / "games"
+    parent = Path(env["DD_DEBUG_DIR"]) / "games"
     try:
         parent.mkdir(parents=True, exist_ok=True)
         folder = Path(tempfile.mkdtemp(prefix=stamp + "-", suffix="-" + name, dir=parent))
@@ -1280,7 +1312,7 @@ def game_logs(command, env, app_id, now=None):
             "proton: %s" % command[0],
             "started: %s" % time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),
         ] + ["%s=%s" % (key, env[key]) for key in sorted(env)
-             if key.startswith(("VK_", "BL_VK", "BL_DRM", "BL_OPEN", "MESA_", "PANVK", "DXVK_", "VKD3D", "ZINK", "TU_", "DROIDDECK_VKD3D"))]) + "\n")
+             if key.startswith(("VK_", "DD_VK", "DD_DRM", "DD_OPEN", "MESA_", "PANVK", "DXVK_", "VKD3D", "ZINK", "TU_", "DROIDDECK_VKD3D"))]) + "\n")
     except OSError:
         pass
     # Whether the game's sound reaches PulseAudio: the streams 20 s and 60 s in, without waiting.
@@ -1305,7 +1337,7 @@ def main():
     if not command:
         return 2
     env = game_gpu(os.environ.copy())
-    mic_enabled = env.get("BL_MIC_ENABLED")
+    mic_enabled = env.get("DD_MIC_ENABLED")
     debug_dir = session_debug_dir(env)
     prefix_path = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     app_id = game_id(env)
@@ -1347,7 +1379,7 @@ def main():
         if fixed:
             print("droiddeck-game-env: replaced foreign-architecture system DLLs with this Proton's own: %s" % ", ".join(fixed),
                   file=sys.stderr)
-    scripts = mark_install_scripts(command, env)
+    scripts = mark_install_scripts(command, effective_env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
         return 0

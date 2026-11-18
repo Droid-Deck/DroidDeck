@@ -50,7 +50,7 @@ object CompositorHost {
         refreshHz: Float,
         fpsLimit: Int,
     ): Boolean {
-        WaylandCompositor.nativeSetClockControl(java.io.File(context.filesDir, "${com.droiddeck.launcher.runtime.LinuxRuntime.DIR}/tmp/.bl-clock").path)
+        WaylandCompositor.nativeSetClockControl(java.io.File(context.filesDir, "${com.droiddeck.launcher.runtime.LinuxRuntime.DIR}/tmp/.dd-clock").path)
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(context)

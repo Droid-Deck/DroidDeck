@@ -1316,6 +1316,7 @@
     <string name="gate_enter_manually">Introduzir endereço manualmente</string>
     <string name="gate_from_computer">A partir de um computador com ADB:</string>
     <string name="gate_copy_command">Copiar comando</string>
+    <string name="gate_sidequest_steps">Ligue os óculos a um computador e abra o SideQuest. Escolha “Run ADB Command”, depois “Custom Command”, escreva o comando apresentado abaixo e selecione “Run Command”.</string>
     <string name="gate_choose_display">Escolha em que ecrã abrir as Definições do Android.</string>
     <string name="gate_main_screen">Ecrã principal</string>
     <string name="wadb_finding_port">Sincronizado. A procurar a porta da Depuração sem fios…</string>
@@ -1571,6 +1572,8 @@
     <string name="pip_unavailable">O Android não conseguiu abrir o ecrã no ecrã.</string>
     <string name="game_more">Mais</string>
     <string name="game_edit_art">Editar imagens</string>
+    <string name="game_unhide">Remover dos ocultos</string>
+    <string name="game_hide_failed">Não foi possível sincronizar com o Steam. Feche o Steam e tente novamente.</string>
     <string name="stores_in_steam_label">No Steam</string>
     <string name="game_shortcut">Atalho</string>
     <string name="game_shortcut_add">Adicionar ao ecrã principal</string>

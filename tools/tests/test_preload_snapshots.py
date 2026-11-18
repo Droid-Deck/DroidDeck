@@ -123,7 +123,7 @@ class PreloadSnapshotTest(unittest.TestCase):
 
     def test_forged_binary_hash_cannot_prove_main_origin(self):
         data = copy.deepcopy(self.data)
-        data['outputs']['libblsession.so'] = 'f' * 64
+        data['outputs']['libddsession.so'] = 'f' * 64
         with patch.object(snapshots, 'artifact_bytes', return_value=self.binaries):
             with self.assertRaisesRegex(ValueError, 'original main APK'):
                 snapshots.prove_origin(data, self.root / 'cache', self.root)
@@ -179,7 +179,7 @@ class PreloadSnapshotTest(unittest.TestCase):
             snapshots.unpack(self.content + b'tampered', self.data)
 
     def test_missing_duplicate_or_traversal_entries_are_rejected(self):
-        for files in ({}, {'../escaped': b'bad'}, {'libblsession.so': b'wrong'}):
+        for files in ({}, {'../escaped': b'bad'}, {'libddsession.so': b'wrong'}):
             content = archive(files)
             data = dict(self.data, archive_sha256=snapshots.sha(content))
             with self.subTest(names=list(files)), self.assertRaises(ValueError):

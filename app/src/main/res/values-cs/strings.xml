@@ -1332,6 +1332,7 @@
     <string name="gate_enter_manually">Zadat adresu ručně</string>
     <string name="gate_from_computer">Z počítače s ADB:</string>
     <string name="gate_copy_command">Kopírovat příkaz</string>
+    <string name="gate_sidequest_steps">Připojte headset k počítači a otevřete SideQuest. Zvolte „Run ADB Command“, pak „Custom Command“, opište příkaz zobrazený níže a vyberte „Run Command“.</string>
     <string name="gate_choose_display">Vyberte, na kterém displeji se má otevřít Nastavení Androidu.</string>
     <string name="gate_main_screen">Hlavní obrazovka</string>
     <string name="wadb_finding_port">Spárováno. Hledání portu Bezdrátového ladění…</string>
@@ -1588,6 +1589,8 @@
     <string name="pip_unavailable">Android nemohl otevřít obraz v obraze.</string>
     <string name="game_more">Další</string>
     <string name="game_edit_art">Upravit grafiku</string>
+    <string name="game_unhide">Odebrat ze skrytých</string>
+    <string name="game_hide_failed">Synchronizace se Steamem se nezdařila. Zavřete Steam a zkuste to znovu.</string>
     <string name="stores_in_steam_label">Ve Steamu</string>
     <string name="game_shortcut">Zkratka</string>
     <string name="game_shortcut_add">Přidat na domovskou obrazovku</string>

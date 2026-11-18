@@ -1332,6 +1332,7 @@
     <string name="gate_enter_manually">Wpisz adres ręcznie</string>
     <string name="gate_from_computer">Z komputera z ADB:</string>
     <string name="gate_copy_command">Kopiuj polecenie</string>
+    <string name="gate_sidequest_steps">Podłącz gogle do komputera i otwórz SideQuest. Wybierz „Run ADB Command”, potem „Custom Command”, wpisz polecenie widoczne poniżej i wybierz „Run Command”.</string>
     <string name="gate_choose_display">Wybierz, na którym ekranie otworzyć Ustawienia Androida.</string>
     <string name="gate_main_screen">Ekran główny</string>
     <string name="wadb_finding_port">Sparowano. Wyszukiwanie portu debugowania bezprzewodowego…</string>
@@ -1588,6 +1589,8 @@
     <string name="pip_unavailable">Android nie mógł otworzyć obrazu w obrazie.</string>
     <string name="game_more">Więcej</string>
     <string name="game_edit_art">Edytuj grafiki</string>
+    <string name="game_unhide">Usuń z ukrytych</string>
+    <string name="game_hide_failed">Nie udało się zsynchronizować ze Steamem. Zamknij Steama i spróbuj ponownie.</string>
     <string name="stores_in_steam_label">W Steam</string>
     <string name="game_shortcut">Skrót</string>
     <string name="game_shortcut_add">Dodaj do ekranu głównego</string>

@@ -15,15 +15,15 @@ DESKTOP_GPU = Path(__file__).resolve().parents[1] / "linuxfs/desktop/droiddeck-g
 class GamescopeBackendTest(unittest.TestCase):
     def select(self, backend=None):
         source = SESSION.read_text()
-        start = source.index('  backend=${BL_GAMESCOPE_BACKEND:-wayland}')
+        start = source.index('  backend=${DD_GAMESCOPE_BACKEND:-wayland}')
         end = source.index('\n', source.index('  args=(--backend ', start))
         script = 'width=1280; height=720; nested=1280\n' + source[start:end]
         script += '\nprintf "%s\\n" "${args[0]}" "${args[1]}" "${SDL_VIDEODRIVER:-unset}"\n'
         env = dict(os.environ)
-        env.pop("BL_GAMESCOPE_BACKEND", None)
+        env.pop("DD_GAMESCOPE_BACKEND", None)
         env.pop("SDL_VIDEODRIVER", None)
         if backend is not None:
-            env["BL_GAMESCOPE_BACKEND"] = backend
+            env["DD_GAMESCOPE_BACKEND"] = backend
         return subprocess.run(["bash", "-c", script], env=env, text=True,
                               capture_output=True, timeout=5)
 
@@ -63,13 +63,13 @@ class DesktopGamescopeBackendTest(unittest.TestCase):
             )
             gamescope.chmod(0o755)
             env = dict(os.environ)
-            for name in ("BL_GAMESCOPE_BACKEND", "BL_DEBUG_DIR", "BL_FPS", "BL_REFRESH", "BL_HDR"):
+            for name in ("DD_GAMESCOPE_BACKEND", "DD_DEBUG_DIR", "DD_FPS", "DD_REFRESH", "DD_HDR"):
                 env.pop(name, None)
             env.update(PATH=f"{root}{os.pathsep}{env.get('PATH', '')}",
-                       GAMESCOPE_CAPTURE=str(capture), WAYLAND_DISPLAY="desktop-0", BL_DESKTOP_GPU_WINDOW="0",
+                       GAMESCOPE_CAPTURE=str(capture), WAYLAND_DISPLAY="desktop-0", DD_DESKTOP_GPU_WINDOW="0",
                        SDL_VIDEODRIVER="dummy", GDK_BACKEND="wayland", QT_QPA_PLATFORM="wayland")
             if backend is not None:
-                env["BL_GAMESCOPE_BACKEND"] = backend
+                env["DD_GAMESCOPE_BACKEND"] = backend
             result = subprocess.run(["bash", str(DESKTOP_GPU), "demo", "one argument"],
                                     env=env, text=True, capture_output=True, timeout=5)
             return result, json.loads(capture.read_text()) if capture.exists() else None
@@ -131,7 +131,7 @@ class DesktopGamescopeReaperTest(unittest.TestCase):
             script.write_text(source.replace("for dir in /usr/games ", f"for dir in {games} ", 1))
             start_path = str(bin_dir)
             env = {"PATH": start_path, "HOME": directory, "GAMESCOPE_CAPTURE": str(capture),
-                   "WAYLAND_DISPLAY": "desktop-0", "BL_DESKTOP_GPU_WINDOW": "0"}
+                   "WAYLAND_DISPLAY": "desktop-0", "DD_DESKTOP_GPU_WINDOW": "0"}
             result = subprocess.run(["/bin/bash", str(script), "demo"], env=env, text=True,
                                     capture_output=True, timeout=5)
             lines = capture.read_text().splitlines() if capture.exists() else []

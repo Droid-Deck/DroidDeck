@@ -15,7 +15,7 @@ typedef Atom (*intern_atom_fn)(Display *, const char *, Bool);
 static int following(void) {
   static int cached = -1;
   if (cached < 0) {
-    const char *v = getenv("BL_FOLLOW_OUTPUT");
+    const char *v = getenv("DD_FOLLOW_OUTPUT");
     cached = v && v[0] == '1';
   }
   return cached;
