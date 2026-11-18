@@ -99,7 +99,13 @@ object ProtonDefault {
         if (!runnable(state, proton)) return Outcome.NOT_RUNNABLE
         val d = dir(context)
         val seq = nextSeq(System.currentTimeMillis(), state, parseRequest(read(File(d, "request.json"))))
-        val body = JSONObject().put("seq", seq).put("valve", proton.valve).put("dir", proton.dir.name).toString(1) + "\n"
+        writeRequest(d, Request(seq, proton.valve, proton.dir.name))
+        val tool = state.tools.firstOrNull { it.valve == proton.valve && it.dir == proton.dir.name }
+        return if (SessionState.running && state.live && (tool == null || state.pending != tool.name)) Outcome.LIVE else Outcome.NEXT_START
+    }
+
+    private fun writeRequest(d: File, request: Request) {
+        val body = JSONObject().put("seq", request.seq).put("valve", request.valve).put("dir", request.dir).toString(1) + "\n"
         val staged = File(d, "request.json.staged")
         try {
             d.mkdirs()
@@ -110,8 +116,21 @@ object ProtonDefault {
             Log.w(TAG, "could not write the Proton request", e)
             throw e
         }
-        val tool = state.tools.firstOrNull { it.valve == proton.valve && it.dir == proton.dir.name }
-        return if (SessionState.running && state.live && (tool == null || state.pending != tool.name)) Outcome.LIVE else Outcome.NEXT_START
+    }
+
+    // The default that names a tool an update replaces moves to the new one, as the per-game picks do: otherwise the guest
+    // no longer finds it and falls back to DroidDeck-Proton.
+    internal fun movedDefault(state: State, request: Request?, from: Set<String>, to: String, now: Long): Request? {
+        val (valve, dir) = chosen(state, request) ?: return null
+        if (valve || dir !in from) return null
+        return Request(nextSeq(now, state, request), false, to)
+    }
+
+    @Synchronized
+    fun moveDefault(context: Context, from: Set<String>, to: String) {
+        val d = dir(context)
+        val moved = movedDefault(state(context), parseRequest(read(File(d, "request.json"))), from, to, System.currentTimeMillis()) ?: return
+        writeRequest(d, moved)
     }
 
     internal fun movedGames(choices: Map<String, GameChoice?>, from: Set<String>, to: String): Map<String, GameChoice?>? {

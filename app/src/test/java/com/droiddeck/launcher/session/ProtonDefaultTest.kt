@@ -127,4 +127,44 @@ class ProtonDefaultTest {
         assertTrue(games.containsKey("43"))
         assertNull(games["43"])
     }
+
+    @Test
+    fun anUpdateMovesTheDefaultThatNamesTheReplacedTool() {
+        val bionic = """
+            {"default": "DroidDeck-Bionic-12.8-r30-Proton", "applied": 7, "live": false,
+             "tools": [{"name": "DroidDeck-Bionic-12.8-r30-Proton", "display": "r30", "dir": "DroidDeck-Bionic-12.8-r30", "valve": false},
+                       {"name": "DroidDeck-Proton-11-12.8", "display": "DD", "dir": "DroidDeck-Proton 11-12.8", "valve": false}]}
+        """.trimIndent()
+        val parsed = ProtonDefault.parseState(bionic)
+        val from = setOf("DroidDeck-Bionic-12.8-r30")
+        // applied default, no request yet
+        assertEquals(ProtonDefault.Request(100, false, "DroidDeck-Bionic-12.8-r31"),
+            ProtonDefault.movedDefault(parsed, null, from, "DroidDeck-Bionic-12.8-r31", 100))
+        // a pending request for the replaced tool wins over the applied default and the new seq is above both
+        assertEquals(ProtonDefault.Request(51, false, "DroidDeck-Bionic-12.8-r31"),
+            ProtonDefault.movedDefault(parsed, ProtonDefault.Request(50, false, "DroidDeck-Bionic-12.8-r30"), from, "DroidDeck-Bionic-12.8-r31", 3))
+        // a default on another tool stays as it is
+        assertNull(ProtonDefault.movedDefault(parsed, ProtonDefault.Request(50, false, "DroidDeck-Proton 11-12.8"), from, "DroidDeck-Bionic-12.8-r31", 100))
+        assertNull(ProtonDefault.movedDefault(ProtonDefault.parseState(state), null, from, "DroidDeck-Bionic-12.8-r31", 100))
+        // an applied request (seq not above "applied") no longer decides: the applied default does
+        assertEquals("DroidDeck-Bionic-12.8-r31",
+            ProtonDefault.movedDefault(parsed, ProtonDefault.Request(7, false, "DroidDeck-Proton 11-12.8"), from, "DroidDeck-Bionic-12.8-r31", 1)?.dir)
+    }
+
+    @Test
+    fun moveDefaultRewritesTheRequestFile() {
+        val context = RuntimeEnvironment.getApplication()
+        val d = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-compat").apply { mkdirs() }
+        File(d, "state.json").writeText("""{"default": "DroidDeck-Bionic-12.8-r30-Proton", "applied": 7,
+            "tools": [{"name": "DroidDeck-Bionic-12.8-r30-Proton", "display": "r30", "dir": "DroidDeck-Bionic-12.8-r30", "valve": false}]}""")
+        File(d, "request.json").delete()
+        ProtonDefault.moveDefault(context, setOf("DroidDeck-Bionic-12.8-r30"), "DroidDeck-Bionic-12.8-r31")
+        val written = ProtonDefault.parseRequest(File(d, "request.json").readText())
+        assertEquals("DroidDeck-Bionic-12.8-r31", written?.dir)
+        assertFalse(written!!.valve)
+        assertTrue(written.seq > 7)
+        val before = File(d, "request.json").readText()
+        ProtonDefault.moveDefault(context, setOf("DroidDeck-Bionic-12.8-r29"), "DroidDeck-Bionic-12.8-r31")
+        assertEquals(before, File(d, "request.json").readText())
+    }
 }
