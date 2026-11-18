@@ -49,8 +49,12 @@ internal object SteamHidden {
     }.getOrNull()
 
     private fun markModified(file: File) {
-        val pending = runCatching { JSONArray(file.readText()) }.getOrDefault(JSONArray())
+        val pending = if (file.exists()) runCatching { JSONArray(file.readText()) }.getOrNull() ?: return else JSONArray()
         if ((0 until pending.length()).any { pending.optString(it) == KEY }) return
-        file.writeText(pending.put(KEY).toString())
+        val temp = File(file.parentFile, file.name + ".tmp")
+        runCatching {
+            temp.writeText(pending.put(KEY).toString())
+            if (!temp.renameTo(file)) temp.delete()
+        }.onFailure { temp.delete() }
     }
 }
