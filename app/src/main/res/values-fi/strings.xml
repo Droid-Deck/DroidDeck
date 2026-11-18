@@ -1573,6 +1573,8 @@
     <string name="pip_unavailable">Android ei pystynyt avaamaan kuva kuvassa -tilaa.</string>
     <string name="game_more">Lisää</string>
     <string name="game_edit_art">Muokkaa kuvitusta</string>
+    <string name="game_unhide">Poista piilotetuista</string>
+    <string name="game_hide_failed">Synkronointi Steamin kanssa epäonnistui. Sulje Steam ja yritä uudelleen.</string>
     <string name="stores_in_steam_label">Steamissa</string>
     <string name="game_shortcut">Pikakuvake</string>
     <string name="game_shortcut_add">Lisää aloitusnäytölle</string>

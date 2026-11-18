@@ -1651,6 +1651,8 @@
     <string name="pip_unavailable">Android no pudo abrir imagen en imagen.</string>
     <string name="game_more">Más</string>
     <string name="game_edit_art">Editar imágenes</string>
+    <string name="game_unhide">Quitar de ocultas</string>
+    <string name="game_hide_failed">No se pudo sincronizar con Steam. Cierra Steam e inténtalo de nuevo.</string>
     <string name="stores_in_steam_label">En Steam</string>
     <string name="game_shortcut">Acceso directo</string>
     <string name="game_shortcut_add">Agregar a la pantalla de inicio</string>

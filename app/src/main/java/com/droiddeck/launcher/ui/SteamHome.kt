@@ -83,12 +83,21 @@ private const val DRIFT_STEP_NS = 15_000_000L
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { com.droiddeck.launcher.frontend.SteamFeatured.load(ctx) }
-    val featured = com.droiddeck.launcher.frontend.SteamFeatured.games
+    rememberHiddenSync()
+    val featuredAll = com.droiddeck.launcher.frontend.SteamFeatured.games
     val signedIn = s.offlineAccount != null
-    val owned by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn) {
-        value = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
+    val account = LibraryHidden.account
+    val scanned by produceState<Pair<java.io.File?, List<Pair<Int, java.io.File>>>>(account to emptyList(), signedIn, LibraryHidden.steam, account) {
+        val art = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
+        value = account to art
     }
-    val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
+    val ownedAll = if (scanned.first == account) scanned.second else emptyList()
+    val concealed = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) {
+        LibraryHidden.steam + s.steamGames.filter { LibraryHidden.isHidden(hideKey(it), it) }.map { it.appId.toLong() }
+    }
+    val owned = remember(ownedAll, concealed) { ownedAll.filter { it.first.toLong() !in concealed } }
+    val featured = remember(featuredAll, concealed) { featuredAll.filter { it.appId.toLong() !in concealed } }
+    val games = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) { s.steamGames.filterNot { LibraryHidden.isHidden(hideKey(it), it) }.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     var words by remember { mutableStateOf<Rect?>(null) }
     val mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
