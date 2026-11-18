@@ -184,6 +184,8 @@ internal fun isoDate(s: String?): Long {
 
 class NoCloudSaves : Exception("no cloud saves")
 
+class CloudChanged(val sent: Map<String, Long>, val unsent: List<String>) : Exception("cloud saves changed since they were read")
+
 internal fun splitGogName(name: String): Pair<String?, String> {
     val slash = name.indexOf('/')
     return if (slash <= 0 || slash == name.length - 1) null to name

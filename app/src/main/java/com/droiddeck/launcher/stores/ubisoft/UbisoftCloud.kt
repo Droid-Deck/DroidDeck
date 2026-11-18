@@ -2,6 +2,7 @@ package com.droiddeck.launcher.stores.ubisoft
 
 import android.os.Build
 import android.util.Base64
+import com.droiddeck.launcher.stores.CloudChanged
 import com.droiddeck.launcher.stores.CloudFile
 import com.droiddeck.launcher.stores.CloudTransport
 import org.json.JSONArray
@@ -165,34 +166,44 @@ internal class UbisoftCloudTransport(private val cloud: UbisoftCloud, val user: 
     }
 
     override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> {
-        val before = listed ?: cloud.entity() ?: error("Ubisoft has no cloud save record for this game yet; play it once in Ubisoft Connect")
-        val current = cloud.entity() ?: error("Ubisoft's cloud save record disappeared")
-        check(current.revision == before.revision) { "Ubisoft's cloud saves changed since they were read" }
+        var expected = listed ?: cloud.entity() ?: error("Ubisoft has no cloud save record for this game yet; play it once in Ubisoft Connect")
         val marks = files.mapValues { (name, data) ->
             check(name.endsWith(SUFFIX) && !name.contains('/')) { "$name is not a Ubisoft save slot" }
             UbisoftCloud.mark(data) ?: error("$name has no save identifier for Ubisoft Connect")
         }
-        val now = System.currentTimeMillis()
-        val slots = JSONArray(current.json.optJSONObject("obj")?.optJSONArray("slots")?.toString() ?: "[]")
-        for ((name, data) in files) {
-            val slot = name.removeSuffix(SUFFIX)
-            check(cloud.entity()?.revision == current.revision) { "Ubisoft's cloud saves changed since they were read" }
-            cloud.upload(slot, data)
-            val entry = (0 until slots.length()).map { slots.getJSONObject(it) }.firstOrNull { it.optString("filename") == slot }
-                ?: JSONObject().put("filename", slot).also { if (slot.toIntOrNull() != null) it.put("id", slot.toInt()); slots.put(it) }
-            entry.put("hash", marks.getValue(name)).put("size", data.size).put("lastModified", Instant.ofEpochMilli(now).toString())
+        val sent = LinkedHashMap<String, Long>()
+        try {
+            for ((name, data) in files) {
+                val slot = name.removeSuffix(SUFFIX)
+                val live = cloud.entity() ?: error("Ubisoft's cloud save record disappeared")
+                if (live.revision != expected.revision) throw CloudChanged(sent, files.keys.filter { it !in sent })
+                val now = System.currentTimeMillis()
+                cloud.upload(slot, data)
+                val slots = JSONArray(live.json.optJSONObject("obj")?.optJSONArray("slots")?.toString() ?: "[]")
+                val entry = (0 until slots.length()).map { slots.getJSONObject(it) }.firstOrNull { it.optString("filename") == slot }
+                    ?: JSONObject().put("filename", slot).also { if (slot.toIntOrNull() != null) it.put("id", slot.toInt()); slots.put(it) }
+                entry.put("hash", marks.getValue(name)).put("size", data.size).put("lastModified", Instant.ofEpochMilli(now).toString())
+                cloud.update(live, slots)
+                sent[name] = now
+                val after = cloud.entity()
+                val mine = after?.let { committedSlot(live, it, slot, marks.getValue(name), data.size.toLong()) }
+                    ?: throw CloudChanged(sent, files.keys.filter { it !in sent })
+                committed[name] = CloudFile(name, mine.modifiedMs, UbisoftCloud.version(mine))
+                expected = after
+            }
+        } finally {
+            listed = null
         }
-        cloud.update(current, slots)
-        listed = null
-        val stamp = UbisoftAuth.parseTime(Instant.ofEpochMilli(now).toString())
-        for ((name, data) in files) {
-            val slot = UbisoftCloud.Slot(0, name.removeSuffix(SUFFIX), marks.getValue(name), data.size.toLong(), stamp)
-            committed[name] = CloudFile(name, stamp, UbisoftCloud.version(slot))
-        }
-        return files.mapValues { now }
+        return sent
     }
 
     companion object {
         const val SUFFIX = ".save"
+
+        internal fun committedSlot(before: UbisoftCloud.Entity, after: UbisoftCloud.Entity, filename: String, hash: String, size: Long): UbisoftCloud.Slot? {
+            fun others(e: UbisoftCloud.Entity) = e.slots.filter { it.filename != filename }.associate { it.filename to UbisoftCloud.version(it) }
+            if (others(before) != others(after)) return null
+            return after.slots.firstOrNull { it.filename == filename && it.hash == hash && it.size == size }
+        }
     }
 }

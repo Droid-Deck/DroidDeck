@@ -123,6 +123,19 @@ class UbisoftTest {
         assertTrue(UbisoftCloud.version(a) != UbisoftCloud.version(UbisoftCloud.Slot(1, "1", a.hash, 2414, a.modifiedMs + 1)))
     }
 
+    @Test fun aSlotCommitCountsOnlyWhenNoOtherSlotMovedAndOursLanded() {
+        fun entity(revision: Int, vararg slots: Triple<String, String, Long>) = UbisoftCloud.Entity(JSONObject().put("revision", revision)
+            .put("obj", JSONObject().put("slots", JSONArray().apply {
+                for ((name, hash, size) in slots) put(JSONObject().put("filename", name).put("hash", hash).put("size", size).put("lastModified", "2026-01-01T00:00:00Z"))
+            })))
+        val a = "4ef5bf634b40daa577aaeaa52c2283a9"; val b = "0123456789abcdef0123456789abcdef"; val c = "fedcba9876543210fedcba9876543210"
+        val before = entity(4, Triple("1", a, 10), Triple("2", b, 20))
+        assertEquals(c, UbisoftCloudTransport.committedSlot(before, entity(5, Triple("1", c, 11), Triple("2", b, 20)), "1", c, 11)?.hash)
+        assertNull(UbisoftCloudTransport.committedSlot(before, entity(6, Triple("1", c, 11), Triple("2", a, 21)), "1", c, 11))
+        assertNull(UbisoftCloudTransport.committedSlot(before, entity(6, Triple("1", b, 30), Triple("2", b, 20)), "1", c, 11))
+        assertNull(UbisoftCloudTransport.committedSlot(before, entity(6, Triple("1", c, 11)), "1", c, 11))
+    }
+
     @Test fun ubisoftCloudSavesAreSupported() {
         assertTrue(com.droiddeck.launcher.stores.CloudSaves.supports(Store.UBISOFT))
         assertTrue(!com.droiddeck.launcher.stores.CloudSaves.supports(Store.AMAZON))

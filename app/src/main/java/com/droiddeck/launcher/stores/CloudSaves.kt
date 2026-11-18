@@ -373,12 +373,14 @@ object CloudSaves {
         val next = HashMap(base.orEmpty())
         var bytes = 0L
         val written = HashSet<String>()
+        val changed = ArrayList<String>()
+        val blocked = ArrayList<String>()
         for (name in take) {
             val f = remote[name] ?: continue
-            val (data, modified) = cloud.get(f)
             val dest = File(dir, name)
-            if (!dest.canonicalPath.startsWith(dir.canonicalPath + File.separator)) continue
-            if ((if (dest.isFile) md5(dest) else null) != local[name]?.md5) continue
+            if (!dest.canonicalPath.startsWith(dir.canonicalPath + File.separator)) { blocked += name; continue }
+            val (data, modified) = cloud.get(f)
+            if ((if (dest.isFile) md5(dest) else null) != local[name]?.md5) { changed += name; continue }
             dest.parentFile?.mkdirs()
             dest.writeBytes(data)
             if (modified > 0) dest.setLastModified(modified)
@@ -388,14 +390,20 @@ object CloudSaves {
         }
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
         saveBaseline(context, store, id, next)
-        val left = if (force) take.filter { it !in written } else (plan.conflicts + saved.filter { it !in written }).distinct()
+        val left = (if (force) take.filter { it !in written } else plan.conflicts + saved.filter { it !in written } + changed)
+            .filter { it !in blocked }.distinct()
         saveConflicts(context, store, id, left)
         val reason = when {
             take.isEmpty() -> "up-to-date"
-            written.size < take.size -> "changed-locally"
+            changed.isNotEmpty() -> "changed-locally"
+            blocked.isNotEmpty() -> "blocked-path"
             else -> "downloaded"
         }
-        return Result(if (written.size < take.size) "partial" else "ok", written.size, bytes, reason, left.size)
+        val detail = listOfNotNull(
+            changed.takeIf { it.isNotEmpty() }?.joinToString(prefix = "changed locally: "),
+            blocked.takeIf { it.isNotEmpty() }?.joinToString(prefix = "outside the save folder: "),
+        ).joinToString("; ")
+        return Result(if (written.size < take.size) "partial" else "ok", written.size, bytes, reason, left.size, detail)
     }
 
     internal fun upWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
@@ -409,6 +417,7 @@ object CloudSaves {
         val next = HashMap(base)
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
         var drifted = emptyList<String>()
+        var raced = emptyList<String>()
         if (send.isNotEmpty()) {
             val copies = backupCloud(context, store, id, cloud, send.mapNotNull { remote[it] })
             if (cloud is UbisoftCloudTransport && !force) {
@@ -430,7 +439,13 @@ object CloudSaves {
             } else {
                 val data = send.associateWith { files.getValue(it).readBytes() }
                 for ((name, bytes) in data) sentMd5[name] = md5(bytes)
-                stamped += cloud.put(data, send.associateWith { files.getValue(it).lastModified() })
+                stamped += try {
+                    cloud.put(data, send.associateWith { files.getValue(it).lastModified() })
+                } catch (e: CloudChanged) {
+                    raced = e.unsent
+                    e.sent
+                }
+                send = send.filter { it in stamped }
                 for ((name, t) in stamped) if (t > 0) files[name]?.setLastModified(t)
             }
             val after = if (send.all { cloud.committed(it) != null }) emptyMap() else remote(cloud) { it in send && cloud.committed(it) == null }
@@ -440,9 +455,17 @@ object CloudSaves {
             }
         }
         saveBaseline(context, store, id, next)
-        val left = if (force) emptyList() else (plan.conflicts + drifted + conflicts(context, store, id).filter { it !in send && it in files }).distinct()
+        val saved = conflicts(context, store, id)
+        val left = (if (force) (plan.conflicts + saved).filter { it !in send } + raced
+            else plan.conflicts + drifted + raced + saved.filter { it !in send && it in files }).distinct()
         saveConflicts(context, store, id, left)
-        return Result("ok", send.size, send.sumOf { files.getValue(it).length() }, if (send.isEmpty()) "up-to-date" else "uploaded", left.size)
+        val reason = when {
+            raced.isNotEmpty() -> "changed-in-cloud"
+            send.isEmpty() -> "up-to-date"
+            else -> "uploaded"
+        }
+        return Result(if (raced.isEmpty()) "ok" else "partial", send.size, send.sumOf { files.getValue(it).length() }, reason, left.size,
+            if (raced.isEmpty()) "" else raced.joinToString(prefix = "changed in the cloud: "))
     }
 
 
