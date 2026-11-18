@@ -4171,4 +4171,11 @@
     <string name="display_scaling_integer">Целое число</string>
     <string name="display_scaling_fit">По размеру</string>
     <string name="drawer_antialiasing">Сглаживание</string>
+    <string name="desktop_lock">Блокировка рабочего стола PIN-кодом</string>
+    <string name="desktop_lock_new">Новый PIN-код (4–8 цифр)</string>
+    <string name="desktop_lock_confirm">Подтвердите PIN-код</string>
+    <string name="desktop_lock_enter">Введите PIN-код</string>
+    <string name="desktop_lock_wrong">Неверный PIN-код</string>
+    <string name="desktop_lock_invalid">Используйте от 4 до 8 цифр</string>
+    <string name="desktop_lock_mismatch">PIN-коды не совпадают</string>
 </resources>

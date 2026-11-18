@@ -432,7 +432,9 @@ internal fun AdbTextField(
                         setTextColor(colors.onBackground.toArgb())
                         setHintTextColor(colors.onSurfaceVariant.toArgb())
                         contentDescription = label
-                        inputType = if (keyboardType == KeyboardType.Number) {
+                        inputType = if (keyboardType == KeyboardType.NumberPassword) {
+                            InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+                        } else if (keyboardType == KeyboardType.Number) {
                             InputType.TYPE_CLASS_NUMBER
                         } else {
                             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS

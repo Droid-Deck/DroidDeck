@@ -908,6 +908,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun readGameIntent(request: Intent) {
+        val unlock = if (android.os.Build.VERSION.SDK_INT >= 33) request.getParcelableExtra(com.droiddeck.launcher.session.DesktopLock.EXTRA_UNLOCK, Intent::class.java)
+            else @Suppress("DEPRECATION") request.getParcelableExtra(com.droiddeck.launcher.session.DesktopLock.EXTRA_UNLOCK)
+        if (unlock != null) {
+            request.removeExtra(com.droiddeck.launcher.session.DesktopLock.EXTRA_UNLOCK)
+            whenUnlocked { awaitSessionEnd(unlock, android.os.SystemClock.uptimeMillis() + SESSION_SWITCH_WAIT_MS) }
+        }
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         request.data?.takeIf { it.scheme == "droiddeck" && it.host == "settings" }?.let { uri ->
             val section = uri.pathSegments.firstOrNull()
@@ -1362,9 +1368,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             )
                         },
                         onPlayDesktopUi = {
-                            startSession(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
-                                .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
+                            whenUnlocked {
+                                startSession(Intent(this, SessionActivity::class.java)
+                                    .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
+                                    .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
+                            }
                         },
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
@@ -1425,26 +1433,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText(g.name, link))
                             android.widget.Toast.makeText(this, R.string.game_link_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
-                        onDesktop = {
-                            startSession(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
-                        },
+                        onDesktop = { startDesktopSession() },
                         onEmulator = { e -> launchProgram(e.program) },
-                        onUserApp = { app ->
-                            app.args.firstOrNull()?.let { Library.flatpakNames[it] = app.name }
-                            startActivity(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-                                .putExtra(SessionService.EXTRA_PROGRAM, app.program)
-                                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
-                        },
+                        onUserApp = { app -> whenUnlocked { openUserApp(app) } },
                         onBattleNet = { openBattleNet() },
-                        onFlatpakApp = { id, name ->
-                            Library.flatpakNames[id] = name
-                            startActivity(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-                                .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER)
-                                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, arrayOf(id)))
-                        },
+                        onFlatpakApp = { id, name -> whenUnlocked { openFlatpakApp(id, name) } },
                         onRom = { g ->
                             val e = emulatorList.first { it.id == g.emulatorId }
                             if (!SessionPrefs.soundtracksIngame(this)) com.droiddeck.launcher.playback.SoundtrackController.pause(this)
@@ -1827,6 +1820,15 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
                 )
+                pinAsk?.let { ask ->
+                    androidx.compose.runtime.key(ask) {
+                        com.droiddeck.launcher.ui.TextEntryDialog(
+                            title = androidx.compose.ui.res.stringResource(ask.title), initial = "", number = true, secret = true,
+                            confirm = androidx.compose.ui.res.stringResource(R.string.common_ok),
+                            onSubmit = ask.onPin, onDismiss = { if (pinAsk === ask) pinAsk = null }, id = "desktop-lock",
+                        )
+                    }
+                }
                 lowSpace?.let { free ->
                     com.droiddeck.launcher.ui.LowSpaceDialog(
                         free,
@@ -1934,9 +1936,57 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (isFinishing || isDestroyed) return
         when (SessionPrefs.startupSession(this)) {
             SessionPrefs.STARTUP_STEAM -> startSteamSession()
-            SessionPrefs.STARTUP_DESKTOP -> startSession(Intent(this, SessionActivity::class.java)
-                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
+            SessionPrefs.STARTUP_DESKTOP -> startDesktopSession()
         }
+    }
+
+    private class PinAsk(@androidx.annotation.StringRes val title: Int, val onPin: (String) -> Unit)
+
+    private var pinAsk by mutableStateOf<PinAsk?>(null)
+    private var desktopLock by mutableStateOf(false)
+
+    private fun pinToast(@androidx.annotation.StringRes text: Int) =
+        android.widget.Toast.makeText(this, text, android.widget.Toast.LENGTH_SHORT).show()
+
+    private fun whenUnlocked(action: () -> Unit) {
+        if (!com.droiddeck.launcher.session.DesktopLock.enabled(this)) return action()
+        pinAsk = PinAsk(R.string.desktop_lock_enter) { pin ->
+            if (com.droiddeck.launcher.session.DesktopLock.matches(this, pin)) action() else pinToast(R.string.desktop_lock_wrong)
+        }
+    }
+
+    private fun toggleDesktopLock(on: Boolean) {
+        val lock = com.droiddeck.launcher.session.DesktopLock
+        pinAsk = if (on) PinAsk(R.string.desktop_lock_new) { pin ->
+            if (!lock.validPin(pin)) pinToast(R.string.desktop_lock_invalid)
+            else pinAsk = PinAsk(R.string.desktop_lock_confirm) { again ->
+                if (again != pin) pinToast(R.string.desktop_lock_mismatch)
+                else desktopLock = lock.set(this, pin)
+            }
+        } else PinAsk(R.string.desktop_lock_enter) { pin ->
+            if (lock.clear(this, pin)) desktopLock = false else pinToast(R.string.desktop_lock_wrong)
+        }
+    }
+
+    private fun startDesktopSession() = whenUnlocked {
+        startSession(Intent(this, SessionActivity::class.java)
+            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
+    }
+
+    private fun openUserApp(app: com.droiddeck.launcher.runtime.UserApps.App) {
+        app.args.firstOrNull()?.let { Library.flatpakNames[it] = app.name }
+        startActivity(Intent(this, SessionActivity::class.java)
+            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
+            .putExtra(SessionService.EXTRA_PROGRAM, app.program)
+            .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
+    }
+
+    private fun openFlatpakApp(id: String, name: String) {
+        Library.flatpakNames[id] = name
+        startActivity(Intent(this, SessionActivity::class.java)
+            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
+            .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER)
+            .putExtra(SessionService.EXTRA_PROGRAM_ARGS, arrayOf(id)))
     }
 
     private fun playSteam() {
@@ -2586,6 +2636,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
                 startupSession = startupSession,
+                desktopLock = desktopLock,
                 bootMovie = if (mode == SessionService.MODE_STEAM) bootMovie else null,
                 bootMovieSound = bootMovieSound,
                 bootMovieCustomName = bootMovieCustomName,
@@ -2681,6 +2732,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onReturnAfterGame = { on -> SessionPrefs.setReturnAfterGame(this, on); returnAfterGame = on },
                 onShaderPrecache = { on -> SessionPrefs.setShaderPrecache(this, on); shaderPrecache = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
+                onDesktopLock = { on -> toggleDesktopLock(on) },
                 onStartupSession = { id ->
                     SessionPrefs.setStartupSession(this, id)
                     startupSession = id
@@ -2954,6 +3006,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         loadShaderPrecache(mode)
         steamController = SessionPrefs.steamController(this)
         startupSession = SessionPrefs.startupSession(this)
+        desktopLock = com.droiddeck.launcher.session.DesktopLock.enabled(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
         upscaler = SessionPrefs.upscaler(this)

@@ -683,7 +683,7 @@ private fun MoviePreview(url: String, modifier: Modifier = Modifier) {
 @Composable
 internal fun TextEntryDialog(
     title: String, initial: String, number: Boolean, confirm: String, onSubmit: (String) -> Unit, onDismiss: () -> Unit,
-    id: String = "boot-movie-entry",
+    id: String = "boot-movie-entry", secret: Boolean = false,
 ) {
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
@@ -692,7 +692,11 @@ internal fun TextEntryDialog(
     AppDialog(shown, close, id, wide = false, maxWidth = 460.dp) {
         DialogTitleRow(title, close)
         AdbTextField(
-            value = text, onValueChange = { text = it }, label = "", keyboardType = if (number) KeyboardType.Number else KeyboardType.Text,
+            value = text, onValueChange = { text = it }, label = "", keyboardType = when {
+                number && secret -> KeyboardType.NumberPassword
+                number -> KeyboardType.Number
+                else -> KeyboardType.Text
+            },
             imeAction = ImeAction.Done, placeholder = title, focusOnShow = true, onDone = { submit() },
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {

@@ -4061,4 +4061,11 @@
     <string name="display_scaling_integer">정수</string>
     <string name="display_scaling_fit">화면에 맞춤</string>
     <string name="drawer_antialiasing">안티앨리어싱</string>
+    <string name="desktop_lock">데스크톱 PIN 잠금</string>
+    <string name="desktop_lock_new">새 PIN(4~8자리)</string>
+    <string name="desktop_lock_confirm">PIN 확인</string>
+    <string name="desktop_lock_enter">PIN 입력</string>
+    <string name="desktop_lock_wrong">잘못된 PIN</string>
+    <string name="desktop_lock_invalid">4~8자리 숫자를 사용하세요</string>
+    <string name="desktop_lock_mismatch">PIN이 일치하지 않습니다</string>
 </resources>

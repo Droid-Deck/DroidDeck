@@ -94,6 +94,7 @@ class ModeSettings(
     val unfoldedControls: Boolean? = null,
     val unfoldedControlsWithController: Boolean = false,
     val startupSession: String = SessionPrefs.STARTUP_OFF,
+    val desktopLock: Boolean = false,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
     val bootMovieCustomName: String? = null,
@@ -151,6 +152,7 @@ class ModeSettingsActions(
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
     val onStartupSession: (String) -> Unit = {},
+    val onDesktopLock: (Boolean) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
     val onImportBootMovie: () -> Unit = {},
@@ -398,6 +400,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     SessionPrefs.STARTUP_DESKTOP to stringResource(R.string.rail_desktop),
                 ), s.startupSession, onPick = a.onStartupSession,
             )
+            ToggleRow(host, "desktop-lock", stringResource(R.string.desktop_lock), null, s.desktopLock, onChange = a.onDesktopLock)
         }
         extras.performance()
     }

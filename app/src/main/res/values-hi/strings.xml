@@ -4091,4 +4091,11 @@
     <string name="display_scaling_integer">पूर्णांक</string>
     <string name="display_scaling_fit">फ़िट</string>
     <string name="drawer_antialiasing">एंटी-अलियासिंग</string>
+    <string name="desktop_lock">डेस्कटॉप PIN लॉक</string>
+    <string name="desktop_lock_new">नया PIN (4–8 अंक)</string>
+    <string name="desktop_lock_confirm">PIN की पुष्टि करें</string>
+    <string name="desktop_lock_enter">PIN दर्ज करें</string>
+    <string name="desktop_lock_wrong">गलत PIN</string>
+    <string name="desktop_lock_invalid">4 से 8 अंक इस्तेमाल करें</string>
+    <string name="desktop_lock_mismatch">PIN मेल नहीं खाते</string>
 </resources>

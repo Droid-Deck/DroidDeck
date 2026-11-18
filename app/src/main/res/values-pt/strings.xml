@@ -4138,4 +4138,11 @@
     <string name="display_scaling_integer">Inteiro</string>
     <string name="display_scaling_fit">Ajustar</string>
     <string name="drawer_antialiasing">Suavização de serrilhado</string>
+    <string name="desktop_lock">Bloqueio do desktop por PIN</string>
+    <string name="desktop_lock_new">Novo PIN (4–8 dígitos)</string>
+    <string name="desktop_lock_confirm">Confirmar PIN</string>
+    <string name="desktop_lock_enter">Digite o PIN</string>
+    <string name="desktop_lock_wrong">PIN incorreto</string>
+    <string name="desktop_lock_invalid">Use de 4 a 8 dígitos</string>
+    <string name="desktop_lock_mismatch">Os PINs não coincidem</string>
 </resources>

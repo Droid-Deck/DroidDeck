@@ -4131,4 +4131,11 @@
     <string name="display_scaling_integer">Număr întreg</string>
     <string name="display_scaling_fit">Potrivire</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+    <string name="desktop_lock">Blocare desktop cu PIN</string>
+    <string name="desktop_lock_new">PIN nou (4–8 cifre)</string>
+    <string name="desktop_lock_confirm">Confirmați PIN-ul</string>
+    <string name="desktop_lock_enter">Introduceți PIN-ul</string>
+    <string name="desktop_lock_wrong">PIN greșit</string>
+    <string name="desktop_lock_invalid">Folosiți între 4 și 8 cifre</string>
+    <string name="desktop_lock_mismatch">PIN-urile nu se potrivesc</string>
 </resources>

@@ -4091,4 +4091,11 @@
     <string name="display_scaling_integer">Ακέραιος</string>
     <string name="display_scaling_fit">Προσαρμογή</string>
     <string name="drawer_antialiasing">Εξομάλυνση ακμών</string>
+    <string name="desktop_lock">Κλείδωμα επιφάνειας εργασίας με PIN</string>
+    <string name="desktop_lock_new">Νέο PIN (4–8 ψηφία)</string>
+    <string name="desktop_lock_confirm">Επιβεβαίωση PIN</string>
+    <string name="desktop_lock_enter">Εισαγάγετε PIN</string>
+    <string name="desktop_lock_wrong">Λάθος PIN</string>
+    <string name="desktop_lock_invalid">Χρησιμοποιήστε 4 έως 8 ψηφία</string>
+    <string name="desktop_lock_mismatch">Τα PIN δεν ταιριάζουν</string>
 </resources>

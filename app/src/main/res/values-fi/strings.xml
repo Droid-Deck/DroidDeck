@@ -4091,4 +4091,11 @@
     <string name="display_scaling_integer">Kokonaisluku</string>
     <string name="display_scaling_fit">Sovita</string>
     <string name="drawer_antialiasing">Reunanpehmennys</string>
+    <string name="desktop_lock">Työpöydän PIN-lukko</string>
+    <string name="desktop_lock_new">Uusi PIN (4–8 numeroa)</string>
+    <string name="desktop_lock_confirm">Vahvista PIN</string>
+    <string name="desktop_lock_enter">Anna PIN</string>
+    <string name="desktop_lock_wrong">Väärä PIN</string>
+    <string name="desktop_lock_invalid">Käytä 4–8 numeroa</string>
+    <string name="desktop_lock_mismatch">PIN-koodit eivät täsmää</string>
 </resources>

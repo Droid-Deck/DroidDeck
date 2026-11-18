@@ -4061,4 +4061,11 @@
     <string name="display_scaling_integer">整数</string>
     <string name="display_scaling_fit">适应</string>
     <string name="drawer_antialiasing">抗锯齿</string>
+    <string name="desktop_lock">桌面 PIN 锁</string>
+    <string name="desktop_lock_new">新 PIN（4–8 位数字）</string>
+    <string name="desktop_lock_confirm">确认 PIN</string>
+    <string name="desktop_lock_enter">输入 PIN</string>
+    <string name="desktop_lock_wrong">PIN 错误</string>
+    <string name="desktop_lock_invalid">请使用 4 到 8 位数字</string>
+    <string name="desktop_lock_mismatch">两次输入的 PIN 不一致</string>
 </resources>

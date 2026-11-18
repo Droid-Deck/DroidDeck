@@ -4091,4 +4091,11 @@
     <string name="display_scaling_integer">Tam sayı</string>
     <string name="display_scaling_fit">Sığdır</string>
     <string name="drawer_antialiasing">Kenar yumuşatma</string>
+    <string name="desktop_lock">Masaüstü PIN kilidi</string>
+    <string name="desktop_lock_new">Yeni PIN (4–8 hane)</string>
+    <string name="desktop_lock_confirm">PIN\'i onayla</string>
+    <string name="desktop_lock_enter">PIN\'i girin</string>
+    <string name="desktop_lock_wrong">Yanlış PIN</string>
+    <string name="desktop_lock_invalid">4 ila 8 hane kullanın</string>
+    <string name="desktop_lock_mismatch">PIN\'ler eşleşmiyor</string>
 </resources>

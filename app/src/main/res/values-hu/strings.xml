@@ -4091,4 +4091,11 @@
     <string name="display_scaling_integer">Egész szám</string>
     <string name="display_scaling_fit">Igazítás</string>
     <string name="drawer_antialiasing">Élsimítás</string>
+    <string name="desktop_lock">Asztal PIN-zár</string>
+    <string name="desktop_lock_new">Új PIN (4–8 számjegy)</string>
+    <string name="desktop_lock_confirm">PIN megerősítése</string>
+    <string name="desktop_lock_enter">Adja meg a PIN-t</string>
+    <string name="desktop_lock_wrong">Hibás PIN</string>
+    <string name="desktop_lock_invalid">4–8 számjegyet használjon</string>
+    <string name="desktop_lock_mismatch">A PIN-kódok nem egyeznek</string>
 </resources>

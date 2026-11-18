@@ -4251,4 +4251,11 @@
     <string name="display_scaling_integer">عدد صحيح</string>
     <string name="display_scaling_fit">ملاءمة</string>
     <string name="drawer_antialiasing">تنعيم الحواف</string>
+    <string name="desktop_lock">قفل سطح المكتب برمز PIN</string>
+    <string name="desktop_lock_new">رمز PIN جديد (4–8 أرقام)</string>
+    <string name="desktop_lock_confirm">تأكيد رمز PIN</string>
+    <string name="desktop_lock_enter">أدخل رمز PIN</string>
+    <string name="desktop_lock_wrong">رمز PIN خاطئ</string>
+    <string name="desktop_lock_invalid">استخدم من 4 إلى 8 أرقام</string>
+    <string name="desktop_lock_mismatch">رمزا PIN غير متطابقين</string>
 </resources>

@@ -4130,4 +4130,11 @@
     <string name="display_scaling_integer">Entier</string>
     <string name="display_scaling_fit">Ajuster</string>
     <string name="drawer_antialiasing">Anticrénelage</string>
+    <string name="desktop_lock">Verrouillage du bureau par code PIN</string>
+    <string name="desktop_lock_new">Nouveau code PIN (4 à 8 chiffres)</string>
+    <string name="desktop_lock_confirm">Confirmer le code PIN</string>
+    <string name="desktop_lock_enter">Saisir le code PIN</string>
+    <string name="desktop_lock_wrong">Code PIN incorrect</string>
+    <string name="desktop_lock_invalid">Utilisez 4 à 8 chiffres</string>
+    <string name="desktop_lock_mismatch">Les codes PIN ne correspondent pas</string>
 </resources>
