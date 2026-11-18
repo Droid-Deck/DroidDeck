@@ -1932,12 +1932,12 @@ class SessionService : Service() {
                     .putExtra(EXTRA_STEAM_UI, ui)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (url.isNotEmpty()) next.putExtra(EXTRA_STEAM_URL, url)
-                if (DesktopLock.enabled(this@SessionService) && DesktopLock.entersDesktop(next)) {
-                    val home = Intent(this@SessionService, com.droiddeck.launcher.FrontEndActivity::class.java)
-                        .putExtra(DesktopLock.EXTRA_UNLOCK, next)
+                val unlock = if (DesktopLock.enabled(this@SessionService)) DesktopLock.handoff(session, ui, url) else null
+                if (unlock != null) {
+                    val home = unlock.put(Intent(this@SessionService, com.droiddeck.launcher.FrontEndActivity::class.java))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        stopSession(0)
+                        if (gen != sessionGen || !SessionState.running) return@post
                         startActivity(home)
                     }
                     return

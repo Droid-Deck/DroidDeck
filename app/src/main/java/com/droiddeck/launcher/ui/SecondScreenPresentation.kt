@@ -281,7 +281,7 @@ class SecondScreenPresentation(
         val mode = when {
             requested == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad -> SecondScreenMode.NONE
             requested == SecondScreenMode.DASHBOARD && dashboard == null -> SecondScreenMode.NONE
-            requested == SecondScreenMode.DESKTOP && !BottomDesktop.available() -> SecondScreenMode.NONE
+            requested == SecondScreenMode.DESKTOP && !BottomDesktop.available(context) -> SecondScreenMode.NONE
             else -> requested
         }
         if (mode == SecondScreenMode.NONE) return

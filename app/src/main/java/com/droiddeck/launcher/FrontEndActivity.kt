@@ -908,12 +908,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun readGameIntent(request: Intent) {
-        val unlock = if (android.os.Build.VERSION.SDK_INT >= 33) request.getParcelableExtra(com.droiddeck.launcher.session.DesktopLock.EXTRA_UNLOCK, Intent::class.java)
-            else @Suppress("DEPRECATION") request.getParcelableExtra(com.droiddeck.launcher.session.DesktopLock.EXTRA_UNLOCK)
-        if (unlock != null) {
-            request.removeExtra(com.droiddeck.launcher.session.DesktopLock.EXTRA_UNLOCK)
-            whenUnlocked { awaitSessionEnd(unlock, android.os.SystemClock.uptimeMillis() + SESSION_SWITCH_WAIT_MS) }
-        }
+        com.droiddeck.launcher.session.DesktopLock.handoff(request)?.let(::askHandoff)
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         request.data?.takeIf { it.scheme == "droiddeck" && it.host == "settings" }?.let { uri ->
             val section = uri.pathSegments.firstOrNull()
@@ -1825,7 +1820,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         com.droiddeck.launcher.ui.TextEntryDialog(
                             title = androidx.compose.ui.res.stringResource(ask.title), initial = "", number = true, secret = true,
                             confirm = androidx.compose.ui.res.stringResource(R.string.common_ok),
-                            onSubmit = ask.onPin, onDismiss = { if (pinAsk === ask) pinAsk = null }, id = "desktop-lock",
+                            onSubmit = ask.onPin, onDismiss = { if (pinAsk === ask) { pinAsk = null; ask.onCancel() } }, id = "desktop-lock",
                         )
                     }
                 }
@@ -1878,6 +1873,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         } else {
             restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
+            com.droiddeck.launcher.session.DesktopLock.handoff(savedInstanceState.getString(KEY_UNLOCK_MODE),
+                savedInstanceState.getString(KEY_UNLOCK_UI), savedInstanceState.getString(KEY_UNLOCK_URL))?.let(::askHandoff)
             savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
         }
 
@@ -1931,7 +1928,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var soundtrackLaunch = false
 
     private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
-        if (soundtrackLaunch) return
+        if (soundtrackLaunch || pendingUnlock != null) return
         if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
         if (isFinishing || isDestroyed) return
         when (SessionPrefs.startupSession(this)) {
@@ -1940,10 +1937,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
     }
 
-    private class PinAsk(@androidx.annotation.StringRes val title: Int, val onPin: (String) -> Unit)
+    private class PinAsk(@androidx.annotation.StringRes val title: Int, val onCancel: () -> Unit = {}, val onPin: (String) -> Unit)
 
     private var pinAsk by mutableStateOf<PinAsk?>(null)
     private var desktopLock by mutableStateOf(false)
+    private var pendingUnlock: com.droiddeck.launcher.session.DesktopLock.Handoff? = null
 
     private fun pinToast(@androidx.annotation.StringRes text: Int) =
         android.widget.Toast.makeText(this, text, android.widget.Toast.LENGTH_SHORT).show()
@@ -1955,8 +1953,20 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
     }
 
+    private fun askHandoff(request: com.droiddeck.launcher.session.DesktopLock.Handoff) {
+        if (!com.droiddeck.launcher.session.DesktopLock.enabled(this)) return
+        pendingUnlock = request
+        pinAsk = PinAsk(R.string.desktop_lock_enter, onCancel = { if (pendingUnlock === request) pendingUnlock = null }) { pin ->
+            if (pendingUnlock === request) pendingUnlock = null
+            if (com.droiddeck.launcher.session.DesktopLock.matches(this, pin)) startAfterSession(request.session(this))
+            else pinToast(R.string.desktop_lock_wrong)
+        }
+    }
+
     private fun toggleDesktopLock(on: Boolean) {
         val lock = com.droiddeck.launcher.session.DesktopLock
+        desktopLock = lock.enabled(this)
+        if (on == desktopLock) return
         pinAsk = if (on) PinAsk(R.string.desktop_lock_new) { pin ->
             if (!lock.validPin(pin)) pinToast(R.string.desktop_lock_invalid)
             else pinAsk = PinAsk(R.string.desktop_lock_confirm) { again ->
@@ -2190,6 +2200,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
+        pendingUnlock?.let {
+            outState.putString(KEY_UNLOCK_MODE, it.mode)
+            outState.putString(KEY_UNLOCK_UI, it.ui)
+            outState.putString(KEY_UNLOCK_URL, it.url)
+        }
         switchingTo?.let {
             outState.putParcelable(KEY_SWITCHING_TO, it)
             outState.putLong(KEY_SWITCH_DEADLINE, switchDeadline)
@@ -3443,6 +3458,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val KEY_COMPAT_PROBLEM = "compat_problem"
         private const val KEY_SWITCHING_TO = "switching_to"
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
+        private const val KEY_UNLOCK_MODE = "desktop_unlock_mode"
+        private const val KEY_UNLOCK_UI = "desktop_unlock_ui"
+        private const val KEY_UNLOCK_URL = "desktop_unlock_url"
         private val SESSION_ENDED = setOf(SessionPhase.IDLE, SessionPhase.FAILED)
         private val ZIP_EXT = listOf("zip")
         private val WCP_EXT = listOf("wcp")
