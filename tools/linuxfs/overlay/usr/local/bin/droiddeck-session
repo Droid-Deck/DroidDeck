@@ -1528,8 +1528,12 @@ case $mode in
       bl_steam_path="/usr/local/libexec/droiddeck-steam:$PATH"
       export DISABLE_GAMESCOPE_WSI=1 LIBGL_KOPPER_DISABLE=true
       bl_steam_angle=gl
-      bl_steam_presentation=(-cef-disable-gpu-compositing)
-      echo "== steam: system PowerVR uses OpenGL/DRI3 through Zink with software CEF compositing"
+      if [ "${BL_STEAM_GPU_COMPOSITING:-0}" = 1 ]; then
+        echo "== steam: system PowerVR uses OpenGL/DRI3 through Zink with GPU CEF compositing"
+      else
+        bl_steam_presentation=(-cef-disable-gpu-compositing)
+        echo "== steam: system PowerVR uses OpenGL/DRI3 through Zink with software CEF compositing"
+      fi
     elif [ "${BL_STEAM_SOFT_COMPOSITING:-}" = 1 ]; then
       bl_steam_presentation=(-cef-disable-gpu-compositing)
       echo "== steam: open driver pair - software CEF compositing, GPU raster"

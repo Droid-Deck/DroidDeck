@@ -117,4 +117,52 @@ class DriverMenusAutoTest {
         menus.refreshDrivers()
         assertTrue(menus.tpUbwcRestartRequired())
     }
+
+    private fun menusRecordingRouteChanges(activity: Activity, seen: MutableList<String>) =
+        DriverMenus(activity, Handler(Looper.getMainLooper())).also {
+            it.onRouteChanged = { seen += SessionPrefs.linuxDriver(activity) + "|" + SessionPrefs.androidDriver(activity) }
+        }
+
+    @Test fun selectingALinuxDriverReportsTheRouteAfterItIsSaved() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MIX)
+        val seen = mutableListOf<String>()
+        menusRecordingRouteChanges(activity, seen).selectDriver("chosen-linux", linux = true)
+        assertEquals("chosen-linux", seen.last().substringBefore("|"))
+    }
+
+    @Test fun selectingTheSystemRuntimeReportsTheRouteAfterItIsSaved() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MIX)
+        SessionPrefs.setLinuxDriver(activity, "chosen-linux")
+        val seen = mutableListOf<String>()
+        menusRecordingRouteChanges(activity, seen).selectDriver("", linux = true)
+        assertEquals("", seen.last().substringBefore("|"))
+    }
+
+    @Test fun selectingADisplayDriverReportsTheRouteAfterItIsSaved() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MIX)
+        val seen = mutableListOf<String>()
+        menusRecordingRouteChanges(activity, seen).selectDriver("chosen-display", linux = false)
+        assertEquals("chosen-display", seen.last().substringAfter("|"))
+    }
+
+    @Test fun pickingTheAutoDisplayReportsTheRouteAfterAutoOwnsIt() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MIX)
+        SessionPrefs.setLinuxDriver(activity, "chosen-linux")
+        val seen = mutableListOf<String>()
+        menusRecordingRouteChanges(activity, seen).selectDriver(TurnipDriver.AUTO, linux = false)
+        assertEquals("|${QuestExperimental.DRIVER}", seen.last())
+    }
+
+    @Test fun turningAutoOnReportsTheRouteAutoChose() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MANUAL)
+        SessionPrefs.setLinuxDriver(activity, "chosen-linux")
+        val seen = mutableListOf<String>()
+        menusRecordingRouteChanges(activity, seen).setMode(true)
+        assertEquals("|${QuestExperimental.DRIVER}", seen.last())
+    }
 }
