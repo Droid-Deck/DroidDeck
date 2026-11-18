@@ -47,7 +47,7 @@ Help, Preview builds and device reports are on [Discord](https://discord.gg/JRGA
 
 ## Build
 
-Needs Docker, Java 17, the Android SDK and NDK, Rust via rustup, GitHub CLI, Python 3 and `zstd`.
+Needs Docker, Java 17, the Android SDK and NDK, Rust via rustup, Go, a host C compiler, the x86_64 and i686 MinGW-w64 compilers (i686 with DWARF-2 exceptions, as Debian and Ubuntu ship it; SJLJ builds such as Homebrew's cannot link Rust's `i686-pc-windows-gnu`), GitHub CLI, Python 3 and `zstd`. On x86_64 Linux, Docker also needs an arm64 binfmt handler (`docker run --privileged --rm tonistiigi/binfmt --install arm64`).
 
 ```bash
 tools/build_local.sh
