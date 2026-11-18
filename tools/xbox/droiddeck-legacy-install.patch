@@ -151,10 +151,10 @@ index 5ea43da..0bad98e 100644
 +}
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..5e6d097
+index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1194 @@
+@@ -0,0 +1,1198 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -858,9 +858,11 @@ index 0000000..5e6d097
 +                        _ => {}
 +                    }
 +                }
-+                return entry
-+                    .filter(|entry| !entry.is_empty())
-+                    .or_else(|| behavior.filter(|behavior| behavior.eq_ignore_ascii_case("windowsApp")));
++                return match behavior.as_deref() {
++                    Some(value) if value.eq_ignore_ascii_case("windowsApp") => Some("windowsApp".to_string()),
++                    Some(value) if value.eq_ignore_ascii_case("packagedClassicApp") || value.eq_ignore_ascii_case("win32App") => None,
++                    _ => entry.filter(|entry| !entry.is_empty()),
++                };
 +            }
 +            Event::Eof => return None,
 +            _ => {}
@@ -1322,6 +1324,8 @@ index 0000000..5e6d097
 +        assert_eq!(application_entry("<Package><Applications><Application Id='App' EntryPoint='Forza.App'/></Applications></Package>").as_deref(), Some("Forza.App"));
 +        assert_eq!(application_entry(r#"<Package xmlns:uap10="u"><Applications><Application Id="App" Executable="a.exe" uap10:RuntimeBehavior="windowsApp"/></Applications></Package>"#).as_deref(), Some("windowsApp"));
 +        assert_eq!(application_entry(r#"<Package xmlns:uap10="u"><Applications><Application Id="App" Executable="a.exe" uap10:RuntimeBehavior="packagedClassicApp"/></Applications></Package>"#), None);
++        assert_eq!(application_entry(r#"<Package xmlns:uap10="u"><Applications><Application Id="App" EntryPoint="Game.App" uap10:RuntimeBehavior="packagedClassicApp"/></Applications></Package>"#), None);
++        assert_eq!(application_entry(r#"<Package xmlns:uap10="u"><Applications><Application Id="App" EntryPoint="Windows.FullTrustApplication" uap10:RuntimeBehavior="windowsApp"/></Applications></Package>"#).as_deref(), Some("windowsApp"));
 +        std::fs::remove_dir_all(&root).ok();
 +    }
 +
@@ -2022,7 +2026,7 @@ index 0000000..7fec6e5
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index a0136f8..1226210 100644
+index a0136f8..f4f2357 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -2050,24 +2054,30 @@ index a0136f8..1226210 100644
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
          Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
-@@ -692,3 +701,250 @@ where
+@@ -692,3 +701,276 @@ where
      }
      ExitCode::SUCCESS
  }
 +
 +const PLAIN_LIMIT: u64 = 1 << 30;
 +
++const PENDING: &str = ".pending";
++
 +fn publish(staging: &Path, out: &Path) -> Result<(), String> {
 +    let previous = out.join(".xodus-plain-previous");
-+    if previous.exists() {
++    if previous.join(PENDING).exists() {
 +        restore(&previous, out).map_err(|error| format!("an earlier replacement could not be undone: {error}"))?;
++    } else if previous.exists() {
++        std::fs::remove_dir_all(&previous).map_err(|error| format!("an earlier replacement left files behind: {error}"))?;
 +    }
 +    std::fs::create_dir_all(&previous).map_err(|error| format!("could not prepare the replacement: {error}"))?;
++    std::fs::write(previous.join(PENDING), b"").map_err(|error| format!("could not prepare the replacement: {error}"))?;
 +    let mut names: Vec<std::ffi::OsString> = std::fs::read_dir(staging)
 +        .map_err(|error| format!("staged package unreadable: {error}"))?
 +        .map(|entry| entry.map(|entry| entry.file_name()))
 +        .collect::<Result<_, _>>()
 +        .map_err(|error| format!("staged package unreadable: {error}"))?;
++    names.retain(|name| name != PENDING);
 +    names.sort();
 +    let mut placed = Vec::new();
 +    let result = (|| {
@@ -2085,6 +2095,7 @@ index a0136f8..1226210 100644
 +    })();
 +    match result {
 +        Ok(()) => {
++            std::fs::remove_file(previous.join(PENDING)).ok();
 +            std::fs::remove_dir_all(&previous).ok();
 +            Ok(())
 +        }
@@ -2106,12 +2117,16 @@ index a0136f8..1226210 100644
 +    let entries = std::fs::read_dir(previous).map_err(|error| error.to_string())?;
 +    for entry in entries {
 +        let entry = entry.map_err(|error| error.to_string())?;
++        if entry.file_name() == PENDING {
++            continue;
++        }
 +        let target = out.join(entry.file_name());
 +        if std::fs::symlink_metadata(&target).is_ok() {
 +            remove(&target).map_err(|error| format!("could not clear {}: {error}", target.display()))?;
 +        }
 +        std::fs::rename(entry.path(), &target).map_err(|error| format!("could not restore {}: {error}", target.display()))?;
 +    }
++    std::fs::remove_file(previous.join(PENDING)).map_err(|error| error.to_string())?;
 +    std::fs::remove_dir(previous).map_err(|error| error.to_string())
 +}
 +
@@ -2254,11 +2269,26 @@ index a0136f8..1226210 100644
 +    }
 +
 +    #[test]
++    fn a_backup_left_by_a_finished_swap_is_discarded_not_restored() {
++        let root = tempfile::tempdir().unwrap();
++        let (staging, out) = (root.path().join("staging"), root.path().join("out"));
++        std::fs::create_dir_all(&staging).unwrap();
++        std::fs::create_dir_all(out.join(".xodus-plain-previous")).unwrap();
++        std::fs::write(out.join(".xodus-plain-previous").join("kept"), b"old").unwrap();
++        std::fs::write(out.join("kept"), b"installed").unwrap();
++        std::fs::write(staging.join("fresh"), b"new").unwrap();
++        super::publish(&staging, &out).unwrap();
++        assert_eq!(std::fs::read(out.join("kept")).unwrap(), b"installed");
++        assert!(!out.join(".xodus-plain-previous").exists());
++    }
++
++    #[test]
 +    fn a_backup_left_by_an_interrupted_swap_is_restored_first() {
 +        let root = tempfile::tempdir().unwrap();
 +        let (staging, out) = (root.path().join("staging"), root.path().join("out"));
 +        std::fs::create_dir_all(&staging).unwrap();
 +        std::fs::create_dir_all(out.join(".xodus-plain-previous")).unwrap();
++        std::fs::write(out.join(".xodus-plain-previous").join(".pending"), b"").unwrap();
 +        std::fs::write(out.join(".xodus-plain-previous").join("kept"), b"old").unwrap();
 +        std::fs::write(out.join("kept"), b"half").unwrap();
 +        std::fs::write(staging.join("fresh"), b"new").unwrap();

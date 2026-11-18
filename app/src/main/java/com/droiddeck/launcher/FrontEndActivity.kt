@@ -964,6 +964,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false, onHandled: () -> Unit = {}, onSettled: () -> Unit = {}) {
+        val request = gameLaunchRequest.incrementAndGet()
         if (!SessionPrefs.soundtracksIngame(this)) com.droiddeck.launcher.playback.SoundtrackController.pause(this)
         if (pkgStage != null) {
             onHandled()
@@ -975,7 +976,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             if (startGame(game, returnHome, onHandled)) onSettled()
             return
         }
-        val request = gameLaunchRequest.incrementAndGet()
         Thread({
             val refused = com.droiddeck.launcher.stores.xbox.XboxManifest.needsAppModel(files)
             ui.post {
