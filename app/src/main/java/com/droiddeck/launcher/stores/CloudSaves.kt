@@ -367,10 +367,12 @@ object CloudSaves {
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
         val base = baseline(context, store, id)
         val plan = CloudPlan.down(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
-        val take = if (force) plan.transfer + plan.conflicts else plan.transfer
+        val saved = conflicts(context, store, id).filter { it in remote }
+        val take = if (force) (plan.transfer + plan.conflicts + saved).distinct() else plan.transfer
         if (take.isNotEmpty() && files.isNotEmpty()) backup(context, store, id, dir, "local")
         val next = HashMap(base.orEmpty())
         var bytes = 0L
+        val written = HashSet<String>()
         for (name in take) {
             val f = remote[name] ?: continue
             val (data, modified) = cloud.get(f)
@@ -381,11 +383,12 @@ object CloudSaves {
             dest.writeBytes(data)
             if (modified > 0) dest.setLastModified(modified)
             bytes += data.size
+            written += name
             next[name] = CloudPlan.Entry(md5(data), f.md5, if (modified > 0) modified else f.modifiedMs)
         }
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
         saveBaseline(context, store, id, next)
-        val left = if (force) emptyList() else plan.conflicts
+        val left = if (force) take.filter { it !in written } else (plan.conflicts + saved.filter { it !in written }).distinct()
         saveConflicts(context, store, id, left)
         return Result("ok", take.size, bytes, if (take.isEmpty()) "up-to-date" else "downloaded", left.size)
     }
