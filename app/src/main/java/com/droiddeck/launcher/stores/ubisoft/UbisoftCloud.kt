@@ -15,7 +15,14 @@ import java.time.Instant
 import java.util.zip.Deflater
 import java.util.zip.Inflater
 
-internal class UbisoftCloud(private val session: UbisoftAuth.Session, val product: Long) {
+internal interface UbisoftSlots {
+    fun entity(): UbisoftCloud.Entity?
+    fun upload(slot: String, data: ByteArray)
+    fun update(entity: UbisoftCloud.Entity, slots: JSONArray)
+    fun download(slot: String): ByteArray?
+}
+
+internal class UbisoftCloud(private val session: UbisoftAuth.Session, val product: Long) : UbisoftSlots {
     class Slot(val id: Int, val filename: String, val hash: String, val size: Long, val modifiedMs: Long)
 
     class Entity(val json: JSONObject) {
@@ -31,7 +38,7 @@ internal class UbisoftCloud(private val session: UbisoftAuth.Session, val produc
 
     private val authorization get() = "ubi_v1 t=${session.ticket}"
 
-    fun entity(): Entity? {
+    override fun entity(): Entity? {
         val url = "https://public-ubiservices.ubi.com/v1/profiles/${session.profileId}/entities?name=${entityName(product)}"
         val reply = UbisoftAuth.request(url, authorization = authorization, sessionId = session.sessionId)
         check(reply.ok) { "Ubisoft cloud saves answered ${reply.status}" }
@@ -39,7 +46,7 @@ internal class UbisoftCloud(private val session: UbisoftAuth.Session, val produc
         return (0 until list.length()).mapNotNull { list.optJSONObject(it) }.firstOrNull { it.optString("name") == entityName(product) }?.let(::Entity)
     }
 
-    fun upload(slot: String, data: ByteArray) {
+    override fun upload(slot: String, data: ByteArray) {
         val packed = deflate(data)
         val md5 = Base64.encodeToString(MessageDigest.getInstance("MD5").digest(packed), Base64.NO_WRAP)
         val signed = signed("put", JSONArray().put(JSONObject().put("name", slot).put("size", packed.size).put("md5", md5))).single()
@@ -58,7 +65,7 @@ internal class UbisoftCloud(private val session: UbisoftAuth.Session, val produc
         }
     }
 
-    fun update(entity: Entity, slots: JSONArray) {
+    override fun update(entity: Entity, slots: JSONArray) {
         val obj = JSONObject(entity.json.optJSONObject("obj")?.toString() ?: "{}")
             .put("slots", slots).put("timestamp", (System.currentTimeMillis() / 1000).toString()).put("pc_name", Build.MODEL ?: "Android")
         val body = JSONObject().put("revision", entity.revision).put("name", entity.json.optString("name")).put("type", "cloudSave")
@@ -68,7 +75,7 @@ internal class UbisoftCloud(private val session: UbisoftAuth.Session, val produc
         check(reply.ok) { "Ubisoft cloud save record answered ${reply.status}" }
     }
 
-    fun download(slot: String): ByteArray? {
+    override fun download(slot: String): ByteArray? {
         val signed = signed("get", JSONArray().put(JSONObject().put("name", slot))).single()
         val c = URL(signed.getString("url")).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
@@ -146,9 +153,11 @@ internal class UbisoftCloud(private val session: UbisoftAuth.Session, val produc
     }
 }
 
-internal class UbisoftCloudTransport(private val cloud: UbisoftCloud, val user: String) : CloudTransport {
+internal class UbisoftCloudTransport(private val cloud: UbisoftSlots, val user: String) : CloudTransport {
     private var listed: UbisoftCloud.Entity? = null
     private val committed = HashMap<String, CloudFile>()
+
+    override val contentDigests: Boolean get() = false
 
     override fun committed(name: String): CloudFile? = committed[name]
 
@@ -184,10 +193,10 @@ internal class UbisoftCloudTransport(private val cloud: UbisoftCloud, val user: 
                     ?: JSONObject().put("filename", slot).also { if (slot.toIntOrNull() != null) it.put("id", slot.toInt()); slots.put(it) }
                 entry.put("hash", marks.getValue(name)).put("size", data.size).put("lastModified", Instant.ofEpochMilli(now).toString())
                 cloud.update(live, slots)
-                sent[name] = now
                 val after = cloud.entity()
                 val mine = after?.let { committedSlot(live, it, slot, marks.getValue(name), data.size.toLong()) }
                     ?: throw CloudChanged(sent, files.keys.filter { it !in sent })
+                sent[name] = now
                 committed[name] = CloudFile(name, mine.modifiedMs, UbisoftCloud.version(mine))
                 expected = after
             }

@@ -136,6 +136,17 @@ class UbisoftTest {
         assertNull(UbisoftCloudTransport.committedSlot(before, entity(6, Triple("1", c, 11)), "1", c, 11))
     }
 
+    @Test fun aSlotTheCloudRewritesBeforeItIsVerifiedStaysUnsent() {
+        val slots = MemorySlots().apply { store("1", MemorySlots.save("a1")) }
+        val transport = UbisoftCloudTransport(slots, "u1")
+        transport.list()
+        slots.afterUpdate = { list -> list.getJSONObject(0).put("hash", UbisoftCloud.mark(MemorySlots.save("other device"))) }
+        val changed = runCatching { transport.put(mapOf("1.save" to MemorySlots.save("a2"))) }.exceptionOrNull() as com.droiddeck.launcher.stores.CloudChanged
+        assertTrue(changed.sent.isEmpty())
+        assertEquals(listOf("1.save"), changed.unsent)
+        assertNull(transport.committed("1.save"))
+    }
+
     @Test fun ubisoftCloudSavesAreSupported() {
         assertTrue(com.droiddeck.launcher.stores.CloudSaves.supports(Store.UBISOFT))
         assertTrue(!com.droiddeck.launcher.stores.CloudSaves.supports(Store.AMAZON))

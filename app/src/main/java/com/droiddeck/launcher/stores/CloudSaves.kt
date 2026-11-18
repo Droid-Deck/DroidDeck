@@ -38,10 +38,12 @@ object CloudSaves {
 
     class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String, val conflicts: List<String> = emptyList())
 
-    private fun game(context: Context, store: Store, id: String): Pair<File, StoreGameSidecar>? =
-        StoreInstallRoot.gameFolders(context).firstNotNullOfOrNull { f ->
-            StoreGameSidecar.read(f)?.takeIf { it.store == store && it.id == id && it.isInstalled }?.let { f to it }
-        }
+    private fun game(context: Context, store: Store, id: String): Pair<File, StoreGameSidecar>? {
+        fun match(f: File) = StoreGameSidecar.read(f)?.takeIf { it.store == store && it.id == id && it.isInstalled }?.let { f to it }
+        return StoreInstallRoot.gameFolders(context).firstNotNullOfOrNull(::match)
+            ?: if (store != Store.UBISOFT) null
+            else com.droiddeck.launcher.session.SessionPrefs.storeGameFolder(context, "${store.id}:$id")?.let { match(File(it)) }
+    }
 
     fun supports(store: Store?): Boolean = store == Store.GOG || store == Store.EPIC || store == Store.UBISOFT
 
@@ -170,7 +172,7 @@ object CloudSaves {
 
     fun status(context: Context, store: Store, id: String): Status {
         val (dir, reason) = saveFolder(context, store, id)
-        return Status(reason != "no-cloud-saves" && reason != "not-installed", dir, lastSync(context, store, id), reason, conflicts(context, store, id))
+        return Status(reason != "no-cloud-saves" && reason != "not-installed", dir, lastSync(context, store, id), reason, conflicts(context, store, id, dir))
     }
 
 
@@ -202,11 +204,15 @@ object CloudSaves {
     }
 
 
-    private fun baseline(context: Context, store: Store, id: String): Map<String, CloudPlan.Entry>? =
-        CloudPlan.fromJson(prefs(context, store).getString("cloud_baseline_$id", null))
+    /** Ubisoft saves belong to an account and product, so their sync state is kept per save folder. */
+    internal fun scope(store: Store, id: String, dir: File): String =
+        if (store == Store.UBISOFT) "$id:${dir.parentFile?.name.orEmpty()}:${dir.name}" else id
 
-    private fun saveBaseline(context: Context, store: Store, id: String, b: Map<String, CloudPlan.Entry>) =
-        prefs(context, store).edit().putString("cloud_baseline_$id", CloudPlan.toJson(b)).apply()
+    internal fun baseline(context: Context, store: Store, key: String): Map<String, CloudPlan.Entry>? =
+        CloudPlan.fromJson(prefs(context, store).getString("cloud_baseline_$key", null))
+
+    private fun saveBaseline(context: Context, store: Store, key: String, b: Map<String, CloudPlan.Entry>) =
+        prefs(context, store).edit().putString("cloud_baseline_$key", CloudPlan.toJson(b)).apply()
 
     internal class Migration(val baseline: Map<String, CloudPlan.Entry>, val moved: Int, val cleaned: Int, val failed: Int)
 
@@ -278,11 +284,25 @@ object CloudSaves {
         if (result == null || result.failed == 0) p.edit().putInt("cloud_layout_$id", CLOUD_LAYOUT).apply()
     }
 
-    fun conflicts(context: Context, store: Store, id: String): List<String> =
-        prefs(context, store).getString("cloud_conflicts_$id", "").orEmpty().split('\n').filter { it.isNotEmpty() }
+    fun conflicts(context: Context, store: Store, id: String, dir: File? = null): List<String> =
+        if (store == Store.UBISOFT && dir == null) emptyList() else savedConflicts(context, store, dir?.let { scope(store, id, it) } ?: id)
 
-    private fun saveConflicts(context: Context, store: Store, id: String, names: Collection<String>) =
-        prefs(context, store).edit().putString("cloud_conflicts_$id", names.joinToString("\n")).apply()
+    private fun savedConflicts(context: Context, store: Store, key: String): List<String> =
+        prefs(context, store).getString("cloud_conflicts_$key", "").orEmpty().split('\n').filter { it.isNotEmpty() }
+
+    private fun saveConflicts(context: Context, store: Store, key: String, names: Collection<String>) =
+        prefs(context, store).edit().putString("cloud_conflicts_$key", names.joinToString("\n")).apply()
+
+    private fun alike(cloud: CloudTransport, conflicts: List<String>, local: Map<String, CloudPlan.Local>, remote: Map<String, CloudFile>): List<String> =
+        if (cloud.contentDigests) emptyList()
+        else conflicts.filter { name ->
+            val r = remote[name] ?: return@filter false
+            val l = local[name] ?: return@filter false
+            runCatching { md5(cloud.get(r).first) }.getOrNull()?.equals(l.md5, ignoreCase = true) == true
+        }
+
+    private fun settled(plan: CloudPlan.Plan, alike: List<String>): CloudPlan.Plan =
+        if (alike.isEmpty()) plan else CloudPlan.Plan(plan.transfer, plan.conflicts - alike.toSet(), plan.same + alike, plan.refused)
 
     fun download(context: Context, store: Store, id: String, force: Boolean = false): Result =
         sync(context, store, id, "down") { dir, cloud -> downWith(context, store, id, dir, cloud, force) }
@@ -365,9 +385,12 @@ object CloudSaves {
         val files = localFiles(dir).filterKeys(cloud::wants)
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
-        val base = baseline(context, store, id)
-        val plan = CloudPlan.down(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
-        val saved = conflicts(context, store, id).filter { it in remote }
+        val key = scope(store, id, dir)
+        val base = baseline(context, store, key)
+        val planned = CloudPlan.down(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
+        val alike = alike(cloud, planned.conflicts, local, remote)
+        val plan = settled(planned, alike)
+        val saved = savedConflicts(context, store, key).filter { it in remote && it !in alike }
         val take = if (force) (plan.transfer + plan.conflicts + saved).distinct() else plan.transfer
         if (take.isNotEmpty() && files.isNotEmpty()) backup(context, store, id, dir, "local")
         val next = HashMap(base.orEmpty())
@@ -389,10 +412,10 @@ object CloudSaves {
             next[name] = CloudPlan.Entry(md5(data), f.md5, if (modified > 0) modified else f.modifiedMs)
         }
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
-        saveBaseline(context, store, id, next)
+        saveBaseline(context, store, key, next)
         val left = (if (force) take.filter { it !in written } else plan.conflicts + saved.filter { it !in written } + changed)
             .filter { it !in blocked }.distinct()
-        saveConflicts(context, store, id, left)
+        saveConflicts(context, store, key, left)
         val reason = when {
             take.isEmpty() -> "up-to-date"
             changed.isNotEmpty() -> "changed-locally"
@@ -407,12 +430,16 @@ object CloudSaves {
     }
 
     internal fun upWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
-        val base = baseline(context, store, id) ?: return Result("skipped", 0, 0, "no-baseline")
+        val key = scope(store, id, dir)
+        val base = baseline(context, store, key) ?: return Result("skipped", 0, 0, "no-baseline")
         val files = localFiles(dir).filterKeys(cloud::wants).let { all -> if (cloud is UbisoftCloudTransport) all.filterValues(::hasUbisoftMark) else all }
         if (files.isEmpty()) return Result("skipped", 0, 0, "nothing-local")
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
-        val plan = CloudPlan.up(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
+        val planned = CloudPlan.up(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
+        val alike = alike(cloud, planned.conflicts, local, remote)
+        val plan = settled(planned, alike)
+        val saved = savedConflicts(context, store, key).filter { it !in alike }
         var send = CloudPlan.upSend(plan, force, cloud is GogCloud, files.keys)
         val next = HashMap(base)
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
@@ -444,6 +471,14 @@ object CloudSaves {
                 } catch (e: CloudChanged) {
                     raced = e.unsent
                     e.sent
+                } catch (e: Exception) {
+                    val kept = send.mapNotNull { name -> cloud.committed(name)?.let { name to it } }
+                    if (kept.isNotEmpty()) {
+                        for ((name, r) in kept) next[name] = CloudPlan.Entry(sentMd5.getValue(name), r.md5, r.modifiedMs)
+                        saveBaseline(context, store, key, next)
+                        saveConflicts(context, store, key, saved - kept.map { it.first }.toSet())
+                    }
+                    throw e
                 }
                 send = send.filter { it in stamped }
                 for ((name, t) in stamped) if (t > 0) files[name]?.setLastModified(t)
@@ -454,11 +489,10 @@ object CloudSaves {
                 next[name] = CloudPlan.Entry(sentMd5.getValue(name), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
             }
         }
-        saveBaseline(context, store, id, next)
-        val saved = conflicts(context, store, id)
+        saveBaseline(context, store, key, next)
         val left = (if (force) (plan.conflicts + saved).filter { it !in send } + raced
             else plan.conflicts + drifted + raced + saved.filter { it !in send && it in files }).distinct()
-        saveConflicts(context, store, id, left)
+        saveConflicts(context, store, key, left)
         val reason = when {
             raced.isNotEmpty() -> "changed-in-cloud"
             send.isEmpty() -> "up-to-date"

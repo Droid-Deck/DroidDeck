@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.stores
 
+import com.droiddeck.launcher.stores.ubisoft.MemorySlots
+import com.droiddeck.launcher.stores.ubisoft.UbisoftCloudTransport
 import java.io.File
 import java.util.concurrent.Executor
 import org.junit.Assert.assertArrayEquals
@@ -118,6 +120,71 @@ class CloudSavesTest {
         CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = true)
         assertEquals("local v2", String(cloud.files.getValue("slot0.sav").first))
         assertEquals(listOf("slot1.sav"), CloudSaves.conflicts(app, Store.GOG, game))
+    }
+
+    private fun ubisoftDir(user: String, root: File = File(app.filesDir, "ubi-${System.nanoTime()}")) = File(root, "$user/77").apply { mkdirs() }
+
+    @Test fun aSlotBothSidesSavedAlikeIsNotAConflictWhenTheCloudNamesOnlyAVersion() {
+        val game = id; val dir = ubisoftDir("u1")
+        val slots = MemorySlots().apply { store("1", MemorySlots.save("a1")) }
+        assertEquals("ok", CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false).result)
+        File(dir, "1.save").writeBytes(MemorySlots.save("a2"))
+        slots.store("1", MemorySlots.save("a2"))
+        val down = CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        assertEquals(0, down.conflicts)
+        assertTrue(CloudSaves.conflicts(app, Store.UBISOFT, game, dir).isEmpty())
+        val up = CloudSaves.upWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        assertEquals("up-to-date", up.reason); assertEquals(0, up.conflicts)
+        File(dir, "1.save").writeBytes(MemorySlots.save("a3 local"))
+        slots.store("1", MemorySlots.save("a3 cloud"))
+        assertEquals(1, CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false).conflicts)
+    }
+
+    @Test fun aSlotCommittedBeforeALaterOneFailsReachesTheBaseline() {
+        val game = id; val dir = ubisoftDir("u1")
+        val slots = MemorySlots().apply { store("1", MemorySlots.save("a1")); store("2", MemorySlots.save("b1")) }
+        CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        File(dir, "1.save").writeBytes(MemorySlots.save("a2")); File(dir, "2.save").writeBytes(MemorySlots.save("b2"))
+        slots.uploadsLeft = 1
+        assertTrue(runCatching { CloudSaves.upWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false) }
+            .exceptionOrNull() is java.io.IOException)
+        val base = CloudSaves.baseline(app, Store.UBISOFT, CloudSaves.scope(Store.UBISOFT, game, dir))!!
+        val sent = listOf("1", "2").single { slots.data.getValue(it).contentEquals(MemorySlots.save(if (it == "1") "a2" else "b2")) }
+        val kept = if (sent == "1") "2" else "1"
+        assertEquals(CloudSaves.md5(File(dir, "$sent.save")), base.getValue("$sent.save").localMd5)
+        assertEquals(CloudSaves.md5(MemorySlots.save(if (kept == "1") "a1" else "b1")), base.getValue("$kept.save").localMd5)
+        slots.uploadsLeft = Int.MAX_VALUE
+        val r = CloudSaves.upWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        assertEquals("ok", r.result); assertEquals(1, r.files); assertEquals(0, r.conflicts)
+    }
+
+    @Test fun ubisoftConflictsBelongToTheAccountAndProductThatHadThem() {
+        val game = id; val root = File(app.filesDir, "ubi-${System.nanoTime()}")
+        val a = ubisoftDir("uA", root); val b = ubisoftDir("uB", root)
+        val cloudB = Memory().apply { files["slot0.save"] = "b1".toByteArray() to 1000L }
+        CloudSaves.downWith(app, Store.UBISOFT, game, b, cloudB, force = false)
+        File(b, "slot0.save").writeText("b local")
+        val cloudA = Memory().apply { files["slot0.save"] = "a1".toByteArray() to 1000L }
+        CloudSaves.downWith(app, Store.UBISOFT, game, a, cloudA, force = false)
+        File(a, "slot0.save").writeText("a local")
+        cloudA.files["slot0.save"] = "a2".toByteArray() to 50_000L
+        assertEquals(1, CloudSaves.downWith(app, Store.UBISOFT, game, a, cloudA, force = false).conflicts)
+        assertEquals(listOf("slot0.save"), CloudSaves.conflicts(app, Store.UBISOFT, game, a))
+        assertTrue(CloudSaves.conflicts(app, Store.UBISOFT, game, b).isEmpty())
+        CloudSaves.downWith(app, Store.UBISOFT, game, b, cloudB, force = true)
+        assertEquals("b local", File(b, "slot0.save").readText())
+        com.droiddeck.launcher.stores.epic.EpicPrefs.get(app).edit().putString("cloud_conflicts_$game", "slot0.save").apply()
+        assertTrue(CloudSaves.conflicts(app, Store.UBISOFT, game, ubisoftDir("uC", root)).isEmpty())
+        assertTrue(CloudSaves.conflicts(app, Store.UBISOFT, game).isEmpty())
+    }
+
+    @Test fun aUbisoftGameAddedFromAnotherFolderIsFoundForCloudSaves() {
+        val game = id
+        val folder = File(app.filesDir, "Elsewhere/Anno-$game").apply { mkdirs() }
+        File(folder, "Anno.exe").writeText("MZ")
+        StoreGameSidecar(Store.UBISOFT, game, "Anno", "Anno.exe", extra = mapOf("productId" to "77")).write(folder)
+        com.droiddeck.launcher.session.SessionPrefs.followStoreGame(app, "ubisoft:$game", folder.path) { true }
+        assertEquals("not-signed-in", CloudSaves.status(app, Store.UBISOFT, game).reason)
     }
 
     @Test fun aDirtyMarkStaysUntilAnUploadGoesThroughOrIsSkippedForGood() {

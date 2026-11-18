@@ -27,6 +27,8 @@ class CloudFile(val name: String, var modifiedMs: Long, var md5: String? = null,
 class CloudPut(val modifiedMs: Long, val md5: String?)
 
 interface CloudTransport {
+    /** False when [CloudFile.md5] is a version the service assigns rather than a digest of the content. */
+    val contentDigests: Boolean get() = true
     fun committed(name: String): CloudFile? = null
     fun wants(name: String): Boolean = true
     fun list(): List<CloudFile>
