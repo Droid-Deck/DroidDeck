@@ -29,7 +29,7 @@ internal object SteamHidden {
         val target = file(root) ?: return null
         val entries = JSONArray(target.readText())
         val slot = (0 until entries.length()).firstOrNull { entries.getJSONArray(it).optString(0) == KEY }
-        val entry = slot?.let { entries.getJSONArray(it).optJSONObject(1) } ?: JSONObject().put("key", KEY)
+        val entry = if (slot == null) JSONObject().put("key", KEY) else entries.getJSONArray(slot).optJSONObject(1) ?: return null
         val live = !entry.optBoolean("is_deleted")
         val collection = if (live && entry.has("value")) JSONObject(entry.optString("value")) else JSONObject().put("id", "hidden")
         val added = ids(collection, "added").filter { it != appId }
