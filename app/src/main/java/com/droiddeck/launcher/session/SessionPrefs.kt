@@ -317,12 +317,16 @@ object SessionPrefs {
 
     private val LEGACY_STORES_TAB_ORDER = listOf("gog", "epic", "amazon", "xbox", "itch", "gamejolt", "battlenet", "ubisoft", "ea", "rockstar")
 
-    /** Moves an order the user never arranged onto the current default, which the Library pills follow too. */
+    /**
+     * Forgets an order the user never arranged, so the Stores tabs and Library pills follow whatever the default is now.
+     * Earlier versions saved the default of their day, which is why a saved order alone does not mean the user chose it.
+     */
     fun settleStoresTabOrder(context: Context, defaults: List<String>) {
         if (storesTabOrderCustomized(context)) return
         val saved = storesTabOrder(context)
-        if (saved.isNotEmpty() && saved != LEGACY_STORES_TAB_ORDER) setStoresTabOrderCustomized(context, true)
-        else setStoresTabOrder(context, defaults)
+        if (saved.isEmpty()) return
+        if (saved == LEGACY_STORES_TAB_ORDER || saved == defaults) prefs(context).edit().remove("storesTabOrder").apply()
+        else setStoresTabOrderCustomized(context, true)
     }
 
     fun setStoresTabOrder(context: Context, order: List<String>) {
