@@ -95,7 +95,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         rescales -> (layoutScale * 100).roundToInt()
         else -> 100
     }
-    val positioned get() = (if (rescales) gamepad!!.reset(elements) else defaults?.let { refit(elements.withPositionsOf(it), defaultsFrame) })
+    val positioned get() = (if (rescales) gamepad!!.reset(elements) else defaults?.let { elements.withPositionsOf(refit(it, defaultsFrame)) })
         ?.takeIf { it != elements || rescales && layoutScale != 1f }
 
     private fun refit(placed: List<InputSurfaceElement>, from: Float): List<InputSurfaceElement> {
