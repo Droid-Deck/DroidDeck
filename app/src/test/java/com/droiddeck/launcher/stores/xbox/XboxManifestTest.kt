@@ -16,6 +16,19 @@ class XboxManifestTest {
         java.io.File(root, "MicrosoftGame.Config").writeText("<Game><ExecutableList><Executable Name=\"bin\\GAME.EXE\" TargetDeviceFamily=\"PC\"/></ExecutableList></Game>")
         assertEquals("Bin/Game.exe", XboxInstaller.executable(root))
     }
+    @Test fun aLauncherMenuIsSkippedForTheProgramItNames() {
+        val root = temporary.newFolder()
+        java.io.File(root, "EmuMenu").mkdir()
+        java.io.File(root, "EmuMenu/EmuMenu.exe").writeText("menu")
+        java.io.File(root, "Emu.exe").writeText("emulator")
+        java.io.File(root, "MicrosoftGame.config").writeText("<Game><ExecutableList><Executable Name=\"EmuMenu\\EmuMenu.exe\"/></ExecutableList></Game>")
+        java.io.File(root, "EmuMenu/EmuMenuLaunchArguments.txt").writeText("exe=..\\Emu.exe\r\ntitlename=Game\r\n")
+        assertEquals("Emu.exe", XboxInstaller.executable(root))
+        java.io.File(root, "EmuMenu/EmuMenuLaunchArguments.txt").writeText("exe=..\\..\\outside.exe\r\n")
+        assertEquals("EmuMenu/EmuMenu.exe", XboxInstaller.executable(root))
+        java.io.File(root, "EmuMenu/EmuMenuLaunchArguments.txt").writeText("titlename=Game\r\n")
+        assertEquals("EmuMenu/EmuMenu.exe", XboxInstaller.executable(root))
+    }
     @Test fun rejectsTraversalAndExternalEntities() {
         for (xml in listOf("<Game><Executable Name=\"../escape.exe\"/></Game>",
             "<!DOCTYPE Game [<!ENTITY external SYSTEM 'file:///etc/passwd'>]><Game>&external;</Game>",
