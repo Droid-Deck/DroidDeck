@@ -1635,7 +1635,7 @@ index 0000000..d626fb2
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index a0136f8..d1f7211 100644
+index a0136f8..92b1a14 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -1663,7 +1663,7 @@ index a0136f8..d1f7211 100644
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
          Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
-@@ -692,3 +701,98 @@ where
+@@ -692,3 +701,106 @@ where
      }
      ExitCode::SUCCESS
  }
@@ -1759,15 +1759,23 @@ index a0136f8..d1f7211 100644
 +        lying[central + 24] = 0xff;
 +        let truncated = super::plain_package(std::io::Cursor::new(lying), length, &out).await;
 +        assert_eq!(truncated, std::process::ExitCode::FAILURE);
++        let mut overrun = stored_zip("AppxManifest.xml", b"<Package/>");
++        let central = overrun.windows(4).position(|w| w == [0x50, 0x4b, 0x01, 0x02]).unwrap();
++        for at in [18, 22, central + 20, central + 24] {
++            overrun[at] = 11;
++        }
++        let length = overrun.len() as u64;
++        let overran = super::plain_package(std::io::Cursor::new(overrun), length, &out).await;
++        assert_eq!(overran, std::process::ExitCode::FAILURE);
 +        std::fs::remove_dir_all(&out).ok();
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/unzip.rs b/crates/xodus-cli/src/commands/unzip.rs
 new file mode 100644
-index 0000000..858afec
+index 0000000..0aaf52c
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/unzip.rs
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,203 @@
 +//! Plain ZIP packages, which is what the store serves for a framework.
 +//!
 +//! Framework packages (`Microsoft.VCLibs.140.00` and its siblings) arrive from the
@@ -1815,6 +1823,7 @@ index 0000000..858afec
 +        return Err(format!("the package directory starts past the archive at {offset} of {length}"));
 +    }
 +    std::fs::create_dir_all(destination).map_err(|error| format!("package folder failed: {error}"))?;
++    let directory = offset;
 +    for _ in 0..entries {
 +        file.seek(SeekFrom::Start(offset)).map_err(|error| format!("package seek failed: {error}"))?;
 +        let mut header = [0u8; 46];
@@ -1829,6 +1838,7 @@ index 0000000..858afec
 +        let extra_length = u16::from_le_bytes([header[30], header[31]]) as usize;
 +        let comment_length = u16::from_le_bytes([header[32], header[33]]) as usize;
 +        let mut local = u64::from(u32::from_le_bytes([header[42], header[43], header[44], header[45]]));
++        let mut size = u64::from(uncompressed);
 +        let mut name = vec![0u8; name_length];
 +        file.read_exact(&mut name).map_err(|error| format!("package name failed: {error}"))?;
 +        let mut extra = vec![0u8; extra_length];
@@ -1841,6 +1851,9 @@ index 0000000..858afec
 +            }
 +            if local == u64::from(SATURATED) {
 +                local = wide.local.ok_or("a package entry has no wide offset")?;
++            }
++            if uncompressed == SATURATED {
++                size = wide.size.ok_or("a package entry has no wide uncompressed size")?;
 +            }
 +        }
 +        let name = String::from_utf8(name).map_err(|_| "a package entry has an unreadable name".to_string())?;
@@ -1857,8 +1870,14 @@ index 0000000..858afec
 +        file.read_exact(&mut local_header).map_err(|error| format!("package header failed: {error}"))?;
 +        let local_name = u16::from_le_bytes([local_header[26], local_header[27]]) as usize;
 +        let local_extra = u16::from_le_bytes([local_header[28], local_header[29]]) as usize;
-+        file.seek(SeekFrom::Current((local_name + local_extra) as i64))
-+            .map_err(|error| format!("package seek failed: {error}"))?;
++        let data = local + 30 + local_name as u64 + local_extra as u64;
++        if data.checked_add(compressed).is_none_or(|end| end > directory) {
++            return Err(format!("the package entry {name} runs past its data"));
++        }
++        if method == 0 && compressed != size {
++            return Err(format!("the package entry {name} has inconsistent sizes"));
++        }
++        file.seek(SeekFrom::Start(data)).map_err(|error| format!("package seek failed: {error}"))?;
 +        let mut body = (&mut file).take(compressed);
 +        let mut written = std::fs::File::create(&target).map_err(|error| format!("package write failed: {error}"))?;
 +        match method {
@@ -1871,7 +1890,7 @@ index 0000000..858afec
 +            8 => {
 +                let mut inflate = flate2::read::DeflateDecoder::new(body);
 +                let copied = std::io::copy(&mut inflate, &mut written).map_err(|error| format!("package inflate failed: {error}"))?;
-+                if uncompressed != SATURATED && copied != u64::from(uncompressed) {
++                if copied != size {
 +                    return Err(format!("the package entry {name} is truncated"));
 +                }
 +            }
@@ -1929,7 +1948,7 @@ index 0000000..858afec
 +                cursor += 8;
 +                Some(value)
 +            };
-+            take(has_size);
++            wide.size = take(has_size);
 +            wide.compressed = take(has_compressed);
 +            wide.local = take(has_local);
 +            return wide;
@@ -1941,6 +1960,7 @@ index 0000000..858afec
 +
 +#[derive(Default)]
 +struct Wide {
++    size: Option<u64>,
 +    compressed: Option<u64>,
 +    local: Option<u64>,
 +}
