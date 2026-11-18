@@ -282,7 +282,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val gameJoltSignedIn = owned.containsKey(Store.GAMEJOLT)
     val sources = librarySources(
         all, SessionPrefs.storesTabOrder(ctx),
-        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.SOURCE_COLLECTION.takeIf { soundMode }).toSet(),
+        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }).toSet(),
         favorites, concealed, LibraryDisplay.hidden && !soundMode,
     )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
