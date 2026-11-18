@@ -35,8 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.semantics.invisibleToUser
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 // Grows out of the search button over the section pills, with the same spring as the other page searches.
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -63,7 +62,7 @@ internal fun SettingsPillSearch(
                 .graphicsLayer { alpha = 1f - open; translationX = -24.dp.toPx() * open }
                 .focusProperties { enter = { if (searching) FocusRequester.Cancel else FocusRequester.Default } }
                 .focusGroup()
-                .then(if (searching) Modifier.semantics { invisibleToUser() } else Modifier)
+                .then(if (searching) Modifier.clearAndSetSemantics {} else Modifier)
                 .then(if (searching) Modifier.pointerInput(Unit) {
                     awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() } }
                 } else Modifier),
