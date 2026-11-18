@@ -43,10 +43,10 @@ index 088a6d0..825c24e 100644
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..7a44cee
+index 0000000..df461c2
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1092 @@
+@@ -0,0 +1,1088 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -397,12 +397,8 @@ index 0000000..7a44cee
 +        }
 +        return ExitCode::SUCCESS;
 +    }
-+    // Expanding a bundle in place keeps the bundle, the package it holds and that
-+    // package's contents on disk at the same time, so the peak is the download plus
-+    // two copies of the largest container. Refusing now is far kinder than filling
-+    // the device at the end of an eighty gigabyte install.
 +    if let Some(free) = free_bytes(&destination) {
-+        let needed = total.saturating_add(largest.saturating_mul(2));
++        let needed = total.saturating_add(largest).saturating_add(largest / 10);
 +        // A container this run fetches again is truncated before it is written, so
 +        // what a stopped attempt already holds is available to the retry. Without
 +        // this, an interrupted install could demand deletion of the very file the
@@ -1141,10 +1137,10 @@ index 0000000..7a44cee
 +}
 diff --git a/crates/xodus-cli/src/commands/store_delivery.rs b/crates/xodus-cli/src/commands/store_delivery.rs
 new file mode 100644
-index 0000000..1927514
+index 0000000..d626fb2
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/store_delivery.rs
-@@ -0,0 +1,429 @@
+@@ -0,0 +1,492 @@
 +//! Windows Update delivery for Store packages.
 +//!
 +//! The Xbox content service (`GetBasePackage`) serves MSIXVC titles but answers a
@@ -1353,6 +1349,48 @@ index 0000000..1927514
 +    digest: String,
 +    name: String,
 +    size: u64,
++    moniker: String,
++}
++
++fn package_identity(moniker: &str) -> Option<((String, String), Vec<u64>)> {
++    let mut parts = moniker.split('_');
++    let name = parts.next()?.to_ascii_lowercase();
++    let version = parts.next()?.split('.').map(|part| part.parse::<u64>().ok()).collect::<Option<Vec<_>>>()?;
++    let arch = parts.next()?.to_ascii_lowercase();
++    if name.is_empty() {
++        return None;
++    }
++    Some(((name, arch), version))
++}
++
++fn newest_builds(revisions: Vec<Revision>) -> Vec<Revision> {
++    let desktop: std::collections::HashSet<String> = revisions
++        .iter()
++        .filter_map(|revision| package_identity(&revision.moniker))
++        .filter(|((_, arch), _)| arch == "x64" || arch == "neutral")
++        .map(|((name, _), _)| name)
++        .collect();
++    let mut newest: std::collections::HashMap<(String, String), Vec<u64>> = std::collections::HashMap::new();
++    for revision in &revisions {
++        if let Some((key, version)) = package_identity(&revision.moniker) {
++            let entry = newest.entry(key).or_default();
++            if version > *entry {
++                *entry = version;
++            }
++        }
++    }
++    let mut seen = std::collections::HashSet::new();
++    revisions
++        .into_iter()
++        .filter(|revision| match package_identity(&revision.moniker) {
++            Some((key, version)) => {
++                newest.get(&key) == Some(&version)
++                    && (!desktop.contains(&key.0) || key.1 == "x64" || key.1 == "neutral")
++            }
++            None => true,
++        })
++        .filter(|revision| seen.insert(revision.name.to_ascii_lowercase()))
++        .collect()
 +}
 +
 +/// One packager per file: the revision identity and the digest are what the
@@ -1423,6 +1461,7 @@ index 0000000..1927514
 +                digest: attribute(&attributes, "Digest").unwrap_or_default(),
 +                name,
 +                size: attribute(&attributes, "Size").and_then(|size| size.parse().ok()).unwrap_or(0),
++                moniker: attribute(&combined, "PackageMoniker").unwrap_or_default(),
 +            });
 +        }
 +    }
@@ -1478,7 +1517,7 @@ index 0000000..1927514
 +/// The packages a Windows Update category lists, in the containers a title is
 +/// packed in.
 +pub async fn resolve_category(client: &reqwest::Client, category: &str) -> Result<Delivery, String> {
-+    resolve_wanted(client, category, |name| {
++    resolve_wanted(client, category, true, |name| {
 +        let lower = name.to_ascii_lowercase();
 +        lower.ends_with(".eappx") || lower.ends_with(".eappxbundle")
 +    })
@@ -1487,16 +1526,18 @@ index 0000000..1927514
 +
 +/// The plain `.appx` packages a category lists, which is how a framework ships.
 +pub async fn resolve_frameworks(client: &reqwest::Client, category: &str) -> Result<Delivery, String> {
-+    resolve_wanted(client, category, |name| name.to_ascii_lowercase().ends_with(".appx")).await
++    resolve_wanted(client, category, false, |name| name.to_ascii_lowercase().ends_with(".appx")).await
 +}
 +
 +async fn resolve_wanted(
 +    client: &reqwest::Client,
 +    category: &str,
++    newest_only: bool,
 +    wanted: fn(&str) -> bool,
 +) -> Result<Delivery, String> {
 +    let (cookie, expiration) = cookie(client).await?;
 +    let (revisions, package_content_id) = revisions(client, &cookie, &expiration, category, wanted).await?;
++    let revisions = if newest_only { newest_builds(revisions) } else { revisions };
 +    if revisions.is_empty() {
 +        return Err("Windows Update lists no package files for this product".into());
 +    }
@@ -1541,6 +1582,24 @@ index 0000000..1927514
 +            "unexpected subject"
 +        );
 +        assert!(client().is_ok());
++    }
++
++    fn build(name: &str, moniker: &str) -> Revision {
++        Revision { update_id: String::new(), revision: "1".into(), digest: String::new(), name: name.into(), size: 1, moniker: moniker.into() }
++    }
++
++    #[test]
++    fn only_the_newest_desktop_build_of_each_package_is_kept() {
++        let kept = newest_builds(vec![
++            build("old.eappx", "Microsoft.MSEsper_1.3.25854.2_x64__8wekyb3d8bbwe"),
++            build("new.eappx", "Microsoft.MSEsper_1.3.25854.70_x64__8wekyb3d8bbwe"),
++            build("arm.eappx", "Microsoft.MSEsper_1.3.25854.70_arm64__8wekyb3d8bbwe"),
++            build("bare.eappxbundle", ""),
++            build("NEW.eappx", "Microsoft.MSEsper_1.3.25854.70_x64__8wekyb3d8bbwe"),
++        ]);
++        let names: Vec<_> = kept.iter().map(|r| r.name.as_str()).collect();
++        assert_eq!(names, ["new.eappx", "bare.eappxbundle"]);
++        assert_eq!(newest_builds(vec![build("x86.eappx", "Game_1.0.0.0_x86__p")]).len(), 1);
 +    }
 +
 +    #[test]
