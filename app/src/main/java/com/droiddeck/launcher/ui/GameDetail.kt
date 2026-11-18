@@ -217,7 +217,6 @@ internal fun GameDetail(
     }
     val art: Any? = game?.hero ?: item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
     val artModel: Any? = if (art is String) cardArtRequest(art, item?.tallImageUrl) else art
-    val inSteam = !s.shortcutPicker && source != Library.SOURCE_STEAM && (game != null || installed != null) && !(game?.library == Library.XBOX_CLOUD && installed == null)
     val inset = LocalDetailInset.current
     GameBackdrop(artModel, art ?: game?.art, hueOf(title), fadeTop = inset.top < 8.dp, onArtPlaced = { StoresMotion.heroAt = it }) {
         Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top).onFocusChanged { inPage = it.hasFocus }.bumpers(onPrevious = { cycle(-1) }, onNext = { cycle(1) })) {
@@ -239,7 +238,7 @@ internal fun GameDetail(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Spacer(Modifier.height(if (narrow) 8.dp else 20.dp))
                     GameTitle(title, game?.logo ?: item?.logoUrl, if (narrow) 30.sp else 40.sp)
-                    GameStatusLine(source, game, item, installed, download?.location ?: failed?.location, inSteam)
+                    GameStatusLine(source, game, item, installed, download?.location ?: failed?.location)
                     if (!failed?.error.isNullOrBlank()) Text(
                         failed!!.error!!, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.error, maxLines = 3, overflow = TextOverflow.Ellipsis,
@@ -298,7 +297,7 @@ internal fun SourceBadge(source: String) {
 }
 
 @Composable
-private fun GameStatusLine(source: String, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?, downloadAt: String?, inSteam: Boolean) {
+private fun GameStatusLine(source: String, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?, downloadAt: String?) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -322,9 +321,8 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
         modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
     ) {
         SourceBadge(source)
-        if (where.isNotBlank()) StatusChip(where, if (installed != null || game != null) Icons.Filled.Check else null, if (installed != null || game != null) pal.good else null)
+        if (where.isNotBlank()) StatusChip(where)
         if (size != null) StatusChip(formatBytes(size))
-        if (inSteam) StatusChip(stringResource(R.string.stores_in_steam_label), Icons.Outlined.VideogameAsset)
     }
 }
 
