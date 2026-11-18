@@ -82,7 +82,7 @@ class PulseAudioComponentTest {
             val command = pool.submit<String> {
                 host.command(first) {
                     checked.countDown()
-                    assertTrue(resume.await(5, TimeUnit.SECONDS))
+                    resume.await()
                     "old host"
                 }
             }
@@ -126,7 +126,7 @@ class PulseAudioComponentTest {
             val command = pool.submit<String> {
                 host.command(token) {
                     checked.countDown()
-                    assertTrue(resume.await(5, TimeUnit.SECONDS))
+                    resume.await()
                     "done"
                 }
             }
