@@ -165,7 +165,7 @@ class FrontEndState(
     val adreno: Boolean = true,
     val maliGraphicsMode: MaliGraphicsMode = MaliGraphicsMode.AUTO,
     val maliGraphicsPath: MaliGraphicsMode? = null,
-    val maliGraphicsActual: MaliGraphicsMode? = null,
+    val maliGraphicsActual: com.droiddeck.launcher.session.SessionPaths.GraphicsConfirmation? = null,
     val maliGraphicsProblem: String? = null,
     val vkBridgeSafe: Boolean = true,
     val bridgeProtonDxvk: Boolean = false,

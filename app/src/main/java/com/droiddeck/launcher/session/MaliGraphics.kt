@@ -23,6 +23,19 @@ object MaliGraphics {
     const val PATH_FILE = "mali-graphics-path"
     const val ERROR_FILE = "mali-graphics-error"
 
+    data class Launch(val choice: MaliGraphicsMode, val path: MaliGraphicsMode?, val linux: String,
+        val icd: String?, val problem: String?, val driverMode: String, val display: String)
+
+    fun capture(context: Context): Launch = synchronized(SessionPrefs) {
+        val choice = SessionPrefs.maliGraphicsMode(context)
+        val linux = SessionPrefs.linuxDriver(context)
+        val icd = panvkIcd(context, linux)
+        val path = resolve(context)
+        Launch(choice, path, linux, icd, problem(context, path), SessionPrefs.gpuDriverMode(context),
+            com.droiddeck.launcher.wayland.CompositorHost.displayChoice
+                .takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted } ?: SessionPrefs.androidDriver(context))
+    }
+
     internal fun migrate(mali: Boolean, bridge: Boolean?, venus: Boolean?, owner: String?): MaliGraphicsMode {
         if (!mali || (bridge == null && venus == null)) return MaliGraphicsMode.AUTO
         if (venus == true && owner != "venus") return MaliGraphicsMode.VENUS
@@ -47,8 +60,7 @@ object MaliGraphics {
         DeviceSupport.bridgeUsable() && File(context.applicationInfo.nativeLibraryDir, VkBridgeComponent.BINARY).isFile,
     )
 
-    fun panvkIcd(context: Context): String? {
-        val id = SessionPrefs.linuxDriver(context)
+    fun panvkIcd(context: Context, id: String = SessionPrefs.linuxDriver(context)): String? {
         val drivers = LinuxVulkanDriverManager(context)
         if (!File(drivers.getDriverDir(id), "libvulkan_panfrost.so").isFile) return null
         return drivers.getIcdPath(id)

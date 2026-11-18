@@ -18,16 +18,39 @@ it before MaliBridge.
 `vulkaninfo` is an optional diagnostic supplied by the separate desktop pack, not
 a requirement for the gaming runtime. When absent, PanVK and Venus keep their
 resolved path and skip this probe without recording a successful self-test. When
-present, a failed or timed-out probe stops startup. Venus still checks Zink with
-`droiddeck-glprobe` when available; fixed Venus stops if Zink cannot start, while
+present, a failed or timed-out probe stops startup. Both host routes wait for their
+server socket with a deadline; cancellation does not record a driver failure.
+Venus checks Zink with `droiddeck-glprobe` in the Steam branch when that tool is
+available and `GALLIUM_DRIVER=zink`; direct game launches do not run this GL probe.
+Fixed Venus stops if Zink cannot start, while
 Auto may use software GL with Venus Vulkan. The same distinction applies when
 `vulkaninfo` reports no `nullDescriptor` support.
+Probe exit status is captured before log output is shortened. A successful initial
+or accepted GL probe can confirm Venus without `vulkaninfo`; software GL alone
+cannot. Failures use the existing Steam child exit file so a successful gamescope
+exit cannot hide a failed nested Steam startup.
 
 The session folder records `mali-graphics-path` after a successful startup probe and
 `mali-graphics-error` on a failed probe. Setup shows the saved choice, the next launch's
 resolved path, and the current/last session's confirmed path. These session records
 also appear in `graphics-report.txt` and travel with the existing log export.
 They are diagnostics, not configuration.
+The last ended confirmation is captured before logs-off cache cleanup. Within the
+process, a newer unconfirmed session replaces that result; after restart, Setup
+reads the latest retained session. A running session only shows its own marker.
+
+Bundle downloads prepare new files before checking Auto eligibility and replacing
+the old bundle. Only slots still pointing at the old bundle follow its replacement;
+choices made during download and independent Mix slots survive. Replacement and
+session startup share the preferences lock, and replacement is refused while a
+session is starting its compositor/guest or running. After preparation waits, startup captures one graphics decision
+for validation, environment, components and reporting. Fixed PanVK keeps its intent
+after trial rollback; if no previous PanVK remains available, startup explains the
+missing driver instead of selecting a different backend.
+Auto's idle display repair and pending-trial rollback also run with a fixed Mali
+choice. The phone's system display does not count as a trial of a downloaded
+PanVK pair: Bridge/Venus sessions cannot reject an unused PanVK runtime. Imported
+display drivers still count when they are actually started.
 
 Legacy migration runs once, then removes `vkBridge`, `venus`, and
 `maliFallbackByAuto`. Previously bridge defaulted to true on Mali, Venus to false;
@@ -37,7 +60,11 @@ a usable marker, migration preserves the old enabled-path priority: Venus, then
 bridge (including its missing-key default), otherwise PanVK. Completely absent old
 switches start on Auto. A cleared marker cannot distinguish an old Auto write from
 a user choice, so those combinations retain their effective choice; migration does
-not claim to recover the user's original intent. Existing Venus hardware failures
+not claim to recover the user's original intent. A recorded bridge memory/draw
+fallback together with an available selected PanVK migrates an otherwise fixed
+Bridge choice to Auto. The record proves a fallback attempt, not a working PanVK
+session; Auto can validate the available route without asserting historical success.
+It does not override an explicit Venus choice. Existing Venus hardware failures
 are not diagnosed or fixed by this selection model.
 
 ## Status (2026-10-08, night)

@@ -218,10 +218,10 @@ dd_now_ms() {
   fi
 }
 vkbridge_wait_socket() {
-  local sock=$1 limit=${2:-10000} start now waited
+  local sock=$1 limit=${2:-10000} name=${3:-vkbridge} start now waited
   [ -n "$sock" ] || return 1
   if [ -S "$sock" ]; then
-    echo "== vkbridge: server socket ready (waited 0 ms)"
+    echo "== $name: server socket ready (waited 0 ms)"
     return 0
   fi
   start=$(dd_now_ms)
@@ -229,27 +229,29 @@ vkbridge_wait_socket() {
     now=$(dd_now_ms)
     waited=$((now - start))
     if [ -S "$sock" ]; then
-      echo "== vkbridge: server socket ready (waited $waited ms; the server listens after its startup probe)"
+      echo "== $name: server socket ready (waited $waited ms; the server listens after its startup probe)"
       return 0
     fi
     if [ -n "${dd_stopping:-}" ]; then
-      echo "== vkbridge: no server socket after $waited ms; the session is stopping"
+      echo "== $name: no server socket after $waited ms; the session is stopping"
       return 1
     fi
     if [ "$waited" -ge "$limit" ]; then
-      echo "== vkbridge: no server socket after $waited ms (gave up at $limit ms)"
+      echo "== $name: no server socket after $waited ms (gave up at $limit ms)"
       return 1
     fi
     sleep 0.05
   done
 }
 mali_graphics_failed() {
+  [ -z "${dd_stopping:-}" ] || exit 0
   local message="Mali graphics (${DD_MALI_GRAPHICS_MODE:-bridge}): $*"
   echo "== $message"
   if [ -n "${DD_DEBUG_DIR:-}" ]; then
     printf '%s\n' "$message" > "$DD_DEBUG_DIR/mali-graphics-error"
     rm -f "$DD_DEBUG_DIR/mali-graphics-path"
   fi
+  [ -z "${DD_STEAM_EXIT_FILE:-}" ] || printf '69\n' > "$DD_STEAM_EXIT_FILE"
   exit 69
 }
 mali_graphics_used() {
@@ -277,6 +279,7 @@ fi
 if [ "${DD_VKBRIDGE:-0}" = 1 ]; then
   dd_vkb_icd=/usr/local/share/vkbridge/droidbridge_icd.json
   [ -z "${DD_INSIDE:-}" ] && vkbridge_wait_socket "${VKBRIDGE_SOCKET:-}" "${DD_VKBRIDGE_WAIT_MS:-10000}"
+  [ -z "${dd_stopping:-}" ] || exit 0
   dd_vkb_missing=
   [ -r "$dd_vkb_icd" ] || dd_vkb_missing="$dd_vkb_missing icd"
   [ -r /usr/local/lib/vkbridge/libvulkan_droidbridge.so ] || dd_vkb_missing="$dd_vkb_missing library"
@@ -334,6 +337,11 @@ if [ "${DD_MALI_GRAPHICS_PATH:-}" = panvk ] && [ -z "${DD_INSIDE:-}" ]; then
   fi
 fi
 if [ "${DD_VENUS:-0}" = 1 ] && [ -z "${DD_INSIDE:-}" ]; then
+  vkbridge_wait_socket "${VTEST_SOCKET_NAME:-}" "${DD_VENUS_WAIT_MS:-10000}" venus
+  dd_vn_ready=$?
+  [ -z "${dd_stopping:-}" ] || exit 0
+  [ "$dd_vn_ready" = 0 ] || mali_graphics_failed "Venus server socket did not become ready. See venus.log."
+  unset dd_vn_ready
   if ! command -v vulkaninfo >/dev/null 2>&1; then
     echo "== Venus: vulkaninfo is not installed; skipping the optional Vulkan self-test"
   elif dd_vn_info=$(timeout 30 vulkaninfo 2>/dev/null); then
@@ -1969,8 +1977,12 @@ case $mode in
     ) &
     stop_watcher=$!
     if [ "${DD_VENUS:-0}" = 1 ] && [ -x /usr/local/bin/droiddeck-glprobe ] && [ "${GALLIUM_DRIVER:-}" = zink ]; then
-      LIBGL_DEBUG=verbose MESA_LOG_LEVEL=debug timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -60 | sed 's/^/== glprobe: /'
-      if [ "${PIPESTATUS[0]}" != 0 ]; then
+      dd_gl_log="${DD_DEBUG_DIR:-/tmp}/glprobe.txt"
+      LIBGL_DEBUG=verbose MESA_LOG_LEVEL=debug timeout 20 /usr/local/bin/droiddeck-glprobe > "$dd_gl_log" 2>&1
+      dd_gl_status=$?
+      grep -v drirc "$dd_gl_log" | head -60 | sed 's/^/== glprobe: /'
+      [ -z "${dd_stopping:-}" ] || exit 0
+      if [ "$dd_gl_status" != 0 ]; then
         VK_LOADER_DEBUG=error,warn timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -40 | sed 's/^/== glprobe (loader): /'
         DROIDDECK_MALI_COMPAT_TRACE=1 MESA_DEBUG=1 MESA_LOG_LEVEL=debug LIBGL_DEBUG=verbose ZINK_DEBUG=mem VN_DEBUG=init,result,log_ctx_info \
           timeout 30 /usr/local/bin/droiddeck-glprobe > "${DD_DEBUG_DIR:-/tmp}/glprobe-trace.txt" 2>&1
@@ -1979,7 +1991,11 @@ case $mode in
         command -v vulkaninfo >/dev/null 2>&1 && DROIDDECK_MALI_COMPAT_TRACE=1 timeout 20 vulkaninfo --summary 2>&1 | head -40 | sed 's/^/== glprobe (vulkaninfo): /'
         dd_gl_ok=
         for dd_variant in "ZINK_DEBUG=" "ZINK_DEBUG= ZINK_DESCRIPTORS=auto" "ZINK_DEBUG= LIBGL_KOPPER_DISABLE=true" "ZINK_DEBUG= DROIDDECK_MALI_COMPAT=0"; do
-          if env $dd_variant timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -20 | sed "s/^/== glprobe ($dd_variant): /"; [ "${PIPESTATUS[0]}" = 0 ]; then
+          env $dd_variant timeout 20 /usr/local/bin/droiddeck-glprobe > "$dd_gl_log" 2>&1
+          dd_gl_status=$?
+          grep -v drirc "$dd_gl_log" | head -20 | sed "s/^/== glprobe ($dd_variant): /"
+          [ -z "${dd_stopping:-}" ] || exit 0
+          if [ "$dd_gl_status" = 0 ]; then
             dd_gl_ok=$dd_variant
             break
           fi
@@ -1989,6 +2005,7 @@ case $mode in
             case $dd_kv in *=) unset "${dd_kv%=}" ;; *) export "$dd_kv" ;; esac
           done
           echo "== venus: GL through Zink starts with: $dd_gl_ok (the Steam client gets that)"
+          mali_graphics_used venus
         else
           [ -n "$dd_gl_ok" ] && echo "== venus: Zink starts only without the Mali compatibility layer (then without nullDescriptor); not used"
           [ "${DD_MALI_GRAPHICS_MODE:-venus}" = auto ] || mali_graphics_failed "Venus Zink self-test failed; the fixed path will not use software rendering. See glprobe in the session logs."
@@ -1997,7 +2014,10 @@ case $mode in
           echo "== venus: GL through Zink did not start (see glprobe above); the Steam client's GL uses llvmpipe (software)"
         fi
         unset dd_gl_ok dd_variant dd_kv
+      else
+        mali_graphics_used venus
       fi
+      unset dd_gl_log dd_gl_status
     fi
     rm -f "$HOME/.dd-restart-game" "$HOME/.dd-restarted-for"
     while :; do

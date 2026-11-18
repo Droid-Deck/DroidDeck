@@ -143,6 +143,64 @@ class DriverMenusAutoTest {
         assertEquals(SessionPrefs.TP_UBWC_AUTO, menus.tpUbwcMode)
     }
 
+    @Test fun fixedHostRoutesStillRepairTheAutoDisplayOnlyWhileIdle() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
+        ReflectionHelpers.setField(menus, "gpu", GpuInfo("Mali-G720", 720, GpuInfo.Family.MALI_G720, "", false))
+        for (choice in listOf(MaliGraphicsMode.BRIDGE, MaliGraphicsMode.VENUS)) {
+            SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_AUTO)
+            SessionPrefs.setMaliGraphicsMode(activity, choice)
+            SessionPrefs.setAndroidDriver(activity, "imported-panvk")
+            SessionPrefs.setLinuxDriver(activity, "keep-runtime")
+            com.droiddeck.launcher.session.SessionState.running = true
+            menus.ensureAuto(true)
+            assertEquals("imported-panvk", SessionPrefs.androidDriver(activity))
+            com.droiddeck.launcher.session.SessionState.running = false
+            for (phase in listOf(com.droiddeck.launcher.session.SessionPhase.STARTING_COMPOSITOR,
+                com.droiddeck.launcher.session.SessionPhase.STARTING_GUEST)) {
+                com.droiddeck.launcher.session.SessionState.phase = phase
+                menus.ensureAuto(true)
+                assertEquals("imported-panvk", SessionPrefs.androidDriver(activity))
+            }
+            com.droiddeck.launcher.session.SessionState.phase = com.droiddeck.launcher.session.SessionPhase.IDLE
+            menus.ensureAuto(true)
+            assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(activity))
+            assertEquals("keep-runtime", SessionPrefs.linuxDriver(activity))
+            assertEquals(choice, SessionPrefs.maliGraphicsMode(activity))
+        }
+    }
+
+    @Test fun fixedPanvkRollsBackDueTrialWithoutRestoringAnotherRouteOrOverwritingLaterChoice() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
+        ReflectionHelpers.setField(menus, "gpu", GpuInfo("Mali-G720", 720, GpuInfo.Family.MALI_G720, "", false))
+        val trials = com.droiddeck.launcher.gpu.AutoDriverTrial
+        for (later in listOf(false, true)) {
+            SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_AUTO)
+            SessionPrefs.setMaliGraphicsMode(activity, MaliGraphicsMode.PANVK)
+            SessionPrefs.setAndroidDriver(activity, TurnipDriver.AUTO)
+            SessionPrefs.setLinuxDriver(activity, "trial-panvk")
+            trials.begin(activity, "panvk@bad", "PanVK", TurnipDriver.AUTO, "trial-panvk", "unsafe-display", "non-panvk")
+            repeat(2) { trials.sessionStarting(activity, TurnipDriver.AUTO, "trial-panvk") }
+            if (later) SessionPrefs.setLinuxDriver(activity, "later-panvk")
+            menus.ensureAuto(true)
+            assertNull(trials.current(activity))
+            assertTrue("panvk@bad" in trials.bad(activity))
+            assertEquals(if (later) "later-panvk" else "", SessionPrefs.linuxDriver(activity))
+            assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(activity))
+            assertEquals(MaliGraphicsMode.PANVK, SessionPrefs.maliGraphicsMode(activity))
+        }
+        val previous = com.droiddeck.launcher.gpu.LinuxVulkanDriverManager(activity).getDriverDir("previous-panvk").apply { mkdirs() }
+        java.io.File(previous, "libvulkan_panfrost.so").writeText("fixture")
+        java.io.File(previous, "icd.json").writeText("{}")
+        SessionPrefs.setLinuxDriver(activity, "trial-panvk")
+        trials.begin(activity, "panvk@bad", "PanVK", TurnipDriver.AUTO, "trial-panvk", TurnipDriver.AUTO, "previous-panvk")
+        repeat(2) { trials.sessionStarting(activity, TurnipDriver.AUTO, "trial-panvk") }
+        menus.ensureAuto(true)
+        assertEquals("previous-panvk", SessionPrefs.linuxDriver(activity))
+        assertEquals(MaliGraphicsMode.PANVK, SessionPrefs.maliGraphicsMode(activity))
+    }
+
     @Test fun refreshingDriversLoadsTheSavedUbwcModeAfterContextAttachment() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         SessionPrefs.setTpUbwcMode(activity, SessionPrefs.TP_UBWC_ON)

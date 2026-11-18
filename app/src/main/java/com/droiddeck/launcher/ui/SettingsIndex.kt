@@ -150,5 +150,7 @@ internal object SettingsIndex {
     )
 
     fun search(context: Context, query: String): List<SettingsEntry> =
-        entries.filter { (!it.developer || DeveloperTools.on) && it.matches(context, query) }
+        entries.filter { (!it.developer || DeveloperTools.on) &&
+            (it.title != R.string.mali_path_choice || com.droiddeck.launcher.core.DeviceSupport.mali()) &&
+            it.matches(context, query) }
 }

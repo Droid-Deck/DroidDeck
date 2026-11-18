@@ -638,6 +638,7 @@ object SessionPrefs {
             ?: prefs(context).getString("linuxDriver.steam", null)
             ?: prefs(context).getString("linuxDriver.desktop", "") ?: ""
 
+    @Synchronized
     fun setLinuxDriver(context: Context, id: String) {
         prefs(context).edit().putString("linuxDriver", id).apply()
     }
@@ -662,6 +663,7 @@ object SessionPrefs {
     fun gpuDriverMode(context: Context): String =
         prefs(context).getString("gpuDriverMode", GPU_DRIVERS_AUTO) ?: GPU_DRIVERS_AUTO
 
+    @Synchronized
     fun setGpuDriverMode(context: Context, mode: String) {
         prefs(context).edit().putString("gpuDriverMode", mode).apply()
     }
@@ -1004,12 +1006,15 @@ object SessionPrefs {
     fun maliGraphicsMode(context: Context): MaliGraphicsMode {
         val saved = prefs(context)
         MaliGraphicsMode.fromId(saved.getString("maliGraphicsMode", null))?.let { return it }
-        val choice = MaliGraphics.migrate(
+        var choice = MaliGraphics.migrate(
             com.droiddeck.launcher.core.DeviceSupport.mali(),
             if (saved.contains("vkBridge")) saved.getBoolean("vkBridge", false) else null,
             if (saved.contains("venus")) saved.getBoolean("venus", false) else null,
             saved.getString("maliFallbackByAuto", null),
         )
+        if (choice == MaliGraphicsMode.BRIDGE && saved.getBoolean("bridgeFellBack", false) &&
+            saved.getString("bridgeFallbackReason", "") in setOf("memory", "draw") &&
+            MaliGraphics.panvkIcd(context) != null) choice = MaliGraphicsMode.AUTO
         setMaliGraphicsMode(context, choice)
         return choice
     }
@@ -1078,7 +1083,7 @@ object SessionPrefs {
     fun androidDriver(context: Context): String = prefs(context).getString("androidDriver", "") ?: ""
 
     @JvmStatic
-    fun setAndroidDriver(context: Context, id: String) {
+    fun setAndroidDriver(context: Context, id: String): Unit = synchronized(this) {
         prefs(context).edit().putString("androidDriver", id).apply()
     }
 

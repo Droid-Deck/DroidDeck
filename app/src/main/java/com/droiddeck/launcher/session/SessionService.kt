@@ -354,7 +354,7 @@ class SessionService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification())
         if (SessionState.running) return START_NOT_STICKY
         if (SessionState.stopRequested) {
-            SessionState.running = true
+            synchronized(SessionPrefs) { SessionState.running = true }
             stopSession(0)
             return START_NOT_STICKY
         }
@@ -419,7 +419,7 @@ class SessionService : Service() {
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
         val gen = synchronized(stopLock) {
             SessionState.steamClientArch = null
-            SessionState.running = true
+            synchronized(SessionPrefs) { SessionState.running = true }
             ++sessionGen
         }
         if (SessionState.stopRequested) {
@@ -500,13 +500,6 @@ class SessionService : Service() {
         SessionPrefs.ensurePowerVrAutoDrivers(this)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
-        }
-        val maliPath = MaliGraphics.resolve(this)
-        MaliGraphics.problem(this, maliPath)?.let { message ->
-            Log.e(TAG, message)
-            failSession(gen, "MALI_GRAPHICS_UNAVAILABLE", message, -1)
-            stopSession(-1, gen)
-            return
         }
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
@@ -608,8 +601,17 @@ class SessionService : Service() {
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
+        val graphics = MaliGraphics.capture(this)
+        val maliPath = graphics.path
+        graphics.problem?.let { message ->
+            GraphicsReport.begin(this, sessionDir, guest, graphics)
+            Log.e(TAG, message)
+            failSession(gen, "MALI_GRAPHICS_UNAVAILABLE", message, -1)
+            stopSession(-1, gen)
+            return
+        }
         try {
-            SessionEvents.step("client-environment") { addClientEnvironment(guest, steamHere, agentEnvironment, maliPath) }
+            SessionEvents.step("client-environment") { addClientEnvironment(guest, steamHere, agentEnvironment, graphics) }
         } catch (e: IllegalStateException) {
             Log.e(TAG, "Could not resolve the selected Linux Vulkan driver", e)
             failSession(gen, "VULKAN_DRIVER_UNAVAILABLE", e.message ?: "Selected Linux Vulkan driver is unavailable", -1)
@@ -693,7 +695,7 @@ class SessionService : Service() {
         // Detailed graphics logs: per-game logs and the guest's Vulkan summary (a GPU that is not
         // an Adreno, or Setup's switch), and graphics-report.txt for every session.
         if (GraphicsReport.detailed(this)) guest.add("DD_GAME_LOGS=1")
-        SessionEvents.step("graphics-report") { GraphicsReport.begin(this, sessionDir, guest) }
+        SessionEvents.step("graphics-report") { GraphicsReport.begin(this, sessionDir, guest, graphics) }
         val shellGuest = ArrayList(guest).apply {
             add("SHELL=/bin/bash")
             add("TERM=xterm-256color")
@@ -813,10 +815,16 @@ class SessionService : Service() {
             return
         }
         try {
-            components.forEach { it.start() }
+            components.forEach { component ->
+                try { component.start() } catch (e: Exception) {
+                    if (component is VenusComponent) failSession(gen, "MALI_GRAPHICS_FAILED", e.message ?: getString(R.string.mali_venus_start_failed), -1)
+                    throw e
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Could not start the session components", e)
-            failSession(gen, "COMPONENT_START_FAILED", e.message ?: "Session component could not be started", -1)
+            if (SessionState.failureCode != "MALI_GRAPHICS_FAILED")
+                failSession(gen, "COMPONENT_START_FAILED", e.message ?: "Session component could not be started", -1)
             stopSession(-1, gen)
             return
         }
@@ -935,7 +943,8 @@ class SessionService : Service() {
         return com.droiddeck.launcher.input.GesturePrefs.read(this, game).relativeMouseMode
     }
 
-    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>, maliPath: MaliGraphicsMode?) {
+    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>, graphics: MaliGraphics.Launch) {
+        val maliPath = graphics.path
         guest.add("/usr/bin/env")
         guest.add("-i")
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
@@ -965,25 +974,24 @@ class SessionService : Service() {
         guest.add("GALLIUM_DRIVER=zink")
         guest.add("LIBGL_KOPPER_DRI2=true")
         if (maliPath != null) {
-            guest.add("DD_MALI_GRAPHICS_MODE=" + SessionPrefs.maliGraphicsMode(this).id)
+            guest.add("DD_MALI_GRAPHICS_MODE=" + graphics.choice.id)
             guest.add("DD_MALI_GRAPHICS_PATH=" + maliPath.id)
         }
         val venus = maliPath == MaliGraphicsMode.VENUS
         if (venus) {
             VenusComponent.guestEnv(this).forEach { guest.add(it) }
         } else if (maliPath == MaliGraphicsMode.PANVK) {
-            val icd = MaliGraphics.panvkIcd(this) ?: error(getString(R.string.mali_panvk_missing))
+            val icd = graphics.icd ?: error(getString(R.string.mali_panvk_missing))
             guest.add("VK_ICD_FILENAMES=$icd")
             guest.add("VK_DRIVER_FILES=$icd")
         } else {
             LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
         }
-        val linuxDriverId = SessionPrefs.linuxDriver(this)
+        val linuxDriverId = graphics.linux
         SessionState.runtimeDriver = linuxDriverId
         com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(
             this,
-            com.droiddeck.launcher.wayland.CompositorHost.displayChoice.takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
-                ?: SessionPrefs.androidDriver(this),
+            graphics.display,
             linuxDriverId.takeIf { maliPath == null || maliPath == MaliGraphicsMode.PANVK },
         )
         val bridge = maliPath == MaliGraphicsMode.BRIDGE

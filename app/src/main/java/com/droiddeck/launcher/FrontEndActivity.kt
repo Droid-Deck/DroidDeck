@@ -170,7 +170,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var zinkLazy by mutableStateOf(false)
     private var maliGraphicsMode by mutableStateOf(com.droiddeck.launcher.session.MaliGraphicsMode.AUTO)
     private var maliGraphicsPath by mutableStateOf<com.droiddeck.launcher.session.MaliGraphicsMode?>(null)
-    private var maliGraphicsActual by mutableStateOf<com.droiddeck.launcher.session.MaliGraphicsMode?>(null)
+    private var maliGraphicsActual by mutableStateOf<SessionPaths.GraphicsConfirmation?>(null)
     private var maliGraphicsProblem by mutableStateOf<String?>(null)
     private var vkBridgeSafe by mutableStateOf(true)
     private var bridgeProtonDxvk by mutableStateOf(false)
@@ -3023,7 +3023,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun refreshMaliGraphics() {
         maliGraphicsMode = SessionPrefs.maliGraphicsMode(this)
         maliGraphicsPath = com.droiddeck.launcher.session.MaliGraphics.resolve(this)
-        maliGraphicsActual = com.droiddeck.launcher.session.MaliGraphics.actual(SessionState.logDirectory)
+        maliGraphicsActual = SessionPaths.graphicsConfirmation(this)
         maliGraphicsProblem = com.droiddeck.launcher.session.MaliGraphics.problem(this, maliGraphicsPath)
     }
 

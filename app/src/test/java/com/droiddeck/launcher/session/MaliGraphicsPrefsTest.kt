@@ -27,7 +27,6 @@ class MaliGraphicsPrefsTest {
 
     @Before fun reset() {
         prefs.edit().clear().commit()
-        assertTrue(DeviceSupport.mali())
     }
 
     @Test fun fourChoicesRoundTripAsOnePreferenceAndRemoveLegacySources() {
@@ -56,6 +55,47 @@ class MaliGraphicsPrefsTest {
         assertEquals(mapOf("maliGraphicsMode" to "bridge"), prefs.all)
     }
 
+    @Test fun absentBridgeKeyRetainsItsOldMaliDefault() {
+        prefs.edit().putBoolean("venus", false).commit()
+        assertEquals(MaliGraphicsMode.BRIDGE, SessionPrefs.maliGraphicsMode(context))
+    }
+
+    @Test fun historicalBridgeFailureUsesAutoOnlyWithAnAvailableSelectedPanvk() {
+        val dir = LinuxVulkanDriverManager(context).getDriverDir("fallback-panvk").apply { mkdirs() }
+        File(dir, "libvulkan_panfrost.so").writeText("fixture")
+        File(dir, "icd.json").writeText("{}")
+        for (reason in listOf("memory", "draw", "other")) {
+            prefs.edit().clear().putBoolean("vkBridge", true).putBoolean("bridgeFellBack", true)
+                .putString("bridgeFallbackReason", reason).putString("linuxDriver", "fallback-panvk").commit()
+            assertEquals(if (reason == "other") MaliGraphicsMode.BRIDGE else MaliGraphicsMode.AUTO,
+                SessionPrefs.maliGraphicsMode(context))
+        }
+        prefs.edit().clear().putBoolean("vkBridge", true).putBoolean("bridgeFellBack", true)
+            .putString("bridgeFallbackReason", "memory").commit()
+        assertEquals(MaliGraphicsMode.BRIDGE, SessionPrefs.maliGraphicsMode(context))
+        prefs.edit().clear().putBoolean("vkBridge", true).putBoolean("venus", true)
+            .putBoolean("bridgeFellBack", true).putString("bridgeFallbackReason", "draw")
+            .putString("linuxDriver", "fallback-panvk").commit()
+        assertEquals(MaliGraphicsMode.VENUS, SessionPrefs.maliGraphicsMode(context))
+    }
+
+    @Test fun reportKeepsTheCapturedLaunchAfterPreferencesChange() {
+        SessionPrefs.setMaliGraphicsMode(context, MaliGraphicsMode.PANVK)
+        SessionPrefs.setLinuxDriver(context, "missing-panvk")
+        val launch = MaliGraphics.capture(context)
+        SessionPrefs.setMaliGraphicsMode(context, MaliGraphicsMode.VENUS)
+        SessionPrefs.setLinuxDriver(context, "later-runtime")
+        val folder = File(context.cacheDir, "captured-report").apply { mkdirs() }
+        GraphicsReport.begin(context, folder, emptyList(), launch)
+        val report = File(folder, GraphicsReport.FILE).readText()
+        assertTrue(report.contains("Mali graphics choice: panvk"))
+        assertTrue(report.contains("runtime driver: missing-panvk"))
+        assertTrue(report.contains("Mali graphics unavailable: ${launch.problem}"))
+        assertFalse(report.contains("later-runtime"))
+        GraphicsReport.begin(context, folder, listOf("DD_MALI_GRAPHICS_PATH=bridge"), launch)
+        assertTrue(File(folder, GraphicsReport.FILE).readText().contains("Mali graphics resolved at launch: bridge"))
+    }
+
     @Test fun autoResolutionDoesNotWriteTheResolvedPathOrOtherSettings() {
         SessionPrefs.setMaliGraphicsMode(context, MaliGraphicsMode.AUTO)
         val before = prefs.all
@@ -82,9 +122,39 @@ class MaliGraphicsPrefsTest {
         }
     }
 
+    @Test fun maliSearchTargetsOverview() {
+        assertTrue(DeviceSupport.mali())
+        for (query in listOf("PanVK", "MaliBridge", "Venus")) {
+            val entry = com.droiddeck.launcher.ui.SettingsIndex.search(context, query).single()
+            assertEquals(com.droiddeck.launcher.ui.SettingsSection.OVERVIEW, entry.section)
+        }
+    }
+
     @Implements(value = GpuInfo.Companion::class, isInAndroidSdk = false)
     class DetectedGpu {
         @Implementation
-        fun detect(): GpuInfo = GpuInfo("Mali-G720", 720, GpuInfo.Family.MALI_G720, "", false)
+        fun detect(): GpuInfo = GpuInfo("test GPU", 720, GpuInfo.Family.MALI_G720, "", false)
+    }
+}
+
+@RunWith(RobolectricTestRunner::class)
+@Config(
+    sdk = [28], manifest = Config.NONE,
+    instrumentedPackages = ["com.droiddeck.launcher.core.DeviceSupport"],
+    shadows = [MaliGraphicsSearchAdrenoTest.AdrenoDevice::class],
+)
+class MaliGraphicsSearchAdrenoTest {
+    @Test fun maliSearchIsHiddenOnAdreno() {
+        val context = RuntimeEnvironment.getApplication()
+        assertFalse(DeviceSupport.mali())
+        for (query in listOf("PanVK", "MaliBridge", "Venus")) {
+            assertTrue(com.droiddeck.launcher.ui.SettingsIndex.search(context, query).isEmpty())
+        }
+    }
+
+    @Implements(value = DeviceSupport::class, isInAndroidSdk = false)
+    class AdrenoDevice {
+        @Implementation
+        fun mali(): Boolean = false
     }
 }

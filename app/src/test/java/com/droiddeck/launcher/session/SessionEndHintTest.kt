@@ -154,6 +154,25 @@ class SessionEndHintTest {
         assertEquals(hintText(SessionState.logFile!!), ReflectionHelpers.getField<String>(exitHint(132), "text"))
     }
 
+    @Test fun prootRetainsRuntimeRepairPriorityWhileMaliKeepsItsSpecificReason() {
+        val lib = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(activity), "usr/lib").apply { mkdirs() }
+        val link = File(lib, "libbroken.so").toPath()
+        java.nio.file.Files.createSymbolicLink(link, java.nio.file.Paths.get("missing.so"))
+        try {
+            SessionState.failureCode = "PROOT_MISSING"
+            SessionState.failureMessage = "Patched proot is missing"
+            assertTrue(ReflectionHelpers.getField(exitHint(-1), "repair"))
+            SessionState.failureCode = "MALI_GRAPHICS_FAILED"
+            SessionState.failureMessage = "Venus renderer could not start"
+            assertEquals(SessionState.failureMessage, ReflectionHelpers.getField<String>(exitHint(-1), "text"))
+        } finally {
+            java.nio.file.Files.delete(link)
+        }
+        SessionState.failureCode = "PROOT_MISSING"
+        SessionState.logFile = sigillLog()
+        assertEquals(hintText(SessionState.logFile!!), ReflectionHelpers.getField<String>(exitHint(132), "text"))
+    }
+
     @Test
     fun missingEmptyAndUnrelatedLogsHaveNoHint() {
         assertNull(hint(null))

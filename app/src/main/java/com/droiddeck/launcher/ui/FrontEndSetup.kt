@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import androidx.lifecycle.repeatOnLifecycle
+
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
@@ -101,7 +103,7 @@ internal object SetupTabs {
 }
 
 @Composable
-internal fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, action: (@Composable () -> Unit)? = null) {
+internal fun CheckRow(state: CheckState, title: String, detail: String?, divider: Boolean = true, detailMaxLines: Int = 2, action: (@Composable () -> Unit)? = null) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val tint = when (state) {
@@ -133,7 +135,7 @@ internal fun CheckRow(state: CheckState, title: String, detail: String?, divider
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-            if (detail != null) Text(detail, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (detail != null) Text(detail, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = detailMaxLines, overflow = TextOverflow.Ellipsis)
         }
         if (action != null) action()
     }
@@ -221,11 +223,14 @@ internal fun SetupPanel(
             a.onRefreshPhantomStatus()
         }
     }
-    LaunchedEffect(mali, tab, searching) {
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(mali, tab, searching, lifecycle) {
         if (mali && tab == OVERVIEW_TAB && !searching) {
-            while (true) {
-                a.onRefreshMaliGraphics()
-                kotlinx.coroutines.delay(2_000)
+            lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                while (true) {
+                    a.onRefreshMaliGraphics()
+                    kotlinx.coroutines.delay(2_000)
+                }
             }
         }
     }
@@ -255,7 +260,10 @@ internal fun SetupPanel(
             val listing = searching && query.isNotBlank()
             val fixed = tab == CONTROLLER_TAB && !listing
             Column(modifier = Modifier.weight(1f).fillMaxWidth().then(if (fixed) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(bottom = if (fixed) 0.dp else 24.dp)) {
-                if (listing) SettingsSearchResults(query) { section -> pick(section.ordinal) }
+                if (listing) SettingsSearchResults(query) { section ->
+                    if (section == SettingsSection.OVERVIEW) showChecks = true
+                    pick(section.ordinal)
+                }
                 else when (tab) {
                     OVERVIEW_TAB -> {
                         val bridgeModeRow = bridge && DeviceSupport.bridgeUsable()
@@ -271,7 +279,10 @@ internal fun SetupPanel(
                                 if (mali) listOfNotNull(
                                     stringResource(R.string.mali_path_next, s.maliGraphicsPath?.let { stringResource(it.label) } ?: stringResource(R.string.mali_path_none)),
                                     stringResource(if (s.sessionRunning) R.string.mali_path_current else R.string.mali_path_last,
-                                        s.maliGraphicsActual?.let { stringResource(it.label) } ?: stringResource(R.string.mali_path_not_started)),
+                                        s.maliGraphicsActual?.takeIf {
+                                            com.droiddeck.launcher.session.SessionPaths.current()?.name?.let { id -> it.sessionId == id } ?: !s.sessionRunning
+                                        }
+                                            ?.path?.let { stringResource(it.label) } ?: stringResource(R.string.mali_path_not_started)),
                                     s.maliGraphicsProblem,
                                 ).joinToString("\n") else when (gpu.support) {
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.displayName(ctx), gpuName)
@@ -280,6 +291,7 @@ internal fun SetupPanel(
                                     else -> stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
                                 },
                                 divider = divider || bridgeModeRow,
+                                detailMaxLines = if (mali) Int.MAX_VALUE else 2,
                                 action = if (!mali) null else { {
                                     ChoiceChip(
                                         host, "mali-graphics", stringResource(R.string.mali_path_choice),

@@ -2705,7 +2705,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (holder !== outputHolder()) return
         if (installingRuntime || SessionState.stopRequested || ended) return
         if (!SessionState.running) {
-            SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
+            synchronized(SessionPrefs) {
+                SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
+            }
         }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         FileUtils.copyAsset(this, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
@@ -3312,7 +3314,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun sessionExitHint(status: Int): EndHint? = if (status == 0) presentationFaultHint()
-        else sessionFailureHint() ?: runtimeDamageHint() ?: sessionEndHint(SessionState.logFile)
+        else sessionFailureHint()?.takeIf { SessionState.failureCode != "PROOT_MISSING" }
+            ?: runtimeDamageHint() ?: sessionEndHint(SessionState.logFile) ?: sessionFailureHint()
 
     private fun sessionEndHint(log: File?): EndHint? {
         presentationFaultHint()?.let { return it }

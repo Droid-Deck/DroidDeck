@@ -71,6 +71,19 @@ class AutoDriverTrialTest {
         assertEquals("banner@r5", AutoDriverTrial.current(context)?.release)
     }
 
+    @Test fun hostRoutesWithSystemDisplayDoNotCountAsPanvkTrials() {
+        AutoDriverTrial.begin(context, "panvk@new", "PanVK", TurnipDriver.AUTO, "panvk", TurnipDriver.AUTO, "old")
+        repeat(3) {
+            AutoDriverTrial.displayStarting(context, TurnipDriver.AUTO)
+            AutoDriverTrial.sessionStarting(context, TurnipDriver.AUTO, null)
+            AutoDriverTrial.sessionReady()
+        }
+        assertEquals(0, AutoDriverTrial.current(context)?.starts)
+        assertNull(AutoDriverTrial.rollbackDue(context))
+        AutoDriverTrial.sessionStarting(context, TurnipDriver.AUTO, "panvk")
+        assertEquals(1, AutoDriverTrial.current(context)?.starts)
+    }
+
     @Test fun displayDriverCrashesBeforeSessionStartStillCount() {
         AutoDriverTrial.displayStarting(context, "new-display")
         assertNull(AutoDriverTrial.rollbackDue(context))

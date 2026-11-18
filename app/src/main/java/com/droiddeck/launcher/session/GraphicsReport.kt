@@ -43,32 +43,31 @@ object GraphicsReport {
     fun detailed(context: Context): Boolean = !DeviceSupport.adreno() || SessionPrefs.detailedGraphicsLogs(context)
 
     /** Writes the start of the report; never throws. */
-    fun begin(context: Context, dir: File, guest: List<String>) {
-        runCatching { File(dir, FILE).writeText(start(context, guest)) }
+    fun begin(context: Context, dir: File, guest: List<String>, graphics: MaliGraphics.Launch = MaliGraphics.capture(context)) {
+        runCatching { File(dir, FILE).writeText(start(context, guest, graphics)) }
             .onFailure { android.util.Log.w("GraphicsReport", "could not write $FILE", it) }
     }
 
-    private fun start(context: Context, guest: List<String>): String = buildString {
+    private fun start(context: Context, guest: List<String>, graphics: MaliGraphics.Launch): String = buildString {
+        val maliPath = guest.lastOrNull { it.startsWith("DD_MALI_GRAPHICS_PATH=") }?.substringAfter('=')
+            ?.let { MaliGraphicsMode.fromId(it) } ?: graphics.path
         val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
         appendLine("== graphics report, session start $time")
         appendLine("build: ${com.droiddeck.launcher.BuildConfig.BUILD_LABEL} (source ${com.droiddeck.launcher.BuildConfig.SOURCE_COMMIT})")
         appendLine()
         val gpu = runCatching { GpuInfo.detect() }.getOrNull()
         appendLine("-- path")
-        appendLine("path: " + path(context))
-        appendLine("driver mode: " + SessionPrefs.gpuDriverMode(context))
-        val display = SessionPrefs.androidDriver(context)
-        val shown = com.droiddeck.launcher.gpu.TurnipDriver(context).effectiveId()
-        appendLine("display driver (compositor): " +
-            (if (shown == "system") "the phone's own Vulkan driver, ${SystemVulkanDriver.hal() ?: "vendor HAL"}" else shown) +
-            if (display.isEmpty()) " (auto)" else if (display != shown) " (picked $display, not used)" else "")
+        appendLine("path: " + path(maliPath, graphics.linux))
+        appendLine("driver mode: " + graphics.driverMode)
+        val display = graphics.display
+        appendLine("display driver choice (compositor): " + display.ifEmpty { "auto" })
         appendLine("display driver chosen by: " + when {
             display.isEmpty() -> "auto (or a pair on a non-Adreno GPU: the phone's own driver)"
             DriverBundle.containing(context, display, false) != null -> "pair (its display half)"
             else -> "user (picked on its own)"
         })
-        val linux = SessionPrefs.linuxDriver(context)
-        appendLine("runtime driver: " + (com.droiddeck.launcher.gpu.DeviceInfo.hostRoute(context)
+        val linux = graphics.linux
+        appendLine("runtime driver: " + ((if (maliPath == MaliGraphicsMode.BRIDGE || maliPath == MaliGraphicsMode.VENUS) maliPath.id else null)
             ?.let { "$it (picked ${linux.ifEmpty { "runtime default" }}, not used)" } ?: linux.ifEmpty { "(runtime default)" }))
         if (linux.isNotEmpty()) {
             val dir = com.droiddeck.launcher.gpu.LinuxVulkanDriverManager(context).getDriverDir(linux)
@@ -76,10 +75,10 @@ object GraphicsReport {
         }
         val prefs = context.getSharedPreferences("graphics_report", Context.MODE_PRIVATE)
         val previous = prefs.getString("lastDrivers", null)
-        val now = "display ${SessionPrefs.androidDriver(context).ifEmpty { "(auto)" }}, runtime ${linux.ifEmpty { "(default)" }}, bridge ${DeviceSupport.vkBridge(context)}, venus ${VenusComponent.wanted(context)}"
+        val now = "display ${display.ifEmpty { "(auto)" }}, runtime ${linux.ifEmpty { "(default)" }}, bridge ${maliPath == MaliGraphicsMode.BRIDGE}, venus ${maliPath == MaliGraphicsMode.VENUS}"
         appendLine("previous session's drivers: " + (previous ?: "(none recorded)") + if (previous != null && previous != now) "  << CHANGED" else "")
         prefs.edit().putString("lastDrivers", now).apply()
-        DriverBundle.active(context)?.let { b ->
+        DriverBundle.all(context).firstOrNull { it.androidId == display && it.linuxId == linux }?.let { b ->
             appendLine("pair: ${b.name} ${b.version} (bundle ${b.id})")
             release(context, b.id)?.let { appendLine("pair release: $it") }
         }
@@ -90,9 +89,9 @@ object GraphicsReport {
         appendLine("frame generation: " + runCatching { com.droiddeck.launcher.gpu.FrameGen.mode(context).toString() }.getOrDefault("?") +
             " (engine=off means it is switched off in Play settings; a driver that fails LSFG's gates logs \"device gates\" below)")
         if (DeviceSupport.mali()) {
-            appendLine("Mali graphics choice: " + SessionPrefs.maliGraphicsMode(context).id)
-            appendLine("Mali graphics resolved at launch: " + (MaliGraphics.resolve(context)?.id ?: "unavailable"))
-            MaliGraphics.problem(context)?.let { appendLine("Mali graphics unavailable: $it") }
+            appendLine("Mali graphics choice: " + graphics.choice.id)
+            appendLine("Mali graphics resolved at launch: " + (maliPath?.id ?: "unavailable"))
+            graphics.problem?.let { appendLine("Mali graphics unavailable: $it") }
         }
         val standIn = runCatching { com.droiddeck.launcher.runtime.LinuxRuntime.gpuStandIn(context) }.getOrNull()
         appendLine("render node for the guest: " + (standIn?.let { node ->
@@ -123,14 +122,14 @@ object GraphicsReport {
     }
 
     /** Which backend this session's Vulkan goes through, as the session decides it. */
-    private fun path(context: Context): String = when {
+    private fun path(maliPath: MaliGraphicsMode?, linux: String): String = when {
         DeviceSupport.adreno() -> "Turnip (Adreno, KGSL)"
-        VenusComponent.wanted(context) -> "Mali (Venus): Mesa Venus over vtest to the phone's own Vulkan driver, with the Mali compatibility layer"
-        DeviceSupport.vkBridge(context) -> "Mali bridge (#517): the phone's own Vulkan driver through the bridge"
-        DeviceSupport.openDriverActive(context) -> "open driver pair (PanVK / RADV)"
-        SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(context)) && SystemVulkanDriver.isAvailable() ->
+        maliPath == MaliGraphicsMode.VENUS -> "Mali (Venus): Mesa Venus over vtest to the phone's own Vulkan driver, with the Mali compatibility layer"
+        maliPath == MaliGraphicsMode.BRIDGE -> "Mali bridge (#517): the phone's own Vulkan driver through the bridge"
+        maliPath == MaliGraphicsMode.PANVK -> "open driver pair (PanVK)"
+        SystemVulkanDriver.usesDefault(linux) && SystemVulkanDriver.isAvailable() ->
             "system Vulkan (#570): ${SystemVulkanDriver.gpuName()} driver through libhybris"
-        SessionPrefs.linuxDriver(context).isNotEmpty() -> "imported runtime driver ${SessionPrefs.linuxDriver(context)}"
+        linux.isNotEmpty() -> "imported runtime driver $linux"
         else -> "none for this GPU (no Adreno, no system HAL, no pair, bridge off)"
     }
 
