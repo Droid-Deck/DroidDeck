@@ -61,7 +61,7 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
 
         @JvmStatic
         fun wanted(context: Context): Boolean =
-            MaliGraphics.resolve(context) == MaliGraphicsMode.VENUS
+            SessionPrefs.venus(context)
 
         /** The phone driver's Vulkan version when it is below 1.2: gamescope skips such a device, so Venus cannot run. */
         @JvmStatic
@@ -76,8 +76,7 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
         @JvmStatic
         fun available(context: Context): Boolean = runCatching {
             context.assets.list(DIR)?.contains(LIB) == true &&
-                File(context.applicationInfo.nativeLibraryDir, "libvirgl_test_server.so").isFile &&
-                File(context.applicationInfo.nativeLibraryDir, "libvirgl_render_server.so").isFile
+                File(context.applicationInfo.nativeLibraryDir, "libvirgl_test_server.so").isFile
         }.getOrDefault(false)
 
         @JvmStatic
@@ -89,14 +88,13 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
             val dir = File(context.filesDir, DIR)
             return listOf(
                 "VK_ICD_FILENAMES=" + File(dir, ICD).path,
-                "VK_DRIVER_FILES=" + File(dir, ICD).path,
                 "VN_DEBUG=vtest",
                 "VTEST_SOCKET_NAME=" + socket(context).path,
                 // Xwayland has no DRI3 without a DRM node, so swapchains present through shared memory.
                 "MESA_VK_WSI_DEBUG=sw",
                 // The Mali compatibility layer in every process but gamescope, not only Wine: Zink
                 // (Steam's GL, Xwayland's glamor) requires robustness2's nullDescriptor, which the
-                // layer stands in for. Only Auto may fall back to llvmpipe if the startup probe fails.
+                // layer stands in for. The session script checks it and falls back to llvmpipe.
                 "DROIDDECK_MALI_COMPAT=1",
                 "DD_VENUS=1",
                 // gamescope's composite layout without immutable YCbCr samplers from the start

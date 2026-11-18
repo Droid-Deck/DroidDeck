@@ -88,7 +88,6 @@ import com.droiddeck.launcher.core.DownloadSource
 import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.MaliGraphicsMode
 import kotlin.math.roundToInt
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -114,6 +113,8 @@ class FrontEndState(
     val graphicsLogs: Boolean = false,
     val buildWatermark: Boolean = true,
     val steamGpuDrawing: Boolean = false,
+    val bridgeFellBack: Boolean = false,
+    val bridgeFellBackMemory: Boolean = false,
     val clearCachedApps: Boolean = false,
     val adbPaired: Boolean = false,
     val backgroundAppLimit: Int = -1,
@@ -163,10 +164,10 @@ class FrontEndState(
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
     val phantomProcessStatus: PhantomProcessStatus = PhantomProcessStatus.NOT_APPLICABLE,
     val adreno: Boolean = true,
-    val maliGraphicsMode: MaliGraphicsMode = MaliGraphicsMode.AUTO,
-    val maliGraphicsPath: MaliGraphicsMode? = null,
-    val maliGraphicsActual: com.droiddeck.launcher.session.SessionPaths.GraphicsConfirmation? = null,
-    val maliGraphicsProblem: String? = null,
+    val vkBridge: Boolean = false,
+    val maliGraphicsMode: com.droiddeck.launcher.session.MaliGraphicsMode = com.droiddeck.launcher.session.MaliGraphicsMode.AUTO,
+    val venus: Boolean = false,
+    val venusHostVulkan: String? = null,
     val vkBridgeSafe: Boolean = true,
     val bridgeProtonDxvk: Boolean = false,
     val showPhantomGate: Boolean = false,
@@ -231,8 +232,7 @@ class FrontEndActions(
     val onInstallPackage: (String) -> Unit,
     val onRemovePackage: (String) -> Unit,
     val onRuntime: () -> Unit,
-    val onMaliGraphicsMode: (MaliGraphicsMode) -> Unit = {},
-    val onRefreshMaliGraphics: () -> Unit = {},
+    val onMaliGraphicsMode: (com.droiddeck.launcher.session.MaliGraphicsMode) -> Unit = {},
     val onVkBridgeSafe: (Boolean) -> Unit = {},
     val onBridgeProtonDxvk: (Boolean) -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,

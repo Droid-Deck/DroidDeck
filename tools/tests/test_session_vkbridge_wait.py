@@ -46,7 +46,7 @@ class VkBridgeSocketWaitTest(unittest.TestCase):
         functions = wait_functions()
         self.assertEqual(2, len(functions), "droiddeck-session lacks dd_now_ms() or vkbridge_wait_socket()")
         script = "set -u\n" + "".join(functions) + prelude
-        script += 'if vkbridge_wait_socket "$1" "$2"; then echo USABLE; else echo UNAVAILABLE; fi\n'
+        script += 'if vkbridge_wait_socket "$1" "$2"; then echo USABLE; else echo FALLBACK; fi\n'
         started = time.monotonic()
         out = subprocess.run(["bash", "-c", script, "session", str(self.sock), str(limit_ms)],
                              capture_output=True, text=True, timeout=30, check=True).stdout
@@ -74,9 +74,9 @@ class VkBridgeSocketWaitTest(unittest.TestCase):
         self.assertLess(waited, 5000, out)
         self.assertLess(elapsed, 6)
 
-    def test_no_server_is_unavailable_after_the_limit(self):
+    def test_no_server_falls_back_after_the_limit(self):
         out, elapsed = self.run_wait(300)
-        self.assertTrue(out.endswith("UNAVAILABLE\n"), out)
+        self.assertTrue(out.endswith("FALLBACK\n"), out)
         self.assertIn("== vkbridge: no server socket after ", out)
         self.assertIn("(gave up at 300 ms)", out)
         self.assertGreaterEqual(self.waited_ms(out), 300)
@@ -85,26 +85,20 @@ class VkBridgeSocketWaitTest(unittest.TestCase):
     def test_a_plain_file_is_not_a_socket(self):
         self.sock.write_text("stale")
         out, _ = self.run_wait(200)
-        self.assertTrue(out.endswith("UNAVAILABLE\n"), out)
-
-    def test_wall_clock_changes_do_not_extend_socket_deadline(self):
-        out, elapsed = self.run_wait(200, prelude="unset EPOCHREALTIME\ndate() { echo 0; }\n")
-        self.assertTrue(out.endswith("UNAVAILABLE\n"), out)
-        self.assertGreaterEqual(self.waited_ms(out), 200)
-        self.assertLess(elapsed, 3)
+        self.assertTrue(out.endswith("FALLBACK\n"), out)
 
     def test_a_stopping_session_does_not_wait(self):
         out, elapsed = self.run_wait(10000, prelude="dd_stopping=1\n")
-        self.assertTrue(out.endswith("UNAVAILABLE\n"), out)
+        self.assertTrue(out.endswith("FALLBACK\n"), out)
         self.assertIn("the session is stopping", out)
         self.assertLess(elapsed, 2)
 
-    def test_no_socket_path_is_unavailable_without_waiting(self):
+    def test_no_socket_path_is_a_fallback_without_waiting(self):
         functions = "".join(wait_functions())
         out = subprocess.run(["bash", "-c", "set -u\n" + functions +
-                              'if vkbridge_wait_socket "" 10000; then echo USABLE; else echo UNAVAILABLE; fi\n'],
+                              'if vkbridge_wait_socket "" 10000; then echo USABLE; else echo FALLBACK; fi\n'],
                              capture_output=True, text=True, timeout=10, check=True).stdout
-        self.assertEqual("UNAVAILABLE\n", out)
+        self.assertEqual("FALLBACK\n", out)
 
 
 class VkBridgeSessionCheckTest(unittest.TestCase):
@@ -121,7 +115,7 @@ class VkBridgeSessionCheckTest(unittest.TestCase):
         self.assertLess(wait, check)
         self.assertIn('[ -z "${DD_INSIDE:-}" ] && vkbridge_wait_socket', self.block)
 
-    def test_the_failure_message_names_what_is_missing(self):
+    def test_the_fallback_message_names_what_is_missing(self):
         self.assertIn("Mali bridge requested but NOT usable", self.block)
         self.assertIn("missing:$dd_vkb_missing", self.block)
 

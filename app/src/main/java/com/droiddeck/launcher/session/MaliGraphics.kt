@@ -3,14 +3,12 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.DeviceSupport
-import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.VkBridgeComponent
 import java.io.File
 
 enum class MaliGraphicsMode(val id: String, val label: Int) {
     AUTO("auto", R.string.common_auto),
-    PANVK("panvk", R.string.mali_path_panvk),
     BRIDGE("bridge", R.string.mali_path_bridge),
     VENUS("venus", R.string.mali_path_venus);
 
@@ -20,85 +18,47 @@ enum class MaliGraphicsMode(val id: String, val label: Int) {
 }
 
 object MaliGraphics {
-    const val PATH_FILE = "mali-graphics-path"
-    const val ERROR_FILE = "mali-graphics-error"
-
-    data class Launch(val choice: MaliGraphicsMode, val path: MaliGraphicsMode?, val linux: String,
-        val icd: String?, val problem: String?, val driverMode: String, val display: String)
-
     private val ROUTING_KEYS = setOf(
-        "DD_MALI_GRAPHICS_MODE", "DD_MALI_GRAPHICS_PATH", "DD_VENUS", "DD_VKBRIDGE", "DD_VK_DRIVER", "DD_OPEN_DRIVER",
+        "DD_MALI_GRAPHICS_MODE", "DD_INSIDE", "DD_VENUS", "DD_VKBRIDGE", "DD_VK_DRIVER", "DD_OPEN_DRIVER",
         "VK_ICD_FILENAMES", "VK_DRIVER_FILES", "VK_ADD_DRIVER_FILES", "VK_LOADER_DRIVERS_SELECT", "VK_LOADER_DRIVERS_DISABLE",
         "VKBRIDGE_SOCKET", "VTEST_SOCKET_NAME", "VN_DEBUG", "GALLIUM_DRIVER", "MESA_LOADER_DRIVER_OVERRIDE", "LIBGL_ALWAYS_SOFTWARE",
     )
 
-    fun diagnosticOverrides(graphics: Launch, extra: List<String>): List<String> = if (graphics.path == null) extra else
-        extra.filter { it.substringBefore('=').removePrefix("DROIDDECK_GAME_") !in ROUTING_KEYS }
+    fun diagnosticOverrides(choice: MaliGraphicsMode, extra: List<String>): List<String> =
+        if (choice == MaliGraphicsMode.AUTO) extra else
+            extra.filter { it.substringBefore('=').removePrefix("DROIDDECK_GAME_") !in ROUTING_KEYS }
 
-    fun capture(context: Context): Launch = synchronized(SessionPrefs) {
-        val choice = SessionPrefs.maliGraphicsMode(context)
-        val linux = SessionPrefs.linuxDriver(context)
-        val icd = panvkIcd(context, linux)
-        val path = resolve(context)
-        Launch(choice, path, linux, icd, problem(context, path), SessionPrefs.gpuDriverMode(context),
-            com.droiddeck.launcher.wayland.CompositorHost.displayChoice
-                .takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted } ?: SessionPrefs.androidDriver(context))
+    internal fun migrate(bridge: Boolean?, venus: Boolean?, owner: String?): MaliGraphicsMode = when {
+        venus == true && owner != "venus" -> MaliGraphicsMode.VENUS
+        bridge == true && owner != "bridge" -> MaliGraphicsMode.BRIDGE
+        else -> MaliGraphicsMode.AUTO
     }
 
-    internal fun migrate(mali: Boolean, bridge: Boolean?, venus: Boolean?, owner: String?): MaliGraphicsMode {
-        if (!mali || (bridge == null && venus == null)) return MaliGraphicsMode.AUTO
-        if (venus == true && owner != "venus") return MaliGraphicsMode.VENUS
-        if (bridge == true && owner != "bridge") return MaliGraphicsMode.BRIDGE
-        if ((owner == "venus" && venus == true) || (owner == "bridge" && bridge != false)) return MaliGraphicsMode.AUTO
-        if (bridge == null) return MaliGraphicsMode.BRIDGE
-        return MaliGraphicsMode.PANVK
-    }
-
-    internal fun resolve(choice: MaliGraphicsMode, mali: Boolean, panvk: Boolean, venus: Boolean, bridge: Boolean): MaliGraphicsMode? = when {
+    internal fun resolve(choice: MaliGraphicsMode, selectedDriver: Boolean, venus: Boolean): MaliGraphicsMode = when {
         choice != MaliGraphicsMode.AUTO -> choice
-        !mali -> null
-        panvk -> MaliGraphicsMode.PANVK
+        selectedDriver -> MaliGraphicsMode.AUTO
         venus -> MaliGraphicsMode.VENUS
-        bridge -> MaliGraphicsMode.BRIDGE
-        else -> null
+        else -> MaliGraphicsMode.BRIDGE
     }
 
-    fun resolve(context: Context): MaliGraphicsMode? = resolve(
-        SessionPrefs.maliGraphicsMode(context), DeviceSupport.mali(), panvkIcd(context) != null,
-        VenusComponent.available(context) && VenusComponent.hostVulkanTooOld(context) == null,
-        DeviceSupport.bridgeUsable() && File(context.applicationInfo.nativeLibraryDir, VkBridgeComponent.BINARY).isFile,
-    )
-
-    fun panvkIcd(context: Context, id: String = SessionPrefs.linuxDriver(context)): String? {
+    fun resolve(context: Context, choice: MaliGraphicsMode = SessionPrefs.maliGraphicsMode(context)): MaliGraphicsMode {
+        if (!DeviceSupport.mali()) return MaliGraphicsMode.AUTO
         val drivers = LinuxVulkanDriverManager(context)
-        if (!File(drivers.getDriverDir(id), "libvulkan_panfrost.so").isFile) return null
-        return drivers.getIcdPath(id)
+        return resolve(choice, drivers.isInstalled(SessionPrefs.linuxDriver(context)),
+            VenusComponent.available(context) && VenusComponent.hostVulkanTooOld(context) == null)
     }
 
-    fun problem(context: Context, resolved: MaliGraphicsMode? = resolve(context)): String? {
-        val choice = SessionPrefs.maliGraphicsMode(context)
-        if (choice == MaliGraphicsMode.AUTO && !DeviceSupport.mali()) return null
-        val path = resolved ?: return context.getString(R.string.mali_path_unavailable)
-        if (!DeviceSupport.mali()) return context.getString(R.string.mali_path_unsupported, context.getString(path.label))
-        return when (path) {
-            MaliGraphicsMode.PANVK -> if (panvkIcd(context) == null) context.getString(R.string.mali_panvk_missing) else null
-            MaliGraphicsMode.BRIDGE -> when {
-                !DeviceSupport.bridgeUsable() -> context.getString(R.string.mali_bridge_unsupported)
-                !File(context.applicationInfo.nativeLibraryDir, VkBridgeComponent.BINARY).isFile -> context.getString(R.string.mali_bridge_missing)
-                else -> null
-            }
-            MaliGraphicsMode.VENUS -> when {
-                !VenusComponent.available(context) -> context.getString(R.string.mali_venus_missing)
-                VenusComponent.hostVulkanTooOld(context) != null -> context.getString(R.string.mali_venus_old_vulkan, VenusComponent.hostVulkanTooOld(context))
-                else -> null
-            }
-            MaliGraphicsMode.AUTO -> null
+    fun problem(context: Context, route: MaliGraphicsMode): String? = when (route) {
+        MaliGraphicsMode.AUTO -> null
+        MaliGraphicsMode.BRIDGE -> when {
+            !DeviceSupport.bridgeUsable() -> context.getString(R.string.mali_bridge_unsupported)
+            !File(context.applicationInfo.nativeLibraryDir, VkBridgeComponent.BINARY).isFile -> context.getString(R.string.mali_bridge_missing)
+            else -> null
+        }
+        MaliGraphicsMode.VENUS -> when {
+            !VenusComponent.available(context) -> context.getString(R.string.mali_venus_missing)
+            VenusComponent.hostVulkanTooOld(context) != null -> context.getString(R.string.mali_venus_old_vulkan, VenusComponent.hostVulkanTooOld(context))
+            else -> null
         }
     }
-
-    fun actual(dir: File?): MaliGraphicsMode? = dir?.let { File(it, PATH_FILE) }
-        ?.let { MaliGraphicsMode.fromId(FileUtils.readString(it)?.trim()) }
-
-    fun failure(dir: File?): String? = dir?.let { File(it, ERROR_FILE) }
-        ?.let { FileUtils.readString(it) }?.trim()?.takeIf { it.isNotEmpty() }
 }

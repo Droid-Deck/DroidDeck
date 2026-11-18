@@ -63,27 +63,6 @@ class AutoDriverTrialTest {
         assertEquals("banner@r5", AutoDriverTrial.current(context)?.release)
     }
 
-    @Test fun aHostRouteCannotConfirmAnEarlierPanvkTrial() {
-        AutoDriverTrial.sessionStarting(context, "new-display", "new-linux")
-        AutoDriverTrial.sessionStarting(context, "new-display", null)
-        AutoDriverTrial.sessionReady()
-        assertEquals(1, AutoDriverTrial.current(context)?.starts)
-        assertEquals("banner@r5", AutoDriverTrial.current(context)?.release)
-    }
-
-    @Test fun hostRoutesWithSystemDisplayDoNotCountAsPanvkTrials() {
-        AutoDriverTrial.begin(context, "panvk@new", "PanVK", TurnipDriver.AUTO, "panvk", TurnipDriver.AUTO, "old")
-        repeat(3) {
-            AutoDriverTrial.displayStarting(context, TurnipDriver.AUTO)
-            AutoDriverTrial.sessionStarting(context, TurnipDriver.AUTO, null)
-            AutoDriverTrial.sessionReady()
-        }
-        assertEquals(0, AutoDriverTrial.current(context)?.starts)
-        assertNull(AutoDriverTrial.rollbackDue(context))
-        AutoDriverTrial.sessionStarting(context, TurnipDriver.AUTO, "panvk")
-        assertEquals(1, AutoDriverTrial.current(context)?.starts)
-    }
-
     @Test fun displayDriverCrashesBeforeSessionStartStillCount() {
         AutoDriverTrial.displayStarting(context, "new-display")
         assertNull(AutoDriverTrial.rollbackDue(context))
@@ -102,24 +81,6 @@ class AutoDriverTrialTest {
     @Test fun aTrialStartedBeforeDisplayCountingStillRollsBackOnTheNextCrash() {
         AutoDriverTrial.sessionStarting(context, "new-display", "new-linux")
         AutoDriverTrial.displayStarting(context, "new-display")
-        assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
-    }
-
-    @Test fun legacySystemOrUnchangedDisplayCountsDoNotRejectAnUnusedRuntime() {
-        for (display in listOf(TurnipDriver.AUTO, "previous-display")) {
-            AutoDriverTrial.begin(context, "panvk@new", "PanVK", display, "panvk", display, "old")
-            context.getSharedPreferences("gpu_auto_trial", Context.MODE_PRIVATE).edit()
-                .putInt("displayStarts", 4).putInt("starts", 1).commit()
-            assertEquals(1, AutoDriverTrial.current(context)?.starts)
-            assertNull(AutoDriverTrial.rollbackDue(context))
-            assertTrue(AutoDriverTrial.bad(context).isEmpty())
-            AutoDriverTrial.sessionStarting(context, display, "panvk")
-            assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
-        }
-    }
-
-    @Test fun legacyImportedDisplayCrashEvidenceStillRejectsTheTrial() {
-        context.getSharedPreferences("gpu_auto_trial", Context.MODE_PRIVATE).edit().putInt("displayStarts", 2).commit()
         assertEquals(2, AutoDriverTrial.rollbackDue(context)?.starts)
     }
 }

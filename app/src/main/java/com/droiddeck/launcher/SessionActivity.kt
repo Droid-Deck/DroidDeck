@@ -2705,9 +2705,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (holder !== outputHolder()) return
         if (installingRuntime || SessionState.stopRequested || ended) return
         if (!SessionState.running) {
-            synchronized(SessionPrefs) {
-                SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
-            }
+            SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         FileUtils.copyAsset(this, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
@@ -3303,8 +3301,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
-    private fun sessionFailureHint(): EndHint? {
-        if (SessionState.failureCode !in setOf("PROOT_MISSING", "MALI_GRAPHICS_UNAVAILABLE", "MALI_GRAPHICS_FAILED")) return null
+    private fun prootFailureHint(): EndHint? {
+        if (SessionState.failureCode != "PROOT_MISSING") return null
         val message = SessionState.failureMessage ?: return null
         return EndHint(message)
     }
@@ -3313,9 +3311,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         EndHint(getString(R.string.session_end_present_fault, it), evenOnSuccess = true)
     }
 
-    private fun sessionExitHint(status: Int): EndHint? = if (status == 0) presentationFaultHint()
-        else sessionFailureHint()?.takeIf { SessionState.failureCode != "PROOT_MISSING" }
-            ?: runtimeDamageHint() ?: sessionEndHint(SessionState.logFile) ?: sessionFailureHint()
+    private fun sessionExitHint(status: Int): EndHint? =
+        if (SessionState.failureCode == "MALI_GRAPHICS_FAILED") SessionState.failureMessage?.let { EndHint(it) }
+        else if (status == 0) presentationFaultHint()
+        else runtimeDamageHint() ?: sessionEndHint(SessionState.logFile) ?: prootFailureHint()
 
     private fun sessionEndHint(log: File?): EndHint? {
         presentationFaultHint()?.let { return it }
@@ -3336,6 +3335,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 if (line.contains(FEX_MISSING)) fexMissing = true
             }
             val steamSetup = com.droiddeck.launcher.session.SteamClientSetupFailure.find(text.lineSequence())
+            text.lineSequence().lastOrNull { it.startsWith("== mali graphics failed: ") }?.let {
+                return EndHint(it.removePrefix("== mali graphics failed: "))
+            }
             val launchFailure = com.droiddeck.launcher.session.SessionLaunchFailure.find(text.lineSequence())
             if (steamSetup != null) {
                 val message = getString(if (steamSetup.download) R.string.session_end_steam_download else R.string.session_end_steam_setup)

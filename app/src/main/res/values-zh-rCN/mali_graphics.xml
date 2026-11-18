@@ -1,21 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="mali_path_choice">Mali 图形路径</string>
-    <string name="mali_path_panvk">PanVK</string>
+    <string name="mali_path_choice">Mali 图形</string>
     <string name="mali_path_bridge">MaliBridge</string>
     <string name="mali_path_venus">Venus</string>
-    <string name="mali_path_selected">Mali 图形路径：%1$s</string>
-    <string name="mali_path_next">下次启动：%1$s</string>
-    <string name="mali_path_current">本次会话：%1$s</string>
-    <string name="mali_path_last">上次会话：%1$s</string>
-    <string name="mali_path_none">不可用</string>
-    <string name="mali_path_not_started">尚未通过自检确认</string>
-    <string name="mali_path_unavailable">未找到可用的 Mali 图形路径。请安装兼容的 PanVK 驱动组合或 MaliBridge / Venus 组件。</string>
-    <string name="mali_path_unsupported">%1$s 需要受支持的 Mali GPU。</string>
-    <string name="mali_panvk_missing">已选择 PanVK，但尚未选中已安装的 PanVK 运行时驱动。请在“驱动”中选择兼容的 PanVK 组合。</string>
-    <string name="mali_bridge_unsupported">已选择 MaliBridge，但此设备没有可用的 Mali 桥接 GPU 节点。</string>
-    <string name="mali_bridge_missing">已选择 MaliBridge，但缺少服务端组件。请重新安装包含 MaliBridge 支持的 DroidDeck。</string>
-    <string name="mali_venus_missing">已选择 Venus，但缺少驱动或渲染组件。请重新安装包含 Venus 支持的 DroidDeck。</string>
-    <string name="mali_venus_old_vulkan">Venus 需要宿主 Vulkan 1.2 或更高版本，此设备报告的版本为 %1$s。请选择其他 Mali 图形路径。</string>
-    <string name="mali_venus_start_failed">Venus 渲染服务未能启动。请查看会话日志。</string>
+    <string name="mali_path_selected">Mali 图形：%1$s</string>
+    <string name="mali_bridge_unsupported">MaliBridge 需要设备上存在可用的 Mali GPU 节点。</string>
+    <string name="mali_bridge_missing">缺少 MaliBridge 服务端，请重新安装包含 MaliBridge 支持的 DroidDeck。</string>
+    <string name="mali_venus_missing">缺少 Venus 驱动或渲染组件，请重新安装包含 Venus 支持的 DroidDeck。</string>
+    <string name="mali_venus_old_vulkan">Venus 需要宿主 Vulkan 1.2 或更高版本，当前设备报告 %1$s。请选择其他 Mali 图形选项。</string>
+    <string name="mali_venus_start_failed">Venus 渲染器未能启动，请查看会话日志。</string>
 </resources>

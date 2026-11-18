@@ -11,7 +11,7 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Linux runtime | Settings › Overview (`droiddeck://settings/overview`) | ubuntu, linux, repair, update |
 | Child-process limit | Settings › Overview (`droiddeck://settings/overview`) | phantom, process, killed, background |
 | Steam account | Settings › Overview (`droiddeck://settings/overview`) | steam, login, sign in |
-| Mali graphics path | Settings › Overview (`droiddeck://settings/overview`) | auto, panvk, malibridge, venus, gpu, driver |
+| Mali graphics | Settings › Overview (`droiddeck://settings/overview`) | auto, malibridge, venus, gpu, driver |
 | Override Steam's core choice | Settings › Performance (`droiddeck://settings/performance`) | steam client cores, cpu |
 | Game cores | Settings › Performance (`droiddeck://settings/performance`) | cpu, pin, cores, affinity |
 | Save power on steady games | Settings › Performance (`droiddeck://settings/performance`) | cpu |

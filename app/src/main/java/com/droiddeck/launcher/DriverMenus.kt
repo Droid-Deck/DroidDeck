@@ -26,8 +26,6 @@ import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.QuestExperimental
 import com.droiddeck.launcher.session.SessionState
-import com.droiddeck.launcher.session.MaliGraphics
-import com.droiddeck.launcher.session.MaliGraphicsMode
 import com.droiddeck.launcher.ui.DriverRow
 import com.droiddeck.launcher.ui.DriverSlot
 import com.droiddeck.launcher.ui.GPU_MODE_AUTO
@@ -50,9 +48,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         private set
     var mode by mutableStateOf(SessionPrefs.GPU_DRIVERS_AUTO)
     var pairRows by mutableStateOf<List<PairRow>>(emptyList())
-    var pairBusy: String?
-        get() = driverOperation
-        private set(value) { driverOperation = value }
+    var pairBusy by mutableStateOf<String?>(null)
     var pairPercent by mutableIntStateOf(-1)
     var autoStatus by mutableStateOf("")
     var activeBundle by mutableStateOf<String?>(null)
@@ -270,10 +266,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             (!DeviceSupport.adreno() && cached.assets.none { DriverPairs.isNonAdreno(it.pair) })
     }
 
-    fun ensureAuto(force: Boolean): Unit = synchronized(SessionPrefs) {
+    fun ensureAuto(force: Boolean) {
         mode = SessionPrefs.gpuDriverMode(activity)
         if (mode != SessionPrefs.GPU_DRIVERS_AUTO || pairBusy != null || releaseChecking) return
-        if (sessionUsesDrivers()) {
+        if (SessionState.running) {
             if (force) autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
             return
         }
@@ -299,14 +295,10 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             AutoDriverTrial.rollBack(activity, trial)
             autoStatus = activity.getString(R.string.drivers_rolled_back, trial.name)
             // The drivers before the trial on a Mali are the runtime's Turnip, which finds no GPU there.
-            if (gpu.family.mali && SessionPrefs.maliGraphicsMode(activity) == MaliGraphicsMode.AUTO) autoStatus = maliRouteStatus(trial.name)
-            if (SessionPrefs.maliGraphicsMode(activity) != MaliGraphicsMode.AUTO) {
-                MaliGraphics.problem(activity)?.let { autoStatus = it }
-            }
+            if (gpu.family.mali && maliHasNoRoute()) useMaliFallback(trial.name)
             refreshDrivers()
             return
         }
-        if (fixedMaliStatus()) return
         if (!force && System.currentTimeMillis() - lastAutoCheck < RELEASE_CHECK_INTERVAL_MS) return
         lastAutoCheck = System.currentTimeMillis()
         val displayChanged = SessionPrefs.androidDriver(activity) != QuestExperimental.defaultAndroidDriver()
@@ -336,7 +328,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         Log.i(TAG, "auto: ${gpu.name} (${gpu.family}) -> " + (DriverPairs.recommendedKey(gpu, emptyList()) ?: "no pair"))
         if (gpu.family.mali && DriverPairs.recommendedKey(gpu, emptyList()) == null) {
             // No PanVK build covers this Mali (e.g. the G1 series, arch v14): the phone's own driver.
-            autoStatus = maliRouteStatus(null)
+            autoStatus = useMaliFallback(null)
             refreshDrivers()
             return
         }
@@ -352,12 +344,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             runCatching { com.droiddeck.launcher.gpu.VulkanInfo.query() }
             ui.post {
                 releaseChecking = false
-                if (fixedMaliStatus()) return@post
-                if (SessionPrefs.gpuDriverMode(activity) != SessionPrefs.GPU_DRIVERS_AUTO) {
-                    autoStatus = ""
-                    refreshDrivers()
-                    return@post
-                }
                 if (gpu.family == GpuInfo.Family.POWERVR) gpu = GpuInfo.detect()
                 refreshReleaseRows()
                 refreshPairs()
@@ -379,22 +365,29 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                     gpu.family.mali && (pair == null || !pair.complete) &&
                         (problem != null || TurnipReleases.cached(activity)?.failed?.contains(TurnipReleases.NON_ADRENO_LABEL) == true) -> {
                         // The list could not be read: nothing is known to be missing, so a working route stays.
+                        // With no open driver, Venus or bridge the session would run the runtime's Turnip,
+                        // which finds no GPU on a Mali, so the stand-in goes on anyway.
                         autoStatus = activity.getString(R.string.upd_couldnt_check, problem ?: TurnipReleases.NON_ADRENO_LABEL)
+                        if (maliHasNoRoute()) {
+                            useMaliFallback(null)
+                            refreshDrivers()
+                        }
                     }
                     gpu.family.mali && (pair == null || !pair.complete) -> {
                         // No open driver for this Mali published yet: the phone's own driver until it is.
-                        autoStatus = maliRouteStatus(key?.let { DriverPairs.nonAdrenoName(it) } ?: gpu.name)
+                        autoStatus = useMaliFallback(key?.let { DriverPairs.nonAdrenoName(it) } ?: gpu.name)
                         refreshDrivers()
                     }
                     pair == null || !pair.complete ->
                         autoStatus = problem?.let { activity.getString(R.string.upd_couldnt_check, it) } ?: activity.getString(R.string.drivers_recommended_unpublished)
                     AutoDriverTrial.release(pair) in AutoDriverTrial.bad(activity) -> {
                         autoStatus = activity.getString(R.string.drivers_skipping_bad, pair.name, pair.version)
+                        if (gpu.family.mali && maliHasNoRoute()) {
+                            useMaliFallback(pair.name)
+                            refreshDrivers()
+                        }
                     }
-                    sessionUsesDrivers() -> {
-                        lastAutoCheck = 0L
-                        autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
-                    }
+                    SessionState.running -> autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
                     holdBack && row?.installed != true -> autoStatus = activity.getString(R.string.drivers_auto_waits_for_network, pair.name, pair.version)
                     else -> installPair(pair, auto = true)
                 }
@@ -402,25 +395,27 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }, "gpu-driver-auto").start()
     }
 
-    private fun maliRouteStatus(missing: String?): String {
-        val path = MaliGraphics.resolve(activity) ?: return activity.getString(R.string.mali_path_unavailable)
+    private fun useMaliFallback(missing: String?): String {
+        val choice = SessionPrefs.maliGraphicsMode(activity)
+        if (choice != com.droiddeck.launcher.session.MaliGraphicsMode.AUTO)
+            return activity.getString(R.string.mali_path_selected, activity.getString(choice.label))
         val oldVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(activity)
-        val route = activity.getString(path.label)
-        Log.i(TAG, "auto: Mali resolved to $route (missing pair: ${missing ?: "none covers ${gpu.name}"})")
-        if (path == MaliGraphicsMode.PANVK) return activity.getString(R.string.mali_path_selected, route)
-        if (oldVulkan != null && path == MaliGraphicsMode.BRIDGE) return activity.getString(R.string.drivers_mali_old_vulkan_bridge, missing ?: gpu.name, oldVulkan)
+        val venus = oldVulkan == null && com.droiddeck.launcher.session.VenusComponent.available(activity)
+        if (oldVulkan != null) Log.i(TAG, "auto: Mali driver reports Vulkan $oldVulkan; Venus needs 1.2, the bridge stands in")
+        val route = activity.getString(if (venus) R.string.drivers_route_venus else R.string.drivers_route_bridge)
+        Log.i(TAG, "auto: Mali stand-in route $route (missing pair: ${missing ?: "none covers ${gpu.name}"})")
+        if (oldVulkan != null) return activity.getString(R.string.drivers_mali_old_vulkan_bridge, missing ?: gpu.name, oldVulkan)
         return if (missing == null) activity.getString(R.string.drivers_mali_no_pair_auto, route)
         else activity.getString(R.string.drivers_mali_unpublished_auto, missing, route)
     }
 
-    private fun sessionUsesDrivers(): Boolean = SessionState.usesDrivers()
-
-    private fun fixedMaliStatus(): Boolean {
-        val choice = SessionPrefs.maliGraphicsMode(activity)
-        if (choice == MaliGraphicsMode.AUTO) return false
-        autoStatus = MaliGraphics.problem(activity) ?: activity.getString(R.string.mali_path_selected, activity.getString(choice.label))
-        refreshDrivers()
-        return true
+    /** Neither an installed open Linux driver nor Venus or the bridge: the runtime's Turnip would run. */
+    private fun maliHasNoRoute(): Boolean {
+        if (SessionPrefs.vkBridge(activity)) return false
+        // Venus on a Vulkan 1.1 driver does not start (VenusComponent.wanted), so it is no route.
+        if (SessionPrefs.venus(activity) && com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(activity) == null) return false
+        val linux = SessionPrefs.linuxDriver(activity)
+        return linux.isEmpty() || !LinuxVulkanDriverManager(activity).isInstalled(linux)
     }
 
     fun selectPair(key: String) {
@@ -435,44 +430,37 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     fun updatePair(key: String) {
         if (pairBusy != null) return
         val pair = DriverPairs.from(TurnipReleases.cached(activity)).firstOrNull { it.key == key && it.complete } ?: return
-        installPair(pair, auto = false, force = true, select = false)
+        val wasActive = pairRows.firstOrNull { it.key == key }?.active == true
+        installPair(pair, auto = wasActive && mode == SessionPrefs.GPU_DRIVERS_AUTO, force = true, select = wasActive)
     }
 
     private fun installPair(pair: DriverPairs.DriverPair, auto: Boolean, force: Boolean = false, select: Boolean = true) {
-        if (!pair.complete || pairBusy != null) return
+        if (!pair.complete) return
         pairBusy = pair.key
         pairPercent = 0
         if (auto) autoStatus = activity.getString(R.string.drivers_downloading_pair, pair.name, pair.version)
         Thread({
             var downloaded = false
-            var deferred = false
-            val downloads = LinkedHashMap<TurnipReleases.Asset, File>()
             val result = runCatching {
                 val zips = pair.assets
-                for ((i, asset) in zips.withIndex()) {
-                    if (force || installedIdOf(asset) == null) downloads[asset] = TurnipReleases.download(activity, asset) { pct ->
-                        ui.post { pairPercent = (i * 100 + pct) / zips.size }
-                    }
+                val ids = zips.mapIndexed { i, asset ->
+                    (if (force) null else installedIdOf(asset))
+                        ?: installAsset(asset) { pct -> ui.post { pairPercent = (i * 100 + pct) / zips.size } }.also { downloaded = true }
                 }
-                synchronized(SessionPrefs) {
-                    if (sessionUsesDrivers()) {
-                        deferred = true
-                        return@synchronized activity.getString(R.string.drivers_auto_waits_for_session)
-                    }
-                    if (auto && (SessionPrefs.gpuDriverMode(activity) != SessionPrefs.GPU_DRIVERS_AUTO ||
-                            SessionPrefs.maliGraphicsMode(activity) != MaliGraphicsMode.AUTO)) {
-                        return@synchronized ""
-                    }
-                    val ids = zips.map { asset ->
-                        downloads[asset]?.let { file ->
-                            downloaded = true
-                            installDownloadedAsset(asset, file)
-                        } ?: requireNotNull(installedIdOf(asset))
-                    }
-                    val (pairDisplayId, linuxId) = if (pair.bundle != null)
-                        DriverBundle.get(activity, ids[0])!!.let { listOf(it.androidId, it.linuxId) } else ids
+                if (pair.bundle != null) DriverBundle.get(activity, ids[0])!!.let { listOf(it.androidId, it.linuxId) } else ids
+            }
+            ui.post {
+                pairBusy = null
+                pairPercent = -1
+                result.onSuccess { (pairDisplayId, linuxId) ->
                     if (!select) {
-                        return@synchronized activity.getString(R.string.drivers_pair_updated, pair.name)
+                        android.widget.Toast.makeText(activity, activity.getString(R.string.drivers_pair_updated, pair.name), android.widget.Toast.LENGTH_LONG).show()
+                        return@onSuccess
+                    }
+                    if (auto && SessionState.running) {
+                        lastAutoCheck = 0L
+                        autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
+                        return@onSuccess
                     }
                     // A Mali pair under Auto: the compositor draws on the phone's own Mali driver
                     // (dma-buf, modifiers and AHB all work there) and the guest runs the pair's
@@ -489,44 +477,27 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                     val restart = displayChanged && CompositorHost.isStarted
                     if (auto) {
                         val trial = AutoDriverTrial.current(activity)
-                        // Bundle replacement already remaps selected slots; the new files are not a rollback target.
-                        val replacedBundle = downloaded && pair.bundle != null
-                        val rollbackDisplay = trial?.previousDisplay ?: previousDisplay.takeUnless { replacedBundle && it == pairDisplayId } ?: TurnipDriver.AUTO
-                        val rollbackLinux = trial?.previousLinux ?: previousLinux.takeUnless { replacedBundle && it == linuxId }.orEmpty()
-                        val lastGood = setOf(rollbackDisplay, rollbackLinux)
+                        val lastGood = trial?.let { setOf(it.previousDisplay, it.previousLinux) } ?: setOf(previousDisplay, previousLinux)
                         val changed = previousDisplay != displayId || previousLinux != linuxId
                         // A Mali pair's display is the phone's own driver (AUTO): not a download to own or prune.
                         SessionPrefs.setGpuAutoInstalled(activity, SessionPrefs.gpuAutoInstalled(activity) + setOf(displayId, linuxId).filter { it.isNotEmpty() && it != TurnipDriver.AUTO })
-                        if (changed || downloaded) AutoDriverTrial.begin(
+                        if (changed) AutoDriverTrial.begin(
                             activity, AutoDriverTrial.release(pair), "${pair.name} ${pair.version}", displayId, linuxId,
-                            rollbackDisplay, rollbackLinux,
+                            trial?.previousDisplay ?: previousDisplay, trial?.previousLinux ?: previousLinux,
                         )
-                        AutoDriverTrial.prune(activity, lastGood + setOf(displayId, linuxId))
-                        activity.getString(
+                        if (!SessionState.running) AutoDriverTrial.prune(activity, lastGood + setOf(displayId, linuxId))
+                        autoStatus = activity.getString(
                             if (downloaded) { if (restart) R.string.drivers_updated_to_restart else R.string.drivers_updated_to }
                             else { if (restart) R.string.drivers_switched_to_restart else R.string.drivers_switched_to },
                             pair.name, pair.version,
                         )
                     } else {
-                        activity.getString(if (restart) R.string.drivers_using_restart else R.string.drivers_using, pair.name, pair.version)
+                        android.widget.Toast.makeText(activity, activity.getString(if (restart) R.string.drivers_using_restart else R.string.drivers_using, pair.name, pair.version), android.widget.Toast.LENGTH_LONG).show()
                     }
-                }
-            }
-            downloads.values.forEach { com.droiddeck.launcher.core.FileUtils.delete(it) }
-            ui.post {
-                pairBusy = null
-                pairPercent = -1
-                if (deferred) lastAutoCheck = 0L
-                result.onSuccess { message ->
-                    if (auto) {
-                        if (!fixedMaliStatus()) autoStatus = message
-                    } else android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_LONG).show()
                 }.onFailure { e ->
                     Log.w(TAG, "driver pair ${pair.key}", e)
                     val why = if (e is IllegalArgumentException) e.message else activity.getString(R.string.comp_download_failed, e.message)
-                    if (auto) {
-                        if (!fixedMaliStatus()) autoStatus = why ?: activity.getString(R.string.user_apps_download_failed)
-                    }
+                    if (auto) autoStatus = why ?: activity.getString(R.string.user_apps_download_failed)
                     else android.widget.Toast.makeText(activity, why, android.widget.Toast.LENGTH_LONG).show()
                 }
                 refreshDrivers()
@@ -550,59 +521,36 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         var file: File? = null
         try {
             file = TurnipReleases.download(activity, asset, progress)
-            return synchronized(SessionPrefs) {
-                require(!sessionUsesDrivers()) { activity.getString(R.string.drivers_auto_waits_for_session) }
-                installDownloadedAsset(asset, file)
+            val uri = Uri.fromFile(file)
+            val id = when {
+                asset.bundle -> DriverBundle.install(activity, uri).id
+                asset.linux -> LinuxVulkanDriverManager(activity).installDriver(uri, asset.name)
+                else -> TurnipDriver(activity).installFromZip(uri, asset.name)
             }
+            TurnipReleases.recordDownload(activity, asset, id)
+            return id
         } finally {
             file?.let { com.droiddeck.launcher.core.FileUtils.delete(it) }
         }
     }
 
-    private fun installDownloadedAsset(asset: TurnipReleases.Asset, file: File): String {
-        val uri = Uri.fromFile(file)
-        val id = when {
-            asset.bundle -> DriverBundle.install(activity, uri).id
-            asset.linux -> LinuxVulkanDriverManager(activity).installDriver(uri, asset.name)
-            else -> TurnipDriver(activity).installFromZip(uri, asset.name)
-        }
-        TurnipReleases.recordDownload(activity, asset, id)
-        return id
-    }
-
     fun importDriver(uri: Uri, linux: Boolean?) {
-        if (pairBusy != null) return
-        pairBusy = "import"
         val name = activity.displayNameOf(uri)
         Thread({
             var bundle: DriverBundle.Bundle? = null
-            var selected: String? = null
             val problem = try {
-                synchronized(SessionPrefs) {
-                    require(!sessionUsesDrivers()) { activity.getString(R.string.drivers_auto_waits_for_session) }
-                    val previousDisplay = SessionPrefs.androidDriver(activity)
-                    when {
-                        DriverBundle.isBundle(activity, uri) -> bundle = DriverBundle.install(activity, uri)
-                        linux == true -> LinuxVulkanDriverManager(activity).installDriver(uri, name)
-                        linux == false -> TurnipDriver(activity).installFromZip(uri, name)
-                        else -> try {
-                            TurnipDriver(activity).installFromZip(uri, name)
-                        } catch (display: IllegalArgumentException) {
-                            try {
-                                LinuxVulkanDriverManager(activity).installDriver(uri, name)
-                            } catch (runtime: IllegalArgumentException) {
-                                throw IllegalArgumentException(activity.getString(R.string.drivers_not_a_driver))
-                            }
+                when {
+                    DriverBundle.isBundle(activity, uri) -> bundle = DriverBundle.install(activity, uri)
+                    linux == true -> LinuxVulkanDriverManager(activity).installDriver(uri, name)
+                    linux == false -> TurnipDriver(activity).installFromZip(uri, name)
+                    else -> try {
+                        TurnipDriver(activity).installFromZip(uri, name)
+                    } catch (display: IllegalArgumentException) {
+                        try {
+                            LinuxVulkanDriverManager(activity).installDriver(uri, name)
+                        } catch (runtime: IllegalArgumentException) {
+                            throw IllegalArgumentException(activity.getString(R.string.drivers_not_a_driver))
                         }
-                    }
-                    bundle?.let {
-                        DriverBundle.select(activity, it)
-                        if (SessionPrefs.gpuDriverMode(activity) == SessionPrefs.GPU_DRIVERS_AUTO)
-                            SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_MIX)
-                        selected = activity.getString(
-                            if (previousDisplay != it.androidId && CompositorHost.isStarted) R.string.drivers_using_bundle_restart
-                            else R.string.drivers_using_bundle, it.label,
-                        )
                     }
                 }
                 null
@@ -613,8 +561,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 activity.getString(R.string.drivers_import_failed, e.message)
             }
             ui.post {
-                pairBusy = null
-                val done = selected
+                val done = bundle?.let { useBundle(it) }
                     ?: name?.let { activity.getString(R.string.comp_imported, it) } ?: activity.getString(R.string.drivers_imported_unnamed)
                 android.widget.Toast.makeText(
                     activity, problem ?: done,
@@ -625,8 +572,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }, "import-driver").start()
     }
 
-    fun selectDriver(id: String, linux: Boolean): Unit = synchronized(SessionPrefs) {
-        if (!linux && id == TurnipDriver.AUTO && !gpu.family.mali && !com.droiddeck.launcher.core.DeviceSupport.mali()) {
+    fun selectDriver(id: String, linux: Boolean) {
+        if (!linux && id == TurnipDriver.AUTO) {
             DriverBundle.selectDisplay(activity, id)
             pairModeOpen = false
             lastAutoCheck = 0L
@@ -636,7 +583,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }
         val bundle = DriverBundle.containing(activity, id, linux)
         when {
-            !linux && id == TurnipDriver.AUTO -> SessionPrefs.setAndroidDriver(activity, id)
             bundle != null -> useBundle(bundle)
             linux -> SessionPrefs.setLinuxDriver(activity, id)
             else -> DriverBundle.selectDisplay(activity, id)
@@ -656,12 +602,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         )
     }
 
-    fun deleteDriver(id: String, linux: Boolean): Unit = synchronized(SessionPrefs) {
-        if (pairBusy != null || sessionUsesDrivers()) {
-            android.widget.Toast.makeText(activity, activity.getString(if (pairBusy != null) R.string.setup_check_busy
-                else R.string.drivers_auto_waits_for_session), android.widget.Toast.LENGTH_LONG).show()
-            return
-        }
+    fun deleteDriver(id: String, linux: Boolean) {
         val bundle = DriverBundle.containing(activity, id, linux)
         if (bundle != null) {
             DriverBundle.remove(activity, bundle)
@@ -732,11 +673,9 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     }
 
     fun downloadReleaseDriver(assetName: String) {
-        if (pairBusy != null) return
         val asset = TurnipReleases.cached(activity)?.assets?.firstOrNull { it.name == assetName } ?: return
         if (releaseProgress.containsKey(assetName)) return
         releaseProgress[assetName] = 0
-        pairBusy = assetName
         refreshReleaseRows()
         Thread({
             val problem = try {
@@ -749,7 +688,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 activity.getString(R.string.comp_download_failed, e.message)
             }
             ui.post {
-                pairBusy = null
                 releaseProgress.remove(assetName)
                 val installed = activity.getString(
                     if (asset.bundle) R.string.drivers_installed_pick_either else R.string.drivers_installed_pick,
@@ -765,7 +703,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     }
 
     private companion object {
-        var driverOperation by mutableStateOf<String?>(null)
         const val TAG = "MainActivity"
         const val RELEASE_CHECK_INTERVAL_MS = 3_600_000L
     }

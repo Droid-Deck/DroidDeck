@@ -66,7 +66,7 @@ object DeviceInfo {
         add("Clock range", gpuRange())
         add("Load", read("$kgsl/gpu_busy_percentage")?.let { if (it.endsWith("%")) it else "$it %" })
         add("Temperature", read("$kgsl/temp")?.toLongOrNull()?.let { if (it > 1000) "${it / 1000} °C" else "$it °C" })
-        add("Support", gpu.supportText(com.droiddeck.launcher.core.DeviceSupport.vkBridge(context)))
+        add("Support", gpu.supportText(SessionPrefs.vkBridge(context)))
     })
 
     private fun cpu() = Section("CPU", buildList<Pair<String, String>> {

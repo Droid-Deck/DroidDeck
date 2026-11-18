@@ -24,15 +24,11 @@ object AutoDriverTrial {
     fun current(context: Context): Trial? {
         val p = prefs(context)
         val release = p.getString("release", null) ?: return null
-        val display = p.getString("display", "").orEmpty()
-        val previousDisplay = p.getString("previousDisplay", "").orEmpty()
-        val displayStarts = if (display.isNotEmpty() && display != TurnipDriver.AUTO && display != previousDisplay)
-            p.getInt("displayStarts", 0) else 0
         return Trial(
             release, p.getString("name", "").orEmpty(),
             p.getString("display", "").orEmpty(), p.getString("linux", "").orEmpty(),
             p.getString("previousDisplay", "").orEmpty(), p.getString("previousLinux", "").orEmpty(),
-            maxOf(p.getInt("starts", 0), displayStarts),
+            maxOf(p.getInt("starts", 0), p.getInt("displayStarts", 0)),
         )
     }
 
@@ -54,13 +50,12 @@ object AutoDriverTrial {
 
     fun displayStarting(context: Context, display: String) {
         val p = prefs(context)
-        if (display == TurnipDriver.AUTO || display == p.getString("previousDisplay", "")) return
         if (p.getString("release", null) == null || p.getString("display", "") != display) return
         val counted = maxOf(p.getInt("displayStarts", 0), p.getInt("starts", 0))
         p.edit().putInt("displayStarts", counted + 1).commit()
     }
 
-    fun sessionStarting(context: Context, display: String, linux: String?) {
+    fun sessionStarting(context: Context, display: String, linux: String) {
         val trial = current(context)
         watching = null
         if (trial == null || trial.display != display || trial.linux != linux) return
@@ -83,21 +78,14 @@ object AutoDriverTrial {
 
     fun rollBack(context: Context, trial: Trial) {
         Log.w(TAG, "${trial.release} never reached a ready session in ${trial.starts} starts; restoring the previous drivers")
-        if (SessionPrefs.androidDriver(context) == trial.display && trial.display != TurnipDriver.AUTO) {
-            SessionPrefs.setAndroidDriver(context, trial.previousDisplay)
-        }
-        if (SessionPrefs.linuxDriver(context) == trial.linux) {
-            val previous = if (SessionPrefs.maliGraphicsMode(context) == com.droiddeck.launcher.session.MaliGraphicsMode.PANVK &&
-                com.droiddeck.launcher.session.MaliGraphics.panvkIcd(context, trial.previousLinux) == null) "" else trial.previousLinux
-            SessionPrefs.setLinuxDriver(context, previous)
-        }
+        if (SessionPrefs.androidDriver(context) == trial.display) SessionPrefs.setAndroidDriver(context, trial.previousDisplay)
+        if (SessionPrefs.linuxDriver(context) == trial.linux) SessionPrefs.setLinuxDriver(context, trial.previousLinux)
         val bad = bad(context) + trial.release
         prefs(context).edit().clear().putStringSet("bad", bad).commit()
         prune(context, setOf(trial.previousDisplay, trial.previousLinux, SessionPrefs.androidDriver(context), SessionPrefs.linuxDriver(context)))
     }
 
-    fun prune(context: Context, keep: Set<String>): Unit = synchronized(SessionPrefs) {
-        if (com.droiddeck.launcher.session.SessionState.usesDrivers()) return
+    fun prune(context: Context, keep: Set<String>) {
         val lm = LinuxVulkanDriverManager(context)
         val td = TurnipDriver(context)
         val owned = SessionPrefs.gpuAutoInstalled(context)

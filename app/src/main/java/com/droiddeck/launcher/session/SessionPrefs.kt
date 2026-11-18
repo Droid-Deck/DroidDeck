@@ -638,7 +638,6 @@ object SessionPrefs {
             ?: prefs(context).getString("linuxDriver.steam", null)
             ?: prefs(context).getString("linuxDriver.desktop", "") ?: ""
 
-    @Synchronized
     fun setLinuxDriver(context: Context, id: String) {
         prefs(context).edit().putString("linuxDriver", id).apply()
     }
@@ -663,7 +662,6 @@ object SessionPrefs {
     fun gpuDriverMode(context: Context): String =
         prefs(context).getString("gpuDriverMode", GPU_DRIVERS_AUTO) ?: GPU_DRIVERS_AUTO
 
-    @Synchronized
     fun setGpuDriverMode(context: Context, mode: String) {
         prefs(context).edit().putString("gpuDriverMode", mode).apply()
     }
@@ -1002,34 +1000,41 @@ object SessionPrefs {
 
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
 
-    @Synchronized
+    @JvmStatic
+    fun vkBridge(context: Context): Boolean = MaliGraphics.resolve(context) == MaliGraphicsMode.BRIDGE
+
+    fun venus(context: Context): Boolean = MaliGraphics.resolve(context) == MaliGraphicsMode.VENUS
+
     fun maliGraphicsMode(context: Context): MaliGraphicsMode {
         val saved = prefs(context)
         MaliGraphicsMode.fromId(saved.getString("maliGraphicsMode", null))?.let { return it }
-        var choice = MaliGraphics.migrate(
-            com.droiddeck.launcher.core.DeviceSupport.mali(),
+        // Auto wrote both switches; false and absent keys cannot establish a fixed choice.
+        val choice = MaliGraphics.migrate(
             if (saved.contains("vkBridge")) saved.getBoolean("vkBridge", false) else null,
             if (saved.contains("venus")) saved.getBoolean("venus", false) else null,
             saved.getString("maliFallbackByAuto", null),
         )
-        if (choice == MaliGraphicsMode.BRIDGE && saved.getBoolean("bridgeFellBack", false) &&
-            saved.getString("bridgeFallbackReason", "") in setOf("memory", "draw") &&
-            MaliGraphics.panvkIcd(context) != null) choice = MaliGraphicsMode.AUTO
         setMaliGraphicsMode(context, choice)
         return choice
     }
 
-    @Synchronized
     fun setMaliGraphicsMode(context: Context, choice: MaliGraphicsMode) {
         prefs(context).edit().putString("maliGraphicsMode", choice.id)
-            .remove("vkBridge").remove("venus").remove("maliFallbackByAuto")
-            .remove("bridgeFellBack").remove("bridgeFallbackReason").apply()
+            .remove("vkBridge").remove("venus").remove("maliFallbackByAuto").apply()
     }
 
     fun hostVulkanApi(context: Context): String = prefs(context).getString("hostVulkanApi", "").orEmpty()
 
     fun setHostVulkanApi(context: Context, api: String) {
         if (api != hostVulkanApi(context)) prefs(context).edit().putString("hostVulkanApi", api).apply()
+    }
+
+    fun bridgeFellBack(context: Context): Boolean = prefs(context).getBoolean("bridgeFellBack", false)
+
+    fun bridgeFellBackForMemory(context: Context): Boolean = prefs(context).getString("bridgeFallbackReason", "") == "memory"
+
+    fun setBridgeFellBack(context: Context, on: Boolean, reason: String = "") {
+        prefs(context).edit().putBoolean("bridgeFellBack", on).putString("bridgeFallbackReason", if (on) reason else "").apply()
     }
 
     fun steamGpuCompositing(context: Context): Boolean {
@@ -1083,7 +1088,7 @@ object SessionPrefs {
     fun androidDriver(context: Context): String = prefs(context).getString("androidDriver", "") ?: ""
 
     @JvmStatic
-    fun setAndroidDriver(context: Context, id: String): Unit = synchronized(this) {
+    fun setAndroidDriver(context: Context, id: String) {
         prefs(context).edit().putString("androidDriver", id).apply()
     }
 

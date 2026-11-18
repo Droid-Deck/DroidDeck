@@ -4,94 +4,39 @@ Venus implementation notes and historical prototype measurements from a Pixel 9 
 (Tensor G4, Mali-G715, Android 17). These October prototype results do not validate
 the current DroidDeck integration.
 
-## Mali graphics selection
+## Mali graphics choice
 
-Setup stores one `maliGraphicsMode`: `auto`, `panvk`, `bridge`, or `venus`.
-The overall driver mode and the display driver's AUTO entry do not change this
-choice. Auto resolves each launch to the selected installed PanVK runtime driver,
-then available Venus with host Vulkan 1.2+, then an available MaliBridge. Resolution
-does not save its result. A fixed path reports missing components or failed startup
-self-tests instead of choosing a different backend. A failed MaliBridge startup
-also stops Auto: if a selected PanVK runtime were available, Auto would have chosen
-it before MaliBridge.
+Setup → Overview offers **Auto / MaliBridge / Venus** as one exclusive choice.
+It is independent of the overall Auto / Manual / Mix driver mode. Driver discovery
+and installation never rewrite this preference.
 
-`vulkaninfo` is an optional diagnostic supplied by the separate desktop pack, not
-a requirement for the gaming runtime. When absent, PanVK and Venus keep their
-resolved path and skip this probe without recording a successful self-test. When
-present, a failed or timed-out probe stops startup. Both host routes wait for their
-server socket with a monotonic deadline; wall-clock changes cannot extend the wait,
-and cancellation does not record a driver failure.
-Venus checks Zink with `droiddeck-glprobe` in the Steam branch when that tool is
-available and `GALLIUM_DRIVER=zink`; direct game launches do not run this GL probe.
-Fixed Venus stops if Zink cannot start, while
-Auto may use software GL with Venus Vulkan. The same distinction applies when
-`vulkaninfo` reports no `nullDescriptor` support.
-Probe output is fully consumed while only a bounded number of lines are printed;
-the actual exit/timeout status decides success even if a diagnostic file cannot be
-created. A successful initial
-or accepted GL probe can confirm Venus without `vulkaninfo`; software GL alone
-cannot. Failures use the existing Steam child exit file so a successful gamescope
-exit cannot hide a failed nested Steam startup.
+Auto uses the selected installed Linux driver, including PanVK managed by the
+existing Drivers menu. Without one, it uses Venus when available with host Vulkan
+1.2 or newer, otherwise MaliBridge. This is resolved at launch without saving a
+fixed choice. PanVK has no separate fixed setting or lifecycle policy here.
 
-The session folder records `mali-graphics-path` after a successful startup probe and
-`mali-graphics-error` on a failed probe. Setup shows the saved choice, the next launch's
-resolved path, and the current/last session's confirmed path. These session records
-also appear in `graphics-report.txt` and travel with the existing log export.
-They are diagnostics, not configuration.
-The last ended confirmation is captured before logs-off cache cleanup. Within the
-process, a newer unconfirmed session replaces that result; after restart, Setup
-reads the latest retained session. A running session only shows its own marker.
-The visible Setup poll also publishes the session's driver-use state, so teardown
-updates the current/last label and enables the chooser even when the marker is unchanged.
+Fixed MaliBridge and Venus override the selected Linux runtime. Missing components
+or an incompatible host produce a startup error. Existing Bridge self-test failures
+stop a fixed Bridge launch instead of falling back to PanVK. Fixed Venus stops on
+a failed Vulkan probe, missing nullDescriptor, or a failed Steam Zink probe instead
+of switching to software GL. `vulkaninfo` remains optional; the Zink probe only runs
+in the Steam branch when `droiddeck-glprobe` is available and GL uses Zink.
+Failures use the existing session log, failure message and Steam child exit status.
 
-Bundle downloads prepare new files before checking Auto eligibility and replacing
-the old bundle. Only slots still pointing at the old bundle follow its replacement;
-choices made during download and independent Mix slots survive. Replacement and
-session startup share the preferences lock, and replacement/removal is refused while a
-session is starting its compositor/guest, running, or stopping. Import, update and
-Auto installation share a busy boundary through their UI callback. Activation and
-trial registration happen together under the lock; callbacks only publish results.
-An Auto installation deferred by a session remains eligible on the next idle check.
-After preparation waits, startup captures one graphics decision
-for validation, environment, components and reporting. Fixed PanVK keeps its intent
-after trial rollback; if no previous PanVK remains available, startup explains the
-missing driver instead of selecting a different backend; the driver menu also shows
-that missing-runtime problem immediately after rollback.
-Auto's idle display repair and pending-trial rollback also run with a fixed Mali
-choice. The phone's system display does not count as a trial of a downloaded
-PanVK pair: Bridge/Venus sessions cannot reject an unused PanVK runtime. Imported
-display drivers still count when they are actually started. Persisted display-only
-counts for the system display or an unchanged previous display are ignored; actual
-runtime starts and imported-display trial evidence remain usable.
+For fixed choices, the private `droiddeck-env` and agent environment cannot override
+route flags, ICD selection, renderer sockets, Zink/software selection, Venus vtest,
+or `DD_INSIDE` (the nested-session flag). Their `DROIDDECK_GAME_` forms are also
+reserved. Unrelated diagnostics such as `VK_LOADER_DEBUG` and `MESA_DEBUG` remain
+available. Auto retains the existing debug override behavior.
 
-The report identifies a PanVK bundle by the captured Linux driver, independently
-of the compositor choice. Standalone PanVK ZIPs report the same PanVK path without
-claiming bundle provenance.
-
-The app-private `Android/data/com.droiddeck.launcher/files/droiddeck-env` and agent
-environment can add diagnostics, but cannot replace a captured Mali launch's route.
-Owned keys are `DD_MALI_GRAPHICS_MODE`, `DD_MALI_GRAPHICS_PATH`, `DD_VENUS`,
-`DD_VKBRIDGE`, `DD_VK_DRIVER`, `DD_OPEN_DRIVER`, the Vulkan loader's ICD/driver-file
-and driver select/disable keys, `VKBRIDGE_SOCKET`, `VTEST_SOCKET_NAME`, `VN_DEBUG`
-(required for Venus vtest), `GALLIUM_DRIVER`, `MESA_LOADER_DRIVER_OVERRIDE`, and
-`LIBGL_ALWAYS_SOFTWARE`, including their `DROIDDECK_GAME_` forms. Unrelated options
-such as `VK_LOADER_DEBUG`, `MESA_DEBUG`, `ZINK_DEBUG`, and socket wait diagnostics
-remain available. The legacy shared `Download/droiddeck-env` remains ignored.
-
-Legacy migration runs once, then removes `vkBridge`, `venus`, and
-`maliFallbackByAuto`. Previously bridge defaulted to true on Mali, Venus to false;
-an existing key alone does not prove user intent. A matching Auto ownership marker
-migrates to Auto unless another enabled, unowned switch needs preserving. Without
-a usable marker, migration preserves the old enabled-path priority: Venus, then
-bridge (including its missing-key default), otherwise PanVK. Completely absent old
-switches start on Auto. A cleared marker cannot distinguish an old Auto write from
-a user choice, so those combinations retain their effective choice; migration does
-not claim to recover the user's original intent. A recorded bridge memory/draw
-fallback together with an available selected PanVK migrates an otherwise fixed
-Bridge choice to Auto. The record proves a fallback attempt, not a working PanVK
-session; Auto can validate the available route without asserting historical success.
-It does not override an explicit Venus choice. Existing Venus hardware failures
-are not diagnosed or fixed by this selection model.
+Legacy enabled Venus or Bridge values migrate to the matching fixed choice unless
+the old Auto owner identifies that route as automatic. Other combinations migrate
+to Auto: false or absent keys do not prove an explicit choice, because Auto wrote
+false values and Bridge defaulted to enabled on Mali. An enabled route not owned
+by Auto takes precedence; Venus wins if both are enabled without an Auto owner.
+Historical fallback records remain diagnostics; they cannot prove that a fallback
+successfully rendered. Reset settings returns the choice to Auto and clears the
+old switches and owner.
 
 ## Status (2026-10-08, night)
 

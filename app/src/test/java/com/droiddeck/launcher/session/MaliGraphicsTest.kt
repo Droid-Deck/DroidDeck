@@ -2,45 +2,44 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.session.MaliGraphicsMode.*
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MaliGraphicsTest {
-    @Test fun autoPrefersPanvkThenVenusThenBridgeAndCanBeUnavailable() {
-        assertEquals(PANVK, MaliGraphics.resolve(AUTO, true, true, true, true))
-        assertEquals(VENUS, MaliGraphics.resolve(AUTO, true, false, true, true))
-        assertEquals(BRIDGE, MaliGraphics.resolve(AUTO, true, false, false, true))
-        assertNull(MaliGraphics.resolve(AUTO, true, false, false, false))
-        assertNull(MaliGraphics.resolve(AUTO, false, true, true, true))
+    @Test fun exactlyThreeSavedChoices() {
+        assertEquals(listOf("auto", "bridge", "venus"), MaliGraphicsMode.entries.map { it.id })
     }
 
-    @Test fun aFixedPathIsNeverReplacedEvenWhenItIsUnavailable() {
-        for (choice in listOf(PANVK, BRIDGE, VENUS)) {
-            assertEquals(choice, MaliGraphics.resolve(choice, true, false, false, false))
-            assertEquals(choice, MaliGraphics.resolve(choice, true, true, true, true))
+    @Test fun fixedChoiceWinsOverSelectedDriverAndAvailability() {
+        for (choice in listOf(BRIDGE, VENUS)) for (selected in listOf(false, true)) for (venus in listOf(false, true)) {
+            assertEquals(choice, MaliGraphics.resolve(choice, selected, venus))
         }
     }
 
-    @Test fun freshPreferencesAndRecognizableAutoOwnedValuesMigrateToAuto() {
-        assertEquals(AUTO, MaliGraphics.migrate(true, null, null, null))
-        assertEquals(AUTO, MaliGraphics.migrate(true, true, false, "bridge"))
-        assertEquals(AUTO, MaliGraphics.migrate(true, null, false, "bridge"))
-        assertEquals(AUTO, MaliGraphics.migrate(true, false, true, "venus"))
-        assertEquals(AUTO, MaliGraphics.migrate(true, null, true, "venus"))
+    @Test fun autoUsesExistingSelectedDriverBeforeFallbackComponents() {
+        assertEquals(AUTO, MaliGraphics.resolve(AUTO, true, true))
+        assertEquals(AUTO, MaliGraphics.resolve(AUTO, true, false))
+        assertEquals(VENUS, MaliGraphics.resolve(AUTO, false, true))
+        assertEquals(BRIDGE, MaliGraphics.resolve(AUTO, false, false))
     }
 
-    @Test fun ownerlessDataPreservesTheLegacyEffectiveChoiceIncludingDefaults() {
-        assertEquals(VENUS, MaliGraphics.migrate(true, true, true, ""))
-        assertEquals(VENUS, MaliGraphics.migrate(true, false, true, null))
-        assertEquals(BRIDGE, MaliGraphics.migrate(true, true, false, ""))
-        assertEquals(BRIDGE, MaliGraphics.migrate(true, null, false, null))
-        assertEquals(PANVK, MaliGraphics.migrate(true, false, false, null))
-        assertEquals(PANVK, MaliGraphics.migrate(true, false, null, ""))
+    @Test fun legacyEnabledChoiceRespectsAutomaticOwnership() {
+        assertEquals(VENUS, MaliGraphics.migrate(false, true, null))
+        assertEquals(BRIDGE, MaliGraphics.migrate(true, false, null))
+        assertEquals(VENUS, MaliGraphics.migrate(true, true, null))
+        assertEquals(AUTO, MaliGraphics.migrate(false, true, "venus"))
+        assertEquals(AUTO, MaliGraphics.migrate(true, false, "bridge"))
+        for (bridge in listOf(null, false)) for (venus in listOf(null, false)) {
+            assertEquals(AUTO, MaliGraphics.migrate(bridge, venus, null))
+        }
     }
 
-    @Test fun ownershipOfOneSwitchDoesNotClaimTheOtherSwitch() {
-        assertEquals(VENUS, MaliGraphics.migrate(true, true, true, "bridge"))
-        assertEquals(BRIDGE, MaliGraphics.migrate(true, true, false, "venus"))
-        assertEquals(PANVK, MaliGraphics.migrate(true, false, false, "bridge"))
+    @Test fun fixedRoutesOwnRoutingButLeaveDiagnosticOverrides() {
+        val extras = listOf("DD_MALI_GRAPHICS_MODE=auto", "DD_INSIDE=1", "DD_VENUS=0", "DD_VK_DRIVER=other",
+            "DROIDDECK_GAME_GALLIUM_DRIVER=llvmpipe", "VK_DRIVER_FILES=other", "VTEST_SOCKET_NAME=other",
+            "VK_LOADER_DEBUG=all", "MESA_DEBUG=1")
+        for (choice in listOf(BRIDGE, VENUS)) {
+            assertEquals(listOf("VK_LOADER_DEBUG=all", "MESA_DEBUG=1"), MaliGraphics.diagnosticOverrides(choice, extras))
+        }
+        assertEquals(extras, MaliGraphics.diagnosticOverrides(AUTO, extras))
     }
 }

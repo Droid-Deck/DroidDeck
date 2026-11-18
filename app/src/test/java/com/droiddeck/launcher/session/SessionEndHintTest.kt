@@ -42,8 +42,6 @@ class SessionEndHintTest {
         previousDirectory = SessionState.logDirectory
         SessionState.logFile = null
         SessionState.logDirectory = null
-        SessionState.failureCode = null
-        SessionState.failureMessage = null
         DetectedGpu.family = GpuInfo.Family.NOT_ADRENO
         DetectedGpu.name = "test GPU"
         activity = Robolectric.buildActivity(SessionActivity::class.java).get()
@@ -55,11 +53,22 @@ class SessionEndHintTest {
         SessionState.steamClientArch = previousArchitecture
         SessionState.logFile = previousLog
         SessionState.logDirectory = previousDirectory
-        SessionState.failureCode = null
-        SessionState.failureMessage = null
-        SessionState.failureStatus = null
         DetectedGpu.family = GpuInfo.Family.NOT_ADRENO
         DetectedGpu.name = "test GPU"
+    }
+
+    @Test
+    fun maliFailureKeepsItsSpecificReason() {
+        assertEquals("Venus lacks nullDescriptor required by Zink.",
+            hintText(log("== mali graphics failed: Venus lacks nullDescriptor required by Zink.\n== steam exited rc=69\n")))
+        try {
+            SessionState.failureCode = "MALI_GRAPHICS_FAILED"
+            SessionState.failureMessage = "MaliBridge is unavailable."
+            assertEquals("MaliBridge is unavailable.", ReflectionHelpers.getField<String>(exitHint(-1), "text"))
+        } finally {
+            SessionState.failureCode = null
+            SessionState.failureMessage = null
+        }
     }
 
     @Test
@@ -125,52 +134,6 @@ class SessionEndHintTest {
         File(temporary.root, "wayland.log").writeText("DD_PRESENT_FAULT: old fault\npresentation recovered: fault cleared\n")
         SessionState.logFile = sigillLog()
         assertNull(exitHint(0))
-    }
-
-    @Test
-    fun maliFailureSurvivesStoppingAndPrecedesGenericLogHints() {
-        SessionState.logDirectory = temporary.root
-        SessionState.logFile = vulkanLog()
-        File(temporary.root, "wayland.log").writeText("DD_PRESENT_FAULT: generic teardown fault\n")
-        for ((code, message) in listOf(
-            "MALI_GRAPHICS_UNAVAILABLE" to "PanVK is selected, but no installed PanVK runtime driver is selected.",
-            "MALI_GRAPHICS_FAILED" to "MaliBridge self-test failed (memory). See vkbridge logs.",
-            "MALI_GRAPHICS_FAILED" to "Venus lacks nullDescriptor required by Zink.",
-        )) {
-            SessionEvents.fail(code, message, 69)
-            SessionEvents.transition(SessionPhase.STOPPING, "session.stopping")
-            SessionEvents.transition(SessionPhase.FAILED, "session.stopped")
-            assertEquals(message, ReflectionHelpers.getField<String>(exitHint(69), "text"))
-        }
-    }
-
-    @Test
-    fun prootFailureStillShowsItsMessageAndUnknownCodesUseExistingHints() {
-        SessionState.failureCode = "PROOT_MISSING"
-        SessionState.failureMessage = "Patched proot is missing"
-        assertEquals("Patched proot is missing", ReflectionHelpers.getField<String>(exitHint(-1), "text"))
-        SessionState.failureCode = "OTHER"
-        SessionState.logFile = sigillLog()
-        assertEquals(hintText(SessionState.logFile!!), ReflectionHelpers.getField<String>(exitHint(132), "text"))
-    }
-
-    @Test fun prootRetainsRuntimeRepairPriorityWhileMaliKeepsItsSpecificReason() {
-        val lib = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(activity), "usr/lib").apply { mkdirs() }
-        val link = File(lib, "libbroken.so").toPath()
-        java.nio.file.Files.createSymbolicLink(link, java.nio.file.Paths.get("missing.so"))
-        try {
-            SessionState.failureCode = "PROOT_MISSING"
-            SessionState.failureMessage = "Patched proot is missing"
-            assertTrue(ReflectionHelpers.getField(exitHint(-1), "repair"))
-            SessionState.failureCode = "MALI_GRAPHICS_FAILED"
-            SessionState.failureMessage = "Venus renderer could not start"
-            assertEquals(SessionState.failureMessage, ReflectionHelpers.getField<String>(exitHint(-1), "text"))
-        } finally {
-            java.nio.file.Files.delete(link)
-        }
-        SessionState.failureCode = "PROOT_MISSING"
-        SessionState.logFile = sigillLog()
-        assertEquals(hintText(SessionState.logFile!!), ReflectionHelpers.getField<String>(exitHint(132), "text"))
     }
 
     @Test

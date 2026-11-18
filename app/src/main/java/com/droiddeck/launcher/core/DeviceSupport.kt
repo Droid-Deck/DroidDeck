@@ -18,7 +18,7 @@ object DeviceSupport {
     internal fun graphicsAvailable(adreno: Boolean, powerVrReady: Boolean): Boolean = adreno || powerVrReady
 
     fun vkBridge(context: Context): Boolean =
-        com.droiddeck.launcher.session.MaliGraphics.resolve(context) == com.droiddeck.launcher.session.MaliGraphicsMode.BRIDGE
+        com.droiddeck.launcher.session.SessionPrefs.vkBridge(context)
 
     fun mali(): Boolean = isMali
 
@@ -31,8 +31,8 @@ object DeviceSupport {
 
     fun openDriverActive(context: Context): Boolean {
         if (adreno()) return false
-        if (mali()) return com.droiddeck.launcher.session.MaliGraphics.resolve(context) == com.droiddeck.launcher.session.MaliGraphicsMode.PANVK
         if (com.droiddeck.launcher.session.VenusComponent.wanted(context)) return false
+        if (com.droiddeck.launcher.session.SessionPrefs.vkBridge(context)) return false
         val linux = com.droiddeck.launcher.session.SessionPrefs.linuxDriver(context).ifEmpty { return false }
         return com.droiddeck.launcher.gpu.DriverPairs.isNonAdreno(com.droiddeck.launcher.gpu.DriverBundle.containing(context, linux, true)?.id)
     }

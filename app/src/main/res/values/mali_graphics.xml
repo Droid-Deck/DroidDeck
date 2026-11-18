@@ -1,21 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="mali_path_choice">Mali graphics path</string>
-    <string name="mali_path_panvk">PanVK</string>
+    <string name="mali_path_choice">Mali graphics</string>
     <string name="mali_path_bridge">MaliBridge</string>
     <string name="mali_path_venus">Venus</string>
     <string name="mali_path_selected">Mali graphics: %1$s</string>
-    <string name="mali_path_next">Next launch: %1$s</string>
-    <string name="mali_path_current">This session: %1$s</string>
-    <string name="mali_path_last">Last session: %1$s</string>
-    <string name="mali_path_none">unavailable</string>
-    <string name="mali_path_not_started">not confirmed by a self-test</string>
-    <string name="mali_path_unavailable">No usable Mali graphics path was found. Install a compatible PanVK driver pair or the MaliBridge / Venus components.</string>
-    <string name="mali_path_unsupported">%1$s requires a supported Mali GPU.</string>
-    <string name="mali_panvk_missing">PanVK is selected, but no installed PanVK runtime driver is selected. Choose a compatible PanVK pair in Drivers.</string>
-    <string name="mali_bridge_unsupported">MaliBridge is selected, but this device has no usable Mali bridge GPU node.</string>
-    <string name="mali_bridge_missing">MaliBridge is selected, but its server component is missing. Reinstall DroidDeck with MaliBridge support.</string>
-    <string name="mali_venus_missing">Venus is selected, but its driver or renderer component is missing. Reinstall DroidDeck with Venus support.</string>
-    <string name="mali_venus_old_vulkan">Venus requires host Vulkan 1.2 or newer; this device reports %1$s. Choose another Mali graphics path.</string>
+    <string name="mali_bridge_unsupported">MaliBridge requires a usable Mali GPU node on this device.</string>
+    <string name="mali_bridge_missing">MaliBridge server is missing. Reinstall DroidDeck with MaliBridge support.</string>
+    <string name="mali_venus_missing">Venus driver or renderer is missing. Reinstall DroidDeck with Venus support.</string>
+    <string name="mali_venus_old_vulkan">Venus requires host Vulkan 1.2 or newer; this device reports %1$s. Choose another Mali graphics option.</string>
     <string name="mali_venus_start_failed">Venus renderer could not start. See the session logs.</string>
 </resources>

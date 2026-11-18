@@ -20,7 +20,7 @@ object SettingsReset {
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
         "stretch16x9", "picturePosition", "integerScaling", "railLabels", "developerTools", "navTabOrder", "navTabShelved", "navTabHidden", "pcKeyboardSize", "pcKeyboardOpacity", "pcKeyboardHiddenKeys",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
-        "maliGraphicsMode", "vkBridge", "venus", "maliFallbackByAuto", "bridgeFellBack", "bridgeFallbackReason",
+        "maliGraphicsMode", "vkBridge", "venus", "maliFallbackByAuto",
         "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "gamescopeRealtime", "paceCores", "ramCapMb", "vramCapMb", "zramClient", "zramIdle",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",
         "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "nativeUserland", "cursorComposite",

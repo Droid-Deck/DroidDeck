@@ -23,16 +23,6 @@ object SessionPaths {
     @Volatile
     private var ended: File? = null
 
-    data class GraphicsConfirmation(val sessionId: String, val path: MaliGraphicsMode?)
-    private var endedGraphics: Pair<File, GraphicsConfirmation>? = null
-
-    @Synchronized
-    fun graphicsConfirmation(context: Context): GraphicsConfirmation? {
-        val folder = dir ?: ended ?: sessionFolders(context).lastOrNull() ?: return null
-        endedGraphics?.takeIf { dir == null && it.first == folder }?.let { return it.second }
-        return GraphicsConfirmation(folder.name, MaliGraphics.actual(folder))
-    }
-
     @Volatile
     private var startedAt = 0L
 
@@ -43,7 +33,7 @@ object SessionPaths {
         val parent = if (SessionPrefs.logsEnabled(context) || enhanced) SessionFiles.logDirectory(context)
             else File(context.cacheDir, "session-logs")
         val day = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val last = (parent.listFiles()?.toList().orEmpty() + listOfNotNull(ended)).mapNotNull { f ->
+        val last = parent.listFiles()?.mapNotNull { f ->
             NAMED.matchEntire(f.name)?.takeIf { f.name.startsWith("$day-") }?.groupValues?.get(4)?.toIntOrNull()
         }?.maxOrNull() ?: 0
         val what = slug(label ?: label(SessionState.mode, SessionState.program))
@@ -74,10 +64,7 @@ object SessionPaths {
     fun take(): File? {
         val taken = dir
         dir = null
-        if (taken != null) {
-            ended = taken
-            endedGraphics = null
-        }
+        if (taken != null) ended = taken
         return taken
     }
 
@@ -85,11 +72,8 @@ object SessionPaths {
 
     @Synchronized
     fun release(context: Context, ended: File) {
-        if (this.ended == ended && endedGraphics?.first != ended) {
-            endedGraphics = ended to GraphicsConfirmation(ended.name, MaliGraphics.actual(ended))
-        }
         if (dir == ended) dir = null
-        if (ended.path.startsWith(context.cacheDir.path)) {
+        if (ended != null && ended.path.startsWith(context.cacheDir.path)) {
             com.droiddeck.launcher.core.FileUtils.delete(ended)
         }
     }
