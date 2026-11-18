@@ -107,6 +107,17 @@ class SessionSuspendControllerTest {
         assertEquals(1, fixture.pagedIn.size)
     }
 
+    @Test fun theMonitorIsHeldOffWhilePagingOutAndReadingBack() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        val hold = File(fixture.control.parentFile, ".dd-zram.hold")
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertFalse(hold.exists())
+        fixture.controller.resume { assertTrue(it) }
+        assertFalse(hold.exists())
+        assertEquals(listOf(true, true), fixture.held)
+    }
+
     @Test fun noReadBackAfterAFreezeWithoutPageOut() {
         val fixture = fixture(17)
         fixture.control.writeText("0")
@@ -455,6 +466,7 @@ class SessionSuspendControllerTest {
         val groups = mutableListOf(root, game)
         val helpers = mutableListOf<Int>()
         val signals = mutableListOf<SentSignal>()
+        val held = mutableListOf<Boolean>()
         var rootPid = ROOT
         var now = 0L
         var audioSuspends = 0
@@ -500,6 +512,7 @@ class SessionSuspendControllerTest {
 
         private fun signal(pid: Int, signal: Int) {
             signals += SentSignal(pid, signal)
+            if (signal == URG) held += File(control.parentFile, "${control.name}.hold").exists()
             val group = groups.first { it.pid == pid }
             if (signal == STOP) {
                 continuing = false

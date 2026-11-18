@@ -104,14 +104,18 @@ run() { for NOW in $(seq "$1" "$2"); do dd_memory_tick; done; }
         functions = '\n'.join(function_source(name) for name in (
             'dd_memory_need', 'dd_memory_relieve', 'dd_memory_note', 'dd_client_readback', 'dd_memory_tick'))
         with tempfile.TemporaryDirectory() as tmp:
-            functions = functions.replace('/tmp/.dd-zram', tmp + '/ctl')
-            result = run_bash(('NOW=0\nset -u\n' + STATE + functions + self.TICK + body).replace('SECONDS', 'NOW'))
+            script = (functions + self.TICK + body).replace('/tmp/.dd-zram', tmp + '/ctl')
+            result = run_bash(('NOW=0\nset -u\n' + STATE + script).replace('SECONDS', 'NOW'))
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('', result.stderr)
         return result.stdout.splitlines()
 
     def test_the_client_behind_a_game_is_trimmed_while_memory_is_short_of_the_target(self):
         self.assertEqual(['trim:0', 'trim:1', 'trim:2'], self.tick('run 0 2\navailable=1700; run 3 9\n'))
+
+    def test_nothing_is_requested_while_the_app_holds_the_control_file(self):
+        self.assertEqual(['trim:3'], self.tick(
+            ': > /tmp/.dd-zram.hold; run 0 2\nrm /tmp/.dd-zram.hold; run 3 3\n'))
 
     def test_game_exit_reads_the_client_back_after_a_quiet_half_minute(self):
         self.assertEqual(['trim:0', 'back:30'], self.tick('run 0 0\ngame=0 available=4000; run 1 40\n'))

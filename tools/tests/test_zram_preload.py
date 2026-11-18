@@ -439,8 +439,8 @@ class ZramPreloadTest(unittest.TestCase):
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_trim_stops_at_its_budget_and_continues_where_it_stopped(self):
         out = self.run_program(None, 32, 0, "trim")
-        self.assertTrue(8192 <= out["first"][0] <= 9216, out)
-        self.assertTrue(8192 <= out["second"][0] <= 9216, out)
+        self.assertTrue(7168 < out["first"][0] <= 8192, out)
+        self.assertTrue(7168 < out["second"][0] <= 8192, out)
         self.assertGreater(out["swapped"][0], 15 * 1024)
         self.assertGreater(out["rest"][0], 40 * 1024)
         self.assertEqual([1], out["intact"])
@@ -459,7 +459,7 @@ class ZramPreloadTest(unittest.TestCase):
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_process_without_a_worker_trims_in_small_steps(self):
         out = self.run_program(None, 48, 0, "trim-fork")
-        self.assertTrue(16 * 1024 < out["inline_trim"][0] <= 33 * 1024, out)
+        self.assertTrue(16 * 1024 < out["inline_trim"][0] <= 32 * 1024, out)
         self.assertGreater(out["worker_trim"][0], 64 * 1024, out)
 
     def test_worker_acknowledges_back_to_back_requests(self):

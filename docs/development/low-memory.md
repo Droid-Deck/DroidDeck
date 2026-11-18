@@ -31,12 +31,14 @@ and memory is steady, and one second otherwise.
 | Burst | two seconds of the fall rate, when that is at least 64 MiB and less than two fifths of RAM is available | Memory that will be taken before the next passes can react. |
 
 The amount to free is the distance to the target or the burst, whichever is larger. The hard
-part of it is the distance to the floor, plus the burst while memory stall is at least 1%.
+part of it is the distance to the floor, or the burst when that is larger and memory stall is
+at least 1%.
 
 ## What gets compressed, in order
 
 1. The Steam client and hidden launchers, while a game is running and in front, or at any time
-   when there is a hard need. The client is left alone for 30 seconds after it was read back.
+   when there is a hard need. Without a hard need the client is left alone for 30 seconds after
+   it was read back.
 2. Processes of the session that loaded `libddsession.so` (the game, Wine and its services),
    largest first, only for the hard part that the client did not cover. One pass moves at
    most 256 MiB.
@@ -48,9 +50,12 @@ zRAM room. With less than half the floor available the request ignores heat (`3 
 up to 1 GiB, and runs at most once every ten seconds.
 
 Requests go to one process at a time. The monitor waits for that process's acknowledgement
-(the kB it paged out) before the next, and stops once the budget is met. A process that does
-not acknowledge within half a second is skipped for a minute; processes with less than 8 MiB of
-anonymous memory are skipped. With less than 64 MiB of zRAM room nothing is requested and the
+(the kB it paged out) before the next, and stops once the budget is met. A process that has not
+started within half a second, or has not finished when the pass has waited five seconds in
+total, is skipped for a minute, and a late answer from it is discarded. Processes with less
+than 8 MiB of anonymous memory are skipped. While the app pages the session out for suspend, or
+reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold` so the two never
+write the control file at the same time. With less than 64 MiB of zRAM room nothing is requested and the
 session log says so once a minute.
 
 With no shortage nothing is compressed. A game that fits in memory is never touched, and Steam
@@ -63,16 +68,20 @@ or the client has been in front of the game for five seconds, and at least 30 se
 passed since the last request, and available memory covers the client's swap plus the target
 and the floor. Missing or unreadable focus data never counts as the client in front. Demand
 paging alone left the Steam library and menus blank for about half a minute in that case.
-Suspending the session still pages everything out and resuming reads it back.
+Suspending the session while it is asleep, hidden or the screen is off still pages everything
+out, and resuming reads it back when available memory is at least twice what was paged out
+and a tenth of RAM stays available.
 
 ## Threads
 
 Page-out never runs on a thread of the game. The preload's signal handler only wakes its
 `zr-worker` thread, which does the `madvise` calls. A forked process
-without a worker pages out inline in steps of at most 32 MiB per request. The monitor is a
+without a worker pages out inline in steps of at most 32 MiB per request and looks at no more
+than 512 MiB of its address space each time. The monitor is a
 shell loop in the session, outside every game process.
 
-The session log records each step that moved at least 16 MiB:
+The session log gets a line once at least 16 MiB has moved since the last one, at most every
+five seconds:
 `memory: available N MB, falling N MB/s, compressed N MB of the client and N MB of the session`.
 
 No root settings, swap sizes, compression algorithms, Android process priorities or

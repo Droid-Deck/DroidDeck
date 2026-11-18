@@ -74,8 +74,10 @@ class MemoryPressureTest(unittest.TestCase):
         body = (self.sample(zram=(6144, 1024)) + 'dd_memory_read; echo $((_dd_swap_room / 1024))\n' +
                 self.sample(zram=(6144, 5632)) + 'dd_memory_read; echo $((_dd_swap_room / 1024))\n' +
                 self.sample(zram=(0, 0), other=(4096, 1024)) + 'dd_memory_read; echo $((_dd_swap_room / 1024))\n' +
-                self.sample(zram=(512, 0), other=(0, 0)) + 'dd_memory_read; echo $((_dd_swap_room / 1024))\n')
-        self.assertEqual(['4352', '-256', '2560', '384'], self.run_policy(body))
+                self.sample(zram=(512, 0), other=(0, 0)) + 'dd_memory_read; echo $((_dd_swap_room / 1024))\n' +
+                self.sample(zram=(0, 0), other=(4096, 1024)) + f'rm {self.root}/swaps\n' +
+                'dd_memory_read; echo $((_dd_swap_room / 1024))\n')
+        self.assertEqual(['4352', '-256', '-128', '384', '2560'], self.run_policy(body))
 
     def test_saving_comes_from_what_zram_really_stores(self):
         body = ''.join(self.sample(stored=stored) + 'dd_memory_read; echo $_dd_saving\n'

@@ -131,6 +131,7 @@ clear_stale_tmp() {
 }
 [ -z "${DD_INSIDE:-}" ] && clear_stale_tmp
 if [ -z "${DD_INSIDE:-}" ]; then
+  rm -f /tmp/.dd-zram.hold
   if [ "${DD_ZRAM:-0}" = 1 ]; then printf 0 > /tmp/.dd-zram; else rm -f /tmp/.dd-zram; fi
   dd if=/dev/zero of=/tmp/.dd-clock bs=8 count=1 conv=notrunc status=none
 fi
@@ -833,7 +834,7 @@ case $mode in
         }
         dd_memory_read() {
           local _k _v _u _kind _fields _name _type _size _used _orig _comp _mem _dt _fall
-          local _stall=-1 _swap_total=0 _swap_free=0 _total=0 _room=0
+          local _stall=-1 _swap_total=0 _swap_free=0 _total=0 _room=0 _listed=0
           _dd_mem_total=0 _dd_available=-1
           while read -r _k _v _u; do
             case $_v in ''|*[!0-9]*) continue ;; esac
@@ -845,11 +846,12 @@ case $mode in
             esac
           done 2>/dev/null < /proc/meminfo
           while read -r _name _type _size _used _u; do
+            _listed=1
             case $_name in */zram[0-9]*) ;; *) continue ;; esac
             case $_size$_used in ''|*[!0-9]*) continue ;; esac
             _total=$((_total + _size)) _room=$((_room + _size - _used))
           done 2>/dev/null < /proc/swaps
-          [ "$_total" -gt 0 ] || _total=$_swap_total _room=$_swap_free
+          [ "$_listed" = 1 ] || _total=$_swap_total _room=$_swap_free
           _dd_swap_room=$((_total / 8))
           [ "$_dd_swap_room" -ge $((128 * 1024)) ] || _dd_swap_room=$((128 * 1024))
           _dd_swap_room=$((_room - _dd_swap_room))
@@ -879,7 +881,7 @@ case $mode in
             _dd_psi=0
             [ "$_stall" -lt 0 ] || [ "$_dd_sample_stall" -lt 0 ] || _dd_psi=$(((_stall - _dd_sample_stall) / (_dt * 100)))
           fi
-          if [ -z "${_dd_sample_at:-}" ] || [ "$_dt" -gt 0 ]; then
+          if [ "$_dd_available" -ge 0 ] && { [ -z "${_dd_sample_at:-}" ] || [ "$_dt" -gt 0 ]; }; then
             _dd_sample_at=$SECONDS _dd_sample_available=$_dd_available _dd_sample_stall=$_stall _dd_freed=0
           fi
           _dd_floor=$((_dd_mem_total / 8))
@@ -903,27 +905,30 @@ case $mode in
           [ "$_dd_available" -ge $((_dd_floor / 2)) ] || _dd_force=1
         }
         dd_session_others() {
-          local _p _line
+          local _p
+          local -A _known=()
           _dd_session=()
           for _p in "${_dd_others[@]}"; do
-            if [ -z "${_dd_preloaded[$_p]:-}" ]; then
-              _dd_preloaded[$_p]=0
-              grep -q -m1 '/libddsession\.so$' "/proc/$_p/maps" 2>/dev/null && _dd_preloaded[$_p]=1
-            fi
-            [ "${_dd_preloaded[$_p]}" = 1 ] || continue
+            [ -n "${_dd_preloaded[$_p]:-}" ] ||
+              grep -q -m1 '/libddsession\.so$' "/proc/$_p/maps" 2>/dev/null || continue
+            _known[$_p]=1
             dd_zram_usage "$_p" > /dev/null
             _dd_session+=("$_dd_anon $_p")
+          done
+          _dd_preloaded=()
+          for _p in "${!_known[@]}"; do
+            _dd_preloaded[$_p]=1
           done
           [ "${#_dd_session[@]}" -gt 0 ] || return 0
           mapfile -t _dd_session < <(printf '%s\n' "${_dd_session[@]}" | sort -rn)
           _dd_session=("${_dd_session[@]#* }")
         }
         dd_zram_trim() {
-          local _mode=$1 _left=$2 _p _n _i _acks=()
+          local _mode=$1 _left=$2 _p _n _i _polls=0 _acks=()
           shift 2
           _dd_trimmed=0
           for _p in "$@"; do
-            [ "$_left" -ge 4096 ] || break
+            [ "$_left" -ge 4096 ] && [ "$_polls" -lt 250 ] && [ ! -e /tmp/.dd-zram.hold ] || break
             [ "${_dd_deaf[$_p]:-0}" -le "$SECONDS" ] || continue
             dd_zram_usage "$_p" > /dev/null
             [ "$_dd_anon" -ge 8192 ] || continue
@@ -931,18 +936,20 @@ case $mode in
             _acks+=("/tmp/.dd-zram.ack.$_p")
             printf '%s %s\n' "$_mode" "$_left" > /tmp/.dd-zram
             kill -URG "$_p" 2>/dev/null || continue
-            for ((_i = 0; _i < 400; _i++)); do
+            _dd_deaf[$_p]=$((SECONDS + 60))
+            for ((_i = 0; _polls < 250; _i++, _polls++)); do
+              [ ! -e /tmp/.dd-zram.hold ] || { _dd_deaf[$_p]=0; break; }
               _n=
               read -r _n 2>/dev/null < "/tmp/.dd-zram.ack.$_p" || :
               case $_n in
-                -) [ "$_i" -lt 25 ] || { _dd_deaf[$_p]=$((SECONDS + 60)); break; } ;;
+                -) [ "$_i" -lt 25 ] || break ;;
                 ''|*[!0-9]*) ;;
-                *) _dd_trimmed=$((_dd_trimmed + _n)) _left=$((_left - _n)); break ;;
+                *) _dd_trimmed=$((_dd_trimmed + _n)) _left=$((_left - _n)) _dd_deaf[$_p]=0; break ;;
               esac
               nap 0.02
             done
           done
-          printf '2 0\n' > /tmp/.dd-zram
+          [ -e /tmp/.dd-zram.hold ] || printf '2 0\n' > /tmp/.dd-zram
           [ "${#_acks[@]}" = 0 ] || rm -f "${_acks[@]}"
         }
         dd_memory_relieve() {
@@ -963,6 +970,7 @@ case $mode in
              { [ "$_dd_hard" -gt 0 ] ||
                { [ "$_dd_game" = 1 ] && [ "$_dd_focus" != 1 ] && [ $((SECONDS - _dd_back_at)) -ge 30 ]; }; }; then
             _budget=$((_dd_need * 1000 / _dd_saving))
+            [ "$_budget" -le $((1024 * 1024)) ] || _budget=$((1024 * 1024))
             [ "$_budget" -le "$_dd_swap_room" ] || _budget=$_dd_swap_room
             dd_zram_trim "$_mode" "$_budget" "${_dd_pids[@]}"
             _gain=$((_dd_trimmed * _dd_saving / 1000))
@@ -999,8 +1007,8 @@ case $mode in
           fi
           [ $((_dd_available - _dd_swap)) -ge $((_dd_target + _dd_floor)) ] || return 0
           step "memory: available $((_dd_available / 1024)) MB, reading $((_dd_swap / 1024)) MB of the client back"
-          printf 0 > /tmp/.dd-zram
-          kill -URG "${_dd_pids[@]}" 2>/dev/null
+          printf 0 > /tmp/.dd-zram || return 0
+          kill -URG "${_dd_pids[@]}" 2>/dev/null || return 0
           _dd_freed=$((_dd_freed - _dd_swap * _dd_saving / 1000))
           _dd_client_out=0 _dd_back_at=$SECONDS
         }
@@ -1032,6 +1040,7 @@ case $mode in
             fi
           fi
           dd_memory_read
+          [ ! -e /tmp/.dd-zram.hold ] || return 0
           dd_memory_relieve
           dd_memory_note
           dd_client_readback
