@@ -11,8 +11,17 @@ The overall driver mode and the display driver's AUTO entry do not change this
 choice. Auto resolves each launch to the selected installed PanVK runtime driver,
 then available Venus with host Vulkan 1.2+, then an available MaliBridge. Resolution
 does not save its result. A fixed path reports missing components or failed startup
-self-tests instead of choosing a different backend. Only Auto permits the bridge's
-smoke-test fallback to an installed PanVK ICD.
+self-tests instead of choosing a different backend. A failed MaliBridge startup
+also stops Auto: if a selected PanVK runtime were available, Auto would have chosen
+it before MaliBridge.
+
+`vulkaninfo` is an optional diagnostic supplied by the separate desktop pack, not
+a requirement for the gaming runtime. When absent, PanVK and Venus keep their
+resolved path and skip this probe without recording a successful self-test. When
+present, a failed or timed-out probe stops startup. Venus still checks Zink with
+`droiddeck-glprobe` when available; fixed Venus stops if Zink cannot start, while
+Auto may use software GL with Venus Vulkan. The same distinction applies when
+`vulkaninfo` reports no `nullDescriptor` support.
 
 The session folder records `mali-graphics-path` after a successful startup probe and
 `mali-graphics-error` on a failed probe. Setup shows the saved choice, the next launch's

@@ -54,10 +54,10 @@ object MaliGraphics {
         return drivers.getIcdPath(id)
     }
 
-    fun problem(context: Context): String? {
+    fun problem(context: Context, resolved: MaliGraphicsMode? = resolve(context)): String? {
         val choice = SessionPrefs.maliGraphicsMode(context)
         if (choice == MaliGraphicsMode.AUTO && !DeviceSupport.mali()) return null
-        val path = resolve(context) ?: return context.getString(R.string.mali_path_unavailable)
+        val path = resolved ?: return context.getString(R.string.mali_path_unavailable)
         if (!DeviceSupport.mali()) return context.getString(R.string.mali_path_unsupported, context.getString(path.label))
         return when (path) {
             MaliGraphicsMode.PANVK -> if (panvkIcd(context) == null) context.getString(R.string.mali_panvk_missing) else null

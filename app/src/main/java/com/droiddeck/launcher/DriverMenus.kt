@@ -418,7 +418,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         if (pairBusy != null) return
         val pair = DriverPairs.from(TurnipReleases.cached(activity)).firstOrNull { it.key == key && it.complete } ?: return
         val wasActive = pairRows.firstOrNull { it.key == key }?.active == true
-        installPair(pair, auto = wasActive && mode == SessionPrefs.GPU_DRIVERS_AUTO, force = true, select = wasActive)
+        installPair(pair, auto = false, force = true, select = wasActive)
     }
 
     private fun installPair(pair: DriverPairs.DriverPair, auto: Boolean, force: Boolean = false, select: Boolean = true) {

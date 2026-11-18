@@ -3301,8 +3301,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
-    private fun prootFailureHint(): EndHint? {
-        if (SessionState.failureCode != "PROOT_MISSING") return null
+    private fun sessionFailureHint(): EndHint? {
+        if (SessionState.failureCode !in setOf("PROOT_MISSING", "MALI_GRAPHICS_UNAVAILABLE", "MALI_GRAPHICS_FAILED")) return null
         val message = SessionState.failureMessage ?: return null
         return EndHint(message)
     }
@@ -3312,7 +3312,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun sessionExitHint(status: Int): EndHint? = if (status == 0) presentationFaultHint()
-        else runtimeDamageHint() ?: sessionEndHint(SessionState.logFile) ?: prootFailureHint()
+        else sessionFailureHint() ?: runtimeDamageHint() ?: sessionEndHint(SessionState.logFile)
 
     private fun sessionEndHint(log: File?): EndHint? {
         presentationFaultHint()?.let { return it }

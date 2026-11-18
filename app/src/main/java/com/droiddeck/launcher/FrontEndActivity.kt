@@ -3024,7 +3024,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         maliGraphicsMode = SessionPrefs.maliGraphicsMode(this)
         maliGraphicsPath = com.droiddeck.launcher.session.MaliGraphics.resolve(this)
         maliGraphicsActual = com.droiddeck.launcher.session.MaliGraphics.actual(SessionState.logDirectory)
-        maliGraphicsProblem = com.droiddeck.launcher.session.MaliGraphics.problem(this)
+        maliGraphicsProblem = com.droiddeck.launcher.session.MaliGraphics.problem(this, maliGraphicsPath)
     }
 
     private fun refreshCores() {

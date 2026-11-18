@@ -219,7 +219,14 @@ internal fun SetupPanel(
         while (true) {
             kotlinx.coroutines.delay(2_000)
             a.onRefreshPhantomStatus()
-            if (mali) a.onRefreshMaliGraphics()
+        }
+    }
+    LaunchedEffect(mali, tab, searching) {
+        if (mali && tab == OVERVIEW_TAB && !searching) {
+            while (true) {
+                a.onRefreshMaliGraphics()
+                kotlinx.coroutines.delay(2_000)
+            }
         }
     }
     LaunchedEffect(tab) {

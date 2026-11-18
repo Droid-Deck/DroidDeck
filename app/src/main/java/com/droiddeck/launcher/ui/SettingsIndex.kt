@@ -67,6 +67,7 @@ internal object SettingsIndex {
         s(SettingsSection.OVERVIEW, R.string.setup_runtime, "ubuntu", "linux", "repair", "update"),
         s(SettingsSection.OVERVIEW, R.string.setup_limit, "phantom", "process", "killed", "background"),
         s(SettingsSection.OVERVIEW, R.string.setup_account, "steam", "login", "sign in"),
+        s(SettingsSection.OVERVIEW, R.string.mali_path_choice, "auto", "panvk", "malibridge", "venus", "gpu", "driver"),
 
         s(SettingsSection.PERFORMANCE, R.string.perf_override, "steam client cores", "cpu"),
         s(SettingsSection.PERFORMANCE, R.string.perf_game_cores, "cpu", "pin", "cores", "affinity"),

@@ -257,16 +257,6 @@ mali_graphics_used() {
   echo "== Mali graphics: choice=${DD_MALI_GRAPHICS_MODE:-auto}, used=$1"
   [ -z "${DD_DEBUG_DIR:-}" ] || printf '%s\n' "$1" > "$DD_DEBUG_DIR/mali-graphics-path"
 }
-vkbridge_fallback() {
-  local reason=$1
-  [ "${DD_MALI_GRAPHICS_MODE:-bridge}" = auto ] || mali_graphics_failed "MaliBridge self-test failed ($reason); the fixed path will not fall back. See vkbridge logs."
-  [ -r "${DD_VKBRIDGE_FALLBACK_ICD:-}" ] || mali_graphics_failed "MaliBridge failed ($reason), and no compatible PanVK fallback is installed."
-  export VK_DRIVER_FILES=$DD_VKBRIDGE_FALLBACK_ICD VK_ICD_FILENAMES=$DD_VKBRIDGE_FALLBACK_ICD DD_VKBRIDGE=0
-  export DD_OPEN_DRIVER=1 DD_DRM_STANDIN=/dev/mali0 DD_MALI_GRAPHICS_PATH=panvk
-  [ "${DD_STEAM_GPU_COMPOSITING:-0}" = 1 ] || export DD_STEAM_SOFT_COMPOSITING=1
-  echo "== vkbridge: failed ($reason); Auto uses PanVK instead ($DD_VKBRIDGE_FALLBACK_ICD)"
-  [ -z "${DD_DEBUG_DIR:-}" ] || printf '%s\n%s\n' "$DD_VKBRIDGE_FALLBACK_ICD" "$reason" > "$DD_DEBUG_DIR/vkbridge-fallback"
-}
 if [ -n "${DD_VK_DRIVER:-}" ]; then
   dd_icd_lib=$(sed -n 's/.*"library_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$DD_VK_DRIVER" 2>/dev/null | head -1)
   dd_icd_lib=$(printf '%s' "$dd_icd_lib" | sed 's|\\/|/|g')
@@ -318,7 +308,8 @@ if [ "${DD_VKBRIDGE:-0}" = 1 ]; then
       elif [ "$dd_vkb_status" != 0 ] || printf '%s\n' "$dd_vkb_smoke" | grep -q '^FAIL'; then
         dd_vkb_why="smoke test exit $dd_vkb_status"
       fi
-      if [ -n "$dd_vkb_why" ]; then vkbridge_fallback "$dd_vkb_why"; else mali_graphics_used bridge; fi
+      [ -z "$dd_vkb_why" ] || mali_graphics_failed "MaliBridge self-test failed ($dd_vkb_why). See vkbridge logs."
+      mali_graphics_used bridge
       unset dd_vkb_why dd_vkb_status
       unset dd_vkb_smoke
       if command -v vulkaninfo >/dev/null 2>&1; then
@@ -328,20 +319,24 @@ if [ "${DD_VKBRIDGE:-0}" = 1 ]; then
     [ "${DD_VKBRIDGE:-0}" = 1 ] && echo "== vulkan driver: Mali bridge ($dd_vkb_icd, server at $VKBRIDGE_SOCKET)"
   else
     echo "== vulkan driver: Mali bridge requested but NOT usable (icd $dd_vkb_icd, socket ${VKBRIDGE_SOCKET:-unset}; missing:$dd_vkb_missing)"
-    vkbridge_fallback "missing:$dd_vkb_missing"
+    mali_graphics_failed "MaliBridge is unavailable (missing:$dd_vkb_missing). See vkbridge logs."
   fi
   unset dd_vkb_icd dd_vkb_missing
 fi
 if [ "${DD_MALI_GRAPHICS_PATH:-}" = panvk ] && [ -z "${DD_INSIDE:-}" ]; then
-  command -v vulkaninfo >/dev/null 2>&1 || mali_graphics_failed "PanVK self-test requires vulkaninfo in the runtime."
-  dd_panvk_info=$(timeout 30 vulkaninfo --summary 2>&1) || mali_graphics_failed "PanVK Vulkan self-test failed or timed out: $dd_panvk_info"
-  printf '%s\n' "$dd_panvk_info" | sed 's/^/== vulkaninfo: /'
-  mali_graphics_used panvk
-  unset dd_panvk_info
+  if command -v vulkaninfo >/dev/null 2>&1; then
+    dd_panvk_info=$(timeout 30 vulkaninfo --summary 2>&1) || mali_graphics_failed "PanVK Vulkan self-test failed or timed out: $dd_panvk_info"
+    printf '%s\n' "$dd_panvk_info" | sed 's/^/== vulkaninfo: /'
+    mali_graphics_used panvk
+    unset dd_panvk_info
+  else
+    echo "== PanVK: vulkaninfo is not installed; skipping the optional Vulkan self-test"
+  fi
 fi
 if [ "${DD_VENUS:-0}" = 1 ] && [ -z "${DD_INSIDE:-}" ]; then
-  command -v vulkaninfo >/dev/null 2>&1 || mali_graphics_failed "Venus self-test requires vulkaninfo in the runtime."
-  if dd_vn_info=$(timeout 30 vulkaninfo 2>/dev/null); then
+  if ! command -v vulkaninfo >/dev/null 2>&1; then
+    echo "== Venus: vulkaninfo is not installed; skipping the optional Vulkan self-test"
+  elif dd_vn_info=$(timeout 30 vulkaninfo 2>/dev/null); then
     case $(printf '%s\n' "$dd_vn_info" | grep -m1 'nullDescriptor') in
       *true*) echo "== venus: nullDescriptor present (Zink keeps the GPU)" ;;
       *)
@@ -351,10 +346,10 @@ if [ "${DD_VENUS:-0}" = 1 ] && [ -z "${DD_INSIDE:-}" ]; then
         echo "== venus: no nullDescriptor on this device even with the Mali compatibility layer; Steam's GL and Xwayland use llvmpipe (software)"
         ;;
     esac
+    mali_graphics_used venus
   else
     mali_graphics_failed "Venus Vulkan self-test failed or timed out. See venus.log and the session logs."
   fi
-  mali_graphics_used venus
   unset dd_vn_info
 fi
 if [ "${DD_GAME_LOGS:-0}" = 1 ] && [ -z "${DD_INSIDE:-}" ] && [ -n "${DD_DEBUG_DIR:-}" ]; then
