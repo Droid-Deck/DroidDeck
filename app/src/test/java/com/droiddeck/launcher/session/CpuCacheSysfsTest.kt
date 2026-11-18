@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -76,6 +78,19 @@ class CpuCacheSysfsTest {
         File(out, "cpu7/index0").mkdirs()
         CpuCacheSysfs.binds(out, host)
         assertFalse(File(out, "cpu7").exists())
+    }
+
+    @Test fun aLinkLeftInTheStagedFolderIsRemovedWithoutTouchingItsTarget() {
+        val host = tmp.newFolder("host")
+        cache(host, 0, 2 to null)
+        val kept = tmp.newFolder("kept")
+        File(kept, "file").writeText("x")
+        val out = tmp.newFolder("out")
+        File(out, "cpu0").mkdirs()
+        Files.createSymbolicLink(File(out, "cpu0/link").toPath(), kept.toPath())
+        CpuCacheSysfs.binds(out, host)
+        assertFalse(Files.exists(File(out, "cpu0/link").toPath(), LinkOption.NOFOLLOW_LINKS))
+        assertEquals("x", File(kept, "file").readText())
     }
 
     @Test fun anUnreadableHostLeavesNoBinds() {

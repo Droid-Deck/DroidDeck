@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.util.Log
+import com.droiddeck.launcher.stores.StoreInstalls
 import java.io.File
 
 object CpuCacheSysfs {
@@ -8,7 +9,7 @@ object CpuCacheSysfs {
     private val FEX_CPUID_SIZE_KB = mapOf(1 to 32, 2 to 512, 3 to 8192)
 
     fun binds(dir: File, host: File = File("/sys/devices/system/cpu")): List<String> = try {
-        dir.deleteRecursively()
+        StoreInstalls.deleteTree(dir)
         val cpus = host.list { _, name -> name.matches(Regex("cpu\\d+")) }?.sorted().orEmpty()
         val binds = cpus.mapNotNull { cpu ->
             if (stage(File(host, "$cpu/cache"), File(dir, cpu))) File(dir, cpu).path + ":" + File(host, "$cpu/cache").path else null
