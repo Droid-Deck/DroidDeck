@@ -167,10 +167,10 @@ index 825c24e..c23f637 100644
  pub mod native_social;
 diff --git a/crates/xodus-cli/src/commands/msixvc2.rs b/crates/xodus-cli/src/commands/msixvc2.rs
 new file mode 100644
-index 0000000..d008411
+index 0000000..67de064
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/msixvc2.rs
-@@ -0,0 +1,770 @@
+@@ -0,0 +1,802 @@
 +use std::collections::HashMap;
 +use std::io::{ErrorKind, Read, Write};
 +use std::path::{Component, Path, PathBuf};
@@ -261,8 +261,8 @@ index 0000000..d008411
 +    if !std::fs::symlink_metadata(&record).is_ok_and(|meta| meta.is_file()) {
 +        return HashMap::new();
 +    }
-+    std::fs::read_to_string(record)
-+        .unwrap_or_default()
++    let text = std::fs::read_to_string(record).unwrap_or_default();
++    text[..text.rfind('\n').map_or(0, |end| end + 1)]
 +        .lines()
 +        .filter_map(|line| line.split_once(' '))
 +        .map(|(path, identity)| (path.to_owned(), identity.to_owned()))
@@ -277,9 +277,15 @@ index 0000000..d008411
 +fn note(record: &Path, path: &Path, identity: &str) -> Result<(), String> {
 +    std::fs::OpenOptions::new()
 +        .create(true)
++        .read(true)
 +        .append(true)
 +        .open(record)
 +        .and_then(|mut file| {
++            let mut text = Vec::new();
++            file.read_to_end(&mut text)?;
++            if text.last().is_some_and(|byte| *byte != b'\n') {
++                file.set_len(text.iter().rposition(|byte| *byte == b'\n').map_or(0, |end| end as u64 + 1))?;
++            }
 +            writeln!(file, "{} {identity}", key(path))?;
 +            file.sync_all()
 +        })
@@ -836,6 +842,32 @@ index 0000000..d008411
 +        assert_eq!(plan.remaining(root.path()), 17);
 +        std::fs::write(root.path().join("done.bin"), b"abcde").unwrap();
 +        assert_eq!(plan.remaining(root.path()), 21);
++    }
++
++    #[test]
++    fn an_interrupted_record_never_swallows_the_next_one() {
++        let root = tempfile::tempdir().unwrap();
++        let (older, _) = sealed(b"old", &[1; 32]);
++        let (newer, _) = sealed(b"new", &[1; 32]);
++        let entry = |segment: &Segment| Entry { path: PathBuf::from("game.bin"), size: 3, hash: None, segments: vec![segment.clone()] };
++        let (old, new) = (plan_of(vec![entry(&older)]), plan_of(vec![entry(&newer)]));
++        let (kept, _) = sealed(b"keep", &[1; 32]);
++        let other = plan_of(vec![Entry { path: PathBuf::from("other.bin"), size: 4, hash: None, segments: vec![kept] }]);
++        std::fs::write(root.path().join("game.bin"), b"new").unwrap();
++        std::fs::write(root.path().join("other.bin"), b"keep").unwrap();
++        std::fs::create_dir(root.path().join(STATE)).unwrap();
++        let record = root.path().join(STATE).join(VERIFIED);
++        note(&record, Path::new("other.bin"), &identity(&other.entries[0])).unwrap();
++        note(&record, Path::new("game.bin"), &identity(&old.entries[0])).unwrap();
++        let mut torn = std::fs::read(&record).unwrap();
++        torn.extend_from_slice(&key(Path::new("game.bin")).as_bytes()[..20]);
++        std::fs::write(&record, &torn).unwrap();
++        assert_eq!(old.remaining(root.path()), 0);
++        note(&record, Path::new("game.bin"), "-").unwrap();
++        assert_eq!(old.remaining(root.path()), 3);
++        assert_eq!(new.remaining(root.path()), 3);
++        assert_eq!(other.remaining(root.path()), 0);
++        assert!(std::fs::read(&record).unwrap().ends_with(b"\n"));
 +    }
 +
 +    #[test]
