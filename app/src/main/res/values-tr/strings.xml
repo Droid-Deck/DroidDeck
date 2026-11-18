@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Bu program %1$s PC\'ler için derlenmiş ve FEX ile çalışır, ancak FEX henüz kurulmadı. Oturum açmışken Steam\'i bir kez açın: DroidDeck, FEX\'i ve gereken Steam Linux Runtime\'ı indirtir, ardından bu program açılır.</string>
     <string name="session_proot_missing">DroidDeck\'in proot\'u indirilemedi. Bağlantıyı kontrol edip tekrar deneyin. Yedek proot oynamak için fazla yavaş olduğundan oturum başlatılmadı.</string>
     <string name="session_powervr_missing">PowerVR grafik ortamı indirilemedi. Bağlantıyı kontrol edip tekrar deneyin.</string>
+    <string name="session_graphics_runtime_failed">Grafik ortamı hazırlanamadı, bu yüzden oturum başlatılmadı.</string>
+    <string name="session_game_environment_failed">Oyun ortamı ayarlanamadı, bu yüzden oturum başlatılmadı.</string>
     <string name="session_directaudio_missing">DirectAudio indirilemedi, bu yüzden oyun sesi bu oturumda daha yavaş yolu kullanıyor.</string>
     <string name="session_end_program">Bu program</string>
     <string name="session_end_present_fault">Oturum ekrana görüntü çizemedi: %1$s. Bu ekran, siyah bir ekran yerine nedenini gösteriyor; ayrıntılar oturum günlüklerinde.</string>

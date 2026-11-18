@@ -566,6 +566,7 @@ class SessionService : Service() {
             SessionFiles.stage(this, root, startsSession = true)
         } catch (error: Exception) {
             Log.e(TAG, "Could not prepare the session graphics runtime", error)
+            failSession(gen, "GRAPHICS_RUNTIME_FAILED", getString(R.string.session_graphics_runtime_failed), -1)
             stopSession(-1, gen)
             return
         }
@@ -589,6 +590,7 @@ class SessionService : Service() {
             SessionEvents.step("game-environment") { GameEnvironmentStore.publish(this) }
         } catch (e: Exception) {
             Log.e(TAG, "could not publish the game environment", e)
+            failSession(gen, "GAME_ENVIRONMENT_FAILED", getString(R.string.session_game_environment_failed), -1)
             stopSession(-1, gen)
             abandonStart(gen, sessionDir)
             return

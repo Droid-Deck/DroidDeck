@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">यह प्रोग्राम %1$s पीसी के लिए बना है और FEX के ज़रिए चलता है, जो अभी सेट नहीं है। साइन इन रहते हुए Steam एक बार खोलें: DroidDeck इससे FEX और ज़रूरी Steam Linux Runtime डाउनलोड करवा लेगा, फिर यह खुल जाएगा।</string>
     <string name="session_proot_missing">DroidDeck का proot डाउनलोड नहीं हो सका। कनेक्शन जांचें और फिर कोशिश करें। सेशन शुरू नहीं किया गया, क्योंकि बैकअप proot खेलने के लिए बहुत धीमा है।</string>
     <string name="session_powervr_missing">PowerVR ग्राफ़िक्स एनवायरमेंट डाउनलोड नहीं हो सका। कनेक्शन जाँचें और फिर कोशिश करें।</string>
+    <string name="session_graphics_runtime_failed">ग्राफ़िक्स एनवायरमेंट तैयार नहीं हो सका, इसलिए सेशन शुरू नहीं हुआ।</string>
+    <string name="session_game_environment_failed">गेम एनवायरमेंट सेट अप नहीं हो सका, इसलिए सेशन शुरू नहीं हुआ।</string>
     <string name="session_directaudio_missing">DirectAudio डाउनलोड नहीं हो सका, इसलिए इस सेशन में गेम ऑडियो धीमा पाथ इस्तेमाल करता है।</string>
     <string name="session_end_program">यह प्रोग्राम</string>
     <string name="session_end_present_fault">सत्र स्क्रीन पर ड्रॉ नहीं कर सका: %1$s। काली स्क्रीन के बजाय यह स्क्रीन कारण दिखाती है; पूरा विवरण सत्र लॉग में है।</string>
