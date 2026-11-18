@@ -112,6 +112,15 @@ class LoadingStateUpdateTest {
         assertApplying(read("Extracting package...", "[2026-11-15 11:58:52] Set percent complete: 100"))
     }
 
+    @Test fun anUnknownPercentEndsAnEarlierPercent() {
+        val state = read(
+            "[2026-11-15 11:58:51] Set percent complete: 40",
+            "[2026-11-15 11:58:52] Set percent complete: -1",
+        )
+        assertEquals("starting the Steam client", state.step)
+        assertEquals(-1, state.percent)
+    }
+
     @Test fun aPercentLineCountsAgainAfterANewStep() {
         val state = read(
             "Installing update...",

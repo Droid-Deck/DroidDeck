@@ -101,9 +101,14 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
                     val done = m.groupValues[1].replace(",", "").toLong()
                     val total = maxOf(1L, m.groupValues[2].replace(",", "").toLong())
                     downloadPercent = (done * 100 / total).toInt()
-                } else if (p != null && p.groupValues[1].toInt() > 0 && applyingAt <= stepAt) {
-                    downloadAt = at
-                    downloadPercent = p.groupValues[1].toInt().coerceIn(0, 100)
+                } else if (p != null) {
+                    val percent = p.groupValues[1].toInt()
+                    if (percent < 0) {
+                        downloadAt = -1
+                    } else if (percent > 0 && applyingAt <= stepAt) {
+                        downloadAt = at
+                        downloadPercent = percent.coerceAtMost(100)
+                    }
                 } else if (steam && UPDATE_APPLYING.matches(line)) {
                     applyingAt = at
                 }
@@ -162,7 +167,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
 
         private const val TAIL_BYTES = 48L * 1024
         private val UPDATE_PROGRESS = Regex("""Downloading update \(([\d,]+) of ([\d,]+) KB\)""")
-        private val UPDATE_PERCENT = Regex("""^\[[^\]]+\] Set percent complete: (\d+)\s*$""")
+        private val UPDATE_PERCENT = Regex("""^\[[^\]]+\] Set percent complete: (-?\d+)\s*$""")
         private val UPDATE_APPLYING = Regex("""^\s*(?:\[[^\]]+\]\s*)*(?:Extracting package|Installing update)\.\.\.\s*$""")
         private val INSTALL_COUNT = Regex("""downloading Steam: (\S+) \((\d+)/(\d+)\)""")
         private val INSTALL_MEGABYTES = Regex("""^, (\d+) of (\d+) MB""")
