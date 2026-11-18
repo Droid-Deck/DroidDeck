@@ -59,6 +59,8 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
 
     private class Line(val line: String, val percent: Int, val topic: Topic, val readable: Boolean)
 
+    private var scriptStep: Line? = null
+
     private fun read(context: Context, log: File?): Line? {
         if (log == null || !log.isFile) return null
         val text = try {
@@ -81,6 +83,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
         var clientDownloadAt = -1
         var clientDownload: String? = null
         var clientPercent = -1
+        var unknownAt = -1
         var offset = 0
         for (line in text.split('\n')) {
             val at = offset
@@ -102,9 +105,10 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
                     val total = maxOf(1L, m.groupValues[2].replace(",", "").toLong())
                     downloadPercent = (done * 100 / total).toInt()
                 } else if (p != null) {
-                    val percent = p.groupValues[1].toInt()
+                    val percent = p.groupValues[1].toIntOrNull() ?: continue
                     if (percent < 0) {
                         downloadAt = -1
+                        unknownAt = at
                     } else if (percent > 0 && applyingAt <= stepAt) {
                         downloadAt = at
                         downloadPercent = percent.coerceAtMost(100)
@@ -114,6 +118,14 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
                 }
             }
         }
+        val stepLine = when {
+            clientDownloadAt == stepAt && clientDownload != null -> Line(
+                context.getString(com.droiddeck.launcher.R.string.loadstate_steam_client, clientDownload), clientPercent,
+                Topic.STEAM, readable = true,
+            )
+            stepText != null -> Line(stepText, -1, topicOf(stepText, steam), readableScriptStep(stepText))
+            else -> null
+        }?.also { scriptStep = it }
         return when {
             applyingAt > stepAt && applyingAt > downloadAt -> Line(
                 context.getString(com.droiddeck.launcher.R.string.loadstate_steam_update_applying), -1,
@@ -123,11 +135,10 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
                 context.getString(com.droiddeck.launcher.R.string.loadstate_steam_update, downloadPercent), downloadPercent,
                 Topic.STEAM, readable = true,
             )
-            clientDownloadAt == stepAt && clientDownload != null -> Line(
-                context.getString(com.droiddeck.launcher.R.string.loadstate_steam_client, clientDownload), clientPercent,
-                Topic.STEAM, readable = true,
+            stepLine != null -> stepLine
+            unknownAt >= 0 -> scriptStep ?: Line(
+                context.getString(com.droiddeck.launcher.R.string.loadstate_starting), -1, Topic.SESSION, readable = false,
             )
-            stepText != null -> Line(stepText, -1, topicOf(stepText, steam), readableScriptStep(stepText))
             else -> null
         }
     }

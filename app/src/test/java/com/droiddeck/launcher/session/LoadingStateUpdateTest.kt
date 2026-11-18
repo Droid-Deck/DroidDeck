@@ -130,6 +130,26 @@ class LoadingStateUpdateTest {
         assertEquals(40, state.percent)
     }
 
+    @Test fun aPercentOutsideTheIntRangeIsIgnored() {
+        val state = read(
+            "[2026-11-15 11:58:51] Set percent complete: 40",
+            "[2026-11-15 11:58:52] Set percent complete: 2147483648",
+        )
+        assertEquals(40, state.percent)
+    }
+
+    @Test fun anUnknownPercentClearsTheDisplayedPercentAfterTheStepLeavesTheTail() {
+        val context = RuntimeEnvironment.getApplication()
+        val log = log("[2026-11-15 11:58:51] Set percent complete: 40")
+        val state = LoadingState(context)
+        state.update(context, log)
+        assertEquals(40, state.percent)
+        log.appendText("\n" + "Loading cached metrics\n".repeat(4096) + "[2026-11-15 11:58:52] Set percent complete: -1")
+        state.update(context, log)
+        assertEquals(-1, state.percent)
+        assertEquals("starting the Steam client", state.step)
+    }
+
     @Test fun anExistingLoadingStateFollowsUpdatesAcrossPolls() {
         val context = RuntimeEnvironment.getApplication()
         val log = log("Downloading update (100 of 100 KB)")
