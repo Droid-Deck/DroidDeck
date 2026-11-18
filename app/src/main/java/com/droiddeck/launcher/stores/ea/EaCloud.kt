@@ -3,6 +3,7 @@ package com.droiddeck.launcher.stores.ea
 import android.util.Base64
 import com.droiddeck.launcher.stores.CloudFile
 import com.droiddeck.launcher.stores.CloudTransport
+import java.io.File
 import java.security.MessageDigest
 import java.time.Instant
 
@@ -12,6 +13,7 @@ internal class EaCloud(
     private val keys: List<String>,
     private val base: String,
     private val rules: EaSaveRules,
+    private val localDir: File? = null,
 ) : CloudTransport {
     class Entry(val size: Long, val href: String, val md5: String, val created: String, val modified: String, val localName: String)
 
@@ -23,16 +25,36 @@ internal class EaCloud(
 
     private var key: String? = null
     private var found = false
+    private var listed: Map<String, String?>? = null
+    private val committed = HashMap<String, CloudFile>()
 
     override fun wants(name: String): Boolean = rules.matches(base + name)
 
+    override fun committed(name: String): CloudFile? = committed[name]
+
     override fun list(): List<CloudFile> {
         val manifest = pick()
-        return manifest?.files.orEmpty().mapNotNull { e ->
+        val files = manifest?.files.orEmpty().mapNotNull { e ->
             val path = EaSaveRules.normalize(e.localName)
             if (!path.startsWith(base, ignoreCase = true) || !rules.matches(path)) return@mapNotNull null
-            CloudFile(path.substring(base.length), parseTime(e.modified), hex(e.md5), readLink = e.href)
+            CloudFile(localName(path.substring(base.length)), parseTime(e.modified), hex(e.md5), readLink = e.href)
         }
+        listed = files.associate { it.name.lowercase() to it.md5 }
+        return files
+    }
+
+    private fun localName(name: String): String {
+        var dir = localDir ?: return name
+        val parts = name.split('/')
+        val out = ArrayList<String>()
+        for (part in parts) {
+            val match = dir.listFiles()?.filter { it.name.equals(part, ignoreCase = true) }.orEmpty()
+            val pick = match.singleOrNull() ?: match.firstOrNull { it.name == part }
+            if (pick == null) return (out + parts.drop(out.size)).joinToString("/")
+            out += pick.name
+            dir = pick
+        }
+        return out.joinToString("/")
     }
 
     override fun get(file: CloudFile): Pair<ByteArray, Long> {
@@ -50,8 +72,15 @@ internal class EaCloud(
         if (key == null) pick()
         check(found || keys.size == 1) { "EA has no cloud save record for this game yet; play it once in the EA app" }
         val target = key ?: keys.first()
+        val seen = listed
         return locked("write", target) { lock, body ->
-            val current = manifestUrl(body)?.let { fetchManifest(it) } ?: Manifest("{00000000-0000-0000-0000-000000000000}", emptyList(), emptyList())
+            val locked = manifestUrl(body)?.let { fetchManifest(it) }
+            check(locked != null || !found) { "EA's cloud save record disappeared" }
+            val current = locked ?: Manifest("{00000000-0000-0000-0000-000000000000}", emptyList(), emptyList())
+            if (seen != null) for (name in files.keys) {
+                val now = current.files.firstOrNull { EaSaveRules.normalize(it.localName).equals(base + name, ignoreCase = true) }?.let { hex(it.md5) }
+                check(now == seen[name.lowercase()]) { "EA's cloud saves changed since they were read" }
+            }
             val now = System.currentTimeMillis()
             val added = files.map { (name, data) ->
                 val sum = md5(data)
@@ -68,6 +97,11 @@ internal class EaCloud(
             for ((i, pair) in added.withIndex()) upload(signed[i], pair.second)
             upload(signed.last(), xml)
             found = true
+            for ((entry, _) in added) {
+                val name = entry.localName.substring(base.length)
+                committed[name] = CloudFile(name, parseTime(entry.modified), hex(entry.md5), readLink = entry.href)
+            }
+            listed = null
             files.mapValues { (name, _) -> modifiedMs[name]?.takeIf { it > 0 } ?: now }
         }
     }
@@ -149,7 +183,7 @@ internal class EaCloud(
                 Entry(attr(a, "size")?.toLongOrNull() ?: 0, attr(a, "href").orEmpty(), attr(a, "md5").orEmpty(),
                     attr(local.groupValues[1], "created").orEmpty(), attr(local.groupValues[1], "lastModified").orEmpty(), unescape(local.groupValues[2]))
             }.toList()
-            return Manifest(lineage, files, SNAPSHOT.findAll(xml).map { it.groupValues[1] }.toList())
+            return Manifest(lineage, files, SNAPSHOT.findAll(xml).map { unescape(it.groupValues[1]) }.toList())
         }
 
         fun write(m: Manifest): String = buildString {
@@ -192,6 +226,6 @@ internal class EaCloud(
 
         private fun escape(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
-        private fun unescape(s: String) = s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
+        private fun unescape(s: String) = EaSaveRules.unescape(s)
     }
 }

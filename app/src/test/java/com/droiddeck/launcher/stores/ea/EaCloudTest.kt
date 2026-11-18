@@ -64,6 +64,22 @@ class EaCloudTest {
         assertEquals(m.lineage, again.lineage)
     }
 
+    @Test fun commentedRulesAreIgnoredAndNamesKeepTheirSpaces() {
+        val rules = EaSaveRules.parse("""<saveFileCriteria>
+<!-- <exclude order="0">%Documents%/Game/Config/</exclude> -->
+<include order="1"> %Documents%/Game/ </include></saveFileCriteria>""")!!
+        assertEquals(listOf("%Documents%/Game/"), rules.includes)
+        assertTrue(rules.excludes.isEmpty())
+        assertTrue(rules.matches("%Documents%/Game/Config/a.ini"))
+        assertEquals("%Documents%/Game/slot.sav ", EaSaveRules.normalize("%Documents%\\Game\\slot.sav "))
+    }
+
+    @Test fun snapshotEntitiesAreDecodedOnceAndWrittenBackTheSame() {
+        val m = EaCloud.parse("""<manifest lineage="{1}"><snapshot>abc&#x2B;def</snapshot></manifest>""")
+        assertEquals(listOf("abc+def"), m.snapshots)
+        assertEquals(listOf("abc+def"), EaCloud.parse(EaCloud.write(m)).snapshots)
+    }
+
     @Test fun cloudKeysFollowTheMultiplayerId() {
         assertEquals(listOf("195133_195133"), EaCloud.keys("195133", "195133"))
         assertEquals(listOf("52209", "52209_52209"), EaCloud.keys("52209", ""))

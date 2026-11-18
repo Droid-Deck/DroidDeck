@@ -43,10 +43,13 @@ internal class EaSaveRules(val includes: List<String>, val excludes: List<String
             "localappdata" to "%LOCALAPPDATA%", "programdata" to "%PROGRAMDATA%", "userprofile" to "%USERPROFILE%",
         )
 
-        fun normalize(path: String) = path.trim().replace('\\', '/')
+        private val COMMENT = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL)
+        private val ENTITY = Regex("&(#x[0-9a-fA-F]+|#[0-9]+|lt|gt|quot|apos|amp);")
+
+        fun normalize(path: String) = path.replace('\\', '/')
 
         fun parse(xml: String): EaSaveRules? {
-            val rules = RULE.findAll(xml).map { it.groupValues[1].lowercase() to normalize(unescape(it.groupValues[2])) }
+            val rules = RULE.findAll(COMMENT.replace(xml, "")).map { it.groupValues[1].lowercase() to normalize(unescape(it.groupValues[2]).trim()) }
                 .filter { it.second.isNotEmpty() }.toList()
             val includes = rules.filter { it.first == "include" }.map { it.second }
             if (includes.isEmpty()) return null
@@ -59,6 +62,15 @@ internal class EaSaveRules(val includes: List<String>, val excludes: List<String
             return token + base.substring(variable.value.length)
         }
 
-        private fun unescape(s: String) = s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
+        fun unescape(s: String): String = ENTITY.replace(s) { m ->
+            when (val e = m.groupValues[1]) {
+                "lt" -> "<"
+                "gt" -> ">"
+                "quot" -> "\""
+                "apos" -> "'"
+                "amp" -> "&"
+                else -> runCatching { String(Character.toChars(if (e.startsWith("#x")) e.substring(2).toInt(16) else e.substring(1).toInt())) }.getOrDefault(m.value)
+            }
+        }
     }
 }

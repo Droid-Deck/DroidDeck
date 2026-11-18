@@ -304,7 +304,6 @@ def exited(argv, code=0):
     if found is not None and launch_dir and str(found[1].get("store")) == "ea":
         ask(Path(launch_dir) / "stores", {"op": "ea-exited", "store": "ea", "id": str(found[1].get("id"))}, timeout=1.0)
         log("ea %s exited" % found[1].get("id"))
-        return 0
     if found is None or not launch_dir or not cloud_on(found[1]):
         return 0
     store, game = str(found[1].get("store")), str(found[1].get("id"))
@@ -1601,7 +1600,7 @@ def main(argv):
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
     launch_dir = os.environ.get("DD_LAUNCH_DIR", "")
-    if launch_dir and cloud_on(sidecar):
+    if launch_dir and cloud_on(sidecar) and store != "ea":
         made = create_prefix(compat_data, os.environ.get("DD_STORE_PROTON", ""))
         if made != "present":
             log("cloud %s %s prefix=%s" % (store, game, made))
@@ -1670,11 +1669,10 @@ def main(argv):
         log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
     if store == "ea":
         prepare_ea(folder, sidecar, compat_data, launch_dir)
-        return STORE_GAME
     if not cloud_on(sidecar):
         if store in CLOUD_STORES:
             log("cloud %s %s down result=skipped reason=off" % (store, game))
-        return 0
+        return STORE_GAME if store == "ea" else 0
     if launch_dir:
         answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT)
         if answer is None:

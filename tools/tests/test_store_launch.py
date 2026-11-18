@@ -225,6 +225,21 @@ class CloudHooks(unittest.TestCase):
             self.assertEqual(store.CLOUD_TIMEOUT, asked[1][1])
             self.assertEqual('cloud-up', asked[2][0]['op'])
 
+    def test_an_ea_game_with_cloud_saves_asks_after_its_preparation_and_exit(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='ea', ident='Origin.OFR.50.0002694')
+            bat = str(folder / '.droiddeck-launch.bat')
+            asked = []
+            with patch.dict(os.environ, {'DD_LAUNCH_DIR': str(Path(root) / 'session')}),                     patch.object(store, 'prepare_ea', side_effect=lambda *a: asked.append({'op': 'prepared'})),                     patch.object(store, 'create_prefix', side_effect=AssertionError('EA prepares its own prefix')),                     patch.object(store, 'ask', side_effect=lambda channel, request, timeout=5.0: asked.append(request) or {'result': 'ok'}):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['prepared', 'cloud-down', 'ea-exited', 'cloud-up'], [r['op'] for r in asked])
+            sidecar = json.loads((folder / store.SIDECAR).read_text())
+            sidecar['cloud'] = False
+            (folder / store.SIDECAR).write_text(json.dumps(sidecar))
+            with patch.dict(os.environ, {'DD_LAUNCH_DIR': str(Path(root) / 'session')}), patch.object(store, 'prepare_ea'),                     patch.object(store, 'ask', side_effect=AssertionError('cloud saves are off')):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+
     def test_a_first_launch_creates_the_prefix_before_the_cloud_download(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='epic', ident='fa4240e5')

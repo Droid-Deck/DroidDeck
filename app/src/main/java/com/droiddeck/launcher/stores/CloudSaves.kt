@@ -190,13 +190,13 @@ object CloudSaves {
         }
         Store.EA -> {
             val sidecar = StoreGameSidecar.read(folder)
-            val rules = eaRules(context, id)?.let(EaSaveRules::parse)
+            val rules = sidecar?.let { template(context, store, id, folder, it) }?.let(EaSaveRules::parse)
             val base = rules?.base()
             val token = EaAuth.accessToken(context)
             val uid = EaAuth.load(context)?.userId.orEmpty()
             val master = sidecar?.extra?.get("masterTitleId").orEmpty()
             if (rules == null || base == null || token == null || uid.isEmpty() || master.isEmpty()) null
-            else EaCloud(token, uid, EaCloud.keys(master, sidecar?.extra?.get("multiplayerId").orEmpty()), base, rules)
+            else EaCloud(token, uid, EaCloud.keys(master, sidecar?.extra?.get("multiplayerId").orEmpty()), base, rules, saveFolder(context, store, id).first)
         }
         Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> null
     }
@@ -354,9 +354,12 @@ object CloudSaves {
         return r
     }
 
-    private fun localFiles(dir: File): Map<String, File> =
-        if (!dir.isDirectory) emptyMap()
-        else dir.walkTopDown().filter { it.isFile }.associateBy { it.relativeTo(dir).path.replace(File.separatorChar, '/') }
+    private fun localFiles(dir: File): Map<String, File> {
+        if (!dir.isDirectory) return emptyMap()
+        val root = runCatching { dir.canonicalPath + File.separator }.getOrNull() ?: return emptyMap()
+        return dir.walkTopDown().filter { it.isFile && runCatching { it.canonicalPath.startsWith(root) }.getOrDefault(false) }
+            .associateBy { it.relativeTo(dir).path.replace(File.separatorChar, '/') }
+    }
 
     internal fun md5(f: File): String = md5(f.readBytes())
 
@@ -428,7 +431,7 @@ object CloudSaves {
             }
             val after = remote(cloud) { it in send }
             for (name in send) {
-                val r = after[name]
+                val r = cloud.committed(name) ?: after[name]
                 next[name] = CloudPlan.Entry(sentMd5.getValue(name), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
             }
         }
