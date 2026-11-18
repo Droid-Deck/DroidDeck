@@ -205,7 +205,8 @@ class ThemeColorsTest {
             error = 0xFFFF4433.toInt(),
         )
 
-        Themes.setCustomColors(app, chosen)
+        Themes.setCustomColors(app, CustomThemeColors())
+        SessionPrefs.setCustomThemeColors(app, chosen)
         SessionPrefs.setTheme(app, Themes.CUSTOM)
 
         assertEquals(chosen, SessionPrefs.customThemeColors(app))
