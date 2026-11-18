@@ -156,7 +156,7 @@ class InputSurfaceView(
     fun updateCustomLayout(requested: List<InputSurfaceElement>) {
         requestedLayout = requested
         val layout = surfaceStyle.shown(requested)
-        val sameElements = customLayout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f, stickShape = InputStickShape.STICK, dpadWays = InputDpadWays.EIGHT, dpadStyle = InputDpadStyle.CROSS, buttonStyle = InputButtonStyle.SOLID) } == layout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f, stickShape = InputStickShape.STICK, dpadWays = InputDpadWays.EIGHT, dpadStyle = InputDpadStyle.CROSS, buttonStyle = InputButtonStyle.SOLID) }
+        val sameElements = customLayout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f) } == layout.map { it.copy(x = 0f, y = 0f, width = 1f, height = 1f) }
         customLayout = layout
         if (sameElements) customCanvas?.requestLayout() else {
             elementSources.forEach { it.close() }; elementSources.clear()
@@ -647,6 +647,7 @@ class InputSurfaceView(
         private val armPaths = Array(4) { Path() }
         private var builtFor = 0 to 0
         private var builtStyle: InputDpadStyle? = null
+        private var activePointer = -1
         private var gradient: LinearGradient? = null
 
         override fun onDraw(canvas: Canvas) {
@@ -718,8 +719,13 @@ class InputSurfaceView(
 
         private fun drawKeys(canvas: Canvas, cx: Float, cy: Float, half: Float, thick: Float) {
             if (!element.showLabel) return
-            labelPaint.color = if (tint != null) textColor(held != 0) else TEXT
-            if (drawDirectionLabels(canvas, source, element.dpadWays == InputDpadWays.FOUR, cx, cy, (half + thick) / 2f, thick * 1.7f, labelPaint)) return
+            val labelColors: (Pair<Float, Float>) -> Int = fun(unit: Pair<Float, Float>): Int {
+                if (tint == null) return TEXT
+                val index = CARDINAL.indexOfFirst { it.first == unit.first && it.second == unit.second }
+                return textColor(index >= 0 && (held and (1 shl index)) != 0)
+            }
+            labelPaint.color = if (tint != null) textColor(false) else TEXT
+            if (drawDirectionLabels(canvas, source, element.dpadWays == InputDpadWays.FOUR, cx, cy, (half + thick) / 2f, thick * 1.7f, labelPaint, labelColors)) return
             val reach = (half + thick) / 2f
             for (i in 0..3) {
                 val (ux, uy) = CARDINAL[i]
@@ -795,24 +801,32 @@ class InputSurfaceView(
 
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(event: MotionEvent): Boolean {
-            val bits = when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> sectors(event.getX(0) - width / 2f, event.getY(0) - height / 2f)
-                else -> 0
-            }
+            val index = if (activePointer >= 0) event.findPointerIndex(activePointer) else -1
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    activePointer = event.getPointerId(0)
                     downAt = event.eventTime; downX = event.x; downY = event.y; travel = 0f
                     if (lastUp != 0L && event.eventTime - lastUp < CLICK_MS) setClick(true)
+                    set(sectors(event.getX(0) - width / 2f, event.getY(0) - height / 2f))
                 }
-                MotionEvent.ACTION_MOVE -> travel = maxOf(travel, hypot(event.x - downX, event.y - downY))
+                MotionEvent.ACTION_MOVE -> if (index >= 0) {
+                    travel = maxOf(travel, hypot(event.getX(index) - downX, event.getY(index) - downY))
+                    set(sectors(event.getX(index) - width / 2f, event.getY(index) - height / 2f))
+                }
+                MotionEvent.ACTION_POINTER_UP -> if (event.getPointerId(event.actionIndex) == activePointer) {
+                    val next = if (event.actionIndex == 0) 1 else 0
+                    activePointer = event.getPointerId(next)
+                    downX = event.getX(next); downY = event.getY(next); travel = 0f
+                }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL || event.flags and MotionEvent.FLAG_CANCELED != 0
-                    travel = maxOf(travel, hypot(event.x - downX, event.y - downY))
+                    if (index >= 0) travel = maxOf(travel, hypot(event.getX(index) - downX, event.getY(index) - downY))
                     lastUp = if (element.hasClick && !clicking && !cancelled && event.eventTime - downAt <= STICK_TAP_MS && travel <= tapSlop) event.eventTime else 0L
-                    setClick(false)
+                    if (cancelled) cancelClick() else setClick(false)
+                    activePointer = -1
+                    set(0)
                 }
             }
-            set(bits)
             return true
         }
 
@@ -833,9 +847,24 @@ class InputSurfaceView(
             source?.click(down)
         }
 
+        private fun cancelClick() {
+            if (!clicking) return
+            clicking = false
+            source?.cancelClick()
+        }
+
+        override fun onVisibilityChanged(changedView: View, visibility: Int) {
+            super.onVisibilityChanged(changedView, visibility)
+            if (visibility == VISIBLE) return
+            lastUp = 0L
+            activePointer = -1
+            set(0)
+            cancelClick()
+        }
+
         override fun onDetachedFromWindow() {
             set(0)
-            setClick(false)
+            cancelClick()
             super.onDetachedFromWindow()
         }
     }
@@ -897,10 +926,11 @@ class InputSurfaceView(
         }
 
         private fun View.drawDirectionLabels(canvas: Canvas, source: InputSurfaceSource?, cardinalOnly: Boolean, cx: Float, cy: Float,
-            distance: Float, box: Float, paint: Paint): Boolean {
+            distance: Float, box: Float, paint: Paint, colorFor: ((Pair<Float, Float>) -> Int)? = null): Boolean {
             val labels = directionLabels(context, source?.directions, cardinalOnly)
             paint.style = Paint.Style.FILL
             for ((unit, text) in labels) {
+                colorFor?.let { paint.color = it(unit) }
                 paint.textSize = box * .6f
                 val measured = paint.measureText(text)
                 if (measured > box) paint.textSize *= box / measured

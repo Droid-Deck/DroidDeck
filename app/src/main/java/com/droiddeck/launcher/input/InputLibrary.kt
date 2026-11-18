@@ -28,7 +28,7 @@ data class SavedInputLayout(
     fun withQuickButton(button: InputCommand, shown: Boolean) =
         copy(style = style.copy(hidden = if (shown) style.hidden - button else style.hidden + button))
     fun derived(id: String, name: String) = copy(id = id, name = name, origin = origin ?: this.id)
-    val adaptiveSticks get() = elements.filter { it.kind == InputElementKind.STICK }.takeIf { editable && it.isNotEmpty() }?.all { it.floating && it.hideWhenIdle }
+    val adaptiveSticks get() = elements.filter { it.kind == InputElementKind.STICK && it.stickShape == InputStickShape.STICK }.takeIf { editable && it.isNotEmpty() }?.all { it.floating && it.hideWhenIdle }
     fun supports(role: InputRole) = screen.supports(role) && when (template) {
         InputLayoutTemplate.OVERLAY -> role == InputRole.PRIMARY
         InputLayoutTemplate.DECK, InputLayoutTemplate.TRACKPAD -> role == InputRole.SECONDARY
