@@ -154,6 +154,28 @@ class SteamLibraryTest(Temp):
         self.dll("Shelf/bin/steam_api64.dll")
         self.assertEqual(RUN["steam_libraries"](self.target(folder, start)), set())
 
+    def test_a_stock_wrapper_keeps_the_client_on_the_machine(self):
+        folder = self.game()
+        self.write("Game/steam_api64.dll", b"MZ SteamAPI_ISteamClient_GetISteamApps SteamAPI_Init")
+        self.assertEqual(RUN["steam_libraries"](self.target(folder)), set())
+
+    def test_a_folder_link_into_a_sibling_game_is_not_searched(self):
+        start = self.tmp / "Shelf"
+        folder = start / "A"
+        folder.mkdir(parents=True)
+        (folder / "A.exe").write_bytes(b"MZ")
+        (start / "B").mkdir()
+        self.dll("Shelf/B/steam_api64.dll")
+        os.symlink(start / "B", folder / "vendor")
+        self.assertEqual(RUN["steam_libraries"](self.target(folder, start)), set())
+
+    def test_a_folder_link_inside_the_game_is_still_searched(self):
+        folder = self.game()
+        (folder / "redist").mkdir()
+        self.dll("Game/redist/steam_api64.dll")
+        os.symlink(folder / "redist", folder / "vendor")
+        self.assertEqual(RUN["steam_libraries"](self.target(folder)), {"steam_api64"})
+
     def test_the_scan_stops_at_the_stated_number_of_folders(self):
         folder = self.game()
         (folder / "a").mkdir()
@@ -264,6 +286,16 @@ class SteamEmulatorTest(Temp):
         folder = self.game()
         self.write("Game/steam_api64.dll", b"MZ SteamAPI_Init")
         self.assertFalse(RUN["steam_emulator"](self.target(folder)))
+
+    def test_a_stock_wrapper_does_not_disable_the_bridge(self):
+        folder = self.game()
+        self.write("Game/steam_api64.dll", b"MZ SteamAPI_ISteamClient_GetISteamApps SteamAPI_Init")
+        self.assertEqual(RUN["steam_state"](self.target(folder)), (set(), False, False))
+
+    def test_a_replacement_client_disables_the_bridge(self):
+        folder = self.game()
+        self.write("Game/steamclient64.dll", b"MZ ISteamClient020 ISteamApps008")
+        self.assertEqual(RUN["steam_state"](self.target(folder)), ({"steamclient64"}, False, True))
 
     def test_a_steam_title_never_reports_an_emulator(self):
         folder = self.game()

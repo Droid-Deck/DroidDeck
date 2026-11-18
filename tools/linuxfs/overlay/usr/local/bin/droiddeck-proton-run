@@ -447,12 +447,19 @@ def scan_entries(path):
         return []
 
 
+def game_folder(root, path):
+    """A folder entry resolved, and only while it is still under the game root: a link into another
+    game's folder must not be searched for this game's libraries."""
+    path = os.path.realpath(path)
+    return path if path.startswith(root.rstrip(os.sep) + os.sep) else None
+
+
 def steam_folders(target):
     """Where a game's Steam libraries can sit: beside the exe, at the folder it starts in, one level
     inside either, and inside the usual bin/x64 folders, since games keep them there. A start folder
     outside the exe's folder is searched itself; its known containers are searched only when the
     exe's folder is under one of them, so a shelf's sibling bin is not adopted. A symlinked start
-    folder is resolved first."""
+    folder is resolved first, and a folder link that leaves the game root is not searched."""
     folders = []
     seen = set()
     install = os.path.realpath(target.install) if target.install else None
@@ -472,20 +479,27 @@ def steam_folders(target):
         for entry in scan_entries(root):
             if len(folders) >= STEAM_SCAN_FOLDERS:
                 return folders
-            if not entry.is_dir() or entry.name.startswith(".") or entry.path in seen:
+            if not entry.is_dir() or entry.name.startswith("."):
                 continue
             if restricted and entry.name.lower() not in STEAM_LIBRARY_DIRS:
                 continue
-            seen.add(entry.path)
-            folders.append(entry.path)
+            folder = game_folder(root, entry.path)
+            if folder is None or folder in seen:
+                continue
+            seen.add(folder)
+            folders.append(folder)
             if entry.name.lower() not in STEAM_LIBRARY_DIRS:
                 continue
-            for child in scan_entries(entry.path):
+            for child in scan_entries(folder):
                 if len(folders) >= STEAM_SCAN_FOLDERS:
                     return folders
-                if child.is_dir() and not child.name.startswith(".") and child.path not in seen:
-                    seen.add(child.path)
-                    folders.append(child.path)
+                if child.name.startswith("."):
+                    continue
+                child_folder = game_folder(root, child.path)
+                if child_folder is None or child_folder in seen or not os.path.isdir(child_folder):
+                    continue
+                seen.add(child_folder)
+                folders.append(child_folder)
     return folders
 
 
@@ -514,6 +528,28 @@ def managed_pe(content):
     return entry + 8 <= len(content) and struct.unpack_from("<II", content, entry) != (0, 0)
 
 
+STEAM_IDENTIFIER = frozenset(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_")
+# steam_api[64].dll spells the interfaces as flat exports, SteamAPI_ISteamClient_GetISteamApps, which
+# names the client on the machine rather than one beside the game.
+STEAM_FLAT_API = b"SteamAPI_"
+
+
+def steam_interface(content, marker):
+    """Whether a marker appears outside a flat-API export name: the stock Steamworks wrapper carries
+    both interface names only there, and still loads the client on the machine."""
+    start = 0
+    while (index := content.find(marker, start)) >= 0:
+        begin, end = index, index + len(marker)
+        while begin and content[begin - 1] in STEAM_IDENTIFIER:
+            begin -= 1
+        while end < len(content) and content[end] in STEAM_IDENTIFIER:
+            end += 1
+        if not content[begin:end].startswith(STEAM_FLAT_API):
+            return True
+        start = end
+    return False
+
+
 def implements_steam_client(entry, budget):
     try:
         if not entry.is_file():
@@ -528,7 +564,7 @@ def implements_steam_client(entry, budget):
     spent = len(content)
     if spent > limit or managed_pe(content):
         return False, max(0, budget - spent)
-    found = content.startswith(b"MZ") and all(marker in content for marker in STEAM_CLIENT_MARKERS)
+    found = content.startswith(b"MZ") and all(steam_interface(content, marker) for marker in STEAM_CLIENT_MARKERS)
     return found, max(0, budget - spent)
 
 

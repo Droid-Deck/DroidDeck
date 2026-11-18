@@ -641,7 +641,10 @@ def apply_config(env, config, app_id, fixes=None):
     entries = split_game_gpu(config.get("shared", {}))
     for name, value in (fixes or {}).items():
         if name == "WINEDLLOVERRIDES" and entries.get(name) and isinstance(value, str):
-            value = merge_overrides(entries[name], value)
+            merged = merge_overrides(entries[name], value)
+            # Splitting a compact comma list expands it; past the value limit the merge would abort
+            # the launch, so that case keeps the plain concatenation it always had.
+            value = merged if len(merged) <= 8192 else entries[name] + ";" + value
         entries[name] = value
     game = split_game_gpu(config.get("games", {}).get(app_id, {}))
     stored, own = entries.get("WINEDLLOVERRIDES"), game.get("WINEDLLOVERRIDES")

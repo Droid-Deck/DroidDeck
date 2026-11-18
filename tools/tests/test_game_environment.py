@@ -1945,6 +1945,12 @@ class GameEnvironmentTest(unittest.TestCase):
         result = MODULE["apply_config"]({"WINEDLLOVERRIDES": "dxgi=n"}, config, "42")
         self.assertEqual(result["WINEDLLOVERRIDES"], "")
 
+    def test_an_expansion_past_the_limit_keeps_the_stored_value_as_written(self):
+        compact = ",".join("d%04d" % i for i in range(1300)) + "=n"
+        config = {"version": 1, "shared": {"WINEDLLOVERRIDES": compact}}
+        result = MODULE["apply_config"]({}, config, "42", {"WINEDLLOVERRIDES": "d3dgear64=d"})
+        self.assertEqual(result["WINEDLLOVERRIDES"], compact + ";d3dgear64=d")
+
     def test_invalid_configuration_is_atomic(self):
         env = {"ORIGINAL": "unchanged"}
         for entries in ({"A": "ok", "BAD=KEY": "x"}, {"A": "bad\0value"}, {"A": 1}):
