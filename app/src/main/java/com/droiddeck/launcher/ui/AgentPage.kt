@@ -236,7 +236,7 @@ private fun AgentPageContent(
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     LaunchedEffect(keyboardOpen) { if (keyboardOpen && (panel == AgentPanel.MODEL || panel == AgentPanel.USAGE)) panel = AgentPanel.NONE }
     // History, processes and tools take the whole page, which would hide an approval the turn is waiting on.
-    LaunchedEffect(AgentHost.approvals.size) {
+    LaunchedEffect(AgentHost.approvals.size, panel) {
         if (AgentHost.approvals.isNotEmpty() && (panel == AgentPanel.HISTORY || panel == AgentPanel.PROCESSES || panel == AgentPanel.TOOLS)) panel = AgentPanel.NONE
     }
     Column(
