@@ -60,10 +60,18 @@ static int zr_open(const char *path) {
 
 static int zr_mode(unsigned long *want) {
   char text[24];
-  int fd = zr_open(ZR_CTL);
-  if (fd < 0) return -1;
-  long n = zr_sys(SYS_read, fd, text, sizeof(text));
-  zr_sys(SYS_close, fd);
+  long n = 0;
+  int fd = zr_open(ZR_CTL ".hold");
+  if (fd >= 0) {
+    n = zr_sys(SYS_read, fd, text, sizeof(text));
+    zr_sys(SYS_close, fd);
+  }
+  if (n < 1) {
+    fd = zr_open(ZR_CTL);
+    if (fd < 0) return -1;
+    n = zr_sys(SYS_read, fd, text, sizeof(text));
+    zr_sys(SYS_close, fd);
+  }
   if (n < 1 || text[0] < '0' || text[0] > '3') return -1;
   unsigned long kb = 0;
   for (long i = 2; i < n && text[i] >= '0' && text[i] <= '9'; i++)
@@ -183,13 +191,20 @@ static unsigned long zr_trim(int pagemap, unsigned long start, unsigned long end
     }
     if (present == 0) continue;
     unsigned long from = addr < lo ? lo : addr;
-    unsigned long span = next - from;
-    if (want - done < span / zr_page) {
-      span = (want - done) * zr_page;
-      zr_cursor = from + span;
+    unsigned long left = present;
+    while (from < next && done + present - left < want) {
+      unsigned long budget = want - done - (present - left);
+      unsigned long i = (from - addr) / zr_page;
+      for (; i < (next - addr) / zr_page && budget > 0; i++)
+        if (zr_entries[i] & ZR_PRESENT) budget--;
+      unsigned long to = addr + i * zr_page;
+      zr_sys(SYS_madvise, from, to - from, MADV_PAGEOUT);
+      from = to;
+      unsigned long now = zr_count(pagemap, addr, next, ZR_PRESENT);
+      if (now == ZR_FAILED) break;
+      left = now < present ? now : present;
     }
-    zr_sys(SYS_madvise, from, span, MADV_PAGEOUT);
-    unsigned long left = zr_count(pagemap, addr, next, ZR_PRESENT);
+    if (from < next) zr_cursor = from;
     if (left >= present) continue;
     if (slot == NULL) slot = zr_slot(addr, 1);
     if (slot->gen != zr_gen) slot->pushed = 0;

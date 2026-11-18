@@ -35,7 +35,8 @@ class SessionSuspendControllerTest {
         val urgent = fixture.signals.filter { it.signal == URG }
         assertEquals(listOf(GAME), urgent.map { it.pid })
         assertTrue(fixture.signals.indexOfFirst { it.signal == URG } < fixture.signals.indexOfFirst { it.signal == STOP })
-        assertEquals("1", fixture.control.readText())
+        assertEquals(listOf<String?>("1"), fixture.held)
+        assertEquals("0", fixture.control.readText())
         assertEquals(listOf(Triple(1, 1_000_000L, 3_000_000L)), fixture.pagedOut)
         assertEquals(0, fixture.unacknowledged)
         assertTrue(fixture.game.threads.all { it.state == 't' })
@@ -131,7 +132,7 @@ class SessionSuspendControllerTest {
         assertFalse(hold.exists())
         fixture.controller.resume { assertTrue(it) }
         assertFalse(hold.exists())
-        assertEquals(listOf(true, true), fixture.held)
+        assertEquals(listOf<String?>("1", "0"), fixture.held)
     }
 
     @Test fun noReadBackAfterAFreezeWithoutPageOut() {
@@ -143,6 +144,18 @@ class SessionSuspendControllerTest {
         assertTrue(fixture.pagedIn.isEmpty())
     }
 
+    @Test fun aTrimRequestInTheControlFileDoesNotReplaceThePageOut() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.afterSleep = { fixture.control.writeText("2 4096\n") }
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        fixture.controller.resume { assertTrue(it) }
+        assertEquals(listOf<String?>("1", "0"), fixture.held)
+        assertEquals("2 4096\n", fixture.control.readText())
+        assertEquals(listOf(Triple(1, 1_000_000L, 3_000_000L)), fixture.pagedOut)
+        assertEquals(listOf(Triple(1, 0L, 3_000_000L)), fixture.pagedIn)
+    }
+
     @Test fun readBackIsSkippedWhenAvailableMemoryCannotTakeIt() {
         val fixture = fixture(17)
         fixture.control.writeText("0")
@@ -151,7 +164,7 @@ class SessionSuspendControllerTest {
         val before = fixture.signals.size
         fixture.controller.resume { assertTrue(it) }
         assertFalse(fixture.signals.drop(before).any { it.signal == URG })
-        assertEquals("1", fixture.control.readText())
+        assertEquals(listOf<String?>("1"), fixture.held)
         assertEquals(listOf(Triple(0, 3_000_000L, 3_000_000L)), fixture.pagedIn)
     }
 
@@ -185,7 +198,7 @@ class SessionSuspendControllerTest {
         fixture.controller.freeze(pageOut = true) { assertFalse(it) }
         assertFalse(fixture.signals.any { it.signal == STOP })
         assertEquals(2, fixture.signals.count { it.signal == URG })
-        assertEquals("0", fixture.control.readText())
+        assertEquals(listOf<String?>("1", "0"), fixture.held)
         assertEquals(1, fixture.pagedIn.single().first)
         assertEquals(0L, fixture.pagedIn.single().second)
         assertTrue(fixture.pagedIn.single().third > 0L)
@@ -198,7 +211,7 @@ class SessionSuspendControllerTest {
         fixture.afterSleep = { if (fixture.now >= 500) fixture.controller.cancelFreeze() }
         fixture.controller.freeze(pageOut = true) { assertFalse(it) }
         assertEquals(2, fixture.signals.count { it.signal == URG })
-        assertEquals("0", fixture.control.readText())
+        assertEquals(listOf<String?>("1", "0"), fixture.held)
         assertEquals(Triple(1, 0L, 0L), fixture.pagedIn.single())
     }
 
@@ -482,7 +495,7 @@ class SessionSuspendControllerTest {
         val groups = mutableListOf(root, game)
         val helpers = mutableListOf<Int>()
         val signals = mutableListOf<SentSignal>()
-        val held = mutableListOf<Boolean>()
+        val held = mutableListOf<String?>()
         var rootPid = ROOT
         var now = 0L
         var audioSuspends = 0
@@ -528,7 +541,8 @@ class SessionSuspendControllerTest {
 
         private fun signal(pid: Int, signal: Int) {
             signals += SentSignal(pid, signal)
-            if (signal == URG) held += File(control.parentFile, "${control.name}.hold").exists()
+            val request = if (signal == URG) File(control.parentFile, "${control.name}.hold").takeIf { it.isFile }?.readText() else null
+            if (signal == URG) held += request
             val group = groups.first { it.pid == pid }
             if (signal == STOP) {
                 continuing = false
@@ -537,7 +551,7 @@ class SessionSuspendControllerTest {
                     it.state !in listOf('T', 't', 'Z', 'X') && !(neverStop && it == game.threads.last())
                 }?.state = 't'
             } else if (signal == URG) {
-                if (control.readText() == "0") { pagingOut = false; pagingIn = true } else pagingOut = true
+                if (request == "0") { pagingOut = false; pagingIn = true } else pagingOut = true
             } else if (signal == CONT) {
                 if (clockAtContinue == null && clock.isFile) {
                     clockAtContinue = ByteBuffer.wrap(clock.readBytes()).order(ByteOrder.LITTLE_ENDIAN).long

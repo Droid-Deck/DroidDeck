@@ -60,15 +60,20 @@ whose working set does not fit therefore stops being trimmed and is left to the 
 the forced level is reached.
 
 Requests go to one process at a time. The monitor waits for that process's acknowledgement
-(the kB it paged out) before the next, and stops once the budget is met. A process that has not
+(the kB it paged out) before the next, reads `MemAvailable` again, and stops once the budget is
+met or available memory is back at the level the pass was started for. A process that has not
 started within half a second, or has not finished when the pass (client and session together)
-has waited five seconds in total, is skipped for a minute, and a late answer from it is
-discarded. A process is known by its number and start time, so a new process that got the
+has waited five seconds in total or six seconds have gone by since it began, is skipped for a
+minute, and a late answer from it is discarded. A process is known by its number and start time, so a new process that got the
 number of a skipped one is asked. Processes with less
 than 8 MiB of anonymous memory are skipped. While the app pages the session out for suspend, or
-reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold` so the two never
-write the control file at the same time. The suspend page-out answers `1` and a trim answers
-its kB, which is a multiple of the page size, so the app never takes a trim's answer for its own. With less than 64 MiB of zRAM room nothing is requested and the
+reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold` and writes its own
+request (`1` to page out, `0` to read back) into that file. A signalled process reads the hold
+file first and the control file only when the hold file is missing or empty, so a trim request
+the monitor wrote at the same moment cannot replace the app's. The suspend page-out answers `1`
+and a trim answers its kB, which is a multiple of the page size, so the app never takes a
+trim's answer for its own. A trim budget smaller than a chunk covers the stretch of the chunk
+that holds that many resident pages, and the next request continues from where it ended. With less than 64 MiB of zRAM room nothing is requested and the
 session log says so once a minute.
 
 With no shortage nothing is compressed. A game that fits in memory is never touched, and Steam

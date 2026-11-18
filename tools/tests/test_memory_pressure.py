@@ -207,7 +207,7 @@ kill() {
 '''
 
     def trim(self, body):
-        return self.run_policy(f'ROOT={self.root}\n' + self.TRIM + body + '\nls "$ROOT"; cat "$ROOT/ctl"', 'dd_zram_trim')
+        return self.run_policy(f'ROOT={self.root}\n' + self.TRIM + body + '\nls "$ROOT"; cat "$ROOT/ctl"', 'dd_memory_relieved', 'dd_zram_trim')
 
     def test_a_trim_spends_its_budget_across_processes_in_order(self):
         self.assertEqual(['signal:10:2 100000', 'signal:20:2 60000', '100000', 'ctl', '2 0'], self.trim('''
@@ -227,17 +227,17 @@ echo $_dd_trimmed'''))
 anon=([10]=500000 [20]=500000) reply=([10]=deaf [20]=500)
 dd_zram_trim 2 9000 10 20
 echo $_dd_trimmed
-NOW=59; dd_zram_trim 2 9000 10 20
-NOW=60; dd_zram_trim 2 9000 10 20'''))
+NOW=59 _dd_pass_at=59; dd_zram_trim 2 9000 10 20
+NOW=60 _dd_pass_at=60; dd_zram_trim 2 9000 10 20'''))
 
     def test_a_new_process_with_a_silent_ones_number_is_asked(self):
         self.assertEqual(['signal:10:2 9000', 'signal:10:2 9000', '1', 'ctl', '2 0'], self.trim('''
 anon=([10]=500000) reply=([10]=deaf)
 dd_zram_trim 2 9000 10
-NOW=5; dd_zram_trim 2 9000 10
+NOW=5 _dd_pass_at=5; dd_zram_trim 2 9000 10
 born[10]=7
 dd_zram_trim 2 9000 10
-NOW=62 anon=(); dd_zram_trim 2 9000
+NOW=62 _dd_pass_at=62 anon=(); dd_zram_trim 2 9000
 echo ${#_dd_deaf[@]}'''))
 
     def test_one_pass_waits_five_seconds_in_all(self):
@@ -246,6 +246,30 @@ anon=([10]=500000 [20]=500000 [30]=500000) reply=([10]=- [20]=deaf [30]=deaf)
 _dd_polls=215
 dd_zram_trim 2 9000 10
 dd_zram_trim 2 9000 20 30'''))
+
+    def test_one_pass_ends_six_seconds_after_it_began_however_slow_the_polls(self):
+        self.assertEqual(['signal:10:2 9000', '6', 'ctl', '2 0'], self.trim('''
+anon=([10]=500000 [20]=500000) reply=([10]=deaf [20]=500)
+nap() { NOW=$((NOW + 1)); }
+dd_zram_trim 2 9000 10 20
+echo $_dd_polls'''))
+
+    def test_a_trim_stops_once_memory_is_back_where_it_should_be(self):
+        self.assertEqual(['signal:10:2 9000', '500', 'signal:10:2 9000', 'signal:20:2 8500', '1000', 'ctl', 'meminfo', '2 0'],
+                         self.trim('''
+anon=([10]=500000 [20]=500000) reply=([10]=500 [20]=500)
+available() { echo "MemAvailable: $1 kB" > "$ROOT/meminfo"; }
+signal=$(declare -f kill)
+eval "raw_${signal}"
+kill() { raw_kill "$@"; available $((after)); }
+available 800000
+_dd_goal=900000 after=900000
+dd_zram_trim 2 9000 10 20
+echo $_dd_trimmed
+available 800000
+after=899999
+dd_zram_trim 2 9000 10 20
+echo $_dd_trimmed'''))
 
     def test_a_held_control_file_keeps_its_acknowledgements(self):
         self.assertEqual(['signal:10:2 9000', 'ctl', 'ctl.ack.10', 'ctl.hold', '2 9000'], self.trim('''

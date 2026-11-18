@@ -60,6 +60,19 @@ static long status(const char *key) {
   return v;
 }
 
+static long resident(char *start, size_t size) {
+  long page = sysconf(_SC_PAGESIZE), kb = 0;
+  int fd = open("/proc/self/pagemap", O_RDONLY);
+  if (fd < 0) exit(8);
+  for (size_t i = 0; i < size; i += page) {
+    uint64_t entry;
+    if (pread(fd, &entry, sizeof(entry), ((uintptr_t)start + i) / page * sizeof(entry)) != sizeof(entry)) exit(8);
+    if (entry >> 63) kb += page / 1024;
+  }
+  close(fd);
+  return kb;
+}
+
 static void send_request(char mode) {
   int fd = open(ctl, O_WRONLY | O_TRUNC);
   if (fd < 0 || write(fd, &mode, 1) != 1) exit(3);
@@ -212,6 +225,39 @@ int main(int argc, char **argv) {
       printf("small %ld\n", total);
       printf("largest %ld\n", largest);
       return 0;
+    } else if (!strcmp(argv[4], "trim-sparse")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      size_t wide = 32UL << 20;
+      char *thin = mmap(NULL, wide, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+      if (thin == MAP_FAILED) exit(7);
+      for (size_t i = 0; i < wide; i += 2 * page) thin[i] = 1;
+      printf("sparse %ld\n", resident(thin, wide));
+      for (int i = 0; i < 240; i++) trim('2', 512);
+      printf("kept %ld\n", resident(thin, wide));
+      return 0;
+    } else if (!strcmp(argv[4], "hold")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      char hold[256];
+      snprintf(hold, sizeof(hold), "%s.hold", ctl);
+      FILE *f = fopen(hold, "w");
+      if (!f) exit(3);
+      fclose(f);
+      printf("empty %ld\n", trim('2', 512));
+      f = fopen(hold, "w");
+      if (!f) exit(3);
+      fputs("1", f);
+      fclose(f);
+      f = fopen(ctl, "w");
+      if (!f) exit(3);
+      fputs("2 512\n", f);
+      fclose(f);
+      kill(getpid(), SIGURG);
+      wait_ack();
+      printf("held %ld\n", status("VmSwap:"));
+      unlink(hold);
+      return 0;
     } else if (!strcmp(argv[4], "trim-fork")) {
       stop = 1;
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
@@ -342,6 +388,7 @@ class ZramPreloadTest(unittest.TestCase):
         self.ctl.write_text("0")
         for ack in self.dir.glob("ctl.ack.*"):
             ack.unlink()
+        (self.dir / "ctl.hold").unlink(missing_ok=True)
 
     def run_program(self, program=None, mb=48, cycles=1, *extra):
         environment = dict(os.environ, LD_PRELOAD=str(self.lib))
@@ -471,12 +518,24 @@ class ZramPreloadTest(unittest.TestCase):
         self.assertTrue(28 * 1024 < out["again"][0] < 40 * 1024, out)
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
-    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_budgets_smaller_than_a_chunk_still_reach_all_of_it(self):
         out = self.run_program(None, 32, 0, "trim-small")
         self.assertLessEqual(out["largest"][0], 512)
         self.assertGreater(out["small"][0], 52 * 1024)
 
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_small_budgets_reach_the_end_of_a_thinly_used_chunk(self):
+        out = self.run_program(None, 8, 0, "trim-sparse")
+        self.assertEqual([16 * 1024], out["sparse"])
+        self.assertLess(out["kept"][0], 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_a_request_in_the_hold_file_wins_over_the_control_file(self):
+        out = self.run_program(None, 32, 0, "hold")
+        self.assertTrue(0 < out["empty"][0] <= 512, out)
+        self.assertGreater(out["held"][0], 40 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_process_without_a_worker_trims_in_small_steps(self):
         out = self.run_program(None, 48, 0, "trim-fork")
         self.assertTrue(16 * 1024 < out["inline_trim"][0] <= 32 * 1024, out)

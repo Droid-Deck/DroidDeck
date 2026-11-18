@@ -938,6 +938,16 @@ case $mode in
           mapfile -t _dd_session < <(printf '%s\n' "${_dd_session[@]}" | sort -rn)
           _dd_session=("${_dd_session[@]#* }")
         }
+        dd_memory_relieved() {
+          local _k _v _u
+          while read -r _k _v _u; do
+            [ "$_k" = MemAvailable: ] || continue
+            case $_v in ''|*[!0-9]*) return 1 ;; esac
+            [ "$_v" -ge "$_dd_goal" ]
+            return
+          done 2>/dev/null < /proc/meminfo
+          return 1
+        }
         dd_zram_trim() {
           local _mode=$1 _left=$2 _p _k _n _i _acks=()
           shift 2
@@ -946,7 +956,9 @@ case $mode in
             [ "${_dd_deaf[$_k]}" -gt "$SECONDS" ] || unset "_dd_deaf[$_k]"
           done
           for _p in "$@"; do
-            [ "$_left" -ge 4096 ] && [ "$_dd_polls" -lt 250 ] && [ ! -e /tmp/.dd-zram.hold ] || break
+            [ "$_left" -ge 4096 ] && [ "$_dd_polls" -lt 250 ] && [ $((SECONDS - _dd_pass_at)) -lt 6 ] &&
+              [ ! -e /tmp/.dd-zram.hold ] || break
+            ! dd_memory_relieved || break
             dd_pid_key "$_p"
             _k=$_dd_key
             [ "${_dd_deaf[$_k]:-0}" -le "$SECONDS" ] || continue
@@ -957,7 +969,7 @@ case $mode in
             printf '%s %s\n' "$_mode" "$_left" > /tmp/.dd-zram
             kill -URG "$_p" 2>/dev/null || continue
             _dd_deaf[$_k]=$((SECONDS + 60))
-            for ((_i = 0; _dd_polls < 250; _i++, _dd_polls++)); do
+            for ((_i = 0; _dd_polls < 250 && SECONDS - _dd_pass_at < 6; _i++, _dd_polls++)); do
               [ ! -e /tmp/.dd-zram.hold ] || { _dd_deaf[$_k]=0; break; }
               _n=
               read -r _n 2>/dev/null < "/tmp/.dd-zram.ack.$_p" || :
@@ -976,7 +988,7 @@ case $mode in
         dd_memory_relieve() {
           local _mode=2 _budget _gain=0 _rest _cap=$((256 * 1024)) _all=$((1024 * 1024))
           dd_memory_need
-          _dd_polls=0
+          _dd_polls=0 _dd_pass_at=$SECONDS
           [ "$_dd_need" -gt 0 ] || return 0
           if [ "$_dd_swap_room" -lt $((64 * 1024)) ]; then
             if [ $((SECONDS - _dd_full_at)) -ge 60 ]; then
@@ -996,6 +1008,7 @@ case $mode in
             _budget=$((_dd_need * 1000 / _dd_saving))
             [ "$_budget" -le "$_all" ] || _budget=$_all
             [ "$_budget" -le "$_dd_swap_room" ] || _budget=$_dd_swap_room
+            _dd_goal=$((_dd_available + _dd_need))
             dd_zram_trim "$_mode" "$_budget" "${_dd_pids[@]}"
             _gain=$((_dd_trimmed * _dd_saving / 1000))
             _dd_swap_room=$((_dd_swap_room - _dd_trimmed)) _all=$((_all - _dd_trimmed))
@@ -1010,6 +1023,7 @@ case $mode in
             _budget=$((_rest * 1000 / _dd_saving))
             [ "$_budget" -le "$_cap" ] || _budget=$_cap
             [ "$_budget" -le "$_dd_swap_room" ] || _budget=$_dd_swap_room
+            _dd_goal=$((_dd_available + _dd_hard))
             dd_zram_trim "$_mode" "$_budget" "${_dd_session[@]}"
             _gain=$((_gain + _dd_trimmed * _dd_saving / 1000))
             _dd_note_session=$((_dd_note_session + _dd_trimmed))
@@ -1072,7 +1086,7 @@ case $mode in
         }
         declare -A _dd_deaf=() _dd_preloaded=()
         _dd_scan_at=-5 _dd_session_at=-1 _dd_session=() _dd_focus=1 _dd_away=
-        _dd_page_kb=$(($(getconf PAGESIZE 2>/dev/null || echo 4096) / 1024)) _dd_returned=0 _dd_polls=0
+        _dd_page_kb=$(($(getconf PAGESIZE 2>/dev/null || echo 4096) / 1024)) _dd_returned=0 _dd_polls=0 _dd_pass_at=0 _dd_goal=0
         _dd_sample_at= _dd_freed=0 _dd_client_out=0 _dd_note_client=0 _dd_note_session=0
         _dd_trim_at=-30 _dd_back_at=-30 _dd_forced_at=-10 _dd_full_at=-60 _dd_noted_at=-5
         while kill -0 $$ 2>/dev/null; do

@@ -279,7 +279,7 @@ internal class SessionSuspendController(
         val control = zramControl?.takeIf { it.isFile } ?: return
         val hold = holdFile(control)
         try {
-            hold.writeText("")
+            hold.writeText(PAGE_OUT_REQUEST)
             sleep(PAGE_OUT_POLL_MS)
             pageOut(control, records, root, helpers)
         } catch (_: IOException) {
@@ -292,7 +292,6 @@ internal class SessionSuspendController(
 
     private fun pageOut(control: File, records: MutableMap<Pair<Int, Long>, ProcessRecord>, root: Int, helpers: List<Int>) {
         addSnapshot(records, root, helpers)
-        control.writeText("1")
         val targets = records.values.filter { record ->
             try {
                 File(procRoot, "${record.pid}/maps").useLines { lines -> lines.any { it.endsWith("/libddsession.so") } }
@@ -339,8 +338,7 @@ internal class SessionSuspendController(
         }
         val hold = holdFile(control)
         try {
-            hold.writeText("")
-            control.writeText("0")
+            hold.writeText(READ_BACK_REQUEST)
         } catch (_: IOException) {
             hold.delete()
             return
@@ -477,6 +475,8 @@ internal class SessionSuspendController(
         const val SIGCONT = 18
         const val SIGURG = 23
         const val PAGE_OUT_ACK = "1"
+        const val PAGE_OUT_REQUEST = "1"
+        const val READ_BACK_REQUEST = "0"
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L
