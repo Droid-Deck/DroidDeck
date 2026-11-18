@@ -113,6 +113,10 @@ export ZINK_DESCRIPTORS=${ZINK_DESCRIPTORS:-lazy} ZINK_DEBUG=${ZINK_DEBUG:-compa
 # Gallium's threaded context off, as in Bannerlator's Fast OpenGL: with it, WineD3D (DirectDraw / Direct3D 1-7)
 # crashed in native code within seconds (AIO Direct3D 7, SIGSEGV).
 export GALLIUM_THREAD=${GALLIUM_THREAD:-0}
+# Mesa's GL thread off unless the game's own DroidDeck environment sets it: with DroidDeck's session-wide
+# mesa_glthread=true, WineD3D's persistent buffer writes lost vertex colours on this Mesa build (AIO 64-bit
+# Direct3D 7 drew its cube white; DroidDeck-Proton's Mesa does not do this).
+case "$KEEP" in *" mesa_glthread "*) ;; *) export mesa_glthread=false ;; esac
 
 # egl/ first: the layer's own lib/ carries a Wayland-only Mesa EGL of the same names, which winex11 cannot use
 LIBS=$PACK/egl:$F/lib:$PACK/lib:/system/lib64
