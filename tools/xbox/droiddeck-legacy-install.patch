@@ -43,10 +43,10 @@ index 088a6d0..825c24e 100644
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..5041a34
+index 0000000..ca21f40
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1101 @@
+@@ -0,0 +1,1111 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -349,6 +349,16 @@ index 0000000..5041a34
 +    if let Err(error) = tokio::fs::create_dir_all(&destination).await {
 +        return fail("destination-failed", &format!("Could not prepare the install folder: {error}"));
 +    }
++    let _folder_lock = match std::fs::OpenOptions::new()
++        .write(true)
++        .create(true)
++        .truncate(false)
++        .open(destination.join(".nexus-streaming.lock"))
++        .and_then(|file| fs2::FileExt::try_lock_exclusive(&file).map(|()| file))
++    {
++        Ok(file) => file,
++        Err(_) => return fail("folder-busy", "Another download is using this folder"),
++    };
 +    let mut progress = Progress::new(progress_json);
 +    let region = market.clone().unwrap_or("US".into()).to_uppercase();
 +
