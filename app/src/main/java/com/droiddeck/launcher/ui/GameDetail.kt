@@ -305,9 +305,9 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
     val folder = installed?.folder ?: game?.gameFiles
     val passName = item?.includedWith.orEmpty()
     val state = when {
-        installed != null -> listOf(stringResource(R.string.stores_eyebrow_installed), StoreInstallRoot.labelFor(ctx, installed.folder))
+        installed != null -> listOf(StoreInstallRoot.labelFor(ctx, installed.folder))
         game?.library == Library.XBOX_CLOUD -> listOf(libraryLabel(game))
-        game != null -> listOf(stringResource(R.string.stores_eyebrow_installed), libraryLabel(game))
+        game != null -> listOf(libraryLabel(game))
         !downloadAt.isNullOrBlank() -> listOf(stringResource(R.string.stores_eyebrow_library), downloadAt)
         item?.owned == true -> listOf(stringResource(R.string.stores_eyebrow_library))
         item?.subscription == true -> listOf(passName.ifBlank { stringResource(R.string.stores_game_pass) })
