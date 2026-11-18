@@ -167,12 +167,12 @@ index 825c24e..c23f637 100644
  pub mod native_social;
 diff --git a/crates/xodus-cli/src/commands/msixvc2.rs b/crates/xodus-cli/src/commands/msixvc2.rs
 new file mode 100644
-index 0000000..67de064
+index 0000000..5caab57
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/msixvc2.rs
-@@ -0,0 +1,802 @@
+@@ -0,0 +1,820 @@
 +use std::collections::HashMap;
-+use std::io::{ErrorKind, Read, Write};
++use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
 +use std::path::{Component, Path, PathBuf};
 +
 +use aes::cipher::{BlockModeDecrypt, KeyIvInit, block_padding::NoPadding};
@@ -281,10 +281,28 @@ index 0000000..67de064
 +        .append(true)
 +        .open(record)
 +        .and_then(|mut file| {
-+            let mut text = Vec::new();
-+            file.read_to_end(&mut text)?;
-+            if text.last().is_some_and(|byte| *byte != b'\n') {
-+                file.set_len(text.iter().rposition(|byte| *byte == b'\n').map_or(0, |end| end as u64 + 1))?;
++            let length = file.metadata()?.len();
++            let mut last = [0u8; 1];
++            if length > 0 {
++                file.seek(SeekFrom::Start(length - 1))?;
++                file.read_exact(&mut last)?;
++            }
++            if length > 0 && last[0] != b'\n' {
++                let mut end = length;
++                let mut keep = 0;
++                let mut chunk = vec![0u8; 4096];
++                while end > 0 {
++                    let start = end.saturating_sub(chunk.len() as u64);
++                    let part = &mut chunk[..(end - start) as usize];
++                    file.seek(SeekFrom::Start(start))?;
++                    file.read_exact(part)?;
++                    if let Some(at) = part.iter().rposition(|byte| *byte == b'\n') {
++                        keep = start + at as u64 + 1;
++                        break;
++                    }
++                    end = start;
++                }
++                file.set_len(keep)?;
 +            }
 +            writeln!(file, "{} {identity}", key(path))?;
 +            file.sync_all()
