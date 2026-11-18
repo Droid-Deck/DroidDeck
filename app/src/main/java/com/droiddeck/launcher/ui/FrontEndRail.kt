@@ -47,11 +47,15 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.SdStorage
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -195,28 +199,32 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
     "soundtracks" -> R.string.rail_music to SoundtrackIcon
     "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
+    "downloads" -> R.string.stores_tab_downloads to Icons.Outlined.Download
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
-    "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
+    "agent" -> R.string.rail_agent to Icons.Outlined.Terminal
     "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
     "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    "storage" -> R.string.rail_storage to Icons.Outlined.SdStorage
+    "sync" -> R.string.rail_sync to Icons.Outlined.Sync
     NavTabs.MORE -> R.string.rail_more to Icons.Outlined.MoreHoriz
     else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
 }
 
 internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
-    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus) || com.droiddeck.launcher.sync.Syncthing.needsAttention
+    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
 
 internal fun railBadge(s: FrontEndState, key: String, setupNeedsAttention: Boolean = setupNeedsAttention(s)): Boolean = when (key) {
     "setup" -> setupNeedsAttention
+    "sync" -> com.droiddeck.launcher.sync.Syncthing.needsAttention
     "updates" -> s.updates.hasUpdate
     NavTabs.MORE -> NavTabs.more(s).any { it != NavTabs.MORE && railBadge(s, it, setupNeedsAttention) }
     else -> false
 }
 
 internal fun railCount(s: FrontEndState, key: String): Int = when (key) {
-    "stores" -> s.storeDownloadsActive
-    NavTabs.MORE -> if ("stores" in NavTabs.more(s)) s.storeDownloadsActive else 0
+    "downloads" -> s.storeDownloadsActive
+    NavTabs.MORE -> if ("downloads" in NavTabs.more(s)) s.storeDownloadsActive else 0
     else -> 0
 }
 
@@ -226,13 +234,16 @@ private fun NavigationItems(
     place: (String) -> Modifier, onSelect: (String) -> Unit, onFocusSelect: (String) -> Unit,
 ) {
     val setupNeedsAttention = setupNeedsAttention(s)
+    val downloadsAt = if ("downloads" in NavTabs.more(s)) NavTabs.MORE else "downloads"
     for (key in navigationKeys(s)) {
-        val (label, icon) = railLabelIcon(key)
+        val (label, base) = railLabelIcon(key)
+        val icon = if (key == NavTabs.MORE && MoreTabs.inside) Icons.AutoMirrored.Outlined.ArrowBack else base
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
                 badge = railBadge(s, key, setupNeedsAttention),
                 count = railCount(s, key),
-                place = place, onFocus = { onFocusSelect(key) }) { onSelect(key) }
+                place = { k -> if (k == downloadsAt) place(k).onGloballyPositioned { StoresMotion.downloadsChip = it.boundsInRoot() } else place(k) },
+                onFocus = { onFocusSelect(key) }) { onSelect(key) }
         }
     }
 }
@@ -288,9 +299,9 @@ private fun RailItem(
             .selectable(selected = current, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .then(if (iconOnly) Modifier.semantics { contentDescription = label } else Modifier),
     ) {
-        if (iconOnly) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp))
+        if (iconOnly) androidx.compose.animation.Crossfade(icon, animationSpec = Motion.tw(220), label = "railIcon") { Icon(it, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp)) }
         else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(if (height < 56.dp) 20.dp else 22.dp))
+            androidx.compose.animation.Crossfade(icon, animationSpec = Motion.tw(220), label = "railIcon") { Icon(it, contentDescription = null, tint = fg, modifier = Modifier.size(if (height < 56.dp) 20.dp else 22.dp)) }
             FitText(label, maxSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp), fontWeight = FontWeight.SemiBold, color = fg)
         }
         if (badge) Box(

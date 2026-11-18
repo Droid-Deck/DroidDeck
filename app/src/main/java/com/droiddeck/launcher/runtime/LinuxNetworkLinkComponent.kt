@@ -106,13 +106,15 @@ class LinuxNetworkLinkComponent(
                 synchronized(lock) { writeNetworkState(currentProperties, currentCapabilities) }
             }
         }
-        appContext.registerReceiver(receiver, IntentFilter().apply {
+        val wifiFilter = IntentFilter().apply {
             addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
             addAction(WifiManager.RSSI_CHANGED_ACTION)
             addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
             addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION)
             addAction(LocationManager.MODE_CHANGED_ACTION)
-        })
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 33) appContext.registerReceiver(receiver, wifiFilter, Context.RECEIVER_NOT_EXPORTED)
+        else appContext.registerReceiver(receiver, wifiFilter)
         wifiReceiver = receiver
         scanRequestStamp = File(rootDir, "etc/droiddeck-wifi-scan-request").lastModified()
         scanHandler.post(scanRequests)

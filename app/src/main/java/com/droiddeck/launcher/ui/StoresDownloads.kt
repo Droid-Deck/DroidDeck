@@ -535,7 +535,6 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
                     }
                 }
             }
-            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(st, a) }
             var gogAchievements by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.droiddeck.launcher.stores.gog.GogComet.enabled(context)) }
             androidx.compose.runtime.LaunchedEffect(Unit) {
                 if (gogAchievements) com.droiddeck.launcher.core.AddonPack.COMET.ensure(context)
@@ -547,4 +546,13 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
                 }
             }
         }
+    }
+
+internal fun downloadsSettingsStep(at: Rect, s: androidx.compose.runtime.State<FrontEndState>, a: FrontEndActions, accent: androidx.compose.ui.graphics.Color): StepAsk =
+    StepAsk(
+        anchor = at, side = StepSide.Left, accent = accent, items = 2, maxWidth = 440.dp,
+        handle = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Settings, null, tint = accent, modifier = Modifier.size(20.dp)) },
+    ) {
+        StepTitle(stringResource(R.string.downloads_settings))
+        Column(Modifier.stepItem(1).fillMaxWidth().focusRequester(first).focusGroup().padding(horizontal = 14.dp, vertical = 11.dp)) { DownloadControls(s.value, a) }
     }

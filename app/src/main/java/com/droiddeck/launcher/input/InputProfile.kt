@@ -53,6 +53,16 @@ data class InputProfile(
     fun elementClickAction(role: InputRole, element: InputSurfaceElement): InputAction = clicks[role]?.get(element.id)
         ?: defaultElementClick(element, elementAction(role, element.id, element.control)) { action(role, it) }
 
+    fun showsMouseButton(role: InputRole, shown: List<InputSurfaceElement>, stock: InputProfile): Boolean = shown.any { element ->
+        val action = elementAction(role, element.id, element.control).takeIf {
+            elements[role]?.get(element.id) != stock.elements[role]?.get(element.id) || it != stock.elementAction(role, element.id, element.control)
+        }
+        val click = elementClickAction(role, element).takeIf {
+            clicks[role]?.get(element.id) != stock.clicks[role]?.get(element.id) || it != stock.elementClickAction(role, element)
+        }
+        listOfNotNull(action, click).any { it is InputAction.MouseButton && it.validFor(element.control) }
+    }
+
     companion object {
         const val GAME = "game"
         const val DESKTOP = "desktop"

@@ -84,8 +84,8 @@ def connect():
 
 
 def main():
-    launch = os.environ.get("BL_LAUNCH_DIR", "")
-    report = Report(os.environ.get("BL_IME_DIR") or (os.path.join(launch, "agent") if launch else ""))
+    launch = os.environ.get("DD_LAUNCH_DIR", "")
+    report = Report(os.environ.get("DD_IME_DIR") or (os.path.join(launch, "agent") if launch else ""))
     conn = Connection(connect())
     conn.send(DISPLAY_ID, 1, struct.pack("<I", REGISTRY_ID))
     contexts = {}

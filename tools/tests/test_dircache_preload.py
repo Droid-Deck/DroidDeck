@@ -326,7 +326,7 @@ class DirCachePreloadTest(unittest.TestCase):
         build.mkdir()
         (build / "fake.c").write_text(FAKE)
         (build / "program.c").write_text(PROGRAM)
-        cls.cache = build / "libblsession.so"
+        cls.cache = build / "libddsession.so"
         cls.fake = build / "fake.so"
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(cls.cache),
                         *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
@@ -688,7 +688,7 @@ class DirCachePreloadTest(unittest.TestCase):
     def test_misses_reach_the_filesystem_when_turned_off(self):
         s = self.staging
         out = self.run_program("list", s, "access", s / "x.bundle", "access", s / "y.bundle", "accesses",
-                               env={"BL_NO_DIR_CACHE": "1"})
+                               env={"DD_NO_DIR_CACHE": "1"})
         self.assertEqual(["-1 2", "-1 2", "2"], out[1:])
 
     def test_a_preload_below_calling_back_while_a_folder_is_watched_does_not_hang(self):
@@ -706,7 +706,7 @@ class DirCachePreloadTest(unittest.TestCase):
         self.assertEqual(["a.bundle,b.bundle", "b.bundle", "b.bundle", "1"], out)
 
     def test_can_be_turned_off(self):
-        out = self.run_program("list", self.staging, "list", self.staging, "opens", env={"BL_NO_DIR_CACHE": "1"})
+        out = self.run_program("list", self.staging, "list", self.staging, "opens", env={"DD_NO_DIR_CACHE": "1"})
         self.assertEqual("2", out[-1])
 
 
