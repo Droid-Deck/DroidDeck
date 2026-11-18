@@ -87,7 +87,7 @@ class PulseAudioComponentTest {
                 }
             }
             assertTrue(checked.await(5, TimeUnit.SECONDS))
-            assertTrue(host.exited(generation))
+            assertTrue(pool.submit<Boolean> { host.exited(generation) }.get(5, TimeUnit.SECONDS))
             val launched = CountDownLatch(1)
             val restart = pool.submit<Boolean> {
                 host.launch(generation) {
