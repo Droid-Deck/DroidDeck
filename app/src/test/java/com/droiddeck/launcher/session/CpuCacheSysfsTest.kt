@@ -134,6 +134,17 @@ class CpuCacheSysfsTest {
         assertEquals("512K\n", File(root, "p/2/cpu0/index0/size").readText())
     }
 
+    @Test fun startsInOneProcessNeverShareAStagingFolder() {
+        val host = tmp.newFolder("host")
+        cache(host, 0, 2 to null)
+        val root = tmp.newFolder("out")
+        val first = CpuCacheSysfs.binds(root, host = host, process = "p").single().substringBefore(':')
+        val second = CpuCacheSysfs.binds(root, host = host, process = "p").single().substringBefore(':')
+        assertTrue(first != second)
+        assertEquals("512K\n", File(first, "index0/size").readText())
+        assertEquals("512K\n", File(second, "index0/size").readText())
+    }
+
     @Test fun aCoreWhoseMetadataCannotBeCopiedIsSkippedAndTheOthersStayBound() {
         val host = tmp.newFolder("host")
         cache(host, 0, 2 to null)

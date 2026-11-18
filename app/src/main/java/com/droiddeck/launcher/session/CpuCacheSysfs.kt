@@ -9,10 +9,11 @@ object CpuCacheSysfs {
     private val FEX_CPUID_SIZE_KB = mapOf(1 to 32, 2 to 512, 3 to 8192)
 
     private val PROCESS = java.util.UUID.randomUUID().toString()
+    private val STARTS = java.util.concurrent.atomic.AtomicInteger()
 
-    fun binds(root: File, gen: Int, host: File = File("/sys/devices/system/cpu"), process: String = PROCESS): List<String> = try {
+    fun binds(root: File, start: Int = STARTS.incrementAndGet(), host: File = File("/sys/devices/system/cpu"), process: String = PROCESS): List<String> = try {
         root.listFiles()?.forEach { old -> if (old.name != process) StoreInstalls.deleteTree(old) }
-        val dir = File(root, "$process/$gen")
+        val dir = File(root, "$process/$start")
         StoreInstalls.deleteTree(dir)
         val cpus = host.list { _, name -> name.matches(Regex("cpu\\d+")) }?.sorted().orEmpty()
         val binds = cpus.mapNotNull { cpu ->

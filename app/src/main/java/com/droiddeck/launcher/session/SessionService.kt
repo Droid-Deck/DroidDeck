@@ -719,7 +719,7 @@ class SessionService : Service() {
 
         SessionEvents.step("shm-clear") { FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm")) }
 
-        val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir, gen)
+        val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
         val nativeUserland = com.droiddeck.launcher.runtime.NativeGuest.enabled(this)
         synchronized(stopLock) {
             if (gen == sessionGen && SessionState.running) com.droiddeck.launcher.runtime.NativeGuest.sessionMode = nativeUserland
@@ -1191,7 +1191,6 @@ class SessionService : Service() {
         guest: MutableList<String>,
         sessionRoot: File,
         runtimeDir: File,
-        gen: Int,
     ): ArrayList<String> {
         val binds = ArrayList<String>()
         if (controllersOn) binds.add(fakeInputDir.path + ":/dev/input")
@@ -1214,7 +1213,7 @@ class SessionService : Service() {
             components.add(hwmon)
             binds.add(hwmon.dir.path + ":/sys/class/hwmon")
         }
-        binds.addAll(CpuCacheSysfs.binds(File(filesDir, "session/sys/cpu-cache"), gen))
+        binds.addAll(CpuCacheSysfs.binds(File(filesDir, "session/sys/cpu-cache")))
         val cpuStat = CpuStatComponent(File(filesDir, "session/proc-stat"))
         if (cpuStat.prepare()) {
             cpuStat.attach(this)
