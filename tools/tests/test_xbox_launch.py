@@ -178,6 +178,41 @@ class XboxLaunchTest(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in devices.iterdir()), ['v:', 'w:', 'x:'])
             self.assertEqual(xbox['view_drive'](root / 'pfx', '/games/Game.exe'), ('/games/Game.exe', None))
 
+    def test_package_install_actions_run_once_and_stay_inside_the_game(self):
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            (game / 'Installers').mkdir(parents=True)
+            (game / 'Installers' / 'GameInputRedist.msi').write_bytes(b'msi')
+            (game / 'Emu.exe').write_bytes(b'exe')
+            (Path(root) / 'outside.msi').write_bytes(b'msi')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><DesktopRegistration><CustomInstallActions><Folder>Installers</Folder><InstallActionList>'
+                '<InstallAction File="GameInputRedist.msi" Name="InstallGameInput" Arguments="/quiet"/>'
+                '<InstallAction File="..\\..\\outside.msi" Name="Escape"/>'
+                '</InstallActionList></CustomInstallActions></DesktopRegistration></Game>')
+            with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/selected/proton', prefix, str(game / 'Emu.exe'), {'A': '1'})
+                xbox['run_install_actions']('/selected/proton', prefix, str(game / 'Emu.exe'), {'A': '1'})
+            self.assertEqual(child.call_count, 1)
+            command = child.call_args.args[0]
+            self.assertEqual(command[:4], ['/selected/proton', 'run', 'msiexec', '/i'])
+            self.assertTrue(command[4].startswith('Z:') and command[4].endswith('GameInputRedist.msi'))
+            self.assertEqual(command[5:], ['/quiet'])
+
+    def test_a_failed_install_action_is_retried_on_the_next_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            game.mkdir()
+            (game / 'setup.exe').write_bytes(b'exe')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><CustomInstallActions><InstallActionList><InstallAction File="setup.exe" Name="Setup"/>'
+                '</InstallActionList></CustomInstallActions></Game>')
+            with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 1)) as child:
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.exe'), {})
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.exe'), {})
+            self.assertEqual(child.call_count, 2)
+            self.assertEqual(child.call_args.args[0][:2], ['/p', 'run'])
+
     def test_missing_runtime_classes_are_registered_once(self):
         with tempfile.TemporaryDirectory() as root:
             prefix = Path(root)
