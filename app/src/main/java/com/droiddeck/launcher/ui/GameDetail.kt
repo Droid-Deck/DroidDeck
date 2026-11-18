@@ -79,6 +79,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -359,7 +360,7 @@ private fun GameTabBar(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Row(modifier.fillMaxWidth().glass(CircleShape).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (bumpers) BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
+        if (bumpers) TabBarBumper("LB", stringResource(R.string.widgets_prev_tab), leading = true) { onSelect((selected + tabs.size - 1) % tabs.size) }
         tabs.forEachIndexed { i, label ->
             val on = i == selected
             val src = remember { MutableInteractionSource() }
@@ -383,7 +384,30 @@ private fun GameTabBar(
                 )
             }
         }
-        if (bumpers) BumperKey("RB", stringResource(R.string.widgets_next_tab)) { onSelect((selected + 1) % tabs.size) }
+        if (bumpers) TabBarBumper("RB", stringResource(R.string.widgets_next_tab), leading = false) { onSelect((selected + 1) % tabs.size) }
+    }
+}
+
+@Composable
+private fun TabBarBumper(label: String, description: String, leading: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val round = 22.dp
+    val flat = 7.dp
+    val cap = if (leading) RoundedCornerShape(round, flat, flat, round) else RoundedCornerShape(flat, round, round, flat)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.padding(start = if (leading) 0.dp else 3.dp, end = if (leading) 3.dp else 0.dp)
+            .size(width = 46.dp, height = 44.dp)
+            .clip(cap).background(colors.surfaceVariant).border(1.dp, pal.line2, cap)
+            .focusProperties { canFocus = false }
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+    ) {
+        Text(
+            label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(start = if (leading) 4.dp else 0.dp, end = if (leading) 0.dp else 4.dp),
+        )
     }
 }
 
