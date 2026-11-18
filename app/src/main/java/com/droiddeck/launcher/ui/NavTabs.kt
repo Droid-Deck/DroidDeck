@@ -10,10 +10,25 @@ import com.droiddeck.launcher.session.SessionPrefs
 
 internal enum class TabPlace { BAR, MORE, HIDDEN }
 
+internal object DeveloperTools {
+    var on by mutableStateOf(false)
+        private set
+
+    fun load(context: Context) {
+        on = SessionPrefs.developerTools(context)
+    }
+
+    fun set(context: Context, enabled: Boolean) {
+        on = enabled
+        SessionPrefs.setDeveloperTools(context, enabled)
+    }
+}
+
 internal object NavTabs {
     const val MORE = "more"
     val FEATURES = setOf("stores", "soundtracks", "agent")
-    val ALL = listOf("steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "setup", "updates")
+    val ALL = listOf("steam", "games", "soundtracks", "stores", "downloads", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup", "updates")
+    private val SHELVED_WHEN_NEW = setOf("storage", "sync")
 
     var order by mutableStateOf(ALL)
         private set
@@ -23,8 +38,10 @@ internal object NavTabs {
         private set
 
     fun load(context: Context) {
-        order = arrange(SessionPrefs.navTabOrder(context))
-        shelved = SessionPrefs.navTabShelved(context).intersect(ALL.toSet())
+        val saved = SessionPrefs.navTabOrder(context)
+        order = arrange(saved)
+        shelved = SessionPrefs.navTabShelved(context).intersect(ALL.toSet()) +
+            if (saved.isEmpty()) emptySet() else SHELVED_WHEN_NEW - saved.toSet()
         hidden = SessionPrefs.navTabHidden(context).intersect(ALL.toSet()) - FEATURES - "setup"
     }
 
@@ -41,7 +58,7 @@ internal object NavTabs {
 
     fun available(s: FrontEndState, key: String): Boolean = when (key) {
         "android-apps" -> s.isHomeApp
-        "agent" -> AgentHost.available
+        "agent" -> AgentHost.available && DeveloperTools.on
         else -> true
     }
 
@@ -54,7 +71,7 @@ internal object NavTabs {
     }
 
     private fun featureOff(s: FrontEndState, key: String) = when (key) {
-        "stores" -> !s.gameStoresEnabled
+        "stores", "downloads" -> !s.gameStoresEnabled
         "soundtracks" -> !s.soundtracksEnabled
         "agent" -> !AgentTab.shown
         else -> false
