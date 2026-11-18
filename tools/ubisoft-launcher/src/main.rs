@@ -261,6 +261,10 @@ mod service {
                         state.say(&format!("aux: invalidation {rid} not acknowledged; the kept token could not be marked stale"));
                     }
                 }
+                AuxReq::BurnTicket(rid) => {
+                    send(&pipe, &launcher::aux_no_burn_ticket(rid));
+                    state.say(&format!("aux: burn ticket {rid} answered as unavailable"));
+                }
                 AuxReq::Other(rid) => state.say(&format!("aux: request {rid} not handled ({} B)", req.len())),
             }
         }
