@@ -869,8 +869,9 @@ private fun ShortcutFields(game: Library.SteamGame, folder: File) {
 
 @Composable
 private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
+    val context = LocalContext.current.applicationContext
     val saves by produceState<List<GameSaves.SaveDir>?>(null, g.gameId) {
-        value = withContext(Dispatchers.IO) { runCatching { GameSaves.locate(prefix, g) }.getOrDefault(emptyList()) }
+        value = withContext(Dispatchers.IO) { runCatching { GameSaves.saves(context, prefix, g) }.getOrDefault(emptyList()) }
     }
     val found = saves
     val summary = when {

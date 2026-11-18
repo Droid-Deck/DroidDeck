@@ -5,6 +5,7 @@ import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunch
 import org.json.JSONArray
+import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -111,6 +112,15 @@ class UbisoftTest {
         val save = ByteArray(200_000) { (it % 251).toByte() }
         assertArrayEquals(save, UbisoftCloud.inflate(UbisoftCloud.deflate(save)))
         assertEquals(0x78, UbisoftCloud.deflate(save)[0].toInt())
+        val packed = UbisoftCloud.deflate(save)
+        val cut = runCatching { UbisoftCloud.inflate(packed.copyOf(packed.size / 2)) }
+        assertTrue(cut.isFailure)
+    }
+
+    @Test fun aSlotVersionChangesWithItsSizeTimeOrIdentifier() {
+        val a = UbisoftCloud.Slot(1, "1", "4ef5bf634b40daa577aaeaa52c2283a9", 2414, 1_689_224_156_000)
+        assertEquals("2414:1689224156000:4ef5bf634b40daa577aaeaa52c2283a9", UbisoftCloud.version(a))
+        assertTrue(UbisoftCloud.version(a) != UbisoftCloud.version(UbisoftCloud.Slot(1, "1", a.hash, 2414, a.modifiedMs + 1)))
     }
 
     @Test fun ubisoftCloudSavesAreSupported() {
@@ -119,7 +129,8 @@ class UbisoftTest {
     }
 
     @Test fun keptGameTokensBelongToOneAccountAndProductUntilDropped() {
-        val dir = kotlin.io.path.createTempDirectory().toFile()
+        val root = kotlin.io.path.createTempDirectory().toFile()
+        val dir = File(root, "cache")
         val cache = UbisoftActivation.TokenCache(dir)
         assertNull(cache.get("u-1", 109))
         assertTrue(cache.put("u-1", 109, byteArrayOf(1, 2, 3)))
@@ -127,9 +138,11 @@ class UbisoftTest {
         assertNull(cache.get("u-1", 82))
         assertNull(cache.get("u-2", 109))
         assertTrue(cache.put("../u-1", 82, byteArrayOf(4)))
+        assertEquals(listOf("cache"), root.list()!!.toList())
         assertTrue(dir.listFiles()!!.all { it.parentFile == dir })
         assertTrue(cache.drop("u-1", 109))
         assertNull(cache.get("u-1", 109))
-        dir.deleteRecursively()
+        assertTrue(cache.drop("u-1", 109))
+        root.deleteRecursively()
     }
 }

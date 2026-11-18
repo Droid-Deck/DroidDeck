@@ -191,7 +191,7 @@ object CloudSaves {
         Store.UBISOFT -> {
             val session = UbisoftAuth.current(context)
             val product = StoreGameSidecar.read(folder)?.extra?.get("productId")?.toLongOrNull()
-            if (session == null || product == null) null else UbisoftCloudTransport(UbisoftCloud(session, product))
+            if (session == null || product == null) null else UbisoftCloudTransport(UbisoftCloud(session, product), session.userId)
         }
         Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.ROCKSTAR -> null
     }
@@ -322,6 +322,7 @@ object CloudSaves {
                     if (dir != null && store == Store.GOG) migrateGogNested(context, id, g.first, dir)
                     val cloud = if (dir != null) transport(context, store, id, g.first) else null
                     when {
+                        cloud is UbisoftCloudTransport && dir?.parentFile?.name != cloud.user -> Result("skipped", 0, 0, "account-changed")
                         dir == null -> Result("skipped", 0, 0, reason)
                         cloud == null -> Result("skipped", 0, 0, "not-signed-in")
                         else -> body(dir, cloud).also { if (it.result == "ok") markSynced(context, store, id) }
@@ -417,7 +418,7 @@ object CloudSaves {
             }
             val after = remote(cloud) { it in send }
             for (name in send) {
-                val r = after[name]
+                val r = cloud.committed(name) ?: after[name]
                 next[name] = CloudPlan.Entry(sentMd5.getValue(name), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
             }
         }

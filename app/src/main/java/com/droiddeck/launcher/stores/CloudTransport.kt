@@ -27,6 +27,7 @@ class CloudFile(val name: String, var modifiedMs: Long, var md5: String? = null,
 class CloudPut(val modifiedMs: Long, val md5: String?)
 
 interface CloudTransport {
+    fun committed(name: String): CloudFile? = null
     fun list(): List<CloudFile>
     fun details(file: CloudFile) {}
     fun get(file: CloudFile): Pair<ByteArray, Long>

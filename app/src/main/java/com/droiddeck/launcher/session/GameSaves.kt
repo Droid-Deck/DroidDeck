@@ -36,7 +36,21 @@ object GameSaves {
     fun savesDir(): File = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck/Saves")
     private fun backupsDir(): File = File(savesDir(), "backups")
 
-    fun game(game: Library.SteamGame): Game = Game(game, game.protonPrefix, game.protonPrefix?.let { locate(it, game) } ?: emptyList())
+    fun game(context: Context, game: Library.SteamGame): Game = Game(game, game.protonPrefix, game.protonPrefix?.let { saves(context, it, game) } ?: emptyList())
+
+    fun saves(context: Context, prefix: File, game: Library.SteamGame): List<SaveDir> =
+        if (ubisoft(game)) ubisoftSaves(prefix, game, com.droiddeck.launcher.stores.ubisoft.UbisoftAuth.load(context)?.userId) else locate(prefix, game)
+
+    private fun ubisoft(game: Library.SteamGame) = game.source == com.droiddeck.launcher.stores.Store.UBISOFT.id
+
+    private fun ubisoftSaves(prefix: File, game: Library.SteamGame, user: String?): List<SaveDir> {
+        val product = game.gameFiles?.let { com.droiddeck.launcher.stores.StoreGameSidecar.read(it) }?.extra?.get("productId")?.toLongOrNull() ?: return emptyList()
+        if (user.isNullOrEmpty() || user.contains('/') || user.contains("..")) return emptyList()
+        val rel = "Saved Games/Ubisoft/$user/$product"
+        val dir = File(profile(prefix), rel)
+        val files = dir.walkTopDown().filter { it.isFile }.toList()
+        return if (files.isEmpty()) emptyList() else listOf(SaveDir(rel, files.size, files.sumOf { it.length() }))
+    }
 
 
     private val SAVE_ROOTS = listOf("Documents/My Games", "Saved Games", "AppData/Roaming", "Documents", "AppData/Local", "AppData/LocalLow")
@@ -111,7 +125,8 @@ object GameSaves {
         val prefix = game.prefix ?: error(context.getString(R.string.saves_not_launched, game.game.name))
         dir.mkdirs()
         val out = File(dir, "${safe(game.game.name)}_${stamp()}.zip")
-        val count = zipProfile(profile(prefix), game.saves.map { it.relPath }.ifEmpty { null }, layout, out)
+        val roots = game.saves.map { it.relPath }
+        val count = if (roots.isEmpty() && ubisoft(game.game)) 0 else zipProfile(profile(prefix), roots.ifEmpty { null }, layout, out)
         if (count == 0) { out.delete(); error(context.getString(R.string.saves_none_found, game.game.name)) }
         return out to count
     }

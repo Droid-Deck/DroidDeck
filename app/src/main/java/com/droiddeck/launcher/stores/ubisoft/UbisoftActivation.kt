@@ -30,12 +30,15 @@ object UbisoftActivation {
             dir.mkdirs()
             dir.listFiles()?.forEach { it.delete() }
         }
+        val owner = UbisoftAuth.load(app)?.userId
         Thread({
             var idleSince = 0L
             while (true) {
                 runCatching {
-                    File(dir, INVALIDATE).takeIf { it.delete() }?.let { invalidate(app, product) }
-                    dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }?.forEach { answer(app, product, it) }
+                    val marker = File(dir, INVALIDATE)
+                    if (marker.exists() && invalidate(app, product, owner)) marker.delete()
+                    val pending = marker.exists()
+                    dir.listFiles { f -> f.name.startsWith("denuvo-") && f.name.endsWith(".req") }?.forEach { answer(app, product, it, owner, pending) }
                 }
                     .onFailure { StoresState.logLine("Ubisoft: activation for $product: ${it.javaClass.simpleName}") }
                 val now = System.currentTimeMillis()
@@ -49,23 +52,26 @@ object UbisoftActivation {
         }, "ubisoft-activation-$product").start()
     }
 
-    private fun answer(app: Context, product: Long, request: File) {
+    private fun answer(app: Context, product: Long, request: File, owner: String?, pending: Boolean) {
         val challenge = runCatching { request.readBytes() }.getOrNull() ?: return
         request.delete()
         val reply = File(request.parentFile, request.name.removeSuffix(".req").removeSuffix(".cache") + ".rsp")
-        val token = activate(app, product, challenge, cached = request.name.endsWith(".cache.req"))
+        val token = activate(app, product, challenge, owner, cached = request.name.endsWith(".cache.req") && !pending)
         val part = File(reply.path + ".part")
         part.writeBytes(token ?: ByteArray(0))
         part.renameTo(reply)
     }
 
-    private fun invalidate(app: Context, product: Long) {
-        val user = UbisoftAuth.current(app)?.userId ?: return
-        if (TokenCache(cacheDir(app)).drop(user, product)) StoresState.logLine("Ubisoft: activation for $product: kept game token dropped")
+    private fun invalidate(app: Context, product: Long, owner: String?): Boolean {
+        val user = owner ?: UbisoftAuth.load(app)?.userId ?: return false
+        val gone = TokenCache(cacheDir(app)).drop(user, product)
+        if (gone) StoresState.logLine("Ubisoft: activation for $product: kept game token dropped")
+        return gone
     }
 
-    private fun activate(app: Context, product: Long, challenge: ByteArray, cached: Boolean): ByteArray? {
+    private fun activate(app: Context, product: Long, challenge: ByteArray, owner: String?, cached: Boolean): ByteArray? {
         val s = UbisoftAuth.current(app) ?: return null.also { StoresState.logLine("Ubisoft: activation for $product: signed out") }
+        if (owner != null && s.userId != owner) return null.also { StoresState.logLine("Ubisoft: activation for $product: the signed-in account changed") }
         val cache = TokenCache(cacheDir(app))
         if (cached) cache.get(s.userId, product)?.let {
             StoresState.logLine("Ubisoft: activation for $product: kept ${it.size} B game token")
@@ -98,7 +104,7 @@ object UbisoftActivation {
             check(part.renameTo(target))
         }.isSuccess
 
-        fun drop(user: String, product: Long): Boolean = file(user, product).delete()
+        fun drop(user: String, product: Long): Boolean = file(user, product).let { it.delete() || !it.exists() }
     }
 
     internal fun hex(b: ByteArray): String = b.joinToString("") { "%02x".format(it) }

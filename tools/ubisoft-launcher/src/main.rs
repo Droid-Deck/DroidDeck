@@ -186,8 +186,14 @@ mod service {
         let _ = std::fs::remove_file(&rsp);
         let part = dir.join(format!("denuvo-{rid}.req.part"));
         std::fs::write(&part, challenge).ok()?;
-        let kind = if state.stale_token.swap(false, Ordering::SeqCst) { "req" } else { "cache.req" };
-        std::fs::rename(&part, dir.join(format!("denuvo-{rid}.{kind}"))).ok()?;
+        let stale = state.stale_token.swap(false, Ordering::SeqCst);
+        let kind = if stale { "req" } else { "cache.req" };
+        if std::fs::rename(&part, dir.join(format!("denuvo-{rid}.{kind}"))).is_err() {
+            if stale {
+                state.stale_token.store(true, Ordering::SeqCst);
+            }
+            return None;
+        }
         let deadline = Instant::now() + DENUVO_WAIT;
         while Instant::now() < deadline {
             if let Ok(token) = std::fs::read(&rsp) {

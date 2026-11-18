@@ -75,7 +75,7 @@ internal class UbisoftCloud(private val session: UbisoftAuth.Session, val produc
         return try {
             when (c.responseCode) {
                 404 -> null
-                in 200..299 -> inflate(c.inputStream.use { it.readBytes() })
+                in 200..299 -> c.inputStream.use(::inflate)
                 else -> error("Ubisoft cloud save download answered ${c.responseCode}")
             }
         } finally {
@@ -115,33 +115,46 @@ internal class UbisoftCloud(private val session: UbisoftAuth.Session, val produc
             return out.toByteArray()
         }
 
-        internal fun inflate(data: ByteArray): ByteArray {
+        internal fun inflate(data: ByteArray): ByteArray = inflate(data.inputStream())
+
+        internal fun inflate(input: java.io.InputStream): ByteArray {
             val inflater = Inflater()
-            inflater.setInput(data)
-            val out = ByteArrayOutputStream(data.size * 3)
+            val out = ByteArrayOutputStream(64 * 1024)
             val buffer = ByteArray(64 * 1024)
+            val chunk = ByteArray(64 * 1024)
             try {
                 while (!inflater.finished()) {
+                    if (inflater.needsInput()) {
+                        val read = input.read(chunk)
+                        if (read < 0) error("Ubisoft cloud save is truncated")
+                        inflater.setInput(chunk, 0, read)
+                        continue
+                    }
+                    if (inflater.needsDictionary()) error("Ubisoft cloud save is truncated")
                     val n = inflater.inflate(buffer)
-                    if (n == 0 && (inflater.needsInput() || inflater.needsDictionary())) error("Ubisoft cloud save is truncated")
+                    check(out.size().toLong() + n <= MAX_SAVE) { "Ubisoft cloud save is too large" }
                     out.write(buffer, 0, n)
-                    check(out.size() <= MAX_SAVE) { "Ubisoft cloud save is too large" }
                 }
             } finally {
                 inflater.end()
             }
             return out.toByteArray()
         }
+
+        internal fun version(slot: Slot): String = "${slot.size}:${slot.modifiedMs}:${slot.hash}"
     }
 }
 
-internal class UbisoftCloudTransport(private val cloud: UbisoftCloud) : CloudTransport {
+internal class UbisoftCloudTransport(private val cloud: UbisoftCloud, val user: String) : CloudTransport {
     private var listed: UbisoftCloud.Entity? = null
+    private val committed = HashMap<String, CloudFile>()
+
+    override fun committed(name: String): CloudFile? = committed[name]
 
     override fun list(): List<CloudFile> {
         val entity = cloud.entity()
         listed = entity
-        return entity?.slots.orEmpty().map { CloudFile(it.filename + SUFFIX, it.modifiedMs) }
+        return entity?.slots.orEmpty().map { CloudFile(it.filename + SUFFIX, it.modifiedMs, UbisoftCloud.version(it)) }
     }
 
     override fun get(file: CloudFile): Pair<ByteArray, Long> {
@@ -161,6 +174,7 @@ internal class UbisoftCloudTransport(private val cloud: UbisoftCloud) : CloudTra
         val slots = JSONArray(current.json.optJSONObject("obj")?.optJSONArray("slots")?.toString() ?: "[]")
         for ((name, data) in files) {
             val slot = name.removeSuffix(SUFFIX)
+            check(cloud.entity()?.revision == current.revision) { "Ubisoft's cloud saves changed since they were read" }
             cloud.upload(slot, data)
             val entry = (0 until slots.length()).map { slots.getJSONObject(it) }.firstOrNull { it.optString("filename") == slot }
                 ?: JSONObject().put("filename", slot).also { if (slot.toIntOrNull() != null) it.put("id", slot.toInt()); slots.put(it) }
@@ -168,6 +182,11 @@ internal class UbisoftCloudTransport(private val cloud: UbisoftCloud) : CloudTra
         }
         cloud.update(current, slots)
         listed = null
+        val stamp = UbisoftAuth.parseTime(Instant.ofEpochMilli(now).toString())
+        for ((name, data) in files) {
+            val slot = UbisoftCloud.Slot(0, name.removeSuffix(SUFFIX), marks.getValue(name), data.size.toLong(), stamp)
+            committed[name] = CloudFile(name, stamp, UbisoftCloud.version(slot))
+        }
         return files.mapValues { now }
     }
 
