@@ -77,6 +77,7 @@ object CompositorHost {
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
         WaylandCompositor.nativeSetPresentCadence(SessionPrefs.presentCadence(context))
+        WaylandCompositor.nativeSetGameOnOtherDisplay(gameOnOtherDisplay)
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(context)
         WaylandCompositor.nativeSetBlackFrameInsertion(blackFrameInsertion)
         pace(refreshHz, fpsLimit)
@@ -114,12 +115,16 @@ object CompositorHost {
     }
 
     fun setPresentCadence(on: Boolean) {
-        WaylandCompositor.nativeSetPresentCadence(on)
+        if (started) WaylandCompositor.nativeSetPresentCadence(on)
     }
+
+    @Volatile
+    private var gameOnOtherDisplay = false
 
     /** Pacing follows the phone screen's refreshes, so it waits while the game is drawn on any other display. */
     fun setGameOnOtherDisplay(on: Boolean) {
-        WaylandCompositor.nativeSetGameOnOtherDisplay(on)
+        gameOnOtherDisplay = on
+        if (started) WaylandCompositor.nativeSetGameOnOtherDisplay(on)
     }
 
     @Synchronized
@@ -177,6 +182,7 @@ object CompositorHost {
         if (surface != null && attached != null && attached !== surface) return
         attached = null
         pauseVsync()
+        gameOnOtherDisplay = false
         WaylandCompositor.nativeSetGameOnOtherDisplay(false)
         WaylandCompositor.nativeSetSurface(null)
     }
