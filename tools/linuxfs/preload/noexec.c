@@ -25,7 +25,7 @@ static int in_fex(void) {
   return known;
 }
 
-__attribute__((visibility("hidden"))) int bl_noexec_retry(int prot, int flags, int fd) {
+__attribute__((visibility("hidden"))) int dd_noexec_retry(int prot, int flags, int fd) {
   int error = errno;
   struct statvfs vfs;
   int retry = (error == EACCES || error == EPERM) && (prot & PROT_EXEC) && fd >= 0 && !(flags & MAP_ANONYMOUS) &&
@@ -146,7 +146,7 @@ int mprotect(void *addr, size_t len, int prot) {
 
 #else
 
-__attribute__((visibility("hidden"))) int bl_noexec_retry(int prot, int flags, int fd) {
+__attribute__((visibility("hidden"))) int dd_noexec_retry(int prot, int flags, int fd) {
   (void)prot, (void)flags, (void)fd;
   return 0;
 }

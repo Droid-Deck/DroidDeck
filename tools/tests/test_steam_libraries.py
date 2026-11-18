@@ -63,9 +63,9 @@ class LibraryListTest(unittest.TestCase):
 
     def run_main(self, listing=True):
         with patch.dict(os.environ), patch("sys.argv", ["droiddeck-steam-library", str(self.steam)]):
-            os.environ.pop("BL_STEAM_LIBRARIES", None)
+            os.environ.pop("DD_STEAM_LIBRARIES", None)
             if listing:
-                os.environ["BL_STEAM_LIBRARIES"] = str(self.listing)
+                os.environ["DD_STEAM_LIBRARIES"] = str(self.listing)
             library.main()
         return self.vdf.read_text()
 

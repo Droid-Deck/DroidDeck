@@ -1,6 +1,6 @@
 
-#ifndef BANNER_DESKTOP_V1_SERVER_PROTOCOL_H
-#define BANNER_DESKTOP_V1_SERVER_PROTOCOL_H
+#ifndef DROIDDECK_DESKTOP_V1_SERVER_PROTOCOL_H
+#define DROIDDECK_DESKTOP_V1_SERVER_PROTOCOL_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -14,7 +14,7 @@ struct wl_client;
 struct wl_resource;
 
 /*
- * @section page_copyright_banner_desktop_v1 Copyright
+ * @section page_copyright_droiddeck_desktop_v1 Copyright
  *
  * Copyright 2026 The412Banner
  *
@@ -42,15 +42,15 @@ struct wl_resource;
 
 
 
-struct banner_desktop_v1;
+struct droiddeck_desktop_v1;
 struct wl_surface;
 
-#ifndef BANNER_DESKTOP_V1_INTERFACE
-#define BANNER_DESKTOP_V1_INTERFACE
-extern const struct wl_interface banner_desktop_v1_interface;
+#ifndef DROIDDECK_DESKTOP_V1_INTERFACE
+#define DROIDDECK_DESKTOP_V1_INTERFACE
+extern const struct wl_interface droiddeck_desktop_v1_interface;
 #endif
 
-struct banner_desktop_v1_interface {
+struct droiddeck_desktop_v1_interface {
 	void (*destroy)(struct wl_client *client,
 			struct wl_resource *resource);
 	void (*set_desktop)(struct wl_client *client,
@@ -68,10 +68,10 @@ struct banner_desktop_v1_interface {
 };
 
 
-#define BANNER_DESKTOP_V1_DESTROY_SINCE_VERSION 1
-#define BANNER_DESKTOP_V1_SET_DESKTOP_SINCE_VERSION 1
-#define BANNER_DESKTOP_V1_SET_WINDOW_SINCE_VERSION 1
-#define BANNER_DESKTOP_V1_SET_ZORDER_SINCE_VERSION 1
+#define DROIDDECK_DESKTOP_V1_DESTROY_SINCE_VERSION 1
+#define DROIDDECK_DESKTOP_V1_SET_DESKTOP_SINCE_VERSION 1
+#define DROIDDECK_DESKTOP_V1_SET_WINDOW_SINCE_VERSION 1
+#define DROIDDECK_DESKTOP_V1_SET_ZORDER_SINCE_VERSION 1
 
 #ifdef  __cplusplus
 }

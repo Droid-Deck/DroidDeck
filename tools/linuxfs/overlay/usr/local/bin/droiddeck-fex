@@ -60,7 +60,7 @@ PROVIDED_NEEDS = {
 }
 GLIBC_BUILD = re.compile(r"^(?:ld|lib[A-Za-z_]+)-2\.[0-9]+\.so$|^libSegFault\.so$")
 GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gnu"))
-PRELOAD_NAMES = ("libblsession.so", "libfakeinput.so")
+PRELOAD_NAMES = ("libddsession.so", "libfakeinput.so")
 FAULT_REPORT = "libfaultreport.so"
 VULKAN_PIN = "libvulkan-thunk.so"
 VULKAN_PIN_DIR = "lib/x86_64-linux-gnu/droiddeck/vulkan"
@@ -182,7 +182,7 @@ def own_fex_loads():
 
 
 def update_own_fex():
-    wanted = os.environ.get("BL_FEX_TAG")
+    wanted = os.environ.get("DD_FEX_TAG")
     if not wanted:
         return
     if (read_text(OWN_FEX_TAG) or "").strip() == wanted and own_fex_loads():

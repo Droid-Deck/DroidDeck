@@ -151,7 +151,7 @@ tools/droiddeckctl env set DXVK_HUD=fps
 tools/droiddeckctl env list
 tools/droiddeckctl env clear [next|persistent|all]
 tools/droiddeckctl override gamescope ./gamescope
-tools/droiddeckctl override libblfastpath.so ./libblfastpath.so
+tools/droiddeckctl override libddfastpath.so ./libddfastpath.so
 tools/droiddeckctl proot-profile enable --slow-us 1000
 tools/droiddeckctl proot-profile disable
 tools/droiddeckctl proot-profile report ./session.log --sort wall
@@ -436,7 +436,7 @@ through first, since the launcher window carries the game's app id too:
 `proot-profile enable` queues handler profiling for the next session using the existing debugging
 consent gate. Counters and bounded slow samples appear in `session.log`; `proot-profile report`
 ranks a saved local log without ADB. This measures PRoot handler work, not full syscall latency.
-`override libblfastpath.so FILE` selects a glibc ARM64 shared library in the next session's preload
+`override libddfastpath.so FILE` selects a glibc ARM64 shared library in the next session's preload
 list, reports its SHA-256, and refuses installation until the current session stops. It lasts for
 one session; the next session stages the bundled library again. See
 [the profiling workflow](development/proot-performance.md#finding-the-next-fast-path) for timing

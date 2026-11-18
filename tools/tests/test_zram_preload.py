@@ -266,7 +266,7 @@ class ZramPreloadTest(unittest.TestCase):
         build = cls.dir / "build"
         build.mkdir()
         (build / "program.c").write_text(PROGRAM)
-        cls.lib = build / "libblsession.so"
+        cls.lib = build / "libddsession.so"
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-DZR_CTL=\"%s\"" % cls.ctl,
                         "-o", str(cls.lib), *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
         cls.steam = cls.dir / "steam"
