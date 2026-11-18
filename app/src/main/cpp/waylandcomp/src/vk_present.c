@@ -2179,7 +2179,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         VkImageLayout result_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         if (fx) {
             int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
-            if (fg) { mapped_w = scene_w; mapped_h = scene_h; }
+            if (fg && !vkp_effects_sharpening()) { mapped_w = scene_w; mapped_h = scene_h; }
             vkp_effects_set_formats(scene_fmt, scene_fmt);
             result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h, &rw, &rh);
             effects_overlay_draws(cmd, result, rw, rh, scene_w, scene_h,
