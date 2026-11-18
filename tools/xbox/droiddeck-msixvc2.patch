@@ -1,0 +1,846 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 5dfc09a..15198af 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -83,6 +83,21 @@ dependencies = [
+  "memchr",
+ ]
+ 
++[[package]]
++name = "alloc-no-stdlib"
++version = "2.0.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cc7bb162ec39d46ab1ca8c77bf72e890535becd1751bb45f64c597edb4c8c6b3"
++
++[[package]]
++name = "alloc-stdlib"
++version = "0.2.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0e76a019e91224d279006ff972f1e984179a6e9feb050adba6ce8274aef23195"
++dependencies = [
++ "alloc-no-stdlib",
++]
++
+ [[package]]
+ name = "android_system_properties"
+ version = "0.1.6"
+@@ -586,6 +601,16 @@ dependencies = [
+  "objc2",
+ ]
+ 
++[[package]]
++name = "brotli-decompressor"
++version = "5.0.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3a32acac15fe1967bc3986b2a6347dffc965602354ea6f450ad07e8bfd253583"
++dependencies = [
++ "alloc-no-stdlib",
++ "alloc-stdlib",
++]
++
+ [[package]]
+ name = "bstr"
+ version = "1.13.1"
+@@ -728,6 +753,33 @@ dependencies = [
+  "windows-link 0.2.1",
+ ]
+ 
++[[package]]
++name = "ciborium"
++version = "0.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e"
++dependencies = [
++ "ciborium-io",
++ "ciborium-ll",
++ "serde",
++]
++
++[[package]]
++name = "ciborium-io"
++version = "0.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757"
++
++[[package]]
++name = "ciborium-ll"
++version = "0.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
++dependencies = [
++ "ciborium-io",
++ "half",
++]
++
+ [[package]]
+ name = "cipher"
+ version = "0.4.4"
+@@ -1055,6 +1107,12 @@ dependencies = [
+  "winapi",
+ ]
+ 
++[[package]]
++name = "crunchy"
++version = "0.2.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
++
+ [[package]]
+ name = "crypto-bigint"
+ version = "0.5.5"
+@@ -2370,6 +2428,17 @@ dependencies = [
+  "tracing",
+ ]
+ 
++[[package]]
++name = "half"
++version = "2.7.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b"
++dependencies = [
++ "cfg-if",
++ "crunchy",
++ "zerocopy",
++]
++
+ [[package]]
+ name = "hash2curve"
+ version = "0.14.0"
+@@ -7178,9 +7247,13 @@ dependencies = [
+ name = "xodus-cli"
+ version = "0.1.0"
+ dependencies = [
++ "aes 0.9.3",
+  "async-trait",
+  "base64 0.23.1",
++ "brotli-decompressor",
++ "cbc 0.2.1",
+  "chrono",
++ "ciborium",
+  "clap",
+  "console-subscriber",
+  "ctrlc",
+@@ -7188,6 +7261,7 @@ dependencies = [
+  "flate2",
+  "fs2",
+  "futures-util",
++ "hmac 0.13.0",
+  "indicatif",
+  "inquire",
+  "msixvc",
+@@ -7196,6 +7270,7 @@ dependencies = [
+  "reqwest 0.13.4",
+  "rustix",
+  "serde_json",
++ "sha2 0.11.0",
+  "tao",
+  "tempfile",
+  "tokio",
+diff --git a/crates/xodus-cli/Cargo.toml b/crates/xodus-cli/Cargo.toml
+index f49470b..3579838 100644
+--- a/crates/xodus-cli/Cargo.toml
++++ b/crates/xodus-cli/Cargo.toml
+@@ -31,6 +31,12 @@ tempfile = "3.27.0"
+ rustix = "1.1.4"
+ ctrlc = "3.5.2"
+ nix = "0.31.3"
++aes = "0.9.2"
++cbc = "0.2.1"
++hmac = "0.13.0"
++sha2 = "0.11.0"
++ciborium = "0.2.2"
++brotli-decompressor = "5.0.0"
+ 
+ [features]
+ default = ["native-webview"]
+diff --git a/crates/xodus-cli/src/commands.rs b/crates/xodus-cli/src/commands.rs
+index 825c24e..c23f637 100644
+--- a/crates/xodus-cli/src/commands.rs
++++ b/crates/xodus-cli/src/commands.rs
+@@ -20,6 +20,7 @@ pub mod library;
+ #[cfg(unix)]
+ pub mod run;
+ pub mod splicense;
++pub mod msixvc2;
+ pub mod streaming;
+ 
+ pub mod native_social;
+diff --git a/crates/xodus-cli/src/commands/msixvc2.rs b/crates/xodus-cli/src/commands/msixvc2.rs
+new file mode 100644
+index 0000000..a649938
+--- /dev/null
++++ b/crates/xodus-cli/src/commands/msixvc2.rs
+@@ -0,0 +1,550 @@
++//! Installs an MSIXVC2 package: a small index archive whose files are stored as
++//! encrypted, compressed segments in `.box` blobs on the Xbox content hosts.
++use std::collections::HashMap;
++use std::io::{Read, Write};
++use std::path::{Component, Path, PathBuf};
++
++use aes::cipher::{BlockModeDecrypt, KeyIvInit, block_padding::NoPadding};
++use ciborium::Value;
++use futures_util::{StreamExt, stream};
++use hmac::{Hmac, Mac};
++use sha2::{Digest, Sha256, Sha384};
++
++const HOSTS: [&str; 4] = ["assets1.xboxlive.com", "assets2.xboxlive.com", "xvcf1.xboxlive.com", "xvcf2.xboxlive.com"];
++const KDF_LABEL: &[u8] = b"MSIXVC2:PackageData:AES_256_CBC";
++const MAX_REQUEST: u64 = 16 * 1024 * 1024;
++const PARALLEL: usize = 6;
++const BROTLI: u64 = 2;
++const DEFLATE: u64 = 1;
++
++pub fn is_package(folder: &Path) -> bool {
++    folder.join("XboxPackage.cbor").is_file()
++}
++
++/// The content id the package's keys are licensed under.
++pub fn content_id(folder: &Path) -> Result<String, String> {
++    let package = read_cbor(&folder.join("XboxPackage.cbor"))?;
++    text(&package, 260).map(str::to_owned).ok_or_else(|| "The package names no content id".to_string())
++}
++
++#[derive(Clone)]
++pub struct Segment {
++    hash: Vec<u8>,
++    length: u64,
++    compression: u64,
++    stored: u64,
++    key: Option<Vec<u8>>,
++    wrapped: Option<Vec<u8>>,
++    wrap_iv: [u8; 16],
++    box_hash: Option<Vec<u8>>,
++    box_index: usize,
++    offset: u64,
++    span: u64,
++}
++
++pub struct Entry {
++    pub path: PathBuf,
++    size: u64,
++    hash: Option<Vec<u8>>,
++    segments: Vec<Segment>,
++}
++
++pub struct Plan {
++    pub entries: Vec<Entry>,
++    boxes: Vec<String>,
++    package_key: [u8; 32],
++}
++
++impl Plan {
++    pub fn total(&self) -> u64 {
++        self.entries.iter().map(|entry| entry.size).sum()
++    }
++}
++
++/// `content_keys` maps a license key id (its 16-byte little-endian UUID form) to the key.
++pub async fn plan(client: &reqwest::Client, folder: &Path, content_keys: &HashMap<[u8; 16], [u8; 32]>) -> Result<Plan, String> {
++    let package = read_cbor(&folder.join("XboxPackage.cbor"))?;
++    let boxes: Vec<String> = list(&package, 264)
++        .ok_or("The package lists no content boxes")?
++        .iter()
++        .map(|item| text(item, 25).map(str::to_owned).ok_or("A content box has no location".to_string()))
++        .collect::<Result<_, _>>()?;
++    for location in &boxes {
++        if !location.starts_with('/') || location.contains("..") || location.contains("://") {
++            return Err("The package lists an unusable box location".into());
++        }
++    }
++    let package_key = package_key(&package, content_keys)?;
++    let initial = iv(&package, 27).unwrap_or([0; 16]);
++    let chunks = list(&package, 265).ok_or("The package lists no chunks")?;
++    let mut entries = Vec::new();
++    for chunk in chunks {
++        let id = int(chunk, 24).ok_or("A chunk has no id")?;
++        let secret = get(chunk, 26).ok_or("A chunk has no details")?;
++        let details = secret_details(client, &boxes, secret, initial, &package_key, chunks.len()).await?;
++        let names: Vec<String> = list(&details, 28)
++            .ok_or("A chunk's details list no files")?
++            .iter()
++            .map(|item| text(item, 25).map(str::to_owned).ok_or("A file has no name".to_string()))
++            .collect::<Result<_, _>>()?;
++        let layout = read_cbor(&folder.join("Chunks").join(format!("{id}.cbor")))?;
++        let files = list(&layout, 28).ok_or("A chunk lists no files")?;
++        if files.len() != names.len() {
++            return Err("A chunk's names and files disagree".into());
++        }
++        let mut rolling = iv(&layout, 27).unwrap_or([0; 16]);
++        for (file, name) in files.iter().zip(names) {
++            let size = int(file, 2).ok_or("A file has no size")?;
++            let hash = hash(file, 1);
++            let segments = match list(file, 29) {
++                Some(items) => segments(items, &mut rolling)?,
++                None => {
++                    let file_id = int(file, 24).ok_or("A file has no id")?;
++                    let detail = read_cbor(&folder.join("Files").join(format!("{file_id}.cbor")))?;
++                    let mut own = iv(&detail, 27).unwrap_or([0; 16]);
++                    segments(list(&detail, 29).ok_or("A file lists no segments")?, &mut own)?
++                }
++            };
++            if segments.iter().map(|segment| segment.length).sum::<u64>() != size {
++                return Err("A file's segments do not add up to its size".into());
++            }
++            entries.push(Entry { path: relative(&name)?, size, hash, segments });
++        }
++    }
++    Ok(Plan { entries, boxes, package_key })
++}
++
++/// Writes every file of `plan` under `out`, reporting written bytes through `progress`.
++pub async fn install(client: &reqwest::Client, plan: &Plan, out: &Path, progress: &(dyn Fn(u64) + Sync)) -> Result<(), String> {
++    for entry in &plan.entries {
++        let target = out.join(&entry.path);
++        if std::fs::metadata(&target).is_ok_and(|meta| meta.is_file() && meta.len() == entry.size) {
++            progress(entry.size);
++            continue;
++        }
++        if let Some(parent) = target.parent() {
++            std::fs::create_dir_all(parent).map_err(|error| format!("Could not create a game folder: {error}"))?;
++        }
++        let partial = target.with_file_name(format!(
++            "{}.part",
++            target.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()
++        ));
++        let mut file = std::fs::File::create(&partial).map_err(|error| format!("Could not write a game file: {error}"))?;
++        let mut digest = Sha384::new();
++        let mut results = stream::iter(requests(&entry.segments))
++            .map(|request| fetch_request(client, plan, request))
++            .buffered(PARALLEL);
++        while let Some(result) = results.next().await {
++            for plain in result? {
++                digest.update(&plain);
++                file.write_all(&plain).map_err(|error| format!("Could not write a game file: {error}"))?;
++                progress(plain.len() as u64);
++            }
++        }
++        file.flush().map_err(|error| format!("Could not write a game file: {error}"))?;
++        drop(file);
++        if let Some(expected) = &entry.hash
++            && digest.finalize().as_slice() != expected.as_slice()
++        {
++            std::fs::remove_file(&partial).ok();
++            return Err("A downloaded game file failed verification".into());
++        }
++        std::fs::rename(&partial, &target).map_err(|error| format!("Could not finish a game file: {error}"))?;
++    }
++    Ok(())
++}
++
++struct Request<'a> {
++    box_index: usize,
++    offset: u64,
++    length: u64,
++    segments: &'a [Segment],
++}
++
++fn requests(segments: &[Segment]) -> Vec<Request<'_>> {
++    let mut found: Vec<Request<'_>> = Vec::new();
++    let mut start = 0;
++    while start < segments.len() {
++        let first = &segments[start];
++        let mut end = start + 1;
++        let mut length = first.span;
++        while end < segments.len() {
++            let next = &segments[end];
++            if next.box_index != first.box_index || next.offset != first.offset + length || length + next.span > MAX_REQUEST {
++                break;
++            }
++            length += next.span;
++            end += 1;
++        }
++        found.push(Request { box_index: first.box_index, offset: first.offset, length, segments: &segments[start..end] });
++        start = end;
++    }
++    found
++}
++
++async fn fetch_request(client: &reqwest::Client, plan: &Plan, request: Request<'_>) -> Result<Vec<Vec<u8>>, String> {
++    let bytes = fetch(client, &plan.boxes[request.box_index], request.offset, request.length).await?;
++    let mut at = 0usize;
++    let mut plain = Vec::with_capacity(request.segments.len());
++    for segment in request.segments {
++        let stored = &bytes[at..at + segment.span as usize];
++        at += segment.span as usize;
++        plain.push(open(segment, stored, &plan.package_key)?);
++    }
++    Ok(plain)
++}
++
++async fn fetch(client: &reqwest::Client, location: &str, offset: u64, length: u64) -> Result<Vec<u8>, String> {
++    let mut last = String::new();
++    for attempt in 0..HOSTS.len() * 2 {
++        let host = HOSTS[attempt % HOSTS.len()];
++        let response = client
++            .get(format!("http://{host}{location}"))
++            .header("Range", format!("bytes={}-{}", offset, offset + length - 1))
++            .send()
++            .await;
++        match response {
++            Ok(response) if response.status().as_u16() == 206 => match response.bytes().await {
++                Ok(body) if body.len() as u64 == length => return Ok(body.to_vec()),
++                Ok(_) => last = "the content host sent a short range".into(),
++                Err(error) => last = error.to_string(),
++            },
++            Ok(response) => last = format!("the content host answered HTTP {}", response.status().as_u16()),
++            Err(error) => last = error.to_string(),
++        }
++        tokio::time::sleep(std::time::Duration::from_millis(500 * (attempt as u64 + 1))).await;
++    }
++    Err(format!("Could not download game data: {last}"))
++}
++
++fn open(segment: &Segment, stored: &[u8], package_key: &[u8; 32]) -> Result<Vec<u8>, String> {
++    if let Some(expected) = &segment.box_hash
++        && Sha384::digest(stored).as_slice() != expected.as_slice()
++    {
++        return Err("Downloaded game data failed verification".into());
++    }
++    let key = match (&segment.key, &segment.wrapped) {
++        (Some(key), _) => Some(key32(key)?),
++        (None, Some(wrapped)) => Some(key32(&cbc(package_key, &segment.wrap_iv, wrapped)?)?),
++        (None, None) => None,
++    };
++    let decrypted = match key {
++        Some(key) => {
++            let mut iv = [0u8; 16];
++            iv.copy_from_slice(segment.hash.get(..16).ok_or("A segment hash is too short")?);
++            cbc(&key, &iv, stored)?
++        }
++        None => stored.to_vec(),
++    };
++    let body = decrypted.get(..segment.stored as usize).ok_or("A segment is shorter than its stored size")?;
++    let plain = match segment.compression {
++        0 => body.to_vec(),
++        BROTLI => {
++            let mut out = Vec::with_capacity(segment.length as usize);
++            brotli_decompressor::Decompressor::new(body, 4096)
++                .take(segment.length + 1)
++                .read_to_end(&mut out)
++                .map_err(|_| "A segment could not be decompressed".to_string())?;
++            out
++        }
++        DEFLATE => {
++            let mut out = Vec::with_capacity(segment.length as usize);
++            flate2::read::DeflateDecoder::new(body)
++                .take(segment.length + 1)
++                .read_to_end(&mut out)
++                .map_err(|_| "A segment could not be decompressed".to_string())?;
++            out
++        }
++        _ => return Err("A segment uses an unsupported compression".into()),
++    };
++    if plain.len() as u64 != segment.length || Sha384::digest(&plain).as_slice() != segment.hash.as_slice() {
++        return Err("A game data segment failed verification".into());
++    }
++    Ok(plain)
++}
++
++async fn secret_details(
++    client: &reqwest::Client,
++    boxes: &[String],
++    secret: &Value,
++    initial: [u8; 16],
++    package_key: &[u8; 32],
++    chunks: usize,
++) -> Result<Value, String> {
++    let mut base = initial;
++    let segment = segment(secret, &mut base)?;
++    let stored = fetch(client, boxes.get(segment.box_index).ok_or("A chunk refers to a missing box")?, segment.offset, segment.span).await?;
++    for step in 0..=chunks as u128 {
++        let mut candidate = segment.clone();
++        if get(secret, 7).is_none() {
++            candidate.wrap_iv = (u128::from_be_bytes(initial).wrapping_add(step)).to_be_bytes();
++        }
++        if let Ok(plain) = open(&candidate, &stored, package_key) {
++            return ciborium::de::from_reader::<Value, _>(plain.as_slice())
++                .map(untag)
++                .map_err(|_| "A chunk's details are not readable".to_string());
++        }
++        if candidate.wrapped.is_none() {
++            break;
++        }
++    }
++    Err("Could not decrypt a chunk's details with this license".into())
++}
++
++fn package_key(package: &Value, content_keys: &HashMap<[u8; 16], [u8; 32]>) -> Result<[u8; 32], String> {
++    let groups = list(package, 262).ok_or("The package lists no keys")?;
++    for group in groups {
++        let sources = match group {
++            Value::Array(items) => items.as_slice(),
++            _ => continue,
++        };
++        for source in sources {
++            let Some(id) = text(source, 288).and_then(|id| hex(id).ok()) else { continue };
++            let Some(short) = id.get(..16).and_then(|bytes| <[u8; 16]>::try_from(bytes).ok()) else { continue };
++            let Some(master) = content_keys.get(&short) else { continue };
++            let context = bytes(source, 286).ok_or("A package key has no derivation context")?;
++            let wrap_iv = iv(source, 7).ok_or("A package key has no wrapping IV")?;
++            let wrapped = bytes(source, 6).ok_or("A package key is missing")?;
++            let kek = derive(master, context);
++            return key32(&cbc(&kek, &wrap_iv, wrapped)?);
++        }
++    }
++    Err("The license holds no key for this package".into())
++}
++
++fn derive(master: &[u8; 32], context: &[u8]) -> [u8; 32] {
++    let mut message = Vec::with_capacity(4 + KDF_LABEL.len() + 1 + context.len() + 4);
++    message.extend_from_slice(&1u32.to_be_bytes());
++    message.extend_from_slice(KDF_LABEL);
++    message.push(0);
++    message.extend_from_slice(context);
++    message.extend_from_slice(&256u32.to_be_bytes());
++    let mut mac = <Hmac<Sha256> as hmac::KeyInit>::new_from_slice(master).expect("HMAC takes any key length");
++    mac.update(&message);
++    mac.finalize().into_bytes().into()
++}
++
++fn cbc(key: &[u8; 32], iv: &[u8; 16], data: &[u8]) -> Result<Vec<u8>, String> {
++    if data.len() % 16 != 0 {
++        return Err("Encrypted game data is not block aligned".into());
++    }
++    let mut out = data.to_vec();
++    cbc::Decryptor::<aes::Aes256>::new(key.into(), iv.into())
++        .decrypt_padded::<NoPadding>(&mut out)
++        .map_err(|_| "Game data could not be decrypted".to_string())?;
++    Ok(out)
++}
++
++fn segments(items: &[Value], rolling: &mut [u8; 16]) -> Result<Vec<Segment>, String> {
++    items.iter().map(|item| segment(item, rolling)).collect()
++}
++
++fn segment(item: &Value, rolling: &mut [u8; 16]) -> Result<Segment, String> {
++    let length = int(item, 2).ok_or("A segment has no length")?;
++    let segment = Segment {
++        hash: hash(item, 1).ok_or("A segment has no hash")?,
++        length,
++        compression: int(item, 3).unwrap_or(0),
++        stored: int(item, 4).unwrap_or(length),
++        key: bytes(item, 5).map(<[u8]>::to_vec),
++        wrapped: bytes(item, 6).map(<[u8]>::to_vec),
++        wrap_iv: iv(item, 7).unwrap_or(*rolling),
++        box_hash: hash(item, 8),
++        box_index: int(item, 9).unwrap_or(0) as usize,
++        offset: int(item, 10).unwrap_or(0),
++        span: int(item, 11).unwrap_or(length),
++    };
++    if segment.stored > segment.span {
++        return Err("A segment is larger than its stored range".into());
++    }
++    *rolling = u128::from_be_bytes(*rolling).wrapping_add(1).to_be_bytes();
++    Ok(segment)
++}
++
++fn relative(name: &str) -> Result<PathBuf, String> {
++    let path = PathBuf::from(name.replace('\\', "/"));
++    if name.is_empty() || name.contains(':') || !path.components().all(|part| matches!(part, Component::Normal(_))) {
++        return Err("The package names an unusable file path".into());
++    }
++    Ok(path)
++}
++
++fn read_cbor(path: &Path) -> Result<Value, String> {
++    let file = std::fs::File::open(path).map_err(|_| "The package index is incomplete".to_string())?;
++    ciborium::de::from_reader::<Value, _>(std::io::BufReader::new(file))
++        .map(untag)
++        .map_err(|_| "The package index is not readable".to_string())
++}
++
++fn untag(value: Value) -> Value {
++    match value {
++        Value::Tag(_, inner) => untag(*inner),
++        other => other,
++    }
++}
++
++fn get(value: &Value, key: u64) -> Option<&Value> {
++    let Value::Map(entries) = value else { return None };
++    entries.iter().find_map(|(k, v)| match k {
++        Value::Integer(number) if u64::try_from(*number).ok() == Some(key) => Some(v),
++        _ => None,
++    })
++}
++
++fn int(value: &Value, key: u64) -> Option<u64> {
++    match get(value, key)? {
++        Value::Integer(number) => u64::try_from(*number).ok(),
++        _ => None,
++    }
++}
++
++fn text(value: &Value, key: u64) -> Option<&str> {
++    match get(value, key)? {
++        Value::Text(text) => Some(text),
++        _ => None,
++    }
++}
++
++fn bytes(value: &Value, key: u64) -> Option<&[u8]> {
++    match get(value, key)? {
++        Value::Bytes(bytes) => Some(bytes),
++        Value::Tag(_, inner) => match inner.as_ref() {
++            Value::Bytes(bytes) => Some(bytes),
++            _ => None,
++        },
++        _ => None,
++    }
++}
++
++fn hash(value: &Value, key: u64) -> Option<Vec<u8>> {
++    bytes(value, key).filter(|bytes| bytes.len() == 48).map(<[u8]>::to_vec)
++}
++
++fn iv(value: &Value, key: u64) -> Option<[u8; 16]> {
++    bytes(value, key).and_then(|bytes| <[u8; 16]>::try_from(bytes).ok())
++}
++
++fn list(value: &Value, key: u64) -> Option<&[Value]> {
++    match get(value, key)? {
++        Value::Array(items) => Some(items),
++        _ => None,
++    }
++}
++
++fn key32(bytes: &[u8]) -> Result<[u8; 32], String> {
++    <[u8; 32]>::try_from(bytes.get(..32).ok_or("A key is too short")?).map_err(|_| "A key is too short".to_string())
++}
++
++fn hex(text: &str) -> Result<Vec<u8>, ()> {
++    if text.len() % 2 != 0 {
++        return Err(());
++    }
++    (0..text.len()).step_by(2).map(|at| u8::from_str_radix(&text[at..at + 2], 16).map_err(|_| ())).collect()
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use aes::cipher::BlockModeEncrypt;
++
++    fn encrypt(key: &[u8; 32], iv: &[u8; 16], data: &[u8]) -> Vec<u8> {
++        let mut out = data.to_vec();
++        cbc::Encryptor::<aes::Aes256>::new(key.into(), iv.into()).encrypt_padded::<NoPadding>(&mut out, data.len()).unwrap();
++        out
++    }
++
++    fn sealed(plain: &[u8], segment_key: &[u8; 32]) -> (Segment, Vec<u8>) {
++        let hash = Sha384::digest(plain).to_vec();
++        let mut padded = plain.to_vec();
++        padded.resize(plain.len().div_ceil(16) * 16, 0);
++        let mut iv = [0u8; 16];
++        iv.copy_from_slice(&hash[..16]);
++        let stored = encrypt(segment_key, &iv, &padded);
++        let segment = Segment {
++            hash,
++            length: plain.len() as u64,
++            compression: 0,
++            stored: plain.len() as u64,
++            key: Some(segment_key.to_vec()),
++            wrapped: None,
++            wrap_iv: [0; 16],
++            box_hash: Some(Sha384::digest(&stored).to_vec()),
++            box_index: 0,
++            offset: 0,
++            span: stored.len() as u64,
++        };
++        (segment, stored)
++    }
++
++    #[test]
++    fn a_segment_opens_only_with_its_key_and_hashes() {
++        let (segment, stored) = sealed(b"game data that is not block aligned", &[7; 32]);
++        assert_eq!(open(&segment, &stored, &[0; 32]).unwrap(), b"game data that is not block aligned");
++        let mut tampered = stored.clone();
++        tampered[3] ^= 1;
++        assert!(open(&segment, &tampered, &[0; 32]).is_err());
++        let wrong = Segment { key: Some(vec![8; 32]), box_hash: None, ..segment };
++        assert!(open(&wrong, &stored, &[0; 32]).is_err());
++    }
++
++    #[test]
++    fn a_wrapped_segment_key_is_unwrapped_with_the_package_key() {
++        let package_key = [3u8; 32];
++        let segment_key = [9u8; 32];
++        let wrap_iv = [5u8; 16];
++        let (segment, stored) = sealed(b"wrapped", &segment_key);
++        let wrapped = Segment { key: None, wrapped: Some(encrypt(&package_key, &wrap_iv, &segment_key)), wrap_iv, ..segment };
++        assert_eq!(open(&wrapped, &stored, &package_key).unwrap(), b"wrapped");
++    }
++
++    #[test]
++    fn adjacent_segments_in_one_box_share_a_request() {
++        let (segment, _) = sealed(b"x", &[1; 32]);
++        let at = |box_index: usize, offset: u64| Segment { box_index, offset, span: 16, ..segment.clone() };
++        let parts = [at(0, 0), at(0, 16), at(0, 48), at(1, 64)];
++        let shape: Vec<(usize, u64, u64, usize)> =
++            requests(&parts).iter().map(|r| (r.box_index, r.offset, r.length, r.segments.len())).collect();
++        assert_eq!(shape, [(0, 0, 32, 2), (0, 48, 16, 1), (1, 64, 16, 1)]);
++    }
++
++    #[test]
++    fn the_rolling_wrap_iv_advances_per_segment_and_an_explicit_one_wins() {
++        let item = |explicit: bool| {
++            let mut map = vec![
++                (Value::Integer(1.into()), Value::Bytes(vec![0; 48])),
++                (Value::Integer(2.into()), Value::Integer(4.into())),
++            ];
++            if explicit {
++                map.push((Value::Integer(7.into()), Value::Bytes(vec![0xee; 16])));
++            }
++            Value::Map(map)
++        };
++        let mut rolling = [0u8; 16];
++        rolling[15] = 0xff;
++        let found = segments(&[item(false), item(true), item(false)], &mut rolling).unwrap();
++        assert_eq!(found[0].wrap_iv[14..], [0x00, 0xff]);
++        assert_eq!(found[1].wrap_iv, [0xee; 16]);
++        assert_eq!(found[2].wrap_iv[14..], [0x01, 0x01]);
++    }
++
++    #[test]
++    fn package_paths_stay_inside_the_install_folder() {
++        assert_eq!(relative("EmuMenu\\EmuMenu.exe").unwrap(), PathBuf::from("EmuMenu/EmuMenu.exe"));
++        for bad in ["", "..\\x", "/abs", "a\\..\\..\\b", "C:\\x"] {
++            assert!(relative(bad).is_err(), "{bad}");
++        }
++    }
++
++    #[test]
++    fn the_key_derivation_matches_sp800_108_counter_mode() {
++        let derived = derive(&[0x42; 32], b"ctx");
++        let mut message = 1u32.to_be_bytes().to_vec();
++        message.extend_from_slice(KDF_LABEL);
++        message.push(0);
++        message.extend_from_slice(b"ctx");
++        message.extend_from_slice(&256u32.to_be_bytes());
++        let mut mac = <Hmac<Sha256> as hmac::KeyInit>::new_from_slice(&[0x42; 32]).unwrap();
++        mac.update(&message);
++        assert_eq!(derived.as_slice(), mac.finalize().into_bytes().as_slice());
++    }
++}
+diff --git a/crates/xodus-cli/src/commands/store_delivery.rs b/crates/xodus-cli/src/commands/store_delivery.rs
+index 7fec6e5..d34b402 100644
+--- a/crates/xodus-cli/src/commands/store_delivery.rs
++++ b/crates/xodus-cli/src/commands/store_delivery.rs
+@@ -363,16 +363,6 @@ async fn download_url(
+     Err(format!("No download location was issued for {}", revision.name))
+ }
+ 
+-/// Resolves the legacy packages of a Store product through Windows Update.
+-pub async fn resolve(
+-    client: &reqwest::Client,
+-    product: &str,
+-    market: &str,
+-) -> Result<Delivery, String> {
+-    let category = category(client, product, market).await?;
+-    resolve_category(client, &category).await
+-}
+-
+ /// Every build of a Store product Windows Update lists, newest first. Each build
+ /// has its own content id, and Microsoft can refuse keys for one but not another.
+ pub struct Builds {
+@@ -438,16 +428,6 @@ fn builds_newest_first(revisions: Vec<Revision>) -> Vec<Vec<Revision>> {
+     groups.into_iter().filter(|group| !group.is_empty()).collect()
+ }
+ 
+-/// The packages a Windows Update category lists, in the containers a title is
+-/// packed in.
+-pub async fn resolve_category(client: &reqwest::Client, category: &str) -> Result<Delivery, String> {
+-    resolve_wanted(client, category, true, |name| {
+-        let lower = name.to_ascii_lowercase();
+-        lower.ends_with(".eappx") || lower.ends_with(".eappxbundle")
+-    })
+-    .await
+-}
+-
+ /// The plain `.appx` packages a category lists, which is how a framework ships.
+ pub async fn resolve_frameworks(client: &reqwest::Client, category: &str) -> Result<Delivery, String> {
+     resolve_wanted(client, category, false, |name| name.to_ascii_lowercase().ends_with(".appx")).await
+diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
+index 23d228d..6c01f3c 100644
+--- a/crates/xodus-cli/src/commands/streaming.rs
++++ b/crates/xodus-cli/src/commands/streaming.rs
+@@ -361,7 +361,11 @@ where
+         return ExitCode::FAILURE;
+     }
+     if plain {
+-        return plain_package(remote_file, l, out).await;
++        let code = plain_package(remote_file, l, out).await;
++        if code != ExitCode::SUCCESS || !crate::commands::msixvc2::is_package(out) {
++            return code;
++        }
++        return boxed_package(client, tokens, out, market, tx).await;
+     }
+     let remote_xvd = match XvdFile::parse(&mut remote_file).await {
+         Ok(xvd) => xvd,
+@@ -839,6 +843,67 @@ async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &P
+     }
+ }
+ 
++async fn boxed_package(
++    client: &reqwest::Client,
++    tokens: &TokenManager,
++    out: &Path,
++    market: Option<String>,
++    tx: &Sender<ProgressEvent>,
++) -> ExitCode {
++    let fail = |message: &str| {
++        eprintln!("NEXUS_TRANSFER_DIAGNOSTIC_V1 boxed-package-failed 0");
++        eprintln!("{message}");
++        ExitCode::FAILURE
++    };
++    let content_id = match crate::commands::msixvc2::content_id(out) {
++        Ok(id) => id,
++        Err(error) => return fail(&error),
++    };
++    let (device_key, license) = match get_license(client, tokens, content_id, market.unwrap_or("neutral".to_string()), None, false).await {
++        Ok(found) => found,
++        Err(error) => {
++            eprintln!("{error}");
++            return ExitCode::FAILURE;
++        }
++    };
++    let mut keys = HashMap::new();
++    for (id, packed) in license.content_keys {
++        let Ok(key) = packed.unpack(&device_key) else {
++            return fail("The content key could not be authenticated. Retry the installation or sign in again.");
++        };
++        if let Ok(key) = <[u8; 32]>::try_from(&key[..]) {
++            keys.insert(id.to_bytes_le(), key);
++        }
++    }
++    tx.send(ProgressEvent::UpdateStatus { name: "Preparing".to_owned() }).await.ok();
++    let plan = match crate::commands::msixvc2::plan(client, out, &keys).await {
++        Ok(plan) => plan,
++        Err(error) => return fail(&error),
++    };
++    let total = plan.total();
++    tx.send(ProgressEvent::UpdateRemaining { name: "Downloading".to_owned(), total }).await.ok();
++    tx.send(ProgressEvent::Started { id: 0, name: "Game files".to_owned(), total }).await.ok();
++    let pending = std::sync::atomic::AtomicU64::new(0);
++    let report = |written: u64| {
++        let delta = pending.fetch_add(written, std::sync::atomic::Ordering::Relaxed) + written;
++        if tx.try_send(ProgressEvent::Advanced { id: 0, delta }).is_ok() {
++            pending.fetch_sub(delta, std::sync::atomic::Ordering::Relaxed);
++        }
++    };
++    let installed = crate::commands::msixvc2::install(client, &plan, out, &report).await;
++    let rest = pending.swap(0, std::sync::atomic::Ordering::Relaxed);
++    if rest > 0 {
++        tx.send(ProgressEvent::Advanced { id: 0, delta: rest }).await.ok();
++    }
++    match installed {
++        Ok(()) => {
++            tx.send(ProgressEvent::Finished { id: 0 }).await.ok();
++            ExitCode::SUCCESS
++        }
++        Err(error) => fail(&error),
++    }
++}
++
+ #[cfg(test)]
+ mod plain_tests {
+     fn stored_zip(name: &str, data: &[u8]) -> Vec<u8> {
