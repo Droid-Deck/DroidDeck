@@ -43,10 +43,10 @@ index 088a6d0..825c24e 100644
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..df461c2
+index 0000000..922b9fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1088 @@
+@@ -0,0 +1,1089 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -397,19 +397,20 @@ index 0000000..df461c2
 +        }
 +        return ExitCode::SUCCESS;
 +    }
-+    if let Some(free) = free_bytes(&destination) {
-+        let needed = total.saturating_add(largest).saturating_add(largest / 10);
-+        // A container this run fetches again is truncated before it is written, so
-+        // what a stopped attempt already holds is available to the retry. Without
-+        // this, an interrupted install could demand deletion of the very file the
-+        // retry would have reclaimed.
-+        let mut held = 0u64;
-+        for container in &install.containers {
-+            let Some(name) = Path::new(&container.name).file_name() else { continue };
-+            if let Ok(meta) = std::fs::metadata(destination.join(CONTAINER_DIR).join(name)) {
++    let mut held = 0u64;
++    for container in &install.containers {
++        let Some(name) = Path::new(&container.name).file_name() else { continue };
++        let staged = destination.join(CONTAINER_DIR).join(name);
++        if let Ok(meta) = std::fs::metadata(&staged) {
++            if container.size > 0 && meta.len() == container.size {
 +                held = held.saturating_add(meta.len());
++            } else {
++                std::fs::remove_file(&staged).ok();
 +            }
 +        }
++    }
++    if let Some(free) = free_bytes(&destination) {
++        let needed = total.saturating_add(largest).saturating_add(largest / 10);
 +        if free.saturating_add(held) < needed {
 +            return fail(
 +                "insufficient-space",
