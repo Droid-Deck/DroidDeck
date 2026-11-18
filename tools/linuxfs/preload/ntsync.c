@@ -189,7 +189,7 @@ static int (*ns_real_close)(int);
 
 static int ns_on(void) {
   if (ns_state < 0) {
-    const char *e = getenv("BL_SYNC");
+    const char *e = getenv("DD_SYNC");
     ns_state = e && e[0] == '1';
   }
   return ns_state;
@@ -276,7 +276,7 @@ static __thread struct ns_cs ns_cs;
 static uintptr_t ns_handlers[_NSIG];
 static uint8_t ns_siginfo[_NSIG];
 
-int bl_from_ntdll(const void *caller) __attribute__((visibility("hidden")));
+int dd_from_ntdll(const void *caller) __attribute__((visibility("hidden")));
 
 static int ns_deferrable(int sig) {
   return sig > 0 && sig < _NSIG && sig != SIGKILL && sig != SIGSTOP && sig != SIGSEGV && sig != SIGBUS && sig != SIGILL
@@ -383,7 +383,7 @@ int sigaction(int sig, const struct sigaction *act, struct sigaction *old) {
   struct sigaction mine;
   const struct sigaction *use = act;
   if (act && act->sa_handler != SIG_DFL && act->sa_handler != SIG_IGN && !(act->sa_flags & SA_RESETHAND) &&
-      bl_from_ntdll(__builtin_return_address(0))) {
+      dd_from_ntdll(__builtin_return_address(0))) {
     mine = *act;
     mine.sa_sigaction = ns_trampoline;
     mine.sa_flags |= SA_SIGINFO;
@@ -1373,8 +1373,8 @@ static int ns_dev_ioctl(struct ns_dev *d, unsigned long req, void *arg, int *fd)
   return ENOTTY;
 }
 
-int bl_ntsync_ioctl(int fd, unsigned long req, void *arg, int *rc) __attribute__((visibility("hidden")));
-int bl_ntsync_ioctl(int fd, unsigned long req, void *arg, int *rc) {
+int dd_ntsync_ioctl(int fd, unsigned long req, void *arg, int *rc) __attribute__((visibility("hidden")));
+int dd_ntsync_ioctl(int fd, unsigned long req, void *arg, int *rc) {
   if (_IOC_TYPE(req) != 'N' || _IOC_NR(req) < 0x80 || _IOC_NR(req) > 0x8d) return 0;
   if (!__atomic_load_n(&ns_ndev, __ATOMIC_ACQUIRE) && !ns_on()) return 0;
   uint64_t e = ns_lookup(fd);
@@ -1393,8 +1393,8 @@ int bl_ntsync_ioctl(int fd, unsigned long req, void *arg, int *rc) {
   return 1;
 }
 
-int bl_ntsync_open(const char *path, int flags) __attribute__((visibility("hidden")));
-int bl_ntsync_open(const char *path, int flags) {
+int dd_ntsync_open(const char *path, int flags) __attribute__((visibility("hidden")));
+int dd_ntsync_open(const char *path, int flags) {
   if (!path || strcmp(path, "/dev/ntsync") != 0 || !ns_on()) return -2;
   int fd = (int)syscall(SYS_openat, AT_FDCWD, path, flags, 0);
   if (fd >= 0) return fd;
@@ -1440,41 +1440,41 @@ static void ns_received(struct msghdr *msg) {
   }
 }
 
-int bl_udevmon_recvmsg(int fd, struct msghdr *msg, int flags, ssize_t (*real_recvmsg)(int, struct msghdr *, int),
+int dd_udevmon_recvmsg(int fd, struct msghdr *msg, int flags, ssize_t (*real_recvmsg)(int, struct msghdr *, int),
                        ssize_t *result) __attribute__((visibility("hidden")));
-int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags, ssize_t (*real_recvmsg)(int, struct msghdr *, int),
+int dd_nl_recvmsg(int fd, struct msghdr *msg, int flags, ssize_t (*real_recvmsg)(int, struct msghdr *, int),
                   ssize_t *result) __attribute__((visibility("hidden")));
-void bl_nl_received(struct msghdr *msg) __attribute__((visibility("hidden")));
-void bl_nl_closed(int fd) __attribute__((visibility("hidden")));
-void bl_nl_range_closed(unsigned int first, unsigned int last) __attribute__((visibility("hidden")));
-int bl_nl_before_dup(int fd, void **state) __attribute__((visibility("hidden")));
-void bl_nl_after_dup(void *state, int fd) __attribute__((visibility("hidden")));
+void dd_nl_received(struct msghdr *msg) __attribute__((visibility("hidden")));
+void dd_nl_closed(int fd) __attribute__((visibility("hidden")));
+void dd_nl_range_closed(unsigned int first, unsigned int last) __attribute__((visibility("hidden")));
+int dd_nl_before_dup(int fd, void **state) __attribute__((visibility("hidden")));
+void dd_nl_after_dup(void *state, int fd) __attribute__((visibility("hidden")));
 
 ssize_t recvmsg(int fd, struct msghdr *msg, int flags) {
   static ssize_t (*real)(int, struct msghdr *, int);
   if (!real) real = (ssize_t (*)(int, struct msghdr *, int))dlsym(RTLD_NEXT, "recvmsg");
   ssize_t answered;
-  if (msg && bl_nl_recvmsg(fd, msg, flags, real, &answered)) return answered;
-  if (msg && bl_udevmon_recvmsg(fd, msg, flags, real, &answered)) return answered;
+  if (msg && dd_nl_recvmsg(fd, msg, flags, real, &answered)) return answered;
+  if (msg && dd_udevmon_recvmsg(fd, msg, flags, real, &answered)) return answered;
   ssize_t r = real(fd, msg, flags);
   if (r >= 0 && msg && msg->msg_control && msg->msg_controllen) {
     int saved = errno;
-    bl_nl_received(msg);
+    dd_nl_received(msg);
     if (ns_on()) ns_received(msg);
     errno = saved;
   }
   return r;
 }
 
-void bl_fsync_fds_closed(unsigned int first, unsigned int last) __attribute__((visibility("hidden")));
-void bl_venc_closed(int fd) __attribute__((visibility("hidden")));
-void bl_vdec_closed(int fd) __attribute__((visibility("hidden")));
+void dd_fsync_fds_closed(unsigned int first, unsigned int last) __attribute__((visibility("hidden")));
+void dd_venc_closed(int fd) __attribute__((visibility("hidden")));
+void dd_vdec_closed(int fd) __attribute__((visibility("hidden")));
 
 int close(int fd) {
-  if (fd >= 0) bl_fsync_fds_closed((unsigned int)fd, (unsigned int)fd);
-  bl_venc_closed(fd);
-  bl_vdec_closed(fd);
-  bl_nl_closed(fd);
+  if (fd >= 0) dd_fsync_fds_closed((unsigned int)fd, (unsigned int)fd);
+  dd_venc_closed(fd);
+  dd_vdec_closed(fd);
+  dd_nl_closed(fd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && fd >= 0 && fd < NS_FDS && __atomic_load_n(&t[fd], __ATOMIC_ACQUIRE)) ns_forget(fd);
   int saved = errno;
@@ -1492,12 +1492,12 @@ int dup2(int oldfd, int newfd) {
   if (!real) real = (int (*)(int, int))dlsym(RTLD_NEXT, "dup2");
   if (oldfd == newfd) return real(oldfd, newfd);
   void *nl_state;
-  if (bl_nl_before_dup(oldfd, &nl_state) != 0) return -1;
-  if (oldfd != newfd && newfd >= 0) bl_fsync_fds_closed((unsigned int)newfd, (unsigned int)newfd);
+  if (dd_nl_before_dup(oldfd, &nl_state) != 0) return -1;
+  if (oldfd != newfd && newfd >= 0) dd_fsync_fds_closed((unsigned int)newfd, (unsigned int)newfd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && oldfd != newfd && newfd >= 0 && newfd < NS_FDS && __atomic_load_n(&t[newfd], __ATOMIC_ACQUIRE)) ns_forget(newfd);
   int result = real(oldfd, newfd);
-  bl_nl_after_dup(nl_state, result);
+  dd_nl_after_dup(nl_state, result);
   return result;
 }
 
@@ -1506,12 +1506,12 @@ int dup3(int oldfd, int newfd, int flags) {
   if (!real) real = (int (*)(int, int, int))dlsym(RTLD_NEXT, "dup3");
   if (oldfd == newfd) return real(oldfd, newfd, flags);
   void *nl_state;
-  if (bl_nl_before_dup(oldfd, &nl_state) != 0) return -1;
-  if (oldfd != newfd && newfd >= 0) bl_fsync_fds_closed((unsigned int)newfd, (unsigned int)newfd);
+  if (dd_nl_before_dup(oldfd, &nl_state) != 0) return -1;
+  if (oldfd != newfd && newfd >= 0) dd_fsync_fds_closed((unsigned int)newfd, (unsigned int)newfd);
   uint64_t *t = __atomic_load_n(&ns_fdt, __ATOMIC_ACQUIRE);
   if (t && oldfd != newfd && newfd >= 0 && newfd < NS_FDS && __atomic_load_n(&t[newfd], __ATOMIC_ACQUIRE)) ns_forget(newfd);
   int result = real(oldfd, newfd, flags);
-  bl_nl_after_dup(nl_state, result);
+  dd_nl_after_dup(nl_state, result);
   return result;
 }
 
@@ -1526,7 +1526,7 @@ int close_range(unsigned int first, unsigned int last, int flags) {
   static int (*real)(unsigned int, unsigned int, int);
   if (!real) real = (int (*)(unsigned int, unsigned int, int))dlsym(RTLD_NEXT, "close_range");
   if (!(flags & CLOSE_RANGE_CLOEXEC)) {
-    bl_fsync_fds_closed(first, last);
+    dd_fsync_fds_closed(first, last);
     ns_forget_range(first, last);
   }
   if (!real) {
@@ -1534,7 +1534,7 @@ int close_range(unsigned int first, unsigned int last, int flags) {
     return -1;
   }
   int result = real(first, last, flags);
-  if (result == 0 && !(flags & CLOSE_RANGE_CLOEXEC)) bl_nl_range_closed(first, last);
+  if (result == 0 && !(flags & CLOSE_RANGE_CLOEXEC)) dd_nl_range_closed(first, last);
   return result;
 }
 
@@ -1542,12 +1542,12 @@ void closefrom(int lowfd) {
   static void (*real)(int);
   if (!real) real = (void (*)(int))dlsym(RTLD_NEXT, "closefrom");
   if (lowfd >= 0) {
-    bl_fsync_fds_closed((unsigned int)lowfd, ~0u);
+    dd_fsync_fds_closed((unsigned int)lowfd, ~0u);
     ns_forget_range((unsigned int)lowfd, ~0u);
   }
   if (real) {
     real(lowfd);
-    if (lowfd >= 0) bl_nl_range_closed((unsigned int)lowfd, ~0u);
+    if (lowfd >= 0) dd_nl_range_closed((unsigned int)lowfd, ~0u);
   }
 }
 

@@ -408,7 +408,7 @@ class SignInTest(EpicTestCase):
 
     def test_xdg_open_hands_sign_in_and_links_to_the_app(self):
         launch = self.tmp / "launch"
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}):
             self.assertEqual(0, G["shim_open"]([self.AUTH]))
             self.assertEqual(0, G["shim_open"](["https://store.epicgames.com/p/fig"]))
             self.assertEqual(1, G["shim_open"](["mailto:x@example.com"]))
@@ -420,7 +420,7 @@ class SignInTest(EpicTestCase):
 
     def test_the_xdg_open_command_forwards_steam_links(self):
         launch = self.tmp / "cli-launch"
-        env = dict(os.environ, HOME=str(self.home), BL_LAUNCH_DIR=str(launch))
+        env = dict(os.environ, HOME=str(self.home), DD_LAUNCH_DIR=str(launch))
         def xdg_open(url):
             return subprocess.run([sys.executable, str(BIN / "droiddeck-epic"), "xdg-open", url], env=env,
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30).returncode
@@ -458,7 +458,7 @@ class SignInHandoffTest(EpicTestCase):
     def test_a_fresh_marker_makes_the_sign_in_automatic(self):
         launch = self.tmp / "launch"
         marker = Path(G["AUTO_SIGN_IN"])
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}):
             G["shim_open"]([SignInTest.AUTH])
             marker.parent.mkdir(parents=True)
             marker.write_text("1\n")
@@ -560,7 +560,7 @@ class SignOutTest(EpicTestCase):
         launch = self.tmp / "launch"
         session = G["Session"]("visible")
         states = iter(states)
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}), \
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}), \
              mock.patch.dict(G, {"signed_in": lambda: next(states)}):
             for now in times:
                 session.follow_sign_out(now)
@@ -887,17 +887,28 @@ class BrokerTest(EpicTestCase):
         folder.mkdir()
         (folder / ".droiddeck-store.json").write_text(json.dumps({"store": "epic", "id": "Fig", "args": ["-x"]}))
         (folder / ".droiddeck-launch.bat").write_text('if exist "%~dp0.droiddeck-epic-args" goto client\r\n')
+        debug_dir = self.tmp / "session"
+        debug_dir.mkdir()
+        config = self.home / ".config/droiddeck/game-environment.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"version": 1, "gameDebugLogs": True}))
         calls = []
 
         def popen(command, env=None, cwd=None, start_new_session=False):
-            calls.append((command, env.get("DROIDDECK_EPIC_HANDLED"), start_new_session))
+            calls.append((command, env.get("DROIDDECK_EPIC_HANDLED"), env.get("DD_DEBUG_DIR"),
+                          env.get("PROTON_LOG"), env.get("WINEDEBUG"), start_new_session))
             return mock.Mock(wait=mock.Mock(return_value=7))
 
         running = []
-        with mock.patch.object(subprocess, "Popen", popen):
-            code = G["run_game"]({"exe": str(folder / "Fig.exe"), "args": ["-epicapp=Fig"]}, {"PATH": "/usr/bin"}, running)
+        with mock.patch.dict(os.environ, {"HOME": str(self.home), "DD_DEBUG_DIR": str(debug_dir),
+                                          "PROTON_LOG": "0", "WINEDEBUG": "-all"}), \
+                mock.patch.object(subprocess, "Popen", popen):
+            code = G["run_game"]({"exe": str(folder / "Fig.exe"), "args": ["-epicapp=Fig"]},
+                                  {"PATH": "/usr/bin", "DD_DEBUG_DIR": str(debug_dir)}, running)
         self.assertEqual(7, code)
-        self.assertEqual(([G["PROTON_RUN"], str(folder / ".droiddeck-launch.bat")], "1", True), calls[0])
+        self.assertEqual(([G["PROTON_RUN"], str(folder / ".droiddeck-launch.bat")], "1", str(debug_dir), "1",
+                          mock.ANY, True), calls[0])
+        self.assertIn("+seh", calls[0][4])
         self.assertEqual([], running)
         self.assertEqual(b"-epicapp=Fig -x\r\n", (folder / ".droiddeck-epic-args").read_bytes())
 
@@ -912,7 +923,7 @@ class BrokerTest(EpicTestCase):
             return 5
 
         result = []
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}), mock.patch.dict(G, {"run_game": run_game}):
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}), mock.patch.dict(G, {"run_game": run_game}):
             self.shim(path, ["-epicapp=Fig"], result).join(10)
         self.assertEqual([True], seen)
         self.assertEqual([5], result)
@@ -1030,7 +1041,7 @@ class BrokerTest(EpicTestCase):
 
     def test_the_open_mark_carries_the_steam_app_id(self):
         launch = self.tmp / "launch"
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}):
             with G["marked"](G["OPEN"], "3000000001"):
                 self.assertEqual("3000000001\n", (launch / G["OPEN"]).read_text())
         self.assertFalse((launch / G["OPEN"]).exists())
@@ -1136,7 +1147,7 @@ class BrokerTest(EpicTestCase):
 
     def test_the_playing_mark_goes_away_when_the_game_fails(self):
         launch = self.tmp / "launch"
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}):
             with self.assertRaises(OSError), G["playing"]():
                 self.assertTrue((launch / G["PLAYING"]).is_file())
                 raise OSError("boom")
@@ -1146,7 +1157,7 @@ class BrokerTest(EpicTestCase):
         launch = self.tmp / "launch"
         launch.mkdir()
         (launch / G["PLAYING"]).write_text("1\n")
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}):
             G["clear_playing"]()
             G["clear_playing"]()
         self.assertFalse((launch / G["PLAYING"]).exists())
@@ -1161,7 +1172,7 @@ class BrokerTest(EpicTestCase):
         broker.running.append(game)
         session = G["Session"]("visible")
         session.broker = broker
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}):
             session.stop()
         self.assertIsNotNone(game.poll())
         self.assertFalse((launch / G["PLAYING"]).exists())
@@ -1305,7 +1316,7 @@ class StoreLaunchClientTest(unittest.TestCase):
         calls = []
         sidecar = dict(self.sidecar, epic={"offline": True})
         (self.folder / ".droiddeck-store.json").write_text(json.dumps(sidecar))
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.tmp / "launch"), "STEAM_COMPAT_DATA_PATH": ""}), \
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.tmp / "launch"), "STEAM_COMPAT_DATA_PATH": ""}), \
                 mock.patch.dict(S, {"client_wanted": lambda: calls.append("wanted") or True,
                                     "ask": lambda channel, request, timeout=0: calls.append(request["op"]) or {"ok": True}}):
             S["main"]([str(self.folder / ".droiddeck-launch.bat")])
@@ -1326,7 +1337,7 @@ class StoreLaunchClientTest(unittest.TestCase):
 
     def test_epic_launch_falls_back_to_an_exchange_code(self):
         calls = []
-        env = {"BL_LAUNCH_DIR": str(self.tmp / "launch"), "STEAM_COMPAT_DATA_PATH": ""}
+        env = {"DD_LAUNCH_DIR": str(self.tmp / "launch"), "STEAM_COMPAT_DATA_PATH": ""}
         with mock.patch.dict(os.environ, env), \
                 mock.patch.dict(S, {"client_wanted": lambda: True,
                                     "through_client": lambda folder, sidecar, timeout=0: calls.append("client") or "timeout",
@@ -1343,7 +1354,7 @@ class StoreLaunchClientTest(unittest.TestCase):
             return "ok"
 
         (self.folder / ".droiddeck-epic-code").write_text("stale")
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.tmp / "launch"), "STEAM_COMPAT_DATA_PATH": ""}), \
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.tmp / "launch"), "STEAM_COMPAT_DATA_PATH": ""}), \
                 mock.patch.dict(S, {"client_wanted": lambda: True, "through_client": through,
                                     "ask": lambda channel, request, timeout=0: calls.append(request["op"]) or {"ok": True}}):
             S["main"]([str(self.folder / ".droiddeck-launch.bat")])
@@ -1354,7 +1365,7 @@ class StoreLaunchClientTest(unittest.TestCase):
     def test_handled_launch_keeps_the_clients_args(self):
         calls = []
         (self.folder / ".droiddeck-epic-args").write_text("-epicapp=Fig\r\n")
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.tmp / "launch"), "DROIDDECK_EPIC_HANDLED": "1",
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.tmp / "launch"), "DROIDDECK_EPIC_HANDLED": "1",
                                           "STEAM_COMPAT_DATA_PATH": ""}), \
                 mock.patch.dict(S, {"client_wanted": lambda: calls.append("wanted") or True,
                                     "ask": lambda channel, request, timeout=0: calls.append(request["op"]) or {"ok": True}}):
@@ -1365,7 +1376,7 @@ class StoreLaunchClientTest(unittest.TestCase):
     def test_the_games_exit_code_reaches_the_epic_client(self):
         runs = []
         bat = str(self.folder / ".droiddeck-launch.bat")
-        with mock.patch.dict(os.environ, {"BL_LAUNCH_DIR": ""}), mock.patch.dict(os.environ), \
+        with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": ""}), mock.patch.dict(os.environ), \
                 mock.patch("os.access", return_value=True), \
                 mock.patch.object(subprocess, "run", lambda command, **kwargs: runs.append(command)):
             os.environ.pop("DROIDDECK_EPIC_HANDLED", None)

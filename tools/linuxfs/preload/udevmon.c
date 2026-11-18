@@ -102,17 +102,17 @@ static int make_stand_in(int type) {
   return -1;
 }
 
-__attribute__((visibility("hidden"))) int bl_nl_socket(int type, int *fd);
-__attribute__((visibility("hidden"))) int bl_nl_owns(int fd);
-__attribute__((visibility("hidden"))) int bl_nl_getsockname(int fd, struct sockaddr *addr,
+__attribute__((visibility("hidden"))) int dd_nl_socket(int type, int *fd);
+__attribute__((visibility("hidden"))) int dd_nl_owns(int fd);
+__attribute__((visibility("hidden"))) int dd_nl_getsockname(int fd, struct sockaddr *addr,
                                                             socklen_t *len, int *rc);
-__attribute__((visibility("hidden"))) int bl_nl_getpeername(int fd, struct sockaddr *addr,
+__attribute__((visibility("hidden"))) int dd_nl_getpeername(int fd, struct sockaddr *addr,
                                                             socklen_t *len, int *rc);
-__attribute__((visibility("hidden"))) int bl_nl_setsockopt(int fd, int level, int option,
+__attribute__((visibility("hidden"))) int dd_nl_setsockopt(int fd, int level, int option,
                                                           const void *value, socklen_t len,
                                                           int (*real)(int, int, int, const void *, socklen_t),
                                                           int *rc);
-__attribute__((visibility("hidden"))) int bl_nl_getsockopt(int fd, int level, int option,
+__attribute__((visibility("hidden"))) int dd_nl_getsockopt(int fd, int level, int option,
                                                           void *value, socklen_t *len,
                                                           int (*real)(int, int, int, void *, socklen_t *),
                                                           int *rc);
@@ -128,7 +128,7 @@ int socket(int domain, int type, int protocol) {
   }
   if (domain == AF_NETLINK && protocol == NETLINK_ROUTE) {
     int route_fd;
-    bl_nl_socket(type, &route_fd);
+    dd_nl_socket(type, &route_fd);
     return route_fd;
   }
   fd = real_socket(domain, type, protocol);
@@ -142,7 +142,7 @@ int socket(int domain, int type, int protocol) {
   return make_stand_in(type);
 }
 
-__attribute__((visibility("hidden"))) int bl_udevmon_stand_in(int fd) {
+__attribute__((visibility("hidden"))) int dd_udevmon_stand_in(int fd) {
   return is_stand_in(fd);
 }
 
@@ -151,7 +151,7 @@ int getsockname(int fd, struct sockaddr *addr, socklen_t *len) {
   struct sockaddr_nl nl;
   int route_rc;
 
-  if (bl_nl_getsockname(fd, addr, len, &route_rc)) return route_rc;
+  if (dd_nl_getsockname(fd, addr, len, &route_rc)) return route_rc;
   if (is_stand_in(fd)) {
     if (addr == NULL || len == NULL) {
       errno = EFAULT;
@@ -175,7 +175,7 @@ int getsockname(int fd, struct sockaddr *addr, socklen_t *len) {
 int getpeername(int fd, struct sockaddr *addr, socklen_t *len) {
   static int (*real)(int, struct sockaddr *, socklen_t *);
   int route_rc;
-  if (bl_nl_getpeername(fd, addr, len, &route_rc)) return route_rc;
+  if (dd_nl_getpeername(fd, addr, len, &route_rc)) return route_rc;
   if (real == NULL) real = dlsym(RTLD_NEXT, "getpeername");
   return real(fd, addr, len);
 }
@@ -189,7 +189,7 @@ int setsockopt(int fd, int level, int optname, const void *optval, socklen_t opt
     errno = ENOSYS;
     return -1;
   }
-  if (bl_nl_setsockopt(fd, level, optname, optval, optlen, real_setsockopt, &route_rc)) return route_rc;
+  if (dd_nl_setsockopt(fd, level, optname, optval, optlen, real_setsockopt, &route_rc)) return route_rc;
   if (is_stand_in(fd)) {
     if (level == SOL_NETLINK)
       return 0;
@@ -207,7 +207,7 @@ int getsockopt(int fd, int level, int option, void *value, socklen_t *len) {
     errno = ENOSYS;
     return -1;
   }
-  if (bl_nl_getsockopt(fd, level, option, value, len, real, &route_rc)) return route_rc;
+  if (dd_nl_getsockopt(fd, level, option, value, len, real, &route_rc)) return route_rc;
   return real(fd, level, option, value, len);
 }
 
@@ -249,7 +249,7 @@ static unsigned murmur_hash2(const char *key, size_t len) {
   return h;
 }
 
-__attribute__((visibility("default"))) int bl_udevmon_inject(const char *action, const char *devpath,
+__attribute__((visibility("default"))) int dd_udevmon_inject(const char *action, const char *devpath,
                                                              const char *subsystem, const char *devname,
                                                              unsigned major, unsigned minor) {
   static unsigned long long seqnum = 900000;
@@ -280,7 +280,7 @@ __attribute__((visibility("default"))) int bl_udevmon_inject(const char *action,
   return sent;
 }
 
-__attribute__((visibility("hidden"))) int bl_udevmon_recvmsg(int fd, struct msghdr *msg, int flags,
+__attribute__((visibility("hidden"))) int dd_udevmon_recvmsg(int fd, struct msghdr *msg, int flags,
                                                              ssize_t (*real_recvmsg)(int, struct msghdr *, int),
                                                              ssize_t *result) {
   if (!is_stand_in(fd)) return 0;

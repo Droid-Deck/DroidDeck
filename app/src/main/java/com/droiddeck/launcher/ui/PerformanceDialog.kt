@@ -49,6 +49,7 @@ fun PerformancePage(
     gpuClockPin: Boolean,
     ramCapMb: Int,
     zramClient: Boolean,
+    zramIdle: Boolean,
     vramCapMb: Int,
     deviceRamMb: Int,
     ramCapAvailable: Boolean,
@@ -72,6 +73,7 @@ fun PerformancePage(
     onGpuClockPin: (Boolean) -> Unit,
     onRamCapMb: (Int) -> Unit,
     onZramClient: (Boolean) -> Unit,
+    onZramIdle: (Boolean) -> Unit,
     onVramCapMb: (Int) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
@@ -81,15 +83,12 @@ fun PerformancePage(
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
     onDismiss: () -> Unit,
+    embedded: Boolean = false,
 ) {
     val host = rememberMenuHost()
     val colors = MaterialTheme.colorScheme
     val coreItems = cores.map { it.core to it.label }
-    SettingsPage(
-        host, title = stringResource(R.string.perf_title),
-        lede = stringResource(R.string.perf_lede),
-        onBack = onDismiss,
-    ) {
+    val body: @Composable () -> Unit = {
         SettingsGroup(stringResource(R.string.perf_client_cores_group)) {
             ToggleRow(
                 host, "override", stringResource(R.string.perf_override),
@@ -146,6 +145,11 @@ fun PerformancePage(
             val top = (deviceRamMb / MEMORY_CAP_STEP_MB * MEMORY_CAP_STEP_MB).coerceAtLeast(MEMORY_CAP_STEP_MB)
             val off = stringResource(R.string.perf_cap_off)
             val auto = stringResource(R.string.perf_cap_auto)
+            ToggleRow(
+                host, "zramidle", stringResource(R.string.perf_zram_idle),
+                if (ramCapAvailable) stringResource(R.string.perf_zram_idle_hint) else stringResource(R.string.perf_ram_cap_unavailable),
+                zramIdle && ramCapAvailable, enabled = ramCapAvailable, onChange = onZramIdle,
+            )
             ToggleRow(
                 host, "zramclient", stringResource(R.string.perf_zram_client),
                 if (ramCapAvailable) stringResource(R.string.perf_zram_client_hint) else stringResource(R.string.perf_ram_cap_unavailable),
@@ -245,4 +249,12 @@ fun PerformancePage(
             }
         }
     }
+    if (embedded) Column {
+        Text(stringResource(R.string.perf_lede), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
+        body()
+    } else SettingsPage(
+        host, title = stringResource(R.string.perf_title),
+        lede = stringResource(R.string.perf_lede),
+        onBack = onDismiss,
+    ) { body() }
 }

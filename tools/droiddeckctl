@@ -67,10 +67,11 @@ def adb_path(configured: str | None) -> str:
     raise ControlError("adb not found; set ADB, ANDROID_HOME, or ANDROID_SDK_ROOT", "ADB_NOT_FOUND")
 
 
-def run_adb(adb: str, serial: str, *args: str, timeout: float = 30) -> subprocess.CompletedProcess[bytes]:
+def run_adb(adb: str, serial: str, *args: str, timeout: float = 30,
+            stdin: bytes | None = None) -> subprocess.CompletedProcess[bytes]:
     try:
         return subprocess.run(
-            [adb, "-s", serial, *args], capture_output=True, check=False, timeout=timeout
+            [adb, "-s", serial, *args], input=stdin, capture_output=True, check=False, timeout=timeout
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ControlError(str(exc), "ADB_FAILED") from exc
@@ -287,7 +288,9 @@ def displays(adb: str, serial: str) -> list[dict]:
 
 def physical_display(adb: str, serial: str, logical: int | None) -> str | None:
     if logical is None:
-        return None
+        found = displays(adb, serial)
+        main = next((d["physicalId"] for d in found if d["display"] == 0), None)
+        return main if len(found) > 1 else None
     for d in displays(adb, serial):
         if d["display"] == logical:
             if not d["physicalId"]:
@@ -596,6 +599,199 @@ def input_request(args: argparse.Namespace) -> dict:
     raise ControlError(f"Unknown input type {kind}", "INVALID_INPUT")
 
 
+PEN_MAX_MS = 30_000
+UINPUT_SCALE = 16
+UINPUT_PRESSURE = 4095
+UINPUT_DISTANCE = 255
+UINPUT_REGISTER_MS = 1000
+UINPUT_TAIL_MS = 300
+UINPUT_SYNC = "droiddeckctl-pen-done"
+
+
+def pen_span(value: str) -> tuple[float, float]:
+    try:
+        low, high = map(float, value.split(":")) if ":" in value else (float(value),) * 2
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a number or FROM:TO") from None
+    return low, high
+
+
+def pen_times(start: float, duration: float, rate: float) -> list[float]:
+    steps = max(1, round(duration * rate / 1000))
+    return [start + duration * i / steps for i in range(steps + 1)]
+
+
+def pen_lerp(span: tuple[float, float], fraction: float) -> float:
+    return span[0] + (span[1] - span[0]) * fraction
+
+
+def pen_samples(args: argparse.Namespace) -> list[dict]:
+    op = args.pen_op
+    contact = op in ("tap", "stroke")
+    side = args.button if op == "button" else None
+    lead = 0 if op == "hover" else args.hover_ms
+    length = args.duration if op in ("hover", "stroke") else args.hold
+    total = 2 * lead + length
+    start = end = (args.x, args.y)
+    if op == "stroke":
+        end = (args.x2, args.y2)
+    elif op == "hover" and args.to:
+        end = tuple(args.to)
+    for name in ("duration", "hold", "hover_ms"):
+        if getattr(args, name, 0) < 0:
+            raise ControlError(f"--{name.replace('_', '-')} must not be negative", "INVALID_INPUT")
+    if not 1 <= args.rate <= 1000:
+        raise ControlError("--rate must be 1..1000 Hz", "INVALID_INPUT")
+    if total > PEN_MAX_MS:
+        raise ControlError(f"The gesture lasts {total} ms, more than {PEN_MAX_MS}", "INVALID_INPUT")
+    if not all(0 <= v <= 1 for v in start + end):
+        raise ControlError("Positions are fractions of the screen, 0..1", "INVALID_INPUT")
+    if contact and not all(0 <= p <= 1 for p in args.pressure):
+        raise ControlError("--pressure must be 0..1", "INVALID_INPUT")
+    if not all(-90 <= a <= 90 for a in args.tilt_x + args.tilt_y):
+        raise ControlError("--tilt-x and --tilt-y must be -90..90", "INVALID_INPUT")
+    if not 0 <= args.distance <= UINPUT_DISTANCE:
+        raise ControlError(f"--distance must be 0..{UINPUT_DISTANCE}", "INVALID_INPUT")
+    samples = []
+
+    def add(t: float, phase: str, x: float, y: float, pressure: float = 0.0, button: str | None = None) -> None:
+        progress = t / (total or 1)
+        samples.append({"t": round(t), "phase": phase, "x": x, "y": y, "pressure": pressure, "button": button,
+                        "distance": args.distance, "tilt_x": pen_lerp(args.tilt_x, progress),
+                        "tilt_y": pen_lerp(args.tilt_y, progress)})
+
+    if lead:
+        for t in pen_times(0, lead, args.rate)[:-1]:
+            add(t, "hover", *start)
+    middle = pen_times(lead, length, args.rate)
+    steps = len(middle) - 1
+    for i, t in enumerate(middle):
+        f = i / steps
+        x, y = pen_lerp((start[0], end[0]), f), pen_lerp((start[1], end[1]), f)
+        if contact:
+            add(t, "down" if i == 0 else "up" if i == steps else "move", x, y, pen_lerp(args.pressure, f))
+        else:
+            add(t, "hover", x, y, button=None if i == steps else side)
+    if lead:
+        for t in pen_times(lead + length, lead, args.rate)[1:]:
+            add(t, "hover", *end)
+    add(total, "out", *end)
+    return samples
+
+
+def input_viewport(dump: str) -> dict:
+    blocks = re.findall(r"^[ \t]*Viewports:\n((?:[ \t]+Viewport .*\n?)+)", dump, re.M)
+    viewports = []
+    for line in re.findall(r"Viewport INTERNAL: (.*)", blocks[-1] if blocks else dump):
+        fields = dict(re.findall(r"(\w+)=(\[[^\]]*\]|[^,\s]+)", line))
+        size = re.fullmatch(r"\[(\d+), (\d+)\]", fields.get("deviceSize", ""))
+        frame = re.fullmatch(r"\[(-?\d+), (-?\d+), (-?\d+), (-?\d+)\]", fields.get("physicalFrame", ""))
+        if size and frame and re.fullmatch(r"-?\d+", fields.get("displayId", "")) and fields.get("orientation") in ("0", "1", "2", "3"):
+            viewports.append({"display": int(fields["displayId"]), "rotation": int(fields["orientation"]),
+                              "size": [int(size.group(1)), int(size.group(2))],
+                              "frame": [int(edge) for edge in frame.groups()], "active": fields.get("isActive") != "[0]"})
+    if not viewports:
+        raise ControlError("`dumpsys input` shows no internal display viewport to map the pen to", "NO_VIEWPORT")
+    viewport = next((v for v in viewports if v["display"] == 0), viewports[0])
+    if not viewport["active"]:
+        raise ControlError(f"Display {viewport['display']} is off, and Android ignores touchscreens on it; "
+                           "wake the device first", "NO_VIEWPORT")
+    return viewport
+
+
+def uinput_point(x: float, y: float, tilt_x: float, tilt_y: float, rotation: int, width: int,
+                 height: int, frame: list[int]) -> tuple[int, int, int, int]:
+    left, top, right, bottom = frame
+    x = min(right - 1, round(left + x * (right - left)))
+    y = min(bottom - 1, round(top + y * (bottom - top)))
+    if rotation == 1:
+        return width - 1 - y, x, round(-tilt_y), round(tilt_x)
+    if rotation == 2:
+        return width - 1 - x, height - 1 - y, round(-tilt_x), round(-tilt_y)
+    if rotation == 3:
+        return y, height - 1 - x, round(tilt_y), round(-tilt_x)
+    return x, y, round(tilt_x), round(tilt_y)
+
+
+def uinput_commands(samples: list[dict], tool: str, viewport: dict) -> list[dict]:
+    rotation = viewport["rotation"]
+    natural = viewport["size"][::-1] if rotation % 2 else viewport["size"]
+    width, height = (n * UINPUT_SCALE for n in natural)
+    bounds = [edge * UINPUT_SCALE for edge in viewport["frame"]]
+    last_x = max(uinput_point(f, f, 0, 0, rotation, width, height, bounds)[0] for f in (0, 1))
+    tool_key = "BTN_TOOL_RUBBER" if tool == "eraser" else "BTN_TOOL_PEN"
+
+    def axis(code: str, low: int, high: int) -> dict:
+        return {"code": code, "info": {"value": 0, "minimum": low, "maximum": high, "fuzz": 0, "flat": 0, "resolution": 0}}
+
+    commands = [
+        {"id": 1, "command": "register", "name": "DroidDeck agent pen", "bus": "virtual", "configuration": [
+            {"type": "UI_SET_EVBIT", "data": ["EV_KEY", "EV_ABS"]},
+            {"type": "UI_SET_KEYBIT", "data": ["BTN_TOOL_PEN", "BTN_TOOL_RUBBER", "BTN_TOUCH", "BTN_STYLUS", "BTN_STYLUS2"]},
+            {"type": "UI_SET_ABSBIT", "data": ["ABS_X", "ABS_Y", "ABS_PRESSURE", "ABS_DISTANCE", "ABS_TILT_X", "ABS_TILT_Y"]},
+            {"type": "UI_SET_PROPBIT", "data": ["INPUT_PROP_DIRECT"]},
+        ], "abs_info": [axis("ABS_X", 0, width - 1), axis("ABS_Y", 0, height - 1), axis("ABS_PRESSURE", 0, UINPUT_PRESSURE),
+                        axis("ABS_DISTANCE", 0, UINPUT_DISTANCE), axis("ABS_TILT_X", -90, 90), axis("ABS_TILT_Y", -90, 90)]},
+        {"id": 1, "command": "delay", "duration": UINPUT_REGISTER_MS},
+    ]
+    sent = {tool_key: 0, "BTN_TOUCH": 0, "BTN_STYLUS": 0, "BTN_STYLUS2": 0}
+
+    def frame(sample: dict, phase: str) -> list:
+        near, contact = phase != "out", phase in ("down", "move")
+        values = {tool_key: int(near), "BTN_TOUCH": int(contact), "BTN_STYLUS": int(sample["button"] == "primary"),
+                  "BTN_STYLUS2": int(sample["button"] == "secondary")}
+        if near:
+            x, y, tilt_x, tilt_y = uinput_point(sample["x"], sample["y"], sample["tilt_x"], sample["tilt_y"],
+                                                rotation, width, height, bounds)
+            values.update(ABS_X=x, ABS_Y=y, ABS_PRESSURE=max(1, round(sample["pressure"] * UINPUT_PRESSURE)) if contact else 0,
+                          ABS_DISTANCE=0 if contact else sample["distance"], ABS_TILT_X=tilt_x, ABS_TILT_Y=tilt_y)
+        events = []
+        for code, value in values.items():
+            if sent.get(code) != value:
+                events += ["EV_KEY" if code.startswith("BTN_") else "EV_ABS", code, value]
+                sent[code] = value
+        return events + ["EV_SYN", "SYN_REPORT", 0] if events else []
+
+    now = 0
+    for sample in samples:
+        events = frame(sample, "move") if sample["phase"] == "up" else []
+        events += frame(sample, sample["phase"])
+        if not events:
+            sent["ABS_X"] += 1 if sent["ABS_X"] < last_x else -1
+            events = ["EV_ABS", "ABS_X", sent["ABS_X"], "EV_SYN", "SYN_REPORT", 0]
+        if sample["t"] > now:
+            commands.append({"id": 1, "command": "delay", "duration": sample["t"] - now})
+            now = sample["t"]
+        commands.append({"id": 1, "command": "inject", "events": events})
+    return commands + [{"id": 1, "command": "delay", "duration": UINPUT_TAIL_MS},
+                       {"id": 1, "command": "sync", "syncToken": UINPUT_SYNC}]
+
+
+def pen_uinput(adb: str, serial: str, samples: list[dict], tool: str) -> dict:
+    probe = run_adb(adb, serial, "shell",
+                    "command -v uinput >/dev/null 2>&1 || echo no-uinput; [ -w /dev/uinput ] || echo no-dev-uinput")
+    if probe.returncode != 0:
+        raise ControlError((probe.stdout + probe.stderr).decode(errors="replace").strip() or "adb shell failed", "ADB_FAILED")
+    missing = probe.stdout.decode(errors="replace").split()
+    if "no-uinput" in missing:
+        raise ControlError("This device's shell has no `uinput` command", "UINPUT_UNAVAILABLE")
+    if "no-dev-uinput" in missing:
+        raise ControlError("The ADB shell cannot write /dev/uinput on this device", "UINPUT_UNAVAILABLE")
+    viewport = input_viewport(run_adb(adb, serial, "shell", "dumpsys", "input").stdout.decode(errors="replace"))
+    script = "".join(json.dumps(command) + "\n" for command in uinput_commands(samples, tool, viewport))
+    started = time.monotonic()
+    result = run_adb(adb, serial, "shell", "uinput", "-", stdin=script.encode(),
+                     timeout=(UINPUT_REGISTER_MS + samples[-1]["t"] + UINPUT_TAIL_MS) / 1000 + 30)
+    elapsed = round((time.monotonic() - started) * 1000)
+    if UINPUT_SYNC not in result.stdout.decode(errors="replace"):
+        detail = (result.stderr or result.stdout).decode(errors="replace").strip()[-400:]
+        raise ControlError(f"uinput stopped before the end of the gesture (exit {result.returncode})"
+                           + (f": {detail}" if detail else "") + "; `adb logcat -s UINPUT UinputDevice` tells why",
+                           "UINPUT_FAILED")
+    return {"ok": True, "command": "input", "type": "pen", "samples": len(samples), "ms": elapsed,
+            "viewport": {key: viewport[key] for key in ("display", "rotation", "size")}}
+
+
 def xr_ppm_to_png(data: bytes, linear: bool = False) -> bytes:
     header = re.match(rb"P6\n([0-9]+) ([0-9]+)\n255\n", data)
     if not header:
@@ -824,6 +1020,8 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
                                   "CDP_FAILED"), serial)
 
     if command == "input":
+        if args.input_type == "pen":
+            return add_serial(pen_uinput(adb, serial, pen_samples(args), args.tool), serial)
         return add_serial(checked(provider_call(adb, serial, "input", request=input_request(args), timeout=60),
                                   "INPUT_FAILED"), serial)
 
@@ -1095,6 +1293,36 @@ def build_parser() -> argparse.ArgumentParser:
     trigger.add_argument("trigger", choices=["left", "right"])
     trigger.add_argument("value", type=float, nargs="?", default=1.0)
     trigger.add_argument("--hold", type=int, default=200)
+    pen = kinds.add_parser("pen", help="a virtual pen at fractions of the screen as shown")
+    pen_ops = pen.add_subparsers(dest="pen_op", required=True)
+    pen_hover = pen_ops.add_parser("hover", help="come near at X Y, glide to --to X2 Y2 and leave")
+    pen_hover.add_argument("x", type=float)
+    pen_hover.add_argument("y", type=float)
+    pen_hover.add_argument("--to", type=float, nargs=2, metavar=("X2", "Y2"))
+    pen_hover.add_argument("--duration", type=int, default=300)
+    pen_tap = pen_ops.add_parser("tap", help="hover, touch down at X Y, lift and leave")
+    pen_tap.add_argument("x", type=float)
+    pen_tap.add_argument("y", type=float)
+    pen_tap.add_argument("--hold", type=int, default=60, help="ms in contact")
+    pen_stroke = pen_ops.add_parser("stroke", help="hover, draw a line from X Y to X2 Y2 and leave")
+    for name in ("x", "y", "x2", "y2"):
+        pen_stroke.add_argument(name, type=float)
+    pen_stroke.add_argument("--duration", type=int, default=300, help="ms in contact")
+    pen_button = pen_ops.add_parser("button", help="press and release a side button while hovering at X Y")
+    pen_button.add_argument("button", choices=["primary", "secondary"])
+    pen_button.add_argument("x", type=float)
+    pen_button.add_argument("y", type=float)
+    pen_button.add_argument("--hold", type=int, default=120, help="ms the button is down")
+    for op in (pen_tap, pen_stroke):
+        op.add_argument("--pressure", type=pen_span, default=(0.5, 0.5), metavar="P[:P]")
+    for op in (pen_tap, pen_stroke, pen_button):
+        op.add_argument("--hover-ms", type=int, default=80, help="ms of hover before and after")
+    for op in (pen_hover, pen_tap, pen_stroke, pen_button):
+        op.add_argument("--tool", choices=["pen", "eraser"], default="pen")
+        op.add_argument("--tilt-x", type=pen_span, default=(0.0, 0.0), metavar="DEG[:DEG]")
+        op.add_argument("--tilt-y", type=pen_span, default=(0.0, 0.0), metavar="DEG[:DEG]")
+        op.add_argument("--distance", type=int, default=0, help="while hovering, in device units 0..255")
+        op.add_argument("--rate", type=float, default=120, help="samples per second")
 
     ui = commands.add_parser("ui", help="the app's own UI: dump nodes, click or type by test tag")
     ui_ops = ui.add_subparsers(dest="ui_op", required=True)
@@ -1127,7 +1355,7 @@ def build_parser() -> argparse.ArgumentParser:
     env_clear = env_ops.add_parser("clear")
     env_clear.add_argument("scope", nargs="?", choices=["next", "persistent", "all"], default="next")
 
-    override = commands.add_parser("override", help="override a program or libblfastpath.so for the next session (debugging tools)")
+    override = commands.add_parser("override", help="override a program or libddfastpath.so for the next session (debugging tools)")
     override.add_argument("name", help="the program name, e.g. gamescope")
     override.add_argument("path", help="the local file to push")
 
@@ -1197,7 +1425,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-EXIT_ADB = {"ADB_NOT_FOUND", "ADB_FAILED", "INVALID_PROVIDER_RESPONSE"}
+EXIT_ADB = {"ADB_NOT_FOUND", "ADB_FAILED", "INVALID_PROVIDER_RESPONSE", "UINPUT_UNAVAILABLE", "NO_VIEWPORT", "UINPUT_FAILED"}
 EXIT_SESSION = {
     "SESSION_ACTIVE", "NO_ACTIVE_SESSION", "SESSION_NOT_SUSPENDED", "SESSION_FAILED", "GUEST_EXIT",
     "GUEST_START_FAILED", "RUNTIME_INSTALL_FAILED", "DESKTOP_INSTALL_FAILED", "ACTIVITY_START_FAILED",

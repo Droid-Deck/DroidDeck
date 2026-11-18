@@ -19,9 +19,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -50,11 +52,12 @@ import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.AttachFile
-import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Pets
@@ -95,6 +98,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -292,7 +296,8 @@ private fun AgentPageContent(
                             awaitEachGesture {
                                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                                 if (panel == AgentPanel.MODEL || panel == AgentPanel.USAGE) panel = AgentPanel.NONE
-                                if (composer.focused) focusManager.clearFocus()
+                                // Forced: the unforced path walks the focus chain and throws ("ActiveParent with no focused child") when a tap lands while focus is moving.
+                                if (composer.focused) focusManager.clearFocus(force = true)
                             }
                         },
                         list, following = !readingBack, onRevise = { composer.open() }, onSent = toLatest,
@@ -304,7 +309,7 @@ private fun AgentPageContent(
                     }
                 }
                 androidx.compose.animation.AnimatedVisibility(!hidden, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    AgentComposer(composer, draft, visible, inlineControls, onPanel = { panel = it }, onSent = toLatest)
+                    AgentComposer(composer, draft, visible && started, inlineControls, onPanel = { panel = it }, onSent = toLatest)
                 }
             }
         }
@@ -451,7 +456,7 @@ private fun AgentConversation(modifier: Modifier, list: LazyListState, following
     }
     if (AgentHost.entries.isEmpty() && !working) {
         Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(Icons.Outlined.AutoAwesome, null, tint = pal.primary, modifier = Modifier.size(40.dp))
+            Icon(Icons.Outlined.Terminal, null, tint = pal.primary, modifier = Modifier.size(40.dp))
             Text(stringResource(R.string.agent_empty), fontSize = 15.sp, color = pal.onSurfaceVariant,
                 textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 460.dp).padding(top = 12.dp))
         }
@@ -567,7 +572,8 @@ private fun labStage(lab: com.droiddeck.launcher.agent.LabProgress) = when (lab.
     else -> stringResource(R.string.agent_lab_stage_starting)
 }
 
-private fun hasActivity() = AgentHost.lab != null || AgentHost.queue.isNotEmpty() || currentTodo() != null
+private fun hasActivity() = AgentHost.lab != null || AgentHost.queue.isNotEmpty() || currentTodo() != null ||
+    com.droiddeck.launcher.agent.AgentSetup.problems.isNotEmpty()
 
 /** The todo item in progress and how many are done, while the agent works through a list. */
 private fun currentTodo(): String? {
@@ -593,6 +599,11 @@ private fun AgentActivity(labOpen: Boolean, onLab: () -> Unit) {
         AgentChip {
             Text(todo, fontSize = 12.5.sp, color = pal.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
         }
+    }
+    val problems = com.droiddeck.launcher.agent.AgentSetup.problems
+    if (problems.isNotEmpty()) AgentChip(warn = true, tag = "agent-tools-missing") {
+        Text(stringResource(R.string.agent_tools_missing, problems.joinToString(", ")), fontSize = 12.5.sp, color = AttentionAmber,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 260.dp))
     }
     for (queued in AgentHost.queue) AgentChip(warn = true) {
         Text(stringResource(R.string.agent_queued, queued.text), fontSize = 12.5.sp, color = AttentionAmber, maxLines = 1,
@@ -697,9 +708,23 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     val pal = LocalPalette.current
     var draft by draftState
     val voice = remember { AgentVoice(context.applicationContext, { draftState.value }) { draftState.value = it } }
-    val voiceAvailable = remember { AgentVoice.available(context) }
-    DisposableEffect(voice) { onDispose { voice.stop() } }
-    LaunchedEffect(visible) { if (!visible) voice.stop() }
+    DisposableEffect(voice) { onDispose { voice.settle() } }
+    var voiceSetup by remember { mutableStateOf(false) }
+    LaunchedEffect(voice.serviceMicBlocked) {
+        if (voice.serviceMicBlocked) {
+            voice.serviceMicBlocked = false
+            voiceSetup = true
+        }
+    }
+    LaunchedEffect(visible) { if (!visible) voice.settle() }
+    // Sends once dictation has written its last words; while a send already waits on them, there is nothing more to do.
+    val sendNow = {
+        when {
+            voice.listening -> voice.finish(send)
+            voice.finishing -> Unit
+            else -> send()
+        }
+    }
     val working = AgentHost.state == AgentHost.State.WORKING
     if (draft.startsWith("/") && !draft.contains(' ')) {
         val matches = (LOCAL_COMMANDS + CLI_COMMANDS).filter { it.startsWith(draft) && it != draft }
@@ -719,23 +744,35 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     ) {
         for (path in AgentAttachments.pending.toList()) AttachmentChip(path) { AgentAttachments.pending.remove(path) }
     }
+    if (voiceSetup) AgentVoiceSetup(onReady = { voiceSetup = false }, onClose = { voiceSetup = false })
     var focused by remember { mutableStateOf(false) }
     val field = remember { FocusRequester() }
     LaunchedEffect(composer.focusRequests) { if (composer.hasUnconsumedFocusRequest()) runCatching { field.requestFocus() } }
-    Column(
+    val attach = LocalActivityResultRegistryOwner.current != null
+    BoxWithConstraints(
         Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape16).background(colors.surface)
             .border(if (focused) 2.dp else 1.dp, if (focused) pal.primary else pal.line, Shape16).padding(6.dp),
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            if (LocalActivityResultRegistryOwner.current != null) AttachButton()
-            if (AgentAttachments.gameFrame != null) GameFrameButton()
-            Box(Modifier.weight(1f).padding(start = 8.dp, top = 10.dp, bottom = 10.dp)) {
+        // A narrow editor gives the buttons a row of their own so the text keeps room to be tapped.
+        val stacked = maxWidth < (if (controls != null) 560.dp else 320.dp)
+        val text: @Composable (Modifier) -> Unit = { modifier -> Box(modifier.padding(start = 8.dp, top = 10.dp, bottom = 10.dp)) {
                 if (draft.isEmpty()) Text(
-                    stringResource(if (working) R.string.agent_hint_working else R.string.agent_hint), fontSize = 16.sp,
+                    stringResource(
+                        when {
+                            voice.listening && !voice.locked -> R.string.agent_voice_hold
+                            voice.listening -> R.string.agent_voice_listening
+                            working -> R.string.agent_hint_working
+                            else -> R.string.agent_hint
+                        },
+                    ),
+                    fontSize = 16.sp,
                     color = pal.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 BasicTextField(
-                    draft, { draft = it },
+                    draft, {
+                        draft = it
+                        if (voice.listening) voice.stop()
+                    },
                     Modifier.fillMaxWidth().focusRequester(field).onFocusChanged {
                         focused = it.isFocused
                         composer.focused = it.isFocused
@@ -744,49 +781,131 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
                     textStyle = TextStyle(fontSize = 16.sp, color = colors.onSurface),
                     cursorBrush = SolidColor(pal.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = {
-                        voice.stop()
-                        send()
-                    }),
+                    keyboardActions = KeyboardActions(onSend = { sendNow() }),
                     minLines = 1,
                     maxLines = 8,
                 )
-            }
-            if (controls != null && !focused) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(42.dp)) { controls() }
+            } }
+        val actions: @Composable () -> Unit = {
             if (working) RoundButton(Icons.Outlined.Stop, stringResource(R.string.agent_stop), pal.error.copy(alpha = 0.22f), colors.error, "agent-stop") {
                 AgentHost.stop(context)
             }
             val canSend = draft.isNotBlank() || AgentAttachments.pending.isNotEmpty()
             // An empty message has nothing to send, so the button there dictates one instead.
-            if ((!canSend || voice.listening) && voiceAvailable) VoiceButton(voice) { voice.start(draft) }
-            else RoundButton(
+            if ((!canSend || voice.listening) && !voice.finishing) VoiceButton(voice, onStart = { voice.start(draft) }, onSend = send, onSetup = { voiceSetup = true })
+            if (voice.finishing || (voice.listening && voice.locked) || (canSend && !voice.listening)) RoundButton(
                 Icons.AutoMirrored.Outlined.Send, stringResource(if (working) R.string.agent_queue else R.string.agent_send),
-                if (canSend) pal.primary else pal.surfaceVariant, if (canSend) pal.onPrimary else pal.onSurfaceVariant, "agent-send", enabled = canSend,
-            ) {
-                voice.stop()
-                send()
+                pal.primary, pal.onPrimary, "agent-send", enabled = !voice.finishing,
+            ) { sendNow() }
+        }
+        if (stacked) Column {
+            text(Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                if (attach) AttachButton()
+                if (AgentAttachments.gameFrame != null) GameFrameButton()
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).height(42.dp)) { if (controls != null && !focused) controls() }
+                actions()
             }
+        } else Row(verticalAlignment = Alignment.Bottom) {
+            if (attach) AttachButton()
+            if (AgentAttachments.gameFrame != null) GameFrameButton()
+            text(Modifier.weight(1f))
+            if (controls != null && !focused) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(42.dp)) { controls() }
+            actions()
         }
     }
 }
 
+/**
+ * Held, it listens until let go and then sends; slid up, it keeps listening hands-free; slid left, it puts the text back.
+ * A tap or a controller press also listens hands-free.
+ */
 @Composable
-private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit) {
+private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit, onSend: () -> Unit, onSetup: () -> Unit) {
     val context = LocalContext.current
     val pal = LocalPalette.current
-    val ask = if (LocalActivityResultRegistryOwner.current != null) rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) onStart() else android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
-    } else null
-    RoundButton(
-        if (voice.listening) Icons.Outlined.MicOff else Icons.Outlined.Mic, stringResource(if (voice.listening) R.string.agent_voice_stop else R.string.agent_voice),
-        if (voice.listening) pal.primary else pal.surfaceVariant, if (voice.listening) pal.onPrimary else pal.onBackground, "agent-voice",
-    ) {
+    val start by rememberUpdatedState(onStart)
+    val send by rememberUpdatedState(onSend)
+    val setup by rememberUpdatedState(onSetup)
+    val handsFree = {
+        start()
+        if (voice.listening) voice.locked = true
+    }
+    val toggle = {
         when {
             voice.listening -> voice.finish()
-            context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED -> onStart()
-            ask != null -> ask.launch(android.Manifest.permission.RECORD_AUDIO)
-            else -> android.widget.Toast.makeText(context, R.string.agent_voice_denied, android.widget.Toast.LENGTH_SHORT).show()
+            !voiceReady(context) -> setup()
+            else -> handsFree()
         }
+    }
+    val density = LocalDensity.current
+    val lockPx = with(density) { 56.dp.toPx() }
+    val cancelPx = with(density) { 72.dp.toPx() }
+    var drag by remember { mutableStateOf(Offset.Zero) }
+    val holding = voice.listening && !voice.locked
+    val icon = when {
+        voice.locked -> Icons.Outlined.MicOff
+        holding && -drag.x > cancelPx / 2 && -drag.x > -drag.y -> Icons.Outlined.Close
+        holding && -drag.y > lockPx / 2 -> Icons.Outlined.Lock
+        else -> Icons.Outlined.Mic
+    }
+    val scale = if (holding) 1.12f + 0.12f * voice.level else 1f
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.padding(start = 6.dp).size(42.dp).graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }.clip(CircleShape).background(if (voice.listening) pal.primary else pal.surfaceVariant)
+            .pointerInput(voice) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(pass = PointerEventPass.Initial)
+                    down.consume()
+                    if (voice.listening || !voiceReady(context)) {
+                        waitForUpOrCancellation(PointerEventPass.Initial)?.let {
+                            it.consume()
+                            toggle()
+                        }
+                        return@awaitEachGesture
+                    }
+                    start()
+                    var resolved = !voice.listening
+                    try {
+                        while (!resolved) {
+                            val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                            // Compose ends a cancelled touch stream with a lift that arrives already consumed; that is not a release.
+                            if (!change.pressed && change.isConsumed) break
+                            change.consume()
+                            drag = change.position - down.position
+                            when {
+                                !voice.listening -> resolved = true
+                                drag.y < -lockPx -> {
+                                    voice.locked = true
+                                    resolved = true
+                                }
+                                drag.x < -cancelPx -> {
+                                    voice.cancel()
+                                    resolved = true
+                                }
+                                !change.pressed -> {
+                                    val tap = change.uptimeMillis - down.uptimeMillis < viewConfiguration.longPressTimeoutMillis / 2 &&
+                                        drag.getDistance() < viewConfiguration.touchSlop
+                                    if (tap) voice.locked = true else voice.finish(send)
+                                    resolved = true
+                                }
+                            }
+                        }
+                    } finally {
+                        drag = Offset.Zero
+                        if (!resolved && voice.listening && !voice.locked) voice.finish()
+                    }
+                }
+            }
+            .clickable(onClick = toggle).testTag("agent-voice"),
+    ) {
+        Icon(
+            icon, stringResource(if (voice.listening) R.string.agent_voice_stop else R.string.agent_voice),
+            tint = if (voice.listening) pal.onPrimary else pal.onBackground, modifier = Modifier.size(21.dp),
+        )
     }
 }
 

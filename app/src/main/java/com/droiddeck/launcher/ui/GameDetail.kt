@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import android.widget.Toast
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.CompositionLocalProvider
@@ -216,7 +218,6 @@ internal fun GameDetail(
     }
     val art: Any? = game?.hero ?: item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
     val artModel: Any? = if (art is String) cardArtRequest(art, item?.tallImageUrl) else art
-    val inSteam = !s.shortcutPicker && source != Library.SOURCE_STEAM && (game != null || installed != null) && !(game?.library == Library.XBOX_CLOUD && installed == null)
     val inset = LocalDetailInset.current
     GameBackdrop(artModel, art ?: game?.art, hueOf(title), fadeTop = inset.top < 8.dp, onArtPlaced = { StoresMotion.heroAt = it }) {
         Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top).onFocusChanged { inPage = it.hasFocus }.bumpers(onPrevious = { cycle(-1) }, onNext = { cycle(1) })) {
@@ -236,8 +237,9 @@ internal fun GameDetail(
             }
             val header: @Composable () -> Unit = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GameStatusLine(source, game, item, installed, download?.location ?: failed?.location, inSteam)
+                    Spacer(Modifier.height(if (narrow) 8.dp else 20.dp))
                     GameTitle(title, game?.logo ?: item?.logoUrl, if (narrow) 30.sp else 40.sp)
+                    GameStatusLine(source, game, item, installed, download?.location ?: failed?.location)
                     if (!failed?.error.isNullOrBlank()) Text(
                         failed!!.error!!, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.error, maxLines = 3, overflow = TextOverflow.Ellipsis,
@@ -296,16 +298,16 @@ internal fun SourceBadge(source: String) {
 }
 
 @Composable
-private fun GameStatusLine(source: String, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?, downloadAt: String?, inSteam: Boolean) {
+private fun GameStatusLine(source: String, game: Library.SteamGame?, item: CatalogItem?, installed: InstalledStoreGame?, downloadAt: String?) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val folder = installed?.folder ?: game?.gameFiles
     val passName = item?.includedWith.orEmpty()
     val state = when {
-        installed != null -> listOf(stringResource(R.string.stores_eyebrow_installed), StoreInstallRoot.labelFor(ctx, installed.folder))
+        installed != null -> listOf(StoreInstallRoot.labelFor(ctx, installed.folder))
         game?.library == Library.XBOX_CLOUD -> listOf(libraryLabel(game))
-        game != null -> listOf(stringResource(R.string.stores_eyebrow_installed), libraryLabel(game))
+        game != null -> listOf(libraryLabel(game))
         !downloadAt.isNullOrBlank() -> listOf(stringResource(R.string.stores_eyebrow_library), downloadAt)
         item?.owned == true -> listOf(stringResource(R.string.stores_eyebrow_library))
         item?.subscription == true -> listOf(passName.ifBlank { stringResource(R.string.stores_game_pass) })
@@ -314,19 +316,26 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
         else -> listOf(stringResource(R.string.stores_eyebrow_store))
     }
     val size = if (folder != null && (installed != null || game != null)) diskSize(installed, folder) else catalogSize(item).takeIf { it > 0 }
-    val line = (state + listOfNotNull(size?.let { formatBytes(it) })).filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
-    val muted = colors.onBackground.copy(alpha = 0.78f)
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    val where = state.filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+    ) {
         SourceBadge(source)
-        Text(line, fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        if (inSteam) {
-            Text("·", fontSize = 12.sp, color = muted.copy(alpha = 0.5f))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Icon(Icons.Outlined.VideogameAsset, contentDescription = null, tint = muted, modifier = Modifier.size(15.dp))
-                Text(stringResource(R.string.stores_in_steam_label), fontSize = 12.sp, color = muted, maxLines = 1)
-                Icon(Icons.Filled.Check, contentDescription = null, tint = pal.good, modifier = Modifier.size(14.dp))
-            }
-        }
+        if (where.isNotBlank()) StatusChip(where)
+        if (size != null) StatusChip(formatBytes(size))
+    }
+}
+
+@Composable
+private fun StatusChip(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, tint: Color? = null) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.glass(CircleShape, 0.06f).padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        if (icon != null) Icon(icon, contentDescription = null, tint = tint ?: colors.onBackground.copy(alpha = 0.85f), modifier = Modifier.size(13.dp))
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground.copy(alpha = 0.9f), maxLines = 1)
     }
 }
 
@@ -384,7 +393,7 @@ private fun GameTitle(title: String, logo: Any?, titleSize: TextUnit) {
     if (logo != null && !failed) AsyncImage(
         model = logo, contentDescription = title, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart,
         onError = { failed = true },
-        modifier = Modifier.padding(vertical = 4.dp).height((titleSize.value * 1.5f).dp).widthIn(max = (titleSize.value * 7f).dp).clip(RoundedCornerShape(10.dp)).testTag("game-logo"),
+        modifier = Modifier.padding(vertical = 4.dp).height((titleSize.value * 2.3f).dp).widthIn(max = (titleSize.value * 10f).dp).clip(RoundedCornerShape(10.dp)).testTag("game-logo"),
     ) else Text(
         title, fontSize = titleSize, lineHeight = titleSize * 1.12f, fontWeight = FontWeight.Black,
         color = MaterialTheme.colorScheme.onBackground, maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -458,7 +467,10 @@ internal fun GameActions(
                     }
                     SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
                 }
-                if (game != null && !compactMenu) EditArtButton(game)
+                if (game != null && !compactMenu) {
+                    HideButton(hideKey(game), game)
+                    EditArtButton(game)
+                }
             }
             download != null -> {
                 ActionChip(downloadLabel(download), ok = false)
@@ -518,6 +530,8 @@ internal fun GameActions(
             }
             item != null -> PrimaryButton(buyLabel(item), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
         }
+        val entryKey = game?.let(::hideKey) ?: storeKey
+        if (!s.shortcutPicker && entryKey != null && (game == null || cloud)) HideButton(entryKey, game)
         if (cloud && (download != null || failed != null)) {
             XboxStreamButton(game.storeId.orEmpty(), game.name)
             XboxLibraryButton(game.storeId.orEmpty(), item)
@@ -610,6 +624,17 @@ internal fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
     }
 }
 
+internal fun hideKey(g: Library.SteamGame): String = g.storeId?.let { "${g.source}:$it" } ?: GameRef.key(g)
+
+@Composable
+internal fun HideButton(key: String, g: Library.SteamGame?) {
+    val ctx = LocalContext.current
+    rememberHiddenSync()
+    val hidden = LibraryHidden.isHidden(key, g)
+    val failed = stringResource(R.string.game_hide_failed)
+    SecondaryButton(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), compact = true) { if (!LibraryHidden.set(ctx, key, g, !hidden)) Toast.makeText(ctx, failed, Toast.LENGTH_LONG).show() }
+}
+
 @Composable
 internal fun EditArtButton(g: Library.SteamGame) {
     val open = rememberEditArt(g) ?: return
@@ -620,6 +645,10 @@ internal fun EditArtButton(g: Library.SteamGame) {
 private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { mutableStateOf(false) }
     val edit = rememberEditArt(g)
+    val ctx = LocalContext.current
+    rememberHiddenSync()
+    val hidden = LibraryHidden.isHidden(hideKey(g), g)
+    val failed = stringResource(R.string.game_hide_failed)
     Box {
         SecondaryButton(stringResource(R.string.game_more)) { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.game_more), compact = true) { first ->
@@ -630,6 +659,8 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
             MenuItem(stringResource(R.string.game_shortcut_add), checked = false, focusRequester = take()) { open = false; a.onGameShortcut(g) }
             MenuItem(stringResource(R.string.game_file_export), checked = false) { open = false; a.onExportGameFile(g) }
             MenuItem(stringResource(R.string.game_link_copy), checked = false) { open = false; a.onCopyGameLink(g) }
+            val hideKey = hideKey(g)
+            MenuItem(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), checked = false) { open = false; if (!LibraryHidden.set(ctx, hideKey, g, !hidden)) Toast.makeText(ctx, failed, Toast.LENGTH_LONG).show() }
             edit?.let { run -> MenuItem(stringResource(R.string.game_edit_art), checked = false) { open = false; run() } }
         }
     }
@@ -835,6 +866,7 @@ private fun LaunchTab(game: Library.SteamGame, s: FrontEndState, a: FrontEndActi
         LaunchSettings(s, a, host, game, hopRail ?: GameRef.key(game))
         if (canEditSteamLaunchOptions(game, s.shortcutPicker)) {
             SteamLaunchOptionsPanel(game.appId)
+            SteamInputOverridePanel(game.appId)
         }
         val folder = game.gameFiles
         if (game.library == Library.ADDED && game.source == Library.ADDED && !s.shortcutPicker && folder != null) ShortcutFields(game, folder)
@@ -1054,6 +1086,15 @@ internal fun diskSize(installed: InstalledStoreGame?, folder: File): Long? {
 internal object FolderSizes {
     val known = androidx.compose.runtime.mutableStateMapOf<String, Long>()
     private val asked = java.util.Collections.synchronizedSet(HashSet<String>())
+    private var saved: android.content.SharedPreferences? = null
+
+    // The last walk of each folder shows at once after a restart; a fresh walk still replaces it.
+    fun load(context: android.content.Context) {
+        if (saved != null) return
+        val p = context.applicationContext.getSharedPreferences("folder_sizes", android.content.Context.MODE_PRIVATE)
+        saved = p
+        p.all.forEach { (path, bytes) -> if (bytes is Long && path !in known) known[path] = bytes }
+    }
 
     fun request(folder: File) {
         if (!asked.add(folder.path)) return
@@ -1068,7 +1109,10 @@ internal object FolderSizes {
                     override fun visitFileFailed(file: java.nio.file.Path, exc: java.io.IOException): java.nio.file.FileVisitResult = java.nio.file.FileVisitResult.CONTINUE
                 })
             }.isSuccess
-            if (walked) StoresState.post { known[folder.path] = total } else asked.remove(folder.path)
+            if (walked) {
+                saved?.edit()?.putLong(folder.path, total)?.apply()
+                StoresState.post { known[folder.path] = total }
+            } else asked.remove(folder.path)
         }, "folder-size").start()
     }
 }

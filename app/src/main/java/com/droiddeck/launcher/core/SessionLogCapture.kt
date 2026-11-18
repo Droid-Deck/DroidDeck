@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.core
 
+import android.content.Context
 import android.os.Process
 import android.util.Log
 import java.io.BufferedWriter
@@ -18,7 +19,7 @@ object SessionLogCapture {
     private var syncer: Thread? = null
 
     @Synchronized
-    fun start(target: File) {
+    fun start(target: File, sinceMillis: Long) {
         stop()
         try {
             val out = target.bufferedWriter()
@@ -28,7 +29,7 @@ object SessionLogCapture {
             writer = out
             this.target = target
             pid = HostProcess.start(
-                "/system/bin/logcat -v threadtime -T 1 --pid=" + Process.myPid(),
+                command(Process.myPid(), sinceMillis),
                 null, target.parentFile, null,
             ) { line ->
                 synchronized(this) {
@@ -47,6 +48,11 @@ object SessionLogCapture {
         } catch (e: Exception) {
             Log.w(TAG, "could not start the app log", e)
         }
+    }
+
+    internal fun command(pid: Int, sinceMillis: Long): String {
+        val since = if (sinceMillis > 0) "%d.%03d".format(java.util.Locale.US, sinceMillis / 1000, sinceMillis % 1000) else "1"
+        return "/system/bin/logcat -v threadtime -T $since --pid=$pid"
     }
 
     @Synchronized
@@ -108,7 +114,17 @@ object SessionLogCapture {
         }
     }
 
-    fun dumpMemoryPressure(target: File) {
+    internal const val LMKD_COMMAND = "logcat -d -b main,events -v threadtime -s lowmemorykiller:D killinfo:I" +
+        " | grep -v -E 'pgskip|zoneinfo_parse|polling check|thrashing:' | tail -n 120"
+
+    private fun lowMemoryKiller(context: Context?): String = when {
+        context == null -> "(not captured)\n"
+        !WirelessAdbFix.hasSavedPairing(context) -> "(not captured: pair DroidDeck with Wireless debugging in Settings > Diagnostics)\n"
+        else -> runCatching { WirelessAdbFix.shell(context, LMKD_COMMAND) }
+            .fold({ it.ifBlank { "(no lmkd lines in the log)\n" } }, { "(not captured: ${it.message})\n" })
+    }
+
+    fun dumpMemoryPressure(target: File, context: Context? = null) {
         var temporary: File? = null
         try {
             val staged = File.createTempFile(target.name, ".part", target.parentFile).also { temporary = it }
@@ -145,7 +161,8 @@ object SessionLogCapture {
                         body.isNotEmpty() -> body
                         else -> "(no readable events were returned)\n"
                     } +
-                    "\n/proc/pressure/memory:\n$pressure\n/proc/meminfo:\n$meminfo\n/sys/class/kgsl/kgsl/page_alloc:\n$gpu"
+                    "\n/proc/pressure/memory:\n$pressure\n/proc/meminfo:\n$meminfo\n/sys/class/kgsl/kgsl/page_alloc:\n$gpu" +
+                    "\nAndroid's low memory killer (lmkd), read over Wireless debugging:\n${lowMemoryKiller(context)}"
             )
             Files.move(
                 staged.toPath(), target.toPath(),

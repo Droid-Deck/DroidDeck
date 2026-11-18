@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">SteamVR 圖形已停止運作</string>
     <string name="steamvr_recovery_countdown">DroidDeck 將於 %1$d 秒後重新啟動，以重設圖形並重新開啟 SteamVR。正在運行的遊戲會被關閉，未儲存的進度無法還原。</string>
@@ -10,14 +10,34 @@
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
         <item>首次執行會下載 Steam，可能需要幾分鐘。</item>
-        <item>預設情況下，離開應用程式會暫停 Steam；返回時會從上次中斷的地方繼續。</item>
-        <item>你的控制器會顯示為 Xbox 360 控制器。如果沒有控制器，請使用螢幕控制。</item>
+        <item>你的控制器在 Steam 中會顯示為 Steam Deck 控制器。可在工作階段設定中切換為 Steam Controller、DualShock 4、DualSense 或 Xbox 360 控制器，下次工作階段生效。</item>
+        <item>長按控制器上的返回鍵可開啟 Steam 的快速存取選單。必須在工作階段設定中開啟「長按返回鍵使用 Steam 快捷操作」。</item>
+        <item>背景行為決定你離開應用程式時會發生什麼：「原生」會讓 Steam 做好休眠準備，「自動」會暫停，「手動」會等你按「繼續」，「從不」則保持執行。</item>
+        <item>Steam 遊戲使用快速存取中 Steam 的幀率限制。如果有能被該上限整除的更新率，顯示器會切換到該更新率。</item>
+        <item>工作階段選單中的低延遲模式會以 1000 Hz 而非 250 Hz 傳送控制器輸入，代價是略多一點 CPU 和電量消耗。</item>
+        <item>每個遊戲都有自己的設定檔，包含 Proton、FEX、元件和環境設定。</item>
+        <item>工作階段選單裡有用於語音聊天的麥克風開關，以及可隨時凍結工作階段的「立即暫停」按鈕。</item>
+        <item>拖曳 DroidDeck HUD 可移動它，雙指捏合可調整大小，推到螢幕邊緣可停靠為小型 FPS 分頁。</item>
+        <item>在雙螢幕掌機上，下方螢幕可以顯示下載、通知、截圖和 Steam 聊天。「交換螢幕」會改為把遊戲放到下方螢幕。</item>
+        <item>可加入 SD 卡、USB 隨身碟或 SSD 上的 Steam 遊戲庫，DroidDeck 會把這些遊戲集中在你的收藏庫中。</item>
+        <item>「商店」讓你登入 Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io 和 Game Jolt，然後在 DroidDeck 中安裝和更新它們的遊戲。</item>
+        <item>FEX、DXVK 和 VKD3D-Proton 等元件會自動更新，預設使用 Proton Experimental ARM64，安裝 Proton 11.0 ARM64 後則預設使用它。</item>
+        <item>「遊戲執行時壓縮 Steam」可在記憶體不足的裝置上釋放 RAM。</item>
+        <item>從右邊緣向內滑動可開啟工作階段選單：觸控板模式、電腦鍵盤、低延遲、遊戲設定檔等。</item>
+        <item>遊戲執行緩慢？先在快速存取中限制影格率，再到遊戲的元件中嘗試其他 Proton 版本或 FEX 預設。</item>
+        <item>遊戲音訊爆音或沒有聲音？請在 Steam 設定的「音訊」下嘗試「遊戲使用 DirectAudio」開關。</item>
+        <item>「設定」下的「儲存空間」可以清理已移除遊戲留下的著色器快取和殘留前綴。</item>
+        <item>遇到故障？工作階段選單中的「分享記錄」會打包診斷資訊。請發布到 Discord 的 #bug-reports。</item>
     </string-array>
     <string-array name="loading_hints_desktop">
         <item>首次執行會設定桌面，可能需要幾分鐘。</item>
-        <item>預設情況下，離開應用程式會暫停會話；返回時會從上次中斷的地方繼續。</item>
-        <item>觸控會當作觸控板使用：拖曳以移動指標，輕按即點擊。</item>
-        <item>你的控制器會顯示為 Xbox 360 控制器。如果沒有控制器，請使用螢幕控制。</item>
+        <item>觸控的作用類似觸控板：拖曳可移動游標，輕點即可點按。</item>
+        <item>背景行為決定你離開應用程式時會發生什麼：「手動」預設會等你按「繼續」，「自動」會暫停，「從不」則保持執行。</item>
+        <item>從右邊緣向內滑動可開啟工作階段選單，然後選擇「電腦鍵盤」，即可在忽略 Android 鍵盤的應用程式中輸入。</item>
+        <item>工作階段選單中的電腦鍵盤可調整大小、不透明度和按鍵群組。</item>
+        <item>你的控制器會顯示為 Xbox 360 控制器。否則請使用螢幕上的控制項。</item>
+        <item>工作階段選單裡有麥克風開關和可隨時凍結工作階段的「立即暫停」按鈕。</item>
+        <item>遇到故障？工作階段選單中的「分享記錄」會打包診斷資訊。請發布到 Discord 的 #bug-reports。</item>
     </string-array>
     <string name="session_channel">會話</string>
     <string name="session_channel_description">Steam 或桌面會話開啟時顯示</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">觸控板</string>
     <string name="mode_touch_direct">直接</string>
     <string name="mode_touch_note">自動：桌面使用觸控板，Steam 使用直接觸控。</string>
+    <string name="mode_pen">觸控筆</string>
+    <string name="mode_pen_mouse">滑鼠</string>
+    <string name="mode_pen_touch">觸控</string>
+    <string name="mode_pen_button">側鍵</string>
     <string name="mode_osc">螢幕控制</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">「自動」會在未連接控制器時顯示螢幕控制。</string>
@@ -333,7 +357,7 @@
     <string name="mode_return_after_game">遊戲結束後返回 DroidDeck</string>
     <string name="mode_return_after_game_hint">從 DroidDeck 或其他啟動器啟動的遊戲關閉後，Steam 會正常退出（先完成雲端存檔同步），並返回啟動位置。關閉：留在 Steam 中。</string>
     <string name="mode_shader_precache">著色器預先快取</string>
-    <string name="mode_shader_precache_hint">Steam 會為你的遊戲下載預先編譯的著色器並在背景處理，讓遊戲較不卡頓。關閉可節省流動數據用量、儲存空間和電量；遊戲則會改為在執行時編譯著色器。與 Steam 的「下載」>「著色器預先快取」為同一個設定。下次工作階段生效。</string>
+    <string name="mode_shader_precache_hint">Steam 會為你的遊戲下載預先編譯的著色器並在背景處理，讓遊戲較不卡頓。關閉可節省流動數據用量、儲存空間和電量；遊戲則會改為在執行時編譯著色器。與 Steam 的「下載」&gt;「著色器預先快取」為同一個設定。下次工作階段生效。</string>
     <string name="mode_steam_repair">修復 Steam 用戶端</string>
     <string name="mode_steam_repair_hint">下次啟動 Steam 時重新下載 Steam 用戶端。如果 Steam 一直停留在載入畫面，請使用此功能。遊戲、登入資料和設定都會保留。</string>
     <string name="mode_steam_repair_queued">下次啟動 Steam 時會重新下載 Steam 用戶端。</string>
@@ -602,6 +626,8 @@
     <string name="perf_cap_off">關閉</string>
     <string name="perf_cap_auto">驅動程式預設</string>
     <string name="perf_zram_client">遊戲執行時壓縮 Steam</string>
+    <string name="perf_zram_idle">壓縮遊戲閒置記憶體</string>
+    <string name="perf_zram_idle_hint">RAM 偏低時壓縮遊戲閒置記憶體。如果遊戲大約每半分鐘凍結幾秒，請關閉此項。下次啟動工作階段時生效。</string>
     <string name="perf_zram_client_hint">遊戲啟動 20 秒後，Steam 用戶端會被壓縮到 zRAM，為遊戲騰出更多記憶體，並在遊戲關閉時讀回。如果會話在遊戲啟動後不久就關閉，請關閉此選項。若超過上方的 RAM 上限，會話仍會壓縮 Steam。</string>
     <string name="perf_ram_cap">RAM 上限</string>
     <string name="perf_ram_cap_hint">在 Steam 用戶端執行時生效，無論是 Steam 模式或從桌面啟動。當會話的用量超過此值時，會先將 Steam、再將會話中其他受支援的程序壓縮到 zRAM。這是軟性上限：不會關閉任何程式，但在分頁讀回時遊戲可能會卡頓。</string>
@@ -612,7 +638,7 @@
     <string name="perf_gpuclock_hint">只限 Adreno。減少卡頓，但更耗電、更發熱。</string>
     <string name="perf_fixes">會話修正</string>
     <string name="perf_sysmem">Turnip：sysmem 渲染</string>
-    <string name="perf_sysmem_hint">Steam 用戶端會更快；遊戲中驅動程式會為每個渲染通道選擇分塊渲染或系統記憶體渲染。Adreno 710/720/722 必須開啟。</string>
+    <string name="perf_sysmem_hint">適用於 Steam 用戶端和遊戲。Adreno 710/720/722 必須開啟。</string>
     <string name="perf_xalia">略過 Steam 的 xalia 輔助程式</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">在用戶空間代替 Linux ntsync 驅動程式。開啟時，Proton 會使用它而非 droiddeck-esync 和 droiddeck-fsync。適用於 Proton Experimental ARM64、GE-Proton 和 proton-cachyos。下次會話生效。</string>
@@ -647,6 +673,8 @@
     <string name="drawer_page_display">顯示</string>
     <string name="drawer_frame_limit">幀率限制</string>
     <string name="drawer_frame_limit_note">限制此遊戲的幀率。若有能被此上限整除的螢幕更新率，顯示器會切換至該更新率；其他上限可能看起來不平順。Steam 遊戲請使用快速存取選單中 Steam 的幀率限制。</string>
+    <string name="drawer_bfi">黑幀插入</string>
+    <string name="drawer_bfi_note">動態更清晰：每幀之後插入一次黑色更新。需要 100 Hz 或更高；遊戲以一半更新率運行，畫面較暗。開啟幀生成時不可用。</string>
     <string name="drawer_page_effects">效果</string>
     <string name="drawer_page_controls">控制</string>
     <string name="drawer_page_components">組件</string>
@@ -680,7 +708,10 @@
     <string name="hud_size_mega">超大</string>
     <string name="hud_size_strip">橫條</string>
     <string name="hud_locked">鎖定位置</string>
-    <string name="hud_locked_hint">拖曳 HUD 可移動位置；長按可鎖定或解鎖。鎖定時，下方的螢幕控制項仍可使用。</string>
+    <string name="hud_locked_hint">拖曳 HUD 可移動位置。鎖定時，下方的螢幕控制項仍可使用。</string>
+    <string name="hud_hold">長按</string>
+    <string name="hud_hold_collapse">摺疊或展開</string>
+    <string name="hud_hold_lock">鎖定或解鎖</string>
     <string name="hud_snap">貼齊兩側</string>
     <string name="hud_snap_hint">放開 HUD 後，它會移到螢幕較近的一側。輕甩可將它甩向該方向。</string>
     <string name="hud_group_look">外觀</string>
@@ -1113,7 +1144,7 @@
     <string name="lab_off_title">實驗版已關閉</string>
     <string name="lab_off_other_install">它是為另一個 DroidDeck 版本建置的，現保留在「更新」。</string>
     <string name="lab_off_did_not_start">DroidDeck 兩次都無法在該版本啟動</string>
-    <string name="rail_agent">代理</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">代理</string>
     <string name="agent_working">代理正在運作</string>
     <string name="agent_missing">在 Linux 用戶空間安裝 Claude Code，才可使用代理。</string>
@@ -1153,6 +1184,7 @@
     <string name="agent_hint_working">輸入即可排入下一則訊息</string>
     <string name="agent_queue">排入</string>
     <string name="agent_queued">下一則：%1$s</string>
+    <string name="agent_tools_missing">智能體工具未安裝：%1$s</string>
     <string name="agent_unqueue">不要傳送</string>
     <string name="agent_attach">附加</string>
     <string name="agent_remove_attachment">移除</string>
@@ -1279,6 +1311,7 @@
     <string name="gate_enter_manually">手動輸入位址</string>
     <string name="gate_from_computer">在已安裝 ADB 的電腦上：</string>
     <string name="gate_copy_command">複製指令</string>
+    <string name="gate_sidequest_steps">將頭戴裝置連接到電腦並開啟 SideQuest。依次選擇「Run ADB Command」和「Custom Command」，輸入下方顯示的指令，然後選擇「Run Command」。</string>
     <string name="gate_choose_display">選擇要在哪個螢幕開啟 Android 設定。</string>
     <string name="gate_main_screen">主螢幕</string>
     <string name="wadb_finding_port">已配對，正在尋找無線偵錯連接埠…</string>
@@ -1532,6 +1565,8 @@
     <string name="pip_unavailable">Android 無法開啟畫中畫。</string>
     <string name="game_more">更多</string>
     <string name="game_edit_art">編輯圖片</string>
+    <string name="game_unhide">取消隱藏</string>
+    <string name="game_hide_failed">無法與 Steam 同步。請關閉 Steam 後再試。</string>
     <string name="stores_in_steam_label">在 Steam 中</string>
     <string name="game_shortcut">捷徑</string>
     <string name="game_shortcut_add">加至主畫面</string>
@@ -1553,7 +1588,6 @@
     <string name="game_file_folder">為前端遊戲檔案選擇資料夾</string>
     <string name="game_file_exported">遊戲檔案已儲存至 %1$s</string>
     <string name="game_frontend_files">前端檔案</string>
-
     <string name="main_wait_runtime">請等待運行環境操作完成</string>
     <string name="main_wait_proton_install">請等待兼容性工具安裝完成</string>
     <string name="load_compat_title">正在準備兼容工具</string>
@@ -1634,7 +1668,6 @@
     <string name="main_removing_runtime">正在移除 Linux 運行環境</string>
     <string name="main_settings_main_screen">無法在下方螢幕開啟「設定」，已改為在主螢幕開啟。</string>
     <string name="main_open_dev_options">在「系統設定」中開啟開發人員選項</string>
-
     <string name="upd_unknown_apps_failed">無法開啟 Android 的「安裝不明應用程式」設定</string>
     <string name="upd_couldnt_check">無法檢查：%1$s</string>
     <string name="upd_no_download">此版本沒有適用於此 DroidDeck 版本的下載</string>
@@ -1644,12 +1677,10 @@
     <string name="upd_stage_confirm">正在等待你確認</string>
     <string name="upd_failed">更新失敗</string>
     <string name="upd_not_offered">Android 沒有提供安裝更新的選項</string>
-
     <string name="decky_install_failed">Decky 安裝失敗：%1$s</string>
     <string name="decky_plugin_starting">正在開始匯入插件…</string>
     <string name="decky_plugin_failed">插件匯入失敗：%1$s</string>
     <string name="decky_plugin_installed">已安裝插件。請重新啟動 Steam 以載入。</string>
-
     <string name="drivers_not_checked">尚未檢查 - 輕按重新整理以尋找新驅動程式</string>
     <string name="drivers_bundle_sets_display">Android + Linux：同時設定顯示驅動程式</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux：同時設定運行環境驅動程式</string>
@@ -1699,7 +1730,6 @@
     <string name="drivers_check_failed">檢查失敗</string>
     <string name="drivers_installed_pick_either">已安裝 %1$s - 在任一清單中選擇即可同時設定兩個驅動程式</string>
     <string name="drivers_installed_pick">已安裝 %1$s - 請在選單中選擇</string>
-
     <string name="session_wait_removal">請等待運行環境移除完成</string>
     <string name="session_title_game">遊戲</string>
     <string name="session_touch_auto_touchpad">觸控板</string>
@@ -1743,7 +1773,6 @@
     <plurals name="session_hint_enosys">
         <item quantity="other">記錄顯示 %1$d 個「Function not implemented」錯誤：proot 的 seccomp 加速令此裝置上的一個輔助程式失敗。請嘗試 %2$s →「%3$s」（或「%4$s」），然後重新啟動。</item>
     </plurals>
-
     <string name="mode_decky_plugins">插件</string>
     <string name="mode_decky_plugins_hint">安裝插件 ZIP，在下次 Steam 會話使用。</string>
     <string name="mode_decky_plugin_downloading">正在下載…</string>
@@ -1815,6 +1844,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">清除</string>
     <string name="game_sync_err_runtime">請先安裝運行環境</string>
     <string name="game_sync_err_steam_library">無法使用 Steam 收藏庫</string>
     <string name="game_sync_err_previous_sd">無法使用先前的 SD 卡收藏庫</string>
@@ -2092,7 +2122,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">連接埠 %1$d 正在接收資料（%2$d 個 %3$d 位元組的封包），但此頁面目前還無法讀取這種格式。</string>
     <string name="bottom_telemetry_port_busy">其他程式已在使用連接埠 %1$s，因此該遊戲無法在此顯示。</string>
-
     <string name="rtinst_removing">正在移除 Linux 運行環境</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="other">正在移除 Linux 運行環境 · %1$d 個項目</item>
@@ -2106,7 +2135,6 @@
     <string name="rtinst_channel_description">安裝或移除 Linux 運行環境時顯示</string>
     <string name="rtinst_title_installing">正在安裝 Linux 運行環境</string>
     <string name="rtinst_title_removing">正在移除 Linux 運行環境</string>
-
     <string name="deskpkg_runtime_missing">尚未安裝 Linux 運行環境</string>
     <string name="deskpkg_no_checksum">目錄中沒有 %1$s 的校驗和</string>
     <string name="deskpkg_checksum_mismatch">校驗和不符 - 未作任何更改</string>
@@ -2114,7 +2142,6 @@
     <string name="deskpkg_place_failed">無法放置 AppImage</string>
     <string name="deskpkg_extract_failed">解壓縮失敗</string>
     <string name="deskpkg_install_failed">安裝失敗</string>
-
     <string name="flatpakmgr_setup_failed">Flatpak 設定失敗（結束代碼 %1$d）</string>
     <string name="flatpakmgr_setup_unfinished">Flatpak 設定未完成</string>
     <string name="flatpakmgr_busy">另一項商店工作正在進行</string>
@@ -2133,7 +2160,6 @@
     <string name="flatpakmgr_ref_media_codecs">媒體編解碼器</string>
     <string name="flatpakmgr_ref_runtime">%1$s 運行環境</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s 運行環境 %2$s</string>
-
     <string name="appimg_too_small">檔案太小，不可能是 AppImage</string>
     <string name="appimg_unreadable">無法讀取檔案：%1$s</string>
     <string name="appimg_not_linux">這不是 AppImage（它不是 Linux 程式）</string>
@@ -2148,7 +2174,6 @@
     <string name="appimg_extracting">正在解壓縮 %1$s</string>
     <string name="appimg_extract_failed">無法解壓縮 AppImage</string>
     <string name="appimg_extract_failed_detail">無法解壓縮 AppImage：%1$s</string>
-
     <string name="deckymgr_stop_session_loader">請先停止目前的會話，再安裝 Decky Loader</string>
     <string name="deckymgr_download_failed">Decky Loader 下載失敗</string>
     <string name="deckymgr_size_mismatch">Decky Loader 的大小與發佈中繼資料不符</string>
@@ -2197,13 +2222,11 @@
     <string name="deckymgr_activate_failed">無法啟用已匯入的插件</string>
     <string name="deckymgr_settings_failed">無法更新 Decky 插件設定</string>
     <string name="deckymgr_restore_failed">無法還原現有插件</string>
-
     <string name="adbfix_save_failed">無法儲存無線偵錯身分</string>
     <string name="adbfix_command_failed">ADB 指令失敗（%1$d）</string>
     <string name="adbfix_not_confirmed">Android 未確認子進程限制已更改：%1$s</string>
     <string name="adbfix_no_pairing">沒有已儲存的無線偵錯配對</string>
     <string name="adbfix_enter_address">請輸入目前的無線偵錯 IP 位址和連接埠</string>
-
     <string name="adbpair_timed_out">等待配對彈出式視窗逾時，請在 DroidDeck 重試。</string>
     <string name="adbpair_discovery_failed_code">無法尋找配對彈出式視窗（%1$d）。請確認 Wi-Fi 已開啟。</string>
     <string name="adbpair_discovery_failed">無法尋找配對彈出式視窗：%1$s</string>
@@ -2229,7 +2252,6 @@
     <string name="adbpair_title_done">Steam 已準備就緒</string>
     <string name="adbpair_done_text">輕按即可返回 DroidDeck。你現在可以關閉無線偵錯。</string>
     <string name="adbpair_title_failed">無線偵錯設定已停止</string>
-
     <string name="selfinst_download_failed">下載失敗</string>
     <string name="selfinst_size_mismatch">下載的大小與已發佈的 APK 不符，已被捨棄 - 請再試一次</string>
     <string name="selfinst_checksum_mismatch">下載的檔案與其校驗和不符，已被捨棄 - 請再試一次</string>
@@ -2242,13 +2264,11 @@
     <string name="selfinst_no_signing">已下載的 APK 沒有簽署資料</string>
     <string name="selfinst_wrong_signer">已下載的 APK 並非使用 DroidDeck 的發佈金鑰簽署</string>
     <string name="appupd_http">更新目錄回應 HTTP %1$d</string>
-
     <string name="loadstate_starting">正在啟動會話…</string>
     <string name="loadstate_elapsed">已過 %1$d:%2$02d · 仍在處理</string>
     <string name="loadstate_steam_update">正在下載 Steam 用戶端更新 · %1$d%%</string>
     <string name="loadstate_steam_update_applying">正在套用 Steam 用戶端更新…</string>
     <string name="loadstate_steam_client">正在下載 Steam 用戶端 · %1$s</string>
-
     <string name="pextra_busy">已有兼容性工具正在安裝</string>
     <string name="pextra_stop_session">請先停止目前的會話，再安裝兼容性工具</string>
     <string name="pextra_no_release">找不到 %1$s 的 ARM64 發佈版本</string>
@@ -2268,7 +2288,6 @@
     <string name="pextra_install_failed">%1$s 安裝失敗（結束代碼 %2$d）</string>
     <string name="pextra_could_not_install">無法安裝 %1$s</string>
     <string name="esync_fetching">正在下載 droiddeck-esync 套件</string>
-
     <string name="cmgr_fex_linux_helpers">包含 Linux 輔助程式</string>
     <string name="cmgr_fex_dlls_only">只有 DLL</string>
     <string name="cmgr_original_proton_updated">原始（上次替換後 Proton 已更新）</string>
@@ -2291,13 +2310,11 @@
     <string name="cmgr_nightly_replaced">下載失敗：此每夜版本可能已被較新的版本取代。請重新整理清單後再試。</string>
     <string name="cmgr_list_predates_checksums">此軟件包清單早於校驗和推出 - 請重新整理後再試一次</string>
     <string name="cmgr_checksum_mismatch">校驗和不符</string>
-
     <string name="sprefs_upscaler_linear">線性</string>
     <string name="sprefs_upscaler_nearest">最近鄰</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR（品質）</string>
     <string name="sprefs_upscaler_sharpen">只銳化</string>
     <string name="sprefs_lod_bias_auto">自動（配合縮放）</string>
-
     <string name="look_off_desc">沒有套用任何效果。</string>
     <string name="look_game_clarity">遊戲清晰</string>
     <string name="look_game_clarity_desc">銳化並略增對比度 - 日常之選。</string>
@@ -2321,7 +2338,6 @@
     <string name="look_pixel_clean_desc">為 2D 及舊遊戲提供銳利的像素。</string>
     <string name="look_anime_edge">動畫描邊</string>
     <string name="look_anime_edge_desc">卡通描邊加上銳化。</string>
-
     <string name="gpuinfo_not_adreno">不是 Adreno GPU</string>
     <string name="gpuinfo_powervr">系統 PowerVR 驅動程式：相容性因裝置而異</string>
     <string name="gpuinfo_xclipse">實驗性：RADV 或系統 Xclipse 驅動程式</string>
@@ -2344,7 +2360,6 @@
     <string name="gpuinfo_a850_experimental">Adreno 850 實驗性支援：需要相容的實驗版顯示驅動程式及遊戲驅動程式；尚未在此裝置上驗證</string>
     <string name="gpuinfo_below_tested">低於已測試的硬件（Adreno 725 或更新）：可能無法執行</string>
     <string name="gpuinfo_unsupported">不受支援：沒有適用於此 GPU 的兼容圖形後端</string>
-
     <string name="turnip_rate_limited">已達 GitHub 的速率限制 - 請稍後再試</string>
     <string name="turnip_github_http">GitHub 回應 HTTP %1$d</string>
     <string name="turnip_download_failed">下載失敗</string>
@@ -2365,16 +2380,12 @@
     <string name="bundle_no_manifest">不是驅動程式組合包：沒有指明 Android 和 Linux 驅動程式的 manifest.json</string>
     <string name="bundle_entry_outside">不是驅動程式組合包：%1$s 指向組合包以外</string>
     <string name="bundle_too_large">不是驅動程式組合包：解壓後超過 %1$d MB</string>
-
     <string name="gstore_sd_card">SD 卡</string>
     <string name="gstore_folder">資料夾</string>
-
     <string name="logshare_chooser">分享會話記錄</string>
-
     <string name="hdr_needs_android_10">需要 Android 10 或更新版本（支援色彩空間的顯示圖層）</string>
     <string name="hdr_none">此螢幕沒有回報支援 HDR</string>
     <string name="hdr_not_hdr10">此螢幕支援 %1$s，但不支援 HDR10</string>
-
     <string name="gpu_this_gpu">此 GPU</string>
     <string name="phantom_title_on">子進程限制已開啟</string>
     <string name="phantom_title_unset">子進程限制未設定</string>
@@ -2448,7 +2459,6 @@
     <string name="device_info_copied">已複製。</string>
     <string name="force_ssbs_title">強制 SSBS</string>
     <string name="force_ssbs_hint">讓一項 Wine 會不斷關閉的 CPU 速度設定保持開啟。在 Snapdragon 8 Elite 上可能令 Windows 遊戲更快；在較舊的晶片上變化不大。下次啟動遊戲時生效。</string>
-
     <string name="rail_stores">商店</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">自訂</string>
@@ -2931,7 +2941,6 @@
     <string name="touch_icon_color">圖示顏色</string>
     <string name="touch_button_color">按鈕顏色</string>
     <string name="touch_no_icon">沒有圖示</string>
-
     <string name="stores_sync_sign_in">正在檢查登入狀態…</string>
     <string name="stores_sync_library">正在取得你的遊戲庫…</string>
     <string name="stores_sync_game_list">正在取得遊戲清單…</string>
@@ -3348,6 +3357,7 @@
     <string name="boot_movie_sound">聲音</string>
     <string name="boot_movie_skip">跳過啟動影片</string>
     <string name="boot_movie_skip_hint">以 0.1 秒全黑片段作為 Steam 的啟動影片。下次工作階段生效。</string>
+    <string name="boot_movie_shuffle">隨機播放</string>
     <string name="boot_movie_custom">自訂影片</string>
     <string name="boot_movie_custom_hint">MP4、MOV、MKV 或 WebM。其他格式及超過 %1$d MB 的檔案會在裝置上轉換為 720p WebM，最長 %2$d 秒。</string>
     <string name="boot_movie_import">匯入</string>
@@ -3805,8 +3815,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab、Win 鍵和主頁鍵留在工作階段中</string>
     <string name="integration_shortcuts_maybe_restricted">在 Android 中呈灰色？應用程式資訊 → ⋮ → 允許受限制的設定</string>
     <string name="integration_shortcuts_restricted">已被 Android 封鎖 · 應用程式資訊 → ⋮ → 允許受限制的設定</string>
-    <string name="integration_shortcuts_service">DroidDeck 系統按鍵</string>
-    <string name="integration_shortcuts_service_description">讓 Alt+Tab、Win 鍵和主頁鍵在目前的 DroidDeck 工作階段中生效，而不是交給 Android。</string>
     <string name="integration_brightness_needed">請在「初始設定 → Steam 整合」中開啟「亮度」</string>
     <string name="setup_bridge_dxvk">DXVK</string>
     <string name="setup_bridge_dxvk_auto">DXVK：自動</string>
@@ -3969,10 +3977,9 @@
     <string name="input_reset_positions">重設位置</string>
     <string name="input_show_label">顯示標籤</string>
     <string name="input_layout_import_failed">無法匯入此佈局</string>
-
+    <string name="epic_third_party_managed">透過 %1$s 安裝</string>
     <string name="theme_white_red">緋紅之雪</string>
     <string name="theme_white_red_detail">白色表面配紅色點綴。</string>
-    
     <string name="rail_soundtracks">原聲帶</string>
     <string name="rail_music">音樂</string>
     <string name="soundtracks_options">播放選項</string>
@@ -4048,4 +4055,10 @@
     <string name="hud_metric_hdr">HDR 狀態</string>
     <string name="hud_readings_shown">已顯示</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
+    <string name="exit_hint_back">再按一次返回鍵退出</string>
+    <string name="display_integer_scaling">整數縮放</string>
+    <string name="display_integer_scaling_hint">使用螢幕可容納的最大整數倍縮放，可能會裁切螢幕邊緣。如果來源圖像大於輸出尺寸，分數縮放會顯示完整圖像。解像度需另外設定。</string>
+    <string name="display_scaling_integer">整數</string>
+    <string name="display_scaling_fit">配合畫面</string>
+    <string name="drawer_antialiasing">抗鋸齒</string>
 </resources>

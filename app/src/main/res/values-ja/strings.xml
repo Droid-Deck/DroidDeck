@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">SteamVR のグラフィックが停止しました</string>
     <string name="steamvr_recovery_countdown">グラフィックをリセットして SteamVR を開き直すため、DroidDeck は%1$d秒後に再起動します。実行中のゲームは終了し、保存されていない進行状況は復元できません。</string>
@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck を自動的に再起動できませんでした。アプリを完全に終了してから、もう一度開いてください。</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>初回起動時はSteamをダウンロードします。数分かかる場合があります。</item>
-        <item>デフォルトでは、アプリを離れるとSteamが一時停止し、戻ると前回の続きから再開します。</item>
-        <item>コントローラーはXbox 360コントローラーとして認識されます。それ以外の場合は、画面コントローラーを使用してください。</item>
+        <item>初回起動時にSteamをダウンロードします。数分かかる場合があります。</item>
+        <item>コントローラーはSteamにSteam Deckコントローラーとして認識されます。セッション設定でSteam Controller、DualShock 4、DualSense、Xbox 360パッドに切り替えられます。変更は次のセッションから反映されます。</item>
+        <item>コントローラーの戻るを長押しすると、Steamのクイックアクセスメニューが開きます。セッション設定で「戻る長押しでSteamショートカット」をオンにしておく必要があります。</item>
+        <item>バックグラウンド動作は、アプリを離れたときの挙動を決めます。ネイティブはSteamをスリープに備えさせ、自動は一時停止し、手動は「再開」を待ち、しないは実行し続けます。</item>
+        <item>Steamのゲームは、クイックアクセスにあるSteamのフレームレート制限を使います。上限を均等に割り切れるリフレッシュレートがあれば、ディスプレイはそれに切り替わります。</item>
+        <item>セッションメニューの低遅延モードは、コントローラー入力を250 Hzではなく1000 Hzで送信します。その分、CPUとバッテリーの消費が少し増えます。</item>
+        <item>各ゲームには、Proton、FEX、コンポーネント、環境設定を含む専用のプロファイルがあります。</item>
+        <item>セッションメニューには、ボイスチャット用のマイク切り替えと、必要なときにセッションを凍結する「今すぐ一時停止」ボタンがあります。</item>
+        <item>DroidDeckのHUDはドラッグで移動、ピンチでサイズ変更でき、画面の端へ押し出すと小さなFPSタブとしてドックされます。</item>
+        <item>2画面のハンドヘルドでは、下の画面にダウンロード、通知、スクリーンショット、Steamチャットを表示できます。「画面を入れ替え」を使うと、代わりにゲームをそこに表示します。</item>
+        <item>SDカード、USBドライブ、SSDからSteamライブラリを追加でき、DroidDeckはゲームをライブラリにまとめて表示します。</item>
+        <item>ストアでは、Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io、Game Joltにサインインして、DroidDeckからそれらのゲームをインストール・更新できます。</item>
+        <item>FEX、DXVK、VKD3D-Protonなどのコンポーネントは自動で更新されます。既定はProton Experimental ARM64で、Proton 11.0 ARM64がインストールされている場合はそちらになります。</item>
+        <item>ゲーム実行中はSteamを圧縮すると、メモリが少ない端末でRAMを確保できます。</item>
+        <item>画面の右端から内側にスワイプするとセッションメニューが開きます。タッチパッドモード、PCキーボード、低遅延モード、ゲームプロファイルなどがあります。</item>
+        <item>ゲームが重い場合は、クイックアクセスでフレームレートを制限し、ゲームのコンポーネントで別のProtonバージョンやFEXプリセットを試してください。</item>
+        <item>ゲームの音が割れる、または出ない場合は、Steam設定のオーディオにある「ゲームでDirectAudioを使用」を試してください。</item>
+        <item>セットアップのストレージでは、シェーダーキャッシュや、削除したゲームの残ったプレフィックスを消去できます。</item>
+        <item>不具合に遭遇しましたか？セッションメニューの「ログを共有」で診断情報をまとめられます。Discordの#bug-reportsに投稿してください。</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>初回起動時はデスクトップをセットアップします。数分かかる場合があります。</item>
-        <item>デフォルトでは、アプリを離れるとセッションが一時停止し、戻ると前回の続きから再開します。</item>
-        <item>タッチはトラックパッドのように機能します。ドラッグでポインタを移動し、タップでクリックします。</item>
-        <item>コントローラーはXbox 360コントローラーとして認識されます。それ以外の場合は、画面コントローラーを使用してください。</item>
+        <item>初回起動時にデスクトップをセットアップします。数分かかる場合があります。</item>
+        <item>タッチはタッチパッドとして動作します。ドラッグでポインターを動かし、タップでクリックします。</item>
+        <item>バックグラウンド動作は、アプリを離れたときの挙動を決めます。手動は既定で「再開」を待ち、自動は一時停止し、しないは実行し続けます。</item>
+        <item>画面の右端から内側にスワイプしてセッションメニューを開き、PCキーボードを選ぶと、Androidのキーボードを受け付けないアプリでも入力できます。</item>
+        <item>セッションメニューのPCキーボードは、サイズ、不透明度、キーグループを調整できます。</item>
+        <item>コントローラーはXbox 360パッドとして認識されます。そうでない場合は、画面上のコントロールを使ってください。</item>
+        <item>セッションメニューには、マイク切り替えと、必要なときにセッションを凍結する「今すぐ一時停止」ボタンがあります。</item>
+        <item>不具合に遭遇しましたか？セッションメニューの「ログを共有」で診断情報をまとめられます。Discordの#bug-reportsに投稿してください。</item>
     </string-array>
     <string name="session_channel">セッション</string>
     <string name="session_channel_description">Steamまたはデスクトップのセッション中に表示</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">トラックパッド</string>
     <string name="mode_touch_direct">ダイレクト</string>
     <string name="mode_touch_note">自動：デスクトップではトラックパッド、Steamではダイレクトタッチを使用します。</string>
+    <string name="mode_pen">ペン</string>
+    <string name="mode_pen_mouse">マウス</string>
+    <string name="mode_pen_touch">タッチ</string>
+    <string name="mode_pen_button">サイドボタン</string>
     <string name="mode_osc">画面コントローラー</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自動では、コントローラーが接続されていないときに画面コントローラーを表示します。</string>
@@ -333,7 +357,7 @@
     <string name="mode_return_after_game">ゲーム終了後にDroidDeckへ戻る</string>
     <string name="mode_return_after_game_hint">DroidDeckや他のランチャーから起動したゲームを閉じると、Steamが正しく終了し（クラウドセーブの同期を先に完了）、起動元に戻ります。オフ：Steamに留まります。</string>
     <string name="mode_shader_precache">シェーダーの事前キャッシュ</string>
-    <string name="mode_shader_precache_hint">Steamがゲーム用にビルド済みのシェーダーをダウンロードしてバックグラウンドで処理するため、ゲームのカクつきが減ります。オフにするとデータ通信量、ストレージ、バッテリーを節約できますが、ゲームはプレイ中にシェーダーをビルドします。Steamの「ダウンロード」>「シェーダーの事前キャッシュ」と同じ設定です。次回のセッションから適用されます。</string>
+    <string name="mode_shader_precache_hint">Steamがゲーム用にビルド済みのシェーダーをダウンロードしてバックグラウンドで処理するため、ゲームのカクつきが減ります。オフにするとデータ通信量、ストレージ、バッテリーを節約できますが、ゲームはプレイ中にシェーダーをビルドします。Steamの「ダウンロード」&gt;「シェーダーの事前キャッシュ」と同じ設定です。次回のセッションから適用されます。</string>
     <string name="mode_steam_repair">Steamクライアントを修復</string>
     <string name="mode_steam_repair_hint">次回Steamの起動時にSteamクライアントを再ダウンロードします。Steamが読み込み画面のまま進まない場合に使用してください。ゲーム、ログイン情報、設定は保持されます。</string>
     <string name="mode_steam_repair_queued">次回Steamの起動時にSteamクライアントを再ダウンロードします。</string>
@@ -602,6 +626,8 @@
     <string name="perf_cap_off">オフ</string>
     <string name="perf_cap_auto">ドライバーのデフォルト</string>
     <string name="perf_zram_client">ゲーム実行中はSteamを圧縮</string>
+    <string name="perf_zram_idle">ゲームのアイドルメモリを圧縮</string>
+    <string name="perf_zram_idle_hint">RAMが少ないときにゲームのアイドルメモリを圧縮します。ゲームが30秒ごとに数秒止まる場合はオフにしてください。次回のセッション開始時に適用されます。</string>
     <string name="perf_zram_client_hint">ゲーム開始の20秒後、SteamクライアントをzRAMに圧縮してゲームに使えるメモリを増やし、ゲーム終了時に読み戻します。ゲーム開始直後にセッションが終了する場合はオフにしてください。上のRAM上限を設定している場合は、セッションが上限を超えるとSteamは引き続き圧縮されます。</string>
     <string name="perf_ram_cap">RAM上限</string>
     <string name="perf_ram_cap_hint">Steamモードでもデスクトップからでも、Steamクライアントの実行中に適用されます。セッションの使用量がこの値を超えると、Steam、次にセッション内の対応する他のプロセスがzRAMに圧縮されます。ソフトな上限のため何も終了されませんが、ページの読み戻し中にゲームがカクつくことがあります。</string>
@@ -612,7 +638,7 @@
     <string name="perf_gpuclock_hint">Adrenoのみ。スタッターは減りますが、消費電力と発熱が増えます。</string>
     <string name="perf_fixes">セッション修正</string>
     <string name="perf_sysmem">Turnip：sysmemレンダリング</string>
-    <string name="perf_sysmem_hint">Steamクライアントが高速になります。ゲームではドライバーがパスごとにタイルレンダリングとシステムメモリレンダリングを選びます。Adreno 710/720/722では必須です。</string>
+    <string name="perf_sysmem_hint">Steamクライアントとゲームに適用。Adreno 710/720/722では必須です。</string>
     <string name="perf_xalia">Steamのxalia補助をスキップ</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Linuxのntsyncドライバーをユーザー空間で代替する機能です。オンの間、Protonはdroiddeck-esyncとdroiddeck-fsyncの代わりにこれを使用します。Proton Experimental ARM64、GE-Proton、proton-cachyosで動作します。次回のセッションで有効になります。</string>
@@ -647,6 +673,8 @@
     <string name="drawer_page_display">表示</string>
     <string name="drawer_frame_limit">フレームレート制限</string>
     <string name="drawer_frame_limit_note">このゲームのフレームレートを制限します。上限で割り切れるリフレッシュレートがあれば画面はそれに切り替わり、それ以外の上限では表示が不均一になることがあります。SteamゲームではクイックアクセスメニューにあるSteamのフレームレート制限を使用します。</string>
+    <string name="drawer_bfi">黒フレーム挿入</string>
+    <string name="drawer_bfi_note">動きがくっきり: 各フレームの後に黒いリフレッシュが入ります。100 Hz 以上が必要で、ゲームはリフレッシュレートの半分で動作し、画面は暗くなります。フレーム生成中はオフです。</string>
     <string name="drawer_page_effects">エフェクト</string>
     <string name="drawer_page_controls">コントロール</string>
     <string name="drawer_page_components">コンポーネント</string>
@@ -680,7 +708,10 @@
     <string name="hud_size_mega">メガ</string>
     <string name="hud_size_strip">バー</string>
     <string name="hud_locked">位置を固定</string>
-    <string name="hud_locked_hint">HUDはドラッグで移動できます。長押しで固定または解除します。固定中も、下にある画面上のコントロールは使えます。</string>
+    <string name="hud_locked_hint">HUDはドラッグで移動できます。固定中も、下にある画面上のコントロールは使えます。</string>
+    <string name="hud_hold">長押し</string>
+    <string name="hud_hold_collapse">折りたたみ／展開</string>
+    <string name="hud_hold_lock">固定／解除</string>
     <string name="hud_snap">左右に吸着</string>
     <string name="hud_snap_hint">HUD を離すと、画面の近い方の端に移動します。はじくとその方向へ飛びます。</string>
     <string name="hud_group_look">外観</string>
@@ -1114,7 +1145,7 @@
     <string name="lab_off_title">Lab ビルドをオフにしました</string>
     <string name="lab_off_other_install">別のバージョンの DroidDeck 用にビルドされました。アップデートに保管されています。</string>
     <string name="lab_off_did_not_start">そのビルドで DroidDeck が 2 回起動しませんでした</string>
-    <string name="rail_agent">エージェント</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">エージェント</string>
     <string name="agent_working">エージェントが作業中です</string>
     <string name="agent_missing">エージェントを使うには、Linux ユーザーランドに Claude Code をインストールしてください。</string>
@@ -1154,6 +1185,7 @@
     <string name="agent_hint_working">入力すると次のメッセージをキューに追加できます</string>
     <string name="agent_queue">キューに追加</string>
     <string name="agent_queued">次: %1$s</string>
+    <string name="agent_tools_missing">エージェントのツールが未インストール: %1$s</string>
     <string name="agent_unqueue">送信しない</string>
     <string name="agent_attach">添付</string>
     <string name="agent_remove_attachment">削除</string>
@@ -1280,6 +1312,7 @@
     <string name="gate_enter_manually">手動でアドレスを入力</string>
     <string name="gate_from_computer">PCでADBを使用：</string>
     <string name="gate_copy_command">コマンドをコピー</string>
+    <string name="gate_sidequest_steps">ヘッドセットをパソコンにつないで SideQuest を開きます。「Run ADB Command」→「Custom Command」を選び、下に表示されたコマンドを入力して「Run Command」を選びます。</string>
     <string name="gate_choose_display">Android設定をどの画面で開くか選択してください。</string>
     <string name="gate_main_screen">メイン画面</string>
     <string name="wadb_finding_port">ペアリング済み。ワイヤレスデバッグのポートを検索中…</string>
@@ -1533,6 +1566,8 @@
     <string name="pip_unavailable">Androidがピクチャーインピクチャーを開けませんでした。</string>
     <string name="game_more">その他</string>
     <string name="game_edit_art">アートを編集</string>
+    <string name="game_unhide">非表示を解除</string>
+    <string name="game_hide_failed">Steamと同期できませんでした。Steamを終了してもう一度お試しください。</string>
     <string name="stores_in_steam_label">Steamに追加済み</string>
     <string name="game_shortcut">ショートカット</string>
     <string name="game_shortcut_add">ホーム画面に追加</string>
@@ -1554,7 +1589,6 @@
     <string name="game_file_folder">フロントエンドゲームファイル用のフォルダを選択</string>
     <string name="game_file_exported">ゲームファイルを %1$s に保存しました</string>
     <string name="game_frontend_files">フロントエンドファイル</string>
-
     <string name="main_wait_runtime">実行環境の処理が完了するまでお待ちください</string>
     <string name="main_wait_proton_install">互換性ツールのインストールが完了するまでお待ちください</string>
     <string name="load_compat_title">互換性ツールを準備しています</string>
@@ -1635,7 +1669,6 @@
     <string name="main_removing_runtime">Linux実行環境を削除中</string>
     <string name="main_settings_main_screen">下部画面で設定を開けなかったため、メイン画面で開きました。</string>
     <string name="main_open_dev_options">設定で開発者向けオプションを開いてください</string>
-
     <string name="upd_unknown_apps_failed">Androidの「不明なアプリのインストール」設定を開けませんでした</string>
     <string name="upd_couldnt_check">確認できませんでした：%1$s</string>
     <string name="upd_no_download">このビルドには、このDroidDeckコピー用のダウンロードがありません</string>
@@ -1645,12 +1678,10 @@
     <string name="upd_stage_confirm">確認を待機中</string>
     <string name="upd_failed">アップデートに失敗しました</string>
     <string name="upd_not_offered">Androidがアップデートのインストールを表示しませんでした</string>
-
     <string name="decky_install_failed">Deckyのインストールに失敗しました：%1$s</string>
     <string name="decky_plugin_starting">プラグインのインポートを開始中…</string>
     <string name="decky_plugin_failed">プラグインのインポートに失敗しました：%1$s</string>
     <string name="decky_plugin_installed">プラグインをインストールしました。読み込むにはSteamを再起動してください。</string>
-
     <string name="drivers_not_checked">未確認 - 更新をタップして新しいドライバーを検索</string>
     <string name="drivers_bundle_sets_display">Android + Linux：ディスプレイドライバーも一緒に設定されます</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux：ランタイムドライバーも一緒に設定されます</string>
@@ -1700,7 +1731,6 @@
     <string name="drivers_check_failed">確認に失敗</string>
     <string name="drivers_installed_pick_either">%1$sをインストールしました - どちらかの一覧で選択すると両方のドライバーが設定されます</string>
     <string name="drivers_installed_pick">%1$sをインストールしました - メニューで選択してください</string>
-
     <string name="session_wait_removal">実行環境の削除が完了するまでお待ちください</string>
     <string name="session_title_game">ゲーム</string>
     <string name="session_touch_auto_touchpad">トラックパッド</string>
@@ -1744,7 +1774,6 @@
     <plurals name="session_hint_enosys">
         <item quantity="other">ログに「Function not implemented」エラーが%1$d件あります。このデバイスでは、prootのseccomp高速化が補助プロセスの処理に失敗しています。%2$s →「%3$s」（または「%4$s」）を試してから、もう一度起動してください。</item>
     </plurals>
-
     <string name="mode_decky_plugins">プラグイン</string>
     <string name="mode_decky_plugins_hint">次回のSteamセッション用にプラグインのzipをインストールします。</string>
     <string name="mode_decky_plugin_downloading">ダウンロード中…</string>
@@ -1816,6 +1845,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">クリア</string>
     <string name="game_sync_err_runtime">先に実行環境をインストールしてください</string>
     <string name="game_sync_err_steam_library">Steamライブラリを利用できません</string>
     <string name="game_sync_err_previous_sd">以前のSDライブラリを利用できません</string>
@@ -2093,7 +2123,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">ポート%1$dでデータを受信していますが（%3$dバイトのパケット%2$d個）、このページではまだ読み取れない形式です。</string>
     <string name="bottom_telemetry_port_busy">別のプログラムがすでにポート%1$sを使用しているため、そのゲームはここに表示できません。</string>
-
     <string name="rtinst_removing">Linux実行環境を削除中</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="other">Linux実行環境を削除中 · %1$d項目</item>
@@ -2107,7 +2136,6 @@
     <string name="rtinst_channel_description">Linux実行環境のインストール中または削除中に表示</string>
     <string name="rtinst_title_installing">Linux実行環境をインストール中</string>
     <string name="rtinst_title_removing">Linux実行環境を削除中</string>
-
     <string name="deskpkg_runtime_missing">Linux実行環境がインストールされていません</string>
     <string name="deskpkg_no_checksum">カタログに%1$sのチェックサムがありません</string>
     <string name="deskpkg_checksum_mismatch">チェックサムが一致しません - 何も変更されていません</string>
@@ -2115,7 +2143,6 @@
     <string name="deskpkg_place_failed">AppImageを配置できませんでした</string>
     <string name="deskpkg_extract_failed">展開に失敗しました</string>
     <string name="deskpkg_install_failed">インストールに失敗しました</string>
-
     <string name="flatpakmgr_setup_failed">Flatpakのセットアップに失敗しました（終了コード %1$d）</string>
     <string name="flatpakmgr_setup_unfinished">Flatpakのセットアップが完了しませんでした</string>
     <string name="flatpakmgr_busy">別のストアのタスクを実行中です</string>
@@ -2134,7 +2161,6 @@
     <string name="flatpakmgr_ref_media_codecs">メディアコーデック</string>
     <string name="flatpakmgr_ref_runtime">%1$sランタイム</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s実行環境 %2$s</string>
-
     <string name="appimg_too_small">ファイルが小さすぎるため、AppImageではありません</string>
     <string name="appimg_unreadable">ファイルを読み取れません：%1$s</string>
     <string name="appimg_not_linux">AppImageではありません（Linuxプログラムではありません）</string>
@@ -2149,7 +2175,6 @@
     <string name="appimg_extracting">%1$sを展開中</string>
     <string name="appimg_extract_failed">AppImageを展開できませんでした</string>
     <string name="appimg_extract_failed_detail">AppImageを展開できませんでした：%1$s</string>
-
     <string name="deckymgr_stop_session_loader">Decky Loaderをインストールする前に、実行中のセッションを停止してください</string>
     <string name="deckymgr_download_failed">Decky Loaderのダウンロードに失敗しました</string>
     <string name="deckymgr_size_mismatch">Decky Loaderのサイズがリリース情報と一致しません</string>
@@ -2198,13 +2223,11 @@
     <string name="deckymgr_activate_failed">インポートしたプラグインを有効にできませんでした</string>
     <string name="deckymgr_settings_failed">Deckyのプラグイン設定を更新できませんでした</string>
     <string name="deckymgr_restore_failed">既存のプラグインを復元できませんでした</string>
-
     <string name="adbfix_save_failed">ワイヤレスデバッグの識別情報を保存できませんでした</string>
     <string name="adbfix_command_failed">ADBコマンドに失敗しました（%1$d）</string>
     <string name="adbfix_not_confirmed">Androidは子プロセス制限の変更を確認しませんでした：%1$s</string>
     <string name="adbfix_no_pairing">ワイヤレスデバッグのペアリング情報が保存されていません</string>
     <string name="adbfix_enter_address">現在のワイヤレスデバッグのIPアドレスとポートを入力してください</string>
-
     <string name="adbpair_timed_out">ペアリングのポップアップを待機中にタイムアウトしました。DroidDeckからもう一度お試しください。</string>
     <string name="adbpair_discovery_failed_code">ペアリングのポップアップを検索できませんでした（%1$d）。Wi-Fiがオンになっているか確認してください。</string>
     <string name="adbpair_discovery_failed">ペアリングのポップアップを検索できませんでした：%1$s</string>
@@ -2230,7 +2253,6 @@
     <string name="adbpair_title_done">Steamの準備ができました</string>
     <string name="adbpair_done_text">タップしてDroidDeckに戻ります。ワイヤレスデバッグはオフにしてかまいません。</string>
     <string name="adbpair_title_failed">ワイヤレスデバッグのセットアップが中断しました</string>
-
     <string name="selfinst_download_failed">ダウンロードに失敗しました</string>
     <string name="selfinst_size_mismatch">ダウンロードしたファイルのサイズが公開されているAPKと一致しないため、破棄しました。もう一度お試しください</string>
     <string name="selfinst_checksum_mismatch">ダウンロードしたファイルがチェックサムと一致しないため、破棄しました。もう一度お試しください</string>
@@ -2243,13 +2265,11 @@
     <string name="selfinst_no_signing">ダウンロードしたAPKに署名情報がありません</string>
     <string name="selfinst_wrong_signer">ダウンロードしたAPKはDroidDeckのリリースキーで署名されていません</string>
     <string name="appupd_http">アップデートカタログがHTTP %1$dを返しました</string>
-
     <string name="loadstate_starting">セッションを開始中…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d 経過 · 処理中</string>
     <string name="loadstate_steam_update">Steamクライアントのアップデートをダウンロード中 · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Steam クライアントの更新を適用しています…</string>
     <string name="loadstate_steam_client">Steamクライアントをダウンロード中 · %1$s</string>
-
     <string name="pextra_busy">互換性ツールのインストールはすでに実行中です</string>
     <string name="pextra_stop_session">互換性ツールをインストールする前に、実行中のセッションを停止してください</string>
     <string name="pextra_no_release">%1$sのARM64リリースが見つかりませんでした</string>
@@ -2269,7 +2289,6 @@
     <string name="pextra_install_failed">%1$sのインストールに失敗しました（終了コード %2$d）</string>
     <string name="pextra_could_not_install">%1$sをインストールできませんでした</string>
     <string name="esync_fetching">droiddeck-esyncパックを取得中</string>
-
     <string name="cmgr_fex_linux_helpers">Linux補助プログラム付き</string>
     <string name="cmgr_fex_dlls_only">DLLのみ</string>
     <string name="cmgr_original_proton_updated">元（前回の置き換え以降にProtonが更新されました）</string>
@@ -2292,13 +2311,11 @@
     <string name="cmgr_nightly_replaced">ダウンロードに失敗しました：このナイトリービルドは新しいビルドに置き換えられた可能性があります。一覧を更新してもう一度お試しください。</string>
     <string name="cmgr_list_predates_checksums">このパッケージ一覧はチェックサム導入前のものです。更新してからもう一度お試しください</string>
     <string name="cmgr_checksum_mismatch">チェックサムが一致しません</string>
-
     <string name="sprefs_upscaler_linear">リニア</string>
     <string name="sprefs_upscaler_nearest">ニアレスト</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR（品質）</string>
     <string name="sprefs_upscaler_sharpen">シャープのみ</string>
     <string name="sprefs_lod_bias_auto">自動（スケーリングに合わせる）</string>
-
     <string name="look_off_desc">何も適用されません。</string>
     <string name="look_game_clarity">ゲームクラリティ</string>
     <string name="look_game_clarity_desc">シャープ化に少しコントラストを加えた、普段使い向け。</string>
@@ -2322,7 +2339,6 @@
     <string name="look_pixel_clean_desc">2Dや古いタイトル向けのくっきりしたピクセル。</string>
     <string name="look_anime_edge">アニメエッジ</string>
     <string name="look_anime_edge_desc">トゥーン輪郭線とシャープ化。</string>
-
     <string name="gpuinfo_not_adreno">Adreno GPUではありません</string>
     <string name="gpuinfo_powervr">システムの PowerVR ドライバー: 互換性はデバイスによって異なります</string>
     <string name="gpuinfo_xclipse">実験的: RADV またはシステムの Xclipse ドライバー</string>
@@ -2347,7 +2363,6 @@
     <string name="gpuinfo_unsupported">サポート対象外：このGPUで利用できる互換グラフィックスバックエンドがありません</string>
     <string name="gpuinfo_bridge">Mali ブリッジを経由して、端末内蔵の Vulkan ドライバー上で動作します</string>
     <string name="gpuinfo_bridge_off">Mali ブリッジがオフの場合はサポートされません。Turnip には Adreno (Snapdragon) GPU が必要です</string>
-
     <string name="turnip_rate_limited">GitHubのレート制限に達しました。後でもう一度お試しください</string>
     <string name="turnip_github_http">GitHubがHTTP %1$dを返しました</string>
     <string name="turnip_download_failed">ダウンロードに失敗しました</string>
@@ -2368,16 +2383,12 @@
     <string name="bundle_no_manifest">ドライバーバンドルではありません：androidドライバーとlinuxドライバーを指定するmanifest.jsonがありません</string>
     <string name="bundle_entry_outside">ドライバーバンドルではありません：%1$sがバンドルの外を指しています</string>
     <string name="bundle_too_large">ドライバーバンドルではありません：展開後のサイズが%1$d MBを超えます</string>
-
     <string name="gstore_sd_card">SDカード</string>
     <string name="gstore_folder">フォルダ</string>
-
     <string name="logshare_chooser">セッションログを共有</string>
-
     <string name="hdr_needs_android_10">Android 10以降が必要です（色空間付きのディスプレイレイヤー）</string>
     <string name="hdr_none">このディスプレイはHDRに対応していません</string>
     <string name="hdr_not_hdr10">このディスプレイは%1$sに対応していますが、HDR10には対応していません</string>
-
     <string name="gpu_this_gpu">このGPU</string>
     <string name="phantom_title_on">子プロセス制限がオンです</string>
     <string name="phantom_title_unset">子プロセス制限が未設定です</string>
@@ -2451,7 +2462,6 @@
     <string name="device_info_copied">コピーしました。</string>
     <string name="force_ssbs_title">SSBSを強制</string>
     <string name="force_ssbs_hint">Wineがオフにし続けるCPUの速度設定をオンに保ちます。Snapdragon 8 EliteではWindowsゲームが速くなることがあります。古いチップではほとんど変化がありません。次のゲーム起動時に反映されます。</string>
-
     <string name="rail_stores">ストア</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">カスタム</string>
@@ -2934,7 +2944,6 @@
     <string name="touch_icon_color">アイコンの色</string>
     <string name="touch_button_color">ボタンの色</string>
     <string name="touch_no_icon">アイコンなし</string>
-
     <string name="stores_sync_sign_in">サインインを確認中…</string>
     <string name="stores_sync_library">ライブラリを取得中…</string>
     <string name="stores_sync_game_list">ゲームリストを取得中…</string>
@@ -3351,6 +3360,7 @@
     <string name="boot_movie_sound">サウンド</string>
     <string name="boot_movie_skip">起動ムービーをスキップ</string>
     <string name="boot_movie_skip_hint">0.1 秒の黒いクリップを Steam の起動ムービーとして使用します。次回セッションから適用されます。</string>
+    <string name="boot_movie_shuffle">シャッフル</string>
     <string name="boot_movie_custom">自分のムービー</string>
     <string name="boot_movie_custom_hint">MP4、MOV、MKV、WebM。その他の形式や %1$d MB を超えるファイルは、端末上で 720p の WebM に変換されます（%2$d 秒まで）。</string>
     <string name="boot_movie_import">インポート</string>
@@ -3808,8 +3818,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab、Win キー、ホームボタンをセッション内で使えます</string>
     <string name="integration_shortcuts_maybe_restricted">Androidでグレー表示されていますか？アプリ情報 → ⋮ → 制限付き設定を許可</string>
     <string name="integration_shortcuts_restricted">Androidによってブロックされています · アプリ情報 → ⋮ → 制限付き設定を許可</string>
-    <string name="integration_shortcuts_service">DroidDeck システムキー</string>
-    <string name="integration_shortcuts_service_description">Alt+Tab、Win キー、ホームボタンを Android ではなく操作中の DroidDeck セッションで使えるようにします。</string>
     <string name="integration_brightness_needed">「セットアップ」→「Steam連携」で明るさをオンにしてください</string>
     <string name="setup_gpu_bridge_off">Mali ブリッジ: オフ</string>
     <string name="setup_gpu_bridge_unusable">%1$s では Mali ブリッジを使用できません（システムドライバーの経路が存在しない Mali GPU が必要です）。そのため、このスイッチはここでは効果がありません。</string>
@@ -3969,10 +3977,9 @@
     <string name="input_reset_positions">位置をリセット</string>
     <string name="input_show_label">ラベルを表示</string>
     <string name="input_layout_import_failed">このレイアウトをインポートできませんでした</string>
-
+    <string name="epic_third_party_managed">%1$s からインストールします</string>
     <string name="theme_white_red">緋色の雪</string>
     <string name="theme_white_red_detail">白いサーフェスに赤のアクセント。</string>
-    
     <string name="rail_soundtracks">サウンドトラック</string>
     <string name="rail_music">音楽</string>
     <string name="soundtracks_options">再生オプション</string>
@@ -4048,4 +4055,10 @@
     <string name="hud_metric_hdr">HDR 状態</string>
     <string name="hud_readings_shown">表示中</string>
     <string name="hud_readings_count">%2$d 中 %1$d</string>
+    <string name="exit_hint_back">もう一度戻るを押すと終了します</string>
+    <string name="display_integer_scaling">整数スケーリング</string>
+    <string name="display_integer_scaling_hint">画面に収まる最大の整数倍率を使用します。画面の端が切れる場合があります。元画像が出力より大きい場合、小数倍率で画像全体を表示します。解像度は別途設定します。</string>
+    <string name="display_scaling_integer">整数</string>
+    <string name="display_scaling_fit">画面に合わせる</string>
+    <string name="drawer_antialiasing">アンチエイリアス</string>
 </resources>

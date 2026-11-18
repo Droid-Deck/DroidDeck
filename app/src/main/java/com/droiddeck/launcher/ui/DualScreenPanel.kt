@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.Icons
 import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
@@ -363,7 +365,8 @@ internal fun DualPanelContent(model: DualPanelModel) {
 private fun PanelTile(key: String, current: Boolean, badge: Boolean, count: Int, modifier: Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val (label, icon) = railLabelIcon(key)
+    val (label, base) = railLabelIcon(key)
+    val icon = if (key == NavTabs.MORE && MoreTabs.inside) Icons.AutoMirrored.Outlined.ArrowBack else base
     val shape = RoundedCornerShape(18.dp)
     Box(
         modifier.fillMaxSize().clip(shape)
@@ -373,7 +376,7 @@ private fun PanelTile(key: String, current: Boolean, badge: Boolean, count: Int,
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, contentDescription = null, tint = if (current) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(34.dp))
+            androidx.compose.animation.Crossfade(icon, animationSpec = Motion.tw(220), label = "panelIcon") { Icon(it, contentDescription = null, tint = if (current) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(34.dp)) }
             Text(stringResource(label), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                 color = if (current) pal.signal else colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 6.dp))

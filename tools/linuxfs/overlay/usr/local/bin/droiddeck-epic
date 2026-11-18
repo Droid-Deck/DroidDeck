@@ -24,6 +24,7 @@ import urllib.request
 HOME = os.environ.get("HOME") or "/root"
 SELF = os.path.abspath(__file__)
 BIN_DIR = os.path.dirname(SELF)
+GAME_DEBUG = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-debug"))
 STATE = os.path.join(HOME, ".local", "share", "droiddeck-epic")
 CURRENT = os.path.join(STATE, "current.json")
 APPS = os.path.join(STATE, "app")
@@ -111,7 +112,7 @@ HIDDEN_ENV = {
     "DROIDDECK_EPIC_HIDDEN": "1",
     "EGL_DISABLE_STORE_PREWARM": "1",
 }
-KEPT_ENV = ("HOME", "USER", "LOGNAME", "LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES", "TZ", "XDG_RUNTIME_DIR", "BL_LAUNCH_DIR")
+KEPT_ENV = ("HOME", "USER", "LOGNAME", "LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES", "TZ", "XDG_RUNTIME_DIR", "DD_LAUNCH_DIR", "BL_LAUNCH_DIR")
 LAUNCH_VERBS = ("waitforexitandrun", "run", "runinprefix")
 EPIC_ARGS = ("-auth_", "-epic")
 CMD_SPECIAL = "&|<>^"
@@ -719,7 +720,7 @@ def clear_playing():
 
 
 def launch_dir():
-    found = os.environ.get("BL_LAUNCH_DIR", "")
+    found = os.environ.get("DD_LAUNCH_DIR", "")
     if not found:
         try:
             with open(LAUNCH_DIR_FILE, encoding="utf-8") as f:
@@ -1196,6 +1197,7 @@ def run_game(request, session_env, running=None):
     exe = native_path(request.get("exe") or "")
     args = request.get("args") or []
     env = {k: v for k, v in session_env.items() if not k.startswith(("FEX_", "DROIDDECK_EPIC", "EGL_", "WEBKIT_"))}
+    env = GAME_DEBUG["apply_game_debug_logs"](env)
     preload = env.pop(STEAM_PRELOAD, "")
     if preload:
         env["LD_PRELOAD"] = preload
@@ -1232,25 +1234,7 @@ def wait_for(check, timeout, step=0.1):
 
 
 def capped_log(path):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    handle = open(path, "wb")
-    read, write = os.pipe()
-
-    def pump():
-        written = 0
-        with os.fdopen(read, "rb") as source:
-            while True:
-                chunk = source.read1(65536) if hasattr(source, "read1") else source.read(65536)
-                if not chunk:
-                    break
-                if written < LOG_CAP:
-                    handle.write(chunk[:LOG_CAP - written])
-                    handle.flush()
-                    written += len(chunk)
-        handle.close()
-
-    threading.Thread(target=pump, daemon=True).start()
-    return write
+    return GAME_DEBUG["capped_log"](path, LOG_CAP)[0]
 
 
 class Session:

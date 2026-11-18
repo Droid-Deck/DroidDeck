@@ -549,20 +549,20 @@ class NtsyncPreloadTest(unittest.TestCase):
         (tmp / "ntdll.c").write_text(NTDLL)
         (tmp / "prog.c").write_text(PROGRAM)
         sources = sorted(str(p) for p in PRELOAD.glob("*.c"))
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(tmp / "libblsession.so"), *sources, "-ldl"],
+        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(tmp / "libddsession.so"), *sources, "-ldl"],
                        check=True)
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-o", str(tmp / "ntdll.so"), str(tmp / "ntdll.c")], check=True)
         subprocess.run(["cc", "-O1", "-pthread", "-o", str(tmp / "prog"), str(tmp / "prog.c"), str(tmp / "ntdll.so"),
                         "-Wl,-rpath," + str(tmp)], check=True)
         cls.program = tmp / "prog"
-        cls.preload = tmp / "libblsession.so"
+        cls.preload = tmp / "libddsession.so"
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     def run_program(self):
-        env = dict(os.environ, LD_PRELOAD=str(self.preload), BL_SYNC="1")
+        env = dict(os.environ, LD_PRELOAD=str(self.preload), DD_SYNC="1")
         return subprocess.run([str(self.program)], env=env, capture_output=True, text=True, timeout=90)
 
     def test_emulation_matches_the_ntsync_driver(self):

@@ -22,6 +22,18 @@ and reports every run.
   works on every display and window. UI Automator, by contrast, dumps whichever window has focus,
   which on a dual-screen device is often another app's.
 
+## On the device
+
+The agent in DroidDeck's Agent tab gets its working rules from `tools/agent/AGENTS.md` and its
+skills from `tools/agent/skills`. Both ship in the APK; before every turn the app writes the rules
+as a marked block into each harness's global instructions (`~/.claude/CLAUDE.md`,
+`~/.codex/AGENTS.md`) and the skills into its skills folder (`~/.claude/skills`, `~/.codex/skills`).
+Only DroidDeck's own block and skills (folders holding a `.droiddeck` file) are replaced: rules
+the user writes outside the block, and skills they add, stay. A symlinked instructions file is
+followed, so the block lands in the file it points to. `droiddeckctl`, `droiddeck-scenario` and this guide are installed in
+`~/.local/share/droiddeck/ctl` (with `droiddeckctl` and `droiddeck-scenario` on PATH). If any of
+these cannot be installed, the Agent tab shows which.
+
 ## Access
 
 Player controls and observations work over authorized ADB on any build: `state`, `start`, `stop`,
@@ -122,6 +134,10 @@ tools/droiddeckctl input swipe 100 600 100 100 --duration 400
 tools/droiddeckctl input pad a
 tools/droiddeckctl input stick left 0 -1 --hold 500
 tools/droiddeckctl input trigger right 1.0
+tools/droiddeckctl input pen tap 0.5 0.5 --pressure 0.7
+tools/droiddeckctl input pen stroke 0.2 0.5 0.8 0.5 --pressure 0.1:0.9 --tilt-x=-30:30
+tools/droiddeckctl input pen hover 0.3 0.5 --to 0.7 0.5 --duration 600
+tools/droiddeckctl input pen button primary 0.5 0.5
 
 tools/droiddeckctl ui dump
 tools/droiddeckctl ui click rail-steam
@@ -135,7 +151,7 @@ tools/droiddeckctl env set DXVK_HUD=fps
 tools/droiddeckctl env list
 tools/droiddeckctl env clear [next|persistent|all]
 tools/droiddeckctl override gamescope ./gamescope
-tools/droiddeckctl override libblfastpath.so ./libblfastpath.so
+tools/droiddeckctl override libddfastpath.so ./libddfastpath.so
 tools/droiddeckctl proot-profile enable --slow-us 1000
 tools/droiddeckctl proot-profile disable
 tools/droiddeckctl proot-profile report ./session.log --sort wall
@@ -195,6 +211,20 @@ every 10 s until the battery is under that temperature, so runs being compared s
 virtual pad, the same one the on-screen controls drive, so games that ignore touch still respond.
 `launch`, `quit` and `cdp` need a Steam session; `focus` and `wait focused` need gamescope (every
 mode except the desktop).
+
+`input pen` does not go through the app. It registers a virtual pen with `adb shell uinput -`, so
+Android's own input reader makes the stylus events, as for a built-in pen, and it works on whatever
+is on screen, without a session or Setup > Developer > Debugging tools. Positions are fractions of
+the screen as shown; `dumpsys input` gives the frame, rotation and size of the display Android maps
+internal touchscreens to. `hover` comes near and glides to `--to`; `tap`, `stroke` and `button`
+hover for `--hover-ms` (80) before and after the touch or the button press. Each takes
+`--tool pen|eraser`, `--tilt-x` and `--tilt-y` in degrees, `--distance` in device units (0 to 255)
+and `--rate` (120 samples a second); `--pressure` and tilt take `FROM:TO` ranges, written
+`--tilt-x=-30:30` when they start negative. A gesture lasts at most 30 s. `UINPUT_UNAVAILABLE`
+means the shell has no `uinput` or cannot write `/dev/uinput`, `NO_VIEWPORT` that there is no
+internal display or it is off, and `UINPUT_FAILED` that `uinput` stopped early; all three exit 3.
+It needs Android 14 QPR2 or later: the `uinput` of Android 12 to 14 QPR1 takes only numeric codes
+and the USB or Bluetooth bus, so there the pen ends with `UINPUT_FAILED`.
 
 ## State (schema 2)
 
@@ -406,7 +436,7 @@ through first, since the launcher window carries the game's app id too:
 `proot-profile enable` queues handler profiling for the next session using the existing debugging
 consent gate. Counters and bounded slow samples appear in `session.log`; `proot-profile report`
 ranks a saved local log without ADB. This measures PRoot handler work, not full syscall latency.
-`override libblfastpath.so FILE` selects a glibc ARM64 shared library in the next session's preload
+`override libddfastpath.so FILE` selects a glibc ARM64 shared library in the next session's preload
 list, reports its SHA-256, and refuses installation until the current session stops. It lasts for
 one session; the next session stages the bundled library again. See
 [the profiling workflow](development/proot-performance.md#finding-the-next-fast-path) for timing

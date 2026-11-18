@@ -5,6 +5,7 @@ import android.graphics.Rect
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 object OnScreenLayout {
     data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
@@ -39,6 +40,14 @@ object OnScreenLayout {
         }
         val byId = (placed + others).associateBy { it.id }
         return stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
+    }
+
+    fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false): List<InputSurfaceElement> =
+        elements(context, if (edited && width > 0 && height > 0) layout.copy(aspect = width.toFloat() / height) else layout, width, height, Rect())
+
+    fun editorFrame(layout: SavedInputLayout, displayed: List<InputSurfaceElement>): List<InputSurfaceElement> {
+        val byId = displayed.associateBy { it.id }
+        return layout.elements.map { byId[it.id] ?: it }
     }
 
     fun fit(elements: List<InputSurfaceElement>, referenceWidth: Float, referenceHeight: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
@@ -77,8 +86,11 @@ object OnScreenLayout {
         if (gamepad.any { it.id.startsWith("legacy:") }) {
             val named = layout.id.removePrefix("migrated.layout.").takeIf { it != layout.id }?.split('x')?.mapNotNull { it.toIntOrNull() }
                 ?.takeIf { it.size == 2 && it.all { size -> size > 0 } }?.let { it[0] to it[1] }
-            for ((w, h) in listOfNotNull(named, width to height, long to short, short to long).distinct()) {
-                if (matches(gamepad, LegacyGamepadLayout(display, w, h, scale = layout.scale).elements())) return (w.toFloat() to h.toFloat()) to true
+            val aspectSize = layout.aspect.takeIf { layout.id == InputLibraries.OVERLAY && it > 0f }
+                ?.let { (it * height).roundToInt().coerceAtLeast(1) to height }
+            for ((w, h) in listOfNotNull(named, width to height, aspectSize, long to short, short to long).distinct()) {
+                val generator = LegacyGamepadLayout(display, w, h, scale = layout.scale)
+                if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true))) return (w.toFloat() to h.toFloat()) to true
             }
         }
         val aspect = layout.aspect.takeIf { it > 0f } ?: (long.toFloat() / short)

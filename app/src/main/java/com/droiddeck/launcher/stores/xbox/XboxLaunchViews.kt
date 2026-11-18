@@ -18,7 +18,8 @@ internal class XboxLaunchViews {
             parent.listFiles()?.filter { it.name.startsWith("launch-") }?.forEach(::remove)
             recovered.add(parent.path)
         }
-        return Files.createTempDirectory(parent.toPath(), "launch-").toFile()
+        // The guest binds the files directory by the path Android reports, not its canonical one.
+        return File(files, "xbox-runtime/views/" + Files.createTempDirectory(parent.toPath(), "launch-").fileName)
     }
 
     companion object {

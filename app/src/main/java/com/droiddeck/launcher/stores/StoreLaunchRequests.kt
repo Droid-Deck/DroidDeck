@@ -58,7 +58,11 @@ object StoreLaunchRequests {
             }
             "xbox-renew" -> JSONObject().put("ok", com.droiddeck.launcher.stores.xbox.XboxRuntime.renew(app, request.optString("id"), request.optString("lease")))
             "xbox-prepare" -> runCatching { com.droiddeck.launcher.stores.xbox.XboxRuntime.prepare(app, request.getString("id")) }
-                .getOrElse { JSONObject().put("ok", false).put("reason", "Xbox account service is unavailable. Sign in again and retry.") }
+                .getOrElse {
+                    StoresState.logLine("Xbox: launch prepare failed (${it.javaClass.simpleName}: ${it.message})")
+                    val reason = (it as? IllegalStateException)?.message ?: "Xbox account service is unavailable. Sign in again and retry."
+                    JSONObject().put("ok", false).put("reason", reason)
+                }
             "ea-prepare" -> runCatching { lastLaunched = Store.EA to request.optString("id"); com.droiddeck.launcher.stores.ea.EaLaunch.prepare(app, request) }
                 .getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
             "ea-exited" -> {
@@ -79,6 +83,11 @@ object StoreLaunchRequests {
             "rockstar-launch" -> runCatching {
                 lastLaunched = Store.ROCKSTAR to request.optString("id")
                 com.droiddeck.launcher.stores.rockstar.RockstarLaunch.prepare(app, request.optString("id"))
+            }.getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
+            "store-service" -> runCatching {
+                val root = com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app)
+                if (com.droiddeck.launcher.session.SessionFiles.awaitStoreService(app, request.optString("store"), root)) JSONObject().put("ok", true)
+                else JSONObject().put("ok", false).put("reason", "service-unavailable")
             }.getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
             "rockstar-exited" -> {
                 if (lastLaunched == (Store.ROCKSTAR to request.optString("id"))) lastLaunched = null

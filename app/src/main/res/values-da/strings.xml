@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">SteamVR-grafikken stoppede</string>
     <string name="steamvr_recovery_countdown">DroidDeck genstarter om %1$d sekunder for at nulstille grafikken og åbne SteamVR igen. Dit kørende spil lukkes; ikke-gemte fremskridt kan ikke gendannes.</string>
@@ -9,15 +9,35 @@
     <string name="steamvr_recovery_failed">DroidDeck kunne ikke genstarte automatisk. Luk appen helt, og åbn den så igen.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>Den første start downloader Steam. Det kan tage nogle minutter.</item>
-        <item>Som standard sætter Steam på pause, når du forlader appen, og fortsætter, hvor du slap, når du kommer tilbage.</item>
-        <item>Din controller vises som en Xbox 360-controller. Brug ellers kontrollerne på skærmen.</item>
+        <item>Første kørsel downloader Steam. Det kan tage et par minutter.</item>
+        <item>Din controller vises i Steam som en Steam Deck-controller. Skift den til Steam Controller, DualShock 4, DualSense eller Xbox 360 i sessionsindstillingerne. Det gælder fra næste session.</item>
+        <item>Hold Tilbage nede på din controller for at åbne Steams Hurtig adgang-menu. Hold Tilbage for Steam-genveje skal være slået til i sessionsindstillingerne.</item>
+        <item>Baggrundsopførsel bestemmer, hvad der sker, når du forlader appen: Native gør Steam klar til dvale, Auto sætter det på pause, Manuel venter på Genoptag, Aldrig lader det køre.</item>
+        <item>Steam-spil bruger Steams Frame Limit i Hurtig adgang. Skærmen skifter til en opdateringsfrekvens, som grænsen går op i, hvis der findes en.</item>
+        <item>Lav forsinkelse i sessionsmenuen sender controllerinput med 1000 Hz i stedet for 250 Hz, til gengæld for lidt mere CPU og batteri.</item>
+        <item>Hvert spil har sin egen profil med Proton, FEX, komponenter og miljøindstillinger.</item>
+        <item>Sessionsmenuen har en mikrofonknap til stemmechat og en Sæt på pause nu-knap, der fryser sessionen efter behov.</item>
+        <item>Træk DroidDeck HUD for at flytte det, knib for at ændre størrelsen, og skub det ud mod en kant for at fæstne det som en lille FPS-fane.</item>
+        <item>På håndholdte med to skærme kan den nederste skærm vise downloads, notifikationer, skærmbilleder og Steam-chat. Byt skærme lægger i stedet spillet dernede.</item>
+        <item>Tilføj Steam-biblioteker fra et SD-kort, et USB-drev eller en SSD, så samler DroidDeck spillene i dit Bibliotek.</item>
+        <item>Butikker lader dig logge ind på Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io og Game Jolt og derefter installere og opdatere deres spil fra DroidDeck.</item>
+        <item>Komponenter som FEX, DXVK og VKD3D-Proton opdaterer sig selv, og Proton Experimental ARM64 er standard, eller Proton 11.0 ARM64, når den version er installeret.</item>
+        <item>Komprimer Steam, mens et spil kører frigør RAM på enheder med lidt hukommelse.</item>
+        <item>Stryg ind fra højre kant for at åbne sessionsmenuen: touchpad-tilstand, PC-tastatur, Lav forsinkelse, spilprofil og mere.</item>
+        <item>Kører spillet langsomt? Begræns billedfrekvensen i Hurtig adgang, og prøv så en anden Proton-version eller FEX-forudindstilling i spillets komponenter.</item>
+        <item>Knitrende eller manglende lyd i spillet? Prøv kontakten DirectAudio til spil i Steam-indstillingerne under Lyd.</item>
+        <item>Opsætning og så Lager kan rydde shader-caches og overskydende præfikser fra spil, du har fjernet.</item>
+        <item>Har du ramt en fejl? Del logs i sessionsmenuen samler diagnostik. Send dem i #bug-reports på Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>Den første start sætter skrivebordet op. Det kan tage nogle minutter.</item>
-        <item>Som standard sætter sessionen på pause, når du forlader appen, og fortsætter, hvor du slap, når du kommer tilbage.</item>
-        <item>Berøring fungerer som et touchpad: Træk for at flytte markøren, tryk for at klikke.</item>
-        <item>Din controller vises som en Xbox 360-controller. Brug ellers kontrollerne på skærmen.</item>
+        <item>Første kørsel sætter skrivebordet op. Det kan tage et par minutter.</item>
+        <item>Touch fungerer som et touchpad: træk for at flytte markøren, tryk for at klikke.</item>
+        <item>Baggrundsopførsel bestemmer, hvad der sker, når du forlader appen: Manuel venter som standard på Genoptag, Auto sætter på pause, Aldrig lader det køre.</item>
+        <item>Stryg ind fra højre kant for at åbne sessionsmenuen, og vælg så PC-tastatur for at skrive i apps, der ignorerer Android-tastaturet.</item>
+        <item>PC-tastaturet i sessionsmenuen har justerbar størrelse, gennemsigtighed og tastgrupper.</item>
+        <item>Din controller vises som en Xbox 360-controller. Ellers kan du bruge betjeningen på skærmen.</item>
+        <item>Sessionsmenuen har en mikrofonknap og en Sæt på pause nu-knap, der fryser sessionen efter behov.</item>
+        <item>Har du ramt en fejl? Del logs i sessionsmenuen samler diagnostik. Send dem i #bug-reports på Discord.</item>
     </string-array>
     <string name="session_channel">Session</string>
     <string name="session_channel_description">Vises, når en Steam- eller skrivebordssession er åben</string>
@@ -269,6 +289,10 @@
     <string name="mode_touch_touchpad">Touchpad</string>
     <string name="mode_touch_direct">Direkte</string>
     <string name="mode_touch_note">Auto: touchpad på Skrivebord, direkte i Steam.</string>
+    <string name="mode_pen">Pen</string>
+    <string name="mode_pen_mouse">Mus</string>
+    <string name="mode_pen_touch">Berøring</string>
+    <string name="mode_pen_button">Sideknap</string>
     <string name="mode_osc">Kontroller på skærmen</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto viser kontrollerne, når ingen controller er tilsluttet.</string>
@@ -333,7 +357,7 @@
     <string name="mode_return_after_game">Vend tilbage til DroidDeck efter et spil</string>
     <string name="mode_return_after_game_hint">Når et spil, du startede fra DroidDeck eller en anden launcher, lukkes, afslutter Steam pænt (cloud-gemninger afsluttes først), og du vender tilbage dertil. Fra: bliv i Steam.</string>
     <string name="mode_shader_precache">Shader-forhåndscaching</string>
-    <string name="mode_shader_precache_hint">Steam downloader forudbyggede shadere til dine spil og behandler dem i baggrunden, så spil hakker mindre. Fra sparer data, lagerplads og batteri; spil bygger i stedet shadere undervejs. Samme indstilling som Steams Downloads > Shader Pre-Caching. Gælder fra næste session.</string>
+    <string name="mode_shader_precache_hint">Steam downloader forudbyggede shadere til dine spil og behandler dem i baggrunden, så spil hakker mindre. Fra sparer data, lagerplads og batteri; spil bygger i stedet shadere undervejs. Samme indstilling som Steams Downloads &gt; Shader Pre-Caching. Gælder fra næste session.</string>
     <string name="mode_steam_repair">Reparer Steam-klienten</string>
     <string name="mode_steam_repair_hint">Downloader Steam-klienten igen, næste gang Steam starter. Brug det, hvis Steam bliver hængende på sin indlæsningsskærm. Spil, login og indstillinger bevares.</string>
     <string name="mode_steam_repair_queued">Steam-klienten downloades igen, næste gang Steam starter.</string>
@@ -604,6 +628,8 @@
     <string name="perf_cap_off">Fra</string>
     <string name="perf_cap_auto">Driverstandard</string>
     <string name="perf_zram_client">Komprimer Steam, mens et spil kører</string>
+    <string name="perf_zram_idle">Komprimer spillets inaktive hukommelse</string>
+    <string name="perf_zram_idle_hint">Pager spillets inaktive hukommelse ud, når RAM er lav. Slå det fra, hvis spil fryser i et par sekunder cirka hvert halve minut. Træder i kraft, næste gang sessionen starter.</string>
     <string name="perf_zram_client_hint">20 s efter et spil starter, komprimeres Steam-klienten i zRAM for at give spillet mere hukommelse, og læses tilbage, når spillet lukkes. Slå fra, hvis sessionen lukker kort efter, at spil starter. En RAM-grænse ovenfor komprimerer stadig Steam, når sessionen overskrider den.</string>
     <string name="perf_ram_cap">RAM-grænse</string>
     <string name="perf_ram_cap_hint">Gælder, mens Steam-klienten kører, i Steam-tilstand eller fra skrivebordet. Når sessionen bruger mere end dette, komprimeres Steam og derefter sessionens andre understøttede processer i zRAM. En blød grænse: intet lukkes, men spil kan hakke, mens sider hentes tilbage.</string>
@@ -614,7 +640,7 @@
     <string name="perf_gpuclock_hint">Kun Adreno. Færre hak, mere batteribrug og varme.</string>
     <string name="perf_fixes">Sessionsrettelser</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
-    <string name="perf_sysmem_hint">Hurtigere til Steam-klienten; i spil vælger driveren flise- eller systemhukommelses-rendering for hvert pass. Påkrævet på Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Gælder Steam-klienten og spil. Påkrævet på Adreno 710/720/722.</string>
     <string name="perf_xalia">Spring Steams xalia-hjælper over</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">En stand-in til ntsync-driveren i Linux-kernen, i brugerrum. Mens den er til, bruger Proton den i stedet for droiddeck-esync og droiddeck-fsync. Fungerer med Proton Experimental ARM64, GE-Proton og proton-cachyos. Gælder fra næste session.</string>
@@ -649,6 +675,8 @@
     <string name="drawer_page_display">Skærm</string>
     <string name="drawer_frame_limit">Billedgrænse</string>
     <string name="drawer_frame_limit_note">Begrænser dette spil. Skærmen skifter til en opdateringshastighed, som grænsen går lige op i, når den har en; andre grænser kan virke ujævne. Steam-spil bruger Steams Frame Limit i Hurtig adgang-menuen.</string>
+    <string name="drawer_bfi">Indsættelse af sorte billeder</string>
+    <string name="drawer_bfi_note">Skarpere bevægelse: hvert billede efterfølges af en sort opdatering. Kræver 100 Hz eller mere; spillet kører ved halv opdateringshastighed og ser mørkere ud. Slået fra under billedgenerering.</string>
     <string name="drawer_page_effects">Effekter</string>
     <string name="drawer_page_controls">Kontroller</string>
     <string name="drawer_page_components">Komponenter</string>
@@ -682,7 +710,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Bjælke</string>
     <string name="hud_locked">Lås fast</string>
-    <string name="hud_locked_hint">Træk i HUD for at flytte det; et langt tryk låser eller frigør det. Mens det er låst, virker skærmknapperne under det stadig.</string>
+    <string name="hud_locked_hint">Træk i HUD for at flytte det. Mens det er låst, virker skærmknapperne under det stadig.</string>
+    <string name="hud_hold">Langt tryk</string>
+    <string name="hud_hold_collapse">Skjul eller udvid</string>
+    <string name="hud_hold_lock">Lås eller frigør</string>
     <string name="hud_snap">Fastgør til siderne</string>
     <string name="hud_snap_hint">Slip HUD\'en, så flytter den sig til skærmens nærmeste side. Et hurtigt stryg kaster den i den retning.</string>
     <string name="hud_group_look">Udseende</string>
@@ -1117,7 +1148,7 @@
     <string name="lab_off_title">Lab-build slået fra</string>
     <string name="lab_off_other_install">Den blev bygget til en anden version af DroidDeck. Den ligger stadig i Opdateringer.</string>
     <string name="lab_off_did_not_start">DroidDeck startede ikke på den to gange</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">Agenten arbejder</string>
     <string name="agent_missing">Installer Claude Code i Linux-brugermiljøet for at bruge agenten.</string>
@@ -1157,6 +1188,7 @@
     <string name="agent_hint_working">Skriv for at sætte den næste besked i kø</string>
     <string name="agent_queue">Sæt i kø</string>
     <string name="agent_queued">Næste: %1$s</string>
+    <string name="agent_tools_missing">Agentens værktøjer er ikke installeret: %1$s</string>
     <string name="agent_unqueue">Send ikke</string>
     <string name="agent_attach">Vedhæft</string>
     <string name="agent_remove_attachment">Fjern</string>
@@ -1286,6 +1318,7 @@
     <string name="gate_enter_manually">Indtast adresse manuelt</string>
     <string name="gate_from_computer">Fra en computer med ADB:</string>
     <string name="gate_copy_command">Kopier kommando</string>
+    <string name="gate_sidequest_steps">Slut headsettet til en computer, og åbn SideQuest. Vælg “Run ADB Command” og derefter “Custom Command”, skriv kommandoen vist nedenfor, og vælg “Run Command”.</string>
     <string name="gate_choose_display">Vælg, hvilken skærm Android-indstillinger skal åbnes på.</string>
     <string name="gate_main_screen">Hovedskærm</string>
     <string name="wadb_finding_port">Parret. Finder porten for Trådløs fejlretning…</string>
@@ -1540,6 +1573,8 @@
     <string name="pip_unavailable">Android kunne ikke åbne billede i billede.</string>
     <string name="game_more">Mere</string>
     <string name="game_edit_art">Rediger grafik</string>
+    <string name="game_unhide">Fjern fra skjulte</string>
+    <string name="game_hide_failed">Kunne ikke synkronisere med Steam. Luk Steam og prøv igen.</string>
     <string name="stores_in_steam_label">I Steam</string>
     <string name="game_shortcut">Genvej</string>
     <string name="game_shortcut_add">Tilføj til hjemmeskærm</string>
@@ -1561,7 +1596,6 @@
     <string name="game_file_folder">Vælg en mappe til frontend-spilfiler</string>
     <string name="game_file_exported">Spilfiler gemt i %1$s</string>
     <string name="game_frontend_files">Frontend-filer</string>
-
     <string name="main_wait_runtime">Vent til runtime-handlingen er færdig</string>
     <string name="main_wait_proton_install">Vent til installationen af kompatibilitetsværktøjet er færdig</string>
     <string name="load_compat_title">Forbereder kompatibilitetsværktøjer</string>
@@ -1647,7 +1681,6 @@
     <string name="main_removing_runtime">Fjerner Linux-runtime</string>
     <string name="main_settings_main_screen">Kunne ikke åbne Indstillinger på den nederste skærm; åbnede den på hovedskærmen.</string>
     <string name="main_open_dev_options">Åbn Indstillinger for udviklere i Indstillinger</string>
-
     <string name="upd_unknown_apps_failed">Kunne ikke åbne Androids indstilling ”Installer ukendte apps”</string>
     <string name="upd_couldnt_check">Kunne ikke kontrollere: %1$s</string>
     <string name="upd_no_download">Denne build har ingen download til denne kopi af DroidDeck</string>
@@ -1657,12 +1690,10 @@
     <string name="upd_stage_confirm">Venter på din bekræftelse</string>
     <string name="upd_failed">Opdateringen mislykkedes</string>
     <string name="upd_not_offered">Android tilbød ikke at installere opdateringen</string>
-
     <string name="decky_install_failed">Decky-installation mislykkedes: %1$s</string>
     <string name="decky_plugin_starting">Starter import af plugin…</string>
     <string name="decky_plugin_failed">Import af plugin mislykkedes: %1$s</string>
     <string name="decky_plugin_installed">Plugin installeret. Genstart Steam for at indlæse det.</string>
-
     <string name="drivers_not_checked">Ikke kontrolleret endnu - tryk på opdater for at søge efter nye drivere</string>
     <string name="drivers_bundle_sets_display">Android + Linux: angiver skærmdriveren samtidig</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: angiver runtime-driveren samtidig</string>
@@ -1715,7 +1746,6 @@
     <string name="drivers_check_failed">kontrol mislykkedes</string>
     <string name="drivers_installed_pick_either">Installeret %1$s - vælg den i en af listerne for at angive begge drivere</string>
     <string name="drivers_installed_pick">Installeret %1$s - vælg den i menuen</string>
-
     <string name="session_wait_removal">Vent til fjernelse af runtime er færdig</string>
     <string name="session_title_game">Spil</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
@@ -1761,7 +1791,6 @@
         <item quantity="one">Loggen viser %1$d \"Function not implemented\"-fejl: proots seccomp-acceleration fejler i en hjælpeproces på denne enhed. Prøv %2$s → \"%3$s\" (eller \"%4$s\"), og start igen.</item>
         <item quantity="other">Loggen viser %1$d \"Function not implemented\"-fejl: proots seccomp-acceleration fejler i en hjælpeproces på denne enhed. Prøv %2$s → \"%3$s\" (eller \"%4$s\"), og start igen.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Plugins</string>
     <string name="mode_decky_plugins_hint">Installer en plugin-ZIP til den næste Steam-session.</string>
     <string name="mode_decky_plugin_downloading">Downloader…</string>
@@ -1834,6 +1863,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Ryd</string>
     <string name="game_sync_err_runtime">Installer runtime først</string>
     <string name="game_sync_err_steam_library">Steam-biblioteket er ikke tilgængeligt</string>
     <string name="game_sync_err_previous_sd">Det tidligere SD-bibliotek er ikke tilgængeligt</string>
@@ -2117,7 +2147,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Port %1$d modtager data (%2$d pakker á %3$d bytes), men i et format, som denne side endnu ikke kan læse.</string>
     <string name="bottom_telemetry_port_busy">Et andet program bruger allerede port %1$s, så det spil kan ikke vises her.</string>
-
     <string name="rtinst_removing">Fjerner Linux-runtime</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Fjerner Linux-runtime · %1$d element</item>
@@ -2132,7 +2161,6 @@
     <string name="rtinst_channel_description">Vises, mens Linux-runtime installeres eller fjernes</string>
     <string name="rtinst_title_installing">Installerer Linux-runtime</string>
     <string name="rtinst_title_removing">Fjerner Linux-runtime</string>
-
     <string name="deskpkg_runtime_missing">Linux-runtime er ikke installeret</string>
     <string name="deskpkg_no_checksum">Kataloget har ingen tjeksum for %1$s</string>
     <string name="deskpkg_checksum_mismatch">Tjeksum stemmer ikke - intet blev ændret</string>
@@ -2140,7 +2168,6 @@
     <string name="deskpkg_place_failed">Kunne ikke placere AppImage</string>
     <string name="deskpkg_extract_failed">Udpakning mislykkedes</string>
     <string name="deskpkg_install_failed">Installation mislykkedes</string>
-
     <string name="flatpakmgr_setup_failed">Flatpak-opsætning mislykkedes (afslutningskode %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Flatpak-opsætning blev ikke afsluttet</string>
     <string name="flatpakmgr_busy">En anden butiksopgave er i gang</string>
@@ -2159,7 +2186,6 @@
     <string name="flatpakmgr_ref_media_codecs">mediecodecs</string>
     <string name="flatpakmgr_ref_runtime">%1$s-runtime</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s-runtime %2$s</string>
-
     <string name="appimg_too_small">Filen er for lille til at være en AppImage</string>
     <string name="appimg_unreadable">Filen kan ikke læses: %1$s</string>
     <string name="appimg_not_linux">Dette er ikke en AppImage (det er ikke et Linux-program)</string>
@@ -2174,7 +2200,6 @@
     <string name="appimg_extracting">Udpakker %1$s</string>
     <string name="appimg_extract_failed">AppImage kunne ikke udpakkes</string>
     <string name="appimg_extract_failed_detail">AppImage kunne ikke udpakkes: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Stop den aktive session, før du installerer Decky Loader</string>
     <string name="deckymgr_download_failed">Download af Decky Loader mislykkedes</string>
     <string name="deckymgr_size_mismatch">Decky Loaders størrelse passede ikke med metadata for udgivelsen</string>
@@ -2223,13 +2248,11 @@
     <string name="deckymgr_activate_failed">Kunne ikke aktivere det importerede plugin</string>
     <string name="deckymgr_settings_failed">Kunne ikke opdatere Decky-pluginindstillinger</string>
     <string name="deckymgr_restore_failed">Kunne ikke gendanne det eksisterende plugin</string>
-
     <string name="adbfix_save_failed">Kunne ikke gemme identitet til Trådløs fejlretning</string>
     <string name="adbfix_command_failed">ADB-kommando mislykkedes (%1$d)</string>
     <string name="adbfix_not_confirmed">Android bekræftede ikke, at procesgrænsen blev ændret: %1$s</string>
     <string name="adbfix_no_pairing">Ingen parring for Trådløs fejlretning er gemt</string>
     <string name="adbfix_enter_address">Indtast den aktuelle IP-adresse og port for Trådløs fejlretning</string>
-
     <string name="adbpair_timed_out">Der opstod timeout under venten på parringsvinduet. Forsøg igen fra DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Kunne ikke lede efter parringsvinduet (%1$d). Tjek at Wi-Fi er tændt.</string>
     <string name="adbpair_discovery_failed">Kunne ikke lede efter parringsvinduet: %1$s</string>
@@ -2255,7 +2278,6 @@
     <string name="adbpair_title_done">Steam er klar</string>
     <string name="adbpair_done_text">Tryk for at gå tilbage til DroidDeck. Du kan slukke Trådløs fejlretning nu.</string>
     <string name="adbpair_title_failed">Opsætning af Trådløs fejlretning stoppet</string>
-
     <string name="selfinst_download_failed">Hentningen mislykkedes</string>
     <string name="selfinst_size_mismatch">Downloadets størrelse passede ikke med den udgivne APK og blev kasseret - forsøg igen</string>
     <string name="selfinst_checksum_mismatch">Downloadet matchede ikke sin tjeksum og blev kasseret - forsøg igen</string>
@@ -2268,13 +2290,11 @@
     <string name="selfinst_no_signing">Den downloadede APK har ingen signeringsoplysninger</string>
     <string name="selfinst_wrong_signer">Den downloadede APK er ikke signeret med DroidDecks udgivelsesnøgle</string>
     <string name="appupd_http">Opdateringskataloget svarede HTTP %1$d</string>
-
     <string name="loadstate_starting">Starter sessionen…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d forløbet · arbejder stadig</string>
     <string name="loadstate_steam_update">Downloader Steam-klientopdateringen · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Anvender Steam-klientopdateringen…</string>
     <string name="loadstate_steam_client">Downloader Steam-klienten · %1$s</string>
-
     <string name="pextra_busy">En installation af et kompatibilitetsværktøj er allerede i gang</string>
     <string name="pextra_stop_session">Stop den aktive session, før du installerer kompatibilitetsværktøjer</string>
     <string name="pextra_no_release">Kunne ikke finde en ARM64-udgivelse af %1$s</string>
@@ -2294,7 +2314,6 @@
     <string name="pextra_install_failed">Installation af %1$s mislykkedes (afslutningskode %2$d)</string>
     <string name="pextra_could_not_install">Kunne ikke installere %1$s</string>
     <string name="esync_fetching">Henter droiddeck-esync-pakken</string>
-
     <string name="cmgr_fex_linux_helpers">med Linux-hjælpeprogrammer</string>
     <string name="cmgr_fex_dlls_only">Kun DLL\'er</string>
     <string name="cmgr_original_proton_updated">Original (Proton opdateret siden sidste ombytning)</string>
@@ -2317,13 +2336,11 @@
     <string name="cmgr_nightly_replaced">Download mislykkedes: denne nightly kan være erstattet af en nyere build. Opdater listen, og prøv igen.</string>
     <string name="cmgr_list_predates_checksums">Denne pakkeliste er ældre end tjeksummer - opdater den, og forsøg igen</string>
     <string name="cmgr_checksum_mismatch">Tjeksum stemmer ikke</string>
-
     <string name="sprefs_upscaler_linear">Lineær</string>
     <string name="sprefs_upscaler_nearest">Nærmeste</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (kvalitet)</string>
     <string name="sprefs_upscaler_sharpen">Kun skærpning</string>
     <string name="sprefs_lod_bias_auto">Auto (matcher skalering)</string>
-
     <string name="look_off_desc">Intet anvendt.</string>
     <string name="look_game_clarity">Spilklarhed</string>
     <string name="look_game_clarity_desc">Skærpning med et strejf af kontrast - den til hver dag.</string>
@@ -2347,7 +2364,6 @@
     <string name="look_pixel_clean_desc">Skarpe pixels til 2D og gamle titler.</string>
     <string name="look_anime_edge">Anime-kant</string>
     <string name="look_anime_edge_desc">Toon-konturer plus skærpning.</string>
-
     <string name="gpuinfo_not_adreno">Ikke en Adreno-GPU</string>
     <string name="gpuinfo_powervr">System-PowerVR-driver: Kompatibiliteten varierer afhængigt af enheden</string>
     <string name="gpuinfo_xclipse">Eksperimentelt: RADV eller systemets Xclipse-driver</string>
@@ -2372,7 +2388,6 @@
     <string name="gpuinfo_unsupported">Understøttes ikke: ingen kompatibel grafikbackend er tilgængelig for denne GPU</string>
     <string name="gpuinfo_bridge">Kører via Mali-broen på telefonens egen Vulkan-driver</string>
     <string name="gpuinfo_bridge_off">Understøttes ikke, når Mali-broen er slået fra: Turnip kræver en Adreno-GPU (Snapdragon)</string>
-
     <string name="turnip_rate_limited">GitHubs hastighedsgrænse blev nået - forsøg igen senere</string>
     <string name="turnip_github_http">GitHub svarede HTTP %1$d</string>
     <string name="turnip_download_failed">Hentningen mislykkedes</string>
@@ -2393,16 +2408,12 @@
     <string name="bundle_no_manifest">Ikke en driverpakke: ingen manifest.json, der angiver en android- og en linux-driver</string>
     <string name="bundle_entry_outside">Ikke en driverpakke: %1$s peger uden for den</string>
     <string name="bundle_too_large">Ikke en driverpakke: den udpakkes til mere end %1$d MB</string>
-
     <string name="gstore_sd_card">SD-kort</string>
     <string name="gstore_folder">Mappe</string>
-
     <string name="logshare_chooser">Del sessionslogs</string>
-
     <string name="hdr_needs_android_10">kræver Android 10 eller nyere (skærmlag med et farverum)</string>
     <string name="hdr_none">denne skærm rapporterer ingen HDR-understøttelse</string>
     <string name="hdr_not_hdr10">denne skærm understøtter %1$s, ikke HDR10</string>
-
     <string name="gpu_this_gpu">denne GPU</string>
     <string name="phantom_title_on">Procesgrænse er tændt</string>
     <string name="phantom_title_unset">Procesgrænse er ikke sat</string>
@@ -2476,7 +2487,6 @@
     <string name="device_info_copied">Kopieret.</string>
     <string name="force_ssbs_title">Tving SSBS</string>
     <string name="force_ssbs_hint">Bevarer en CPU-hastighedsindstilling, som Wine hele tiden slår fra. Kan gøre Windows-spil hurtigere på Snapdragon 8 Elite; lille ændring set på ældre chips. Træder i kraft ved næste spilstart.</string>
-
     <string name="rail_stores">Butikker</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Brugerdefineret</string>
@@ -2962,7 +2972,6 @@
     <string name="touch_icon_color">Ikonfarve</string>
     <string name="touch_button_color">Knapfarve</string>
     <string name="touch_no_icon">Intet ikon</string>
-
     <string name="stores_sync_sign_in">Kontrollerer login…</string>
     <string name="stores_sync_library">Henter dit bibliotek…</string>
     <string name="stores_sync_game_list">Henter spilliste…</string>
@@ -3380,6 +3389,7 @@
     <string name="boot_movie_sound">Lyd</string>
     <string name="boot_movie_skip">Spring opstartsfilmen over</string>
     <string name="boot_movie_skip_hint">Brug et sort klip på 0,1 sekund som opstartsfilm i Steam. Gælder fra næste session.</string>
+    <string name="boot_movie_shuffle">Bland</string>
     <string name="boot_movie_custom">Din egen video</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV eller WebM. Andre formater og filer over %1$d MB konverteres til 720p-WebM på enheden, op til %2$d sekunder.</string>
     <string name="boot_movie_import">Importér</string>
@@ -3837,8 +3847,6 @@
     <string name="integration_shortcuts_hint">Alt+Tab, Win-tasten og Hjem-knappen bliver i sessionen</string>
     <string name="integration_shortcuts_maybe_restricted">Nedtonet i Android? Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
     <string name="integration_shortcuts_restricted">Blokeret af Android · Appinfo → ⋮ → Tillad begrænsede indstillinger</string>
-    <string name="integration_shortcuts_service">DroidDeck-systemtaster</string>
-    <string name="integration_shortcuts_service_description">Holder Alt+Tab, Win-tasten og Hjem-knappen i en aktiv DroidDeck-session i stedet for Android.</string>
     <string name="integration_brightness_needed">Slå Lysstyrke til under Opsætning → Steam-integration</string>
     <string name="setup_gpu_bridge_off">Mali-bro: fra</string>
     <string name="setup_gpu_bridge_unusable">%1$s kan ikke bruge Mali-broen (den kræver en Mali-GPU uden en rute gennem systemdriveren), så denne kontakt har ingen virkning her.</string>
@@ -3999,10 +4007,9 @@
     <string name="input_reset_positions">Nulstil placeringer</string>
     <string name="input_show_label">Vis etiket</string>
     <string name="input_layout_import_failed">Dette layout kunne ikke importeres</string>
-
+    <string name="epic_third_party_managed">Installeres via %1$s</string>
     <string name="theme_white_red">Skarlagensne</string>
     <string name="theme_white_red_detail">Hvide overflader med røde accenter.</string>
-    
     <string name="rail_soundtracks">Soundtracks</string>
     <string name="rail_music">Musik</string>
     <string name="soundtracks_options">Afspilningsindstillinger</string>
@@ -4078,4 +4085,10 @@
     <string name="hud_metric_hdr">HDR-status</string>
     <string name="hud_readings_shown">Vist</string>
     <string name="hud_readings_count">%1$d af %2$d</string>
+    <string name="exit_hint_back">Tryk tilbage igen for at afslutte</string>
+    <string name="display_integer_scaling">Heltalsskalering</string>
+    <string name="display_integer_scaling_hint">Bruger den største hele skalering, der kan være på skærmen. Kan beskære kanterne. Hvis kilden er større end outputtet, viser brøkbaseret skalering hele billedet. Opløsningen indstilles separat.</string>
+    <string name="display_scaling_integer">Heltal</string>
+    <string name="display_scaling_fit">Tilpas</string>
+    <string name="drawer_antialiasing">Kantudjævning</string>
 </resources>
