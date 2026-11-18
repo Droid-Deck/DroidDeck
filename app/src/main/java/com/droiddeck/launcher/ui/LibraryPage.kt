@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
@@ -92,6 +93,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.droiddeck.launcher.HomeApp
+import com.droiddeck.launcher.HomeLibrary
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.Soundtrack
@@ -124,6 +127,7 @@ import androidx.compose.runtime.setValue
 internal class LibraryEntry(
     val key: String, val source: String, val title: String,
     val game: Library.SteamGame?, val item: CatalogItem?, val installed: Boolean,
+    val app: HomeApp.LaunchableApp? = null,
 ) {
     val storeKey: String? get() = item?.key ?: game?.storeId?.let { "${game.source}:$it" }
     val favoriteKey: String get() = storeKey ?: key
@@ -152,6 +156,12 @@ internal fun libraryEntries(
     return out.distinctBy { it.key }
 }
 
+internal const val ANDROID_ENTRY = "android:"
+
+internal fun androidEntries(apps: List<HomeApp.LaunchableApp>, added: Set<String>, removed: Set<String>): List<LibraryEntry> =
+    apps.filter { HomeLibrary.includes(it, added, removed) }
+        .map { LibraryEntry(ANDROID_ENTRY + it.key, Library.SOURCE_ANDROID, it.label, null, null, installed = true, app = it) }
+
 internal fun collectionEntries(all: List<LibraryEntry>, items: List<CatalogItem>, store: Store = Store.ITCH): List<LibraryEntry> {
     val keys = items.map { it.key }.toSet()
     val own = all.filter { it.source == store.id }
@@ -164,7 +174,7 @@ internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = e
 
 internal const val LIBRARY_ALL = "all"
 internal fun librarySources(entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet(), favorites: Set<String> = emptySet()): List<String> =
-    (listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED + Library.SOURCE_COLLECTION)
+    (listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED + Library.SOURCE_ANDROID + Library.SOURCE_COLLECTION)
         .filter { source ->
             if (source == LIBRARY_FAVORITES) entries.any { it.favoriteKey in favorites }
             else source in always || entries.any { it.source == source }
@@ -218,7 +228,10 @@ internal object LibraryView {
 }
 
 @Composable
-internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String, onSelect: (String) -> Unit, modifier: Modifier) {
+internal fun LibraryPage(
+    s: FrontEndState, a: FrontEndActions, selected: String, onSelect: (String) -> Unit, modifier: Modifier,
+    onAndroidApp: (HomeApp.LaunchableApp) -> Unit = { a.onAndroidApp(it, null) },
+) {
     val ctx = LocalContext.current
     val narrow = LocalNarrowPane.current
     val ff = LocalFrontFocus.current
@@ -240,12 +253,18 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     remember { SoundtrackCollections.load(ctx) }
     val savedSnapshot = SoundtrackCollections.snapshot
     val favoritesLabel = stringResource(R.string.soundtracks_favorites)
-    val all = remember(soundMode, s.steamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel) {
+    remember { HomeLibrary.load(ctx) }
+    val androidAdded = HomeLibrary.added
+    val androidRemoved = HomeLibrary.removed
+    val androidApps = if (s.shortcutPicker) emptyList() else s.androidApps
+    val all = remember(soundMode, s.steamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel, androidApps, androidAdded, androidRemoved) {
         if (soundMode) s.soundtracks.map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) } +
             (if (s.soundtracks.isEmpty() && savedSnapshot.favorites.isEmpty() && savedSnapshot.collections.isEmpty()) emptyList() else SoundtrackCollections.games(ctx, favoritesLabel))
                 .map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) }
-        else libraryEntries(s.steamGames + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore)
+        else libraryEntries(s.steamGames + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore) +
+            androidEntries(androidApps, androidAdded, androidRemoved)
     }
+    var appMenu by remember { mutableStateOf<LibraryEntry?>(null) }
     var addingSoundtrack by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
     var showUninstalled by remember(LibraryView.ownedRequest) { mutableStateOf(SessionPrefs.libraryShowUninstalled(ctx)) }
@@ -356,7 +375,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val sorted = sortGames(
         candidates, sort, title = { it.title }, releaseDate = { it.item?.releaseDate.orEmpty() },
         lastPlayed = { e -> entryTime(e.game?.lastPlayed, e.storeKey?.let { lastPlayed[it] }) },
-        installedAt = { e -> entryTime(e.storeKey?.let { installedAt[it] }, e.game?.installedAt) },
+        installedAt = { e -> entryTime(e.storeKey?.let { installedAt[it] }, e.game?.installedAt ?: e.app?.installedAt) },
         size = { e -> sizeOf(e) ?: 0L },
     )
     var stable by remember { mutableStateOf(emptyList<LibraryEntry>()) }
@@ -442,9 +461,17 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                     LibraryView.source = ids[(ids.indexOf(source).coerceAtLeast(0) + step + ids.size) % ids.size]
                     cycled++
                 },
-                onOpen = { focusManager.clearFocus(force = true); onSelect(it) },
+                onOpen = { key ->
+                    val app = all.firstOrNull { it.key == key }?.app
+                    if (app != null) onAndroidApp(app)
+                    else {
+                        focusManager.clearFocus(force = true)
+                        onSelect(key)
+                    }
+                },
                 searchCleared = open != null,
                 onFocus = { gridFocused = it },
+                onMenu = { appMenu = it },
                 soundMode = soundMode,
                 emptyText = when {
                     soundMode && all.isEmpty() -> R.string.soundtracks_empty
@@ -459,6 +486,14 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     ) { key ->
         if (soundMode || (!s.soundtracksEnabled && s.soundtracks.any { GameRef.key(it) == key })) SoundtrackDetail(key, s, a, lead, backLabel, onBack = back)
         else GameDetail(key, s, a, lead, backLabel, hopRail = "games", onBack = back)
+    }
+    appMenu?.let { entry ->
+        val app = entry.app
+        if (app != null) AndroidEntryDialog(
+            app, favorite = entry.favoriteKey in LibraryFavorites.keys,
+            onFavorite = { appMenu = null; LibraryFavorites.toggle(ctx, entry.favoriteKey) },
+            onRemove = { appMenu = null; HomeLibrary.set(ctx, app, false) },
+        ) { appMenu = null }
     }
     if (savedDialog) SavedDialog(emptyList(), onOpen = { id -> onSelect("sound:$id") }) { savedDialog = false }
     if (addingSoundtrack) SyncFolderPicker(stringResource(R.string.soundtracks_add_title), null, onDismiss = { addingSoundtrack = false }) { dir ->
@@ -498,6 +533,7 @@ private fun LibraryGrid(
     onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
     soundMode: Boolean = false, emptyText: Int = R.string.stores_nothing_matches, onAddSoundtrack: () -> Unit = {},
     onCollections: () -> Unit = {}, trackHits: List<SoundtrackIndex.Hit> = emptyList(), onPlayHit: (SoundtrackIndex.Hit) -> Unit = {},
+    onMenu: (LibraryEntry) -> Unit = {},
 ) {
     val listMode = s.storesView == "list"
     val capsules = s.storesView == "capsules"
@@ -539,7 +575,8 @@ private fun LibraryGrid(
         }
         val picker = s.shortcutPicker && e.game != null
         val choose = if (picker) ({ a.onSteamGame(e.game!!) }) else null
-        if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL || source == LIBRARY_FAVORITES)
+        val menu: (() -> Unit)? = if (e.app != null) ({ onMenu(e) }) else null
+        if (listMode) LibraryRow(e, first, navigation, choose, onOpen, menu) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL || source == LIBRARY_FAVORITES, menu = menu)
     }
     LazyVerticalGrid(
         columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(tileWidth), state = grid,
@@ -690,7 +727,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
             val dot = when {
                 store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
                 src == LIBRARY_FAVORITES -> FavoritesColours.dot
-                src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
+                src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_ANDROID || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
                 else -> null
             }
             SourceFilterChip(
@@ -729,14 +766,16 @@ private fun SourceFilterChip(key: String, label: String, on: Boolean, dot: Color
 }
 
 private fun entryArt(e: LibraryEntry, tall: Boolean): Any? {
+    if (e.app != null) return e.app.icon
     val inst = e.storeKey?.let { k -> StoresState.installed.firstOrNull { it.key == k } }
     val wide: Any? = e.game?.hero ?: e.item?.imageUrl ?: inst?.sidecar?.hero ?: inst?.sidecar?.cover
     val portrait: Any? = e.game?.art ?: e.item?.tallImageUrl ?: inst?.sidecar?.cover
     return if (tall) portrait ?: wide else wide ?: portrait
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit, showSource: Boolean) {
+private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit, showSource: Boolean, menu: (() -> Unit)? = null) {
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
@@ -750,7 +789,7 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
     RequestSize(e)
     val open = {
         val art = if (capsule) tall else wide
-        placed[0]?.takeIf { it.isAttached }?.let {
+        if (e.app == null) placed[0]?.takeIf { it.isAttached }?.let {
             StoresMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (art as? java.io.File)?.path ?: art as? String, (wide as? java.io.File)?.path ?: wide as? String))
         }
         onOpen(e.key)
@@ -759,7 +798,11 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
         modifier = Modifier.fillMaxWidth().onGloballyPositioned { placed[0] = it }
             .then(navigation).paneItem("card:${e.key}").then(if (first) Modifier.firstTile().paneEntry() else Modifier).graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
-            .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
+            .hoverable(src)
+            .then(
+                if (menu != null) Modifier.combinedClickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onLongClick = menu, onClick = open).menuKey(menu)
+                else Modifier.clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open),
+            )
             .controllerConfirm(onClick = choose ?: open),
     ) {
         LibraryArt(e, wide, tall, download, hot, capsule, showSource)
@@ -781,13 +824,14 @@ private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: Downlo
     ArtCard(
         e.title, wide, tall, download, hot, capsule, chip,
         badge = if (showSource) ({ SourceChip(e.source, small = true, modifier = Modifier.align(Alignment.TopStart).padding(6.dp), label = favoritesBadge(e), colours = favoritesColours(e)) }) else null,
+        inset = e.app != null,
     ) { LibrarySize(e) }
 }
 
 @Composable
 internal fun ArtCard(
     title: String, wide: Any?, tall: Any?, download: DownloadEntry?, hot: Boolean, capsule: Boolean, chip: String?,
-    badge: (@Composable BoxScope.() -> Unit)? = null, detail: @Composable () -> Unit,
+    badge: (@Composable BoxScope.() -> Unit)? = null, inset: Boolean = false, detail: @Composable () -> Unit,
 ) {
     val url = if (capsule) tall ?: wide else wide ?: tall
     val art = cardArtRequest(url, tall)
@@ -804,7 +848,8 @@ internal fun ArtCard(
             Spacer(Modifier.matchParentSize().background(Color.Black.copy(alpha = if (blurs) 0.18f else 0.6f)))
         }
         if (art != null) AsyncImage(
-            model = art, contentDescription = null, contentScale = if (trim) ContentScale.Crop else ContentScale.Fit, modifier = Modifier.matchParentSize(),
+            model = art, contentDescription = null, contentScale = if (trim) ContentScale.Crop else ContentScale.Fit,
+            modifier = if (inset) Modifier.align(Alignment.Center).fillMaxSize(0.6f) else Modifier.matchParentSize(),
             onSuccess = { r ->
                 val d = r.result.drawable
                 if (d.intrinsicWidth > 0 && d.intrinsicHeight > 0) {
@@ -876,8 +921,9 @@ internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?, showDownlo
 private fun libraryUpdateAvailable(e: LibraryEntry): Boolean = e.storeKey?.let { it in ItchUpdates.available || it in GameJoltUpdates.available || it in com.droiddeck.launcher.stores.ea.EaUpdates.available } == true ||
     e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit) {
+private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit, menu: (() -> Unit)? = null) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
@@ -887,7 +933,7 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
     val corner = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     val wide = entryArt(e, tall = false)
     val open = {
-        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (wide as? java.io.File)?.path ?: wide as? String)) }
+        if (e.app == null) placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (wide as? java.io.File)?.path ?: wide as? String)) }
         onOpen(e.key)
     }
     RequestSize(e)
@@ -907,12 +953,16 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
         modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).onGloballyPositioned { placed[0] = it }.then(navigation).paneItem("card:${e.key}")
             .then(if (first) Modifier.firstTile().paneEntry() else Modifier)
             .clip(RoundedCornerShape(10.dp)).glideBorder(hot, RoundedCornerShape(10.dp), pal.signal, pal.line)
-            .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open)
+            .hoverable(src)
+            .then(
+                if (menu != null) Modifier.combinedClickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onLongClick = menu, onClick = open).menuKey(menu)
+                else Modifier.clickable(role = Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = open),
+            )
             .controllerConfirm(onClick = choose ?: open)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
         Box(Modifier.width(96.dp).height(54.dp).clip(RoundedCornerShape(8.dp)).background(artBrush(hueOf(e.title))).graphicsLayer { alpha = if (e.installed || download != null) 1f else 0.55f }) {
-            if (wide != null) AsyncImage(model = wide, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            if (wide != null) AsyncImage(model = wide, contentDescription = null, contentScale = if (e.app != null) ContentScale.Fit else ContentScale.Crop, modifier = Modifier.matchParentSize())
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(e.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)

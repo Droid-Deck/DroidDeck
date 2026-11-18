@@ -111,6 +111,7 @@ import androidx.compose.ui.zIndex
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.HomeFolders
 import com.droiddeck.launcher.HomeHidden
+import com.droiddeck.launcher.HomeLibrary
 import com.droiddeck.launcher.HomeIcons
 import com.droiddeck.launcher.HomePins
 import com.droiddeck.launcher.IconPack
@@ -173,7 +174,7 @@ internal fun Context.findActivity(): Activity? {
     return null
 }
 
-private fun Modifier.menuKey(onMenu: () -> Unit): Modifier = onPreviewKeyEvent { event ->
+internal fun Modifier.menuKey(onMenu: () -> Unit): Modifier = onPreviewKeyEvent { event ->
     val k = event.nativeKeyEvent
     if (k.keyCode != KeyEvent.KEYCODE_BUTTON_Y && k.keyCode != KeyEvent.KEYCODE_MENU) false
     else {
@@ -290,7 +291,7 @@ internal interface AppEntryKey {
 @Composable
 internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier, onLaunch: (HomeApp.LaunchableApp) -> Unit) {
     val ctx = LocalContext.current
-    remember { HomeFolders.load(ctx); HomeWidgets.load(ctx); HomeHidden.load(ctx); AppsView.load(ctx); AppsGrid.load(ctx); true }
+    remember { HomeFolders.load(ctx); HomeWidgets.load(ctx); HomeHidden.load(ctx); HomeLibrary.load(ctx); LibraryFavorites.load(ctx); AppsView.load(ctx); AppsGrid.load(ctx); true }
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val padH = if (narrow) 16.dp else 22.dp
@@ -703,6 +704,8 @@ private fun AppMenu(
         }
     }
     val isHidden = app.key in HomeHidden.keys
+    val inLibrary = HomeLibrary.includes(app)
+    val favorite = ANDROID_ENTRY + app.key in LibraryFavorites.keys
     AnchoredMenu(open, onDismiss = onDismiss, title = app.label, compact = true, minWidth = 200.dp) { first ->
         if (choosing) {
             val others = HomeFolders.folders.filter { it.id != folderId }
@@ -740,6 +743,14 @@ private fun AppMenu(
                 focusRequester = if (isHidden && shortcuts.isEmpty()) first else null) {
                 onDismiss()
                 HomeHidden.set(ctx, app.key, !isHidden)
+            }
+            MenuItem(stringResource(if (inLibrary) R.string.library_remove else R.string.library_add), checked = false) {
+                onDismiss()
+                HomeLibrary.set(ctx, app, !inLibrary)
+            }
+            if (inLibrary) MenuItem(stringResource(if (favorite) R.string.fm_favorite_remove else R.string.fm_favorite_add), checked = false) {
+                onDismiss()
+                LibraryFavorites.toggle(ctx, ANDROID_ENTRY + app.key)
             }
             if (IconPack.active(ctx) != null) MenuItem(stringResource(R.string.apps_change_icon), checked = false) {
                 onDismiss()
