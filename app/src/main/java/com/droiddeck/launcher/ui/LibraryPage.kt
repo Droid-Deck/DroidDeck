@@ -747,7 +747,9 @@ private fun LibraryTile(e: LibraryEntry, capsule: Boolean, first: Boolean, navig
     RequestSize(e)
     val open = {
         val art = if (capsule) tall else wide
-        placed[0]?.takeIf { it.isAttached }?.let { StoresMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (art as? java.io.File)?.path ?: art as? String)) }
+        placed[0]?.takeIf { it.isAttached }?.let {
+            StoresMotion.markCard(CardMark(e.key, it.boundsInRoot(), corner, (art as? java.io.File)?.path ?: art as? String, (wide as? java.io.File)?.path ?: wide as? String))
+        }
         onOpen(e.key)
     }
     Column(

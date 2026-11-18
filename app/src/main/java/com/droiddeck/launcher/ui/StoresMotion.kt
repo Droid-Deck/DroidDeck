@@ -143,7 +143,7 @@ internal object StoresMotion {
     fun takeCard(key: String): CardMark? = card?.takeIf { it.key == key && SystemClock.uptimeMillis() - cardAt < 1_000 }.also { card = null }
 }
 
-internal class CardMark(val key: String, val bounds: Rect, val corner: Float, val art: String?)
+internal class CardMark(val key: String, val bounds: Rect, val corner: Float, val art: String?, val hero: String? = art)
 
 internal class StepAsk(
     val anchor: Rect,
