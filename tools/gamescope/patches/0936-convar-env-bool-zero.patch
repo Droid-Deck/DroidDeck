@@ -9,12 +9,11 @@ Other convar types and `true`/`false` are unchanged.
 diff --git a/src/main.cpp b/src/main.cpp
 --- a/src/main.cpp
 +++ b/src/main.cpp
-@@ -924,7 +924,9 @@
+@@ -924,7 +924,8 @@
  					std::string_view value( strtok( nullptr, "=" ) );
  					if ( script.Manager().Gamescope().Convars.Base[name].valid() )
  					{
 -						auto override_script = std::format( "gamescope.convars.{}.value = {}", name, value );
-+						// A bool convar given 0 or 1 gets a Lua number, and every number is true in Lua.
 +						auto override_script = std::format( "do local c = gamescope.convars.{0}; local v = {1}; "
 +							"if type( c.value ) == 'boolean' and type( v ) == 'number' then v = ( v ~= 0 ) end; c.value = v end", name, value );
  						console_log.infof( "Overriding from environment variable: %s", override_script.c_str() );

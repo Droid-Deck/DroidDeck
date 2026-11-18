@@ -11,7 +11,6 @@ LUA = shutil.which("lua") or shutil.which("lua5.4") or shutil.which("luajit")
 
 
 def override_script(name, value):
-    """Rebuild the Lua line main.cpp hands to the script engine, from the patch itself."""
     added = [line[1:] for line in PATCH.read_text().splitlines() if line.startswith("+") and not line.startswith("+++")]
     start = next(i for i, line in enumerate(added) if "auto override_script = std::format(" in line)
     block = []
@@ -25,7 +24,6 @@ def override_script(name, value):
 
 
 def run(initial, value):
-    """Run the override against a fake convar table; return the resulting value as Lua prints it."""
     script = override_script("thing", value)
     program = (
         f"gamescope = {{ convars = {{ thing = {{ value = {initial} }} }} }}\n"
