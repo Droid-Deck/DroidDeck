@@ -15,26 +15,29 @@ object UbisoftActivation {
     private const val POLL_MS = 250L
     private const val IDLE_MS = 60_000L
     private val watching = HashMap<Long, Long>()
+    private val owners = HashMap<Long, String>()
 
     private const val INVALIDATE = "denuvo-invalidate"
 
     fun bridge(context: Context, product: Long) = File(LinuxRuntime.rootDir(context), "root/.cache/droiddeck/ubisoft/bridge-$product")
 
     /** Starts answering the product's activations; stale requests are cleared before this returns. */
-    fun watch(app: Context, product: Long) {
+    fun watch(app: Context, product: Long, owner: String) {
+        require(owner.isNotEmpty())
         val dir = bridge(app, product)
         synchronized(watching) {
             val running = watching.containsKey(product)
             watching[product] = System.currentTimeMillis()
+            owners[product] = owner
             if (running) return
             dir.mkdirs()
-            dir.listFiles()?.forEach { it.delete() }
+            dir.listFiles()?.forEach { if (it.name != INVALIDATE) it.delete() }
         }
-        val owner = UbisoftAuth.load(app)?.userId
         Thread({
             var idleSince = 0L
             while (true) {
                 runCatching {
+                    val owner = synchronized(watching) { owners[product] }
                     val marker = File(dir, INVALIDATE)
                     if (marker.exists() && invalidate(app, product, owner)) marker.delete()
                     val pending = marker.exists()
@@ -63,7 +66,7 @@ object UbisoftActivation {
     }
 
     private fun invalidate(app: Context, product: Long, owner: String?): Boolean {
-        val user = owner ?: UbisoftAuth.load(app)?.userId ?: return false
+        val user = owner ?: return false
         val gone = TokenCache(cacheDir(app)).drop(user, product)
         if (gone) StoresState.logLine("Ubisoft: activation for $product: kept game token dropped")
         return gone
@@ -71,7 +74,7 @@ object UbisoftActivation {
 
     private fun activate(app: Context, product: Long, challenge: ByteArray, owner: String?, cached: Boolean): ByteArray? {
         val s = UbisoftAuth.current(app) ?: return null.also { StoresState.logLine("Ubisoft: activation for $product: signed out") }
-        if (owner != null && s.userId != owner) return null.also { StoresState.logLine("Ubisoft: activation for $product: the signed-in account changed") }
+        if (owner == null || s.userId != owner) return null.also { StoresState.logLine("Ubisoft: activation for $product: the signed-in account changed") }
         val cache = TokenCache(cacheDir(app))
         if (cached) cache.get(s.userId, product)?.let {
             StoresState.logLine("Ubisoft: activation for $product: kept ${it.size} B game token")

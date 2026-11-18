@@ -25,7 +25,7 @@ object GameSaves {
         fun label(context: Context): String = context.getString(R.string.saves_layout_zip, app)
     }
 
-    data class Game(val game: Library.SteamGame, val prefix: File?, val saves: List<SaveDir>) {
+    data class Game(val game: Library.SteamGame, val prefix: File?, val saves: List<SaveDir>, val root: String? = null) {
         val launched get() = prefix?.let { File(it, "drive_c").isDirectory } == true
     }
 
@@ -36,19 +36,25 @@ object GameSaves {
     fun savesDir(): File = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DroidDeck/Saves")
     private fun backupsDir(): File = File(savesDir(), "backups")
 
-    fun game(context: Context, game: Library.SteamGame): Game = Game(game, game.protonPrefix, game.protonPrefix?.let { saves(context, it, game) } ?: emptyList())
+    fun game(context: Context, game: Library.SteamGame): Game {
+        val root = if (ubisoft(game)) ubisoftRoot(context, game) else null
+        return Game(game, game.protonPrefix, game.protonPrefix?.let { saves(context, it, game) } ?: emptyList(), root)
+    }
 
     fun saves(context: Context, prefix: File, game: Library.SteamGame): List<SaveDir> =
-        if (ubisoft(game)) ubisoftSaves(prefix, game, com.droiddeck.launcher.stores.ubisoft.UbisoftAuth.load(context)?.userId) else locate(prefix, game)
+        if (ubisoft(game)) ubisoftRoot(context, game)?.let { ubisoftSaves(prefix, it) }.orEmpty() else locate(prefix, game)
+
+    private fun ubisoftRoot(context: Context, game: Library.SteamGame): String? {
+        val product = game.gameFiles?.let { com.droiddeck.launcher.stores.StoreGameSidecar.read(it) }?.extra?.get("productId")?.toLongOrNull() ?: return null
+        val user = com.droiddeck.launcher.stores.ubisoft.UbisoftAuth.load(context)?.userId
+        if (user.isNullOrEmpty() || user.contains('/') || user.contains("..")) return null
+        return "Saved Games/Ubisoft/$user/$product"
+    }
 
     private fun ubisoft(game: Library.SteamGame) = game.source == com.droiddeck.launcher.stores.Store.UBISOFT.id
 
-    private fun ubisoftSaves(prefix: File, game: Library.SteamGame, user: String?): List<SaveDir> {
-        val product = game.gameFiles?.let { com.droiddeck.launcher.stores.StoreGameSidecar.read(it) }?.extra?.get("productId")?.toLongOrNull() ?: return emptyList()
-        if (user.isNullOrEmpty() || user.contains('/') || user.contains("..")) return emptyList()
-        val rel = "Saved Games/Ubisoft/$user/$product"
-        val dir = File(profile(prefix), rel)
-        val files = dir.walkTopDown().filter { it.isFile }.toList()
+    private fun ubisoftSaves(prefix: File, rel: String): List<SaveDir> {
+        val files = File(profile(prefix), rel).walkTopDown().filter { it.isFile }.toList()
         return if (files.isEmpty()) emptyList() else listOf(SaveDir(rel, files.size, files.sumOf { it.length() }))
     }
 
@@ -123,10 +129,11 @@ object GameSaves {
 
     fun export(context: Context, game: Game, layout: Layout, dir: File): Pair<File, Int> {
         val prefix = game.prefix ?: error(context.getString(R.string.saves_not_launched, game.game.name))
+        val roots = game.saves.map { it.relPath }
+        if (roots.isEmpty() && ubisoft(game.game)) error(context.getString(R.string.saves_none_found, game.game.name))
         dir.mkdirs()
         val out = File(dir, "${safe(game.game.name)}_${stamp()}.zip")
-        val roots = game.saves.map { it.relPath }
-        val count = if (roots.isEmpty() && ubisoft(game.game)) 0 else zipProfile(profile(prefix), roots.ifEmpty { null }, layout, out)
+        val count = zipProfile(profile(prefix), roots.ifEmpty { null }, layout, out)
         if (count == 0) { out.delete(); error(context.getString(R.string.saves_none_found, game.game.name)) }
         return out to count
     }
@@ -157,12 +164,14 @@ object GameSaves {
         if (!driveC.isDirectory) error(context.getString(R.string.saves_not_launched, game.game.name))
         if (!looksLikeSaveZip(zip)) error(context.getString(R.string.saves_not_save_zip, zip.name))
 
+        val scoped = if (ubisoft(game.game)) game.root ?: error(context.getString(R.string.saves_none_found, game.game.name)) else null
         backupsDir().mkdirs()
         val backup = File(backupsDir(), "${safe(game.game.name)}_${stamp()}.zip")
-        val backedUp = zipProfile(profile(prefix), null, Layout.GAMEHUB, backup)
+        val backedUp = if (scoped != null && File(profile(prefix), scoped).walkTopDown().none { it.isFile }) 0
+            else zipProfile(profile(prefix), scoped?.let(::listOf), Layout.GAMEHUB, backup)
         if (backedUp == 0) backup.delete()
 
-        val base = driveC.canonicalFile
+        val base = (if (scoped != null) File(profile(prefix), scoped) else driveC).canonicalFile
         var written = 0
         ZipInputStream(BufferedInputStream(zip.inputStream())).use { zis ->
             var e = zis.nextEntry

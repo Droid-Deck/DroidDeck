@@ -870,7 +870,8 @@ private fun ShortcutFields(game: Library.SteamGame, folder: File) {
 @Composable
 private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
     val context = LocalContext.current.applicationContext
-    val saves by produceState<List<GameSaves.SaveDir>?>(null, g.gameId) {
+    var synced by remember(g.gameId) { mutableStateOf(0) }
+    val saves by produceState<List<GameSaves.SaveDir>?>(null, g.gameId, synced) {
         value = withContext(Dispatchers.IO) { runCatching { GameSaves.saves(context, prefix, g) }.getOrDefault(emptyList()) }
     }
     val found = saves
@@ -891,7 +892,7 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
         Text(summary, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp).readable().padding(4.dp))
         if (CloudSaves.supports(Store.byId(g.source))) {
             SectionLabel(stringResource(R.string.store_cloud_saves))
-            CloudRows(g)
+            CloudRows(g) { synced++ }
             SectionLabel(stringResource(R.string.games_saves))
         }
         MenuItem(stringResource(R.string.games_import_saves), checked = false) { a.onSaveImport(g) }
@@ -947,7 +948,7 @@ private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions)
 }
 
 @Composable
-private fun CloudRows(g: Library.SteamGame) {
+private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
     val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON && it != Store.EA } ?: return
     val id = g.storeId ?: return
     val context = LocalContext.current.applicationContext
@@ -966,7 +967,7 @@ private fun CloudRows(g: Library.SteamGame) {
         busy = if (up) "up" else "down"
         Thread({
             val r = if (up) CloudSaves.upload(context, store, id, force) else CloudSaves.download(context, store, id, force)
-            StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
+            StoresState.post { busy = null; tick++; onSynced(); android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
         }, "cloud-manual").start()
     }
     MenuItem(stringResource(R.string.store_cloud_saves), checked = enabled && supported, enabled = supported,

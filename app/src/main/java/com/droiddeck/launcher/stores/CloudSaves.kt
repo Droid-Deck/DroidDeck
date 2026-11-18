@@ -297,11 +297,12 @@ object CloudSaves {
         val app = context.applicationContext
         val g = game(app, store, id) ?: return done(store, id, "down", Result("skipped", 0, 0, "not-installed"))
         if (!g.second.cloud) return done(store, id, "down", Result("skipped", 0, 0, "off"))
-        if (prefix(app, g.first)?.let { CloudSavePaths.profile(it).isDirectory } == true) return download(app, store, id)
+        val ready = { (if (store == Store.UBISOFT) File(UbisoftConnect.prefix(app), "pfx") else prefix(app, g.first))?.let { CloudSavePaths.profile(it).isDirectory } == true }
+        if (ready()) return download(app, store, id)
         executor.execute {
             val end = System.currentTimeMillis() + PREFIX_WAIT_MS
             while (System.currentTimeMillis() < end) {
-                if (prefix(app, g.first)?.let { CloudSavePaths.profile(it).isDirectory } == true) { download(app, store, id); return@execute }
+                if (ready()) { download(app, store, id); return@execute }
                 Thread.sleep(2000)
             }
             done(store, id, "down", Result("skipped", 0, 0, "no-prefix"))
@@ -416,7 +417,7 @@ object CloudSaves {
                 stamped += cloud.put(data, send.associateWith { files.getValue(it).lastModified() })
                 for ((name, t) in stamped) if (t > 0) files[name]?.setLastModified(t)
             }
-            val after = remote(cloud) { it in send }
+            val after = if (send.all { cloud.committed(it) != null }) emptyMap() else remote(cloud) { it in send && cloud.committed(it) == null }
             for (name in send) {
                 val r = cloud.committed(name) ?: after[name]
                 next[name] = CloudPlan.Entry(sentMd5.getValue(name), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)
