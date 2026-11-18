@@ -4091,4 +4091,18 @@
     <string name="display_scaling_integer">पूर्णांक</string>
     <string name="display_scaling_fit">फ़िट</string>
     <string name="drawer_antialiasing">एंटी-अलियासिंग</string>
+    <string name="theme_custom">कस्टम</string>
+    <string name="theme_custom_detail">इंटरफ़ेस का हर रंग अलग-अलग चुनें।</string>
+    <string name="theme_custom_background">पृष्ठभूमि</string>
+    <string name="theme_custom_surface">पैनल</string>
+    <string name="theme_custom_surface_variant">उभरे हुए पैनल</string>
+    <string name="theme_custom_line">विभाजक</string>
+    <string name="theme_custom_line2">किनारे</string>
+    <string name="theme_custom_on_background">मुख्य टेक्स्ट</string>
+    <string name="theme_custom_on_surface_variant">द्वितीयक टेक्स्ट</string>
+    <string name="theme_custom_primary">बटन और मुख्य हाइलाइट</string>
+    <string name="theme_custom_on_primary">बटन का टेक्स्ट</string>
+    <string name="theme_custom_signal">हाइलाइट</string>
+    <string name="theme_custom_good">सफलता</string>
+    <string name="theme_custom_error">त्रुटि</string>
 </resources>

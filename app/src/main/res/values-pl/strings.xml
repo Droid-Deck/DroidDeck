@@ -4171,4 +4171,18 @@
     <string name="display_scaling_integer">Liczba całkowita</string>
     <string name="display_scaling_fit">Dopasuj</string>
     <string name="drawer_antialiasing">Wygładzanie krawędzi</string>
+    <string name="theme_custom">Niestandardowy</string>
+    <string name="theme_custom_detail">Wybierz osobno każdy kolor interfejsu.</string>
+    <string name="theme_custom_background">Tło</string>
+    <string name="theme_custom_surface">Panele</string>
+    <string name="theme_custom_surface_variant">Wyniesione panele</string>
+    <string name="theme_custom_line">Separatory</string>
+    <string name="theme_custom_line2">Obramowania</string>
+    <string name="theme_custom_on_background">Tekst główny</string>
+    <string name="theme_custom_on_surface_variant">Tekst dodatkowy</string>
+    <string name="theme_custom_primary">Przyciski i główny akcent</string>
+    <string name="theme_custom_on_primary">Tekst przycisków</string>
+    <string name="theme_custom_signal">Wyróżnienia</string>
+    <string name="theme_custom_good">Sukces</string>
+    <string name="theme_custom_error">Błąd</string>
 </resources>

@@ -4091,4 +4091,18 @@
     <string name="display_scaling_integer">Ganzzahlig</string>
     <string name="display_scaling_fit">Anpassen</string>
     <string name="drawer_antialiasing">Kantenglättung</string>
+    <string name="theme_custom">Benutzerdefiniert</string>
+    <string name="theme_custom_detail">Wähle jede Farbe der Oberfläche einzeln aus.</string>
+    <string name="theme_custom_background">Hintergrund</string>
+    <string name="theme_custom_surface">Flächen</string>
+    <string name="theme_custom_surface_variant">Erhöhte Flächen</string>
+    <string name="theme_custom_line">Trennlinien</string>
+    <string name="theme_custom_line2">Rahmen</string>
+    <string name="theme_custom_on_background">Haupttext</string>
+    <string name="theme_custom_on_surface_variant">Sekundärtext</string>
+    <string name="theme_custom_primary">Schaltflächen und Hauptakzent</string>
+    <string name="theme_custom_on_primary">Schaltflächentext</string>
+    <string name="theme_custom_signal">Hervorhebungen</string>
+    <string name="theme_custom_good">Erfolg</string>
+    <string name="theme_custom_error">Fehler</string>
 </resources>

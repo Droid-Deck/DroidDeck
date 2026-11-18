@@ -4091,4 +4091,18 @@
     <string name="display_scaling_integer">Geheel getal</string>
     <string name="display_scaling_fit">Passend</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
+    <string name="theme_custom">Aangepast</string>
+    <string name="theme_custom_detail">Kies elke interfacekleur afzonderlijk.</string>
+    <string name="theme_custom_background">Achtergrond</string>
+    <string name="theme_custom_surface">Panelen</string>
+    <string name="theme_custom_surface_variant">Verhoogde panelen</string>
+    <string name="theme_custom_line">Scheidingslijnen</string>
+    <string name="theme_custom_line2">Randen</string>
+    <string name="theme_custom_on_background">Hoofdtekst</string>
+    <string name="theme_custom_on_surface_variant">Secundaire tekst</string>
+    <string name="theme_custom_primary">Knoppen en hoofdkleur</string>
+    <string name="theme_custom_on_primary">Knoptekst</string>
+    <string name="theme_custom_signal">Accenten</string>
+    <string name="theme_custom_good">Geslaagd</string>
+    <string name="theme_custom_error">Fout</string>
 </resources>

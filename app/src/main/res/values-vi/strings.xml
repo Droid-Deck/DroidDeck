@@ -4061,4 +4061,18 @@
     <string name="display_scaling_integer">Số nguyên</string>
     <string name="display_scaling_fit">Vừa màn hình</string>
     <string name="drawer_antialiasing">Khử răng cưa</string>
+    <string name="theme_custom">Tùy chỉnh</string>
+    <string name="theme_custom_detail">Chọn riêng từng màu của giao diện.</string>
+    <string name="theme_custom_background">Nền</string>
+    <string name="theme_custom_surface">Bảng</string>
+    <string name="theme_custom_surface_variant">Bảng nổi</string>
+    <string name="theme_custom_line">Đường phân cách</string>
+    <string name="theme_custom_line2">Đường viền</string>
+    <string name="theme_custom_on_background">Văn bản chính</string>
+    <string name="theme_custom_on_surface_variant">Văn bản phụ</string>
+    <string name="theme_custom_primary">Nút và màu nhấn chính</string>
+    <string name="theme_custom_on_primary">Văn bản trên nút</string>
+    <string name="theme_custom_signal">Điểm nhấn</string>
+    <string name="theme_custom_good">Thành công</string>
+    <string name="theme_custom_error">Lỗi</string>
 </resources>

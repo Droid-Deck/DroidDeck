@@ -4130,4 +4130,18 @@
     <string name="display_scaling_integer">Intero</string>
     <string name="display_scaling_fit">Adatta</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+    <string name="theme_custom">Personalizzato</string>
+    <string name="theme_custom_detail">Scegli separatamente ogni colore dell’interfaccia.</string>
+    <string name="theme_custom_background">Sfondo</string>
+    <string name="theme_custom_surface">Pannelli</string>
+    <string name="theme_custom_surface_variant">Pannelli rialzati</string>
+    <string name="theme_custom_line">Separatori</string>
+    <string name="theme_custom_line2">Bordi</string>
+    <string name="theme_custom_on_background">Testo principale</string>
+    <string name="theme_custom_on_surface_variant">Testo secondario</string>
+    <string name="theme_custom_primary">Pulsanti e colore principale</string>
+    <string name="theme_custom_on_primary">Testo dei pulsanti</string>
+    <string name="theme_custom_signal">Evidenziazioni</string>
+    <string name="theme_custom_good">Successo</string>
+    <string name="theme_custom_error">Errore</string>
 </resources>

@@ -4091,4 +4091,18 @@
     <string name="display_scaling_integer">Egész szám</string>
     <string name="display_scaling_fit">Igazítás</string>
     <string name="drawer_antialiasing">Élsimítás</string>
+    <string name="theme_custom">Egyéni</string>
+    <string name="theme_custom_detail">Válaszd ki külön a felület minden színét.</string>
+    <string name="theme_custom_background">Háttér</string>
+    <string name="theme_custom_surface">Panelek</string>
+    <string name="theme_custom_surface_variant">Kiemelt panelek</string>
+    <string name="theme_custom_line">Elválasztók</string>
+    <string name="theme_custom_line2">Szegélyek</string>
+    <string name="theme_custom_on_background">Fő szöveg</string>
+    <string name="theme_custom_on_surface_variant">Másodlagos szöveg</string>
+    <string name="theme_custom_primary">Gombok és fő kiemelés</string>
+    <string name="theme_custom_on_primary">Gombok szövege</string>
+    <string name="theme_custom_signal">Kiemelések</string>
+    <string name="theme_custom_good">Siker</string>
+    <string name="theme_custom_error">Hiba</string>
 </resources>

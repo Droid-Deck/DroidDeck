@@ -4131,4 +4131,18 @@
     <string name="display_scaling_integer">Entero</string>
     <string name="display_scaling_fit">Ajustar</string>
     <string name="drawer_antialiasing">Suavizado de bordes</string>
+    <string name="theme_custom">Personalizado</string>
+    <string name="theme_custom_detail">Elige cada color de la interfaz por separado.</string>
+    <string name="theme_custom_background">Fondo</string>
+    <string name="theme_custom_surface">Paneles</string>
+    <string name="theme_custom_surface_variant">Paneles elevados</string>
+    <string name="theme_custom_line">Separadores</string>
+    <string name="theme_custom_line2">Bordes</string>
+    <string name="theme_custom_on_background">Texto principal</string>
+    <string name="theme_custom_on_surface_variant">Texto secundario</string>
+    <string name="theme_custom_primary">Botones y color principal</string>
+    <string name="theme_custom_on_primary">Texto de los botones</string>
+    <string name="theme_custom_signal">Destacados</string>
+    <string name="theme_custom_good">Éxito</string>
+    <string name="theme_custom_error">Error</string>
 </resources>

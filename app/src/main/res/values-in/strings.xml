@@ -4061,4 +4061,18 @@
     <string name="display_scaling_integer">Bilangan bulat</string>
     <string name="display_scaling_fit">Sesuaikan</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
+    <string name="theme_custom">Kustom</string>
+    <string name="theme_custom_detail">Pilih setiap warna antarmuka secara terpisah.</string>
+    <string name="theme_custom_background">Latar belakang</string>
+    <string name="theme_custom_surface">Panel</string>
+    <string name="theme_custom_surface_variant">Panel terangkat</string>
+    <string name="theme_custom_line">Pemisah</string>
+    <string name="theme_custom_line2">Batas</string>
+    <string name="theme_custom_on_background">Teks utama</string>
+    <string name="theme_custom_on_surface_variant">Teks sekunder</string>
+    <string name="theme_custom_primary">Tombol dan aksen utama</string>
+    <string name="theme_custom_on_primary">Teks tombol</string>
+    <string name="theme_custom_signal">Sorotan</string>
+    <string name="theme_custom_good">Berhasil</string>
+    <string name="theme_custom_error">Kesalahan</string>
 </resources>

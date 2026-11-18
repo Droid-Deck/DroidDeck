@@ -4171,4 +4171,18 @@
     <string name="display_scaling_integer">Целое число</string>
     <string name="display_scaling_fit">По размеру</string>
     <string name="drawer_antialiasing">Сглаживание</string>
+    <string name="theme_custom">Пользовательская</string>
+    <string name="theme_custom_detail">Выберите каждый цвет интерфейса отдельно.</string>
+    <string name="theme_custom_background">Фон</string>
+    <string name="theme_custom_surface">Панели</string>
+    <string name="theme_custom_surface_variant">Приподнятые панели</string>
+    <string name="theme_custom_line">Разделители</string>
+    <string name="theme_custom_line2">Границы</string>
+    <string name="theme_custom_on_background">Основной текст</string>
+    <string name="theme_custom_on_surface_variant">Вторичный текст</string>
+    <string name="theme_custom_primary">Кнопки и основной акцент</string>
+    <string name="theme_custom_on_primary">Текст кнопок</string>
+    <string name="theme_custom_signal">Выделения</string>
+    <string name="theme_custom_good">Успех</string>
+    <string name="theme_custom_error">Ошибка</string>
 </resources>

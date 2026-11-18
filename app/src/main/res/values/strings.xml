@@ -2033,7 +2033,7 @@
     <string name="theme_color_brightness">Brightness</string>
     <string name="theme_color_hex">Hex color</string>
     <string name="theme_custom">Custom</string>
-    <string name="theme_custom_detail">Choose each interface color independently, without gradients.</string>
+    <string name="theme_custom_detail">Choose each interface color independently.</string>
     <string name="theme_custom_background">Background</string>
     <string name="theme_custom_surface">Panels</string>
     <string name="theme_custom_surface_variant">Raised panels</string>
