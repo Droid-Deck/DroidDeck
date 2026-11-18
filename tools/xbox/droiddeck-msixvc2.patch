@@ -167,12 +167,10 @@ index 825c24e..c23f637 100644
  pub mod native_social;
 diff --git a/crates/xodus-cli/src/commands/msixvc2.rs b/crates/xodus-cli/src/commands/msixvc2.rs
 new file mode 100644
-index 0000000..a649938
+index 0000000..68904af
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/msixvc2.rs
-@@ -0,0 +1,550 @@
-+//! Installs an MSIXVC2 package: a small index archive whose files are stored as
-+//! encrypted, compressed segments in `.box` blobs on the Xbox content hosts.
+@@ -0,0 +1,565 @@
 +use std::collections::HashMap;
 +use std::io::{Read, Write};
 +use std::path::{Component, Path, PathBuf};
@@ -194,7 +192,6 @@ index 0000000..a649938
 +    folder.join("XboxPackage.cbor").is_file()
 +}
 +
-+/// The content id the package's keys are licensed under.
 +pub fn content_id(folder: &Path) -> Result<String, String> {
 +    let package = read_cbor(&folder.join("XboxPackage.cbor"))?;
 +    text(&package, 260).map(str::to_owned).ok_or_else(|| "The package names no content id".to_string())
@@ -232,9 +229,16 @@ index 0000000..a649938
 +    pub fn total(&self) -> u64 {
 +        self.entries.iter().map(|entry| entry.size).sum()
 +    }
++
++    pub fn remaining(&self, out: &Path) -> u64 {
++        self.entries
++            .iter()
++            .filter(|entry| !std::fs::metadata(out.join(&entry.path)).is_ok_and(|meta| meta.is_file() && meta.len() == entry.size))
++            .map(|entry| entry.size)
++            .sum()
++    }
 +}
 +
-+/// `content_keys` maps a license key id (its 16-byte little-endian UUID form) to the key.
 +pub async fn plan(client: &reqwest::Client, folder: &Path, content_keys: &HashMap<[u8; 16], [u8; 32]>) -> Result<Plan, String> {
 +    let package = read_cbor(&folder.join("XboxPackage.cbor"))?;
 +    let boxes: Vec<String> = list(&package, 264)
@@ -287,7 +291,6 @@ index 0000000..a649938
 +    Ok(Plan { entries, boxes, package_key })
 +}
 +
-+/// Writes every file of `plan` under `out`, reporting written bytes through `progress`.
 +pub async fn install(client: &reqwest::Client, plan: &Plan, out: &Path, progress: &(dyn Fn(u64) + Sync)) -> Result<(), String> {
 +    for entry in &plan.entries {
 +        let target = out.join(&entry.path);
@@ -701,6 +704,18 @@ index 0000000..a649938
 +    }
 +
 +    #[test]
++    fn only_files_not_yet_complete_count_toward_the_space_needed() {
++        let root = tempfile::tempdir().unwrap();
++        let (segment, _) = sealed(b"x", &[1; 32]);
++        let entry = |path: &str, size: u64| Entry { path: PathBuf::from(path), size, hash: None, segments: vec![segment.clone()] };
++        let plan = Plan { entries: vec![entry("done.bin", 4), entry("partial.bin", 10), entry("missing.bin", 7)], boxes: vec![], package_key: [0; 32] };
++        std::fs::write(root.path().join("done.bin"), b"abcd").unwrap();
++        std::fs::write(root.path().join("partial.bin"), b"abc").unwrap();
++        assert_eq!(plan.total(), 21);
++        assert_eq!(plan.remaining(root.path()), 17);
++    }
++
++    #[test]
 +    fn package_paths_stay_inside_the_install_folder() {
 +        assert_eq!(relative("EmuMenu\\EmuMenu.exe").unwrap(), PathBuf::from("EmuMenu/EmuMenu.exe"));
 +        for bad in ["", "..\\x", "/abs", "a\\..\\..\\b", "C:\\x"] {
@@ -760,7 +775,7 @@ index 7fec6e5..d34b402 100644
  pub async fn resolve_frameworks(client: &reqwest::Client, category: &str) -> Result<Delivery, String> {
      resolve_wanted(client, category, false, |name| name.to_ascii_lowercase().ends_with(".appx")).await
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index 23d228d..6c01f3c 100644
+index 23d228d..ab008d5 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -361,7 +361,11 @@ where
@@ -776,7 +791,7 @@ index 23d228d..6c01f3c 100644
      }
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
-@@ -839,6 +843,67 @@ async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &P
+@@ -839,6 +843,79 @@ async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &P
      }
  }
  
@@ -818,6 +833,18 @@ index 23d228d..6c01f3c 100644
 +        Err(error) => return fail(&error),
 +    };
 +    let total = plan.total();
++    let needed = plan.remaining(out);
++    if let Ok(free) = available_space(out)
++        && free < needed
++    {
++        eprintln!("NEXUS_LEGACY_INSTALL_DIAGNOSTIC_V1 insufficient-space");
++        eprintln!(
++            "NEXUS_LEGACY_INSTALL_DETAIL_V1 an install this size needs about {} GB free, and {} GB is available",
++            needed.div_ceil(1_000_000_000),
++            free / 1_000_000_000
++        );
++        return ExitCode::FAILURE;
++    }
 +    tx.send(ProgressEvent::UpdateRemaining { name: "Downloading".to_owned(), total }).await.ok();
 +    tx.send(ProgressEvent::Started { id: 0, name: "Game files".to_owned(), total }).await.ok();
 +    let pending = std::sync::atomic::AtomicU64::new(0);
