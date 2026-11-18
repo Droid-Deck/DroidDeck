@@ -9,8 +9,8 @@ import android.view.MotionEvent
  * its movement falls back to the change between the pointer's successive positions.
  */
 object PointerCapture {
-    private val lastX = HashMap<Int, Float>()
-    private val lastY = HashMap<Int, Float>()
+    private val lastX = HashMap<Long, Float>()
+    private val lastY = HashMap<Long, Float>()
 
     fun accepts(event: MotionEvent): Boolean =
         event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE) ||
@@ -29,7 +29,7 @@ object PointerCapture {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> record(event)
             MotionEvent.ACTION_MOVE -> if (event.pointerCount > 1) record(event)
-            MotionEvent.ACTION_POINTER_UP -> forget(event.getPointerId(event.actionIndex))
+            MotionEvent.ACTION_POINTER_UP -> forget(key(event, event.actionIndex))
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> reset()
             else -> Unit
         }
@@ -45,9 +45,9 @@ object PointerCapture {
         }
         if (touchpad) {
             if (dx == 0f && dy == 0f) {
-                val id = event.getPointerId(0)
-                val previousX = lastX[id]
-                val previousY = lastY[id]
+                val k = key(event, 0)
+                val previousX = lastX[k]
+                val previousY = lastY[k]
                 if (previousX != null && previousY != null) {
                     dx = event.getX(0) - previousX
                     dy = event.getY(0) - previousY
@@ -60,14 +60,18 @@ object PointerCapture {
 
     private fun record(event: MotionEvent) {
         for (i in 0 until event.pointerCount) {
-            val id = event.getPointerId(i)
-            lastX[id] = event.getX(i)
-            lastY[id] = event.getY(i)
+            val k = key(event, i)
+            lastX[k] = event.getX(i)
+            lastY[k] = event.getY(i)
         }
     }
 
-    private fun forget(id: Int) {
-        lastX.remove(id)
-        lastY.remove(id)
+    /** A pointer id is only unique within its device. */
+    private fun key(event: MotionEvent, index: Int): Long =
+        (event.deviceId.toLong() shl 32) or (event.getPointerId(index).toLong() and 0xffffffffL)
+
+    private fun forget(k: Long) {
+        lastX.remove(k)
+        lastY.remove(k)
     }
 }
