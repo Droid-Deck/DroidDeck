@@ -850,6 +850,7 @@ private fun FolderSheet(
     val firstApp = remember { FocusRequester() }
     val title = remember { FocusRequester() }
     var toTitle by remember { mutableStateOf(false) }
+    var titleFocused by remember { mutableStateOf(false) }
     val sheetView = androidx.compose.ui.platform.LocalView.current
     val leaveName = {
         if (renaming) {
@@ -866,9 +867,8 @@ private fun FolderSheet(
     var inside by remember { mutableStateOf(false) }
     LaunchedEffect(renaming, inputMode) {
         if (!renaming && !closing && toTitle) {
+            focusWithinFrames({ titleFocused || closing }) { title }
             toTitle = false
-            repeat(2) { androidx.compose.runtime.withFrameNanos { } }
-            if (!closing) runCatching { title.requestFocus() }
         } else if (!renaming && !closing && inputMode == InputMode.Keyboard && apps.isNotEmpty()) {
             grid.scrollToItem(0)
             androidx.compose.runtime.withFrameNanos { }
@@ -936,6 +936,7 @@ private fun FolderSheet(
                                 .background(if (hot) pal.signal.copy(alpha = 0.12f) else colors.onBackground.copy(alpha = 0.07f))
                                 .glideBorder(hot, Shape12, pal.signal)
                                 .focusRequester(title)
+                                .onFocusChanged { titleFocused = it.isFocused }
                                 .hoverable(src)
                                 .clickable(interactionSource = src, indication = LocalIndication.current, onClickLabel = stringResource(R.string.apps_folder_rename), role = Role.Button, onClick = rename)
                                 .controllerConfirm(onClick = rename)
