@@ -102,18 +102,20 @@ internal object XboxManifest {
                 file = matches.single()
             }
             require(file.canonicalPath.startsWith(folder.canonicalPath + File.separator))
-            if (file.isFile) return (forwarded(folder, file) ?: file).relativeTo(folder).invariantSeparatorsPath
+            if (file.isFile) return forwarded(folder, file) ?: file.relativeTo(folder).invariantSeparatorsPath
         }
         error("The Xbox package has no supported PC launch executable.")
     }
 
-    private fun forwarded(folder: File, launcher: File): File? {
+    private fun forwarded(folder: File, launcher: File): String? {
         val arguments = File(launcher.parentFile, launcher.nameWithoutExtension + "LaunchArguments.txt")
         if (!arguments.isFile || arguments.length() > 65_536) return null
         val target = arguments.readLines().firstNotNullOfOrNull { line ->
             line.trim().takeIf { it.startsWith("exe=", ignoreCase = true) }?.substring(4)?.trim()
         }?.takeIf { it.isNotEmpty() && !it.contains(':') } ?: return null
+        val root = folder.canonicalFile
         val file = File(launcher.parentFile, target.replace('\\', '/')).canonicalFile
-        return file.takeIf { it.isFile && it.path.startsWith(folder.canonicalPath + File.separator) && it.extension.equals("exe", true) }
+        if (!file.isFile || !file.path.startsWith(root.path + File.separator) || !file.extension.equals("exe", true)) return null
+        return file.relativeTo(root).invariantSeparatorsPath
     }
 }

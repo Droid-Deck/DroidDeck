@@ -29,6 +29,18 @@ class XboxManifestTest {
         java.io.File(root, "EmuMenu/EmuMenuLaunchArguments.txt").writeText("titlename=Game\r\n")
         assertEquals("EmuMenu/EmuMenu.exe", XboxInstaller.executable(root))
     }
+    @Test fun aForwardedProgramStaysRelativeWhenTheFolderIsReachedThroughALink() {
+        val real = temporary.newFolder()
+        java.io.File(real, "EmuMenu").mkdir()
+        java.io.File(real, "EmuMenu/EmuMenu.exe").writeText("menu")
+        java.io.File(real, "Emu.exe").writeText("emulator")
+        java.io.File(real, "MicrosoftGame.config").writeText("<Game><ExecutableList><Executable Name=\"EmuMenu\\EmuMenu.exe\"/></ExecutableList></Game>")
+        java.io.File(real, "EmuMenu/EmuMenuLaunchArguments.txt").writeText("exe=..\\Emu.exe\r\n")
+        val link = java.io.File(temporary.root, "linked")
+        val linked = runCatching { java.nio.file.Files.createSymbolicLink(link.toPath(), real.toPath()) }.isSuccess
+        org.junit.Assume.assumeTrue(linked)
+        assertEquals("Emu.exe", XboxInstaller.executable(link))
+    }
     @Test fun rejectsTraversalAndExternalEntities() {
         for (xml in listOf("<Game><Executable Name=\"../escape.exe\"/></Game>",
             "<!DOCTYPE Game [<!ENTITY external SYSTEM 'file:///etc/passwd'>]><Game>&external;</Game>",
