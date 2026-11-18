@@ -60,8 +60,7 @@ object StoreLaunchRequests {
             "xbox-prepare" -> runCatching { com.droiddeck.launcher.stores.xbox.XboxRuntime.prepare(app, request.getString("id")) }
                 .getOrElse {
                     StoresState.logLine("Xbox: launch prepare failed (${it.javaClass.simpleName}: ${it.message})")
-                    val reason = (it as? IllegalStateException)?.message ?: "Xbox account service is unavailable. Sign in again and retry."
-                    JSONObject().put("ok", false).put("reason", reason)
+                    JSONObject().put("ok", false).put("reason", reasonFor(it))
                 }
             "ea-prepare" -> runCatching { lastLaunched = Store.EA to request.optString("id"); com.droiddeck.launcher.stores.ea.EaLaunch.prepare(app, request) }
                 .getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
@@ -175,5 +174,22 @@ object StoreLaunchRequests {
         } catch (e: Exception) {
             Log.w(TAG, "could not answer ${file.name}: ${e.message}")
         }
+    }
+
+    /// What the guest prints when a launch is refused.
+    ///
+    /// The message is the only thing that separates a stale sign-in from a title
+    /// that is not installed, so it is kept, minus anything that could carry a
+    /// device path or a token: segments lookng like a path are dropped and the
+    /// rest is folded to plain text.
+    internal fun reasonFor(error: Throwable): String {
+        val text = error.message.orEmpty()
+            .split(' ')
+            .filterNot { it.contains('/') || it.startsWith("http") }
+            .joinToString(" ")
+            .filter { it.isLetterOrDigit() || it in " .,:;_-()'" }
+            .trim()
+            .take(160)
+        return if (text.isEmpty()) "Xbox account service is unavailable. Sign in again and retry." else text
     }
 }

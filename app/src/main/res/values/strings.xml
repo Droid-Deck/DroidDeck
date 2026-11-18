@@ -231,6 +231,8 @@
     <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: DroidDeck has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
     <string name="session_proot_missing">DroidDeck\'s proot could not be downloaded. Check the connection and try again. The session was not started, because the fallback proot is too slow to play on.</string>
     <string name="session_powervr_missing">The PowerVR graphics runtime could not be downloaded. Check the connection and try again.</string>
+    <string name="session_graphics_runtime_failed">The graphics runtime could not be prepared, so the session was not started.</string>
+    <string name="session_game_environment_failed">The game environment could not be set up, so the session was not started.</string>
     <string name="session_directaudio_missing">DirectAudio could not be downloaded, so game audio uses the slower path this session.</string>
     <string name="session_end_program">This program</string>
     <string name="session_end_present_fault">The session could not draw to the screen: %1$s. This screen shows why instead of a black one; the session logs have the details.</string>
@@ -1254,6 +1256,7 @@
     <string name="agent_done">Agent finished</string>
     <string name="agent_done_failed">Agent stopped with an error</string>
     <string name="agent_done_question">Agent has a question</string>
+    <string name="agent_done_approval">Agent is waiting for your OK</string>
     <plurals name="agent_subagent_steps">
         <item quantity="one">%d step</item>
         <item quantity="other">%d steps</item>
@@ -1331,6 +1334,21 @@
     <string name="agent_plan">Plan first</string>
     <string name="agent_plan_short">Plan</string>
     <string name="agent_plan_hint">Proposes a plan without changing anything</string>
+    <string name="agent_permissions">Permissions</string>
+    <string name="agent_permission_ask">Ask first</string>
+    <string name="agent_permission_ask_hint">Asks before edits and commands that need your OK</string>
+    <string name="agent_permission_edits">Accept edits</string>
+    <string name="agent_permission_edits_hint">Edits files freely, asks before commands</string>
+    <string name="agent_permission_auto">Auto</string>
+    <string name="agent_permission_auto_hint">A safety check decides, blocking risky actions</string>
+    <string name="agent_permission_dont_ask">Don\'t ask</string>
+    <string name="agent_permission_dont_ask_hint">Denies anything your settings don\'t allow</string>
+    <string name="agent_permission_full">Full access</string>
+    <string name="agent_permission_full_hint">Runs everything without asking</string>
+    <string name="agent_approval_title">Allow %1$s?</string>
+    <string name="agent_approval_allow">Allow</string>
+    <string name="agent_approval_deny">Deny</string>
+    <string name="agent_approval_more">+%1$d more</string>
     <string name="agent_history">Conversations</string>
     <string name="agent_history_empty">No conversations yet</string>
     <string name="agent_just_now">Just now</string>
@@ -1757,6 +1775,8 @@
     <string name="pip_unavailable">Android could not open picture in picture.</string>
     <string name="game_more">More</string>
     <string name="game_edit_art">Edit art</string>
+    <string name="game_unhide">Remove hidden</string>
+    <string name="game_hide_failed">Couldn\'t sync with Steam. Close Steam and try again.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Shortcut</string>
     <string name="game_shortcut_add">Add to home screen</string>
@@ -1769,6 +1789,7 @@
     <string name="game_link_missing">This game is no longer in your DroidDeck library.</string>
     <string name="game_link_session_busy">Stop the current session before launching a Steam game.</string>
     <string name="game_link_failed">Could not send the game to Steam. Try launching it again.</string>
+    <string name="game_needs_app_model">%1$s is a UWP app. This runtime has no Windows app-model host to start it.</string>
     <string name="setup_retry_removal">Retry removal</string>
     <string name="runtime_removing">Removing</string>
     <string name="runtime_removal_incomplete">Removal incomplete</string>
@@ -2992,6 +3013,9 @@
     <string name="stores_login_close">Close</string>
     <string name="stores_login_retry">Try again</string>
     <string name="stores_login_finishing">Finishing sign-in…</string>
+    <string name="stores_xbox_device_group_full">This Microsoft account is at its device limit. Remove an old device under Manage devices, then resume.</string>
+    <string name="stores_xbox_manage_devices">Manage devices</string>
+    <string name="stores_xbox_license_refused">Microsoft does not license any available version of this game to this device.</string>
     <string name="stores_xbox_sign_in_again">Microsoft rejected the Xbox sign-in. Sign out of Xbox in Stores, sign in again, then resume.</string>
     <string name="stores_login_error_network">The sign-in page could not be loaded: %1$s</string>
     <string name="stores_login_error_idp_blocked">This provider refuses to sign in from an embedded page. Sign in with your store password instead.</string>

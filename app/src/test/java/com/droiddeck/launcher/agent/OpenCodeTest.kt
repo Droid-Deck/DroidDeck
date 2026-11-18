@@ -18,61 +18,133 @@ import java.nio.file.Files
 class OpenCodeTest {
     private val session = "ses_1"
 
-    private fun event(type: String, part: String) = """{"type":"$type","timestamp":1,"sessionID":"$session","part":$part}"""
+    private fun json(line: String) = JSONObject(line)
+    private fun update(u: String) = """{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"$session","update":$u}}"""
 
-    @Test fun turnsResumeByIdAndCarryModelPlanAndVariant() {
-        assertEquals(listOf(OpenCode.binary, "run", "--format", "json", "--auto", "--thinking", "--", "brief\n\nhi"),
-            OpenCode.turn("hi", null, AgentHarness.Options(brief = "brief")))
-        assertEquals(listOf(OpenCode.binary, "run", "--format", "json", "--auto", "--thinking", "-s", "ses_1", "--agent", "plan",
-            "-m", "opencode/big-pickle", "--variant", "high", "--", "-hi"),
-            OpenCode.turn("-hi", "ses_1", AgentHarness.Options(model = "opencode/big-pickle", plan = true, brief = "brief", effort = "high")))
+    /** Drives a new process through initialize and session/new to the prompt, returning it and the prompt's id. */
+    private fun opened(options: AgentHarness.Options = AgentHarness.Options()): Pair<OpenCode.Protocol, Int> {
+        val p = OpenCode.Protocol()
+        var line = p.input("hi", null, options, started = true).single()
+        var result = "{}"
+        while (true) {
+            val request = json(line)
+            if (request.getString("method") == "session/prompt") return p to request.getInt("id")
+            if (request.getString("method") == "session/new") result = """{"sessionId":"$session"}"""
+            line = p.parse("""{"jsonrpc":"2.0","id":${request.getInt("id")},"result":$result}""")!!.reply.single()
+        }
     }
 
-    @Test fun textReasoningAndStepsBecomeEntries() {
-        OpenCode.turn("hi", null, AgentHarness.Options())
-        assertEquals(session, OpenCode.parse(event("step_start", """{"type":"step-start"}"""))!!.conversation)
-        assertEquals(listOf(Entry.Said("x86_64")), OpenCode.parse(event("text", """{"type":"text","text":" x86_64\n"}"""))!!.entries)
-        assertEquals(listOf(Entry.Thought("why")), OpenCode.parse(event("reasoning", """{"type":"reasoning","text":"why"}"""))!!.entries)
-        val step = OpenCode.parse(event("step_finish", """{"reason":"tool-calls","tokens":{"total":7894,"input":6013,"output":89,"reasoning":0,"cache":{"write":0,"read":1792}},"cost":0.01}"""))!!
-        assertEquals(emptyList<Entry>(), step.entries)
-        assertEquals(7894L, step.context)
-        val end = OpenCode.parse(event("step_finish", """{"reason":"stop","tokens":{"total":7927,"input":241,"output":6,"reasoning":2,"cache":{"write":0,"read":7680}},"cost":0.02}"""))!!
-        assertEquals(listOf(Entry.Finished(null)), end.entries)
-        assertEquals(AgentHost.Usage(0, 0.03, 6013L + 1792 + 241 + 7680, 89L + 6 + 2), end.usage!!.copy(costUsd = Math.round(end.usage!!.costUsd * 100) / 100.0))
+    @Test fun turnsServeAcpUnderTheChosenRules() {
+        val command = OpenCode.turn("hi", null, AgentHarness.Options()).dropWhile { it != "/usr/bin/env" }
+        assertEquals(listOf("/usr/bin/env", OpenCode.binary, "acp"), listOf(command[0]) + command.drop(2))
+        val ask = json(command[1].removePrefix("OPENCODE_PERMISSION="))
+        assertEquals("ask", ask.getString("edit"))
+        assertEquals("ask", ask.getString("bash"))
+        assertFalse(ask.has("*"))
+        assertEquals("allow", OpenCode.rules(AgentHarness.EDITS).getString("edit"))
+        assertEquals("ask", OpenCode.rules(AgentHarness.EDITS).getString("bash"))
+        assertEquals("""{"*":"allow"}""", OpenCode.rules(AgentHarness.FULL).toString())
     }
 
-    @Test fun eachTurnCountsOnlyItsOwnSteps() {
-        OpenCode.turn("one", null, AgentHarness.Options())
-        OpenCode.parse(event("step_finish", """{"reason":"stop","tokens":{"input":100,"output":10,"cache":{}},"cost":1}"""))
-        OpenCode.turn("two", session, AgentHarness.Options())
-        val end = OpenCode.parse(event("step_finish", """{"reason":"stop","tokens":{"input":5,"output":1,"cache":{}},"cost":0}"""))!!
-        assertEquals(AgentHost.Usage(0, 0.0, 5, 1), end.usage)
+    @Test fun aNewProcessOpensItsSessionAndSetsModelModeAndEffortBeforeThePrompt() {
+        val p = OpenCode.Protocol()
+        val init = json(p.input("hi", null, AgentHarness.Options(model = "opencode/big-pickle", effort = "high", brief = "brief", workdir = "/root/DroidDeck"), started = true).single())
+        assertEquals("initialize", init.getString("method"))
+        val new = json(p.parse("""{"jsonrpc":"2.0","id":${init.getInt("id")},"result":{"protocolVersion":1}}""")!!.reply.single())
+        assertEquals("session/new", new.getString("method"))
+        assertEquals("/root/DroidDeck", new.getJSONObject("params").getString("cwd"))
+        val created = p.parse("""{"jsonrpc":"2.0","id":${new.getInt("id")},"result":{"sessionId":"$session","configOptions":[]}}""")!!
+        assertEquals(session, created.conversation)
+        val sent = mutableListOf<JSONObject>()
+        var line = created.reply.single()
+        while (true) {
+            val request = json(line)
+            sent += request
+            if (request.getString("method") == "session/prompt") break
+            // A refused effort, one the model does not have, does not stop the turn.
+            val refused = request.getJSONObject("params").getString("configId") == "effort"
+            val answer = if (refused) """"error":{"code":-32602,"message":"no"}""" else """"result":{}"""
+            line = p.parse("""{"jsonrpc":"2.0","id":${request.getInt("id")},$answer}""")!!.reply.single()
+        }
+        assertEquals(listOf("model" to "opencode/big-pickle", "effort" to "high", "mode" to "build"),
+            sent.dropLast(1).map { it.getJSONObject("params").let { o -> o.getString("configId") to o.getString("value") } })
+        assertEquals("brief\n\nhi", sent.last().getJSONObject("params").getJSONArray("prompt").getJSONObject(0).getString("text"))
+        val again = json(p.input("two", session, AgentHarness.Options(brief = "brief"), started = false).single())
+        assertEquals("session/prompt", again.getString("method"))
+        assertEquals("two", again.getJSONObject("params").getJSONArray("prompt").getJSONObject(0).getString("text"))
     }
 
-    @Test fun toolsBecomeCallsWithTheirResults() {
-        val bash = OpenCode.parse(event("tool_use", """{"type":"tool","tool":"bash","callID":"c1","state":{"status":"completed","input":{"command":"uname -m"},"output":"aarch64\n","metadata":{"exit":0}}}"""))!!
-        assertEquals(listOf(Entry.Used("c1", "Bash", "uname -m", "uname -m"), Entry.Result("c1", "aarch64\n", false)), bash.entries)
-        val failed = OpenCode.parse(event("tool_use", """{"type":"tool","tool":"bash","callID":"c2","state":{"status":"completed","input":{"command":"false"},"output":"(no output)","metadata":{"exit":1}}}"""))!!
-        assertTrue((failed.entries[1] as Entry.Result).failed)
-        val edit = OpenCode.parse(event("tool_use", """{"type":"tool","tool":"edit","callID":"c3","state":{"status":"completed","input":{"filePath":"/w/a.txt","oldString":"hi","newString":"bye"},"output":"Edit applied successfully."}}"""))!!
-        assertEquals(Entry.Used("c3", "Edit", "/w/a.txt", "/w/a.txt\n-hi\n+bye"), edit.entries[0])
-        val write = OpenCode.parse(event("tool_use", """{"type":"tool","tool":"write","callID":"c4","state":{"status":"completed","input":{"filePath":"/w/b.txt","content":"one\n"},"output":"Wrote file successfully."}}"""))!!
-        assertEquals("/w/b.txt\n+one", (write.entries[0] as Entry.Used).input)
-        val todo = OpenCode.parse(event("tool_use", """{"type":"tool","tool":"todowrite","callID":"c5","state":{"status":"completed","input":{"todos":[{"content":"A","status":"completed"},{"content":"B","status":"in_progress"},{"content":"C","status":"pending"}]},"output":"[]"}}"""))!!
-        assertEquals("[x] A\n[~] B\n[ ] C", (todo.entries[0] as Entry.Used).input)
-        val read = OpenCode.parse(event("tool_use", """{"type":"tool","tool":"read","callID":"c6","state":{"status":"error","input":{"filePath":"/nope"},"error":"File not found"}}"""))!!
-        assertEquals("Read", (read.entries[0] as Entry.Used).tool)
-        assertEquals("/nope", (read.entries[0] as Entry.Used).detail)
-        assertEquals(Entry.Result("c6", "File not found", true), read.entries[1])
-        val running = OpenCode.parse(event("tool_use", """{"type":"tool","tool":"bash","callID":"c7","state":{"status":"running","input":{"command":"sleep 9"}}}"""))!!
-        assertEquals(listOf(Entry.Used("c7", "Bash", "sleep 9", "sleep 9")), running.entries)
+    @Test fun aResumedSessionPlansWhenAsked() {
+        val p = OpenCode.Protocol()
+        val init = json(p.input("hi", "ses_9", AgentHarness.Options(plan = true), started = true).single())
+        val resume = json(p.parse("""{"jsonrpc":"2.0","id":${init.getInt("id")},"result":{}}""")!!.reply.single())
+        assertEquals("session/resume", resume.getString("method"))
+        assertEquals("ses_9", resume.getJSONObject("params").getString("sessionId"))
+        val resumed = p.parse("""{"jsonrpc":"2.0","id":${resume.getInt("id")},"result":{"configOptions":[]}}""")!!
+        assertEquals("ses_9", resumed.conversation)
+        val mode = json(resumed.reply.single())
+        assertEquals("plan", mode.getJSONObject("params").getString("value"))
+        assertEquals(listOf(Entry.Finished("Invalid mode")), p.parse("""{"jsonrpc":"2.0","id":${mode.getInt("id")},"error":{"code":-32602,"message":"Invalid mode"}}""")!!.entries)
+        // The next message on the same process asks for the mode again rather than prompting in whatever mode the session has.
+        val retry = json(p.input("again", "ses_9", AgentHarness.Options(plan = true), started = false).single())
+        assertEquals("session/set_config_option", retry.getString("method"))
+        assertEquals("plan", retry.getJSONObject("params").getString("value"))
+        val prompt = json(p.parse("""{"jsonrpc":"2.0","id":${retry.getInt("id")},"result":{}}""")!!.reply.single())
+        assertEquals("session/prompt", prompt.getString("method"))
+        p.parse("""{"jsonrpc":"2.0","id":${prompt.getInt("id")},"result":{"stopReason":"end_turn"}}""")
+        assertEquals("session/prompt", json(p.input("third", "ses_9", AgentHarness.Options(plan = true), started = false).single()).getString("method"))
+        val gone = OpenCode.Protocol()
+        val id = json(gone.input("hi", "ses_x", AgentHarness.Options(), started = true).single()).getInt("id")
+        val resumeId = json(gone.parse("""{"jsonrpc":"2.0","id":$id,"result":{}}""")!!.reply.single()).getInt("id")
+        assertEquals(listOf(Entry.Finished("Session not found")), gone.parse("""{"jsonrpc":"2.0","id":$resumeId,"error":{"code":-32603,"message":"Internal error","data":{"message":"Session not found"}}}""")!!.entries)
     }
 
-    @Test fun errorsEndTheTurn() {
-        assertEquals(listOf(Entry.Finished("Invalid credential")), OpenCode.parse(
-            """{"type":"error","sessionID":"ses_1","error":{"name":"APIError","data":{"message":"Invalid credential","statusCode":401}}}""")!!.entries)
-        assertEquals(listOf(Entry.Finished("UnknownError")), OpenCode.parse("""{"type":"error","error":{"name":"UnknownError"}}""")!!.entries)
-        assertNull(OpenCode.parse("not json"))
+    @Test fun chunksAndToolCallsBecomeEntries() {
+        val (p, prompt) = opened()
+        assertEquals("We need", p.parse(update("""{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"We need"}}"""))!!.thinking)
+        val pending = p.parse(update("""{"sessionUpdate":"tool_call","toolCallId":"c1","title":"bash","kind":"execute","status":"pending","locations":[],"rawInput":{"cwd":"/work"}}"""))!!
+        assertEquals(listOf(Entry.Thought("We need"), Entry.Used("c1", "Bash", "", "")), pending.entries)
+        assertEquals(listOf(Entry.Used("c1", "Bash", "touch /work/probe.txt", "touch /work/probe.txt")), p.parse(update(
+            """{"sessionUpdate":"tool_call_update","toolCallId":"c1","status":"in_progress","kind":"execute","title":"touch /work/probe.txt","rawInput":{"command":"touch /work/probe.txt","cwd":"/work"}}"""))!!.entries)
+        assertEquals(listOf(Entry.Used("c1", "Bash", "touch /work/probe.txt", "touch /work/probe.txt"), Entry.Result("c1", "(no output)", false)), p.parse(update(
+            """{"sessionUpdate":"tool_call_update","toolCallId":"c1","status":"completed","title":"touch /work/probe.txt","content":[{"type":"content","content":{"type":"text","text":"(no output)"}}],"rawOutput":{"output":"(no output)","metadata":{"exit":0}}}"""))!!.entries)
+        p.parse(update("""{"sessionUpdate":"tool_call","toolCallId":"c2","title":"write","kind":"edit","status":"pending","rawInput":{}}"""))
+        assertEquals(Entry.Used("c2", "Write", "/work/note.txt", "/work/note.txt\n+hi"), p.parse(update(
+            """{"sessionUpdate":"tool_call_update","toolCallId":"c2","status":"in_progress","kind":"edit","title":"write","rawInput":{"content":"hi","filePath":"/work/note.txt"}}"""))!!.entries.single())
+        assertEquals(Entry.Result("c2", "The user rejected permission to use this specific tool call.", true), p.parse(update(
+            """{"sessionUpdate":"tool_call_update","toolCallId":"c2","status":"failed","rawOutput":{"error":"The user rejected permission to use this specific tool call."}}"""))!!.entries[1])
+        assertEquals("done", p.parse(update("""{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"done"}}"""))!!.text)
+        val usage = p.parse(update("""{"sessionUpdate":"usage_update","used":7760,"size":200000,"cost":{"amount":0.25,"currency":"USD"}}"""))!!
+        assertEquals(7760L, usage.context)
+        assertEquals(200_000L, usage.window)
+        val end = p.parse("""{"jsonrpc":"2.0","id":$prompt,"result":{"stopReason":"end_turn","usage":{"inputTokens":592,"outputTokens":3,"totalTokens":7763,"cachedReadTokens":7168}}}""")!!
+        assertEquals(listOf(Entry.Said("done"), Entry.Finished(null)), end.entries)
+        assertEquals(0.25, end.usage!!.costUsd, 0.0)
+        assertEquals(592L + 7168, end.usage!!.inputTokens)
+        assertTrue(OpenCode.sessionCost)
+    }
+
+    @Test fun permissionRequestsWaitForTheUser() {
+        val (p, prompt) = opened()
+        p.parse(update("""{"sessionUpdate":"tool_call","toolCallId":"c1","title":"bash","kind":"execute","status":"pending","rawInput":{}}"""))
+        val bash = p.parse("""{"jsonrpc":"2.0","id":0,"method":"session/request_permission","params":{"sessionId":"$session","toolCall":{"toolCallId":"c1","title":"touch /w/x","kind":"execute","status":"pending","rawInput":{"command":"touch /w/x"}},"options":[{"optionId":"once","kind":"allow_once","name":"Allow once"},{"optionId":"reject","kind":"reject_once","name":"Reject"}]}}""")!!.approval!!
+        assertEquals(AgentHost.Approval("0", "Bash", "touch /w/x", "touch /w/x", """{"id":0}"""), bash)
+        val outside = p.parse("""{"jsonrpc":"2.0","id":5,"method":"session/request_permission","params":{"sessionId":"$session","toolCall":{"toolCallId":"c1","title":"touch /root/x","kind":"other","rawInput":{"command":"touch /root/x","parentDir":"/root"}}}}""")!!.approval!!
+        assertEquals("External directory", outside.tool)
+        assertEquals("/root", outside.detail)
+        val allow = json(p.answer(bash, allow = true))
+        assertEquals(0, allow.getInt("id"))
+        assertEquals("once", allow.getJSONObject("result").getJSONObject("outcome").getString("optionId"))
+        assertEquals("reject", json(p.answer(bash, allow = false)).getJSONObject("result").getJSONObject("outcome").getString("optionId"))
+        val edit = p.parse("""{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"$session","toolCall":{"toolCallId":"c2","title":"/w/a.txt","kind":"edit","rawInput":{"filepath":"/w/a.txt","diff":"Index: /w/a.txt\n===\n--- /w/a.txt\n+++ /w/a.txt\n@@ -1,1 +1,1 @@\n-old\n+new\n"}}}}""")!!.approval!!
+        assertEquals("Edit", edit.tool)
+        assertEquals("/w/a.txt\n-old\n+new", edit.input)
+        val write = json(p.parse("""{"jsonrpc":"2.0","id":2,"method":"fs/write_text_file","params":{"sessionId":"$session","path":"/w/a.txt","content":"new"}}""")!!.reply.single())
+        assertEquals(2, write.getInt("id"))
+        assertTrue(write.has("error"))
+        assertEquals(listOf(Entry.Finished("Invalid credential")), p.parse(
+            """{"jsonrpc":"2.0","id":$prompt,"error":{"code":-32603,"message":"Internal error","data":{"message":"Invalid credential"}}}""")!!.entries)
+        assertNull(p.parse("not json"))
     }
 
     @Test fun verboseModelListingGivesLabelsAndWindows() {
@@ -108,16 +180,12 @@ class OpenCodeTest {
         assertEquals(mapOf("opencode/big-pickle" to 200000L, "opencode-go/kimi-k3" to 262144L), windows)
     }
 
-    @Test fun modelsAndWindowComeFromTheCachedListing() {
+    @Test fun modelsComeFromTheCachedListing() {
         val root = Files.createTempDirectory("rootfs").toFile()
         assertEquals(emptyList<AgentHarness.Model>(), OpenCode.models(root))
         File(root, "root/.cache/droiddeck/opencode-models").apply { parentFile!!.mkdirs() }
             .writeText("opencode/big-pickle\n{\n  \"providerID\": \"opencode\",\n  \"name\": \"Big Pickle\",\n  \"limit\": {\"context\": 200000}\n}\n")
         assertEquals(listOf(AgentHarness.Model("opencode/big-pickle", "Big Pickle")), OpenCode.models(root))
-        OpenCode.turn("hi", null, AgentHarness.Options(model = "opencode/big-pickle"))
-        assertEquals(200000L, OpenCode.usage(root, session)!!.window)
-        OpenCode.turn("hi", null, AgentHarness.Options())
-        assertNull(OpenCode.usage(root, session))
     }
 
     private fun provider(id: String) = OpenCode.providers.first { it.id == id }

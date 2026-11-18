@@ -13,6 +13,7 @@ import android.provider.DocumentsContract.Root
 import android.provider.DocumentsProvider
 import android.webkit.MimeTypeMap
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -26,11 +27,21 @@ import java.nio.file.attribute.BasicFileAttributes
 class AppFilesProvider : DocumentsProvider() {
     private lateinit var base: File
     private lateinit var baseCanonical: String
+    private lateinit var privatePaths: List<String>
 
     override fun attachInfo(context: Context, info: ProviderInfo) {
         super.attachInfo(context, info)
         base = context.dataDir
         baseCanonical = base.canonicalPath
+        // The wireless ADB pairing identity, preferences, store logins and Steam's saved login stay app-only.
+        privatePaths = listOf(
+            context.noBackupFilesDir,
+            File(base, "shared_prefs"),
+            context.getDatabasePath("x").parentFile!!,
+            File(context.filesDir, "stores"),
+            File(SessionPrefs.steamRoot(context, "arm64"), "config"),
+            File(SessionPrefs.steamRoot(context, "x86_64"), "config"),
+        ).flatMap { listOf(it.absoluteFile.normalize().path, runCatching { it.canonicalPath }.getOrDefault(it.path)) }.distinct()
     }
 
     override fun onCreate() = true
@@ -74,6 +85,7 @@ class AppFilesProvider : DocumentsProvider() {
         var file = File(parent, name)
         var n = 2
         while (file.exists()) file = File(parent, "$name (${n++})")
+        if (isPrivate(file)) throw FileNotFoundException("could not create ${file.path}")
         val made = try {
             if (mimeType == Document.MIME_TYPE_DIR) file.mkdir() else file.createNewFile()
         } catch (e: IOException) {
@@ -85,7 +97,7 @@ class AppFilesProvider : DocumentsProvider() {
 
     override fun deleteDocument(documentId: String) {
         val file = fileFor(documentId)
-        if (file.canonicalPath == baseCanonical) throw FileNotFoundException("the app folder itself is not deleted")
+        if (file.canonicalPath == baseCanonical || holdsPrivate(file)) throw FileNotFoundException("$documentId holds the app's private files")
         try {
             deleteTree(file.toPath())
         } catch (e: IOException) {
@@ -116,17 +128,19 @@ class AppFilesProvider : DocumentsProvider() {
 
     override fun renameDocument(documentId: String, displayName: String): String {
         val file = fileFor(documentId)
+        if (holdsPrivate(file)) throw FileNotFoundException("$documentId holds the app's private files")
         val target = File(file.parentFile, displayName.substringAfterLast('/'))
-        if (target.exists() || !file.renameTo(target)) throw FileNotFoundException("could not rename $documentId")
+        if (target.exists() || isPrivate(target) || !file.renameTo(target)) throw FileNotFoundException("could not rename $documentId")
         return target.absolutePath
     }
 
     override fun moveDocument(sourceDocumentId: String, sourceParentDocumentId: String, targetParentDocumentId: String): String {
         val source = fileFor(sourceDocumentId)
+        if (holdsPrivate(source)) throw FileNotFoundException("$sourceDocumentId holds the app's private files")
         val targetParent = fileFor(targetParentDocumentId)
         if (!targetParent.isDirectory) throw FileNotFoundException("$targetParentDocumentId is not a folder")
         val target = File(targetParent, source.name)
-        if (target.exists() || !source.renameTo(target)) throw FileNotFoundException("could not move $sourceDocumentId")
+        if (target.exists() || isPrivate(target) || !source.renameTo(target)) throw FileNotFoundException("could not move $sourceDocumentId")
         return target.absolutePath
     }
 
@@ -163,7 +177,19 @@ class AppFilesProvider : DocumentsProvider() {
         val abs = f.absoluteFile.normalize().path
         if (abs != base.absolutePath && !abs.startsWith(base.absolutePath + "/")) return false
         val real = runCatching { f.canonicalPath }.getOrNull() ?: return false
-        return real == baseCanonical || real.startsWith("$baseCanonical/")
+        if (real != baseCanonical && !real.startsWith("$baseCanonical/")) return false
+        return !isPrivate(f)
+    }
+
+    private fun isPrivate(f: File): Boolean {
+        val real = runCatching { f.canonicalPath }.getOrNull() ?: return true
+        val paths = listOf(f.absoluteFile.normalize().path, real)
+        return privatePaths.any { p -> paths.any { it == p || it.startsWith("$p/") } }
+    }
+
+    private fun holdsPrivate(f: File): Boolean {
+        val paths = listOfNotNull(f.absoluteFile.normalize().path, runCatching { f.canonicalPath }.getOrNull())
+        return privatePaths.any { p -> paths.any { p.startsWith("$it/") } }
     }
 
     private fun addRow(result: MatrixCursor, file: File) {
@@ -173,7 +199,7 @@ class AppFilesProvider : DocumentsProvider() {
         } else if (file.canWrite()) {
             flags = flags or Document.FLAG_SUPPORTS_WRITE
         }
-        if (file.absolutePath != base.absolutePath && file.parentFile?.canWrite() == true) {
+        if (file.absolutePath != base.absolutePath && file.parentFile?.canWrite() == true && !holdsPrivate(file)) {
             flags = flags or Document.FLAG_SUPPORTS_DELETE or Document.FLAG_SUPPORTS_RENAME or
                 Document.FLAG_SUPPORTS_MOVE or Document.FLAG_SUPPORTS_REMOVE
         }

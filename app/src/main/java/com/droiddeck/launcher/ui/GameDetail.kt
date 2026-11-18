@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.ui.semantics.Role
@@ -457,7 +458,7 @@ internal fun GameActions(
                     if (installed != null && id != null) {
                         LaunchedEffect(id) { BattleNetInstall.checkUpdate(ctx, installed) }
                         if (download != null) {
-                            ActionChip(downloadLabel(download), ok = false)
+                            ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
                             if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
                             else SecondaryButton(stringResource(R.string.stores_dl_resume)) { DownloadQueue.resume(ctx, download.key) }
                         } else if (BattleNetInstall.updates[id] == true) {
@@ -466,10 +467,13 @@ internal fun GameActions(
                     }
                     SecondaryButton(stringResource(R.string.bnet_open)) { a.onBattleNet() }
                 }
-                if (game != null && !compactMenu) EditArtButton(game)
+                if (game != null && !compactMenu) {
+                    HideButton(hideKey(game), game)
+                    EditArtButton(game)
+                }
             }
             download != null -> {
-                ActionChip(downloadLabel(download), ok = false)
+                ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
                 if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause), modifier = leadOn) { DownloadQueue.pause(download.key) }
                 else PrimaryButton(stringResource(R.string.stores_dl_resume), main = true, modifier = leadOn) { DownloadQueue.resume(ctx, download.key) }
                 ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm)) { DownloadQueue.cancel(ctx, download.key) }
@@ -526,6 +530,8 @@ internal fun GameActions(
             }
             item != null -> PrimaryButton(buyLabel(item), main = true, modifier = leadOn) { openStoreUrl(ctx, item) }
         }
+        val entryKey = game?.let(::hideKey) ?: storeKey
+        if (!s.shortcutPicker && entryKey != null && (game == null || cloud)) HideButton(entryKey, game)
         if (cloud && (download != null || failed != null)) {
             XboxStreamButton(game.storeId.orEmpty(), game.name)
             XboxLibraryButton(game.storeId.orEmpty(), item)
@@ -618,6 +624,17 @@ internal fun rememberEditArt(g: Library.SteamGame): (() -> Unit)? {
     }
 }
 
+internal fun hideKey(g: Library.SteamGame): String = g.storeId?.let { "${g.source}:$it" } ?: GameRef.key(g)
+
+@Composable
+internal fun HideButton(key: String, g: Library.SteamGame?) {
+    val ctx = LocalContext.current
+    rememberHiddenSync()
+    val hidden = LibraryHidden.isHidden(key, g)
+    val failed = stringResource(R.string.game_hide_failed)
+    SecondaryButton(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), compact = true) { if (!LibraryHidden.set(ctx, key, g, !hidden)) Toast.makeText(ctx, failed, Toast.LENGTH_LONG).show() }
+}
+
 @Composable
 internal fun EditArtButton(g: Library.SteamGame) {
     val open = rememberEditArt(g) ?: return
@@ -628,6 +645,10 @@ internal fun EditArtButton(g: Library.SteamGame) {
 private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
     var open by remember(g.gameId) { mutableStateOf(false) }
     val edit = rememberEditArt(g)
+    val ctx = LocalContext.current
+    rememberHiddenSync()
+    val hidden = LibraryHidden.isHidden(hideKey(g), g)
+    val failed = stringResource(R.string.game_hide_failed)
     Box {
         SecondaryButton(stringResource(R.string.game_more)) { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.game_more), compact = true) { first ->
@@ -638,6 +659,8 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
             MenuItem(stringResource(R.string.game_shortcut_add), checked = false, focusRequester = take()) { open = false; a.onGameShortcut(g) }
             MenuItem(stringResource(R.string.game_file_export), checked = false) { open = false; a.onExportGameFile(g) }
             MenuItem(stringResource(R.string.game_link_copy), checked = false) { open = false; a.onCopyGameLink(g) }
+            val hideKey = hideKey(g)
+            MenuItem(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), checked = false) { open = false; if (!LibraryHidden.set(ctx, hideKey, g, !hidden)) Toast.makeText(ctx, failed, Toast.LENGTH_LONG).show() }
             edit?.let { run -> MenuItem(stringResource(R.string.game_edit_art), checked = false) { open = false; run() } }
         }
     }

@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Цю програму зібрано для ПК з архітектурою %1$s, і вона працює через FEX, який ще не налаштовано. Один раз відкрийте Steam, увійшовши в обліковий запис: DroidDeck завантажить FEX і потрібний йому Steam Linux Runtime, після чого програма відкриється.</string>
     <string name="session_proot_missing">Не вдалося завантажити proot DroidDeck. Перевірте зʼєднання та спробуйте ще раз. Сеанс не запущено, бо резервний proot занадто повільний для гри.</string>
     <string name="session_powervr_missing">Не вдалося завантажити графічне середовище PowerVR. Перевірте підключення й повторіть спробу.</string>
+    <string name="session_graphics_runtime_failed">Не вдалося підготувати графічне середовище, тому сеанс не запущено.</string>
+    <string name="session_game_environment_failed">Не вдалося налаштувати ігрове середовище, тому сеанс не запущено.</string>
     <string name="session_directaudio_missing">Не вдалося завантажити DirectAudio, тому в цьому сеансі звук ігор іде повільнішим шляхом.</string>
     <string name="session_end_program">Ця програма</string>
     <string name="session_end_present_fault">Сеанс не зміг вивести зображення на екран: %1$s. Замість чорного екрана тут показано причину; подробиці — у журналах сеансу.</string>
@@ -1589,6 +1591,8 @@
     <string name="pip_unavailable">Android не вдалося відкрити режим «Картинка в картинці».</string>
     <string name="game_more">Більше</string>
     <string name="game_edit_art">Змінити обкладинку</string>
+    <string name="game_unhide">Прибрати з прихованих</string>
+    <string name="game_hide_failed">Не вдалося синхронізувати зі Steam. Закрийте Steam і спробуйте ще раз.</string>
     <string name="stores_in_steam_label">У Steam</string>
     <string name="game_shortcut">Ярлик</string>
     <string name="game_shortcut_add">Додати на головний екран</string>

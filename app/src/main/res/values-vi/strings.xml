@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Chương trình này được build cho PC %1$s và chạy qua FEX, hiện chưa được thiết lập. Mở Steam một lần khi đã đăng nhập: DroidDeck sẽ tải FEX và Steam Linux Runtime cần thiết, sau đó ứng dụng này sẽ mở.</string>
     <string name="session_proot_missing">Không thể tải proot của DroidDeck. Hãy kiểm tra kết nối rồi thử lại. Phiên chưa được khởi động vì proot dự phòng quá chậm để chơi.</string>
     <string name="session_powervr_missing">Không thể tải môi trường đồ họa PowerVR. Hãy kiểm tra kết nối rồi thử lại.</string>
+    <string name="session_graphics_runtime_failed">Không thể chuẩn bị môi trường đồ họa nên phiên chưa được khởi động.</string>
+    <string name="session_game_environment_failed">Không thể thiết lập môi trường trò chơi nên phiên chưa được khởi động.</string>
     <string name="session_directaudio_missing">Không thể tải DirectAudio, nên âm thanh game dùng đường chậm hơn trong phiên này.</string>
     <string name="session_end_program">Chương trình này</string>
     <string name="session_end_present_fault">Phiên không thể vẽ lên màn hình: %1$s. Màn hình này cho biết lý do thay vì màn hình đen; chi tiết nằm trong nhật ký phiên.</string>
@@ -1566,6 +1568,8 @@
     <string name="pip_unavailable">Android không thể mở hình trong hình.</string>
     <string name="game_more">Thêm</string>
     <string name="game_edit_art">Sửa ảnh bìa</string>
+    <string name="game_unhide">Bỏ ẩn</string>
+    <string name="game_hide_failed">Không thể đồng bộ với Steam. Hãy đóng Steam rồi thử lại.</string>
     <string name="stores_in_steam_label">Trong Steam</string>
     <string name="game_shortcut">Shortcut</string>
     <string name="game_shortcut_add">Thêm vào màn hình chính</string>

@@ -42,4 +42,15 @@ class StoresTabOrderTest {
         assertTrue(SessionPrefs.storesTabOrderCustomized(app))
         assertEquals(mine, shown())
     }
+
+    @Test
+    fun hidingAStoreLeavesTheOrderFollowingTheDefault() {
+        SessionPrefs.saveStoresTabs(app, defaults, setOf("itch"), arranged = false)
+        assertTrue(SessionPrefs.storesTabOrder(app).isEmpty())
+        val later = defaults.reversed()
+        SessionPrefs.settleStoresTabOrder(app, later)
+        assertFalse(SessionPrefs.storesTabOrderCustomized(app))
+        assertTrue(SessionPrefs.storesTabOrder(app).isEmpty())
+        assertEquals(setOf("itch"), SessionPrefs.storesTabHidden(app))
+    }
 }

@@ -291,7 +291,7 @@ jobs:
       - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse layer)
         run: |
           set -euo pipefail
-          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libc6-dev-arm64-cross libvulkan-dev
           D=app/src/main/assets/linuxfs
           mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
@@ -765,7 +765,6 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    continue-on-error: true
     permissions:
       contents: read
       actions: read
@@ -811,7 +810,6 @@ jobs:
             stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-
       - name: Store engines host unit tests
         timeout-minutes: 10
-        continue-on-error: true
         run: |
           set -o pipefail
           cd app/src/main/rust/stores
@@ -900,7 +898,7 @@ jobs:
 
   checks:
     name: Compile and test APK
-    needs: [build, python-tests]
+    needs: [build, python-tests, store-tests]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -909,7 +907,8 @@ jobs:
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           PYTHON_RESULT: ${{ needs.python-tests.result }}
-        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success
+          STORE_RESULT: ${{ needs.store-tests.result }}
+        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success && test "$STORE_RESULT" = success
 
   sign:
     needs: [build, checks]

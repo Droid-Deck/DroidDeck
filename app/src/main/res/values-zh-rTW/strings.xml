@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">此程式是為 %1$s 電腦組建的，需透過 FEX 執行，但 FEX 尚未設定。請在登入狀態下開啟一次 Steam：DroidDeck 會讓它下載 FEX 和所需的 Steam Linux Runtime，之後就能開啟此程式。</string>
     <string name="session_proot_missing">無法下載 DroidDeck 的 proot。請檢查連線後再試一次。工作階段未啟動，因為備用 proot 太慢，無法用來玩遊戲。</string>
     <string name="session_powervr_missing">無法下載 PowerVR 圖形環境。請檢查網路連線後再試。</string>
+    <string name="session_graphics_runtime_failed">無法準備圖形環境，因此未啟動工作階段。</string>
+    <string name="session_game_environment_failed">無法設定遊戲環境，因此未啟動工作階段。</string>
     <string name="session_directaudio_missing">無法下載 DirectAudio，因此本次工作階段的遊戲音訊會使用較慢的路徑。</string>
     <string name="session_end_program">此程式</string>
     <string name="session_end_present_fault">工作階段無法在螢幕上繪製畫面：%1$s。此畫面會顯示原因，而不是黑畫面；詳細資訊請見工作階段記錄。</string>
@@ -1565,6 +1567,8 @@
     <string name="pip_unavailable">Android 無法開啟子母畫面。</string>
     <string name="game_more">更多</string>
     <string name="game_edit_art">編輯圖片</string>
+    <string name="game_unhide">取消隱藏</string>
+    <string name="game_hide_failed">無法與 Steam 同步。請關閉 Steam 後再試。</string>
     <string name="stores_in_steam_label">在 Steam 中</string>
     <string name="game_shortcut">捷徑</string>
     <string name="game_shortcut_add">新增至主螢幕</string>

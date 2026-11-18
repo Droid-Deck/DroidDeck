@@ -1231,6 +1231,22 @@ class GameEnvironmentTest(unittest.TestCase):
         env = gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": ""})
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
+        def applied(config, app_id="42", env=None):
+            return MODULE["apply_config"](env or {"TU_DEBUG": "sysmem"}, config, app_id)
+        prefixed = "DROIDDECK_GAME_TU_DEBUG"
+        config = {"version": 1, "games": {"42": {prefixed: "gmem"}, "43": {prefixed: ""}}}
+        self.assertEqual(applied(config)["TU_DEBUG"], "gmem")
+        self.assertNotIn("TU_DEBUG", applied(config, "43"))
+        self.assertNotIn(prefixed, applied(config))
+        shared = {"version": 1, "shared": {prefixed: "gmem"}, "games": {"42": {"TU_DEBUG": "nolrz"}, "43": {"TU_DEBUG": None}}}
+        self.assertEqual(applied(shared)["TU_DEBUG"], "nolrz")
+        self.assertNotIn("TU_DEBUG", applied(shared, "43"))
+        self.assertEqual(applied(shared, "44")["TU_DEBUG"], "gmem")
+        self.assertNotIn(prefixed, applied(shared, "44"))
+        both = {"version": 1, "games": {"42": {"TU_DEBUG": "sysmem", prefixed: ""}, "43": {"TU_DEBUG": None, prefixed: "gmem"}}}
+        self.assertEqual(applied(both)["TU_DEBUG"], "sysmem")
+        self.assertNotIn("TU_DEBUG", applied(both, "43", {"TU_DEBUG": "nolrz"}))
+        self.assertNotIn(prefixed, applied(both))
 
     def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
         gpu = MODULE["game_gpu"]
@@ -1834,6 +1850,18 @@ class GameEnvironmentTest(unittest.TestCase):
                 self.assertTrue(notes)
                 config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
                 self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+
+    def test_kcd2_runs_at_feature_level_12_2_by_app_id_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Bin/Win64MasterMasterSteamPGO/KingdomCome.exe"
+            exe.parent.mkdir(parents=True)
+            exe.touch()
+            env, extra, notes = MODULE["engine_fixes"](str(exe), [], "1771300")
+            self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"})
+            self.assertTrue(notes)
+            config = {"version": 1, "shared": {}, "games": {"1771300": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "1771300", env), {"VKD3D_FEATURE_LEVEL": "12_1", "VKD3D_SHADER_MODEL": "6_9"})
+            self.assertEqual(MODULE["engine_fixes"](str(exe), [], "42")[0], {})
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:

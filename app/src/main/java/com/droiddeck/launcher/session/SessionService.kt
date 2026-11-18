@@ -497,7 +497,7 @@ class SessionService : Service() {
 
 
     private fun runSession(gen: Int) {
-        SessionPrefs.ensurePowerVrAutoDrivers(this)
+        SessionPrefs.ensurePowerVrAutoDriversAfterGpuQuery(this)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
             if (SessionPrefs.venus(this)) VenusComponent.hostVulkanTooOld(this)?.let {
@@ -566,10 +566,19 @@ class SessionService : Service() {
             SessionFiles.stage(this, root, startsSession = true)
         } catch (error: Exception) {
             Log.e(TAG, "Could not prepare the session graphics runtime", error)
+            failSession(gen, "GRAPHICS_RUNTIME_FAILED", getString(R.string.session_graphics_runtime_failed), -1)
             stopSession(-1, gen)
             return
         }
+        if (!stillStarting()) {
+            Log.i(TAG, "session stopped while its files were staging")
+            return
+        }
         SessionArtifacts.awaitCollections()
+        if (!stillStarting()) {
+            Log.i(TAG, "session stopped while earlier session logs were being collected")
+            return
+        }
         SessionArtifacts.finishAbandoned(this, beforeGuestStart = true)
         VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
@@ -581,7 +590,9 @@ class SessionService : Service() {
             SessionEvents.step("game-environment") { GameEnvironmentStore.publish(this) }
         } catch (e: Exception) {
             Log.e(TAG, "could not publish the game environment", e)
+            failSession(gen, "GAME_ENVIRONMENT_FAILED", getString(R.string.session_game_environment_failed), -1)
             stopSession(-1, gen)
+            abandonStart(gen, sessionDir)
             return
         }
         val sessionLog = File(sessionDir, "session.log")
@@ -610,6 +621,7 @@ class SessionService : Service() {
             Log.e(TAG, "Could not resolve the selected Linux Vulkan driver", e)
             failSession(gen, "VULKAN_DRIVER_UNAVAILABLE", e.message ?: "Selected Linux Vulkan driver is unavailable", -1)
             stopSession(-1, gen)
+            abandonStart(gen, sessionDir)
             return
         }
         if (steamHere) guest.add("DD_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
@@ -710,6 +722,7 @@ class SessionService : Service() {
             if (program.isNullOrEmpty()) {
                 Log.e(TAG, "run mode without a program")
                 stopSession(65, gen)
+                abandonStart(gen, sessionDir)
                 return
             }
             guest.add(program)
@@ -805,15 +818,25 @@ class SessionService : Service() {
         components.add(deviceControls)
         if (gen != sessionGen || !SessionState.running) {
             Log.i(TAG, "session stopped while it was starting; not launching it")
-            if (gen == sessionGen) components.clear()
+            abandonStart(gen, sessionDir)
             return
         }
+        val started = ArrayList<SessionPart>()
         try {
-            components.forEach { it.start() }
+            for (part in components.toList()) {
+                if (!stillStarting()) {
+                    Log.i(TAG, "session stopped while its components were starting; stopping the ${started.size} already started")
+                    abandonStart(gen, sessionDir, started)
+                    return
+                }
+                started.add(part)
+                part.start()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Could not start the session components", e)
             failSession(gen, "COMPONENT_START_FAILED", e.message ?: "Session component could not be started", -1)
             stopSession(-1, gen)
+            abandonStart(gen, sessionDir, started)
             return
         }
 
@@ -840,9 +863,8 @@ class SessionService : Service() {
                 launchWatcher = null
                 syncWatcher?.stopWatching()
                 syncWatcher = null
-                components.reversed().forEach { runCatching { it.stop() } }
-                components.clear()
             }
+            abandonStart(gen, sessionDir, started)
             if (pid > 1) Thread({ teardown(pid) }, "session-teardown").start()
             return
         }
@@ -854,6 +876,7 @@ class SessionService : Service() {
             SessionEvents.record("guest.start_failed", mapOf("pid" to pid))
             failSession(gen, "GUEST_START_FAILED", "The guest process could not be started", pid)
             stopSession(-1, gen)
+            abandonStart(gen, sessionDir, started)
             return
         }
         if (gen == sessionGen && SessionState.running) {
@@ -906,6 +929,30 @@ class SessionService : Service() {
             updateDownloadMonitoring()
             mainHandler.post { updateSuspendPolicy() }
         }
+    }
+
+    private fun abandonStart(gen: Int, sessionDir: File, started: List<SessionPart> = emptyList()) {
+        val (ended, endedArch) = synchronized(stopLock) {
+            if (gen != sessionGen || SessionState.running) return
+            components.clear()
+            GpuClockPin.stop(this)
+            GameThreadHints.stop()
+            com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
+            MemoryLog.stop()
+            val ended = synchronized(SessionPaths) {
+                if (SessionPaths.current() == sessionDir) SessionPaths.take() else null
+            }
+            if (ended != null) SessionArtifacts.collectionStarted(ended)
+            ended to SessionState.steamClientArch
+        }
+        started.asReversed().forEach {
+            try {
+                it.stop()
+            } catch (e: Exception) {
+                Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
+            }
+        }
+        if (ended != null) Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
     }
 
     private fun openSessionFolder(): File {

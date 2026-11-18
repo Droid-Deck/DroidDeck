@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">このプログラムは%1$s PC向けにビルドされており、FEX経由で実行されますが、FEXはまだセットアップされていません。ログインした状態で一度Steamを開いてください。DroidDeckがFEXと必要なSteam Linux Runtimeをダウンロードした後、このプログラムが開きます。</string>
     <string name="session_proot_missing">DroidDeckのprootをダウンロードできませんでした。接続を確認して、もう一度お試しください。代替のprootではプレイするには遅すぎるため、セッションは開始されませんでした。</string>
     <string name="session_powervr_missing">PowerVRのグラフィックス環境をダウンロードできませんでした。接続を確認して、もう一度お試しください。</string>
+    <string name="session_graphics_runtime_failed">グラフィックス環境を準備できなかったため、セッションを開始しませんでした。</string>
+    <string name="session_game_environment_failed">ゲーム環境を設定できなかったため、セッションを開始しませんでした。</string>
     <string name="session_directaudio_missing">DirectAudioをダウンロードできなかったため、このセッションではゲーム音声に低速な経路を使用します。</string>
     <string name="session_end_program">このプログラム</string>
     <string name="session_end_present_fault">セッションが画面に描画できませんでした: %1$s。黒い画面の代わりに、この画面で理由を表示しています。詳細はセッションログにあります。</string>
@@ -1566,6 +1568,8 @@
     <string name="pip_unavailable">Androidがピクチャーインピクチャーを開けませんでした。</string>
     <string name="game_more">その他</string>
     <string name="game_edit_art">アートを編集</string>
+    <string name="game_unhide">非表示を解除</string>
+    <string name="game_hide_failed">Steamと同期できませんでした。Steamを終了してもう一度お試しください。</string>
     <string name="stores_in_steam_label">Steamに追加済み</string>
     <string name="game_shortcut">ショートカット</string>
     <string name="game_shortcut_add">ホーム画面に追加</string>

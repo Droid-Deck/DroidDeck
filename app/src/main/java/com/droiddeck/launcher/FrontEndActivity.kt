@@ -963,13 +963,36 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
     }
 
-    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false, onHandled: () -> Unit = {}): Boolean {
+    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false, onHandled: () -> Unit = {}, onSettled: () -> Unit = {}) {
+        val request = gameLaunchRequest.incrementAndGet()
         if (!SessionPrefs.soundtracksIngame(this)) com.droiddeck.launcher.playback.SoundtrackController.pause(this)
         if (pkgStage != null) {
             onHandled()
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
-            return false
+            return
         }
+        val files = game.gameFiles
+        if (game.source != com.droiddeck.launcher.stores.Store.XBOX.id || files == null) {
+            if (startGame(game, returnHome, onHandled)) onSettled()
+            return
+        }
+        Thread({
+            val refused = com.droiddeck.launcher.stores.xbox.XboxManifest.needsAppModel(files)
+            ui.post {
+                when {
+                    request != gameLaunchRequest.get() || isFinishing || isDestroyed -> onHandled()
+                    refused -> {
+                        onHandled()
+                        android.widget.Toast.makeText(this, getString(R.string.game_needs_app_model, game.name), android.widget.Toast.LENGTH_LONG).show()
+                        onSettled()
+                    }
+                    startGame(game, returnHome, onHandled) -> onSettled()
+                }
+            }
+        }, "xbox-app-model").start()
+    }
+
+    private fun startGame(game: Library.SteamGame, returnHome: Boolean, onHandled: () -> Unit): Boolean {
         if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, game)) return launchWithoutSteam(game, returnHome, onHandled)
         onHandled()
         if (SessionState.running) {
@@ -1184,19 +1207,19 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             if (!isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) syncDualPanel()
         }, LINK_PANEL_MS)
         val game = games.firstOrNull { it.gameIdString == id }
-        if (game == null) {
+        val link = intent
+        fun consume() {
+            if (intent !== link || pendingGameLink != id) return
             pendingGameLink = null
-            intent.data = null
-            intent.action = Intent.ACTION_MAIN
-            intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+            link.data = null
+            link.action = Intent.ACTION_MAIN
+            link.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+        }
+        if (game == null) {
+            consume()
             syncDualPanel()
             android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
-        } else if (launchGame(game, returnHome = true)) {
-            pendingGameLink = null
-            intent.data = null
-            intent.action = Intent.ACTION_MAIN
-            intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
-        }
+        } else launchGame(game, returnHome = true, onSettled = ::consume)
     }
 
     private fun chooseGameShortcut(game: Library.SteamGame) {
@@ -1914,6 +1937,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        gameLaunchRequest.incrementAndGet()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
             pendingGameLink = null
@@ -3101,6 +3125,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
         vkBridge = SessionPrefs.vkBridge(this)
+        venus = SessionPrefs.venus(this)
+        venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)
         vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
         bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)

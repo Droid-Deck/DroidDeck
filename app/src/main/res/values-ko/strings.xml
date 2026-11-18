@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">이 프로그램은 %1$s PC용으로 빌드되어 FEX를 통해 실행되지만, FEX가 아직 설정되지 않았습니다. 로그인한 상태로 Steam을 한 번 열면 DroidDeck이 FEX와 필요한 Steam Linux Runtime을 다운로드한 후 이 프로그램을 엽니다.</string>
     <string name="session_proot_missing">DroidDeck의 proot를 다운로드할 수 없습니다. 연결을 확인하고 다시 시도하세요. 대체 proot는 플레이하기에 너무 느리므로 세션을 시작하지 않았습니다.</string>
     <string name="session_powervr_missing">PowerVR 그래픽 환경을 다운로드하지 못했습니다. 연결을 확인하고 다시 시도하세요.</string>
+    <string name="session_graphics_runtime_failed">그래픽 환경을 준비하지 못해 세션을 시작하지 않았습니다.</string>
+    <string name="session_game_environment_failed">게임 환경을 설정하지 못해 세션을 시작하지 않았습니다.</string>
     <string name="session_directaudio_missing">DirectAudio를 다운로드할 수 없어 이번 세션에서는 게임 오디오가 더 느린 경로를 사용합니다.</string>
     <string name="session_end_program">이 프로그램</string>
     <string name="session_end_present_fault">세션이 화면을 그리지 못했습니다: %1$s. 검은 화면 대신 이 화면에 이유를 표시합니다. 자세한 내용은 세션 로그에 있습니다.</string>
@@ -1566,6 +1568,8 @@
     <string name="pip_unavailable">Android에서 PIP를 열 수 없습니다.</string>
     <string name="game_more">더보기</string>
     <string name="game_edit_art">아트 편집</string>
+    <string name="game_unhide">숨김 해제</string>
+    <string name="game_hide_failed">Steam과 동기화하지 못했습니다. Steam을 종료한 후 다시 시도하세요.</string>
     <string name="stores_in_steam_label">Steam에 있음</string>
     <string name="game_shortcut">바로 가기</string>
     <string name="game_shortcut_add">홈 화면에 추가</string>

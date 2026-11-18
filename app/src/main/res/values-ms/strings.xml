@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Program ini dibina untuk PC %1$s dan berjalan melalui FEX, yang belum disediakan lagi. Buka Steam sekali semasa anda log masuk: DroidDeck akan memuat turun FEX dan Steam Linux Runtime yang diperlukan, kemudian ini akan dibuka.</string>
     <string name="session_proot_missing">proot DroidDeck tidak dapat dimuat turun. Semak sambungan dan cuba lagi. Sesi tidak dimulakan kerana proot sandaran terlalu perlahan untuk bermain.</string>
     <string name="session_powervr_missing">Persekitaran grafik PowerVR tidak dapat dimuat turun. Semak sambungan dan cuba lagi.</string>
+    <string name="session_graphics_runtime_failed">Persekitaran grafik tidak dapat disediakan, jadi sesi tidak dimulakan.</string>
+    <string name="session_game_environment_failed">Persekitaran permainan tidak dapat disediakan, jadi sesi tidak dimulakan.</string>
     <string name="session_directaudio_missing">DirectAudio tidak dapat dimuat turun, jadi audio permainan menggunakan laluan yang lebih perlahan untuk sesi ini.</string>
     <string name="session_end_program">Program ini</string>
     <string name="session_end_present_fault">Sesi gagal melukis pada skrin: %1$s. Skrin ini menunjukkan sebabnya, bukannya skrin hitam; butiran ada dalam log sesi.</string>
@@ -1566,6 +1568,8 @@
     <string name="pip_unavailable">Android tidak dapat membuka gambar dalam gambar.</string>
     <string name="game_more">Lagi</string>
     <string name="game_edit_art">Sunting seni</string>
+    <string name="game_unhide">Alih keluar daripada tersembunyi</string>
+    <string name="game_hide_failed">Tidak dapat menyegerak dengan Steam. Tutup Steam dan cuba lagi.</string>
     <string name="stores_in_steam_label">Dalam Steam</string>
     <string name="game_shortcut">Pintasan</string>
     <string name="game_shortcut_add">Tambah ke skrin utama</string>

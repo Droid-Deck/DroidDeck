@@ -67,7 +67,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/** The model, reasoning effort and plan mode for the next turns; a conversation keeps going with whatever is chosen. */
+/** The model, reasoning effort, permissions and plan mode for the next turns; a conversation keeps going with whatever is chosen. */
 @Composable
 internal fun AgentModelPicker() {
     val context = LocalContext.current
@@ -90,6 +90,20 @@ internal fun AgentModelPicker() {
                     if (level == AgentHost.effort) PrimaryButton(label, compact = true) {}
                     else SecondaryButton(label, compact = true) { AgentHost.chooseEffort(context, level) }
                 }
+            }
+        }
+        val modes = AgentHost.harness.permissions
+        if (modes.size > 1) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(R.string.agent_permissions), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(horizontal = 2.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                for (mode in modes) {
+                    val label = stringResource(mode.label)
+                    if (mode.id == AgentHost.permission) PrimaryButton(label, compact = true, modifier = Modifier.testTag("agent-permission")) {}
+                    else SecondaryButton(label, compact = true, modifier = Modifier.testTag("agent-permission")) { AgentHost.choosePermission(context, mode.id) }
+                }
+            }
+            modes.firstOrNull { it.id == AgentHost.permission }?.let {
+                Text(stringResource(it.hint), fontSize = 12.5.sp, color = pal.onSurfaceVariant, modifier = Modifier.padding(horizontal = 2.dp))
             }
         }
         if (AgentHost.harness.plans) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
