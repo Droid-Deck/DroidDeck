@@ -2,16 +2,21 @@ package com.droiddeck.launcher.ui
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.speech.RecognitionListener
+import android.speech.RecognitionService
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.R
 
 /**
  * Dictation into the Agent editor: what is heard so far follows the text already typed, until the user edits the draft.
@@ -51,7 +56,10 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
             override fun onError(error: Int) {
                 if (recognizer !== speech) return
                 // The recognizer gives up on a pause; the user is still talking until they let go or stop.
-                if (!finishing && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) relisten(speech) else done()
+                if (!finishing && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) relisten(speech) else {
+                    done()
+                    if (error == SpeechRecognizer.ERROR_AUDIO || error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) micBlocked()
+                }
             }
             override fun onResults(results: Bundle?) {
                 if (recognizer !== speech) return
@@ -87,6 +95,14 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
         if (draft() != written) return stop()
         written = base + spoken
         onText(written)
+    }
+
+    // Speech Services by Google does not ask for the microphone itself, so a fresh install fails until it is allowed in its settings.
+    private fun micBlocked() {
+        val service = context.packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0).firstOrNull()?.serviceInfo?.packageName ?: return
+        Toast.makeText(context, R.string.agent_voice_service_mic, Toast.LENGTH_LONG).show()
+        val settings = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", service, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(settings) }
     }
 
     /** Ends listening but keeps the recognizer until its final result arrives, then runs [then]. */

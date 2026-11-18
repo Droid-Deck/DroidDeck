@@ -1241,6 +1241,7 @@
     <string name="agent_voice_hold">Slide up to lock · left to cancel</string>
     <string name="agent_voice_listening">Listening…</string>
     <string name="agent_voice_missing">Install Speech Services by Google to talk to the agent</string>
+    <string name="agent_voice_service_mic">Allow the microphone for the speech service</string>
     <string name="agent_voice_denied">DroidDeck needs the microphone to dictate</string>
     <string name="agent_attach_game">Attach what the game shows</string>
     <string name="agent_attach_game_failed">Could not capture the game</string>
