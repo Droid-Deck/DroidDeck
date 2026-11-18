@@ -775,7 +775,7 @@ index 7fec6e5..d34b402 100644
  pub async fn resolve_frameworks(client: &reqwest::Client, category: &str) -> Result<Delivery, String> {
      resolve_wanted(client, category, false, |name| name.to_ascii_lowercase().ends_with(".appx")).await
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index 8637cab..73b212a 100644
+index 8e9d0e0..05a4880 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -361,7 +361,11 @@ where
@@ -791,7 +791,7 @@ index 8637cab..73b212a 100644
      }
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
-@@ -842,6 +846,79 @@ async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &P
+@@ -853,6 +857,79 @@ async fn plain_package<R: AsyncRead + Unpin>(mut remote: R, length: u64, out: &P
      }
  }
  

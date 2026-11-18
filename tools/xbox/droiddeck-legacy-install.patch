@@ -2026,7 +2026,7 @@ index 0000000..7fec6e5
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index a0136f8..8637cab 100644
+index a0136f8..8e9d0e0 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -2054,7 +2054,7 @@ index a0136f8..8637cab 100644
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
          Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
-@@ -692,3 +701,337 @@ where
+@@ -692,3 +701,369 @@ where
      }
      ExitCode::SUCCESS
  }
@@ -2095,11 +2095,7 @@ index a0136f8..8637cab 100644
 +        Ok::<(), String>(())
 +    })();
 +    match result {
-+        Ok(()) => {
-+            std::fs::remove_file(previous.join(PENDING)).ok();
-+            std::fs::remove_dir_all(&previous).ok();
-+            Ok(())
-+        }
++        Ok(()) => release(&previous),
 +        Err(error) => {
 +            let stuck: Vec<String> = placed
 +                .iter()
@@ -2125,7 +2121,22 @@ index a0136f8..8637cab 100644
 +
 +/// Moves every entry kept in `previous` back into `out`, then removes `previous`.
 +/// On any failure `previous` stays, holding what has not been put back.
++fn release(previous: &Path) -> Result<(), String> {
++    std::fs::remove_file(previous.join(PENDING))
++        .map_err(|error| format!("the replacement finished but its backup could not be released: {error}"))?;
++    std::fs::remove_dir_all(previous).ok();
++    Ok(())
++}
++
 +fn restore(previous: &Path, out: &Path) -> Result<(), String> {
++    restore_with(previous, out, &mut |from, to| std::fs::rename(from, to))
++}
++
++fn restore_with(
++    previous: &Path,
++    out: &Path,
++    move_entry: &mut dyn FnMut(&Path, &Path) -> std::io::Result<()>,
++) -> Result<(), String> {
 +    let placed = std::fs::read_to_string(previous.join(PENDING)).map_err(|error| error.to_string())?;
 +    for name in placed.lines().filter(|name| !name.is_empty() && !name.contains(['/', '\\']) && *name != "." && *name != "..") {
 +        let target = out.join(name);
@@ -2146,7 +2157,7 @@ index a0136f8..8637cab 100644
 +        if std::fs::symlink_metadata(&target).is_ok() {
 +            remove(&target).map_err(|error| format!("could not clear {}: {error}", target.display()))?;
 +        }
-+        std::fs::rename(entry.path(), &target).map_err(|error| format!("could not restore {}: {error}", target.display()))?;
++        move_entry(&entry.path(), &target).map_err(|error| format!("could not restore {}: {error}", target.display()))?;
 +    }
 +    std::fs::remove_file(previous.join(PENDING)).map_err(|error| error.to_string())?;
 +    std::fs::remove_dir(previous).map_err(|error| error.to_string())
@@ -2312,21 +2323,42 @@ index a0136f8..8637cab 100644
 +    #[test]
 +    fn a_restore_interrupted_after_its_removals_never_deletes_what_it_put_back() {
 +        let root = tempfile::tempdir().unwrap();
-+        let (staging, out) = (root.path().join("staging"), root.path().join("out"));
++        let out = root.path().join("out");
 +        let previous = out.join(".xodus-plain-previous");
-+        std::fs::create_dir_all(&staging).unwrap();
 +        std::fs::create_dir_all(&previous).unwrap();
-+        std::fs::write(previous.join(".pending"), "a").unwrap();
-+        std::fs::write(previous.join("a"), b"old").unwrap();
-+        std::fs::write(out.join("a"), b"stray").unwrap();
-+        super::restore(&previous, &out).unwrap();
-+        assert_eq!(std::fs::read(out.join("a")).unwrap(), b"old");
-+        std::fs::create_dir_all(&previous).unwrap();
-+        std::fs::write(previous.join(".pending"), "").unwrap();
++        std::fs::write(previous.join(".pending"), "a
++b").unwrap();
++        std::fs::write(previous.join("a"), b"old-a").unwrap();
 +        std::fs::write(previous.join("b"), b"old-b").unwrap();
-+        super::publish(&staging, &out).unwrap();
-+        assert_eq!(std::fs::read(out.join("a")).unwrap(), b"old");
++        std::fs::write(out.join("a"), b"new-a").unwrap();
++        std::fs::write(out.join("b"), b"new-b").unwrap();
++        let mut moves = 0;
++        let interrupted = super::restore_with(&previous, &out, &mut |from, to| {
++            moves += 1;
++            if moves == 2 { return Err(std::io::Error::other("interrupted")) }
++            std::fs::rename(from, to)
++        });
++        assert!(interrupted.is_err());
++        let restored = ["a", "b"].into_iter().find(|name| out.join(name).exists()).unwrap();
++        super::restore(&previous, &out).unwrap();
++        assert_eq!(std::fs::read(out.join(restored)).unwrap(), format!("old-{restored}").as_bytes());
++        assert_eq!(std::fs::read(out.join("a")).unwrap(), b"old-a");
 +        assert_eq!(std::fs::read(out.join("b")).unwrap(), b"old-b");
++        assert!(!previous.exists());
++    }
++
++    #[test]
++    fn a_backup_whose_marker_cannot_be_removed_is_kept_and_reported() {
++        let root = tempfile::tempdir().unwrap();
++        let previous = root.path().join(".xodus-plain-previous");
++        std::fs::create_dir_all(previous.join(".pending").join("held")).unwrap();
++        std::fs::write(previous.join("kept"), b"old").unwrap();
++        assert!(super::release(&previous).is_err());
++        assert!(previous.join("kept").exists());
++        std::fs::remove_dir_all(previous.join(".pending")).unwrap();
++        std::fs::write(previous.join(".pending"), b"").unwrap();
++        super::release(&previous).unwrap();
++        assert!(!previous.exists());
 +    }
 +
 +    #[test]
