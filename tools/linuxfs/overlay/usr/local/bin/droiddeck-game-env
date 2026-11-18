@@ -1463,7 +1463,8 @@ def main():
                     config = json.load(source)
                 configured = configured_lang(config, app_id)
                 selected = sync_config(config, app_id)
-                carry = {name: value for name, value in (config.get("games", {}).get(str(app_id)) or {}).items() if name in LOCALE_KEYS}
+                carry = {name: value for name, value in (config.get("games", {}).get(str(app_id)) or {}).items()
+                         if name in LOCALE_KEYS and isinstance(value, str) and "\0" not in value and len(value) <= 8192}
                 if carry:
                     games = selected.setdefault("games", {})
                     games[str(app_id)] = dict(games.get(str(app_id)) or {}, **carry)

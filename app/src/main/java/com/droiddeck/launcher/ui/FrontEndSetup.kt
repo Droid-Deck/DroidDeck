@@ -870,8 +870,8 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
                         host.open = null
                         localeState.save { c -> com.droiddeck.launcher.session.GameEnvironmentStore.setGameLocale(c, localeScope, value) }
                     }
-                    MenuItem(stringResource(R.string.comp_game_use_general), checked = localeState.config?.let { com.droiddeck.launcher.core.GameEnvironment.gameLocale(it, localeScope) } == null, focusRequester = first) { pick(null) }
-                    for (tag in com.droiddeck.launcher.core.GameEnvironment.locales) MenuItem(localeLabel(tag), checked = localeState.config?.let { com.droiddeck.launcher.core.GameEnvironment.gameLocale(it, localeScope) } == tag) { pick(tag) }
+                    MenuItem(stringResource(R.string.comp_game_use_general), checked = localeState.config?.let { com.droiddeck.launcher.core.GameEnvironment.gameLocale(it, localeScope) } == null, enabled = !localeState.saving, focusRequester = first) { pick(null) }
+                    for (tag in com.droiddeck.launcher.core.GameEnvironment.locales) MenuItem(localeLabel(tag), checked = localeState.config?.let { com.droiddeck.launcher.core.GameEnvironment.gameLocale(it, localeScope) } == tag, enabled = !localeState.saving) { pick(tag) }
                 }
             }
         }
@@ -900,7 +900,7 @@ internal class GameSettingsState(private val appContext: android.content.Context
     fun save(change: (android.content.Context) -> com.droiddeck.launcher.core.GameEnvironment.Config?) {
         if (saving) return
         saving = true
-        Thread({
+        worker.execute {
             val written = runCatching { change(appContext) }
                 .onFailure { android.util.Log.w("GameSettingsCard", "could not save the settings of $scope: ${it.message}") }.getOrNull()
             val next = written ?: runCatching { com.droiddeck.launcher.session.GameEnvironmentStore.read(appContext) }.getOrNull()
@@ -908,7 +908,13 @@ internal class GameSettingsState(private val appContext: android.content.Context
                 config = next
                 saving = false
             }
-        }, "game-settings").start()
+        }
+    }
+
+    companion object {
+        private val worker = java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+            Thread(task, "game-settings").apply { isDaemon = true }
+        }
     }
 }
 
