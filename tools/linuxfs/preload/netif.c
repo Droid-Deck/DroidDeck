@@ -2158,28 +2158,13 @@ ssize_t send(int fd, const void *buffer, size_t length, int flags) {
     return real(fd, buffer, length, flags);
 }
 
-ssize_t write(int fd, const void *buffer, size_t length) {
-    static ssize_t (*real)(int, const void *, size_t);
-    ssize_t rc;
-    if (bl_nl_owns(fd) && deliver(fd, buffer, length, 0, &rc)) return rc;
-    if (real == NULL) real = (ssize_t (*)(int, const void *, size_t)) dlsym(RTLD_NEXT, "write");
-    if (real == NULL) {
-        errno = ENOSYS;
-        return -1;
-    }
-    return real(fd, buffer, length);
+__attribute__((visibility("hidden"))) int bl_nl_write(int fd, const void *buffer, size_t length, ssize_t *rc) {
+    return bl_nl_owns(fd) && deliver(fd, buffer, length, 0, rc);
 }
 
-ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
-    static ssize_t (*real)(int, const struct iovec *, int);
-    if (iovcnt >= 0 && bl_nl_owns(fd)) {
-        struct msghdr msg = { .msg_iov = (struct iovec *) iov, .msg_iovlen = (size_t) iovcnt };
-        return sendmsg_request(fd, &msg, 0);
-    }
-    if (real == NULL) real = (ssize_t (*)(int, const struct iovec *, int)) dlsym(RTLD_NEXT, "writev");
-    if (real == NULL) {
-        errno = ENOSYS;
-        return -1;
-    }
-    return real(fd, iov, iovcnt);
+__attribute__((visibility("hidden"))) int bl_nl_writev(int fd, const struct iovec *iov, int iovcnt, ssize_t *rc) {
+    if (iovcnt < 0 || !bl_nl_owns(fd)) return 0;
+    struct msghdr msg = { .msg_iov = (struct iovec *) iov, .msg_iovlen = (size_t) iovcnt };
+    *rc = sendmsg_request(fd, &msg, 0);
+    return 1;
 }
