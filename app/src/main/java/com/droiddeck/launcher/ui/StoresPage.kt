@@ -155,22 +155,35 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val padH = if (narrow) 14.dp else 22.dp
     val tabs = remember {
         androidx.compose.runtime.mutableStateListOf<StoreTab>().apply {
+            val savedOrder = SessionPrefs.storesTabOrder(ctx)
+            if (!SessionPrefs.storesTabOrderCustomized(ctx)) {
+                val legacyOrder = listOf(
+                    "gog", "epic", "amazon", "xbox", "itch",
+                    "gamejolt", "battlenet", "ubisoft", "ea", "rockstar"
+                )
+                if (savedOrder.isNotEmpty() && savedOrder != legacyOrder) {
+                    SessionPrefs.setStoresTabOrderCustomized(ctx, true)
+                } else {
+                    SessionPrefs.setStoresTabOrder(ctx, Store.entries.map { it.id })
+                }
+            }
             addAll(arrangeStoreTabs(SessionPrefs.storesTabOrder(ctx), SessionPrefs.storesTabHidden(ctx)))
         }
     }
     var chip by rememberSaveable { mutableStateOf(tabs.firstOrNull { it.shown }?.store?.id ?: Store.GOG.id) }
     var arranging by remember { mutableStateOf(false) }
     val shownStores = tabs.filter { it.shown }.map { it.store }
-    fun commitTabs() {
+    fun commitTabs(markCustomized: Boolean = false) {
         SessionPrefs.setStoresTabOrder(ctx, tabs.map { it.store.id })
         SessionPrefs.setStoresTabHidden(ctx, tabs.filterNot { it.shown }.map { it.store.id }.toSet())
+        if (markCustomized) SessionPrefs.setStoresTabOrderCustomized(ctx, true)
     }
     fun shiftTab(store: Store, delta: Int) {
         val from = tabs.indexOfFirst { it.store == store }
         val to = from + delta
         if (from < 0 || to !in tabs.indices) return
         tabs.add(to, tabs.removeAt(from))
-        commitTabs()
+        commitTabs(markCustomized = true)
     }
     fun moveTab(store: Store, to: Int) {
         val from = tabs.indexOfFirst { it.store == store }
@@ -178,7 +191,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         val target = to.coerceIn(0, tabs.lastIndex)
         if (target == from) return
         tabs.add(target, tabs.removeAt(from))
-        commitTabs()
+        commitTabs(markCustomized = true)
     }
     fun toggleTab(store: Store) {
         val i = tabs.indexOfFirst { it.store == store }
