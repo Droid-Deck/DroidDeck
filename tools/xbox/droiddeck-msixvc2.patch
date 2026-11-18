@@ -167,11 +167,11 @@ index 825c24e..c23f637 100644
  pub mod native_social;
 diff --git a/crates/xodus-cli/src/commands/msixvc2.rs b/crates/xodus-cli/src/commands/msixvc2.rs
 new file mode 100644
-index 0000000..0422d5b
+index 0000000..d008411
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/msixvc2.rs
-@@ -0,0 +1,708 @@
-+use std::collections::{HashMap, HashSet};
+@@ -0,0 +1,770 @@
++use std::collections::HashMap;
 +use std::io::{ErrorKind, Read, Write};
 +use std::path::{Component, Path, PathBuf};
 +
@@ -252,17 +252,38 @@ index 0000000..0422d5b
 +    digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
 +}
 +
-+fn verified(root: &Path) -> HashSet<String> {
-+    let record = root.join(STATE).join(VERIFIED);
-+    if !std::fs::symlink_metadata(&record).is_ok_and(|meta| meta.is_file()) {
-+        return HashSet::new();
-+    }
-+    std::fs::read_to_string(record).unwrap_or_default().lines().map(str::to_owned).collect()
++fn key(path: &Path) -> String {
++    Sha256::digest(path.to_string_lossy().as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect()
 +}
 +
-+fn complete(root: &Path, entry: &Entry, verified: &HashSet<String>) -> bool {
-+    verified.contains(&identity(entry))
++fn verified(root: &Path) -> HashMap<String, String> {
++    let record = root.join(STATE).join(VERIFIED);
++    if !std::fs::symlink_metadata(&record).is_ok_and(|meta| meta.is_file()) {
++        return HashMap::new();
++    }
++    std::fs::read_to_string(record)
++        .unwrap_or_default()
++        .lines()
++        .filter_map(|line| line.split_once(' '))
++        .map(|(path, identity)| (path.to_owned(), identity.to_owned()))
++        .collect()
++}
++
++fn complete(root: &Path, entry: &Entry, verified: &HashMap<String, String>) -> bool {
++    verified.get(&key(&entry.path)) == Some(&identity(entry))
 +        && std::fs::symlink_metadata(root.join(&entry.path)).is_ok_and(|meta| meta.is_file() && meta.len() == entry.size)
++}
++
++fn note(record: &Path, path: &Path, identity: &str) -> Result<(), String> {
++    std::fs::OpenOptions::new()
++        .create(true)
++        .append(true)
++        .open(record)
++        .and_then(|mut file| {
++            writeln!(file, "{} {identity}", key(path))?;
++            file.sync_all()
++        })
++        .map_err(|error| format!("Could not record a finished game file: {error}"))
 +}
 +
 +fn folder(root: &Path, relative: &Path) -> Result<PathBuf, String> {
@@ -293,7 +314,14 @@ index 0000000..0422d5b
 +}
 +
 +pub fn reclaim(out: &Path) -> Result<(), String> {
-+    let partial = out.join(STATE).join(PARTIAL);
++    let root = out.canonicalize().map_err(|error| format!("Could not open the game folder: {error}"))?;
++    let state = root.join(STATE);
++    match std::fs::symlink_metadata(&state) {
++        Ok(meta) if meta.is_dir() => {}
++        Ok(_) => return Err("The game folder holds a link or file where the install state belongs".into()),
++        Err(_) => return Ok(()),
++    }
++    let partial = state.join(PARTIAL);
 +    match std::fs::symlink_metadata(&partial) {
 +        Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(&partial),
 +        Ok(_) => std::fs::remove_file(&partial),
@@ -396,13 +424,9 @@ index 0000000..0422d5b
 +        if place(&root, &entry.path)? != target {
 +            return Err("The game folder changed during the install".into());
 +        }
++        note(&record, &entry.path, "-")?;
 +        std::fs::rename(&partial, &target).map_err(|error| format!("Could not finish a game file: {error}"))?;
-+        std::fs::OpenOptions::new()
-+            .create(true)
-+            .append(true)
-+            .open(&record)
-+            .and_then(|mut file| writeln!(file, "{}", identity(entry)))
-+            .map_err(|error| format!("Could not record a finished game file: {error}"))?;
++        note(&record, &entry.path, &identity(entry))?;
 +    }
 +    reclaim(&root)
 +}
@@ -807,10 +831,29 @@ index 0000000..0422d5b
 +        assert_eq!(plan.total(), 21);
 +        assert_eq!(plan.remaining(root.path()), 21);
 +        std::fs::create_dir(root.path().join(STATE)).unwrap();
-+        std::fs::write(root.path().join(STATE).join(VERIFIED), format!("{}\n", identity(&plan.entries[0]))).unwrap();
++        let record = root.path().join(STATE).join(VERIFIED);
++        note(&record, Path::new("done.bin"), &identity(&plan.entries[0])).unwrap();
 +        assert_eq!(plan.remaining(root.path()), 17);
 +        std::fs::write(root.path().join("done.bin"), b"abcde").unwrap();
 +        assert_eq!(plan.remaining(root.path()), 21);
++    }
++
++    #[test]
++    fn only_the_latest_record_for_a_path_describes_its_file() {
++        let root = tempfile::tempdir().unwrap();
++        let (older, _) = sealed(b"old", &[1; 32]);
++        let (newer, _) = sealed(b"new", &[1; 32]);
++        let entry = |segment: &Segment| Entry { path: PathBuf::from("game.bin"), size: 3, hash: None, segments: vec![segment.clone()] };
++        let (old, new) = (plan_of(vec![entry(&older)]), plan_of(vec![entry(&newer)]));
++        std::fs::write(root.path().join("game.bin"), b"new").unwrap();
++        std::fs::create_dir(root.path().join(STATE)).unwrap();
++        let record = root.path().join(STATE).join(VERIFIED);
++        note(&record, Path::new("game.bin"), &identity(&old.entries[0])).unwrap();
++        note(&record, Path::new("game.bin"), "-").unwrap();
++        assert_eq!(old.remaining(root.path()), 3);
++        note(&record, Path::new("game.bin"), &identity(&new.entries[0])).unwrap();
++        assert_eq!(new.remaining(root.path()), 0);
++        assert_eq!(old.remaining(root.path()), 3);
 +    }
 +
 +    #[tokio::test]
@@ -849,13 +892,32 @@ index 0000000..0422d5b
 +        let root = tempfile::tempdir().unwrap();
 +        std::fs::create_dir_all(root.path().join(STATE).join(PARTIAL)).unwrap();
 +        std::fs::write(root.path().join(STATE).join(PARTIAL).join("0"), vec![0; 4096]).unwrap();
-+        std::fs::write(root.path().join(STATE).join(VERIFIED), b"x\n").unwrap();
++        std::fs::write(root.path().join(STATE).join(VERIFIED), b"x y\n").unwrap();
 +        std::fs::write(root.path().join("game.bin"), b"done").unwrap();
 +        reclaim(root.path()).unwrap();
 +        assert!(!root.path().join(STATE).join(PARTIAL).exists());
 +        assert!(root.path().join(STATE).join(VERIFIED).is_file());
 +        assert!(root.path().join("game.bin").is_file());
 +        reclaim(root.path()).unwrap();
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn reclaiming_never_follows_a_linked_state_folder() {
++        let root = tempfile::tempdir().unwrap();
++        let outside = tempfile::tempdir().unwrap();
++        std::fs::create_dir(outside.path().join(PARTIAL)).unwrap();
++        std::fs::write(outside.path().join(PARTIAL).join("keep"), b"keep").unwrap();
++        std::os::unix::fs::symlink(outside.path(), root.path().join(STATE)).unwrap();
++        assert!(reclaim(root.path()).is_err());
++        assert!(outside.path().join(PARTIAL).join("keep").is_file());
++        let linked_root = tempfile::tempdir().unwrap();
++        let real = tempfile::tempdir().unwrap();
++        std::fs::create_dir_all(real.path().join(STATE).join(PARTIAL)).unwrap();
++        let link = linked_root.path().join("game");
++        std::os::unix::fs::symlink(real.path(), &link).unwrap();
++        reclaim(&link).unwrap();
++        assert!(!real.path().join(STATE).join(PARTIAL).exists());
 +    }
 +
 +    #[test]
