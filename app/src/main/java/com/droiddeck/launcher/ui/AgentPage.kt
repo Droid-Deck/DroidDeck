@@ -2,6 +2,7 @@ package com.droiddeck.launcher.ui
 
 import android.app.Activity
 import android.content.ContextWrapper
+import android.os.Build
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.compose.LocalActivityResultRegistryOwner
@@ -181,9 +182,13 @@ private fun AgentPageContent(
             ?: generateSequence(view.context) { (it as? ContextWrapper)?.baseContext }
                 .filterIsInstance<Activity>().firstOrNull()?.window
         val previousMode = window?.attributes?.softInputMode
+        // A window fitted to the system bars with ADJUST_NOTHING reports no keyboard height to Compose.
+        val edgeToEdge = visible && hidesPet && !drawer && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
         if (visible) window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        if (edgeToEdge) window?.setDecorFitsSystemWindows(false)
         onDispose {
             if (visible && previousMode != null) window?.setSoftInputMode(previousMode)
+            if (edgeToEdge) window?.setDecorFitsSystemWindows(true)
         }
     }
     remember { AgentHost.refresh(context) }
