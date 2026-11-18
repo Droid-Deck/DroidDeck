@@ -258,6 +258,23 @@ if [ -d "$SC" ]; then
   done
 fi
 
+# DXVK and VKD3D-Proton: the prefix uses this tool's files, where DroidDeck puts its component choices. Another Proton
+# that ran this prefix left its own copies, which link_dir keeps as native DLLs. A name the tool's DXVK does not ship
+# (d3d10.dll, d3d10_1.dll) goes back to Wine's own.
+for a in aarch64-windows:system32 i386-windows:syswow64; do
+  arch=${a%%:*}; W=$COMPAT/pfx/drive_c/windows/${a#*:}
+  [ -d "$W" ] || continue
+  for n in d3d8 d3d9 d3d10 d3d10_1 d3d10core d3d11 dxgi d3d12 d3d12core; do
+    s=$F/lib/wine/dxvk/$arch/$n.dll
+    [ -f "$s" ] || s=$F/lib/wine/vkd3d-proton/$arch/$n.dll
+    [ -f "$s" ] || s=$F/lib/wine/$arch/$n.dll
+    [ -f "$s" ] || continue
+    t=$W/$n.dll
+    [ -L "$t" ] && [ "$(readlink "$t")" = "$s" ] && continue
+    rm -f "$t" && ln -s "$s" "$t" && echo "$(date +%H:%M:%S) ${a#*:}/$n.dll -> ${s#$F/lib/wine/}"
+  done
+done
+
 # D7VK (Direct3D 7 and older on Vulkan) for 32-bit games when PROTON_USE_D7VK is set and not 0, as DroidDeck-Proton:
 # its ddraw.dll in syswow64 with Wine's own beside it as ddraw_.dll. Switched off, Wine's link goes back. Only the
 # links in the prefix are removed, never the files they point to.
