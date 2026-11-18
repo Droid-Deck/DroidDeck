@@ -30,7 +30,7 @@ object PointerCapture {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> record(event)
             MotionEvent.ACTION_MOVE -> if (event.pointerCount > 1) record(event)
             MotionEvent.ACTION_POINTER_UP -> forget(key(event, event.actionIndex))
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> reset()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> forgetDevice(event.deviceId)
             else -> Unit
         }
     }
@@ -73,5 +73,12 @@ object PointerCapture {
     private fun forget(k: Long) {
         lastX.remove(k)
         lastY.remove(k)
+    }
+
+    private fun forgetDevice(deviceId: Int) {
+        val x = lastX.keys.iterator()
+        while (x.hasNext()) if ((x.next() shr 32).toInt() == deviceId) x.remove()
+        val y = lastY.keys.iterator()
+        while (y.hasNext()) if ((y.next() shr 32).toInt() == deviceId) y.remove()
     }
 }

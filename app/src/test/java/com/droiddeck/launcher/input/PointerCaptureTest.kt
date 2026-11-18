@@ -103,6 +103,33 @@ class PointerCaptureTest {
         }
     }
 
+    @Test fun endingOneTouchpadKeepsAnotherDevicesPosition() {
+        val downA = event(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHPAD, x = 500f, y = 300f, device = 1)
+        try {
+            PointerCapture.track(downA)
+        } finally {
+            downA.recycle()
+        }
+        val downB = event(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHPAD, x = 600f, y = 400f, device = 2)
+        try {
+            PointerCapture.track(downB)
+        } finally {
+            downB.recycle()
+        }
+        val upA = event(MotionEvent.ACTION_UP, InputDevice.SOURCE_TOUCHPAD, x = 500f, y = 300f, device = 1)
+        try {
+            PointerCapture.track(upA)
+        } finally {
+            upA.recycle()
+        }
+        val moveB = event(MotionEvent.ACTION_MOVE, InputDevice.SOURCE_TOUCHPAD, x = 610f, y = 395f, device = 2)
+        try {
+            assertArrayEquals(floatArrayOf(10f, -5f), PointerCapture.delta(moveB), 0.001f)
+        } finally {
+            moveB.recycle()
+        }
+    }
+
     @Test fun positionsAreKeptPerDevice() {
         val down = event(MotionEvent.ACTION_DOWN, InputDevice.SOURCE_TOUCHPAD, x = 500f, y = 300f, device = 1)
         try {
