@@ -1065,6 +1065,12 @@ internal fun ModeHeader(
     val pal = LocalPalette.current
     var searching by remember { mutableStateOf(query.isNotEmpty()) }
     var focusOnOpen by remember { mutableStateOf(false) }
+    var focusTap by remember { mutableStateOf(0) }
+    var fieldFocused by remember { mutableStateOf(false) }
+    CancelPendingFocus(focusOnOpen, focusTap, fieldFocused) {
+        focusOnOpen = false
+        if (query.isEmpty()) searching = false
+    }
     val open by animateFloatAsState(if (searching) 1f else 0f, Motion.sp(0.75f, 420f), label = "searchOpen")
     // Closing takes the field away with focus still in it; the search button gets it once it is back on screen.
     val searchIcon = remember { FocusRequester() }
@@ -1095,9 +1101,12 @@ internal fun ModeHeader(
                 Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
                     AdbTextField(
                         value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                        placeholder = placeholder, compact = true, showLabel = false, focusOnShow = focusOnOpen,
+                        placeholder = placeholder, compact = true, showLabel = false, focusOnShow = focusOnOpen, focusAtTap = focusTap,
                         clearFocus = clearSearchFocus || !searching,
-                        onFocusChange = { focused -> if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false } },
+                        onFocusChange = { focused ->
+                            fieldFocused = focused
+                            if (!focused && query.isEmpty()) { searching = false; focusOnOpen = false }
+                        },
                     )
                 }
                 if (searching && closable) SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = colors.onSurfaceVariant, onClick = close)
@@ -1105,7 +1114,7 @@ internal fun ModeHeader(
         }
     }
     val searchButton: @Composable () -> Unit = {
-        Box(Modifier.focusRequester(searchIcon)) { SearchIcon(stringResource(R.string.stores_search_open)) { searching = true; focusOnOpen = true } }
+        Box(Modifier.focusRequester(searchIcon)) { SearchIcon(stringResource(R.string.stores_search_open)) { focusTap = ScreenTaps.count; searching = true; focusOnOpen = true } }
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val stacked = maxWidth < NarrowPaneWidth

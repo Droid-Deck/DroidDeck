@@ -365,6 +365,7 @@ internal fun AdbTextField(
     onDone: (() -> Unit)? = null,
     focusOnShow: Boolean = false,
     showLabel: Boolean = true,
+    focusAtTap: Int? = null,
     onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -505,6 +506,7 @@ internal fun AdbTextField(
                     if (focusOnShow && !focusAsked[0]) {
                         focusAsked[0] = true
                         editText.post {
+                            if (focusAtTap != null && focusAtTap != ScreenTaps.count) return@post
                             editText.requestFocus()
                             if (!bottomTypingLatest.value) (editText.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                                 ?.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)

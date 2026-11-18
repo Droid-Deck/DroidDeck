@@ -17,8 +17,11 @@ import android.os.Looper
 import android.util.Log
 import android.view.Display
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.widget.EditText
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -2030,6 +2033,35 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 }
             }
         }
+    }
+
+    private var touchDownX = 0f
+    private var touchDownY = 0f
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            com.droiddeck.launcher.ui.ScreenTaps.count++
+            touchDownX = event.rawX
+            touchDownY = event.rawY
+        }
+        val handled = super.dispatchTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP) leaveTextFieldOnOutsideTap(event)
+        return handled
+    }
+
+    // Tapped controls do not take focus in touch mode, so a text field would otherwise keep it, and its highlight.
+    private fun leaveTextFieldOnOutsideTap(event: MotionEvent) {
+        val field = currentFocus as? EditText ?: return
+        val slop = ViewConfiguration.get(this).scaledTouchSlop
+        if (kotlin.math.hypot(event.rawX - touchDownX, event.rawY - touchDownY) > slop) return
+        val at = IntArray(2).also(field::getLocationOnScreen)
+        val margin = 12 * resources.displayMetrics.density
+        val insideX = event.rawX >= at[0] - margin && event.rawX <= at[0] + field.width + margin
+        val insideY = event.rawY >= at[1] - margin && event.rawY <= at[1] + field.height + margin
+        if (insideX && insideY) return
+        field.clearFocus()
+        (getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+            ?.hideSoftInputFromWindow(field.windowToken, 0)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
