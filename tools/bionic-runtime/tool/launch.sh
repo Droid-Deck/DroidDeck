@@ -147,11 +147,28 @@ wine_() { LD_LIBRARY_PATH=$LIBS LD_PRELOAD=$PRELOAD "$LINKER" "$F/lib/wine/aarch
 wineserver_() { LD_LIBRARY_PATH=$LIBS LD_PRELOAD=$PRELOAD "$LINKER" "$F/bin/wineserver" "$@"; }
 
 is_builtin() { head -c 128 "$1" 2>/dev/null | grep -q "Wine builtin DLL"; }
-link_dir() { # src dst: links every file of src into dst; replaces links and Wine builtin copies, keeps native DLLs
+# Names wine.inf has Wine's update delete from system32 (section FakeDlls) or syswow64 (FakeDllsWow64), "11,,name,-":
+# in Windows they live only under Microsoft.NET or winsxs. Wine deletes through a link, so a link there cost this
+# tool its own fusion.dll, ngen.exe, comctl32_v6.dll and the rest, and later prefixes their .NET stubs and comctl32 v6.
+inf_drops() {
+  awk -v s="[$1]" '/^\[/ { h = $0; sub(/[ \t\r]+$/, "", h); on = (h == s); next }
+    on && /^11,,[^,]+,-[ \t\r]*$/ { split($0, a, ","); print a[3] }' "$F/share/wine/wine.inf" 2>/dev/null
+}
+dropped() { # name patterns
+  set -f
+  for p in $2; do case "$1" in $p) set +f; return 0 ;; esac; done
+  set +f; return 1
+}
+link_dir() { # src dst [names]: links every file of src into dst; replaces links and Wine builtin copies, keeps native
+  # DLLs; names (wine.inf patterns) are not linked and a link left under one is removed
   [ -d "$1" ] || return 0
   for f in "$1"/*; do
     [ -f "$f" ] || continue
     t=$2/${f##*/}
+    if [ -n "${3:-}" ] && dropped "${f##*/}" "$3"; then
+      [ -L "$t" ] && rm -f "$t"
+      continue
+    fi
     if [ -L "$t" ]; then
       [ "$(readlink "$t")" = "$f" ] && continue
       rm -f "$t"
@@ -178,8 +195,8 @@ prepare_prefix() {
   W=$P/drive_c/windows
   mkdir -p "$W/system32" "$W/syswow64" "$P/dosdevices"
   echo "$(date +%H:%M:%S) linking builtins"
-  link_dir "$F/lib/wine/aarch64-windows" "$W/system32"
-  link_dir "$F/lib/wine/i386-windows" "$W/syswow64"
+  link_dir "$F/lib/wine/aarch64-windows" "$W/system32" "$(inf_drops FakeDlls)"
+  link_dir "$F/lib/wine/i386-windows" "$W/syswow64" "$(inf_drops FakeDllsWow64)"
   for c in dxvk vkd3d-proton; do
     link_dir "$F/lib/wine/$c/aarch64-windows" "$W/system32"
     link_dir "$F/lib/wine/$c/i386-windows" "$W/syswow64"
