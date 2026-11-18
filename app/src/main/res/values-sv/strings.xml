@@ -1573,6 +1573,8 @@
     <string name="pip_unavailable">Android kunde inte öppna bild-i-bild.</string>
     <string name="game_more">Mer</string>
     <string name="game_edit_art">Redigera grafik</string>
+    <string name="game_unhide">Ta bort från dolda</string>
+    <string name="game_hide_failed">Kunde inte synkronisera med Steam. Stäng Steam och försök igen.</string>
     <string name="stores_in_steam_label">I Steam</string>
     <string name="game_shortcut">Genväg</string>
     <string name="game_shortcut_add">Lägg till på hemskärmen</string>

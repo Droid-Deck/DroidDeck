@@ -1566,6 +1566,8 @@
     <string name="pip_unavailable">Androidがピクチャーインピクチャーを開けませんでした。</string>
     <string name="game_more">その他</string>
     <string name="game_edit_art">アートを編集</string>
+    <string name="game_unhide">非表示を解除</string>
+    <string name="game_hide_failed">Steamと同期できませんでした。Steamを終了してもう一度お試しください。</string>
     <string name="stores_in_steam_label">Steamに追加済み</string>
     <string name="game_shortcut">ショートカット</string>
     <string name="game_shortcut_add">ホーム画面に追加</string>
