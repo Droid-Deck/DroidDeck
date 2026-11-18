@@ -121,7 +121,7 @@ class PulseAudioComponentTest {
         val token = host.token()
         val checked = CountDownLatch(1)
         val resume = CountDownLatch(1)
-        val pool = Executors.newSingleThreadExecutor()
+        val pool = Executors.newFixedThreadPool(2)
         try {
             val command = pool.submit<String> {
                 host.command(token) {
@@ -131,7 +131,7 @@ class PulseAudioComponentTest {
                 }
             }
             assertTrue(checked.await(5, TimeUnit.SECONDS))
-            host.stop()
+            pool.submit { host.stop() }.get(5, TimeUnit.SECONDS)
             assertEquals(listOf(31463), killed)
             assertFalse(host.live(token))
             resume.countDown()
