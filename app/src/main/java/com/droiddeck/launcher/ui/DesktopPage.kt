@@ -156,7 +156,10 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         },
         rows = { tab ->
             if (tab == SheetTab.FILES) DesktopFiles(s, a)
-            else a.modeSheet(mode, tab, SheetExtras())
+            else a.modeSheet(mode, tab, SheetExtras(
+                performance = { PerformanceLink(a, "desktop", SheetTab.SESSION) },
+                drivers = { summary -> DriversLink(a, summary, "desktop", stringResource(R.string.hop_from_play)) },
+            ))
         },
     )
     if (adding && !s.busy) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }

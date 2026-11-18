@@ -1,5 +1,7 @@
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
+use std::fs::{self, File};
 use std::io::{self, Read};
+use std::path::{Path, PathBuf};
 
 const LIMIT: usize = 4096;
 
@@ -10,7 +12,13 @@ fn invalid() -> io::Error {
     )
 }
 
-fn collect(bytes: &[u8], names: &mut BTreeSet<String>) {
+type Names = BTreeMap<String, String>;
+
+const SCAN_LIMIT: u64 = 256 * 1024 * 1024;
+const NAME_LIMIT: usize = 4;
+const SIBLING_LIMIT: usize = 32;
+
+fn collect(bytes: &[u8], names: &mut Names) {
     let prefix = br"\\.\pipe\";
     for (index, window) in bytes.windows(prefix.len()).enumerate() {
         if window != prefix {
@@ -28,41 +36,95 @@ fn collect(bytes: &[u8], names: &mut BTreeSet<String>) {
         {
             let name = std::str::from_utf8(name).unwrap();
             if name.ends_with("LauncherPipe") || name.ends_with("Launcher_Pipe") {
-                names.insert(name.to_owned());
+                names
+                    .entry(name.to_ascii_lowercase())
+                    .or_insert_with(|| name.to_owned());
             }
         }
     }
 }
 
-pub fn pipe_names(reader: &mut impl Read) -> io::Result<Vec<String>> {
-    let mut names = BTreeSet::new();
+pub fn title_pipe_names(exe: &Path) -> io::Result<Vec<String>> {
+    discover(exe, SCAN_LIMIT)
+}
+
+fn discover(exe: &Path, limit: u64) -> io::Result<Vec<String>> {
+    let mut names = Names::new();
+    let mut principal = limit;
+    scan(&mut File::open(exe)?, &mut names, &mut principal)?;
+    let mut extra = Names::new();
+    let mut budget = limit;
+    for path in siblings(exe) {
+        if extra.len() >= NAME_LIMIT || budget == 0 {
+            break;
+        }
+        let Ok(mut file) = File::open(&path) else {
+            continue;
+        };
+        if !file
+            .metadata()
+            .is_ok_and(|metadata| metadata.len() <= budget)
+        {
+            continue;
+        }
+        let mut own = Names::new();
+        if scan(&mut file, &mut own, &mut budget).is_err() {
+            continue;
+        }
+        for (key, name) in own {
+            if extra.len() < NAME_LIMIT && !names.contains_key(&key) {
+                extra.entry(key).or_insert(name);
+            }
+        }
+    }
+    names.append(&mut extra);
+    Ok(names.into_values().collect())
+}
+
+fn siblings(exe: &Path) -> Vec<PathBuf> {
+    let Some(entries) = exe.parent().and_then(|folder| fs::read_dir(folder).ok()) else {
+        return Vec::new();
+    };
+    let mut paths: Vec<_> = entries
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path != exe
+                && path
+                    .extension()
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
+        })
+        .collect();
+    paths.sort();
+    paths.truncate(SIBLING_LIMIT);
+    paths
+}
+
+fn scan(reader: &mut impl Read, names: &mut Names, budget: &mut u64) -> io::Result<()> {
     let mut carry = Vec::new();
     let mut chunk = [0; 65536];
-    let mut total = 0usize;
     loop {
         let count = reader.read(&mut chunk)?;
         if count == 0 {
             break;
         }
-        total += count;
-        if total > 256 * 1024 * 1024 {
-            return Err(invalid());
-        }
+        *budget = budget.checked_sub(count as u64).ok_or_else(invalid)?;
         carry.extend_from_slice(&chunk[..count]);
-        collect(&carry, &mut names);
+        collect(&carry, names);
         for offset in 0..2 {
             let ascii: Vec<_> = carry[offset..]
                 .chunks_exact(2)
                 .map(|pair| if pair[1] == 0 { pair[0] } else { 0 })
                 .collect();
-            collect(&ascii, &mut names);
+            collect(&ascii, names);
         }
-        if names.len() > 4 {
+        if names.len() > NAME_LIMIT {
             return Err(invalid());
         }
         carry.drain(..carry.len().saturating_sub(256));
     }
-    Ok(names.into_iter().collect())
+    Ok(())
 }
 
 pub fn exchange(reader: &mut impl Read) -> io::Result<Vec<u8>> {
@@ -134,9 +196,162 @@ mod tests {
         }
         bytes.extend_from_slice(br"\\.\pipe\..\outsideLauncherPipe");
         bytes.push(0);
+        let mut names = Names::new();
+        scan(&mut Cursor::new(bytes), &mut names, &mut SCAN_LIMIT.clone()).unwrap();
         assert_eq!(
-            pipe_names(&mut Cursor::new(bytes)).unwrap(),
+            names.into_values().collect::<Vec<_>>(),
             ["GameLauncherPipe", "OtherLauncher_Pipe"]
+        );
+    }
+
+    fn folder(name: &str) -> std::path::PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("droiddeck-identity-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn title_names_include_sibling_launcher_executables() {
+        let root = folder("siblings");
+        let game = root.join("Game.exe");
+        fs::write(&game, b"MZ obfuscated").unwrap();
+        fs::write(
+            root.join("TitleLauncher.exe"),
+            [br"MZ \\.\pipe\TitleLauncher_Pipe".as_slice(), b"\0"].concat(),
+        )
+        .unwrap();
+        fs::write(
+            root.join("Data.dat"),
+            [br"\\.\pipe\DataLauncher_Pipe".as_slice(), b"\0"].concat(),
+        )
+        .unwrap();
+        fs::create_dir(root.join("Folder.exe")).unwrap();
+        let names = title_pipe_names(&game).unwrap();
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(names, ["TitleLauncher_Pipe"]);
+    }
+
+    fn executable(path: &Path, names: &[&str]) {
+        let mut bytes = b"MZ ".to_vec();
+        for name in names {
+            bytes.extend_from_slice(br"\\.\pipe\");
+            bytes.extend_from_slice(name.as_bytes());
+            bytes.push(0);
+        }
+        fs::write(path, bytes).unwrap();
+    }
+
+    #[test]
+    fn title_names_keep_the_game_executable_names_and_limits() {
+        let root = folder("principal");
+        let game = root.join("Game.exe");
+        executable(&game, &["GameLauncherPipe"]);
+        fs::write(root.join("Tool.exe"), b"MZ plain").unwrap();
+        assert_eq!(title_pipe_names(&game).unwrap(), ["GameLauncherPipe"]);
+        for index in 0..40 {
+            fs::write(root.join(format!("Extra{index:02}.exe")), b"MZ").unwrap();
+        }
+        executable(&root.join("Zz.exe"), &["LateLauncher_Pipe"]);
+        let crowded = title_pipe_names(&game);
+        executable(
+            &game,
+            &[
+                "ALauncherPipe",
+                "BLauncherPipe",
+                "CLauncherPipe",
+                "DLauncherPipe",
+                "ELauncherPipe",
+            ],
+        );
+        let overfull = title_pipe_names(&game);
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(crowded.unwrap(), ["GameLauncherPipe"]);
+        assert!(overfull.is_err());
+    }
+
+    #[test]
+    fn title_names_skip_siblings_that_cannot_be_scanned() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = folder("unscannable");
+        let game = root.join("Game.exe");
+        executable(&game, &["GameLauncherPipe"]);
+        let locked = root.join("Locked.exe");
+        executable(&locked, &["LockedLauncher_Pipe"]);
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+        let locked_open = File::open(&locked).is_ok();
+        File::create(root.join("Huge.exe"))
+            .unwrap()
+            .set_len(SCAN_LIMIT + 1)
+            .unwrap();
+        executable(
+            &root.join("Noisy.exe"),
+            &[
+                "NALauncherPipe",
+                "NBLauncherPipe",
+                "NCLauncherPipe",
+                "NDLauncherPipe",
+                "NELauncherPipe",
+            ],
+        );
+        let names = title_pipe_names(&game);
+        fs::remove_dir_all(&root).unwrap();
+        let mut expected = vec!["GameLauncherPipe".to_owned()];
+        if locked_open {
+            expected.push("LockedLauncher_Pipe".to_owned());
+        }
+        assert_eq!(names.unwrap(), expected);
+    }
+
+    #[test]
+    fn title_names_bound_the_bytes_read_from_siblings() {
+        let root = folder("budget");
+        let game = root.join("Game.exe");
+        executable(&game, &["GameLauncherPipe"]);
+        executable(&root.join("First.exe"), &["FirstLauncherPipe"]);
+        executable(&root.join("Second.exe"), &["SecondLauncherPipe"]);
+        let size = fs::metadata(root.join("First.exe")).unwrap().len();
+        let names = discover(&game, size + 8);
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(names.unwrap(), ["FirstLauncherPipe", "GameLauncherPipe"]);
+    }
+
+    #[test]
+    fn title_names_merge_case_insensitively_and_cap_sibling_names() {
+        let root = folder("merge");
+        let game = root.join("Game.exe");
+        executable(
+            &game,
+            &[
+                "ALauncherPipe",
+                "BLauncherPipe",
+                "CLauncherPipe",
+                "GTAVLauncher_Pipe",
+            ],
+        );
+        executable(
+            &root.join("A.exe"),
+            &["gtavLauncher_Pipe", "ELauncherPipe", "FLauncherPipe"],
+        );
+        executable(
+            &root.join("B.exe"),
+            &["GLauncherPipe", "HLauncherPipe", "ILauncherPipe"],
+        );
+        let names = title_pipe_names(&game);
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(
+            names.unwrap(),
+            [
+                "ALauncherPipe",
+                "BLauncherPipe",
+                "CLauncherPipe",
+                "ELauncherPipe",
+                "FLauncherPipe",
+                "GLauncherPipe",
+                "GTAVLauncher_Pipe",
+                "HLauncherPipe"
+            ]
         );
     }
 

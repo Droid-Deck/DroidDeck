@@ -125,9 +125,8 @@ if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
   chmod 755 /run/droiddeck/kwin/kwin_wayland
   export PATH=/run/droiddeck/kwin:$PATH
 fi
-if /usr/local/bin/droiddeck-pipewire start; then
-  eval "$(/usr/local/bin/droiddeck-pipewire env)"
-else
+# Plasma uses the rootfs libpipewire; the bundle's module and plugin paths leave it without a shell.
+if ! /usr/local/bin/droiddeck-pipewire start; then
   echo "== pipewire: not running; screen capture has no picture"
 fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"

@@ -152,6 +152,9 @@ jobs:
     runs-on: ${{ fromJSON(needs.components-runner.outputs.labels) }}
     timeout-minutes: 40
     steps:
+      - name: Reclaim files a cancelled container build left owned by root
+        if: runner.environment == 'self-hosted'
+        run: sudo -n chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" || echo "::warning::could not reclaim $GITHUB_WORKSPACE"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -350,6 +353,9 @@ jobs:
     outputs:
       variants: ${{ steps.variants.outputs.list }}
     steps:
+      - name: Reclaim files a cancelled container build left owned by root
+        if: runner.environment == 'self-hosted'
+        run: sudo -n chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" || echo "::warning::could not reclaim $GITHUB_WORKSPACE"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}

@@ -96,26 +96,60 @@ internal fun AgentSetupView(modifier: Modifier, onDone: () -> Unit = {}) {
         ) {
             steps.forEachIndexed { index, step ->
                 val status = AgentSetup.status[step] ?: Status.UNKNOWN
-                val (title, hint) = labels(step, AgentHost.harness.name)
+                val harness = AgentHost.harness
+                // A harness that signs in with a pasted key: the sign-in opens its key page and this field takes the key.
+                val keyed = step == Step.SIGN_IN && harness.keyPage != null
+                var keyOpen by rememberSaveable(harness.id) { mutableStateOf(false) }
+                val (title, hint) = labels(step, harness.name, keyed)
                 val lab = AgentHost.lab?.takeIf { it.prepare && it.running }
-                val detail = if (step == Step.PREPARE && lab != null)
-                    stringResource(R.string.agent_prepare_progress, lab.permille / 10, clock(lab.etaSeconds.toLong().coerceAtLeast(0)))
-                else AgentSetup.detail[step] ?: hint
+                val detail = when {
+                    step == Step.PREPARE && lab != null ->
+                        stringResource(R.string.agent_prepare_progress, lab.permille / 10, clock(lab.etaSeconds.toLong().coerceAtLeast(0)))
+                    keyed && status == Status.DONE && !AgentSetup.keySaved -> stringResource(R.string.agent_step_free_models)
+                    else -> AgentSetup.detail[step] ?: hint
+                }
+                // Shown while the sign-in is pending, so it is still there after a trip to the browser for the key.
+                val pending = (status == Status.TODO || status == Status.FAILED) && AgentSetup.status[Step.INSTALL] == Status.DONE
+                val showKey = keyed && (keyOpen || pending) && status != Status.WORKING
+                var key by remember(harness.id) { mutableStateOf("") }
                 CheckRow(
                     when (status) {
                         Status.DONE -> CheckState.OK
                         Status.WORKING, Status.UNKNOWN -> CheckState.BUSY
                         Status.TODO, Status.FAILED -> CheckState.WARN
                     },
-                    title, detail, divider = index < steps.lastIndex,
+                    title, detail, divider = index < steps.lastIndex && !showKey,
                 ) {
                     val blocked = (step in setOf(Step.SIGN_IN, Step.GITHUB, Step.BUILD_TOOLS) && AgentSetup.status[Step.INSTALL] != Status.DONE) ||
                         (step == Step.PREPARE && AgentSetup.status[Step.BUILD_TOOLS] != Status.DONE)
+                    val openKey = {
+                        keyOpen = true
+                        AgentSetup.run(context, step)
+                    }
                     if ((status == Status.TODO || status == Status.FAILED) && !blocked) {
                         val label = stringResource(if (status == Status.FAILED) R.string.agent_setup_retry else action(step))
-                        val run = { if (step == Step.CONNECTION) pair(context) else AgentSetup.run(context, step) }
-                        if (step.required) PrimaryButton(label, compact = true, onClick = run) else SecondaryButton(label, compact = true, onClick = run)
+                        val run = { if (step == Step.CONNECTION) pair(context) else if (keyed) openKey() else AgentSetup.run(context, step) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (keyed && harness.free) SecondaryButton(stringResource(R.string.agent_action_free), compact = true) { AgentSetup.useFree(context) }
+                            if (step.required) PrimaryButton(label, compact = true, onClick = run) else SecondaryButton(label, compact = true, onClick = run)
+                        }
+                    } else if (keyed && status == Status.DONE && !AgentSetup.keySaved && !keyOpen) {
+                        SecondaryButton(stringResource(R.string.agent_action_add_key), compact = true, onClick = openKey)
                     }
+                }
+                if (showKey) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth().padding(start = 56.dp, end = 14.dp, bottom = 10.dp),
+                    ) {
+                        Box(Modifier.weight(1f)) { ToolsField(key, { key = it.trim() }, stringResource(R.string.agent_key_hint), "agent-key") }
+                        PrimaryButton(stringResource(R.string.agent_key_save), enabled = key.isNotBlank(), compact = true) {
+                            keyOpen = false
+                            AgentSetup.saveKey(context, key)
+                            key = ""
+                        }
+                    }
+                    if (index < steps.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
                 }
             }
         }
@@ -183,6 +217,7 @@ private fun StorageCard() {
 private fun storageTitle(item: AgentStorage.Item) = when (item) {
     AgentStorage.Item.CLAUDE_CODE -> R.string.agent_storage_claude
     AgentStorage.Item.CODEX -> R.string.agent_storage_codex
+    AgentStorage.Item.OPENCODE -> R.string.agent_storage_opencode
     AgentStorage.Item.BUILD_TOOLS -> R.string.agent_step_build
     AgentStorage.Item.SOURCE -> R.string.agent_storage_source
     AgentStorage.Item.CACHES -> R.string.agent_storage_caches
@@ -195,10 +230,10 @@ private fun storageWarning(item: AgentStorage.Item) = when (item) {
 }
 
 @Composable
-private fun labels(step: Step, harness: String): Pair<String, String> = when (step) {
+private fun labels(step: Step, harness: String, keyed: Boolean = false): Pair<String, String> = when (step) {
     Step.CONNECTION -> stringResource(R.string.agent_step_connection) to stringResource(R.string.agent_step_connection_hint)
     Step.INSTALL -> stringResource(R.string.agent_step_install, harness) to stringResource(R.string.agent_step_install_hint)
-    Step.SIGN_IN -> stringResource(R.string.agent_step_sign_in, harness) to stringResource(R.string.agent_step_sign_in_hint)
+    Step.SIGN_IN -> stringResource(R.string.agent_step_sign_in, harness) to stringResource(if (keyed) R.string.agent_step_sign_in_key_hint else R.string.agent_step_sign_in_hint)
     Step.GITHUB -> stringResource(R.string.agent_step_github) to stringResource(R.string.agent_step_github_hint)
     Step.BUILD_TOOLS -> stringResource(R.string.agent_step_build) to stringResource(R.string.agent_step_build_hint)
     Step.PREPARE -> stringResource(R.string.agent_step_prepare) to stringResource(R.string.agent_step_prepare_hint)

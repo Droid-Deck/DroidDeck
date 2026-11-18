@@ -887,8 +887,10 @@ case $mode in
             _bl_fall=$((_bl_sample_available - _bl_available))
             [ "$_saved_growth" -gt "$_bl_growth" ] && _bl_growth=$_saved_growth
             [ "$_saved_fall" -gt "$_bl_fall" ] && _bl_fall=$_saved_fall
-            _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
-            _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
+            if [ $((SECONDS - _bl_sample_at)) -ge 5 ]; then
+              _bl_sample_at=$SECONDS _bl_sample_available=$_bl_available _bl_sample_gpu=$_bl_gpu
+              _bl_sample_unevictable=$_bl_unevictable _bl_sample_shmem=$_bl_shmem
+            fi
           fi
           _bl_real_available=$_bl_available
           [ "$_bl_real_available" -ge 0 ] && _bl_real_available=$((_bl_real_available - _bl_growth))
@@ -898,6 +900,8 @@ case $mode in
           _bl_tier_headroom=$((_bl_mem_total / 4))
           [ "$_bl_tier_headroom" -ge $((768 * 1024)) ] || _bl_tier_headroom=$((768 * 1024))
           [ "$_bl_tier_headroom" -le $((2560 * 1024)) ] || _bl_tier_headroom=$((2560 * 1024))
+          _bl_fall_headroom=$((_bl_tier_headroom * 2))
+          [ "$_bl_fall_headroom" -ge $((_bl_mem_total * 2 / 5)) ] || _bl_fall_headroom=$((_bl_mem_total * 2 / 5))
           _bl_swap_reserve=$((_bl_swap_total / 5))
           [ "$_bl_swap_reserve" -ge $((256 * 1024)) ] || _bl_swap_reserve=$((256 * 1024))
         }
@@ -967,19 +971,20 @@ case $mode in
           [ "$_bl_mem_total" -gt 0 ] && [ "$_bl_available" -ge 0 ] &&
             { [ "$_bl_real_available" -lt "$_bl_tier_headroom" ] ||
               { [ "$_bl_psi" -ge 100 ] && [ "$_bl_real_available" -lt $((_bl_tier_headroom * 3 / 2)) ]; } ||
-              { [ "$_bl_fall" -ge $((256 * 1024)) ] && [ "$_bl_real_available" -lt $((_bl_tier_headroom * 2)) ]; }; }
+              { [ "$_bl_fall" -ge $((256 * 1024)) ] && [ "$_bl_real_available" -lt "$_bl_fall_headroom" ]; }; }
         }
         bl_session_pressure() {
           bl_memory_read
+          bl_memory_critical || _bl_tier_backoff=30 _bl_tier_nogain=0
           [ "$_bl_game" = 1 ] && bl_memory_critical || return 0
           [ "${BL_ZRAM_IDLE:-1}" = 1 ] && bl_game_focused 0 || return 0
-          local _wait=$_bl_tier_backoff _before _pids _targets
+          local _wait=$_bl_tier_backoff _before _available_before _pids _targets _gain _min_gain
           [ "$_bl_available" -ge $((_bl_headroom / 2)) ] || [ "$_bl_tier_pushed" -lt 0 ] || _wait=30
           [ "$_bl_tier_at" -lt 0 ] || [ $((SECONDS - _bl_tier_at)) -ge "$_wait" ] || return 0
           if [ "$_bl_tier_at" -ge 0 ] && [ "$_bl_tier_pushed" -gt 0 ]; then
             bl_tier_readback
             if [ "$_bl_tier_back" -le $((_bl_tier_pushed / 2)) ]; then
-              _bl_tier_backoff=30
+              [ "${_bl_tier_nogain:-0}" = 1 ] || _bl_tier_backoff=30
             else
               _bl_tier_backoff=$((_bl_tier_backoff * 2 > 300 ? 300 : _bl_tier_backoff * 2))
               _bl_tier_at=$SECONDS _bl_tier_pushed=-1
@@ -995,11 +1000,24 @@ case $mode in
             step "zRAM: low-memory page-out skipped, swap headroom too small ($((_bl_swap_free / 1024)) MB free)"
             return 0
           fi
-          _targets=("${_pids[@]}") _before=$_bl_swap
+          _targets=("${_pids[@]}") _before=$_bl_swap _available_before=$_bl_available
           bl_zram_send 1 "low memory (available $((_bl_real_available / 1024)) MB), compressing idle game memory" session
           bl_zram_usage "${_targets[@]}" > /dev/null
           _bl_tier_pushed=$((_bl_swap - _before))
           bl_tier_note "${_targets[@]}"
+          if [ "${_bl_pageout_complete:-0}" = 1 ]; then
+            bl_memory_read
+            _gain=$((_bl_available - _available_before))
+            _min_gain=$((_bl_tier_headroom / 16))
+            [ "$_min_gain" -ge $((16 * 1024)) ] || _min_gain=$((16 * 1024))
+            if [ "$_gain" -lt "$_min_gain" ]; then
+              _bl_tier_backoff=$((_bl_tier_backoff * 2 > 300 ? 300 : _bl_tier_backoff * 2))
+              _bl_tier_at=$SECONDS _bl_tier_nogain=1
+              step "zRAM: low-memory page-out gained only $((_gain / 1024)) MB available, next try in ${_bl_tier_backoff} s"
+            else
+              _bl_tier_nogain=0
+            fi
+          fi
         }
         bl_proc_start() {
           local _s=
@@ -1030,7 +1048,7 @@ case $mode in
         }
         bl_watch_nap() {
           local _i
-          if [ "$_bl_game" = 1 ] && [ "$_bl_available" -ge 0 ] && [ "$_bl_real_available" -lt $((_bl_tier_headroom * 2)) ]; then
+          if [ "$_bl_game" = 1 ] && [ "$_bl_available" -ge 0 ] && [ "$_bl_real_available" -lt "$_bl_fall_headroom" ]; then
             for _i in 1 2 3 4 5; do
               nap 1
               bl_memory_read
@@ -1104,7 +1122,7 @@ case $mode in
           local id
           id=$(sed -n 's/.*"focusedApp"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
             "$BL_LAUNCH_DIR/agent/focus.json" 2>/dev/null | head -1)
-          [ -n "$id" ] || return "${1:-1}"
+          [ -n "$id" ] || return "${1:-2}"
           case " ${_bl_apps-} " in
             *" $id "*) return 0 ;;
           esac
@@ -1121,8 +1139,8 @@ case $mode in
           [ "$_bl_ram_cap" -gt 0 ] && { [ "$_bl_measured" -lt 0 ] || [ $((SECONDS - _bl_measured)) -ge 30 ]; }
         }
         _bl_since=-1 _bl_since_apps= _bl_packed=-1 _bl_measured=-1 _bl_unpack=0 _bl_capped=-1 _bl_backoff=30
-        _bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
-        _bl_client_pending=0 _bl_client_reserve=0 _bl_client_targets=()
+        _bl_pressure_at=-1 _bl_pressure_backoff=30 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_nogain=0 _bl_tier_pushed=0 _bl_tier_back=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
+        _bl_client_pending=0 _bl_client_reserve=0 _bl_client_targets=() _bl_away=
         _bl_sample_at= _bl_sample_available=0 _bl_sample_gpu=0 _bl_sample_unevictable=0 _bl_sample_shmem=0
         while kill -0 $$ 2>/dev/null; do
           bl_zram_scan
@@ -1155,7 +1173,10 @@ case $mode in
           _bl_preserved_growth=$_bl_growth _bl_preserved_fall=$_bl_fall
           bl_session_pressure
           bl_client_pressure_finish
-          if [ "$_bl_game" = 1 ] && bl_game_focused; then
+          _bl_focus=1
+          [ "$_bl_game" = 1 ] && { bl_game_focused && _bl_focus=0 || _bl_focus=$?; }
+          if [ "$_bl_game" = 1 ] && [ "$_bl_focus" = 0 ]; then
+            _bl_away=
             if [ "$_bl_since" -lt 0 ] || [ "$_bl_since_apps" != "$_bl_apps" ]; then
               _bl_since=$SECONDS _bl_since_apps=$_bl_apps
             fi
@@ -1165,15 +1186,31 @@ case $mode in
               _bl_packed=$SECONDS
             fi
           elif [ "$_bl_game" != 1 ]; then
+            _bl_away=
             if [ "$_bl_packed" -ge 0 ]; then
               _bl_unpack=1
             fi
-            _bl_since=-1 _bl_packed=-1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_pushed=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
+            _bl_since=-1 _bl_packed=-1 _bl_tier_at=-1 _bl_tier_backoff=30 _bl_tier_nogain=0 _bl_tier_pushed=0 _bl_tier_targets=() _bl_tier_swaps=() _bl_tier_starts=()
           else
             _bl_since=-1
+            if [ "$_bl_focus" = 1 ]; then
+              [ -n "${_bl_away-}" ] || _bl_away=$SECONDS
+            else
+              _bl_away=
+            fi
+            if [ "$_bl_packed" -ge 0 ]; then
+              _bl_unpack=1
+            fi
           fi
-          if [ "$_bl_unpack" = 1 ] && [ "$_bl_game" = 0 ] && ! bl_over_cap && bl_client_can_readback; then
-            bl_zram_send 0 "memory recovered, reading the client back" client
+          if [ "$_bl_unpack" = 1 ] &&
+             { [ "$_bl_game" = 0 ] || { [ "${_bl_ram_cap:-0}" = 0 ] && [ -n "${_bl_away-}" ] && [ $((SECONDS - _bl_away)) -ge 5 ]; }; } &&
+             ! bl_over_cap && bl_client_can_readback; then
+            if [ "$_bl_game" = 0 ]; then
+              bl_zram_send 0 "memory recovered, reading the client back" client
+            else
+              bl_zram_send 0 "the client is in front of the game, reading it back" client
+              _bl_packed=-1
+            fi
             _bl_unpack=0
           fi
           bl_watch_nap

@@ -497,8 +497,8 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetDeband(JNIEnv *en
 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScreenEffects(JNIEnv *env, jclass clazz, jfloat brightness,
-        jfloat contrast, jfloat gamma, jfloat saturation, jboolean fxaa, jboolean toon, jboolean crt, jboolean ntsc) {
-    vkp_effects_set_screen(brightness, contrast, gamma, saturation, fxaa ? 1 : 0, toon ? 1 : 0, crt ? 1 : 0, ntsc ? 1 : 0);
+        jfloat contrast, jfloat gamma, jfloat saturation, jint aa_mode, jboolean toon, jboolean crt, jboolean ntsc) {
+    vkp_effects_set_screen(brightness, contrast, gamma, saturation, aa_mode, toon ? 1 : 0, crt ? 1 : 0, ntsc ? 1 : 0);
 }
 
 JNIEXPORT void JNICALL

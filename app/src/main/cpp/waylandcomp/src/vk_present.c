@@ -13,6 +13,7 @@
 #include "quest_device.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 #include <sys/system_properties.h>
 #include <unistd.h>
@@ -416,7 +417,13 @@ static void update_map(int scene_w, int scene_h) {
         if (mode == VKP_MODE_FILL) aspect = sx > sy ? sx : sy;
         else if (mode == VKP_MODE_INTEGER) {
             float m = sx < sy ? sx : sy;
-            aspect = m >= 1.0f ? (float)(int)m : m;
+            float nearest = roundf(m);
+            if (nearest >= 1.0f && nearest > m &&
+                nearest - m < 0.15f) {
+                aspect = nearest;
+            } else {
+                aspect = m >= 1.0f ? (float)(int)m : m;
+            }
         } else aspect = sx < sy ? sx : sy;
         g_map.kx = g_map.ky = aspect;
         g_map.off_x = (float)(g_map.rx + (int)((g_map.rw - scene_w * aspect) * 0.5f));

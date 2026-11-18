@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import platform
 import re
 import runpy
 import signal
@@ -753,6 +754,26 @@ def mark_install_scripts(command, env):
     scripts = [path for path in scripts if os.path.isfile(path)]
     if not scripts:
         return []
+    data = env.get("STEAM_COMPAT_DATA_PATH")
+    tool = os.path.dirname(command[0])
+    new_prefix = data and not os.path.isfile(os.path.join(data, "pfx", "system.reg"))
+    template = "default_pfx"
+    if env.get("PROTON_USE_ARM64", "1") == "1" and platform.machine() == "aarch64" and os.path.isdir(os.path.join(tool, "files/bin-arm64")):
+        template = "default_pfx_arm64"
+    if new_prefix and not os.path.isfile(os.path.join(tool, "files/share", template, "system.reg")):
+        try:
+            subprocess.run([command[0], "run", "cmd.exe", "/c", "exit", "0"], env=env,
+                           stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=False)
+        except (OSError, subprocess.SubprocessError) as error:
+            print("droiddeck-game-env: prefix initialization failed (%s)" % error, file=sys.stderr)
+        try:
+            wineserver = next((path for path in (os.path.join(tool, "files", name, "wineserver") for name in ("bin-arm64", "bin"))
+                               if os.access(path, os.X_OK)), os.path.join(tool, "files/bin-arm64/wineserver"))
+            subprocess.run([wineserver, "-w"], env=dict(env, WINEPREFIX=os.path.join(data, "pfx")),
+                           stdout=sys.stderr, stderr=sys.stderr, timeout=120, check=True)
+        except (OSError, subprocess.SubprocessError) as error:
+            print("droiddeck-game-env: wineserver wait failed (%s)" % error, file=sys.stderr)
+            return scripts
     try:
         subprocess.run([SEED_REDISTS, root], env=dict(env, DROIDDECK_SEED_SCRIPTS="\n".join(scripts)),
                        stdout=sys.stderr, timeout=60, check=False)
@@ -1157,11 +1178,22 @@ def diagnostic_game_exit(app_id, raw_code, source=None, wrapper_status=None):
 
 
 def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
+    with GAME_DEBUG["desktop_program_logs"](launch_env) as (env, output):
+        code = start_process(launch, env, digest, after, diagnostic_app_id, output)
+        if output is not None:
+            try:
+                print("droiddeck-game-env: desktop program exited with status %d" % code, file=sys.stderr, flush=True)
+            except OSError:
+                pass
+        return code
+
+
+def start_process(launch, launch_env, digest, after=None, diagnostic_app_id=None, output=None):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
-    if after or diagnostic_app_id is not None:
-        process = subprocess.Popen(launch, env=launch_env)
+    if after or diagnostic_app_id is not None or output is not None:
+        process = subprocess.Popen(launch, env=launch_env, stderr=output)
         if diagnostic_app_id is not None:
             diagnostic_game_event("game_start", diagnostic_app_id)
         try:
@@ -1338,7 +1370,7 @@ def main():
         if fixed:
             print("droiddeck-game-env: replaced foreign-architecture system DLLs with this Proton's own: %s" % ", ".join(fixed),
                   file=sys.stderr)
-    scripts = mark_install_scripts(command, env)
+    scripts = mark_install_scripts(command, effective_env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
         return 0

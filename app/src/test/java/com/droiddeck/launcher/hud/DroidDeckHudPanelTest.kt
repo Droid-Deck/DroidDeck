@@ -38,6 +38,74 @@ class DroidDeckHudPanelTest {
         assertEquals("1", DroidDeckHudConfig.DEFAULTS["hudLocked"])
     }
 
+    @Test fun aLongPressCollapsesTheHudUnlessTheUserChoseToLockWithIt() {
+        assertEquals("collapse", DroidDeckHudConfig.DEFAULTS["hudHold"])
+        for ((hold, locked) in listOf("collapse" to "1", "collapse" to "0", "lock" to "1", "lock" to "0")) {
+            val app = RuntimeEnvironment.getApplication()
+            val hud = DroidDeckHudView(app)
+            val parent = FrameLayout(app)
+            parent.addView(hud, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+            hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudHold" to hold) + ("hudLocked" to locked)))
+            hud.showForTest(SNAPSHOT, "DXVK", 0L)
+            val exactly = View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY)
+            parent.measure(exactly, exactly)
+            parent.layout(0, 0, 2000, 2000)
+            val holds = ArrayList<Pair<Float, Float>>()
+            val locks = ArrayList<Boolean>()
+            hud.setOnHoldListener { x, y -> holds += x to y }
+            hud.setOnLockChangedListener { locks += it }
+            val down = SystemClock.uptimeMillis()
+            MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, 30f, 20f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ViewConfiguration.getLongPressTimeout() + 300L))
+            MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, 30f, 20f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+            shadowOf(Looper.getMainLooper()).idle()
+            if (hold == "collapse") {
+                assertEquals("$hold/$locked collapses from where the press began", listOf(30f to 20f), holds)
+                assertTrue("$hold/$locked leaves the lock alone", locks.isEmpty())
+            } else {
+                assertTrue("$hold/$locked does not collapse", holds.isEmpty())
+                assertEquals("$hold/$locked toggles the lock", listOf(locked != "1"), locks)
+            }
+        }
+    }
+
+    @Test fun releasingTheFingerThatCollapsedTheHudDoesNotExpandItAgain() {
+        val app = RuntimeEnvironment.getApplication()
+        val hud = DroidDeckHudView(app)
+        val parent = FrameLayout(app)
+        parent.addView(hud, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+        val config = DroidDeckHudConfig.DEFAULTS + ("hudSize" to "full")
+        hud.applyConfig(DroidDeckHudConfig.encode(config))
+        hud.showForTest(SNAPSHOT, "DXVK", 0L)
+        val exactly = View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY)
+        parent.measure(exactly, exactly)
+        parent.layout(0, 0, 2000, 2000)
+        val docks = ArrayList<String>()
+        hud.setOnDockChangedListener { docks += it }
+        hud.setOnHoldListener { _, _ -> hud.applyConfig(DroidDeckHudConfig.encode(config + ("hudDock" to "float"))) }
+        val down = SystemClock.uptimeMillis()
+        MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, 30f, 20f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ViewConfiguration.getLongPressTimeout() + 300L))
+        assertEquals(DroidDeckHudDock.FLOAT, hud.dock)
+        MotionEvent.obtain(down, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, 30f, 20f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue("the release of the collapsing press is not a tap on the tab: $docks", docks.isEmpty())
+        val next = SystemClock.uptimeMillis()
+        MotionEvent.obtain(next, next, MotionEvent.ACTION_DOWN, 5f, 5f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        MotionEvent.obtain(next, next + 40, MotionEvent.ACTION_UP, 5f, 5f, 0).also { hud.dispatchTouchEvent(it); it.recycle() }
+        assertEquals("a later tap on the tab expands it", listOf("none"), docks)
+    }
+
+    @Test fun aFloatingTabIsATabWithoutAnEdge() {
+        assertEquals(DroidDeckHudDock.FLOAT, DroidDeckHudDock.from("float"))
+        val hud = DroidDeckHudView(RuntimeEnvironment.getApplication())
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudSize" to "full") + ("hudDock" to "float")))
+        hud.showForTest(SNAPSHOT, "DXVK", 0L)
+        val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        hud.measure(unspecified, unspecified)
+        assertTrue("a tab, not the panel: ${hud.measuredWidth}x${hud.measuredHeight}", hud.measuredWidth < 400 && hud.measuredHeight < 200)
+    }
+
     @Test fun lowMetricsCanBeHiddenIndependentlyInEveryLayoutThatShowsThem() {
         val metrics = listOf("showLow1" to "1%", "showLow01" to "0.1%", "showLow001" to "0.01%")
         for (size in DroidDeckHudSize.values().filter { it != DroidDeckHudSize.PILL }) {
@@ -331,7 +399,7 @@ class DroidDeckHudPanelTest {
         hud.passesTouchAt = { _, _ -> control }
         val locks = ArrayList<Boolean>()
         hud.setOnLockChangedListener { locks += it }
-        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "0")))
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "0") + ("hudHold" to "lock")))
         hud.showForTest(SNAPSHOT, "DXVK", 0L)
         val exactly = View.MeasureSpec.makeMeasureSpec(2000, View.MeasureSpec.EXACTLY)
         parent.measure(exactly, exactly)
@@ -348,7 +416,7 @@ class DroidDeckHudPanelTest {
         control = true
         touch()
         assertEquals("an unlocked HUD keeps the touch (tap, drag, long press)", 0, reached)
-        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "1")))
+        hud.applyConfig(DroidDeckHudConfig.encode(DroidDeckHudConfig.DEFAULTS + ("hudLocked" to "1") + ("hudHold" to "lock")))
         touch()
         assertEquals("a locked HUD passes it to the control under it", 1, reached)
         control = false
@@ -377,7 +445,7 @@ class DroidDeckHudPanelTest {
         assertEquals("a locked, docked HUD still answers a tap", listOf("none"), docks)
     }
 
-    private companion object {
+    internal companion object {
         val SNAPSHOT = HudMetrics.Snapshot(64, 52, 3302, 1050, 89, 79, 10_800_000_000L, 16_000_000_000L, 67f,
             1_800_000_000L, HudMetrics.Battery(16f, false, 79, 34, null),
             intArrayOf(91, 91, 48, 50, 48, 19, 17, 73), intArrayOf(2265, 2265, 3148, 3148, 3148, 2956, 2956, 3302),
