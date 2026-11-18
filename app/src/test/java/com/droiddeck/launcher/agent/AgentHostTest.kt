@@ -202,6 +202,12 @@ class AgentHostTest {
             val id = opening(q, "gone", AgentHarness.Options()).getInt("id")
             q.parse("""{"id":$id,"error":{"code":-32600,"message":"no such thread"}}""")!!.entries
         })
+        // A thread that failed to open is asked for again on the same connection without a second initialize.
+        Codex.Protocol().let { q ->
+            val id = opening(q, "gone", AgentHarness.Options()).getInt("id")
+            q.parse("""{"id":$id,"error":{"code":-32600,"message":"no such thread"}}""")
+            assertEquals(listOf("thread/resume"), q.input("again", "gone", AgentHarness.Options(), started = false).map { json(it).getString("method") })
+        }
         assertEquals(listOf(Entry.Finished("not signed in")), Codex.Protocol().let { q ->
             val id = json(q.input("hi", null, AgentHarness.Options(), started = true).single()).getInt("id")
             q.parse("""{"id":$id,"error":{"code":-32600,"message":"not signed in"}}""")!!.entries

@@ -235,6 +235,10 @@ private fun AgentPageContent(
     // The keyboard leaves too little height for a panel and the editor together, so typing closes the panel.
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     LaunchedEffect(keyboardOpen) { if (keyboardOpen && (panel == AgentPanel.MODEL || panel == AgentPanel.USAGE)) panel = AgentPanel.NONE }
+    // History, processes and tools take the whole page, which would hide an approval the turn is waiting on.
+    LaunchedEffect(AgentHost.approvals.size) {
+        if (AgentHost.approvals.isNotEmpty() && (panel == AgentPanel.HISTORY || panel == AgentPanel.PROCESSES || panel == AgentPanel.TOOLS)) panel = AgentPanel.NONE
+    }
     Column(
         modifier.fillMaxSize().imePadding().onPreviewKeyEvent { e ->
             val k = e.nativeKeyEvent
@@ -281,7 +285,8 @@ private fun AgentPageContent(
                     readingBack = false
                     scope.launch { list.scrollToItem(maxOf(0, list.layoutInfo.totalItemsCount - 1), Int.MAX_VALUE / 2) }
                 }
-                val hidden = !composer.focused && !composer.hasUnconsumedFocusRequest() && readingBack && AgentHost.entries.isNotEmpty()
+                val hidden = !composer.focused && !composer.hasUnconsumedFocusRequest() && readingBack && AgentHost.entries.isNotEmpty() &&
+                    AgentHost.approvals.isEmpty()
                 var listHeight by remember { mutableIntStateOf(0) }
                 Box(
                     Modifier.weight(1f).fillMaxWidth().clipToBounds().nestedScroll(dragBack).onGloballyPositioned {

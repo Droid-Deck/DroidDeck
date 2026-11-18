@@ -402,6 +402,7 @@ object Codex : AgentHarness {
         private var thread: String? = null
         /** The initialize request, the thread/start or thread/resume sent once it succeeds, and the turn that waits for its thread. */
         private var initializing = -1
+        private var initialized = false
         private var open: String? = null
         private var opening = -1
         private var waiting: JSONObject? = null
@@ -427,7 +428,10 @@ object Codex : AgentHarness {
             if (conversation != null) params.put("threadId", conversation)
             waiting = turn
             opening = next++
-            open = JSONObject().put("id", opening).put("method", if (conversation != null) "thread/resume" else "thread/start").put("params", params).toString()
+            val request = JSONObject().put("id", opening).put("method", if (conversation != null) "thread/resume" else "thread/start").put("params", params).toString()
+            // Codex refuses a second initialize on one connection, so a thread that failed to open is asked for again alone.
+            if (initialized) return listOf(request)
+            open = request
             initializing = next++
             return listOf(
                 JSONObject().put("id", initializing).put("method", "initialize")
@@ -459,6 +463,7 @@ object Codex : AgentHarness {
             return when (id) {
                 initializing -> {
                     if (error != null) return AgentEvent(entries = listOf(AgentHost.Entry.Finished(error)))
+                    initialized = true
                     val request = open ?: return null
                     open = null
                     AgentEvent(reply = listOf(JSONObject().put("method", "initialized").toString(), request))
@@ -834,12 +839,14 @@ object OpenCode : AgentHarness {
             }
             queue.clear()
             val known = session
-            if (!started && known != null) return listOf(send(Stage.PROMPT, "session/prompt", prompt(known)))
+            if (!started && known != null && configured) return listOf(send(Stage.PROMPT, "session/prompt", prompt(known)))
             fun option(config: String, value: String) = { id: String -> JSONObject().put("sessionId", id).put("configId", config).put("value", value) }
             options.model?.let { queue += option("model", it) }
             options.effort?.let { queue += option("effort", it) }
             queue += option("mode", if (options.plan) "plan" else "build")
             queue += prompt
+            // A session whose options were refused sets them all again before its next prompt.
+            if (!started && known != null) return listOf(advance(known))
             resume = conversation
             cwd = options.workdir
             return listOf(send(Stage.INIT, "initialize", JSONObject().put("protocolVersion", 1).put("clientCapabilities", JSONObject())))
@@ -857,11 +864,14 @@ object OpenCode : AgentHarness {
             val make = queue.removeFirst()
             val params = make(id)
             configuring = params.optString("configId")
+            configured = queue.isEmpty()
             return if (queue.isEmpty()) send(Stage.PROMPT, "session/prompt", params) else send(Stage.CONFIG, "session/set_config_option", params)
         }
 
         /** The config option the pending set_config_option sets. */
         private var configuring = ""
+        /** The session's model, effort and mode were all set, so a later prompt can go straight to it. */
+        private var configured = false
 
         override fun answer(approval: AgentHost.Approval, allow: Boolean): String = JSONObject(approval.payload).put("jsonrpc", "2.0")
             .put("result", JSONObject().put("outcome", JSONObject().put("outcome", "selected").put("optionId", if (allow) "once" else "reject"))).toString()
@@ -916,6 +926,7 @@ object OpenCode : AgentHarness {
 
         private fun failed(error: String): AgentEvent {
             stage = Stage.IDLE
+            configured = false
             return AgentEvent(session, flush() + AgentHost.Entry.Finished(error))
         }
 
