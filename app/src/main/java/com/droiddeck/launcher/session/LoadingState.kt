@@ -161,8 +161,6 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
         }
 
         private const val TAIL_BYTES = 48L * 1024
-        // The arm64 bootstrapper logs progress translated and with thousands separators; only its
-        // "Set percent complete" line reads the same in every language.
         private val UPDATE_PROGRESS = Regex("""Downloading update \(([\d,]+) of ([\d,]+) KB\)""")
         private val UPDATE_PERCENT = Regex("""^\[[^\]]+\] Set percent complete: (\d+)\s*$""")
         private val UPDATE_APPLYING = Regex("""^\s*(?:\[[^\]]+\]\s*)*(?:Extracting package|Installing update)\.\.\.\s*$""")
