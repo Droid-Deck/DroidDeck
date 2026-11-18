@@ -212,7 +212,7 @@ private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, blur: androidx
             val drift = if (Motion.scale == 0f) null else androidx.compose.animation.core.rememberInfiniteTransition(label = "heroDrift").animateFloat(
                 0f, 1f,
                 androidx.compose.animation.core.infiniteRepeatable(
-                    androidx.compose.animation.core.tween(26_000, easing = androidx.compose.animation.core.EaseInOutSine),
+                    androidx.compose.animation.core.tween(18_000, easing = androidx.compose.animation.core.EaseInOutSine),
                     androidx.compose.animation.core.RepeatMode.Reverse,
                 ),
                 label = "heroDriftT",
@@ -224,11 +224,11 @@ private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, blur: androidx
                 modifier = Modifier.matchParentSize()
                     .graphicsLayer {
                         val t = drift?.value ?: 0f
-                        val zoom = 1f + 0.08f * t
+                        val zoom = 1f + 0.16f * t
                         scaleX = zoom
                         scaleY = zoom
-                        translationX = -size.width * 0.02f * t
-                        translationY = size.height * 0.012f * t
+                        translationX = -size.width * 0.05f * t
+                        translationY = size.height * 0.03f * t
                         transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.72f, 0.33f)
                     }
                     .then(if (blur > 0.dp) Modifier.blur(blur) else Modifier),

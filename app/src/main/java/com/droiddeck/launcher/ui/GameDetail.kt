@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.CompositionLocalProvider
@@ -314,19 +315,27 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
         else -> listOf(stringResource(R.string.stores_eyebrow_store))
     }
     val size = if (folder != null && (installed != null || game != null)) diskSize(installed, folder) else catalogSize(item).takeIf { it > 0 }
-    val line = (state + listOfNotNull(size?.let { formatBytes(it) })).filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
-    val muted = colors.onBackground.copy(alpha = 0.78f)
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    val where = state.filter { it.isNotBlank() }.joinToString(" · ").replaceFirstChar { it.uppercase() }
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+    ) {
         SourceBadge(source)
-        Text(line, fontSize = 12.sp, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-        if (inSteam) {
-            Text("·", fontSize = 12.sp, color = muted.copy(alpha = 0.5f))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Icon(Icons.Outlined.VideogameAsset, contentDescription = null, tint = muted, modifier = Modifier.size(15.dp))
-                Text(stringResource(R.string.stores_in_steam_label), fontSize = 12.sp, color = muted, maxLines = 1)
-                Icon(Icons.Filled.Check, contentDescription = null, tint = pal.good, modifier = Modifier.size(14.dp))
-            }
-        }
+        if (where.isNotBlank()) StatusChip(where, if (installed != null || game != null) Icons.Filled.Check else null, if (installed != null || game != null) pal.good else null)
+        if (size != null) StatusChip(formatBytes(size))
+        if (inSteam) StatusChip(stringResource(R.string.stores_in_steam_label), Icons.Outlined.VideogameAsset)
+    }
+}
+
+@Composable
+private fun StatusChip(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector? = null, tint: Color? = null) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.glass(CircleShape, 0.06f).padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        if (icon != null) Icon(icon, contentDescription = null, tint = tint ?: colors.onBackground.copy(alpha = 0.85f), modifier = Modifier.size(13.dp))
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground.copy(alpha = 0.9f), maxLines = 1)
     }
 }
 
