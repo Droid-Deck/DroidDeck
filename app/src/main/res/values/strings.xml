@@ -1238,6 +1238,15 @@
     <string name="agent_tools_add">Add</string>
     <string name="agent_voice">Dictate</string>
     <string name="agent_voice_stop">Stop dictating</string>
+    <string name="agent_voice_hold">Slide up to lock · left to cancel</string>
+    <string name="agent_voice_listening">Listening…</string>
+    <string name="agent_voice_setup">Set up talking to the agent</string>
+    <string name="agent_voice_setup_close">Close</string>
+    <string name="agent_voice_setup_service">Speech service</string>
+    <string name="agent_voice_setup_service_detail">Speech Services by Google turns your voice into text</string>
+    <string name="agent_voice_setup_app_mic">Microphone for DroidDeck</string>
+    <string name="agent_voice_setup_service_mic">Microphone for the speech service</string>
+    <string name="agent_voice_setup_service_mic_detail">Permissions › Microphone › Allow</string>
     <string name="agent_voice_denied">DroidDeck needs the microphone to dictate</string>
     <string name="agent_attach_game">Attach what the game shows</string>
     <string name="agent_attach_game_failed">Could not capture the game</string>
