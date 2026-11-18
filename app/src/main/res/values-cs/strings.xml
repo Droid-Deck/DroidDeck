@@ -901,6 +901,9 @@
     <string name="setup_game_debug_logs_hint">Při dalším spuštění hry zahrnout diagnostiku Protonu, Wine a grafiky. Může snížit výkon a zabrat více úložiště.</string>
     <string name="setup_game_debug_logs_restart">Pro ukládání ladicích protokolů her restartujte tuto relaci</string>
     <string name="setup_logging_update_failed">Protokolování se nepodařilo změnit. Zkontrolujte přepínač a zkuste to znovu.</string>
+    <string name="setup_log_level">Úroveň protokolu</string>
+    <string name="setup_log_level_standard">Standardní</string>
+    <string name="setup_log_level_detailed">Podrobné</string>
     <string name="setup_agent_commands">Nástroje pro ladění</string>
     <string name="setup_graphics_logs">Podrobné protokoly grafiky</string>
     <string name="setup_steam_gpu_drawing">Rozhraní Steam: vykreslování na GPU</string>

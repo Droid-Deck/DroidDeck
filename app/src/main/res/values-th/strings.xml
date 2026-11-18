@@ -892,6 +892,9 @@
     <string name="setup_game_debug_logs_hint">รวมข้อมูลวินิจฉัยของ Proton, Wine และกราฟิกในการเปิดเกมครั้งถัดไป อาจลดประสิทธิภาพและใช้พื้นที่จัดเก็บมากขึ้น</string>
     <string name="setup_game_debug_logs_restart">รีสตาร์ทเซสชันนี้เพื่อบันทึกบันทึกดีบักของเกม</string>
     <string name="setup_logging_update_failed">อัปเดตการบันทึกไม่ได้ ตรวจสอบสวิตช์แล้วลองใหม่</string>
+    <string name="setup_log_level">ระดับล็อก</string>
+    <string name="setup_log_level_standard">มาตรฐาน</string>
+    <string name="setup_log_level_detailed">ละเอียด</string>
     <string name="setup_agent_commands">เครื่องมือดีบัก</string>
     <string name="setup_graphics_logs">บันทึกกราฟิกโดยละเอียด</string>
     <string name="setup_steam_gpu_drawing">อินเทอร์เฟซ Steam: วาดด้วย GPU</string>

@@ -892,6 +892,9 @@
     <string name="setup_game_debug_logs_hint">Sertakan diagnostik Proton, Wine dan grafik pada pelancaran permainan seterusnya. Boleh mengurangkan prestasi dan menggunakan lebih banyak storan.</string>
     <string name="setup_game_debug_logs_restart">Mulakan semula sesi ini untuk menyimpan log nyahpepijat permainan</string>
     <string name="setup_logging_update_failed">Tidak dapat mengemas kini pengelogan. Semak suis dan cuba lagi.</string>
+    <string name="setup_log_level">Tahap log</string>
+    <string name="setup_log_level_standard">Standard</string>
+    <string name="setup_log_level_detailed">Terperinci</string>
     <string name="setup_agent_commands">Alatan penyahpepijatan</string>
     <string name="setup_graphics_logs">Log grafik terperinci</string>
     <string name="setup_steam_gpu_drawing">Antara muka Steam: pelukisan GPU</string>

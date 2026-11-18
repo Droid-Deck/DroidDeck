@@ -895,6 +895,9 @@
     <string name="setup_game_debug_logs_hint">Sonraki oyun başlatmada Proton, Wine ve grafik tanılamalarını ekler. Performansı düşürebilir ve daha fazla depolama kullanabilir.</string>
     <string name="setup_game_debug_logs_restart">Oyun hata ayıklama günlüklerini kaydetmek için bu oturumu yeniden başlatın</string>
     <string name="setup_logging_update_failed">Günlük kaydı güncellenemedi. Anahtarı kontrol edip tekrar deneyin.</string>
+    <string name="setup_log_level">Günlük düzeyi</string>
+    <string name="setup_log_level_standard">Standart</string>
+    <string name="setup_log_level_detailed">Ayrıntılı</string>
     <string name="setup_agent_commands">Hata ayıklama araçları</string>
     <string name="setup_graphics_logs">Ayrıntılı grafik günlükleri</string>
     <string name="setup_steam_gpu_drawing">Steam arayüzü: GPU ile çizim</string>

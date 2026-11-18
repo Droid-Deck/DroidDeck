@@ -892,6 +892,9 @@
     <string name="setup_game_debug_logs_hint">Thêm chẩn đoán Proton, Wine và đồ họa vào lần khởi chạy game tiếp theo. Có thể giảm hiệu năng và tốn thêm bộ nhớ.</string>
     <string name="setup_game_debug_logs_restart">Khởi động lại phiên này để lưu nhật ký gỡ lỗi game</string>
     <string name="setup_logging_update_failed">Không thể cập nhật ghi nhật ký. Hãy kiểm tra công tắc rồi thử lại.</string>
+    <string name="setup_log_level">Mức log</string>
+    <string name="setup_log_level_standard">Tiêu chuẩn</string>
+    <string name="setup_log_level_detailed">Chi tiết</string>
     <string name="setup_agent_commands">Công cụ gỡ lỗi</string>
     <string name="setup_graphics_logs">Nhật ký đồ họa chi tiết</string>
     <string name="setup_steam_gpu_drawing">Giao diện Steam: vẽ bằng GPU</string>

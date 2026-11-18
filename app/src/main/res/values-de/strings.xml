@@ -895,6 +895,9 @@
     <string name="setup_game_debug_logs_hint">Beim nächsten Spielstart Diagnosen von Proton, Wine und Grafik einschließen. Kann die Leistung mindern und mehr Speicher belegen.</string>
     <string name="setup_game_debug_logs_restart">Starte diese Sitzung neu, um Spiel-Debug-Logs zu speichern</string>
     <string name="setup_logging_update_failed">Protokollierung konnte nicht aktualisiert werden. Prüfe den Schalter und versuch es erneut.</string>
+    <string name="setup_log_level">Logstufe</string>
+    <string name="setup_log_level_standard">Standard</string>
+    <string name="setup_log_level_detailed">Detailliert</string>
     <string name="setup_agent_commands">Debugging-Tools</string>
     <string name="setup_graphics_logs">Detaillierte Grafik-Protokolle</string>
     <string name="setup_steam_gpu_drawing">Steam-Oberfläche: Zeichnen mit der GPU</string>
