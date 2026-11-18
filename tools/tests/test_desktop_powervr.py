@@ -16,7 +16,7 @@ class DesktopPowerVrTest(unittest.TestCase):
                        if key not in ('DD_STEAM_GL_PRESENT', 'LIBGL_KOPPER_DISABLE')}
         if gl_present is not None:
             environment['DD_STEAM_GL_PRESENT'] = gl_present
-        result = subprocess.run(['bash', '-c', block + '\necho "kopper:${LIBGL_KOPPER_DISABLE:-on}"'],
+        result = subprocess.run(['bash', '-c', block + '\nsh -c \'echo "kopper:${LIBGL_KOPPER_DISABLE:-on}"\''],
                                 env=environment, capture_output=True, text=True, timeout=5)
         self.assertEqual(0, result.returncode, result.stderr)
         return result.stdout.strip().splitlines()[-1]
@@ -29,7 +29,7 @@ class DesktopPowerVrTest(unittest.TestCase):
         self.assertEqual('kopper:on', self.kopper('0'))
 
     def test_kopper_is_set_before_plasma_starts(self):
-        self.assertLess(DESKTOP.index('export LIBGL_KOPPER_DISABLE=true'),
+        self.assertLess(DESKTOP.index('\n  [ "${DD_STEAM_GL_PRESENT:-}" = 1 ] && export LIBGL_KOPPER_DISABLE=true\n'),
                         DESKTOP.index('dbus-run-session -- startplasma-wayland'))
 
 
