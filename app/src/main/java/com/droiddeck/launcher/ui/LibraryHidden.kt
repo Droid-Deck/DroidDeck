@@ -29,7 +29,7 @@ internal object LibraryHidden {
     }
 
     fun refreshSteam(context: Context) {
-        steam = SteamHidden.read(SessionPrefs.activeSteamRoot(context))
+        SteamHidden.readOrNull(SessionPrefs.activeSteamRoot(context))?.let { steam = it }
     }
 
     fun steamId(game: Library.SteamGame?): Long? = game?.takeIf { Library.fromSteamClient(it) }?.appId?.toLong()
@@ -42,7 +42,7 @@ internal object LibraryHidden {
         val id = steamId(game)
         val root = SessionPrefs.activeSteamRoot(context)
         val written = id?.let { SteamHidden.write(root, it, hidden) }
-        if (id != null) steam = written ?: SteamHidden.read(root)
+        if (id != null) steam = written ?: SteamHidden.readOrNull(root) ?: steam
         keys = if (hidden && written == null) keys + key else keys - key
         SessionPrefs.setLibraryHidden(context, keys)
         return id == null || written != null

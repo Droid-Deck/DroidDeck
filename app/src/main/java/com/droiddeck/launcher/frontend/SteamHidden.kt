@@ -12,15 +12,17 @@ internal object SteamHidden {
     private fun ids(collection: JSONObject, key: String): List<Long> =
         collection.optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optLong(it) } }.orEmpty()
 
-    fun read(root: File): Set<Long> = runCatching {
-        val entries = JSONArray(file(root)?.readText() ?: return emptySet())
+    fun read(root: File): Set<Long> = readOrNull(root).orEmpty()
+
+    fun readOrNull(root: File): Set<Long>? = runCatching {
+        val entries = JSONArray(file(root)?.readText() ?: return null)
         val entry = (0 until entries.length()).map { entries.getJSONArray(it) }
             .firstOrNull { it.optString(0) == KEY }?.optJSONObject(1)
         if (entry == null || entry.optBoolean("is_deleted")) emptySet() else {
             val collection = JSONObject(entry.optString("value"))
             ids(collection, "added").toSet() - ids(collection, "removed").toSet()
         }
-    }.getOrDefault(emptySet())
+    }.getOrNull()
 
     fun write(root: File, appId: Long, hidden: Boolean, now: Long = System.currentTimeMillis() / 1000): Set<Long>? = runCatching {
         val target = file(root) ?: return null
