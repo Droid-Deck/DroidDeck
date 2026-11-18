@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.frontend
 
+import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import org.junit.Assert.*
@@ -16,9 +17,10 @@ class GameFileSyncTest {
     @Test fun syncUsesFreshInstalledManifestsAndStopsWhenDisabled() {
         val context = RuntimeEnvironment.getApplication()
         val root = LinuxRuntime.rootDir(context)
-        listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/"), "opt/android-host/proot", "opt/android-host/loader").forEach { path ->
+        listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/")).forEach { path ->
             File(root, path).apply { parentFile!!.mkdirs(); writeText("") }
         }
+        AddonPack.PROOT.file(context, AddonPack.COMPLETE).apply { parentFile!!.mkdirs(); writeText("") }
         SessionPrefs.setGameStorage(context, SessionPrefs.GAME_STORAGE_OFF, "")
         SessionPrefs.setAddedGamesDirs(context, emptyList())
         val steamapps = File(root, "root/.local/share/Steam/steamapps").apply { mkdirs() }
@@ -51,9 +53,10 @@ class GameFileSyncTest {
     @Test fun libraryNotCreatedYetOnPresentStorageIsEmptyNotUnavailable() {
         val context = RuntimeEnvironment.getApplication()
         val root = LinuxRuntime.rootDir(context)
-        listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/"), "opt/android-host/proot", "opt/android-host/loader").forEach { path ->
+        listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/")).forEach { path ->
             File(root, path).apply { parentFile!!.mkdirs(); writeText("") }
         }
+        AddonPack.PROOT.file(context, AddonPack.COMPLETE).apply { parentFile!!.mkdirs(); writeText("") }
         SessionPrefs.setAddedGamesDirs(context, emptyList())
         File(root, "root/.local/share/Steam/steamapps").mkdirs()
         val volume = File(context.filesDir, "card").apply { mkdirs() }
@@ -80,9 +83,10 @@ class GameFileSyncTest {
     @Test fun previousAutomaticLibraryNotCreatedYetKeepsSyncingButRemovedDriveStops() {
         val context = RuntimeEnvironment.getApplication()
         val root = LinuxRuntime.rootDir(context)
-        listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/"), "opt/android-host/proot", "opt/android-host/loader").forEach { path ->
+        listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/")).forEach { path ->
             File(root, path).apply { parentFile!!.mkdirs(); writeText("") }
         }
+        AddonPack.PROOT.file(context, AddonPack.COMPLETE).apply { parentFile!!.mkdirs(); writeText("") }
         SessionPrefs.setAddedGamesDirs(context, emptyList())
         SessionPrefs.setGameStorage(context, "", "")
         File(root, "root/.local/share/Steam/steamapps").mkdirs()

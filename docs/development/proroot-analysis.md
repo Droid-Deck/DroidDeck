@@ -63,7 +63,7 @@ handles the same constraint with `libproot-loader.so`.
 
 ## Compared with DroidDeck
 
-| | DroidDeck (proot + 0001–0018 + `libblfastpath.so`) | proroot |
+| | DroidDeck (proot + 0001–0018 + `libddfastpath.so`) | proroot |
 |---|---|---|
 | exec, `PT_INTERP`, `/proc/self/exe` | proot's loader under ptrace, 0.4–0.8 ms per exec | Its own loaders, with no tracer; also needs its own ld.so with a glibc offset table |
 | path calls through libc wrappers | fast path, about 0.6–1.9 µs | runtime hooks |
@@ -82,7 +82,7 @@ DroidDeck is as a fast path *in front of* proot.
 
 ## What is worth taking
 
-1. **Patch glibc's svc sites from `libblfastpath.so`'s constructor.** This is the largest gain
+1. **Patch glibc's svc sites from `libddfastpath.so`'s constructor.** This is the largest gain
    and the cheapest way to do option 6 in [proot-performance](proot-performance.md) ("a proot-aware
    glibc") without rebuilding glibc.
    - For `libc.so.6` (and `ld-linux-aarch64.so.1` for runtime `dlopen`), rewrite each `svc #0`
@@ -136,7 +136,7 @@ netlink and SysV shm (`netif.c` and `sysv.c` already cover these); and the long-
 
 `tools/proot/fastpath/svc-patch.h`, included by `fastpath.c`, implements the first
 slice of item 1. It runs automatically in fresh processes using the replacement
-`libblfastpath.so` when the ordinary fast-path configuration and tracer-key check
+`libddfastpath.so` when the ordinary fast-path configuration and tracer-key check
 succeed. Set `PROOT_FP_PATCH_SVC=0` to disable it for troubleshooting or comparisons;
 `PROOT_FP_PATCH_SVC=1` also explicitly enables it. It skips processes that already have multiple threads,
 and declines SVE/SME hardware because the relay preserves the base ARM64 register state.

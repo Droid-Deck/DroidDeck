@@ -210,7 +210,7 @@ class MappingBatchIntegrationTest(unittest.TestCase):
             config = steam / "config/config.vdf"
             config.parent.mkdir(parents=True)
             config.write_text(config_text("".join('"%s" { "name" "proton_experimental" }' % app for app in apps)))
-            pending = Path(tmp) / ".bl-compat-pending"
+            pending = Path(tmp) / ".dd-compat-pending"
             pending.write_text("before\n")
             globals_ = COMPAT["x64_repoint"].__globals__
             single = mock.Mock(wraps=COMPAT["set_mapping"])

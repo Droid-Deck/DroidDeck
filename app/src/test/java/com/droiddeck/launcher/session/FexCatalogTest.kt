@@ -41,6 +41,6 @@ class FexCatalogTest {
 
     @Test fun theSessionGetsTheBuildAndEverySource() {
         val env = FexCatalog.environment(FexCatalog.Build("fex-2610-r5", url, sha), listOf(url, "https://ghfast.top/$url"))
-        assertEquals(listOf("BL_FEX_TAG=fex-2610-r5", "BL_FEX_SHA256=$sha", "BL_FEX_URLS=$url https://ghfast.top/$url"), env)
+        assertEquals(listOf("DD_FEX_TAG=fex-2610-r5", "DD_FEX_SHA256=$sha", "DD_FEX_URLS=$url https://ghfast.top/$url"), env)
     }
 }

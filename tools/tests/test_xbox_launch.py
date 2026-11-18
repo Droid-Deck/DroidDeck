@@ -49,14 +49,15 @@ class XboxLaunchTest(unittest.TestCase):
                 (runtime / name).write_bytes(b'MZ')
             store = {'find_store_game': lambda argv: (root, {'store': 'xbox', 'id': 'GAME'}),
                      'ask': unittest.mock.Mock(return_value={'ok': True, 'socket': '/service', 'lease': 'lease-1',
-                                                            'exe': '/private/Game.exe', 'playfab': 'game-token'})}
+                                                            'exe': '/private/Game.exe', 'playfab': 'game-token',
+                                                            'mountRoot': '/launch/xodus-mounts-1'})}
             close = unittest.mock.Mock()
             with patch('runpy.run_path', return_value=store), patch.dict(xbox['launch'].__globals__, RUNTIME=runtime.parent), \
                  patch.dict(xbox['launch'].__globals__, bridge=lambda path: (1234, 'key', close)), \
                  patch.dict(xbox['launch'].__globals__, wine=unittest.mock.Mock(return_value=7)):
                 launch = xbox['launch']
                 self.assertEqual(launch(['/proton', 'waitforexitandrun', '/encrypted/Game.exe'],
-                                        {'BL_LAUNCH_DIR': '/launch', 'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'stale',
+                                        {'DD_LAUNCH_DIR': '/launch', 'DROIDDECK_XBOX_CREDENTIAL_SOCKET': 'stale',
                                          'DROIDDECK_XBOX_CREDENTIAL_PORT': '4100', 'DROIDDECK_XBOX_CREDENTIAL_KEY': 'stale-key'}), 7)
                 wine = launch.__globals__['wine']
                 self.assertEqual(wine.call_args.args[0], ['/private/Game.exe'])
@@ -64,6 +65,7 @@ class XboxLaunchTest(unittest.TestCase):
                 for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
                     self.assertNotIn(name, env)
                 self.assertEqual(env['XODUS_XSTS_PLAYFAB'], 'game-token')
+                self.assertEqual(env['XODUS_MOUNT_ROOT'], 'Z:\\launch\\xodus-mounts-1')
             close.assert_called_once()
             self.assertEqual(store['ask'].call_args.args[1], {'op': 'xbox-released', 'lease': 'lease-1'})
 
@@ -78,7 +80,7 @@ class XboxLaunchTest(unittest.TestCase):
             with patch('runpy.run_path', return_value={'find_store_game': lambda argv: (root, {'store': 'xbox', 'id': 'GAME'}), 'ask': ask}), \
                  patch.dict(xbox['launch'].__globals__, RUNTIME=root, bridge=unittest.mock.Mock(side_effect=OSError('bind failed'))):
                 with self.assertRaises(OSError):
-                    xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'], {'BL_LAUNCH_DIR': '/launch'})
+                    xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'], {'DD_LAUNCH_DIR': '/launch'})
             self.assertEqual(ask.call_args.args[1], {'op': 'xbox-released', 'lease': 'lease-1'})
 
     def test_bridge_authenticates_before_forwarding(self):
@@ -175,6 +177,101 @@ class XboxLaunchTest(unittest.TestCase):
             self.assertEqual(os.readlink(devices / 'x:'), str(live))
             self.assertEqual(sorted(p.name for p in devices.iterdir()), ['v:', 'w:', 'x:'])
             self.assertEqual(xbox['view_drive'](root / 'pfx', '/games/Game.exe'), ('/games/Game.exe', None))
+
+    def test_package_install_actions_run_once_and_stay_inside_the_game(self):
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            (game / 'Installers').mkdir(parents=True)
+            (game / 'Installers' / 'GameInputRedist.msi').write_bytes(b'msi')
+            (game / 'Emu.exe').write_bytes(b'exe')
+            (Path(root) / 'outside.msi').write_bytes(b'msi')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><DesktopRegistration><CustomInstallActions><Folder>Installers</Folder><InstallActionList>'
+                '<InstallAction File="GameInputRedist.msi" Name="InstallGameInput" Arguments="/quiet"/>'
+                '<InstallAction File="..\\..\\outside.msi" Name="Escape"/>'
+                '</InstallActionList></CustomInstallActions></DesktopRegistration></Game>')
+            with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/selected/proton', prefix, str(game / 'Emu.exe'), {'A': '1'})
+                xbox['run_install_actions']('/selected/proton', prefix, str(game / 'Emu.exe'), {'A': '1'})
+            self.assertEqual(child.call_count, 1)
+            command = child.call_args.args[0]
+            self.assertEqual(command[:4], ['/selected/proton', 'run', 'msiexec', '/i'])
+            self.assertTrue(command[4].startswith('Z:') and command[4].endswith('GameInputRedist.msi'))
+            self.assertEqual(command[5:], ['/quiet'])
+
+    def test_a_failed_install_action_is_retried_on_the_next_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            game.mkdir()
+            (game / 'setup.exe').write_bytes(b'exe')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><CustomInstallActions><InstallActionList><InstallAction File="setup.exe" Name="Setup"/>'
+                '</InstallActionList></CustomInstallActions></Game>')
+            with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 1)) as child:
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.exe'), {})
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.exe'), {})
+            self.assertEqual(child.call_count, 2)
+            self.assertEqual(child.call_args.args[0][:2], ['/p', 'run'])
+
+    def test_install_action_arguments_follow_windows_command_line_rules(self):
+        parse = xbox['windows_arguments']
+        self.assertEqual(parse('/quiet /log "C:\\ProgramData\\Game Setup\\install.log"'),
+                         ['/quiet', '/log', 'C:\\ProgramData\\Game Setup\\install.log'])
+        self.assertEqual(parse('a\\\\b "x\\"y" "\\\\" ""  c""d "e""f"'), ['a\\\\b', 'x"y', '\\', '', 'cd', 'e"f'])
+        self.assertEqual(parse('  '), [])
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            game.mkdir()
+            (game / 'setup.msi').write_bytes(b'msi')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><CustomInstallActions><InstallActionList><InstallAction File="setup.msi" Name="Setup" '
+                'Arguments="/quiet /log &quot;C:\\ProgramData\\Game Setup\\install.log&quot;"/>'
+                '</InstallActionList></CustomInstallActions></Game>')
+            with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.msi'), {})
+            self.assertEqual(child.call_args.args[0][5:], ['/quiet', '/log', 'C:\\ProgramData\\Game Setup\\install.log'])
+
+    def test_actions_whose_names_differ_only_in_punctuation_each_run(self):
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            game.mkdir()
+            (game / 'setup.exe').write_bytes(b'exe')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><CustomInstallActions><InstallActionList>'
+                '<InstallAction File="setup.exe" Name="Setup A" Arguments="/a"/>'
+                '<InstallAction File="setup.exe" Name="SetupA" Arguments="/b"/>'
+                '</InstallActionList></CustomInstallActions></Game>')
+            with patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.exe'), {})
+                xbox['run_install_actions']('/p', prefix, str(game / 'setup.exe'), {})
+            self.assertEqual([call.args[0][-1] for call in child.call_args_list], ['/a', '/b'])
+
+    def test_an_install_action_error_never_stops_the_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            game, prefix = Path(root) / 'game', Path(root) / 'pfx'
+            game.mkdir()
+            (game / 'first.exe').write_bytes(b'exe')
+            (game / 'second.exe').write_bytes(b'exe')
+            (game / 'MicrosoftGame.config').write_text(
+                '<Game><CustomInstallActions><InstallActionList>'
+                '<InstallAction File="first.exe" Name="First"/><InstallAction File="second.exe" Name="Second"/>'
+                '</InstallActionList></CustomInstallActions></Game>')
+            real_open = Path.open
+            def unreadable(path, *args, **kwargs):
+                if path.name == 'first.exe':
+                    raise PermissionError('denied')
+                return real_open(path, *args, **kwargs)
+            with patch.object(Path, 'open', unreadable), \
+                    patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/p', prefix, str(game / 'first.exe'), {})
+            self.assertEqual(child.call_count, 1)
+            self.assertTrue(child.call_args.args[0][2].endswith('second.exe'))
+            with patch('subprocess.run', side_effect=OSError('no proton')):
+                xbox['run_install_actions']('/p', prefix, str(game / 'first.exe'), {})
+            with patch.object(Path, 'touch', side_effect=OSError('read-only')), \
+                    patch('subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child:
+                xbox['run_install_actions']('/p', prefix / 'other', str(game / 'first.exe'), {})
+            self.assertEqual(child.call_count, 2)
 
     def test_missing_runtime_classes_are_registered_once(self):
         with tempfile.TemporaryDirectory() as root:
@@ -389,6 +486,6 @@ class PlayFabProxyTest(unittest.TestCase):
                      patch.dict(xbox['launch'].__globals__, RUNTIME=root, bridge=lambda path: (1, 'key', lambda: None),
                                 wine=wine, stage_playfab_proxy=stage):
                     self.assertEqual(xbox['launch'](['/proton', 'waitforexitandrun', '/Game.exe'],
-                                                    {'BL_LAUNCH_DIR': '/launch', 'WINEDLLOVERRIDES': 'd3d11=n'}), 0)
+                                                    {'DD_LAUNCH_DIR': '/launch', 'WINEDLLOVERRIDES': 'd3d11=n'}), 0)
                 self.assertEqual(wine.call_args.args[1]['WINEDLLOVERRIDES'], 'd3d11=n')
             self.assertEqual(staged, [root])

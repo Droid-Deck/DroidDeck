@@ -1,9 +1,58 @@
 package com.droiddeck.launcher.input
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SecondScreenModeTest {
+    @Test fun fallbackSelectionSurvivesRecreationAndRequestedDisplaySurvivesDisconnect() {
+        var saved = 2
+        SecondScreenDisplays.selection(saved, listOf(3), false) { saved = it }
+        assertEquals(3, saved)
+        assertEquals(3, SecondScreenDisplays.selection(saved, listOf(3), true))
+        SecondScreenDisplays.selection(saved, listOf(2), true) { saved = it }
+        assertEquals(3, saved)
+    }
+
+    @Test fun keyboardFallsBackOnlyForADisconnectedRequestedDisplay() {
+        val taken: (Int) -> Boolean = { it == 2 }
+        val free: (Int) -> Boolean = { false }
+        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(3), taken = free))
+        assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3), taken = taken))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2, 3), taken = free))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(false, 2, listOf(3), taken = taken))
+        assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, -1, listOf(3), taken = taken))
+    }
+
+    @Test fun primaryFallbackRequiresVisibleActivity() {
+        for (available in listOf(emptyList(), listOf(2))) {
+            assertTrue(SecondScreenDisplays.keyboardOnPrimary(true, 2, available, true) { true })
+            assertFalse(SecondScreenDisplays.keyboardOnPrimary(true, 2, available, false) { true })
+        }
+    }
+
+    @Test fun keyboardRouteIncludesOccupiedDisplayFallbackOnlyWhenEnabled() {
+        val fallback = SecondScreenDisplays.keyboardOnPrimary(true, 2, listOf(2)) { it == 2 }
+        assertTrue(fallback)
+        assertTrue(SecondScreenDisplays.routeKeyboard(true, true, false, false, fallback))
+        assertFalse(SecondScreenDisplays.routeKeyboard(true, false, false, false, fallback))
+        assertFalse(SecondScreenDisplays.routeKeyboard(false, true, false, false, fallback))
+        assertFalse(SecondScreenDisplays.routeKeyboard(true, true, false, false, false))
+        assertTrue(SecondScreenDisplays.routeKeyboard(true, true, true, false, false))
+        assertTrue(SecondScreenDisplays.routeKeyboard(true, true, false, true, false))
+    }
+
+    @Test fun selectedGameDisplayIsNotReplacedWhenItDisconnects() {
+        assertEquals(2, SecondScreenDisplays.selection(2, listOf(3), true))
+        assertEquals(2, SecondScreenDisplays.selection(2, emptyList(), true))
+        assertEquals(2, SecondScreenDisplays.selection(2, listOf(3, 2), true))
+        assertEquals(3, SecondScreenDisplays.selection(3, listOf(3), true))
+        assertEquals(3, SecondScreenDisplays.selection(2, listOf(3), false))
+        assertEquals(3, SecondScreenDisplays.selection(-1, listOf(3), true))
+        assertEquals(-1, SecondScreenDisplays.selection(-1, emptyList(), false))
+    }
+
     @Test fun withNothingRememberedDeckPadsGetControlsAndOthersTheDashboard() {
         assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening(null, deckPad = true, dashboard = true))
         assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening(null, deckPad = false, dashboard = true))

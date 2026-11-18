@@ -23,13 +23,16 @@ internal fun FrameGenGroup(s: FrontEndState, a: FrontEndActions) {
 internal fun PerformanceLink(a: FrontEndActions, rail: String, tab: String) {
     val id = "sheet:performance"
     val title = stringResource(R.string.setup_tool_performance)
-    SettingsGroup(title) {
+    SettingsGroup(stringResource(R.string.sheet_all_settings_hint)) {
         LinkRow(title, stringResource(R.string.setup_tool_performance_hint), stringResource(R.string.store_open), id, arrow = "›") {
             Hops.sources[id]?.let { at ->
                 PageOrigin.mark(Origin(at, 12f * Hops.density))
                 Hops.restore = HopOrigin(rail, HOP_SURFACE_SHEET, tab, id, at, "", dest = rail, page = "performance")
             }
             a.onPerformance()
+        }
+        LinkRow(stringResource(R.string.sheet_all_settings), stringResource(R.string.setup_title), stringResource(R.string.store_open), "sheet:all-settings", arrow = "›") {
+            SetupTabs.openSection = SettingsSection.OVERVIEW
         }
     }
 }

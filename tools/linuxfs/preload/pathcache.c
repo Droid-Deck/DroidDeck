@@ -40,7 +40,7 @@ static int enabled(void) {
   const char *off;
 
   if (cached >= 0) return cached;
-  off = getenv("BL_NO_PATH_CACHE");
+  off = getenv("DD_NO_PATH_CACHE");
   cached = strcmp(program_invocation_short_name, "steam") == 0 &&
            (strstr(program_invocation_name, "steamrtarm64") != NULL ||
             strstr(program_invocation_name, "steamrt64") != NULL) &&
@@ -83,7 +83,7 @@ static void store(const char *path, int kind, int mode, int flags, unsigned h, c
 }
 
 __attribute__((visibility("hidden")))
-char *bl_cached_realpath(const char *path, char *resolved, char *(*real)(const char *, char *)) {
+char *dd_cached_realpath(const char *path, char *resolved, char *(*real)(const char *, char *)) {
   char out[PATH_MAX];
   unsigned h;
   struct entry *e;
@@ -111,7 +111,7 @@ char *bl_cached_realpath(const char *path, char *resolved, char *(*real)(const c
   return strdup(out);
 }
 
-int bl_dircache_absent(const char *path) __attribute__((weak, visibility("hidden")));
+int dd_dircache_absent(const char *path) __attribute__((weak, visibility("hidden")));
 
 static int cached_access(const char *path, int mode, int flags, int (*check)(const char *, int, int)) {
   unsigned h;
@@ -124,7 +124,7 @@ static int cached_access(const char *path, int mode, int flags, int (*check)(con
   hit = find(path, KIND_ACCESS, mode, flags, h) != NULL;
   pthread_mutex_unlock(&lock);
   if (hit) return 0;
-  if (bl_dircache_absent && bl_dircache_absent(path)) {
+  if (dd_dircache_absent && dd_dircache_absent(path)) {
     errno = ENOENT;
     return -1;
   }
@@ -144,11 +144,11 @@ static int (*next_faccessat(void))(int, const char *, int, int) {
   return real;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode);
-__attribute__((visibility("hidden"))) int bl_writable_access(int dirfd, const char *path, int mode, int flags);
+__attribute__((visibility("hidden"))) int dd_binfmt_runnable(const char *path, int mode);
+__attribute__((visibility("hidden"))) int dd_writable_access(int dirfd, const char *path, int mode, int flags);
 
 static int writable_as_owner(int (*real)(int, const char *, int, int), int dirfd, const char *path, int mode, int flags) {
-  if (!bl_writable_access(dirfd, path, mode, flags)) return -1;
+  if (!dd_writable_access(dirfd, path, mode, flags)) return -1;
   if ((mode & ~W_OK) == 0 || real(dirfd, path, mode & ~W_OK, flags) == 0) return 0;
   return -1;
 }
@@ -165,7 +165,7 @@ static int check_cwd(const char *path, int mode, int flags) {
   result = real(AT_FDCWD, path, mode, flags);
   if (result == 0) return 0;
   err = errno;
-  if (err == EACCES && bl_binfmt_runnable(path, mode)) return 0;
+  if (err == EACCES && dd_binfmt_runnable(path, mode)) return 0;
   errno = err;
   if (writable_as_owner(real, AT_FDCWD, path, mode, flags) == 0) return 0;
   errno = err;

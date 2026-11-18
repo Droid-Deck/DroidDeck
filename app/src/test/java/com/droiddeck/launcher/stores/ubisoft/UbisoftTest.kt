@@ -5,6 +5,7 @@ import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunch
 import org.json.JSONArray
+import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -97,5 +98,75 @@ class UbisoftTest {
         assertEquals("00017fff802a", UbisoftActivation.hex(bytes))
         assertArrayEquals(bytes, UbisoftActivation.unhex("00017fff802a"))
         assertNull(UbisoftActivation.unhex("abc"))
+    }
+
+    @Test fun aSaveNamesItsUbisoftIdentifierInItsHeader() {
+        val mark = "4ef5bf634b40daa577aaeaa52c2283a9"
+        val save = byteArrayOf(0x24, 2, 0, 0, 0, 0, 0, 0) + mark.toByteArray() + ByteArray(64) { it.toByte() }
+        assertEquals(mark, UbisoftCloud.mark(save))
+        assertNull(UbisoftCloud.mark(ByteArray(8) + ByteArray(32) + ByteArray(16)))
+        assertNull(UbisoftCloud.mark(ByteArray(39)))
+    }
+
+    @Test fun cloudSaveBodiesSurviveTheZlibHop() {
+        val save = ByteArray(200_000) { (it % 251).toByte() }
+        assertArrayEquals(save, UbisoftCloud.inflate(UbisoftCloud.deflate(save)))
+        assertEquals(0x78, UbisoftCloud.deflate(save)[0].toInt())
+        val packed = UbisoftCloud.deflate(save)
+        val cut = runCatching { UbisoftCloud.inflate(packed.copyOf(packed.size / 2)) }
+        assertTrue(cut.isFailure)
+    }
+
+    @Test fun aSlotVersionChangesWithItsSizeTimeOrIdentifier() {
+        val a = UbisoftCloud.Slot(1, "1", "4ef5bf634b40daa577aaeaa52c2283a9", 2414, 1_689_224_156_000)
+        assertEquals("2414:1689224156000:4ef5bf634b40daa577aaeaa52c2283a9", UbisoftCloud.version(a))
+        assertTrue(UbisoftCloud.version(a) != UbisoftCloud.version(UbisoftCloud.Slot(1, "1", a.hash, 2414, a.modifiedMs + 1)))
+    }
+
+    @Test fun aSlotCommitCountsOnlyWhenNoOtherSlotMovedAndOursLanded() {
+        fun entity(revision: Int, vararg slots: Triple<String, String, Long>) = UbisoftCloud.Entity(JSONObject().put("revision", revision)
+            .put("obj", JSONObject().put("slots", JSONArray().apply {
+                for ((name, hash, size) in slots) put(JSONObject().put("filename", name).put("hash", hash).put("size", size).put("lastModified", "2026-01-01T00:00:00Z"))
+            })))
+        val a = "4ef5bf634b40daa577aaeaa52c2283a9"; val b = "0123456789abcdef0123456789abcdef"; val c = "fedcba9876543210fedcba9876543210"
+        val before = entity(4, Triple("1", a, 10), Triple("2", b, 20))
+        assertEquals(c, UbisoftCloudTransport.committedSlot(before, entity(5, Triple("1", c, 11), Triple("2", b, 20)), "1", c, 11)?.hash)
+        assertNull(UbisoftCloudTransport.committedSlot(before, entity(6, Triple("1", c, 11), Triple("2", a, 21)), "1", c, 11))
+        assertNull(UbisoftCloudTransport.committedSlot(before, entity(6, Triple("1", b, 30), Triple("2", b, 20)), "1", c, 11))
+        assertNull(UbisoftCloudTransport.committedSlot(before, entity(6, Triple("1", c, 11)), "1", c, 11))
+    }
+
+    @Test fun aSlotTheCloudRewritesBeforeItIsVerifiedStaysUnsent() {
+        val slots = MemorySlots().apply { store("1", MemorySlots.save("a1")) }
+        val transport = UbisoftCloudTransport(slots, "u1")
+        transport.list()
+        slots.afterUpdate = { list -> list.getJSONObject(0).put("hash", UbisoftCloud.mark(MemorySlots.save("other device"))) }
+        val changed = runCatching { transport.put(mapOf("1.save" to MemorySlots.save("a2"))) }.exceptionOrNull() as com.droiddeck.launcher.stores.CloudChanged
+        assertTrue(changed.sent.isEmpty())
+        assertEquals(listOf("1.save"), changed.unsent)
+        assertNull(transport.committed("1.save"))
+    }
+
+    @Test fun ubisoftCloudSavesAreSupported() {
+        assertTrue(com.droiddeck.launcher.stores.CloudSaves.supports(Store.UBISOFT))
+        assertTrue(!com.droiddeck.launcher.stores.CloudSaves.supports(Store.AMAZON))
+    }
+
+    @Test fun keptGameTokensBelongToOneAccountAndProductUntilDropped() {
+        val root = kotlin.io.path.createTempDirectory().toFile()
+        val dir = File(root, "cache")
+        val cache = UbisoftActivation.TokenCache(dir)
+        assertNull(cache.get("u-1", 109))
+        assertTrue(cache.put("u-1", 109, byteArrayOf(1, 2, 3)))
+        assertArrayEquals(byteArrayOf(1, 2, 3), cache.get("u-1", 109))
+        assertNull(cache.get("u-1", 82))
+        assertNull(cache.get("u-2", 109))
+        assertTrue(cache.put("../u-1", 82, byteArrayOf(4)))
+        assertEquals(listOf("cache"), root.list()!!.toList())
+        assertTrue(dir.listFiles()!!.all { it.parentFile == dir })
+        assertTrue(cache.drop("u-1", 109))
+        assertNull(cache.get("u-1", 109))
+        assertTrue(cache.drop("u-1", 109))
+        root.deleteRecursively()
     }
 }

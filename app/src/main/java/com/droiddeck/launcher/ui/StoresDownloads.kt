@@ -61,6 +61,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -371,6 +372,11 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                         CancelAction { DownloadQueue.cancel(ctx, d.key) }
                     }
                     DownloadState.FAILED -> {
+                        if (d.store == Store.XBOX && d.error == stringResource(R.string.stores_xbox_device_group_full)) {
+                            RoundAction(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.stores_xbox_manage_devices)) {
+                                runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(com.droiddeck.launcher.stores.xbox.XboxInstaller.DEVICES_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            }
+                        }
                         RoundAction(Icons.Filled.Refresh, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.retry(ctx, d.key) }
                         CancelAction { DownloadQueue.clear(ctx, d.key) }
                     }
@@ -535,7 +541,6 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
                     }
                 }
             }
-            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { DownloadControls(st, a) }
             var gogAchievements by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.droiddeck.launcher.stores.gog.GogComet.enabled(context)) }
             androidx.compose.runtime.LaunchedEffect(Unit) {
                 if (gogAchievements) com.droiddeck.launcher.core.AddonPack.COMET.ensure(context)
@@ -547,4 +552,13 @@ internal fun storesSettingsStep(at: Rect, s: androidx.compose.runtime.State<Fron
                 }
             }
         }
+    }
+
+internal fun downloadsSettingsStep(at: Rect, s: androidx.compose.runtime.State<FrontEndState>, a: FrontEndActions, accent: androidx.compose.ui.graphics.Color): StepAsk =
+    StepAsk(
+        anchor = at, side = StepSide.Left, accent = accent, items = 2, maxWidth = 440.dp,
+        handle = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.Settings, null, tint = accent, modifier = Modifier.size(20.dp)) },
+    ) {
+        StepTitle(stringResource(R.string.downloads_settings))
+        Column(Modifier.stepItem(1).fillMaxWidth().focusRequester(first).focusGroup().padding(horizontal = 14.dp, vertical = 11.dp)) { DownloadControls(s.value, a) }
     }

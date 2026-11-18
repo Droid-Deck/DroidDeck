@@ -131,6 +131,50 @@ class ScrollTouchGesturesTest {
         assertEquals(listOf("move 400,300"), events)
     }
 
+    @Test fun tapsAndHoldsDoNotClickWhileClicksAreOff() {
+        gestures.clicks = false
+        touch(MotionEvent.ACTION_DOWN, 400f, 300f)
+        advance(80)
+        touch(MotionEvent.ACTION_UP, 400f, 300f)
+        advance(100)
+        touch(MotionEvent.ACTION_DOWN, 400f, 300f)
+        advance(600)
+        touch(MotionEvent.ACTION_UP, 402f, 301f)
+        advance(100)
+        assertEquals(listOf("move 400,300", "move 400,300"), events)
+    }
+
+    @Test fun holdThenMoveScrollsWhileClicksAreOff() {
+        gestures.clicks = false
+        touch(MotionEvent.ACTION_DOWN, 400f, 800f)
+        advance(600)
+        touch(MotionEvent.ACTION_MOVE, 402f, 500f)
+        advance(200)
+        touch(MotionEvent.ACTION_UP, 402f, 500f)
+        advance(100)
+        assertEquals(300f, scrolledY, 0.01f)
+        assertEquals(listOf("move 400,800"), events)
+    }
+
+    @Test fun turningClicksOffReleasesAClickInFlight() {
+        touch(MotionEvent.ACTION_DOWN, 400f, 300f)
+        advance(80)
+        touch(MotionEvent.ACTION_UP, 400f, 300f)
+        gestures.clicks = false
+        touch(MotionEvent.ACTION_DOWN, 400f, 300f)
+        advance(80)
+        touch(MotionEvent.ACTION_UP, 400f, 300f)
+        advance(100)
+        assertEquals(listOf("move 400,300", "left down", "left up", "move 400,300"), events)
+        events.clear()
+        gestures.clicks = true
+        touch(MotionEvent.ACTION_DOWN, 400f, 300f)
+        advance(80)
+        touch(MotionEvent.ACTION_UP, 400f, 300f)
+        advance(100)
+        assertEquals(listOf("move 400,300", "left down", "left up"), events)
+    }
+
     @Test fun aSecondFingerDoesNotJumpTheScroll() {
         touch(MotionEvent.ACTION_DOWN, 400f, 900f)
         advance(100)

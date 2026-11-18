@@ -6,7 +6,7 @@ stable_channel=steamdeck_stable
 steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
 channel_state=$steam_root/package/droiddeck-channel
 pinned=1
-wanted=${BL_STEAM_CHANNEL:-$(cat "$HOME/.config/droiddeck/steam-channel" 2>/dev/null || true)}
+wanted=${DD_STEAM_CHANNEL:-$(cat "$HOME/.config/droiddeck/steam-channel" 2>/dev/null || true)}
 case $wanted in
   stable|"$stable_channel") steam_channel=$stable_channel ;;
   beta|"$beta_channel") steam_channel=$beta_channel ;;
@@ -24,7 +24,7 @@ manifest=steam_client_${steam_channel}_linuxarm64
 stamp=$steam_root/package/droiddeck-installed
 legacy_stamp=$steam_root/package/bannerlator-installed
 unconfirmed=$steam_root/package/droiddeck-unconfirmed
-repair_request=$HOME/.bl-steam-repair
+repair_request=$HOME/.dd-steam-repair
 parts=$steam_root/package/droiddeck-download
 if [ -f "$legacy_stamp" ] && [ ! -f "$stamp" ]; then
   mv -f "$legacy_stamp" "$stamp" || true
@@ -85,7 +85,7 @@ size_of() {
   echo $((n))
 }
 limits=(--connect-timeout 30 --speed-limit 4096 --speed-time 60)
-read -r -a delays <<< "${BL_STEAM_RETRY_DELAYS:-5 10 20 30 30}"
+read -r -a delays <<< "${DD_STEAM_RETRY_DELAYS:-5 10 20 30 30}"
 
 step() { echo "== STEP $(date -u +%H:%M:%S) $*"; }
 progress() {

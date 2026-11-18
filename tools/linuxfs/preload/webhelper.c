@@ -57,10 +57,10 @@ static char *const *chromium_argv(const char *path, char *const argv[]) {
 }
 
 __attribute__((visibility("hidden")))
-char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]) {
+char *const *dd_webhelper_argv(const char *path, char *const argv[], char *const envp[]) {
   if (electron_node_mode(envp)) return argv;
   if (!is_webhelper_browser(path, argv)) return chromium_argv(path, argv);
-  const char *spec = getenv("BL_WEBHELPER_ARGS");
+  const char *spec = getenv("DD_WEBHELPER_ARGS");
   if (!spec || !*spec) spec = WEBHELPER_DEFAULT;
   if (!strcmp(spec, "stock")) return argv;
 

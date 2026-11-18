@@ -40,6 +40,12 @@ add_library(gpuclock SHARED gpuclock/kgsl_clock.c gpuclock/kgsl_busy.c)
 
 add_library(termux SHARED termux/termux.c)
 
+# An executable packaged as a library: the only place a targetSdk 29+ app may execute files from.
+add_library(ddexec SHARED ddexec/ddexec.c)
+target_compile_options(ddexec PRIVATE -O2 -ffreestanding -fno-builtin -fno-stack-protector -fno-asynchronous-unwind-tables)
+target_link_options(ddexec PRIVATE -nostdlib -Wl,-e,_start -Wl,-z,noexecstack -Wl,--no-undefined -Wl,-Bsymbolic
+    -Wl,-z,max-page-size=16384)
+
 add_library(ddvenc SHARED venc/venc_server.cpp)
 target_compile_features(ddvenc PRIVATE cxx_std_17)
 target_link_libraries(ddvenc mediandk log)
