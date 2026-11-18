@@ -40,4 +40,15 @@ class SoundtrackCollectionsTest {
         val list = listOf(Collection(2_000_000_005, "x", emptyList()))
         assertEquals(2_000_000_006, SoundtrackCollections.nextId(list))
     }
+
+    @Test fun emptyFavoritesCanBeLeftOutOfTheLibraryList() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        SoundtrackCollections.load(context)
+        val custom = SoundtrackCollections.create(context, "Chill", emptyList())!!
+        val favorites = SoundtrackCollections.FAVORITES_ID
+        assertEquals(listOf(custom), SoundtrackCollections.games(context, "Favorites", skipEmptyFavorites = true).map { it.appId })
+        assertEquals(listOf(favorites, custom), SoundtrackCollections.games(context, "Favorites").map { it.appId })
+        SoundtrackCollections.add(context, favorites, listOf(ref("a")))
+        assertEquals(listOf(favorites, custom), SoundtrackCollections.games(context, "Favorites", skipEmptyFavorites = true).map { it.appId })
+    }
 }
