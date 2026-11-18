@@ -23,6 +23,7 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -730,14 +731,14 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     var focused by remember { mutableStateOf(false) }
     val field = remember { FocusRequester() }
     LaunchedEffect(composer.focusRequests) { if (composer.hasUnconsumedFocusRequest()) runCatching { field.requestFocus() } }
-    Column(
+    val attach = LocalActivityResultRegistryOwner.current != null
+    BoxWithConstraints(
         Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape16).background(colors.surface)
             .border(if (focused) 2.dp else 1.dp, if (focused) pal.primary else pal.line, Shape16).padding(6.dp),
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            if (LocalActivityResultRegistryOwner.current != null) AttachButton()
-            if (AgentAttachments.gameFrame != null) GameFrameButton()
-            Box(Modifier.weight(1f).padding(start = 8.dp, top = 10.dp, bottom = 10.dp)) {
+        // A narrow editor gives the buttons a row of their own so the text keeps room to be tapped.
+        val stacked = maxWidth < (if (controls != null) 560.dp else 320.dp)
+        val text: @Composable (Modifier) -> Unit = { modifier -> Box(modifier.padding(start = 8.dp, top = 10.dp, bottom = 10.dp)) {
                 if (draft.isEmpty()) Text(
                     stringResource(
                         when {
@@ -767,8 +768,8 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
                     minLines = 1,
                     maxLines = 8,
                 )
-            }
-            if (controls != null && !focused) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(42.dp)) { controls() }
+            } }
+        val actions: @Composable () -> Unit = {
             if (working) RoundButton(Icons.Outlined.Stop, stringResource(R.string.agent_stop), pal.error.copy(alpha = 0.22f), colors.error, "agent-stop") {
                 AgentHost.stop(context)
             }
@@ -786,6 +787,21 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
                 voice.stop()
                 send()
             }
+        }
+        if (stacked) Column {
+            text(Modifier.fillMaxWidth())
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                if (attach) AttachButton()
+                if (AgentAttachments.gameFrame != null) GameFrameButton()
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).height(42.dp)) { if (controls != null && !focused) controls() }
+                actions()
+            }
+        } else Row(verticalAlignment = Alignment.Bottom) {
+            if (attach) AttachButton()
+            if (AgentAttachments.gameFrame != null) GameFrameButton()
+            text(Modifier.weight(1f))
+            if (controls != null && !focused) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(42.dp)) { controls() }
+            actions()
         }
     }
 }
