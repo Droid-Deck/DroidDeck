@@ -160,7 +160,7 @@ static unsigned long zr_trim(int pagemap, unsigned long start, unsigned long end
   for (unsigned long addr = start, next; addr < end && done < want; addr = next) {
     next = (addr | (ZR_CHUNK - 1)) + 1;
     if (next > end || next < addr) next = end;
-    if (addr < lo || addr >= hi) continue;
+    if (next <= lo || addr >= hi) continue;
     if (zr_visits == 0) break;
     zr_visits--;
     zr_cursor = next;
@@ -182,9 +182,13 @@ static unsigned long zr_trim(int pagemap, unsigned long start, unsigned long end
       continue;
     }
     if (present == 0) continue;
-    unsigned long span = next - addr;
-    if (want - done < span / zr_page) span = (want - done) * zr_page;
-    zr_sys(SYS_madvise, addr, span, MADV_PAGEOUT);
+    unsigned long from = addr < lo ? lo : addr;
+    unsigned long span = next - from;
+    if (want - done < span / zr_page) {
+      span = (want - done) * zr_page;
+      zr_cursor = from + span;
+    }
+    zr_sys(SYS_madvise, from, span, MADV_PAGEOUT);
     unsigned long left = zr_count(pagemap, addr, next, ZR_PRESENT);
     if (left >= present) continue;
     if (slot == NULL) slot = zr_slot(addr, 1);

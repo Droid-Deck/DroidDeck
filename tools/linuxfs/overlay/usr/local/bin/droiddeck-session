@@ -911,14 +911,22 @@ case $mode in
           [ "$_dd_need" -ge "$_dd_hard" ] || _dd_need=$_dd_hard
           [ "$_dd_available" -ge $((_dd_floor / 2)) ] || _dd_force=1
         }
+        dd_pid_key() {
+          local _s
+          _dd_key=$1
+          read -r _s 2>/dev/null < "/proc/$1/stat" || return 0
+          set -- ${_s##*) }
+          _dd_key=$_dd_key.${20:-}
+        }
         dd_session_others() {
           local _p
           local -A _known=()
           _dd_session=()
           for _p in "${_dd_others[@]}"; do
-            [ -n "${_dd_preloaded[$_p]:-}" ] ||
+            dd_pid_key "$_p"
+            [ -n "${_dd_preloaded[$_dd_key]:-}" ] ||
               grep -q -m1 '/libddsession\.so$' "/proc/$_p/maps" 2>/dev/null || continue
-            _known[$_p]=1
+            _known[$_dd_key]=1
             dd_zram_usage "$_p" > /dev/null
             _dd_session+=("$_dd_anon $_p")
           done
@@ -931,37 +939,44 @@ case $mode in
           _dd_session=("${_dd_session[@]#* }")
         }
         dd_zram_trim() {
-          local _mode=$1 _left=$2 _p _n _i _polls=0 _acks=()
+          local _mode=$1 _left=$2 _p _k _n _i _acks=()
           shift 2
           _dd_trimmed=0
+          for _k in "${!_dd_deaf[@]}"; do
+            [ "${_dd_deaf[$_k]}" -gt "$SECONDS" ] || unset "_dd_deaf[$_k]"
+          done
           for _p in "$@"; do
-            [ "$_left" -ge 4096 ] && [ "$_polls" -lt 250 ] && [ ! -e /tmp/.dd-zram.hold ] || break
-            [ "${_dd_deaf[$_p]:-0}" -le "$SECONDS" ] || continue
+            [ "$_left" -ge 4096 ] && [ "$_dd_polls" -lt 250 ] && [ ! -e /tmp/.dd-zram.hold ] || break
+            dd_pid_key "$_p"
+            _k=$_dd_key
+            [ "${_dd_deaf[$_k]:-0}" -le "$SECONDS" ] || continue
             dd_zram_usage "$_p" > /dev/null
             [ "$_dd_anon" -ge 8192 ] || continue
             printf %s - > "/tmp/.dd-zram.ack.$_p"
             _acks+=("/tmp/.dd-zram.ack.$_p")
             printf '%s %s\n' "$_mode" "$_left" > /tmp/.dd-zram
             kill -URG "$_p" 2>/dev/null || continue
-            _dd_deaf[$_p]=$((SECONDS + 60))
-            for ((_i = 0; _polls < 250; _i++, _polls++)); do
-              [ ! -e /tmp/.dd-zram.hold ] || { _dd_deaf[$_p]=0; break; }
+            _dd_deaf[$_k]=$((SECONDS + 60))
+            for ((_i = 0; _dd_polls < 250; _i++, _dd_polls++)); do
+              [ ! -e /tmp/.dd-zram.hold ] || { _dd_deaf[$_k]=0; break; }
               _n=
               read -r _n 2>/dev/null < "/tmp/.dd-zram.ack.$_p" || :
               case $_n in
                 -) [ "$_i" -lt 25 ] || break ;;
                 ''|*[!0-9]*) ;;
-                *) _dd_trimmed=$((_dd_trimmed + _n)) _left=$((_left - _n)) _dd_deaf[$_p]=0; break ;;
+                *) _dd_trimmed=$((_dd_trimmed + _n)) _left=$((_left - _n)) _dd_deaf[$_k]=0; break ;;
               esac
               nap 0.02
             done
           done
-          [ -e /tmp/.dd-zram.hold ] || printf '2 0\n' > /tmp/.dd-zram
+          [ ! -e /tmp/.dd-zram.hold ] || return 0
+          printf '2 0\n' > /tmp/.dd-zram
           [ "${#_acks[@]}" = 0 ] || rm -f "${_acks[@]}"
         }
         dd_memory_relieve() {
           local _mode=2 _budget _gain=0 _rest _cap=$((256 * 1024)) _all=$((1024 * 1024))
           dd_memory_need
+          _dd_polls=0
           [ "$_dd_need" -gt 0 ] || return 0
           if [ "$_dd_swap_room" -lt $((64 * 1024)) ]; then
             if [ $((SECONDS - _dd_full_at)) -ge 60 ]; then
@@ -983,7 +998,8 @@ case $mode in
             [ "$_budget" -le "$_dd_swap_room" ] || _budget=$_dd_swap_room
             dd_zram_trim "$_mode" "$_budget" "${_dd_pids[@]}"
             _gain=$((_dd_trimmed * _dd_saving / 1000))
-            _dd_swap_room=$((_dd_swap_room - _dd_trimmed))
+            _dd_swap_room=$((_dd_swap_room - _dd_trimmed)) _all=$((_all - _dd_trimmed))
+            [ "$_cap" -le "$_all" ] || _cap=$_all
             _dd_client_out=$((_dd_client_out + _dd_trimmed)) _dd_note_client=$((_dd_note_client + _dd_trimmed))
             [ "$_dd_trimmed" = 0 ] || _dd_trim_at=$SECONDS
           fi
@@ -1056,7 +1072,7 @@ case $mode in
         }
         declare -A _dd_deaf=() _dd_preloaded=()
         _dd_scan_at=-5 _dd_session_at=-1 _dd_session=() _dd_focus=1 _dd_away=
-        _dd_page_kb=$(($(getconf PAGESIZE 2>/dev/null || echo 4096) / 1024)) _dd_returned=0
+        _dd_page_kb=$(($(getconf PAGESIZE 2>/dev/null || echo 4096) / 1024)) _dd_returned=0 _dd_polls=0
         _dd_sample_at= _dd_freed=0 _dd_client_out=0 _dd_note_client=0 _dd_note_session=0
         _dd_trim_at=-30 _dd_back_at=-30 _dd_forced_at=-10 _dd_full_at=-60 _dd_noted_at=-5
         while kill -0 $$ 2>/dev/null; do

@@ -56,6 +56,22 @@ class SessionSuspendControllerTest {
         assertEquals(0, fixture.unacknowledged)
     }
 
+    @Test fun aTrimAcknowledgementIsNotTakenForAFinishedPageOut() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.handlerStalls = true
+        val ack = File(fixture.control.parentFile, ".dd-zram.ack.$GAME")
+        var stoppedEarly = false
+        fixture.afterSleep = {
+            if (fixture.now == 3000L) fixture.handlerStalls = false
+            if (fixture.handlerStalls && fixture.signals.any { it.signal == URG }) ack.writeText("4096")
+            if (fixture.handlerStalls && fixture.signals.any { it.signal == STOP }) stoppedEarly = true
+        }
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertFalse(stoppedEarly)
+        assertEquals(0, fixture.unacknowledged)
+    }
+
     @Test fun replacedHandlerIsNotWaitedForPastTheStartWindow() {
         val fixture = fixture(17)
         fixture.control.writeText("0")

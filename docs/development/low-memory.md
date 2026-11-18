@@ -31,13 +31,15 @@ and memory is steady, and one second otherwise.
 | Burst | two seconds of the fall rate, when that is at least 64 MiB and less than two fifths of RAM is available | Memory that will be taken before the next passes can react. |
 
 The amount to free is the distance to the target or the burst, whichever is larger. The hard
-part of it is the distance to the floor, or the burst when that is larger and memory stall is
-at least 1%.
+part of it is what available memory is short of the floor, and nothing when it is above. With
+a memory stall of at least 1% the hard part is two seconds of the fall rate when that is
+larger, whatever the size of the fall and however much memory is available.
 
 ## What gets compressed, in order
 
-1. The Steam client and hidden launchers, while a game is running and in front, or at any time
-   when there is a hard need. Without a hard need the client is left alone for 30 seconds after
+1. The Steam client and hidden launchers, while a game is running and the client is not known
+   to be in front (unreadable focus data counts as not in front), or at any time when there is
+   a hard need. Without a hard need the client is left alone for 30 seconds after
    it was read back.
 2. Processes of the session that loaded `libddsession.so` (the game, Wine and its services),
    largest first, only for the hard part that the client did not cover. One pass moves at
@@ -53,17 +55,20 @@ Two things keep memory from going in and out of zRAM. The preload remembers each
 it paged out: when a quarter or more of those pages are resident again at the next visit, the
 chunk is hot and is passed over for the next 64 visits, then 128, then 255. And the monitor
 reads `pswpin` from `/proc/vmstat`: what was read back from swap, fading over half a minute,
-is taken off what one pass may move (1 GiB for the client, 256 MiB for the session). A device
+is taken off what one pass may move (1 GiB in all, at most 256 MiB of it from the session). A device
 whose working set does not fit therefore stops being trimmed and is left to the kernel, until
 the forced level is reached.
 
 Requests go to one process at a time. The monitor waits for that process's acknowledgement
 (the kB it paged out) before the next, and stops once the budget is met. A process that has not
-started within half a second, or has not finished when the pass has waited five seconds in
-total, is skipped for a minute, and a late answer from it is discarded. Processes with less
+started within half a second, or has not finished when the pass (client and session together)
+has waited five seconds in total, is skipped for a minute, and a late answer from it is
+discarded. A process is known by its number and start time, so a new process that got the
+number of a skipped one is asked. Processes with less
 than 8 MiB of anonymous memory are skipped. While the app pages the session out for suspend, or
 reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold` so the two never
-write the control file at the same time. With less than 64 MiB of zRAM room nothing is requested and the
+write the control file at the same time. The suspend page-out answers `1` and a trim answers
+its kB, which is a multiple of the page size, so the app never takes a trim's answer for its own. With less than 64 MiB of zRAM room nothing is requested and the
 session log says so once a minute.
 
 With no shortage nothing is compressed. A game that fits in memory is never touched, and Steam
@@ -77,8 +82,9 @@ passed since the last request, and available memory covers the client's swap plu
 and the floor. Missing or unreadable focus data never counts as the client in front. Demand
 paging alone left the Steam library and menus blank for about half a minute in that case.
 Suspending the session while it is asleep, hidden or the screen is off still pages everything
-out, and resuming reads it back when available memory is at least twice what was paged out
-and a tenth of RAM stays available.
+out, and resuming reads it back when available memory is at least twice what those processes
+have in swap at that moment and, after it, 1 GiB or a tenth of RAM, whichever is larger, stays
+available.
 
 ## Threads
 

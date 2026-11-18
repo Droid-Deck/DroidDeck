@@ -157,6 +157,10 @@ _dd_pids=(10 20) _dd_game=1 _dd_focus=0 _dd_saving=500
         self.assertEqual(['trim:2:660:10 20', 'others', 'trim:2:256:70 80', 'trim:2:660:10 20', 'trim:2:256:70 80'],
                          self.relieve(self.sample(available=500) + f'paged={64 * MB}; relieve 500\nNOW=1; relieve 500\n'))
 
+    def test_the_session_gets_what_the_client_left_of_the_pass(self):
+        self.assertEqual(['trim:3:1024:10 20', 'others', 'trim:3:24:70 80'], self.relieve(
+            self.sample(available=100) + f'paged={1000 * MB}; relieve 100\n'))
+
     def test_memory_that_keeps_coming_back_is_taken_off_what_a_pass_may_move(self):
         self.assertEqual(['trim:2:660:10 20', 'others', 'trim:2:156:70 80', 'trim:2:660:10 20', 'trim:2:24:10 20'], self.relieve(
             self.sample(available=500) + f'paged={64 * MB}\nreturned={100 * MB}; relieve 500\n' +
@@ -188,8 +192,9 @@ _dd_pids=(10 20) _dd_game=1 _dd_focus=0 _dd_saving=500
                           if line.startswith('step')])
 
     TRIM = '''
-declare -A anon=() reply=()
+declare -A anon=() reply=() born=()
 nap() { :; }
+dd_pid_key() { _dd_key=$1.${born[$1]:-0}; }
 dd_zram_usage() { _dd_anon=${anon[$1]}; }
 kill() {
   echo "signal:$2:$(< "$ROOT/ctl")"
@@ -224,6 +229,29 @@ dd_zram_trim 2 9000 10 20
 echo $_dd_trimmed
 NOW=59; dd_zram_trim 2 9000 10 20
 NOW=60; dd_zram_trim 2 9000 10 20'''))
+
+    def test_a_new_process_with_a_silent_ones_number_is_asked(self):
+        self.assertEqual(['signal:10:2 9000', 'signal:10:2 9000', '1', 'ctl', '2 0'], self.trim('''
+anon=([10]=500000) reply=([10]=deaf)
+dd_zram_trim 2 9000 10
+NOW=5; dd_zram_trim 2 9000 10
+born[10]=7
+dd_zram_trim 2 9000 10
+NOW=62 anon=(); dd_zram_trim 2 9000
+echo ${#_dd_deaf[@]}'''))
+
+    def test_one_pass_waits_five_seconds_in_all(self):
+        self.assertEqual(['signal:10:2 9000', 'signal:20:2 9000', 'ctl', '2 0'], self.trim('''
+anon=([10]=500000 [20]=500000 [30]=500000) reply=([10]=- [20]=deaf [30]=deaf)
+_dd_polls=215
+dd_zram_trim 2 9000 10
+dd_zram_trim 2 9000 20 30'''))
+
+    def test_a_held_control_file_keeps_its_acknowledgements(self):
+        self.assertEqual(['signal:10:2 9000', 'ctl', 'ctl.ack.10', 'ctl.hold', '2 9000'], self.trim('''
+anon=([10]=500000)
+kill() { echo "signal:$2:$(< "$ROOT/ctl")"; : > "$ROOT/ctl.hold"; printf 1 > "$ROOT/ctl.ack.$2"; }
+dd_zram_trim 2 9000 10'''))
 
     READBACK = '''
 step() { echo "step:$*"; }

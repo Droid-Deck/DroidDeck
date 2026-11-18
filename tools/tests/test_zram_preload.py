@@ -200,6 +200,18 @@ int main(int argc, char **argv) {
       printf("again %ld\n", trim('2', 1L << 30));
       printf("intact %d\n", sum(data, size) == before);
       return 0;
+    } else if (!strcmp(argv[4], "trim-small")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      long total = 0, largest = 0;
+      for (int i = 0; i < 112; i++) {
+        long step = trim('2', 512);
+        total += step;
+        if (step > largest) largest = step;
+      }
+      printf("small %ld\n", total);
+      printf("largest %ld\n", largest);
+      return 0;
     } else if (!strcmp(argv[4], "trim-fork")) {
       stop = 1;
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
@@ -396,8 +408,8 @@ class ZramPreloadTest(unittest.TestCase):
                 os.kill(process.pid, signal.SIGUSR1)
                 self.assertEqual(f"received {_ + 1}", process.stdout.readline().strip())
             process.stdin.close()
-            output = process.stdout.read()
             process.wait(timeout=10)
+            output = process.stdout.read()
             values = dict(line.split() for line in output.splitlines())
             self.assertNotEqual(0, int(values["urg"]))
             self.assertNotEqual(0, int(values["usr"]))
@@ -459,6 +471,12 @@ class ZramPreloadTest(unittest.TestCase):
         self.assertTrue(28 * 1024 < out["again"][0] < 40 * 1024, out)
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_budgets_smaller_than_a_chunk_still_reach_all_of_it(self):
+        out = self.run_program(None, 32, 0, "trim-small")
+        self.assertLessEqual(out["largest"][0], 512)
+        self.assertGreater(out["small"][0], 52 * 1024)
+
     def test_process_without_a_worker_trims_in_small_steps(self):
         out = self.run_program(None, 48, 0, "trim-fork")
         self.assertTrue(16 * 1024 < out["inline_trim"][0] <= 32 * 1024, out)

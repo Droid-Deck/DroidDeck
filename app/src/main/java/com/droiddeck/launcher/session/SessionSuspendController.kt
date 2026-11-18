@@ -310,14 +310,20 @@ internal class SessionSuspendController(
         val waiting = targets.toMutableList()
         while (!closing && !cancelled && nowMillis() - start < PAGE_OUT_TIMEOUT_MS) {
             val started = nowMillis() - start >= PAGE_OUT_START_MS
-            waiting.removeAll { val ack = acks.getValue(it); ack.length() > 0 || (started && !ack.exists()) || isGone(it) }
+            waiting.removeAll { val ack = acks.getValue(it); pagedOut(ack) || (started && !ack.exists()) || isGone(it) }
             if (waiting.isEmpty()) break
             sleep(PAGE_OUT_POLL_MS)
         }
-        val unacknowledged = targets.count { acks.getValue(it).length() == 0L && !isGone(it) }
+        val unacknowledged = targets.count { !pagedOut(acks.getValue(it)) && !isGone(it) }
         acks.values.forEach { it.delete() }
         val after = memoryKb(targets)
         pagedOut(targets.size, unacknowledged, after.first, after.second, before.second, nowMillis() - start)
+    }
+
+    private fun pagedOut(ack: File): Boolean = try {
+        ack.readText().trim() == PAGE_OUT_ACK
+    } catch (_: IOException) {
+        false
     }
 
     private fun readBack() {
@@ -470,6 +476,7 @@ internal class SessionSuspendController(
         const val SIGSTOP = 19
         const val SIGCONT = 18
         const val SIGURG = 23
+        const val PAGE_OUT_ACK = "1"
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L
