@@ -26,6 +26,8 @@ import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.QuestExperimental
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.MaliGraphics
+import com.droiddeck.launcher.session.MaliGraphicsMode
 import com.droiddeck.launcher.ui.DriverRow
 import com.droiddeck.launcher.ui.DriverSlot
 import com.droiddeck.launcher.ui.GPU_MODE_AUTO
@@ -269,6 +271,12 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     fun ensureAuto(force: Boolean) {
         mode = SessionPrefs.gpuDriverMode(activity)
         if (mode != SessionPrefs.GPU_DRIVERS_AUTO || pairBusy != null || releaseChecking) return
+        if (SessionPrefs.maliGraphicsMode(activity) != MaliGraphicsMode.AUTO) {
+            autoStatus = MaliGraphics.problem(activity) ?: activity.getString(
+                R.string.mali_path_selected, activity.getString(SessionPrefs.maliGraphicsMode(activity).label),
+            )
+            return
+        }
         if (SessionState.running) {
             if (force) autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
             return
@@ -283,16 +291,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         // A Mali pair set by an earlier build put its PanVK Android half on the display, which fails
         // on Mali gralloc. Under Auto the display is the phone's own driver (Android's loader).
         if (gpu.family.mali) {
-            // Builds before 0.5.0-nad1 turned the bridge on under Auto without recording it, and
-            // left it on for good (it wins over the pair). Under Auto that switch is taken as Auto's.
-            if (!SessionPrefs.maliFallbackKnown(activity))
-                SessionPrefs.setMaliFallbackByAuto(
-                    activity,
-                    MaliAutoRoute.initialOwnership(
-                        SessionPrefs.vkBridge(activity), bridgeExplicit(),
-                        SessionPrefs.venus(activity), venusExplicit(),
-                    ),
-                )
             // A lone imported PanVK Android driver set by hand stalls the display the same way
             // ("black screen with the start-up logo"), so under Auto any imported display goes.
             val display = SessionPrefs.androidDriver(activity)
@@ -305,7 +303,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             AutoDriverTrial.rollBack(activity, trial)
             autoStatus = activity.getString(R.string.drivers_rolled_back, trial.name)
             // The drivers before the trial on a Mali are the runtime's Turnip, which finds no GPU there.
-            if (gpu.family.mali && maliHasNoRoute()) useMaliFallback(trial.name)
+            if (gpu.family.mali) autoStatus = maliRouteStatus(trial.name)
             refreshDrivers()
             return
         }
@@ -338,7 +336,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         Log.i(TAG, "auto: ${gpu.name} (${gpu.family}) -> " + (DriverPairs.recommendedKey(gpu, emptyList()) ?: "no pair"))
         if (gpu.family.mali && DriverPairs.recommendedKey(gpu, emptyList()) == null) {
             // No PanVK build covers this Mali (e.g. the G1 series, arch v14): the phone's own driver.
-            autoStatus = useMaliFallback(null)
+            autoStatus = maliRouteStatus(null)
             refreshDrivers()
             return
         }
@@ -354,6 +352,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
             runCatching { com.droiddeck.launcher.gpu.VulkanInfo.query() }
             ui.post {
                 releaseChecking = false
+                if (SessionPrefs.maliGraphicsMode(activity) != MaliGraphicsMode.AUTO) return@post
                 if (gpu.family == GpuInfo.Family.POWERVR) gpu = GpuInfo.detect()
                 refreshReleaseRows()
                 refreshPairs()
@@ -363,10 +362,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 val row = pairRows.firstOrNull { it.key == key }
                 when {
                     row?.active == true -> {
-                        if (MaliAutoRoute.shouldEnd(
-                                SessionPrefs.maliFallbackByAuto(activity), gpu.family.mali,
-                                pair?.key?.let { DriverPairs.isNonAdreno(it) } == true,
-                            )) endMaliFallback()
                         autoStatus = problem?.let { activity.getString(R.string.drivers_up_to_date_check_failed, it) }
                             ?: activity.getString(R.string.upd_current_status)
                     }
@@ -379,27 +374,17 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                     gpu.family.mali && (pair == null || !pair.complete) &&
                         (problem != null || TurnipReleases.cached(activity)?.failed?.contains(TurnipReleases.NON_ADRENO_LABEL) == true) -> {
                         // The list could not be read: nothing is known to be missing, so a working route stays.
-                        // With no open driver, Venus or bridge the session would run the runtime's Turnip,
-                        // which finds no GPU on a Mali, so the stand-in goes on anyway.
                         autoStatus = activity.getString(R.string.upd_couldnt_check, problem ?: TurnipReleases.NON_ADRENO_LABEL)
-                        if (maliHasNoRoute()) {
-                            useMaliFallback(null)
-                            refreshDrivers()
-                        }
                     }
                     gpu.family.mali && (pair == null || !pair.complete) -> {
                         // No open driver for this Mali published yet: the phone's own driver until it is.
-                        autoStatus = useMaliFallback(key?.let { DriverPairs.nonAdrenoName(it) } ?: gpu.name)
+                        autoStatus = maliRouteStatus(key?.let { DriverPairs.nonAdrenoName(it) } ?: gpu.name)
                         refreshDrivers()
                     }
                     pair == null || !pair.complete ->
                         autoStatus = problem?.let { activity.getString(R.string.upd_couldnt_check, it) } ?: activity.getString(R.string.drivers_recommended_unpublished)
                     AutoDriverTrial.release(pair) in AutoDriverTrial.bad(activity) -> {
                         autoStatus = activity.getString(R.string.drivers_skipping_bad, pair.name, pair.version)
-                        if (gpu.family.mali && maliHasNoRoute()) {
-                            useMaliFallback(pair.name)
-                            refreshDrivers()
-                        }
                     }
                     SessionState.running -> autoStatus = activity.getString(R.string.drivers_auto_waits_for_session)
                     holdBack && row?.installed != true -> autoStatus = activity.getString(R.string.drivers_auto_waits_for_network, pair.name, pair.version)
@@ -409,66 +394,15 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }, "gpu-driver-auto").start()
     }
 
-    private fun bridgeExplicit(): Boolean =
-        MaliAutoRoute.userChoice(SessionPrefs.vkBridgeExplicit(activity), SessionPrefs.maliFallbackByAuto(activity), MaliAutoRoute.BRIDGE)
-
-    private fun venusExplicit(): Boolean =
-        MaliAutoRoute.userChoice(SessionPrefs.venusExplicit(activity), SessionPrefs.maliFallbackByAuto(activity), MaliAutoRoute.VENUS)
-
-    /**
-     * Preserves explicit user settings for both route switches. Otherwise, a Mali without an available
-     * open driver pair uses the phone's driver through Venus when available, or the Mali bridge.
-     * Venus requires a host Vulkan 1.2 driver; the bridge also handles Vulkan 1.1.
-     * [missing] names an unpublished pair, or is null when no PanVK build covers this GPU.
-     * The Linux driver choice stays as the bridge's fallback. Auto only clears its own fallback
-     * after installing a pair ([endMaliFallback]).
-     */
-    private fun useMaliFallback(missing: String?): String {
-        if (bridgeExplicit() || venusExplicit()) return ""
+    private fun maliRouteStatus(missing: String?): String {
+        val path = MaliGraphics.resolve(activity) ?: return activity.getString(R.string.mali_path_unavailable)
         val oldVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(activity)
-        val venus = oldVulkan == null && com.droiddeck.launcher.session.VenusComponent.available(activity)
-        if (oldVulkan != null) Log.i(TAG, "auto: Mali driver reports Vulkan $oldVulkan; Venus needs 1.2, the bridge stands in")
-        val ownership = MaliAutoRoute.fallbackOwnership(
-            venus,
-            SessionPrefs.vkBridge(activity), bridgeExplicit(),
-            SessionPrefs.venus(activity), venusExplicit(),
-        )
-        if (venus && !SessionPrefs.venus(activity)) {
-            SessionPrefs.setVenus(activity, true)
-            if (SessionPrefs.vkBridge(activity) && !bridgeExplicit())
-                SessionPrefs.setVkBridge(activity, false)
-            SessionPrefs.setMaliFallbackByAuto(activity, ownership)
-        } else if (!venus && !SessionPrefs.vkBridge(activity)) {
-            SessionPrefs.setVkBridge(activity, true)
-            SessionPrefs.setMaliFallbackByAuto(activity, ownership)
-        } else if (ownership != MaliAutoRoute.NONE) {
-            SessionPrefs.setMaliFallbackByAuto(activity, ownership)
-        }
-        val route = activity.getString(if (venus) R.string.drivers_route_venus else R.string.drivers_route_bridge)
-        Log.i(TAG, "auto: Mali stand-in route $route (missing pair: ${missing ?: "none covers ${gpu.name}"})")
-        if (oldVulkan != null) return activity.getString(R.string.drivers_mali_old_vulkan_bridge, missing ?: gpu.name, oldVulkan)
+        val route = activity.getString(path.label)
+        Log.i(TAG, "auto: Mali resolved to $route (missing pair: ${missing ?: "none covers ${gpu.name}"})")
+        if (path == MaliGraphicsMode.PANVK) return activity.getString(R.string.mali_path_selected, route)
+        if (oldVulkan != null && path == MaliGraphicsMode.BRIDGE) return activity.getString(R.string.drivers_mali_old_vulkan_bridge, missing ?: gpu.name, oldVulkan)
         return if (missing == null) activity.getString(R.string.drivers_mali_no_pair_auto, route)
         else activity.getString(R.string.drivers_mali_unpublished_auto, missing, route)
-    }
-
-    /** Neither an installed open Linux driver nor Venus or the bridge: the runtime's Turnip would run. */
-    private fun maliHasNoRoute(): Boolean {
-        if (SessionPrefs.vkBridge(activity)) return false
-        // Venus on a Vulkan 1.1 driver does not start (VenusComponent.wanted), so it is no route.
-        if (SessionPrefs.venus(activity) && com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(activity) == null) return false
-        val linux = SessionPrefs.linuxDriver(activity)
-        return linux.isEmpty() || !LinuxVulkanDriverManager(activity).isInstalled(linux)
-    }
-
-    /** A pair is installed for this Mali: the route Auto switched on in its place goes off again. */
-    private fun endMaliFallback() {
-        when (SessionPrefs.maliFallbackByAuto(activity)) {
-            "venus" -> SessionPrefs.setVenus(activity, false)
-            "bridge" -> SessionPrefs.setVkBridge(activity, false)
-            else -> return
-        }
-        Log.i(TAG, "auto: pair installed; ${SessionPrefs.maliFallbackByAuto(activity)} (Auto's stand-in) off")
-        SessionPrefs.setMaliFallbackByAuto(activity, "")
     }
 
     fun selectPair(key: String) {
@@ -506,6 +440,8 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                 pairBusy = null
                 pairPercent = -1
                 result.onSuccess { (pairDisplayId, linuxId) ->
+                    if (auto && (SessionPrefs.gpuDriverMode(activity) != SessionPrefs.GPU_DRIVERS_AUTO ||
+                            SessionPrefs.maliGraphicsMode(activity) != MaliGraphicsMode.AUTO)) return@onSuccess
                     if (!select) {
                         android.widget.Toast.makeText(activity, activity.getString(R.string.drivers_pair_updated, pair.name), android.widget.Toast.LENGTH_LONG).show()
                         return@onSuccess
@@ -527,12 +463,6 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
                     val displayChanged = previousDisplay != displayId
                     SessionPrefs.setAndroidDriver(activity, displayId)
                     SessionPrefs.setLinuxDriver(activity, linuxId)
-                    // A route Auto switched on in place of a missing pair goes off now that one is
-                    // here. A Mali bridge or Venus switch the user set stays: it wins for the session
-                    // (DeviceSupport.vkBridge, VenusComponent.wanted) and the pair waits.
-                    if (MaliAutoRoute.shouldEnd(
-                            SessionPrefs.maliFallbackByAuto(activity), gpu.family.mali, DriverPairs.isNonAdreno(pair.key),
-                        )) endMaliFallback()
                     val restart = displayChanged && CompositorHost.isStarted
                     if (auto) {
                         val trial = AutoDriverTrial.current(activity)
@@ -632,7 +562,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
     }
 
     fun selectDriver(id: String, linux: Boolean) {
-        if (!linux && id == TurnipDriver.AUTO) {
+        if (!linux && id == TurnipDriver.AUTO && !gpu.family.mali && !com.droiddeck.launcher.core.DeviceSupport.mali()) {
             DriverBundle.selectDisplay(activity, id)
             pairModeOpen = false
             lastAutoCheck = 0L
@@ -642,6 +572,7 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
         }
         val bundle = DriverBundle.containing(activity, id, linux)
         when {
+            !linux && id == TurnipDriver.AUTO -> SessionPrefs.setAndroidDriver(activity, id)
             bundle != null -> useBundle(bundle)
             linux -> SessionPrefs.setLinuxDriver(activity, id)
             else -> DriverBundle.selectDisplay(activity, id)

@@ -935,27 +935,31 @@ object SessionPrefs {
 
     fun zinkLazy(context: Context): Boolean = prefs(context).getBoolean("zinkLazy", true)
 
-    @JvmStatic
-    fun vkBridge(context: Context): Boolean = prefs(context).getBoolean("vkBridge", com.droiddeck.launcher.core.DeviceSupport.mali())
+    @Synchronized
+    fun maliGraphicsMode(context: Context): MaliGraphicsMode {
+        val saved = prefs(context)
+        MaliGraphicsMode.fromId(saved.getString("maliGraphicsMode", null))?.let { return it }
+        val choice = MaliGraphics.migrate(
+            com.droiddeck.launcher.core.DeviceSupport.mali(),
+            if (saved.contains("vkBridge")) saved.getBoolean("vkBridge", false) else null,
+            if (saved.contains("venus")) saved.getBoolean("venus", false) else null,
+            saved.getString("maliFallbackByAuto", null),
+        )
+        setMaliGraphicsMode(context, choice)
+        return choice
+    }
 
-    fun vkBridgeExplicit(context: Context): Boolean = prefs(context).contains("vkBridge")
-
-    fun venus(context: Context): Boolean = prefs(context).getBoolean("venus", false)
-
-    fun venusExplicit(context: Context): Boolean = prefs(context).contains("venus")
+    @Synchronized
+    fun setMaliGraphicsMode(context: Context, choice: MaliGraphicsMode) {
+        prefs(context).edit().putString("maliGraphicsMode", choice.id)
+            .remove("vkBridge").remove("venus").remove("maliFallbackByAuto")
+            .remove("bridgeFellBack").remove("bridgeFallbackReason").apply()
+    }
 
     fun hostVulkanApi(context: Context): String = prefs(context).getString("hostVulkanApi", "").orEmpty()
 
     fun setHostVulkanApi(context: Context, api: String) {
         if (api != hostVulkanApi(context)) prefs(context).edit().putString("hostVulkanApi", api).apply()
-    }
-
-    fun bridgeFellBack(context: Context): Boolean = prefs(context).getBoolean("bridgeFellBack", false)
-
-    fun bridgeFellBackForMemory(context: Context): Boolean = prefs(context).getString("bridgeFallbackReason", "") == "memory"
-
-    fun setBridgeFellBack(context: Context, on: Boolean, reason: String = "") {
-        prefs(context).edit().putBoolean("bridgeFellBack", on).putString("bridgeFallbackReason", if (on) reason else "").apply()
     }
 
     fun steamGpuCompositing(context: Context): Boolean {
@@ -982,22 +986,6 @@ object SessionPrefs {
 
     fun setMemoryKillNotice(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("memoryKillNotice", on).apply()
-    }
-
-    fun maliFallbackByAuto(context: Context): String = prefs(context).getString("maliFallbackByAuto", "").orEmpty()
-
-    fun maliFallbackKnown(context: Context): Boolean = prefs(context).contains("maliFallbackByAuto")
-
-    fun setMaliFallbackByAuto(context: Context, route: String) {
-        prefs(context).edit().putString("maliFallbackByAuto", route).apply()
-    }
-
-    fun setVenus(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("venus", on).apply()
-    }
-
-    fun setVkBridge(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("vkBridge", on).putBoolean("bridgeFellBack", false).apply()
     }
 
     @JvmStatic

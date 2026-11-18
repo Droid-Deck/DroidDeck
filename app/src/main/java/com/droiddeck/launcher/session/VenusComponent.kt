@@ -3,7 +3,6 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.os.Process
 import android.util.Log
-import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.core.SessionPart
@@ -44,6 +43,7 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
             Log.i(TAG, line)
             out?.let { synchronized(it) { it.println(line); it.flush() } }
         })
+        check(pid > 0) { context.getString(com.droiddeck.launcher.R.string.mali_venus_start_failed) }
         Log.i(TAG, "vtest server pid $pid on $socket")
     }
 
@@ -59,15 +59,9 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
         private const val LIB = "libvulkan_virtio.so"
         private const val ICD = "virtio_icd.json"
 
-        /**
-         * The selection rule: Venus when Setup's "Mali (Venus)" is on, on a GPU that is neither an
-         * Adreno nor one the system-driver route covers (PowerVR, Xclipse), and the apk carries it.
-         * It then replaces the Mali bridge and any open driver pair for the session.
-         */
         @JvmStatic
         fun wanted(context: Context): Boolean =
-            !DeviceSupport.adreno() && !com.droiddeck.launcher.gpu.SystemVulkanDriver.isAvailable() &&
-                SessionPrefs.venus(context) && available(context) && hostVulkanTooOld(context) == null
+            MaliGraphics.resolve(context) == MaliGraphicsMode.VENUS
 
         /** The phone driver's Vulkan version when it is below 1.2: gamescope skips such a device, so Venus cannot run. */
         @JvmStatic
@@ -82,7 +76,8 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
         @JvmStatic
         fun available(context: Context): Boolean = runCatching {
             context.assets.list(DIR)?.contains(LIB) == true &&
-                File(context.applicationInfo.nativeLibraryDir, "libvirgl_test_server.so").isFile
+                File(context.applicationInfo.nativeLibraryDir, "libvirgl_test_server.so").isFile &&
+                File(context.applicationInfo.nativeLibraryDir, "libvirgl_render_server.so").isFile
         }.getOrDefault(false)
 
         @JvmStatic
@@ -94,13 +89,14 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
             val dir = File(context.filesDir, DIR)
             return listOf(
                 "VK_ICD_FILENAMES=" + File(dir, ICD).path,
+                "VK_DRIVER_FILES=" + File(dir, ICD).path,
                 "VN_DEBUG=vtest",
                 "VTEST_SOCKET_NAME=" + socket(context).path,
                 // Xwayland has no DRI3 without a DRM node, so swapchains present through shared memory.
                 "MESA_VK_WSI_DEBUG=sw",
                 // The Mali compatibility layer in every process but gamescope, not only Wine: Zink
                 // (Steam's GL, Xwayland's glamor) requires robustness2's nullDescriptor, which the
-                // layer stands in for. The session script checks it and falls back to llvmpipe.
+                // layer stands in for. Only Auto may fall back to llvmpipe if the startup probe fails.
                 "DROIDDECK_MALI_COMPAT=1",
                 "BL_VENUS=1",
                 // gamescope's composite layout without immutable YCbCr samplers from the start

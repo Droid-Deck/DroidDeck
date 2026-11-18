@@ -4,6 +4,33 @@ Venus implementation notes and historical prototype measurements from a Pixel 9 
 (Tensor G4, Mali-G715, Android 17). These October prototype results do not validate
 the current DroidDeck integration.
 
+## Mali graphics selection
+
+Setup stores one `maliGraphicsMode`: `auto`, `panvk`, `bridge`, or `venus`.
+The overall driver mode and the display driver's AUTO entry do not change this
+choice. Auto resolves each launch to the selected installed PanVK runtime driver,
+then available Venus with host Vulkan 1.2+, then an available MaliBridge. Resolution
+does not save its result. A fixed path reports missing components or failed startup
+self-tests instead of choosing a different backend. Only Auto permits the bridge's
+smoke-test fallback to an installed PanVK ICD.
+
+The session folder records `mali-graphics-path` after a successful startup probe and
+`mali-graphics-error` on a failed probe. Setup shows the saved choice, the next launch's
+resolved path, and the current/last session's confirmed path. These session records
+also appear in `graphics-report.txt` and travel with the existing log export.
+They are diagnostics, not configuration.
+
+Legacy migration runs once, then removes `vkBridge`, `venus`, and
+`maliFallbackByAuto`. Previously bridge defaulted to true on Mali, Venus to false;
+an existing key alone does not prove user intent. A matching Auto ownership marker
+migrates to Auto unless another enabled, unowned switch needs preserving. Without
+a usable marker, migration preserves the old enabled-path priority: Venus, then
+bridge (including its missing-key default), otherwise PanVK. Completely absent old
+switches start on Auto. A cleared marker cannot distinguish an old Auto write from
+a user choice, so those combinations retain their effective choice; migration does
+not claim to recover the user's original intent. Existing Venus hardware failures
+are not diagnosed or fixed by this selection model.
+
 ## Status (2026-10-08, night)
 
 Prototype 13 is the APK on the phone, a release build (not debuggable).

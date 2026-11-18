@@ -36,17 +36,14 @@ object GraphicsReport {
     private val ENV_PREFIXES = listOf(
         "VK_", "BL_VK", "BL_DRM", "BL_VKBRIDGE", "VKBRIDGE", "MESA_", "GALLIUM_", "ZINK", "TU_", "PANVK",
         "DROIDDECK_POWERVR", "DROIDDECK_HYBRIS", "BL_GAME_LOGS", "LIBGL_", "GAMESCOPE_DISABLE", "XWAYLAND",
+        "BL_MALI_", "BL_VENUS", "VN_", "VTEST_",
     )
 
     /** Per-game graphics logs and the guest's Vulkan summary: on for a non-Adreno GPU, or by Setup's switch. */
     fun detailed(context: Context): Boolean = !DeviceSupport.adreno() || SessionPrefs.detailedGraphicsLogs(context)
 
-    /** For finish(), which runs from the session's end without a context of its own. */
-    @Volatile private var appContext: Context? = null
-
     /** Writes the start of the report; never throws. */
     fun begin(context: Context, dir: File, guest: List<String>) {
-        appContext = context.applicationContext
         runCatching { File(dir, FILE).writeText(start(context, guest)) }
             .onFailure { android.util.Log.w("GraphicsReport", "could not write $FILE", it) }
     }
@@ -92,7 +89,11 @@ object GraphicsReport {
         }
         appendLine("frame generation: " + runCatching { com.droiddeck.launcher.gpu.FrameGen.mode(context).toString() }.getOrDefault("?") +
             " (engine=off means it is switched off in Play settings; a driver that fails LSFG's gates logs \"device gates\" below)")
-        appendLine("mali bridge setting: " + SessionPrefs.vkBridge(context) + ", in use: " + DeviceSupport.vkBridge(context))
+        if (DeviceSupport.mali()) {
+            appendLine("Mali graphics choice: " + SessionPrefs.maliGraphicsMode(context).id)
+            appendLine("Mali graphics resolved at launch: " + (MaliGraphics.resolve(context)?.id ?: "unavailable"))
+            MaliGraphics.problem(context)?.let { appendLine("Mali graphics unavailable: $it") }
+        }
         val standIn = runCatching { com.droiddeck.launcher.runtime.LinuxRuntime.gpuStandIn(context) }.getOrNull()
         appendLine("render node for the guest: " + (standIn?.let { node ->
             com.droiddeck.launcher.runtime.LinuxRuntime.deviceNumbers(node)?.let { n -> "/dev/dri/renderD${n.substringAfter(':')} -> $node ($n)" } ?: node
@@ -189,25 +190,21 @@ object GraphicsReport {
             val fallbackLines = File(dir, "vkbridge-fallback").takeIf { it.isFile }?.readLines()?.map { it.trim() }?.filter { it.isNotEmpty() }
             val fellBack = fallbackLines?.firstOrNull()
             val fallbackReason = fallbackLines?.getOrNull(1).orEmpty()
-            runCatching { SessionPrefs.setBridgeFellBack(appContext ?: return@runCatching, fellBack != null, fallbackReason) }
             val limits = File(dir, "limits.txt").takeIf { it.isFile }?.readText()?.trim()
             val audio = File(dir, "audio.log").takeIf { it.isFile }?.readText().orEmpty()
             report.appendText(buildString {
+                MaliGraphics.actual(dir)?.let { appendLine("Mali graphics used after self-test: ${it.id}") }
+                MaliGraphics.failure(dir)?.let { appendLine("!! MALI GRAPHICS FAILED: $it") }
                 limits?.let { appendLine("open files limit: $it") }
                 fellBack?.let {
-                    if (fallbackReason == "memory") appendLine("!! MALI BRIDGE FELL BACK: memory sharing = none (no method passed the server's self-test); the session ran on $it")
-                    else appendLine("!! MALI BRIDGE FELL BACK: the self-test failed images or draws; the session ran on $it")
+                    if (fallbackReason == "memory") appendLine("!! MALI BRIDGE FELL BACK: memory sharing = none (no method passed the server's self-test); Auto attempted $it")
+                    else appendLine("!! MALI BRIDGE FELL BACK: the bridge's self-test failed ($fallbackReason); Auto attempted $it")
                 }
                 com.droiddeck.launcher.wayland.WaylandCompositor.compositorFault().takeIf { it.isNotEmpty() }?.let {
                     appendLine("!! DISPLAY FAILED: $it")
                 }
                 com.droiddeck.launcher.wayland.WaylandCompositor.displayDriver().takeIf { it.isNotEmpty() }?.let {
                     appendLine("display driver (as loaded): $it")
-                }
-                appContext?.let { ctx ->
-                    if (SessionPrefs.venus(ctx)) VenusComponent.hostVulkanTooOld(ctx)?.let {
-                        appendLine("!! VENUS OFF: the phone's driver reports Vulkan $it; gamescope needs 1.2 or newer, so the session did not use Venus")
-                    }
                 }
                 if (audio.contains("AAUDIO_ERROR_DISCONNECTED")) {
                     appendLine("!! SOUND: Android refused the audio output (AAUDIO_ERROR_DISCONNECTED) - rebooting the phone usually fixes this")

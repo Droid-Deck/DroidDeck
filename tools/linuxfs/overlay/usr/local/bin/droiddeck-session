@@ -198,22 +198,6 @@ collect_steam_logs() {
   fi
 }
 trap 'bl_stopping=1; collect_steam_logs 2>/dev/null || true' TERM INT HUP
-if [ -n "${BL_VK_DRIVER:-}" ]; then
-  bl_icd_lib=$(sed -n 's/.*"library_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BL_VK_DRIVER" 2>/dev/null | head -1)
-  bl_icd_lib=$(printf '%s' "$bl_icd_lib" | sed 's|\\/|/|g')
-  case $bl_icd_lib in
-    /*) ;;
-    ?*) bl_icd_lib="$(dirname "$BL_VK_DRIVER")/$bl_icd_lib" ;;
-  esac
-  if [ -r "$BL_VK_DRIVER" ] && [ -n "$bl_icd_lib" ] && [ -r "$bl_icd_lib" ]; then
-    export VK_DRIVER_FILES="$BL_VK_DRIVER"
-    export VK_ICD_FILENAMES="$BL_VK_DRIVER"
-    echo "== vulkan driver: imported $bl_icd_lib (via $BL_VK_DRIVER)"
-  else
-    echo "== vulkan driver: IGNORING $BL_VK_DRIVER (manifest or ${bl_icd_lib:-library} unreadable); using the runtime's own"
-  fi
-  unset bl_icd_lib
-fi
 bl_webhelper_layout() {
   if [ -n "${BL_VKBRIDGE_WEBHELPER_ARGS:-}" ]; then
     printf '%s\n' "$BL_VKBRIDGE_WEBHELPER_ARGS"
@@ -259,6 +243,47 @@ vkbridge_wait_socket() {
     sleep 0.05
   done
 }
+mali_graphics_failed() {
+  local message="Mali graphics (${BL_MALI_GRAPHICS_MODE:-bridge}): $*"
+  echo "== $message"
+  if [ -n "${BL_DEBUG_DIR:-}" ]; then
+    printf '%s\n' "$message" > "$BL_DEBUG_DIR/mali-graphics-error"
+    rm -f "$BL_DEBUG_DIR/mali-graphics-path"
+  fi
+  exit 69
+}
+mali_graphics_used() {
+  export BL_MALI_GRAPHICS_PATH=$1
+  echo "== Mali graphics: choice=${BL_MALI_GRAPHICS_MODE:-auto}, used=$1"
+  [ -z "${BL_DEBUG_DIR:-}" ] || printf '%s\n' "$1" > "$BL_DEBUG_DIR/mali-graphics-path"
+}
+vkbridge_fallback() {
+  local reason=$1
+  [ "${BL_MALI_GRAPHICS_MODE:-bridge}" = auto ] || mali_graphics_failed "MaliBridge self-test failed ($reason); the fixed path will not fall back. See vkbridge logs."
+  [ -r "${BL_VKBRIDGE_FALLBACK_ICD:-}" ] || mali_graphics_failed "MaliBridge failed ($reason), and no compatible PanVK fallback is installed."
+  export VK_DRIVER_FILES=$BL_VKBRIDGE_FALLBACK_ICD VK_ICD_FILENAMES=$BL_VKBRIDGE_FALLBACK_ICD BL_VKBRIDGE=0
+  export BL_OPEN_DRIVER=1 BL_DRM_STANDIN=/dev/mali0 BL_MALI_GRAPHICS_PATH=panvk
+  [ "${BL_STEAM_GPU_COMPOSITING:-0}" = 1 ] || export BL_STEAM_SOFT_COMPOSITING=1
+  echo "== vkbridge: failed ($reason); Auto uses PanVK instead ($BL_VKBRIDGE_FALLBACK_ICD)"
+  [ -z "${BL_DEBUG_DIR:-}" ] || printf '%s\n%s\n' "$BL_VKBRIDGE_FALLBACK_ICD" "$reason" > "$BL_DEBUG_DIR/vkbridge-fallback"
+}
+if [ -n "${BL_VK_DRIVER:-}" ]; then
+  bl_icd_lib=$(sed -n 's/.*"library_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BL_VK_DRIVER" 2>/dev/null | head -1)
+  bl_icd_lib=$(printf '%s' "$bl_icd_lib" | sed 's|\\/|/|g')
+  case $bl_icd_lib in
+    /*) ;;
+    ?*) bl_icd_lib="$(dirname "$BL_VK_DRIVER")/$bl_icd_lib" ;;
+  esac
+  if [ -r "$BL_VK_DRIVER" ] && [ -n "$bl_icd_lib" ] && [ -r "$bl_icd_lib" ]; then
+    export VK_DRIVER_FILES="$BL_VK_DRIVER"
+    export VK_ICD_FILENAMES="$BL_VK_DRIVER"
+    echo "== vulkan driver: imported $bl_icd_lib (via $BL_VK_DRIVER)"
+  else
+    [ "${BL_MALI_GRAPHICS_PATH:-}" != panvk ] || mali_graphics_failed "PanVK manifest or driver library is unreadable: $BL_VK_DRIVER (${bl_icd_lib:-library})."
+    echo "== vulkan driver: IGNORING $BL_VK_DRIVER (manifest or ${bl_icd_lib:-library} unreadable); using the runtime's own"
+  fi
+  unset bl_icd_lib
+fi
 if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
   bl_vkb_icd=/usr/local/share/vkbridge/droidbridge_icd.json
   [ -z "${BL_INSIDE:-}" ] && vkbridge_wait_socket "${VKBRIDGE_SOCKET:-}" "${BL_VKBRIDGE_WAIT_MS:-10000}"
@@ -280,27 +305,18 @@ if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
     if [ -z "${BL_INSIDE:-}" ]; then
       step "vkbridge self-test"
       bl_vkb_smoke=$(timeout 60 /usr/local/bin/droiddeck-vkbridge-smoke 2>&1)
+      bl_vkb_status=$?
       printf '%s\n' "$bl_vkb_smoke" | sed 's/^/== vkbridge: /'
       bl_vkb_why=
       if printf '%s\n' "$bl_vkb_smoke" | grep -qE '^FAIL memory sharing'; then
         bl_vkb_why=memory
       elif printf '%s\n' "$bl_vkb_smoke" | grep -qE '^FAIL (image clear|draw)'; then
         bl_vkb_why=draw
+      elif [ "$bl_vkb_status" != 0 ] || printf '%s\n' "$bl_vkb_smoke" | grep -q '^FAIL'; then
+        bl_vkb_why="smoke test exit $bl_vkb_status"
       fi
-      if [ -n "$bl_vkb_why" ] && [ -r "${BL_VKBRIDGE_FALLBACK_ICD:-}" ]; then
-        export VK_DRIVER_FILES=$BL_VKBRIDGE_FALLBACK_ICD VK_ICD_FILENAMES=$BL_VKBRIDGE_FALLBACK_ICD BL_VKBRIDGE=0
-        export BL_OPEN_DRIVER=1 BL_DRM_STANDIN=/dev/mali0
-        [ "${BL_STEAM_GPU_COMPOSITING:-0}" = 1 ] || export BL_STEAM_SOFT_COMPOSITING=1
-        if [ "$bl_vkb_why" = memory ]; then
-          echo "== vkbridge: memory sharing = none (no method passed the server's self-test); this session uses the PanVK pair instead ($BL_VKBRIDGE_FALLBACK_ICD)"
-        else
-          echo "== vkbridge: self-test failed images or draws; this session uses the PanVK pair instead ($BL_VKBRIDGE_FALLBACK_ICD)"
-        fi
-        [ -n "${BL_DEBUG_DIR:-}" ] && printf '%s\n%s\n' "$BL_VKBRIDGE_FALLBACK_ICD" "$bl_vkb_why" > "$BL_DEBUG_DIR/vkbridge-fallback" 2>/dev/null
-      elif [ -n "$bl_vkb_why" ]; then
-        echo "== vkbridge: self-test failed ($bl_vkb_why) and no PanVK pair is installed to fall back on; expect a black screen or a lost device - set a Mali driver pair in Setup"
-      fi
-      unset bl_vkb_why
+      if [ -n "$bl_vkb_why" ]; then vkbridge_fallback "$bl_vkb_why"; else mali_graphics_used bridge; fi
+      unset bl_vkb_why bl_vkb_status
       unset bl_vkb_smoke
       if command -v vulkaninfo >/dev/null 2>&1; then
         timeout 30 vulkaninfo --summary 2>&1 | sed -n '/^Devices:/,$p' | head -40 | sed 's/^/== vulkaninfo: /'
@@ -309,23 +325,33 @@ if [ "${BL_VKBRIDGE:-0}" = 1 ]; then
     [ "${BL_VKBRIDGE:-0}" = 1 ] && echo "== vulkan driver: Mali bridge ($bl_vkb_icd, server at $VKBRIDGE_SOCKET)"
   else
     echo "== vulkan driver: Mali bridge requested but NOT usable (icd $bl_vkb_icd, socket ${VKBRIDGE_SOCKET:-unset}; missing:$bl_vkb_missing)"
-    [ -n "${BL_INSIDE:-}" ] || exit 69
+    vkbridge_fallback "missing:$bl_vkb_missing"
   fi
   unset bl_vkb_icd bl_vkb_missing
 fi
-if [ "${BL_VENUS:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ] && command -v vulkaninfo >/dev/null 2>&1; then
+if [ "${BL_MALI_GRAPHICS_PATH:-}" = panvk ] && [ -z "${BL_INSIDE:-}" ]; then
+  command -v vulkaninfo >/dev/null 2>&1 || mali_graphics_failed "PanVK self-test requires vulkaninfo in the runtime."
+  bl_panvk_info=$(timeout 30 vulkaninfo --summary 2>&1) || mali_graphics_failed "PanVK Vulkan self-test failed or timed out: $bl_panvk_info"
+  printf '%s\n' "$bl_panvk_info" | sed 's/^/== vulkaninfo: /'
+  mali_graphics_used panvk
+  unset bl_panvk_info
+fi
+if [ "${BL_VENUS:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ]; then
+  command -v vulkaninfo >/dev/null 2>&1 || mali_graphics_failed "Venus self-test requires vulkaninfo in the runtime."
   if bl_vn_info=$(timeout 30 vulkaninfo 2>/dev/null); then
     case $(printf '%s\n' "$bl_vn_info" | grep -m1 'nullDescriptor') in
       *true*) echo "== venus: nullDescriptor present (Zink keeps the GPU)" ;;
       *)
+        [ "${BL_MALI_GRAPHICS_MODE:-venus}" = auto ] || mali_graphics_failed "Venus lacks nullDescriptor required by Zink; the fixed path will not use software rendering."
         export GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
         unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2
         echo "== venus: no nullDescriptor on this device even with the Mali compatibility layer; Steam's GL and Xwayland use llvmpipe (software)"
         ;;
     esac
   else
-    echo "== venus: vulkaninfo failed or timed out; GL left on Zink"
+    mali_graphics_failed "Venus Vulkan self-test failed or timed out. See venus.log and the session logs."
   fi
+  mali_graphics_used venus
   unset bl_vn_info
 fi
 if [ "${BL_GAME_LOGS:-0}" = 1 ] && [ -z "${BL_INSIDE:-}" ] && [ -n "${BL_DEBUG_DIR:-}" ]; then
@@ -1909,7 +1935,7 @@ case $mode in
     stop_watcher=$!
     if [ "${BL_VENUS:-0}" = 1 ] && [ -x /usr/local/bin/droiddeck-glprobe ] && [ "${GALLIUM_DRIVER:-}" = zink ]; then
       LIBGL_DEBUG=verbose MESA_LOG_LEVEL=debug timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -60 | sed 's/^/== glprobe: /'
-      if [ "${PIPESTATUS[0]}" = 1 ]; then
+      if [ "${PIPESTATUS[0]}" != 0 ]; then
         VK_LOADER_DEBUG=error,warn timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -40 | sed 's/^/== glprobe (loader): /'
         DROIDDECK_MALI_COMPAT_TRACE=1 MESA_DEBUG=1 MESA_LOG_LEVEL=debug LIBGL_DEBUG=verbose ZINK_DEBUG=mem VN_DEBUG=init,result,log_ctx_info \
           timeout 30 /usr/local/bin/droiddeck-glprobe > "${BL_DEBUG_DIR:-/tmp}/glprobe-trace.txt" 2>&1
@@ -1930,6 +1956,7 @@ case $mode in
           echo "== venus: GL through Zink starts with: $bl_gl_ok (the Steam client gets that)"
         else
           [ -n "$bl_gl_ok" ] && echo "== venus: Zink starts only without the Mali compatibility layer (then without nullDescriptor); not used"
+          [ "${BL_MALI_GRAPHICS_MODE:-venus}" = auto ] || mali_graphics_failed "Venus Zink self-test failed; the fixed path will not use software rendering. See glprobe in the session logs."
           export GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
           unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2
           echo "== venus: GL through Zink did not start (see glprobe above); the Steam client's GL uses llvmpipe (software)"

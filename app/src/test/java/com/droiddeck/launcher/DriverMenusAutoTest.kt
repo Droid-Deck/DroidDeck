@@ -6,6 +6,13 @@ import android.os.Handler
 import android.os.Looper
 import com.droiddeck.launcher.session.QuestExperimental
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.MaliGraphicsMode
+import com.droiddeck.launcher.gpu.DriverBundle
+import com.droiddeck.launcher.gpu.GpuInfo
+import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
+import com.droiddeck.launcher.ui.GPU_MODE_AUTO
+import com.droiddeck.launcher.ui.GPU_MODE_PAIR
+import com.droiddeck.launcher.ui.GPU_MODE_MIX
 import com.droiddeck.launcher.gpu.TpUbwcHint
 import com.droiddeck.launcher.gpu.TurnipDriver
 import org.junit.Assert.assertEquals
@@ -21,6 +28,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowBuild
 import org.robolectric.util.ReflectionHelpers
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -86,50 +94,49 @@ class DriverMenusAutoTest {
         assertEquals("chosen-linux", SessionPrefs.linuxDriver(activity))
     }
 
-    @Test fun autoFallbackPreservesEveryExplicitRouteConfiguration() {
+    @Test fun fixedMaliPathsSurviveEveryOverallModeAndDisplayAuto() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        for ((bridge, venus) in listOf(false to false, false to true, true to false, true to true)) {
-            SessionPrefs.setVkBridge(activity, bridge)
-            SessionPrefs.setVenus(activity, venus)
-            SessionPrefs.setMaliFallbackByAuto(activity, "")
-            runMaliFallback(activity)
-            assertEquals(bridge, SessionPrefs.vkBridge(activity))
-            assertEquals(venus, SessionPrefs.venus(activity))
-            assertEquals("", SessionPrefs.maliFallbackByAuto(activity))
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
+        ReflectionHelpers.setField(menus, "gpu", GpuInfo("Mali-G720", 720, GpuInfo.Family.MALI_G720, "", false))
+        for (choice in listOf(MaliGraphicsMode.PANVK, MaliGraphicsMode.BRIDGE, MaliGraphicsMode.VENUS)) {
+            SessionPrefs.setMaliGraphicsMode(activity, choice)
+            SessionPrefs.setLinuxDriver(activity, "chosen-linux")
+            for (overall in listOf(GPU_MODE_AUTO, GPU_MODE_PAIR, GPU_MODE_MIX)) {
+                menus.chooseMode(overall)
+                menus.ensureAuto(force = true)
+                assertEquals(choice, SessionPrefs.maliGraphicsMode(activity))
+                assertEquals("chosen-linux", SessionPrefs.linuxDriver(activity))
+                menus.selectDriver(TurnipDriver.AUTO, linux = false)
+                assertEquals(choice, SessionPrefs.maliGraphicsMode(activity))
+                assertEquals("chosen-linux", SessionPrefs.linuxDriver(activity))
+                assertEquals(SessionPrefs.GPU_DRIVERS_MIX, SessionPrefs.gpuDriverMode(activity))
+            }
         }
     }
 
-    @Test fun anExplicitVenusSettingLeavesTheDefaultBridgeUntouched() {
+    @Test fun maliDisplayAutoKeepsTheRuntimeHalfOfAnActiveBundle() {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        val bridge = SessionPrefs.vkBridge(activity)
-        SessionPrefs.setVenus(activity, false)
-        runMaliFallback(activity)
-        assertFalse(activity.getSharedPreferences("session", Context.MODE_PRIVATE).contains("vkBridge"))
-        assertEquals(bridge, SessionPrefs.vkBridge(activity))
-        assertFalse(SessionPrefs.venus(activity))
-        assertEquals("", SessionPrefs.maliFallbackByAuto(activity))
+        val display = File(activity.filesDir, "graphics_driver/test-panvk").apply { mkdirs() }
+        File(display, "meta.json").writeText("""{"libraryName":"libvulkan_panfrost.so"}""")
+        File(display, "libvulkan_panfrost.so").writeText("fixture")
+        val runtime = LinuxVulkanDriverManager(activity).getDriverDir("test-panvk").apply { mkdirs() }
+        File(runtime, "icd.json").writeText("{}")
+        File(runtime, "libvulkan_panfrost.so").writeText("fixture")
+        activity.getSharedPreferences("driver_bundles", Context.MODE_PRIVATE).edit()
+            .putString("PanVK-G720-test", """{"name":"PanVK","android":"test-panvk","linux":"test-panvk"}""").commit()
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
+        ReflectionHelpers.setField(menus, "gpu", GpuInfo("Mali-G720", 720, GpuInfo.Family.MALI_G720, "", false))
+        for (choice in MaliGraphicsMode.entries) {
+            SessionPrefs.setMaliGraphicsMode(activity, choice)
+            SessionPrefs.setAndroidDriver(activity, "test-panvk")
+            SessionPrefs.setLinuxDriver(activity, "test-panvk")
+            assertEquals("PanVK-G720-test", DriverBundle.active(activity)?.id)
+            menus.selectDriver(TurnipDriver.AUTO, linux = false)
+            assertEquals(TurnipDriver.AUTO, SessionPrefs.androidDriver(activity))
+            assertEquals("test-panvk", SessionPrefs.linuxDriver(activity))
+            assertEquals(choice, SessionPrefs.maliGraphicsMode(activity))
+        }
     }
-
-    @Test fun autoFallbackCanFillInUnconfiguredRoutes() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        assertTrue(runMaliFallback(activity).isNotEmpty())
-        assertTrue(SessionPrefs.maliFallbackByAuto(activity).isNotEmpty())
-        assertTrue(SessionPrefs.vkBridge(activity) || SessionPrefs.venus(activity))
-    }
-
-    @Test fun autoFallbackCanRevisitItsOwnRoute() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        SessionPrefs.setVkBridge(activity, true)
-        SessionPrefs.setMaliFallbackByAuto(activity, MaliAutoRoute.BRIDGE)
-        assertTrue(runMaliFallback(activity).isNotEmpty())
-        assertTrue(SessionPrefs.maliFallbackByAuto(activity).isNotEmpty())
-    }
-
-    private fun runMaliFallback(activity: Activity): String =
-        ReflectionHelpers.callInstanceMethod<String>(
-            DriverMenus(activity, Handler(Looper.getMainLooper())), "useMaliFallback",
-            ReflectionHelpers.ClassParameter.from(String::class.java, null),
-        )
 
     @Test fun driverMenusCanBeConstructedBeforeActivityContextIsAttached() {
         val menus = DriverMenus(Activity(), Handler(Looper.getMainLooper()))

@@ -499,9 +499,12 @@ class SessionService : Service() {
         SessionPrefs.ensurePowerVrAutoDrivers(this)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
-            if (SessionPrefs.venus(this)) VenusComponent.hostVulkanTooOld(this)?.let {
-                Log.w(TAG, "venus: off for this session - the phone's driver reports Vulkan $it and gamescope needs 1.2 or newer; the session uses the PanVK pair or the bridge")
-            }
+        }
+        MaliGraphics.problem(this)?.let { message ->
+            Log.e(TAG, message)
+            failSession(gen, "MALI_GRAPHICS_UNAVAILABLE", message, -1)
+            stopSession(-1, gen)
+            return
         }
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
@@ -827,6 +830,7 @@ class SessionService : Service() {
             }
             val program = programStatus(sessionRoot)
             Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
+            MaliGraphics.failure(sessionDir)?.let { failSession(gen, "MALI_GRAPHICS_FAILED", it, status) }
             stopSession(program ?: status ?: -1, gen)
         }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() }) }
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
@@ -956,9 +960,18 @@ class SessionService : Service() {
         guest.add("MESA_LOADER_DRIVER_OVERRIDE=zink")
         guest.add("GALLIUM_DRIVER=zink")
         guest.add("LIBGL_KOPPER_DRI2=true")
+        val maliPath = MaliGraphics.resolve(this)
+        if (maliPath != null) {
+            guest.add("BL_MALI_GRAPHICS_MODE=" + SessionPrefs.maliGraphicsMode(this).id)
+            guest.add("BL_MALI_GRAPHICS_PATH=" + maliPath.id)
+        }
         val venus = VenusComponent.wanted(this)
         if (venus) {
             VenusComponent.guestEnv(this).forEach { guest.add(it) }
+        } else if (maliPath == MaliGraphicsMode.PANVK) {
+            val icd = MaliGraphics.panvkIcd(this) ?: error(getString(R.string.mali_panvk_missing))
+            guest.add("VK_ICD_FILENAMES=$icd")
+            guest.add("VK_DRIVER_FILES=$icd")
         } else {
             LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
         }
@@ -968,7 +981,7 @@ class SessionService : Service() {
             this,
             com.droiddeck.launcher.wayland.CompositorHost.displayChoice.takeIf { com.droiddeck.launcher.wayland.CompositorHost.isStarted }
                 ?: SessionPrefs.androidDriver(this),
-            linuxDriverId,
+            linuxDriverId.takeIf { maliPath == null || maliPath == MaliGraphicsMode.PANVK },
         )
         val bridge = com.droiddeck.launcher.core.DeviceSupport.vkBridge(this)
         if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
@@ -1062,9 +1075,9 @@ class SessionService : Service() {
         components.add(bridge)
         guest.add("BL_VKBRIDGE=1")
         if (SessionPrefs.steamGpuCompositing(this)) guest.add("BL_STEAM_GPU_COMPOSITING=1")
-        SessionPrefs.linuxDriver(this).takeIf { it.isNotEmpty() }
-            ?.let { runCatching { LinuxVulkanDriver.resolveIcdPath(this, it) }.getOrNull() }
-            ?.let { guest.add("BL_VKBRIDGE_FALLBACK_ICD=$it") }
+        if (SessionPrefs.maliGraphicsMode(this) == MaliGraphicsMode.AUTO) {
+            MaliGraphics.panvkIcd(this)?.let { guest.add("BL_VKBRIDGE_FALLBACK_ICD=$it") }
+        }
         guest.add("VKBRIDGE_SOCKET=" + socket.path)
         guest.add("VKBRIDGE_CLIENT_LOG=" + File(sessionDir, "vkbridge-client.log").path)
         guest.add("VKBRIDGE_MODE=" + SessionPrefs.vkBridgeMode(this))

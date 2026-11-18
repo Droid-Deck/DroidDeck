@@ -168,9 +168,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var gameCores by mutableStateOf<Set<Int>>(emptySet())
     private var tuSysmem by mutableStateOf(false)
     private var zinkLazy by mutableStateOf(false)
-    private var vkBridge by mutableStateOf(false)
-    private var venus by mutableStateOf(false)
-    private var venusHostVulkan by mutableStateOf<String?>(null)
+    private var maliGraphicsMode by mutableStateOf(com.droiddeck.launcher.session.MaliGraphicsMode.AUTO)
+    private var maliGraphicsPath by mutableStateOf<com.droiddeck.launcher.session.MaliGraphicsMode?>(null)
+    private var maliGraphicsActual by mutableStateOf<com.droiddeck.launcher.session.MaliGraphicsMode?>(null)
+    private var maliGraphicsProblem by mutableStateOf<String?>(null)
     private var vkBridgeSafe by mutableStateOf(true)
     private var bridgeProtonDxvk by mutableStateOf(false)
     private val adrenoGpu by lazy { com.droiddeck.launcher.core.DeviceSupport.adreno() }
@@ -672,8 +673,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var graphicsLogs by mutableStateOf(false)
     private var buildWatermark by mutableStateOf(true)
     private var steamGpuDrawing by mutableStateOf(false)
-    private var bridgeFellBack by mutableStateOf(false)
-    private var bridgeFellBackMemory by mutableStateOf(false)
     private var clearCachedApps by mutableStateOf(false)
     private var adbPaired by mutableStateOf(false)
     private var memoryHud by mutableStateOf(SessionPrefs.MEMORY_HUD_OFF)
@@ -1271,7 +1270,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 FrontEndScreen(
                     FrontEndState(
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
-                        vkBridge = vkBridge, venus = venus, venusHostVulkan = venusHostVulkan, vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
+                        maliGraphicsMode = maliGraphicsMode, maliGraphicsPath = maliGraphicsPath,
+                        maliGraphicsActual = maliGraphicsActual, maliGraphicsProblem = maliGraphicsProblem,
+                        vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
                         shortcutPicker = shortcutPicker,
                         preparingGames = preparingGames,
                         shortcutLibraryScanning = shortcutLibraryScanning,
@@ -1283,7 +1284,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         enhancedDiagnosticsArmed = enhancedDiagnosticsArmed,
                         gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
-                        graphicsLogs = graphicsLogs, steamGpuDrawing = steamGpuDrawing, bridgeFellBack = bridgeFellBack, bridgeFellBackMemory = bridgeFellBackMemory,
+                        graphicsLogs = graphicsLogs, steamGpuDrawing = steamGpuDrawing,
                         buildWatermark = buildWatermark,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         tpUbwcMode = drivers.tpUbwcModeForDevice(), tpUbwcRestartRequired = drivers.tpUbwcRestartRequired(), canRestartApp = !runtimeChangesBlocked(),
@@ -1454,19 +1455,16 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onInstallPackage = { id -> installPackage(id) },
                         onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
-                        onVkBridge = { on ->
-                            SessionPrefs.setVkBridge(this, on); SessionPrefs.setMaliFallbackByAuto(this, ""); vkBridge = on
-                            if (!on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
-                        },
-                        onVenus = { on ->
-                            SessionPrefs.setVenus(this, on)
-                            SessionPrefs.setMaliFallbackByAuto(this, "")
-                            venus = on
-                            if (on && !com.droiddeck.launcher.core.DeviceSupport.adreno()) Thread({
+                        onMaliGraphicsMode = { choice ->
+                            SessionPrefs.setMaliGraphicsMode(this, choice)
+                            refreshMaliGraphics()
+                            com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
+                            if (!adrenoGpu) Thread({
                                 com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
-                                runOnUiThread { venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this) }
+                                runOnUiThread { refreshMaliGraphics() }
                             }, "venus-host-vulkan").start()
                         },
+                        onRefreshMaliGraphics = { refreshMaliGraphics() },
                         onVkBridgeSafe = { on -> SessionPrefs.setVkBridgeSafe(this, on); vkBridgeSafe = on },
                         onBridgeProtonDxvk = { on ->
                             SessionPrefs.setBridgeProtonDxvk(this, on); bridgeProtonDxvk = on
@@ -3014,6 +3012,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }, "usb-link").start()
     }
 
+    private fun refreshMaliGraphics() {
+        maliGraphicsMode = SessionPrefs.maliGraphicsMode(this)
+        maliGraphicsPath = com.droiddeck.launcher.session.MaliGraphics.resolve(this)
+        maliGraphicsActual = com.droiddeck.launcher.session.MaliGraphics.actual(SessionState.logDirectory)
+        maliGraphicsProblem = com.droiddeck.launcher.session.MaliGraphics.problem(this)
+    }
+
     private fun refreshCores() {
         clientOverride = SessionPrefs.clientCpusOverride(this)
         glThread = SessionPrefs.glThread(this)
@@ -3022,9 +3027,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         gameCores = CpuCores.parse(SessionPrefs.gameCpus(this)).ifEmpty { CpuCores.all.toSet() }
         tuSysmem = SessionPrefs.tuSysmem(this)
         zinkLazy = SessionPrefs.zinkLazy(this)
-        vkBridge = SessionPrefs.vkBridge(this)
-        venus = SessionPrefs.venus(this)
-        venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)
+        refreshMaliGraphics()
         vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
         bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         noXalia = SessionPrefs.noXalia(this)
@@ -3092,7 +3095,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
-        vkBridge = SessionPrefs.vkBridge(this)
+        refreshMaliGraphics()
         vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
         bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
@@ -3108,8 +3111,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         graphicsLogs = SessionPrefs.detailedGraphicsLogs(this)
         buildWatermark = SessionPrefs.buildWatermarkEnabled(this)
         steamGpuDrawing = SessionPrefs.steamGpuCompositing(this)
-        bridgeFellBack = SessionPrefs.bridgeFellBack(this)
-        bridgeFellBackMemory = SessionPrefs.bridgeFellBackForMemory(this)
         clearCachedApps = SessionPrefs.clearCachedApps(this)
         adbPaired = WirelessAdbFix.hasSavedPairing(this)
         memoryHud = SessionPrefs.memoryHud(this)

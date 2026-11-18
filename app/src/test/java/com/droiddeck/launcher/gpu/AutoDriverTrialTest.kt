@@ -63,6 +63,14 @@ class AutoDriverTrialTest {
         assertEquals("banner@r5", AutoDriverTrial.current(context)?.release)
     }
 
+    @Test fun aHostRouteCannotConfirmAnEarlierPanvkTrial() {
+        AutoDriverTrial.sessionStarting(context, "new-display", "new-linux")
+        AutoDriverTrial.sessionStarting(context, "new-display", null)
+        AutoDriverTrial.sessionReady()
+        assertEquals(1, AutoDriverTrial.current(context)?.starts)
+        assertEquals("banner@r5", AutoDriverTrial.current(context)?.release)
+    }
+
     @Test fun displayDriverCrashesBeforeSessionStartStillCount() {
         AutoDriverTrial.displayStarting(context, "new-display")
         assertNull(AutoDriverTrial.rollbackDue(context))

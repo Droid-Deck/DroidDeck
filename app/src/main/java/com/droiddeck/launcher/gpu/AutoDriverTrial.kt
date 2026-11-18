@@ -55,7 +55,7 @@ object AutoDriverTrial {
         p.edit().putInt("displayStarts", counted + 1).commit()
     }
 
-    fun sessionStarting(context: Context, display: String, linux: String) {
+    fun sessionStarting(context: Context, display: String, linux: String?) {
         val trial = current(context)
         watching = null
         if (trial == null || trial.display != display || trial.linux != linux) return

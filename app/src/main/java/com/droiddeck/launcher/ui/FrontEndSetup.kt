@@ -173,7 +173,10 @@ internal fun SetupPanel(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val gpu = remember { com.droiddeck.launcher.gpu.GpuInfo.detect() }
-    val gpuOk = gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED || s.vkBridge
+    val mali = remember { DeviceSupport.mali() }
+    val bridge = s.maliGraphicsPath == com.droiddeck.launcher.session.MaliGraphicsMode.BRIDGE
+    val gpuOk = if (mali) s.maliGraphicsPath != null && s.maliGraphicsProblem == null
+        else gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED
     val gpuName = remember { DeviceSupport.gpuName(ctx) }
     val limitBlocks = PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
     val signedIn = s.offlineAccount != null
@@ -213,6 +216,7 @@ internal fun SetupPanel(
         while (true) {
             kotlinx.coroutines.delay(2_000)
             a.onRefreshPhantomStatus()
+            if (mali) a.onRefreshMaliGraphics()
         }
     }
     LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
@@ -236,7 +240,7 @@ internal fun SetupPanel(
     val runtimeOk = s.ready && !s.busy && !s.removalPending
     val checks = listOf(gpuOk, runtimeOk, !limitBlocks, signedIn)
     val passing = checks.count { it }
-    var showChecks by rememberSaveable { mutableStateOf(s.vkBridge) }
+    var showChecks by rememberSaveable { mutableStateOf(mali) }
     Rise(0, Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().bumpers(
@@ -250,42 +254,35 @@ internal fun SetupPanel(
             Column(modifier = Modifier.weight(1f).fillMaxWidth().then(if (tab == 1) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(bottom = if (tab == 1) 0.dp else 24.dp)) {
                 when (tab) {
                     0 -> {
-                        // Setup's "Safe mode" row, under the GPU row while the bridge is on and can be used here.
-                        val bridgeModeRow = !s.adreno && s.vkBridge && com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()
+                        val bridgeModeRow = bridge && DeviceSupport.bridgeUsable()
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
                             CheckRow(
                                 if (gpuOk) CheckState.OK else CheckState.WARN,
                                 when {
                                     gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_supported)
                                     gpu.support == com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested)
-                                    s.vkBridge -> stringResource(R.string.setup_gpu_bridged)
+                                    bridge -> stringResource(R.string.setup_gpu_bridged)
                                     else -> stringResource(R.string.setup_gpu_unsupported)
                                 },
-                                when (gpu.support) {
+                                if (mali) listOfNotNull(
+                                    stringResource(R.string.mali_path_next, s.maliGraphicsPath?.let { stringResource(it.label) } ?: stringResource(R.string.mali_path_none)),
+                                    stringResource(if (s.sessionRunning) R.string.mali_path_current else R.string.mali_path_last,
+                                        s.maliGraphicsActual?.let { stringResource(it.label) } ?: stringResource(R.string.mali_path_not_started)),
+                                    s.maliGraphicsProblem,
+                                ).joinToString("\n") else when (gpu.support) {
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.displayName(ctx), gpuName)
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED ->
-                                        if (!s.adreno && s.venus && s.venusHostVulkan != null) stringResource(R.string.setup_gpu_venus_host_too_old, gpu.displayName(ctx), s.venusHostVulkan)
-                                        else if (!s.adreno && s.vkBridge && !com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()) stringResource(R.string.setup_gpu_bridge_unusable, gpu.displayName(ctx))
-                                        else if (!s.adreno && s.vkBridge && s.bridgeFellBack) stringResource(if (s.bridgeFellBackMemory) R.string.setup_gpu_bridge_no_memory_sharing else R.string.setup_gpu_bridge_fell_back, gpu.displayName(ctx))
-                                        else stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
-                                    else -> if (s.venus && s.venusHostVulkan != null) stringResource(R.string.setup_gpu_venus_host_too_old, gpuName, s.venusHostVulkan)
-                                    else if (s.vkBridge && !com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()) stringResource(R.string.setup_gpu_bridge_unusable, gpuName)
-                                    else if (s.vkBridge && s.bridgeFellBack) stringResource(if (s.bridgeFellBackMemory) R.string.setup_gpu_bridge_no_memory_sharing else R.string.setup_gpu_bridge_fell_back, gpuName)
-                                    else if (s.vkBridge) stringResource(R.string.setup_gpu_bridge_detail, gpuName)
-                                    else stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
+                                        stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
+                                    else -> stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
                                 },
                                 divider = divider || bridgeModeRow,
-                                action = if (s.adreno) null else { {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        SecondaryButton(
-                                            stringResource(if (s.venus) R.string.setup_gpu_venus_on else R.string.setup_gpu_venus_off),
-                                            enabled = !s.sessionRunning, compact = true, onClick = { a.onVenus(!s.venus) },
-                                        )
-                                        SecondaryButton(
-                                            stringResource(if (s.vkBridge) R.string.setup_gpu_bridge_on else R.string.setup_gpu_bridge_off),
-                                            enabled = !s.sessionRunning, compact = true, onClick = { a.onVkBridge(!s.vkBridge) },
-                                        )
-                                    }
+                                action = if (!mali) null else { {
+                                    ChoiceChip(
+                                        host, "mali-graphics", stringResource(R.string.mali_path_choice),
+                                        com.droiddeck.launcher.session.MaliGraphicsMode.entries.map { it to stringResource(it.label) },
+                                        s.maliGraphicsMode, enabled = !s.sessionRunning && !s.runtimeActionsBlocked,
+                                        onPick = a.onMaliGraphicsMode,
+                                    )
                                 } },
                             )
                             if (bridgeModeRow) CheckRow(
@@ -300,7 +297,7 @@ internal fun SetupPanel(
                                     )
                                 },
                             )
-                            if (!s.adreno && s.vkBridge) CheckRow(
+                            if (bridge) CheckRow(
                                 CheckState.OK,
                                 stringResource(R.string.setup_bridge_dxvk),
                                 stringResource(if (s.bridgeProtonDxvk) R.string.setup_bridge_dxvk_proton_detail else R.string.setup_bridge_dxvk_auto_detail),
