@@ -47,10 +47,15 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.SdStorage
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LocalMall
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -105,13 +110,16 @@ internal fun BottomBar(
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
     val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
     val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    val barContext = LocalContext.current
+    remember { RailLabels.load(barContext) }
+    val iconOnly = !RailLabels.shown
     Row(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
         BoxWithConstraints(Modifier.weight(1f)) {
             val itemWidth = (maxWidth / keys.size).coerceIn(56.dp, 88.dp)
             Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
                 if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Horizontal, corner = 14.dp, fill = 0.14f, outline = 0f)
                 Row(Modifier.selectableGroup().padding(vertical = 4.dp), horizontalArrangement = Arrangement.Center) {
-                    NavigationItems(s, shown, compact = true, iconOnly = false, height = 56.dp, width = itemWidth,
+                    NavigationItems(s, shown, compact = true, iconOnly = iconOnly, height = if (iconOnly) 48.dp else 56.dp, width = itemWidth,
                         place = { key -> Modifier.onGloballyPositioned { item -> content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }; Hops.railBounds[key] = item.boundsInRoot() } },
                         onSelect = onSelect, onFocusSelect = onFocusSelect)
                 }
@@ -121,15 +129,7 @@ internal fun BottomBar(
     }
 }
 
-internal fun navigationKeys(s: FrontEndState) = buildList {
-    add("steam"); add("games")
-    if (s.gameStoresEnabled) add("stores")
-    add("desktop")
-    if (com.droiddeck.launcher.agent.AgentTab.visible) add("agent")
-    add("components")
-    if (s.isHomeApp) add("android-apps")
-    add("setup"); add("updates")
-}
+internal fun navigationKeys(s: FrontEndState) = NavTabs.bar(s)
 
 internal object RailLabels {
     var shown by mutableStateOf(true)
@@ -197,17 +197,36 @@ internal fun SideRail(
 internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
+    "soundtracks" -> R.string.rail_music to SoundtrackIcon
     "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
+    "downloads" -> R.string.stores_tab_downloads to Icons.Outlined.Download
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
-    "agent" -> R.string.rail_agent to Icons.Outlined.AutoAwesome
+    "agent" -> R.string.rail_agent to Icons.Outlined.Terminal
     "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
     "setup" -> R.string.rail_setup to Icons.Outlined.Tune
+    "storage" -> R.string.rail_storage to Icons.Outlined.SdStorage
+    "sync" -> R.string.rail_sync to Icons.Outlined.Sync
+    NavTabs.MORE -> R.string.rail_more to Icons.Outlined.MoreHoriz
     else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
 }
 
 internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||
-    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus) || com.droiddeck.launcher.sync.Syncthing.needsAttention
+    PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+
+internal fun railBadge(s: FrontEndState, key: String, setupNeedsAttention: Boolean = setupNeedsAttention(s)): Boolean = when (key) {
+    "setup" -> setupNeedsAttention
+    "sync" -> com.droiddeck.launcher.sync.Syncthing.needsAttention
+    "updates" -> s.updates.hasUpdate
+    NavTabs.MORE -> NavTabs.more(s).any { it != NavTabs.MORE && railBadge(s, it, setupNeedsAttention) }
+    else -> false
+}
+
+internal fun railCount(s: FrontEndState, key: String): Int = when (key) {
+    "downloads" -> s.storeDownloadsActive
+    NavTabs.MORE -> if ("downloads" in NavTabs.more(s)) s.storeDownloadsActive else 0
+    else -> 0
+}
 
 @Composable
 private fun NavigationItems(
@@ -215,13 +234,16 @@ private fun NavigationItems(
     place: (String) -> Modifier, onSelect: (String) -> Unit, onFocusSelect: (String) -> Unit,
 ) {
     val setupNeedsAttention = setupNeedsAttention(s)
+    val downloadsAt = if ("downloads" in NavTabs.more(s)) NavTabs.MORE else "downloads"
     for (key in navigationKeys(s)) {
-        val (label, icon) = railLabelIcon(key)
+        val (label, base) = railLabelIcon(key)
+        val icon = if (key == NavTabs.MORE && MoreTabs.inside) Icons.AutoMirrored.Outlined.ArrowBack else base
         key(key) {
             RailItem(stringResource(label), icon, key, shown == key, compact, iconOnly, height, width,
-                badge = (key == "setup" && setupNeedsAttention) || (key == "updates" && s.updates.hasUpdate),
-                count = if (key == "stores") s.storeDownloadsActive else 0,
-                place = place, onFocus = { onFocusSelect(key) }) { onSelect(key) }
+                badge = railBadge(s, key, setupNeedsAttention),
+                count = railCount(s, key),
+                place = { k -> if (k == downloadsAt) place(k).onGloballyPositioned { StoresMotion.downloadsChip = it.boundsInRoot() } else place(k) },
+                onFocus = { onFocusSelect(key) }) { onSelect(key) }
         }
     }
 }
@@ -277,9 +299,9 @@ private fun RailItem(
             .selectable(selected = current, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
             .then(if (iconOnly) Modifier.semantics { contentDescription = label } else Modifier),
     ) {
-        if (iconOnly) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp))
+        if (iconOnly) androidx.compose.animation.Crossfade(icon, animationSpec = Motion.tw(220), label = "railIcon") { Icon(it, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp)) }
         else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(if (height < 56.dp) 20.dp else 22.dp))
+            androidx.compose.animation.Crossfade(icon, animationSpec = Motion.tw(220), label = "railIcon") { Icon(it, contentDescription = null, tint = fg, modifier = Modifier.size(if (height < 56.dp) 20.dp else 22.dp)) }
             FitText(label, maxSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp), fontWeight = FontWeight.SemiBold, color = fg)
         }
         if (badge) Box(

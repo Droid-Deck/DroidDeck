@@ -693,7 +693,7 @@ def melonds_geometry():
     import base64, struct
     w, h = 512, 288
     try:
-        screen_w = int(os.environ.get("BL_WIDTH", "1920"))
+        screen_w = int(os.environ.get("DD_WIDTH", "1920"))
     except ValueError:
         screen_w = 1920
     rect = (0, 0, w - 1, h - 1)

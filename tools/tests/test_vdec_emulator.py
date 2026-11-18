@@ -28,9 +28,9 @@ DRIVER = r'''
 #include <sys/mman.h>
 #include <unistd.h>
 
-int bl_vdec_open(const char *path, int flags);
-int bl_vdec_ioctl(int fd, unsigned long req, void *arg, int *rc);
-void bl_vdec_closed(int fd);
+int dd_vdec_open(const char *path, int flags);
+int dd_vdec_ioctl(int fd, unsigned long req, void *arg, int *rc);
+void dd_vdec_closed(int fd);
 void *SDL_LoadObject(const char *name);
 void *SDL_LoadFunction(void *handle, const char *name);
 
@@ -74,12 +74,12 @@ int ioctl(int fd, unsigned long req, ...) {
 static int vfd;
 static int call(unsigned long req, void *arg) {
     int rc;
-    if (!bl_vdec_ioctl(vfd, req, arg, &rc)) return -100;
+    if (!dd_vdec_ioctl(vfd, req, arg, &rc)) return -100;
     return rc < 0 ? -errno : 0;
 }
 
 int main(void) {
-    if (bl_vdec_open("/dev/video0", O_RDWR) != -2) return 2;
+    if (dd_vdec_open("/dev/video0", O_RDWR) != -2) return 2;
     void *drm = SDL_LoadObject("libdrm.so.2");
     if (!drm) return 3;
     int (*devices)(uint32_t, struct drm_device **, int) = SDL_LoadFunction(drm, "drmGetDevices2");
@@ -90,7 +90,7 @@ int main(void) {
     int card = open(dev[0]->nodes[0], O_RDWR | O_CLOEXEC);
     if (card < 0) return 6;
 
-    vfd = bl_vdec_open("/dev/video-dec0", O_RDWR);
+    vfd = dd_vdec_open("/dev/video-dec0", O_RDWR);
     if (vfd < 0) return 7;
     struct v4l2_capability cap;
     if (call(VIDIOC_QUERYCAP, &cap) || (cap.capabilities & 0x04004000) != 0x04004000) return 8;
@@ -184,7 +184,7 @@ int main(void) {
     if (call(VIDIOC_DQBUF, &db)) return 37;
     unsigned char *m = mmap(NULL, size, PROT_READ, MAP_SHARED, bh.fd, 0);
     printf("%ld %u %c%c\n", (long)db.timestamp.tv_usec, db.index, m[0], m[(size_t)1920 * 1088]);
-    bl_vdec_closed(vfd);
+    dd_vdec_closed(vfd);
     return 0;
 }
 '''
@@ -249,13 +249,13 @@ class VdecEmulatorTest(unittest.TestCase):
             driver = tmp / 'driver.c'
             driver.write_text(DRIVER)
             binary = tmp / 'streaming_client'
-            subprocess.run(['cc', '-O1', '-pthread', '-DBL_VDEC_ANY_ARCH', '-o', str(binary), str(driver), str(VDEC),
+            subprocess.run(['cc', '-O1', '-pthread', '-DDD_VDEC_ANY_ARCH', '-o', str(binary), str(driver), str(VDEC),
                             str(VENC), '-ldl'], check=True)
             sock = tmp / 'venc.sock'
             server = FakeDecoder(str(sock))
             self.addCleanup(server.listener.close)
             server.start()
-            done = subprocess.run([str(binary)], env=dict(os.environ, BL_VENC_SOCKET=str(sock)),
+            done = subprocess.run([str(binary)], env=dict(os.environ, DD_VENC_SOCKET=str(sock)),
                                   capture_output=True, text=True, timeout=20)
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
             self.assertEqual(done.stdout.split('\n')[:6],
@@ -272,7 +272,7 @@ class VdecEmulatorTest(unittest.TestCase):
                 'void *SDL_LoadObject(const char *);\n'
                 'int main(void) { return SDL_LoadObject("libdrm.so.2") != 0; }\n')
             binary = tmp / 'steam'
-            subprocess.run(['cc', '-O1', '-pthread', '-DBL_VDEC_ANY_ARCH', '-o', str(binary), str(tmp / 'main.c'),
+            subprocess.run(['cc', '-O1', '-pthread', '-DDD_VDEC_ANY_ARCH', '-o', str(binary), str(tmp / 'main.c'),
                             str(VDEC), str(VENC), '-ldl'], check=True)
             done = subprocess.run([str(binary)], capture_output=True, text=True, timeout=20)
             self.assertEqual(done.returncode, 0, done.stderr)

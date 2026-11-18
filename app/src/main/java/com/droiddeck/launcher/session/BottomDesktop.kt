@@ -194,7 +194,7 @@ object BottomDesktop {
         send(target, Message.obtain(null, Comp.MSG_POINTER, x, y))
     }
 
-    /** Button (3), wheel (4) and smooth-scroll (12) input, as `WaylandCompositor.nativeSendSceneInput` takes it. */
+    /** Button, wheel and finger-scroll input, using the `WaylandCompositor.SCENE_*` types `nativeSendSceneInput` takes. */
     fun sendScene(type: Int, a: Int, b: Int = 0) {
         val target = service ?: return
         send(target, Message.obtain(null, Comp.MSG_SCENE, type, a).apply {
@@ -315,11 +315,11 @@ object BottomDesktop {
             main.post { if (generation == guestGeneration) watchIme(imeDir) }
             val binds = LinuxRuntime.binds(context, current.sessionRoot, runtime, Environment.getExternalStorageDirectory(), current.binds)
             val guest = ArrayList(current.guest).apply {
-                add("BL_WIDTH=$width")
-                add("BL_HEIGHT=$height")
-                add("BL_DEBUG_DIR=" + dir.path)
-                add("BL_TOP_SESSION=" + SessionState.mode)
-                add("BL_IME_DIR=" + imeDir.path)
+                add("DD_WIDTH=$width")
+                add("DD_HEIGHT=$height")
+                add("DD_DEBUG_DIR=" + dir.path)
+                add("DD_TOP_SESSION=" + SessionState.mode)
+                add("DD_IME_DIR=" + imeDir.path)
                 add(SCRIPT)
             }
             val command = if (current.nativeUserland) {

@@ -423,6 +423,9 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
     if (is_proc_self_exe(pathname)) {
         ssize_t exe_len = handle_proc_self_exe(buf, bufsiz);
         if (exe_len >= 0) return exe_len;
+    } else {
+        ssize_t exe_len = handle_proc_other_exe(pathname, buf, bufsiz);
+        if (exe_len >= 0) return exe_len;
     }
     static ssize_t (*orig_readlink)(const char *, char *, size_t) = NULL;
     if (!orig_readlink) orig_readlink = (ssize_t (*)(const char *, char *, size_t))dlsym(RTLD_NEXT, "readlink");
@@ -443,8 +446,15 @@ ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
     if (!orig_readlinkat) orig_readlinkat = (ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat");
     DDNATV_AT_REMAP(dirfd, pathname);
     // after the remap: "proc/self/exe" relative to a descriptor for "/" is /proc/self/exe as well
+    {
+        ssize_t exe_len = handle_proc_exe_at(dirfd, pathname, buf, bufsiz);
+        if (exe_len >= 0) return exe_len;
+    }
     if (is_proc_self_exe(pathname)) {
         ssize_t exe_len = handle_proc_self_exe(buf, bufsiz);
+        if (exe_len >= 0) return exe_len;
+    } else {
+        ssize_t exe_len = handle_proc_other_exe(pathname, buf, bufsiz);
         if (exe_len >= 0) return exe_len;
     }
     char pbuf[PATH_MAX];
@@ -700,7 +710,7 @@ char *getcwd(char *buf, size_t size) {
     char *res = orig_getcwd ? orig_getcwd(buf, size) : NULL;
     if (res) {
         size_t len = strlen(res);
-        guest_path_of_mount_source(res, len, buf ? size : len + 1);
+        guest_path_of_mount_source(res, len, buf ? size : len + 1, NULL);
     }
     return res;
 }
@@ -749,7 +759,7 @@ char *realpath(const char *path, char *resolved_path) {
             }
         }
     }
-    if (res) guest_path_of_mount_source(res, strlen(res), resolved_path ? PATH_MAX : strlen(res) + 1);
+    if (res) guest_path_of_mount_source(res, strlen(res), resolved_path ? PATH_MAX : strlen(res) + 1, NULL);
     return res;
 }
 

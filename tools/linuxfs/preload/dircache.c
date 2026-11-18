@@ -83,6 +83,19 @@ static int notify = -1;
 static int forked;
 static struct { dev_t dev; int fuse; } devs[8];
 static int ndevs;
+// Libraries preloaded after this one can call back in while a lock is held (the native userland
+// hook's inotify_add_watch calls mkdir() by name); such calls go straight to the next library.
+static __thread int holding;
+
+static void take(pthread_mutex_t *m) {
+  pthread_mutex_lock(m);
+  holding++;
+}
+
+static void give(pthread_mutex_t *m) {
+  holding--;
+  pthread_mutex_unlock(m);
+}
 
 static long long now_ns(void) {
   struct timespec t;
@@ -99,7 +112,7 @@ static void after_fork(void) {
 static int enabled(void) {
   static int cached = -1;
   if (cached < 0) {
-    const char *off = getenv("BL_NO_DIR_CACHE");
+    const char *off = getenv("DD_NO_DIR_CACHE");
     cached = strcmp(program_invocation_short_name, "steam") == 0 &&
              (strstr(program_invocation_name, "steamrtarm64") != NULL ||
               strstr(program_invocation_name, "steamrt64") != NULL) && !(off && strcmp(off, "1") == 0);
@@ -109,32 +122,32 @@ static int enabled(void) {
 }
 
 static int eligible(const char *path) {
-  if (path == NULL || path[0] != '/' || !enabled()) return 0;
+  if (holding || path == NULL || path[0] != '/' || !enabled()) return 0;
   const char *s = strstr(path, "/steamapps");
   return s && (s[10] == '/' || s[10] == 0);
 }
 
 static int on_fuse(dev_t dev, const char *path) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   for (int i = 0; i < ndevs; i++) {
     if (devs[i].dev == dev) {
       int fuse = devs[i].fuse;
-      pthread_mutex_unlock(&lock);
+      give(&lock);
       return fuse;
     }
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   struct statfs fs;
   int saved = errno;
   int fuse = statfs(path, &fs) == 0 && (unsigned long)fs.f_type == FUSE_MAGIC;
   errno = saved;
-  pthread_mutex_lock(&lock);
+  take(&lock);
   if (ndevs < 8) {
     devs[ndevs].dev = dev;
     devs[ndevs].fuse = fuse;
     ndevs++;
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   return fuse;
 }
 
@@ -404,7 +417,7 @@ __attribute__((constructor)) static void resolve(void) {
 #pragma GCC diagnostic pop
 
 static DIR *hit(const struct stat *st, struct handle *h, long long now) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   if (!changing) pump(NULL, 0);
   int slot = find(st->st_dev, st->st_ino);
   if (slot >= 0 && same(table[slot], st) && now - table[slot]->filled < DIR_TTL_NS && records(table[slot]) == 0) {
@@ -413,7 +426,7 @@ static DIR *hit(const struct stat *st, struct handle *h, long long now) {
     h->snap->used = now;
     DIR *d = wrap(h);
     if (d) {
-      pthread_mutex_unlock(&lock);
+      give(&lock);
       return d;
     }
     unref(h->snap);
@@ -421,7 +434,7 @@ static DIR *hit(const struct stat *st, struct handle *h, long long now) {
   } else if (slot >= 0) {
     drop(slot);
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   return NULL;
 }
 
@@ -462,11 +475,11 @@ static int above(struct handle *h, const char *path) {
 }
 
 static int track(struct handle *h, const char *path) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   h->wd = watch(path, WATCHED);
   DIR *d = h->wd >= 0 && above(h, path) ? wrap(h) : NULL;
   if (d == NULL) let_go(h->wd, h->up, h->nup);
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   return d != NULL;
 }
 
@@ -486,11 +499,11 @@ static void filling(struct handle *h, DIR *real, const struct stat *st, long lon
 }
 
 static void untrack(struct handle *h) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   int i = registered((DIR *)h);
   if (i >= 0) __atomic_store_n(&handles[i], NULL, __ATOMIC_RELEASE);
   let_go(h->wd, h->up, h->nup);
-  pthread_mutex_unlock(&lock);
+  give(&lock);
 }
 
 DIR *opendir(const char *path) {
@@ -553,11 +566,11 @@ static void finish(struct handle *h) {
   h->fill = NULL;
   int current = stat(h->path, &st) == 0 && same(l, &st);
   if (current) l->folds = folds(h->path, &st);
-  pthread_mutex_lock(&lock);
+  take(&lock);
   if (!changing) pump(NULL, 0);
   if (current && !__atomic_load_n(&h->dirty, __ATOMIC_RELAXED)) install(l);
   else destroy(l);
-  pthread_mutex_unlock(&lock);
+  give(&lock);
 }
 
 static struct dirent64 *entry(struct handle *h) {
@@ -624,7 +637,8 @@ int readdir_r(DIR *d, struct dirent *out, struct dirent **result) {
 
 int closedir(DIR *d) {
   NEXT(closedir);
-  pthread_mutex_lock(&lock);
+  if (holding && registered(d) < 0) return next_closedir(d);
+  take(&lock);
   int i = registered(d);
   struct handle *h = i >= 0 ? handles[i] : NULL;
   if (h) {
@@ -632,7 +646,7 @@ int closedir(DIR *d) {
     if (h->snap) unref(h->snap);
     let_go(h->wd, h->up, h->nup);
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   if (h == NULL) return next_closedir(d);
   int r = 0;
   if (h->real) r = next_closedir(h->real);
@@ -704,10 +718,10 @@ static int watching(const char *path) {
 }
 
 static void begin(void) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   pump(NULL, 0);
   changing = 1;
-  pthread_mutex_unlock(&lock);
+  give(&lock);
 }
 
 static void before(struct side *s) {
@@ -796,30 +810,30 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
 }
 
 static void end(struct expect *x, int nx) {
-  pthread_mutex_lock(&lock);
+  take(&lock);
   pump(x, nx);
   changing = 0;
-  pthread_mutex_unlock(&lock);
+  give(&lock);
 }
 
-int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) __attribute__((visibility("hidden")));
-int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) {
   struct side s;
   if (!(flags & O_CREAT) || (dirfd != AT_FDCWD && (path == NULL || path[0] != '/')) || !watching(path) || !split(path, &s))
     return real(dirfd, path, flags, mode);
-  pthread_mutex_lock(&oplock);
+  take(&oplock);
   begin();
   before(&s);
   int fd = real(dirfd, path, flags, mode);
   int saved = errno;
   struct expect x;
-  pthread_mutex_lock(&lock);
+  take(&lock);
   int nx = patch(&s, ADDED, IN_CREATE, fd >= 0, saved, path, &x);
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   end(&x, nx);
-  pthread_mutex_unlock(&oplock);
+  give(&oplock);
   errno = saved;
   return fd;
 }
@@ -829,34 +843,34 @@ int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
     NEXT(name); \
     struct side s; \
     if (!watching(path) || !split(path, &s)) return call; \
-    pthread_mutex_lock(&oplock); \
+    take(&oplock); \
     begin(); \
     before(&s); \
     int r = call; \
     int saved = errno; \
     struct expect x; \
-    pthread_mutex_lock(&lock); \
+    take(&lock); \
     int nx = patch(&s, what, event, r == 0, saved, what == ADDED ? path : NULL, &x); \
     if (r == 0 && what == REMOVED) forget_below(path); \
-    pthread_mutex_unlock(&lock); \
+    give(&lock); \
     end(&x, nx); \
-    pthread_mutex_unlock(&oplock); \
+    give(&oplock); \
     errno = saved; \
     return r; \
   }
 
 ONE_PATH(mkdir, ADDED, IN_CREATE, next_mkdir(path, mode), mode_t mode)
-int bl_descriptor_unlink(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
-int bl_descriptor_rmdir(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
-int bl_descriptor_remove(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
-int bl_descriptor_rename(const char *from, const char *to, int (*real)(const char *, const char *))
+int dd_descriptor_unlink(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int dd_descriptor_rmdir(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int dd_descriptor_remove(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int dd_descriptor_rename(const char *from, const char *to, int (*real)(const char *, const char *))
     __attribute__((visibility("hidden")));
 
-static int moved(const char *from, const char *to) { return bl_descriptor_rename(from, to, next_rename); }
+static int moved(const char *from, const char *to) { return dd_descriptor_rename(from, to, next_rename); }
 
-ONE_PATH(rmdir, REMOVED, IN_DELETE, bl_descriptor_rmdir(path, next_rmdir))
-ONE_PATH(unlink, REMOVED, IN_DELETE, bl_descriptor_unlink(path, next_unlink))
-ONE_PATH(remove, REMOVED, IN_DELETE, bl_descriptor_remove(path, next_remove))
+ONE_PATH(rmdir, REMOVED, IN_DELETE, dd_descriptor_rmdir(path, next_rmdir))
+ONE_PATH(unlink, REMOVED, IN_DELETE, dd_descriptor_unlink(path, next_unlink))
+ONE_PATH(remove, REMOVED, IN_DELETE, dd_descriptor_remove(path, next_remove))
 
 #define TWO_PATHS(name, gone, event, call) \
   int name(const char *from, const char *to) { \
@@ -864,7 +878,7 @@ ONE_PATH(remove, REMOVED, IN_DELETE, bl_descriptor_remove(path, next_remove))
     struct side a, b; \
     int track_a = gone && watching(from) && split(from, &a), track_b = watching(to) && split(to, &b); \
     if (!track_a && !track_b) return call(from, to); \
-    pthread_mutex_lock(&oplock); \
+    take(&oplock); \
     begin(); \
     if (track_a) before(&a); \
     if (track_b) before(&b); \
@@ -872,22 +886,22 @@ ONE_PATH(remove, REMOVED, IN_DELETE, bl_descriptor_remove(path, next_remove))
     int saved = errno; \
     struct expect x[2]; \
     int nx = 0; \
-    pthread_mutex_lock(&lock); \
+    take(&lock); \
     if (track_a) nx += patch(&a, REMOVED, IN_MOVED_FROM, r == 0, saved, NULL, &x[nx]); \
     if (track_b) { \
       if (track_a && strcmp(a.dir, b.dir) == 0) b.known = stat(b.dir, &b.before) == 0; \
       nx += patch(&b, ADDED, event, r == 0, saved, to, &x[nx]); \
     } \
     if (r == 0 && gone) { forget_below(from); forget_below(to); } \
-    pthread_mutex_unlock(&lock); \
+    give(&lock); \
     end(x, nx); \
-    pthread_mutex_unlock(&oplock); \
+    give(&oplock); \
     errno = saved; \
     return r; \
   }
 
-int bl_link_lock(const char *oldpath, const char *newpath, int result) __attribute__((visibility("hidden")));
-static int link_or_lock(const char *from, const char *to) { return bl_link_lock(from, to, next_link(from, to)); }
+int dd_link_lock(const char *oldpath, const char *newpath, int result) __attribute__((visibility("hidden")));
+static int link_or_lock(const char *from, const char *to) { return dd_link_lock(from, to, next_link(from, to)); }
 
 TWO_PATHS(rename, 1, IN_MOVED_TO, moved)
 TWO_PATHS(link, 0, IN_CREATE, link_or_lock)
@@ -924,34 +938,34 @@ static int listed_absent(const char *dir, const char *name, long long now) {
   return 0;
 }
 
-int bl_dircache_absent(const char *path) __attribute__((visibility("hidden")));
-int bl_dircache_absent(const char *path) {
+int dd_dircache_absent(const char *path) __attribute__((visibility("hidden")));
+int dd_dircache_absent(const char *path) {
   struct side s;
   if (!watching(path) || !split(path, &s)) return 0;
   for (const char *c = s.name; *c; c++)
     if ((unsigned char)*c >= 0x80) return 0;
   long long now = now_ns();
-  pthread_mutex_lock(&lock);
+  take(&lock);
   int absent = 0;
   if (!changing) {
     pump(NULL, 0);
     absent = listed_absent(s.dir, s.name, now);
   }
-  pthread_mutex_unlock(&lock);
+  give(&lock);
   return absent;
 }
 
 #else
 
-int bl_dircache_absent(const char *path) __attribute__((visibility("hidden")));
-int bl_dircache_absent(const char *path) {
+int dd_dircache_absent(const char *path) __attribute__((visibility("hidden")));
+int dd_dircache_absent(const char *path) {
   (void)path;
   return 0;
 }
 
-int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) __attribute__((visibility("hidden")));
-int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) {
   return real(dirfd, path, flags, mode);
 }

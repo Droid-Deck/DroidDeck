@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.droiddeck.shortcuts'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.droiddeck.shortcuts'
+        minSdkVersion 26
+        targetSdkVersion 34
+        versionCode 3
+        versionName '3'
+    }
+
+    sourceSets.main.java.srcDir('src/protocol/java')
+
+    signingConfigs {
+        testkey {
+            storeFile file("${rootDir}/keystore/testkey.p12")
+            storeType 'PKCS12'
+            storePassword 'android'
+            keyAlias 'testkey'
+            keyPassword 'android'
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
+    buildTypes {
+        debug { signingConfig signingConfigs.testkey }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.testkey
+        }
+    }
+
+    lint {
+        disable 'ExpiredTargetSdkVersion'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

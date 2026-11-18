@@ -12,27 +12,46 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(VkDevice device, const VkShade
                                                   const VkAllocationCallbacks *allocator, VkShaderModule *module)
 {
     struct device *dev = device_from_handle(device);
+    VkShaderModuleCreateInfo copy = *info;
     size_t count = info->codeSize / sizeof(uint32_t);
-    if (!spirv_uses_distances(info->pCode, count))
-        return dev->CreateShaderModule(device, info, allocator, module);
+    struct spirv_code single = {0};
+    if ((dev->emulated & GAP_DUAL_SRC_BLEND) && spirv_uses_dual_source(info->pCode, count)) {
+        if (spirv_strip_dual_source(info->pCode, count, &single)) {
+            copy.pCode = single.words;
+            copy.codeSize = single.count * sizeof(uint32_t);
+            count = single.count;
+        } else {
+            layer_log("could not take the second blend source out of a shader module");
+        }
+    }
+    if (!(dev->emulated & GAPS_SHADER) || !spirv_uses_distances(copy.pCode, count)) {
+        VkResult result = dev->CreateShaderModule(device, &copy, allocator, module);
+        free(single.words);
+        return result;
+    }
 
     struct spirv_code stripped;
-    if (!spirv_strip_distances(info->pCode, count, &stripped)) {
+    if (!spirv_strip_distances(copy.pCode, count, &stripped)) {
         layer_log("could not take the clip and cull distances out of a shader module");
-        return dev->CreateShaderModule(device, info, allocator, module);
+        VkResult result = dev->CreateShaderModule(device, &copy, allocator, module);
+        free(single.words);
+        return result;
     }
-    VkShaderModuleCreateInfo copy = *info;
+    struct spirv_code *original = malloc(sizeof(*original));
+    original->count = count;
+    original->words = malloc(copy.codeSize);
+    memcpy(original->words, copy.pCode, copy.codeSize);
+    free(single.words);
     copy.pCode = stripped.words;
     copy.codeSize = stripped.count * sizeof(uint32_t);
     VkResult result = dev->CreateShaderModule(device, &copy, allocator, module);
     free(stripped.words);
-    if (result != VK_SUCCESS)
+    if (result != VK_SUCCESS) {
+        free(original->words);
+        free(original);
         return result;
+    }
 
-    struct spirv_code *original = malloc(sizeof(*original));
-    original->count = count;
-    original->words = malloc(info->codeSize);
-    memcpy(original->words, info->pCode, info->codeSize);
     pthread_mutex_lock(&dev->lock);
     map_put(&dev->shader_modules, HANDLE(*module), original);
     pthread_mutex_unlock(&dev->lock);
@@ -87,12 +106,15 @@ static void find_stage_code(struct device *dev, const VkPipelineShaderStageCreat
 
 struct pipeline_rewrite {
     VkPipelineRasterizationStateCreateInfo rasterization;
+    VkPipelineColorBlendStateCreateInfo blend;
+    VkPipelineColorBlendAttachmentState *attachments;
     /* VK_EXT_depth_clip_enable's state, taken out of the application's chain for the call. */
     VkBaseOutStructure *clip_prev, *clip_node;
     VkPipelineViewportStateCreateInfo viewport;
     VkPipelineShaderStageCreateInfo stages[MAX_STAGES];
     VkShaderModuleCreateInfo modules[MAX_STAGES];
     struct spirv_code code[MAX_STAGES];
+    struct spirv_code single[MAX_STAGES];
     VkShaderModule temporary[MAX_STAGES];
     /* Rewritten where they are, when they are not first in their stage's chain. */
     VkShaderModuleCreateInfo *in_place[MAX_STAGES];
@@ -154,8 +176,17 @@ static void rewrite_shaders(struct device *dev, VkGraphicsPipelineCreateInfo *in
     bool any = false;
     for (uint32_t i = 0; i < n; i++) {
         find_stage_code(dev, &info->pStages[i], &code[i]);
-        uses[i] = code[i].words && spirv_uses_distances(code[i].words, code[i].count);
-        any |= uses[i];
+        if ((dev->emulated & GAP_DUAL_SRC_BLEND) && code[i].inline_info &&
+            spirv_uses_dual_source(code[i].words, code[i].count)) {
+            if (spirv_strip_dual_source(code[i].words, code[i].count, &rw->single[i])) {
+                code[i].words = rw->single[i].words;
+                code[i].count = rw->single[i].count;
+            } else {
+                layer_log("could not take the second blend source out of a pipeline's shader");
+            }
+        }
+        uses[i] = (dev->emulated & GAPS_SHADER) && code[i].words && spirv_uses_distances(code[i].words, code[i].count);
+        any |= uses[i] || rw->single[i].words;
     }
     if (!any)
         return;
@@ -196,9 +227,61 @@ static void rewrite_shaders(struct device *dev, VkGraphicsPipelineCreateInfo *in
             !spirv_strip_distances(code[i].words, code[i].count, &rw->code[i])) {
             layer_log("could not take the clip and cull distances out of a pipeline's shader");
         }
+        if (!rw->code[i].words && rw->single[i].words) {
+            rw->code[i] = rw->single[i];
+            rw->single[i] = (struct spirv_code){0};
+        }
         if (rw->code[i].words)
             use_code(dev, info, rw, &code[i], i);
     }
+}
+
+static bool single_source(VkBlendFactor *factor)
+{
+    switch (*factor) {
+    case VK_BLEND_FACTOR_SRC1_COLOR:
+    case VK_BLEND_FACTOR_SRC1_ALPHA:
+        *factor = VK_BLEND_FACTOR_SRC_ALPHA;
+        return true;
+    case VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR:
+    case VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA:
+        *factor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool single_source_equation(VkBlendFactor *src_color, VkBlendFactor *dst_color, VkBlendFactor *src_alpha,
+                                   VkBlendFactor *dst_alpha)
+{
+    bool changed = single_source(src_color);
+    changed |= single_source(dst_color);
+    changed |= single_source(src_alpha);
+    changed |= single_source(dst_alpha);
+    return changed;
+}
+
+static void rewrite_blend(const VkGraphicsPipelineCreateInfo *info, struct pipeline_rewrite *rw)
+{
+    const VkPipelineColorBlendStateCreateInfo *blend = info->pColorBlendState;
+    if (!blend || !blend->pAttachments || !blend->attachmentCount)
+        return;
+    rw->attachments = malloc(blend->attachmentCount * sizeof(*rw->attachments));
+    memcpy(rw->attachments, blend->pAttachments, blend->attachmentCount * sizeof(*rw->attachments));
+    bool changed = false;
+    for (uint32_t i = 0; i < blend->attachmentCount; i++) {
+        VkPipelineColorBlendAttachmentState *a = &rw->attachments[i];
+        changed |= single_source_equation(&a->srcColorBlendFactor, &a->dstColorBlendFactor, &a->srcAlphaBlendFactor,
+                                          &a->dstAlphaBlendFactor);
+    }
+    if (!changed) {
+        free(rw->attachments);
+        rw->attachments = NULL;
+        return;
+    }
+    rw->blend = *blend;
+    rw->blend.pAttachments = rw->attachments;
 }
 
 static void rewrite_pipeline(struct device *dev, VkGraphicsPipelineCreateInfo *info, struct pipeline_rewrite *rw)
@@ -241,7 +324,12 @@ static void rewrite_pipeline(struct device *dev, VkGraphicsPipelineCreateInfo *i
             rw->viewport.scissorCount = 1;
         info->pViewportState = &rw->viewport;
     }
-    if (dev->emulated & GAPS_SHADER)
+    if (dev->emulated & GAP_DUAL_SRC_BLEND) {
+        rewrite_blend(info, rw);
+        if (rw->attachments)
+            info->pColorBlendState = &rw->blend;
+    }
+    if (dev->emulated & (GAPS_SHADER | GAP_DUAL_SRC_BLEND))
         rewrite_shaders(dev, info, rw);
 }
 
@@ -257,7 +345,9 @@ static void undo_rewrite(struct device *dev, struct pipeline_rewrite *rw)
         if (rw->temporary[i] != VK_NULL_HANDLE)
             dev->DestroyShaderModule(dev->handle, rw->temporary[i], NULL);
         free(rw->code[i].words);
+        free(rw->single[i].words);
     }
+    free(rw->attachments);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipelineCache cache, uint32_t count,
@@ -305,4 +395,16 @@ VKAPI_ATTR void VKAPI_CALL CmdSetScissorWithCount(VkCommandBuffer cmd, uint32_t 
 {
     struct device *dev = device_from_handle(cmd);
     dev->CmdSetScissorWithCount(cmd, count > 1 ? 1 : count, scissors);
+}
+
+VKAPI_ATTR void VKAPI_CALL CmdSetColorBlendEquationEXT(VkCommandBuffer cmd, uint32_t first, uint32_t count,
+                                                       const VkColorBlendEquationEXT *equations)
+{
+    struct device *dev = device_from_handle(cmd);
+    for (uint32_t i = 0; i < count; i++) {
+        VkColorBlendEquationEXT equation = equations[i];
+        single_source_equation(&equation.srcColorBlendFactor, &equation.dstColorBlendFactor,
+                               &equation.srcAlphaBlendFactor, &equation.dstAlphaBlendFactor);
+        dev->CmdSetColorBlendEquationEXT(cmd, first + i, 1, &equation);
+    }
 }

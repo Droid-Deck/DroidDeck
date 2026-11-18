@@ -43,7 +43,6 @@ import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ScreenShare
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
@@ -186,7 +185,7 @@ private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.VR -> VrHeadsetIcon
     SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
-    SessionDrawerPage.AGENT -> Icons.Outlined.AutoAwesome
+    SessionDrawerPage.AGENT -> Icons.Outlined.Terminal
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
 }
 
@@ -220,6 +219,9 @@ class DrawerActions(
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
     val frameGen: FrameGen.Mode,
+    val frameGenTargetGameId: String? = null,
+    val frameGenTargetGameName: String? = null,
+    val hasGameOverride: Boolean = false,
     val lossless: Lossless.State,
     val oscMode: String,
     val suspendPolicy: String,
@@ -236,10 +238,17 @@ class DrawerActions(
     val onPadType: (String) -> Unit = {},
     val touchMode: String,
     val touchAuto: String,
+    val pen: SessionPrefs.Pen? = null,
+    val onPen: (key: String, value: String) -> Unit = { _, _ -> },
     val fexPreset: String,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
+    val integerScaling: Boolean = false,
+    val onIntegerScaling: (Boolean) -> Unit = {},
     val effects: ScreenEffects = ScreenEffects.OFF,
+    val screenEffectsTarget: String = "auto",
+    val screenEffectsTargets: List<Pair<String, String>> = emptyList(),
+    val screenEffectsCanDelete: Boolean = false,
     val cardboard: Cardboard = Cardboard.OFF,
     val cardboardSensor: Boolean = false,
     val steamVr: SteamVr.Status? = null,
@@ -252,6 +261,7 @@ class DrawerActions(
     val secondScreenNone: Boolean = true,
     val gameOnBottom: Boolean = false,
     val gameSwapAvailable: Boolean = false,
+    val gameSwapBuiltIn: Boolean = true,
     val onGameOnBottom: (Boolean) -> Unit = {},
     val dashboardAvailable: Boolean = false,
     val desktopAvailable: Boolean = false,
@@ -259,11 +269,19 @@ class DrawerActions(
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
     val onHudSetting: (String, String) -> Unit = { _, _ -> },
+    val onHudOrder: (Map<String, Boolean>, List<String>) -> Unit = { _, _ -> },
+    val onHudOrderReset: () -> Unit = {},
     val onHudReset: () -> Unit = {},
     val onHudExport: () -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
+    val onFrameGenReset: () -> Unit = {},
     val fpsLimit: Int = 0,
     val onFpsLimit: (Int) -> Unit = {},
+    val cornerTap: Boolean = false,
+    val onCornerTap: (Boolean) -> Unit = {},
+    val blackFrameInsertion: Boolean = false,
+    val blackFrameInsertionAvailable: Boolean = false,
+    val onBlackFrameInsertion: (Boolean) -> Unit = {},
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
@@ -298,8 +316,13 @@ class DrawerActions(
     val onDirectHoldBehavior: (String) -> Unit = {},
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
+    val onPresetUpscaler: (Int) -> Unit = onUpscaler,
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onEffects: (ScreenEffects) -> Unit = {},
+    val onScreenEffectsTarget: (String) -> Unit = {},
+    val onScreenEffectsReset: () -> Unit = {},
+    val onScreenEffectsDelete: () -> Unit = {},
+    val onScreenEffectsProfilesRefresh: () -> Unit = {},
     val onCardboard: (Cardboard) -> Unit = {},
     val onCardboardRecenter: () -> Unit = {},
     val onGlassesRecenter: () -> Unit = {},
@@ -415,6 +438,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 delay(1_000)
             }
         }
+    }
+    LaunchedEffect(open, page) {
+        if (open && page == SessionDrawerPage.EFFECTS) a.onScreenEffectsProfilesRefresh()
     }
     LaunchedEffect(open, controllerActive) {
         if (open && !controllerActive) focusManager.clearFocus(force = true)
@@ -554,11 +580,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     tabModifier = { key -> focus.track(page, "glasses-tab-$key").testTag("glasses-tab-$key") },
                 ) { selectedGlassesTab = it }
                 // The agent's chat scrolls itself and keeps its composer at the bottom, so it takes the height left.
-                if (page == SessionDrawerPage.AGENT) AgentPage(
+                if (page == SessionDrawerPage.AGENT) AgentPageWithControls(
                     Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
                     inputModifier = focus.track(page, "agent-input"),
                     visible = open,
                     startTyping = false,
+                    showControlsWithoutKeyboard = true,
                 ) else Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(pageScroll.getValue(page)),
                 ) { CompositionLocalProvider(LocalChipMinWidth provides 96.dp, LocalCompactSettings provides true) {
@@ -569,10 +596,21 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 val fgOpen = host.open == "fg"
                                 val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
-                                SettingsRow(stringResource(R.string.frame_gen_title), null, highlighted = fgOpen) {
+                                SettingsRow(
+                                    stringResource(R.string.frame_gen_title),
+                                    if (a.frameGenTargetGameId != null)
+                                        "${stringResource(R.string.frame_gen_scope_game)} · ${a.frameGenTargetGameName ?: "ID ${a.frameGenTargetGameId}"}"
+                                    else stringResource(R.string.frame_gen_scope_global),
+                                    highlighted = fgOpen
+                                ) {
                                     Box {
                                         ValueChip(fgLabel, fgOpen, modifier = focus.track(page, "fg")) { host.open = if (fgOpen) null else "fg" }
-                                        FrameGenMenu(host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless)
+                                        FrameGenMenu(
+                                            host, a.frameGen, a.lossless, a.onFrameGenPick, a.onImportLossless,
+                                            gameProfileId = a.frameGenTargetGameId,
+                                            hasGameOverride = a.hasGameOverride,
+                                            onResetGame = a.onFrameGenReset,
+                                        )
                                     }
                                 }
                                 if (a.direct) SliderRow(
@@ -582,8 +620,26 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     format = { if (it <= SessionPrefs.FPS_LIMIT_OFF) offLabel else it.toString() },
                                     modifier = focus.track(page, "fps-limit"),
                                     onChange = { a.onFpsLimit(if (it <= SessionPrefs.FPS_LIMIT_OFF) 0 else it) })
+                                                if (a.steam && !a.direct && a.onQam != null) SettingsRow(
+                                    stringResource(R.string.drawer_frame_limit), stringResource(R.string.drawer_frame_limit_steam_hint),
+                                ) {
+                                    DrawerOutlineButton(stringResource(R.string.drawer_open_steam_qam), modifier = focus.track(page, "fps-limit-steam")) {
+                                        host.open = null
+                                        a.onQam?.invoke()
+                                    }
+                                }
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
+                                if (a.steam) SettingsRow(stringResource(R.string.display_integer_scaling), null) {
+                                    PadTextButton(
+                                        onClick = { a.onIntegerScaling(!a.integerScaling) }
+                                    ) {
+                                        Text(stringResource(
+                                            if (a.integerScaling) R.string.display_scaling_integer
+                                            else R.string.display_scaling_fit
+                                        ))
+                                    }
+                                }
                                 ChoiceRow(host, "upscaler", stringResource(R.string.display_filter), null,
                                     SessionPrefs.upscalerChoices(LocalContext.current), a.upscaler,
                                     note = stringResource(R.string.display_filter_note),
@@ -643,6 +699,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         onPick = a.onDirectHoldBehavior)
                                 }
                             }
+                            a.pen?.let { PenSettingsGroup(host, it, track = { key -> focus.track(page, key) }, onPick = a.onPen) }
                             SettingsGroup(stringResource(R.string.input_screen_visibility)) {
                                 ChoiceRow(host, "osc", stringResource(R.string.mode_osc), null,
                                     if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
@@ -681,6 +738,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     SessionPrefs.BACK_DOUBLE_TAP_MS_OPTIONS.map { it to stringResource(R.string.back_tap_ms, it) },
                                     a.backDoubleTapMs, chipModifier = focus.track(page, "back-double-tap"), onPick = a.onBackDoubleTapMs)
                                 PhysicalShortcutRows(modifierFor = { focus.track(page, "physical-shortcut-${it.name}") })
+                                ToggleRow(host, "corner-tap", stringResource(R.string.drawer_corner_tap),
+                                    stringResource(R.string.drawer_corner_tap_hint), a.cornerTap,
+                                    chipModifier = focus.track(page, "corner-tap"), onChange = a.onCornerTap)
                             }
                             SettingsGroup(stringResource(R.string.drawer_latency)) {
                                 ToggleRow(host, "low-latency", stringResource(R.string.drawer_low_latency),
@@ -773,6 +833,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.AGENT -> Unit
                         SessionDrawerPage.SESSION -> {
+                            SettingsGroup(stringResource(R.string.drawer_support)) {
+                                SettingsRow(stringResource(R.string.report_problem), stringResource(R.string.report_problem_hint)) {
+                                    DrawerOutlineButton(stringResource(R.string.drawer_share_logs), modifier = focus.track(page, "share-logs"),
+                                        progress = com.droiddeck.launcher.session.SessionLogShare.progress) {
+                                        host.open = null
+                                        a.onShareLogs()
+                                    }
+                                }
+                            }
                             if (a.isHomeApp) SettingsGroup(stringResource(R.string.drawer_android_apps)) {
                                 SettingsRow(stringResource(R.string.drawer_launch_app), null) {
                                     DrawerOutlineButton(if (androidAppsExpanded) stringResource(R.string.common_hide) else stringResource(R.string.common_show), modifier = focus.track(page, "apps")) {
@@ -826,15 +895,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     a.steamDownloadsInBackground,
                                     onChange = a.onSteamDownloadsInBackground,
                                 )
-                            }
-                            SettingsGroup(stringResource(R.string.drawer_support)) {
-                                SettingsRow(stringResource(R.string.drawer_logs), stringResource(R.string.drawer_logs_hint)) {
-                                    DrawerOutlineButton(stringResource(R.string.drawer_share_logs), modifier = focus.track(page, "share-logs"),
-                                        progress = com.droiddeck.launcher.session.SessionLogShare.progress) {
-                                        host.open = null
-                                        a.onShareLogs()
-                                    }
-                                }
                             }
                             if (a.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
                                 ToggleRow(host, "pip-auto", stringResource(R.string.pip_auto), null,
@@ -1046,20 +1106,60 @@ private fun ScreenEffectsGroup(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     SettingsGroup(stringResource(R.string.drawer_effects)) {
+        ChoiceRow(
+            host, "effects-profile", stringResource(R.string.screen_effects_target),
+            stringResource(R.string.screen_effects_target_hint), a.screenEffectsTargets,
+            a.screenEffectsTarget, chipModifier = track("effects-profile"),
+            onPick = a.onScreenEffectsTarget,
+        )
+        ActionRow(
+            stringResource(R.string.screen_effects_reset),
+            stringResource(R.string.screen_effects_reset_hint),
+            stringResource(R.string.hud_reset_button),
+            a.onScreenEffectsReset,
+            modifier = track("effects-reset"),
+        )
+        if (a.screenEffectsCanDelete) ActionRow(
+            stringResource(R.string.screen_effects_delete),
+            stringResource(R.string.screen_effects_delete_hint),
+            stringResource(R.string.common_delete),
+            a.onScreenEffectsDelete,
+            modifier = track("effects-delete"),
+        )
         val presets = ScreenEffectLooks.LOOKS.map { it.name to stringResource(it.label) }
         ChoiceRow(host, "look", stringResource(R.string.drawer_look), null,
             if (preset == null) listOf(LOOK_CUSTOM to stringResource(R.string.drawer_look_custom)) + presets else presets,
             preset?.name ?: LOOK_CUSTOM, chipModifier = track("look")) { name ->
             ScreenEffectLooks.LOOKS.firstOrNull { it.name == name }?.let { picked ->
-                picked.scalingMode?.let(a.onUpscaler)
+                picked.scalingMode?.let(a.onPresetUpscaler)
                 a.onEffects(picked.effects)
             }
         }
-        ToggleRow(host, "fxaa", stringResource(R.string.drawer_fxaa), null, e.fxaa, chipModifier = track("fxaa")) { a.onEffects(e.copy(fxaa = it)) }
+        ChoiceRow(host, "antialiasing", stringResource(R.string.drawer_antialiasing), null,
+            listOf(
+                "off" to stringResource(R.string.frame_gen_off),
+                "fxaa" to stringResource(R.string.drawer_fxaa),
+                "smaa" to stringResource(R.string.drawer_smaa),
+            ),
+            when (e.aaMode) {
+                ScreenEffects.AA_FXAA -> "fxaa"
+                ScreenEffects.AA_SMAA -> "smaa"
+                else -> "off"
+            }, chipModifier = track("antialiasing")) { mode ->
+            val aaMode = when (mode) {
+                "fxaa" -> ScreenEffects.AA_FXAA
+                "smaa" -> ScreenEffects.AA_SMAA
+                else -> ScreenEffects.AA_OFF
+            }
+            a.onEffects(e.copy(aaMode = aaMode))
+        }
         ToggleRow(host, "toon", stringResource(R.string.drawer_toon), null, e.toon, chipModifier = track("toon")) { a.onEffects(e.copy(toon = it)) }
         ToggleRow(host, "crt", stringResource(R.string.drawer_crt), null, e.crt, chipModifier = track("crt")) { a.onEffects(e.copy(crt = it)) }
         ToggleRow(host, "ntsc", stringResource(R.string.drawer_ntsc), null, e.ntsc, chipModifier = track("ntsc")) { a.onEffects(e.copy(ntsc = it)) }
         ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
+        if (a.blackFrameInsertionAvailable) ToggleRow(host, "bfi", stringResource(R.string.drawer_bfi),
+            stringResource(R.string.drawer_bfi_note), a.blackFrameInsertion,
+            chipModifier = track("bfi"), onChange = a.onBlackFrameInsertion)
     }
     val source = remember { MutableInteractionSource() }
     val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
@@ -1216,7 +1316,8 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
     }
     if (a.gameSwapAvailable || a.gameOnBottom) SettingsGroup(stringResource(R.string.swap_game_screen_group)) {
         ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
-            listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom)),
+            if (a.gameSwapBuiltIn) listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom))
+            else listOf(false to stringResource(R.string.main_primary), true to stringResource(R.string.main_secondary)),
             a.gameOnBottom, chipModifier = track("game-screen"), onPick = a.onGameOnBottom)
     }
 }
@@ -1351,6 +1452,12 @@ private fun SelectedGameProfileGroup(host: MenuHost, a: DrawerActions, track: (S
             )
             if (!profile.fexPreset.inherited) {
                 ProfileSummaryRow(stringResource(R.string.comp_game_fex), fexProfileLabel(profile.fexPreset))
+            }
+            if (!profile.frameGenInherited) {
+                ProfileSummaryRow(
+                    stringResource(R.string.frame_gen_title),
+                    FrameGen.label(LocalContext.current, profile.frameGen),
+                )
             }
             if (!profile.proton.inherited) {
                 ProfileSummaryRow(stringResource(R.string.comp_proton), profileValueLabel(profile.proton))

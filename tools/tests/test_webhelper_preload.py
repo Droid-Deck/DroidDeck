@@ -10,7 +10,7 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 PROGRAM = r"""
 #include <stdio.h>
 #include <stdlib.h>
-char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
+char *const *dd_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
 int main(int argc, char **argv) {
   const char *mode = getenv("TEST_NODE_MODE_CHILD");
   static char node[64];
@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
   char *node_env[] = {node, NULL};
   char *plain_env[] = {"PATH=/usr/bin", NULL};
   char *const *envp = mode ? node_env : plain_env;
-  char *const *out = bl_webhelper_argv(argv[1], argv + 1, (char *const *)envp);
+  char *const *out = dd_webhelper_argv(argv[1], argv + 1, (char *const *)envp);
   for (int i = 0; out[i]; i++) printf("%s\n", out[i]);
   return 0;
 }
@@ -43,10 +43,10 @@ class WebhelperPreloadTest(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def argv(self, *args, spec=None, node_child=False, parent_node=False):
-        env = {k: v for k, v in os.environ.items() if k != "BL_WEBHELPER_ARGS"}
+        env = {k: v for k, v in os.environ.items() if k != "DD_WEBHELPER_ARGS"}
         env.pop("ELECTRON_RUN_AS_NODE", None)
         if spec is not None:
-            env["BL_WEBHELPER_ARGS"] = spec
+            env["DD_WEBHELPER_ARGS"] = spec
         if node_child is not False:
             env["TEST_NODE_MODE_CHILD"] = "1" if node_child is True else node_child
         else:

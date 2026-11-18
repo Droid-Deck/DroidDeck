@@ -27,13 +27,20 @@ object StoreSizes {
 
     fun size(item: CatalogItem): Long = known[item.key] ?: item.sizeBytes
 
+    private val NO_REMOTE_SIZE = setOf(Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR)
+    private val settled = mutableStateMapOf<String, Boolean>()
+
+    // A size that can still arrive this session: not known yet, the store can report one, and no lookup came back empty.
+    fun coming(item: CatalogItem): Boolean =
+        item.accessible && item.sizeBytes <= 0 && item.store !in NO_REMOTE_SIZE && !known.containsKey(item.key) && settled[item.key] != true
+
     private val caches = ConcurrentHashMap<Store, SizeCache>()
     private fun cache(context: Context, store: Store) = caches.getOrPut(store) { SizeCache.forStore(context.applicationContext.filesDir, store) }
 
     fun request(context: Context, item: CatalogItem) {
         if (!item.accessible || item.sizeBytes > 0 || item.store == Store.GOG || known.containsKey(item.key)) return
-        resolve(context, item).thenAccept { bytes ->
-            if (bytes != null) StoresState.post { known[item.key] = bytes }
+        resolve(context, item).whenComplete { bytes, _ ->
+            StoresState.post { if (bytes != null && bytes > 0) known[item.key] = bytes else settled[item.key] = true }
         }
     }
 
@@ -56,7 +63,7 @@ object StoreSizes {
                         Store.AMAZON -> AmazonPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
                         Store.ITCH, Store.GAMEJOLT -> {}
                         Store.EA -> com.droiddeck.launcher.stores.ea.EaPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
-                        Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT -> {}
+                        Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> {}
                     }
                 }
             }, pool).exceptionally { error ->
@@ -132,7 +139,7 @@ object StoreSizes {
             AmazonManifest.parse(bytes).totalInstallSize
         }
         Store.EA -> com.droiddeck.launcher.stores.ea.EaSizes.size(context, item)
-        Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT -> 0L
+        Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> 0L
         Store.ITCH -> com.droiddeck.launcher.stores.itch.ItchLibrary.size(context, item)
         Store.GAMEJOLT -> com.droiddeck.launcher.stores.gamejolt.GameJoltBuilds.size(context, item)
     } }

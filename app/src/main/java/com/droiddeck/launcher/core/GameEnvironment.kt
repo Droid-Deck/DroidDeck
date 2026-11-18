@@ -23,6 +23,7 @@ object GameEnvironment {
     )
 
     fun validName(name: String) = namePattern.matches(name)
+    fun currentName(name: String) = if (name.startsWith("BL_")) "DD_" + name.removePrefix("BL_") else name
     fun supported(name: String) = name !in unused && !name.startsWith("BOX64_") && !name.startsWith("BOX86_")
     fun validValue(value: String) = '\u0000' !in value && value.length <= 8192
     fun validScope(scope: String) = scope.isEmpty() || (Regex("[1-9][0-9]*").matches(scope) && scope.toLongOrNull()?.let { it in 1..4294967295L } == true)
@@ -47,6 +48,16 @@ object GameEnvironment {
     fun withGameNoSteam(config: Config, scope: String, on: Boolean): Config {
         require(scope.isNotEmpty() && validScope(scope))
         return withScopeValue(config, scope, NO_STEAM, if (on) "1" else null)
+    }
+
+    const val GAME_RESOLUTION = "DROIDDECK_GAME_RESOLUTION"
+
+    fun gameResolution(config: Config, scope: String): GameResolution.Choice? =
+        if (scope.isEmpty()) null else GameResolution.parse(config.games[scope]?.get(GAME_RESOLUTION))
+
+    fun withGameResolution(config: Config, scope: String, choice: GameResolution.Choice?): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        return withScopeValue(config, scope, GAME_RESOLUTION, choice?.let(GameResolution::format))
     }
 
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =
@@ -87,14 +98,14 @@ object GameEnvironment {
 
     val syncBackends = listOf(SessionPrefs.SYNC_NTSYNC, SessionPrefs.SYNC_FSYNC, SessionPrefs.SYNC_ESYNC, SessionPrefs.SYNC_WINESERVER)
 
-    val syncKeys = listOf("BL_SYNC", "BL_FSYNC_FIRST", "BL_SYNC_FALLBACK", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+    val syncKeys = listOf("DD_SYNC", "DD_FSYNC_FIRST", "DD_SYNC_FALLBACK", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 
     fun syncEnvironment(backend: String): Map<String, String> {
         require(backend in syncBackends) { "unknown sync $backend" }
         return buildMap {
-            put("BL_SYNC", if (backend == SessionPrefs.SYNC_NTSYNC) "1" else "0")
-            put("BL_FSYNC_FIRST", if (backend == SessionPrefs.SYNC_FSYNC) "1" else "0")
-            put("BL_SYNC_FALLBACK", if (backend == SessionPrefs.SYNC_WINESERVER) "0" else "1")
+            put("DD_SYNC", if (backend == SessionPrefs.SYNC_NTSYNC) "1" else "0")
+            put("DD_FSYNC_FIRST", if (backend == SessionPrefs.SYNC_FSYNC) "1" else "0")
+            put("DD_SYNC_FALLBACK", if (backend == SessionPrefs.SYNC_WINESERVER) "0" else "1")
             if (backend == SessionPrefs.SYNC_FSYNC) put("PROTON_NO_ESYNC", "1")
         }
     }

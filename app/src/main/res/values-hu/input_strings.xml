@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_settings">Beviteli profilok</string>
+    <string name="input_profiles">Profilok</string>
+    <string name="input_physical">Fizikai vezérlő</string>
+    <string name="input_primary">Fő képernyő</string>
+    <string name="input_secondary">Másodlagos képernyő</string>
+    <string name="input_native">Natív / Steam Input</string>
+    <string name="input_native_target">Natív: %1$s</string>
+    <string name="input_remap_native">Másik vezérlőparancs küldése</string>
+    <string name="input_disabled">Letiltva</string>
+    <string name="input_keys">Billentyű vagy billentyűkombináció</string>
+    <string name="input_direction_keys">Iránybillentyűk</string>
+    <string name="input_pointer">Mutató mozgatása</string>
+    <string name="input_pointer_speed">Mutató sebessége: %1$d</string>
+    <string name="input_scroll">Görgetés</string>
+    <string name="input_scroll_vertical">Függőleges görgetés</string>
+    <string name="input_mouse_left">Bal egérgomb</string>
+    <string name="input_mouse_right">Jobb egérgomb</string>
+    <string name="input_mouse_middle">Középső egérgomb</string>
+    <string name="input_command_menu">DroidDeck menü megnyitása</string>
+    <string name="input_command_keyboard">Billentyűzet megjelenítése</string>
+    <string name="input_command_steam">Steam menü megnyitása</string>
+    <string name="input_command_qam">Steam gyorselérés megnyitása</string>
+    <string name="input_remove_element">Vezérlőelem eltávolítása</string>
+    <string name="input_add_element">Vezérlőelem hozzáadása</string>
+    <string name="input_extra_keys">Eszközspecifikus gombok</string>
+    <string name="input_capture">Fizikai gomb hozzárendelése</string>
+    <string name="input_capture_confirm">Engedje el a gombot, majd válassza a Szerkesztés, Újra vagy Mégse lehetőséget. A B vagy a Vissza elengedés után megszakítja.</string>
+    <string name="input_capture_retry">Újra</string>
+    <string name="input_capture_hint">Nyomjon meg egy gombot, beleértve a billentyűként jelentett Vissza gombot is. A hangerő- és Android rendszergombok foglaltak. A hozzárendelés csak erre az eszközre érvényes.</string>
+    <string name="input_remove_binding">Hozzárendelés eltávolítása</string>
+    <string name="input_latency">Bemeneti diagnosztika</string>
+    <string name="input_measure">Bemenetküldési idő rögzítése</string>
+    <string name="input_read_timing">Mérések beolvasása</string>
+    <string name="input_latency_hint">Az Androidról a meglévő bemeneti átvitelbe történő közzétételig mér. Nem tartalmazza a Bluetooth-érkezést, a vendég lekérdezését, a renderelést és a kijelző késleltetését. A rögzítés alapértelmezés szerint ki van kapcsolva.</string>
+    <string name="input_normal_binding">Normál bemeneti hozzárendelés használata</string>
+</resources>

@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** One coding agent CLI in the Linux userland, run one process per turn. */
+/** One coding agent CLI in the Linux userland, run one process per turn (or kept open, see [input]). */
 interface AgentHarness {
     val id: String
     val name: String
@@ -19,6 +19,22 @@ interface AgentHarness {
     val signedIn: List<String>
     /** A guest command that signs in through $BROWSER. */
     val signIn: List<String>
+    /**
+     * APIs the CLI reaches with a key pasted into DroidDeck, for a CLI whose own sign-in is a terminal
+     * prompt; empty when it signs in through [signIn].
+     */
+    val providers: List<Provider> get() = emptyList()
+    /** Ids of the [providers] with a key saved under [rootfs]. */
+    fun keys(rootfs: File): Set<String> = emptySet()
+    /**
+     * Saves [key] for [provider]. A [Provider.custom] one also takes the [endpoint] it is served from, and
+     * [get] fetches a URL from the userland, with the key as a bearer token when it is not null.
+     */
+    fun saveKey(rootfs: File, provider: Provider, key: String, endpoint: String? = null, get: (String, String?) -> String = { url, _ -> error("Cannot reach $url") }) {}
+    fun removeKey(rootfs: File, provider: Provider) {}
+    /** Whether the CLI has models that need no account; [useFree] then counts as signed in. */
+    val free: Boolean get() = false
+    fun useFree(rootfs: File) {}
     /** Whether [Options.plan] means anything to this CLI. */
     val plans: Boolean
     /** Reasoning effort levels the CLI accepts, lowest first; empty when it has none. */
@@ -27,8 +43,18 @@ interface AgentHarness {
     fun models(rootfs: File): List<Model>
     /** The guest command for one turn; [conversation] is null for the first one. */
     fun turn(message: String, conversation: String?, options: Options): List<String>
+    /**
+     * The line that hands [message] to a [turn] process over stdin, or null when the message is already in the
+     * command. A process that takes its messages this way stays open between turns, so work it started in the
+     * background can wake it, as it does in the CLI's own terminal.
+     */
+    fun input(message: String): String? = null
     /** One line of the CLI's output, or null when it carries nothing to show. */
     fun parse(line: String): AgentEvent?
+    /** The folder, under the userland's root, where the CLI loads user skills (`<name>/SKILL.md`). */
+    val skills: String
+    /** The CLI's global instructions file under the userland's root, where DroidDeck keeps its rules in a marked block. */
+    val instructions: String
     /** Sets the CLI's own defaults in the userland before it runs; [rootfs] is the userland's root. */
     fun prepare(rootfs: File) {}
     /** Context and plan limits the CLI keeps on disk rather than printing, read once a turn of [conversation] is done. */
@@ -36,10 +62,13 @@ interface AgentHarness {
 
     data class Model(val id: String, val label: String)
 
+    /** An API reached with a key; [keyPage] is where the key is made, and a [custom] one is any OpenAI-compatible server. */
+    data class Provider(val id: String, val name: String, val keyPage: String? = null, val custom: Boolean = false)
+
     data class Options(val model: String? = null, val plan: Boolean = false, val brief: String? = null, val effort: String? = null)
 
     companion object {
-        val all: List<AgentHarness> = listOf(ClaudeCode, Codex)
+        val all: List<AgentHarness> = listOf(ClaudeCode, Codex, OpenCode)
         fun byId(id: String?): AgentHarness = all.firstOrNull { it.id == id } ?: ClaudeCode
     }
 }
@@ -56,9 +85,13 @@ data class AgentEvent(
     val window: Long? = null,
     val limits: List<AgentHost.Limit>? = null,
     val usage: AgentHost.Usage? = null,
+    /** This ends a turn the CLI started itself, such as the answer to a finished background task. */
+    val background: Boolean = false,
+    /** The error a background turn ended with, if it failed. */
+    val backgroundError: String? = null,
 )
 
-/** Claude Code: `claude -p` with stream-json output, resumed by session id. */
+/** Claude Code: `claude -p` with stream-json input and output, resumed by session id. */
 object ClaudeCode : AgentHarness {
     override val id = "claude"
     override val name = "Claude Code"
@@ -73,6 +106,8 @@ object ClaudeCode : AgentHarness {
      * Commits and pull requests the agent makes carry no Claude Code credit or co-author line by
      * default. Only keys the user has not set are written, so their own choice stays.
      */
+    override val skills = "root/.claude/skills"
+    override val instructions = "root/.claude/CLAUDE.md"
     override fun prepare(rootfs: File) {
         val file = File(rootfs, "root/.claude/settings.json")
         val settings = if (file.exists()) runCatching { JSONObject(file.readText()) }.getOrNull() ?: return else JSONObject()
@@ -97,7 +132,7 @@ object ClaudeCode : AgentHarness {
 
     // DroidDeck runs the agent unattended on the user's own device; permission prompts have no one to answer them.
     override fun turn(message: String, conversation: String?, options: AgentHarness.Options) = buildList {
-        addAll(listOf(binary, "-p", message, "--output-format", "stream-json", "--verbose", "--include-partial-messages"))
+        addAll(listOf(binary, "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"))
         addAll(listOf("--permission-mode", if (options.plan) "plan" else "bypassPermissions"))
         options.model?.let { addAll(listOf("--model", it)) }
         options.effort?.let { addAll(listOf("--effort", it)) }
@@ -105,11 +140,19 @@ object ClaudeCode : AgentHarness {
         if (conversation != null) addAll(listOf("--resume", conversation))
     }
 
+    override fun input(message: String): String? = JSONObject()
+        .put("type", "user")
+        .put("message", JSONObject().put("role", "user").put("content", JSONArray().put(JSONObject().put("type", "text").put("text", message))))
+        .toString()
+
     override fun parse(line: String): AgentEvent? {
         val o = runCatching { JSONObject(line) }.getOrNull() ?: return null
         val conversation = o.optString("session_id").takeIf { it.isNotEmpty() }
+        // A subagent's messages carry the call that started it; only its tool calls are shown, under that call.
+        val parent = o.optString("parent_tool_use_id").takeIf { it.isNotEmpty() && it != "null" }
         return when (o.optString("type")) {
             "stream_event" -> {
+                if (parent != null) return null
                 val delta = o.optJSONObject("event")?.takeIf { it.optString("type") == "content_block_delta" }?.optJSONObject("delta") ?: return null
                 when (delta.optString("type")) {
                     "text_delta" -> AgentEvent(conversation, text = delta.optString("text"))
@@ -123,18 +166,22 @@ object ClaudeCode : AgentHarness {
                 val entries = (0 until content.length()).mapNotNull { i ->
                     val block = content.optJSONObject(i) ?: return@mapNotNull null
                     when (block.optString("type")) {
-                        "text" -> block.optString("text").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Said(it) }
-                        "thinking" -> block.optString("thinking").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Thought(it) }
+                        "text" -> if (parent != null) null else block.optString("text").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Said(it) }
+                        "thinking" -> if (parent != null) null else block.optString("thinking").trim().takeIf { it.isNotEmpty() }?.let { AgentHost.Entry.Thought(it) }
                         "tool_use" -> {
                             val input = block.optJSONObject("input")
-                            AgentHost.Entry.Used(block.optString("id"), block.optString("name"), detail(input), fullInput(block.optString("name"), input))
+                            AgentHost.Entry.Used(
+                                block.optString("id"), block.optString("name"), detail(input), fullInput(block.optString("name"), input),
+                                parent = parent.orEmpty(),
+                                background = input?.optBoolean("run_in_background") == true || block.optString("name") == "Monitor",
+                            )
                         }
                         else -> null
                     }
                 }
                 val usage = message?.optJSONObject("usage")
                 val context = usage?.let { it.optLong("input_tokens") + it.optLong("cache_read_input_tokens") + it.optLong("cache_creation_input_tokens") + it.optLong("output_tokens") }
-                AgentEvent(conversation, entries, context = context?.takeIf { it > 0 })
+                AgentEvent(conversation, entries, context = context?.takeIf { it > 0 && parent == null })
             }
             "user" -> {
                 val content = o.optJSONObject("message")?.optJSONArray("content") ?: return conversation?.let { AgentEvent(it) }
@@ -145,17 +192,25 @@ object ClaudeCode : AgentHarness {
                 AgentEvent(conversation, results)
             }
             "rate_limit_event" -> AgentEvent(conversation, limits = limits(o.optJSONObject("rate_limit_info")))
-            // A resumed session first answers background tasks the last run left behind; that result is not the turn's.
-            "result" -> if (o.optJSONObject("origin")?.optString("kind") == "task-notification") conversation?.let { AgentEvent(it) } else AgentEvent(
-                conversation,
-                listOf(AgentHost.Entry.Finished(if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null)),
-                window = window(o.optJSONObject("modelUsage")),
-                usage = AgentHost.Usage(
+            // The CLI starts turns of its own for background tasks (a resumed session first answers the ones the last
+            // run left behind). Such a result is not the end of the user's turn; the host decides what it ends.
+            "result" -> {
+                val usage = AgentHost.Usage(
                     o.optLong("duration_ms"), o.optDouble("total_cost_usd", 0.0),
                     o.optJSONObject("usage")?.let { it.optLong("input_tokens") + it.optLong("cache_read_input_tokens") + it.optLong("cache_creation_input_tokens") } ?: 0,
                     o.optJSONObject("usage")?.optLong("output_tokens") ?: 0,
-                ),
-            )
+                )
+                if (o.optJSONObject("origin")?.optString("kind") == "task-notification") AgentEvent(
+                    conversation, usage = usage, background = true,
+                    backgroundError = if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null,
+                )
+                else AgentEvent(
+                    conversation,
+                    listOf(AgentHost.Entry.Finished(if (o.optBoolean("is_error")) o.optString("result").ifEmpty { o.optString("subtype") } else null)),
+                    window = window(o.optJSONObject("modelUsage")),
+                    usage = usage,
+                )
+            }
             else -> conversation?.let { AgentEvent(it) }
         }
     }
@@ -224,6 +279,8 @@ object Codex : AgentHarness {
     override val id = "codex"
     override val name = "Codex"
     override val binary = "/root/.local/bin/codex"
+    override val skills = "root/.codex/skills"
+    override val instructions = "root/.codex/AGENTS.md"
     // Code mode runs in a helper that each release ships as its own download.
     private const val HOST = "/root/.local/bin/codex-code-mode-host"
     override val files get() = listOf(binary, HOST)
@@ -352,6 +409,271 @@ object Codex : AgentHarness {
         val changes = item.optJSONArray("changes") ?: return ""
         return (0 until changes.length()).mapNotNull { changes.optJSONObject(it)?.optString("path") }.joinToString(", ").take(400)
     }
+}
+
+/** OpenCode: `opencode run --format json`, resumed by session id. */
+object OpenCode : AgentHarness {
+    override val id = "opencode"
+    override val name = "OpenCode"
+    override val binary = "/root/.opencode/bin/opencode"
+    override val skills = "root/.config/opencode/skills"
+    override val instructions = "root/.config/opencode/AGENTS.md"
+    override val install = "curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path"
+    private const val AUTH = "root/.local/share/opencode/auth.json"
+    private const val CONFIG = "root/.config/opencode/opencode.json"
+    private const val FREE = "root/.config/opencode/.droiddeck-free"
+    private const val MODELS = "root/.cache/droiddeck/opencode-models"
+    /** The provider id DroidDeck gives a server the user names, in opencode's config and auth. */
+    private const val CUSTOM = "droiddeck"
+
+    // `opencode models` lists only what the saved keys reach, so the check that runs it keeps the model list current.
+    override val signedIn = listOf("sh", "-c",
+        "mkdir -p /${MODELS.substringBeforeLast('/')}; $binary models --verbose > /$MODELS.$$ 2>/dev/null && mv -f /$MODELS.$$ /$MODELS; rm -f /$MODELS.$$; " +
+            "grep -q '\"type\"' /$AUTH 2>/dev/null || [ -e /$FREE ] || grep -q '\"$CUSTOM\"' /$CONFIG 2>/dev/null")
+    // Ids are opencode's own (models.dev), so a saved key is what `opencode auth login` would save for that provider.
+    override val providers = listOf(
+        AgentHarness.Provider("opencode", "OpenCode Zen", "https://opencode.ai/auth"),
+        AgentHarness.Provider("ollama-cloud", "Ollama Cloud", "https://ollama.com/settings/keys"),
+        AgentHarness.Provider("openrouter", "OpenRouter", "https://openrouter.ai/settings/keys"),
+        AgentHarness.Provider("openai", "OpenAI", "https://platform.openai.com/api-keys"),
+        AgentHarness.Provider("anthropic", "Anthropic", "https://console.anthropic.com/settings/keys"),
+        AgentHarness.Provider("google", "Gemini", "https://aistudio.google.com/apikey"),
+        AgentHarness.Provider(CUSTOM, "Other server", custom = true),
+    )
+    override val signIn = listOf("/root/.local/bin/android-open", providers.first().keyPage!!)
+    override val free = true
+    override val plans = true
+    override val efforts = listOf("low", "medium", "high")
+
+    override fun keys(rootfs: File): Set<String> {
+        val auth = runCatching { JSONObject(File(rootfs, AUTH).readText()) }.getOrNull()
+        val custom = runCatching { JSONObject(File(rootfs, CONFIG).readText()).optJSONObject("provider")?.has(CUSTOM) }.getOrNull() == true
+        return providers.filter { auth?.has(it.id) == true || (it.custom && custom) }.map { it.id }.toSet()
+    }
+
+    /**
+     * Saves the key as opencode's own `auth login` would. A custom server also gets a provider in
+     * opencode's config with the models its `/models` lists, since opencode does not list them itself.
+     */
+    override fun saveKey(rootfs: File, provider: AgentHarness.Provider, key: String, endpoint: String?, get: (String, String?) -> String) {
+        val token = key.trim().takeIf { it.isNotEmpty() }
+        // Both files are read before either is written, so one that cannot be read changes nothing.
+        val authFile = File(rootfs, AUTH)
+        val auth = readJson(authFile)
+        if (token != null) auth.put(provider.id, JSONObject().put("type", "api").put("key", token)) else auth.remove(provider.id)
+        if (!provider.custom) return writeJson(authFile, auth, private = true)
+        val base = endpoint(endpoint ?: "")
+        val configFile = File(rootfs, CONFIG)
+        val before = configFile.takeIf { it.exists() }?.readText()
+        val config = readJson(configFile)
+        val models = modelIds(get("$base/models", token))
+        check(models.isNotEmpty()) { "No models at $base" }
+        if (!config.has("\$schema")) config.put("\$schema", "https://opencode.ai/config.json")
+        val all = config.optJSONObject("provider") ?: JSONObject().also { config.put("provider", it) }
+        all.put(CUSTOM, JSONObject()
+            .put("npm", "@ai-sdk/openai-compatible")
+            .put("name", runCatching { java.net.URI(base).host }.getOrNull() ?: provider.name)
+            .put("options", JSONObject().put("baseURL", base))
+            .put("models", JSONObject().apply { models.forEach { put(it, JSONObject().put("name", it)) } }))
+        writeJson(configFile, config)
+        try {
+            writeJson(authFile, auth, private = true)
+        } catch (e: Exception) {
+            val undone = runCatching {
+                if (before != null) writeFile(configFile, before) else java.nio.file.Files.deleteIfExists(configFile.toPath())
+            }
+            // First, since the setup row shows two lines of the message.
+            undone.exceptionOrNull()?.let { throw IllegalStateException("The server config could not be put back (${it.message}): ${e.message}", e) }
+            throw e
+        }
+    }
+
+    override fun removeKey(rootfs: File, provider: AgentHarness.Provider) {
+        if (File(rootfs, AUTH).exists()) editJson(File(rootfs, AUTH), private = true) { it.remove(provider.id) }
+        if (provider.custom && File(rootfs, CONFIG).exists()) editJson(File(rootfs, CONFIG)) { it.optJSONObject("provider")?.remove(CUSTOM) }
+    }
+
+    /** A server address as typed, made into the OpenAI-compatible base URL opencode calls. */
+    @VisibleForTesting
+    internal fun endpoint(typed: String): String {
+        val url = typed.trim().trimEnd('/').let { if ("://" in it) it else "http://$it" }
+        require(url.substringAfter("://").isNotEmpty()) { "No server address" }
+        return if (url.substringAfter("://").contains('/')) url else "$url/v1"
+    }
+
+    @VisibleForTesting
+    internal fun modelIds(body: String): List<String> {
+        // The userland can print its own warnings ahead of the response.
+        val json = body.substring(body.indexOf('{').coerceAtLeast(0), body.lastIndexOf('}') + 1)
+        val data = runCatching { JSONObject(json).optJSONArray("data") }.getOrNull() ?: return emptyList()
+        return (0 until data.length()).mapNotNull { data.optJSONObject(it)?.optString("id")?.takeIf { id -> id.isNotEmpty() } }.distinct()
+    }
+
+    // A file that cannot be read holds the user's other providers too, so it is never replaced.
+    private fun readJson(file: File) = if (file.exists()) JSONObject(file.readText()) else JSONObject()
+
+    private fun editJson(file: File, private: Boolean = false, edit: (JSONObject) -> Unit) =
+        writeJson(file, readJson(file).also(edit), private)
+
+    /** Writes beside [file] and moves it into place, so a write that stops partway leaves the old file. */
+    private fun writeJson(file: File, json: JSONObject, private: Boolean = false) = writeFile(file, json.toString(2) + "\n", private)
+
+    private fun writeFile(file: File, text: String, private: Boolean = false) {
+        file.parentFile?.mkdirs()
+        val temp = File(file.parentFile, ".${file.name}.tmp")
+        try {
+            temp.writeText(text)
+            if (private) {
+                temp.setReadable(false, false)
+                temp.setReadable(true, true)
+            }
+            java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        } finally {
+            temp.delete()
+        }
+    }
+
+    override fun useFree(rootfs: File) {
+        File(rootfs, FREE).apply { parentFile?.mkdirs() }.writeText("Free OpenCode Zen models, chosen in DroidDeck's agent setup.\n")
+    }
+
+    private class Listed(val modified: Long, val models: List<AgentHarness.Model>, val windows: Map<String, Long>)
+    @Volatile private var listed: Listed? = null
+
+    private fun listed(rootfs: File): Listed? {
+        val file = File(rootfs, MODELS)
+        val modified = file.lastModified().takeIf { it > 0 } ?: return null
+        listed?.takeIf { it.modified == modified }?.let { return it }
+        return runCatching { listModels(file.readText()) }.getOrNull()?.let { (models, windows) -> Listed(modified, models, windows) }?.also { listed = it }
+    }
+
+    override fun models(rootfs: File) = listed(rootfs)?.models.orEmpty()
+
+    /** `opencode models --verbose` prints each model's id on a line of its own, then its details as JSON. */
+    @VisibleForTesting
+    internal fun listModels(output: String): Pair<List<AgentHarness.Model>, Map<String, Long>> {
+        val models = mutableListOf<AgentHarness.Model>()
+        val windows = mutableMapOf<String, Long>()
+        var id: String? = null
+        val json = StringBuilder()
+        for (line in output.lineSequence()) {
+            val current = id
+            if (current == null) {
+                if (MODEL_ID.matches(line)) id = line.trim()
+                continue
+            }
+            json.appendLine(line)
+            if (line != "}") continue
+            runCatching { JSONObject(json.toString()) }.getOrNull()?.takeIf { it.optString("status") != "deprecated" }?.let { o ->
+                val provider = o.optString("providerID")
+                val label = o.optString("name").ifEmpty { current }
+                val source = if (provider == "opencode" || provider == CUSTOM) "" else providers.firstOrNull { it.id == provider }?.name ?: provider
+                models += AgentHarness.Model(current, if (source.isEmpty()) label else "$label · $source")
+                o.optJSONObject("limit")?.optLong("context")?.takeIf { it > 0 }?.let { windows[current] = it }
+            }
+            id = null
+            json.clear()
+        }
+        return models to windows
+    }
+
+    private val MODEL_ID = Regex("""^[\w.-]+/\S+$""")
+
+    private class Spent(var cost: Double = 0.0, var input: Long = 0, var output: Long = 0)
+    private val spent = Spent()
+    @Volatile private var model: String? = null
+
+    override fun turn(message: String, conversation: String?, options: AgentHarness.Options): List<String> {
+        synchronized(spent) { spent.cost = 0.0; spent.input = 0; spent.output = 0 }
+        model = options.model
+        // DroidDeck runs the agent unattended; --auto approves all the agent does not deny itself, and plan mode denies edits.
+        return buildList {
+            addAll(listOf(binary, "run", "--format", "json", "--auto", "--thinking"))
+            if (conversation != null) addAll(listOf("-s", conversation))
+            if (options.plan) addAll(listOf("--agent", "plan"))
+            options.model?.let { addAll(listOf("-m", it)) }
+            options.effort?.let { addAll(listOf("--variant", it)) }
+            add("--")
+            // opencode run has no system prompt option, so a new conversation starts with the brief.
+            add(if (conversation == null && options.brief != null) "${options.brief}\n\n$message" else message)
+        }
+    }
+
+    override fun usage(rootfs: File, conversation: String?): AgentEvent? {
+        val id = model ?: return null
+        return listed(rootfs)?.windows?.get(id)?.let { AgentEvent(window = it) }
+    }
+
+    override fun parse(line: String): AgentEvent? {
+        val o = runCatching { JSONObject(line) }.getOrNull() ?: return null
+        val conversation = o.optString("sessionID").takeIf { it.isNotEmpty() }
+        val part = o.optJSONObject("part")
+        return when (o.optString("type")) {
+            "text" -> AgentEvent(conversation, text(part) { AgentHost.Entry.Said(it) })
+            "reasoning" -> AgentEvent(conversation, text(part) { AgentHost.Entry.Thought(it) })
+            "tool_use" -> AgentEvent(conversation, part?.let { tool(it) }.orEmpty())
+            "step_finish" -> {
+                val tokens = part?.optJSONObject("tokens")
+                val cache = tokens?.optJSONObject("cache")
+                val total = synchronized(spent) {
+                    spent.cost += part?.optDouble("cost", 0.0) ?: 0.0
+                    spent.input += (tokens?.optLong("input") ?: 0) + (cache?.optLong("read") ?: 0) + (cache?.optLong("write") ?: 0)
+                    spent.output += (tokens?.optLong("output") ?: 0) + (tokens?.optLong("reasoning") ?: 0)
+                    AgentHost.Usage(0, spent.cost, spent.input, spent.output)
+                }
+                val context = tokens?.optLong("total")?.takeIf { it > 0 }
+                // A step that ends to run tools is followed by another; any other reason ends the turn.
+                if (part?.optString("reason") == "tool-calls") AgentEvent(conversation, context = context)
+                else AgentEvent(conversation, listOf(AgentHost.Entry.Finished(null)), context = context, usage = total)
+            }
+            "error" -> {
+                val error = o.optJSONObject("error")
+                val message = error?.optJSONObject("data")?.optString("message")?.takeIf { it.isNotEmpty() }
+                    ?: error?.optString("message")?.takeIf { it.isNotEmpty() } ?: error?.optString("name")?.takeIf { it.isNotEmpty() } ?: "error"
+                AgentEvent(conversation, listOf(AgentHost.Entry.Finished(message)))
+            }
+            else -> conversation?.let { AgentEvent(it) }
+        }
+    }
+
+    private fun text(part: JSONObject?, entry: (String) -> AgentHost.Entry) =
+        part?.optString("text")?.trim()?.takeIf { it.isNotEmpty() }?.let { listOf(entry(it)) }.orEmpty()
+
+    private fun tool(part: JSONObject): List<AgentHost.Entry> {
+        val id = part.optString("callID").ifEmpty { part.optString("id") }
+        val state = part.optJSONObject("state") ?: JSONObject()
+        val input = state.optJSONObject("input") ?: JSONObject()
+        val path = input.optString("filePath")
+        val (name, detail, full) = when (val tool = part.optString("tool")) {
+            "bash" -> Triple("Bash", firstLine(input.optString("command")), input.optString("command"))
+            "edit" -> Triple("Edit", path, path + "\n" + lineDiff(input.optString("oldString"), input.optString("newString")))
+            "write" -> Triple("Write", path, path + "\n" + lineDiff("", input.optString("content")))
+            "todowrite" -> Triple("TodoWrite", "", todos(input.optJSONArray("todos")))
+            else -> Triple(tool.replaceFirstChar { it.uppercase() }.ifEmpty { "Tool" }, detail(input), input.toString(2))
+        }
+        val used = AgentHost.Entry.Used(id, name, detail, full)
+        return when (state.optString("status")) {
+            "completed" -> {
+                val exit = state.optJSONObject("metadata")?.opt("exit")
+                listOf(used, AgentHost.Entry.Result(id, state.optString("output"), exit is Number && exit.toInt() != 0))
+            }
+            "error" -> listOf(used, AgentHost.Entry.Result(id, state.optString("error"), true))
+            else -> listOf(used)
+        }
+    }
+
+    private fun detail(input: JSONObject): String {
+        for (key in listOf("filePath", "path", "pattern", "url", "query", "description", "prompt", "command")) {
+            input.optString(key).takeIf { it.isNotEmpty() }?.let { return firstLine(it) }
+        }
+        return ""
+    }
+
+    private fun todos(list: JSONArray?) = (0 until (list?.length() ?: 0)).mapNotNull { i ->
+        val todo = list?.optJSONObject(i) ?: return@mapNotNull null
+        val mark = when (todo.optString("status")) { "completed" -> "[x]"; "in_progress" -> "[~]"; else -> "[ ]" }
+        "$mark ${todo.optString("content")}"
+    }.joinToString("\n")
 }
 
 @VisibleForTesting
