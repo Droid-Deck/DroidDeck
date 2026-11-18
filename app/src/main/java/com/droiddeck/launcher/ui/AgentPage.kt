@@ -308,7 +308,7 @@ private fun AgentPageContent(
                     }
                 }
                 androidx.compose.animation.AnimatedVisibility(!hidden, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    AgentComposer(composer, draft, visible, inlineControls, onPanel = { panel = it }, onSent = toLatest)
+                    AgentComposer(composer, draft, visible && started, inlineControls, onPanel = { panel = it }, onSent = toLatest)
                 }
             }
         }
@@ -716,6 +716,14 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
         }
     }
     LaunchedEffect(visible) { if (!visible) voice.stop() }
+    // Sends once dictation has written its last words; while a send already waits on them, there is nothing more to do.
+    val sendNow = {
+        when {
+            voice.listening -> voice.finish(send)
+            voice.finishing -> Unit
+            else -> send()
+        }
+    }
     val working = AgentHost.state == AgentHost.State.WORKING
     if (draft.startsWith("/") && !draft.contains(' ')) {
         val matches = (LOCAL_COMMANDS + CLI_COMMANDS).filter { it.startsWith(draft) && it != draft }
@@ -760,7 +768,10 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
                     color = pal.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 BasicTextField(
-                    draft, { draft = it },
+                    draft, {
+                        draft = it
+                        if (voice.listening) voice.stop()
+                    },
                     Modifier.fillMaxWidth().focusRequester(field).onFocusChanged {
                         focused = it.isFocused
                         composer.focused = it.isFocused
@@ -769,10 +780,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
                     textStyle = TextStyle(fontSize = 16.sp, color = colors.onSurface),
                     cursorBrush = SolidColor(pal.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = {
-                        voice.stop()
-                        send()
-                    }),
+                    keyboardActions = KeyboardActions(onSend = { sendNow() }),
                     minLines = 1,
                     maxLines = 8,
                 )
@@ -783,18 +791,11 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
             }
             val canSend = draft.isNotBlank() || AgentAttachments.pending.isNotEmpty()
             // An empty message has nothing to send, so the button there dictates one instead.
-            if (!canSend || voice.listening) VoiceButton(voice, onStart = { voice.start(draft) }, onSend = send, onSetup = { voiceSetup = true })
-            if (voice.listening && voice.locked) RoundButton(
+            if ((!canSend || voice.listening) && !voice.finishing) VoiceButton(voice, onStart = { voice.start(draft) }, onSend = send, onSetup = { voiceSetup = true })
+            if (voice.finishing || (voice.listening && voice.locked) || (canSend && !voice.listening)) RoundButton(
                 Icons.AutoMirrored.Outlined.Send, stringResource(if (working) R.string.agent_queue else R.string.agent_send),
-                pal.primary, pal.onPrimary, "agent-send",
-            ) { voice.finish(send) }
-            else if (canSend && !voice.listening) RoundButton(
-                Icons.AutoMirrored.Outlined.Send, stringResource(if (working) R.string.agent_queue else R.string.agent_send),
-                if (canSend) pal.primary else pal.surfaceVariant, if (canSend) pal.onPrimary else pal.onSurfaceVariant, "agent-send", enabled = canSend,
-            ) {
-                voice.stop()
-                send()
-            }
+                pal.primary, pal.onPrimary, "agent-send", enabled = !voice.finishing,
+            ) { sendNow() }
         }
         if (stacked) Column {
             text(Modifier.fillMaxWidth())
@@ -870,6 +871,8 @@ private fun VoiceButton(voice: AgentVoice, onStart: () -> Unit, onSend: () -> Un
                     try {
                         while (!resolved) {
                             val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                            // Compose ends a cancelled touch stream with a lift that arrives already consumed; that is not a release.
+                            if (!change.pressed && change.isConsumed) break
                             change.consume()
                             drag = change.position - down.position
                             when {

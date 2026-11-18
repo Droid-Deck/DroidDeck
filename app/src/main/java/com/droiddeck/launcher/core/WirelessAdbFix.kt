@@ -235,6 +235,9 @@ object WirelessAdbFix {
 
     fun hasSavedPairing(context: Context): Boolean = savedConnection(context.applicationContext) != null
 
+    fun savedPairingIsLocal(context: Context): Boolean = savedConnection(context.applicationContext)?.host
+        ?.let { host -> runCatching { isLocalAddress(InetAddress.getByName(host)) }.getOrDefault(false) } == true
+
     fun clearCachedApps(context: Context) {
         shell(context, "am kill-all")
     }

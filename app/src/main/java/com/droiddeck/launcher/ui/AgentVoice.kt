@@ -36,7 +36,9 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
     private var typed = ""
     private var base = ""
     private var written = ""
-    private var finishing = false
+    /** Set between [finish] and the final result, while a send may still be waiting on the last words. */
+    var finishing by mutableStateOf(false)
+        private set
     private var then: (() -> Unit)? = null
     private val main = Handler(Looper.getMainLooper())
 
@@ -60,7 +62,10 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
             override fun onError(error: Int) {
                 if (recognizer !== speech) return
                 // The recognizer gives up on a pause; the user is still talking until they let go or stop.
-                if (!finishing && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) relisten(speech) else {
+                if (!finishing && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+                    base = continued(written)
+                    relisten(speech)
+                } else {
                     done()
                     if (error == SpeechRecognizer.ERROR_AUDIO || error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) serviceMicBlocked = true
                 }
@@ -96,7 +101,7 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
 
     private fun heard(results: Bundle?) {
         val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() } ?: return
-        if (draft() != written) return stop()
+        if (draft() != written) return if (finishing) done() else stop()
         written = base + spoken
         onText(written)
     }
@@ -139,12 +144,14 @@ internal class AgentVoice(private val context: Context, private val draft: () ->
         }
         val intent = Intent(RecognitionService.SERVICE_INTERFACE).setComponent(service)
         if (runCatching { context.bindService(intent, connection, Context.BIND_AUTO_CREATE or Context.BIND_INCLUDE_CAPABILITIES) }.getOrDefault(false)) lent = connection
+        else runCatching { context.unbindService(connection) }
     }
 
     fun stop() {
         lent?.let { runCatching { context.unbindService(it) } }
         lent = null
         then = null
+        finishing = false
         listening = false
         locked = false
         level = 0f

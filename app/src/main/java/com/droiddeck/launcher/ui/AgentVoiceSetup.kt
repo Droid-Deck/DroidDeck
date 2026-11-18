@@ -61,7 +61,8 @@ internal fun voiceReady(context: Context): Boolean {
 private fun adb(context: Context, command: String, done: (Boolean) -> Unit) {
     val app = context.applicationContext
     Thread({
-        val ok = runCatching { WirelessAdbFix.shell(app, command) }.isSuccess
+        // The pairing can be with another device, where the grant would land instead of here.
+        val ok = WirelessAdbFix.savedPairingIsLocal(app) && runCatching { WirelessAdbFix.shell(app, command) }.isSuccess
         android.os.Handler(android.os.Looper.getMainLooper()).post { done(ok) }
     }, "agent-voice-setup").start()
 }
@@ -105,13 +106,15 @@ internal fun AgentVoiceSetup(onReady: () -> Unit, onClose: () -> Unit) {
     val serviceMic = remember(checks, service) { service != null && AgentVoice.serviceHears(context, service) }
     val paired = remember(checks) { WirelessAdbFix.hasSavedPairing(context) }
     var working by remember { mutableStateOf(false) }
+    val shown = remember { booleanArrayOf(true) }
+    DisposableEffect(Unit) { onDispose { shown[0] = false } }
     // A saved pairing does not mean Wireless debugging is on now, so a refusal falls back to doing it by hand.
     val viaAdb: (String, () -> Unit) -> Unit = { command, byHand ->
         working = true
         adb(context, command) { ok ->
             working = false
             checks++
-            if (!ok) byHand()
+            if (!ok && shown[0]) byHand()
         }
     }
     LaunchedEffect(service, appMic, serviceMic) { if (service != null && appMic && serviceMic) onReady() }
