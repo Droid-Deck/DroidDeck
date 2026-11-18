@@ -396,11 +396,18 @@ object CloudSaves {
         val remote = remote(cloud) { it in files }
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
         val plan = CloudPlan.up(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
-        val send = CloudPlan.upSend(plan, force, cloud is GogCloud, files.keys)
+        var send = CloudPlan.upSend(plan, force, cloud is GogCloud, files.keys)
         val next = HashMap(base)
         for (name in plan.same) remote[name]?.let { r -> next[name] = CloudPlan.Entry(local.getValue(name).md5, r.md5, r.modifiedMs) }
+        var drifted = emptyList<String>()
         if (send.isNotEmpty()) {
-            backupCloud(context, store, id, cloud, send.mapNotNull { remote[it] })
+            val copies = backupCloud(context, store, id, cloud, send.mapNotNull { remote[it] })
+            if (cloud is UbisoftCloudTransport && !force) {
+                drifted = send.filter { name -> val synced = base[name]?.localMd5; synced != null && copies[name]?.let { it != synced } == true }
+                send = send - drifted.toSet()
+            }
+        }
+        if (send.isNotEmpty()) {
             val stamped = HashMap<String, Long>()
             val sentMd5 = HashMap<String, String>()
             if (cloud is GogCloud) {
@@ -424,7 +431,7 @@ object CloudSaves {
             }
         }
         saveBaseline(context, store, id, next)
-        val left = if (force) emptyList() else plan.conflicts
+        val left = if (force) emptyList() else plan.conflicts + drifted
         saveConflicts(context, store, id, left)
         return Result("ok", send.size, send.sumOf { files.getValue(it).length() }, if (send.isEmpty()) "up-to-date" else "uploaded", left.size)
     }
@@ -467,17 +474,21 @@ object CloudSaves {
         prune(root, kind)
     }
 
-    private fun backupCloud(context: Context, store: Store, id: String, cloud: CloudTransport, files: List<CloudFile>) {
-        if (files.isEmpty()) return
+    private fun backupCloud(context: Context, store: Store, id: String, cloud: CloudTransport, files: List<CloudFile>): Map<String, String> {
+        if (files.isEmpty()) return emptyMap()
         val root = backupRoot(context, store, id)
         val target = File(root, "cloud-${System.currentTimeMillis()}")
+        val copies = HashMap<String, String>()
         for (f in files) {
             val dest = File(target, f.name)
             if (!dest.canonicalPath.startsWith(target.canonicalPath + File.separator)) continue
             dest.parentFile?.mkdirs()
-            dest.writeBytes(cloud.get(f).first)
+            val data = cloud.get(f).first
+            dest.writeBytes(data)
+            copies[f.name] = md5(data)
         }
         prune(root, "cloud")
+        return copies
     }
 
     private fun prune(root: File, kind: String) {
