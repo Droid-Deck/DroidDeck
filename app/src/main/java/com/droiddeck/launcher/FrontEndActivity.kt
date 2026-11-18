@@ -1937,6 +1937,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        gameLaunchRequest.incrementAndGet()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
             pendingGameLink = null

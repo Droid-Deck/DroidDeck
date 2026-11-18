@@ -2026,7 +2026,7 @@ index 0000000..7fec6e5
 +    }
 +}
 diff --git a/crates/xodus-cli/src/commands/streaming.rs b/crates/xodus-cli/src/commands/streaming.rs
-index a0136f8..f4f2357 100644
+index a0136f8..23d228d 100644
 --- a/crates/xodus-cli/src/commands/streaming.rs
 +++ b/crates/xodus-cli/src/commands/streaming.rs
 @@ -9,7 +9,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -2054,7 +2054,7 @@ index a0136f8..f4f2357 100644
      let remote_xvd = match XvdFile::parse(&mut remote_file).await {
          Ok(xvd) => xvd,
          Err(error) => { failure::report_metadata(error.as_ref()); return ExitCode::FAILURE; }
-@@ -692,3 +701,276 @@ where
+@@ -692,3 +701,314 @@ where
      }
      ExitCode::SUCCESS
  }
@@ -2067,8 +2067,9 @@ index a0136f8..f4f2357 100644
 +    let previous = out.join(".xodus-plain-previous");
 +    if previous.join(PENDING).exists() {
 +        restore(&previous, out).map_err(|error| format!("an earlier replacement could not be undone: {error}"))?;
-+    } else if previous.exists() {
-+        std::fs::remove_dir_all(&previous).map_err(|error| format!("an earlier replacement left files behind: {error}"))?;
++    } else if previous.exists() && std::fs::remove_dir_all(&previous).is_err() {
++        let stale = out.join(format!(".xodus-plain-stale-{}", std::process::id()));
++        std::fs::rename(&previous, &stale).map_err(|error| format!("an earlier replacement left files behind: {error}"))?;
 +    }
 +    std::fs::create_dir_all(&previous).map_err(|error| format!("could not prepare the replacement: {error}"))?;
 +    std::fs::write(previous.join(PENDING), b"").map_err(|error| format!("could not prepare the replacement: {error}"))?;
@@ -2100,8 +2101,19 @@ index a0136f8..f4f2357 100644
 +            Ok(())
 +        }
 +        Err(error) => {
-+            for name in &placed {
-+                remove(&out.join(name)).ok();
++            let stuck: Vec<String> = placed
++                .iter()
++                .filter(|name| remove(&out.join(name)).is_err())
++                .map(|name| name.to_string_lossy().into_owned())
++                .collect();
++            if !stuck.is_empty() {
++                let listed = std::fs::write(previous.join(PENDING), stuck.join("
++"));
++                let names = stuck.join(", ");
++                return Err(match listed {
++                    Ok(()) => format!("{error}; {names} could not be removed, the previous files are kept in {}", previous.display()),
++                    Err(write) => format!("{error}; {names} could not be removed and could not be recorded ({write})"),
++                });
 +            }
 +            match restore(&previous, out) {
 +                Ok(()) => Err(error),
@@ -2114,6 +2126,13 @@ index a0136f8..f4f2357 100644
 +/// Moves every entry kept in `previous` back into `out`, then removes `previous`.
 +/// On any failure `previous` stays, holding what has not been put back.
 +fn restore(previous: &Path, out: &Path) -> Result<(), String> {
++    let placed = std::fs::read_to_string(previous.join(PENDING)).map_err(|error| error.to_string())?;
++    for name in placed.lines().filter(|name| !name.is_empty() && !name.contains(['/', '\\']) && *name != "." && *name != "..") {
++        let target = out.join(name);
++        if std::fs::symlink_metadata(&target).is_ok() {
++            remove(&target).map_err(|error| format!("could not clear {}: {error}", target.display()))?;
++        }
++    }
 +    let entries = std::fs::read_dir(previous).map_err(|error| error.to_string())?;
 +    for entry in entries {
 +        let entry = entry.map_err(|error| error.to_string())?;
@@ -2266,6 +2285,25 @@ index a0136f8..f4f2357 100644
 +        assert!(super::publish(&staging, &out).is_err());
 +        assert_eq!(std::fs::read(out.join("+a")).unwrap(), b"old");
 +        assert!(!out.join(".xodus-plain-previous").exists());
++    }
++
++    #[test]
++    fn entries_a_rollback_could_not_remove_are_cleared_before_the_backup_returns() {
++        let root = tempfile::tempdir().unwrap();
++        let (staging, out) = (root.path().join("staging"), root.path().join("out"));
++        let previous = out.join(".xodus-plain-previous");
++        std::fs::create_dir_all(&staging).unwrap();
++        std::fs::create_dir_all(previous.join("data")).unwrap();
++        std::fs::write(previous.join(".pending"), "stray").unwrap();
++        std::fs::write(previous.join("data").join("old"), b"old").unwrap();
++        std::fs::create_dir_all(out.join("stray")).unwrap();
++        std::fs::write(out.join("stray").join("new"), b"new").unwrap();
++        std::fs::create_dir_all(out.join("data")).unwrap();
++        std::fs::write(staging.join("fresh"), b"new").unwrap();
++        super::publish(&staging, &out).unwrap();
++        assert!(!out.join("stray").exists());
++        assert_eq!(std::fs::read(out.join("data").join("old")).unwrap(), b"old");
++        assert!(!previous.exists());
 +    }
 +
 +    #[test]
