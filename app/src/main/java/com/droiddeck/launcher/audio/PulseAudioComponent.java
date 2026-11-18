@@ -16,8 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 public class PulseAudioComponent extends SessionPart {
     private static final String TAG = "PulseAudio";
@@ -38,6 +40,7 @@ public class PulseAudioComponent extends SessionPart {
         private long generation;
         private long launches;
         private final IntConsumer terminate;
+        private final ReentrantReadWriteLock commands = new ReentrantReadWriteLock();
 
         HostLifecycle(IntConsumer terminate) {
             this.terminate = terminate;
@@ -54,11 +57,27 @@ public class PulseAudioComponent extends SessionPart {
             pid = -1;
         }
 
-        synchronized boolean launch(long expected, IntSupplier launch) {
-            if (expected != generation) return false;
-            launches++;
-            pid = launch.getAsInt();
-            return true;
+        boolean launch(long expected, IntSupplier launch) {
+            commands.writeLock().lock();
+            try {
+                synchronized (this) {
+                    if (expected != generation) return false;
+                    launches++;
+                    pid = launch.getAsInt();
+                    return true;
+                }
+            } finally {
+                commands.writeLock().unlock();
+            }
+        }
+
+        <T> T command(long token, Supplier<T> command) {
+            commands.readLock().lock();
+            try {
+                return live(token) ? command.get() : null;
+            } finally {
+                commands.readLock().unlock();
+            }
         }
 
         synchronized boolean current(long expected) {
@@ -248,7 +267,7 @@ public class PulseAudioComponent extends SessionPart {
     }
 
     private String pactlFor(long token, String... args) {
-        return host.live(token) ? pactl(args) : null;
+        return host.command(token, () -> pactl(args));
     }
 
     /** Runs pactl against this daemon; its stdout, or null when it failed or timed out. */
@@ -256,6 +275,7 @@ public class PulseAudioComponent extends SessionPart {
         File pactl = new File(workingDir, "pactl");
         if (!pactl.isFile() || host.pid <= 1) return null;
         java.lang.Process process = null;
+        File output = null;
         try {
             File modules = new File(workingDir, "modules/arm64");
             ArrayList<String> cmd = new ArrayList<>();
@@ -268,22 +288,15 @@ public class PulseAudioComponent extends SessionPart {
             builder.environment().put("HOME", workingDir.getAbsolutePath());
             builder.environment().put("TMPDIR", workingDir.getAbsolutePath());
             builder.environment().put("PULSE_SERVER", "unix:" + socket().getAbsolutePath());
+            output = File.createTempFile("pactl", ".out", workingDir);
+            builder.redirectOutput(output);
             process = builder.start();
-            String output;
-            try (InputStream in = process.getInputStream();
-                 java.io.ByteArrayOutputStream outStream = new java.io.ByteArrayOutputStream()) {
-                byte[] buf = new byte[4096];
-                int n;
-                while ((n = in.read(buf)) != -1) {
-                    outStream.write(buf, 0, n);
-                }
-                output = outStream.toString(java.nio.charset.StandardCharsets.UTF_8.name());
-            }
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
                 return null;
             }
-            return process.exitValue() == 0 ? output : null;
+            return process.exitValue() == 0
+                    ? new String(Files.readAllBytes(output.toPath()), java.nio.charset.StandardCharsets.UTF_8) : null;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;
@@ -291,6 +304,7 @@ public class PulseAudioComponent extends SessionPart {
             return null;
         } finally {
             if (process != null && process.isAlive()) process.destroyForcibly();
+            if (output != null) output.delete();
         }
     }
 
