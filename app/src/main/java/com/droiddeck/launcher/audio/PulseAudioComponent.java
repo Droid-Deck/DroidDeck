@@ -40,7 +40,7 @@ public class PulseAudioComponent extends SessionPart {
         private long generation;
         private long launches;
         private final IntConsumer terminate;
-        private final ReentrantReadWriteLock commands = new ReentrantReadWriteLock();
+        final ReentrantReadWriteLock commands = new ReentrantReadWriteLock();
 
         HostLifecycle(IntConsumer terminate) {
             this.terminate = terminate;
@@ -237,13 +237,13 @@ public class PulseAudioComponent extends SessionPart {
                 String loadedAs = null;
                 for (int attempt = 1; attempt <= 5 && loadedAs == null && host.live(token); attempt++) {
                     try { Thread.sleep(2000L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
-                    if (pactlFor(token, "load-module", "module-directaudio-native-sink", "sink_name=DirectAudio", "performance_mode=1",
-                            "adaptive=1", "decay=0", "limiter=1", "watchdog=1", "volume=1.0", "control_dir=" + deviceControls) != null
-                            && pactlFor(token, "set-default-sink", "DirectAudio") != null) {
+                    if (pactlOk(token, "load-module", "module-directaudio-native-sink", "sink_name=DirectAudio", "performance_mode=1",
+                            "adaptive=1", "decay=0", "limiter=1", "watchdog=1", "volume=1.0", "control_dir=" + deviceControls)
+                            && pactlOk(token, "set-default-sink", "DirectAudio")) {
                         loadedAs = "DirectAudio on attempt " + attempt;
-                    } else if (pactlFor(token, "load-module", "module-aaudio-sink", "sink_name=AAudioSink",
-                            "performance_mode=" + (attempt == 1 ? "1" : "0"), "adaptive=1", "volume=1.0", "control_dir=" + deviceControls) != null
-                            && pactlFor(token, "set-default-sink", "AAudioSink") != null) {
+                    } else if (pactlOk(token, "load-module", "module-aaudio-sink", "sink_name=AAudioSink",
+                            "performance_mode=" + (attempt == 1 ? "1" : "0"), "adaptive=1", "volume=1.0", "control_dir=" + deviceControls)
+                            && pactlOk(token, "set-default-sink", "AAudioSink")) {
                         loadedAs = "the plain AAudio sink (AAudioSink) on attempt " + attempt;
                     }
                 }
@@ -267,11 +267,20 @@ public class PulseAudioComponent extends SessionPart {
     }
 
     private String pactlFor(long token, String... args) {
-        return host.command(token, () -> pactl(args));
+        return host.command(token, () -> pactl(true, args));
     }
 
-    /** Runs pactl against this daemon; its stdout, or null when it failed or timed out. */
-    private String pactl(String... args) {
+    private boolean pactlOk(long token, String... args) {
+        return host.command(token, () -> pactl(false, args)) != null;
+    }
+
+    private static void reap(java.lang.Process process) throws InterruptedException {
+        process.destroyForcibly();
+        process.waitFor(2, TimeUnit.SECONDS);
+    }
+
+    /** Runs pactl against this daemon; its stdout when captured (empty otherwise), or null when it failed or timed out. */
+    private String pactl(boolean capture, String... args) {
         File pactl = new File(workingDir, "pactl");
         if (!pactl.isFile() || host.pid <= 1) return null;
         java.lang.Process process = null;
@@ -288,22 +297,32 @@ public class PulseAudioComponent extends SessionPart {
             builder.environment().put("HOME", workingDir.getAbsolutePath());
             builder.environment().put("TMPDIR", workingDir.getAbsolutePath());
             builder.environment().put("PULSE_SERVER", "unix:" + socket().getAbsolutePath());
-            output = File.createTempFile("pactl", ".out", workingDir);
-            builder.redirectOutput(output);
+            if (capture) {
+                output = File.createTempFile("pactl", ".out", workingDir);
+                builder.redirectOutput(output);
+            } else {
+                builder.redirectOutput(new File("/dev/null"));
+            }
             process = builder.start();
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
+                reap(process);
                 return null;
             }
-            return process.exitValue() == 0
-                    ? new String(Files.readAllBytes(output.toPath()), java.nio.charset.StandardCharsets.UTF_8) : null;
+            if (process.exitValue() != 0) return null;
+            return capture ? new String(Files.readAllBytes(output.toPath()), java.nio.charset.StandardCharsets.UTF_8) : "";
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;
         } catch (Throwable t) {
             return null;
         } finally {
-            if (process != null && process.isAlive()) process.destroyForcibly();
+            if (process != null && process.isAlive()) {
+                try {
+                    reap(process);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             if (output != null) output.delete();
         }
     }

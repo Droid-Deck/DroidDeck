@@ -95,7 +95,10 @@ class PulseAudioComponentTest {
                     31464
                 }
             }
-            assertFalse(launched.await(300, TimeUnit.MILLISECONDS))
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (!host.commands.hasQueuedThreads() && !restart.isDone && System.nanoTime() < deadline) Thread.yield()
+            assertTrue(host.commands.hasQueuedThreads())
+            assertEquals(1L, launched.count)
             assertFalse(restart.isDone)
             resume.countDown()
             assertEquals("old host", command.get(5, TimeUnit.SECONDS))
