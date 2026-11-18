@@ -735,7 +735,6 @@ private fun FolderSheet(
     }
     val firstApp = remember { FocusRequester() }
     val title = remember { FocusRequester() }
-    // Backing out of the name field lands on the title, not on the first app.
     var toTitle by remember { mutableStateOf(false) }
     val sheetView = androidx.compose.ui.platform.LocalView.current
     val leaveName = {
@@ -783,7 +782,6 @@ private fun FolderSheet(
                     .clip(Shape16).background(pal.surfaceVariant.copy(alpha = 0.97f))
                     .glideBorder(false, Shape16, pal.signal, pal.signal.copy(alpha = 0.22f))
                     .pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() } }
-                    // In the name field B leaves the field; the sheet must not take that press as its own B and close.
                     .onPreviewKeyEvent { event ->
                         val k = event.nativeKeyEvent
                         if (!renaming || k.keyCode != KeyEvent.KEYCODE_BUTTON_B) return@onPreviewKeyEvent false
