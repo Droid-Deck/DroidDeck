@@ -15,6 +15,7 @@ GAME_SPLIT_KEYS = ("TU_DEBUG", "MESA_NO_ERROR")
 CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"}
 D3D9_DEFAULT_MEMORY_MB = 4096
 SYNC_KEYS = ("BL_SYNC", "BL_SYNC_FALLBACK", "BL_FSYNC_FIRST", "BL_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+LOCALE_KEYS = ("LANG", "DROIDDECK_LOCALE")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 GAME_DEBUG = runpy.run_path(str(Path(__file__).with_name("droiddeck-game-debug")))
@@ -1429,7 +1430,12 @@ def main():
                 with path.open(encoding="utf-8") as source:
                     config = json.load(source)
                 configured = configured_lang(config, app_id)
-                env = apply_config(env, sync_config(config, app_id), app_id)
+                selected = sync_config(config, app_id)
+                carry = {name: value for name, value in (config.get("games", {}).get(str(app_id)) or {}).items() if name in LOCALE_KEYS}
+                if carry:
+                    games = selected.setdefault("games", {})
+                    games[str(app_id)] = dict(games.get(str(app_id)) or {}, **carry)
+                env = apply_config(env, selected, app_id)
             except FileNotFoundError:
                 pass
             except (OSError, ValueError, TypeError, AttributeError):

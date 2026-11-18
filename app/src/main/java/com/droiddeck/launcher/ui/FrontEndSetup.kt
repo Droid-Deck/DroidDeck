@@ -1,10 +1,6 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
 import android.os.Build
@@ -782,10 +778,7 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
     }
     var wincompOpen by remember(wincompKey) { mutableStateOf<Boolean?>(null) }
     val localeKey = game?.profileKey?.takeIf { it.isNotBlank() && com.droiddeck.launcher.core.GameEnvironment.validScope(it) }
-    var gameLocale by remember(localeKey) {
-        mutableStateOf(localeKey?.let { com.droiddeck.launcher.core.GameEnvironment.gameLocale(com.droiddeck.launcher.session.GameEnvironmentStore.read(context), it) })
-    }
-    val localeSaving = rememberCoroutineScope()
+    val localeState = game?.let { rememberGameLocaleSettings(it) }
     val wincompPicks = remember(wincompKey, wincompOpen) { wincompKey?.let { com.droiddeck.launcher.session.WinComponents.picks(context, it) }.orEmpty() }
     val steamScope = game?.let { com.droiddeck.launcher.session.NoSteamLaunch.scope(it) }
     val steamCard: (@Composable (Modifier) -> Unit)? = if (game != null && steamScope != null) { m ->
@@ -856,23 +849,21 @@ internal fun LaunchSettings(s: FrontEndState, a: FrontEndActions, host: MenuHost
                 "card:wincomp", m,
             ) { wincompOpen = inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard }
         }
-        if (localeKey != null) add { m ->
+        if (localeKey != null && localeState != null) add { m ->
+            val localeScope = localeState.scope
             Box(m) {
                 SettingCard(
                     stringResource(R.string.game_locale_title),
-                    gameLocale?.let { localeLabel(it) } ?: stringResource(R.string.comp_game_use_general),
+                    localeState.config?.let { com.droiddeck.launcher.core.GameEnvironment.gameLocale(it, localeScope) }?.let { localeLabel(it) } ?: stringResource(R.string.comp_game_use_general),
                     "card:locale", Modifier.fillMaxSize(),
                 ) { host.open = if (host.open == "locale") null else "locale" }
                 AnchoredMenu(host.open == "locale", onDismiss = { if (host.open == "locale") host.open = null }, title = stringResource(R.string.game_locale_title)) { first ->
                     fun pick(value: String?) {
                         host.open = null
-                        gameLocale = value
-                        localeSaving.launch {
-                            withContext(Dispatchers.IO) { com.droiddeck.launcher.session.GameEnvironmentStore.setGameLocale(context.applicationContext, localeKey, value) }
-                        }
+                        localeState.save { c -> com.droiddeck.launcher.session.GameEnvironmentStore.setGameLocale(c, localeScope, value) }
                     }
-                    MenuItem(stringResource(R.string.comp_game_use_general), checked = gameLocale == null, focusRequester = first) { pick(null) }
-                    for (tag in com.droiddeck.launcher.core.GameEnvironment.locales) MenuItem(localeLabel(tag), checked = gameLocale == tag) { pick(tag) }
+                    MenuItem(stringResource(R.string.comp_game_use_general), checked = localeState.config?.let { com.droiddeck.launcher.core.GameEnvironment.gameLocale(it, localeScope) } == null, focusRequester = first) { pick(null) }
+                    for (tag in com.droiddeck.launcher.core.GameEnvironment.locales) MenuItem(localeLabel(tag), checked = localeState.config?.let { com.droiddeck.launcher.core.GameEnvironment.gameLocale(it, localeScope) } == tag) { pick(tag) }
                 }
             }
         }
@@ -917,6 +908,14 @@ internal class GameSettingsState(private val appContext: android.content.Context
 internal fun rememberGameSettings(scope: String): GameSettingsState {
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     return remember(scope) { GameSettingsState(appContext, scope) }
+}
+
+@Composable
+private fun rememberGameLocaleSettings(game: com.droiddeck.launcher.frontend.Library.SteamGame): GameSettingsState {
+    val scope = com.droiddeck.launcher.session.NoSteamLaunch.scope(game)
+        ?: game.profileKey.takeIf { it.isNotBlank() && com.droiddeck.launcher.core.GameEnvironment.validScope(it) }
+        ?: com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId.toString()
+    return rememberGameSettings(scope)
 }
 
 @Composable
