@@ -10,6 +10,10 @@ import com.droiddeck.launcher.stores.epic.EpicCredentialStore
 import com.droiddeck.launcher.stores.epic.EpicPrefs
 import com.droiddeck.launcher.stores.gog.GogAuth
 import com.droiddeck.launcher.stores.gog.GogPrefs
+import com.droiddeck.launcher.stores.ubisoft.UbisoftAuth
+import com.droiddeck.launcher.stores.ubisoft.UbisoftCloud
+import com.droiddeck.launcher.stores.ubisoft.UbisoftCloudTransport
+import com.droiddeck.launcher.stores.ubisoft.UbisoftConnect
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -39,6 +43,8 @@ object CloudSaves {
             StoreGameSidecar.read(f)?.takeIf { it.store == store && it.id == id && it.isInstalled }?.let { f to it }
         }
 
+    fun supports(store: Store?): Boolean = store == Store.GOG || store == Store.EPIC || store == Store.UBISOFT
+
     fun prefix(context: Context, folder: File): File? {
         val appId = AddedGames.scan(context).firstOrNull { it.folder.absolutePath == folder.absolutePath }?.appId ?: return null
         return Library.protonPrefix(context, appId and 0xFFFFFFFFL)
@@ -52,6 +58,7 @@ object CloudSaves {
 
 
     private const val TEMPLATE_NONE = "none"
+    private const val UBISOFT_TEMPLATE = "ubisoft"
     internal const val TEMPLATE_NONE_TTL_MS = 24 * 60 * 60 * 1000L
 
     internal fun noneTemplateIsCurrent(storedAtMs: Long, nowMs: Long) =
@@ -89,7 +96,8 @@ object CloudSaves {
                 val item = sidecar.extra["catalogItemId"].orEmpty()
                 if (ns.isEmpty() || item.isEmpty()) "" else EpicApiClient.getCustomAttribute(token, ns, item, "CloudSaveFolder")
             }
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.UBISOFT, Store.ROCKSTAR -> ""
+            Store.UBISOFT -> UBISOFT_TEMPLATE
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.ROCKSTAR -> ""
         } ?: return null
         p.edit()
             .putString("cloud_template_$id", fetched.ifEmpty { TEMPLATE_NONE })
@@ -146,6 +154,11 @@ object CloudSaves {
         val (folder, sidecar) = game(context, store, id) ?: return null to "not-installed"
         val template = template(context, store, id, folder, sidecar) ?: return null to "store-unreachable"
         if (template.isEmpty()) return null to "no-cloud-saves"
+        if (store == Store.UBISOFT) {
+            val user = UbisoftAuth.load(context)?.userId?.takeIf { it.isNotEmpty() } ?: return null to "not-signed-in"
+            val product = sidecar.extra["productId"]?.toLongOrNull() ?: return null to "unresolved"
+            return File(UbisoftConnect.prefix(context), "pfx/drive_c/users/steamuser/Saved Games/Ubisoft/$user/$product") to "ok"
+        }
         val pfx = prefix(context, folder) ?: return null to "no-prefix"
         val dir = when (store) {
             Store.GOG -> CloudSavePaths.gog(template, pfx, folder)
@@ -175,7 +188,12 @@ object CloudSaves {
             val account = EpicCredentialStore.load(context)?.accountId.orEmpty()
             if (token == null || account.isEmpty()) null else EpicCloud(account, id, token)
         }
-        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.UBISOFT, Store.ROCKSTAR -> null
+        Store.UBISOFT -> {
+            val session = UbisoftAuth.current(context)
+            val product = StoreGameSidecar.read(folder)?.extra?.get("productId")?.toLongOrNull()
+            if (session == null || product == null) null else UbisoftCloudTransport(UbisoftCloud(session, product))
+        }
+        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.ROCKSTAR -> null
     }
 
     private fun gogScopedToken(context: Context, id: String, clientId: String): String? {

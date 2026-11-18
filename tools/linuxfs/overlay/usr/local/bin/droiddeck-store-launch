@@ -255,7 +255,7 @@ def create_prefix(compat_data, proton, timeout=120):
 
 
 CLOUD_TIMEOUT = 15.0
-CLOUD_STORES = ("gog", "epic")
+CLOUD_STORES = ("gog", "epic", "ubisoft")
 STORE_GAME = 10
 RAN = 11
 RAN_FAILED = 12

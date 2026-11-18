@@ -257,7 +257,7 @@ internal fun GameDetail(
                                 stringResource(R.string.game_tab_achievements_count, stringResource(R.string.achievements_title), achievementState.done, list.size)
                             } ?: stringResource(R.string.achievements_title)
                             GameTab.LAUNCH -> stringResource(R.string.game_tab_launch)
-                            GameTab.SAVES -> stringResource(if (Store.byId(source).let { it == Store.GOG || it == Store.EPIC }) R.string.game_tab_saves_cloud else R.string.games_saves)
+                            GameTab.SAVES -> stringResource(if (CloudSaves.supports(Store.byId(source))) R.string.game_tab_saves_cloud else R.string.games_saves)
                             GameTab.ADDONS -> stringResource(R.string.game_tab_addons)
                             GameTab.INSTALL -> stringResource(R.string.game_tab_install)
                         }
@@ -888,7 +888,7 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
     }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(summary, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp).readable().padding(4.dp))
-        if (Store.byId(g.source).let { it == Store.GOG || it == Store.EPIC }) {
+        if (CloudSaves.supports(Store.byId(g.source))) {
             SectionLabel(stringResource(R.string.store_cloud_saves))
             CloudRows(g)
             SectionLabel(stringResource(R.string.games_saves))

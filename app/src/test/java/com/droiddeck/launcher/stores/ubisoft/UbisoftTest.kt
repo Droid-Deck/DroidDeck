@@ -99,6 +99,25 @@ class UbisoftTest {
         assertNull(UbisoftActivation.unhex("abc"))
     }
 
+    @Test fun aSaveNamesItsUbisoftIdentifierInItsHeader() {
+        val mark = "4ef5bf634b40daa577aaeaa52c2283a9"
+        val save = byteArrayOf(0x24, 2, 0, 0, 0, 0, 0, 0) + mark.toByteArray() + ByteArray(64) { it.toByte() }
+        assertEquals(mark, UbisoftCloud.mark(save))
+        assertNull(UbisoftCloud.mark(ByteArray(8) + ByteArray(32) + ByteArray(16)))
+        assertNull(UbisoftCloud.mark(ByteArray(39)))
+    }
+
+    @Test fun cloudSaveBodiesSurviveTheZlibHop() {
+        val save = ByteArray(200_000) { (it % 251).toByte() }
+        assertArrayEquals(save, UbisoftCloud.inflate(UbisoftCloud.deflate(save)))
+        assertEquals(0x78, UbisoftCloud.deflate(save)[0].toInt())
+    }
+
+    @Test fun ubisoftCloudSavesAreSupported() {
+        assertTrue(com.droiddeck.launcher.stores.CloudSaves.supports(Store.UBISOFT))
+        assertTrue(!com.droiddeck.launcher.stores.CloudSaves.supports(Store.AMAZON))
+    }
+
     @Test fun keptGameTokensBelongToOneAccountAndProductUntilDropped() {
         val dir = kotlin.io.path.createTempDirectory().toFile()
         val cache = UbisoftActivation.TokenCache(dir)
