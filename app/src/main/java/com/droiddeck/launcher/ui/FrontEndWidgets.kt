@@ -54,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.focus.focusProperties
@@ -112,7 +113,8 @@ internal fun Actions(content: @Composable () -> Unit) = FlowRow(
 ) { content() }
 
 @Composable
-internal fun ActionChip(t: String, ok: Boolean) = Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok) }
+internal fun ActionChip(t: String, ok: Boolean, fraction: Float? = null) =
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok, fraction) }
 
 internal val Shape16 = RoundedCornerShape(16.dp)
 
@@ -139,13 +141,31 @@ internal fun BackLink(label: String, compact: Boolean = false, onClick: () -> Un
 }
 
 @Composable
-internal fun Chip(t: String, ok: Boolean) {
+internal fun Chip(t: String, ok: Boolean, fraction: Float? = null) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Text(
-        t, fontSize = 12.sp, color = if (ok) pal.good else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(colors.surfaceVariant).border(1.dp, if (ok) pal.good.copy(alpha = 0.3f) else pal.line, RoundedCornerShape(99.dp)).padding(horizontal = 9.dp, vertical = 4.dp),
+    val shape = RoundedCornerShape(99.dp)
+    val ink = if (ok) pal.good else colors.onSurfaceVariant
+    // The pill doubles as the meter, so a stage with a number shows its fill in
+    // place rather than only as text.
+    val shown by androidx.compose.animation.core.animateFloatAsState(
+        fraction?.coerceIn(0f, 1f) ?: 0f,
+        androidx.compose.animation.core.tween(250, easing = androidx.compose.animation.core.LinearEasing),
+        label = "chipFill",
     )
+    Box(Modifier.clip(shape).background(colors.surfaceVariant).border(1.dp, if (ok) pal.good.copy(alpha = 0.3f) else pal.line, shape)) {
+        if (fraction != null) {
+            Box(
+                Modifier.matchParentSize().drawBehind {
+                    drawRect(pal.signal.copy(alpha = 0.3f), size = androidx.compose.ui.geometry.Size(size.width * shown, size.height))
+                },
+            )
+        }
+        Text(
+            t, fontSize = 12.sp, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+        )
+    }
 }
 
 @Composable

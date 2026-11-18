@@ -58,7 +58,12 @@ object StoreLaunchRequests {
             }
             "xbox-renew" -> JSONObject().put("ok", com.droiddeck.launcher.stores.xbox.XboxRuntime.renew(app, request.optString("id"), request.optString("lease")))
             "xbox-prepare" -> runCatching { com.droiddeck.launcher.stores.xbox.XboxRuntime.prepare(app, request.getString("id")) }
-                .getOrElse { JSONObject().put("ok", false).put("reason", "Xbox account service is unavailable. Sign in again and retry.") }
+                .getOrElse { error ->
+                    // The reason used to be fixed, so a title that was not installed,
+                    // or a runtime that refused, all read as a bad sign-in.
+                    com.droiddeck.launcher.stores.StoresState.logLine("Xbox: prepare failed: ${error.message}")
+                    JSONObject().put("ok", false).put("reason", reasonFor(error))
+                }
             "ea-prepare" -> runCatching { lastLaunched = Store.EA to request.optString("id"); com.droiddeck.launcher.stores.ea.EaLaunch.prepare(app, request) }
                 .getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
             "ea-exited" -> {
@@ -171,5 +176,22 @@ object StoreLaunchRequests {
         } catch (e: Exception) {
             Log.w(TAG, "could not answer ${file.name}: ${e.message}")
         }
+    }
+
+    /// What the guest prints when a launch is refused.
+    ///
+    /// The message is the only thing that separates a stale sign-in from a title
+    /// that is not installed, so it is kept, minus anything that could carry a
+    /// device path or a token: segments lookng like a path are dropped and the
+    /// rest is folded to plain text.
+    internal fun reasonFor(error: Throwable): String {
+        val text = error.message.orEmpty()
+            .split(' ')
+            .filterNot { it.contains('/') || it.startsWith("http") }
+            .joinToString(" ")
+            .filter { it.isLetterOrDigit() || it in " .,:;_-()'" }
+            .trim()
+            .take(160)
+        return if (text.isEmpty()) "Xbox account service is unavailable. Sign in again and retry." else text
     }
 }

@@ -18,6 +18,14 @@ internal object XboxCatalog {
         "CFQ7TTC10QFD" to "Xbox Game Pass (Starter Edition)",
     )
 
+    /**
+     * The formats the installer can put on disk, so the catalogue never lists a
+     * title it cannot install. `MSIXVC` streams in place; an EAppx container is a
+     * legacy package that takes `legacy-install` instead.
+     */
+    internal fun installableFormat(format: String): Boolean =
+        format.equals("MSIXVC", true) || format.equals("EAPPX", true) || format.equals("EAPPXBUNDLE", true)
+
     fun access(json: JSONObject, account: String, market: String, now: Instant = Instant.now(), report: (String) -> Unit = {}): Map<String, String> {
         require(json.getInt("schema") == 1 && json.getString("account") == account && json.getString("market") == market)
         val age = java.time.Duration.between(timestamp(json.getString("checkedAt")), now).seconds
@@ -106,7 +114,10 @@ internal object XboxCatalog {
             objects(it.optJSONObject("Sku")?.optJSONObject("Properties")?.optJSONArray("Packages"))
         }
         val pc = packages.filter { pkg -> objects(pkg.optJSONArray("PlatformDependencies")).any { it.optString("PlatformName") == "Windows.Desktop" } }
-        val installable = pc.any { it.optString("PackageFormat").equals("MSIXVC", true) }
+        val installable = pc.any { installableFormat(it.optString("PackageFormat")) }
+        // The installer needs the format, not just the fact that one exists: a
+        // legacy container takes a different subcommand from a streamed package.
+        val format = pc.firstOrNull { installableFormat(it.optString("PackageFormat")) }?.optString("PackageFormat").orEmpty()
         val streams = cloud?.streams(id, access[id].orEmpty()) == true
         if (!installable && !streams) return null
         val images = objects(localized.optJSONArray("Images"))
@@ -129,7 +140,8 @@ internal object XboxCatalog {
             publisher = localized.optString("PublisherName"), developer = localized.optString("DeveloperName"),
             description = localized.optString("ProductDescription"),
             sizeBytes = if (installable) pc.maxOfOrNull { it.optLong("MaxDownloadSizeInBytes") } ?: 0L else 0L,
-            extra = mapOf("market" to Xodus.market(), "access" to kind.orEmpty(), "pc" to flag(installable), "cloud" to flag(streams)),
+            extra = mapOf("market" to Xodus.market(), "access" to kind.orEmpty(), "pc" to flag(installable),
+                "cloud" to flag(streams), "format" to format),
         )
     }
 

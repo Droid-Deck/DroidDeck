@@ -450,6 +450,20 @@ internal fun AdbTextField(
                                     onDoneLatest.value?.invoke()
                                     true
                                 }
+                                // Search and Go are terminal: leaving them unhandled
+                                // keeps focus in the field, so the keyboard would stay
+                                // up over the results it was used to find.
+                                imeAction in setOf(ImeAction.Search, ImeAction.Go) &&
+                                    (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_GO || isEnter) -> {
+                                    onDoneLatest.value?.invoke()
+                                    post {
+                                        clearFocus()
+                                        (context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                                            as? android.view.inputmethod.InputMethodManager)
+                                            ?.hideSoftInputFromWindow(windowToken, 0)
+                                    }
+                                    true
+                                }
                                 else -> false
                             }
                         }
