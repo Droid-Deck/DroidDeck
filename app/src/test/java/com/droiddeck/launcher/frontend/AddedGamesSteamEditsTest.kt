@@ -47,6 +47,11 @@ class AddedGamesSteamEditsTest {
             .writeText(JSONObject().put("games", JSONObject().put(appId.toString(), game)).toString())
     }
 
+    private fun legacyAdoption(exe: File, seen: Int) {
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .putString("addedExe:${folder.path}", exe.path).putInt("addedExeSeen:${folder.path}", seen).commit()
+    }
+
     private fun scanned() = AddedGames.scan(context).single { it.folder == folder }
 
     @Test fun aTargetChangedInSteamBecomesTheAppsChoiceOnce() {
@@ -66,6 +71,65 @@ class AddedGamesSteamEditsTest {
         assertEquals(main, chosen.exe)
         assertEquals(first.appId, chosen.appId)
         assertEquals(main.path, SessionPrefs.addedGameExe(context, folder.path))
+    }
+
+    @Test fun aTargetChosenInSteamKeepsTheSteamAppsRouteBeforeAndAfterItIsAdopted() {
+        val first = scanned()
+        val routes = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/userdata/123/config/.droiddeck-routes.json")
+        routes.writeText(JSONObject().put(first.appId.toString(), 250900).toString())
+        assertEquals(250900, scanned().steamAppId)
+
+        record(first.appId, "/root/Games/PC/Example/Example.exe", "/root/Games/PC/Example/bin/Other.exe", 1)
+        val adopted = scanned()
+        assertEquals(other, adopted.exe)
+        assertEquals(250900, adopted.steamAppId)
+        assertTrue(adopted.steamProgram)
+
+        val later = scanned()
+        assertEquals(other, later.exe)
+        assertEquals(250900, later.steamAppId)
+        assertTrue(later.steamProgram)
+    }
+
+    @Test fun aTargetAdoptedBeforeTheMarkerExistedKeepsTheSteamAppsRoute() {
+        val first = scanned()
+        val routes = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/userdata/123/config/.droiddeck-routes.json")
+        routes.writeText(JSONObject().put(first.appId.toString(), 250900).toString())
+        record(first.appId, "/root/Games/PC/Example/Example.exe", "/root/Games/PC/Example/bin/Other.exe", 1)
+        legacyAdoption(other, 1)
+        assertNull(SessionPrefs.addedGameAdopted(context, folder.path, "Exe"))
+        val legacy = scanned()
+        assertEquals(other, legacy.exe)
+        assertEquals(250900, legacy.steamAppId)
+        assertTrue(legacy.steamProgram)
+        assertEquals(other.path, SessionPrefs.addedGameAdopted(context, folder.path, "Exe"))
+    }
+
+    @Test fun aProgramPickedInDroidDeckThatSteamNeverEditedStaysOutOfTheRoute() {
+        val first = scanned()
+        val routes = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/userdata/123/config/.droiddeck-routes.json")
+        routes.writeText(JSONObject().put(first.appId.toString(), 250900).toString())
+        record(first.appId, "/root/Games/PC/Example/Example.exe", "/root/Games/PC/Example/Example.exe", 1)
+        legacyAdoption(other, 1)
+        val picked = scanned()
+        assertEquals(other, picked.exe)
+        assertNull(picked.steamAppId)
+        assertTrue(!picked.steamProgram)
+    }
+
+    @Test fun aProgramChosenInDroidDeckAfterASteamEditLeavesTheSteamAppsRoute() {
+        val first = scanned()
+        val routes = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/userdata/123/config/.droiddeck-routes.json")
+        routes.writeText(JSONObject().put(first.appId.toString(), 250900).toString())
+        record(first.appId, "/root/Games/PC/Example/Example.exe", "/root/Games/PC/Example/bin/Other.exe", 1)
+        assertEquals(other, scanned().exe)
+
+        val third = File(folder, "Third.exe").apply { writeBytes(ByteArray(4)) }
+        SessionPrefs.setAddedGameExe(context, folder.path, third.path)
+        val chosen = scanned()
+        assertEquals(third, chosen.exe)
+        assertNull(chosen.steamAppId)
+        assertTrue(!chosen.steamProgram)
     }
 
     @Test fun theListingTellsTheSessionWhichSteamEditTheAppHasTaken() {
