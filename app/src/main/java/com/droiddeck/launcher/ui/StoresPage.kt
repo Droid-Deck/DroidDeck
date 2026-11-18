@@ -163,10 +163,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     var arranging by remember { mutableStateOf(false) }
     val shownStores = tabs.filter { it.shown }.map { it.store }
     fun commitTabs(markCustomized: Boolean = false) {
-        if (markCustomized) SessionPrefs.setStoresTabOrderCustomized(ctx, true)
-        // An order nobody arranged stays unsaved, so it keeps following the default.
-        if (SessionPrefs.storesTabOrderCustomized(ctx)) SessionPrefs.setStoresTabOrder(ctx, tabs.map { it.store.id })
-        SessionPrefs.setStoresTabHidden(ctx, tabs.filterNot { it.shown }.map { it.store.id }.toSet())
+        SessionPrefs.saveStoresTabs(ctx, tabs.map { it.store.id }, tabs.filterNot { it.shown }.map { it.store.id }.toSet(), markCustomized)
     }
     fun shiftTab(store: Store, delta: Int) {
         val from = tabs.indexOfFirst { it.store == store }

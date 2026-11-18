@@ -315,6 +315,13 @@ object SessionPrefs {
 
     fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
 
+    /** An order nobody arranged stays unsaved, so it keeps following the default. */
+    fun saveStoresTabs(context: Context, order: List<String>, hidden: Set<String>, arranged: Boolean) {
+        if (arranged) setStoresTabOrderCustomized(context, true)
+        if (storesTabOrderCustomized(context)) setStoresTabOrder(context, order)
+        setStoresTabHidden(context, hidden)
+    }
+
     private val LEGACY_STORES_TAB_ORDER = listOf("gog", "epic", "amazon", "xbox", "itch", "gamejolt", "battlenet", "ubisoft", "ea", "rockstar")
 
     /**

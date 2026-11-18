@@ -45,7 +45,8 @@ class StoresTabOrderTest {
 
     @Test
     fun hidingAStoreLeavesTheOrderFollowingTheDefault() {
-        SessionPrefs.setStoresTabHidden(app, setOf("itch"))
+        SessionPrefs.saveStoresTabs(app, defaults, setOf("itch"), arranged = false)
+        assertTrue(SessionPrefs.storesTabOrder(app).isEmpty())
         val later = defaults.reversed()
         SessionPrefs.settleStoresTabOrder(app, later)
         assertFalse(SessionPrefs.storesTabOrderCustomized(app))
