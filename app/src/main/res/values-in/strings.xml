@@ -1566,6 +1566,7 @@
     <string name="game_more">Lainnya</string>
     <string name="game_edit_art">Edit gambar</string>
     <string name="game_unhide">Hapus dari tersembunyi</string>
+    <string name="game_hide_failed">Gagal menyinkronkan dengan Steam. Tutup Steam lalu coba lagi.</string>
     <string name="stores_in_steam_label">Di Steam</string>
     <string name="game_shortcut">Pintasan</string>
     <string name="game_shortcut_add">Tambahkan ke layar utama</string>

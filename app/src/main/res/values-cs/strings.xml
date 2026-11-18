@@ -1589,6 +1589,7 @@
     <string name="game_more">Další</string>
     <string name="game_edit_art">Upravit grafiku</string>
     <string name="game_unhide">Odebrat ze skrytých</string>
+    <string name="game_hide_failed">Synchronizace se Steamem se nezdařila. Zavřete Steam a zkuste to znovu.</string>
     <string name="stores_in_steam_label">Ve Steamu</string>
     <string name="game_shortcut">Zkratka</string>
     <string name="game_shortcut_add">Přidat na domovskou obrazovku</string>

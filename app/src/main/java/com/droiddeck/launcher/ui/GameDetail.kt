@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.CompositionLocalProvider
@@ -621,7 +622,8 @@ internal fun HideButton(g: Library.SteamGame) {
     rememberHiddenSync()
     val key = hideKey(g)
     val hidden = LibraryHidden.isHidden(key, g)
-    SecondaryButton(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), compact = true) { LibraryHidden.set(ctx, key, g, !hidden) }
+    val failed = stringResource(R.string.game_hide_failed)
+    SecondaryButton(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), compact = true) { if (!LibraryHidden.set(ctx, key, g, !hidden)) Toast.makeText(ctx, failed, Toast.LENGTH_LONG).show() }
 }
 
 @Composable
@@ -637,6 +639,7 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
     val ctx = LocalContext.current
     rememberHiddenSync()
     val hidden = LibraryHidden.isHidden(hideKey(g), g)
+    val failed = stringResource(R.string.game_hide_failed)
     Box {
         SecondaryButton(stringResource(R.string.game_more)) { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = stringResource(R.string.game_more), compact = true) { first ->
@@ -648,7 +651,7 @@ private fun GameMoreMenu(g: Library.SteamGame, a: FrontEndActions) {
             MenuItem(stringResource(R.string.game_file_export), checked = false) { open = false; a.onExportGameFile(g) }
             MenuItem(stringResource(R.string.game_link_copy), checked = false) { open = false; a.onCopyGameLink(g) }
             val hideKey = hideKey(g)
-            MenuItem(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), checked = false) { open = false; LibraryHidden.set(ctx, hideKey, g, !hidden) }
+            MenuItem(stringResource(if (hidden) R.string.game_unhide else R.string.common_hide), checked = false) { open = false; if (!LibraryHidden.set(ctx, hideKey, g, !hidden)) Toast.makeText(ctx, failed, Toast.LENGTH_LONG).show() }
             edit?.let { run -> MenuItem(stringResource(R.string.game_edit_art), checked = false) { open = false; run() } }
         }
     }

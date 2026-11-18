@@ -1565,6 +1565,7 @@
     <string name="game_more">Mehr</string>
     <string name="game_edit_art">Grafiken bearbeiten</string>
     <string name="game_unhide">Nicht mehr ausblenden</string>
+    <string name="game_hide_failed">Synchronisierung mit Steam fehlgeschlagen. Schließe Steam und versuche es erneut.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Verknüpfung</string>
     <string name="game_shortcut_add">Zum Startbildschirm hinzufügen</string>

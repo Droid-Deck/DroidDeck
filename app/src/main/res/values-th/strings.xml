@@ -1566,6 +1566,7 @@
     <string name="game_more">เพิ่มเติม</string>
     <string name="game_edit_art">แก้ไขภาพปก</string>
     <string name="game_unhide">นำออกจากที่ซ่อนไว้</string>
+    <string name="game_hide_failed">ซิงค์กับ Steam ไม่สำเร็จ ปิด Steam แล้วลองอีกครั้ง</string>
     <string name="stores_in_steam_label">ใน Steam</string>
     <string name="game_shortcut">ช็อตคัต</string>
     <string name="game_shortcut_add">เพิ่มไปยังหน้าจอหลัก</string>

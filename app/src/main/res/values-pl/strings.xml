@@ -1589,6 +1589,7 @@
     <string name="game_more">Więcej</string>
     <string name="game_edit_art">Edytuj grafiki</string>
     <string name="game_unhide">Usuń z ukrytych</string>
+    <string name="game_hide_failed">Nie udało się zsynchronizować ze Steamem. Zamknij Steama i spróbuj ponownie.</string>
     <string name="stores_in_steam_label">W Steam</string>
     <string name="game_shortcut">Skrót</string>
     <string name="game_shortcut_add">Dodaj do ekranu głównego</string>

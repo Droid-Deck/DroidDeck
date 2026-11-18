@@ -1566,6 +1566,7 @@
     <string name="game_more">더보기</string>
     <string name="game_edit_art">아트 편집</string>
     <string name="game_unhide">숨김 해제</string>
+    <string name="game_hide_failed">Steam과 동기화하지 못했습니다. Steam을 종료한 후 다시 시도하세요.</string>
     <string name="stores_in_steam_label">Steam에 있음</string>
     <string name="game_shortcut">바로 가기</string>
     <string name="game_shortcut_add">홈 화면에 추가</string>

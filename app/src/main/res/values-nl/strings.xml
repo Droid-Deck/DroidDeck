@@ -1573,6 +1573,7 @@
     <string name="game_more">Meer</string>
     <string name="game_edit_art">Afbeeldingen bewerken</string>
     <string name="game_unhide">Niet meer verbergen</string>
+    <string name="game_hide_failed">Synchroniseren met Steam is mislukt. Sluit Steam en probeer het opnieuw.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Snelkoppeling</string>
     <string name="game_shortcut_add">Toevoegen aan startscherm</string>

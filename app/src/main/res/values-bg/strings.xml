@@ -1573,6 +1573,7 @@
     <string name="game_more">Още</string>
     <string name="game_edit_art">Редактиране на изображенията</string>
     <string name="game_unhide">Премахване от скритите</string>
+    <string name="game_hide_failed">Синхронизирането със Steam не успя. Затворете Steam и опитайте отново.</string>
     <string name="stores_in_steam_label">В Steam</string>
     <string name="game_shortcut">Пряк път</string>
     <string name="game_shortcut_add">Добавяне към началния екран</string>
