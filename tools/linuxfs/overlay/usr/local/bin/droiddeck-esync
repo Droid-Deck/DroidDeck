@@ -39,7 +39,7 @@ MIN_NOFILE = 8192
 LOG_LINES = 200
 LIVE_FILE = "prefixes.json"
 LIVE_ROWS = 200
-LIVE_KEYS = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "BL_SYNC", "BL_FSYNC", "WINEFSYNC")
+LIVE_KEYS = ("WINESERVER", "DD_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "DD_SYNC", "DD_FSYNC", "WINEFSYNC")
 CACHE_ROWS = 512
 TEMP_AGE = 3600
 GC_GRACE = 600
@@ -637,7 +637,7 @@ def app_id(env):
 
 def minimum_nofile(env):
     try:
-        return int(env.get("BL_SYNC_MIN_NOFILE") or MIN_NOFILE)
+        return int(env.get("DD_SYNC_MIN_NOFILE") or MIN_NOFILE)
     except ValueError:
         return MIN_NOFILE
 
@@ -650,8 +650,8 @@ def log_launch(root, command, env, tool, pack_id):
     try:
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         line = tsv([[int(time.time()), app_id(env) or "-", command[1] if len(command) > 1 else "-", tool, pack_id or "-",
-                     env.get("WINEESYNC") or "-", env.get("BL_SYNC") or "-", "%s/%s" % (limit(soft), limit(hard)),
-                     env.get("BL_FSYNC") or "-"]])
+                     env.get("WINEESYNC") or "-", env.get("DD_SYNC") or "-", "%s/%s" % (limit(soft), limit(hard)),
+                     env.get("DD_FSYNC") or "-"]])
 
         def append(text):
             lines = [entry for entry in text.split("\n") if entry]
@@ -704,7 +704,7 @@ def select(command, env):
         if not prefix or last == "0" or last.startswith("0-"):
             return result
         if truthy(env.get("PROTON_NO_NTSYNC")):
-            env["BL_SYNC"] = "0"
+            env["DD_SYNC"] = "0"
         result = (list(command), dict(env))
         root = store_root(env)
         if root is None:
@@ -796,7 +796,7 @@ def keep_live(root, command, env, tool):
         return None
     if not os.path.isfile(kept_command) or not server_running(prefix):
         return None
-    kept_pack = row["env"].get("BL_SYNC_PACK")
+    kept_pack = row["env"].get("DD_SYNC_PACK")
     if isinstance(kept_pack, str) and kept_pack and command[1:2] == ["waitforexitandrun"]:
         try:
             cache = HashCache(root)
@@ -817,16 +817,16 @@ def keep_live(root, command, env, tool):
         else:
             env.pop(name, None)
     say("droiddeck-esync: Wine is still running in this prefix; keeping its sync choice (%s)" % describe(env))
-    log_launch(root, command, env, tool, env.get("BL_SYNC_PACK"))
+    log_launch(root, command, env, tool, env.get("DD_SYNC_PACK"))
     return command, env
 
 
 def describe(env):
-    if env.get("BL_SYNC") == "1":
+    if env.get("DD_SYNC") == "1":
         return "droiddeck-ntsync"
-    if env.get("BL_FSYNC") == "1":
+    if env.get("DD_FSYNC") == "1":
         return "droiddeck-fsync"
-    if env.get("BL_SYNC_PACK") and truthy(env.get("WINEESYNC")):
+    if env.get("DD_SYNC_PACK") and truthy(env.get("WINEESYNC")):
         return "droiddeck-esync"
     if all(truthy(env.get(name)) for name in WINESERVER_ONLY):
         return "wineserver"
@@ -835,13 +835,13 @@ def describe(env):
 
 def fsync_ready(env, measured):
     listed = "PROTON_NO_FSYNC" not in env and app_id(env) in NOSYNC_APPS
-    return measured["fsync"] and env.get("BL_SYNC") != "1" and not truthy(env.get("PROTON_NO_FSYNC")) and not listed
+    return measured["fsync"] and env.get("DD_SYNC") != "1" and not truthy(env.get("PROTON_NO_FSYNC")) and not listed
 
 
 def with_fsync(root, command, env, tool, reason):
     command, env = list(command), dict(env)
-    env["BL_FSYNC"] = "1"
-    env["BL_SYNC"] = "0"
+    env["DD_FSYNC"] = "1"
+    env["DD_SYNC"] = "0"
     env["WINEFSYNC"] = "1"
     say("droiddeck-fsync: %s; stock binaries with Proton's fsync" % reason)
     log_launch(root, command, env, tool, None)
@@ -855,10 +855,10 @@ def stand_in(root, command, env, tool, reason, measured=None):
     if truthy(env.get("PROTON_NO_NTSYNC")):
         say("droiddeck-esync: %s; stock binaries" % reason)
     elif measured is not None and not measured["ntsync"]:
-        env["BL_SYNC"] = "0"
+        env["DD_SYNC"] = "0"
         say("droiddeck-esync: %s; stock binaries (this Wine has no ntsync)" % reason)
     else:
-        env["BL_SYNC"] = "1"
+        env["DD_SYNC"] = "1"
         say("droiddeck-esync: %s; stock binaries with droiddeck-ntsync" % reason)
     log_launch(root, command, env, tool, None)
     return command, env
@@ -880,17 +880,17 @@ def wineserver_only(env):
     if truthy(env["PROTON_NO_FSYNC"]):
         env["WINEFSYNC"] = "0"
     if truthy(env["PROTON_NO_NTSYNC"]):
-        env["BL_SYNC"] = "0"
+        env["DD_SYNC"] = "0"
     return env
 
 
 def choose(root, command, env, tool, stock):
     name = os.path.basename(tool.rstrip("/")) or tool
-    wants_fsync = env.get("BL_FSYNC_FIRST") == "1"
-    if "BL_FSYNC" in env:
-        env["BL_FSYNC"] = "0"
-        stock = (stock[0], dict(stock[1], BL_FSYNC="0"))
-    if env.get("BL_SYNC_FALLBACK") != "1" and not wants_fsync and env.get("BL_SYNC") != "1":
+    wants_fsync = env.get("DD_FSYNC_FIRST") == "1"
+    if "DD_FSYNC" in env:
+        env["DD_FSYNC"] = "0"
+        stock = (stock[0], dict(stock[1], DD_FSYNC="0"))
+    if env.get("DD_SYNC_FALLBACK") != "1" and not wants_fsync and env.get("DD_SYNC") != "1":
         stock = (stock[0], wineserver_only(stock[1]))
         say("droiddeck-esync: off; wineserver sync only")
         log_launch(root, stock[0], stock[1], tool, None)
@@ -898,14 +898,14 @@ def choose(root, command, env, tool, stock):
     cache = HashCache(root)
     try:
         measured = measure(tool, cache)
-        if env.get("BL_SYNC") == "1" and not measured["ntsync"]:
-            env["BL_SYNC"] = "0"
-            stock = (stock[0], dict(stock[1], BL_SYNC="0"))
+        if env.get("DD_SYNC") == "1" and not measured["ntsync"]:
+            env["DD_SYNC"] = "0"
+            stock = (stock[0], dict(stock[1], DD_SYNC="0"))
             wants_fsync = True
             say("droiddeck-ntsync: %s has no ntsync; trying droiddeck-fsync" % name)
         if wants_fsync and fsync_ready(env, measured):
             return with_fsync(root, command, env, tool, "chosen for %s" % name)
-        if env.get("BL_SYNC_FALLBACK") != "1":
+        if env.get("DD_SYNC_FALLBACK") != "1":
             say("droiddeck-esync: off")
             log_launch(root, command, env, tool, None)
             return stock
@@ -936,16 +936,16 @@ def choose(root, command, env, tool, stock):
         env["WINEESYNC"] = "0"
         env["PROTON_NO_ESYNC"] = "1"
         if not truthy(env.get("PROTON_NO_NTSYNC")) and measured["ntsync"]:
-            env["BL_SYNC"] = "1"
+            env["DD_SYNC"] = "1"
     elif not env.get("WINEESYNC"):
         env["WINEESYNC"] = "1"
     if truthy(env["WINEESYNC"]) and "PROTON_NO_FSYNC" not in env:
         env["PROTON_NO_FSYNC"] = "1"
     env["WINESERVER"] = os.path.join(dist, WINESERVER)
-    env["BL_SYNC_PACK"] = pack["id"]
+    env["DD_SYNC_PACK"] = pack["id"]
     command[0] = os.path.join(dist, os.path.basename(command[0]))
     say("droiddeck-esync: pack %s for %s (%s, %s match); droiddeck-ntsync %s, droiddeck-esync %s, fds %s/%s"
-        % (pack["id"], name, measured["version_line"], match_kind(pack, measured), "on" if env.get("BL_SYNC") == "1" else "off",
+        % (pack["id"], name, measured["version_line"], match_kind(pack, measured), "on" if env.get("DD_SYNC") == "1" else "off",
            "on" if truthy(env["WINEESYNC"]) else "off", limit(soft), limit(hard)))
     log_launch(root, command, env, tool, pack["id"])
     return command, env
@@ -1005,7 +1005,7 @@ def update_wanted(root, fresh, scanned, packs, cache):
 def reconcile_store(root, steam_root, env):
     cache = HashCache(root)
     packs = load_packs(root)
-    enabled = env.get("BL_SYNC_FALLBACK") == "1"
+    enabled = env.get("DD_SYNC_FALLBACK") == "1"
     rows = []
     fresh = {}
     scanned = set()

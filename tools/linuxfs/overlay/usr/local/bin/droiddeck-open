@@ -187,7 +187,7 @@ def import_of(key, what):
 
 
 def imported(what, real, key, name):
-    launch = os.environ.get("BL_LAUNCH_DIR")
+    launch = os.environ.get("DD_LAUNCH_DIR")
     if not launch or not os.path.isdir(launch):
         raise RuntimeError("%s cannot run from here; add it in DroidDeck with Add an app." % name)
     result = os.path.join(launch, "desktop-import-%s.result" % key)
@@ -311,7 +311,7 @@ def command(path, args, what, window=False, appid=None):
 
 
 def on_desktop(env):
-    return env.get("BL_DESKTOP") == "1" and not env.get("GAMESCOPE_WAYLAND_DISPLAY") and os.access(GPU, os.X_OK)
+    return env.get("DD_DESKTOP") == "1" and not env.get("GAMESCOPE_WAYLAND_DISPLAY") and os.access(GPU, os.X_OK)
 
 
 def unattended(env):
@@ -321,7 +321,7 @@ def unattended(env):
         return True
     if stat.S_ISCHR(out.st_mode):
         return not os.isatty(1)
-    folder = env.get("BL_DEBUG_DIR")
+    folder = env.get("DD_DEBUG_DIR")
     try:
         log = os.stat(os.path.join(folder, "desktop.log")) if folder else None
     except OSError:

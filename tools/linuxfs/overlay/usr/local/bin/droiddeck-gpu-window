@@ -44,8 +44,8 @@ def advertise_compositing():
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         raise SystemExit('usage: droiddeck-gpu-window <program> [args...]')
-    if 'BL_GPU_CHILD_WSI' in os.environ:
-        wsi = os.environ.pop('BL_GPU_CHILD_WSI')
+    if 'DD_GPU_CHILD_WSI' in os.environ:
+        wsi = os.environ.pop('DD_GPU_CHILD_WSI')
         if wsi:
             os.environ['MESA_VK_WSI_DEBUG'] = wsi
         else:

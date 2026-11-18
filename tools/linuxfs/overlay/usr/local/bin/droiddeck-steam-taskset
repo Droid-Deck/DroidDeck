@@ -4,7 +4,7 @@
 # before starting the browser when Android denies sched_setaffinity.
 set -u
 if [ "$#" -ge 2 ] && [[ "$1" =~ ^(0[xX])?[0-9a-fA-F]+$ ]] &&
-   [ -n "${BL_STEAM_WEBHELPER:-}" ] && [ "$2" -ef "$BL_STEAM_WEBHELPER" ]; then
+   [ -n "${DD_STEAM_WEBHELPER:-}" ] && [ "$2" -ef "$DD_STEAM_WEBHELPER" ]; then
   mask=$1
   shift
   # Pin this wrapper before exec; never retry a helper that has already run.

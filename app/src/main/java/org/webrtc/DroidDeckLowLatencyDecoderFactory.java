@@ -84,7 +84,7 @@ public class DroidDeckLowLatencyDecoderFactory implements VideoDecoderFactory {
 
     private Surface standInSurface() {
         if (standIn == null) {
-            standInThread = new HandlerThread("bl-decoder-standin");
+            standInThread = new HandlerThread("dd-decoder-standin");
             standInThread.start();
             standIn = ImageReader.newInstance(Math.max(width, 16), Math.max(height, 16), ImageFormat.PRIVATE, 3);
             standIn.setOnImageAvailableListener(reader -> {

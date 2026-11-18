@@ -58,7 +58,7 @@ object AgentEnv {
     fun override(context: Context, name: String): JSONObject = synchronized(lock) {
         AgentAccess.requireCommands(context)
         if (NAME.matchEntire(name) == null || name in setOf(".", "..")) throw AgentException("INVALID_NAME", "Override names are letters, digits, '.', '_' and '-'")
-        if (name == "libblfastpath.so" && (SessionState.running || SessionState.guestPid > 0 || SessionState.phase == SessionPhase.STOPPING)) {
+        if (name == "libddfastpath.so" && (SessionState.running || SessionState.guestPid > 0 || SessionState.phase == SessionPhase.STOPPING)) {
             throw AgentException("SESSION_ACTIVE", "Stop the session before installing a fast-path library")
         }
         val source = File(inbox(context), name)
@@ -73,7 +73,7 @@ object AgentEnv {
             staged.delete()
             throw AgentException("OVERRIDE_FAILED", "Could not stage the override")
         }
-        if (name == "libblfastpath.so" && !arm64SharedLibrary(staged)) {
+        if (name == "libddfastpath.so" && !arm64SharedLibrary(staged)) {
             staged.delete()
             throw AgentException("INVALID_LIBRARY", "The fast path must be a 64-bit little-endian ARM64 ELF shared library")
         }
@@ -86,7 +86,7 @@ object AgentEnv {
         state.put("pendingOverrides", JSONArray(merge(strings(state.optJSONArray("pendingOverrides")), listOf(name))))
         save(context, state)
         state.put("installed", "$GUEST_BIN/$name")
-        if (name == "libblfastpath.so") {
+        if (name == "libddfastpath.so") {
             val digest = MessageDigest.getInstance("SHA-256")
             target.inputStream().use { input ->
                 val buffer = ByteArray(65536)
@@ -103,10 +103,10 @@ object AgentEnv {
 
     fun fastPathLibrary(context: Context): String = synchronized(lock) {
         if (!AgentAccess.commandsAllowed(context)) return@synchronized ProotFastPath.LIBRARY
-        if ("libblfastpath.so" !in strings(load(context).optJSONArray("activeOverrides"))) return@synchronized ProotFastPath.LIBRARY
-        val file = File(bin(context), "libblfastpath.so")
+        if ("libddfastpath.so" !in strings(load(context).optJSONArray("activeOverrides"))) return@synchronized ProotFastPath.LIBRARY
+        val file = File(bin(context), "libddfastpath.so")
         if (!file.isFile || Files.isSymbolicLink(file.toPath())) return@synchronized ProotFastPath.LIBRARY
-        "$GUEST_BIN/libblfastpath.so"
+        "$GUEST_BIN/libddfastpath.so"
     }
 
     private fun arm64SharedLibrary(file: File): Boolean = file.inputStream().use { input ->
@@ -133,7 +133,7 @@ object AgentEnv {
         bin(context).listFiles()
             ?.filter { it.name !in overrides }?.forEach { it.delete() }
         val lines = strings(state.optJSONArray("persistent")) + active
-        val withPath = if (overrides.none { it != "libblfastpath.so" }) lines else lines + "PATH=$GUEST_BIN:${pathOf(lines)}"
+        val withPath = if (overrides.none { it != "libddfastpath.so" }) lines else lines + "PATH=$GUEST_BIN:${pathOf(lines)}"
         state.put("active", JSONArray(active)).put("pending", JSONArray())
         state.put("activeOverrides", JSONArray(overrides)).put("pendingOverrides", JSONArray())
         save(context, state)

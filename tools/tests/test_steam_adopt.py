@@ -135,7 +135,7 @@ class AdoptTest(unittest.TestCase):
         self.folder("Beta")
         listing = self.steam.parent / "libraries.json"
         listing.write_text('[{"path": "%s", "label": "SD Card"}]' % self.card)
-        with patch.dict("os.environ", {"BL_STEAM_LIBRARIES": str(listing)}), \
+        with patch.dict("os.environ", {"DD_STEAM_LIBRARIES": str(listing)}), \
                 patch("sys.argv", ["droiddeck-steam-library", str(self.steam)]):
             library.main()
         self.assertTrue(self.manifest(20).exists())

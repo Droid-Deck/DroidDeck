@@ -93,4 +93,23 @@ class LegacyNamesTest {
         assertEquals("Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/other.AppImage\n",
             File(root, "usr/share/applications/other.desktop").readText())
     }
+
+    @Test fun homeMarkersKeepTheirStateAndRetiredLibrariesGo() {
+        write("root/.bl-lossless-asked", "1")
+        write("root/.bl-compat-pending", "550\n")
+        write("root/.dd-seed-beat", "new")
+        write("root/.bl-seed-beat", "old")
+        write("usr/local/lib/libblsession.so", "old")
+        write("usr/local/lib/droiddeck-fex/x86_64/libblsession.so", "old")
+        write("usr/local/lib/libddsession.so", "new")
+        LegacyNames.migrateRootfs(root)
+        assertEquals("1", File(root, "root/.dd-lossless-asked").readText())
+        assertEquals("550\n", File(root, "root/.dd-compat-pending").readText())
+        assertEquals("new", File(root, "root/.dd-seed-beat").readText())
+        assertFalse(File(root, "root/.bl-lossless-asked").exists())
+        assertFalse(File(root, "root/.bl-seed-beat").exists())
+        assertFalse(File(root, "usr/local/lib/libblsession.so").exists())
+        assertFalse(File(root, "usr/local/lib/droiddeck-fex/x86_64/libblsession.so").exists())
+        assertEquals("new", File(root, "usr/local/lib/libddsession.so").readText())
+    }
 }

@@ -56,13 +56,13 @@ class DesktopBookmarksTest(unittest.TestCase):
     def test_main_requires_selected_library_and_usable_bind(self):
         library = self.home / "library"
         library.mkdir()
-        with patch.object(Path, "home", return_value=self.home), patch.dict(os.environ, {"XDG_CONFIG_HOME": str(self.config), "BL_LIBRARY_LABEL": "SD Card"}), patch.dict(MODULE["main"].__globals__, {"LIBRARY": library}):
+        with patch.object(Path, "home", return_value=self.home), patch.dict(os.environ, {"XDG_CONFIG_HOME": str(self.config), "DD_LIBRARY_LABEL": "SD Card"}), patch.dict(MODULE["main"].__globals__, {"LIBRARY": library}):
             MODULE["main"]()
             self.assertFalse(self.bookmarks.exists())
             (library / "steamapps").mkdir()
             MODULE["main"]()
             self.assertEqual(self.bookmarks.read_text(), "file:///mnt/droiddeck-sd SD Card\n")
-            del os.environ["BL_LIBRARY_LABEL"]
+            del os.environ["DD_LIBRARY_LABEL"]
             MODULE["main"]()
             self.assertEqual(self.bookmarks.read_text(), "")
 
@@ -109,14 +109,14 @@ class DolphinPlacesTest(unittest.TestCase):
         self.registered([(old, "Old")])
         listing = self.home / "libraries.json"
         listing.write_text(json.dumps([{"path": str(new), "label": "New\nLibrary"}]))
-        os.environ["BL_STEAM_LIBRARIES"] = str(listing)
+        os.environ["DD_STEAM_LIBRARIES"] = str(listing)
         self.assertEqual({self.steam.as_uri(): "Steam (Internal Storage)", new.as_uri(): "Steam (New Library)"}, self.libraries())
 
     def test_unreadable_app_list_falls_back_to_registered_libraries(self):
         external = self.home / "USB"
         (external / "steamapps").mkdir(parents=True)
         self.registered([(external, "Drive")])
-        os.environ["BL_STEAM_LIBRARIES"] = str(self.home / "missing.json")
+        os.environ["DD_STEAM_LIBRARIES"] = str(self.home / "missing.json")
         self.assertIn(external.as_uri(), self.libraries())
 
     def test_xml_escaping_stable_ids_and_idempotence(self):
@@ -165,7 +165,7 @@ class DolphinPlacesTest(unittest.TestCase):
     def volumes(self, entries):
         listing = self.home / "volumes.json"
         listing.write_text(json.dumps(entries))
-        os.environ["BL_DESKTOP_VOLUMES"] = str(listing)
+        os.environ["DD_DESKTOP_VOLUMES"] = str(listing)
         return MODULE["removable_volumes"]()
 
     def update_volumes(self, volumes):

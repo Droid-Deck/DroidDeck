@@ -8,12 +8,12 @@ for arch in x86_64 i386; do
   esac
   mkdir -p "$out/$arch"
   gcc $bits -shared -fPIC -O2 -Wall -pthread \
-    -o "$out/$arch/libblsession.so" tools/linuxfs/preload/*.c -ldl
+    -o "$out/$arch/libddsession.so" tools/linuxfs/preload/*.c -ldl
   g++ $bits -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
     -pthread -std=c++17 -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL \
     -o "$out/$arch/libfakeinput.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
-  strip --strip-unneeded "$out/$arch/libblsession.so" "$out/$arch/libfakeinput.so"
-  for lib in "$out/$arch/libblsession.so" "$out/$arch/libfakeinput.so"; do
+  strip --strip-unneeded "$out/$arch/libddsession.so" "$out/$arch/libfakeinput.so"
+  for lib in "$out/$arch/libddsession.so" "$out/$arch/libfakeinput.so"; do
     newest=$(objdump -T "$lib" | grep -o 'GLIBC_2\.[0-9]*' | sort -u -t. -k2,2n | tail -1)
     minor=${newest#GLIBC_2.}
     if [ "$minor" -gt 31 ]; then

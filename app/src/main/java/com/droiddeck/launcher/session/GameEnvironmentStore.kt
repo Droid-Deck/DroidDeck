@@ -29,7 +29,8 @@ object GameEnvironmentStore {
                 require(GameEnvironment.validName(name))
                 val entry = value.get(name)
                 require(entry == JSONObject.NULL || entry is String && GameEnvironment.validValue(entry))
-                put(name, if (entry == JSONObject.NULL) null else entry as String)
+                val current = GameEnvironment.currentName(name)
+                if (current == name || !value.has(current)) put(current, if (entry == JSONObject.NULL) null else entry as String)
             }
         }
         val games = json.optJSONObject("games")

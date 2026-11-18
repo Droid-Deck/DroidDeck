@@ -209,7 +209,7 @@ class AgentSecurityTest {
 
     @Test fun fastPathLibraryIsValidatedAndSelectedForOneSession() {
         AgentAccess.setCommandsEnabled(context, true)
-        val source = File(AgentEnv.inbox(context).apply { mkdirs() }, "libblfastpath.so")
+        val source = File(AgentEnv.inbox(context).apply { mkdirs() }, "libddfastpath.so")
         source.writeText("wrong architecture")
         refused("INVALID_LIBRARY") { AgentEnv.override(context, source.name) }
         val header = ByteArray(64)
@@ -227,7 +227,7 @@ class AgentSecurityTest {
         assertEquals(64, response.getString("sha256").length)
         assertEquals(ProotFastPath.LIBRARY, AgentEnv.fastPathLibrary(context))
         AgentEnv.beginSession(context)
-        assertEquals("/opt/droiddeck-agent/bin/libblfastpath.so", AgentEnv.fastPathLibrary(context))
+        assertEquals("/opt/droiddeck-agent/bin/libddfastpath.so", AgentEnv.fastPathLibrary(context))
         AgentEnv.endSession(context)
         assertEquals(ProotFastPath.LIBRARY, AgentEnv.fastPathLibrary(context))
     }

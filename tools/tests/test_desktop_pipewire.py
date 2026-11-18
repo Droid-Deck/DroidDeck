@@ -29,7 +29,7 @@ pipewire() {
     fi
 }
 ''' + block + ('echo "env:${PW_ENV:-unset}"\n' if probe_env else '')
-        environment = dict(os.environ, BL_BOTTOM_DESKTOP='1' if bottom else '0',
+        environment = dict(os.environ, DD_BOTTOM_DESKTOP='1' if bottom else '0',
                            PW_START_STATUS=str(start_status))
         result = subprocess.run(['bash', '-c', script], env=environment, capture_output=True,
                                 text=True, timeout=5)
@@ -49,11 +49,11 @@ pipewire() {
         self.assertIn('if [ "$mode" = steam ]; then\n    if ' + HELPER + ' start', SESSION)
 
     def test_bottom_desktop_starts_and_stops_its_pipewire_service(self):
-        self.assertIn('export BL_BOTTOM_DESKTOP=1', BOTTOM_DESKTOP)
-        self.assertLess(BOTTOM_DESKTOP.index('export BL_BOTTOM_DESKTOP=1'),
+        self.assertIn('export DD_BOTTOM_DESKTOP=1', BOTTOM_DESKTOP)
+        self.assertLess(BOTTOM_DESKTOP.index('export DD_BOTTOM_DESKTOP=1'),
                         BOTTOM_DESKTOP.index('exec /usr/local/bin/droiddeck-desktop'))
         self.assertIn('File(context.filesDir, ".wayland-rt-bottom")', BOTTOM_SESSION)
-        self.assertNotIn('if [ "${BL_BOTTOM_DESKTOP:-0}" != 1 ]; then', DESKTOP)
+        self.assertNotIn('if [ "${DD_BOTTOM_DESKTOP:-0}" != 1 ]; then', DESKTOP)
         for bottom in (False, True):
             self.assertEqual(['call:start'], self.run_lifecycle_block(
                 'if ! ' + HELPER + ' start',

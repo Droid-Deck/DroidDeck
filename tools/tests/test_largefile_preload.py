@@ -104,7 +104,7 @@ class LargeFilePreloadTest(unittest.TestCase):
             self.skipTest("no %s toolchain" % bits)
         out = self.dir / bits.lstrip("-")
         out.mkdir(exist_ok=True)
-        lib, program = out / "libblsession.so", out / "program"
+        lib, program = out / "libddsession.so", out / "program"
         if not lib.exists():
             sources = sorted(str(p) for p in PRELOAD.glob("*.c"))
             subprocess.run(["cc", bits, "-shared", "-fPIC", "-O2", "-pthread", "-o", str(lib)] + sources + ["-ldl"], check=True)
@@ -116,7 +116,7 @@ class LargeFilePreloadTest(unittest.TestCase):
     def run_program(self, bits, preload):
         lib, program = self.build(bits)
         work = Path(tempfile.mkdtemp(dir=self.dir))
-        env = {k: v for k, v in os.environ.items() if not k.startswith("BL_")}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("DD_")}
         env.pop("LD_PRELOAD", None)
         if preload:
             env["LD_PRELOAD"] = str(lib)
@@ -141,7 +141,7 @@ class LargeFilePreloadTest(unittest.TestCase):
 
     def locks_without_filesystem_support(self, bits):
         lib, program = self.build(bits)
-        env = {k: v for k, v in os.environ.items() if not k.startswith("BL_")}
+        env = {k: v for k, v in os.environ.items() if not k.startswith("DD_")}
         env["LD_PRELOAD"] = "%s:%s" % (lib, program.parent / "nolocks.so")
         work = Path(tempfile.mkdtemp(dir=self.dir))
         result = subprocess.run([str(program.parent / "locks"), str(work / "file")], env=env, capture_output=True, text=True, timeout=60, check=True)

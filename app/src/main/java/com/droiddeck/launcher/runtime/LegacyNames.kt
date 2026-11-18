@@ -21,6 +21,9 @@ object LegacyNames {
         "etc/bannerlator-network.json" to "etc/droiddeck-network.json",
         "etc/bannerlator-wifi-scan-request" to "etc/droiddeck-wifi-scan-request",
     )
+    private val RETIRED_FILES = listOf("libblsession.so", "libblfastpath.so", "libblaudit.so").map { "usr/local/lib/$it" } +
+        listOf("x86_64", "i386").map { "usr/local/lib/droiddeck-fex/$it/libblsession.so" }
+    private const val LEGACY_MARKER = ".bl-"
     private val MENU_REWRITES = listOf(
         Triple("usr/local/share/applications", "/usr/local/bin/bannerlator-", "/usr/local/bin/droiddeck-"),
         Triple("usr/share/applications", "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/",
@@ -38,6 +41,10 @@ object LegacyNames {
     fun migrateRootfs(root: File) {
         migrateEtc(root)
         for ((old, new) in MOVED_FILES) move(File(root, old), File(root, new))
+        for (path in RETIRED_FILES) File(root, path).delete()
+        File(root, "root").listFiles { f -> f.name.startsWith(LEGACY_MARKER) }?.forEach {
+            move(it, File(it.parentFile, ".dd-" + it.name.removePrefix(LEGACY_MARKER)))
+        }
         linkScripts(root)
         rewriteMenuEntries(root)
     }

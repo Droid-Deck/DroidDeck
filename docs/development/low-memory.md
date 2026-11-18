@@ -1,6 +1,6 @@
 # Low-memory reclaim and userspace compression
 
-The Steam session monitor uses the existing `libblsession.so` page-out request to reclaim
+The Steam session monitor uses the existing `libddsession.so` page-out request to reclaim
 private anonymous launcher memory. The default remains a request 20 seconds after game focus,
 with five minutes between requests. With client compression enabled, low system headroom can
 also trigger a request while a game is loading, before its first focused window.
@@ -58,7 +58,7 @@ percentage: Android's `lmkd` killed a session on a 7.5 GiB device with
 kill. A world load added 1 GiB of GPU memory in about ten seconds, and compressing 1.4 GiB took
 2.6 seconds, so the request has to leave room for both.
 
-Performance > Compress idle game memory turns this off (`BL_ZRAM_IDLE=0`); launcher compression
+Performance > Compress idle game memory turns this off (`DD_ZRAM_IDLE=0`); launcher compression
 and the RAM cap are unaffected.
 
 The session request runs when real headroom falls below a quarter of RAM (bounded to
@@ -71,7 +71,7 @@ for either to complete, so a slow launcher acknowledgement does not delay the ga
 request finishes, its anonymous RSS remains reserved from the session's swap budget. Completion
 and backoff are measured against the processes that received each request, even if a later scan
 finds different processes. The session request targets processes that loaded
-`libblsession.so`: the game, Wine and its services, and excludes Steam and hidden launchers.
+`libddsession.so`: the game, Wine and its services, and excludes Steam and hidden launchers.
 Requests are at least 30 seconds apart and need the same
 swap reserve as launcher requests. When the session has read back more than half of what the
 previous request compressed, that memory is in use: the request is skipped and the wait doubles,
