@@ -45,6 +45,25 @@ class UbisoftTest {
         assertEquals(listOf("space-gone", "space-sc"), UbisoftLibrary.assemble(profile, null).map { it.id })
     }
 
+    @Test fun onlyGamesWithoutPicturesTakeTheCatalogsArt() {
+        val games = listOf(listed("space-a", "Steep"), listed("space-b", "UNO").copy(imageUrl = "own"), listed("space-c", "Hyper Scape"))
+        val filled = UbisoftLibrary.withArt(games) { if (it.title == "Steep") "catalog" else null }
+        assertEquals("catalog", filled[0].imageUrl)
+        assertEquals("catalog", filled[0].tallImageUrl)
+        assertEquals("own", filled[1].imageUrl)
+        assertNull(filled[2].imageUrl)
+    }
+
+    @Test fun theCatalogsArtFindsAnOwnedGameWrittenDifferently() {
+        fun answer(title: String, extra: JSONObject.() -> Unit = {}) = JSONObject().put("hits", JSONArray()
+            .put(JSONObject().put("title", "$title Retold").put("image_link", "https://store/other.jpg"))
+            .put(JSONObject().put("title", title).put("image_link", "https://store/art.jpg?sw=300").apply(extra)))
+        assertEquals("https://store/art.jpg", UbisoftStore.artIn(answer("Watch Dogs 2"), listed("space-a", "WATCH_DOGS® 2")))
+        assertEquals("https://store/art.jpg", UbisoftStore.artIn(answer("Watch Dogs - Complete Edition"), listed("space-b", "Watch_Dogs")))
+        assertEquals("https://store/art.jpg", UbisoftStore.artIn(answer("Rayman Legends") { put("Free_offer", "demo") }, listed("space-c", "RAYMAN® LEGENDS")))
+        assertNull(UbisoftStore.artIn(answer("Far Cry 6"), listed("space-d", "Hyper Scape")))
+    }
+
     @Test fun theStoreSearchNamesEachGameWithItsPrice() {
         fun hit(id: String, title: String, price: Double, base: Double, off: String, date: String, free: String = "") = JSONObject()
             .put("objectID", id).put("title", title).put("price", JSONObject().put("USD", price)).put("default_price", JSONObject().put("USD", base))

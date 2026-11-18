@@ -55,6 +55,24 @@ object UbisoftStore {
         return query(site(), "best_sellers", 40, query = term).orEmpty()
     }
 
+    /** The catalog's picture of an owned game. */
+    fun art(owned: CatalogItem): String? {
+        val term = owned.title.replace(Regex("[\\u2122\\u00AE\\u00A9]"), "").replace('_', ' ').trim()
+        if (term.length < 2) return null
+        return answer(site(), "best_sellers", 40, query = term)?.let { artIn(it, owned) }
+    }
+
+    /** Reads the raw hits: a paid game flagged as having a demo never becomes a store card, yet its picture is good. */
+    internal fun artIn(answer: JSONObject, owned: CatalogItem): String? {
+        val list = answer.optJSONArray("hits") ?: return null
+        val hits = (0 until list.length()).mapNotNull { list.optJSONObject(it) }
+            .mapNotNull { h -> h.optString("image_link").takeIf { it.isNotBlank() && it != "null" }?.let { h to it.substringBefore("?") } }
+        val product = owned.extra["productId"].orEmpty()
+        val key = StoreFront.titleKey(owned.title)
+        return (hits.firstOrNull { (h, _) -> product.isNotEmpty() && h.optString("productLauncherIDString") == product }
+            ?: hits.firstOrNull { (h, _) -> key.isNotEmpty() && baseTitle(h.optString("title").ifBlank { h.optString("name") }) == key })?.second
+    }
+
     /** Whether a store card and a library entry are the same game. */
     fun sameGame(shelf: CatalogItem, owned: CatalogItem): Boolean {
         val product = shelf.extra["productId"].orEmpty()
@@ -67,7 +85,10 @@ object UbisoftStore {
     internal fun baseTitle(title: String): String = StoreFront.titleKey(title.substringBefore(" - "))
 
     /** One page of the index, or null when Ubisoft did not answer. */
-    private fun query(site: Triple<String, String, String>, order: String, hits: Int, query: String = "", filters: String = "", facets: List<String> = emptyList()): List<CatalogItem>? {
+    private fun query(site: Triple<String, String, String>, order: String, hits: Int, query: String = "", filters: String = "", facets: List<String> = emptyList()): List<CatalogItem>? =
+        answer(site, order, hits, query, filters, facets)?.let { parse(it, site.third).take(hits) }
+
+    private fun answer(site: Triple<String, String, String>, order: String, hits: Int, query: String = "", filters: String = "", facets: List<String> = emptyList()): JSONObject? {
         val facetFilters = JSONArray().put("product_type:Games").put("Platform:PC (Digital)").apply { facets.forEach { put(it) } }
         val url = Uri.parse("https://$APP-dsn.algolia.net/1/indexes/${index(site, order)}").buildUpon()
             .appendQueryParameter("query", query)
@@ -76,7 +97,7 @@ object UbisoftStore {
             .apply { if (filters.isNotEmpty()) appendQueryParameter("filters", filters) }
             .build().toString()
         val body = StoreNet.get(url, headers = mapOf("X-Algolia-Application-Id" to APP, "X-Algolia-API-Key" to KEY)) ?: return null
-        return parse(JSONObject(body), site.third).take(hits)
+        return JSONObject(body)
     }
 
     internal fun parse(answer: JSONObject, currency: String, now: Instant = Instant.now()): List<CatalogItem> {

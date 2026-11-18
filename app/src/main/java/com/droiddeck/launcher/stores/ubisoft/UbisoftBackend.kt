@@ -180,6 +180,12 @@ object UbisoftLibrary {
         return (matched + unlisted).sortedBy { it.title.lowercase() }
     }
 
+    /** Ubisoft sends no pictures for games missing from the profile's game list, so [find] supplies theirs. */
+    internal fun withArt(games: List<CatalogItem>, find: (CatalogItem) -> String?): List<CatalogItem> = games.map { g ->
+        if (g.imageUrl != null || g.tallImageUrl != null) g
+        else find(g)?.let { g.copy(imageUrl = it, tallImageUrl = it) } ?: g
+    }
+
     private val RELATIVE = Regex("""relative:\s*['"]?([^'"\r\n]+?)['"]?\s*$""", RegexOption.MULTILINE)
 
     private val NAME = Regex("""^\s{1,4}name:\s*['"]?(.+?)['"]?\s*$""", RegexOption.MULTILINE)
@@ -236,7 +242,7 @@ object UbisoftLibrary {
                 StoresState.logLine("Ubisoft: latest manifests: ${it.optInt("manifestsFound")} of ${it.optInt("manifestsAsked")} ${it.optString("manifestError")}".trim())
             }
             val listed = all.distinctBy { it.id }
-            val games = assemble(listed, owned)
+            val games = withArt(assemble(listed, owned)) { g -> cached?.firstOrNull { it.id == g.id }?.let { it.imageUrl ?: it.tallImageUrl } }
             ownedBySpace(owned).values.filter { it.optString("manifest").isEmpty() }.takeIf { it.isNotEmpty() }?.let { bare ->
                 StoresState.logLine("Ubisoft: owned without a manifest: " + bare.joinToString(", ") { (title(it.optString("configuration")) ?: "?") + "=" + it.optLong("productId") })
             }
@@ -253,6 +259,14 @@ object UbisoftLibrary {
             }
             StoreLibraryCache.save(app, Store.UBISOFT, games) { generation.get() == gen }
             StoresState.logLine("Ubisoft: ${games.size} owned games")
+            val pictured = withArt(games) { g -> if (generation.get() == gen) runCatching { UbisoftStore.art(g) }.getOrNull() else null }
+            if (pictured != games) {
+                post(gen) {
+                    StoresState.library[Store.UBISOFT] = pictured
+                    StoresState.shelves[Store.UBISOFT]?.let { StoresState.shelves[Store.UBISOFT] = StoreFront.markOwned(it, pictured, UbisoftStore::sameGame) }
+                }
+                StoreLibraryCache.save(app, Store.UBISOFT, pictured) { generation.get() == gen }
+            }
         } catch (e: Exception) {
             StoresState.logLine("Ubisoft: library sync failed: ${e.javaClass.simpleName} ${e.message.orEmpty().take(200)}")
             post(gen) { StoresState.status.remove(Store.UBISOFT); StoresState.problems[Store.UBISOFT] = app.getString(R.string.stores_sync_failed) }
