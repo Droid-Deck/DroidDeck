@@ -404,7 +404,7 @@ def launch(command, env):
             context.chmod(0o600)
             owned_env = dict(env, DROIDDECK_XBOX_ACTIVE='1', DROIDDECK_XBOX_COMMAND_FILE=str(context),
                              XODUS_SOCKET=reply['socket'], XODUS_BRIDGE_PORT=str(port), XODUS_BRIDGE_KEY=key,
-                             XODUS_LOG='off', RUST_LOG='off', XODUS_SAVE_SYNC='auto' if sidecar.get('cloud', True) else 'off')
+                             XODUS_LOG='off', RUST_LOG='off', XODUS_SAVE_SYNC='auto' if sidecar.get('cloud', True) else 'none')
             for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
                 owned_env.pop(name, None)
             if reply.get('playfab'):
