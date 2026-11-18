@@ -336,7 +336,10 @@ object AddedGames {
         val owner = ownerFolder(app, exe)
         if (owner != null && owner.path !in SessionPrefs.removedAddedGames(app)) {
             single(app, owner.path)?.takeIf { canonical(it.exe) == path }?.let {
-                if (guestPath(app, exe) != null) AddedExes.put(app, AddedExes.Entry(owner.path, exe.path))
+                if (guestPath(app, it.exe) != null) {
+                    SessionPrefs.setAddedGameExe(app, owner.path, it.exe.path)
+                    AddedExes.put(app, AddedExes.Entry(owner.path, it.exe.path))
+                }
                 return AddResult.Existing(it)
             }
         }
@@ -442,9 +445,9 @@ object AddedGames {
             val chosen = picked.takeIf { it.isNotEmpty() }?.let { File(it) }?.takeIf { it.isFile }
                 ?: single?.takeIf { it.picked }?.let { File(it.exe) }?.takeIf { it.isFile }
             val found = chosen ?: sidecar?.exeFile(folder)?.takeIf { it.isFile } ?: candidates.firstOrNull() ?: return
-            val epicLauncher = sidecar?.takeIf { it.store == Store.EPIC && (chosen == null || canonical(chosen) == canonical(it.exeFile(folder))) }
+            val storeLauncher = sidecar?.takeIf { chosen == null || canonical(chosen) == canonical(it.exeFile(folder)) }
                 ?.launcherFile(folder)?.takeIf { it.isFile }
-            val launch = epicLauncher ?: if (chosen == null) sidecar?.launcherFile(folder)?.takeIf { it.isFile } ?: found else found
+            val launch = storeLauncher ?: found
             val foundGuest = guestPath(context, launch)
             if (foundGuest == null) { Log.w(TAG, "${folder.name}: the session cannot see ${launch.path}"); return }
             val autoName = sidecar?.title ?: identifiedName(folder, found) ?: folder.name
