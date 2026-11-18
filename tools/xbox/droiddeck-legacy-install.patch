@@ -43,10 +43,10 @@ index 088a6d0..825c24e 100644
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..922b9fc
+index 0000000..5041a34
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1089 @@
+@@ -0,0 +1,1101 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -397,16 +397,28 @@ index 0000000..922b9fc
 +        }
 +        return ExitCode::SUCCESS;
 +    }
++    let mut names = std::collections::HashSet::new();
++    for container in &install.containers {
++        let Some(name) = Path::new(&container.name).file_name() else {
++            return fail("unusable-name", "Microsoft returned an unusable package name");
++        };
++        if !names.insert(name.to_string_lossy().to_ascii_lowercase()) {
++            return fail("duplicate-container", "Microsoft listed two packages under one name");
++        }
++    }
 +    let mut held = 0u64;
 +    for container in &install.containers {
 +        let Some(name) = Path::new(&container.name).file_name() else { continue };
 +        let staged = destination.join(CONTAINER_DIR).join(name);
-+        if let Ok(meta) = std::fs::metadata(&staged) {
-+            if container.size > 0 && meta.len() == container.size {
-+                held = held.saturating_add(meta.len());
-+            } else {
-+                std::fs::remove_file(&staged).ok();
-+            }
++        let Ok(meta) = std::fs::symlink_metadata(&staged) else { continue };
++        if meta.is_file() && container.size > 0 && meta.len() == container.size {
++            held = held.saturating_add(meta.len());
++            continue;
++        }
++        if std::fs::remove_file(&staged).is_err()
++            && !(meta.is_file() && std::fs::OpenOptions::new().write(true).truncate(true).open(&staged).is_ok())
++        {
++            return fail("staging-failed", "Could not clear an unfinished download from the staging folder");
 +        }
 +    }
 +    if let Some(free) = free_bytes(&destination) {
