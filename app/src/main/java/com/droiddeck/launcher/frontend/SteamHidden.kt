@@ -11,10 +11,19 @@ internal object SteamHidden {
 
     class Saved(val hidden: Set<Long>, val queued: Boolean)
 
-    private fun ids(collection: JSONObject, key: String): List<Long> {
+    private fun id(member: Any?): Long? = when (member) {
+        is Int -> member.toLong()
+        is Long -> member
+        is String -> member.toLongOrNull()
+        else -> null
+    }
+
+    private fun ids(collection: JSONObject, key: String, strict: Boolean): List<Long> {
         if (!collection.has(key)) return emptyList()
         val array = collection.optJSONArray(key) ?: throw IllegalStateException(key)
-        return (0 until array.length()).map { (array.get(it) as? Number)?.toLong() ?: throw IllegalStateException(key) }
+        return (0 until array.length()).mapNotNull { index ->
+            id(array.get(index)) ?: if (strict) throw IllegalStateException(key) else null
+        }
     }
 
     fun read(root: File): Set<Long> = readOrNull(root).orEmpty()
@@ -26,7 +35,7 @@ internal object SteamHidden {
         if (slot != null && entry == null) return null
         if (entry == null || entry.optBoolean("is_deleted")) emptySet() else {
             val collection = JSONObject(entry.optString("value"))
-            ids(collection, "added").toSet() - ids(collection, "removed").toSet()
+            ids(collection, "added", false).toSet() - ids(collection, "removed", false).toSet()
         }
     }.getOrNull()
 
@@ -37,8 +46,8 @@ internal object SteamHidden {
         val entry = if (slot == null) JSONObject().put("key", KEY) else entries.getJSONArray(slot).optJSONObject(1) ?: return null
         val live = !entry.optBoolean("is_deleted")
         val collection = if (live && entry.has("value")) JSONObject(entry.optString("value")) else JSONObject().put("id", "hidden")
-        val added = ids(collection, "added").filter { it != appId }
-        val removed = ids(collection, "removed").filter { it != appId }
+        val added = ids(collection, "added", true).filter { it != appId }
+        val removed = ids(collection, "removed", true).filter { it != appId }
         collection.put("added", JSONArray(if (hidden) added + appId else added))
         collection.put("removed", JSONArray(if (hidden) removed else removed + appId))
         entry.put("value", collection.toString())
@@ -52,7 +61,7 @@ internal object SteamHidden {
             temp.delete()
             return null
         }
-        Saved(ids(collection, "added").toSet() - ids(collection, "removed").toSet(), markModified(File(target.parentFile, "cloud-storage-namespace-1.modified.json")))
+        Saved(ids(collection, "added", true).toSet() - ids(collection, "removed", true).toSet(), markModified(File(target.parentFile, "cloud-storage-namespace-1.modified.json")))
     }.getOrNull()
 
     private fun markModified(file: File): Boolean {

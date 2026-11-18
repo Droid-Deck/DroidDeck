@@ -333,8 +333,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         }
     }
     var savedDialog by remember { mutableStateOf(false) }
-    val candidates = if (listUninstalled) matching else matching.filter { it.installed }
-    val hiddenUninstalled = if (listUninstalled) 0 else matching.count { !it.installed }
+    val candidates = if (listUninstalled || source == LIBRARY_HIDDEN) matching else matching.filter { it.installed }
+    val hiddenUninstalled = if (listUninstalled || source == LIBRARY_HIDDEN) 0 else matching.count { !it.installed }
     val sort = s.storesSort
     val sizeSort = sort == "sizeAsc" || sort == "sizeDesc"
     val installedAt = StoresState.installed.associate { it.key to it.sidecar.installedAt }

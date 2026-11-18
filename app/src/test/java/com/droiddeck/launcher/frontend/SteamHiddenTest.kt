@@ -88,8 +88,14 @@ class SteamHiddenTest {
         val root = steamRoot()
         val json = """[["user-collections.hidden",{"key":"user-collections.hidden","value":"{\"id\":\"hidden\",\"added\":[\"x\"],\"removed\":[]}"}]]"""
         val file = store(root, json)
-        assertNull(SteamHidden.readOrNull(root))
+        assertEquals(emptySet<Long>(), SteamHidden.readOrNull(root))
         assertNull(SteamHidden.write(root, 1, true))
         assertEquals(json, file.readText())
+    }
+
+    @Test fun numericStringsAreReadAndBadMembersAreSkipped() {
+        val root = steamRoot()
+        store(root, """[["user-collections.hidden",{"key":"user-collections.hidden","value":"{\"id\":\"hidden\",\"added\":[\"440\",\"x\",4.5,730],\"removed\":[]}"}]]""")
+        assertEquals(setOf(440L, 730L), SteamHidden.read(root))
     }
 }

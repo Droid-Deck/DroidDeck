@@ -88,7 +88,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     val owned by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn) {
         value = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
     }
-    val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
+    rememberHiddenSync()
+    val games = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) { s.steamGames.filterNot { LibraryHidden.isHidden(hideKey(it), it) }.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     var words by remember { mutableStateOf<Rect?>(null) }
     val mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
