@@ -207,7 +207,7 @@ object CloudSaves {
     }
 
     private fun signedIn(context: Context, store: Store): Boolean = when (store) {
-        Store.EA -> EaAuth.load(context)?.userId?.isNotEmpty() == true
+        Store.EA -> EaAuth.signedIn(context)
         else -> true
     }
 
@@ -344,6 +344,7 @@ object CloudSaves {
                     val cloud = if (dir != null) transport(context, store, id, g.first) else null
                     when {
                         dir == null -> Result("skipped", 0, 0, reason)
+                        cloud == null && store == Store.EA && signedIn(context, store) -> Result("failed", 0, 0, "sign-in-unreachable")
                         cloud == null -> Result("skipped", 0, 0, "not-signed-in")
                         cloud is EaCloud && cloud.localDir?.canonicalPath != dir.canonicalPath -> Result("skipped", 0, 0, "rules-changed")
                         cloud is EaCloud && localFiles(dir).keys.groupBy { it.lowercase() }.any { it.value.size > 1 } -> Result("failed", 0, 0, "case-collision")
@@ -368,14 +369,20 @@ object CloudSaves {
 
     private fun localFiles(dir: File): Map<String, File> {
         if (!dir.isDirectory) return emptyMap()
-        val real = runCatching { dir.canonicalFile }.getOrNull() ?: return emptyMap()
-        val root = real.path + File.separator
-        val inside = { f: File -> runCatching { (f.canonicalPath + File.separator).startsWith(root) }.getOrDefault(false) }
-        val enter = { d: File ->
-            runCatching { d == dir || d.canonicalFile == File(real, d.relativeTo(dir).path) }.getOrDefault(false)
+        val root = runCatching { dir.toPath().toRealPath() }.getOrNull() ?: return emptyMap()
+        val found = LinkedHashMap<String, File>()
+        fun walk(d: File, prefix: String, ancestry: Set<java.nio.file.Path>) {
+            for (child in d.listFiles().orEmpty()) {
+                val real = runCatching { child.toPath().toRealPath() }.getOrNull() ?: continue
+                if (!real.startsWith(root)) continue
+                val name = prefix + child.name
+                if (child.isDirectory) {
+                    if (real !in ancestry) walk(child, "$name/", ancestry + real)
+                } else if (child.isFile) found[name] = child
+            }
         }
-        return dir.walkTopDown().onEnter(enter).filter { it.isFile && inside(it) }
-            .associateBy { it.relativeTo(dir).path.replace(File.separatorChar, '/') }
+        walk(dir, "", setOf(root))
+        return found
     }
 
     internal fun md5(f: File): String = md5(f.readBytes())

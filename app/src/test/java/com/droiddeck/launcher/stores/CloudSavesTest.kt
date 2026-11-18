@@ -65,6 +65,23 @@ class CloudSavesTest {
         assertEquals("local", File(kept, "SaveData/slot.sav").readText())
     }
 
+    @Test fun aSaveReachedOnlyThroughAFolderAliasStillGoesUp() {
+        val game = id; val dir = dir()
+        File(dir, "Actual").mkdirs(); File(dir, "Actual/slot.sav").writeText("played")
+        val link = runCatching { java.nio.file.Files.createSymbolicLink(File(dir, "SaveData").toPath(), File(dir, "Actual").toPath()) }
+        org.junit.Assume.assumeTrue(link.isSuccess)
+        java.nio.file.Files.createSymbolicLink(File(dir, "Actual/loop").toPath(), dir.toPath())
+        val memory = Memory()
+        val cloud = object : CloudTransport by memory {
+            override fun wants(name: String) = name.startsWith("SaveData/")
+        }
+        CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false)
+        val r = CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertEquals("uploaded", r.reason)
+        assertEquals(listOf("SaveData/slot.sav"), memory.puts)
+        assertEquals("played", String(memory.files.getValue("SaveData/slot.sav").first))
+    }
+
     @Test fun aFileChangedOnBothSidesIsLeftForTheUser() {
         val game = id; val dir = dir()
         val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L }

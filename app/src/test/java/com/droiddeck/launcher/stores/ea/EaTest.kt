@@ -415,6 +415,55 @@ class EaTest {
         assertNull(EaAuth.load(app))
     }
 
+    private fun tokenServer(status: String): java.net.ServerSocket {
+        val server = java.net.ServerSocket(0)
+        Thread {
+            runCatching {
+                server.accept().use { socket ->
+                    val input = socket.getInputStream()
+                    val head = StringBuilder()
+                    while (!head.endsWith("\r\n\r\n")) head.append(input.read().takeIf { it >= 0 }?.toChar() ?: break)
+                    val length = Regex("(?i)content-length: *(\\d+)").find(head)?.groupValues?.get(1)?.toInt() ?: 0
+                    repeat(length) { input.read() }
+                    val body = """{"error":"invalid_grant"}""".toByteArray()
+                    socket.getOutputStream().apply {
+                        write("HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        write(body)
+                        flush()
+                    }
+                }
+            }
+        }.apply { isDaemon = true; start() }
+        return server
+    }
+
+    @Test fun aRejectedRefreshAsksForSignInWhileAnUnreachableOneKeepsTheSessionForARetry() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        val real = EaAuth.tokenUrl
+        try {
+            com.droiddeck.launcher.stores.StoreAccounts.write(app, Store.EA,
+                JSONObject().put("access_token", "old").put("refresh_token", "r").put("expires_at", 1L).put("user_id", "1"))
+            EaAuth.tokenUrl = "http://127.0.0.1:1/"
+            assertNull(EaAuth.accessToken(app))
+            assertTrue(CloudSaves.status(app, Store.EA, "x").signedIn)
+            tokenServer("503 Service Unavailable").use { server ->
+                EaAuth.tokenUrl = "http://127.0.0.1:${server.localPort}/"
+                assertNull(EaAuth.accessToken(app))
+            }
+            assertTrue(CloudSaves.status(app, Store.EA, "x").signedIn)
+            tokenServer("400 Bad Request").use { server ->
+                EaAuth.tokenUrl = "http://127.0.0.1:${server.localPort}/"
+                assertNull(EaAuth.accessToken(app))
+            }
+            assertFalse(CloudSaves.status(app, Store.EA, "x").signedIn)
+            assertTrue(EaAuth.storeRefreshed(app, "new", 3600, "r2"))
+            assertTrue(CloudSaves.status(app, Store.EA, "x").signedIn)
+        } finally {
+            EaAuth.tokenUrl = real
+            EaAuth.signOut(app)
+        }
+    }
+
     private val heat = """<saveFileCriteria>
 <include order="0">%Documents%/Need for Speed Heat/SaveGame/savegame/</include>
 <include order="1">%Documents%/Need for Speed Heat/SaveGame/wraps/</include>
