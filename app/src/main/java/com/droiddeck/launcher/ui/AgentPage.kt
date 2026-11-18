@@ -292,7 +292,8 @@ private fun AgentPageContent(
                             awaitEachGesture {
                                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                                 if (panel == AgentPanel.MODEL || panel == AgentPanel.USAGE) panel = AgentPanel.NONE
-                                if (composer.focused) focusManager.clearFocus()
+                                // Forced: the unforced path walks the focus chain and throws ("ActiveParent with no focused child") when a tap lands while focus is moving.
+                                if (composer.focused) focusManager.clearFocus(force = true)
                             }
                         },
                         list, following = !readingBack, onRevise = { composer.open() }, onSent = toLatest,
