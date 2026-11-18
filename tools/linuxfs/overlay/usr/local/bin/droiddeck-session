@@ -1524,11 +1524,10 @@ case $mode in
     export STEAM_STEAMRT_RECURSION_GUARD=1
     export LD_LIBRARY_PATH=$steam_root/steamrtarm64:$steam_root/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
     export SDL_VIDEO_X11_DGAMOUSE=0
-    dd_steam_path=$PATH
+    dd_steam_path="/usr/local/libexec/droiddeck-steam:$PATH"
     dd_steam_angle=vulkan
     dd_steam_presentation=()
     if [ "${DD_STEAM_GL_PRESENT:-}" = 1 ]; then
-      dd_steam_path="/usr/local/libexec/droiddeck-steam:$PATH"
       export DISABLE_GAMESCOPE_WSI=1 LIBGL_KOPPER_DISABLE=true
       dd_steam_angle=gl
       dd_steam_presentation=(-cef-disable-gpu-compositing)
