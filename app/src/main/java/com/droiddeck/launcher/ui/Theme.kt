@@ -268,7 +268,6 @@ private val ContentDirected = Typography().run {
 
 @Composable
 private fun InnerGamerHue(speed: Int) {
-    if (Motion.scale == 0f) return
     key(speed) { InnerGamerCycle(speed) }
 }
 
