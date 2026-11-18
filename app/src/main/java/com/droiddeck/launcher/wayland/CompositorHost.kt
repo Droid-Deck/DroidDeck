@@ -117,7 +117,7 @@ object CompositorHost {
         WaylandCompositor.nativeSetPresentCadence(on)
     }
 
-    /** Pacing follows the phone screen's refreshes, so it waits while the game is shown on glasses or another screen. */
+    /** Pacing follows the phone screen's refreshes, so it waits while the game is drawn on any other display. */
     fun setGameOnOtherDisplay(on: Boolean) {
         WaylandCompositor.nativeSetGameOnOtherDisplay(on)
     }
@@ -177,6 +177,7 @@ object CompositorHost {
         if (surface != null && attached != null && attached !== surface) return
         attached = null
         pauseVsync()
+        WaylandCompositor.nativeSetGameOnOtherDisplay(false)
         WaylandCompositor.nativeSetSurface(null)
     }
 

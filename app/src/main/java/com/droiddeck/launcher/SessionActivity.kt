@@ -685,6 +685,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     @Suppress("DEPRECATION")
     private fun currentActivityDisplayId(): Int = windowManager.defaultDisplay.displayId
 
+    private fun gameOnOtherDisplay(): Boolean {
+        if (glassesOutputActive || bottomOutputActive) return true
+        val own = if (Build.VERSION.SDK_INT >= 30) display?.displayId ?: currentActivityDisplayId()
+            else currentActivityDisplayId()
+        return own != Display.DEFAULT_DISPLAY
+    }
+
     private fun refreshActivityDisplayId(): Boolean {
         val current = if (Build.VERSION.SDK_INT >= 30) display?.displayId ?: currentActivityDisplayId()
             else currentActivityDisplayId()
@@ -2887,7 +2894,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         glassesOutputActive = false
         bottomOutputActive = false
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(false)
-        CompositorHost.setGameOnOtherDisplay(false)
         CompositorHost.detach(holder.surface)
         bottomGame?.takeIf { it.holder === holder }?.let { screen -> uiHandler.post { recoverBottomOutput(screen) } }
     }
@@ -6065,7 +6071,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         updatePointerCapture()
         if (bottomOutputActive) bottomRecoveries = 0
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || bottomOutputActive)
-        CompositorHost.setGameOnOtherDisplay(glassesOutputActive || bottomOutputActive)
+        CompositorHost.setGameOnOtherDisplay(gameOnOtherDisplay())
         surfaceView.visibility = if (glassesOutputActive || bottomOutputActive) View.INVISIBLE else View.VISIBLE
         Log.i(TAG, "compositor output attached: " +
             if (glassesOutputActive) "glasses display ${glassesScreen?.display?.displayId}"
