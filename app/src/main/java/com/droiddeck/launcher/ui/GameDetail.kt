@@ -972,7 +972,7 @@ private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions)
 
 @Composable
 private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
-    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON && it != Store.EA } ?: return
+    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON } ?: return
     val id = g.storeId ?: return
     val context = LocalContext.current.applicationContext
     var busy by remember(g.gameId) { mutableStateOf<String?>(null) }
@@ -1004,11 +1004,13 @@ private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
             StoresState.post { enabled = written?.cloud ?: enabled }
         }, "cloud-switch").start()
     }
-    val ready = st != null && supported && enabled && busy == null && !refreshing
+    val ready = st != null && supported && enabled && busy == null && !refreshing && st.folder != null && st.signedIn
     val pending = stringResource(R.string.cloud_pending)
     val summary = when {
         st == null || busy != null -> pending
         !supported -> stringResource(R.string.cloud_none)
+        !st.signedIn || st.reason == "not-signed-in" -> stringResource(R.string.cloud_signed_out)
+        st.folder == null -> stringResource(R.string.cloud_not_synced)
         conflict -> stringResource(R.string.cloud_conflict_files, st.conflicts.size)
         st.lastSync > 0 -> stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString())
         else -> stringResource(R.string.cloud_never)

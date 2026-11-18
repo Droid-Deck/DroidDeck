@@ -5,6 +5,11 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.stores.ea.EaAuth
+import com.droiddeck.launcher.stores.ea.EaCloud
+import com.droiddeck.launcher.stores.ea.EaLibrary
+import com.droiddeck.launcher.stores.ea.EaPrefs
+import com.droiddeck.launcher.stores.ea.EaSaveRules
 import com.droiddeck.launcher.stores.epic.EpicApiClient
 import com.droiddeck.launcher.stores.epic.EpicCredentialStore
 import com.droiddeck.launcher.stores.epic.EpicPrefs
@@ -36,7 +41,7 @@ object CloudSaves {
             if (detail.isNotEmpty()) " detail=\"$detail\"" else ""
     }
 
-    class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String, val conflicts: List<String> = emptyList())
+    class Status(val supported: Boolean, val folder: File?, val lastSync: Long, val reason: String, val conflicts: List<String> = emptyList(), val signedIn: Boolean = true)
 
     private fun game(context: Context, store: Store, id: String): Pair<File, StoreGameSidecar>? {
         fun match(f: File) = StoreGameSidecar.read(f)?.takeIf { it.store == store && it.id == id && it.isInstalled }?.let { f to it }
@@ -45,14 +50,18 @@ object CloudSaves {
             else com.droiddeck.launcher.session.SessionPrefs.storeGameFolder(context, "${store.id}:$id")?.let { match(File(it)) }
     }
 
-    fun supports(store: Store?): Boolean = store == Store.GOG || store == Store.EPIC || store == Store.UBISOFT
+    fun supports(store: Store?): Boolean = store == Store.GOG || store == Store.EPIC || store == Store.EA || store == Store.UBISOFT
 
     fun prefix(context: Context, folder: File): File? {
         val appId = AddedGames.scan(context).firstOrNull { it.folder.absolutePath == folder.absolutePath }?.appId ?: return null
         return Library.protonPrefix(context, appId and 0xFFFFFFFFL)
     }
 
-    private fun prefs(context: Context, store: Store) = if (store == Store.GOG) GogPrefs.get(context) else EpicPrefs.get(context)
+    private fun prefs(context: Context, store: Store) = when (store) {
+        Store.GOG -> GogPrefs.get(context)
+        Store.EA -> EaPrefs.get(context)
+        else -> EpicPrefs.get(context)
+    }
 
     fun lastSync(context: Context, store: Store, id: String): Long = prefs(context, store).getLong("cloud_sync_$id", 0L)
 
@@ -73,6 +82,10 @@ object CloudSaves {
 
     fun template(context: Context, store: Store, id: String, folder: File, sidecar: StoreGameSidecar): String? {
         val p = prefs(context, store)
+        if (store == Store.EA) eaRules(context, id)?.let { fresh ->
+            if (fresh.isEmpty()) rememberNoCloud(p, id) else p.edit().putString("cloud_template_$id", fresh).remove("cloud_template_at_$id").apply()
+            return fresh
+        }
         var retryNone = false
         if (p.contains("cloud_template_$id")) {
             val cached = p.getString("cloud_template_$id", "") ?: ""
@@ -99,7 +112,8 @@ object CloudSaves {
                 if (ns.isEmpty() || item.isEmpty()) "" else EpicApiClient.getCustomAttribute(token, ns, item, "CloudSaveFolder")
             }
             Store.UBISOFT -> UBISOFT_TEMPLATE
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.ROCKSTAR -> ""
+            Store.EA -> eaRules(context, id) ?: return null
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR -> ""
         } ?: return null
         p.edit()
             .putString("cloud_template_$id", fetched.ifEmpty { TEMPLATE_NONE })
@@ -165,14 +179,16 @@ object CloudSaves {
         val dir = when (store) {
             Store.GOG -> CloudSavePaths.gog(template, pfx, folder)
             Store.EPIC -> CloudSavePaths.epic(template, pfx, folder, EpicCredentialStore.load(context)?.accountId.orEmpty(), id)
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.UBISOFT, Store.ROCKSTAR -> null
+            Store.EA -> if (sidecar.extra["masterTitleId"].isNullOrEmpty()) null
+                else EaSaveRules.parse(template)?.base()?.let(EaSaveRules::template)?.let { CloudSavePaths.gog(it, pfx, folder) }
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> null
         }
         return dir to (if (dir == null) "unresolved" else "ok")
     }
 
     fun status(context: Context, store: Store, id: String): Status {
         val (dir, reason) = saveFolder(context, store, id)
-        return Status(reason != "no-cloud-saves" && reason != "not-installed", dir, lastSync(context, store, id), reason, conflicts(context, store, id, dir))
+        return Status(reason != "no-cloud-saves" && reason != "not-installed", dir, lastSync(context, store, id), reason, conflicts(context, store, id, dir), signedIn(context, store))
     }
 
 
@@ -195,7 +211,28 @@ object CloudSaves {
             val product = StoreGameSidecar.read(folder)?.extra?.get("productId")?.toLongOrNull()
             if (session == null || product == null) null else UbisoftCloudTransport(UbisoftCloud(session, product), session.userId)
         }
-        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.EA, Store.ROCKSTAR -> null
+        Store.EA -> {
+            val sidecar = StoreGameSidecar.read(folder)
+            val rules = sidecar?.let { template(context, store, id, folder, it) }?.let(EaSaveRules::parse)
+            val base = rules?.base()
+            val token = EaAuth.accessToken(context)
+            val uid = EaAuth.load(context)?.userId.orEmpty()
+            val master = sidecar?.extra?.get("masterTitleId").orEmpty()
+            if (rules == null || base == null || token == null || uid.isEmpty() || master.isEmpty()) null
+            else EaCloud(token, uid, EaCloud.keys(master, sidecar?.extra?.get("multiplayerId").orEmpty()), base, rules, saveFolder(context, store, id).first)
+        }
+        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR -> null
+    }
+
+    private fun signedIn(context: Context, store: Store): Boolean = when (store) {
+        Store.EA -> EaAuth.signedIn(context)
+        else -> true
+    }
+
+    private fun eaRules(context: Context, id: String): String? {
+        val games = EaLibrary.cached(context)
+        if (games.isEmpty()) return null
+        return games.firstOrNull { it.offerId == id }?.cloudSaves.orEmpty()
     }
 
     private fun gogScopedToken(context: Context, id: String, clientId: String): String? {
@@ -345,7 +382,10 @@ object CloudSaves {
                     when {
                         cloud is UbisoftCloudTransport && dir?.parentFile?.name != cloud.user -> Result("skipped", 0, 0, "account-changed")
                         dir == null -> Result("skipped", 0, 0, reason)
+                        cloud == null && store == Store.EA && signedIn(context, store) -> Result("failed", 0, 0, "sign-in-unreachable")
                         cloud == null -> Result("skipped", 0, 0, "not-signed-in")
+                        cloud is EaCloud && cloud.localDir?.canonicalPath != dir.canonicalPath -> Result("skipped", 0, 0, "rules-changed")
+                        cloud is EaCloud && localFiles(dir).keys.groupBy { it.lowercase() }.any { it.value.size > 1 } -> Result("failed", 0, 0, "case-collision")
                         else -> body(dir, cloud).also { if (it.result == "ok") markSynced(context, store, id) }
                     }
                 }
@@ -365,9 +405,23 @@ object CloudSaves {
         return r
     }
 
-    private fun localFiles(dir: File): Map<String, File> =
-        if (!dir.isDirectory) emptyMap()
-        else dir.walkTopDown().filter { it.isFile }.associateBy { it.relativeTo(dir).path.replace(File.separatorChar, '/') }
+    private fun localFiles(dir: File): Map<String, File> {
+        if (!dir.isDirectory) return emptyMap()
+        val root = runCatching { dir.toPath().toRealPath() }.getOrNull() ?: return emptyMap()
+        val found = LinkedHashMap<String, File>()
+        fun walk(d: File, prefix: String, ancestry: Set<java.nio.file.Path>) {
+            for (child in d.listFiles().orEmpty()) {
+                val real = runCatching { child.toPath().toRealPath() }.getOrNull() ?: continue
+                if (!real.startsWith(root)) continue
+                val name = prefix + child.name
+                if (child.isDirectory) {
+                    if (real !in ancestry) walk(child, "$name/", ancestry + real)
+                } else if (child.isFile) found[name] = child
+            }
+        }
+        walk(dir, "", setOf(root))
+        return found
+    }
 
     internal fun md5(f: File): String = md5(f.readBytes())
 
@@ -392,7 +446,11 @@ object CloudSaves {
         val plan = settled(planned, alike)
         val saved = savedConflicts(context, store, key).filter { it in remote && it !in alike }
         val take = if (force) (plan.transfer + plan.conflicts + saved).distinct() else plan.transfer
-        if (take.isNotEmpty() && files.isNotEmpty()) backup(context, store, id, dir, "local")
+        val inside = dir.canonicalPath + File.separator
+        val replaced = take.mapNotNull { name ->
+            files[name] ?: File(dir, name).takeIf { it.isFile && runCatching { it.canonicalPath.startsWith(inside) }.getOrDefault(false) }
+        }
+        if (!backupReplaced(context, store, id, dir, replaced)) return Result("failed", 0, 0, "backup-failed")
         val next = HashMap(base.orEmpty())
         var bytes = 0L
         val written = HashSet<String>()
@@ -534,12 +592,6 @@ object CloudSaves {
     private fun backupRoot(context: Context, store: Store, id: String) =
         File(context.filesDir, "stores/cloud-backups/${store.id}-${id.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
 
-    private fun backup(context: Context, store: Store, id: String, dir: File, kind: String) {
-        val root = backupRoot(context, store, id)
-        runCatching { dir.copyRecursively(File(root, "$kind-${System.currentTimeMillis()}"), overwrite = true) }
-        prune(root, kind)
-    }
-
     private fun hasUbisoftMark(file: File): Boolean {
         val head = ByteArray(40)
         var filled = 0
@@ -568,6 +620,27 @@ object CloudSaves {
         }
         prune(root, "cloud")
         return copies
+    }
+
+    private fun backupReplaced(context: Context, store: Store, id: String, dir: File, replaced: List<File>): Boolean {
+        if (replaced.isEmpty()) return true
+        val base = runCatching { dir.canonicalPath + File.separator }.getOrNull() ?: return false
+        val root = backupRoot(context, store, id)
+        val stamp = "${System.currentTimeMillis()}-${java.util.UUID.randomUUID().toString().take(8)}"
+        val staging = File(root, "staging-$stamp")
+        val copied = runCatching {
+            for (f in replaced) {
+                check(f.canonicalPath.startsWith(base))
+                f.copyTo(File(staging, f.relativeTo(dir).path), overwrite = true)
+            }
+            check(staging.renameTo(File(root, "local-$stamp")))
+        }.isSuccess
+        if (!copied) {
+            staging.deleteRecursively()
+            return false
+        }
+        prune(root, "local")
+        return true
     }
 
     private fun prune(root: File, kind: String) {

@@ -246,6 +246,33 @@ class CloudHooks(unittest.TestCase):
             self.assertEqual(['cloud-down', 'cloud-up'], [op for op in asked if op.startswith('cloud-')])
             self.assertIn('cloud ubisoft space-1 down result=failed reason=PermissionError', lines)
             self.assertIn('cloud ubisoft space-1 up not requested (PermissionError)', lines)
+    def test_an_ea_game_with_cloud_saves_asks_after_its_preparation_and_exit(self):
+        ident = 'Origin.OFR.50.0002694'
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='ea', ident=ident)
+            bat = str(folder / '.droiddeck-launch.bat')
+            asked = []
+            env = {'DD_LAUNCH_DIR': str(Path(root) / 'session')}
+            record = lambda channel, request, timeout=5.0: asked.append(request) or {'result': 'ok'}
+            with patch.dict(os.environ, env), \
+                    patch.object(store, 'prepare_ea', side_effect=lambda *a: asked.append({'op': 'prepared'})), \
+                    patch.object(store, 'create_prefix', side_effect=AssertionError('EA prepares its own prefix')), \
+                    patch.object(store, 'ask', side_effect=record):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual(['prepared', 'cloud-down'], [r['op'] for r in asked])
+                self.assertEqual({'op': 'cloud-down', 'store': 'ea', 'id': ident}, asked[1])
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['ea-exited', 'cloud-up'], [r['op'] for r in asked[2:]])
+            self.assertEqual({'op': 'cloud-up', 'store': 'ea', 'id': ident}, asked[3])
+            sidecar = json.loads((folder / store.SIDECAR).read_text())
+            sidecar['cloud'] = False
+            (folder / store.SIDECAR).write_text(json.dumps(sidecar))
+            asked.clear()
+            with patch.dict(os.environ, env), patch.object(store, 'prepare_ea'), patch.object(store, 'ask', side_effect=record):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual([], asked)
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['ea-exited'], [r['op'] for r in asked])
 
     def test_a_first_launch_creates_the_prefix_before_the_cloud_download(self):
         with tempfile.TemporaryDirectory() as root:
