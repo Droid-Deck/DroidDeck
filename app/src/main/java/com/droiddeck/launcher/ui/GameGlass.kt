@@ -171,6 +171,10 @@ internal fun GameBackdrop(
         },
     ) {
         DisposableEffect(art == null) { onDispose { if (art == null) onArtPlaced(null) } }
+        if (art == null) androidx.compose.runtime.SideEffect {
+            StoresMotion.heroFadeTop = fadeTop
+            StoresMotion.heroDrift = { 0f }
+        }
         Box(
             Modifier.matchParentSize()
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
@@ -217,6 +221,10 @@ private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, blur: androidx
                 ),
                 label = "heroDriftT",
             )
+            androidx.compose.runtime.SideEffect {
+                StoresMotion.heroFadeTop = fadeTop
+                StoresMotion.heroDrift = { drift?.value ?: 0f }
+            }
             AsyncImage(
                 model = model, contentDescription = null, contentScale = ContentScale.Crop,
                 alignment = BiasAlignment(0.45f, -0.35f),
@@ -224,12 +232,12 @@ private fun ArtLayer(model: Any?, sample: Any?, fadeTop: Boolean, blur: androidx
                 modifier = Modifier.matchParentSize()
                     .graphicsLayer {
                         val t = drift?.value ?: 0f
-                        val zoom = 1f + 0.16f * t
+                        val zoom = HeroDrift.zoom(t)
                         scaleX = zoom
                         scaleY = zoom
-                        translationX = -size.width * 0.05f * t
-                        translationY = size.height * 0.03f * t
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.72f, 0.33f)
+                        translationX = size.width * HeroDrift.DX * t
+                        translationY = size.height * HeroDrift.DY * t
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(HeroDrift.PX, HeroDrift.PY)
                     }
                     .then(if (blur > 0.dp) Modifier.blur(blur) else Modifier),
             )
@@ -293,4 +301,12 @@ internal class HeroLook(brightness: Float, val light: Boolean, val background: C
             size = size,
         )
     }
+}
+
+internal object HeroDrift {
+    const val PX = 0.72f
+    const val PY = 0.33f
+    const val DX = -0.04f
+    const val DY = 0.03f
+    fun zoom(t: Float) = 1f + 0.16f * t
 }

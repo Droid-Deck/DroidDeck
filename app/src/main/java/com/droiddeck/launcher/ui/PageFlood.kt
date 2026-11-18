@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.graphics.drawscope.withTransform
 import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -203,7 +204,7 @@ private fun DrawScope.drawTile(
     else lerp(from.corner * (1f - mean), minOf(w, h) * 0.42f, sin(PI * mean).toFloat().coerceAtLeast(0f))
     val pic = art?.intrinsicSize?.takeIf { it.isSpecified && it.width > 0f && it.height > 0f }
     if (to != null && art != null && pic != null && w > 0f && h > 0f) {
-        drawHeroTile(art, toArt ?: art, left, top, w, h, corner, mean, alpha, fill, look)
+        drawHeroTile(art, toArt ?: art, left, top, w, h, corner, mean, alpha, fill, look, StoresMotion.heroDrift() * mean, StoresMotion.heroFadeTop)
         return
     }
     drawRoundRect(fill, Offset(left, top), Size(w, h), CornerRadius(corner), alpha = alpha)
@@ -223,14 +224,19 @@ private fun DrawScope.drawTile(
 // dimmed, faded in from the left and out at the bottom, so the hand-off to the real hero has nothing to jump.
 private fun DrawScope.drawHeroTile(
     card: Painter, hero: Painter, left: Float, top: Float, w: Float, h: Float, corner: Float, t: Float, alpha: Float, fill: Color, look: HeroLook?,
+    drift: Float, fadeTop: Boolean,
 ) {
     val shape = Path().apply { addRoundRect(RoundRect(left, top, left + w, top + h, CornerRadius(corner))) }
     drawContext.canvas.saveLayer(Rect(left, top, left + w, top + h), androidx.compose.ui.graphics.Paint())
     clipPath(shape) {
         drawRect(fill, Offset(left, top), Size(w, h), alpha = alpha * (1f - t))
-        val swap = ((t - 0.15f) / 0.6f).coerceIn(0f, 1f)
+        val swap = if (hero === card) 1f else if (!hero.ready()) 0f else ((t - 0.15f) / 0.6f).coerceIn(0f, 1f)
         if (hero !== card) drawCropped(card, left, top, w, h, 0f, 0f, alpha * (1f - swap))
-        drawCropped(hero, left, top, w, h, lerp(0f, 0.45f, t), lerp(0f, -0.35f, t), alpha * if (hero !== card) swap else 1f)
+        withTransform({
+            translate(w * HeroDrift.DX * drift, h * HeroDrift.DY * drift)
+            scale(HeroDrift.zoom(drift), HeroDrift.zoom(drift), Offset(left + w * HeroDrift.PX, top + h * HeroDrift.PY))
+            clipRect(left, top, left + w, top + h)
+        }) { drawCropped(hero, left, top, w, h, lerp(0f, 0.45f, t), lerp(0f, -0.35f, t), alpha * swap) }
         if (look != null) {
             if (look.dim < 1f) drawRect(Color.Black, Offset(left, top), Size(w, h), alpha = alpha * (1f - look.dim) * t)
             translate(left, top) { with(look) { shade(Size(w, h), t * alpha) } }
@@ -243,6 +249,10 @@ private fun DrawScope.drawHeroTile(
         )
         drawRect(
             androidx.compose.ui.graphics.Brush.verticalGradient(0.55f to keep, 1f to gone, startY = top, endY = top + h),
+            Offset(left, top), Size(w, h), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+        )
+        if (fadeTop && h > 0f) drawRect(
+            androidx.compose.ui.graphics.Brush.verticalGradient(0f to gone, (24.dp.toPx() / h).coerceAtMost(1f) to keep, startY = top, endY = top + h),
             Offset(left, top), Size(w, h), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
         )
     }

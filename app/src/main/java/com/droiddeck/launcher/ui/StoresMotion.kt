@@ -129,6 +129,8 @@ internal object StoresMotion {
     val dots = HashMap<Store, Rect>()
 
     var heroAt by mutableStateOf<Rect?>(null)
+    var heroFadeTop = false
+    var heroDrift: () -> Float = { 0f }
 
     var heroLands by mutableStateOf(false)
 

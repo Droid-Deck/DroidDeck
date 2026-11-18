@@ -474,7 +474,10 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         Rise(0) {
             PageHeader(stringResource(R.string.rail_games)) {
                 if (s.steamGamesX64) ClientTag()
-                if (!s.shortcutPicker) AddGameButton { GamesDialogState.adding = true }
+                if (!s.shortcutPicker) {
+                    AddGameButton { GamesDialogState.adding = true }
+                    StoreAccountsButton()
+                }
             }
         }
         Rise(1) { Note(stringResource(if (s.shortcutPicker && s.shortcutLibraryScanning) R.string.game_shortcut_scanning else R.string.games_empty)) }
@@ -662,7 +665,7 @@ private fun LibraryHeader(
             }
         },
     ) {
-        if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onCollections)
+        if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
         DisplayButton()
         if (!soundMode && (showUninstalled != null || xbox)) LibraryFilterButton(showUninstalled, onShowUninstalled, xbox)
         if (collections != null) CollectionsButton(collections)
@@ -924,14 +927,14 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
 }
 
 @Composable
-internal fun HeaderIconButton(description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, key: String, onClick: () -> Unit) {
+internal fun HeaderIconButton(description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, key: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem("btn:$key").size(32.dp).clip(CircleShape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
+        modifier = modifier.paneItem("btn:$key").size(32.dp).clip(CircleShape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
             .glideBorder(hot, CircleShape, pal.signal)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)
