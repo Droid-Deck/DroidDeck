@@ -53,7 +53,9 @@ if [ -n "$repair" ]; then
     mkdir -p "$parts" && : > "$parts/.repair"
   fi
   rm -f "$stamp" "$legacy_stamp" "$steam_root/.crash" "$steam_root/steam.pid" \
+    "$steam_root/package/droiddeck-cdn" \
     "$steam_root"/package/steam_client_*.manifest "$steam_root"/package/steam_client_*.installed
+  rm -rf "$steam_root/package/droiddeck-parts"
   for part in "$steam_root"/package/*.zip.*; do
     [ -f "$part" ] || continue
     sum=${part##*.}
@@ -169,6 +171,7 @@ if ! fetch_manifest; then
 fi
 if [ -n "$sync" ]; then
   installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
+  [ -n "$installed" ] || installed=$(cat "$stamp" 2>/dev/null || true)
   if [ -x "$steam_root/steamrtarm64/steam" ] && [ "$installed" = "$version" ]; then
     chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
     exit 0
@@ -206,6 +209,47 @@ while read -r block file sum size; do
   rm -f "$parts/$file"
   done_bytes=$((done_bytes + size))
 done < "$work/parts"
+# The client fetches its own first-run update; it should use the source that moved bytes.
+echo "${cdn_order[0]#https://}/" > "$steam_root/package/droiddeck-cdn"
+# Steam verifies the archives in package/ by name and size before it unpacks them, so
+# leaving them there saves the client a first run that fetches the whole set again.
+awk -F'"' '
+  /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
+  $2 == "file" { file[block] = $4 }
+  $2 == "sha2" { sha[block] = $4 }
+  $2 == "size" { size[block] = $4 }
+  $2 == "zipvz" { vz[block] = $4 }
+  $2 == "sha2vz" { vzsha[block] = $4 }
+  END {
+    for (b in file) {
+      if (vz[b] != "") {
+        n = split(vz[b], part, "_")
+        print b, vz[b], vzsha[b], part[n]
+      } else {
+        print b, file[b], sha[b], size[b]
+      }
+    }
+  }
+' "$work/manifest" | sort > "$work/packages"
+packages=$(grep -c . "$work/packages" 2>/dev/null || echo 0)
+if [ "$packages" != 0 ]; then
+while read -r block name sum bytes; do
+  j=$((${j:-0} + 1))
+  target=$steam_root/package/$name
+  # A cached archive is only reused when its contents match; a corrupted one
+  # would bypass fetch's checksum and stay available for the first-run unpack.
+  if [ -f "$target" ] && [ "$(stat -c %s "$target")" = "$bytes" ] && \
+     echo "$sum  $target" | sha256sum -c --quiet >/dev/null 2>&1; then continue; fi
+  echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($j/$packages)"
+  fetched=""
+  for host in "${cdn_order[@]}"; do
+    fetch_part "$host" "$name" "$sum" && { fetched=$host; break; }
+  done
+  [ -n "$fetched" ] || { echo "droiddeck-steam-install: $name failed on every CDN" >&2; exit 1; }
+  mv -f "$parts/$name" "$target"
+done < "$work/packages"
+fi
+rm -rf "$parts"
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
   fixed=${odd//\\//}
   mkdir -p "$(dirname "$fixed")"
@@ -222,7 +266,8 @@ else
   echo "$steam_channel" > "$steam_root/package/beta"
 fi
 ln -sfn "$steam_root/steamrtarm64" "$steam_root/steamrtarm32"
-chmod +x "$steam_root/steamrtarm64/steam" 2>/dev/null || true
+# The packages carry no exec bits; the client's own updater used to set them.
+chmod -R +x "$steam_root" 2>/dev/null || true
 mkdir -p "$HOME/.steam"
 ln -sfn "$steam_root" "$HOME/.steam/root"
 ln -sfn "$steam_root" "$HOME/.steam/steam"

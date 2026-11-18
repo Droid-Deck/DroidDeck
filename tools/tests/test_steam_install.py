@@ -9,6 +9,9 @@ import zipfile
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-steam-install'
+CDNS = ['https://client-update.steamstatic.com',
+        'https://client-update.akamai.steamstatic.com',
+        'https://client-update.fastly.steamstatic.com']
 
 
 class SteamInstallTest(unittest.TestCase):
@@ -26,6 +29,7 @@ class SteamInstallTest(unittest.TestCase):
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         curl = self.bin / 'curl'
+<<<<<<< ours
         curl.write_text('''#!/usr/bin/env python3
 import os, sys
 args = sys.argv[1:]
@@ -65,6 +69,27 @@ end = int(action[1]) if action[:1] == ['cut'] else len(data)
 with open(out, 'ab' if offset else 'wb') as target:
     target.write(data[offset:end])
 done(28 if end < len(data) else 0)
+=======
+        curl.write_text('''#!/bin/bash
+set -eu
+url=""
+out=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    -o) out=$2; shift 2 ;;
+    -w) shift 2 ;;
+    -r) shift 2 ;;
+    --connect-timeout|--max-time|--speed-limit|--speed-time|--retry|--retry-delay) shift 2 ;;
+    -*) shift ;;
+    *) url=$1; shift ;;
+  esac
+done
+printf '%s\\n' "$url" >> "$TEST_REQUESTS"
+if [ -n "${TEST_FAIL_HOST:-}" ]; then
+  case $url in *"$TEST_FAIL_HOST"*) exit 22 ;; esac
+fi
+cp "$TEST_CDN/${url##*/}" "$out"
+>>>>>>> theirs
 ''')
         curl.chmod(0o755)
         self.plan = self.root / 'plan'
@@ -111,10 +136,10 @@ done(28 if end < len(data) else 0)
         self.assertEqual(channel, client.read_text())
         self.assertEqual((self.steam / 'linuxarm64').resolve(), (self.home / '.steam/sdkarm64').resolve())
         if expected is None:
-            expected = [
-                'https://client-update.steamstatic.com/steam_client_' + channel + '_linuxarm64',
-                'https://client-update.steamstatic.com/' + channel + '.zip',
-            ]
+            expected = ([CDNS[0] + '/steam_client_' + channel + '_linuxarm64']
+                        + [cdn + '/' + channel + '.zip' for cdn in CDNS]
+                        + [CDNS[0] + '/' + channel + '.zip']
+                        + [CDNS[0] + '/' + channel + '.zip'])
         self.assertEqual(expected, self.requests.read_text().splitlines())
         return result
 
@@ -122,11 +147,14 @@ done(28 if end < len(data) else 0)
         self.assert_installed()
 
     def test_a_cdn_that_does_not_answer_hands_over_to_the_next_one(self):
-        akamai = 'https://client-update.akamai.steamstatic.com'
         self.assert_installed(fail_host='client-update.steamstatic.com', expected=[
-            'https://client-update.steamstatic.com/steam_client_steamdeck_publicbeta_linuxarm64',
-            akamai + '/steam_client_steamdeck_publicbeta_linuxarm64',
-            akamai + '/steamdeck_publicbeta.zip',
+            CDNS[0] + '/steam_client_steamdeck_publicbeta_linuxarm64',
+            CDNS[1] + '/steam_client_steamdeck_publicbeta_linuxarm64',
+            CDNS[0] + '/steamdeck_publicbeta.zip',
+            CDNS[1] + '/steamdeck_publicbeta.zip',
+            CDNS[2] + '/steamdeck_publicbeta.zip',
+            CDNS[1] + '/steamdeck_publicbeta.zip',
+            CDNS[1] + '/steamdeck_publicbeta.zip',
         ])
 
     def test_an_install_from_another_branch_is_left_for_steam_to_move(self):
