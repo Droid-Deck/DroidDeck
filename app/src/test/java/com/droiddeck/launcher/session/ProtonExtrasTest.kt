@@ -288,6 +288,39 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun aTestBuildWithNoChecksumIsNotOffered() {
+        val releases = JSONArray()
+            .put(release("DroidDeck-Proton-11-12.10", asset("DroidDeck-Proton-11-12.10-aarch64.tar.gz"), prerelease = true))
+            .put(droiddeckRelease("11-12.9", prerelease = true))
+            .put(droiddeckRelease("11-12.8"))
+        assertEquals("DroidDeck-Proton-11-12.9", ProtonExtras.pickAsset(tool("droiddeck"), releases, test = true)!!.tag)
+    }
+
+    @Test
+    fun laterPagesAreReadOnlyUntilAStableBaselineIsFound() {
+        val tool = tool("droiddeck")
+        val pages = mapOf(
+            1 to JSONArray().put(droiddeckRelease("11-12.10", prerelease = true)),
+            2 to JSONArray().put(droiddeckRelease("11-12.8")),
+            3 to JSONArray().put(droiddeckRelease("11-12.7")),
+        )
+        val asked = mutableListOf<Int>()
+        val all = ProtonExtras.releases(tool) { asked += it; pages[it] ?: JSONArray() }!!
+        assertEquals(listOf(1, 2), asked)
+        assertEquals("DroidDeck-Proton-11-12.8", ProtonExtras.pickAsset(tool, all)!!.tag)
+        assertEquals("DroidDeck-Proton-11-12.10", ProtonExtras.pickAsset(tool, all, test = true)!!.tag)
+
+        asked.clear()
+        ProtonExtras.releases(tool) { asked += it; pages.getValue(2) }
+        assertEquals(listOf(1), asked)
+
+        asked.clear()
+        assertEquals(0, ProtonExtras.releases(tool) { asked += it; JSONArray() }!!.length())
+        assertEquals(listOf(1), asked)
+        assertNull(ProtonExtras.releases(tool) { null })
+    }
+
+    @Test
     fun malformedReleaseEntriesAreSkipped() {
         val releases = JSONArray("[null, 5, {\"tag_name\": \"x\", \"assets\": [null]}]").put(droiddeckRelease("11-12.8"))
         assertEquals("DroidDeck-Proton-11-12.8", ProtonExtras.pickAsset(tool("droiddeck"), releases)!!.tag)

@@ -15,7 +15,8 @@ import org.json.JSONObject
 object ProtonExtras {
     private const val TAG = "ProtonExtras"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
-    private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=15"
+    private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=15&page=%d"
+    private const val RELEASE_PAGES = 5
     const val CHECK_EVERY_MS = 60L * 60 * 1000
     @Volatile
     var installInProgress = false
@@ -343,14 +344,27 @@ object ProtonExtras {
         }
     }
 
-    private fun releases(tool: Tool): JSONArray? {
-        val releases = Downloader.downloadString(RELEASES.format(tool.repo)) ?: return null
-        return try {
-            JSONArray(releases)
-        } catch (e: Exception) {
-            Log.w(TAG, "release metadata for ${tool.id}", e)
-            null
+    private fun releases(tool: Tool): JSONArray? = releases(tool) { page ->
+        Downloader.downloadString(RELEASES.format(tool.repo, page))?.let { body ->
+            try {
+                JSONArray(body)
+            } catch (e: Exception) {
+                Log.w(TAG, "release metadata for ${tool.id}", e)
+                null
+            }
         }
+    }
+
+    internal fun releases(tool: Tool, fetch: (Int) -> JSONArray?): JSONArray? {
+        val all = fetch(1) ?: return null
+        var page = 1
+        var last = all.length()
+        while (last > 0 && page < RELEASE_PAGES && pickAsset(tool, all) == null) {
+            val next = fetch(++page) ?: break
+            for (i in 0 until next.length()) all.put(next.opt(i))
+            last = next.length()
+        }
+        return all
     }
 
     internal fun pickAsset(tool: Tool, array: JSONArray, test: Boolean = false): Asset? {
@@ -362,6 +376,7 @@ object ProtonExtras {
         return candidates
             .filter { it.optString("tag_name").startsWith(tool.prefix) && updateFor(listOf(stable), it.optString("tag_name")) != null }
             .mapNotNull { assetOf(tool, it) }
+            .filter { it.sha256 != null || it.sha512 != null }
             .maxWithOrNull { a, b -> compareVersions(a.tag, b.tag) }
     }
 
