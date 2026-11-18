@@ -274,6 +274,21 @@ fi
 
 prepare_prefix
 
+# FEX keeps translated code per program in the prefix (AppData/Local/fex-emu/DiskCache) and reuses it with whatever FEX
+# runs the prefix next. Code cached by another FEX build (DroidDeck-Proton's, or a different FEX picked in the
+# Components tab) made this FEX crash in Steam's install-script step, and Wine then looped on the crash, so Steam never
+# started the game. The cache is cleared when the FEX that runs the prefix is not the one that filled it.
+fexid=$(cat "$F/lib/wine/aarch64-windows/libarm64ecfex.dll" "$F/lib/wine/aarch64-windows/libwow64fex.dll" \
+  "$F/lib/wine/aarch64-unix/libarm64ecfex.so" "$F/lib/wine/aarch64-unix/libwow64fex.so" 2>/dev/null | md5sum | cut -c1-16)
+if [ "$(cat "$COMPAT/pfx/.droiddeck-fex-cache" 2>/dev/null)" != "$fexid" ]; then
+  for u in "$COMPAT/pfx/drive_c/users"/*; do
+    c=$u/AppData/Local/fex-emu/DiskCache
+    [ -L "$u" ] || [ ! -d "$c" ] && continue
+    rm -rf "$c" && echo "$(date +%H:%M:%S) FEX code cache of ${u##*/} cleared (filled by another FEX build or unknown)"
+  done
+  echo "$fexid" > "$COMPAT/pfx/.droiddeck-fex-cache"
+fi
+
 # Steam's Windows client files in the prefix, the ones Proton copies from Steam's legacycompat folder: a game's
 # steam_api loads C:\Program Files (x86)\Steam\steamclient64.dll, and a prefix this tool made has none.
 SC=$ROOTFS/root/.local/share/Steam/legacycompat
