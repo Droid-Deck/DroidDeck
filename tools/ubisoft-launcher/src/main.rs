@@ -38,6 +38,7 @@ mod service {
     const ANNOUNCE_WAIT: Duration = Duration::from_secs(120);
     const RESTART_WAIT: Duration = Duration::from_secs(15);
     const DENUVO_WAIT: Duration = Duration::from_secs(90);
+    const SERVE_WAIT: Duration = Duration::from_secs(10);
     const MARKER_TRIES: u32 = 25;
     const MARKER_PAUSE: Duration = Duration::from_millis(200);
 
@@ -246,9 +247,9 @@ mod service {
                 }
                 AuxReq::Invalidate(rid) => {
                     state.stale_token.store(true, Ordering::SeqCst);
-                    let published = state.generation.invalidate(|| {
+                    let published = state.generation.invalidate(SERVE_WAIT, || {
                         let published = state.cfg.bridge.is_empty()
-                            || bridge::publish_invalidation(Path::new(&state.cfg.bridge), MARKER_TRIES, MARKER_PAUSE);
+                            || bridge::publish_invalidation(Path::new(&state.cfg.bridge), &state.cfg.user_id, MARKER_TRIES, MARKER_PAUSE);
                         if published {
                             send(&pipe, &launcher::aux_invalidated(rid));
                         }
