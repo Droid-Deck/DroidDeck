@@ -54,6 +54,8 @@ class XboxDeviceKeptTest {
         var revoked = false
         XboxCredentials.invalidate(app) { revoked = true }
         assertTrue(revoked)
+        assertTrue(StoreAccounts.keystoreFailed)
+        assertNull(StoreAccounts.read(app, Store.XBOX))
         assertNull(StoreAccounts.signedInAs(app, Store.XBOX))
     }
 

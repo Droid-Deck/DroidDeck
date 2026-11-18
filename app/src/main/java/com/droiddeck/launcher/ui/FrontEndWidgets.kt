@@ -113,8 +113,8 @@ internal fun Actions(content: @Composable () -> Unit) = FlowRow(
 ) { content() }
 
 @Composable
-internal fun ActionChip(t: String, ok: Boolean, fraction: Float? = null) =
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok, fraction) }
+internal fun ActionChip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null) =
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok, fraction, key) }
 
 internal val Shape16 = RoundedCornerShape(16.dp)
 
@@ -141,29 +141,30 @@ internal fun BackLink(label: String, compact: Boolean = false, onClick: () -> Un
 }
 
 @Composable
-internal fun Chip(t: String, ok: Boolean, fraction: Float? = null) {
+internal fun Chip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(99.dp)
     val ink = if (ok) pal.good else colors.onSurfaceVariant
-    // The pill doubles as the meter, so a stage with a number shows its fill in
-    // place rather than only as text.
-    val shown by androidx.compose.animation.core.animateFloatAsState(
-        fraction?.coerceIn(0f, 1f) ?: 0f,
-        androidx.compose.animation.core.tween(250, easing = androidx.compose.animation.core.LinearEasing),
-        label = "chipFill",
-    )
     Box(Modifier.clip(shape).background(colors.surfaceVariant).border(1.dp, if (ok) pal.good.copy(alpha = 0.3f) else pal.line, shape)) {
-        if (fraction != null) {
-            Box(
-                Modifier.matchParentSize().drawBehind {
-                    drawRect(pal.signal.copy(alpha = 0.3f), size = androidx.compose.ui.geometry.Size(size.width * shown, size.height))
-                },
-            )
-        }
+        if (fraction != null) ChipFill(fraction, key, pal.signal.copy(alpha = 0.3f))
         Text(
             t, fontSize = 12.sp, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+        )
+    }
+}
+
+@Composable
+internal fun androidx.compose.foundation.layout.BoxScope.ChipFill(fraction: Float, key: Any?, color: Color) {
+    androidx.compose.runtime.key(key) {
+        val target = fraction.coerceIn(0f, 1f)
+        val shown = remember { Animatable(target) }
+        LaunchedEffect(target) { shown.animateTo(target, androidx.compose.animation.core.tween(250, easing = androidx.compose.animation.core.LinearEasing)) }
+        Box(
+            Modifier.matchParentSize().drawBehind {
+                drawRect(color, size = androidx.compose.ui.geometry.Size(size.width * shown.value, size.height))
+            },
         )
     }
 }

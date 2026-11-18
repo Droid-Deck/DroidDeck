@@ -7,10 +7,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -76,7 +74,7 @@ internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifi
 }
 
 @Composable
-internal fun StateChip(text: String, tone: ChipTone, small: Boolean = false, fraction: Float? = null) {
+internal fun StateChip(text: String, tone: ChipTone, small: Boolean = false, fraction: Float? = null, key: Any? = null) {
     val pal = LocalPalette.current
     val (fill, ink) = when (tone) {
         ChipTone.OK -> Color(0xFF16321F) to pal.good
@@ -86,21 +84,8 @@ internal fun StateChip(text: String, tone: ChipTone, small: Boolean = false, fra
         ChipTone.PLAIN -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
     val shape = RoundedCornerShape(6.dp)
-    // A bar inside the pill: the label stays readable at any fill, and the whole
-    // chip becomes the meter instead of a number that has to be read.
-    val shown by androidx.compose.animation.core.animateFloatAsState(
-        fraction?.coerceIn(0f, 1f) ?: 0f,
-        androidx.compose.animation.core.tween(250, easing = androidx.compose.animation.core.LinearEasing),
-        label = "chipFill",
-    )
     Box(Modifier.clip(shape).background(fill)) {
-        if (fraction != null) {
-            Box(
-                Modifier.matchParentSize().drawBehind {
-                    drawRect(ink.copy(alpha = 0.26f), size = androidx.compose.ui.geometry.Size(size.width * shown, size.height))
-                },
-            )
-        }
+        if (fraction != null) ChipFill(fraction, key, ink.copy(alpha = 0.26f))
         Text(
             text, fontSize = if (small) 9.sp else 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, color = ink, maxLines = 1,
             modifier = Modifier.padding(horizontal = if (small) 5.dp else 8.dp, vertical = if (small) 1.dp else 2.dp),

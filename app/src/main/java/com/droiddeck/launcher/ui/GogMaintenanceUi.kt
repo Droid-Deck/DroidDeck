@@ -68,7 +68,7 @@ internal fun GogMaintenanceActions(game: InstalledStoreGame) {
         }
     }
     if (active) {
-        ActionChip(downloadLabel(download!!), ok = false, fraction = download!!.stageFraction.takeIf { it >= 0f })
+        ActionChip(downloadLabel(download!!), ok = false, fraction = download!!.stageFraction.takeIf { it >= 0f }, key = download!!.stage)
         if (download.interruptible) {
             SecondaryButton(stringResource(if (download.state == DownloadState.PAUSED) R.string.stores_dl_resume else R.string.stores_dl_pause)) {
                 if (download.state == DownloadState.PAUSED) DownloadQueue.resume(ctx, key) else DownloadQueue.pause(key)

@@ -79,6 +79,35 @@ class XboxManifestTest {
         assertEquals("Forza.App", XboxManifest.read(root).entryPoint)
         assertTrue(XboxManifest.needsAppModel(root))
     }
+    private fun legacy(application: String): java.io.File {
+        val root = temporary.newFolder()
+        java.io.File(root, "Game.exe").writeText("encrypted")
+        java.io.File(root, "AppxManifest.xml").writeText("""<?xml version="1.0" encoding="utf-8"?>
+            <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+                     xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10">
+            <Identity Name="Test.Game" Publisher="CN=Test" Version="1.0.0.0"/>
+            <Applications>$application</Applications></Package>""")
+        return root
+    }
+    @Test fun windowsAppRuntimeBehaviorNeedsAnAppModelWithoutAnEntryPoint() {
+        val root = legacy("""<Application Id="Game" Executable="Game.exe" uap10:RuntimeBehavior="windowsApp"/>""")
+        assertEquals("windowsApp", XboxManifest.read(root).runtimeBehavior)
+        assertEquals("", XboxManifest.read(root).entryPoint)
+        assertTrue(XboxManifest.needsAppModel(root))
+    }
+    @Test fun classicRuntimeBehaviorsStartTheExecutableDirectly() {
+        for (behavior in listOf("packagedClassicApp", "win32App")) {
+            val root = legacy("""<Application Id="Game" Executable="Game.exe" uap10:RuntimeBehavior="$behavior"/>""")
+            assertEquals(behavior, XboxManifest.read(root).runtimeBehavior)
+            assertFalse(behavior, XboxManifest.needsAppModel(root))
+            val declared = legacy("""<Application Id="Game" Executable="Game.exe" EntryPoint="Game.App" uap10:RuntimeBehavior="$behavior"/>""")
+            assertFalse(behavior, XboxManifest.needsAppModel(declared))
+        }
+    }
+    @Test fun anEntryPointStillDecidesWithoutARuntimeBehavior() {
+        assertTrue(XboxManifest.needsAppModel(legacy("""<Application Id="Game" Executable="Game.exe" EntryPoint="Game.App"/>""")))
+        assertFalse(XboxManifest.needsAppModel(legacy("""<Application Id="Game" Executable="Game.exe"/>""")))
+    }
     @Test fun aTitleWithoutALegacyManifestNeverNeedsAnAppModel() {
         val root = temporary.newFolder()
         java.io.File(root, "Game.exe").writeText("encrypted")

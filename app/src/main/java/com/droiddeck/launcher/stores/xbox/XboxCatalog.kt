@@ -110,9 +110,10 @@ internal object XboxCatalog {
         if (!productId.matches(id) || json.optString("ProductType") != "Game") return null
         val localized = objects(json.optJSONArray("LocalizedProperties")).firstOrNull() ?: return null
         val title = localized.optString("ProductTitle").takeIf { it.isNotBlank() } ?: return null
-        val packages = objects(json.optJSONArray("DisplaySkuAvailabilities")).flatMap {
-            objects(it.optJSONObject("Sku")?.optJSONObject("Properties")?.optJSONArray("Packages"))
-        }
+        val packages = objects(json.optJSONArray("DisplaySkuAvailabilities"))
+            .mapNotNull { it.optJSONObject("Sku")?.optJSONObject("Properties") }
+            .filter { it.opt("IsTrial") != true && it.opt("IsPreOrder") != true }
+            .flatMap { objects(it.optJSONArray("Packages")) }
         val pc = packages.filter { pkg -> objects(pkg.optJSONArray("PlatformDependencies")).any { it.optString("PlatformName") == "Windows.Desktop" } }
         val installable = pc.any { installableFormat(it.optString("PackageFormat")) }
         // The installer needs the format, not just the fact that one exists: a
