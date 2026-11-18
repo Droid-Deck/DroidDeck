@@ -1,6 +1,6 @@
 /* tools/linuxfs/preload/subreaper.c
  *
- * Mark every process that loads libblsession.so as a child subreaper.
+ * Mark every process that loads libddsession.so as a child subreaper.
  *
  * wlroots starts Xwayland with a double fork: gamescope -> middle process
  * (exits immediately) -> Xwayland.  With no subreaper in the tree, Xwayland
@@ -18,7 +18,7 @@
 #include <sys/prctl.h>
 
 __attribute__((constructor))
-static void bl_session_set_subreaper(void)
+static void dd_session_set_subreaper(void)
 {
     (void)prctl(PR_SET_CHILD_SUBREAPER, 1);
 }

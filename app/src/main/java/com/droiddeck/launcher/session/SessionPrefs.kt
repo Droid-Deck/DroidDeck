@@ -85,6 +85,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
+    fun blackFrameInsertion(context: Context): Boolean = prefs(context).getBoolean("blackFrameInsertion", false)
+
+    fun setBlackFrameInsertion(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("blackFrameInsertion", on).apply()
+    }
+
     fun animationsEnabled(context: Context): Boolean = prefs(context).getBoolean("animations", true)
 
     fun setAnimationsEnabled(context: Context, on: Boolean) {
@@ -197,18 +203,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("androidTextFieldKeyboard", on).apply()
     }
 
-    fun gameStoresEnabled(context: Context): Boolean = prefs(context).getBoolean("gameStoresEnabled", true)
-
-    fun setGameStoresEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("gameStoresEnabled", on).apply()
-    }
-
-    fun soundtracksEnabled(context: Context): Boolean = prefs(context).getBoolean("soundtracksEnabled", true)
-
-    fun setSoundtracksEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("soundtracksEnabled", on).apply()
-    }
-
     fun soundtracksIngame(context: Context): Boolean = prefs(context).getBoolean("soundtracksIngame", false)
 
     fun setSoundtracksIngame(context: Context, on: Boolean) {
@@ -267,10 +261,37 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("railLabels", show).apply()
     }
 
-    fun agentTab(context: Context): Boolean = prefs(context).getBoolean("agentTab", true)
+    fun developerTools(context: Context): Boolean =
+        prefs(context).getBoolean("developerTools", com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(context))
 
-    fun setAgentTab(context: Context, show: Boolean) {
-        prefs(context).edit().putBoolean("agentTab", show).apply()
+    fun setDeveloperTools(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("developerTools", on).apply()
+    }
+
+    fun fpsLimitKey(mode: String?, game: String?): String? = when (mode) {
+        SessionService.MODE_RUN -> game?.trim()?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)?.let { "fpsLimit.game.$it" }
+        SessionService.MODE_DESKTOP -> "fpsLimit.desktop"
+        else -> null
+    }
+
+    fun savedFpsLimit(context: Context, key: String?): Int = key?.let { prefs(context).getInt(it, 0) } ?: 0
+
+    fun saveFpsLimit(context: Context, key: String?, fps: Int) {
+        key ?: return
+        prefs(context).edit().apply { if (fps > 0) putInt(key, fps) else remove(key) }.apply()
+    }
+
+    fun drawerCornerTap(context: Context): Boolean =
+        prefs(context).getBoolean("drawerCornerTap", android.os.Build.MANUFACTURER.equals("Oculus", true) || android.os.Build.MANUFACTURER.equals("Meta", true))
+
+    fun setDrawerCornerTap(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("drawerCornerTap", on).apply()
+    }
+
+    fun drawerHintShown(context: Context): Int = prefs(context).getInt("drawerHintShown", 0)
+
+    fun countDrawerHint(context: Context) {
+        prefs(context).edit().putInt("drawerHintShown", drawerHintShown(context) + 1).apply()
     }
 
     fun libraryShowUninstalled(context: Context): Boolean = prefs(context).getBoolean("libraryShowUninstalled", false)
@@ -285,7 +306,35 @@ object SessionPrefs {
         prefs(context).edit().putStringSet("libraryFavorites", keys.toSet()).apply()
     }
 
+    fun storesTabOrderCustomized(context: Context): Boolean =
+        prefs(context).getBoolean("storesTabOrderCustomized", false)
+
+    fun setStoresTabOrderCustomized(context: Context, customized: Boolean) {
+        prefs(context).edit().putBoolean("storesTabOrderCustomized", customized).apply()
+    }
+
     fun storesTabOrder(context: Context): List<String> = idList(prefs(context).getString("storesTabOrder", null))
+
+    /** An order nobody arranged stays unsaved, so it keeps following the default. */
+    fun saveStoresTabs(context: Context, order: List<String>, hidden: Set<String>, arranged: Boolean) {
+        if (arranged) setStoresTabOrderCustomized(context, true)
+        if (storesTabOrderCustomized(context)) setStoresTabOrder(context, order)
+        setStoresTabHidden(context, hidden)
+    }
+
+    private val LEGACY_STORES_TAB_ORDER = listOf("gog", "epic", "amazon", "xbox", "itch", "gamejolt", "battlenet", "ubisoft", "ea", "rockstar")
+
+    /**
+     * Forgets an order the user never arranged, so the Stores tabs and Library pills follow whatever the default is now.
+     * Earlier versions saved the default of their day, which is why a saved order alone does not mean the user chose it.
+     */
+    fun settleStoresTabOrder(context: Context, defaults: List<String>) {
+        if (storesTabOrderCustomized(context)) return
+        val saved = storesTabOrder(context)
+        if (saved.isEmpty()) return
+        if (saved == LEGACY_STORES_TAB_ORDER || saved == defaults) prefs(context).edit().remove("storesTabOrder").apply()
+        else setStoresTabOrderCustomized(context, true)
+    }
 
     fun setStoresTabOrder(context: Context, order: List<String>) {
         prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
@@ -303,13 +352,35 @@ object SessionPrefs {
         prefs(context).edit().putString("navTabOrder", order.joinToString(",")).apply()
     }
 
-    fun navTabShelved(context: Context): Set<String> = idList(prefs(context).getString("navTabShelved", "soundtracks,agent")).toSet()
+    fun navTabShelved(context: Context): Set<String>? = prefs(context).getString("navTabShelved", null)?.let { idList(it).toSet() }
 
     fun setNavTabShelved(context: Context, keys: Set<String>) {
         prefs(context).edit().putString("navTabShelved", keys.joinToString(",")).apply()
     }
 
-    fun navTabHidden(context: Context): Set<String> = idList(prefs(context).getString("navTabHidden", null)).toSet()
+    fun navTabHidden(context: Context): Set<String>? = prefs(context).getString("navTabHidden", null)?.let { idList(it).toSet() }
+
+    fun navTabLayoutVersion(context: Context): Int = prefs(context).getInt("navTabLayout", 0)
+
+    class LegacyTabSwitches(val touched: Boolean, val stores: Boolean, val soundtracks: Boolean, val agent: Boolean)
+
+    fun legacyTabSwitches(context: Context): LegacyTabSwitches {
+        val p = prefs(context)
+        val keys = listOf("navTabOrder", "navTabShelved", "navTabHidden", "gameStoresEnabled", "soundtracksEnabled", "agentTab")
+        return LegacyTabSwitches(
+            touched = keys.any { p.contains(it) },
+            stores = p.getBoolean("gameStoresEnabled", true),
+            soundtracks = p.getBoolean("soundtracksEnabled", true),
+            agent = p.getBoolean("agentTab", false) && p.getBoolean("developerTools", true),
+        )
+    }
+
+    fun finishTabSwitchMigration(context: Context, version: Int) {
+        val p = prefs(context)
+        val e = p.edit()
+        if (!p.contains("developerTools") && p.getBoolean("agentTab", false)) e.putBoolean("developerTools", true)
+        e.remove("gameStoresEnabled").remove("soundtracksEnabled").remove("agentTab").putInt("navTabLayout", version).apply()
+    }
 
     fun setNavTabHidden(context: Context, keys: Set<String>) {
         prefs(context).edit().putString("navTabHidden", keys.joinToString(",")).apply()
@@ -655,7 +726,7 @@ object SessionPrefs {
     }
 
     private fun shaderPrecacheApplied(context: Context) =
-        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.bl-shader-precache-applied")
+        java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.dd-shader-precache-applied")
 
     fun pendingShaderPrecache(context: Context): Boolean? {
         val prefs = prefs(context)
@@ -700,6 +771,18 @@ object SessionPrefs {
     fun micEnabled(context: Context): Boolean = prefs(context).getBoolean("mic", false)
 
     fun micAsked(context: Context): Boolean = prefs(context).getBoolean("micAsked", false)
+
+    fun allFilesAsked(context: Context): Boolean = prefs(context).getBoolean("allFilesAsked", false)
+
+    fun setAllFilesAsked(context: Context) {
+        prefs(context).edit().putBoolean("allFilesAsked", true).apply()
+    }
+
+    fun bluetoothAsked(context: Context): Boolean = prefs(context).getBoolean("bluetoothAsked", false)
+
+    fun setBluetoothAsked(context: Context) {
+        prefs(context).edit().putBoolean("bluetoothAsked", true).apply()
+    }
 
     fun setMicAsked(context: Context) {
         prefs(context).edit().putBoolean("micAsked", true).apply()
@@ -1475,7 +1558,7 @@ object SessionPrefs {
     }
 
     val upscalerChoices = listOf(
-        0 to "Linear", 2 to "Nearest", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
+        2 to "Nearest", 0 to "Linear", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",
     )
 
@@ -1490,12 +1573,12 @@ object SessionPrefs {
     fun canonicalUpscaler(mode: Int): Int = when (mode) {
         1 -> 0
         5 -> 4
-        else -> mode.takeIf { m -> upscalerChoices.any { it.first == m } } ?: 0
+        else -> mode.takeIf { m -> upscalerChoices.any { it.first == m } } ?: 2
     }
 
     fun upscalerHasSharpness(mode: Int): Boolean = canonicalUpscaler(mode) in 3..8
 
-    fun upscaler(context: Context): Int = canonicalUpscaler(prefs(context).getInt("upscaler", 0))
+    fun upscaler(context: Context): Int = canonicalUpscaler(prefs(context).getInt("upscaler", 2))
 
     fun setUpscaler(context: Context, mode: Int) {
         prefs(context).edit().putInt("upscaler", canonicalUpscaler(mode)).apply()

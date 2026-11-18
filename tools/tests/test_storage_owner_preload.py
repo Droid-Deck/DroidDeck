@@ -85,7 +85,7 @@ class StorageOwnerPreloadTest(unittest.TestCase):
         build.mkdir()
         (build / "fake.c").write_text(FAKE)
         (build / "program.c").write_text(PROGRAM)
-        cls.preload = build / "libblsession.so"
+        cls.preload = build / "libddsession.so"
         cls.fake = build / "fake.so"
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(cls.preload),
                         *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
@@ -104,7 +104,7 @@ class StorageOwnerPreloadTest(unittest.TestCase):
 
     def owners(self, program, *kinds):
         env = dict(os.environ, LD_PRELOAD="%s:%s" % (self.preload, self.fake))
-        env.pop("BL_STORAGE_DIAGNOSTICS", None)
+        env.pop("DD_STORAGE_DIAGNOSTICS", None)
         paths = [str(self.dir / kind / "file") for kind in kinds]
         result = subprocess.run([str(program)] + paths, env=env, capture_output=True, text=True, check=True)
         return result.stdout.split()

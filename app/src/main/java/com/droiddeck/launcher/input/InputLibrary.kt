@@ -97,6 +97,16 @@ data class InputLibrary(
     fun compileActive(isDesktop: Boolean, panel: String? = null): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith {
         preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel).bindings else activePart(isDesktop, it).bindings)
     })
+    fun compileStock(isDesktop: Boolean, panel: String? = null): InputProfile {
+        val defaults = InputProfile.defaults(profile(activeId(isDesktop)).base)
+        val stock = InputStockLayouts.presets(InputStockLayouts.layouts())
+        return compileParts(defaults.id, InputRole.entries.associateWith { role ->
+            val part = if (role == InputRole.SECONDARY) panelPart(isDesktop, panel) else activePart(isDesktop, role)
+            val origin = layouts.firstOrNull { it.id == part.layout }?.origin ?: part.layout
+            stock.firstOrNull { it.id == part.bindings || (origin != null && it.layoutId == origin) }
+                ?: SavedInputBindings(part.bindings, "", role == InputRole.PHYSICAL, part.layout, defaults.bindings[role].orEmpty())
+        })
+    }
 
     fun saveSelection(isDesktop: Boolean, name: String, id: String = newInputId()): InputLibrary {
         val current = profile(activeId(isDesktop))

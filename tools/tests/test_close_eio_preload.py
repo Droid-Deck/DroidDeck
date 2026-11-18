@@ -69,10 +69,10 @@ class CloseEioPreloadTest(unittest.TestCase):
         cls.dir = Path(cls.temp.name)
         (cls.dir / "shim.c").write_text(SHIM)
         (cls.dir / "program.c").write_text(PROGRAM)
-        cls.preload = cls.dir / "libblsession.so"
+        cls.preload = cls.dir / "libddsession.so"
         cls.shim = cls.dir / "libshim.so"
         cls.program = cls.dir / "program"
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-DBL_CLOCK_ANY_ARCH",
+        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-DDD_CLOCK_ANY_ARCH",
                         '-DCP_CTL="%s"' % (cls.dir / "clock"), "-o", str(cls.preload),
                         *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-o", str(cls.shim), str(cls.dir / "shim.c")], check=True)

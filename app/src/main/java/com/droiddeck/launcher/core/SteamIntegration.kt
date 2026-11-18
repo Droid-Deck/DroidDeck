@@ -37,7 +37,7 @@ object SteamIntegration {
         locationOn = WifiDiscovery.locationEnabled(context),
         brightness = Settings.System.canWrite(context),
         home = HomeApp.isDefault(context),
-        shortcuts = shortcutsEnabled(context),
+        shortcuts = shortcutsEnabled(context) && shortcutsCurrent(context),
         shortcutsRestricted = restrictedSettings(context),
         suggested = !SessionPrefs.sessionPrefs(context).getBoolean("steam_integration_seen", false),
     )
@@ -60,6 +60,10 @@ object SteamIntegration {
         }.getOrNull().orEmpty()
         return enabled.split(':').any { ComponentName.unflattenFromString(it.trim()) == shortcutsComponent }
     }
+
+    @Suppress("DEPRECATION")
+    fun shortcutsCurrent(context: Context): Boolean =
+        runCatching { context.packageManager.getPackageInfo(Relay.PACKAGE, 0).versionCode }.getOrDefault(0) >= Relay.VERSION
 
     fun shortcutsListed(context: Context): Boolean =
         context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)

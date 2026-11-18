@@ -9,8 +9,8 @@
 
 #include "../../../app/src/main/cpp/venc/venc_proto.h"
 
-int bl_venc_streaming(void) __attribute__((visibility("hidden")));
-int bl_venc_connect(void) __attribute__((visibility("hidden")));
+int dd_venc_streaming(void) __attribute__((visibility("hidden")));
+int dd_venc_connect(void) __attribute__((visibility("hidden")));
 
 static pthread_mutex_t rt_lock = PTHREAD_MUTEX_INITIALIZER;
 static int rt_fd = -1, rt_down, rt_x, rt_y, rt_screen;
@@ -18,10 +18,10 @@ static int rt_fd = -1, rt_down, rt_x, rt_y, rt_screen;
 static int rt_enabled(void) {
     static int enabled = -1;
     if (enabled < 0) {
-        const char *v = getenv("BL_REMOTE_TOUCH");
+        const char *v = getenv("DD_REMOTE_TOUCH");
         enabled = v == NULL || strcmp(v, "0") != 0;
     }
-    return enabled && bl_venc_streaming();
+    return enabled && dd_venc_streaming();
 }
 
 static uint32_t rt_fraction(int value, int extent) {
@@ -40,7 +40,7 @@ static void rt_send(void *dpy, uint32_t action) {
         .x = rt_fraction(rt_x, width(dpy, rt_screen)), .y = rt_fraction(rt_y, height(dpy, rt_screen)),
     };
     for (int attempt = 0; attempt < 2; attempt++) {
-        if (rt_fd < 0) rt_fd = bl_venc_connect();
+        if (rt_fd < 0) rt_fd = dd_venc_connect();
         if (rt_fd < 0) return;
         if (send(rt_fd, &m, sizeof m, MSG_NOSIGNAL) == (ssize_t)sizeof m) return;
         close(rt_fd);

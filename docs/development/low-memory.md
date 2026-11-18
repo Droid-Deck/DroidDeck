@@ -1,6 +1,6 @@
 # Low-memory reclaim and userspace compression
 
-The Steam session monitor uses the existing `libblsession.so` page-out request to reclaim
+The Steam session monitor uses the existing `libddsession.so` page-out request to reclaim
 private anonymous launcher memory. The default remains a request 20 seconds after game focus,
 with five minutes between requests. With client compression enabled, low system headroom can
 also trigger a request while a game is loading, before its first focused window.
@@ -20,6 +20,12 @@ retry delay, up to five minutes. After game exit, speculative launcher readback 
 until the session is under any explicit RAM cap, pressure has subsided, and available RAM
 can cover twice the launcher's swap while leaving the headroom reserve. Normal demand paging
 continues while readback is deferred; Steam does not have to wait for the monitor to recover.
+The same readback runs while the game is still running once the client has been in front of it
+for five seconds (a game stuck on a black screen and left through Steam, or a long stay in the
+Steam menu), under the same memory checks and only without an explicit RAM cap. Missing or
+unreadable focus data never counts as the client in front. Demand paging
+alone left the Steam library and menus blank for about half a minute in that case. The
+client is compressed again 20 seconds after the game is back in front.
 Missing memory counters disable automatic pressure reclaim and speculative readback. Missing
 PSI alone still permits the `MemAvailable` fallback. No root settings, swap sizes, compression
 algorithms, Android process priorities or game-specific settings are changed.
@@ -52,26 +58,29 @@ percentage: Android's `lmkd` killed a session on a 7.5 GiB device with
 kill. A world load added 1 GiB of GPU memory in about ten seconds, and compressing 1.4 GiB took
 2.6 seconds, so the request has to leave room for both.
 
-Performance > Compress idle game memory turns this off (`BL_ZRAM_IDLE=0`); launcher compression
+Performance > Compress idle game memory turns this off (`DD_ZRAM_IDLE=0`); launcher compression
 and the RAM cap are unaffected.
 
 The session request runs when real headroom falls below a quarter of RAM (bounded to
 768–2560 MiB), or below one and a half times that with at least 1% `some` or `full avg10`
 memory stall. Real headroom subtracts positive growth in KGSL allocation, `Unevictable`, and
-`Shmem` from `MemAvailable`; a rapid fall also qualifies near twice the headroom. The monitor
+`Shmem` from `MemAvailable`; a rapid fall also qualifies below twice the headroom or two fifths of RAM, whichever is larger (a 15 GB Thor Max was killed with 5.3 GB still available while memory fell about 400 MB per tick). The monitor
 may first request page-out of idle Steam and hidden launchers, subject to the Performance
 setting and client reclaim limits. When both qualify, both requests are sent before waiting
 for either to complete, so a slow launcher acknowledgement does not delay the game request. Until the client
 request finishes, its anonymous RSS remains reserved from the session's swap budget. Completion
 and backoff are measured against the processes that received each request, even if a later scan
 finds different processes. The session request targets processes that loaded
-`libblsession.so`: the game, Wine and its services, and excludes Steam and hidden launchers.
+`libddsession.so`: the game, Wine and its services, and excludes Steam and hidden launchers.
 Requests are at least 30 seconds apart and need the same
 swap reserve as launcher requests. When the session has read back more than half of what the
 previous request compressed, that memory is in use: the request is skipped and the wait doubles,
-up to five minutes. A request whose memory stayed compressed resets it to 30 seconds. Below half
-the headroom the wait is ignored and only the 30-second spacing applies. The state resets when
-the game exits.
+up to five minutes. A completed request must also raise `MemAvailable` by at least one
+sixteenth of the tier headroom, with a 16 MiB minimum; otherwise the same wait doubles because
+the pass did not provide meaningful system headroom. A request whose memory stayed compressed or
+whose available memory recovers resets the wait to 30 seconds. Below half the headroom the wait
+is ignored and only the 30-second spacing applies, so critical pressure can still trigger a
+request. The state resets when the game exits.
 
 Measured on a Retroid Pocket Duo (7.5 GiB, kernel 6.6, 6 GiB lzo-rle zram plus a 4 GiB swap file)
 entering the world in World of Warcraft: Forever, one run each:

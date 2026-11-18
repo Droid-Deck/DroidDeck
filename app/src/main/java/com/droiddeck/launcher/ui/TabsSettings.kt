@@ -55,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.agent.AgentTab
 import kotlin.math.roundToInt
 
 private const val MORE_LINE = "|more|"
@@ -93,11 +92,6 @@ internal fun TabsSettingsGroup(host: MenuHost, s: FrontEndState, a: FrontEndActi
         NavTabs.rearrange(ctx, state, next.subList(0, split), next.subList(split + 1, next.size))
     }
     fun setShown(key: String, show: Boolean) {
-        when (key) {
-            "stores" -> if (show != s.gameStoresEnabled) a.onGameStoresEnabled(show)
-            "soundtracks" -> if (show != s.soundtracksEnabled) a.onSoundtracksEnabled(show)
-            "agent" -> if (show != AgentTab.shown) AgentTab.set(ctx, show)
-        }
         NavTabs.setHidden(ctx, key, !show)
     }
 

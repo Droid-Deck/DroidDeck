@@ -1107,7 +1107,7 @@ class NetlinkPreloadTest(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
         cls.directory = Path(cls.temp.name)
-        cls.preload = cls.directory / "libblsession.so"
+        cls.preload = cls.directory / "libddsession.so"
         cls.shim = cls.directory / "libshim.so"
         cls.program = cls.directory / "program"
         (cls.directory / "shim.c").write_text(SHIM)
@@ -1132,7 +1132,7 @@ class NetlinkPreloadTest(unittest.TestCase):
     def run_program(self, mode, *arguments, snapshot=None):
         env = dict(os.environ, LD_PRELOAD=f"{self.preload}:{self.shim}",
                    NETLINK_TEST_SNAPSHOT=str(snapshot or self.snapshot),
-                   BL_SYSV_DIR=str(self.directory / "sysv"))
+                   DD_SYSV_DIR=str(self.directory / "sysv"))
         result = subprocess.run([str(self.program), mode, *arguments], env=env,
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -1280,7 +1280,7 @@ class NetlinkPreloadTest(unittest.TestCase):
     def test_iproute2_dumps_and_lookups_accept_the_replies(self):
         env = dict(os.environ, LD_PRELOAD=f"{self.preload}:{self.shim}",
                    NETLINK_TEST_SNAPSHOT=str(self.snapshot),
-                   BL_SYSV_DIR=str(self.directory / "sysv"))
+                   DD_SYSV_DIR=str(self.directory / "sysv"))
         queries = ((["link", "show"], "wlan0"),
                    (["link", "show", "wlan0"], "wlan0"),
                    (["-d", "link", "show", "dev", "wlan0"], "wlan0"),

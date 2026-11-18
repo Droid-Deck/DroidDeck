@@ -112,7 +112,7 @@ static void after_fork(void) {
 static int enabled(void) {
   static int cached = -1;
   if (cached < 0) {
-    const char *off = getenv("BL_NO_DIR_CACHE");
+    const char *off = getenv("DD_NO_DIR_CACHE");
     cached = strcmp(program_invocation_short_name, "steam") == 0 &&
              (strstr(program_invocation_name, "steamrtarm64") != NULL ||
               strstr(program_invocation_name, "steamrt64") != NULL) && !(off && strcmp(off, "1") == 0);
@@ -816,9 +816,9 @@ static void end(struct expect *x, int nx) {
   give(&lock);
 }
 
-int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) __attribute__((visibility("hidden")));
-int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) {
   struct side s;
   if (!(flags & O_CREAT) || (dirfd != AT_FDCWD && (path == NULL || path[0] != '/')) || !watching(path) || !split(path, &s))
@@ -860,17 +860,17 @@ int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
   }
 
 ONE_PATH(mkdir, ADDED, IN_CREATE, next_mkdir(path, mode), mode_t mode)
-int bl_descriptor_unlink(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
-int bl_descriptor_rmdir(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
-int bl_descriptor_remove(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
-int bl_descriptor_rename(const char *from, const char *to, int (*real)(const char *, const char *))
+int dd_descriptor_unlink(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int dd_descriptor_rmdir(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int dd_descriptor_remove(const char *path, int (*real)(const char *)) __attribute__((visibility("hidden")));
+int dd_descriptor_rename(const char *from, const char *to, int (*real)(const char *, const char *))
     __attribute__((visibility("hidden")));
 
-static int moved(const char *from, const char *to) { return bl_descriptor_rename(from, to, next_rename); }
+static int moved(const char *from, const char *to) { return dd_descriptor_rename(from, to, next_rename); }
 
-ONE_PATH(rmdir, REMOVED, IN_DELETE, bl_descriptor_rmdir(path, next_rmdir))
-ONE_PATH(unlink, REMOVED, IN_DELETE, bl_descriptor_unlink(path, next_unlink))
-ONE_PATH(remove, REMOVED, IN_DELETE, bl_descriptor_remove(path, next_remove))
+ONE_PATH(rmdir, REMOVED, IN_DELETE, dd_descriptor_rmdir(path, next_rmdir))
+ONE_PATH(unlink, REMOVED, IN_DELETE, dd_descriptor_unlink(path, next_unlink))
+ONE_PATH(remove, REMOVED, IN_DELETE, dd_descriptor_remove(path, next_remove))
 
 #define TWO_PATHS(name, gone, event, call) \
   int name(const char *from, const char *to) { \
@@ -900,8 +900,8 @@ ONE_PATH(remove, REMOVED, IN_DELETE, bl_descriptor_remove(path, next_remove))
     return r; \
   }
 
-int bl_link_lock(const char *oldpath, const char *newpath, int result) __attribute__((visibility("hidden")));
-static int link_or_lock(const char *from, const char *to) { return bl_link_lock(from, to, next_link(from, to)); }
+int dd_link_lock(const char *oldpath, const char *newpath, int result) __attribute__((visibility("hidden")));
+static int link_or_lock(const char *from, const char *to) { return dd_link_lock(from, to, next_link(from, to)); }
 
 TWO_PATHS(rename, 1, IN_MOVED_TO, moved)
 TWO_PATHS(link, 0, IN_CREATE, link_or_lock)
@@ -938,8 +938,8 @@ static int listed_absent(const char *dir, const char *name, long long now) {
   return 0;
 }
 
-int bl_dircache_absent(const char *path) __attribute__((visibility("hidden")));
-int bl_dircache_absent(const char *path) {
+int dd_dircache_absent(const char *path) __attribute__((visibility("hidden")));
+int dd_dircache_absent(const char *path) {
   struct side s;
   if (!watching(path) || !split(path, &s)) return 0;
   for (const char *c = s.name; *c; c++)
@@ -957,15 +957,15 @@ int bl_dircache_absent(const char *path) {
 
 #else
 
-int bl_dircache_absent(const char *path) __attribute__((visibility("hidden")));
-int bl_dircache_absent(const char *path) {
+int dd_dircache_absent(const char *path) __attribute__((visibility("hidden")));
+int dd_dircache_absent(const char *path) {
   (void)path;
   return 0;
 }
 
-int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) __attribute__((visibility("hidden")));
-int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) {
   return real(dirfd, path, flags, mode);
 }
