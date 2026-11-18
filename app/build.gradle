@@ -130,7 +130,7 @@ android {
     defaultConfig {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
-        targetSdkVersion 28
+        targetSdkVersion 34
         versionCode 19
         versionName "0.7.1"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
@@ -201,10 +201,6 @@ android {
         }
     }
 
-    lint {
-        disable 'ExpiredTargetSdkVersion'
-    }
-
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>droiddeck-ubisoft:<dir>droiddeck-rockstar:<dir>droiddeck-dirt:<dir>directaudio:<dir>hybris'
     }
@@ -216,7 +212,7 @@ android {
         jniLibs {
             useLegacyPackaging = true
             pickFirsts += ['**/libtermux.so']
-            excludes += ['**/libproot.so', '**/libproot-loader.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
+            excludes += ['**/libproot.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
         }
     }
 
@@ -278,8 +274,10 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
     from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
     from(rootProject.file('tools/linuxfs/innoextract'))
-    from(rootProject.file('tools')) { include 'droiddeckctl', 'adb_device.py', 'proot_profile.py'; into('agent/ctl') }
+    from(rootProject.file('tools')) { include 'droiddeckctl', 'droiddeck-scenario', 'adb_device.py', 'proot_profile.py'; into('agent/ctl') }
+    from(rootProject.file('tools/agent/AGENTS.md')) { into('agent/ctl') }
     from(rootProject.file('docs/agent-control.md')) { into('agent/ctl') }
+    from(rootProject.file('tools/agent/skills')) { into('agent/skills') }
     from(layout.buildDirectory.dir('prepared-assets'))
     into(runtimeAssetsDir)
 }

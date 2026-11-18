@@ -24,7 +24,7 @@ cat() {
 '''
         paths = ' '.join(f'/sys/devices/system/cpu/cpu{i}/cpufreq/cpuinfo_max_freq' for i in range(8))
         function = function.replace('/sys/devices/system/cpu/cpu[0-9]*/cpufreq/cpuinfo_max_freq', paths)
-        env = dict(os.environ, mode=mode, BL_GAME_CPUS=cpus, BL_PIN_CORES=pin)
+        env = dict(os.environ, mode=mode, DD_GAME_CPUS=cpus, DD_PIN_CORES=pin)
         result = subprocess.run(['bash', '-c', script + function + '\nprogram_cores\n'],
                                 env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(0, result.returncode, result.stderr)

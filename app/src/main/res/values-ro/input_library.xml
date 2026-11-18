@@ -29,7 +29,7 @@
     <string name="input_element_dpad">Cruce</string>
     <string name="input_element_trigger">Trăgaci</string>
     <string name="input_editor_done">Gata</string>
-    <string name="input_editor_undo">Anulează</string>
+    <string name="input_editor_undo">Anulează ultima acțiune</string>
     <string name="input_editor_add">+ Adaugă</string>
     <string name="input_editor_hint">Trage pentru a muta. Trage de un colț pentru a redimensiona. Atinge Proprietăți pentru a atribui o acțiune.</string>
     <string name="input_editor_remote">Editare pe ecranul secundar</string>

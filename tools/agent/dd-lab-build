@@ -19,6 +19,9 @@ for arg in "$@"; do
     --no-restart) mode=no-restart ;;
     --prepare) mode=prepare ;;
     --explain) explain=(--info -Pkotlin.build.report.output=file) ;;
+    # Anything else used to start a full build and restart the app, --help included.
+    -h|--help) sed -n '2,6s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    *) echo "dd-lab-build: unknown option $arg (see --help)" >&2; exit 2 ;;
   esac
 done
 started=$(date +%s)

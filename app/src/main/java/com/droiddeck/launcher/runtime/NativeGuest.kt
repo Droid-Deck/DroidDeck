@@ -50,6 +50,21 @@ object NativeGuest {
 
     fun hook(root: File): File = File(root, HOOK)
 
+    /**
+     * libddexec.so, which starts the rootfs loader on Android 10+, where a targetSdk 29+ app may not
+     * execute its data files; null where the kernel still starts them directly.
+     */
+    @Volatile var execLoader: String? = null
+        private set
+
+    /** What starts the program at [path] from the host: nothing before it, or [execLoader] and the path. */
+    fun execPrefix(path: String): List<String> = execLoader?.let { listOf(it, path) }.orEmpty()
+
+    fun init(context: Context) {
+        execLoader = File(context.applicationInfo.nativeLibraryDir, "libddexec.so")
+            .takeIf { android.os.Build.VERSION.SDK_INT >= 29 && it.isFile }?.path
+    }
+
     fun loader(root: File): File? =
         listOf("usr/lib/ld-linux-aarch64.so.1", "lib/ld-linux-aarch64.so.1").map { File(root, it) }.firstOrNull { it.exists() }
 
@@ -60,9 +75,10 @@ object NativeGuest {
     /** Environment every native process starts with; a guest `env -i` is re-seeded by the hook. */
     fun environment(root: File, preload: List<String> = emptyList()): Map<String, String> = linkedMapOf(
         "DDNATV_ROOT" to root.path,
+        "DDNATV_EXEC" to execLoader.orEmpty(),
         "LD_LIBRARY_PATH" to libraryPath(root),
         "LD_PRELOAD" to (preload.map { File(root, it.removePrefix("/")).path } + hook(root).path).joinToString(":"),
-    )
+    ).filterValues { it.isNotEmpty() }
 
     /**
      * The host command line for the guest program at [program] (an absolute guest path to a real
@@ -72,7 +88,7 @@ object NativeGuest {
         val loader = checkNotNull(loader(root)) { "no glibc loader in ${root.path}" }
         val host = File(root, program.removePrefix("/"))
         val launch = listOf(loader.path, "--argv0", host.name, host.path) + args
-        return simulator(root)?.let { it + launch } ?: launch
+        return simulator(root)?.let { it + launch } ?: (execPrefix(loader.path) + launch)
     }
 
     /** The environment of the session process: the hook's root, the mounts proot used to make, the preload list. */
@@ -80,6 +96,7 @@ object NativeGuest {
         val preload = preloadList(root)
         return linkedMapOf(
             "DDNATV_ROOT" to root.path,
+            "DDNATV_EXEC" to execLoader.orEmpty(),
             "DDNATV_HOSTNAME" to hostname.orEmpty(),
             "DDNATV_BINDS" to binds.joinToString("|") { if (it.contains(':')) it else "$it:$it" },
             "DDNATV_PRELOAD" to preload.joinToString(":"),

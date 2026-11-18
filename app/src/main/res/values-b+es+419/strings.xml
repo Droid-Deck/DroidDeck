@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">Los gráficos de SteamVR se detuvieron</string>
     <string name="steamvr_recovery_countdown">DroidDeck se reiniciará en %1$d segundos para restablecer los gráficos y volver a abrir SteamVR. Tu juego en curso se cerrará; el progreso no guardado no se podrá recuperar.</string>
@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Este programa está hecho para PC %1$s y se ejecuta con FEX, que aún no está listo. Abre Steam una vez con tu sesión iniciada: DroidDeck hará que descargue FEX y el Steam Linux Runtime que necesita, y después se abrirá.</string>
     <string name="session_proot_missing">No se pudo descargar el proot de DroidDeck. Revisa la conexión e inténtalo de nuevo. La sesión no se inició porque el proot alternativo es demasiado lento para jugar.</string>
     <string name="session_powervr_missing">No se pudo descargar el entorno gráfico de PowerVR. Revisa la conexión e inténtalo de nuevo.</string>
+    <string name="session_graphics_runtime_failed">No se pudo preparar el entorno gráfico, así que la sesión no se inició.</string>
+    <string name="session_game_environment_failed">No se pudo configurar el entorno del juego, así que la sesión no se inició.</string>
     <string name="session_directaudio_missing">No se pudo descargar DirectAudio, así que el audio de los juegos usa la ruta más lenta en esta sesión.</string>
     <string name="session_end_program">Este programa</string>
     <string name="session_end_present_fault">La sesión no pudo dibujar en la pantalla: %1$s. En lugar de una pantalla negra, esta pantalla muestra el motivo; los registros de la sesión tienen los detalles.</string>
@@ -677,6 +679,8 @@
     <string name="drawer_page_display">Pantalla</string>
     <string name="drawer_frame_limit">Límite de fotogramas</string>
     <string name="drawer_frame_limit_note">Limita este juego. La pantalla cambia a una frecuencia de actualización que sea múltiplo exacto del límite cuando la hay; otros límites pueden verse irregulares. Los juegos de Steam usan el Límite de fotogramas de Steam en el menú Quick Access.</string>
+    <string name="drawer_bfi">Inserción de cuadros negros</string>
+    <string name="drawer_bfi_note">Movimiento más nítido: cada cuadro va seguido de un refresco negro. Requiere 100 Hz o más; el juego corre a la mitad de la frecuencia y se ve más oscuro. Se apaga con la generación de cuadros.</string>
     <string name="drawer_page_effects">Efectos</string>
     <string name="drawer_page_controls">Controles</string>
     <string name="drawer_page_components">Componentes</string>
@@ -710,7 +714,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Fijar posición</string>
-    <string name="hud_locked_hint">Arrastra el HUD para moverlo; una pulsación larga lo bloquea o lo desbloquea. Mientras está bloqueado, los controles en pantalla que tiene debajo siguen funcionando.</string>
+    <string name="hud_locked_hint">Arrastra el HUD para moverlo. Mientras está bloqueado, los controles en pantalla que tiene debajo siguen funcionando.</string>
+    <string name="hud_hold">Pulsación larga</string>
+    <string name="hud_hold_collapse">Contraer o expandir</string>
+    <string name="hud_hold_lock">Bloquear o desbloquear</string>
     <string name="hud_snap">Ajustar a los lados</string>
     <string name="hud_snap_hint">Al soltar el HUD, se mueve al lado más cercano de la pantalla. Un gesto rápido lo lanza en esa dirección.</string>
     <string name="hud_group_look">Aspecto</string>
@@ -1173,7 +1180,7 @@
     <string name="lab_off_title">Compilación de Lab desactivada</string>
     <string name="lab_off_other_install">Se creó para otra versión de DroidDeck. Se conserva en Actualizaciones.</string>
     <string name="lab_off_did_not_start">DroidDeck no arrancó con ella dos veces</string>
-    <string name="rail_agent">Agente</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agente</string>
     <string name="agent_working">El agente está trabajando</string>
     <string name="agent_missing">Instala Claude Code en el entorno de usuario de Linux para usar el agente.</string>
@@ -1213,6 +1220,7 @@
     <string name="agent_hint_working">Escribe para encolar el siguiente mensaje</string>
     <string name="agent_queue">Encolar</string>
     <string name="agent_queued">Siguiente: %1$s</string>
+    <string name="agent_tools_missing">Herramientas del agente sin instalar: %1$s</string>
     <string name="agent_unqueue">No enviar</string>
     <string name="agent_attach">Adjuntar</string>
     <string name="agent_remove_attachment">Quitar</string>
@@ -1346,6 +1354,7 @@
     <string name="gate_enter_manually">Ingresar dirección manualmente</string>
     <string name="gate_from_computer">Desde una computadora con ADB:</string>
     <string name="gate_copy_command">Copiar comando</string>
+    <string name="gate_sidequest_steps">Conecta el visor a una computadora y abre SideQuest. Elige “Run ADB Command” y luego “Custom Command”, escribe el comando que aparece abajo y selecciona “Run Command”.</string>
     <string name="gate_choose_display">Elige en qué pantalla abrir los Ajustes de Android.</string>
     <string name="gate_main_screen">Pantalla principal</string>
     <string name="wadb_finding_port">Vinculado. Buscando el puerto de la Depuración inalámbrica…</string>
@@ -1644,6 +1653,8 @@
     <string name="pip_unavailable">Android no pudo abrir imagen en imagen.</string>
     <string name="game_more">Más</string>
     <string name="game_edit_art">Editar imágenes</string>
+    <string name="game_unhide">Quitar de ocultas</string>
+    <string name="game_hide_failed">No se pudo sincronizar con Steam. Cierra Steam e inténtalo de nuevo.</string>
     <string name="stores_in_steam_label">En Steam</string>
     <string name="game_shortcut">Acceso directo</string>
     <string name="game_shortcut_add">Agregar a la pantalla de inicio</string>
@@ -4117,7 +4128,9 @@
     <string name="hud_readings_shown">Mostrados</string>
     <string name="hud_readings_count">%1$d de %2$d</string>
     <string name="exit_hint_back">Presiona atrás una vez más para salir</string>
-
     <string name="display_integer_scaling">Escalado de píxeles enteros</string>
-    <string name="display_integer_scaling_hint">Usa el mayor factor de escala entero que quepa. Si la imagen de origen es demasiado grande, ajusta la imagen completa para evitar recortes. La resolución se configura por separado.</string>
+    <string name="display_integer_scaling_hint">Usa la mayor escala entera que cabe. Puede recortar los bordes. Si la imagen original supera el tamaño de salida, el escalado fraccional muestra la imagen completa. La resolución se configura por separado.</string>
+    <string name="display_scaling_integer">Entero</string>
+    <string name="display_scaling_fit">Ajustar</string>
+    <string name="drawer_antialiasing">Antialiasing</string>
 </resources>

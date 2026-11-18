@@ -7,9 +7,11 @@ import android.view.SurfaceHolder
 import android.view.View
 import android.view.WindowManager
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.glasses.GlassesScreen
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.session.SessionMenuScreen
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionState
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -71,6 +73,40 @@ class SessionMenuScreenTest {
         assertEquals(SessionMenuScreen.COMPANION, SessionPrefs.menuScreen(context))
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().putString("menuScreen", "unknown").apply()
         assertEquals(SessionMenuScreen.COMPANION, SessionPrefs.menuScreen(context))
+    }
+
+    @Test fun disablingSecondScreenClearsPendingGameSwapWhileGlassesOwnTheOutput() {
+        val previousRequest = SessionState.gameOnBottom
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val glasses = GlassesScreen(activity, display, 60, activity)
+        val requested: MutableState<Boolean> = ReflectionHelpers.getField(activity, "gameOnBottom\$delegate")
+        try {
+            SessionPrefs.setSecondScreenPanel(activity, false, SecondScreenMode.TERMINAL.id)
+            SessionPrefs.setSecondScreenEnabled(activity, false, true)
+            SessionPrefs.setSecondScreenEnabled(activity, true, true)
+            SessionState.gameOnBottom = true
+            requested.value = true
+            ReflectionHelpers.setField(activity, "glassesScreen", glasses)
+            assertFalse(ReflectionHelpers.getField<MutableState<Boolean>>(activity, "bottomOutputActive\$delegate").value)
+
+            ReflectionHelpers.callInstanceMethod<Unit>(activity, "setSecondScreenEnabled",
+                ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, false))
+
+            assertFalse(requested.value)
+            assertFalse(SessionState.gameOnBottom)
+            assertSame(glasses, ReflectionHelpers.getField<GlassesScreen>(activity, "glassesScreen"))
+            assertFalse(SessionPrefs.secondScreenEnabled(activity, false))
+            assertTrue(SessionPrefs.secondScreenEnabled(activity, true))
+            assertEquals(SecondScreenMode.TERMINAL.id, SessionPrefs.secondScreenPanel(activity, false))
+            assertTrue(ReflectionHelpers.getField<MutableState<Boolean>>(activity, "drawerOpenState\$delegate").value)
+
+            ReflectionHelpers.setField(activity, "glassesScreen", null)
+            assertFalse(GameScreenSwap.wanted(requested.value, true, false, false, false, true))
+        } finally {
+            SessionState.gameOnBottom = previousRequest
+            ReflectionHelpers.setField(activity, "glassesScreen", null)
+        }
     }
 
     @Test fun placementDoesNotChangeTheRememberedContentOrKeyboardSetting() {

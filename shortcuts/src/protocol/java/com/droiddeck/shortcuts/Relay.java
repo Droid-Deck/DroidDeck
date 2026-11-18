@@ -13,6 +13,7 @@ public final class Relay {
     public static final String SERVICE = PACKAGE + ".ShortcutsService";
     public static final String ACTION = "com.droiddeck.shortcuts.RELAY";
     public static final String DESCRIPTOR = "com.droiddeck.shortcuts.Relay";
+    public static final int VERSION = 3;
 
     public static final int CONFIG = 1;
     public static final int KEY = 2;

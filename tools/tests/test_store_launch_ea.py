@@ -152,7 +152,7 @@ class EaHook(unittest.TestCase):
                 return {'ok': True, 'lsx': True, 'license': 'ok v4', 'licenses': [{'path': 'ProgramData/L/x.dlf', 'data': base64.b64encode(b'z').decode()}]}
 
             with patch.object(store, 'ask', fake_ask), patch.object(store, 'ea_registry', lambda *a, **k: 'ready'), \
-                    patch.object(store, 'ea_touchup', lambda *a, **k: 'none'), patch.dict('os.environ', {'BL_STORE_PROTON': ''}):
+                    patch.object(store, 'ea_touchup', lambda *a, **k: 'none'), patch.dict('os.environ', {'DD_STORE_PROTON': ''}):
                 store.prepare_ea(folder, {'id': 'Origin.OFR.1'}, str(compat), str(Path(tmp) / 'launch'))
             self.assertEqual(asked['op'], 'ea-prepare')
             self.assertEqual(asked['hardware'], probe)

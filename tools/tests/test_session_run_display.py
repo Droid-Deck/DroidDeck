@@ -28,7 +28,7 @@ class SessionRunDisplayTest(unittest.TestCase):
     def display(self, **env):
         base = {k: v for k, v in os.environ.items()
                 if k not in ("GAMESCOPE_WAYLAND_DISPLAY", "WAYLAND_DISPLAY", "XDG_SESSION_TYPE",
-                             "BL_LAUNCH_DIR")}
+                             "DD_LAUNCH_DIR")}
         seen = self.dir / "seen"
         script = ("program_cores() { :; }\nmode=run\ncase $mode in\n" + run_case() + "esac\n"
                   + "echo unreachable\n")

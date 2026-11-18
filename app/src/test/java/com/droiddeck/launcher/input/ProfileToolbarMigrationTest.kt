@@ -59,14 +59,17 @@ class ProfileToolbarMigrationTest {
 
     @Test fun rememberedLegacyPanelBecomesOnlyTheSecondaryPartOfTheProfile() {
         val old = InputLibraries.read(context)
-        SessionPrefs.setSecondScreenPanel(context, true, SecondScreenMode.DECK_CONTROLS.id)
-        SessionPrefs.setDeckPanel(context, DeckPanel.LEFT)
-        prefs.edit().putString("library", JSONObject(InputLibraries.encode(old)).put("version", 14).toString()).commit()
-        val migrated = InputLibraries.read(context)
-        assertEquals(DeckPanel.LEFT.bindings, migrated.activePart(true, InputRole.SECONDARY).bindings)
-        assertEquals(old.activePart(true, InputRole.PHYSICAL), migrated.activePart(true, InputRole.PHYSICAL))
-        assertEquals(old.activePart(true, InputRole.PRIMARY), migrated.activePart(true, InputRole.PRIMARY))
-        assertEquals(old.activePart(false, InputRole.SECONDARY), migrated.activePart(false, InputRole.SECONDARY))
+        for (desktop in listOf(false, true)) for (panel in DeckPanel.entries) {
+            context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
+            SessionPrefs.setSecondScreenPanel(context, desktop, SecondScreenMode.DECK_CONTROLS.id)
+            SessionPrefs.setDeckPanel(context, panel)
+            prefs.edit().putString("library", JSONObject(InputLibraries.encode(old)).put("version", 14).toString()).commit()
+            val migrated = InputLibraries.read(context)
+            assertEquals(panel.bindings, migrated.activePart(desktop, InputRole.SECONDARY).bindings)
+            assertEquals(old.activePart(desktop, InputRole.PHYSICAL), migrated.activePart(desktop, InputRole.PHYSICAL))
+            assertEquals(old.activePart(desktop, InputRole.PRIMARY), migrated.activePart(desktop, InputRole.PRIMARY))
+            assertEquals(old.activePart(!desktop, InputRole.SECONDARY), migrated.activePart(!desktop, InputRole.SECONDARY))
+        }
     }
 
     @Test fun disablingTheDisplayPreservesTheModeAndDoesNotDisableTheOtherSessionType() {

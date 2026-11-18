@@ -40,7 +40,11 @@ object AgentProcesses {
         val now = SystemClock.elapsedRealtime()
         val uptimeTicks = now * HZ / 1000
         val elapsed = (now - lastAt).coerceAtLeast(1)
-        fun isProot(pid: Int) = args[pid].orEmpty().substringBefore(' ').endsWith("proot.so") || args[pid].orEmpty().substringBefore(' ').endsWith("/proot")
+        fun isProot(pid: Int): Boolean {
+            val argv = args[pid].orEmpty().split(' ')
+            val program = if (argv.first().endsWith("/linker64")) argv.getOrElse(1) { "" } else argv.first()
+            return program.endsWith("proot.so") || program.endsWith("/proot")
+        }
         fun ancestors(pid: Int) = generateSequence(stats[pid]?.ppid) { stats[it]?.ppid }.takeWhile { it > 1 }.take(64)
         val out = stats.values.filter { s ->
             !isProot(s.pid) && args[s.pid].orEmpty().isNotEmpty() && ancestors(s.pid).any { isProot(it) }

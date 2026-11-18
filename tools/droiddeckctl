@@ -1355,7 +1355,7 @@ def build_parser() -> argparse.ArgumentParser:
     env_clear = env_ops.add_parser("clear")
     env_clear.add_argument("scope", nargs="?", choices=["next", "persistent", "all"], default="next")
 
-    override = commands.add_parser("override", help="override a program or libblfastpath.so for the next session (debugging tools)")
+    override = commands.add_parser("override", help="override a program or libddfastpath.so for the next session (debugging tools)")
     override.add_argument("name", help="the program name, e.g. gamescope")
     override.add_argument("path", help="the local file to push")
 

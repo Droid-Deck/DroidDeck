@@ -35,7 +35,7 @@ class SleepHandshakeTest(unittest.TestCase):
         self.subscription = self.bus.signal_subscribe(
             NAME, IFACE, "PrepareForSleep", ROOT, None, Gio.DBusSignalFlags.NONE,
             lambda bus, sender, path, interface, name, body: self.signals.append(body.unpack()[0]))
-        env = dict(os.environ, BL_LAUNCH_DIR=str(self.dir),
+        env = dict(os.environ, DD_LAUNCH_DIR=str(self.dir),
                    DBUS_SYSTEM_BUS_ADDRESS=os.environ["DBUS_SESSION_BUS_ADDRESS"])
         script = SCRIPT
         if self.AGENT_EXIT is not None:
