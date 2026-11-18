@@ -17,7 +17,7 @@ object EaAuth {
     const val CLIENT_ID = "JUNO_PC_CLIENT"
     private const val CLIENT_SECRET = "4mRLtYMb6vq9qglomWEaT4ChxsXWcyqbQpuBNfMPOYOiDmYYQmjuaBsF2Zp0RyVeWkfqhE9TuGgAw7te"
     const val AUTH_URL = "https://accounts.ea.com/connect/auth"
-    private const val TOKEN_URL = "https://accounts.ea.com/connect/token"
+    internal var tokenUrl = "https://accounts.ea.com/connect/token"
     const val REDIRECT = "qrc:///html/login_successful.html"
     private const val REFRESH_MARGIN_MS = 5 * 60 * 1000L
     private val refreshLock = Any()
@@ -41,7 +41,10 @@ object EaAuth {
         val personaId: String,
         val displayName: String,
         val eaId: String,
+        val rejected: Boolean = false,
     )
+
+    private class Rejected(message: String) : IllegalStateException(message)
 
     class Pending(val url: String, val verifier: String)
 
@@ -55,6 +58,7 @@ object EaAuth {
             personaId = o.optString("persona_id"),
             displayName = o.optString("display_name"),
             eaId = o.optString("ea_id"),
+            rejected = o.optBoolean("refresh_rejected"),
         )
     }
 
@@ -122,14 +126,15 @@ object EaAuth {
 
     private fun tokenCall(values: List<Pair<String, String>>): JSONObject {
         val reply = EaHttp.request(
-            TOKEN_URL, "POST",
+            tokenUrl, "POST",
             mapOf("Content-Type" to "application/x-www-form-urlencoded"),
             EaHttp.form(values + listOf("client_id" to CLIENT_ID, "client_secret" to CLIENT_SECRET)).toByteArray(),
             follow = false,
         )
         val json = runCatching { JSONObject(reply.text) }.getOrNull()
         if (!reply.ok || json == null || json.optString("access_token").isEmpty()) {
-            throw IllegalStateException("EA token request failed (${reply.status}): ${json?.optString("error_description")?.ifEmpty { json.optString("error") } ?: ""}")
+            val message = "EA token request failed (${reply.status}): ${json?.optString("error_description")?.ifEmpty { json.optString("error") } ?: ""}"
+            throw if (json?.optString("error") == "invalid_grant") Rejected(message) else IllegalStateException(message)
         }
         return json
     }
@@ -162,6 +167,7 @@ object EaAuth {
             tokenCall(listOf("grant_type" to "refresh_token", "refresh_token" to a.refreshToken))
         } catch (e: Exception) {
             Log.w(TAG, "refresh: ${e.message}")
+            if (e is Rejected) markRejected(context, a.refreshToken)
             return null
         }
         val access = token.getString("access_token")
@@ -176,10 +182,23 @@ object EaAuth {
             val record = StoreAccounts.read(app, Store.EA) ?: return false
             record.put("access_token", access).put("expires_at", System.currentTimeMillis() + expiresIn * 1000)
             refresh.takeIf { it.isNotEmpty() }?.let { record.put("refresh_token", it) }
+            record.remove("refresh_rejected")
             player?.let { record.put("user_id", it.userId).put("persona_id", it.personaId).put("display_name", it.displayName).put("ea_id", it.eaId) }
             StoreAccounts.write(app, Store.EA, record)
             true
         }
+
+    private fun markRejected(context: Context, refresh: String) = synchronized(refreshLock) {
+        val app = context.applicationContext
+        val record = StoreAccounts.read(app, Store.EA) ?: return@synchronized
+        if (record.optString("refresh_token") != refresh) return@synchronized
+        StoreAccounts.write(app, Store.EA, record.put("refresh_rejected", true))
+    }
+
+    fun signedIn(context: Context): Boolean {
+        val a = load(context) ?: return false
+        return a.userId.isNotEmpty() && !(a.rejected && a.expiresAt <= System.currentTimeMillis())
+    }
 
     fun accessToken(context: Context): String? {
         val current = load(context) ?: return null

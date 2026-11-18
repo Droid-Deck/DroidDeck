@@ -46,11 +46,18 @@ object StoreLaunchRequests {
     }
 
     private fun answer(app: Context, file: File) {
+        val resp = File(dir(app), "resp").apply { mkdirs() }
+        val rid = file.name.removeSuffix(".json")
+        val taken = File(resp, "$rid.taken")
+        val writing = File(resp, "$rid.writing")
+        if (!file.renameTo(taken)) return
         val request = try {
-            JSONObject(file.readText()).also { file.delete() }
+            JSONObject(taken.readText())
         } catch (e: Exception) {
+            taken.delete()
             return
         }
+        val claim = { taken.renameTo(writing) }
         val reply = when (request.optString("op")) {
             "xbox-released" -> {
                 com.droiddeck.launcher.stores.xbox.XboxRuntime.released(request.optString("lease"))
@@ -108,7 +115,7 @@ object StoreLaunchRequests {
                 else {
                     lastLaunched = store to id
                     CloudSaves.markDirty(app, store, id)
-                    CloudSaves.downloadOrDefer(app, store, id).let { JSONObject().put("ok", it.ok).put("result", it.result).put("files", it.files).put("reason", it.reason) }
+                    CloudSaves.downloadOrDefer(app, store, id, claim).let { JSONObject().put("ok", it.ok).put("result", it.result).put("files", it.files).put("reason", it.reason) }
                 }
             }
             "cloud-up" -> {
@@ -167,12 +174,14 @@ object StoreLaunchRequests {
             else -> JSONObject().put("ok", false).put("reason", "unknown-op")
         }
         try {
-            val resp = File(dir(app), "resp").apply { mkdirs() }
             val tmp = File(resp, file.name + ".tmp")
             tmp.writeText(reply.toString())
             tmp.renameTo(File(resp, file.name))
         } catch (e: Exception) {
             Log.w(TAG, "could not answer ${file.name}: ${e.message}")
+        } finally {
+            taken.delete()
+            writing.delete()
         }
     }
 

@@ -1484,6 +1484,8 @@ object SessionPrefs {
         (id and 0xFFFFFFFFL) to key.removePrefix("addedAppId:")
     }.toMap()
 
+    fun storeGameFolder(context: Context, key: String): String? = prefs(context).getString("storeFolder:$key", null)
+
     fun followStoreGame(context: Context, key: String, folderPath: String, gone: (String) -> Boolean) = synchronized(addedGameLock) {
         val p = prefs(context)
         val previous = p.getString("storeFolder:$key", null)

@@ -1513,7 +1513,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onComponents = { focusContent -> openComponents(focusContent) },
                         onGameComponents = { game -> openComponents(gameKey = game.profileKey) },
                         onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
-                        onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
+                        onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(this@FrontEndActivity, sg) } },
                         onAddonImport = { sg, target -> importAddons(sg.name, target) },
                         onAddonDelete = { target, name ->
                             saveAction(getString(R.string.main_addons_deleting, name)) {
@@ -1521,7 +1521,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                                 getString(R.string.main_addons_deleted, name)
                             }
                         },
-                        onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
+                        onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(this@FrontEndActivity, sg) } },
                         onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
                         performancePanel = { PerformanceHost(embedded = true) },
                         onRoms = { showRoms = true },
