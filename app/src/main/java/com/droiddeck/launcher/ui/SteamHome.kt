@@ -93,7 +93,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
     }
     val ownedAll = if (scanned.first == account) scanned.second else emptyList()
     val concealed = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) {
-        LibraryHidden.steam + s.steamGames.filter { Library.fromSteamClient(it) && LibraryHidden.isHidden(hideKey(it), it) }.map { it.appId.toLong() }
+        LibraryHidden.steam + s.steamGames.filter { LibraryHidden.isHidden(hideKey(it), it) }.map { it.appId.toLong() }
     }
     val owned = remember(ownedAll, concealed) { ownedAll.filter { it.first.toLong() !in concealed } }
     val featured = remember(featuredAll, concealed) { featuredAll.filter { it.appId.toLong() !in concealed } }
