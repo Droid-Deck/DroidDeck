@@ -2049,19 +2049,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         return handled
     }
 
-    // Tapped controls do not take focus in touch mode, so a text field would otherwise keep it, and its highlight.
     private fun leaveTextFieldOnOutsideTap(event: MotionEvent) {
         val field = currentFocus as? EditText ?: return
         val slop = ViewConfiguration.get(this).scaledTouchSlop
         if (kotlin.math.hypot(event.rawX - touchDownX, event.rawY - touchDownY) > slop) return
-        val at = IntArray(2).also(field::getLocationOnScreen)
-        val margin = 12 * resources.displayMetrics.density
-        val insideX = event.rawX >= at[0] - margin && event.rawX <= at[0] + field.width + margin
-        val insideY = event.rawY >= at[1] - margin && event.rawY <= at[1] + field.height + margin
-        if (insideX && insideY) return
-        field.clearFocus()
-        (getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
-            ?.hideSoftInputFromWindow(field.windowToken, 0)
+        com.droiddeck.launcher.ui.releaseTextField(field, IntArray(2).also(field::getLocationOnScreen), event.rawX, event.rawY)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
