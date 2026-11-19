@@ -14,7 +14,7 @@ object GpuClockPin {
     @Volatile
     private var pinned = false
 
-    private val supported: Boolean by lazy { File(KGSL_NODE).exists() }
+    val supported: Boolean by lazy { File(KGSL_NODE).exists() }
 
     @Synchronized
     fun start(context: Context): String {
@@ -30,6 +30,12 @@ object GpuClockPin {
             Log.w(TAG, "pin", t)
             "gpu clock: pin failed"
         }
+    }
+
+    @Synchronized
+    fun sync(context: Context): Boolean {
+        if (SessionPrefs.gpuClockPin(context)) start(context) else stop(context)
+        return pinned
     }
 
     @Synchronized

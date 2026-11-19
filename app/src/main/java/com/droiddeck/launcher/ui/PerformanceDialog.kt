@@ -122,13 +122,7 @@ fun PerformancePage(
                 gamescopeRealtime, onChange = onGamescopeRealtime,
             )
         }
-        SettingsGroup(stringResource(R.string.perf_gpu)) {
-            ToggleRow(
-                host, "gpuclock", stringResource(R.string.perf_gpuclock),
-                stringResource(R.string.perf_gpuclock_hint),
-                gpuClockPin, onChange = onGpuClockPin,
-            )
-        }
+        GpuClockGroup(host, gpuClockPin, onChange = onGpuClockPin)
         SettingsGroup(stringResource(R.string.perf_fixes)) {
             ToggleRow(
                 host, "sysmem", stringResource(R.string.perf_sysmem),
@@ -219,4 +213,15 @@ fun PerformancePage(
         lede = stringResource(R.string.perf_lede),
         onBack = onDismiss,
     ) { body() }
+}
+
+@Composable
+internal fun GpuClockGroup(host: MenuHost, on: Boolean, chipModifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+    SettingsGroup(stringResource(R.string.perf_gpu)) {
+        ToggleRow(
+            host, "gpuclock", stringResource(R.string.perf_gpuclock),
+            stringResource(R.string.perf_gpuclock_hint),
+            on, chipModifier = chipModifier, onChange = onChange,
+        )
+    }
 }
