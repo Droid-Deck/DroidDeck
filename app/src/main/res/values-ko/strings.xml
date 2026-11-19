@@ -4063,4 +4063,17 @@
     <string name="display_scaling_integer">정수</string>
     <string name="display_scaling_fit">화면에 맞춤</string>
     <string name="drawer_antialiasing">안티앨리어싱</string>
+
+    <string name="input_hold_properties">길게 누르기 속성</string>
+    <string name="input_hold_name">%1$s · 길게 누르기</string>
+    <string name="input_double_properties">두 번 탭 속성</string>
+    <string name="input_double_name">%1$s · 두 번 탭</string>
+    <string name="input_repeat">누르고 있는 동안 반복</string>
+    <string name="input_record_keys">기록</string>
+    <string name="input_recording">기록 중…</string>
+    <string name="input_hold_delay">길게 누르기 지연</string>
+    <string name="input_double_window">두 번 탭 간격</string>
+    <string name="input_millis">밀리초</string>
+    <string name="input_repeat_delay">반복 간격</string>
+    <string name="input_export_dropped">Steam 레이아웃 형식은 길게 누르기, 두 번 탭, 반복을 저장하지 못하므로 이 레이아웃은 내보낼 수 없습니다.</string>
 </resources>

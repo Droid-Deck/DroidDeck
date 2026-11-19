@@ -42,7 +42,6 @@
     <string name="input_hide_tools">Απόκρυψη εργαλείων</string>
     <string name="input_route_controller">Χειριστήριο</string>
     <string name="input_controller_route_hint">Στέλνει την είσοδο του χειριστηρίου στο Steam Input ή στο παιχνίδι.</string>
-    <string name="input_disabled_hint">Αυτό το στοιχείο δεν στέλνει είσοδο χειριστηρίου, ποντικιού ή πληκτρολογίου.</string>
     <string name="input_mouse_click">Κλικ ποντικιού</string>
     <string name="input_command">Ενέργεια DroidDeck</string>
     <string name="input_action">Ενέργεια</string>

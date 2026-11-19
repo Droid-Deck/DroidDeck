@@ -4063,4 +4063,17 @@
     <string name="display_scaling_integer">整数</string>
     <string name="display_scaling_fit">适应</string>
     <string name="drawer_antialiasing">抗锯齿</string>
+
+    <string name="input_hold_properties">长按属性</string>
+    <string name="input_hold_name">%1$s · 长按</string>
+    <string name="input_double_properties">双击属性</string>
+    <string name="input_double_name">%1$s · 双击</string>
+    <string name="input_repeat">按住时重复</string>
+    <string name="input_record_keys">录制</string>
+    <string name="input_recording">录制中…</string>
+    <string name="input_hold_delay">长按触发时间</string>
+    <string name="input_double_window">双击间隔</string>
+    <string name="input_millis">毫秒</string>
+    <string name="input_repeat_delay">重复间隔</string>
+    <string name="input_export_dropped">Steam 的布局格式无法保存长按、双击和重复，所以这个布局不能导出。</string>
 </resources>

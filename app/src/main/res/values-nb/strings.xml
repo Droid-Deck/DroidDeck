@@ -4093,4 +4093,17 @@
     <string name="display_scaling_integer">Heltall</string>
     <string name="display_scaling_fit">Tilpass</string>
     <string name="drawer_antialiasing">Kantutjevning</string>
+
+    <string name="input_hold_properties">Egenskaper for langt trykk</string>
+    <string name="input_hold_name">%1$s · Langt trykk</string>
+    <string name="input_double_properties">Egenskaper for dobbeltklikk</string>
+    <string name="input_double_name">%1$s · Dobbeltklikk</string>
+    <string name="input_repeat">Gjenta mens den holdes</string>
+    <string name="input_record_keys">Ta opp</string>
+    <string name="input_recording">Tar opp…</string>
+    <string name="input_hold_delay">Forsinkelse for langt trykk</string>
+    <string name="input_double_window">Vindu for dobbeltklikk</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Gjentakelsesintervall</string>
+    <string name="input_export_dropped">Steams layoutformat lagrer ikke langt trykk, dobbeltklikk eller gjentakelse, så dette oppsettet kan ikke eksporteres.</string>
 </resources>

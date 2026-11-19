@@ -4093,4 +4093,17 @@
     <string name="display_scaling_integer">Heltal</string>
     <string name="display_scaling_fit">Anpassa</string>
     <string name="drawer_antialiasing">Kantutjämning</string>
+
+    <string name="input_hold_properties">Egenskaper för långt tryck</string>
+    <string name="input_hold_name">%1$s · Långt tryck</string>
+    <string name="input_double_properties">Egenskaper för dubbeltryck</string>
+    <string name="input_double_name">%1$s · Dubbeltryck</string>
+    <string name="input_repeat">Upprepa när den hålls</string>
+    <string name="input_record_keys">Spela in</string>
+    <string name="input_recording">Spelar in…</string>
+    <string name="input_hold_delay">Fördröjning för långt tryck</string>
+    <string name="input_double_window">Fönster för dubbeltryck</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Upprepningsintervall</string>
+    <string name="input_export_dropped">Steams layoutformat sparar inte långt tryck, dubbeltryck eller upprepning, så den här layouten kan inte exporteras.</string>
 </resources>

@@ -4093,4 +4093,17 @@
     <string name="display_scaling_integer">Kokonaisluku</string>
     <string name="display_scaling_fit">Sovita</string>
     <string name="drawer_antialiasing">Reunanpehmennys</string>
+
+    <string name="input_hold_properties">Pitkän painalluksen ominaisuudet</string>
+    <string name="input_hold_name">%1$s · Pitkä painallus</string>
+    <string name="input_double_properties">Kaksoisnapautuksen ominaisuudet</string>
+    <string name="input_double_name">%1$s · Kaksoisnapautus</string>
+    <string name="input_repeat">Toista pidettäessä</string>
+    <string name="input_record_keys">Tallenna</string>
+    <string name="input_recording">Tallennetaan…</string>
+    <string name="input_hold_delay">Pitkän painalluksen viive</string>
+    <string name="input_double_window">Kaksoisnapautuksen ikkuna</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Toistoväli</string>
+    <string name="input_export_dropped">Steamin asettelumuoto ei tallenna pitkää painallusta, kaksoisnapautusta tai toistoa, joten tätä asettelua ei voi viedä.</string>
 </resources>

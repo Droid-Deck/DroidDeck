@@ -4063,4 +4063,17 @@
     <string name="display_scaling_integer">整数</string>
     <string name="display_scaling_fit">画面に合わせる</string>
     <string name="drawer_antialiasing">アンチエイリアス</string>
+
+    <string name="input_hold_properties">長押しのプロパティ</string>
+    <string name="input_hold_name">%1$s · 長押し</string>
+    <string name="input_double_properties">ダブルタップのプロパティ</string>
+    <string name="input_double_name">%1$s · ダブルタップ</string>
+    <string name="input_repeat">押している間リピート</string>
+    <string name="input_record_keys">記録</string>
+    <string name="input_recording">記録中…</string>
+    <string name="input_hold_delay">長押しの待ち時間</string>
+    <string name="input_double_window">ダブルタップの間隔</string>
+    <string name="input_millis">ミリ秒</string>
+    <string name="input_repeat_delay">リピート間隔</string>
+    <string name="input_export_dropped">Steam のレイアウト形式は長押し・ダブルタップ・リピートを保存できないため、このレイアウトは書き出せません。</string>
 </resources>

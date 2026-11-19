@@ -61,7 +61,7 @@ import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.session.SessionState
 
 private data class SurfaceSnapshot(val elements: List<InputSurfaceElement>, val actions: Map<String, InputAction>,
-    val clicks: Map<String, InputAction>, val scale: Float, val aspect: Float)
+    val clicks: Map<String, InputAction>, val holds: Map<String, InputAction>, val doubles: Map<String, InputAction>, val scale: Float, val aspect: Float)
 
 private class GamepadScaler(private val context: android.content.Context, private val width: Int, private val height: Int) {
     private fun generator(scale: Float) = LegacyGamepadLayout(context, width, height, scale = scale)
@@ -76,6 +76,8 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var elements by mutableStateOf(layout.elements)
     var actions by mutableStateOf(preset.elements)
     var clicks by mutableStateOf(preset.clicks)
+    var holds by mutableStateOf(preset.holds)
+    var doubles by mutableStateOf(preset.doubles)
     var selected by mutableStateOf<String?>(null)
     var toolsExpanded by mutableStateOf(false)
     var toolsX by mutableFloatStateOf(.02f)
@@ -83,7 +85,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var snap by mutableStateOf(snap)
     var adding by mutableStateOf(false)
     var properties by mutableStateOf(false)
-    var clickProperties by mutableStateOf(false)
+    var actionPart by mutableStateOf<ElementSource?>(null)
     var history by mutableStateOf<List<SurfaceSnapshot>>(emptyList())
     var layoutScale by mutableFloatStateOf(layout.scale)
     var aspect by mutableFloatStateOf(layout.aspect)
@@ -103,9 +105,10 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         return OnScreenLayout.fit(placed, from, 1f, (aspect * 1000).roundToInt().coerceAtLeast(1), 1000, Rect())
     }
     val element get() = elements.firstOrNull { it.id == selected }
-    val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale || aspect != layout.aspect
-    fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale, aspect)).takeLast(40) }
-    fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; aspect = it.aspect; history = history.dropLast(1) } }
+    val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks ||
+        holds != preset.holds || doubles != preset.doubles || layoutScale != layout.scale || aspect != layout.aspect
+    fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, holds, doubles, layoutScale, aspect)).takeLast(40) }
+    fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; holds = it.holds; doubles = it.doubles; layoutScale = it.scale; aspect = it.aspect; history = history.dropLast(1) } }
     fun beginEdit(displayed: List<InputSurfaceElement>, aspect: Float, scaler: GamepadScaler? = gamepad) {
         checkpoint()
         elements = OnScreenLayout.editorFrame(layout.copy(elements = elements), displayed)
@@ -126,6 +129,14 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun resetPositions() { positioned?.let { checkpoint(); elements = it; if (rescales) layoutScale = 1f } }
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
+    fun holdAction(e: InputSurfaceElement) = holds[e.id] ?: InputAction.Disabled
+    fun doubleAction(e: InputSurfaceElement) = doubles[e.id] ?: InputAction.Disabled
+    fun actionFor(e: InputSurfaceElement, part: ElementSource?) = when (part) {
+        ElementSource.CLICK -> clickAction(e)
+        ElementSource.HOLD -> holdAction(e)
+        ElementSource.DOUBLE -> doubleAction(e)
+        null -> action(e)
+    }
 }
 
 @Composable
@@ -167,7 +178,9 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                 val l = latest.layouts.first { it.id == savedLayout.id }
                 val p = latest.preset(savedBindings.id)
                 latest.withLayout(l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
-                    clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
+                    clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } },
+                    holds = draft.holds.filterKeys { id -> draft.elements.any { it.id == id && it.hasHold } },
+                    doubles = draft.doubles.filterKeys { id -> draft.elements.any { it.id == id && it.hasHold } }))
             }
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
     }
@@ -212,20 +225,37 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             when {
                 draft.properties && element != null -> {
                     var properties by remember(element.id) { mutableStateOf(element) }
-                    InputActionEditor(if (draft.clickProperties) InputControl.A else element.control,
-                        if (draft.clickProperties) draft.clickAction(element) else draft.action(element),
-                        if (draft.clickProperties) stringResource(R.string.input_click_name, element.name) else element.name,
-                        onBack = { draft.properties = false }, element = element, click = draft.clickProperties,
+                    var holdRepeat by remember(element.id) { mutableStateOf(element.repeat) }
+                    val menuHost = rememberMenuHost()
+                    InputActionEditor(if (draft.actionPart == ElementSource.CLICK) InputControl.A else element.control,
+                        draft.actionFor(element, draft.actionPart),
+                        when (draft.actionPart) {
+                            ElementSource.CLICK -> stringResource(R.string.input_click_name, element.name)
+                            ElementSource.HOLD -> stringResource(R.string.input_hold_name, element.name)
+                            ElementSource.DOUBLE -> stringResource(R.string.input_double_name, element.name)
+                            null -> element.name
+                        },
+                        onBack = { draft.properties = false }, element = element, click = draft.actionPart == ElementSource.CLICK,
+                        tapOnly = draft.actionPart == ElementSource.HOLD || draft.actionPart == ElementSource.DOUBLE,
                         properties = { action ->
-                            if (!draft.clickProperties) InputElementProperties(properties, action) { properties = it }
+                            if (draft.actionPart == null) InputElementProperties(properties, action) { properties = it }
+                            if (draft.actionPart == ElementSource.HOLD) ToggleRow(menuHost, "hold-repeat", stringResource(R.string.input_repeat), null, holdRepeat, enabled = !properties.toggle) { holdRepeat = it }
                             if (layoutUsers > 1) Text(stringResource(R.string.input_editor_shared, layoutUsers),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(bottom = 12.dp))
                         }, detail = if (bindingUsers > 1) stringResource(R.string.input_shared_detail, savedBindings.name, bindingUsers)
                             else "${library.profile(profile).name} · ${roleLabel(role)}", onSave = { action ->
                             draft.checkpoint()
-                            if (draft.clickProperties) draft.clicks = draft.clicks + (element.id to action) else draft.actions = draft.actions + (element.id to action)
-                            draft.elements = draft.elements.map { if (it.id == element.id) properties.copy(name = properties.name.trim().ifBlank { element.name }) else it }
+                            when (draft.actionPart) {
+                                ElementSource.CLICK -> draft.clicks = draft.clicks + (element.id to action)
+                                ElementSource.HOLD -> draft.holds = if (action is InputAction.Disabled) draft.holds - element.id else draft.holds + (element.id to action)
+                                ElementSource.DOUBLE -> draft.doubles = if (action is InputAction.Disabled) draft.doubles - element.id else draft.doubles + (element.id to action)
+                                null -> draft.actions = draft.actions + (element.id to action)
+                            }
+                            draft.elements = draft.elements.map { if (it.id == element.id)
+                                properties.copy(name = properties.name.trim().ifBlank { element.name },
+                                    repeat = if (draft.actionPart == ElementSource.HOLD) holdRepeat else properties.repeat)
+                                else it }
                             draft.properties = false
                         })
                 }
@@ -350,10 +380,13 @@ private fun SurfaceSelection(draft: SurfaceDraft) {
         draft.element?.let { e ->
             Text(e.name, style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                PrimaryButton(stringResource(R.string.input_properties), compact = true) { draft.clickProperties = false; draft.properties = true }
-                if (e.hasClick) SecondaryButton(stringResource(R.string.input_click_properties), compact = true) { draft.clickProperties = true; draft.properties = true }
+                PrimaryButton(stringResource(R.string.input_properties), compact = true) { draft.actionPart = null; draft.properties = true }
+                if (e.hasClick) SecondaryButton(stringResource(R.string.input_click_properties), compact = true) { draft.actionPart = ElementSource.CLICK; draft.properties = true }
+                if (e.hasHold) SecondaryButton(stringResource(R.string.input_hold_properties), compact = true) { draft.actionPart = ElementSource.HOLD; draft.properties = true }
+                if (e.hasHold) SecondaryButton(stringResource(R.string.input_double_properties), compact = true) { draft.actionPart = ElementSource.DOUBLE; draft.properties = true }
                 SecondaryButton(stringResource(R.string.input_remove_element), compact = true) {
-                    draft.checkpoint(); draft.elements = draft.elements.filterNot { it.id == e.id }; draft.actions = draft.actions - e.id; draft.clicks = draft.clicks - e.id; draft.selected = null
+                    draft.checkpoint(); draft.elements = draft.elements.filterNot { it.id == e.id }; draft.actions = draft.actions - e.id
+                    draft.clicks = draft.clicks - e.id; draft.holds = draft.holds - e.id; draft.doubles = draft.doubles - e.id; draft.selected = null
                 }
             }
         } ?: Text(stringResource(R.string.input_editor_hint))

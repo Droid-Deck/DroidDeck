@@ -4133,4 +4133,17 @@
     <string name="display_scaling_integer">Număr întreg</string>
     <string name="display_scaling_fit">Potrivire</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+
+    <string name="input_hold_properties">Proprietățile apăsării lungi</string>
+    <string name="input_hold_name">%1$s · Apăsare lungă</string>
+    <string name="input_double_properties">Proprietățile atingerii duble</string>
+    <string name="input_double_name">%1$s · Atingere dublă</string>
+    <string name="input_repeat">Repetă cât timp este ținut</string>
+    <string name="input_record_keys">Înregistrează</string>
+    <string name="input_recording">Se înregistrează…</string>
+    <string name="input_hold_delay">Întârzierea apăsării lungi</string>
+    <string name="input_double_window">Fereastra atingerii duble</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Interval de repetare</string>
+    <string name="input_export_dropped">Formatul de machetă Steam nu poate stoca apăsarea lungă, atingerea dublă sau repetarea, așa că această machetă nu poate fi exportată.</string>
 </resources>

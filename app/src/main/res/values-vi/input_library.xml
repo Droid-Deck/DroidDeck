@@ -9,7 +9,6 @@
     <string name="input_hide_tools">Ẩn công cụ</string>
     <string name="input_route_controller">Tay cầm</string>
     <string name="input_controller_route_hint">Gửi đầu vào tay cầm tới Steam Input hoặc trò chơi.</string>
-    <string name="input_disabled_hint">Phần tử này không gửi đầu vào tay cầm, chuột hay bàn phím.</string>
     <string name="input_mouse_click">Nhấp chuột</string>
     <string name="input_command">Hành động DroidDeck</string>
     <string name="input_action">Hành động</string>

@@ -42,7 +42,6 @@
     <string name="input_hide_tools">Werkzeuge ausblenden</string>
     <string name="input_route_controller">Controller</string>
     <string name="input_controller_route_hint">Controller-Eingaben an Steam Input oder das Spiel senden.</string>
-    <string name="input_disabled_hint">Dieses Element sendet keine Controller-, Maus- oder Tastatureingaben.</string>
     <string name="input_mouse_click">Mausklick</string>
     <string name="input_command">DroidDeck-Aktion</string>
     <string name="input_action">Aktion</string>

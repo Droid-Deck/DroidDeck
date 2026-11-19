@@ -9,7 +9,6 @@
     <string name="input_hide_tools">Sembunyikan alat</string>
     <string name="input_route_controller">Pengontrol</string>
     <string name="input_controller_route_hint">Kirim input pengontrol ke Steam Input atau game.</string>
-    <string name="input_disabled_hint">Elemen ini tidak mengirim input pengontrol, mouse, atau keyboard.</string>
     <string name="input_mouse_click">Klik mouse</string>
     <string name="input_command">Tindakan DroidDeck</string>
     <string name="input_action">Tindakan</string>

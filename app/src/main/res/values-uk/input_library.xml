@@ -9,7 +9,6 @@
     <string name="input_hide_tools">Сховати інструменти</string>
     <string name="input_route_controller">Контролер</string>
     <string name="input_controller_route_hint">Надсилати введення контролера в Steam Input або гру.</string>
-    <string name="input_disabled_hint">Цей елемент не надсилає введення контролера, миші чи клавіатури.</string>
     <string name="input_mouse_click">Натискання миші</string>
     <string name="input_command">Дія DroidDeck</string>
     <string name="input_action">Дія</string>

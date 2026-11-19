@@ -9,7 +9,6 @@
     <string name="input_hide_tools">Ascunde instrumentele</string>
     <string name="input_route_controller">Controller</string>
     <string name="input_controller_route_hint">Trimite intrarea controllerului către Steam Input sau joc.</string>
-    <string name="input_disabled_hint">Acest element nu trimite intrare de controller, mouse sau tastatură.</string>
     <string name="input_mouse_click">Clic de mouse</string>
     <string name="input_command">Acțiune DroidDeck</string>
     <string name="input_action">Acțiune</string>

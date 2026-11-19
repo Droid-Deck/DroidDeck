@@ -4133,4 +4133,17 @@
     <string name="display_scaling_integer">Entero</string>
     <string name="display_scaling_fit">Ajustar</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+
+    <string name="input_hold_properties">Propiedades de pulsación larga</string>
+    <string name="input_hold_name">%1$s · Pulsación larga</string>
+    <string name="input_double_properties">Propiedades de doble toque</string>
+    <string name="input_double_name">%1$s · Doble toque</string>
+    <string name="input_repeat">Repetir mientras se mantiene</string>
+    <string name="input_record_keys">Grabar</string>
+    <string name="input_recording">Grabando…</string>
+    <string name="input_hold_delay">Retardo de pulsación larga</string>
+    <string name="input_double_window">Ventana de doble toque</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Intervalo de repetición</string>
+    <string name="input_export_dropped">El formato de diseño de Steam no guarda pulsación larga, doble toque ni repetición, así que este diseño no se puede exportar.</string>
 </resources>

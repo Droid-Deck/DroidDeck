@@ -9,7 +9,6 @@
     <string name="input_hide_tools">隐藏工具</string>
     <string name="input_route_controller">手柄</string>
     <string name="input_controller_route_hint">把柄输入发送给 Steam Input 或游戏。</string>
-    <string name="input_disabled_hint">此控件不发送手柄、鼠标或键盘输入。</string>
     <string name="input_mouse_click">鼠标点击</string>
     <string name="input_command">DroidDeck 动作</string>
     <string name="input_action">动作</string>

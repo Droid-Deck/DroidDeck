@@ -4093,4 +4093,17 @@
     <string name="display_scaling_integer">Tam sayı</string>
     <string name="display_scaling_fit">Sığdır</string>
     <string name="drawer_antialiasing">Kenar yumuşatma</string>
+
+    <string name="input_hold_properties">Uzun basma özellikleri</string>
+    <string name="input_hold_name">%1$s · Uzun basma</string>
+    <string name="input_double_properties">Çift dokunma özellikleri</string>
+    <string name="input_double_name">%1$s · Çift dokunma</string>
+    <string name="input_repeat">Basılı tutarken yinele</string>
+    <string name="input_record_keys">Kaydet</string>
+    <string name="input_recording">Kaydediliyor…</string>
+    <string name="input_hold_delay">Uzun basma gecikmesi</string>
+    <string name="input_double_window">Çift dokunma aralığı</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Yineleme aralığı</string>
+    <string name="input_export_dropped">Steam düzen biçimi uzun basmayı, çift dokunmayı ve yinelemeyi saklayamaz, bu yüzden bu düzen dışa aktarılamaz.</string>
 </resources>

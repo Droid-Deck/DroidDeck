@@ -35,14 +35,18 @@ data class InputSurfaceElement(
     val buttonShape: InputButtonShape = InputButtonShape.ROUNDED,
     val showLabel: Boolean = true,
     val alwaysShown: Boolean = false,
+    val repeat: Boolean = false,
 ) {
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
+    val hasHold get() = kind == InputElementKind.BUTTON || kind == InputElementKind.TRIGGER
 
     fun bounded() = copy(x = x.coerceIn(0f, 0.97f), y = y.coerceIn(0f, 0.97f),
         width = width.coerceIn(0.03f, (1f - x.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)), height = height.coerceIn(0.03f, (1f - y.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)))
 }
 
 internal val QUICK_BUTTONS = listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.KEYBOARD)
+
+internal fun InputSurfaceElement.tapElement() = hasHold && !toggle
 
 val InputSurfaceElement.quickButton: InputCommand? get() = when {
     id == "legacy:${InputControl.GUIDE.id}" -> InputCommand.STEAM

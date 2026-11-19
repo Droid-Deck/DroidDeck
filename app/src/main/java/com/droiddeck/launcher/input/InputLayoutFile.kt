@@ -72,6 +72,12 @@ internal object InputLayoutFile {
         return JSONObject().put("id", 0).put("name", layout.name).put("cursorSpeed", 1.5).put("elements", elements).toString()
     }
 
+    fun droppedFeatures(layout: SavedInputLayout, bindings: SavedInputBindings?) =
+        bindings != null && layout.elements.any { e ->
+            (bindings.holds[e.id]?.let { it != InputAction.Disabled } == true) ||
+                (bindings.doubles[e.id]?.let { it != InputAction.Disabled } == true) || e.repeat
+        }
+
     fun parse(raw: String, width: Int, density: Float): List<LegacyScreenKey>? {
         val root = runCatching { JSONObject(raw) }.getOrNull() ?: return null
         val elements = root.optJSONArray("elements") ?: return null

@@ -9,7 +9,6 @@
     <string name="input_hide_tools">टूल छिपाएँ</string>
     <string name="input_route_controller">कंट्रोलर</string>
     <string name="input_controller_route_hint">कंट्रोलर इनपुट Steam Input या गेम को भेजें।</string>
-    <string name="input_disabled_hint">यह तत्व कंट्रोलर, माउस या कीबोर्ड इनपुट नहीं भेजता।</string>
     <string name="input_mouse_click">माउस क्लिक</string>
     <string name="input_command">DroidDeck क्रिया</string>
     <string name="input_action">क्रिया</string>

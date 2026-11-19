@@ -4063,4 +4063,17 @@
     <string name="display_scaling_integer">จำนวนเต็ม</string>
     <string name="display_scaling_fit">พอดีหน้าจอ</string>
     <string name="drawer_antialiasing">การลบรอยหยัก</string>
+
+    <string name="input_hold_properties">คุณสมบัติการกดค้าง</string>
+    <string name="input_hold_name">%1$s · กดค้าง</string>
+    <string name="input_double_properties">คุณสมบัติการแตะสองครั้ง</string>
+    <string name="input_double_name">%1$s · แตะสองครั้ง</string>
+    <string name="input_repeat">ทำซ้ำขณะกดค้าง</string>
+    <string name="input_record_keys">บันทึก</string>
+    <string name="input_recording">กำลังบันทึก…</string>
+    <string name="input_hold_delay">ดีเลย์การกดค้าง</string>
+    <string name="input_double_window">ช่วงเวลาการแตะสองครั้ง</string>
+    <string name="input_millis">มิลลิวินาที</string>
+    <string name="input_repeat_delay">ช่วงเวลาทำซ้ำ</string>
+    <string name="input_export_dropped">รูปแบบเลย์เอาต์ของ Steam เก็บการกดค้าง การแตะสองครั้ง หรือการทำซ้ำไม่ได้ เลย์เอาต์นี้จึงส่งออกไม่ได้</string>
 </resources>

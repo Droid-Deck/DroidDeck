@@ -4093,4 +4093,17 @@
     <string name="display_scaling_integer">Heltal</string>
     <string name="display_scaling_fit">Tilpas</string>
     <string name="drawer_antialiasing">Kantudjævning</string>
+
+    <string name="input_hold_properties">Egenskaber for langt tryk</string>
+    <string name="input_hold_name">%1$s · Langt tryk</string>
+    <string name="input_double_properties">Egenskaber for dobbelttryk</string>
+    <string name="input_double_name">%1$s · Dobbelttryk</string>
+    <string name="input_repeat">Gentag ved hold</string>
+    <string name="input_record_keys">Optag</string>
+    <string name="input_recording">Optager…</string>
+    <string name="input_hold_delay">Forsinkelse for langt tryk</string>
+    <string name="input_double_window">Vindue for dobbelttryk</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Gentagelsesinterval</string>
+    <string name="input_export_dropped">Steams layoutformat kan ikke gemme langt tryk, dobbelttryk eller gentagelse, så dette layout kan ikke eksporteres.</string>
 </resources>

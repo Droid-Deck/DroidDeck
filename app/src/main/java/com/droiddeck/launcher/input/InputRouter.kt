@@ -2,6 +2,8 @@ package com.droiddeck.launcher.input
 
 import kotlin.math.abs
 
+enum class ElementSource { CLICK, HOLD, DOUBLE }
+
 interface InputOutput {
     fun key(code: Int, down: Boolean)
     fun button(code: Int, down: Boolean)
@@ -58,7 +60,8 @@ class InputRouter(private val output: InputOutput) {
     fun pad(role: InputRole, retained: PadState? = null): PadSource = PadSource(role, retained).also { pads.add(it) }
 
     @Synchronized
-    fun channel(role: InputRole, control: InputControl, fixedAction: InputAction? = null, element: InputSurfaceElement? = null, elementClick: Boolean = false): Channel = Channel(role, control, fixedAction, element, elementClick).also {
+    fun channel(role: InputRole, control: InputControl, fixedAction: InputAction? = null, element: InputSurfaceElement? = null,
+                elementSource: ElementSource? = null): Channel = Channel(role, control, fixedAction, element, elementSource).also {
         channels.add(it)
         it.configure(it.actionFrom(profile))
     }
@@ -120,7 +123,7 @@ class InputRouter(private val output: InputOutput) {
         if ((was == 0) != (buttons[at] == 0)) output.button(code, down)
     }
 
-    inner class Channel internal constructor(val role: InputRole, val control: InputControl, private val fixedAction: InputAction?, private val element: InputSurfaceElement?, private val elementClick: Boolean) {
+    inner class Channel internal constructor(val role: InputRole, val control: InputControl, private val fixedAction: InputAction?, private val element: InputSurfaceElement?, private val elementSource: ElementSource?) {
         var action: InputAction = InputAction.Native()
             private set
         internal var x = 0f
@@ -131,12 +134,22 @@ class InputRouter(private val output: InputOutput) {
         private val directions = BooleanArray(4)
         private var radialKeys = emptyList<Int>()
 
-        internal fun actionFrom(profile: InputProfile) = element?.let { if (elementClick) profile.elementClickAction(role, it) else profile.elementAction(role, it.id, control) }
-            ?: profile.action(role, control)
+        internal fun actionFrom(profile: InputProfile) = element?.let { e -> when (elementSource) {
+            ElementSource.CLICK -> profile.elementClickAction(role, e)
+            ElementSource.HOLD -> profile.elementHoldAction(role, e)
+            ElementSource.DOUBLE -> profile.elementDoubleAction(role, e)
+            else -> profile.elementAction(role, e.id, control)
+        } } ?: profile.action(role, control)
 
         internal fun configure(next: InputAction) {
             suspend()
-            action = (fixedAction ?: next).takeIf { if (elementClick) it.validForClick() else if (element != null) it.validFor(element) else it.validFor(control) }
+            val valid = when {
+                elementSource == ElementSource.CLICK -> next.validForClick()
+                elementSource != null && element != null -> next.validFor(element)
+                element != null -> next.validFor(element)
+                else -> next.validFor(control)
+            }
+            action = (fixedAction ?: next).takeIf { valid }
                 ?: if (element != null) InputAction.Disabled else InputAction.Native()
         }
 

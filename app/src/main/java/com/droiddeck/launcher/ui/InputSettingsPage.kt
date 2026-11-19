@@ -66,7 +66,7 @@ private fun InputSettingsPane(onBack: () -> Unit, onChanged: () -> Unit) {
 }
 
 private enum class InputPage { HOME, PROFILE, SOURCE, LAYOUTS, REUSE }
-private data class InputBindingEdit(val preset: String, val control: InputControl, val element: InputSurfaceElement? = null, val key: PhysicalInputKey? = null, val click: Boolean = false)
+private data class InputBindingEdit(val preset: String, val control: InputControl, val element: InputSurfaceElement? = null, val key: PhysicalInputKey? = null, val part: ElementSource? = null)
 private data class InputNameRequest(val title: Int, val initial: String, val sources: List<Pair<String, String>> = emptyList(),
     val source: String = "", val offerSharing: Boolean = false, val save: (String, String, Boolean) -> Unit)
 private data class InputConfirmation(val title: String, val detail: String, val action: () -> Unit)
@@ -164,23 +164,50 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     if (editing != null) {
         val b = library.preset(editing.preset)
         var elementProperties by remember(editing) { mutableStateOf(editing.element) }
-        val current = editing.element?.let { if (editing.click) b.clickAction(it) else b.action(it) }
-            ?: editing.key?.let { k -> b.keys.firstOrNull { it.key == k }?.action ?: InputAction.Disabled }
+        var holdRepeat by remember(editing) { mutableStateOf(if (editing.part != ElementSource.HOLD) false else
+            editing.element?.let { e -> layout?.elements?.find { it.id == e.id }?.repeat }
+                ?: (editing.key?.let { k -> b.keys.firstOrNull { it.key == k && it.part == null }?.repeat } ?: false)) }
+        val current = editing.element?.let { e -> when (editing.part) {
+            ElementSource.CLICK -> b.clickAction(e)
+            ElementSource.HOLD -> b.holdAction(e)
+            ElementSource.DOUBLE -> b.doubleAction(e)
+            null -> b.action(e)
+        } }
+            ?: editing.key?.let { k -> b.keys.firstOrNull { it.key == k && it.part == editing.part }?.action ?: InputAction.Disabled }
             ?: b.controls[editing.control] ?: InputAction.Native()
-        InputActionEditor(editing.control, current, if (editing.click) stringResource(R.string.input_click_name, editing.element!!.name)
-            else editing.element?.name ?: editing.key?.label ?: editing.control.label,
-            properties = { action -> if (!editing.click) elementProperties?.let { e -> InputElementProperties(e, action) { elementProperties = it } } },
-            onBack = { edit = null }, element = editing.element, nativeTargets = editing.key == null, click = editing.click,
+        InputActionEditor(editing.control, current, when (editing.part) {
+            ElementSource.CLICK -> stringResource(R.string.input_click_name, editing.element?.name ?: editing.key?.label ?: "")
+            ElementSource.HOLD -> stringResource(R.string.input_hold_name, editing.element?.name ?: editing.key?.label ?: "")
+            ElementSource.DOUBLE -> stringResource(R.string.input_double_name, editing.element?.name ?: editing.key?.label ?: "")
+            null -> editing.element?.name ?: editing.key?.label ?: editing.control.label
+        },
+            properties = { action -> when (editing.part) {
+                null -> elementProperties?.let { e -> InputElementProperties(e, action) { elementProperties = it } }
+                ElementSource.HOLD -> ToggleRow(host, "hold-repeat", stringResource(R.string.input_repeat), null, holdRepeat) { holdRepeat = it }
+                else -> Unit
+            } },
+            onBack = { edit = null }, element = editing.element, nativeTargets = editing.key == null, click = editing.part == ElementSource.CLICK,
+            tapOnly = editing.part == ElementSource.HOLD || editing.part == ElementSource.DOUBLE,
             detail = if (library.usersOfBindings(b.id).size > 1) stringResource(R.string.input_shared_detail, b.name, library.usersOfBindings(b.id).size)
                 else "${profile.name} · ${roleLabel(role)}", onSave = { action ->
                 if (update { l ->
-                    val geometry = if (!editing.click && elementProperties != null && layout != null) l.withLayout(layout.copy(elements = layout.elements.map {
+                    val geometry = if (editing.part == ElementSource.HOLD && editing.element != null && layout != null)
+                        l.withLayout(layout.copy(elements = layout.elements.map {
+                            if (it.id == editing.element.id) it.copy(repeat = holdRepeat) else it }))
+                    else if (editing.part == null && elementProperties != null && layout != null) l.withLayout(layout.copy(elements = layout.elements.map {
                         if (it.id == elementProperties!!.id) elementProperties!!.copy(name = elementProperties!!.name.trim().ifBlank { it.name }) else it
                     })) else l
                     geometry.withPreset(when {
-                    editing.element != null && editing.click -> b.copy(clicks = b.clicks + (editing.element.id to action))
+                    editing.element != null && editing.part == ElementSource.CLICK -> b.copy(clicks = b.clicks + (editing.element.id to action))
+                    editing.element != null && editing.part == ElementSource.HOLD -> b.copy(holds = if (action is InputAction.Disabled) b.holds - editing.element.id else b.holds + (editing.element.id to action))
+                    editing.element != null && editing.part == ElementSource.DOUBLE -> b.copy(doubles = if (action is InputAction.Disabled) b.doubles - editing.element.id else b.doubles + (editing.element.id to action))
                     editing.element != null -> b.copy(elements = b.elements + (editing.element.id to action))
-                    editing.key != null -> b.copy(keys = b.keys.filterNot { it.key == editing.key } + PhysicalInputBinding(editing.key, action))
+                    editing.key != null -> b.copy(keys = run {
+                        val normal = b.keys.firstOrNull { it.key == editing.key && it.part == null }
+                        val others = b.keys.filterNot { it.key == editing.key && (it.part == editing.part || it.part == null) }
+                        val normalOut = normal?.let { if (editing.part == ElementSource.HOLD) it.copy(repeat = holdRepeat) else it }
+                        others + listOfNotNull(normalOut, PhysicalInputBinding(editing.key, action, editing.part))
+                    })
                     else -> b.copy(controls = b.controls + (editing.control to action))
                 }) }) edit = null
             })
@@ -227,6 +254,22 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                         ToggleRow(host, "controller-rumble", stringResource(R.string.ctrl_rumble), null, controller.rumble) { ControllerPrefs.setRumble(context, it); onChanged() }
                         ChoiceRow(host, "controller-dead-zone", stringResource(R.string.ctrl_dead_zone), null, ControllerPrefs.deadZones.map { it to stringResource(R.string.ctrl_percent, it) }, controller.deadZone) { ControllerPrefs.setDeadZone(context, it); onChanged() }
                         ToggleRow(host, "controller-joycon-vr", stringResource(R.string.ctrl_joycon_vr), stringResource(R.string.ctrl_joycon_vr_hint), controller.joyConVr) { ControllerPrefs.setJoyConVr(context, it); onChanged() }
+                        val millis = stringResource(R.string.input_millis)
+                        var holdDelay by remember { mutableIntStateOf(ScreenKeyTiming.hold(context)) }
+                        var doubleWindow by remember { mutableIntStateOf(ScreenKeyTiming.double(context)) }
+                        var repeatDelay by remember { mutableIntStateOf(ScreenKeyTiming.repeat(context)) }
+                        SliderRow(stringResource(R.string.input_hold_delay), null, holdDelay, ScreenKeyTiming.HOLD_RANGE, step = 50,
+                            format = { "$it $millis" }, modifier = Modifier.testTag("setting-hold-delay")) {
+                            holdDelay = it; ScreenKeyTiming.setHold(context, it)
+                        }
+                        SliderRow(stringResource(R.string.input_double_window), null, doubleWindow, ScreenKeyTiming.DOUBLE_RANGE, step = 25,
+                            format = { "$it $millis" }, modifier = Modifier.testTag("setting-double-window")) {
+                            doubleWindow = it; ScreenKeyTiming.setDouble(context, it)
+                        }
+                        SliderRow(stringResource(R.string.input_repeat_delay), null, repeatDelay, ScreenKeyTiming.REPEAT_RANGE, step = 10,
+                            format = { "$it $millis" }, modifier = Modifier.testTag("setting-repeat-delay")) {
+                            repeatDelay = it; ScreenKeyTiming.setRepeat(context, it)
+                        }
                     }
                     SettingsGroup(stringResource(R.string.shortcuts_title)) { PhysicalShortcutRows() }
                     SettingsGroup(stringResource(R.string.input_latency)) {
@@ -294,7 +337,9 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                             if (elements.isEmpty()) InputHint(stringResource(R.string.input_empty_elements))
                             for (e in elements) {
                                 InputNavigationRow(e.name, actionLabel(preset.action(e)), Modifier.testTag("input-element-${e.id}")) { edit = InputBindingEdit(preset.id, e.control, e) }
-                                if (e.hasClick) InputNavigationRow(stringResource(R.string.input_click_name, e.name), actionLabel(preset.clickAction(e)), Modifier.testTag("input-click-${e.id}")) { edit = InputBindingEdit(preset.id, InputControl.A, e, click = true) }
+                                if (e.hasClick) InputNavigationRow(stringResource(R.string.input_click_name, e.name), actionLabel(preset.clickAction(e)), Modifier.testTag("input-click-${e.id}")) { edit = InputBindingEdit(preset.id, InputControl.A, e, part = ElementSource.CLICK) }
+                                if (e.hasHold) InputNavigationRow(stringResource(R.string.input_hold_name, e.name), actionLabel(preset.holdAction(e)), Modifier.testTag("input-hold-${e.id}")) { edit = InputBindingEdit(preset.id, InputControl.A, e, part = ElementSource.HOLD) }
+                                if (e.hasHold) InputNavigationRow(stringResource(R.string.input_double_name, e.name), actionLabel(preset.doubleAction(e)), Modifier.testTag("input-double-${e.id}")) { edit = InputBindingEdit(preset.id, InputControl.A, e, part = ElementSource.DOUBLE) }
                             }
                         } else {
                             Box(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
@@ -304,9 +349,13 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                             val controls = InputControl.padControls.asList()
                             if (bindingsTab != 2) InputControlGrid(preset, controls, bindingsTab == 1) { edit = InputBindingEdit(preset.id, it) }
                             else {
-                                for (b in preset.keys) {
+                                for (b in preset.keys.filter { it.part == null }) {
+                                    val hold = preset.keys.firstOrNull { it.key == b.key && it.part == ElementSource.HOLD }
+                                    val double = preset.keys.firstOrNull { it.key == b.key && it.part == ElementSource.DOUBLE }
                                     InputNavigationRow(b.key.label, actionLabel(b.action)) { edit = InputBindingEdit(preset.id, InputControl.A, key = b.key) }
-                                    PadTextButton(onClick = { update { it.withPreset(preset.copy(keys = preset.keys - b)) } }) { Text(stringResource(R.string.input_remove_binding)) }
+                                    InputNavigationRow(stringResource(R.string.input_hold_name, b.key.name), actionLabel(hold?.action ?: InputAction.Disabled)) { edit = InputBindingEdit(preset.id, InputControl.A, key = b.key, part = ElementSource.HOLD) }
+                                    InputNavigationRow(stringResource(R.string.input_double_name, b.key.name), actionLabel(double?.action ?: InputAction.Disabled)) { edit = InputBindingEdit(preset.id, InputControl.A, key = b.key, part = ElementSource.DOUBLE) }
+                                    PadTextButton(onClick = { update { it.withPreset(preset.copy(keys = preset.keys.filterNot { k -> k.key == b.key })) } }) { Text(stringResource(R.string.input_remove_binding)) }
                                 }
                                 InputNavigationRow(stringResource(R.string.input_capture), stringResource(R.string.input_capture_hint)) { capture = true }
                             }
@@ -367,11 +416,16 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                 managingLayout = null
                 rename(R.string.input_rename_layout, saved.name) { name -> update { it.withLayout(saved.copy(name = name)) } }
             }
-            val exported = remember(saved, library) {
-                val metrics = inputDisplayMetrics(context, if (saved.screen == InputLayoutScreen.SECONDARY) InputRole.SECONDARY else InputRole.PRIMARY)
-                InputLayoutFile.export(saved, library.bindings.firstOrNull { it.id == preset.id && it.layoutId == saved.id }
-                    ?: library.bindings.firstOrNull { it.layoutId == saved.id }, metrics.widthPixels, metrics.heightPixels)
+            val exportBindings = remember(saved, library) {
+                library.bindings.firstOrNull { it.id == preset.id && it.layoutId == saved.id }
+                    ?: library.bindings.firstOrNull { it.layoutId == saved.id }
             }
+            val dropped = remember(saved, exportBindings) { InputLayoutFile.droppedFeatures(saved, exportBindings) }
+            val exported = remember(saved, exportBindings) {
+                val metrics = inputDisplayMetrics(context, if (saved.screen == InputLayoutScreen.SECONDARY) InputRole.SECONDARY else InputRole.PRIMARY)
+                InputLayoutFile.export(saved, exportBindings, metrics.widthPixels, metrics.heightPixels)
+            }
+            if (dropped) InputHint(stringResource(R.string.input_export_dropped))
             if (exported != null) SecondaryButton(stringResource(R.string.screen_key_layout_export)) {
                 managingLayout = null
                 exporting = exported

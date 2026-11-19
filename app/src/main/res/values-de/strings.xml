@@ -4093,4 +4093,17 @@
     <string name="display_scaling_integer">Ganzzahlig</string>
     <string name="display_scaling_fit">Anpassen</string>
     <string name="drawer_antialiasing">Kantenglättung</string>
+
+    <string name="input_hold_properties">Eigenschaften für langes Drücken</string>
+    <string name="input_hold_name">%1$s · Langes Drücken</string>
+    <string name="input_double_properties">Eigenschaften für Doppeltippen</string>
+    <string name="input_double_name">%1$s · Doppeltippen</string>
+    <string name="input_repeat">Beim Halten wiederholen</string>
+    <string name="input_record_keys">Aufnehmen</string>
+    <string name="input_recording">Aufnahme…</string>
+    <string name="input_hold_delay">Verzögerung für langes Drücken</string>
+    <string name="input_double_window">Zeitfenster für Doppeltippen</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Wiederholungsintervall</string>
+    <string name="input_export_dropped">Das Layoutformat von Steam kann langes Drücken, Doppeltippen und Wiederholen nicht speichern, daher gibt es für dieses Layout keinen Export.</string>
 </resources>

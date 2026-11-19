@@ -42,7 +42,6 @@
     <string name="input_hide_tools">Piilota työkalut</string>
     <string name="input_route_controller">Ohjain</string>
     <string name="input_controller_route_hint">Lähettää ohjaimen syötteen Steam Inputille tai pelille.</string>
-    <string name="input_disabled_hint">Tämä elementti ei lähetä ohjaimen, hiiren tai näppäimistön syötettä.</string>
     <string name="input_mouse_click">Hiiren napsautus</string>
     <string name="input_command">DroidDeck-toiminto</string>
     <string name="input_action">Toiminto</string>

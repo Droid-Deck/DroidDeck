@@ -50,9 +50,10 @@ object InputProfiles {
                 if (!action.validFor(InputControl.A) || action is InputAction.Native && action.target != null) return@mapNotNull null
                 val key = PhysicalInputKey(item.getString("device"), item.getString("name"), item.getInt("keyCode"), item.getInt("scanCode"))
                 if (key.device.isBlank() || key.keyCode < 0 || key.scanCode < 0) return@mapNotNull null
-                PhysicalInputBinding(key, action)
+                val part = if (item.isNull("part") || item.optString("part").isEmpty()) null else ElementSource.valueOf(item.getString("part"))
+                PhysicalInputBinding(key, action, part, item.optBoolean("repeat"))
             }.getOrNull()
-        }.distinctBy { Triple(it.key.device, it.key.keyCode, it.key.scanCode) })
+        }.distinctBy { listOf(it.key.device, it.key.keyCode, it.key.scanCode, it.part?.name) })
         return result
     }
 
@@ -64,7 +65,7 @@ object InputProfiles {
                 val preset = updated.preset(definition.binding(role))
                 updated = updated.withPreset(preset.copy(controls = profile.bindings[role].orEmpty(),
                     elements = profile.elements[role].orEmpty(), keys = if (role == InputRole.PHYSICAL) profile.keys else emptyList(),
-                    clicks = profile.clicks[role].orEmpty()))
+                    clicks = profile.clicks[role].orEmpty(), holds = profile.holds[role].orEmpty(), doubles = profile.doubles[role].orEmpty()))
             }
             updated
         }
@@ -78,7 +79,8 @@ object InputProfiles {
         }
         val keys = JSONArray()
         for (binding in profile.keys) keys.put(JSONObject().put("device", binding.key.device).put("name", binding.key.name)
-            .put("keyCode", binding.key.keyCode).put("scanCode", binding.key.scanCode).put("action", encode(binding.action)))
+            .put("keyCode", binding.key.keyCode).put("scanCode", binding.key.scanCode).put("action", encode(binding.action))
+            .put("part", binding.part?.name ?: JSONObject.NULL).put("repeat", binding.repeat))
         prefs(context).edit().putString("profile.${profile.id}", JSONObject()
             .put("version", VERSION).put("id", profile.id).put("bindings", bindings).put("keys", keys).toString()).apply()
     }

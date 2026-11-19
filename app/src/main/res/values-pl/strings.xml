@@ -4173,4 +4173,17 @@
     <string name="display_scaling_integer">Liczba całkowita</string>
     <string name="display_scaling_fit">Dopasuj</string>
     <string name="drawer_antialiasing">Wygładzanie krawędzi</string>
+
+    <string name="input_hold_properties">Właściwości długiego naciśnięcia</string>
+    <string name="input_hold_name">%1$s · Długie naciśnięcie</string>
+    <string name="input_double_properties">Właściwości dwukrotnego dotknięcia</string>
+    <string name="input_double_name">%1$s · Dwukrotne dotknięcie</string>
+    <string name="input_repeat">Powtarzaj przy przytrzymaniu</string>
+    <string name="input_record_keys">Nagraj</string>
+    <string name="input_recording">Nagrywanie…</string>
+    <string name="input_hold_delay">Opóźnienie długiego naciśnięcia</string>
+    <string name="input_double_window">Okno dwukrotnego dotknięcia</string>
+    <string name="input_millis">ms</string>
+    <string name="input_repeat_delay">Interwał powtarzania</string>
+    <string name="input_export_dropped">Format układu Steam nie przechowuje długiego naciśnięcia, dwukrotnego dotknięcia ani powtarzania, więc tego układu nie można wyeksportować.</string>
 </resources>
