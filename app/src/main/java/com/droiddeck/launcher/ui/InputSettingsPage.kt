@@ -200,8 +200,7 @@ private fun DefaultControlsGroup(host: MenuHost, revision: Int, onEdit: (Triple<
     var below by remember { mutableStateOf(SessionPrefs.unfoldedControls(context)) }
     SettingsGroup(stringResource(R.string.osc_group_for, stringResource(R.string.osc_default))) {
         ChoiceRow(host, "osc-layout", stringResource(R.string.osc_layout), null, options, choice) { id ->
-            runCatching { ControlsChoice.choose(context, null, id, desktop = false) }.onFailure(onFailure)
-            onChanged()
+            runCatching { ControlsChoice.choose(context, null, id, desktop = false) }.onSuccess { onChanged() }.onFailure(onFailure)
         }
         if (choice != GameControls.STEAM) ActionRow(stringResource(R.string.osc_edit_layout), null, stringResource(R.string.ctrl_edit), {
             host.open = null

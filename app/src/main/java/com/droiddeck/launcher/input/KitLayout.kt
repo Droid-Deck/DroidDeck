@@ -41,8 +41,8 @@ object KitLayout {
     /** The widest pair of side controls on any kit: a larger size never pushes the two halves, or the rows, into each other. */
     private const val MIN_SPAN = 1200f
     private const val MAX_HEIGHT_MM = 80f
-    /** Insets are kept as reported until together they take more than this share of a side, which would leave no room for a usable pad. */
-    private const val MAX_INSETS = .4f
+    /** The smallest half-size of any kit control in reference units. */
+    private const val SMALLEST_HALF = 26f
     private const val CORNER_DP = 52f
     private const val ROW_DP = 60f
     private const val BUTTON_DP = 44f
@@ -89,13 +89,15 @@ object KitLayout {
     /** The default controls for [kit] on a [width] × [height] screen. */
     fun elements(context: Context, kit: PadKit, width: Int, height: Int, inset: Rect = Rect(), scale: Float = 1f): List<InputSurfaceElement> {
         if (width <= 0 || height <= 0) return emptyList()
-        fun fit(a: Int, b: Int, side: Int): Pair<Int, Int> {
+        // Insets stay as reported unless what's left is too small to keep every control above the minimum element size.
+        val smallestUnit = InputSurfaceElement.MIN_SIZE * max(width, height) / (2 * SMALLEST_HALF)
+        fun fit(a: Int, b: Int, side: Int, reference: Float): Pair<Int, Int> {
             val first = a.coerceAtLeast(0); val second = b.coerceAtLeast(0)
-            val room = (side * MAX_INSETS).toInt()
-            return if (first + second <= room) first to second else (first * room / (first + second)) to (second * room / (first + second))
+            val room = (side - (smallestUnit * reference).toInt() - 1).coerceAtLeast(0)
+            return if (first + second <= room) first to second else (first.toLong() * room / (first + second)).toInt() to (second.toLong() * room / (first + second)).toInt()
         }
-        val (left, right) = fit(inset.left, inset.right, width)
-        val (top, bottom) = fit(inset.top, inset.bottom, height)
+        val (left, right) = fit(inset.left, inset.right, width, MIN_SPAN)
+        val (top, bottom) = fit(inset.top, inset.bottom, height, REF_H)
         val safe = Rect(left, top, right, bottom)
         if (height > width) return portrait(context, kit, width, height, safe, scale)
         val w = width.toFloat(); val h = height.toFloat()

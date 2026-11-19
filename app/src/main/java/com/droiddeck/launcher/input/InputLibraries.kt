@@ -83,8 +83,12 @@ object InputLibraries {
         if (invalid) {
             val encoded = encode(updated)
             require(encoded.length <= 2_000_000) { "The input library is too large to save." }
-            check(p.edit().putString(RECOVERY + UUID.nameUUIDFromBytes(stored!!.toByteArray(Charsets.UTF_8)), stored)
-                .putString(KEY, encoded).commit()) { "Could not save the input library and its recovery copy." }
+            val recovery = RECOVERY + UUID.nameUUIDFromBytes(stored!!.toByteArray(Charsets.UTF_8))
+            if (!p.edit().putString(recovery, stored).putString(KEY, encoded).commit()) {
+                // A failed commit has already changed the in-memory preferences; put the previous library back.
+                p.edit().putString(KEY, stored).remove(recovery).apply()
+                error("Could not save the input library and its recovery copy.")
+            }
         } else write(context, updated)
         return updated
     }

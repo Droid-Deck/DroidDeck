@@ -178,4 +178,28 @@ class OnScreenControlPrefsTest {
         val noDpad = edited.withLayout(saved.copy(elements = saved.elements.filterNot { it.id == KitLayout.DPAD_ID }))
         assertNull(noDpad.preset(bindings.id).elements["legacy:up"])
     }
+
+    @Test fun aFailedRecoverySaveLeavesTheStoredLibraryAsItWas() {
+        val stored = JSONObject().put("version", 1).put("profiles", "broken").toString()
+        val real = context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE)
+        real.edit().clear().putString("library", stored).commit()
+        val failing = object : android.content.ContextWrapper(context) {
+            override fun getSharedPreferences(name: String, mode: Int): android.content.SharedPreferences {
+                val prefs = super.getSharedPreferences(name, mode)
+                return object : android.content.SharedPreferences by prefs {
+                    override fun edit(): android.content.SharedPreferences.Editor {
+                        val editor = prefs.edit()
+                        return object : android.content.SharedPreferences.Editor by editor {
+                            override fun putString(key: String?, value: String?) = apply { editor.putString(key, value) }
+                            override fun remove(key: String?) = apply { editor.remove(key) }
+                            override fun commit(): Boolean { editor.apply(); return false }
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(runCatching { InputLibraries.update(failing) { it } }.isFailure)
+        assertEquals(stored, real.getString("library", null))
+        assertTrue(real.all.keys.none { it.startsWith("library-recovery.") })
+    }
 }

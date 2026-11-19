@@ -284,11 +284,11 @@ class KitLayoutTest {
 
     @Test fun insetsThatLeaveLessRoomShrinkTheKitInsteadOfOverlappingIt() {
         for (kit in PadKit.entries) for ((w, h, safe) in listOf(Triple(1600, 900, Rect(0, 60, 0, 0)), Triple(1600, 900, Rect(0, 730, 0, 0)),
-            Triple(1600, 900, Rect(0, 200, 0, 0)), Triple(1600, 900, Rect(0, 200, 0, 150)),
+            Triple(1600, 900, Rect(0, 200, 0, 0)), Triple(1600, 900, Rect(0, 200, 0, 150)), Triple(1600, 900, Rect(0, 390, 0, 0)),
             Triple(1920, 1080, Rect(80, 120, 80, 90)), Triple(2400, 1080, Rect(120, 30, 60, 40)))) {
             val elements = KitLayout.elements(context, kit, w, h, safe)
             assertEquals("$kit $w x $h $safe", emptyList<Pair<String, String>>(), overlapping(elements, w, h))
-            if (safe.top + safe.bottom <= h * .4f) for (e in elements) {
+            if (safe.top + safe.bottom <= 400) for (e in elements) {
                 val (x, y, ew, eh) = px(e, w, h).toList()
                 assertTrue("$kit $safe ${e.id}", x >= safe.left - .5f && y >= safe.top - .5f && x + ew <= w - safe.right + .5f && y + eh <= h - safe.bottom + .5f)
             }
