@@ -30,8 +30,11 @@ internal fun PreviewHost(content: @Composable () -> Unit) {
     }
 }
 
-/** A case the render test draws: a name for its PNG and the preview's content. */
-internal class PreviewCase(val name: String, val content: @Composable () -> Unit) {
+/**
+ * A case the render test draws: a name for its PNG and the preview's content. [ready] is what the test waits for before
+ * drawing, for a screen that loads something off the main thread first.
+ */
+internal class PreviewCase(val name: String, val ready: () -> Boolean = { true }, val content: @Composable () -> Unit) {
     override fun toString() = name
 }
 

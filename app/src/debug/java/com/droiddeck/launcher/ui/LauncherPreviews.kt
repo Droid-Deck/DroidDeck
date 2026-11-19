@@ -27,12 +27,15 @@ private fun SessionMenu(page: SessionDrawerPage, steam: Boolean = true, desktop:
 @DroidDeckPreviews @Composable private fun SessionMenuSessionPreview() = SessionMenu(SessionDrawerPage.SESSION)
 @DroidDeckPreviews @Composable private fun SessionMenuDesktopPreview() = SessionMenu(SessionDrawerPage.CONTROLLER, steam = false, desktop = true)
 
+/** The Library and Stores tabs read store accounts, which load on a background thread. */
+private val storesLoaded = { com.droiddeck.launcher.stores.StoresState.accountsLoaded }
+
 /** Every preview above, for the render test. Add a case when adding a preview. */
 internal val previewCases: List<PreviewCase> = listOf(
     PreviewCase("steam-tab") { Launcher("steam") },
-    PreviewCase("library") { Launcher("games") },
-    PreviewCase("library-empty") { Launcher("games", games = emptyList()) },
-    PreviewCase("stores") { Launcher("stores") },
+    PreviewCase("library", storesLoaded) { Launcher("games") },
+    PreviewCase("library-empty", storesLoaded) { Launcher("games", games = emptyList()) },
+    PreviewCase("stores", storesLoaded) { Launcher("stores") },
     PreviewCase("downloads") { Launcher("downloads") },
     PreviewCase("settings") { Launcher("setup") },
     PreviewCase("runtime-missing") { Launcher("setup", ready = false) },

@@ -33,6 +33,7 @@ internal class PreviewRenderTest(private val case: PreviewCase) {
     private fun render(size: String) {
         compose.mainClock.autoAdvance = false
         compose.setContent { case.content() }
+        compose.waitUntil(timeoutMillis = 15_000) { case.ready() }
         // Entrance animations settle well within this.
         compose.mainClock.advanceTimeBy(2_000)
         compose.waitForIdle()
