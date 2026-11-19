@@ -33,7 +33,10 @@ internal fun InputQuickSettings(host: MenuHost, desktop: Boolean, onChanged: (In
         runCatching { InputLibraries.update(context, change) }.onSuccess { library = it; onChanged(role) }
             .onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
     }
-    val selection = library.selection(desktop)
+    val game = (context.findActivity() as? com.droiddeck.launcher.SessionActivity)?.inputGameScope()
+    fun effective(value: InputLibrary) = GameInputControls.resolve(context, value, desktop, game)
+    val resolved = effective(library)
+    val selection = resolved.selection(desktop)
     val mixed = selection.parts.isNotEmpty()
     val active = library.profile(library.activeId(desktop))
     val profiles = listOf(InputProfiles.AUTO to stringResource(R.string.input_quick_auto, if (desktop) library.profile(library.desktop).name else library.profile(library.steam).name)) +
@@ -61,7 +64,7 @@ internal fun InputQuickSettings(host: MenuHost, desktop: Boolean, onChanged: (In
             if (role == InputRole.PHYSICAL) binding.physical
             else !binding.physical && library.layouts.any { it.id == binding.layoutId && it.supports(role) }
         }.map { it.id to it.name }
-        ChoiceRow(host, "input-part-${role.name}", roleLabel(role), null, options, library.activePart(desktop, role).bindings,
+        ChoiceRow(host, "input-part-${role.name}", roleLabel(role), null, options, resolved.activePart(desktop, role).bindings,
             chipModifier = track("input-part-${role.name}")) { id -> update(role) { it.selectPart(desktop, role, id) } }
     }
     if (mixed) SecondaryButton(stringResource(R.string.input_save_combination)) { naming = true }
@@ -73,7 +76,7 @@ internal fun InputQuickSettings(host: MenuHost, desktop: Boolean, onChanged: (In
         var name by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { naming = false }, title = { Text(stringResource(R.string.input_save_combination)) },
             text = { OutlinedTextField(name, { name = it.take(80) }, singleLine = true, label = { Text(stringResource(R.string.input_name)) }) },
-            confirmButton = { PadTextButton(enabled = name.isNotBlank(), onClick = { update(null) { it.saveSelection(desktop, name) }; naming = false }) { Text(stringResource(R.string.gesture_save_changes)) } },
+            confirmButton = { PadTextButton(enabled = name.isNotBlank(), onClick = { update(null) { effective(it).saveSelection(desktop, name) }; naming = false }) { Text(stringResource(R.string.gesture_save_changes)) } },
             dismissButton = { PadTextButton(onClick = { naming = false }) { Text(stringResource(R.string.common_cancel)) } })
     }
     failure?.let { message -> AlertDialog(onDismissRequest = { failure = null }, title = { Text(stringResource(R.string.input_save_failed)) },

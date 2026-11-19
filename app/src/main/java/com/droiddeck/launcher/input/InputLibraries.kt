@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 14
+    private const val VERSION = 15
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -304,7 +304,7 @@ object InputLibraries {
             for (e in layout.elements) elements.put(JSONObject().put("id", e.id).put("kind", e.kind.name)
                 .put("control", e.control.id).put("name", e.name).put("x", e.x.toDouble()).put("y", e.y.toDouble())
                 .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
-                .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown))
+                .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown).put("stickImage", e.stickImage))
             layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
                 .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
                 .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
@@ -345,7 +345,7 @@ object InputLibraries {
                     e.getDouble("y").toFloat(), e.getDouble("width").toFloat(), e.getDouble("height").toFloat(),
                     e.getString("id"), InputElementKind.valueOf(e.getString("kind")), e.getString("name"),
                     e.optBoolean("floating", true), e.optBoolean("hideWhenIdle", false), e.optBoolean("mouseGestures", false), e.optBoolean("toggle", false), e.optInt("icon", 0), e.optString("image", ""),
-                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false))
+                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false), e.optString("stickImage", ""))
             }
             SavedInputLayout(layout.getString("id"), layout.getString("name"), elements, InputLayoutTemplate.valueOf(layout.getString("template")),
                 InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100),
