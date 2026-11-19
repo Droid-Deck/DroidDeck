@@ -3313,10 +3313,10 @@
     <string name="storage_shared_prefix">Steam 的共用前綴</string>
     <string name="storage_shared_prefix_detail">Steam 在此執行其自帶的 Windows 輔助程式</string>
     <string name="storage_reset_shared_confirm">刪除該前綴（%1$s）。Steam 下次需要時會新建一個。</string>
+    <string name="storage_remove_launcher_confirm">刪除此商店應用程式的 Wine 前綴和著色器快取（%1$s），包括其登入資料和只存於其中的存檔。在其中執行的遊戲會獲得新的前綴，你可能需要重新設定該應用程式。雲端存檔仍會保留在你的帳戶中。</string>
     <string name="storage_launcher_prefix">商店應用程式及透過它執行的遊戲</string>
     <string name="storage_launcher_used_by">由 %1$s 使用</string>
     <string name="storage_shortcut_app">非 Steam 遊戲 %1$s</string>
-    <string name="storage_unknown_prefix_detail">未配對到任何遊戲，因此保留</string>
     <string name="storage_remove_selected">移除所選 · %1$s</string>
     <string name="storage_uninstall_selected">解除安裝所選 · %1$s</string>
     <string name="storage_bulk_prefixes">Wine 前綴</string>

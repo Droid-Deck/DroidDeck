@@ -3345,10 +3345,10 @@
     <string name="storage_shared_prefix">Gedeeld Steam-prefix</string>
     <string name="storage_shared_prefix_detail">Steam voert hier eigen Windows-hulpmiddelen uit</string>
     <string name="storage_reset_shared_confirm">Verwijdert het (%1$s). Steam maakt een nieuw aan zodra het er weer een nodig heeft.</string>
+    <string name="storage_remove_launcher_confirm">Verwijdert de Wine-prefix en shadercache van deze winkel-app (%1$s), met de aanmelding en saves die alleen daar staan. Games die erin draaien krijgen een nieuwe prefix, en je moet de app misschien opnieuw instellen. Cloudsaves blijven in je account.</string>
     <string name="storage_launcher_prefix">Een winkel-app en de games die ermee draaien</string>
     <string name="storage_launcher_used_by">Gebruikt door %1$s</string>
     <string name="storage_shortcut_app">Niet-Steam-game %1$s</string>
-    <string name="storage_unknown_prefix_detail">Niet aan een game gekoppeld, dus het blijft bewaard</string>
     <string name="storage_remove_selected">Selectie verwijderen · %1$s</string>
     <string name="storage_uninstall_selected">Selectie verwijderen · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefixen</string>

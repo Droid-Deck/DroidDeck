@@ -962,7 +962,7 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
         }
         if (safe.isNotEmpty()) add(DataTarget("safe", safeLabel, safe.mapNotNull { l -> l.prefix?.let { it to l.prefixBytes } }, safe.mapNotNull { l -> l.shaders?.let { it to l.bytes - l.prefixBytes } }))
         unsure.forEach { l -> add(DataTarget("left:${leftoverKey(l)}", unsureNames[leftoverKey(l)].orEmpty(), listOfNotNull(l.prefix?.let { it to l.prefixBytes }), listOfNotNull(l.shaders?.let { it to l.bytes - l.prefixBytes }))) }
-        kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }
+        kept.filter { StorageState.keptRemovable(report, it) }
             .forEach { k -> add(DataTarget("kept:${k.dir.path}", keptNames[k.dir.path].orEmpty(), listOf(k.dir to k.bytes), listOfNotNull(k.shaders?.let { it to k.shaderBytes }))) }
     }.associateBy { it.key }
     val chosen = picked.mapNotNull { targets[it] }
@@ -1019,7 +1019,8 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
         SectionTitle(stringResource(R.string.storage_data_other), gb(kept.sumOf { it.bytes + it.shaderBytes }))
         ListCard {
             kept.forEachIndexed { i, k ->
-                val resettable = k.owner == PrefixOwner.SHARED || k.owner == PrefixOwner.GAME
+                val removable = StorageState.keptRemovable(report, k)
+                val reset = k.owner == PrefixOwner.SHARED || k.owner == PrefixOwner.GAME
                 val key = "kept:${k.dir.path}"
                 ItemRow(
                     keptName(k),
@@ -1028,13 +1029,14 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
                         PrefixOwner.LAUNCHER -> if (k.users.isEmpty()) stringResource(R.string.storage_launcher_prefix)
                             else stringResource(R.string.storage_launcher_used_by, k.users.distinct().joinToString(", "))
                         PrefixOwner.GAME -> stringResource(R.string.storage_prefix_shaders, gb(k.bytes), gb(k.shaderBytes))
-                        PrefixOwner.UNKNOWN -> stringResource(R.string.storage_unknown_prefix_detail)
+                        PrefixOwner.UNKNOWN -> stringResource(R.string.storage_leftover_unsure_detail)
                     }, k.shaderBytes.takeIf { it >= ONE_MB && k.owner != PrefixOwner.GAME }?.let { stringResource(R.string.storage_bulk_shaders) + " " + gb(it).replace(' ', ' ') }).joinToString(" · "),
                     k.bytes + k.shaderBytes, i == kept.lastIndex,
-                    pill = if (k.owner == PrefixOwner.LAUNCHER) { { Pill(stringResource(R.string.storage_tag_required), MaterialTheme.colorScheme.onSurfaceVariant) } } else null,
-                    selected = if (resettable) key in picked else null, slot = true, selectable = !busy, onSelect = { toggle(key) },
-                    action = if (resettable) {
-                        { SecondaryButton(stringResource(R.string.storage_reset_prefix), compact = true, enabled = !busy) { confirmKept = k } }
+                    pill = if (!removable) { { Pill(stringResource(R.string.storage_tag_required), MaterialTheme.colorScheme.onSurfaceVariant) } }
+                        else if (k.owner == PrefixOwner.UNKNOWN) { { Pill(stringResource(R.string.storage_tag_saves), AttentionAmber) } } else null,
+                    selected = if (removable) key in picked else null, slot = true, selectable = !busy, onSelect = { toggle(key) },
+                    action = if (removable) {
+                        { SecondaryButton(stringResource(if (reset) R.string.storage_reset_prefix else R.string.storage_remove), compact = true, enabled = !busy) { confirmKept = k } }
                     } else null,
                 )
             }
@@ -1051,11 +1053,16 @@ private fun GameDataView(report: StorageReport, sessionRunning: Boolean, onBack:
         onDismiss = { confirmBulk = false },
     )
     confirmKept?.let { k ->
+        val reset = k.owner == PrefixOwner.SHARED || k.owner == PrefixOwner.GAME
         ConfirmDialog(
-            stringResource(R.string.storage_reset_prefix_title, keptName(k)),
-            if (k.owner == PrefixOwner.SHARED) stringResource(R.string.storage_reset_shared_confirm, gb(k.bytes))
-            else stringResource(R.string.storage_reset_prefix_confirm, gb(k.bytes), k.library),
-            stringResource(R.string.storage_reset_prefix),
+            stringResource(if (reset) R.string.storage_reset_prefix_title else R.string.storage_remove_title, keptName(k)),
+            when (k.owner) {
+                PrefixOwner.SHARED -> stringResource(R.string.storage_reset_shared_confirm, gb(k.bytes))
+                PrefixOwner.GAME -> stringResource(R.string.storage_reset_prefix_confirm, gb(k.bytes), k.library)
+                PrefixOwner.LAUNCHER -> stringResource(R.string.storage_remove_launcher_confirm, gb(k.bytes + k.shaderBytes))
+                PrefixOwner.UNKNOWN -> stringResource(R.string.storage_leftover_confirm, gb(k.bytes + k.shaderBytes))
+            },
+            stringResource(if (reset) R.string.storage_reset_prefix else R.string.storage_remove),
             onConfirm = { StorageState.resetKept(ctx, k) }, onDismiss = { confirmKept = null },
         )
     }

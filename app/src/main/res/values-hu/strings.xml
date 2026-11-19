@@ -3345,10 +3345,10 @@
     <string name="storage_shared_prefix">A Steam megosztott prefixe</string>
     <string name="storage_shared_prefix_detail">A Steam itt futtatja saját Windows-segédprogramjait</string>
     <string name="storage_reset_shared_confirm">Törli (%1$s). A Steam újat hoz létre, amikor legközelebb szüksége lesz rá.</string>
+    <string name="storage_remove_launcher_confirm">Törli ennek az áruházalkalmazásnak a Wine-prefixét és shadergyorsítótárát (%1$s), a bejelentkezéssel és a csak ott tárolt mentésekkel együtt. A benne futó játékok új prefixet kapnak, és lehet, hogy az alkalmazást újra be kell állítani. A felhőmentések a fiókodban maradnak.</string>
     <string name="storage_launcher_prefix">Egy áruházalkalmazás és a vele futó játékok</string>
     <string name="storage_launcher_used_by">Használja: %1$s</string>
     <string name="storage_shortcut_app">Nem Steam-es játék: %1$s</string>
-    <string name="storage_unknown_prefix_detail">Nem tartozik játékhoz, ezért megmarad</string>
     <string name="storage_remove_selected">Kijelöltek eltávolítása · %1$s</string>
     <string name="storage_uninstall_selected">Kijelöltek eltávolítása · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefixek</string>

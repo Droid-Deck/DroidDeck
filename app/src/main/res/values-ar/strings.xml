@@ -3493,10 +3493,10 @@
     <string name="storage_shared_prefix">بادئة Steam المشتركة</string>
     <string name="storage_shared_prefix_detail">يشغّل Steam مساعدات Windows الخاصة به هنا</string>
     <string name="storage_reset_shared_confirm">يحذفها (%1$s). ينشئ Steam بادئة جديدة في المرة التالية التي يحتاجها فيها.</string>
+    <string name="storage_remove_launcher_confirm">يحذف بادئة Wine وذاكرة التظليل المؤقتة لتطبيق المتجر هذا (%1$s)، مع تسجيل الدخول وأي حفظ موجود فيها فقط. تحصل الألعاب التي تعمل فيها على بادئة جديدة، وقد تحتاج إلى إعداد التطبيق مرة أخرى. تبقى عمليات الحفظ السحابية في حسابك.</string>
     <string name="storage_launcher_prefix">تطبيق متجر والألعاب التي تعمل به</string>
     <string name="storage_launcher_used_by">مستخدَمة بواسطة %1$s</string>
     <string name="storage_shortcut_app">لعبة خارج Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">غير مطابقة لأي لعبة، لذا يُحتفظ بها</string>
     <string name="storage_remove_selected">حذف المحدد · %1$s</string>
     <string name="storage_uninstall_selected">إلغاء تثبيت المحدد · %1$s</string>
     <string name="storage_bulk_prefixes">بادئات Wine</string>

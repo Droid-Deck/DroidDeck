@@ -3316,10 +3316,10 @@
     <string name="storage_shared_prefix">Steam の共有プレフィックス</string>
     <string name="storage_shared_prefix_detail">Steam が独自の Windows ヘルパーをここで実行します</string>
     <string name="storage_reset_shared_confirm">削除します（%1$s）。次に必要になったとき Steam が新しく作成します。</string>
+    <string name="storage_remove_launcher_confirm">このストアアプリの Wine プレフィックスとシェーダーキャッシュ（%1$s）を、サインイン情報やそこにしかないセーブデータごと削除します。中で動くゲームは新しいプレフィックスで始まり、アプリの再セットアップが必要になる場合があります。クラウドのセーブデータはアカウントに残ります。</string>
     <string name="storage_launcher_prefix">ストアアプリとそれで動くゲーム</string>
     <string name="storage_launcher_used_by">%1$s が使用</string>
     <string name="storage_shortcut_app">Steam 以外のゲーム %1$s</string>
-    <string name="storage_unknown_prefix_detail">どのゲームにも一致しないため保持されます</string>
     <string name="storage_remove_selected">選択項目を削除 · %1$s</string>
     <string name="storage_uninstall_selected">選択項目をアンインストール · %1$s</string>
     <string name="storage_bulk_prefixes">Wineプレフィックス</string>

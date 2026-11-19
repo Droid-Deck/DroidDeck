@@ -3316,10 +3316,10 @@
     <string name="storage_shared_prefix">Awalan Steam dikongsi</string>
     <string name="storage_shared_prefix_detail">Steam menjalankan pembantu Windowsnya sendiri di sini</string>
     <string name="storage_reset_shared_confirm">Memadamnya (%1$s). Steam mencipta yang baharu apabila memerlukannya lagi.</string>
+    <string name="storage_remove_launcher_confirm">Memadam prefiks Wine dan cache shader apl kedai ini (%1$s), bersama log masuk dan simpanan yang hanya ada di situ. Permainan yang berjalan di dalamnya mendapat prefiks baharu, dan anda mungkin perlu menyediakan apl itu semula. Simpanan awan kekal dalam akaun anda.</string>
     <string name="storage_launcher_prefix">Aplikasi kedai dan permainan yang berjalan dengannya</string>
     <string name="storage_launcher_used_by">Digunakan oleh %1$s</string>
     <string name="storage_shortcut_app">Permainan bukan Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Tidak sepadan dengan mana-mana permainan, jadi ia disimpan</string>
     <string name="storage_remove_selected">Alih keluar yang dipilih · %1$s</string>
     <string name="storage_uninstall_selected">Nyahpasang yang dipilih · %1$s</string>
     <string name="storage_bulk_prefixes">Prefix Wine</string>

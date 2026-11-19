@@ -3345,10 +3345,10 @@
     <string name="storage_shared_prefix">Κοινό prefix του Steam</string>
     <string name="storage_shared_prefix_detail">Το Steam εκτελεί εδώ τα δικά του βοηθητικά προγράμματα Windows</string>
     <string name="storage_reset_shared_confirm">Το διαγράφει (%1$s). Το Steam δημιουργεί νέο την επόμενη φορά που θα το χρειαστεί.</string>
+    <string name="storage_remove_launcher_confirm">Διαγράφει το πρόθεμα Wine και την cache των shader αυτής της εφαρμογής καταστήματος (%1$s), μαζί με τη σύνδεση και όσες αποθηκεύσεις υπάρχουν μόνο εκεί. Τα παιχνίδια που τρέχουν σε αυτό παίρνουν νέο πρόθεμα και ίσως χρειαστεί να ρυθμίσετε ξανά την εφαρμογή. Οι αποθηκεύσεις στο cloud μένουν στον λογαριασμό σας.</string>
     <string name="storage_launcher_prefix">Μια εφαρμογή καταστήματος και τα παιχνίδια που τρέχουν με αυτήν</string>
     <string name="storage_launcher_used_by">Χρησιμοποιείται από %1$s</string>
     <string name="storage_shortcut_app">Παιχνίδι εκτός Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Δεν αντιστοιχεί σε παιχνίδι, οπότε διατηρείται</string>
     <string name="storage_remove_selected">Αφαίρεση επιλεγμένων · %1$s</string>
     <string name="storage_uninstall_selected">Κατάργηση επιλεγμένων · %1$s</string>
     <string name="storage_bulk_prefixes">Prefix Wine</string>

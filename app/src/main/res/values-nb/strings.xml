@@ -3345,10 +3345,10 @@
     <string name="storage_shared_prefix">Steams delte prefiks</string>
     <string name="storage_shared_prefix_detail">Steam kjører sine egne Windows-hjelpere her</string>
     <string name="storage_reset_shared_confirm">Sletter det (%1$s). Steam oppretter et nytt neste gang det trengs.</string>
+    <string name="storage_remove_launcher_confirm">Sletter denne butikkappens Wine-prefiks og shader-buffer (%1$s), sammen med innlogging og lagringer som bare finnes der. Spill som kjører i det, får et nytt prefiks, og du må kanskje sette opp appen igjen. Skylagringer blir værende på kontoen din.</string>
     <string name="storage_launcher_prefix">En butikkapp og spillene som kjører med den</string>
     <string name="storage_launcher_used_by">Brukes av %1$s</string>
     <string name="storage_shortcut_app">Ikke-Steam-spill %1$s</string>
-    <string name="storage_unknown_prefix_detail">Ikke knyttet til et spill, så det beholdes</string>
     <string name="storage_remove_selected">Fjern valgte · %1$s</string>
     <string name="storage_uninstall_selected">Avinstaller valgte · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefikser</string>

@@ -3389,10 +3389,10 @@
     <string name="storage_shared_prefix">Prefixo compartilhado da Steam</string>
     <string name="storage_shared_prefix_detail">A Steam executa aqui seus próprios auxiliares do Windows</string>
     <string name="storage_reset_shared_confirm">Apaga o prefixo (%1$s). A Steam cria um novo na próxima vez que precisar.</string>
+    <string name="storage_remove_launcher_confirm">Apaga o prefixo do Wine e o cache de shaders deste app de loja (%1$s), com o login e os saves guardados só ali. Os jogos que rodam nele recebem um prefixo novo, e talvez seja preciso configurar o app de novo. Os saves na nuvem continuam na sua conta.</string>
     <string name="storage_launcher_prefix">Um app de loja e os jogos que rodam com ele</string>
     <string name="storage_launcher_used_by">Usado por %1$s</string>
     <string name="storage_shortcut_app">Jogo não Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Não corresponde a nenhum jogo, então é mantido</string>
     <string name="storage_remove_selected">Remover seleção · %1$s</string>
     <string name="storage_uninstall_selected">Desinstalar seleção · %1$s</string>
     <string name="storage_bulk_prefixes">Prefixos do Wine</string>

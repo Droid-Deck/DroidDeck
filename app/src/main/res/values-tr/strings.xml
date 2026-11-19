@@ -3345,10 +3345,10 @@
     <string name="storage_shared_prefix">Steam\'in ortak öneki</string>
     <string name="storage_shared_prefix_detail">Steam kendi Windows yardımcılarını burada çalıştırır</string>
     <string name="storage_reset_shared_confirm">Siler (%1$s). Steam bir dahaki ihtiyacında yenisini oluşturur.</string>
+    <string name="storage_remove_launcher_confirm">Bu mağaza uygulamasının Wine önekini ve gölgelendirici önbelleğini (%1$s), oturum açma bilgisi ve yalnızca orada duran kayıtlarla birlikte siler. İçinde çalışan oyunlar yeni bir önek alır ve uygulamayı yeniden kurmanız gerekebilir. Bulut kayıtları hesabınızda kalır.</string>
     <string name="storage_launcher_prefix">Bir mağaza uygulaması ve onunla çalışan oyunlar</string>
     <string name="storage_launcher_used_by">Kullanan: %1$s</string>
     <string name="storage_shortcut_app">Steam dışı oyun %1$s</string>
-    <string name="storage_unknown_prefix_detail">Bir oyunla eşleşmedi, bu yüzden korunuyor</string>
     <string name="storage_remove_selected">Seçilenleri kaldır · %1$s</string>
     <string name="storage_uninstall_selected">Seçilenlerin yüklemesini kaldır · %1$s</string>
     <string name="storage_bulk_prefixes">Wine önekleri</string>

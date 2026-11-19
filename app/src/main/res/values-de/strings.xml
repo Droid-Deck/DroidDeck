@@ -3345,10 +3345,10 @@
     <string name="storage_shared_prefix">Gemeinsames Präfix von Steam</string>
     <string name="storage_shared_prefix_detail">Steam führt hier eigene Windows-Hilfsprogramme aus</string>
     <string name="storage_reset_shared_confirm">Löscht es (%1$s). Steam erstellt ein neues, sobald es wieder eines braucht.</string>
+    <string name="storage_remove_launcher_confirm">Löscht Wine-Präfix und Shader-Cache dieser Store-App (%1$s), samt Anmeldung und Speicherständen, die nur dort liegen. Spiele, die darin laufen, bekommen ein neues Präfix, und die App muss eventuell neu eingerichtet werden. Cloud-Speicherstände bleiben im Konto.</string>
     <string name="storage_launcher_prefix">Eine Store-App und die Spiele, die damit laufen</string>
     <string name="storage_launcher_used_by">Verwendet von %1$s</string>
     <string name="storage_shortcut_app">Nicht-Steam-Spiel %1$s</string>
-    <string name="storage_unknown_prefix_detail">Keinem Spiel zugeordnet, daher bleibt es erhalten</string>
     <string name="storage_remove_selected">Auswahl entfernen · %1$s</string>
     <string name="storage_uninstall_selected">Auswahl deinstallieren · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-Präfixe</string>

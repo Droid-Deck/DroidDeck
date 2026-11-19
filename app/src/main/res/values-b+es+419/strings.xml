@@ -3348,10 +3348,10 @@
     <string name="storage_shared_prefix">Prefijo compartido de Steam</string>
     <string name="storage_shared_prefix_detail">Steam ejecuta aquí sus propias herramientas de Windows</string>
     <string name="storage_reset_shared_confirm">Lo borra (%1$s). Steam crea uno nuevo la próxima vez que lo necesite.</string>
+    <string name="storage_remove_launcher_confirm">Borra el prefijo de Wine y la caché de shaders de esta app de tienda (%1$s), junto con su inicio de sesión y cualquier partida guardada solo ahí. Los juegos que se ejecutan en él reciben un prefijo nuevo y quizá debas configurar la app otra vez. Las partidas en la nube se quedan en tu cuenta.</string>
     <string name="storage_launcher_prefix">Una app de tienda y los juegos que se ejecutan con ella</string>
     <string name="storage_launcher_used_by">Usado por %1$s</string>
     <string name="storage_shortcut_app">Juego que no es de Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">No coincide con ningún juego, así que se conserva</string>
     <string name="storage_remove_selected">Quitar selección · %1$s</string>
     <string name="storage_uninstall_selected">Desinstalar selección · %1$s</string>
     <string name="storage_bulk_prefixes">Prefijos de Wine</string>

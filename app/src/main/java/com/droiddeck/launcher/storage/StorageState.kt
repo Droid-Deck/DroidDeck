@@ -200,10 +200,19 @@ object StorageState {
         true
     })
 
+    /**
+     * Whether a kept prefix may be removed. A store app's prefix can go, as Wine makes a new one and the app can be set up
+     * again, but not while a store game is installed inside it, as Battle.net does on drive C, or while a download may write to it.
+     */
+    internal fun keptRemovable(report: StorageReport, prefix: KeptPrefix): Boolean =
+        prefix.owner != PrefixOwner.LAUNCHER || (report.storeGames.none { it.game.folder.path.startsWith(prefix.dir.path + "/") } &&
+            !com.droiddeck.launcher.stores.download.DownloadQueue.anyActive())
+
     fun resetKept(context: Context, prefix: KeptPrefix) = act(context, "kept-${prefix.dir.name}", { _, fresh ->
-        val dir = fresh.kept.firstOrNull { it.dir.path == prefix.dir.path && it.owner == prefix.owner }
-            ?.takeIf { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }?.dir ?: return@act false
-        check(FileOps.delete(dir)) { "cannot delete $dir" }
+        val kept = fresh.kept.firstOrNull { it.dir.path == prefix.dir.path && it.owner == prefix.owner }
+            ?.takeIf { keptRemovable(fresh, it) } ?: return@act false
+        val reset = kept.owner == PrefixOwner.SHARED || kept.owner == PrefixOwner.GAME
+        (listOf(kept.dir) + listOfNotNull(kept.shaders?.takeUnless { reset })).forEach { check(FileOps.delete(it)) { "cannot delete $it" } }
         true
     })
 
@@ -227,7 +236,7 @@ object StorageState {
 
     fun removeDirs(context: Context, dirs: List<java.io.File>) = act(context, "remove-${dirs.size}", { _, fresh ->
         val allowed = (fresh.games.flatMap { it.shaderDirs + listOfNotNull(it.prefixDir) } + fresh.leftovers.flatMap { listOfNotNull(it.prefix, it.shaders) } +
-            fresh.kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }.flatMap { listOfNotNull(it.dir, it.shaders) }).mapTo(HashSet()) { it.path }
+            fresh.kept.filter { keptRemovable(fresh, it) }.flatMap { listOfNotNull(it.dir, it.shaders) }).mapTo(HashSet()) { it.path }
         val wanted = dirs.distinctBy { it.path }
         val targets = wanted.filter { it.path in allowed }
         if (targets.size < wanted.size) Log.w(TAG, "kept ${wanted.size - targets.size} folders that are no longer safe to remove")
