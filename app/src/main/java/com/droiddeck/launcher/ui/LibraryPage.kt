@@ -543,6 +543,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 searchCleared = open != null,
                 onFocus = { gridFocused = it },
                 soundMode = soundMode,
+                wallArt = { wallTiles(all.mapNotNull { entryArt(it, tall = true) }) },
                 emptyText = when {
                     soundMode && all.isEmpty() -> R.string.soundtracks_empty
                     !soundMode && all.isEmpty() && source == LIBRARY_ALL -> R.string.games_empty
@@ -597,7 +598,7 @@ private fun LibraryGrid(
     onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
     soundMode: Boolean = false, emptyText: Int = R.string.stores_nothing_matches, onAddSoundtrack: () -> Unit = {},
     onCollections: () -> Unit = {}, trackHits: List<SoundtrackIndex.Hit> = emptyList(), onPlayHit: (SoundtrackIndex.Hit) -> Unit = {},
-    signInStore: Store? = null,
+    signInStore: Store? = null, wallArt: () -> List<Any> = { emptyList() },
 ) {
     val listMode = s.storesView == "list"
     val capsules = s.storesView == "capsules"
@@ -760,7 +761,8 @@ private fun LibraryGrid(
         }
         val empty = emptyText
         if (source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0 && !soundMode) item(key = "custom-empty", span = { GridItemSpan(maxLineSpan) }) {
-            Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { CustomGamesCard(splashHeight) }
+            val art = remember { wallArt() }
+            Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { CustomGamesCard(splashHeight, art) }
         }
         else if (signInStore != null) item(key = "sign-in:${signInStore.id}", span = { GridItemSpan(maxLineSpan) }) {
             StoreTheme(signInStore) { Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { SignInCard(signInStore, splashHeight) } }
@@ -952,7 +954,7 @@ private fun StoreAccountButton(store: Store) {
             val from = at ?: run { StoresState.signOut(ctx, store); return@HeaderIconButton }
             Steps.ask(StepAsk(
                 anchor = from, side = StepSide.Left, accent = colors.error, pillCorner = 8.dp, items = 3,
-                handle = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.error, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                handle = { Icon(Icons.Filled.ManageAccounts, null, tint = colors.error, modifier = Modifier.size(18.dp)) },
             ) {
                 StepTitle(title)
                 Text(note, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
@@ -966,30 +968,10 @@ private fun StoreAccountButton(store: Store) {
 }
 
 @Composable
-private fun CustomGamesCard(height: androidx.compose.ui.unit.Dp) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val narrow = LocalNarrowPane.current
-    val c = sourceColours(Library.ADDED)
-    val shape = RoundedCornerShape(20.dp)
-    Box(
-        Modifier.fillMaxWidth().height(height).clip(shape)
-            .background(Brush.linearGradient(listOf(c.fill, colors.background)))
-            .border(1.dp, pal.line, shape).testTag("library-custom-empty"),
-    ) {
-        Icon(
-            Icons.Outlined.FolderOpen, null, tint = c.dot.copy(alpha = 0.16f),
-            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 40.dp).size(if (narrow) 140.dp else 220.dp),
-        )
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.align(Alignment.BottomStart).padding(start = if (narrow) 20.dp else 40.dp, bottom = if (narrow) 20.dp else 36.dp, end = 20.dp),
-        ) {
-            Text(stringResource(R.string.library_custom_games), fontSize = if (narrow) 30.sp else 42.sp, lineHeight = if (narrow) 34.sp else 46.sp, fontWeight = FontWeight.Black, color = colors.onBackground)
-            Text(stringResource(R.string.library_custom_hint), fontSize = 15.sp, color = colors.onSurfaceVariant, modifier = Modifier.widthIn(max = 460.dp))
-            PrimaryButton(stringResource(R.string.games_add), main = true, large = true, icon = Icons.Filled.Add, modifier = Modifier.testTag("library-custom-add")) {
-                GamesDialogState.adding = true
-            }
+private fun CustomGamesCard(height: androidx.compose.ui.unit.Dp, art: List<Any>) {
+    HeroWallCard(stringResource(R.string.library_custom_games), art, sourceColours(Library.ADDED), height, Modifier.testTag("library-custom-empty")) {
+        PrimaryButton(stringResource(R.string.games_add), main = true, large = true, icon = Icons.Filled.Add, modifier = Modifier.testTag("library-custom-add")) {
+            GamesDialogState.adding = true
         }
     }
 }

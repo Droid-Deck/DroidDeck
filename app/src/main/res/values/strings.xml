@@ -4319,7 +4319,6 @@
     <string name="library_manage_stores">Manage stores</string>
     <string name="library_all_games">All games</string>
     <string name="library_custom_games">Custom games</string>
-    <string name="library_custom_hint">Add any Windows game by its .exe, or pick a folder and DroidDeck adds every game it finds inside.</string>
     <string name="store_account_signed_out">Not signed in</string>
     <string name="store_account_expired">Login expired</string>
     <string name="store_account_api_key">Uses an API key</string>

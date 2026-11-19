@@ -573,54 +573,57 @@ internal fun CountPill(count: Int) {
 @Composable
 internal fun SignInCard(store: Store, height: Dp) {
     val ctx = LocalContext.current
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val narrow = LocalNarrowPane.current
-    val c = sourceColours(store.id)
     LaunchedEffect(store) { StoresState.preview(ctx, store) }
     val art = remember(StoresState.shelves[store]) {
         val shelves = StoresState.shelves[store]
-        val urls = (shelves?.art?.takeIf { it.isNotEmpty() }
-            ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl }).distinct().take(48)
-        when {
-            urls.size >= 8 -> urls
-            urls.size >= 4 -> urls + urls.drop(urls.size / 2) + urls.take(urls.size / 2)
-            else -> emptyList()
-        }
+        wallTiles(
+            shelves?.art?.takeIf { it.isNotEmpty() }
+                ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl },
+        )
     }
+    HeroWallCard(store.label, art, sourceColours(store.id), height) { SignInButton(store, large = true) }
+}
+
+/** Repeats a short cover list so the wall has enough tiles to drift; too few covers leave it to the blank capsules. */
+internal fun wallTiles(urls: List<Any>): List<Any> {
+    val u = urls.distinct().take(48)
+    return when {
+        u.size >= 8 -> u
+        u.size >= 4 -> u + u.drop(u.size / 2) + u.take(u.size / 2)
+        else -> emptyList()
+    }
+}
+
+/** Full-height splash used where a tab has nothing to list yet: a drifting cover wall, the shared wall fade, a title and one action. */
+@Composable
+internal fun HeroWallCard(title: String, art: List<Any>, c: SourceColours, height: Dp, modifier: Modifier = Modifier, action: @Composable () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val narrow = LocalNarrowPane.current
     val shape = RoundedCornerShape(20.dp)
     val blank = WallCapsule(Brush.linearGradient(listOf(c.fill, colors.background)), edge = c.dot.copy(alpha = 0.22f))
     val ground = SolidColor(c.fill)
-    Box(Modifier.fillMaxWidth().heightIn(min = height.coerceAtLeast(0.dp)).clip(shape).background(colors.background).border(1.dp, pal.line, shape)) {
-        androidx.compose.animation.Crossfade(art, animationSpec = Motion.tw(600), label = "signInWall", modifier = Modifier.matchParentSize()) { tiles ->
+    Box(modifier.fillMaxWidth().heightIn(min = height.coerceAtLeast(0.dp)).clip(shape).background(colors.background).border(1.dp, pal.line, shape)) {
+        androidx.compose.animation.Crossfade(art, animationSpec = Motion.tw(600), label = "heroWall", modifier = Modifier.matchParentSize()) { tiles ->
             TiltedWall(tiles.size, if (tiles.isEmpty()) 75_000 else 50_000) { i -> if (tiles.isEmpty()) blank else WallCapsule(ground, tiles[i]) }
         }
-        Box(
-            Modifier.matchParentSize().background(
-                Brush.horizontalGradient(
-                    0f to colors.background.copy(alpha = 0.86f), 0.45f to colors.background.copy(alpha = 0.62f),
-                    0.78f to colors.background.copy(alpha = 0.18f), 1f to colors.background.copy(alpha = 0.06f),
-                ),
-            ),
-        )
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
+        WallFade(Modifier.matchParentSize())
         Box(
             Modifier.matchParentSize().drawBehind {
                 drawRect(Brush.radialGradient(listOf(c.dot.copy(alpha = 0.22f), Color.Transparent), center = Offset(size.width * 0.16f, size.height * 0.9f), radius = size.height * 0.75f))
             },
         )
         Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.align(Alignment.BottomStart).padding(start = if (narrow) 20.dp else 40.dp, bottom = if (narrow) 20.dp else 36.dp, end = 20.dp),
         ) {
             Rise(2) {
                 Text(
-                    store.label, fontSize = if (narrow) 30.sp else 42.sp, lineHeight = if (narrow) 34.sp else 46.sp,
+                    title, fontSize = if (narrow) 30.sp else 42.sp, lineHeight = if (narrow) 34.sp else 46.sp,
                     fontWeight = FontWeight.Black, color = colors.onBackground,
                 )
             }
-            Spacer(Modifier.height(6.dp))
-            Rise(3) { SignInButton(store, large = true) }
+            Rise(3) { action() }
         }
     }
 }
