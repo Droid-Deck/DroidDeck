@@ -219,6 +219,18 @@ class InputSettingsTest {
         compose.runOnIdle { assertTrue(OnScreenLayout.generated(InputLibraries.read(context).layouts.first { it.id == layout.id })) }
     }
 
+    @Test fun resetAndSaveKeepTheDpadDirectionOverrides() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.PRIMARY)!!
+        val bindingsId = library.profile("game").binding(InputRole.PRIMARY)
+        InputLibraries.update(context) { lib -> lib.preset(bindingsId).let { b -> lib.withPreset(b.copy(elements = b.elements + ("legacy:up" to InputAction.Keys(listOf(103))))) } }
+        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY, layoutId = layout.id, bindingsId = bindingsId) } }
+        pressPlus(2)
+        compose.onNodeWithText(context.getString(R.string.hud_reset_button)).performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(InputAction.Keys(listOf(103)), InputLibraries.read(context).preset(bindingsId).elements["legacy:up"]) }
+    }
+
     @Test fun deckPresetOffersItsRealElementsAndTheCommonEditor() {
         InputLibraries.update(context) { it.useLayout("game", InputRole.SECONDARY, InputLibraries.DECK, shared = true) }
         compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }

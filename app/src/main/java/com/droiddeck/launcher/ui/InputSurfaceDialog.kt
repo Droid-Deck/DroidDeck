@@ -112,7 +112,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun reset() {
         val d = restored?.takeIf { !atDefaults } ?: return
         checkpoint(); elements = d; selected = null
-        actions = actions.filterKeys { id -> d.any { it.id == id } }; clicks = clicks.filterKeys { id -> d.any { it.id == id } }
+        actions = actions.filterKeys { id -> KitLayout.bindsTo(id, d) }; clicks = clicks.filterKeys { id -> d.any { it.id == id } }
     }
     fun hiddenDefaults(): List<InputSurfaceElement> = defaults?.let { refit(it, defaultsFrame) }?.filter { d -> elements.none { it.id == d.id } }.orEmpty()
     fun add(element: InputSurfaceElement) { checkpoint(); elements = elements + element; selected = element.id; popover = null }
