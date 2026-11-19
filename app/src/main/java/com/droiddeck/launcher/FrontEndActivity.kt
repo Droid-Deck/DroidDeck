@@ -983,13 +983,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false, onHandled: () -> Unit = {}, onSettled: () -> Unit = {}) {
-        val request = gameLaunchRequest.incrementAndGet()
         if (!SessionPrefs.soundtracksIngame(this)) com.droiddeck.launcher.playback.SoundtrackController.pause(this)
         if (pkgStage != null) {
             onHandled()
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return
         }
+        val request = gameLaunchRequest.incrementAndGet()
         val files = game.gameFiles
         if (game.source != com.droiddeck.launcher.stores.Store.XBOX.id || files == null) {
             if (startGame(game, returnHome, onHandled)) onSettled()
