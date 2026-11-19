@@ -22,7 +22,6 @@
         <item>Tambahkan pustaka Steam dari kartu SD, drive USB, atau SSD, dan DroidDeck menyatukan semua gim di Pustaka kamu.</item>
         <item>Toko memungkinkanmu masuk ke Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io, dan Game Jolt, lalu memasang dan memperbarui gim mereka dari DroidDeck.</item>
         <item>Komponen seperti FEX, DXVK, dan VKD3D-Proton memperbarui diri sendiri, dan Proton Experimental ARM64 menjadi default, atau Proton 11.0 ARM64 setelah build tersebut terpasang.</item>
-        <item>Kompres Steam saat gim berjalan membebaskan RAM pada perangkat yang kekurangan memori.</item>
         <item>Geser masuk dari tepi kanan untuk membuka menu sesi: mode touchpad, Keyboard PC, Mode latensi rendah, Profil gim, dan lainnya.</item>
         <item>Gim berjalan lambat? Batasi frame rate di Akses cepat, lalu coba versi Proton lain atau preset FEX lain di komponen gim.</item>
         <item>Audio gim pecah atau tidak ada? Coba opsi DirectAudio untuk gim di pengaturan Steam pada bagian Audio.</item>
@@ -576,6 +575,7 @@
     <string name="comp_nightlies_count">Di Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">Uji</string>
     <string name="comp_refresh_to_list">Segarkan untuk melihat daftar paket di Nightlies dan DroidDeck.</string>
     <string name="comp_nothing_new">Tidak ada yang baru sejak pemeriksaan terakhir.</string>
     <string name="comp_import_wcp">Impor .wcp</string>
@@ -624,18 +624,7 @@
     <string name="perf_gsrealtime">gamescope: antrean GPU realtime</string>
     <string name="perf_gsrealtime_hint">Memprioritaskan kerja GPU compositor. Dapat menghaluskan pacing frame dengan sedikit mengorbankan gim.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memori</string>
     <string name="perf_cap_off">Nonaktif</string>
-    <string name="perf_cap_auto">Default driver</string>
-    <string name="perf_zram_client">Kompres Steam saat gim berjalan</string>
-    <string name="perf_zram_idle">Kompres memori game yang tidak aktif</string>
-    <string name="perf_zram_idle_hint">Mengompres memori game yang tidak aktif saat RAM rendah. Matikan jika game membeku beberapa detik kira-kira setiap setengah menit. Berlaku saat sesi dimulai berikutnya.</string>
-    <string name="perf_zram_client_hint">20 detik setelah gim dimulai, klien Steam dikompres ke zRAM agar gim mendapat lebih banyak memori, lalu dibaca kembali saat gim ditutup. Nonaktifkan jika sesi tertutup sesaat setelah gim dimulai. Batas RAM di atas tetap mengompres Steam saat sesi melampauinya.</string>
-    <string name="perf_ram_cap">Batas RAM</string>
-    <string name="perf_ram_cap_hint">Berlaku saat klien Steam berjalan, di mode Steam atau dari desktop. Saat sesi menggunakan lebih dari ini, Steam lalu proses lain yang didukung dalam sesi dikompres ke zRAM. Batas lunak: tidak ada yang ditutup, tetapi gim dapat tersendat saat halaman dimuat kembali.</string>
-    <string name="perf_ram_cap_unavailable">Memerlukan swap zRAM, yang tidak dimiliki perangkat ini.</string>
-    <string name="perf_vram_cap">Batas VRAM</string>
-    <string name="perf_vram_cap_hint">Melaporkan anggaran memori video ini ke game Direct3D 9 hingga 12 untuk mengurangi penggunaan memori. Game dapat melampauinya; ini tidak menambahkan paging GPU atau menjamin perlindungan dari crash akibat kehabisan memori. Berlaku pada sesi berikutnya.</string>
     <string name="perf_gpuclock">Pertahankan GPU pada clock tertingginya</string>
     <string name="perf_gpuclock_hint">Hanya Adreno. Lebih sedikit tersendat, lebih banyak penggunaan baterai dan panas.</string>
     <string name="perf_fixes">Perbaikan sesi</string>

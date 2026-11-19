@@ -22,7 +22,6 @@
         <item>Adj hozzá Steam-könyvtárakat SD-kártyáról, USB-meghajtóról vagy SSD-ről, és a DroidDeck egy helyen tartja a játékokat a Könyvtárban.</item>
         <item>Az Áruházak lehetővé teszi, hogy bejelentkezz a Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io és Game Jolt szolgáltatásokba, majd telepítsd és frissítsd a játékaikat a DroidDeckből.</item>
         <item>Az olyan összetevők, mint a FEX, a DXVK és a VKD3D-Proton, maguktól frissülnek, az alapértelmezett pedig a Proton Experimental ARM64, vagy a Proton 11.0 ARM64, ha az a build telepítve van.</item>
-        <item>A Steam tömörítése játék közben RAM-ot szabadít fel a kevés memóriával rendelkező eszközökön.</item>
         <item>Húzd be az ujjad a jobb szélről a munkamenet menü megnyitásához: érintőpad mód, PC-billentyűzet, alacsony késleltetésű mód, játékprofil és más.</item>
         <item>Lassan fut a játék? Korlátozd a képkockasebességet a Gyors hozzáférésben, majd próbálj ki másik Proton-verziót vagy FEX-előbeállítást a játék összetevőiben.</item>
         <item>Ropog vagy hiányzik a játék hangja? Próbáld ki a DirectAudio a játékokhoz kapcsolót a Steam beállításaiban a Hang alatt.</item>
@@ -578,6 +577,7 @@
     <string name="comp_nightlies_count">A Nightliesen · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">Teszt</string>
     <string name="comp_refresh_to_list">Frissítsen a Nightlies és a DroidDeck csomagjainak listázásához.</string>
     <string name="comp_nothing_new">Nincs semmi új az utolsó ellenőrzés óta.</string>
     <string name="comp_import_wcp">.wcp importálása</string>
@@ -626,18 +626,7 @@
     <string name="perf_gsrealtime">gamescope: valós idejű GPU-sor</string>
     <string name="perf_gsrealtime_hint">Előnyben részesíti a kompozitor GPU-munkáját. Egyenletesebbé teheti a képkocka-ütemezést, kisebb költséggel a játékoknak.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memória</string>
     <string name="perf_cap_off">Ki</string>
-    <string name="perf_cap_auto">Illesztőprogram alapértéke</string>
-    <string name="perf_zram_client">A Steam tömörítése játék közben</string>
-    <string name="perf_zram_idle">Játék inaktív memóriájának tömörítése</string>
-    <string name="perf_zram_idle_hint">Kevés RAM esetén tömöríti a játék inaktív memóriáját. Kapcsold ki, ha a játékok nagyjából félpercenként néhány másodpercre lefagynak. A munkamenet következő indításakor lép érvénybe.</string>
-    <string name="perf_zram_client_hint">20 mp-cel a játék indulása után a Steam-kliens a zRAM-ba tömörül, hogy több memória maradjon a játéknak, és a játék bezárásakor visszaolvasódik. Kapcsolja ki, ha a munkamenet röviddel a játékok indulása után bezárul. A fenti RAM-korlát akkor is tömöríti a Steamet, ha a munkamenet túllépi.</string>
-    <string name="perf_ram_cap">RAM-korlát</string>
-    <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>
-    <string name="perf_ram_cap_unavailable">zRAM swap szükséges, amely ezen az eszközön nincs.</string>
-    <string name="perf_vram_cap">VRAM-korlát</string>
-    <string name="perf_vram_cap_hint">Ezt a videomemória-keretet jelzi a Direct3D 9–12 játékoknak a memóriahasználat csökkentésére. A játékok túlléphetik; nem biztosít GPU-lapozást, és nem garantál védelmet a memóriahiány miatti összeomlás ellen. A következő munkamenettől érvényes.</string>
     <string name="perf_gpuclock">A GPU legmagasabb órajelen tartása</string>
     <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>

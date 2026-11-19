@@ -22,7 +22,6 @@
         <item>Füge Steam-Bibliotheken von einer SD-Karte, einem USB-Laufwerk oder einer SSD hinzu, und DroidDeck hält die Spiele in deiner Bibliothek zusammen.</item>
         <item>Mit Stores meldest du dich bei Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io und Game Jolt an und installierst und aktualisierst deren Spiele direkt in DroidDeck.</item>
         <item>Komponenten wie FEX, DXVK und VKD3D-Proton aktualisieren sich selbst, und Proton Experimental ARM64 ist der Standard, oder Proton 11.0 ARM64, sobald diese Version installiert ist.</item>
-        <item>Steam komprimieren, während ein Spiel läuft gibt auf Geräten mit knappem Arbeitsspeicher RAM frei.</item>
         <item>Wische vom rechten Rand nach innen, um das Sitzungsmenü zu öffnen: Touchpad-Modus, PC-Tastatur, Modus mit geringer Latenz, Spielprofil und mehr.</item>
         <item>Das Spiel läuft langsam? Begrenze die Bildrate im Schnellzugriff und probiere dann eine andere Proton-Version oder ein anderes FEX-Preset in den Komponenten des Spiels.</item>
         <item>Knacken oder fehlender Spielton? Probiere den Schalter DirectAudio für Spiele in den Steam-Einstellungen unter Audio.</item>
@@ -578,6 +577,7 @@
     <string name="comp_nightlies_count">In den Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Aktualisiere, um die Pakete in den Nightlies und bei DroidDeck aufzulisten.</string>
     <string name="comp_nothing_new">Nichts Neues seit der letzten Prüfung.</string>
     <string name="comp_import_wcp">.wcp importieren</string>
@@ -626,18 +626,7 @@
     <string name="perf_gsrealtime">gamescope: Echtzeit-GPU-Warteschlange</string>
     <string name="perf_gsrealtime_hint">Priorisiert die GPU-Arbeit des Compositors. Kann das Frame-Pacing glätten, kostet Spiele aber etwas Leistung.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Arbeitsspeicher</string>
     <string name="perf_cap_off">Aus</string>
-    <string name="perf_cap_auto">Treiberstandard</string>
-    <string name="perf_zram_client">Steam komprimieren, während ein Spiel läuft</string>
-    <string name="perf_zram_idle">Inaktiven Spielspeicher komprimieren</string>
-    <string name="perf_zram_idle_hint">Lagert inaktiven Spielspeicher bei knappem RAM aus. Schalte dies aus, wenn Spiele etwa jede halbe Minute für einige Sekunden einfrieren. Gilt ab dem nächsten Start der Sitzung.</string>
-    <string name="perf_zram_client_hint">20 s nach dem Spielstart wird der Steam-Client in zRAM komprimiert, um dem Spiel mehr Speicher zu lassen, und beim Beenden des Spiels zurückgelesen. Schalte dies aus, wenn sich die Sitzung kurz nach dem Spielstart schließt. Ein RAM-Limit oben komprimiert Steam weiterhin, wenn die Sitzung es überschreitet.</string>
-    <string name="perf_ram_cap">RAM-Limit</string>
-    <string name="perf_ram_cap_hint">Gilt, solange der Steam-Client läuft, im Steam-Modus oder vom Desktop aus. Verbraucht die Sitzung mehr als diesen Wert, werden Steam und danach die übrigen unterstützten Prozesse der Sitzung in zRAM komprimiert. Ein weiches Limit: Nichts wird geschlossen, aber Spiele können ruckeln, während Seiten zurückgeladen werden.</string>
-    <string name="perf_ram_cap_unavailable">Benötigt zRAM-Swap, den dieses Gerät nicht hat.</string>
-    <string name="perf_vram_cap">VRAM-Limit</string>
-    <string name="perf_vram_cap_hint">Meldet Direct3D-9-bis-12-Spielen dieses Videospeicherbudget, um den Speicherverbrauch zu senken. Spiele können es überschreiten; dies fügt kein GPU-Paging hinzu und garantiert keinen Schutz vor Abstürzen durch Speichermangel. Gilt ab der nächsten Sitzung.</string>
     <string name="perf_gpuclock">GPU auf höchstem Takt halten</string>
     <string name="perf_gpuclock_hint">Nur Adreno. Weniger Ruckler, mehr Akkuverbrauch und Wärme.</string>
     <string name="perf_fixes">Sitzungskorrekturen</string>

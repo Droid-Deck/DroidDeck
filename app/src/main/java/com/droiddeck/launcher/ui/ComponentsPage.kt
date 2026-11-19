@@ -524,7 +524,7 @@ fun ComponentsPage(
     }
     val availableTitle: @Composable (String) -> String = { l ->
         when (l) {
-            PROTON_TAB -> stringResource(R.string.comp_available_count, protons.rows.count { it.installed == null || it.update != null })
+            PROTON_TAB -> stringResource(R.string.comp_available_count, protons.rows.count(ProtonRow::available))
             else -> stringResource(R.string.comp_nightlies_count, availableRows(l, catalog, snapshot).size)
         }
     }
@@ -593,21 +593,29 @@ fun ComponentsPage(
     val availableRows: @Composable ColumnScope.(String) -> Unit = { l ->
         when (l) {
             PROTON_TAB -> {
-                val rows = protons.rows.filter { it.installed == null || it.update != null }
+                val rows = protons.rows.filter(ProtonRow::available)
                 if (rows.isEmpty()) EmptyLine(stringResource(R.string.comp_nothing_new))
-                for (row in rows) GetLine(
-                    row.name,
-                    when {
-                        row.update != null -> stringResource(R.string.proton_update_available, row.update)
-                        row.queued -> stringResource(R.string.proton_queued)
-                        else -> stringResource(R.string.proton_not_installed)
-                    },
-                    progress = if (protons.busyId == row.id) protons.percent else null,
-                    stage = if (protons.busyId == row.id) protons.stage else null,
-                    enabled = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning,
-                    onCancel = if (row.queued && protons.busyId == null && !protons.sessionRunning) ({ protonActions.onCancel(row.id) }) else null,
-                    action = if (row.update != null) stringResource(R.string.common_update) else null,
-                ) { protonActions.onInstall(row.id) }
+                for (row in rows) {
+                    val idle = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
+                    val test = row.test != null && (nightlyPicked[row.id] == true || row.installed != null && row.update == null)
+                    GetLine(
+                        row.name,
+                        when {
+                            test -> row.test!!
+                            row.update != null -> stringResource(R.string.proton_update_available, row.update)
+                            row.queued -> stringResource(R.string.proton_queued)
+                            else -> stringResource(R.string.proton_not_installed)
+                        },
+                        progress = if (protons.busyId == row.id) protons.percent else null,
+                        stage = if (protons.busyId == row.id) protons.stage else null,
+                        enabled = idle,
+                        onCancel = if (row.queued && protons.busyId == null && !protons.sessionRunning) ({ protonActions.onCancel(row.id) }) else null,
+                        action = if (!test && row.update != null) stringResource(R.string.common_update) else null,
+                        channel = if (row.test != null) ({
+                            ChannelToggle(test, enabled = idle && (row.installed == null || row.update != null), other = R.string.comp_channel_test) { nightlyPicked[row.id] = !test }
+                        }) else null,
+                    ) { if (test) protonActions.onInstallTest(row.id) else protonActions.onInstall(row.id) }
+                }
             }
             else -> {
                 val available = availableRows(l, catalog, snapshot)
@@ -1536,12 +1544,12 @@ private fun GetLine(
 }
 
 @Composable
-private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit) {
+private fun ChannelToggle(nightly: Boolean, enabled: Boolean, other: Int = R.string.comp_channel_nightly, onFlip: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && enabled
-    val state = stringResource(if (nightly) R.string.comp_channel_nightly else R.string.comp_channel_stable)
+    val state = stringResource(if (nightly) other else R.string.comp_channel_stable)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
@@ -1552,12 +1560,12 @@ private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit
             .semantics { stateDescription = state }
             .padding(4.dp),
     ) {
-        for ((label, on) in listOf(R.string.comp_channel_stable to !nightly, R.string.comp_channel_nightly to nightly)) {
+        for ((label, on) in listOf(R.string.comp_channel_stable to !nightly, other to nightly)) {
             Text(
                 stringResource(label), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                color = if (!enabled) colors.onSurfaceVariant else if (on) (if (hot) pal.onSignal else pal.signal) else colors.onSurfaceVariant,
+                color = if (on) (if (hot) pal.onSignal else pal.signal) else colors.onSurfaceVariant,
                 modifier = Modifier.clip(RoundedCornerShape(7.dp))
-                    .background(if (on && enabled) (if (hot) pal.signal else pal.signal.copy(alpha = 0.16f)) else Color.Transparent)
+                    .background(if (on) (if (hot) pal.signal else pal.signal.copy(alpha = 0.16f)) else Color.Transparent)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
@@ -1655,6 +1663,7 @@ class ProtonsState(
 
 class ProtonsActions(
     val onInstall: (String) -> Unit = {},
+    val onInstallTest: (String) -> Unit = {},
     val onCancel: (String) -> Unit = {},
     val onRemove: (String, String) -> Unit = { _, _ -> },
     val onRemoveOlder: (String) -> Unit = {},
@@ -1664,8 +1673,10 @@ class ProtonsActions(
 
 class ProtonRow(
     val id: String, val name: String, val installed: String?, val queued: Boolean,
-    val installedAll: List<String> = listOfNotNull(installed), val update: String? = null,
-)
+    val installedAll: List<String> = listOfNotNull(installed), val update: String? = null, val test: String? = null,
+) {
+    val available: Boolean get() = installed == null || update != null || test != null
+}
 
 @Composable
 private fun gpuCardValue(gpu: GpuDriversState, auto: String): String {

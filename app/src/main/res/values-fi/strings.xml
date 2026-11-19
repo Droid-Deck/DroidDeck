@@ -22,7 +22,6 @@
         <item>Lisää Steam-kirjastoja SD-kortilta, USB-asemalta tai SSD-levyltä, ja DroidDeck pitää pelit yhdessä Kirjastossasi.</item>
         <item>Kaupat-osiossa voit kirjautua sisään palveluihin Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ja Game Jolt sekä asentaa ja päivittää niiden pelejä DroidDeckistä.</item>
         <item>Komponentit, kuten FEX, DXVK ja VKD3D-Proton, päivittyvät itsestään, ja oletuksena on Proton Experimental ARM64 tai Proton 11.0 ARM64, kun kyseinen versio on asennettu.</item>
-        <item>Pakkaa Steam pelin ollessa käynnissä vapauttaa RAM-muistia laitteilla, joilla muisti on vähissä.</item>
         <item>Pyyhkäise oikeasta reunasta sisäänpäin avataksesi istuntovalikon: kosketuslevytila, PC-näppäimistö, matalan viiveen tila, pelin profiili ja muuta.</item>
         <item>Peli pyörii hitaasti? Rajoita kuvanopeutta Pikavalikossa ja kokeile sitten toista Proton-versiota tai FEX-esiasetusta pelin komponenteissa.</item>
         <item>Rätisevä tai puuttuva pelin ääni? Kokeile Steamin asetuksissa kohdassa Ääni asetusta DirectAudio peleille.</item>
@@ -578,6 +577,7 @@
     <string name="comp_nightlies_count">Nightliesissä · %1$d</string>
     <string name="comp_channel_stable">Vakaa</string>
     <string name="comp_channel_nightly">Yöversio</string>
+    <string name="comp_channel_test">Testi</string>
     <string name="comp_refresh_to_list">Päivitä nähdäksesi Nightliesin ja DroidDeckin paketit.</string>
     <string name="comp_nothing_new">Ei mitään uutta viimeisimmän tarkistuksen jälkeen.</string>
     <string name="comp_import_wcp">Tuo .wcp</string>
@@ -626,18 +626,7 @@
     <string name="perf_gsrealtime">gamescope: reaaliaikainen GPU-jono</string>
     <string name="perf_gsrealtime_hint">Priorisoi kompositorin GPU-työtä. Voi tasoittaa kuvanopeuden tahditusta pelien kustannuksella.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Muisti</string>
     <string name="perf_cap_off">Pois</string>
-    <string name="perf_cap_auto">Ajurin oletus</string>
-    <string name="perf_zram_client">Pakkaa Steam pelin ollessa käynnissä</string>
-    <string name="perf_zram_idle">Pakkaa pelin käyttämätöntä muistia</string>
-    <string name="perf_zram_idle_hint">Siirtää pelin käyttämätöntä muistia zRAMiin, kun RAM-muisti vähenee. Poista tämä käytöstä, jos pelit jäätyvät muutamaksi sekunniksi noin puolen minuutin välein. Tulee voimaan, kun istunto käynnistyy seuraavan kerran.</string>
-    <string name="perf_zram_client_hint">20 s pelin käynnistymisen jälkeen Steam-asiakasohjelma pakataan zRAMiin, jotta pelille jää enemmän muistia, ja luetaan takaisin, kun peli sulkeutuu. Poista tämä käytöstä, jos istunto sulkeutuu pian pelien käynnistymisen jälkeen. Yllä oleva RAM-raja pakkaa silti Steamin, kun istunto ylittää sen.</string>
-    <string name="perf_ram_cap">RAM-raja</string>
-    <string name="perf_ram_cap_hint">Koskee aikaa, jolloin Steam-asiakasohjelma on käynnissä, Steam-tilassa tai työpöydältä. Kun istunto käyttää tätä enemmän, Steam ja sen jälkeen istunnon muut tuetut prosessit pakataan zRAMiin. Pehmeä raja: mitään ei suljeta, mutta pelit voivat nykiä, kun sivuja luetaan takaisin.</string>
-    <string name="perf_ram_cap_unavailable">Vaatii zRAM-swapin, jota tässä laitteessa ei ole.</string>
-    <string name="perf_vram_cap">VRAM-raja</string>
-    <string name="perf_vram_cap_hint">Ilmoittaa tämän videomuistibudjetin Direct3D 9–12 -peleille muistin käytön vähentämiseksi. Pelit voivat ylittää sen; tämä ei lisää GPU-sivutusta eikä takaa suojaa muistin loppumisesta johtuvilta kaatumisilta. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="perf_gpuclock">Pidä GPU huippukellotaajuudessaan</string>
     <string name="perf_gpuclock_hint">Vain Adreno. Vähemmän nykäyksiä, enemmän akun kulutusta ja lämpöä.</string>
     <string name="perf_fixes">Istunnon korjaukset</string>

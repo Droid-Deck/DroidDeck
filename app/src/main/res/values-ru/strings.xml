@@ -22,7 +22,6 @@
         <item>Добавляйте библиотеки Steam с SD-карты, USB-накопителя или SSD, и DroidDeck соберёт игры вместе в вашей «Библиотеке».</item>
         <item>«Магазины» позволяют войти в Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io и Game Jolt, а затем устанавливать и обновлять их игры из DroidDeck.</item>
         <item>Компоненты вроде FEX, DXVK и VKD3D-Proton обновляются сами, а по умолчанию используется Proton Experimental ARM64 или Proton 11.0 ARM64, когда эта сборка установлена.</item>
-        <item>«Сжимать Steam во время игры» освобождает ОЗУ на устройствах с нехваткой памяти.</item>
         <item>Проведите от правого края, чтобы открыть меню сеанса: режим тачпада, «Клавиатура ПК», «Режим низкой задержки», профиль игры и другое.</item>
         <item>Игра тормозит? Ограничьте частоту кадров в меню «Быстрый доступ», затем попробуйте другую версию Proton или другой пресет FEX в компонентах игры.</item>
         <item>Треск или нет звука в игре? Попробуйте переключатель «DirectAudio для игр» в настройках Steam в разделе «Аудио».</item>
@@ -582,6 +581,7 @@
     <string name="comp_nightlies_count">В Nightlies · %1$d</string>
     <string name="comp_channel_stable">Стабильная</string>
     <string name="comp_channel_nightly">Ночная</string>
+    <string name="comp_channel_test">Тестовая</string>
     <string name="comp_refresh_to_list">Обновите, чтобы увидеть пакеты в Nightlies и DroidDeck.</string>
     <string name="comp_nothing_new">С момента последней проверки нового нет.</string>
     <string name="comp_import_wcp">Импорт .wcp</string>
@@ -630,18 +630,7 @@
     <string name="perf_gsrealtime">gamescope: очередь GPU в реальном времени</string>
     <string name="perf_gsrealtime_hint">Повышает приоритет работы GPU композитора. Может улучшить стабильность времени кадра, но потребляет часть производительности игры.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Память</string>
     <string name="perf_cap_off">Выкл.</string>
-    <string name="perf_cap_auto">По умолчанию драйвера</string>
-    <string name="perf_zram_client">Сжимать Steam во время игры</string>
-    <string name="perf_zram_idle">Сжимать неактивную память игры</string>
-    <string name="perf_zram_idle_hint">Сжимает неактивную память игры при нехватке RAM. Отключите, если игры зависают на несколько секунд примерно каждые полминуты. Применяется при следующем запуске сеанса.</string>
-    <string name="perf_zram_client_hint">Через 20 с после запуска игры клиент Steam сжимается в zRAM, чтобы оставить игре больше памяти, и считывается обратно после закрытия игры. Отключите, если сессия закрывается вскоре после запуска игр. Лимит RAM выше всё равно сжимает Steam, когда сессия его превышает.</string>
-    <string name="perf_ram_cap">Лимит RAM</string>
-    <string name="perf_ram_cap_hint">Действует, пока работает клиент Steam, в режиме Steam или с рабочего стола. Когда сессия использует больше этого значения, Steam, а затем другие поддерживаемые процессы сессии сжимаются в zRAM. Мягкий лимит: ничего не закрывается, но игры могут подтормаживать, пока страницы возвращаются.</string>
-    <string name="perf_ram_cap_unavailable">Нужен своп zRAM, которого на этом устройстве нет.</string>
-    <string name="perf_vram_cap">Лимит VRAM</string>
-    <string name="perf_vram_cap_hint">Сообщает играм Direct3D 9–12 этот бюджет видеопамяти для снижения её использования. Игры могут его превысить; это не добавляет подкачку памяти GPU и не гарантирует защиту от сбоев из-за нехватки памяти. Действует со следующего сеанса.</string>
     <string name="perf_gpuclock">Поддерживать максимальную частоту GPU</string>
     <string name="perf_gpuclock_hint">Только для Adreno. Меньше подтормаживаний, но больше энергопотребления и нагрева.</string>
     <string name="perf_fixes">Исправления сессии</string>
