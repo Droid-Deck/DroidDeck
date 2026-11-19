@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -113,8 +114,8 @@ internal fun Actions(content: @Composable () -> Unit) = FlowRow(
 ) { content() }
 
 @Composable
-internal fun ActionChip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null, second: Float? = null) =
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok, fraction, key, second) }
+internal fun ActionChip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null, minWidth: androidx.compose.ui.unit.Dp = 0.dp) =
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok, fraction, key, minWidth) }
 
 internal val Shape16 = RoundedCornerShape(16.dp)
 
@@ -141,16 +142,16 @@ internal fun BackLink(label: String, compact: Boolean = false, onClick: () -> Un
 }
 
 @Composable
-internal fun Chip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null, second: Float? = null) {
+internal fun Chip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null, minWidth: androidx.compose.ui.unit.Dp = 0.dp) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(99.dp)
     val ink = if (ok) pal.good else colors.onSurfaceVariant
-    Box(Modifier.clip(shape).background(colors.surfaceVariant).border(1.dp, if (ok) pal.good.copy(alpha = 0.3f) else pal.line, shape)) {
-        if (fraction != null) ChipFill(fraction, key, pal.signal.copy(alpha = if (second != null) 0.14f else 0.3f))
-        if (second != null) ChipFill(second, "second", pal.signal.copy(alpha = 0.3f))
+    Box(Modifier.widthIn(min = minWidth).clip(shape).background(colors.surfaceVariant).border(1.dp, if (ok) pal.good.copy(alpha = 0.3f) else pal.line, shape), contentAlignment = Alignment.CenterStart) {
+        if (fraction != null) ChipFill(fraction, key, pal.signal.copy(alpha = 0.3f))
         Text(
             t, fontSize = 12.sp, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
         )
     }

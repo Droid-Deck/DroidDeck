@@ -55,6 +55,17 @@ data class DownloadEntry(
     }
     val streaming: Boolean get() = state == DownloadState.RUNNING && bytesTotal > 0L && bytesDone < bytesTotal && installFraction >= 0f &&
         (stage == DownloadStage.INSTALL || (stage == DownloadStage.DOWNLOAD && passed(DownloadStage.INSTALL)))
+    /** Whole job as one bar: downloading fills the first 90%, installing the rest, also when they run together. */
+    val overallFraction: Float get() {
+        if (state == DownloadState.INSTALLED || stage == DownloadStage.DONE) return 1f
+        val downloaded = when {
+            bytesTotal > 0L -> downloadFraction
+            passed(DownloadStage.DOWNLOAD) -> 1f
+            else -> 0f
+        }
+        val installed = if (stage == DownloadStage.INSTALL || streaming) installFraction.coerceAtLeast(0f) else 0f
+        return (0.9f * downloaded + 0.1f * installed).coerceIn(0f, 1f)
+    }
     val fraction: Float get() = stageFraction.coerceAtLeast(0f)
     val percent: Int get() = (fraction * 100).toInt()
 }

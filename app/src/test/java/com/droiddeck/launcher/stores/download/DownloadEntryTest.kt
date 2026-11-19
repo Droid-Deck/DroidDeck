@@ -40,4 +40,27 @@ class DownloadEntryTest {
         assertFalse(installing.copy(bytesDone = 100).streaming)
         assertFalse(installing.copy(state = DownloadState.PAUSED).streaming)
     }
+
+    @Test fun overallProgressOnlyGrowsAcrossSequentialAndStreamingStages() {
+        val installBit = 1 shl DownloadStage.INSTALL.ordinal
+        val downloadBit = 1 shl DownloadStage.DOWNLOAD.ordinal
+        val sequential = listOf(
+            base.copy(stage = DownloadStage.MANIFEST),
+            base.copy(stage = DownloadStage.DOWNLOAD, bytesDone = 50, bytesTotal = 100),
+            base.copy(stage = DownloadStage.DOWNLOAD, bytesDone = 100, bytesTotal = 100),
+            base.copy(stage = DownloadStage.INSTALL, bytesDone = 100, bytesTotal = 100, stagesPassed = downloadBit, stageDone = 0, stageTotal = 10),
+            base.copy(stage = DownloadStage.INSTALL, bytesDone = 100, bytesTotal = 100, stagesPassed = downloadBit, stageDone = 10, stageTotal = 10),
+            base.copy(state = DownloadState.INSTALLED),
+        ).map { it.overallFraction }
+        assertEquals(sequential, sequential.sorted())
+        assertEquals(1f, sequential.last(), 0f)
+        val streaming = listOf(
+            base.copy(stage = DownloadStage.DOWNLOAD, bytesDone = 10, bytesTotal = 100),
+            base.copy(stage = DownloadStage.INSTALL, bytesDone = 20, bytesTotal = 100, stageDone = 15, stageTotal = 100),
+            base.copy(stage = DownloadStage.DOWNLOAD, bytesDone = 40, bytesTotal = 100, stageDone = 15, stageTotal = 100, stagesPassed = installBit),
+            base.copy(stage = DownloadStage.INSTALL, bytesDone = 60, bytesTotal = 100, stageDone = 55, stageTotal = 100, stagesPassed = installBit),
+        ).map { it.overallFraction }
+        assertEquals(streaming, streaming.sorted())
+    }
 }
+

@@ -1412,11 +1412,19 @@ internal fun downloadLabel(d: com.droiddeck.launcher.stores.download.DownloadEnt
     }
 }
 
-internal fun chipFraction(d: com.droiddeck.launcher.stores.download.DownloadEntry): Float? = (if (d.streaming) d.downloadFraction else d.stageFraction).takeIf { it >= 0f }
+@Composable
+internal fun steadyProgress(d: com.droiddeck.launcher.stores.download.DownloadEntry): Float {
+    val best = androidx.compose.runtime.remember(d.key) { floatArrayOf(0f) }
+    best[0] = maxOf(best[0], d.overallFraction)
+    return best[0]
+}
 
-internal fun chipSecond(d: com.droiddeck.launcher.stores.download.DownloadEntry): Float? = d.installFraction.takeIf { d.streaming }
-
-internal fun chipKey(d: com.droiddeck.launcher.stores.download.DownloadEntry): Any = if (d.streaming) "streaming" else d.stage
+@Composable
+internal fun steadyLabel(d: com.droiddeck.launcher.stores.download.DownloadEntry, progress: Float): String = when (d.state) {
+    DownloadState.QUEUED -> stringResource(R.string.stores_dl_queued)
+    DownloadState.PAUSED -> stringResource(R.string.stores_dl_active_percent, stringResource(R.string.stores_dl_paused), (progress * 100).toInt())
+    else -> stringResource(R.string.stores_dl_active_percent, stringResource(R.string.stores_stage_installing), (progress * 100).toInt())
+}
 
 @Composable
 internal fun activeStageLabel(d: com.droiddeck.launcher.stores.download.DownloadEntry): String = when (d.stage) {
