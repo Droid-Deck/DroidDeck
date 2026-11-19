@@ -9,6 +9,7 @@ object GamepadGeometry {
         VIEW, STEAM, QAM, MENU,
         PANELS,
         L4, L5, R5, R4,
+        LEFT_TOUCH, RIGHT_TOUCH,
     }
 
     data class Box(val cx: Float, val cy: Float, val width: Float, val height: Float) {
@@ -26,10 +27,11 @@ object GamepadGeometry {
 
     fun tall(w: Float, h: Float): Boolean = h >= w * 0.45f
 
-    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false, grips: Boolean = true, upright: Boolean = false): Map<Slot, Box> {
+    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false, grips: Boolean = true, upright: Boolean = false,
+        trackpads: Boolean = false): Map<Slot, Box> {
         if (w <= 0f || h <= 0f) return emptyMap()
         if (upright || portraitDock && h >= w * 0.6f && w >= 300 * density && h >= 300 * density) {
-            return portraitLayout(w, h, density, grips)
+            return portraitLayout(w, h, density, grips, trackpads)
         }
         val pad = 8 * density
         val buttonH = 40 * density
@@ -96,7 +98,7 @@ object GamepadGeometry {
      * The panel under a portrait game: shoulders with View and Menu across the top, the back grips under them when the kit has
      * them, then the d-pad and face buttons and, along the bottom edge, the sticks or trackpads, each as large as the panel allows.
      */
-    private fun portraitLayout(w: Float, h: Float, density: Float, grips: Boolean): Map<Slot, Box> {
+    private fun portraitLayout(w: Float, h: Float, density: Float, grips: Boolean, trackpads: Boolean): Map<Slot, Box> {
         val pad = 8 * density
         val gap = 8 * density
         val buttonH = 44 * density
@@ -114,6 +116,21 @@ object GamepadGeometry {
             areaTop += gripH + gap
         }
         val area = h - pad - areaTop - gap
+        if (trackpads) {
+            val second = min(w * 0.42f, area * 0.5f)
+            val rowH = area - second
+            val col = (w - 2 * pad - 3 * gap) / 4f
+            val stick = min(col, rowH)
+            val rowY = h - pad - rowH / 2f
+            val secondY = areaTop + second / 2f
+            boxes[Slot.LEFT_SECOND] = Box(w * 0.25f, secondY, second, second)
+            boxes[Slot.RIGHT_SECOND] = Box(w * 0.75f, secondY, second, second)
+            boxes[Slot.LEFT_TOUCH] = Box(pad + col / 2f, rowY, col, rowH)
+            boxes[Slot.LEFT_MAIN] = Box(pad + col * 1.5f + gap, rowY, stick, stick)
+            boxes[Slot.RIGHT_MAIN] = Box(w - pad - col * 1.5f - gap, rowY, stick, stick)
+            boxes[Slot.RIGHT_TOUCH] = Box(w - pad - col / 2f, rowY, col, rowH)
+            return boxes
+        }
         val main = min(w * 0.46f, area * 0.53f)
         val second = min(w * 0.42f, area - main)
         val secondY = areaTop + second / 2f

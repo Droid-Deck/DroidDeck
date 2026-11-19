@@ -220,7 +220,8 @@ class KitLayoutTest {
             assertTrue("$kit $w x $h", bottomRow.any { it.id == KitLayout.KEYBOARD_ID } && bottomRow.any { it.control == InputControl.QAM })
             assertTrue("$kit $w x $h", bottomRow.minOf { it.x } * w >= 52 * density - .5f)
             val stick = elements.first { it.id == "legacy:ls" }
-            assertTrue("$kit $w x $h", stick.width * w >= w * .3f)
+            assertTrue("$kit $w x $h", stick.width * w >= w * if (kit.steam) .2f else .3f)
+            assertTrue("$kit $w x $h", elements.any { it.id == "legacy:rs" })
         }
     }
 
@@ -244,8 +245,8 @@ class KitLayoutTest {
     @Test fun onlySteamKitsPutTrackpadsInTheDockedStrip() {
         for (kit in PadKit.entries) {
             val placed = KitLayout.dock(context, kit, 1080, 1300, true, InputControl.LS, InputControl.RIGHT_PAD).map { it.control }
-            assertEquals(kit.toString(), kit.steam, InputControl.RIGHT_PAD in placed)
-            assertEquals(kit.toString(), !kit.steam, InputControl.RS in placed)
+            assertEquals(kit.toString(), kit.steam, InputControl.RIGHT_PAD in placed && InputControl.LEFT_PAD in placed)
+            assertTrue(kit.toString(), InputControl.RS in placed && InputControl.LS in placed)
         }
     }
 

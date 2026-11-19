@@ -141,7 +141,8 @@ class OnScreenLayoutTest {
         for ((size, portrait) in listOf((2208 to 800) to false, (1080 to 1300) to true)) {
             val (w, h) = size
             val placed = OnScreenLayout.elements(context, gamepad(), w, h, Rect(), dock = OnScreenLayout.Dock(portrait, grips = true))
-            val boxes = GamepadGeometry.layout(w.toFloat(), h.toFloat(), density, portrait)
+            val steam = PadKit.current(context).steam
+            val boxes = GamepadGeometry.layout(w.toFloat(), h.toFloat(), density, portrait, grips = steam, trackpads = steam)
             val ls = placed.first { it.id == "legacy:ls" }
             val box = boxes.getValue(GamepadGeometry.Slot.LEFT_MAIN)
             assertEquals(box.left, ls.x * w, 1f)

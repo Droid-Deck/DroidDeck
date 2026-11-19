@@ -118,7 +118,7 @@ object KitLayout {
         val inner = (w - safe.left - safe.right).coerceAtLeast(1f)
         val area = (min(h * .6f, inner * 1.15f) * scale).coerceAtMost(h - safe.top - safe.bottom - row).coerceAtLeast(1f)
         val top = h - safe.bottom - row - area
-        val pad = dock(context, kit, inner.toInt(), area.toInt(), true, InputControl.LS, if (kit.steam) InputControl.RIGHT_PAD else InputControl.RS, upright = true).map { e ->
+        val pad = dock(context, kit, inner.toInt(), area.toInt(), true, InputControl.LS, InputControl.RS, upright = true).map { e ->
             e.copy(x = (safe.left + e.x * inner) / w, y = (top + e.y * area) / h, width = e.width * inner / w, height = e.height * area / h,
                 floating = e.kind == InputElementKind.STICK)
         }
@@ -154,7 +154,8 @@ object KitLayout {
     fun dock(context: Context, kit: PadKit, width: Int, height: Int, portrait: Boolean, left: InputControl, right: InputControl,
         upright: Boolean = false): List<InputSurfaceElement> {
         val w = width.toFloat(); val h = height.toFloat()
-        val boxes = GamepadGeometry.layout(w, h, context.resources.displayMetrics.density, portrait, grips = kit.steam, upright = upright)
+        val boxes = GamepadGeometry.layout(w, h, context.resources.displayMetrics.density, portrait, grips = kit.steam, upright = upright,
+            trackpads = kit.steam)
         val placed = mutableListOf<InputSurfaceElement>()
         fun put(control: InputControl, box: GamepadGeometry.Box?, shape: InputButtonShape, id: String = "legacy:${control.id}",
             kind: InputElementKind = InputElementKind.from(control), name: String = kit.name(control)) {
@@ -162,8 +163,13 @@ object KitLayout {
             placed += InputSurfaceElement(control, b.left / w, b.top / h, b.width / w, b.height / h, id, kind, name, floating = false, buttonShape = shape).bounded()
         }
         fun square(box: GamepadGeometry.Box?) = box?.let { val side = min(it.width, it.height); GamepadGeometry.Box(it.cx, it.cy, side, side) }
-        val leftMain = if (kit.steam || left != InputControl.LEFT_PAD) left else InputControl.LS
-        val rightMain = if (kit.steam || right != InputControl.RIGHT_PAD) right else InputControl.RS
+        val four = GamepadGeometry.Slot.LEFT_TOUCH in boxes
+        val leftMain = if (four || !kit.steam && left == InputControl.LEFT_PAD) InputControl.LS else left
+        val rightMain = if (four || !kit.steam && right == InputControl.RIGHT_PAD) InputControl.RS else right
+        if (four) {
+            put(InputControl.LEFT_PAD, boxes[GamepadGeometry.Slot.LEFT_TOUCH], InputButtonShape.ROUNDED)
+            put(InputControl.RIGHT_PAD, boxes[GamepadGeometry.Slot.RIGHT_TOUCH], InputButtonShape.ROUNDED)
+        }
         put(leftMain, square(boxes[GamepadGeometry.Slot.LEFT_MAIN]), InputButtonShape.CIRCLE)
         put(InputControl.LS, square(boxes[GamepadGeometry.Slot.LEFT_SECOND]), InputButtonShape.ROUNDED, DPAD_ID, InputElementKind.DPAD, "D-pad")
         put(rightMain, square(boxes[GamepadGeometry.Slot.RIGHT_MAIN]), InputButtonShape.CIRCLE)

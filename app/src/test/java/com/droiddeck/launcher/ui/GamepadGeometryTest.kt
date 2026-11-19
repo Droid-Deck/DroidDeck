@@ -38,7 +38,7 @@ class GamepadGeometryTest {
     @Test fun everyControlIsPlacedAndPanelsOnlyWhenUpright() {
         for (panel in panels) {
             val upright = panel.height > panel.width
-            val expected = Slot.values().toSet() - grips - if (upright) emptySet() else setOf(Slot.PANELS)
+            val expected = Slot.values().toSet() - grips - setOf(Slot.LEFT_TOUCH, Slot.RIGHT_TOUCH) - if (upright) emptySet() else setOf(Slot.PANELS)
             assertEquals(panel.name, expected, boxes(panel).keys)
         }
     }
@@ -94,7 +94,7 @@ class GamepadGeometryTest {
     @Test fun portraitDockPlacesAllControlsWithinThePanel() {
         for (panel in portraitPanels) {
             val b = portraitBoxes(panel)
-            assertEquals(panel.name, Slot.values().toSet() - setOf(Slot.STEAM, Slot.QAM, Slot.PANELS), b.keys)
+            assertEquals(panel.name, Slot.values().toSet() - setOf(Slot.STEAM, Slot.QAM, Slot.PANELS, Slot.LEFT_TOUCH, Slot.RIGHT_TOUCH), b.keys)
             for ((slot, box) in b) {
                 val where = "${panel.name}: $slot $box"
                 assertTrue(where, box.left >= 0f && box.top >= 0f)
@@ -159,6 +159,18 @@ class GamepadGeometryTest {
         for ((width, height, density) in listOf(Triple(1920f, 1080f, 2f), Triple(720f, 600f, 2.3f))) {
             assertEquals(GamepadGeometry.layout(width, height, density),
                 GamepadGeometry.layout(width, height, density, portraitDock = true))
+        }
+    }
+
+    @Test fun aPortraitDockWithTrackpadsPutsThemOutsideBothSticksWithoutOverlap() {
+        for (panel in portraitPanels) {
+            val b = GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, portraitDock = true, trackpads = true)
+            val row = listOf(Slot.LEFT_TOUCH, Slot.LEFT_MAIN, Slot.RIGHT_MAIN, Slot.RIGHT_TOUCH)
+            assertEquals(panel.name, row, row.sortedBy { b.getValue(it).cx })
+            val placed = b.entries.toList()
+            for (i in placed.indices) for (j in i + 1 until placed.size)
+                assertFalse("${panel.name}: ${placed[i].key} overlaps ${placed[j].key}", placed[i].value.overlaps(placed[j].value))
+            for ((slot, box) in b) assertTrue("${panel.name}: $slot", box.bottom <= panel.controlsHeight + .5f && box.right <= panel.width + .5f)
         }
     }
 }
