@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Ce programme est conçu pour les PC %1$s et s\'exécute via FEX, qui n\'est pas encore configuré. Ouvrez Steam une fois en étant connecté : DroidDeck lui fait télécharger FEX et le Steam Linux Runtime nécessaires, puis ce programme s\'ouvre.</string>
     <string name="session_proot_missing">Impossible de télécharger le proot de DroidDeck. Vérifiez la connexion et réessayez. La session n\'a pas été démarrée, car le proot de secours est trop lent pour jouer.</string>
     <string name="session_powervr_missing">L\'environnement graphique PowerVR n\'a pas pu être téléchargé. Vérifiez la connexion et réessayez.</string>
+    <string name="session_graphics_runtime_failed">L\'environnement graphique n\'a pas pu être préparé, la session n\'a donc pas été lancée.</string>
+    <string name="session_game_environment_failed">L\'environnement de jeu n\'a pas pu être configuré, la session n\'a donc pas été lancée.</string>
     <string name="session_directaudio_missing">Impossible de télécharger DirectAudio ; l\'audio des jeux utilise le chemin plus lent pour cette session.</string>
     <string name="session_end_program">Ce programme</string>
     <string name="session_end_present_fault">La session n\'a pas pu dessiner à l\'écran : %1$s. Cet écran affiche la raison au lieu d\'un écran noir ; les journaux de la session contiennent les détails.</string>
@@ -1324,6 +1326,7 @@
     <string name="gate_enter_manually">Saisir l\'adresse manuellement</string>
     <string name="gate_from_computer">Utiliser ADB depuis un ordinateur :</string>
     <string name="gate_copy_command">Copier la commande</string>
+    <string name="gate_sidequest_steps">Branchez le casque à un ordinateur et ouvrez SideQuest. Choisissez « Run ADB Command », puis « Custom Command », saisissez la commande affichée ci-dessous et sélectionnez « Run Command ».</string>
     <string name="gate_choose_display">Choisissez l\'écran sur lequel ouvrir les paramètres Android.</string>
     <string name="gate_main_screen">Écran principal</string>
     <string name="wadb_finding_port">Appairé. Recherche du port de débogage sans fil…</string>
@@ -1579,6 +1582,8 @@
     <string name="pip_unavailable">Android ne peut pas ouvrir le mode PiP.</string>
     <string name="game_more">Plus</string>
     <string name="game_edit_art">Modifier les illustrations</string>
+    <string name="game_unhide">Ne plus masquer</string>
+    <string name="game_hide_failed">Synchronisation avec Steam impossible. Fermez Steam et réessayez.</string>
     <string name="stores_in_steam_label">Dans Steam</string>
     <string name="game_shortcut">Raccourci</string>
     <string name="game_shortcut_add">Ajouter à l\'écran d\'accueil</string>

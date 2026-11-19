@@ -218,12 +218,15 @@ object BwrapSpawner {
     private fun runtimeLib(rootfs: String, name: String): File? =
         LIB_DIRS.map { File(rootfs, "$it/$name") }.firstOrNull { it.exists() }
 
-    private fun gpu(rootfs: String, root: File, env: MutableMap<String, String>): List<Bind>? {
+    internal fun gpu(
+        rootfs: String, root: File, env: MutableMap<String, String>,
+        kgslAvailable: Boolean = File("/dev/kgsl-3d0").exists(),
+    ): List<Bind>? {
         env["VKBRIDGE_SOCKET"]?.let { sock -> if (File(sock).exists()) return bridgeGpu(rootfs, root, env, sock) }
         val driver = runtimeLib(rootfs, "libvulkan_freedreno.so")
-        if (driver == null || !File("/dev/kgsl-3d0").exists()) return null
+        if (driver == null || !kgslAvailable) return null
         if (env.containsKey("VK_ICD_FILENAMES") || env.containsKey("VK_DRIVER_FILES")) return null
-        if (env["BL_DESKTOP"] == "1" && env["GAMESCOPE_WAYLAND_DISPLAY"] == null) return null
+        if (env["LIBGL_ALWAYS_SOFTWARE"] == "1" && env["GAMESCOPE_WAYLAND_DISPLAY"] == null) return null
         val binds = arrayListOf(Bind(driver.canonicalPath, "$GPU_DIR/libvulkan_freedreno.so"))
         for (name in GPU_LIBS) {
             val f = runtimeLib(rootfs, name) ?: continue

@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Tämä ohjelma on tehty %1$s-tietokoneille ja käynnistyy FEXin kautta, jota ei ole vielä määritetty. Avaa Steam kerran kirjautuneena: DroidDeck lataa sen myötä FEXin ja tarvittavan Steam Linux Runtimen, jonka jälkeen tämä avautuu.</string>
     <string name="session_proot_missing">DroidDeckin proota ei voitu ladata. Tarkista yhteys ja yritä uudelleen. Istuntoa ei käynnistetty, koska varaproot on liian hidas pelaamiseen.</string>
     <string name="session_powervr_missing">PowerVR-grafiikkaympäristöä ei voitu ladata. Tarkista yhteys ja yritä uudelleen.</string>
+    <string name="session_graphics_runtime_failed">Grafiikkaympäristöä ei voitu valmistella, joten istuntoa ei käynnistetty.</string>
+    <string name="session_game_environment_failed">Peliympäristöä ei voitu määrittää, joten istuntoa ei käynnistetty.</string>
     <string name="session_directaudio_missing">DirectAudiota ei voitu ladata, joten pelin ääni käyttää tässä istunnossa hitaampaa reittiä.</string>
     <string name="session_end_program">Tämä ohjelma</string>
     <string name="session_end_present_fault">Istunto ei pystynyt piirtämään näytölle: %1$s. Mustan ruudun sijaan tämä näyttö kertoo syyn. Tarkemmat tiedot ovat istuntolokeissa.</string>
@@ -1318,6 +1320,7 @@
     <string name="gate_enter_manually">Syötä osoite manuaalisesti</string>
     <string name="gate_from_computer">Tietokoneelta ADB:llä:</string>
     <string name="gate_copy_command">Kopioi komento</string>
+    <string name="gate_sidequest_steps">Liitä lasit tietokoneeseen ja avaa SideQuest. Valitse ”Run ADB Command” ja sitten ”Custom Command”, kirjoita alla näkyvä komento ja valitse ”Run Command”.</string>
     <string name="gate_choose_display">Valitse, millä näytöllä Android-asetukset avataan.</string>
     <string name="gate_main_screen">Päänäyttö</string>
     <string name="wadb_finding_port">Pariutui. Etsitään Langattoman virheenkorjauksen porttia…</string>
@@ -1572,6 +1575,8 @@
     <string name="pip_unavailable">Android ei pystynyt avaamaan kuva kuvassa -tilaa.</string>
     <string name="game_more">Lisää</string>
     <string name="game_edit_art">Muokkaa kuvitusta</string>
+    <string name="game_unhide">Poista piilotetuista</string>
+    <string name="game_hide_failed">Synkronointi Steamin kanssa epäonnistui. Sulje Steam ja yritä uudelleen.</string>
     <string name="stores_in_steam_label">Steamissa</string>
     <string name="game_shortcut">Pikakuvake</string>
     <string name="game_shortcut_add">Lisää aloitusnäytölle</string>

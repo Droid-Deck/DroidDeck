@@ -45,7 +45,7 @@ object ProtonExtras {
     fun offered(context: Context): List<Tool> = tools.filter { it.id != BIONIC || NativeGuest.enabled(context) }
 
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")
-    private fun requests(context: Context) = File(home(context), ".bl-proton-extra")
+    private fun requests(context: Context) = File(home(context), ".dd-proton-extra")
     private fun toolsDir(context: Context) = File(home(context), ".local/share/Steam/compatibilitytools.d")
     private fun releasesFile(context: Context) = File(context.filesDir, "proton-extras.json")
     private fun latestFile(context: Context) = File(context.filesDir, "proton-latest.json")

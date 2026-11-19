@@ -15,7 +15,7 @@ SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/d
 def wait_functions():
     text = SESSION.read_text()
     found = []
-    for name in ("bl_now_ms", "vkbridge_wait_socket"):
+    for name in ("dd_now_ms", "vkbridge_wait_socket"):
         match = re.search(r"^%s\(\) \{\n.*?^\}\n" % name, text, re.M | re.S)
         if match:
             found.append(match.group(0))
@@ -44,7 +44,7 @@ class VkBridgeSocketWaitTest(unittest.TestCase):
 
     def run_wait(self, limit_ms, prelude=""):
         functions = wait_functions()
-        self.assertEqual(2, len(functions), "droiddeck-session lacks bl_now_ms() or vkbridge_wait_socket()")
+        self.assertEqual(2, len(functions), "droiddeck-session lacks dd_now_ms() or vkbridge_wait_socket()")
         script = "set -u\n" + "".join(functions) + prelude
         script += 'if vkbridge_wait_socket "$1" "$2"; then echo USABLE; else echo FALLBACK; fi\n'
         started = time.monotonic()
@@ -88,7 +88,7 @@ class VkBridgeSocketWaitTest(unittest.TestCase):
         self.assertTrue(out.endswith("FALLBACK\n"), out)
 
     def test_a_stopping_session_does_not_wait(self):
-        out, elapsed = self.run_wait(10000, prelude="bl_stopping=1\n")
+        out, elapsed = self.run_wait(10000, prelude="dd_stopping=1\n")
         self.assertTrue(out.endswith("FALLBACK\n"), out)
         self.assertIn("the session is stopping", out)
         self.assertLess(elapsed, 2)
@@ -105,7 +105,7 @@ class VkBridgeSessionCheckTest(unittest.TestCase):
 
     def setUp(self):
         self.text = SESSION.read_text()
-        match = re.search(r'^if \[ "\$\{BL_VKBRIDGE:-0\}" = 1 \]; then\n.*?^fi\n', self.text, re.M | re.S)
+        match = re.search(r'^if \[ "\$\{DD_VKBRIDGE:-0\}" = 1 \]; then\n.*?^fi\n', self.text, re.M | re.S)
         self.assertIsNotNone(match)
         self.block = match.group(0)
 
@@ -113,14 +113,14 @@ class VkBridgeSessionCheckTest(unittest.TestCase):
         wait = self.block.index("vkbridge_wait_socket")
         check = self.block.index('[ -S "${VKBRIDGE_SOCKET:-}" ]')
         self.assertLess(wait, check)
-        self.assertIn('[ -z "${BL_INSIDE:-}" ] && vkbridge_wait_socket', self.block)
+        self.assertIn('[ -z "${DD_INSIDE:-}" ] && vkbridge_wait_socket', self.block)
 
     def test_the_fallback_message_names_what_is_missing(self):
         self.assertIn("Mali bridge requested but NOT usable", self.block)
-        self.assertIn("missing:$bl_vkb_missing", self.block)
+        self.assertIn("missing:$dd_vkb_missing", self.block)
 
     def test_a_stop_ends_the_wait(self):
-        self.assertRegex(self.text, r"trap '[^']*bl_stopping=1[^']*' TERM INT HUP")
+        self.assertRegex(self.text, r"trap '[^']*dd_stopping=1[^']*' TERM INT HUP")
 
 
 if __name__ == "__main__":

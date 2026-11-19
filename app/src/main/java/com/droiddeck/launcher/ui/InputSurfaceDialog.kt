@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import android.app.Presentation
+import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.os.Handler
@@ -37,6 +38,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
@@ -59,7 +61,7 @@ import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.session.SessionState
 
 private data class SurfaceSnapshot(val elements: List<InputSurfaceElement>, val actions: Map<String, InputAction>,
-    val clicks: Map<String, InputAction>, val scale: Float)
+    val clicks: Map<String, InputAction>, val scale: Float, val aspect: Float)
 
 private class GamepadScaler(private val context: android.content.Context, private val width: Int, private val height: Int) {
     private fun generator(scale: Float) = LegacyGamepadLayout(context, width, height, scale = scale)
@@ -69,7 +71,8 @@ private class GamepadScaler(private val context: android.content.Context, privat
 }
 
 private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings, val defaults: List<InputSurfaceElement>? = null,
-    private val gamepad: GamepadScaler? = null, snap: Boolean = true) {
+    private val defaultsFrame: Float = 0f, private var gamepad: GamepadScaler? = null, snap: Boolean = true) {
+    val hasGamepad get() = gamepad != null
     var elements by mutableStateOf(layout.elements)
     var actions by mutableStateOf(preset.elements)
     var clicks by mutableStateOf(preset.clicks)
@@ -83,27 +86,40 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var clickProperties by mutableStateOf(false)
     var history by mutableStateOf<List<SurfaceSnapshot>>(emptyList())
     var layoutScale by mutableFloatStateOf(layout.scale)
+    var aspect by mutableFloatStateOf(layout.aspect)
     private var scaleBase by mutableStateOf<Triple<List<InputSurfaceElement>, List<InputSurfaceElement>, Float>?>(null)
     private var scaleValue by mutableIntStateOf(100)
-    private val rescales get() = gamepad != null && elements.any { it.id in gamepad.ids }
+    private val rescales get() = gamepad?.let { pad -> elements.any { it.id in pad.ids } } == true
     val scale get() = when {
         scaleBase?.second == elements -> scaleValue
         rescales -> (layoutScale * 100).roundToInt()
         else -> 100
     }
-    val positioned get() = (if (rescales) gamepad!!.reset(elements) else defaults?.let { elements.withPositionsOf(it) })
+    val positioned get() = (if (rescales) gamepad!!.reset(elements) else defaults?.let { elements.withPositionsOf(refit(it, defaultsFrame)) })
         ?.takeIf { it != elements || rescales && layoutScale != 1f }
+
+    private fun refit(placed: List<InputSurfaceElement>, from: Float): List<InputSurfaceElement> {
+        if (from <= 0f || aspect <= 0f || abs(from / aspect - 1f) < .01f) return placed
+        return OnScreenLayout.fit(placed, from, 1f, (aspect * 1000).roundToInt().coerceAtLeast(1), 1000, Rect())
+    }
     val element get() = elements.firstOrNull { it.id == selected }
-    val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale
-    fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale)).takeLast(40) }
-    fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; history = history.dropLast(1) } }
+    val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale || aspect != layout.aspect
+    fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale, aspect)).takeLast(40) }
+    fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; aspect = it.aspect; history = history.dropLast(1) } }
+    fun beginEdit(displayed: List<InputSurfaceElement>, aspect: Float, scaler: GamepadScaler? = gamepad) {
+        checkpoint()
+        elements = OnScreenLayout.editorFrame(layout.copy(elements = elements), displayed)
+        this.aspect = aspect
+        scaler?.let { gamepad = it }
+    }
     fun scaleAll(percent: Int) {
         val base = scaleBase?.takeIf { it.second == elements } ?: Triple(elements, elements, if (rescales) layoutScale else 0f).also { checkpoint() }
         val factor = percent / 100f
-        elements = if (base.third > 0f && gamepad != null) {
+        val pad = gamepad
+        elements = if (base.third > 0f && pad != null) {
             layoutScale = factor
-            val others = base.first.filterNot { it.id in gamepad.ids }.scaled(factor / base.third).associateBy { it.id }
-            gamepad.rescale(base.first, base.third, factor).map { others[it.id] ?: it }
+            val others = base.first.filterNot { it.id in pad.ids }.scaled(factor / base.third).associateBy { it.id }
+            pad.rescale(base.first, base.third, factor).map { others[it.id] ?: it }
         } else base.first.scaled(factor)
         scaleValue = percent; scaleBase = Triple(base.first, elements, base.third)
     }
@@ -111,10 +127,6 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
 }
-
-@Suppress("DEPRECATION")
-private fun displayAspect(display: Display): Float? = android.util.DisplayMetrics().also(display::getRealMetrics)
-    .takeIf { it.widthPixels > 0 && it.heightPixels > 0 }?.let { (it.widthPixels.toFloat() / it.heightPixels).coerceIn(.05f, 20f) }
 
 @Composable
 fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> Unit,
@@ -132,7 +144,8 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             val (w, h) = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels) ?: (metrics.widthPixels to metrics.heightPixels)
             GamepadScaler(display, w, h)
         }
-        SurfaceDraft(savedLayout, savedBindings, InputLibraries.defaultPositions(context, library, savedLayout), gamepad, ControllerPrefs.snap(context))
+        val defaults = InputLibraries.defaultPositions(context, library, savedLayout)
+        SurfaceDraft(savedLayout, savedBindings, defaults?.first, defaults?.second ?: 0f, gamepad, ControllerPrefs.snap(context))
     }
     val manager = remember { context.getSystemService(DisplayManager::class.java) }
     var revision by remember { mutableIntStateOf(0) }
@@ -153,7 +166,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             InputLibraries.update(context) { latest ->
                 val l = latest.layouts.first { it.id == savedLayout.id }
                 val p = latest.preset(savedBindings.id)
-                latest.withLayout(l.copy(elements = draft.elements, aspect = target?.let(::displayAspect) ?: l.aspect, scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
+                latest.withLayout(l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
                     clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
             }
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
@@ -253,10 +266,10 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false) {
     AndroidView(factory = { InputSurfaceEditorView(it) }, modifier = Modifier.fillMaxSize().testTag("input-layout-canvas"),
         update = { view ->
             view.setBackgroundColor(if (transparent) android.graphics.Color.TRANSPARENT else android.graphics.Color.rgb(10, 11, 13))
-            view.style = draft.layout.style.copy(hidden = emptySet()); view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
+            view.style = draft.layout.style.copy(hidden = emptySet()); view.sourceLayout = draft.layout; view.aspect = draft.aspect; view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
             view.isEnabled = !draft.properties && !draft.adding
             view.onSelect = { if (!draft.properties) draft.selected = it }
-            view.onBeginEdit = draft::checkpoint
+            view.onBeginEdit = { e, w, h -> draft.beginEdit(e, w.toFloat() / h, if (draft.hasGamepad) GamepadScaler(view.context, w, h) else null) }
             view.onChange = { e -> if (!draft.properties) draft.elements = draft.elements.map { if (it.id == e.id) e else it } }
 
         })

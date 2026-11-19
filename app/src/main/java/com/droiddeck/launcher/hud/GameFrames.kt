@@ -275,7 +275,7 @@ internal class GameFrameFeed(
         private const val INFO_NS = 500_000_000L
         private const val SHIFT_NS = 1_000_000_000L
         private const val SHIFT_RECHECK_NS = 100_000_000L
-        private const val CLOCK_CONTROL_PATH = "tmp/.bl-clock"
+        private const val CLOCK_CONTROL_PATH = "tmp/.dd-clock"
 
         fun forRoot(root: File) = GameFrameFeed(File(root, HudFrames.PATH), clockControl = File(root, CLOCK_CONTROL_PATH))
 

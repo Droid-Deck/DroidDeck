@@ -5,6 +5,9 @@
     <queries>
         <package android:name="cn.nubia.gamelauncher" />
         <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
             <action android:name="android.content.pm.action.CONFIRM_INSTALL" />
         </intent>
         <intent>
@@ -150,6 +153,7 @@
                 <category android:name="android.intent.category.CAR_LAUNCHER" />
                 <data android:scheme="droiddeck" android:host="game" />
                 <data android:scheme="droiddeck" android:host="soundtrack" />
+                <data android:scheme="droiddeck" android:host="settings" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.CREATE_SHORTCUT" />
@@ -298,6 +302,15 @@
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
 
+        <activity
+            android:name=".session.KeepTopActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="${applicationId}.keeptop"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar.Fullscreen"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density" />
         <activity
             android:name=".ui.SessionTypingActivity"
             android:exported="false"

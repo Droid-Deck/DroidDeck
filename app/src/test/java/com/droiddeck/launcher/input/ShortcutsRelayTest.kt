@@ -32,9 +32,10 @@ class ShortcutsRelayTest {
     private fun choose(value: String?) =
         Settings.Secure.putString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, value)
 
-    private fun installCompanion() {
+    @Suppress("DEPRECATION")
+    private fun installCompanion(version: Int = Relay.VERSION) {
         val app = ApplicationInfo().apply { packageName = Relay.PACKAGE; uid = companionUid }
-        shadowOf(context.packageManager).installPackage(PackageInfo().apply { packageName = Relay.PACKAGE; applicationInfo = app })
+        shadowOf(context.packageManager).installPackage(PackageInfo().apply { packageName = Relay.PACKAGE; applicationInfo = app; versionCode = version })
         shadowOf(context.packageManager).setPackagesForUid(companionUid, Relay.PACKAGE)
     }
 
@@ -82,6 +83,26 @@ class ShortcutsRelayTest {
         choose("${Relay.PACKAGE}/${Relay.SERVICE}")
         assertNull(config(binder, 10_998))
         assertEquals(0, config(binder, companionUid))
+    }
+
+    @Test fun anOldCompanionIsOfferedAsAnUpdate() {
+        installCompanion(version = 1)
+        choose("${Relay.PACKAGE}/${Relay.SERVICE}")
+        assertTrue(SteamIntegration.shortcutsEnabled(context))
+        assertFalse(SteamIntegration.read(context).shortcuts)
+        installCompanion()
+        assertTrue(SteamIntegration.read(context).shortcuts)
+    }
+
+    @Test fun droidDeckHoldsTheRelayOnlyWhileAScreenIsStarted() {
+        installCompanion()
+        ShortcutsRelay.Holder.install(context)
+        val activity = Robolectric.buildActivity(android.app.Activity::class.java).create()
+        activity.start()
+        assertEquals(1, shadowOf(context).boundServiceConnections.size)
+        activity.stop()
+        shadowOf(android.os.Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(2))
+        assertEquals(0, shadowOf(context).boundServiceConnections.size)
     }
 
     @Test fun windowSnapshotsSurviveTheTrip() {

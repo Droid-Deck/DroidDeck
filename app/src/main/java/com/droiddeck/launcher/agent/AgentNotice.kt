@@ -16,10 +16,10 @@ internal object AgentNotice {
     private const val CHANNEL_ID = "agent_done"
     private const val NOTIFICATION_ID = 4108
 
-    enum class Kind { DONE, FAILED, QUESTION }
+    enum class Kind { DONE, FAILED, QUESTION, APPROVAL }
 
     fun post(context: Context, kind: Kind, text: String) {
-        if (onScreen(context)) return
+        if (onScreen(context, kind)) return
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, context.getString(R.string.agent_done_channel), NotificationManager.IMPORTANCE_DEFAULT))
         val open = PendingIntent.getActivity(context, 2,
@@ -31,6 +31,7 @@ internal object AgentNotice {
             Kind.DONE -> R.string.agent_done
             Kind.FAILED -> R.string.agent_done_failed
             Kind.QUESTION -> R.string.agent_done_question
+            Kind.APPROVAL -> R.string.agent_done_approval
         })
         runCatching {
             manager.notify(NOTIFICATION_ID, Notification.Builder(context, CHANNEL_ID)
@@ -49,9 +50,9 @@ internal object AgentNotice {
         context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
     }
 
-    /** The chat in a DroidDeck window in front, or the pet, which shows the reply in its own bubble. */
-    private fun onScreen(context: Context): Boolean {
-        if (AgentPet.floating) return true
+    /** The chat in a DroidDeck window in front, or the pet, which shows the reply in its own bubble but has no way to answer an approval. */
+    private fun onScreen(context: Context, kind: Kind): Boolean {
+        if (AgentPet.floating && kind != Kind.APPROVAL) return true
         val state = ActivityManager.RunningAppProcessInfo().also { ActivityManager.getMyMemoryState(it) }
         return AgentPet.agentOnScreen > 0 && state.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
     }

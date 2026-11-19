@@ -12,7 +12,7 @@ BIN = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin'
 class SteamCompatEnvironmentTest(unittest.TestCase):
     def test_library_launch_preserves_guest_environment_without_steam_client_libraries(self):
         source = (BIN / 'droiddeck-session').read_text()
-        setup = source[source.index('    _bl_compat_env='):source.index('    export SDL_VIDEO_X11_DGAMOUSE=')]
+        setup = source[source.index('    _dd_compat_env='):source.index('    export SDL_VIDEO_X11_DGAMOUSE=')]
         launch = next(line for line in source.splitlines()
                       if 'droiddeck-steam-compat "$steam_root"' in line)
         with tempfile.TemporaryDirectory() as directory:
@@ -57,7 +57,7 @@ class SteamCompatEnvironmentTest(unittest.TestCase):
             helper.chmod(0o755)
             env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
                        PID_FILE=str(pid), steam_root='/steam', steam_x64='0')
-            subprocess.run(['bash', '-c', '_bl_compat_env=(env)\n' + launch + '\n'
+            subprocess.run(['bash', '-c', '_dd_compat_env=(env)\n' + launch + '\n'
                             'until [ -s "$PID_FILE" ]; do sleep 0.05; done\n'
                             'kill $(jobs -p)\nwait'],
                            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
@@ -83,7 +83,7 @@ class SteamCompatEnvironmentTest(unittest.TestCase):
                     args = root / ('args-' + x64)
                     env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
                                ARGS_FILE=str(args), steam_root='/steam', steam_x64=x64)
-                    subprocess.run(['bash', '-c', '_bl_compat_env=(env)\n' + block + 'wait\n'], env=env, timeout=10, check=True)
+                    subprocess.run(['bash', '-c', '_dd_compat_env=(env)\n' + block + 'wait\n'], env=env, timeout=10, check=True)
                     self.assertEqual(args.read_text().split('\n')[0], expected)
 
     def test_files_only_mode_installs_only_the_file_dialog_hook(self):

@@ -121,12 +121,12 @@ class GogMaintenance(unittest.TestCase):
         proc = self.folder / "proc"
         row = proc / "10"; row.mkdir(parents=True)
         (row / "cmdline").write_bytes(b"/usr/bin/plasmashell\0")
-        (row / "environ").write_bytes(b"BL_DESKTOP=1\0XDG_RUNTIME_DIR=/run/session\0WAYLAND_DISPLAY=wayland-1\0DISPLAY=:0\0XAUTHORITY=/run/session/auth\0UNRELATED=value\0")
+        (row / "environ").write_bytes(b"DD_DESKTOP=1\0XDG_RUNTIME_DIR=/run/session\0WAYLAND_DISPLAY=wayland-1\0DISPLAY=:0\0XAUTHORITY=/run/session/auth\0UNRELATED=value\0")
         env = G["desktop_environment"]({"DROIDDECK_GOG_DESKTOP": "1", "XDG_RUNTIME_DIR": "/run/session", "WAYLAND_DISPLAY": "wayland-0"}, proc)
         self.assertEqual("wayland-1", env["WAYLAND_DISPLAY"])
         self.assertEqual(":0", env["DISPLAY"])
         self.assertEqual("/run/session/auth", env["XAUTHORITY"])
-        self.assertEqual("1", env["BL_DESKTOP"])
+        self.assertEqual("1", env["DD_DESKTOP"])
         self.assertNotIn("UNRELATED", env)
 
     def test_maintenance_uses_full_x87_precision_without_changing_game_preferences(self):

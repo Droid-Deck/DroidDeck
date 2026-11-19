@@ -37,9 +37,9 @@ class FexSelectTest(unittest.TestCase):
                     .replace("/usr/local/bin/FEX", "$ROOT/FEX"))
             script = HARNESS + body + 'if fex_ready; then echo "NOW $FEX_NOW|$FEX_FROM"; else echo FAILED; fi\n'
             env = dict(os.environ, ROOT=root, LOADS="1" if loads else "0", INSTALLABLE=" ".join(installable))
-            env.pop("BL_FEX_TAG", None)
+            env.pop("DD_FEX_TAG", None)
             if catalog:
-                env.update(BL_FEX_TAG=catalog, BL_FEX_SHA256="catsha", BL_FEX_URLS="a b")
+                env.update(DD_FEX_TAG=catalog, DD_FEX_SHA256="catsha", DD_FEX_URLS="a b")
             out = subprocess.run(["bash", "-c", script], env=env, text=True, capture_output=True, timeout=10)
             self.assertEqual(0, out.returncode, out.stderr)
             lines = out.stdout.splitlines()

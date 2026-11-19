@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Ten program jest zbudowany dla komputerów %1$s i działa przez FEX, który nie jest jeszcze skonfigurowany. Otwórz raz Steam po zalogowaniu: DroidDeck pobierze wtedy FEX i potrzebne Steam Linux Runtime, a potem program się otworzy.</string>
     <string name="session_proot_missing">Nie udało się pobrać proot DroidDeck. Sprawdź połączenie i spróbuj ponownie. Sesja nie została uruchomiona, bo zapasowy proot jest zbyt wolny do grania.</string>
     <string name="session_powervr_missing">Nie udało się pobrać środowiska graficznego PowerVR. Sprawdź połączenie i spróbuj ponownie.</string>
+    <string name="session_graphics_runtime_failed">Nie udało się przygotować środowiska graficznego, więc sesja nie została uruchomiona.</string>
+    <string name="session_game_environment_failed">Nie udało się skonfigurować środowiska gry, więc sesja nie została uruchomiona.</string>
     <string name="session_directaudio_missing">Nie udało się pobrać DirectAudio, więc w tej sesji dźwięk gier używa wolniejszej ścieżki.</string>
     <string name="session_end_program">Ten program</string>
     <string name="session_end_present_fault">Sesja nie mogła wyświetlić obrazu na ekranie: %1$s. Ten ekran pokazuje przyczynę zamiast czarnego obrazu; szczegóły znajdują się w logach sesji.</string>
@@ -1332,6 +1334,7 @@
     <string name="gate_enter_manually">Wpisz adres ręcznie</string>
     <string name="gate_from_computer">Z komputera z ADB:</string>
     <string name="gate_copy_command">Kopiuj polecenie</string>
+    <string name="gate_sidequest_steps">Podłącz gogle do komputera i otwórz SideQuest. Wybierz „Run ADB Command”, potem „Custom Command”, wpisz polecenie widoczne poniżej i wybierz „Run Command”.</string>
     <string name="gate_choose_display">Wybierz, na którym ekranie otworzyć Ustawienia Androida.</string>
     <string name="gate_main_screen">Ekran główny</string>
     <string name="wadb_finding_port">Sparowano. Wyszukiwanie portu debugowania bezprzewodowego…</string>
@@ -1588,6 +1591,8 @@
     <string name="pip_unavailable">Android nie mógł otworzyć obrazu w obrazie.</string>
     <string name="game_more">Więcej</string>
     <string name="game_edit_art">Edytuj grafiki</string>
+    <string name="game_unhide">Usuń z ukrytych</string>
+    <string name="game_hide_failed">Nie udało się zsynchronizować ze Steamem. Zamknij Steama i spróbuj ponownie.</string>
     <string name="stores_in_steam_label">W Steam</string>
     <string name="game_shortcut">Skrót</string>
     <string name="game_shortcut_add">Dodaj do ekranu głównego</string>

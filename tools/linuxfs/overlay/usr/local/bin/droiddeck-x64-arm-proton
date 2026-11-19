@@ -9,7 +9,7 @@ for v in $(compgen -e); do
   case $v in FEX_*) unset "$v" ;; esac
 done
 unset LD_LIBRARY_PATH LD_PRELOAD STEAM_RUNTIME_STEAMRT STEAM_STEAMRT_RECURSION_GUARD \
-  LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE GALLIUM_DRIVER BL_WEBHELPER_HIDE_TRACER PROOT_FP_OFF
+  LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE GALLIUM_DRIVER DD_WEBHELPER_HIDE_TRACER PROOT_FP_OFF
 
 game_display=${DISPLAY:-}
 if [ -f "$x64_home/arm-session.env" ]; then
@@ -18,7 +18,7 @@ else
   export HOME=/root
 fi
 [ -z "$game_display" ] || export DISPLAY=$game_display
-export BL_X64_STEAM_ROOT=${STEAM_COMPAT_CLIENT_INSTALL_PATH:-}
+export DD_X64_STEAM_ROOT=${STEAM_COMPAT_CLIENT_INSTALL_PATH:-}
 export STEAM_COMPAT_CLIENT_INSTALL_PATH=$HOME/.local/share/Steam
 arm_overlay=$STEAM_COMPAT_CLIENT_INSTALL_PATH/steamrtarm64/gameoverlayrenderer.so
 if [ "$overlay" = 1 ] && [ -f "$arm_overlay" ]; then

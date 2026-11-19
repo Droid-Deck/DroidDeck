@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">यह प्रोग्राम %1$s पीसी के लिए बना है और FEX के ज़रिए चलता है, जो अभी सेट नहीं है। साइन इन रहते हुए Steam एक बार खोलें: DroidDeck इससे FEX और ज़रूरी Steam Linux Runtime डाउनलोड करवा लेगा, फिर यह खुल जाएगा।</string>
     <string name="session_proot_missing">DroidDeck का proot डाउनलोड नहीं हो सका। कनेक्शन जांचें और फिर कोशिश करें। सेशन शुरू नहीं किया गया, क्योंकि बैकअप proot खेलने के लिए बहुत धीमा है।</string>
     <string name="session_powervr_missing">PowerVR ग्राफ़िक्स एनवायरमेंट डाउनलोड नहीं हो सका। कनेक्शन जाँचें और फिर कोशिश करें।</string>
+    <string name="session_graphics_runtime_failed">ग्राफ़िक्स एनवायरमेंट तैयार नहीं हो सका, इसलिए सेशन शुरू नहीं हुआ।</string>
+    <string name="session_game_environment_failed">गेम एनवायरमेंट सेट अप नहीं हो सका, इसलिए सेशन शुरू नहीं हुआ।</string>
     <string name="session_directaudio_missing">DirectAudio डाउनलोड नहीं हो सका, इसलिए इस सेशन में गेम ऑडियो धीमा पाथ इस्तेमाल करता है।</string>
     <string name="session_end_program">यह प्रोग्राम</string>
     <string name="session_end_present_fault">सत्र स्क्रीन पर ड्रॉ नहीं कर सका: %1$s। काली स्क्रीन के बजाय यह स्क्रीन कारण दिखाती है; पूरा विवरण सत्र लॉग में है।</string>
@@ -1318,6 +1320,7 @@
     <string name="gate_enter_manually">एड्रेस खुद डालें</string>
     <string name="gate_from_computer">ADB वाले कंप्यूटर से:</string>
     <string name="gate_copy_command">कमांड कॉपी करें</string>
+    <string name="gate_sidequest_steps">हेडसेट को कंप्यूटर से जोड़ें और SideQuest खोलें। “Run ADB Command”, फिर “Custom Command” चुनें, नीचे दिखाया गया कमांड टाइप करें और “Run Command” चुनें।</string>
     <string name="gate_choose_display">Android Settings किस डिस्प्ले पर खोलना है चुनें।</string>
     <string name="gate_main_screen">मुख्य स्क्रीन</string>
     <string name="wadb_finding_port">पेयर हो गया। वायरलेस डीबगिंग का पोर्ट खोजा जा रहा है…</string>
@@ -1572,6 +1575,8 @@
     <string name="pip_unavailable">Android पिक्चर इन पिक्चर नहीं खोल सका।</string>
     <string name="game_more">और</string>
     <string name="game_edit_art">आर्ट एडिट करें</string>
+    <string name="game_unhide">छिपे हुए से हटाएं</string>
+    <string name="game_hide_failed">Steam के साथ सिंक नहीं हो सका। Steam बंद करके फिर कोशिश करें।</string>
     <string name="stores_in_steam_label">Steam में</string>
     <string name="game_shortcut">शॉर्टकट</string>
     <string name="game_shortcut_add">होम स्क्रीन पर जोड़ें</string>

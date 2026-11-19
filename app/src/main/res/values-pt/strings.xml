@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Este programa é feito para PCs %1$s e roda pelo FEX, que ainda não está configurado. Abra a Steam uma vez com a sessão iniciada: o DroidDeck faz com que ela baixe o FEX e o Steam Linux Runtime necessários, e então isto abre.</string>
     <string name="session_proot_missing">Não foi possível baixar o proot do DroidDeck. Verifique a conexão e tente novamente. A sessão não foi iniciada, porque o proot alternativo é lento demais para jogar.</string>
     <string name="session_powervr_missing">Não foi possível baixar o ambiente gráfico PowerVR. Verifique a conexão e tente novamente.</string>
+    <string name="session_graphics_runtime_failed">Não foi possível preparar o ambiente gráfico, então a sessão não foi iniciada.</string>
+    <string name="session_game_environment_failed">Não foi possível configurar o ambiente do jogo, então a sessão não foi iniciada.</string>
     <string name="session_directaudio_missing">Não foi possível baixar o DirectAudio, então o áudio dos jogos usa o caminho mais lento nesta sessão.</string>
     <string name="session_end_program">Este programa</string>
     <string name="session_end_present_fault">A sessão não conseguiu desenhar na tela: %1$s. Esta tela mostra o motivo no lugar de uma tela preta; os logs da sessão trazem os detalhes.</string>
@@ -1324,6 +1326,7 @@
     <string name="gate_enter_manually">Digitar endereço manualmente</string>
     <string name="gate_from_computer">De um computador com ADB:</string>
     <string name="gate_copy_command">Copiar comando</string>
+    <string name="gate_sidequest_steps">Conecte o headset a um computador e abra o SideQuest. Escolha “Run ADB Command”, depois “Custom Command”, digite o comando mostrado abaixo e selecione “Run Command”.</string>
     <string name="gate_choose_display">Escolha em qual tela abrir as Configurações do Android.</string>
     <string name="gate_main_screen">Tela principal</string>
     <string name="wadb_finding_port">Pareado. Procurando a porta da Depuração por Wi-Fi…</string>
@@ -1579,6 +1582,8 @@
     <string name="pip_unavailable">O Android não conseguiu abrir o picture-in-picture.</string>
     <string name="game_more">Mais</string>
     <string name="game_edit_art">Editar artes</string>
+    <string name="game_unhide">Remover dos ocultos</string>
+    <string name="game_hide_failed">Não foi possível sincronizar com o Steam. Feche o Steam e tente novamente.</string>
     <string name="stores_in_steam_label">Na Steam</string>
     <string name="game_shortcut">Atalho</string>
     <string name="game_shortcut_add">Adicionar à tela inicial</string>

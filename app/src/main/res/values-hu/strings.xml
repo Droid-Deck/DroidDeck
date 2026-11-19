@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Ez a program %1$s PC-khez készült, és a FEX-en keresztül fut, amely még nincs beállítva. Nyissa meg egyszer a Steamet bejelentkezve: a DroidDeck ekkor letölti a FEX-et és a szükséges Steam Linux Runtime-ot, majd ez megnyílik.</string>
     <string name="session_proot_missing">A DroidDeck proot nem tölthető le. Ellenőrizze a kapcsolatot, és próbálja újra. A munkamenet nem indult el, mert a tartalék proot túl lassú a játékhoz.</string>
     <string name="session_powervr_missing">A PowerVR grafikus környezetet nem sikerült letölteni. Ellenőrizd a kapcsolatot, és próbáld újra.</string>
+    <string name="session_graphics_runtime_failed">A grafikus környezetet nem sikerült előkészíteni, ezért a munkamenet nem indult el.</string>
+    <string name="session_game_environment_failed">A játékkörnyezetet nem sikerült beállítani, ezért a munkamenet nem indult el.</string>
     <string name="session_directaudio_missing">A DirectAudio nem tölthető le, ezért a játékhang ebben a munkamenetben a lassabb útvonalat használja.</string>
     <string name="session_end_program">Ez a program</string>
     <string name="session_end_present_fault">A munkamenet nem tudta megjeleníteni a képet a képernyőn: %1$s. Fekete képernyő helyett ez a képernyő mutatja az okot; a részletek a munkamenet naplóiban találhatók.</string>
@@ -1318,6 +1320,7 @@
     <string name="gate_enter_manually">Cím kézi megadása</string>
     <string name="gate_from_computer">Egy ADB-vel rendelkező számítógépről:</string>
     <string name="gate_copy_command">Parancs másolása</string>
+    <string name="gate_sidequest_steps">Csatlakoztasd a headsetet egy számítógéphez, és nyisd meg a SideQuestet. Válaszd a „Run ADB Command”, majd a „Custom Command” lehetőséget, írd be az alább látható parancsot, és válaszd a „Run Command” gombot.</string>
     <string name="gate_choose_display">Válassza ki, melyik kijelzőn nyíljon meg az Android Beállítások.</string>
     <string name="gate_main_screen">Fő képernyő</string>
     <string name="wadb_finding_port">Párosítva. A vezeték nélküli hibakeresés portjának keresése…</string>
@@ -1572,6 +1575,8 @@
     <string name="pip_unavailable">Az Android nem tudta megnyitni a kép a képben módot.</string>
     <string name="game_more">Továbbiak</string>
     <string name="game_edit_art">Illusztrációk szerkesztése</string>
+    <string name="game_unhide">Eltávolítás a rejtettek közül</string>
+    <string name="game_hide_failed">Nem sikerült szinkronizálni a Steammel. Zárd be a Steamet, és próbáld újra.</string>
     <string name="stores_in_steam_label">A Steamben</string>
     <string name="game_shortcut">Parancsikon</string>
     <string name="game_shortcut_add">Hozzáadás a kezdőképernyőhöz</string>

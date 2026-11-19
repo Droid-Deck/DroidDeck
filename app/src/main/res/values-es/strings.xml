@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Este programa está hecho para PC %1$s y se ejecuta con FEX, que aún no está listo. Abre Steam una vez con tu sesión iniciada: DroidDeck hará que descargue FEX y el Steam Linux Runtime que necesita, y después se abrirá.</string>
     <string name="session_proot_missing">No se ha podido descargar el proot de DroidDeck. Comprueba la conexión y vuelve a intentarlo. La sesión no se ha iniciado porque el proot alternativo es demasiado lento para jugar.</string>
     <string name="session_powervr_missing">No se pudo descargar el entorno gráfico de PowerVR. Comprueba la conexión e inténtalo de nuevo.</string>
+    <string name="session_graphics_runtime_failed">No se pudo preparar el entorno gráfico, así que la sesión no se inició.</string>
+    <string name="session_game_environment_failed">No se pudo configurar el entorno del juego, así que la sesión no se inició.</string>
     <string name="session_directaudio_missing">No se ha podido descargar DirectAudio, así que el audio de los juegos usa la ruta más lenta en esta sesión.</string>
     <string name="session_end_program">Este programa</string>
     <string name="session_end_present_fault">La sesión no pudo dibujar en la pantalla: %1$s. En lugar de mostrarse una pantalla negra, esta pantalla explica el motivo; los registros de la sesión contienen los detalles.</string>
@@ -1325,6 +1327,7 @@
     <string name="gate_enter_manually">Introducir dirección manualmente</string>
     <string name="gate_from_computer">Desde un ordenador con ADB:</string>
     <string name="gate_copy_command">Copiar comando</string>
+    <string name="gate_sidequest_steps">Conecta el visor a un ordenador y abre SideQuest. Elige «Run ADB Command» y luego «Custom Command», escribe el comando que aparece abajo y selecciona «Run Command».</string>
     <string name="gate_choose_display">Elige en qué pantalla abrir los Ajustes de Android.</string>
     <string name="gate_main_screen">Pantalla principal</string>
     <string name="wadb_finding_port">Vinculado. Buscando el puerto de la Depuración inalámbrica…</string>
@@ -1580,6 +1583,8 @@
     <string name="pip_unavailable">Android no pudo abrir imagen en imagen.</string>
     <string name="game_more">Más</string>
     <string name="game_edit_art">Editar imágenes</string>
+    <string name="game_unhide">Quitar de ocultas</string>
+    <string name="game_hide_failed">No se pudo sincronizar con Steam. Cierra Steam e inténtalo de nuevo.</string>
     <string name="stores_in_steam_label">En Steam</string>
     <string name="game_shortcut">Acceso directo</string>
     <string name="game_shortcut_add">Añadir a la pantalla de inicio</string>

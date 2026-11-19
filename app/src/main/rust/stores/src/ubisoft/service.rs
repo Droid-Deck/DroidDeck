@@ -204,3 +204,48 @@ pub async fn denuvo_token(d: &mut Demux, ownership_token: &str, challenge: &[u8]
     let t = pb::fields(pb::sub(&rsp, 3).ok_or("no game token answer")?)?;
     pb::sub(&t, 1).filter(|b| !b.is_empty()).map(<[u8]>::to_vec).ok_or_else(|| "Ubisoft sent an empty game token".into())
 }
+
+pub struct CloudItem {
+    pub name: String,
+    pub size: u64,
+    pub md5_base64: String,
+}
+
+pub struct SignedRequest {
+    pub header: String,
+    pub url: String,
+}
+
+pub const CLOUD_PUT: u64 = 1;
+pub const CLOUD_GET: u64 = 2;
+
+pub async fn cloudsave_urls(d: &mut Demux, ownership_token: &str, product_id: u32, method: u64, items: &[CloudItem]) -> Result<Vec<SignedRequest>, String> {
+    let conn = d.open("cloudsave_service").await?;
+    let mut req = Msg::new().text(1, ownership_token).uint(2, product_id as u64).uint(3, method);
+    for item in items {
+        let mut entry = Msg::new().text(1, &item.name);
+        if method == CLOUD_PUT {
+            entry = entry.msg(2, Msg::new().uint(1, item.size).text(2, &item.md5_base64));
+        }
+        req = req.msg(4, entry);
+    }
+    let raw = d.call(conn, Msg::new().msg(1, Msg::new().uint(1, 1).msg(2, req))).await?;
+    let rsp = pb::fields(pb::sub(&pb::fields(&raw)?, 1).ok_or("no cloud save answer")?)?;
+    let urls = pb::fields(pb::sub(&rsp, 2).ok_or("no cloud save URLs")?)?;
+    let status = pb::num(&urls, 1).unwrap_or(0);
+    if status != 1 {
+        return Err(format!("Ubisoft's cloud save service refused the request (status {status})"));
+    }
+    let mut out = Vec::new();
+    for r in pb::subs(&urls, 2) {
+        let r = pb::fields(r)?;
+        out.push(SignedRequest {
+            header: pb::string(&r, 1).unwrap_or_default(),
+            url: pb::string(&r, 2).ok_or("cloud save URL missing")?,
+        });
+    }
+    if out.len() != items.len() {
+        return Err(format!("Ubisoft signed {} of {} cloud save requests", out.len(), items.len()));
+    }
+    Ok(out)
+}

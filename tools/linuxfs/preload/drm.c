@@ -43,7 +43,7 @@ static int is_kgsl(int fd) {
   struct stat st;
   pthread_mutex_lock(&lock);
   if (kgsl_state == 0) {
-    const char *standin = getenv("BL_DRM_STANDIN");
+    const char *standin = getenv("DD_DRM_STANDIN");
     kgsl_state = stat("/dev/kgsl-3d0", &st) == 0 || (standin && *standin && stat(standin, &st) == 0) ? 1 : -1;
     if (kgsl_state > 0) kgsl_dev = st.st_rdev;
   }
@@ -52,7 +52,7 @@ static int is_kgsl(int fd) {
 }
 
 /* Keep the opt-in separate from GPU detection: manual ICDs must retain native DRM behavior. */
-struct bl_drm_version {
+struct dd_drm_version {
   int major, minor, patch;
   size_t name_len;
   char *name;
@@ -61,21 +61,21 @@ struct bl_drm_version {
   size_t desc_len;
   char *desc;
 };
-#define BL_DRM_VERSION _IOWR('d', 0x00, struct bl_drm_version)
+#define DD_DRM_VERSION _IOWR('d', 0x00, struct dd_drm_version)
 
 static int is_powervr(int fd) {
-  const char *enabled = getenv("BL_POWERVR_DRM_HANDLES");
+  const char *enabled = getenv("DD_POWERVR_DRM_HANDLES");
   if (!enabled || strcmp(enabled, "1")) return 0;
-  const char *path = getenv("BL_POWERVR_RENDER_NODE");
+  const char *path = getenv("DD_POWERVR_RENDER_NODE");
   if (!path || !*path) return 0;
   struct stat node, candidate;
   if (stat(path, &node) || fstat(fd, &candidate) ||
       !S_ISCHR(candidate.st_mode) || !S_ISCHR(node.st_mode) ||
       candidate.st_rdev != node.st_rdev) return 0;
   char name[16] = {0};
-  struct bl_drm_version version = {.name_len = sizeof(name) - 1, .name = name};
+  struct dd_drm_version version = {.name_len = sizeof(name) - 1, .name = name};
   /* Bypass the preload's ioctl dispatcher to avoid recursively entering this hook. */
-  return syscall(SYS_ioctl, fd, BL_DRM_VERSION, &version) == 0 &&
+  return syscall(SYS_ioctl, fd, DD_DRM_VERSION, &version) == 0 &&
       version.name_len == 3 && !memcmp(name, "pvr", 3);
 }
 
@@ -118,7 +118,7 @@ static int same_file_description(int a, int b) {
   }
 #endif
   if (ret < 0) {
-    const char *standin = getenv("BL_DRM_STANDIN");
+    const char *standin = getenv("DD_DRM_STANDIN");
     ret = standin && *standin ? same_by_flock(a, b) : 0;
   }
   errno = saved_errno;
@@ -324,7 +324,7 @@ int drmCloseBufferHandle(int fd, uint32_t handle) {
   return fn ? fn(fd, handle) : -ENOSYS;
 }
 
-__attribute__((visibility("hidden"))) int bl_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) {
+__attribute__((visibility("hidden"))) int dd_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) {
   if (request != GEM_CLOSE || !arg) {
     return 0;
   }

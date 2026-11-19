@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">โปรแกรมนี้สร้างมาสำหรับพีซี %1$s และรันผ่าน FEX ซึ่งยังไม่ได้ตั้งค่า เปิด Steam สักครั้งขณะลงชื่อเข้าใช้: DroidDeck จะดาวน์โหลด FEX และ Steam Linux Runtime ที่จำเป็น จากนั้นโปรแกรมนี้จะเปิดขึ้น</string>
     <string name="session_proot_missing">ดาวน์โหลด proot ของ DroidDeck ไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่ เซสชันไม่ได้เริ่มเพราะ proot สำรองช้าเกินกว่าจะเล่นได้</string>
     <string name="session_powervr_missing">ดาวน์โหลดสภาพแวดล้อมกราฟิก PowerVR ไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
+    <string name="session_graphics_runtime_failed">เตรียมสภาพแวดล้อมกราฟิกไม่สำเร็จ จึงไม่ได้เริ่มเซสชัน</string>
+    <string name="session_game_environment_failed">ตั้งค่าสภาพแวดล้อมของเกมไม่สำเร็จ จึงไม่ได้เริ่มเซสชัน</string>
     <string name="session_directaudio_missing">ดาวน์โหลด DirectAudio ไม่ได้ เสียงเกมในเซสชันนี้จึงใช้เส้นทางที่ช้ากว่า</string>
     <string name="session_end_program">โปรแกรมนี้</string>
     <string name="session_end_present_fault">เซสชันไม่สามารถแสดงผลบนหน้าจอได้: %1$s หน้าจอนี้แสดงสาเหตุแทนที่จะเป็นหน้าจอสีดำ รายละเอียดอยู่ในบันทึกของเซสชัน</string>
@@ -1312,6 +1314,7 @@
     <string name="gate_enter_manually">กรอกที่อยู่ด้วยตัวเอง</string>
     <string name="gate_from_computer">จากคอมพิวเตอร์ที่มี ADB:</string>
     <string name="gate_copy_command">คัดลอกคำสั่ง</string>
+    <string name="gate_sidequest_steps">เชื่อมต่อแว่นกับคอมพิวเตอร์แล้วเปิด SideQuest เลือก “Run ADB Command” จากนั้น “Custom Command” พิมพ์คำสั่งที่แสดงด้านล่างแล้วเลือก “Run Command”</string>
     <string name="gate_choose_display">เลือกหน้าจอที่จะเปิดการตั้งค่า Android</string>
     <string name="gate_main_screen">หน้าจอหลัก</string>
     <string name="wadb_finding_port">จับคู่แล้ว กำลังค้นหาพอร์ตของ Wireless debugging…</string>
@@ -1565,6 +1568,8 @@
     <string name="pip_unavailable">Android ไม่สามารถเปิดภาพซ้อนภาพได้</string>
     <string name="game_more">เพิ่มเติม</string>
     <string name="game_edit_art">แก้ไขภาพปก</string>
+    <string name="game_unhide">นำออกจากที่ซ่อนไว้</string>
+    <string name="game_hide_failed">ซิงค์กับ Steam ไม่สำเร็จ ปิด Steam แล้วลองอีกครั้ง</string>
     <string name="stores_in_steam_label">ใน Steam</string>
     <string name="game_shortcut">ช็อตคัต</string>
     <string name="game_shortcut_add">เพิ่มไปยังหน้าจอหลัก</string>

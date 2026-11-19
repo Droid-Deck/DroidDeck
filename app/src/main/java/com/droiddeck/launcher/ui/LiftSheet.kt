@@ -322,7 +322,7 @@ internal fun LiftHero(
 
     val touchOnly = inputMode.inputMode == InputMode.Touch
     val lipFocus = remember { FocusRequester() }
-    val settingsLabel = stringResource(R.string.drawer_page_settings)
+    val settingsLabel = stringResource(R.string.sheet_lip)
     var lipFocused by remember { mutableStateOf(false) }
     val lipWanted = !open && (!shown || lipBack) && (playFocused || playHovered || touchOnly || lipFocused) && drop?.let { it.open || it.shown } != true
     LaunchedEffect(lipWanted) {
@@ -666,7 +666,7 @@ internal fun Handle(height: Dp, above: Boolean = false) {
             .drawBorderSidesAndFoot(pal.line, 12.dp, flip = above)
             .padding(start = 14.dp, end = 10.dp),
     ) {
-        Text(stringResource(R.string.drawer_page_settings), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
+        Text(stringResource(R.string.sheet_lip), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
         Icon(
             if (above) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp, null, tint = colors.onSurfaceVariant,
             modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else (if (above) 3.dp else -3.dp).toPx() * lift },

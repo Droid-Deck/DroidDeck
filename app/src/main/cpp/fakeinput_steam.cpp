@@ -2338,7 +2338,7 @@ __attribute__((visibility("hidden"))) static int inject_uevent(const char *actio
                                                                const char *subsystem, const char *devname,
                                                                unsigned major, unsigned minor) {
   using inject_fn = int (*)(const char *, const char *, const char *, const char *, unsigned, unsigned);
-  static auto inject = reinterpret_cast<inject_fn>(dlsym(RTLD_DEFAULT, "bl_udevmon_inject"));
+  static auto inject = reinterpret_cast<inject_fn>(dlsym(RTLD_DEFAULT, "dd_udevmon_inject"));
   return inject ? inject(action, devpath, subsystem, devname, major, minor) : -1;
 }
 

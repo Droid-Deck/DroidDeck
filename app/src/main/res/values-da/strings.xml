@@ -203,6 +203,8 @@
     <string name="app_fex_not_ready">Dette program er bygget til %1$s-pc’er og køres via FEX, som ikke er sat op endnu. Åbn Steam én gang, mens du er logget ind: DroidDeck downloader så FEX og den Steam Linux Runtime, det kræver, hvorefter dette åbner.</string>
     <string name="session_proot_missing">DroidDecks proot kunne ikke downloades. Tjek forbindelsen, og prøv igen. Sessionen blev ikke startet, fordi reserve-proot er for langsom at spille på.</string>
     <string name="session_powervr_missing">PowerVR-grafikmiljøet kunne ikke hentes. Tjek forbindelsen, og prøv igen.</string>
+    <string name="session_graphics_runtime_failed">Grafikmiljøet kunne ikke klargøres, så sessionen blev ikke startet.</string>
+    <string name="session_game_environment_failed">Spilmiljøet kunne ikke sættes op, så sessionen blev ikke startet.</string>
     <string name="session_directaudio_missing">DirectAudio kunne ikke downloades, så spillyd bruger den langsommere vej i denne session.</string>
     <string name="session_end_program">Dette program</string>
     <string name="session_end_present_fault">Sessionen kunne ikke tegne på skærmen: %1$s. Denne skærm viser hvorfor i stedet for en sort skærm; sessionens logfiler indeholder detaljerne.</string>
@@ -1318,6 +1320,7 @@
     <string name="gate_enter_manually">Indtast adresse manuelt</string>
     <string name="gate_from_computer">Fra en computer med ADB:</string>
     <string name="gate_copy_command">Kopier kommando</string>
+    <string name="gate_sidequest_steps">Slut headsettet til en computer, og åbn SideQuest. Vælg “Run ADB Command” og derefter “Custom Command”, skriv kommandoen vist nedenfor, og vælg “Run Command”.</string>
     <string name="gate_choose_display">Vælg, hvilken skærm Android-indstillinger skal åbnes på.</string>
     <string name="gate_main_screen">Hovedskærm</string>
     <string name="wadb_finding_port">Parret. Finder porten for Trådløs fejlretning…</string>
@@ -1572,6 +1575,8 @@
     <string name="pip_unavailable">Android kunne ikke åbne billede i billede.</string>
     <string name="game_more">Mere</string>
     <string name="game_edit_art">Rediger grafik</string>
+    <string name="game_unhide">Fjern fra skjulte</string>
+    <string name="game_hide_failed">Kunne ikke synkronisere med Steam. Luk Steam og prøv igen.</string>
     <string name="stores_in_steam_label">I Steam</string>
     <string name="game_shortcut">Genvej</string>
     <string name="game_shortcut_add">Tilføj til hjemmeskærm</string>
