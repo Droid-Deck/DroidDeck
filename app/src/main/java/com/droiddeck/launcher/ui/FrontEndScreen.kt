@@ -806,6 +806,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         com.droiddeck.launcher.stores.StoresState.itchPicking?.let { item -> StoreTheme(item.store) { ItchBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.itchPicking = null } } }
         com.droiddeck.launcher.stores.StoresState.gameJoltPicking?.let { item -> StoreTheme(item.store) { GameJoltBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.gameJoltPicking = null } } }
         StepsLayer(screenAt)
+        SessionDrawerPreview(s.secondScreenDisplays)
 
         appToChooseDisplay?.let { app ->
             val secondaryDisplay = s.secondScreenDisplays.firstOrNull()

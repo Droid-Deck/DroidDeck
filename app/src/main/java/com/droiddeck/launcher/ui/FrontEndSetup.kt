@@ -596,6 +596,27 @@ internal fun SetupPanel(
                                 DeveloperTools.set(devContext, it)
                             }
                         }
+                        if (DeveloperTools.on) SettingsGroup(stringResource(R.string.dev_group_preview)) {
+                            ChoiceRow(
+                                host, "dev-preview-library", stringResource(R.string.dev_preview_library), stringResource(R.string.dev_preview_library_hint),
+                                listOf(
+                                    LibraryPreview.OFF to stringResource(R.string.dev_preview_off),
+                                    LibraryPreview.NOTHING_INSTALLED to stringResource(R.string.dev_preview_library_nothing_installed),
+                                    LibraryPreview.SIGNED_OUT to stringResource(R.string.dev_preview_library_signed_out),
+                                    LibraryPreview.SAMPLE to stringResource(R.string.dev_preview_library_sample),
+                                ),
+                                DevPreview.library,
+                            ) { DevPreview.library = it }
+                            ChoiceRow(
+                                host, "dev-preview-drawer", stringResource(R.string.dev_preview_drawer), stringResource(R.string.dev_preview_drawer_hint),
+                                listOf(
+                                    DrawerPreview.STEAM to stringResource(R.string.source_steam),
+                                    DrawerPreview.DESKTOP to stringResource(R.string.rail_desktop),
+                                    DrawerPreview.GAME to stringResource(R.string.session_title_game),
+                                ),
+                                DevPreview.drawer ?: DrawerPreview.STEAM,
+                            ) { DevPreview.drawer = it }
+                        }
                         SettingsGroup(stringResource(R.string.dev_group_logs)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
                             if (DeveloperTools.on) ToggleRow(
