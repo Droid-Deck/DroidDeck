@@ -187,4 +187,15 @@ class InputSurfaceSourceTest {
         pad.update(0f, 0f)
         assertEquals("key:30:false", events.last())
     }
+
+    @Test fun onScreenInputNeverCountsAsAControllerInHand() {
+        var physical = 0; var player = 0
+        bridge.setOnPhysicalInput { physical++ }
+        bridge.setOnPlayerInput { player++ }
+        val stick = source(InputSurfaceElement(InputControl.LS, .1f, .1f, .3f, .3f, "legacy:ls", InputElementKind.STICK))
+        stick.update(1f, 0f); stick.update(0f, 0f)
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertEquals(0, physical)
+        assertTrue(player > 0)
+    }
 }

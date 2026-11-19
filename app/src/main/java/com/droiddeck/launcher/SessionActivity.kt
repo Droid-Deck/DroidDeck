@@ -878,6 +878,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionState.deckPadListener = deckPadListener
         openDeckRing("activity created")
         bridge.setOnPlayerInput(::onPadInput)
+        bridge.setOnPhysicalInput(::noteControllerUse)
         controllerInUse = PadBridge.anyControllerConnected() || SteamControllerBle.connected
         onScreenControls = OnScreenControls(this, bridge).also { controls ->
             controls.updateLayout(primaryInputLayout)
@@ -1675,6 +1676,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(id))
                 com.droiddeck.launcher.session.InputSysfsComponent.padTypeChanged(SessionPrefs.padType(id))
                 padType = id
+                refreshInputProfile()
             },
             backHold = backHold,
             onBackHold = { on ->
@@ -3999,7 +4001,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun onPadInput() {
-        noteControllerUse()
         if (inputUsesPointer && !pointerLocked) return
         lastPadInputMs = android.os.SystemClock.uptimeMillis()
         uiHandler.removeCallbacks(cursorHide)
