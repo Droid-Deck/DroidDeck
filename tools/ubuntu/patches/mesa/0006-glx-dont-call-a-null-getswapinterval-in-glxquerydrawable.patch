@@ -1,0 +1,47 @@
+From f48c22e082cd0ae2271f33581e7b43484ff9df3b Mon Sep 17 00:00:00 2001
+From: pgm1207 <104554896+pgm1207@users.noreply.github.com>
+Date: Wed, 18 Nov 2026 12:08:27 +0100
+Subject: [PATCH] glx: don't call a NULL getSwapInterval in glXQueryDrawable
+
+__glXGetDrawableAttribute() calls driScreen.getSwapInterval() for
+GLX_SWAP_INTERVAL_EXT and GLX_LATE_SWAPS_TEAR_EXT without checking it.
+The hook is only set by dri3_glx.c and by drisw_glx.c when kopper is in
+use. On a plain drisw screen (LIBGL_KOPPER_DISABLE=true, or an X server
+without DRI3) it is NULL, so a client that queries the swap interval,
+such as SDL3, crashes with a jump to address 0.
+
+glXGetSwapIntervalEXT() already checks the hook and returns 0 when it is
+missing. Do the same here: report an interval of 0 and no late swap
+tearing. GLX_MAX_SWAP_INTERVAL_EXT already reads as 0 on such screens.
+
+Cc: mesa-stable
+Signed-off-by: pgm1207 <104554896+pgm1207@users.noreply.github.com>
+---
+ src/glx/glx_pbuffer.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/glx/glx_pbuffer.c b/src/glx/glx_pbuffer.c
+index 8c09d4b..9ecee6a 100644
+--- a/src/glx/glx_pbuffer.c
++++ b/src/glx/glx_pbuffer.c
+@@ -313,13 +313,15 @@ __glXQueryDrawable(Display * dpy, GLXDrawable drawable,
+ 
+    if (pdraw) {
+       if (attribute == GLX_SWAP_INTERVAL_EXT) {
+-         *value = abs(pdraw->psc->driScreen.getSwapInterval(pdraw));
++         *value = pdraw->psc->driScreen.getSwapInterval ?
++            abs(pdraw->psc->driScreen.getSwapInterval(pdraw)) : 0;
+          return 1;
+       } else if (attribute == GLX_MAX_SWAP_INTERVAL_EXT) {
+          *value = pdraw->psc->driScreen.maxSwapInterval;
+          return 1;
+       } else if (attribute == GLX_LATE_SWAPS_TEAR_EXT) {
+-         *value = pdraw->psc->driScreen.getSwapInterval(pdraw) < 0;
++         *value = pdraw->psc->driScreen.getSwapInterval ?
++            pdraw->psc->driScreen.getSwapInterval(pdraw) < 0 : 0;
+          return 1;
+       }
+    }
+-- 
+2.56.1
+
