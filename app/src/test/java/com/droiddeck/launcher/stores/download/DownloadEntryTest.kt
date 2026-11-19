@@ -24,4 +24,18 @@ class DownloadEntryTest {
         assertFalse(e.passed(DownloadStage.INSTALL))
         assertTrue(e.copy(state = DownloadState.INSTALLED).passed(DownloadStage.INSTALL))
     }
+
+    @Test fun streamingInstallKeepsDownloadAndInstallProgressApart() {
+        val installBit = 1 shl DownloadStage.INSTALL.ordinal
+        val installing = base.copy(stage = DownloadStage.INSTALL, bytesDone = 10, bytesTotal = 100, stageDone = 25, stageTotal = 100)
+        assertTrue(installing.streaming)
+        assertEquals(0.10f, installing.downloadFraction, 0.001f)
+        assertEquals(0.25f, installing.installFraction, 0.001f)
+        val backToDownload = installing.copy(stage = DownloadStage.DOWNLOAD, stagesPassed = installBit)
+        assertTrue(backToDownload.streaming)
+        assertEquals(0.25f, backToDownload.installFraction, 0.001f)
+        assertFalse(base.copy(stage = DownloadStage.DOWNLOAD, bytesDone = 10, bytesTotal = 100).streaming)
+        assertFalse(installing.copy(bytesDone = 100).streaming)
+        assertFalse(installing.copy(state = DownloadState.PAUSED).streaming)
+    }
 }

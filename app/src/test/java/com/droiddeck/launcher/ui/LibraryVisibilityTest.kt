@@ -76,52 +76,41 @@ class LibraryVisibilityTest {
         LibraryView.focusFirst = false
     }
 
-    @Test fun uninstalledGamesAreHiddenUntilSelectedInTheFilterAndTheChoiceSurvivesReopeningLibrary() {
+    @Test fun uninstalledGamesStayFoldedUnderTheirRowAndTheChoiceSurvivesReopeningLibrary() {
         show()
         compose.onNodeWithText("Installed Steam game").assertExists()
         compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
-        chooseVisibility(true)
+        compose.onNodeWithText("NOT INSTALLED  ·  2").assertExists()
+        toggleNotInstalled(true)
         compose.onNodeWithText("Uninstalled GOG").assertExists()
-        assertTrue(SessionPrefs.libraryShowUninstalled(ctx))
         compose.runOnIdle { generation++; Snapshot.sendApplyNotifications() }
         compose.mainClock.advanceTimeBy(2_000)
         compose.onNodeWithText("Uninstalled GOG").assertExists()
-        chooseVisibility(false)
+        toggleNotInstalled(false)
         compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
-        assertFalse(SessionPrefs.libraryShowUninstalled(ctx))
     }
 
-    @Test fun theFilterExpandsBesideSortWithoutChangingTheSelectionOnOpen() {
+    @Test fun theNotInstalledRowReplacesTheFilterButtonAndSortStillOpens() {
         show()
-        val filter = compose.onNodeWithContentDescription("Filter · Installed only")
-        val sort = compose.onNodeWithContentDescription("Sort")
-        assertTrue(filter.fetchSemanticsNode().boundsInRoot.right <= sort.fetchSemanticsNode().boundsInRoot.left)
-        filter.performClick()
-        compose.mainClock.advanceTimeBy(2_000)
-        compose.onNodeWithText("Installed only").assertIsDisplayed()
-        compose.onNodeWithText("All owned games").assertIsDisplayed()
-        compose.onAllNodesWithText("Filter").assertCountEquals(1)
-        compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Filter · Installed only").assertDoesNotExist()
+        compose.onNodeWithTag("library-not-installed").assertExists()
         assertFalse(SessionPrefs.libraryShowUninstalled(ctx))
-        compose.runOnIdle { Steps.fold(); Snapshot.sendApplyNotifications() }
-        compose.mainClock.advanceTimeBy(1_000)
-        sort.performClick()
+        compose.onNodeWithContentDescription("Sort").performClick()
         compose.mainClock.advanceTimeBy(2_000)
         compose.onAllNodesWithText("Sort").assertCountEquals(1)
         compose.onNodeWithText("Recently played").assertIsDisplayed()
     }
 
-    @Test fun theXboxAccessChoicesShareTheLibraryFilter() {
+    @Test fun theXboxFilterOnlyOffersTheXboxAccessChoices() {
         StoreAccounts.write(ctx, Store.XBOX, JSONObject().put("username", "Library test"))
         StoresState.accounts[Store.XBOX] = "Library test"
         StoresState.library[Store.XBOX] = listOf(CatalogItem(Store.XBOX, "owned", "Uninstalled Xbox", null, owned = true))
         LibraryView.source = Store.XBOX.id
         try {
             show()
-            compose.onNodeWithContentDescription("Filter · Installed only").performClick()
+            compose.onNodeWithContentDescription("Filter · All").performClick()
             compose.mainClock.advanceTimeBy(2_000)
-            compose.onNodeWithText("Installed only").assertIsDisplayed()
-            compose.onNodeWithText("All owned games").assertIsDisplayed()
+            compose.onNodeWithText("Installed only").assertDoesNotExist()
             compose.onNodeWithText("Game Pass").assertIsDisplayed().performClick()
             compose.mainClock.advanceTimeBy(1_000)
             assertEquals(XboxLibraryFilter.GAME_PASS, XboxLibraryFilter.current)
@@ -188,13 +177,8 @@ class LibraryVisibilityTest {
         compose.mainClock.advanceTimeBy(2_000)
     }
 
-    private fun chooseVisibility(show: Boolean) {
-        compose.onNodeWithContentDescription("Filter · " + if (SessionPrefs.libraryShowUninstalled(ctx)) "All owned games" else "Installed only")
-            .performClick()
-        compose.mainClock.advanceTimeBy(2_000)
-        assertTrue(Steps.open)
-        compose.onNodeWithText(if (show) "All owned games" else "Installed only")
-            .performClick()
+    private fun toggleNotInstalled(show: Boolean) {
+        compose.onNodeWithTag("library-not-installed").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         assertEquals(show, SessionPrefs.libraryShowUninstalled(ctx))
     }

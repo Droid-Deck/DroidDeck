@@ -19,7 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -66,7 +66,7 @@ internal fun StoreAccountsButton() {
         placed[0]?.takeIf { it.isAttached }?.boundsInRoot()?.let { at ->
             Steps.ask(StepAsk(
                 anchor = at, side = StepSide.Left, accent = pal.signal, items = storesWithSignIn().size + 1, pillCorner = 20.dp, maxWidth = 380.dp,
-                handle = { Icon(Icons.Filled.Add, null, tint = pal.signal, modifier = Modifier.size(20.dp)) },
+                handle = { Icon(Icons.Filled.ManageAccounts, null, tint = pal.signal, modifier = Modifier.size(20.dp)) },
             ) {
                 StoreAccountsStep(onSignIn = { store, row ->
                     Steps.fold()
@@ -92,7 +92,7 @@ internal fun StoreAccountsButton() {
                 .hoverable(src)
                 .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClickLabel = label, onClick = open)
                 .controllerConfirm(onClick = open),
-        ) { Icon(Icons.Filled.Add, label, tint = if (hot) colors.onBackground else colors.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
+        ) { Icon(Icons.Filled.ManageAccounts, label, tint = if (hot) colors.onBackground else colors.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
     }
 }
 

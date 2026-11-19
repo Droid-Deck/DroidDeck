@@ -113,8 +113,8 @@ internal fun Actions(content: @Composable () -> Unit) = FlowRow(
 ) { content() }
 
 @Composable
-internal fun ActionChip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null) =
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok, fraction, key) }
+internal fun ActionChip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null, second: Float? = null) =
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok, fraction, key, second) }
 
 internal val Shape16 = RoundedCornerShape(16.dp)
 
@@ -141,13 +141,14 @@ internal fun BackLink(label: String, compact: Boolean = false, onClick: () -> Un
 }
 
 @Composable
-internal fun Chip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null) {
+internal fun Chip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null, second: Float? = null) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val shape = RoundedCornerShape(99.dp)
     val ink = if (ok) pal.good else colors.onSurfaceVariant
     Box(Modifier.clip(shape).background(colors.surfaceVariant).border(1.dp, if (ok) pal.good.copy(alpha = 0.3f) else pal.line, shape)) {
         if (fraction != null) ChipFill(fraction, key, pal.signal.copy(alpha = 0.3f))
+        if (second != null) ChipTrack(second, pal.good)
         Text(
             t, fontSize = 12.sp, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
@@ -167,6 +168,18 @@ internal fun androidx.compose.foundation.layout.BoxScope.ChipFill(fraction: Floa
             },
         )
     }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.ChipTrack(fraction: Float, color: Color) {
+    val shown by androidx.compose.animation.core.animateFloatAsState(fraction.coerceIn(0f, 1f), androidx.compose.animation.core.tween(250, easing = androidx.compose.animation.core.LinearEasing), label = "chip-track")
+    Box(
+        Modifier.matchParentSize().drawBehind {
+            val h = 3.dp.toPx()
+            drawRect(color.copy(alpha = 0.25f), topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h))
+            drawRect(color, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width * shown, h))
+        },
+    )
 }
 
 @Composable

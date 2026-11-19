@@ -482,7 +482,7 @@ internal fun GameActions(
                     if (installed != null && id != null) {
                         LaunchedEffect(id) { BattleNetInstall.checkUpdate(ctx, installed) }
                         if (download != null) {
-                            ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
+                            ActionChip(downloadLabel(download), ok = false, fraction = chipFraction(download), key = chipKey(download), second = chipSecond(download))
                             if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
                             else SecondaryButton(stringResource(R.string.stores_dl_resume)) { DownloadQueue.resume(ctx, download.key) }
                         } else if (BattleNetInstall.updates[id] == true) {
@@ -497,7 +497,7 @@ internal fun GameActions(
                 }
             }
             download != null -> {
-                ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
+                ActionChip(downloadLabel(download), ok = false, fraction = chipFraction(download), key = chipKey(download), second = chipSecond(download))
                 if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause), modifier = leadOn) { DownloadQueue.pause(download.key) }
                 else PrimaryButton(stringResource(R.string.stores_dl_resume), main = true, modifier = leadOn) { DownloadQueue.resume(ctx, download.key) }
                 ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm)) { DownloadQueue.cancel(ctx, download.key) }

@@ -41,6 +41,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.FilterAlt
@@ -177,8 +179,9 @@ internal fun librarySources(
         }
 
 internal object LibraryDisplay {
+    const val DEFAULT_LEVEL = 2
     val scales = listOf(0.75f, 0.875f, 1f, 1.2f, 1.45f)
-    var level by mutableIntStateOf(2)
+    var level by mutableIntStateOf(DEFAULT_LEVEL)
         private set
     var title by mutableStateOf(true)
         private set
@@ -213,6 +216,53 @@ internal object LibraryDisplay {
         hidden = !hidden
         SessionPrefs.setLibraryShowHidden(context, hidden)
     }
+}
+
+private enum class ToggleAt { NONE, TOP, SPLIT, BOTTOM }
+
+private const val NOT_INSTALLED_ROW = "library-not-installed"
+
+@Composable
+private fun NotInstalledRow(count: Int, expanded: Boolean, keys: Modifier, onFocus: (Boolean) -> Unit, onToggle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp).then(keys).paneItem(NOT_INSTALLED_ROW).onFocusChanged { onFocus(it.isFocused) }.testTag(NOT_INSTALLED_ROW)
+            .heightIn(min = 44.dp).clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+            .glideBorder(hot, shape, pal.signal, Color.Transparent)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onToggle)
+            .controllerConfirm(onClick = onToggle)
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+    ) {
+        Text(
+            stringResource(R.string.stores_section_not_installed).uppercase() + "  ·  " + count,
+            fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, color = if (hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1,
+        )
+        Box(Modifier.weight(1f).height(1.dp).background(pal.line))
+        Icon(
+            if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, stringResource(if (expanded) R.string.library_filter_installed else R.string.library_browse_owned),
+            tint = if (hot) colors.onBackground else colors.onSurfaceVariant, modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+internal fun libraryColumns(width: Int, base: Int, gap: Int, level: Int): Int =
+    (((width + gap) / (base + gap)).coerceAtLeast(1) + LibraryDisplay.DEFAULT_LEVEL - level).coerceAtLeast(1)
+
+private class LevelCells(private val base: androidx.compose.ui.unit.Dp, private val level: Int) : GridCells {
+    override fun androidx.compose.ui.unit.Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): List<Int> {
+        val count = libraryColumns(availableSize, base.roundToPx(), spacing, level)
+        val usable = (availableSize - spacing * (count - 1)).coerceAtLeast(0)
+        return List(count) { usable / count + if (it < usable % count) 1 else 0 }
+    }
+
+    override fun equals(other: Any?): Boolean = other is LevelCells && other.base == base && other.level == level
+    override fun hashCode(): Int = 31 * base.hashCode() + level
 }
 
 internal object LibraryView {
@@ -433,7 +483,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val detailScroll = rememberScrollState()
     var cycled by remember { mutableIntStateOf(0) }
     var gridFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(source, sort, listUninstalled) { grid.scrollToItem(0) }
+    LaunchedEffect(source, sort) { grid.scrollToItem(0) }
     LaunchedEffect(cycled) {
         if (cycled == 0 || ff == null || inputMode.inputMode != androidx.compose.ui.input.InputMode.Keyboard) return@LaunchedEffect
         focusWithinFrames({ gridFocused }) {
@@ -517,12 +567,43 @@ private fun LibraryGrid(
 ) {
     val listMode = s.storesView == "list"
     val capsules = s.storesView == "capsules"
-    val tileWidth = (if (capsules) CapsuleWidth else if (listMode) CardWidth else LibraryCardWidth) * LibraryDisplay.scales[LibraryDisplay.level]
+    val baseWidth = if (capsules) CapsuleWidth else LibraryCardWidth
+    val level = LibraryDisplay.level
     val focus = LocalFrontFocus.current
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
     var columns by remember { mutableIntStateOf(1) }
     val headerItems = 2 + (if (sizesPending) 1 else 0) + syncing.size
+    val expanded = showUninstalled == true
+    val notInstalled = if (expanded) visible.count { !it.installed } else hiddenUninstalled
+    val toggleAt = when {
+        showUninstalled == null || soundMode || notInstalled == 0 || visible.isEmpty() -> ToggleAt.NONE
+        !expanded -> ToggleAt.BOTTOM
+        split > 0 -> ToggleAt.SPLIT
+        else -> ToggleAt.TOP
+    }
+    val itemIndex: (Int) -> Int = { i ->
+        headerItems + i + when {
+            split > 0 -> if (i < split) 1 else 2
+            toggleAt == ToggleAt.TOP -> 1
+            else -> 0
+        }
+    }
+    val toggleIndex = when (toggleAt) {
+        ToggleAt.TOP -> headerItems
+        ToggleAt.SPLIT -> headerItems + split + 1
+        else -> headerItems + visible.size
+    }
+    val gapPx = with(density) { 10.dp.toPx() }
+    val moveFocus: (String, Int, Int, Int) -> Unit = { target, targetIndex, currentIndex, direction ->
+        val shown = grid.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
+        if (focus != null && (!shown || (focus.attached[target] ?: 0) == 0 ||
+                runCatching { focus.items.getValue(target).requestFocus() }.isFailure)) scope.launch {
+            launch { grid.revealRow(currentIndex, targetIndex, direction, gapPx) }
+            focusWithinFrames({ focus.last == target }) { focus.items[target] ?: FocusRequester.Default }
+        }
+    }
+    val rowStart: (Int) -> Int = { i -> if (listMode) i else i - i % columns.coerceAtLeast(1) }
     val tile: @Composable (LibraryEntry) -> Unit = { e ->
         val first = e.key == visible.firstOrNull()?.key
         val navigation = if (focus == null) Modifier else Modifier.onPreviewKeyEvent { event ->
@@ -534,21 +615,21 @@ private fun LibraryGrid(
             }
             val index = visible.indexOfFirst { it.key == e.key }
             val next = storeGridNeighbor(index, visible.size, if (listMode) 1 else columns, direction, split)
+            val toToggle = index >= 0 && when (toggleAt) {
+                ToggleAt.BOTTOM -> next == null && direction > 0
+                ToggleAt.TOP -> next == null && direction < 0
+                ToggleAt.SPLIT -> next != null && (index < split) != (next < split)
+                ToggleAt.NONE -> false
+            }
             when {
                 direction == 0 || index < 0 -> false
+                toToggle -> {
+                    if (key.action == KeyEvent.ACTION_DOWN) moveFocus(NOT_INSTALLED_ROW, toggleIndex, itemIndex(index), direction)
+                    true
+                }
                 next == null -> direction > 0 && trackHits.isEmpty()
                 else -> {
-                    if (key.action == KeyEvent.ACTION_DOWN) {
-                        val target = "card:${visible[next].key}"
-                        val targetIndex = headerItems + next + if (split == 0) 0 else if (next < split) 1 else 2
-                        val currentIndex = headerItems + index + if (split == 0) 0 else if (index < split) 1 else 2
-                        val shown = grid.layoutInfo.visibleItemsInfo.any { it.index == targetIndex }
-                        if (!shown || (focus.attached[target] ?: 0) == 0 ||
-                            runCatching { focus.items.getValue(target).requestFocus() }.isFailure) scope.launch {
-                            launch { grid.revealRow(currentIndex, targetIndex, direction, with(density) { 10.dp.toPx() }) }
-                            focusWithinFrames({ focus.last == target }) { focus.items[target] ?: FocusRequester.Default }
-                        }
-                    }
+                    if (key.action == KeyEvent.ACTION_DOWN) moveFocus("card:${visible[next].key}", itemIndex(next), itemIndex(index), direction)
                     true
                 }
             }
@@ -557,12 +638,51 @@ private fun LibraryGrid(
         val choose = if (picker) ({ a.onSteamGame(e.game!!) }) else null
         if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL || source == LIBRARY_FAVORITES || source == LIBRARY_HIDDEN)
     }
+    var rowFocused by remember { mutableStateOf(false) }
+    val toggleRow: @Composable () -> Unit = {
+        val keys = if (focus == null) Modifier else Modifier.onPreviewKeyEvent { event ->
+            val key = event.nativeKeyEvent
+            val direction = when (key.keyCode) {
+                KeyEvent.KEYCODE_DPAD_DOWN -> 1
+                KeyEvent.KEYCODE_DPAD_UP -> -1
+                else -> 0
+            }
+            val target = when {
+                direction > 0 && toggleAt == ToggleAt.TOP -> 0
+                direction > 0 && toggleAt == ToggleAt.SPLIT -> split
+                direction < 0 && toggleAt == ToggleAt.SPLIT -> rowStart(split - 1)
+                direction < 0 && toggleAt == ToggleAt.BOTTOM -> rowStart(visible.lastIndex)
+                else -> null
+            }
+            when {
+                direction == 0 -> false
+                target == null -> direction > 0 && toggleAt == ToggleAt.BOTTOM && trackHits.isEmpty()
+                else -> {
+                    if (key.action == KeyEvent.ACTION_DOWN) moveFocus("card:${visible[target].key}", itemIndex(target), toggleIndex, direction)
+                    true
+                }
+            }
+        }
+        NotInstalledRow(notInstalled, expanded, keys, onFocus = { rowFocused = it }) {
+            rowFocused = false
+            val landing = if (expanded) headerItems + split else headerItems + visible.size + 1
+            onShowUninstalled(!expanded)
+            if (focus != null && focus.last == NOT_INSTALLED_ROW) scope.launch {
+                androidx.compose.runtime.withFrameNanos { }
+                if (grid.layoutInfo.visibleItemsInfo.none { it.key == NOT_INSTALLED_ROW }) grid.scrollToItem((landing - 1).coerceAtLeast(0))
+                repeat(30) {
+                    androidx.compose.runtime.withFrameNanos { }
+                    if (rowFocused) return@launch
+                    runCatching { focus.items[NOT_INSTALLED_ROW]?.requestFocus() }
+                }
+            }
+        }
+    }
     LazyVerticalGrid(
-        columns = if (listMode) GridCells.Fixed(1) else GridCells.Adaptive(tileWidth), state = grid,
+        columns = if (listMode) GridCells.Fixed(1) else remember(baseWidth, level) { LevelCells(baseWidth, level) }, state = grid,
         modifier = Modifier.fillMaxSize().onFocusChanged { onFocus(it.hasFocus) }.focusGroup().bumpers(onPrevious = { onCycle(-1) }, onNext = { onCycle(1) }).onSizeChanged {
             val gap = with(density) { 10.dp.roundToPx() }
-            val minimum = with(density) { (if (listMode) CardWidth * 2 else tileWidth).roundToPx() }
-            columns = ((it.width + gap) / (minimum + gap)).coerceAtLeast(1)
+            columns = if (listMode) 1 else libraryColumns(it.width, with(density) { baseWidth.roundToPx() }, gap, level)
         },
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
@@ -593,11 +713,17 @@ private fun LibraryGrid(
                 SecondaryButton(stringResource(R.string.library_browse_owned), modifier = Modifier.testTag("library-browse-owned")) { onShowUninstalled(true) }
             }
         }
-        else if (split == 0) libraryGrid(visible, empty, tile)
+        else if (split == 0) {
+            if (toggleAt == ToggleAt.TOP) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
+            libraryGrid(visible, empty, tile)
+            if (toggleAt == ToggleAt.BOTTOM) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
+        }
         else {
             item(key = "installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_installed)) }
             libraryGrid(visible.take(split), empty, tile)
-            item(key = "not-installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_not_installed)) }
+            item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) {
+                if (toggleAt == ToggleAt.SPLIT) toggleRow() else SectionLabel(stringResource(R.string.stores_section_not_installed))
+            }
             libraryGrid(visible.drop(split), empty, tile)
         }
         if (trackHits.isNotEmpty()) {
@@ -683,7 +809,7 @@ private fun LibraryHeader(
     ) {
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
         DisplayButton()
-        if (!soundMode && (showUninstalled != null || xbox)) LibraryFilterButton(showUninstalled, onShowUninstalled, xbox)
+        if (!soundMode && xbox) LibraryFilterButton(null, onShowUninstalled, xbox)
         if (collections != null) CollectionsButton(collections)
         SortButton(s, a)
         ViewButton(s, a)
