@@ -135,14 +135,19 @@ object ProtonExtras {
         }
     }
 
-    private fun record(context: Context, tool: Tool, dir: String?, tag: String) {
+    internal fun recordLatest(latest: JSONObject, tool: Tool, tag: String, test: Boolean, now: Long): Boolean {
+        if (test) return false
+        val entry = latest.optJSONObject(tool.id)
+        val known = entry?.optString("tag")
+        if (!known.isNullOrEmpty() && compareVersions(tag, known) < 0) return false
+        latest.put(tool.id, JSONObject().put("tag", tag).put("at", now).putOpt("test", entry?.optString("test")?.ifEmpty { null }))
+        return true
+    }
+
+    private fun record(context: Context, tool: Tool, dir: String?, tag: String, test: Boolean) {
         runCatching {
             val latest = readJson(latestFile(context))
-            val known = latest.optJSONObject(tool.id)?.optString("tag")
-            if (known.isNullOrEmpty() || compareVersions(tag, known) >= 0) {
-                latest.put(tool.id, JSONObject().put("tag", tag).put("at", System.currentTimeMillis()))
-                latestFile(context).writeText(latest.toString())
-            }
+            if (recordLatest(latest, tool, tag, test, System.currentTimeMillis())) latestFile(context).writeText(latest.toString())
             if (dir != null) {
                 val releases = readJson(releasesFile(context))
                 val present = toolsDir(context).list()?.toSet() ?: emptySet()
@@ -320,7 +325,7 @@ object ProtonExtras {
             else {
                 archive.delete()
                 unqueue(context, tool)
-                record(context, tool, placed, asset.tag)
+                record(context, tool, placed, asset.tag, test)
                 if (tool.id == OWN) replaceOlder(context, tool)
                 if (EsyncPacks.enabled(context)) {
                     onProgress(context.getString(R.string.esync_fetching), -1)

@@ -352,6 +352,20 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun aTestInstallLeavesTheStableEntryAndAStableInstallKeepsTheTestOffer() {
+        val tool = tool("droiddeck")
+        val cache = JSONObject().put(tool.id, JSONObject().put("tag", "DroidDeck-Proton-11-12.8").put("test", "DroidDeck-Proton-11-12.9"))
+        assertFalse(ProtonExtras.recordLatest(cache, tool, "DroidDeck-Proton-11-12.9", true, 2L))
+        assertEquals("DroidDeck-Proton-11-12.8", cache.getJSONObject(tool.id).getString("tag"))
+        assertEquals("DroidDeck-Proton-11-12.9", cache.getJSONObject(tool.id).getString("test"))
+        assertEquals("DroidDeck-Proton-11-12.9", ProtonExtras.testFor(emptyList(), cache.getJSONObject(tool.id).getString("test")))
+        assertFalse(ProtonExtras.recordLatest(cache, tool, "DroidDeck-Proton-11-12.7", false, 2L))
+        assertTrue(ProtonExtras.recordLatest(cache, tool, "DroidDeck-Proton-11-12.8", false, 2L))
+        assertEquals("DroidDeck-Proton-11-12.9", cache.getJSONObject(tool.id).getString("test"))
+        assertEquals(2L, cache.getJSONObject(tool.id).getLong("at"))
+    }
+
+    @Test
     fun malformedReleaseEntriesAreSkipped() {
         val releases = JSONArray("[null, 5, {\"tag_name\": \"x\", \"assets\": [null]}]").put(droiddeckRelease("11-12.8"))
         assertEquals("DroidDeck-Proton-11-12.8", ProtonExtras.pickAsset(tool("droiddeck"), releases)!!.tag)
