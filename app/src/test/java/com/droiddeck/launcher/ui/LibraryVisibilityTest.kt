@@ -81,9 +81,7 @@ class LibraryVisibilityTest {
         compose.onNodeWithText("Installed Steam game").assertExists()
         compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
         compose.onNodeWithText("NOT INSTALLED  ·  2").assertExists()
-        compose.onNodeWithText("3 games").assertExists()
         toggleNotInstalled(true)
-        compose.onNodeWithText("3 games").assertExists()
         compose.onNodeWithText("Uninstalled GOG").assertExists()
         compose.runOnIdle { generation++; Snapshot.sendApplyNotifications() }
         compose.mainClock.advanceTimeBy(2_000)
@@ -150,12 +148,14 @@ class LibraryVisibilityTest {
         compose.onNodeWithText("Uninstalled GOG").assertExists()
     }
 
-    @Test fun theHeaderCountsTheWholeLibraryWhicheverStoreIsPicked() {
+    @Test fun theCustomGamesTabIsAlwaysThereAndOffersToAddWhenEmpty() {
         show()
-        compose.onNodeWithText("3 games").assertExists()
-        compose.onNodeWithTag("library-source-gog").performClick()
+        compose.onNodeWithTag("library-source-added").performClick()
         compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithText("3 games").assertExists()
+        compose.onNodeWithTag("library-custom-empty").assertExists()
+        compose.onNodeWithTag("library-custom-add").performClick()
+        assertTrue(GamesDialogState.adding)
+        GamesDialogState.adding = false
     }
 
     @Test fun theStoresOwnedGamesLinkRevealsOwnedGamesDespiteTheSavedInstalledOnlyView() {
