@@ -1,7 +1,13 @@
 package com.droiddeck.launcher.session
 
 import java.io.File
+import java.io.RandomAccessFile
 import java.nio.file.Files
+import android.app.Activity
+import org.json.JSONArray
+import org.json.JSONObject
+import org.junit.Before
+import org.robolectric.Robolectric
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -17,6 +23,48 @@ import org.robolectric.annotation.Config
 @Config(sdk = [28], manifest = Config.NONE)
 class ExperimentalProtonsTest {
     @get:Rule val temp = TemporaryFolder()
+    private lateinit var activity: Activity
+
+    @Before
+    fun setup() {
+        activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+    }
+
+    @Test
+    fun releaseRowsOnlyUsePublishedPrereleaseTarAssets() {
+        val tool = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
+        val releases = JSONArray("""
+            [{"tag_name":"old","prerelease":false,"assets":[{"name":"aarch64.tar.gz","browser_download_url":"https://example/old"}]},
+             {"tag_name":"pre","prerelease":true,"assets":[{"name":"aarch64.tar.gz","browser_download_url":"https://example/pre"}]},
+             {"tag_name":"draft","draft":true,"prerelease":true,"assets":[{"name":"aarch64.tar.gz","browser_download_url":"https://example/draft"}]},
+             {"tag_name":"no-tar","prerelease":true,"assets":[{"name":"checksums.sha512sum","browser_download_url":"https://example/sum"}]}]
+        """.trimIndent())
+        assertEquals(listOf("pre"), ProtonExtras.assets(tool, releases, true).map { it.tag })
+    }
+
+    @Test
+    fun markerRoundTripKeepsReleaseTag() {
+        val dir = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(activity), "root/.local/share/Steam/compatibilitytools.d/Experimental-pre").apply { mkdirs() }
+        File(dir, ".droiddeck-experimental.json").writeText(JSONObject().put("label", "Experimental-pre").put("source", "pre").put("releaseTag", "pre").toString())
+        assertEquals("pre", ExperimentalProtons.installed(activity).single().releaseTag)
+    }
+
+    @Test
+    fun missingReleaseTagsAreAutoRemovedButFileBuildsAreNot() {
+        assertTrue(ExperimentalProtons.shouldRemove("gone", setOf("kept")))
+        assertFalse(ExperimentalProtons.shouldRemove("kept", setOf("kept")))
+        assertFalse(ExperimentalProtons.shouldRemove(null, emptySet()))
+    }
+
+    @Test
+    fun archiveTypeUsesMagicBytes() {
+        val zip = temp.newFile("wrong-name.bin").apply { writeBytes(byteArrayOf(0x50, 0x4B, 0x03, 0x04)) }
+        val seven = temp.newFile("seven.data").apply { writeBytes(byteArrayOf(0x37, 0x7A, 0xBC.toByte(), 0xAF.toByte(), 0x27, 0x1C)) }
+        val tar = temp.newFile("tar.data").apply { RandomAccessFile(this, "rw").use { it.seek(257); it.write("ustar".toByteArray()) } }
+        assertEquals(ExperimentalProtons.ArchiveType.ZIP, ExperimentalProtons.archiveType(zip))
+        assertEquals(ExperimentalProtons.ArchiveType.SEVEN_Z, ExperimentalProtons.archiveType(seven))
+        assertEquals(ExperimentalProtons.ArchiveType.TAR, ExperimentalProtons.archiveType(tar))
+    }
 
     @Test
     fun namesNeverCollideWithReleasedBuilds() {

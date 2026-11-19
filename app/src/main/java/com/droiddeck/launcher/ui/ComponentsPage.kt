@@ -84,6 +84,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.ComponentUpdater
 import com.droiddeck.launcher.session.ComponentUpdates
 import com.droiddeck.launcher.session.ComponentsManager
+import com.droiddeck.launcher.session.ExperimentalProtons
 import com.droiddeck.launcher.session.ComponentsManager.CatalogItem
 import com.droiddeck.launcher.session.ComponentsManager.Snapshot
 import kotlinx.coroutines.delay
@@ -1645,8 +1646,15 @@ private fun ExperimentalProtonGroup(protons: ProtonsState, actions: ProtonsActio
     val idle = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
     RowGroup(stringResource(R.string.xproton_title)) {
         if (busy) GetLine(stringResource(R.string.xproton_title), "", progress = protons.percent, enabled = false, stage = protons.stage) {}
-        else Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 8.dp)) {
-            SmallButton(stringResource(R.string.xproton_pick_zip), enabled = idle, onClick = actions.onExperimentalFile)
+        else {
+            protons.experimentalReleases.forEach { release ->
+                GetLine(release.tag, release.asset, progress = null, enabled = idle, action = stringResource(R.string.proton_install_now)) {
+                    actions.onExperimentalRelease(release)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 8.dp)) {
+                SmallButton(stringResource(R.string.setup_install), enabled = idle, onClick = actions.onExperimentalFile)
+            }
         }
     }
 }
@@ -1659,6 +1667,7 @@ class ProtonsState(
     val runtimeReady: Boolean = true,
     val sessionRunning: Boolean = false,
     val experimental: List<String> = emptyList(),
+    val experimentalReleases: List<ExperimentalProtons.Release> = emptyList(),
 )
 
 class ProtonsActions(
@@ -1668,6 +1677,7 @@ class ProtonsActions(
     val onRemove: (String, String) -> Unit = { _, _ -> },
     val onRemoveOlder: (String) -> Unit = {},
     val onExperimentalFile: () -> Unit = {},
+    val onExperimentalRelease: (ExperimentalProtons.Release) -> Unit = {},
     val onRemoveExperimental: (String) -> Unit = {},
 )
 

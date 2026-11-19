@@ -29,6 +29,7 @@ internal class ProtonMenu(
         val percent = mutableIntStateOf(-1)
         val problem = mutableStateOf<String?>(null)
         val experimental = mutableStateOf<List<String>>(emptyList())
+        val experimentalReleases = mutableStateOf<List<ExperimentalProtons.Release>>(emptyList())
     }
     var protonRows by Operation.rows
     var protonBusyId by Operation.busyId
@@ -36,6 +37,7 @@ internal class ProtonMenu(
     var protonPercent by Operation.percent
     var protonProblem by Operation.problem
     var experimentalDirs by Operation.experimental
+    var experimentalReleases by Operation.experimentalReleases
     companion object {
         const val EXPERIMENTAL = "experimental"
     }
@@ -114,6 +116,10 @@ internal class ProtonMenu(
         }, "install-proton-experimental").start()
     }
 
+    fun installExperimentalRelease(release: ExperimentalProtons.Release) {
+        installExperimental { progress -> ExperimentalProtons.installRelease(activity, release, progress) }
+    }
+
     fun removeExperimental(dir: String) {
         if (protonBusyId != null || SessionState.running) return
         protonBusyId = EXPERIMENTAL
@@ -143,8 +149,11 @@ internal class ProtonMenu(
         if (!checking.compareAndSet(false, true)) return
         Thread({
             val asked = try { ProtonExtras.checkLatest(activity, force) } catch (_: Throwable) { false } finally { checking.set(false) }
+            val experimental = runCatching { ExperimentalProtons.refresh(activity) }.getOrNull()
             ui.post {
+                experimentalReleases = experimental ?: emptyList()
                 if (asked) refreshProtons()
+                else experimentalDirs = ExperimentalProtons.installed(activity).map { it.dir }
                 ensureAutoUpdates()
             }
         }, "proton-updates").start()

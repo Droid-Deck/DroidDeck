@@ -3,6 +3,8 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.os.StatFs
 import android.util.Log
+import com.droiddeck.launcher.core.Downloader
+import com.droiddeck.launcher.core.Hashes
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
@@ -11,6 +13,8 @@ import java.nio.file.Files
 import java.security.DigestOutputStream
 import java.security.MessageDigest
 import java.util.zip.ZipFile
+import org.apache.commons.compress.archivers.sevenz.SevenZFile
+import org.apache.commons.compress.archivers.zip.ZipFile as CommonsZipFile
 import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
 import org.json.JSONObject
@@ -27,7 +31,9 @@ object ExperimentalProtons {
     private const val USER_SETTINGS = "user_settings.py"
     private val TARBALL = Regex("(?i)\\.tar(\\.(gz|xz|zst|bz2))?$")
 
-    data class Installed(val dir: String, val label: String, val source: String)
+    data class Installed(val dir: String, val label: String, val source: String, val releaseTag: String? = null)
+    data class Release(val tag: String, val asset: String, val url: String, val sha512: String?, val size: Long)
+    enum class ArchiveType { ZIP, SEVEN_Z, TAR, UNKNOWN }
 
     private fun toolsDir(context: Context) = File(LinuxRuntime.rootDir(context), GUEST_TOOLS.removePrefix("/"))
 
@@ -36,7 +42,7 @@ object ExperimentalProtons {
             ?.filter { it.isDirectory && File(it, MARKER).isFile }
             ?.map { dir ->
                 val info = runCatching { JSONObject(File(dir, MARKER).readText()) }.getOrDefault(JSONObject())
-                Installed(dir.name, info.optString("label").ifEmpty { dir.name }, info.optString("source"))
+                Installed(dir.name, info.optString("label").ifEmpty { dir.name }, info.optString("source"), info.optString("releaseTag").ifEmpty { null })
             }
             ?.sortedBy { it.dir }
             ?: emptyList()
@@ -56,6 +62,23 @@ object ExperimentalProtons {
         return PREFIX + base + (tag?.let { "-$it" } ?: "")
     }
 
+    fun refresh(context: Context): List<Release>? {
+        val tool = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
+        val releases = ProtonExtras.releases(tool) ?: return null
+        val assets = ProtonExtras.assets(tool, releases, prerelease = true)
+        val rows = assets.map { Release(it.tag, it.name, it.url, it.sha512, it.size) }.distinctBy { it.tag }
+        if (!SessionState.running) reconcile(context, rows.map { it.tag }.toSet())
+        return rows
+    }
+
+    internal fun shouldRemove(installedReleaseTag: String?, availableTags: Set<String>): Boolean =
+        installedReleaseTag != null && installedReleaseTag !in availableTags
+
+    fun reconcile(context: Context, availableTags: Set<String>) {
+        if (SessionState.running) return
+        installed(context).filter { shouldRemove(it.releaseTag, availableTags) }.forEach { remove(context, it.dir) }
+    }
+
     internal fun compatVdf(name: String): String = """"compatibilitytools"
 {
 	"compat_tools"
@@ -71,12 +94,37 @@ object ExperimentalProtons {
 }
 """
 
-    fun installFromFile(context: Context, zip: File, onProgress: (String, Int) -> Unit): String? {
+    fun installFromFile(context: Context, file: File, onProgress: (String, Int) -> Unit): String? {
         preflight(context)?.let { return it }
-        if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + zip.length()) {
+        if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + file.length()) {
             return context.getString(R.string.xproton_no_space)
         }
-        return install(context, zip, zip.name.substringBeforeLast('.'), zip.name, onProgress)
+        return install(context, file, file.name.substringBeforeLast('.'), file.name, null, onProgress)
+    }
+
+    fun installRelease(context: Context, release: Release, onProgress: (String, Int) -> Unit): String? {
+        preflight(context)?.let { return it }
+        val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
+        val archive = File(downloads, "droiddeck-${ComponentsManager.safeName(release.tag)}-${release.asset}")
+        if (release.size > 0 && archive.length() > release.size) archive.delete()
+        val missing = (release.size - archive.length()).coerceAtLeast(0L)
+        if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + missing) return context.getString(R.string.xproton_no_space)
+        val title = context.getString(R.string.pextra_downloading, "Proton", release.tag)
+        onProgress(title, 0)
+        if (!Downloader.downloadFile(release.url, archive, true) { fraction ->
+                onProgress(title, if (fraction < 0) -1 else (fraction * 100f).toInt().coerceIn(0, 100))
+            }) return context.getString(R.string.pextra_download_failed)
+        if (release.size > 0 && archive.length() != release.size) return context.getString(R.string.pextra_incomplete)
+        if (release.sha512 != null) {
+            val expected = Downloader.downloadDirect(release.sha512)?.let(::checksumIn)
+                ?: return context.getString(R.string.pextra_checksum_unreadable)
+            if (!expected.equals(Hashes.sha512(archive), true)) {
+                archive.delete()
+                return context.getString(R.string.pextra_checksum_mismatch)
+            }
+        }
+        return try { install(context, archive, release.tag, release.tag, release.tag, onProgress) }
+        finally { archive.delete() }
     }
 
     private fun preflight(context: Context): String? = when {
@@ -85,7 +133,7 @@ object ExperimentalProtons {
         else -> null
     }
 
-    private fun install(context: Context, zip: File, label: String, source: String, onProgress: (String, Int) -> Unit): String? {
+    private fun install(context: Context, archive: File, label: String, source: String, releaseTag: String?, onProgress: (String, Int) -> Unit): String? {
         val tools = toolsDir(context).apply { mkdirs() }
         val staging = File(tools, STAGING)
         val forget = { name: String -> ComponentsManager.forgetProton(context, name) }
@@ -96,22 +144,34 @@ object ExperimentalProtons {
             LinuxRuntime.writeAccounts(context)
             SessionFiles.stage(context, LinuxRuntime.rootDir(context))
             onProgress(context.getString(R.string.xproton_unzipping), -1)
-            val tarball = runCatching { extractTarball(zip, staging) }
-                .getOrElse { return it.message ?: context.getString(R.string.xproton_bad_zip) }
-                ?: return context.getString(R.string.xproton_bad_zip)
+            val unpacked = File(staging, "unpacked").apply { mkdirs() }
+            val tarball = if (archiveType(archive) == ArchiveType.ZIP) extractTarball(archive, staging) else null
+            if (tarball == null && archiveType(archive) == ArchiveType.ZIP) {
+                extractDirect(archive, unpacked, ArchiveType.ZIP)
+            } else if (tarball == null && archiveType(archive) == ArchiveType.SEVEN_Z) {
+                extractDirect(archive, unpacked, ArchiveType.SEVEN_Z)
+            }
             if (SessionState.running) return context.getString(R.string.pextra_session_started)
 
             onProgress(context.getString(R.string.xproton_unpacking), -1)
-            val unpacked = File(staging, "unpacked").apply { mkdirs() }
-            val status = runGuest(context, listOf("tar", "-xf", "$GUEST_TOOLS/$STAGING/${tarball.name}", "-C", "$GUEST_TOOLS/$STAGING/unpacked"))
-            tarball.delete()
-            if (status != 0) return context.getString(R.string.xproton_untar_failed, status)
+            if (tarball != null) {
+                val status = runGuest(context, listOf("tar", "-xf", "$GUEST_TOOLS/$STAGING/${tarball.name}", "-C", "$GUEST_TOOLS/$STAGING/unpacked"))
+                tarball.delete()
+                if (status != 0) return context.getString(R.string.xproton_untar_failed, status)
+            } else if (tarball == null && archiveType(archive) == ArchiveType.UNKNOWN) {
+                return context.getString(R.string.xproton_bad_zip)
+            } else if (archiveType(archive) == ArchiveType.TAR) {
+                val stagedArchive = File(staging, archive.name)
+                if (!archive.canonicalFile.equals(stagedArchive.canonicalFile)) archive.copyTo(stagedArchive, overwrite = true)
+                val status = runGuest(context, listOf("tar", "-xf", "$GUEST_TOOLS/$STAGING/${stagedArchive.name}", "-C", "$GUEST_TOOLS/$STAGING/unpacked"))
+                if (status != 0) return context.getString(R.string.xproton_untar_failed, status)
+            }
 
             val tree = buildTree(unpacked) ?: return context.getString(R.string.xproton_no_tree)
             val name = dirName(tree.name, label)
             ownFile(tree, "compatibilitytool.vdf").writeText(compatVdf(name))
             ownFile(tree, MARKER).writeText(
-                JSONObject().put("label", name).put("source", source).put("at", System.currentTimeMillis() / 1000).toString(),
+                JSONObject().put("label", name).put("source", source).putOpt("releaseTag", releaseTag).put("at", System.currentTimeMillis() / 1000).toString(),
             )
             val final = File(tools, name)
             val settings = File(final, USER_SETTINGS)
@@ -175,6 +235,17 @@ object ExperimentalProtons {
         File(tools, BACKUPS).listFiles()?.forEach { if (File(tools, it.name).exists()) deleteTree(it) else it.renameTo(File(tools, it.name)) }
     }
 
+    internal fun archiveType(file: File): ArchiveType {
+        val head = runCatching { file.inputStream().use { ByteArray(300).also { b -> it.read(b) } } }.getOrNull() ?: return ArchiveType.UNKNOWN
+        fun at(i: Int, vararg bytes: Int) = bytes.indices.all { head.getOrNull(i + it) == bytes[it].toByte() }
+        return when {
+            at(0, 0x50, 0x4B) -> ArchiveType.ZIP
+            at(0, 0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C) -> ArchiveType.SEVEN_Z
+            at(0, 0x1F, 0x8B) || at(0, 0x42, 0x5A, 0x68) || at(0, 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00) || at(0, 0x28, 0xB5, 0x2F, 0xFD) || at(257, 0x75, 0x73, 0x74, 0x61, 0x72) -> ArchiveType.TAR
+            else -> ArchiveType.UNKNOWN
+        }
+    }
+
     private fun extractTarball(zip: File, into: File): File? = ZipFile(zip).use { z ->
         val entries = z.entries().toList().filter { !it.isDirectory }
         val entry = entries.filter { TARBALL.containsMatchIn(it.name) }.maxByOrNull { it.size } ?: return null
@@ -192,6 +263,46 @@ object ExperimentalProtons {
             throw IllegalStateException("Checksum mismatch in $name")
         }
         out
+    }
+
+    private fun extractDirect(archive: File, into: File, type: ArchiveType) {
+        fun target(name: String): File {
+            val file = File(into, name.replace('\\', '/'))
+            check(file.canonicalPath == into.canonicalPath || file.canonicalPath.startsWith(into.canonicalPath + File.separator))
+            return file
+        }
+        when (type) {
+            ArchiveType.ZIP -> CommonsZipFile.builder().setFile(archive).get().use { zip ->
+                for (entry in zip.entries) {
+                    check(!entry.isUnixSymlink)
+                    val file = target(entry.name)
+                    if (entry.isDirectory) file.mkdirs() else {
+                        file.parentFile?.mkdirs()
+                        zip.getInputStream(entry).use { input -> file.outputStream().use { output -> input.copyTo(output) } }
+                    }
+                }
+            }
+            ArchiveType.SEVEN_Z -> Files.newByteChannel(archive.toPath()).use { channel ->
+                SevenZFile.builder().setSeekableByteChannel(channel).get().use { seven ->
+                    while (true) {
+                        val entry = seven.nextEntry ?: break
+                        val file = target(entry.name)
+                        if (entry.isDirectory) file.mkdirs() else {
+                            file.parentFile?.mkdirs()
+                            file.outputStream().use { output ->
+                                val buffer = ByteArray(64 * 1024)
+                                while (true) {
+                                    val count = seven.read(buffer)
+                                    if (count < 0) break
+                                    output.write(buffer, 0, count)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else -> error("Unsupported direct archive")
+        }
     }
 
     internal fun checksumIn(text: String): String? = Regex("(?i)\\b[0-9a-f]{128}\\b").find(text)?.value

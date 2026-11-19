@@ -349,7 +349,7 @@ object ProtonExtras {
         }
     }
 
-    private fun releases(tool: Tool): JSONArray? = releases(tool) { page ->
+    internal fun releases(tool: Tool): JSONArray? = releases(tool) { page ->
         Downloader.downloadString(RELEASES.format(Locale.ROOT, tool.repo, page))?.let { body ->
             try {
                 JSONArray(body)
@@ -371,6 +371,13 @@ object ProtonExtras {
         }
         return all
     }
+
+    internal fun assets(tool: Tool, array: JSONArray, prerelease: Boolean): List<Asset> =
+        (0 until array.length()).asSequence()
+            .mapNotNull { array.optJSONObject(it) }
+            .filter { !it.optBoolean("draft", false) && it.optBoolean("prerelease", false) == prerelease }
+            .flatMap { release -> assetOf(tool, release)?.let { sequenceOf(it) } ?: emptySequence() }
+            .toList()
 
     internal fun pickAsset(tool: Tool, array: JSONArray, test: Boolean = false): Asset? {
         val candidates = (0 until array.length()).asSequence()
