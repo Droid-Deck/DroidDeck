@@ -59,6 +59,8 @@ class DownloadEntryTest {
             base.copy(stage = DownloadStage.INSTALL, bytesDone = 20, bytesTotal = 100, stageDone = 15, stageTotal = 100),
             base.copy(stage = DownloadStage.DOWNLOAD, bytesDone = 40, bytesTotal = 100, stageDone = 15, stageTotal = 100, stagesPassed = installBit),
             base.copy(stage = DownloadStage.INSTALL, bytesDone = 60, bytesTotal = 100, stageDone = 55, stageTotal = 100, stagesPassed = installBit),
+            base.copy(stage = DownloadStage.DOWNLOAD, bytesDone = 100, bytesTotal = 100, stageDone = 60, stageTotal = 100, stagesPassed = installBit),
+            base.copy(stage = DownloadStage.INSTALL, bytesDone = 100, bytesTotal = 100, stageDone = 80, stageTotal = 100, stagesPassed = installBit or downloadBit),
         ).map { it.overallFraction }
         assertEquals(streaming, streaming.sorted())
     }

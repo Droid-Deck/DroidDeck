@@ -928,7 +928,7 @@ internal fun libraryTileWidth() = LibraryCardWidth * LibraryDisplay.scales[Libra
 @Composable
 private fun LibraryArt(e: LibraryEntry, wide: Any?, tall: Any?, download: DownloadEntry?, hot: Boolean, capsule: Boolean, showSource: Boolean) {
     val chip = when {
-        download != null -> "${download.percent}%"
+        download != null -> "${(steadyProgress(download) * 100).toInt()}%"
         e.item != null && StoresState.isUnfinished(e.item) -> stringResource(R.string.stores_resume)
         e.installed && libraryUpdateAvailable(e) -> stringResource(R.string.common_update)
         else -> null
@@ -971,7 +971,7 @@ internal fun ArtCard(
         )
         badge?.invoke(this)
         if (chip != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
-            StateChip(chip, ChipTone.BUSY, small = true, fraction = download?.stageFraction?.takeIf { it >= 0f }, key = download?.stage)
+            StateChip(chip, ChipTone.BUSY, small = true, fraction = download?.let { steadyProgress(it) }, key = download?.key)
         }
         val showName = LibraryDisplay.title || hot
         val showDetail = LibraryDisplay.size || hot

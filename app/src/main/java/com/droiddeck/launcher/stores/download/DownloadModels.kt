@@ -63,7 +63,7 @@ data class DownloadEntry(
             passed(DownloadStage.DOWNLOAD) -> 1f
             else -> 0f
         }
-        val installed = if (stage == DownloadStage.INSTALL || streaming) installFraction.coerceAtLeast(0f) else 0f
+        val installed = if (stage == DownloadStage.INSTALL || (stage == DownloadStage.DOWNLOAD && passed(DownloadStage.INSTALL))) installFraction.coerceAtLeast(0f) else 0f
         return (0.9f * downloaded + 0.1f * installed).coerceIn(0f, 1f)
     }
     val fraction: Float get() = stageFraction.coerceAtLeast(0f)
