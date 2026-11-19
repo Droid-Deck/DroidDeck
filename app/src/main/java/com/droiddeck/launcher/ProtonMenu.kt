@@ -32,6 +32,7 @@ internal class ProtonMenu(
         val experimental = mutableStateOf<List<String>>(emptyList())
         val experimentalReleases = mutableStateOf<List<ExperimentalProtons.Release>>(emptyList())
         var fetchedReleases = emptyList<ExperimentalProtons.Release>()
+        val checking = java.util.concurrent.atomic.AtomicBoolean(false)
     }
     var protonRows by Operation.rows
     var protonBusyId by Operation.busyId
@@ -43,7 +44,8 @@ internal class ProtonMenu(
     companion object {
         const val EXPERIMENTAL = "experimental"
     }
-    private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
+    @VisibleForTesting internal var latestCheck: (Boolean) -> Boolean = { force -> ProtonExtras.checkLatest(activity, force) }
+    @VisibleForTesting internal var experimentalRefresh: () -> List<ExperimentalProtons.Release>? = { ExperimentalProtons.refresh(activity) }
     @VisibleForTesting internal var installer: (ProtonExtras.Tool, (String, Int) -> Unit) -> String? =
         { tool, progress -> ProtonExtras.install(activity, tool, progress) }
 
@@ -154,23 +156,22 @@ internal class ProtonMenu(
     }
 
     fun checkUpdates(force: Boolean = false) {
-        if (!checking.compareAndSet(false, true)) return
+        if (!Operation.checking.compareAndSet(false, true)) return
         Thread({
-            val asked: Boolean
-            val experimental: List<ExperimentalProtons.Release>?
-            try {
-                asked = runCatching { ProtonExtras.checkLatest(activity, force) }.getOrDefault(false)
-                experimental = runCatching { ExperimentalProtons.refresh(activity) }.getOrNull()
-            } finally {
-                checking.set(false)
-            }
-            ui.post {
-                val before = experimentalDirs
-                Operation.fetchedReleases = experimental ?: emptyList()
-                if (asked) refreshProtons() else refreshExperimental()
-                if (!experimentalDirs.containsAll(before)) onRemoved()
+            val asked = runCatching { latestCheck(force) }.getOrDefault(false)
+            val experimental = runCatching { experimentalRefresh() }.getOrNull()
+            val published = ui.post {
+                try {
+                    val before = experimentalDirs
+                    Operation.fetchedReleases = experimental ?: emptyList()
+                    if (asked) refreshProtons() else refreshExperimental()
+                    if (!experimentalDirs.containsAll(before)) onRemoved()
+                } finally {
+                    Operation.checking.set(false)
+                }
                 ensureAutoUpdates()
             }
+            if (!published) Operation.checking.set(false)
         }, "proton-updates").start()
     }
 

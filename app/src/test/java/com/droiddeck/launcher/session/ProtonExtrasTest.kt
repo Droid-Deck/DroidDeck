@@ -66,6 +66,17 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun experimentalAssetsSkipOtherArchitectures() {
+        val foreign = release("DroidDeck-Bionic-12.8-r37", asset("DroidDeck-Bionic-12.8-r37-x86_64.tar.xz"), asset("DroidDeck-Bionic-12.8-r37-amd64.tar.gz"), prerelease = true)
+        val mixed = release("DroidDeck-Bionic-12.8-r38", asset("DroidDeck-Bionic-12.8-r38-x86_64.tar.xz"), asset("DroidDeck-Bionic-12.8-r38.tar.xz"), prerelease = true)
+        val named = release("DroidDeck-Bionic-12.8-r39", asset("DroidDeck-Bionic-12.8-r39-aarch64.tar.xz"), asset("DroidDeck-Bionic-12.8-r39-x86_64.tar.xz"), prerelease = true)
+        assertEquals(null, ProtonExtras.assetOf(tool("droiddeck"), foreign, experimental = true))
+        assertEquals("DroidDeck-Bionic-12.8-r38.tar.xz", ProtonExtras.assetOf(tool("droiddeck"), mixed, experimental = true)!!.name)
+        assertEquals("DroidDeck-Bionic-12.8-r39-aarch64.tar.xz", ProtonExtras.assetOf(tool("droiddeck"), named, experimental = true)!!.name)
+        assertTrue(ProtonExtras.assets(tool("droiddeck"), JSONArray().put(foreign), true).isEmpty())
+    }
+
+    @Test
     fun theThreeSourcesInOrder() {
         assertEquals(listOf("ge", "cachyos", "droiddeck"), ProtonExtras.tools.map { it.id })
         val droiddeck = tool("droiddeck")

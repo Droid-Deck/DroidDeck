@@ -411,7 +411,7 @@ object ProtonExtras {
         val entries = assets?.let { list -> (0 until list.length()).mapNotNull { list.optJSONObject(it) } }.orEmpty()
         entries.sortedBy { it.optString("name") }.filter {
             val name = it.optString("name")
-            if (experimental && tool.id == OWN) name.startsWith(release.optString("tag_name")) && ExperimentalProtons.TARBALL.containsMatchIn(name) else tool.assetPattern.containsMatchIn(name)
+            if (experimental && tool.id == OWN) name.startsWith(release.optString("tag_name")) && ExperimentalProtons.TARBALL.containsMatchIn(name) && !ExperimentalProtons.FOREIGN_ARCH.containsMatchIn(name) else tool.assetPattern.containsMatchIn(name)
         }.mapNotNull { archive ->
             val name = archive.optString("name")
             val stem = name.substringBefore(".tar")

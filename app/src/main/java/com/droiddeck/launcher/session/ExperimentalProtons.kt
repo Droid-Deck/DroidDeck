@@ -33,6 +33,7 @@ object ExperimentalProtons {
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private const val USER_SETTINGS = "user_settings.py"
     internal val TARBALL = Regex("(?i)\\.tar(\\.(gz|xz|zst|bz2))?$")
+    internal val FOREIGN_ARCH = Regex("(?i)(^|[^a-z0-9])(x86|x64|amd64|i[3-6]86)([^a-z0-9]|$)")
     private val DOWNLOAD_PREFIX = "droiddeck-"
 
     data class Installed(val dir: String, val label: String, val source: String, val releaseTag: String? = null)
@@ -103,8 +104,10 @@ object ExperimentalProtons {
         fetched: ProtonExtras.ReleaseFetch,
         gone: (String) -> Boolean = { tag -> ProtonExtras.releaseGone(ProtonExtras.tools.first { it.id == ProtonExtras.OWN }, tag) },
     ) {
-        if (SessionState.running) return
-        installed(context).filter { shouldRemove(it.releaseTag, fetched, gone) }.forEach { remove(context, it.dir) }
+        for (build in installed(context)) {
+            if (SessionState.running) return
+            if (shouldRemove(build.releaseTag, fetched, gone) && !SessionState.running) remove(context, build.dir)
+        }
     }
 
     internal fun compatVdf(name: String): String = """"compatibilitytools"
@@ -344,7 +347,7 @@ object ExperimentalProtons {
                 mode and 0xF000 == 0xA000 -> {
                     val link = content().use { it.readBytes().decodeToString() }
                     val parent = file.parentFile ?: throw UnsafeArchiveException()
-                    val climbsLater = link.split('/').dropWhile { it == ".." }.any { it == ".." }
+                    val climbsLater = link.split('/').filter { it != "." }.dropWhile { it == ".." }.any { it == ".." }
                     if (link.startsWith('/') || climbsLater || !parent.toPath().resolve(link).normalize().startsWith(root)) throw UnsafeArchiveException()
                     parent.mkdirs()
                     Files.deleteIfExists(file.toPath())

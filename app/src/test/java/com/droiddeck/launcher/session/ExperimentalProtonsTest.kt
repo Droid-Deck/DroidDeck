@@ -220,6 +220,63 @@ class ExperimentalProtonsTest {
     }
 
     @Test
+    fun directArchivesAllowCurrentDirectoryBeforeAClimb() {
+        val archive = temp.newFile("dot.zip")
+        ZipArchiveOutputStream(archive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("build/lib/wine").apply { unixMode = 0x81ED })
+            zip.write("binary".toByteArray())
+            zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("build/bin/wine").apply { unixMode = 0xA1FF })
+            zip.write("./../lib/wine".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val unpacked = temp.newFolder("dot")
+        ExperimentalProtons.extractDirect(archive, unpacked, ExperimentalProtons.ArchiveType.ZIP)
+        assertEquals("./../lib/wine", Files.readSymbolicLink(File(unpacked, "build/bin/wine").toPath()).toString())
+        assertEquals("binary", File(unpacked, "build/bin/wine").readText())
+    }
+
+    @Test
+    fun directArchivesRejectLinksThatClimbAfterACurrentDirectoryAndAName() {
+        for (link in listOf("./top/../outside", "./../a/./../..", "top/./../outside")) {
+            val archive = temp.newFile()
+            ZipArchiveOutputStream(archive).use { zip ->
+                zip.putArchiveEntry(ZipArchiveEntry("build/a/b/out").apply { unixMode = 0xA1FF })
+                zip.write(link.toByteArray())
+                zip.closeArchiveEntry()
+            }
+            val result = runCatching { ExperimentalProtons.extractDirect(archive, temp.newFolder(), ExperimentalProtons.ArchiveType.ZIP) }
+            assertTrue(link, result.exceptionOrNull() is ExperimentalProtons.UnsafeArchiveException)
+        }
+    }
+
+    @Test
+    fun reconcileKeepsBuildsWhenASessionStartsDuringTheLookup() {
+        val tools = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(activity), "root/.local/share/Steam/compatibilitytools.d")
+        val dirs = listOf("Experimental-gone-a", "Experimental-gone-b").map { name ->
+            File(tools, name).apply {
+                mkdirs()
+                File(this, ".droiddeck-experimental.json").writeText(JSONObject().put("label", name).put("source", name).put("releaseTag", name).toString())
+            }
+        }
+        val complete = ProtonExtras.ReleaseFetch(JSONArray(), true)
+        var lookups = 0
+        try {
+            ExperimentalProtons.reconcile(activity, complete) {
+                lookups++
+                SessionState.running = true
+                true
+            }
+        } finally {
+            SessionState.running = false
+        }
+        assertEquals(1, lookups)
+        assertTrue(dirs.all { it.isDirectory })
+        ExperimentalProtons.reconcile(activity, complete) { true }
+        assertTrue(dirs.none { it.exists() })
+    }
+
+    @Test
     fun directArchivesRejectLinksThatClimbAfterAName() {
         val archive = temp.newFile("climb.zip")
         ZipArchiveOutputStream(archive).use { zip ->
