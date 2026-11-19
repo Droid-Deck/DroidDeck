@@ -29,6 +29,7 @@ object ExperimentalProtons {
     private const val STAGING = ".droiddeck-experimental"
     private const val BACKUPS = ".droiddeck-experimental-old"
     private const val INCOMING = ".droiddeck-experimental-new"
+    private const val REMOVED = ".droiddeck-experimental-gone"
     private const val GUEST_TOOLS = "/root/.local/share/Steam/compatibilitytools.d"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private const val USER_SETTINGS = "user_settings.py"
@@ -56,9 +57,15 @@ object ExperimentalProtons {
         val tools = toolsDir(context)
         val target = File(tools, dir)
         if (!File(target, MARKER).isFile) return false
-        val gone = deleteTree(target) && deleteTree(File(File(tools, BACKUPS), dir)) && deleteTree(File(File(tools, INCOMING), dir))
-        if (gone) ComponentsManager.forgetProton(context, dir)
-        return gone
+        val doomed = File(File(tools, REMOVED).apply { mkdirs() }, dir)
+        if (!deleteTree(doomed)) return false
+        val detached = synchronized(SessionState.startLock) { !SessionState.running && target.renameTo(doomed) }
+        if (!detached) return false
+        ComponentsManager.forgetProton(context, dir)
+        deleteTree(doomed)
+        deleteTree(File(File(tools, BACKUPS), dir))
+        deleteTree(File(File(tools, INCOMING), dir))
+        return true
     }
 
     internal fun dirName(tree: String, label: String?): String {
@@ -106,7 +113,7 @@ object ExperimentalProtons {
     ) {
         for (build in installed(context)) {
             if (SessionState.running) return
-            if (shouldRemove(build.releaseTag, fetched, gone) && !SessionState.running) remove(context, build.dir)
+            if (shouldRemove(build.releaseTag, fetched, gone)) remove(context, build.dir)
         }
     }
 
@@ -276,6 +283,7 @@ object ExperimentalProtons {
     }
 
     internal fun restoreInterrupted(tools: File, forget: (String) -> Boolean) {
+        deleteTree(File(tools, REMOVED))
         File(tools, INCOMING).listFiles()?.forEach { finishPlacing(tools, it.name, forget) }
         File(tools, BACKUPS).listFiles()?.forEach { if (File(tools, it.name).exists()) deleteTree(it) else it.renameTo(File(tools, it.name)) }
     }

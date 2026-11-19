@@ -277,6 +277,37 @@ class ExperimentalProtonsTest {
     }
 
     @Test
+    fun removeWaitsForAStartingSessionAndThenKeepsTheBuild() {
+        val tools = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(activity), "root/.local/share/Steam/compatibilitytools.d")
+        val dir = File(tools, "Experimental-starting").apply {
+            mkdirs()
+            File(this, ".droiddeck-experimental.json").writeText(JSONObject().put("label", name).put("source", name).toString())
+            File(this, "proton").writeText("build")
+        }
+        var removed: Boolean? = null
+        val removal = Thread { removed = ExperimentalProtons.remove(activity, dir.name) }
+        try {
+            synchronized(SessionState.startLock) {
+                removal.start()
+                val deadline = System.nanoTime() + 10_000_000_000L
+                while (removal.state != Thread.State.BLOCKED && System.nanoTime() < deadline) Thread.sleep(5)
+                assertEquals(Thread.State.BLOCKED, removal.state)
+                assertTrue(File(dir, "proton").isFile)
+                SessionState.running = true
+            }
+            removal.join(10_000)
+            assertEquals(false, removed)
+            assertTrue(File(dir, "proton").isFile)
+        } finally {
+            SessionState.running = false
+            removal.join(10_000)
+        }
+        assertTrue(ExperimentalProtons.remove(activity, dir.name))
+        assertTrue(!dir.exists())
+        assertTrue(File(tools, ".droiddeck-experimental-gone").list().isNullOrEmpty())
+    }
+
+    @Test
     fun directArchivesRejectLinksThatClimbAfterAName() {
         val archive = temp.newFile("climb.zip")
         ZipArchiveOutputStream(archive).use { zip ->
