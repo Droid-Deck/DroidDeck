@@ -296,14 +296,10 @@
     <string name="mode_pen_touch">Сенсорный ввод</string>
     <string name="mode_pen_button">Боковая кнопка</string>
     <string name="mode_osc">Экранные элементы управления</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматический режим показывает экранные элементы управления, если контроллер не подключен.</string>
-    <string name="osc_steam_touch">Сенсорное управление Steam (бета)</string>
-    <string name="osc_style_next_session">Сенсорное управление Steam включится со следующей сессии Steam</string>
     <string name="osc_steam_layout">Сенсорная раскладка Steam</string>
     <string name="screen_key_layout_export">Экспорт</string>
     <string name="screen_key_image">Изображение</string>
-    <string name="osc_steam_layout_hint">Перемещайте, меняйте размер или скрывайте сенсорные кнопки этой игры; сохраняется в Steam</string>
     <string name="mode_controller">Контроллер</string>
     <string name="mode_controller_hint">Как Steam распознает ваш контроллер. Вступит в силу в следующей сессии.</string>
     <string name="mode_controller_deck">Контроллер Steam Deck</string>
@@ -432,7 +428,6 @@
     <string name="mode_directaudio_hint">Обходит PulseAudio для снижения задержки.</string>
     <string name="mode_mic">Микрофон</string>
     <string name="mode_mic_hint">Используется для голосового чата.</string>
-    <string name="drawer_mic_hint">Включить или отключить захват микрофона в этой сессии.</string>
     <string name="drawer_mic_failed">Не удалось изменить микрофон. Повторите попытку.</string>
     <string name="mode_network">Сеть</string>
     <string name="mode_wifi_discovery">Обнаружение Wi-Fi</string>
@@ -808,7 +803,6 @@
     <string name="drawer_keyboard">Клавиатура</string>
     <string name="drawer_latency">Задержка</string>
     <string name="drawer_low_latency">Режим низкой задержки</string>
-    <string name="drawer_low_latency_hint">Увеличивает нагрузку на CPU и расход батареи</string>
     <string name="drawer_low_latency_controller">Контроллер с низкой задержкой</string>
     <string name="drawer_low_latency_controller_hint">Контроллер опрашивается на 1000 Гц вместо 250 Гц. Немного больше нагрузки на CPU.</string>
     <string name="drawer_low_latency_touch">Сенсор с низкой задержкой</string>
@@ -1373,12 +1367,8 @@
     <string name="ctrl_opacity">Непрозрачность</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Размер кнопок</string>
-    <string name="ctrl_adaptive">Адаптивные стики</string>
     <string name="ctrl_rumble">Вибрация в играх</string>
     <string name="ctrl_dead_zone">Мёртвая зона стика</string>
-    <string name="ctrl_steam_button">Кнопка Steam</string>
-    <string name="ctrl_qam_button">Кнопка QAM</string>
-    <string name="ctrl_keyboard_button">Кнопка клавиатуры</string>
     <string name="ctrl_joycon_vr">Joy-Con как VR-контроллеры</string>
     <string name="ctrl_joycon_vr_hint">Пока работает SteamVR, каждый Joy-Con становится рукой. Направьте его вперёд и удерживайте Home или Capture, чтобы снова его отцентрировать.</string>
     <string name="setup_animations">Анимации</string>
@@ -1509,8 +1499,6 @@
     <string name="deck_surface_trackpad">Тачпад</string>
     <string name="deck_close">Закрыть управление вторым экраном</string>
     <string name="deck_open_steam_menu">Открыть меню Steam</string>
-    <string name="deck_right_trackpad">Правый тачпад</string>
-    <string name="deck_left_trackpad">Левый тачпад</string>
     <string name="second_trackpad">Тачпад</string>
     <string name="second_show_keyboard">Показать клавиатуру</string>
     <string name="second_hide_keyboard">Скрыть клавиатуру</string>
@@ -1549,11 +1537,8 @@
     <string name="pckb_android">Клавиатура Android</string>
     <string name="pckb_hide">Скрыть ✕</string>
     <string name="pckb_size">Размер на экране</string>
-    <string name="pckb_size_hint">Какую часть экрана занимает клавиатура вместе с заголовком.</string>
     <string name="pckb_opacity">Непрозрачность</string>
-    <string name="pckb_opacity_hint">Уменьшите, чтобы видеть игру за клавиатурой.</string>
     <string name="pckb_hidden_keys">Скрытые клавиши</string>
-    <string name="pckb_hidden_keys_hint">Клавиши, которыми вы редко пользуетесь, не показываются на клавиатуре.</string>
     <string name="pckb_group_function">Esc и ряд F-клавиш</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Стрелки</string>
@@ -1782,8 +1767,6 @@
     <string name="drivers_installed_pick">Установлен %1$s — выберите его в меню</string>
     <string name="session_wait_removal">Дождитесь завершения удаления среды выполнения</string>
     <string name="session_title_game">Игра</string>
-    <string name="session_touch_auto_touchpad">тачпад</string>
-    <string name="session_touch_auto_direct">прямой</string>
     <string name="session_swap_failed">Ошибка замены: %1$s</string>
     <string name="session_profile_save_failed">Ошибка сохранения профиля: %1$s</string>
     <string name="session_desktop_paused">Рабочий стол приостановлен</string>
@@ -2057,15 +2040,6 @@
     <string name="fm_up_one_level">На уровень вверх</string>
     <string name="fm_choose_folder">Выберите папку</string>
     <string name="fm_choose_file">Выберите файл</string>
-    <string name="ctrl_tint_steam_blue">Синий Steam</string>
-    <string name="ctrl_tint_sky">Небесный</string>
-    <string name="ctrl_tint_white">Белый</string>
-    <string name="ctrl_tint_violet">Фиолетовый</string>
-    <string name="ctrl_tint_green">Зеленый</string>
-    <string name="ctrl_tint_amber">Янтарный</string>
-    <string name="ctrl_tint_red">Красный</string>
-    <string name="ctrl_tint_pink">Розовый</string>
-    <string name="ctrl_tint_gray">Серый</string>
     <string name="ctrl_button_a">Кнопка A</string>
     <string name="ctrl_button_b">Кнопка B</string>
     <string name="ctrl_button_x">Кнопка X</string>
@@ -3207,7 +3181,6 @@
     <string name="stores_hltb_minutes">%1$d мин</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
-    <string name="cardboard_mode_hint">Изображения для левого и правого глаза для VR-очков под телефон.</string>
     <string name="cardboard_source">Изображение</string>
     <string name="cardboard_source_screen">Виртуальный экран</string>
     <string name="cardboard_source_sbs">Стереопара 3D</string>
@@ -3230,7 +3203,6 @@
     <string name="cardboard_steamvr_unavailable">Недоступно в этой сессии.</string>
     <string name="cardboard_steamvr_failed">SteamVR не отвечает; проверьте журнал сессии.</string>
     <string name="drawer_component_downloads">Скачать компоненты</string>
-    <string name="drawer_component_downloads_hint">Загрузки общие со страницей «Компоненты». Выберите выше скачанную версию, чтобы использовать её при следующем запуске игры.</string>
     <string name="drawer_component_choose_download">Выберите версию для скачивания</string>
     <string name="stores_storage_insufficient">Недостаточно свободного места: нужно %1$s, свободно только %2$s</string>
     <string name="stores_storage_low">Недостаточно места (свободно %1$s, нужно %2$s)</string>

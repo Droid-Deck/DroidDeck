@@ -46,8 +46,9 @@ internal class InputLayoutPreviewView(context: Context) : View(context) {
     private var sourceHeight = 563
     fun update(layout: SavedInputLayout, role: InputRole) {
         sourceHeight = if (role == InputRole.PRIMARY) 563 else 870
-        renderer.updateCustomLayout(layout.elements)
-        renderer.updateStyle(layout.style.copy(opacity = 100))
+        renderer.measure(MeasureSpec.makeMeasureSpec(1000, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(sourceHeight, MeasureSpec.EXACTLY))
+        renderer.layout(0, 0, 1000, sourceHeight)
+        renderer.showLayout(layout.copy(style = layout.style.copy(opacity = 100)))
         renderer.measure(MeasureSpec.makeMeasureSpec(1000, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(sourceHeight, MeasureSpec.EXACTLY))
         renderer.layout(0, 0, 1000, sourceHeight)
         contentDescription = layout.name
@@ -62,30 +63,6 @@ internal class InputLayoutPreviewView(context: Context) : View(context) {
         canvas.scale(scale, scale)
         renderer.draw(canvas)
         canvas.restore()
-    }
-}
-
-@Composable
-internal fun InputColorRow(host: MenuHost, value: Int?, onPick: (Int?) -> Unit) {
-    val open = host.open == "layout-color"
-    val tints = listOf<Pair<Int?, Int>>(null to R.string.ctrl_tint_gray) + ControllerPrefs.tints
-    SettingsRow(stringResource(R.string.ctrl_color), null, highlighted = open) {
-        Box {
-            ValueChip(tints.firstOrNull { it.first == value }?.second?.let { stringResource(it) }
-                ?: stringResource(R.string.ctrl_custom), open, modifier = Modifier.testTag("setting-layout-color")) {
-                host.open = if (open) null else "layout-color"
-            }
-            AnchoredMenu(open, onDismiss = { if (host.open == "layout-color") host.open = null }, title = stringResource(R.string.ctrl_color)) { firstItemFocus ->
-                tints.forEachIndexed { index, (color, name) ->
-                    MenuItem(stringResource(name), checked = value == color, leading = {
-                        Box(Modifier.size(14.dp).background(Color(color ?: GRAY_SWATCH), CircleShape).border(1.dp, Color.White.copy(alpha = .35f), CircleShape))
-                    }, focusRequester = if (index == 0) firstItemFocus else null) {
-                        onPick(color)
-                        host.open = null
-                    }
-                }
-            }
-        }
     }
 }
 

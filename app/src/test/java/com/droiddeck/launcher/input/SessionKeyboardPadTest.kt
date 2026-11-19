@@ -80,7 +80,8 @@ class SessionKeyboardPadTest {
         ReflectionHelpers.setField(activity, "steamTouchOptions",
             SteamTouchConfig.Options(inputMode = SteamTouchConfig.INPUT_CONTROLLER))
         SessionPrefs.setTouchMode(activity, SessionPrefs.TOUCH_DIRECT)
-        SessionPrefs.setOscMode(activity, SessionPrefs.OSC_STEAM_TOUCH)
+        SessionPrefs.setOscMode(activity, SessionPrefs.OSC_ALWAYS)
+        SessionPrefs.setSteamTouchLayout(activity, true)
         update()
         assertEquals(View.VISIBLE, steam.visibility)
         assertEquals(SessionPrefs.TOUCH_OFF, routedTouchMode())

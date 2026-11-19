@@ -32,6 +32,8 @@ import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
 import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.KitLayout
+import com.droiddeck.launcher.input.OnScreenLayout
+import com.droiddeck.launcher.input.SavedInputLayout
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadKit
 import com.droiddeck.launcher.input.pcKeyLabel
@@ -146,6 +148,21 @@ class InputSurfaceView(
     private fun styleElement(view: View) {
         view.alpha = surfaceStyle.opacity / 100f * ((view.tag as? InputSurfaceElement)?.opacity ?: 1f)
         view.invalidate()
+    }
+
+    private var generated: SavedInputLayout? = null
+
+    /** Shows [layout]; a layout that has no elements of its own gets the virtual controller's defaults at this view's size. */
+    fun showLayout(layout: SavedInputLayout?) {
+        generated = layout?.takeIf(OnScreenLayout::generated)
+        updateStyle(layout?.style ?: InputSurfaceStyle())
+        updateCustomLayout(generated?.let { OnScreenLayout.elements(context, it, width, height, android.graphics.Rect(), null) } ?: layout?.elements.orEmpty())
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        val layout = generated ?: return
+        post { if (generated === layout) updateCustomLayout(OnScreenLayout.elements(context, layout, width, height, android.graphics.Rect(), null)) }
     }
 
     fun updateCustomLayout(requested: List<InputSurfaceElement>) {

@@ -75,14 +75,9 @@
     <string name="input_independent_copy">สำเนาอิสระ</string>
     <string name="input_floating_stick">เริ่มก้านที่ตำแหน่งแตะ</string>
     <string name="input_hide_idle">ซ่อนก้านเมื่อไม่ใช้งาน</string>
-    <string name="input_tools">เครื่องมือ</string>
-    <string name="input_quick_auto">อัตโนมัติ (%1$s)</string>
-    <string name="input_quick_mixed">กำหนดเอง (%1$s)</string>
     <string name="input_save_combination">บันทึกเป็นโปรไฟล์ใหม่</string>
     <string name="input_profile_controls_mode">การควบคุมโปรไฟล์</string>
-    <string name="input_profile">โปรไฟล์</string>
     <string name="input_mouse_gestures">ท่าทางทัชแพดเมาส์</string>
-    <string name="input_mouse_gestures_hint">เมื่อกำหนดให้ตัวชี้เมาส์: แตะเพื่อคลิก กดค้างเพื่อลาก และเลื่อนด้วยสองนิ้ว</string>
     <string name="input_quick_override_hint">%1$s มีการแทนที่เมนูด่วน เลือกอัตโนมัติที่นั่นเพื่อใช้โปรไฟล์เริ่มต้นและทั้งสามส่วนที่บันทึกไว้</string>
     <string name="input_route_local">อินพุต DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">ถูกกดค้างขณะก้านถูกเลื่อนไปทุกทิศทาง: กดเมื่อเกิน 55% ปล่อยเมื่อต่ำกว่า 35% ใช้ปุ่มทิศทางเพื่อกำหนดแต่ละทิศแยกกัน คำสั่ง DroidDeck ทำงานครั้งเดียวต่อการเอียง คลิกก้านตั้งค่าแยก</string>
@@ -103,19 +98,12 @@
     <string name="input_shortcut_back_modes">ย้อนกลับ · สองครั้งใน Steam หนึ่งครั้งบนเดสก์ท็อป</string>
     <string name="input_shortcut_hold_hint">ในโหมด Steam การกดย้อนกลับค้างจะเปิดการเข้าถึงด่วนด้วย</string>
     <string name="input_restore_shortcut">คืนค่าเริ่มต้น</string>
-    <string name="input_second_mode_hint">ตัวเลือกแผงของคุณจะถูกจำไว้ เดสก์ท็อปจะเปิดพื้นที่ทำงานที่สอง ไม่ได้สลับเซสชันหรือโปรไฟล์อินพุต</string>
     <string name="input_virtual_controller">คอนโทรลเลอร์เสมือน</string>
-    <string name="input_virtual_controller_hint">ชนิดคอนโทรลเลอร์ที่ Steam หรือเกมมองเห็น</string>
     <string name="input_touchscreen">หน้าจอสัมผัส</string>
-    <string name="input_touchscreen_hint">วิธีจัดการการสัมผัสบนหน้าจอเกม ปุ่มโปรไฟล์ยังคงการทำงานที่กำหนดไว้</string>
     <string name="input_touch_cursor">เคอร์เซอร์สัมผัส</string>
-    <string name="input_touch_cursor_hint">แสดงตัวชี้สำหรับการสัมผัสโดยตรงบนหน้าจอเกม</string>
     <string name="input_touch_hold">แตะแล้วกดค้าง</string>
-    <string name="input_touch_hold_hint">การทำงานของเมาส์เมื่อกดนิ้วค้างบนหน้าจอเกม</string>
     <string name="input_back_taps">การแตะปุ่มย้อนกลับ</string>
-    <string name="input_back_taps_hint">การทำงานแรก: แตะครั้งเดียว การทำงานที่สอง: แตะสองครั้ง</string>
     <string name="input_toggle_button">ปุ่มสลับ</string>
-    <string name="input_toggle_button_hint">แตะเพื่อกดค้าง แตะอีกครั้งเพื่อปล่อย การเปิดเมนูหรือสลับโปรไฟล์จะปล่อยปุ่ม</string>
     <string name="input_button_shape">รูปร่าง</string>
     <string name="input_shape_rounded">มุมมน</string>
     <string name="input_shape_pill">แคปซูล</string>

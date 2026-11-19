@@ -278,18 +278,17 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                         else InputHint(layout.name)
                         InputNavigationRow(stringResource(R.string.input_saved_layouts), stringResource(R.string.input_saved_layouts_hint)) { go(InputPage.LAYOUTS) }
                         if (layout.editable) {
-                            InputColorRow(host, layout.style.tint) { color -> update { it.withLayout(layout.copy(style = layout.style.copy(tint = color))) } }
                             SliderRow(stringResource(R.string.ctrl_opacity), null, layout.style.opacity, 1..100, step = 1,
                                 format = { "$it%" }) { opacity -> update { it.withLayout(layout.copy(style = layout.style.copy(opacity = opacity))) } }
-                            for (button in layout.quickButtons) ToggleRow(host, "quick-${button.name.lowercase()}", stringResource(quickButtonLabel(button)), null,
-                                button !in layout.style.hidden) { on -> update { it.withLayout(layout.withQuickButton(button, on)) } }
                         }
                         if (role == InputRole.SECONDARY) InputHint(stringResource(R.string.input_second_screen_enable))
                     }
                     SettingsGroup(stringResource(R.string.input_assign_actions)) {
                         val users = library.usersOfBindings(preset.id)
                         if (users.size > 1) InputHint(stringResource(R.string.input_shared_with, users.filterNot { it.id == profileId }.joinToString { it.name }))
-                        val elements = layout?.takeIf { it.editable }?.elements
+                        val elements = layout?.takeIf { it.editable }?.let { l ->
+                            if (OnScreenLayout.generated(l)) InputLibraries.defaultPositions(context, library, l)?.first.orEmpty() + l.elements else l.elements
+                        }
                         if (elements != null) {
                             if (elements.isEmpty()) InputHint(stringResource(R.string.input_empty_elements))
                             for (e in elements) {
@@ -459,12 +458,6 @@ private fun InputNavigationRow(title: String, detail: String?, modifier: Modifie
         }
         Text("›", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-}
-
-internal fun quickButtonLabel(button: InputCommand) = when (button) {
-    InputCommand.STEAM -> R.string.ctrl_steam_button
-    InputCommand.QUICK_ACCESS -> R.string.ctrl_qam_button
-    else -> R.string.ctrl_keyboard_button
 }
 
 @Suppress("DEPRECATION")

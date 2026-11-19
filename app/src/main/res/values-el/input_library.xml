@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Ανεξάρτητο αντίγραφο</string>
     <string name="input_floating_stick">Έναρξη μοχλού στο σημείο αφής</string>
     <string name="input_hide_idle">Απόκρυψη μοχλού όταν δεν χρησιμοποιείται</string>
-    <string name="input_tools">Εργαλεία</string>
-    <string name="input_quick_auto">Αυτόματο (%1$s)</string>
-    <string name="input_quick_mixed">Προσαρμοσμένο (%1$s)</string>
     <string name="input_save_combination">Αποθήκευση ως νέο προφίλ</string>
     <string name="input_profile_controls_mode">Χειριστήρια προφίλ</string>
-    <string name="input_profile">Προφίλ</string>
     <string name="input_mouse_gestures">Χειρονομίες touchpad ποντικιού</string>
-    <string name="input_mouse_gestures_hint">Όταν αντιστοιχιστεί στον δείκτη του ποντικιού: πατήστε για κλικ, κρατήστε για μεταφορά και κυλήστε με δύο δάχτυλα.</string>
     <string name="input_quick_override_hint">Το %1$s έχει παράκαμψη γρήγορου μενού. Επιλέξτε Αυτόματο εκεί για να χρησιμοποιήσετε το προεπιλεγμένο προφίλ και τα τρία αποθηκευμένα μέρη.</string>
     <string name="input_route_local">Είσοδος DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Κρατείται όσο ο μοχλός κινείται προς οποιαδήποτε κατεύθυνση: πάτημα πάνω από 55%, απελευθέρωση κάτω από 35%. Χρησιμοποιήστε Πλήκτρα κατεύθυνσης για κάθε κατεύθυνση ξεχωριστά. Οι εντολές DroidDeck εκτελούνται μία φορά ανά εκτροπή. Το κλικ του μοχλού ρυθμίζεται ξεχωριστά.</string>
@@ -103,19 +98,12 @@
     <string name="input_shortcut_back_modes">Πίσω · δύο φορές στο Steam, μία στην επιφάνεια εργασίας</string>
     <string name="input_shortcut_hold_hint">Σε λειτουργία Steam. Το κράτημα του Πίσω ανοίγει και τη γρήγορη πρόσβαση.</string>
     <string name="input_restore_shortcut">Επαναφορά στις προεπιλογές</string>
-    <string name="input_second_mode_hint">Η επιλογή πίνακα απομνημονεύεται. Η επιφάνεια εργασίας ανοίγει δεύτερο χώρο εργασίας· δεν αλλάζει τη συνεδρία ούτε το προφίλ εισόδου της.</string>
     <string name="input_virtual_controller">Εικονικό χειριστήριο</string>
-    <string name="input_virtual_controller_hint">Ο τύπος χειριστηρίου που βλέπουν το Steam ή το παιχνίδι.</string>
     <string name="input_touchscreen">Οθόνη αφής</string>
-    <string name="input_touchscreen_hint">Πώς χειρίζονται τα αγγίγματα στην οθόνη του παιχνιδιού. Τα κουμπιά του προφίλ διατηρούν τις αντιστοιχισμένες ενέργειες.</string>
     <string name="input_touch_cursor">Δείκτης αφής</string>
-    <string name="input_touch_cursor_hint">Εμφανίζει δείκτη για άμεσα αγγίγματα στην οθόνη του παιχνιδιού.</string>
     <string name="input_touch_hold">Άγγιγμα και κράτημα</string>
-    <string name="input_touch_hold_hint">Ενέργεια ποντικιού όταν κρατάτε το δάχτυλό σας στην οθόνη του παιχνιδιού.</string>
     <string name="input_back_taps">Πατήματα του κουμπιού Πίσω</string>
-    <string name="input_back_taps_hint">Πρώτη ενέργεια: ένα πάτημα. Δεύτερη ενέργεια: διπλό πάτημα.</string>
     <string name="input_toggle_button">Κουμπί εναλλαγής</string>
-    <string name="input_toggle_button_hint">Πατήστε για κράτημα, πατήστε ξανά για απελευθέρωση. Το άνοιγμα μενού ή η αλλαγή προφίλ απελευθερώνει το κουμπί.</string>
     <string name="input_button_shape">Σχήμα</string>
     <string name="input_shape_rounded">Στρογγυλεμένο</string>
     <string name="input_shape_pill">Κάψουλα</string>

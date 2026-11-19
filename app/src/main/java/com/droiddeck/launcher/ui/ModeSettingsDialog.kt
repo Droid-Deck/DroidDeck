@@ -286,7 +286,9 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         extras.drivers(s.gpuDrivers)
     }
     if (tab == SheetTab.CONTROLS) {
-        InputQuickSettings(host, desktop = s.mode == SessionService.MODE_DESKTOP, onEdit = a.onInputSettings)
+        SettingsGroup(stringResource(R.string.drawer_page_controller)) {
+            ActionRow(stringResource(R.string.input_remap_buttons), null, stringResource(R.string.ctrl_edit), a.onInputSettings)
+        }
         SettingsGroup(if (steam) stringResource(R.string.mode_touch_controls) else stringResource(R.string.mode_touch)) {
             ChoiceRow(
                 host, "touch", stringResource(R.string.mode_touch), null,

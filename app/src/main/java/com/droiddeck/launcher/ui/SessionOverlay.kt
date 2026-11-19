@@ -296,7 +296,6 @@ class DrawerActions(
     val layoutGame: String? = null,
     val layoutOptions: List<Pair<String, String>> = emptyList(),
     val layoutChoice: String = "",
-    val layoutHint: String? = null,
     val onLayout: (String) -> Unit = {},
     val onEditLayout: (() -> Unit)? = null,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
@@ -660,18 +659,18 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(a.layoutGame?.let { stringResource(R.string.osc_group_for, it) } ?: stringResource(R.string.mode_osc)) {
-                                if (a.layoutOptions.isNotEmpty()) ChoiceRow(host, "osc-layout", stringResource(R.string.osc_layout), a.layoutHint,
+                                if (a.layoutOptions.isNotEmpty()) ChoiceRow(host, "osc-layout", stringResource(R.string.osc_layout), null,
                                     a.layoutOptions, a.layoutChoice, chipModifier = focus.track(page, "osc-layout"), onPick = a.onLayout)
                                 a.onEditLayout?.let { edit ->
                                     ActionRow(stringResource(R.string.osc_edit_layout), null, stringResource(R.string.ctrl_edit), { host.open = null; edit() },
                                         modifier = focus.track(page, "osc-edit"))
                                 }
-                                SettingsRow(stringResource(R.string.osc_show), stringResource(R.string.osc_show_hint), stacked = true) {
+                                SettingsRow(stringResource(R.string.osc_show), null) {
                                     SegmentedTabs(listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
                                         SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)), a.oscMode,
                                         tabModifier = { focus.track(page, "osc-$it") }, onPick = a.onOsc)
                                 }
-                                ChoiceRow(host, "touch", stringResource(R.string.input_touches), stringResource(R.string.input_touches_hint),
+                                ChoiceRow(host, "touch", stringResource(R.string.input_touches), null,
                                     listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_mouse),
                                         SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_GESTURES to stringResource(R.string.mode_touch_gestures),
                                         SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)),
@@ -680,13 +679,13 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     RelativeMouseRow(host, a, focus.track(page, "relative-mouse"))
                                 if (a.touchActive == SessionPrefs.TOUCH_DIRECT)
                                     ToggleRow(host, "direct-cursor", stringResource(R.string.input_touch_cursor),
-                                        stringResource(R.string.input_touch_cursor_hint), a.directCursor,
+                                        null, a.directCursor,
                                         chipModifier = focus.track(page, "direct-cursor"), onChange = a.onDirectCursor)
                                 when (a.touchActive) {
                                     SessionPrefs.TOUCH_GESTURES -> ActionRow(stringResource(R.string.gesture_settings), null,
                                         stringResource(R.string.ctrl_edit), a.onGestureSettings,
                                         modifier = focus.track(page, "gesture-settings"))
-                                    SessionPrefs.TOUCH_DIRECT -> ChoiceRow(host, "long-press", stringResource(R.string.input_touch_hold), stringResource(R.string.input_touch_hold_hint),
+                                    SessionPrefs.TOUCH_DIRECT -> ChoiceRow(host, "long-press", stringResource(R.string.input_touch_hold), null,
                                         listOf(MOUSE_BEHAVIOR_NONE to stringResource(R.string.gesture_hold_left),
                                             MOUSE_BEHAVIOR_CLICK to stringResource(R.string.gesture_right_click),
                                             MOUSE_BEHAVIOR_HOLD to stringResource(R.string.gesture_hold_right)),
@@ -694,17 +693,17 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         onPick = a.onDirectHoldBehavior)
                                 }
                                 if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
-                                    stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
+                                    null, a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
                                 if (a.steam && a.unfoldedControls == true) ToggleRow(host, "unfolded-controls-with-controller",
                                     stringResource(R.string.unfolded_controls_with_controller),
-                                    stringResource(R.string.unfolded_controls_with_controller_hint), a.unfoldedControlsWithController,
+                                    null, a.unfoldedControlsWithController,
                                     chipModifier = focus.track(page, "unfolded-controls-with-controller"),
                                     onChange = a.onUnfoldedControlsWithController)
                             }
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
                                 a.padType?.let { type ->
-                                    ChoiceRow(host, "pad-type", stringResource(R.string.input_virtual_controller), stringResource(R.string.input_virtual_controller_hint),
+                                    ChoiceRow(host, "pad-type", stringResource(R.string.input_virtual_controller), null,
                                         listOf(SessionPrefs.CONTROLLER_DECK to stringResource(R.string.mode_controller_deck),
                                             SessionPrefs.CONTROLLER_STEAM to stringResource(R.string.mode_controller_steam),
                                             SessionPrefs.CONTROLLER_DS4 to stringResource(R.string.mode_controller_ds4),
@@ -716,7 +715,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     ToggleRow(host, "rumble", stringResource(R.string.ctrl_rumble), null, c.rumble,
                                         chipModifier = focus.track(page, "rumble"), onChange = a.onRumble)
                                 }
-                                ActionRow(stringResource(R.string.input_remap_buttons), stringResource(R.string.input_physical_hint), stringResource(R.string.ctrl_edit),
+                                ActionRow(stringResource(R.string.input_remap_buttons), null, stringResource(R.string.ctrl_edit),
                                     a.onInputSettings, modifier = focus.track(page, "remap"))
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
@@ -745,9 +744,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     { moreControls = !moreControls }, modifier = focus.track(page, "more-controls"))
                                 if (moreControls) {
                                     if (a.steam) ToggleRow(host, "back-hold", stringResource(R.string.back_hold),
-                                        stringResource(R.string.back_hold_hint), a.backHold,
+                                        null, a.backHold,
                                         chipModifier = focus.track(page, "back-hold"), onChange = a.onBackHold)
-                                    if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.input_back_taps), stringResource(R.string.input_back_taps_hint),
+                                    if (a.steam) ChoiceRow(host, "back-actions", stringResource(R.string.input_back_taps), null,
                                         listOf(false to stringResource(SessionPrefs.BACK_MENU_THEN_QAM), true to stringResource(SessionPrefs.BACK_QAM_THEN_MENU)),
                                         a.backActionsInverted, chipModifier = focus.track(page, "back-actions"), onPick = a.onBackActionsInverted)
                                     if (a.steam) ChoiceRow(host, "back-double-tap", stringResource(R.string.back_double_tap_window), null,
@@ -758,7 +757,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         stringResource(R.string.drawer_corner_tap_hint), a.cornerTap,
                                         chipModifier = focus.track(page, "corner-tap"), onChange = a.onCornerTap)
                                     ToggleRow(host, "low-latency", stringResource(R.string.drawer_low_latency),
-                                        stringResource(R.string.drawer_low_latency_hint), a.lowLatency,
+                                        null, a.lowLatency,
                                         chipModifier = focus.track(page, "low-latency"), onChange = a.onLowLatency)
                                     ToggleRow(host, "evdev-mouse", stringResource(R.string.drawer_evdev_mouse),
                                         null, a.evdevMouse,
@@ -768,18 +767,18 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     val keyboardContext = LocalContext.current
                                     remember { PcKeyboardPrefs.load(keyboardContext) }
                                     SliderRow(
-                                        stringResource(R.string.pckb_size), stringResource(R.string.pckb_size_hint),
+                                        stringResource(R.string.pckb_size), null,
                                         PcKeyboardPrefs.size, SessionPrefs.PC_KEYBOARD_SIZE_RANGE, step = 1,
                                         format = { "$it%" }, modifier = focus.track(page, "pckb-size"),
                                         onChange = { PcKeyboardPrefs.setSize(keyboardContext, it) })
                                     SliderRow(
-                                        stringResource(R.string.pckb_opacity), stringResource(R.string.pckb_opacity_hint),
+                                        stringResource(R.string.pckb_opacity), null,
                                         PcKeyboardPrefs.opacity, SessionPrefs.PC_KEYBOARD_OPACITY_RANGE, step = 5,
                                         format = { "$it%" }, modifier = focus.track(page, "pckb-opacity"),
                                         onChange = { PcKeyboardPrefs.setOpacity(keyboardContext, it) })
                                     MultiRow(
                                         host, "pckb-hidden", stringResource(R.string.pckb_hidden_keys),
-                                        stringResource(R.string.pckb_hidden_keys_hint),
+                                        null,
                                         listOf(
                                             0 to stringResource(R.string.pckb_group_function),
                                             1 to stringResource(R.string.pckb_group_nav),
@@ -830,7 +829,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.AGENT -> Unit
                         SessionDrawerPage.SESSION -> {
                             SettingsGroup(stringResource(R.string.drawer_support)) {
-                                SettingsRow(stringResource(R.string.report_problem), stringResource(R.string.report_problem_hint)) {
+                                SettingsRow(stringResource(R.string.report_problem), null) {
                                     DrawerOutlineButton(stringResource(R.string.drawer_share_logs), modifier = focus.track(page, "share-logs"),
                                         progress = com.droiddeck.launcher.session.SessionLogShare.progress) {
                                         host.open = null
@@ -868,7 +867,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             }
                             SettingsGroup(stringResource(R.string.drawer_session_behavior)) {
                                 if (a.micAvailable) ToggleRow(host, "microphone", stringResource(R.string.mode_mic),
-                                    stringResource(R.string.drawer_mic_hint), a.micEnabled,
+                                    null, a.micEnabled,
                                     chipModifier = focus.track(page, "microphone"), onChange = a.onMicEnabled)
                                 ChoiceRow(
                                     host, "suspend", stringResource(R.string.mode_suspend),
@@ -887,7 +886,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 )
                                 if (a.steam && a.suspendPolicy != SessionPrefs.SUSPEND_NEVER) ToggleRow(
                                     host, "background-downloads", stringResource(R.string.mode_background_downloads),
-                                    stringResource(R.string.mode_background_downloads_hint),
+                                    null,
                                     a.steamDownloadsInBackground,
                                     onChange = a.onSteamDownloadsInBackground,
                                 )
@@ -1104,20 +1103,20 @@ private fun ScreenEffectsGroup(
     SettingsGroup(stringResource(R.string.drawer_effects)) {
         ChoiceRow(
             host, "effects-profile", stringResource(R.string.screen_effects_target),
-            stringResource(R.string.screen_effects_target_hint), a.screenEffectsTargets,
+            null, a.screenEffectsTargets,
             a.screenEffectsTarget, chipModifier = track("effects-profile"),
             onPick = a.onScreenEffectsTarget,
         )
         ActionRow(
             stringResource(R.string.screen_effects_reset),
-            stringResource(R.string.screen_effects_reset_hint),
+            null,
             stringResource(R.string.hud_reset_button),
             a.onScreenEffectsReset,
             modifier = track("effects-reset"),
         )
         if (a.screenEffectsCanDelete) ActionRow(
             stringResource(R.string.screen_effects_delete),
-            stringResource(R.string.screen_effects_delete_hint),
+            null,
             stringResource(R.string.common_delete),
             a.onScreenEffectsDelete,
             modifier = track("effects-delete"),
@@ -1200,7 +1199,7 @@ private fun ScreenEffectsGroup(
 private fun CardboardGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val c = a.cardboard
     SettingsGroup(stringResource(R.string.cardboard_title)) {
-        ToggleRow(host, "cardboard", stringResource(R.string.cardboard_mode), stringResource(R.string.cardboard_mode_hint),
+        ToggleRow(host, "cardboard", stringResource(R.string.cardboard_mode), null,
             c.enabled, chipModifier = track("cardboard")) { a.onCardboard(c.copy(enabled = it)) }
         if (!c.enabled) return@SettingsGroup
         ChoiceRow(host, "cardboard-source", stringResource(R.string.cardboard_source), null,
@@ -1282,8 +1281,6 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
     val pal = LocalPalette.current
     val modes = secondScreenModes(a.secondScreenNone, com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable, a.desktopAvailable)
     SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
-        Text(stringResource(R.string.input_second_mode_hint), Modifier.padding(14.dp),
-            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         Column(Modifier.fillMaxWidth().selectableGroup()) {
             modes.forEach { mode ->
                 val selected = a.secondScreenMode == mode
@@ -1700,8 +1697,6 @@ internal fun ComponentDownloadsDrawerGroup(
     val installed = packages.map { it.file }.toSet()
     val nightlyPicked = remember { mutableStateMapOf<String, Boolean>() }
     SettingsGroup(stringResource(R.string.drawer_component_downloads)) {
-        Text(stringResource(R.string.drawer_component_downloads_hint), fontSize = 12.sp,
-            color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp))
         SettingsRow(stringResource(R.string.comp_nightlies_checked,
             if (catalogAt > 0) java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
                 .format(java.util.Date(catalogAt * 1000)) else stringResource(R.string.comp_never)), null, stacked = true) {

@@ -19,16 +19,21 @@ object OnScreenLayout {
         }
     }
 
-    /** The built-in gamepad keeps no positions until it is edited; until then it follows the virtual controller's kit. */
-    fun generated(layout: SavedInputLayout) = layout.elements.isEmpty() && (layout.id == InputLibraries.OVERLAY || layout.origin == InputLibraries.OVERLAY)
+    /**
+     * The built-in gamepad keeps no kit positions until its kit is edited; until then the kit follows the virtual controller and
+     * the layout stores only the keys and controls the player added on top.
+     */
+    fun generated(layout: SavedInputLayout) = (layout.id == InputLibraries.OVERLAY || layout.origin == InputLibraries.OVERLAY) &&
+        layout.elements.none { KitLayout.isKit(it.id) }
 
     fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect, dock: Dock? = null): List<InputSurfaceElement> {
         layout ?: return emptyList()
         if (width <= 0 || height <= 0) return layout.elements
         if (generated(layout)) {
             val kit = PadKit.current(context)
-            return if (dock != null) KitLayout.dock(context, kit, width, height, dock.portrait, dock.left, dock.right)
-                else KitLayout.elements(context, kit, width, height, safe, layout.scale)
+            val extras = if (layout.elements.isEmpty()) emptyList() else fit(layout.elements, aspect(context, layout), 1f, width, height, safe)
+            return (if (dock != null) KitLayout.dock(context, kit, width, height, dock.portrait, dock.left, dock.right)
+                else KitLayout.elements(context, kit, width, height, safe, layout.scale)) + extras
         }
         return fit(layout.elements, aspect(context, layout), 1f, width, height, safe)
     }

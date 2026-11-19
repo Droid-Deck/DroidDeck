@@ -101,13 +101,26 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         scaleValue = percent; scaleBase = base.first to elements
     }
     fun resetPositions() { positioned?.let { checkpoint(); elements = it } }
+    private val restored get() = defaults?.let { refit(it, defaultsFrame) }
+    private fun matches(defaults: List<InputSurfaceElement>, placed: List<InputSurfaceElement>) = defaults.size == placed.size && defaults.all { a ->
+        placed.any { e -> e.copy(x = a.x, y = a.y, width = a.width, height = a.height) == a &&
+            abs(e.x - a.x) < .002f && abs(e.y - a.y) < .002f && abs(e.width - a.width) < .002f && abs(e.height - a.height) < .002f }
+    }
+    val atDefaults get() = restored?.let { matches(it, elements) } == true
+    /** The kit's own controls are where the kit puts them, so only the added ones need saving. */
+    val kitAtDefaults get() = restored?.let { matches(it, elements.filter { e -> KitLayout.isKit(e.id) }) } == true
+    fun reset() {
+        val d = restored?.takeIf { !atDefaults } ?: return
+        checkpoint(); elements = d; selected = null
+        actions = actions.filterKeys { id -> d.any { it.id == id } }; clicks = clicks.filterKeys { id -> d.any { it.id == id } }
+    }
     fun hiddenDefaults(): List<InputSurfaceElement> = defaults?.let { refit(it, defaultsFrame) }?.filter { d -> elements.none { it.id == d.id } }.orEmpty()
     fun add(element: InputSurfaceElement) { checkpoint(); elements = elements + element; selected = element.id; popover = null }
     fun remove(id: String) { checkpoint(); elements = elements.filterNot { it.id == id }; actions = actions - id; clicks = clicks - id; selected = null }
     fun resizeSelected(factor: Float) {
         val e = element ?: return
         checkpoint()
-        val w = (e.width * factor).coerceIn(.03f, 1f); val h = (e.height * factor).coerceIn(.03f, 1f)
+        val w = (e.width * factor).coerceIn(InputSurfaceElement.MIN_SIZE, 1f); val h = (e.height * factor).coerceIn(InputSurfaceElement.MIN_SIZE, 1f)
         val cx = e.x + e.width / 2; val cy = e.y + e.height / 2
         elements = elements.map { if (it.id == e.id) e.copy(x = (cx - w / 2).coerceIn(0f, 1f - w), y = (cy - h / 2).coerceIn(0f, 1f - h), width = w, height = h).bounded() else it }
     }
@@ -127,7 +140,9 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
     val bindingUsers = library.usersOfBindings(savedBindings.id).size
     val draft = remember {
         val defaults = InputLibraries.defaultPositions(context, library, savedLayout)
-        val start = if (OnScreenLayout.generated(savedLayout) && defaults != null) savedLayout.copy(elements = defaults.first, aspect = defaults.second) else savedLayout
+        val start = if (OnScreenLayout.generated(savedLayout) && defaults != null) savedLayout.copy(elements = defaults.first +
+            OnScreenLayout.fit(savedLayout.elements, savedLayout.aspect.takeIf { it > 0f } ?: defaults.second, 1f, (defaults.second * 1000).roundToInt(), 1000, Rect()),
+            aspect = defaults.second) else savedLayout
         SurfaceDraft(start, savedBindings, defaults?.first, defaults?.second ?: 0f, ControllerPrefs.snap(context))
     }
     val manager = remember { context.getSystemService(DisplayManager::class.java) }
@@ -148,7 +163,10 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             InputLibraries.update(context) { latest ->
                 val l = latest.layouts.first { it.id == savedLayout.id }
                 val p = latest.preset(savedBindings.id)
-                latest.withLayout(l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
+                val generated = draft.kitAtDefaults && OnScreenLayout.generated(l.copy(elements = emptyList()))
+                val extras = draft.elements.filterNot { KitLayout.isKit(it.id) }
+                latest.withLayout(if (generated) l.copy(elements = extras, aspect = if (extras.isEmpty()) 0f else draft.aspect, scale = draft.layoutScale)
+                    else l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
                     clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
             }
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
@@ -192,7 +210,27 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             val element = draft.element
             BackHandler { if (draft.properties) draft.properties = false else leave() }
             val editorScope = scope ?: if (layoutUsers > 1) stringResource(R.string.input_editor_shared, layoutUsers) else savedLayout.name
+            val propertiesEditor: @Composable (InputSurfaceElement) -> Unit = { element ->
+                var properties by remember(element.id) { mutableStateOf(element) }
+                InputActionEditor(if (draft.clickProperties) InputControl.A else element.control,
+                    if (draft.clickProperties) draft.clickAction(element) else draft.action(element),
+                    if (draft.clickProperties) stringResource(R.string.input_click_name, element.name) else element.name,
+                    onBack = { draft.properties = false }, element = element, click = draft.clickProperties,
+                    properties = { action ->
+                        if (!draft.clickProperties) InputElementProperties(properties, action) { properties = it }
+                        if (layoutUsers > 1) Text(stringResource(R.string.input_editor_shared, layoutUsers),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 12.dp))
+                    }, detail = if (bindingUsers > 1) stringResource(R.string.input_shared_detail, savedBindings.name, bindingUsers)
+                        else "${library.profile(profile).name} · ${roleLabel(role)}", onSave = { action ->
+                        draft.checkpoint()
+                        if (draft.clickProperties) draft.clicks = draft.clicks + (element.id to action) else draft.actions = draft.actions + (element.id to action)
+                        draft.elements = draft.elements.map { if (it.id == element.id) properties.copy(name = properties.name.trim().ifBlank { element.name }) else it }
+                        draft.properties = false
+                    })
+            }
             when {
+                (remote || target == null) && draft.properties && element != null -> propertiesEditor(element)
                 target == null -> SettingsPage(rememberMenuHost(), savedLayout.name, ::leave) {
                     Text(stringResource(R.string.input_display_unavailable))
                     PrimaryButton(stringResource(R.string.input_editor_done)) { save() }
@@ -208,24 +246,8 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                     EditorChrome(draft, editorScope, failure, ::save, ::leave, onDismiss)
                     if (draft.properties && element != null) Surface(Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(.44f),
                         color = MaterialTheme.colorScheme.surface, shadowElevation = 12.dp) {
-                    var properties by remember(element.id) { mutableStateOf(element) }
-                    InputActionEditor(if (draft.clickProperties) InputControl.A else element.control,
-                        if (draft.clickProperties) draft.clickAction(element) else draft.action(element),
-                        if (draft.clickProperties) stringResource(R.string.input_click_name, element.name) else element.name,
-                        onBack = { draft.properties = false }, element = element, click = draft.clickProperties,
-                        properties = { action ->
-                            if (!draft.clickProperties) InputElementProperties(properties, action) { properties = it }
-                            if (layoutUsers > 1) Text(stringResource(R.string.input_editor_shared, layoutUsers),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 12.dp))
-                        }, detail = if (bindingUsers > 1) stringResource(R.string.input_shared_detail, savedBindings.name, bindingUsers)
-                            else "${library.profile(profile).name} · ${roleLabel(role)}", onSave = { action ->
-                            draft.checkpoint()
-                            if (draft.clickProperties) draft.clicks = draft.clicks + (element.id to action) else draft.actions = draft.actions + (element.id to action)
-                            draft.elements = draft.elements.map { if (it.id == element.id) properties.copy(name = properties.name.trim().ifBlank { element.name }) else it }
-                            draft.properties = false
-                        })
-                                    }
+                        propertiesEditor(element)
+                    }
                 }
             }
         }
@@ -278,7 +300,7 @@ private fun EditorChrome(draft: SurfaceDraft, scope: String, failure: String?, o
                     if (draft.defaults != null) SecondaryButton(stringResource(R.string.input_hidden_count, draft.hiddenDefaults().size), compact = true) {
                         draft.popover = if (draft.popover == EditorPopover.HIDDEN) null else EditorPopover.HIDDEN
                     }
-                    if (draft.defaults != null) SecondaryButton(stringResource(R.string.input_reset_positions), enabled = draft.positioned != null, compact = true) { draft.resetPositions() }
+                    if (draft.defaults != null) SecondaryButton(stringResource(R.string.hud_reset_button), enabled = !draft.atDefaults, compact = true) { draft.reset() }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(draft.snap, { draft.snap = it; ControllerPrefs.setSnap(context, it) })
                         Text(stringResource(R.string.ctrl_editor_snap))

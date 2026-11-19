@@ -62,7 +62,8 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     }
 
     private fun render() {
-        surface.updateCustomLayout(if (hidden != null) emptyList() else OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, dock))
+        val placed = OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, dock)
+        surface.updateCustomLayout(if (hidden != null) placed.filter { it.alwaysShown } else placed)
         surface.updateStyle(layout?.style ?: InputSurfaceStyle())
         corner.visibility = if (layout == null || dock != null) GONE else VISIBLE
         corner.alpha = (layout?.style?.opacity ?: 100) / 100f

@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Salinan bebas</string>
     <string name="input_floating_stick">Mulakan kayu pada kedudukan sentuhan</string>
     <string name="input_hide_idle">Sembunyikan kayu apabila tidak digunakan</string>
-    <string name="input_tools">Alat</string>
-    <string name="input_quick_auto">Auto (%1$s)</string>
-    <string name="input_quick_mixed">Tersuai (%1$s)</string>
     <string name="input_save_combination">Simpan sebagai profil baharu</string>
     <string name="input_profile_controls_mode">Kawalan profil</string>
-    <string name="input_profile">Profil</string>
     <string name="input_mouse_gestures">Gerak isyarat pad sentuh tetikus</string>
-    <string name="input_mouse_gestures_hint">Apabila ditetapkan pada penuding tetikus: ketik untuk klik, tahan untuk seret, dan tatal dengan dua jari.</string>
     <string name="input_quick_override_hint">%1$s mempunyai penggantian menu pantas. Pilih Auto di sana untuk menggunakan profil lalainya dan ketiga-tiga bahagian tersimpan.</string>
     <string name="input_route_local">Input DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Ditetapkan semasa kayu digerakkan ke mana-mana arah: tekan melebihi 55%, lepas di bawah 35%. Gunakan Kekunci arah untuk menetapkan setiap arah secara berasingan. Perintah DroidDeck berjalan sekali setiap pesongan. Klik kayu ditetapkan secara berasingan.</string>
@@ -103,19 +98,12 @@
     <string name="input_shortcut_back_modes">Kembali · dua kali dalam Steam, sekali di desktop</string>
     <string name="input_shortcut_hold_hint">Dalam mod Steam. Menahan Kembali juga membuka akses pantas.</string>
     <string name="input_restore_shortcut">Pulihkan kepada lalai</string>
-    <string name="input_second_mode_hint">Pilihan panel anda diingati. Desktop membuka ruang kerja kedua; ia tidak menukar sesi atau profil inputnya.</string>
     <string name="input_virtual_controller">Pengawal maya</string>
-    <string name="input_virtual_controller_hint">Jenis pengawal yang dilihat oleh Steam atau permainan.</string>
     <string name="input_touchscreen">Skrin sentuh</string>
-    <string name="input_touchscreen_hint">Bagaimana sentuhan pada skrin permainan dikendalikan. Butang profil kekal dengan tindakan yang ditetapkan.</string>
     <string name="input_touch_cursor">Kursor sentuh</string>
-    <string name="input_touch_cursor_hint">Tunjukkan penuding untuk sentuhan langsung pada skrin permainan.</string>
     <string name="input_touch_hold">Sentuh dan tahan</string>
-    <string name="input_touch_hold_hint">Tindakan tetikus apabila menahan jari pada skrin permainan.</string>
     <string name="input_back_taps">Ketikan butang Kembali</string>
-    <string name="input_back_taps_hint">Tindakan pertama: satu ketikan. Tindakan kedua: dua ketikan.</string>
     <string name="input_toggle_button">Butang togol</string>
-    <string name="input_toggle_button_hint">Ketik untuk menahan, ketik lagi untuk melepaskan. Membuka menu atau menukar profil melepaskan butang.</string>
     <string name="input_button_shape">Bentuk</string>
     <string name="input_shape_rounded">Bulat</string>
     <string name="input_shape_pill">Pil</string>

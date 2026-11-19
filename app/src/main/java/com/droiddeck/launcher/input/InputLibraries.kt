@@ -125,19 +125,6 @@ object InputLibraries {
         return InputLibrary(profiles, layouts, bindings, selected).validate()
     }
 
-    fun setAdaptiveSticks(context: Context, layoutId: String, on: Boolean): Boolean = runCatching {
-        update(context) { library ->
-            library.copy(layouts = library.layouts.map { layout ->
-                if (layout.id != layoutId || !layout.editable) layout
-                else layout.copy(elements = layout.elements.map { if (it.kind == InputElementKind.STICK) it.copy(floating = on, hideWhenIdle = on) else it })
-            })
-        }
-    }.onSuccess { ControllerPrefs.setAdaptiveSticks(context, on) }.isSuccess
-
-    fun setQuickButton(context: Context, layoutId: String, button: InputCommand, shown: Boolean): Boolean = runCatching {
-        update(context) { library -> library.layouts.firstOrNull { it.id == layoutId && it.editable }?.let { library.withLayout(it.withQuickButton(button, shown)) } ?: library }
-    }.isSuccess
-
     fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): Pair<List<InputSurfaceElement>, Float>? {
         val origin = layout.origin ?: layout.id
         InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements to it.aspect }
@@ -252,13 +239,12 @@ object InputLibraries {
 
     /** Gamepads saved by the old editor follow the virtual controller's kit again; their positions don't map onto the new controls. */
     private fun kitGamepads(library: InputLibrary): InputLibrary {
-        var result = library
-        for (layout in library.layouts) {
+        return library.copy(layouts = library.layouts.map { layout ->
             val origin = layout.origin ?: layout.id
-            if (origin != OVERLAY && !origin.startsWith("migrated.layout.")) continue
-            result = result.withLayout(layout.copy(elements = emptyList(), origin = if (layout.id == OVERLAY) null else OVERLAY, aspect = 0f, scale = 1f))
-        }
-        return result.validate()
+            if (origin != OVERLAY && !origin.startsWith("migrated.layout.")) return@map layout
+            val extras = layout.elements.filterNot { KitLayout.isKit(it.id) }
+            layout.copy(elements = extras, origin = if (layout.id == OVERLAY) null else OVERLAY, aspect = if (extras.isEmpty()) 0f else layout.aspect, scale = 1f)
+        }).validate()
     }
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {

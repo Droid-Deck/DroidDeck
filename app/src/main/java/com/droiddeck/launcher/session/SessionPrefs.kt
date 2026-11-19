@@ -1916,7 +1916,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
     }
 
-    fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", false)
+    fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", true)
 
     fun controlsBelowWanted(context: Context, mode: String, width: Int, height: Int, pip: Boolean = false): Boolean =
         SessionDisplay.unfoldedControlsWanted(

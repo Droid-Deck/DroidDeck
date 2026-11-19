@@ -296,14 +296,10 @@
     <string name="mode_pen_touch">Tocco</string>
     <string name="mode_pen_button">Tasto laterale</string>
     <string name="mode_osc">Controlli su schermo</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto mostra i controlli quando non è collegato nessun controller.</string>
-    <string name="osc_steam_touch">Touch di Steam (beta)</string>
-    <string name="osc_style_next_session">I controlli touch di Steam partono dalla prossima sessione Steam</string>
     <string name="osc_steam_layout">Layout touch di Steam</string>
     <string name="screen_key_layout_export">Esporta</string>
     <string name="screen_key_image">Immagine</string>
-    <string name="osc_steam_layout_hint">Sposta, ridimensiona o nascondi i controlli touch di questo gioco; vengono salvati su Steam</string>
     <string name="mode_controller">Controller</string>
     <string name="mode_controller_hint">Come Steam vede il tuo controller. Si applica dalla prossima sessione.</string>
     <string name="mode_controller_deck">Controller di Steam Deck</string>
@@ -431,7 +427,6 @@
     <string name="mode_directaudio_hint">Bypassa PulseAudio per ridurre la latenza.</string>
     <string name="mode_mic">Microfono</string>
     <string name="mode_mic_hint">Per la chat vocale.</string>
-    <string name="drawer_mic_hint">Attiva o disattiva l\'acquisizione del microfono per questa sessione.</string>
     <string name="drawer_mic_failed">Impossibile cambiare il microfono. Riprova.</string>
     <string name="mode_network">Rete</string>
     <string name="mode_wifi_discovery">Rilevamento Wi-Fi</string>
@@ -806,7 +801,6 @@
     <string name="drawer_keyboard">Tastiera</string>
     <string name="drawer_latency">Latenza</string>
     <string name="drawer_low_latency">Modalità bassa latenza</string>
-    <string name="drawer_low_latency_hint">Aumenta l\'uso di CPU e batteria</string>
     <string name="drawer_low_latency_controller">Controller a bassa latenza</string>
     <string name="drawer_low_latency_controller_hint">Il controller invia dati a 1000 Hz invece di 250 Hz. Un po\' più di CPU.</string>
     <string name="drawer_low_latency_touch">Touch a bassa latenza</string>
@@ -1357,12 +1351,8 @@
     <string name="ctrl_opacity">Opacità</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Dimensione dei tasti</string>
-    <string name="ctrl_adaptive">Levette adattive</string>
     <string name="ctrl_rumble">Vibrazione di gioco</string>
     <string name="ctrl_dead_zone">Zona morta dello stick</string>
-    <string name="ctrl_steam_button">Tasto Steam</string>
-    <string name="ctrl_qam_button">Tasto QAM</string>
-    <string name="ctrl_keyboard_button">Tasto tastiera</string>
     <string name="ctrl_joycon_vr">Joy-Con come controller VR</string>
     <string name="ctrl_joycon_vr_hint">Mentre SteamVR è in esecuzione, ogni Joy-Con diventa una mano. Puntalo in avanti e tieni premuto Home o Capture per ricentrarlo.</string>
     <string name="setup_animations">Animazioni</string>
@@ -1492,8 +1482,6 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Chiudi i controlli sul secondo schermo</string>
     <string name="deck_open_steam_menu">Apri il menu Steam</string>
-    <string name="deck_right_trackpad">Trackpad destro</string>
-    <string name="deck_left_trackpad">Trackpad sinistro</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Mostra tastiera</string>
     <string name="second_hide_keyboard">Nascondi tastiera</string>
@@ -1532,11 +1520,8 @@
     <string name="pckb_android">Tastiera Android</string>
     <string name="pckb_hide">Nascondi  ✕</string>
     <string name="pckb_size">Dimensioni sullo schermo</string>
-    <string name="pckb_size_hint">Porzione dello schermo occupata dalla tastiera, intestazione inclusa.</string>
     <string name="pckb_opacity">Opacità</string>
-    <string name="pckb_opacity_hint">Riducila per vedere il gioco dietro la tastiera.</string>
     <string name="pckb_hidden_keys">Tasti nascosti</string>
-    <string name="pckb_hidden_keys_hint">I tasti che usi raramente non compaiono sulla tastiera.</string>
     <string name="pckb_group_function">Esc e riga dei tasti funzione</string>
     <string name="pckb_group_nav">Ins / Canc / Home / Fine / PgSu / PgGiù</string>
     <string name="pckb_group_arrows">Tasti freccia</string>
@@ -1757,8 +1742,6 @@
     <string name="drivers_installed_pick">Installato %1$s - sceglilo nel menu</string>
     <string name="session_wait_removal">Attendi la fine della rimozione del runtime</string>
     <string name="session_title_game">Gioco</string>
-    <string name="session_touch_auto_touchpad">touchpad</string>
-    <string name="session_touch_auto_direct">diretto</string>
     <string name="session_swap_failed">Sostituzione non riuscita: %1$s</string>
     <string name="session_profile_save_failed">Salvataggio del profilo non riuscito: %1$s</string>
     <string name="session_desktop_paused">Il desktop è in pausa</string>
@@ -2023,15 +2006,6 @@
     <string name="fm_up_one_level">Livello superiore</string>
     <string name="fm_choose_folder">Scegli una cartella</string>
     <string name="fm_choose_file">Scegli un file</string>
-    <string name="ctrl_tint_steam_blue">Blu Steam</string>
-    <string name="ctrl_tint_sky">Cielo</string>
-    <string name="ctrl_tint_white">Bianco</string>
-    <string name="ctrl_tint_violet">Viola</string>
-    <string name="ctrl_tint_green">Verde</string>
-    <string name="ctrl_tint_amber">Ambra</string>
-    <string name="ctrl_tint_red">Rosso</string>
-    <string name="ctrl_tint_pink">Rosa</string>
-    <string name="ctrl_tint_gray">Grigio</string>
     <string name="ctrl_button_a">Pulsante A</string>
     <string name="ctrl_button_b">Pulsante B</string>
     <string name="ctrl_button_x">Pulsante X</string>
@@ -3160,7 +3134,6 @@
     <string name="glasses_pro2_experimental">Tracciamento sperimentale della testa per Pro 2. La regolazione di luminosità e volume e il cambio della modalità di visualizzazione non sono ancora supportati.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Modalità Cardboard</string>
-    <string name="cardboard_mode_hint">Immagini per l\'occhio sinistro e destro, per un visore VR per telefono.</string>
     <string name="cardboard_source">Immagine</string>
     <string name="cardboard_source_screen">Schermo virtuale</string>
     <string name="cardboard_source_sbs">3D affiancato</string>
@@ -3183,7 +3156,6 @@
     <string name="cardboard_steamvr_unavailable">Non disponibile in questa sessione.</string>
     <string name="cardboard_steamvr_failed">SteamVR non ha risposto; controlla il log della sessione.</string>
     <string name="drawer_component_downloads">Scarica componenti</string>
-    <string name="drawer_component_downloads_hint">I download sono condivisi con la pagina Componenti. Scegli sopra una versione scaricata per usarla al prossimo avvio del gioco.</string>
     <string name="drawer_component_choose_download">Scegli una versione da scaricare</string>
     <string name="stores_fact_developer">Sviluppatore</string>
     <string name="stores_fact_publisher">Editore</string>

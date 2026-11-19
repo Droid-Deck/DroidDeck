@@ -1453,7 +1453,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             micAvailable = SessionState.micAvailable && !SessionState.suspended,
             micEnabled = SessionState.micEnabled,
             onMicEnabled = { SessionService.setMicEnabled(this@SessionActivity, it) },
-            touchAuto = getString(if (usingTouchpad()) R.string.session_touch_auto_touchpad else R.string.session_touch_auto_direct),
+            touchAuto = getString(if (usingTouchpad()) R.string.mode_touch_touchpad else R.string.mode_touch_mouse),
             pen = penSettings.takeIf { penSeen },
             onPen = { key, value -> SessionPrefs.setPenSetting(this@SessionActivity, key, value); readPrefs() },
             fexPreset = fexPreset,
@@ -1720,7 +1720,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             layoutGame = controlsGameName(),
             layoutOptions = layoutOptions,
             layoutChoice = layoutChoice,
-            layoutHint = getString(if (controlsGameId() != null) R.string.osc_layout_this_game else R.string.osc_layout_default),
             onLayout = ::chooseLayout,
             onEditLayout = when {
                 layoutChoice == com.droiddeck.launcher.input.GameControls.STEAM -> if (steamTouchAvailable && onScreenButtonsVisible) ({
@@ -4494,7 +4493,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val tabRow = unfoldedColumn?.getChildAt(0)?.height?.let {
             it - (com.droiddeck.launcher.ui.BAR_HEIGHT.value * resources.displayMetrics.density + 0.5f).toInt()
         } ?: 0
-        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height, tabRow)
+        val aspect = if (SessionState.followScreen) 16f / 9f else outputSize().let { (w, h) -> w.toFloat() / h.coerceAtLeast(1) }
+        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height, tabRow, aspect)
             else FrameLayout.LayoutParams.MATCH_PARENT
         val params = surfaceView.layoutParams as FrameLayout.LayoutParams
         if (params.height != gameHeight) {
@@ -4557,7 +4557,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (layout == null) { panel.visibility = View.VISIBLE; return }
         panel.releaseAll()
         panel.visibility = View.GONE
-        unfoldedDeckSurface = com.droiddeck.launcher.ui.InputSurfaceView(this, padBridge, layout.elements, InputRole.PRIMARY, layout.style, haptics = true).also {
+        unfoldedDeckSurface = com.droiddeck.launcher.ui.InputSurfaceView(this, padBridge, inputRole = InputRole.PRIMARY, haptics = true).also {
+            it.showLayout(layout)
             it.tag = layout
             column.addView(it, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         }
@@ -5380,7 +5381,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             mode = SessionPrefs.oscMode(this),
             desktop = SessionState.mode == SessionService.MODE_DESKTOP,
             virtualPad = !steam || SessionPrefs.builtinPad(this),
-            covered = pipUi || unfoldedPanel != null || pcKeyboardOpen || inputSettingsOpen || keyboardCoversPad(),
+            covered = controlsCovered(),
             controllerInUse = controllerInUse && (PadBridge.anyControllerConnected() || SteamControllerBle.connected),
             hiddenByTap = controlsHiddenByTap,
             steamLayout = steam && com.droiddeck.launcher.input.GameControls.steamLayout(this, controlsGameId()),
@@ -5388,12 +5389,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         ))
     }
 
+    private fun controlsCovered() = pipUi || unfoldedPanel != null || pcKeyboardOpen || inputSettingsOpen || keyboardCoversPad()
+
     private fun updateOnScreenPad() {
         val controls = onScreenControls ?: return
         fun hideBottomControls() { bottomInputControls?.takeIf { it.visibility == View.VISIBLE }?.let { it.releaseAll(); it.visibility = View.GONE } }
         fun hideSteam() {
             steamTouchControls?.let { it.cancelEditing(); it.releaseAll(); it.visibility = View.GONE }
-            com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
+            val keyboardOver = SessionState.mode == SessionService.MODE_STEAM && controlsCovered() &&
+                com.droiddeck.launcher.input.GameControls.steamLayout(this, controlsGameId())
+            if (!keyboardOver) com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
         }
         val plan = controlsPlan()
         onScreenButtonsVisible = plan.shown
@@ -6338,8 +6343,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         }
                         androidx.compose.runtime.key(profileLayout) {
                             androidx.compose.ui.viewinterop.AndroidView(
-                                factory = { context -> com.droiddeck.launcher.ui.InputSurfaceView(context, padBridge, profileLayout?.elements.orEmpty(),
-                                    surfaceStyle = profileLayout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle()).also { swappedInputSurface = it } },
+                                factory = { context -> com.droiddeck.launcher.ui.InputSurfaceView(context, padBridge).also { it.showLayout(profileLayout); swappedInputSurface = it } },
                                 modifier = Modifier.fillMaxWidth().weight(1f),
                                 onRelease = { if (swappedInputSurface === it) swappedInputSurface = null },
                             )

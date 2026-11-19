@@ -2,6 +2,7 @@ package com.droiddeck.launcher.input
 
 import android.content.Context
 import android.graphics.Rect
+import com.droiddeck.launcher.session.SessionPrefs
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Before
@@ -38,39 +39,6 @@ class OnScreenLayoutTest {
         }
     }
 
-    @Test fun theBuiltInGamepadIsRegeneratedForEverySizeWithoutStretching() {
-        val layout = gamepad()
-        for ((w, h) in listOf(1200 to 540, 540 to 1200, 900 to 850)) {
-            val placed = OnScreenLayout.elements(context, layout, w, h, Rect())
-            assertEquals(layout.elements.map { it.id }, placed.map { it.id })
-            assertEquals(LegacyGamepadLayout(context, w, h).regenerate(layout.elements), placed)
-            for (id in listOf("legacy:a", "legacy:up", "legacy:guide")) assertSquare(placed.first { it.id == id }, w, h)
-            assertInside(placed, w, h)
-        }
-    }
-
-    @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
-    fun aBuiltInGamepadSavedAtTheDisplaySizeRegeneratesForTheMeasuredSurface() {
-        val saved = gamepad().copy(elements = LegacyGamepadLayout(context, 2608, 1200).elements(), aspect = 2608f / 1200)
-        val placed = OnScreenLayout.elements(context, saved, 2048, 1200, Rect())
-        assertEquals(LegacyGamepadLayout(context, 2048, 1200).regenerate(saved.elements), placed)
-    }
-
-    @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
-    fun previouslyGeneratedEdgeSticksRegenerateWithoutOverridingCustomGeometry() {
-        val w = 2608
-        val h = 1200
-        ControllerPrefs.setLayout(context, w, h, mapOf("ls" to (0f to .5f), "rs" to (1f to .5f)))
-        val generator = LegacyGamepadLayout(context, w, h)
-        val old = generator.elements(previousStickGeometry = true)
-        val current = generator.elements()
-        assertTrue(old.filter { it.control == InputControl.LS || it.control == InputControl.RS }.zip(current.filter { it.control == InputControl.LS || it.control == InputControl.RS }).any { (a, b) -> kotlin.math.abs(a.width - b.width) > .01f })
-        val saved = gamepad().copy(elements = old, aspect = w.toFloat() / h)
-        assertEquals(LegacyGamepadLayout(context, 2048, h).regenerate(old), OnScreenLayout.elements(context, saved, 2048, h, Rect()))
-        val custom = saved.copy(elements = old.map { if (it.id == "legacy:a") it.copy(x = .4f) else it })
-        assertEquals(OnScreenLayout.fit(custom.elements, custom.aspect, 1f, 2048, h, Rect()), OnScreenLayout.elements(context, custom, 2048, h, Rect()))
-    }
-
     @Test fun savingTheEditorFrameKeepsEveryControlWhereTheEditorShowsIt() {
         val w = 2608
         val h = 1200
@@ -90,6 +58,27 @@ class OnScreenLayoutTest {
         }
     }
 
+    @Test fun onlyAnUntouchedBuiltInGamepadOrACopyOfOneFollowsTheKit() {
+        assertTrue(OnScreenLayout.generated(gamepad()))
+        assertTrue(OnScreenLayout.generated(SavedInputLayout("copy", "Copy", origin = InputLibraries.OVERLAY)))
+        assertFalse(OnScreenLayout.generated(SavedInputLayout("custom", "Custom")))
+        assertFalse(OnScreenLayout.generated(SavedInputLayout("copy", "Copy", origin = InputLibraries.DECK)))
+        val edited = gamepad().copy(elements = listOf(InputSurfaceElement(InputControl.A, .5f, .5f, .1f, .1f)), aspect = 2f)
+        assertFalse(OnScreenLayout.generated(edited))
+        assertEquals(listOf("legacy:a"), OnScreenLayout.elements(context, edited, 2000, 1000, Rect()).map { it.id })
+    }
+
+    @Test fun theBuiltInGamepadFollowsTheVirtualControllersKitAndScale() {
+        for ((type, kit) in listOf(SessionPrefs.CONTROLLER_DECK to PadKit.STEAM_DECK, SessionPrefs.CONTROLLER_XBOX360 to PadKit.XBOX,
+            SessionPrefs.CONTROLLER_DUALSENSE to PadKit.DUALSENSE)) {
+            SessionPrefs.setSteamController(context, type)
+            val safe = Rect(40, 0, 20, 10)
+            assertEquals(KitLayout.elements(context, kit, 2400, 1080, safe), OnScreenLayout.elements(context, gamepad(), 2400, 1080, safe))
+            assertEquals(KitLayout.elements(context, kit, 2400, 1080, safe, 1.25f), OnScreenLayout.elements(context, gamepad().copy(scale = 1.25f), 2400, 1080, safe))
+        }
+        assertEquals(emptyList<InputSurfaceElement>(), OnScreenLayout.elements(context, null, 2400, 1080, Rect()))
+    }
+
     @Test fun editorAndGameUseTheSamePixelRectsOnWideAndStandardScreens() {
         val layout = gamepad()
         for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
@@ -105,7 +94,7 @@ class OnScreenLayoutTest {
     @Test fun editedGeneratedAndCustomLayoutsKeepTheirPixelRectsAcrossRefreshes() {
         for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
             val generated = gamepad()
-            val generatedEdit = generated.elements.map { if (it.id == "legacy:a") it.copy(x = .3f, y = .4f, width = .12f, height = .12f) else it }
+            val generatedEdit = KitLayout.elements(context, PadKit.current(context), w, h).map { if (it.id == "legacy:a") it.copy(x = .3f, y = .4f, width = .12f, height = .12f) else it }
             val generatedSaved = generated.copy(elements = generatedEdit, aspect = w.toFloat() / h)
             val generatedPixels = px(OnScreenLayout.elements(context, generatedSaved, w, h, Rect()).first { it.id == "legacy:a" }, w, h)
             val generatedRefresh = px(OnScreenLayout.editorElements(context, generatedSaved, w, h, edited = true).first { it.id == "legacy:a" }, w, h)
@@ -115,25 +104,6 @@ class OnScreenLayoutTest {
             val customRefresh = OnScreenLayout.editorElements(context, custom, w, h, edited = true)
             assertArrayEquals(px(customRefresh.single(), w, h), px(OnScreenLayout.editorElements(context, custom.copy(elements = customRefresh), w, h, edited = true).single(), w, h), .001f)
         }
-    }
-
-    @Test fun resetPositionsRestoresGeneratedGeometryAfterAnEdit() {
-        for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
-            val original = gamepad()
-            val moved = original.copy(elements = original.elements.map { if (it.id == "legacy:a") it.copy(x = .3f) else it }, aspect = w.toFloat() / h)
-            val reset = LegacyGamepadLayout(context, w, h).regenerate(moved.elements)
-            assertEquals(LegacyGamepadLayout(context, w, h).regenerate(original.elements), OnScreenLayout.elements(context, moved.copy(elements = reset), w, h, Rect()))
-        }
-    }
-
-    @Test fun regenerationKeepsTheUsersButtonStylesAndRemovedButtons() {
-        val layout = gamepad().let { g -> g.copy(elements = g.elements.filterNot { it.id == "legacy:y" }.map { if (it.id == "legacy:a") it.copy(opacity = .4f, icon = 0, name = "Jump") else it }) }
-        val placed = OnScreenLayout.elements(context, layout, 2000, 1000, Rect())
-        assertNull(placed.firstOrNull { it.id == "legacy:y" })
-        val a = placed.first { it.id == "legacy:a" }
-        assertEquals(.4f, a.opacity)
-        assertEquals("Jump", a.name)
-        assertEquals(LegacyGamepadLayout(context, 2000, 1000).elements().first { it.id == "legacy:a" }.x, a.x, .0001f)
     }
 
     @Test fun anEditedLayoutKeepsItsAspectAndCornersWhenTheScreenRotates() {
@@ -165,26 +135,6 @@ class OnScreenLayoutTest {
         assertNotEquals(OnScreenLayout.elements(context, gamepad(), 2400, 1080, Rect()), generated)
         val edge = SavedInputLayout("edited", "Edited", listOf(InputSurfaceElement(InputControl.B, 0f, .9f, .05f, .1f)), aspect = 2400f / 1080)
         assertInside(OnScreenLayout.elements(context, edge, 2400, 1080, safe), 2400, 1080, safe)
-    }
-
-    @Test fun steamAndQamOnlyModePutsLargeButtonsInTheBottomCornersAndTheKeyboardBetween() {
-        val safe = Rect(80, 0, 30, 20)
-        val placed = OnScreenLayout.elements(context, gamepad(), 1000, 500, safe, buttonsOnly = true)
-        assertEquals(setOf(InputControl.GUIDE, InputControl.QAM, InputControl.A), placed.map { it.control }.toSet())
-        val radius = 30 * density
-        val inset = 44 * density
-        fun centre(e: InputSurfaceElement) = (e.x + e.width / 2f) * 1000 to (e.y + e.height / 2f) * 500
-        val guide = placed.first { it.control == InputControl.GUIDE }
-        val qam = placed.first { it.control == InputControl.QAM }
-        val keyboard = placed.first { it.id == "builtin:keyboard" }
-        assertEquals(2 * radius, guide.width * 1000, .5f)
-        assertEquals(80 + inset, centre(guide).first, .5f)
-        assertEquals(500 - 20 - inset, centre(guide).second, .5f)
-        assertEquals(1000 - 30 - inset, centre(qam).first, .5f)
-        assertEquals(500f, centre(keyboard).first, .5f)
-        assertEquals(500 - 20 - inset, centre(keyboard).second, .5f)
-        val user = SavedInputLayout("edited", "Edited", listOf(InputSurfaceElement(InputControl.A, .5f, .5f, .1f, .1f)))
-        assertEquals(setOf(InputControl.GUIDE, InputControl.QAM), OnScreenLayout.elements(context, user, 2000, 1000, Rect(), buttonsOnly = true).map { it.control }.toSet())
     }
 
     @Test fun theUnfoldedStripUsesTheDockGeometryInLandscapeAndPortrait() {
@@ -233,8 +183,15 @@ class OnScreenLayoutTest {
         assertTrue(migrated.profiles.any { it.id == "migrated.screenkeys.0" })
         assertTrue(prefs.getBoolean(LegacyScreenKeyMigration.MERGED, false))
         assertEquals(migrated, InputLibraries.read(context))
-        val placed = OnScreenLayout.elements(context, layout, 2400, 1080, Rect())
-        assertEquals(layout.elements.map { it.id }, placed.map { it.id })
+    }
+
+    @Test fun migratedScreenKeysAreDrawnNextToTheKitGamepad() {
+        prefs.edit().clear().commit()
+        ControllerPrefs.prefs(context).edit().putString("screenKeys", legacyKeys).commit()
+        val layout = InputLibraries.read(context).activeLayout(false, InputRole.PRIMARY)!!
+        val placed = OnScreenLayout.elements(context, layout, 2400, 1080, Rect()).map { it.id }
+        assertTrue(placed.contains("imported:0"))
+        assertTrue(placed.containsAll(listOf("legacy:a", KitLayout.DPAD_ID, "legacy:ls")))
     }
 
     @Test fun librariesMigratedBeforeTheMergeGetTheirScreenKeysBackOnceWithoutLosingEdits() {
@@ -264,20 +221,6 @@ class OnScreenLayoutTest {
         val shown = JSONObject().put("screenKeys", legacyKeys).toString()
         val selected = old.selectProfile(false, "migrated.screenkeys.0").selectProfile(true, "migrated.screenkeys.0")
         assertEquals(selected, LegacyScreenKeyMigration.merge(selected, shown))
-    }
-
-    @Test fun alwaysShownKeysStayInButtonsOnlyModeAndLeaveTheUnfoldedStrip() {
-        val key = InputSurfaceElement(InputControl.A, .45f, .1f, .1f, .1f, "imported:0", name = "Find", alwaysShown = true)
-        val plain = InputSurfaceElement(InputControl.A, .45f, .4f, .1f, .1f, "imported:1", name = "Jump")
-        val layout = gamepad().let { it.copy(elements = it.elements + key + plain) }
-        val buttons = OnScreenLayout.elements(context, layout, 1000, 500, Rect(), buttonsOnly = true)
-        assertTrue(buttons.any { it.id == key.id })
-        assertFalse(buttons.any { it.id == plain.id })
-        assertEquals(OnScreenLayout.elements(context, gamepad(), 1000, 500, Rect(), buttonsOnly = true), buttons.filterNot { it.id == key.id })
-        val strip = OnScreenLayout.elements(context, layout, 2208, 800, Rect(), dock = OnScreenLayout.Dock(false, grips = false))
-        assertFalse(strip.any { it.id == key.id })
-        assertTrue(strip.any { it.id == plain.id })
-        assertTrue(OnScreenLayout.elements(context, layout, 1000, 500, Rect()).map { it.id }.containsAll(listOf(key.id, plain.id)))
     }
 
     @Test fun migratedScreenKeysAreAlwaysShownButOtherElementsAreNot() {

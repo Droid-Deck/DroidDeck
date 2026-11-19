@@ -379,15 +379,6 @@ class SteamTouchControls(
         for (i in -1..1) canvas.drawCircle(x + i * r * 0.3f, y + r * 0.22f, r * 0.08f, p)
     }
 
-    private fun drawKeyboardGlyph(canvas: Canvas, x: Float, y: Float, r: Float, color: Int) {
-        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = lineWidth() * 0.8f }
-        val body = RectF(x - r * 0.6f, y - r * 0.34f, x + r * 0.6f, y + r * 0.34f)
-        canvas.drawRoundRect(body, r * 0.08f, r * 0.08f, p)
-        val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
-        for (row in 0..1) for (i in 0..5) canvas.drawCircle(body.left + r * 0.15f + i * r * 0.18f, body.top + r * 0.18f + row * r * 0.17f, r * 0.035f, dot)
-        canvas.drawLine(x - r * 0.3f, body.bottom - r * 0.14f, x + r * 0.3f, body.bottom - r * 0.14f, p)
-    }
-
     private val iconsLoading = HashSet<String>()
 
     private val inkedIcons = android.util.LruCache<String, android.graphics.Bitmap>(48)
@@ -1494,11 +1485,5 @@ class SteamTouchControls(
             put(SteamTouchConfig.PASTE, 0L)
         }
 
-        private val LABEL_COLORS = mapOf(
-            SteamTouchConfig.A to Color.rgb(72, 133, 48),
-            SteamTouchConfig.B to Color.rgb(211, 68, 37),
-            SteamTouchConfig.X to Color.rgb(23, 60, 184),
-            SteamTouchConfig.Y to Color.rgb(235, 200, 70),
-        )
     }
 }

@@ -25,6 +25,15 @@ enum class PadKit(val face: FaceGlyphs, val dpad: DpadStyle, val stick: StickCap
         else -> control.label
     }
 
+    /** What the player calls [control] on this controller. */
+    fun name(control: InputControl): String = if (!playStation) label(control) else when (control) {
+        InputControl.A -> "Cross"
+        InputControl.B -> "Circle"
+        InputControl.X -> "Square"
+        InputControl.Y -> "Triangle"
+        else -> label(control)
+    }
+
     companion object {
         fun of(type: String) = when (type) {
             SessionPrefs.CONTROLLER_STEAM -> STEAM_CONTROLLER

@@ -75,14 +75,9 @@
     <string name="input_independent_copy">독립 사본</string>
     <string name="input_floating_stick">터치한 위치에서 스틱 시작</string>
     <string name="input_hide_idle">사용하지 않을 때 스틱 숨기기</string>
-    <string name="input_tools">도구</string>
-    <string name="input_quick_auto">자동 (%1$s)</string>
-    <string name="input_quick_mixed">사용자 지정 (%1$s)</string>
     <string name="input_save_combination">새 프로필로 저장</string>
     <string name="input_profile_controls_mode">프로필 컨트롤</string>
-    <string name="input_profile">프로필</string>
     <string name="input_mouse_gestures">마우스 터치패드 제스처</string>
-    <string name="input_mouse_gestures_hint">마우스 포인터에 할당된 경우: 탭하여 클릭, 길게 눌러 드래그, 두 손가락으로 스크롤합니다.</string>
     <string name="input_quick_override_hint">%1$s에는 빠른 메뉴 재정의가 있습니다. 자동을 선택하면 기본 프로필과 저장된 세 부분을 모두 사용합니다.</string>
     <string name="input_route_local">DroidDeck 입력</string>
     <string name="input_axis_action_hint" formatted="false">스틱을 어느 방향으로든 움직이는 동안 유지됩니다: 55% 초과 시 누름, 35% 미만 시 해제. 방향 키로 각 방향을 따로 지정합니다. DroidDeck 명령은 기울기마다 한 번 실행됩니다. 스틱 클릭은 따로 설정합니다.</string>
@@ -103,19 +98,12 @@
     <string name="input_shortcut_back_modes">뒤로 · Steam에서는 두 번, 데스크톱에서는 한 번</string>
     <string name="input_shortcut_hold_hint">Steam 모드에서. 뒤로를 길게 누르면 빠른 액세스도 열립니다.</string>
     <string name="input_restore_shortcut">기본값으로 복원</string>
-    <string name="input_second_mode_hint">패널 선택이 기억됩니다. 데스크톱은 두 번째 작업 공간을 열 뿐 세션이나 입력 프로필을 전환하지 않습니다.</string>
     <string name="input_virtual_controller">가상 컨트롤러</string>
-    <string name="input_virtual_controller_hint">Steam 또는 게임이 인식하는 컨트롤러 유형입니다.</string>
     <string name="input_touchscreen">터치스크린</string>
-    <string name="input_touchscreen_hint">게임 화면의 터치 처리 방식입니다. 프로필 버튼은 지정된 동작을 유지합니다.</string>
     <string name="input_touch_cursor">터치 커서</string>
-    <string name="input_touch_cursor_hint">게임 화면의 직접 터치에 포인터를 표시합니다.</string>
     <string name="input_touch_hold">터치 후 유지</string>
-    <string name="input_touch_hold_hint">게임 화면에서 손가락을 누르고 있을 때의 마우스 동작입니다.</string>
     <string name="input_back_taps">뒤로 버튼 탭</string>
-    <string name="input_back_taps_hint">첫 번째 동작: 한 번 탭. 두 번째 동작: 두 번 탭.</string>
     <string name="input_toggle_button">토글 버튼</string>
-    <string name="input_toggle_button_hint">탭하여 유지, 다시 탭하여 해제. 메뉴를 열거나 프로필을 전환하면 버튼이 해제됩니다.</string>
     <string name="input_button_shape">모양</string>
     <string name="input_shape_rounded">둥근 모서리</string>
     <string name="input_shape_pill">알약</string>
