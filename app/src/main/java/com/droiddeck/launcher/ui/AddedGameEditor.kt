@@ -67,6 +67,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.frontend.AddedGameArt
 import com.droiddeck.launcher.frontend.AddedGameEdits
 import com.droiddeck.launcher.frontend.AddedGames
@@ -76,6 +77,7 @@ import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.frontend.SteamGridDb
 import com.droiddeck.launcher.frontend.SteamInputOverride
 import com.droiddeck.launcher.frontend.SteamLaunchOptions
+import com.droiddeck.launcher.session.GameEnvironmentStore
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import kotlinx.coroutines.Dispatchers
@@ -139,7 +141,10 @@ private fun FieldRow(label: String, focus: FocusRequester? = null, onClick: () -
     }
 }
 
-internal class EditRequest(val folder: String, val openTarget: Boolean, val fromSummary: Boolean, val preview: EditPreview)
+internal class EditRequest(
+    val folder: String, val openTarget: Boolean, val fromSummary: Boolean, val preview: EditPreview,
+    val scope: String = "",
+)
 
 internal class EditPreview(
     val name: String, val exeName: String?, val startIn: String?, val launchOptions: String,

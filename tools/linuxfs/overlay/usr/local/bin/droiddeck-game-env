@@ -15,6 +15,7 @@ GAME_PREFIX = "DROIDDECK_GAME_"
 GAME_SPLIT_KEYS = ("TU_DEBUG", "MESA_NO_ERROR")
 CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"}
 SYNC_KEYS = ("DD_SYNC", "DD_SYNC_FALLBACK", "DD_FSYNC_FIRST", "DD_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
+LOCALE_KEYS = ("LANG", "DROIDDECK_LOCALE")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "DD_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
 GAME_DEBUG = runpy.run_path(str(Path(__file__).with_name("droiddeck-game-debug")))
@@ -724,6 +725,43 @@ def without_pack(chosen_env, env):
     return result
 
 
+def locale_present(name, root=Path("/usr/lib/locale")):
+    base, _, encoding = name.partition(".")
+    encoding = encoding.lower().replace("utf-8", "utf8")
+    return (root / (base + ("." + encoding if encoding else "")) / "LC_CTYPE").is_file()
+
+
+def configured_lang(config, app_id):
+    try:
+        return "LANG" in (config.get("games", {}).get(str(app_id)) or {})
+    except AttributeError:
+        return False
+
+
+def locale_language(name):
+    full = name.split(".", 1)[0].split("@", 1)[0]
+    short = full.split("_", 1)[0]
+    if short == "en":
+        return full
+    if full == "zh_HK":
+        return "zh_HK:zh_TW:zh"
+    return "%s:%s" % (full, short)
+
+
+def game_locale(env, configured=False, fallback=None):
+    name = env.get("LANG", "") if configured else env.get("DROIDDECK_LOCALE") or ""
+    if not name or name in ("C", "POSIX", "C.UTF-8"):
+        return env
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_-]+)?(?:@[A-Za-z0-9_-]+)?", name):
+        print("droiddeck-game-env: locale %s ignored" % name, file=sys.stderr)
+        return env
+    if not locale_present(name):
+        print("droiddeck-game-env: the runtime has no %s; the session language stays" % name, file=sys.stderr)
+        return dict(env, **fallback) if fallback else env
+    print("droiddeck-game-env: locale %s" % name, file=sys.stderr)
+    return dict(env, LANG=name, LANGUAGE=locale_language(name))
+
+
 SSBS_LIB = "/usr/local/lib/libssbs.so"
 
 
@@ -1329,6 +1367,7 @@ def main():
     if not command:
         return 2
     env = game_gpu(os.environ.copy())
+    session_env = {name: env[name] for name in ("LANG", "LANGUAGE") if name in env}
     mic_enabled = env.get("DD_MIC_ENABLED")
     debug_dir = session_debug_dir(env)
     prefix_path = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
@@ -1339,6 +1378,7 @@ def main():
     launch_config = None
     launch_config_valid = True
     effective_env = env
+    configured = False
     if waiting:
         path = Path.home() / ".config/droiddeck/game-environment.json"
         try:
@@ -1352,6 +1392,9 @@ def main():
         if launch_config_valid:
             try:
                 effective_env = apply_config(env, launch_config, app_id)
+                configured = configured_lang(config, app_id)
+            except (OSError, ValueError, TypeError, AttributeError):
+                launch_config_valid = False
             except (OSError, ValueError, TypeError, AttributeError):
                 launch_config_valid = False
         if not launch_config_valid:
@@ -1371,7 +1414,7 @@ def main():
         if fixed:
             print("droiddeck-game-env: replaced foreign-architecture system DLLs with this Proton's own: %s" % ", ".join(fixed),
                   file=sys.stderr)
-    scripts = mark_install_scripts(command, effective_env)
+    scripts = mark_install_scripts(command, game_locale(effective_env, configured, session_env) if configured else effective_env)
     if scripts and install_scripts_done(scripts, env):
         print("droiddeck-game-env: install scripts already run in this prefix; evaluator skipped", file=sys.stderr)
         return 0
@@ -1422,7 +1465,15 @@ def main():
             try:
                 with path.open(encoding="utf-8") as source:
                     config = json.load(source)
-                env = apply_config(env, sync_config(config, app_id), app_id)
+                configured = False
+                selected = sync_config(config, app_id)
+                carry = {name: value for name, value in (config.get("games", {}).get(str(app_id)) or {}).items()
+                         if name in LOCALE_KEYS and isinstance(value, str) and "\0" not in value and len(value) <= 8192}
+                if carry:
+                    games = selected.setdefault("games", {})
+                    games[str(app_id)] = dict(games.get(str(app_id)) or {}, **carry)
+                env = apply_config(env, selected, app_id)
+                configured = configured_lang(config, app_id)
             except FileNotFoundError:
                 pass
             except (OSError, ValueError, TypeError, AttributeError):
@@ -1446,6 +1497,7 @@ def main():
     note = bridge_feature_level(env)
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)
+    env = game_locale(env, configured, session_env)
     env = force_ssbs(command, env)
     game_cores(env)
     cpu_topology(env, command)

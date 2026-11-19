@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.core
 
+import com.droiddeck.launcher.session.DesktopLocale
 import com.droiddeck.launcher.session.SessionPrefs
+import java.util.Locale
 
 object GameEnvironment {
     data class Config(
@@ -58,6 +60,25 @@ object GameEnvironment {
     fun withGameResolution(config: Config, scope: String, choice: GameResolution.Choice?): Config {
         require(scope.isNotEmpty() && validScope(scope))
         return withScopeValue(config, scope, GAME_RESOLUTION, choice?.let(GameResolution::format))
+    }
+
+    const val LOCALE = "DROIDDECK_LOCALE"
+
+    val locales: List<String> = AppLanguage.supported
+        .map { DesktopLocale.lang(Locale.forLanguageTag(it)) }
+        .distinct()
+
+    fun localeName(tag: String): String? = AppLanguage.supported
+        .firstOrNull { DesktopLocale.lang(Locale.forLanguageTag(it)) == tag }
+        ?.let(AppLanguage::nativeName)
+
+    fun gameLocale(config: Config, scope: String): String? =
+        scope.takeIf { it.isNotEmpty() }?.let { config.games[it]?.get(LOCALE) }?.takeIf { it.isNotEmpty() }
+
+    fun withGameLocale(config: Config, scope: String, locale: String?): Config {
+        require(scope.isNotEmpty() && validScope(scope))
+        require(locale == null || locale in locales)
+        return withScopeValue(config, scope, LOCALE, locale)
     }
 
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =

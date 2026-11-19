@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.runtime.mutableStateOf
@@ -162,7 +163,9 @@ class ComponentsPageProfileTest {
         compose.onNodeWithText(context.getString(R.string.comp_scope_general)).performClick()
         compose.onNodeWithText("Game A").performClick()
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithText(context.getString(R.string.comp_game_reset)).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithText(context.getString(R.string.comp_game_reset)).fetchSemanticsNodes().isNotEmpty() &&
+                compose.onAllNodes(hasText(context.getString(R.string.comp_game_use_general)) and isEnabled())
+                    .fetchSemanticsNodes().size == 3
         }
 
         compose.onNodeWithText(context.getString(R.string.gpu_system_powervr)).assertIsNotEnabled()
