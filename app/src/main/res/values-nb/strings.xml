@@ -2302,12 +2302,11 @@
     <string name="pextra_session_started">En sesjon startet under nedlastingen; avslutt den før du installerer kompatibilitetsverktøy</string>
     <string name="pextra_installing">Installerer %1$s</string>
     <string name="xproton_title">Eksperimentelle bygg</string>
-    <string name="xproton_pick">Velg en Proton-bygg som .zip</string>
-    <string name="xproton_pick_zip">Installer fra .zip</string>
+    <string name="xproton_install_file">Installer fra fil</string>
+    <string name="xproton_archive_unsafe">Arkivet inneholder en utrygg lenke eller bane</string>
+    <string name="xproton_archive_invalid">Arkivet støttes ikke eller er ugyldig</string>
     <string name="xproton_no_space">Ikke nok ledig plass til dette Proton-bygget</string>
-    <string name="xproton_unzipping">Pakker ut zip</string>
     <string name="xproton_unpacking">Pakker ut Proton (noen få minutter)</string>
-    <string name="xproton_bad_zip">.zip-filen inneholder ingen Proton-tarball</string>
     <string name="xproton_untar_failed">Utpakking mislyktes (tar %1$d)</string>
     <string name="xproton_no_tree">Arkivet inneholder ingen Proton-bygg</string>
     <string name="xproton_place_failed">Kunne ikke plassere Proton-bygget</string>

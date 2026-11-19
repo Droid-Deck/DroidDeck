@@ -49,6 +49,17 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun experimentalRowsUseTheReleaseNameAndTagDetail() {
+        val current = release("DroidDeck-Bionic-12.8-r34", asset("DroidDeck-Bionic-12.8-r34-aarch64.tar.xz"), prerelease = true)
+            .put("name", "DroidDeck Bionic 12.8 r34")
+        val selectedAsset = ProtonExtras.assetOf(tool("droiddeck"), current, experimental = true)!!
+        val selected = ProtonExtras.assets(tool("droiddeck"), JSONArray().put(current), true).single()
+        assertEquals("DroidDeck-Bionic-12.8-r34-aarch64.tar.xz", selectedAsset.name)
+        assertEquals("DroidDeck Bionic 12.8 r34", selected.releaseName)
+        assertEquals("DroidDeck-Bionic-12.8-r34", selected.tag)
+    }
+
+    @Test
     fun theThreeSourcesInOrder() {
         assertEquals(listOf("ge", "cachyos", "droiddeck"), ProtonExtras.tools.map { it.id })
         val droiddeck = tool("droiddeck")
@@ -70,6 +81,14 @@ class ProtonExtrasTest {
         assertEquals("https://github.com/o/r/releases/download/t/DroidDeck-Proton-11-7.5-aarch64.sha512sum", picked.sha512)
         assertEquals(625_775_670L, picked.size)
         assertNull(picked.sha256)
+    }
+
+    @Test
+    fun ownExperimentalReleaseUsesItsCurrentBionicTarballShape() {
+        val current = release("DroidDeck-Bionic-12.8-r34", asset("DroidDeck-Bionic-12.8-r34-aarch64.tar.xz"), asset("DroidDeck-Bionic-12.8-r34-aarch64.sha512sum"), prerelease = true)
+        val rows = ProtonExtras.assets(tool("droiddeck"), JSONArray().put(current), prerelease = true)
+        assertEquals(listOf("DroidDeck-Bionic-12.8-r34"), rows.map { it.tag })
+        assertTrue(ProtonExtras.assets(tool("droiddeck"), JSONArray().put(release("DroidDeck-Bionic-12.8-r35", asset("DroidDeck-Bionic-12.8-r35-aarch64.sha512sum"), prerelease = true)), true).isEmpty())
     }
 
     @Test
@@ -389,5 +408,18 @@ class ProtonExtrasTest {
         val releases = JSONArray("[null, 5, {\"tag_name\": \"x\", \"assets\": [null]}]").put(droiddeckRelease("11-12.8"))
         assertEquals("DroidDeck-Proton-11-12.8", ProtonExtras.pickAsset(tool("droiddeck"), releases)!!.tag)
         assertNull(ProtonExtras.pickAsset(tool("droiddeck"), JSONArray("[null]")))
+    }
+
+    @Test
+    fun failedOrPartialReleaseFetchDoesNotPretendMissingBuildsAreGone() {
+        val tool = tool("droiddeck")
+        assertNull(ProtonExtras.releasesForRemoval(tool) { null })
+        val asked = mutableListOf<Int>()
+        val result = ProtonExtras.releasesForRemoval(tool) { page ->
+            asked += page
+            if (page == 1) JSONArray().put(droiddeckRelease("11-12.8", prerelease = true)) else null
+        }
+        assertNull(result)
+        assertEquals(listOf(1, 2), asked)
     }
 }

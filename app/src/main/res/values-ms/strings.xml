@@ -2277,12 +2277,11 @@
     <string name="pextra_session_started">Sesi dimulakan semasa muat turun; hentikan dahulu sebelum memasang alat keserasian</string>
     <string name="pextra_installing">Memasang %1$s</string>
     <string name="xproton_title">Binaan eksperimen</string>
-    <string name="xproton_pick">Pilih .zip binaan Proton</string>
-    <string name="xproton_pick_zip">Pasang daripada .zip</string>
+    <string name="xproton_install_file">Pasang daripada fail</string>
+    <string name="xproton_archive_unsafe">Arkib mengandungi pautan atau laluan tidak selamat</string>
+    <string name="xproton_archive_invalid">Arkib tidak disokong atau tidak sah</string>
     <string name="xproton_no_space">Ruang kosong tidak mencukupi untuk binaan Proton ini</string>
-    <string name="xproton_unzipping">Menyahzip</string>
     <string name="xproton_unpacking">Membuka pakej Proton (beberapa minit)</string>
-    <string name="xproton_bad_zip">.zip tidak mengandungi tarball Proton</string>
     <string name="xproton_untar_failed">Gagal membuka pakej (tar %1$d)</string>
     <string name="xproton_no_tree">Arkib tidak mengandungi binaan Proton</string>
     <string name="xproton_place_failed">Tidak dapat meletakkan binaan Proton</string>

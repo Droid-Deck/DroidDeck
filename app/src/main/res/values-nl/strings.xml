@@ -2302,12 +2302,11 @@
     <string name="pextra_session_started">Er is een sessie gestart tijdens het downloaden; stop die voordat je compatibiliteitstools installeert</string>
     <string name="pextra_installing">%1$s installeren</string>
     <string name="xproton_title">Experimentele builds</string>
-    <string name="xproton_pick">Kies een Proton-build als .zip</string>
-    <string name="xproton_pick_zip">Installeren vanuit .zip</string>
+    <string name="xproton_install_file">Installeren vanuit bestand</string>
+    <string name="xproton_archive_unsafe">Archief bevat een onveilige link of pad</string>
+    <string name="xproton_archive_invalid">Niet-ondersteund of ongeldig archief</string>
     <string name="xproton_no_space">Niet genoeg vrije ruimte voor deze Proton-build</string>
-    <string name="xproton_unzipping">Uitpakken van zip</string>
     <string name="xproton_unpacking">Proton uitpakken (enkele minuten)</string>
-    <string name="xproton_bad_zip">De .zip bevat geen Proton-tarball</string>
     <string name="xproton_untar_failed">Uitpakken mislukt (tar %1$d)</string>
     <string name="xproton_no_tree">Het archief bevat geen Proton-build</string>
     <string name="xproton_place_failed">Kan de Proton-build niet plaatsen</string>

@@ -2398,12 +2398,11 @@
     <string name="pextra_session_started">Se inició una sesión durante la descarga; detenla antes de instalar herramientas de compatibilidad</string>
     <string name="pextra_installing">Instalando %1$s</string>
     <string name="xproton_title">Versiones experimentales</string>
-    <string name="xproton_pick">Elige un .zip de una versión de Proton</string>
-    <string name="xproton_pick_zip">Instalar desde .zip</string>
+    <string name="xproton_install_file">Instalar desde archivo</string>
+    <string name="xproton_archive_unsafe">El archivo contiene un enlace o una ruta no segura</string>
+    <string name="xproton_archive_invalid">Archivo no compatible o no válido</string>
     <string name="xproton_no_space">No hay espacio libre suficiente para esta versión de Proton</string>
-    <string name="xproton_unzipping">Descomprimiendo</string>
     <string name="xproton_unpacking">Desempaquetando Proton (unos minutos)</string>
-    <string name="xproton_bad_zip">El .zip no contiene ningún tarball de Proton</string>
     <string name="xproton_untar_failed">Error al desempaquetar (tar %1$d)</string>
     <string name="xproton_no_tree">El archivo no contiene ninguna versión de Proton</string>
     <string name="xproton_place_failed">No se pudo colocar la versión de Proton</string>

@@ -2302,12 +2302,11 @@
     <string name="pextra_session_started">Istunto käynnistyi latauksen aikana; pysäytä se ennen yhteensopivuustyökalujen asentamista</string>
     <string name="pextra_installing">Asennetaan %1$s</string>
     <string name="xproton_title">Kokeelliset versiot</string>
-    <string name="xproton_pick">Valitse Proton-version .zip</string>
-    <string name="xproton_pick_zip">Asenna .zip-tiedostosta</string>
+    <string name="xproton_install_file">Asenna tiedostosta</string>
+    <string name="xproton_archive_unsafe">Arkisto sisältää vaarallisen linkin tai polun</string>
+    <string name="xproton_archive_invalid">Arkistoa ei tueta tai se on virheellinen</string>
     <string name="xproton_no_space">Tälle Proton-versiolle ei ole tarpeeksi vapaata tilaa</string>
-    <string name="xproton_unzipping">Puretaan zip</string>
     <string name="xproton_unpacking">Puretaan Protonia (muutama minuutti)</string>
-    <string name="xproton_bad_zip">Tiedostossa .zip ei ole Proton-tar-pakettia</string>
     <string name="xproton_untar_failed">Purku epäonnistui (tar %1$d)</string>
     <string name="xproton_no_tree">Arkisto ei sisällä Proton-versiota</string>
     <string name="xproton_place_failed">Proton-versiota ei voitu sijoittaa</string>

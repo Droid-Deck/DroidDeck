@@ -28,7 +28,8 @@ object ProtonExtras {
     class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex)
 
     internal data class Asset(val tag: String, val name: String, val url: String, val sha512: String?, val size: Long,
-                             val sha256: String? = null)
+                             val sha256: String? = null, val releaseName: String = tag)
+    internal data class ReleaseFetch(val releases: JSONArray, val complete: Boolean)
 
     const val OWN = "droiddeck"
 
@@ -107,7 +108,7 @@ object ProtonExtras {
         readJson(latestFile(context)).optJSONObject(tool.id)?.optString("tag")?.ifEmpty { null }
 
     fun testBuild(context: Context, tool: Tool): String? =
-        testFor(installedTags(context, tool), readJson(latestFile(context)).optJSONObject(tool.id)?.optString("test")?.ifEmpty { null })
+        if (tool.id == OWN) null else testFor(installedTags(context, tool), readJson(latestFile(context)).optJSONObject(tool.id)?.optString("test")?.ifEmpty { null })
 
     internal fun testFor(installed: List<String>, test: String?): String? =
         test?.takeIf { it !in installed && (installed.isEmpty() || updateFor(installed, it) != null) }
@@ -361,22 +362,34 @@ object ProtonExtras {
     }
 
     internal fun releases(tool: Tool, fetch: (Int) -> JSONArray?): JSONArray? {
+        return releasesResult(tool, fetch, stopAtStable = true)?.releases
+    }
+
+    internal fun releasesForRemoval(tool: Tool, fetch: (Int) -> JSONArray? = { page ->
+        Downloader.downloadString(RELEASES.format(Locale.ROOT, tool.repo, page))?.let { body ->
+            runCatching { JSONArray(body) }.getOrNull()
+        }
+    }): ReleaseFetch? = releasesResult(tool, fetch, stopAtStable = false)
+
+    private fun releasesResult(tool: Tool, fetch: (Int) -> JSONArray?, stopAtStable: Boolean): ReleaseFetch? {
         val all = fetch(1) ?: return null
         var page = 1
         var last = all.length()
-        while (last > 0 && page < RELEASE_PAGES && pickAsset(tool, all) == null) {
+        var complete = last == 0
+        while (last > 0 && page < RELEASE_PAGES && (!stopAtStable || pickAsset(tool, all) == null)) {
             val next = fetch(++page) ?: return null
             for (i in 0 until next.length()) all.put(next.opt(i))
             last = next.length()
+            complete = last == 0
         }
-        return all
+        return ReleaseFetch(all, complete)
     }
 
     internal fun assets(tool: Tool, array: JSONArray, prerelease: Boolean): List<Asset> =
         (0 until array.length()).asSequence()
             .mapNotNull { array.optJSONObject(it) }
             .filter { !it.optBoolean("draft", false) && it.optBoolean("prerelease", false) == prerelease }
-            .flatMap { release -> assetOf(tool, release)?.let { sequenceOf(it) } ?: emptySequence() }
+            .flatMap { release -> assetOf(tool, release, experimental = prerelease)?.let { sequenceOf(it) } ?: emptySequence() }
             .toList()
 
     internal fun pickAsset(tool: Tool, array: JSONArray, test: Boolean = false): Asset? {
@@ -386,8 +399,8 @@ object ProtonExtras {
         if (!test) return candidates.firstNotNullOfOrNull { assetOf(tool, it) }
         val stable = pickAsset(tool, array)?.tag ?: return null
         return candidates
-            .filter { it.optString("tag_name").startsWith(tool.prefix) && updateFor(listOf(stable), it.optString("tag_name")) != null }
-            .mapNotNull { assetOf(tool, it, requireChecksum = true) }
+            .filter { (tool.id == OWN || it.optString("tag_name").startsWith(tool.prefix)) && updateFor(listOf(stable), it.optString("tag_name")) != null }
+            .mapNotNull { assetOf(tool, it, requireChecksum = true, experimental = true) }
             .maxWithOrNull { a, b -> compareVersions(a.tag, b.tag) }
     }
 
@@ -402,17 +415,20 @@ object ProtonExtras {
         cache.put(tool.id, JSONObject().put("tag", tag).put("at", now).putOpt("test", test))
     }
 
-    private fun assetOf(tool: Tool, release: JSONObject, requireChecksum: Boolean = false): Asset? = try {
+    internal fun assetOf(tool: Tool, release: JSONObject, requireChecksum: Boolean = false, experimental: Boolean = false): Asset? = try {
         val assets = release.optJSONArray("assets")
         val entries = assets?.let { list -> (0 until list.length()).mapNotNull { list.optJSONObject(it) } }.orEmpty()
-        entries.sortedBy { it.optString("name") }.filter { tool.assetPattern.containsMatchIn(it.optString("name")) }.mapNotNull { archive ->
+        entries.sortedBy { it.optString("name") }.filter {
+            val name = it.optString("name")
+            if (experimental && tool.id == OWN) name.matches(Regex("(?i).+\\.tar\\.[^/]+$")) else tool.assetPattern.containsMatchIn(name)
+        }.mapNotNull { archive ->
             val name = archive.optString("name")
             val stem = name.substringBefore(".tar")
             val checksum = entries.firstOrNull {
                 it.optString("name").startsWith(stem) && it.optString("name").contains("sha512", ignoreCase = true)
             }?.optString("browser_download_url")?.takeIf { it.startsWith("http") }
             archive.optString("browser_download_url").takeIf { it.startsWith("http") }?.let { url ->
-                Asset(release.optString("tag_name"), name, url, checksum, archive.optLong("size", 0L), Hashes.githubSha256(archive.optString("digest")))
+                Asset(release.optString("tag_name"), name, url, checksum, archive.optLong("size", 0L), Hashes.githubSha256(archive.optString("digest")), release.optString("name").ifEmpty { release.optString("tag_name") })
             }
         }.let { found -> if (requireChecksum) found.firstOrNull { it.sha256 != null || it.sha512 != null } else found.firstOrNull() }
     } catch (e: Exception) {

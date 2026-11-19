@@ -2294,12 +2294,11 @@
     <string name="pextra_session_started">İndirme sırasında bir oturum başladı; uyumluluk araçlarını yüklemeden önce durdurun</string>
     <string name="pextra_installing">%1$s yükleniyor</string>
     <string name="xproton_title">Deneysel sürümler</string>
-    <string name="xproton_pick">Bir Proton sürümü .zip dosyası seçin</string>
-    <string name="xproton_pick_zip">Şuradan yükle: .zip</string>
+    <string name="xproton_install_file">Dosyadan yükle</string>
+    <string name="xproton_archive_unsafe">Arşiv güvenli olmayan bir bağlantı veya yol içeriyor</string>
+    <string name="xproton_archive_invalid">Desteklenmeyen veya geçersiz arşiv</string>
     <string name="xproton_no_space">Bu Proton sürümü için yeterli boş alan yok</string>
-    <string name="xproton_unzipping">Zip açılıyor</string>
     <string name="xproton_unpacking">Proton paketten çıkarılıyor (birkaç dakika)</string>
-    <string name="xproton_bad_zip">.zip dosyasında Proton tar arşivi yok</string>
     <string name="xproton_untar_failed">Paketten çıkarma başarısız oldu (tar %1$d)</string>
     <string name="xproton_no_tree">Arşivde Proton sürümü yok</string>
     <string name="xproton_place_failed">Proton sürümü yerleştirilemedi</string>

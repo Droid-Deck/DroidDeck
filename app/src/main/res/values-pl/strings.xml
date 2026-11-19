@@ -2354,12 +2354,11 @@
     <string name="pextra_session_started">Podczas pobierania uruchomiono sesję; zatrzymaj ją przed instalacją narzędzi zgodności</string>
     <string name="pextra_installing">Instalowanie %1$s</string>
     <string name="xproton_title">Kompilacje eksperymentalne</string>
-    <string name="xproton_pick">Wybierz plik .zip z kompilacją Proton</string>
-    <string name="xproton_pick_zip">Zainstaluj z pliku .zip</string>
+    <string name="xproton_install_file">Instaluj z pliku</string>
+    <string name="xproton_archive_unsafe">Archiwum zawiera niebezpieczne łącze lub ścieżkę</string>
+    <string name="xproton_archive_invalid">Nieobsługiwane lub nieprawidłowe archiwum</string>
     <string name="xproton_no_space">Za mało wolnego miejsca na tę kompilację Proton</string>
-    <string name="xproton_unzipping">Rozpakowywanie</string>
     <string name="xproton_unpacking">Rozpakowywanie Proton (kilka minut)</string>
-    <string name="xproton_bad_zip">Plik .zip nie zawiera archiwum tar z Proton</string>
     <string name="xproton_untar_failed">Rozpakowywanie nie powiodło się (tar %1$d)</string>
     <string name="xproton_no_tree">Archiwum nie zawiera kompilacji Proton</string>
     <string name="xproton_place_failed">Nie udało się umieścić kompilacji Proton</string>

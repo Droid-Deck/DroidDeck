@@ -2406,12 +2406,11 @@
     <string name="pextra_session_started">بدأت جلسة خلال التنزيل، أوقفها قبل تثبيت أدوات التوافق</string>
     <string name="pextra_installing">جارٍ تثبيت %1$s</string>
     <string name="xproton_title">إصدارات تجريبية</string>
-    <string name="xproton_pick">اختر ملف .zip لإصدار Proton</string>
-    <string name="xproton_pick_zip">تثبيت من ملف .zip</string>
+    <string name="xproton_install_file">تثبيت من ملف</string>
+    <string name="xproton_archive_unsafe">يحتوي الأرشيف على رابط أو مسار غير آمن</string>
+    <string name="xproton_archive_invalid">أرشيف غير مدعوم أو غير صالح</string>
     <string name="xproton_no_space">لا توجد مساحة كافية لإصدار Proton هذا</string>
-    <string name="xproton_unzipping">جارٍ فك الضغط</string>
     <string name="xproton_unpacking">جارٍ تفريغ Proton (بضع دقائق)</string>
-    <string name="xproton_bad_zip">ملف .zip لا يحتوي على أرشيف tar لـ Proton</string>
     <string name="xproton_untar_failed">فشل التفريغ (tar %1$d)</string>
     <string name="xproton_no_tree">الأرشيف لا يحتوي على إصدار Proton</string>
     <string name="xproton_place_failed">تعذّر وضع إصدار Proton</string>

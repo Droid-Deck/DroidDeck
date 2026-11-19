@@ -1648,7 +1648,7 @@ private fun ExperimentalProtonGroup(protons: ProtonsState, actions: ProtonsActio
         if (busy) GetLine(stringResource(R.string.xproton_title), "", progress = protons.percent, enabled = false, stage = protons.stage) {}
         else {
             protons.experimentalReleases.forEach { release ->
-                GetLine(release.tag, release.asset, progress = null, enabled = idle, action = stringResource(R.string.proton_install_now)) {
+                GetLine(release.name, release.tag, progress = null, enabled = idle, action = stringResource(R.string.proton_install_now)) {
                     actions.onExperimentalRelease(release)
                 }
             }

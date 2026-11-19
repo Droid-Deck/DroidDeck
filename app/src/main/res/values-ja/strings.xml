@@ -2277,12 +2277,11 @@
     <string name="pextra_session_started">ダウンロード中にセッションが開始されました。停止してから互換性ツールをインストールしてください</string>
     <string name="pextra_installing">%1$sをインストール中</string>
     <string name="xproton_title">試験版ビルド</string>
-    <string name="xproton_pick">Protonビルドの.zipを選択</string>
-    <string name="xproton_pick_zip">.zipからインストール</string>
+    <string name="xproton_install_file">ファイルからインストール</string>
+    <string name="xproton_archive_unsafe">アーカイブに安全でないリンクまたはパスが含まれています</string>
+    <string name="xproton_archive_invalid">未対応または無効なアーカイブ</string>
     <string name="xproton_no_space">このProtonビルド用の空き容量が足りません</string>
-    <string name="xproton_unzipping">解凍中</string>
     <string name="xproton_unpacking">Protonを展開中（数分かかります）</string>
-    <string name="xproton_bad_zip">.zipにProtonのtarballが含まれていません</string>
     <string name="xproton_untar_failed">展開に失敗しました（tar %1$d）</string>
     <string name="xproton_no_tree">アーカイブにProtonビルドが含まれていません</string>
     <string name="xproton_place_failed">Protonビルドを配置できませんでした</string>

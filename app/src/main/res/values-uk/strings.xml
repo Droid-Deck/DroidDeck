@@ -2354,12 +2354,11 @@
     <string name="pextra_session_started">Під час завантаження розпочався сеанс; зупиніть його, перш ніж встановлювати інструменти сумісності</string>
     <string name="pextra_installing">Встановлення %1$s</string>
     <string name="xproton_title">Експериментальні збірки</string>
-    <string name="xproton_pick">Виберіть .zip зі збіркою Proton</string>
-    <string name="xproton_pick_zip">Встановити з .zip</string>
+    <string name="xproton_install_file">Встановити з файлу</string>
+    <string name="xproton_archive_unsafe">Архів містить небезпечне посилання або шлях</string>
+    <string name="xproton_archive_invalid">Непідтримуваний або недійсний архів</string>
     <string name="xproton_no_space">Недостатньо вільного місця для цієї збірки Proton</string>
-    <string name="xproton_unzipping">Розпакування архіву</string>
     <string name="xproton_unpacking">Розпакування Proton (кілька хвилин)</string>
-    <string name="xproton_bad_zip">У .zip немає архіву tar із Proton</string>
     <string name="xproton_untar_failed">Не вдалося розпакувати (tar %1$d)</string>
     <string name="xproton_no_tree">В архіві немає збірки Proton</string>
     <string name="xproton_place_failed">Не вдалося розмістити збірку Proton</string>

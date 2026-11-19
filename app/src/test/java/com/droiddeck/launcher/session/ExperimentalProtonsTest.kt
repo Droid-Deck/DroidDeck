@@ -3,6 +3,8 @@ package com.droiddeck.launcher.session
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.file.Files
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import android.app.Activity
 import org.json.JSONArray
 import org.json.JSONObject
@@ -51,9 +53,13 @@ class ExperimentalProtonsTest {
 
     @Test
     fun missingReleaseTagsAreAutoRemovedButFileBuildsAreNot() {
-        assertTrue(ExperimentalProtons.shouldRemove("gone", setOf("kept")))
-        assertFalse(ExperimentalProtons.shouldRemove("kept", setOf("kept")))
-        assertFalse(ExperimentalProtons.shouldRemove(null, emptySet()))
+        val complete = ProtonExtras.ReleaseFetch(JSONArray().put(JSONObject().put("tag_name", "kept").put("prerelease", true)), true)
+        val partial = ProtonExtras.ReleaseFetch(JSONArray().put(JSONObject().put("tag_name", "gone").put("prerelease", true)), false)
+        val stable = ProtonExtras.ReleaseFetch(JSONArray().put(JSONObject().put("tag_name", "gone").put("prerelease", false)), false)
+        assertTrue(ExperimentalProtons.shouldRemove("gone", complete))
+        assertFalse(ExperimentalProtons.shouldRemove("gone", partial))
+        assertTrue(ExperimentalProtons.shouldRemove("gone", stable))
+        assertFalse(ExperimentalProtons.shouldRemove(null, complete))
     }
 
     @Test
@@ -120,6 +126,56 @@ class ExperimentalProtonsTest {
         assertTrue(ExperimentalProtons.deleteTree(build))
         assertFalse(build.exists())
         assertTrue(File(kept, "file").isFile)
+    }
+
+    @Test
+    fun directZipKeepsExecutableModeAndInTreeLinks() {
+        val archive = temp.newFile("tree.zip")
+        ZipArchiveOutputStream(archive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("build/proton").apply { unixMode = 0x81ED })
+            zip.write("binary".toByteArray())
+            zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("build/link").apply { unixMode = 0xA1FF })
+            zip.write("proton".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val unpacked = temp.newFolder("direct")
+        ExperimentalProtons.extractDirect(archive, unpacked, ExperimentalProtons.ArchiveType.ZIP)
+        assertTrue(File(unpacked, "build/proton").canExecute())
+        assertTrue(Files.isSymbolicLink(File(unpacked, "build/link").toPath()))
+        assertEquals("proton", Files.readSymbolicLink(File(unpacked, "build/link").toPath()).toString())
+    }
+
+    @Test
+    fun directZipRejectsEscapingLinksAndEntries() {
+        val linkArchive = temp.newFile("link.zip")
+        ZipArchiveOutputStream(linkArchive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("build/link").apply { unixMode = 0xA1FF })
+            zip.write("../../outside".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val entryArchive = temp.newFile("entry.zip")
+        ZipArchiveOutputStream(entryArchive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("../outside"))
+            zip.write("x".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val linkResult = runCatching { ExperimentalProtons.extractDirect(linkArchive, temp.newFolder("link-out"), ExperimentalProtons.ArchiveType.ZIP) }
+        val entryResult = runCatching { ExperimentalProtons.extractDirect(entryArchive, temp.newFolder("entry-out"), ExperimentalProtons.ArchiveType.ZIP) }
+        assertTrue(linkResult.exceptionOrNull() is ExperimentalProtons.UnsafeArchiveException)
+        assertTrue(entryResult.exceptionOrNull() is ExperimentalProtons.UnsafeArchiveException)
+    }
+
+    @Test
+    fun staleDownloadCleanupOnlyDeletesItsOwnUnlistedFiles() {
+        val downloads = File(activity.filesDir, "proton-downloads").apply { mkdirs() }
+        val stale = File(downloads, "droiddeck-gone-archive.tar.xz").apply { writeText("partial") }
+        val kept = File(downloads, "droiddeck-kept-archive.tar.xz").apply { writeText("partial") }
+        val other = File(downloads, "other-archive.tar.xz").apply { writeText("partial") }
+        ExperimentalProtons.removeStaleDownloads(activity, setOf("kept"))
+        assertFalse(stale.exists())
+        assertTrue(kept.exists())
+        assertTrue(other.exists())
     }
 
     @Test
