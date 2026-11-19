@@ -41,8 +41,8 @@ object KitLayout {
     /** The widest pair of side controls on any kit: a larger size never pushes the two halves, or the rows, into each other. */
     private const val MIN_SPAN = 1200f
     private const val MAX_HEIGHT_MM = 80f
-    /** A cutout never takes more than this fraction of a side; larger insets would leave no room for a usable pad. */
-    private const val MAX_INSET = 6
+    /** Insets are kept as reported until together they take more than this share of a side, which would leave no room for a usable pad. */
+    private const val MAX_INSETS = .4f
     private const val CORNER_DP = 52f
     private const val ROW_DP = 60f
     private const val BUTTON_DP = 44f
@@ -89,8 +89,14 @@ object KitLayout {
     /** The default controls for [kit] on a [width] × [height] screen. */
     fun elements(context: Context, kit: PadKit, width: Int, height: Int, inset: Rect = Rect(), scale: Float = 1f): List<InputSurfaceElement> {
         if (width <= 0 || height <= 0) return emptyList()
-        val safe = Rect(inset.left.coerceIn(0, width / MAX_INSET), inset.top.coerceIn(0, height / MAX_INSET),
-            inset.right.coerceIn(0, width / MAX_INSET), inset.bottom.coerceIn(0, height / MAX_INSET))
+        fun fit(a: Int, b: Int, side: Int): Pair<Int, Int> {
+            val first = a.coerceAtLeast(0); val second = b.coerceAtLeast(0)
+            val room = (side * MAX_INSETS).toInt()
+            return if (first + second <= room) first to second else (first * room / (first + second)) to (second * room / (first + second))
+        }
+        val (left, right) = fit(inset.left, inset.right, width)
+        val (top, bottom) = fit(inset.top, inset.bottom, height)
+        val safe = Rect(left, top, right, bottom)
         if (height > width) return portrait(context, kit, width, height, safe, scale)
         val w = width.toFloat(); val h = height.toFloat()
         val unit = (min(w / REF_W, h / REF_H) * cap(context, min(width, height)) * scale).coerceAtMost(min((w - safe.left - safe.right).coerceAtLeast(1f) / MIN_SPAN, (h - safe.top - safe.bottom).coerceAtLeast(1f) / REF_H))
