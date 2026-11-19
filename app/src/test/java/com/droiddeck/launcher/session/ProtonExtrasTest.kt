@@ -60,6 +60,12 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun experimentalAssetsIgnoreChecksumSidecars() {
+        val sidecarOnly = release("DroidDeck-Bionic-12.8-r36", asset("DroidDeck-Bionic-12.8-r36-aarch64.tar.xz.sha512sum"))
+        assertEquals(null, ProtonExtras.assetOf(tool("droiddeck"), sidecarOnly, experimental = true))
+    }
+
+    @Test
     fun theThreeSourcesInOrder() {
         assertEquals(listOf("ge", "cachyos", "droiddeck"), ProtonExtras.tools.map { it.id })
         val droiddeck = tool("droiddeck")

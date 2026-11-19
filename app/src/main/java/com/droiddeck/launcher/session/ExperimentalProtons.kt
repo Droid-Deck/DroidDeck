@@ -32,7 +32,7 @@ object ExperimentalProtons {
     private const val GUEST_TOOLS = "/root/.local/share/Steam/compatibilitytools.d"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private const val USER_SETTINGS = "user_settings.py"
-    private val TARBALL = Regex("(?i)\\.tar(\\.(gz|xz|zst|bz2))?$")
+    internal val TARBALL = Regex("(?i)\\.tar(\\.(gz|xz|zst|bz2))?$")
     private val DOWNLOAD_PREFIX = "droiddeck-"
 
     data class Installed(val dir: String, val label: String, val source: String, val releaseTag: String? = null)
@@ -90,17 +90,21 @@ object ExperimentalProtons {
     internal fun available(releases: List<Release>, installed: List<Installed>): List<Release> =
         releases.filter { release -> installed.none { it.releaseTag == release.tag } }
 
-    internal fun shouldRemove(installedReleaseTag: String?, fetched: ProtonExtras.ReleaseFetch): Boolean {
+    internal fun shouldRemove(installedReleaseTag: String?, fetched: ProtonExtras.ReleaseFetch, gone: (String) -> Boolean): Boolean {
         val tag = installedReleaseTag ?: return false
         val release = (0 until fetched.releases.length()).asSequence()
             .mapNotNull { fetched.releases.optJSONObject(it) }
             .firstOrNull { it.optString("tag_name") == tag }
-        return if (release != null) !release.optBoolean("prerelease", false) else fetched.complete
+        return if (release != null) !release.optBoolean("prerelease", false) else fetched.complete && gone(tag)
     }
 
-    internal fun reconcile(context: Context, fetched: ProtonExtras.ReleaseFetch) {
+    internal fun reconcile(
+        context: Context,
+        fetched: ProtonExtras.ReleaseFetch,
+        gone: (String) -> Boolean = { tag -> ProtonExtras.releaseGone(ProtonExtras.tools.first { it.id == ProtonExtras.OWN }, tag) },
+    ) {
         if (SessionState.running) return
-        installed(context).filter { shouldRemove(it.releaseTag, fetched) }.forEach { remove(context, it.dir) }
+        installed(context).filter { shouldRemove(it.releaseTag, fetched, gone) }.forEach { remove(context, it.dir) }
     }
 
     internal fun compatVdf(name: String): String = """"compatibilitytools"
@@ -157,7 +161,7 @@ object ExperimentalProtons {
 
     private fun sameFileStore(file: File, directory: File): Boolean = runCatching {
         directory.mkdirs()
-        Files.getFileStore(file.toPath()) == Files.getFileStore(directory.toPath())
+        Files.getFileStore((file.takeIf(File::exists) ?: file.parentFile).toPath()) == Files.getFileStore(directory.toPath())
     }.getOrDefault(false)
 
     private fun preflight(context: Context): String? = when {
@@ -333,6 +337,7 @@ object ExperimentalProtons {
             if (mode and 0x01 != 0) permissions += PosixFilePermission.OTHERS_EXECUTE
             if (permissions.isNotEmpty()) Files.setPosixFilePermissions(file.toPath(), permissions)
         }
+        val directoryModes = mutableListOf<Pair<File, Int>>()
         fun place(name: String, mode: Int, directory: Boolean, content: () -> InputStream) {
             val file = target(name)
             when {
@@ -347,7 +352,7 @@ object ExperimentalProtons {
                 }
                 directory -> {
                     file.mkdirs()
-                    applyMode(file, mode)
+                    directoryModes += file to mode
                 }
                 else -> {
                     if (Files.isSymbolicLink(file.toPath())) throw UnsafeArchiveException()
@@ -371,6 +376,7 @@ object ExperimentalProtons {
             }
             else -> error("Unsupported direct archive")
         }
+        directoryModes.sortedByDescending { it.first.path.length }.forEach { (directory, mode) -> applyMode(directory, mode) }
     }
 
     internal fun checksumIn(text: String): String? = Regex("(?i)\\b[0-9a-f]{128}\\b").find(text)?.value

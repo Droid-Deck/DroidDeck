@@ -80,10 +80,11 @@ class ExperimentalProtonsTest {
         val complete = ProtonExtras.ReleaseFetch(JSONArray().put(JSONObject().put("tag_name", "kept").put("prerelease", true)), true)
         val partial = ProtonExtras.ReleaseFetch(JSONArray().put(JSONObject().put("tag_name", "gone").put("prerelease", true)), false)
         val stable = ProtonExtras.ReleaseFetch(JSONArray().put(JSONObject().put("tag_name", "gone").put("prerelease", false)), false)
-        assertTrue(ExperimentalProtons.shouldRemove("gone", complete))
-        assertFalse(ExperimentalProtons.shouldRemove("gone", partial))
-        assertTrue(ExperimentalProtons.shouldRemove("gone", stable))
-        assertFalse(ExperimentalProtons.shouldRemove(null, complete))
+        assertTrue(ExperimentalProtons.shouldRemove("gone", complete) { true })
+        assertFalse(ExperimentalProtons.shouldRemove("gone", complete) { false })
+        assertFalse(ExperimentalProtons.shouldRemove("gone", partial) { true })
+        assertTrue(ExperimentalProtons.shouldRemove("gone", stable) { false })
+        assertFalse(ExperimentalProtons.shouldRemove(null, complete) { true })
     }
 
     @Test
@@ -173,6 +174,24 @@ class ExperimentalProtonsTest {
         assertEquals("proton", Files.readSymbolicLink(File(unpacked, "build/link").toPath()).toString())
         assertEquals("../../proton", Files.readSymbolicLink(File(unpacked, "build/files/lib/up").toPath()).toString())
         assertEquals("binary", File(unpacked, "build/files/lib/up").readText())
+    }
+
+    @Test
+    fun directArchivesFillReadOnlyDirectoriesBeforeLockingThem() {
+        val archive = temp.newFile("locked.zip")
+        ZipArchiveOutputStream(archive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("build/files/").apply { unixMode = 0x416D })
+            zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("build/files/data").apply { unixMode = 0x81A4 })
+            zip.write("data".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val unpacked = temp.newFolder("locked")
+        ExperimentalProtons.extractDirect(archive, unpacked, ExperimentalProtons.ArchiveType.ZIP)
+        val directory = File(unpacked, "build/files")
+        assertEquals("data", File(directory, "data").readText())
+        assertFalse(directory.canWrite())
+        directory.setWritable(true)
     }
 
     @Test

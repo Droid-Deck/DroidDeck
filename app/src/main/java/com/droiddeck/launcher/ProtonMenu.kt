@@ -20,6 +20,7 @@ internal class ProtonMenu(
     private val activity: android.app.Activity,
     private val ui: Handler,
     private val onInstalled: () -> Unit = {},
+    private val onRemoved: () -> Unit = {},
     private val idle: () -> Boolean = { true },
 ) {
     private object Operation {
@@ -155,11 +156,19 @@ internal class ProtonMenu(
     fun checkUpdates(force: Boolean = false) {
         if (!checking.compareAndSet(false, true)) return
         Thread({
-            val asked = try { ProtonExtras.checkLatest(activity, force) } catch (_: Throwable) { false } finally { checking.set(false) }
-            val experimental = runCatching { ExperimentalProtons.refresh(activity) }.getOrNull()
+            val asked: Boolean
+            val experimental: List<ExperimentalProtons.Release>?
+            try {
+                asked = runCatching { ProtonExtras.checkLatest(activity, force) }.getOrDefault(false)
+                experimental = runCatching { ExperimentalProtons.refresh(activity) }.getOrNull()
+            } finally {
+                checking.set(false)
+            }
             ui.post {
+                val before = experimentalDirs
                 Operation.fetchedReleases = experimental ?: emptyList()
                 if (asked) refreshProtons() else refreshExperimental()
+                if (!experimentalDirs.containsAll(before)) onRemoved()
                 ensureAutoUpdates()
             }
         }, "proton-updates").start()

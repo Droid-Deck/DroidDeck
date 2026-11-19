@@ -99,6 +99,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         this, ui,
         idle = { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null },
         onInstalled = { if (!OfflineMode.enabled(this)) components.checkComponentUpdates(force = false) },
+        onRemoved = { components.refreshComponents() },
     )
 
     private var installed by mutableStateOf<String?>(null)

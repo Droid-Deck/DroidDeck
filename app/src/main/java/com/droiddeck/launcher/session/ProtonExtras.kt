@@ -19,6 +19,7 @@ object ProtonExtras {
     private const val RELEASE_PAGE_SIZE = 15
     private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=$RELEASE_PAGE_SIZE&page=%d"
     private const val RELEASE_PAGES = 5
+    private const val RELEASE_TAG = "https://api.github.com/repos/%s/releases/tags/%s"
     const val CHECK_EVERY_MS = 60L * 60 * 1000
     @Volatile
     var installInProgress = false
@@ -364,6 +365,9 @@ object ProtonExtras {
         }
     }): ReleaseFetch? = releasesResult(tool, fetch, stopAtStable = false)
 
+    internal fun releaseGone(tool: Tool, tag: String): Boolean =
+        Downloader.gone(RELEASE_TAG.format(Locale.ROOT, tool.repo, java.net.URLEncoder.encode(tag, "UTF-8").replace("+", "%20"))) == true
+
     private fun releasesResult(tool: Tool, fetch: (Int) -> JSONArray?, stopAtStable: Boolean): ReleaseFetch? {
         val all = fetch(1) ?: return null
         var page = 1
@@ -407,7 +411,7 @@ object ProtonExtras {
         val entries = assets?.let { list -> (0 until list.length()).mapNotNull { list.optJSONObject(it) } }.orEmpty()
         entries.sortedBy { it.optString("name") }.filter {
             val name = it.optString("name")
-            if (experimental && tool.id == OWN) name.startsWith(release.optString("tag_name")) && name.matches(Regex("(?i).+\\.tar\\.[^/]+$")) else tool.assetPattern.containsMatchIn(name)
+            if (experimental && tool.id == OWN) name.startsWith(release.optString("tag_name")) && ExperimentalProtons.TARBALL.containsMatchIn(name) else tool.assetPattern.containsMatchIn(name)
         }.mapNotNull { archive ->
             val name = archive.optString("name")
             val stem = name.substringBefore(".tar")
