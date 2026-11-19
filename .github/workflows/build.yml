@@ -349,7 +349,7 @@ jobs:
     name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
-    timeout-minutes: 45
+    timeout-minutes: 90
     outputs:
       variants: ${{ steps.variants.outputs.list }}
     steps:
