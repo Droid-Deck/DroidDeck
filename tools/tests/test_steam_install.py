@@ -29,7 +29,6 @@ class SteamInstallTest(unittest.TestCase):
         self.bin = self.root / 'bin'
         self.bin.mkdir()
         curl = self.bin / 'curl'
-<<<<<<< ours
         curl.write_text('''#!/usr/bin/env python3
 import os, sys
 args = sys.argv[1:]
@@ -37,10 +36,12 @@ url = next(a for a in args if a.startswith('https://'))
 out = args[args.index('-o') + 1]
 name = url.rsplit('/', 1)[1]
 offset = os.path.getsize(out) if '-C' in args and os.path.exists(out) else 0
-with open(os.environ['TEST_REQUESTS'], 'a') as log:
+probe = out == '/dev/null'
+with open(os.environ['TEST_REQUESTS'] + ('.probes' if probe else ''), 'a') as log:
     log.write(url + '\\n')
-with open(os.environ['TEST_REQUESTS'] + '.offsets', 'a') as log:
-    log.write(f'{name} {offset}\\n')
+if not probe:
+    with open(os.environ['TEST_REQUESTS'] + '.offsets', 'a') as log:
+        log.write(f'{name} {offset}\\n')
 def done(status, code='200'):
     if '-w' in args:
         sys.stdout.write(code)
@@ -50,7 +51,7 @@ if host_fail and host_fail in url:
     done(22, '000')
 action = []
 plan = os.environ.get('TEST_PLAN')
-if plan and os.path.exists(plan):
+if plan and os.path.exists(plan) and '-r' not in args:
     lines = open(plan).read().splitlines()
     for n, line in enumerate(lines):
         if line.split()[0] == name:
@@ -69,27 +70,6 @@ end = int(action[1]) if action[:1] == ['cut'] else len(data)
 with open(out, 'ab' if offset else 'wb') as target:
     target.write(data[offset:end])
 done(28 if end < len(data) else 0)
-=======
-        curl.write_text('''#!/bin/bash
-set -eu
-url=""
-out=""
-while [ $# -gt 0 ]; do
-  case $1 in
-    -o) out=$2; shift 2 ;;
-    -w) shift 2 ;;
-    -r) shift 2 ;;
-    --connect-timeout|--max-time|--speed-limit|--speed-time|--retry|--retry-delay) shift 2 ;;
-    -*) shift ;;
-    *) url=$1; shift ;;
-  esac
-done
-printf '%s\\n' "$url" >> "$TEST_REQUESTS"
-if [ -n "${TEST_FAIL_HOST:-}" ]; then
-  case $url in *"$TEST_FAIL_HOST"*) exit 22 ;; esac
-fi
-cp "$TEST_CDN/${url##*/}" "$out"
->>>>>>> theirs
 ''')
         curl.chmod(0o755)
         self.plan = self.root / 'plan'
@@ -137,23 +117,18 @@ cp "$TEST_CDN/${url##*/}" "$out"
         self.assertEqual((self.steam / 'linuxarm64').resolve(), (self.home / '.steam/sdkarm64').resolve())
         if expected is None:
             expected = ([CDNS[0] + '/steam_client_' + channel + '_linuxarm64']
-                        + [cdn + '/' + channel + '.zip' for cdn in CDNS]
-                        + [CDNS[0] + '/' + channel + '.zip']
                         + [CDNS[0] + '/' + channel + '.zip'])
         self.assertEqual(expected, self.requests.read_text().splitlines())
         return result
 
     def test_downloads_the_deck_beta_client(self):
         self.assert_installed()
+        self.assertEqual([cdn + '/steamdeck_publicbeta.zip' for cdn in CDNS], self.probed())
 
     def test_a_cdn_that_does_not_answer_hands_over_to_the_next_one(self):
         self.assert_installed(fail_host='client-update.steamstatic.com', expected=[
             CDNS[0] + '/steam_client_steamdeck_publicbeta_linuxarm64',
             CDNS[1] + '/steam_client_steamdeck_publicbeta_linuxarm64',
-            CDNS[0] + '/steamdeck_publicbeta.zip',
-            CDNS[1] + '/steamdeck_publicbeta.zip',
-            CDNS[2] + '/steamdeck_publicbeta.zip',
-            CDNS[1] + '/steamdeck_publicbeta.zip',
             CDNS[1] + '/steamdeck_publicbeta.zip',
         ])
 
@@ -227,6 +202,10 @@ cp "$TEST_CDN/${url##*/}" "$out"
         if beta_manifest:
             stable.insert(0, 'https://client-update.steamstatic.com/steam_client_steamdeck_publicbeta_linuxarm64')
         return stable
+
+    def probed(self):
+        log = Path(str(self.requests) + '.probes')
+        return log.read_text().splitlines() if log.exists() else []
 
     def test_a_repaired_beta_client_that_still_shows_nothing_falls_back_to_stable(self):
         package = self.break_client(2)

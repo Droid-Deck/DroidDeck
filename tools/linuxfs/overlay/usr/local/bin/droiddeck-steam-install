@@ -142,10 +142,6 @@ fetch_manifest() {
     fi
   done
   [ -n "$cdn" ] || { echo "droiddeck-steam-install: no Steam client CDN answered for $manifest" >&2; exit 1; }
-  cdn_order=("$cdn")
-  for candidate in $cdn_list; do
-    [ "$candidate" = "$cdn" ] || cdn_order+=("$candidate")
-  done
   version=$(awk -F'"' '$2 == "version" { print $4; exit }' "$work/manifest")
   awk -F'"' '
     /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
@@ -158,6 +154,30 @@ fetch_manifest() {
   echo "droiddeck-steam-install: no client components in $manifest; its blocks are:" \
     "$(awk -F'"' '/^\t"/ && NF >= 3 && $4 == "" { printf "%s ", $2 }' "$work/manifest")" >&2
   return 1
+}
+
+# The CDN that answers the manifest first is not the fastest one, so measure the
+# opening of the largest component and take the source that actually moves bytes.
+rank_cdns() {
+  local probe_file fastest="" fastest_speed=0 candidate speed
+
+  probe_file=$(sort -k4 -rn "$work/parts" | head -1 | awk '{ print $2 }')
+  for candidate in $cdn_list; do
+    speed=$(curl -fsSL --connect-timeout 8 --max-time 8 -r 0-2097151 -o /dev/null \
+      -w '%{speed_download}' "$candidate/$probe_file" 2>/dev/null) || speed=0
+    speed=${speed%%.*}
+    case $speed in ''|*[!0-9]*) speed=0 ;; esac
+    if [ "$speed" -gt "$fastest_speed" ]; then
+      fastest_speed=$speed
+      fastest=$candidate
+    fi
+  done
+  [ -n "$fastest" ] || fastest=$cdn
+  echo "steam client source: ${fastest#https://} ($((fastest_speed / 1024)) KB/s)"
+  cdn_order=("$fastest")
+  for candidate in $cdn_list; do
+    [ "$candidate" = "$fastest" ] || cdn_order+=("$candidate")
+  done
 }
 if ! fetch_manifest; then
   if [ -n "$sync" ] || [ -n "$pinned" ] || [ "$steam_channel" = "$stable_channel" ]; then
@@ -178,6 +198,7 @@ if [ -n "$sync" ]; then
   fi
   echo "== STEP $(date -u +%H:%M:%S) updating the arm64 Steam client to $version (was ${installed:-none}) for the x86-64 client"
 fi
+rank_cdns
 total=$(grep -c . "$work/parts" 2>/dev/null || echo 0)
 total_bytes=$(awk '{ n += $4 } END { print n + 0 }' "$work/parts")
 
@@ -212,7 +233,7 @@ done < "$work/parts"
 # The client fetches its own first-run update; it should use the source that moved bytes.
 echo "${cdn_order[0]#https://}/" > "$steam_root/package/droiddeck-cdn"
 # Steam verifies the archives in package/ by name and size before it unpacks them, so
-# leaving them there saves the client a first run that fetches the whole set again.
+# leaving the split packages there saves the client a first run that fetches them again.
 awk -F'"' '
   /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
   $2 == "file" { file[block] = $4 }
@@ -225,8 +246,6 @@ awk -F'"' '
       if (vz[b] != "") {
         n = split(vz[b], part, "_")
         print b, vz[b], vzsha[b], part[n]
-      } else {
-        print b, file[b], sha[b], size[b]
       }
     }
   }
@@ -243,7 +262,10 @@ while read -r block name sum bytes; do
   echo "== STEP $(date -u +%H:%M:%S) downloading Steam: $block ($j/$packages)"
   fetched=""
   for host in "${cdn_order[@]}"; do
-    fetch_part "$host" "$name" "$sum" && { fetched=$host; break; }
+    if fetch "$host/$name" "$parts/$name" "$bytes" "$sum" "$block"; then
+      fetched=$host
+      break
+    fi
   done
   [ -n "$fetched" ] || { echo "droiddeck-steam-install: $name failed on every CDN" >&2; exit 1; }
   mv -f "$parts/$name" "$target"
