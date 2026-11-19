@@ -458,10 +458,17 @@ internal fun GameActions(
                     if (installed != null && id != null) {
                         val updateKey = BattleNetInstall.updateKey(id, installed.folder)
                         var wasRunning by remember(updateKey) { mutableStateOf(false) }
-                        LaunchedEffect(updateKey, SessionState.running) {
-                            val ended = wasRunning && !SessionState.running
-                            wasRunning = SessionState.running
-                            if (!SessionState.running) BattleNetInstall.checkUpdate(ctx, installed, force = ended)
+                        // SessionState.running is not snapshot state, so poll it while this detail is shown.
+                        val sessionRunning by produceState(SessionState.running) {
+                            while (true) {
+                                value = SessionState.running
+                                kotlinx.coroutines.delay(1000)
+                            }
+                        }
+                        LaunchedEffect(updateKey, sessionRunning) {
+                            val ended = wasRunning && !sessionRunning
+                            wasRunning = sessionRunning
+                            if (!sessionRunning) BattleNetInstall.checkUpdate(ctx, installed, force = ended)
                         }
                         if (download != null) {
                             ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
