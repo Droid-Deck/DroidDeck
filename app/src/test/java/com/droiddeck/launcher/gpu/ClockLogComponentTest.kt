@@ -68,6 +68,16 @@ class ClockLogComponentTest {
         assertEquals(" | gpu 0 MHz", ClockLogComponent.gpuField(clock.path, zero.path, 443))
         assertEquals(listOf("gpu limit ${zero.path}: refused"), ClockLogComponent.probeLines("gpu limit", listOf(zero.path), ClockLogComponent::limit))
         assertEquals(listOf("gpu source ${clock.path}: readable"), ClockLogComponent.probeLines("gpu source", listOf(clock.path)))
+        assertNull(ClockLogComponent.ceilingSource(listOf(zero.path)))
+        zero.writeText("285000000\n")
+        assertEquals(zero.path, ClockLogComponent.ceilingSource(listOf(zero.path)))
+        assertEquals(" | gpu 0/285(of 443) MHz", ClockLogComponent.gpuField(clock.path, zero.path, 443))
+    }
+
+    @Test fun aStepTableWithALeadingZeroIsReadable() {
+        val steps = tmp.newFile("freq_table_mhz").apply { writeText("0 160000000 285000000\n") }
+        assertEquals(listOf(160L, 285L), GpuLimits.first(listOf(steps.path))?.mhz)
+        assertEquals(listOf("gpu limit ${steps.path}: readable"), ClockLogComponent.probeLines("gpu limit", listOf(steps.path), ClockLogComponent::firstStep))
     }
 
     @Test fun unreadableOrMissingLimitsLeaveTheSampleUnchanged() {

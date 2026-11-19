@@ -41,7 +41,7 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
         val maxSources = GpuLimits.maxSources()
         val minSources = GpuLimits.minSources()
         val steps = GpuLimits.first(stepSources)
-        val ceiling = maxSources.firstOrNull { limit(it) != null }
+        var ceiling = ceilingSource(maxSources)
         val power = app().getSystemService(Context.POWER_SERVICE) as? PowerManager
         val time = SimpleDateFormat("HH:mm:ss", Locale.US)
         try {
@@ -50,7 +50,8 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
                 w.write("cpu policies: ${policies.joinToString { p -> p.name + " " + (File(p, "related_cpus").readTextOrNull()?.trim() ?: "?") }}\n")
                 probeLines("gpu source", gpuCandidates).forEach { w.write(it + "\n") }
                 w.write("gpu clock from: ${gpu ?: "nothing readable"}\n")
-                probeLines("gpu limit", (stepSources + maxSources + minSources).distinct(), ::limit).forEach { w.write(it + "\n") }
+                (probeLines("gpu limit", stepSources, ::firstStep) + probeLines("gpu limit", maxSources, ::limit) +
+                    probeLines("gpu limit", minSources, ::firstStep)).distinct().forEach { w.write(it + "\n") }
                 limitLines(steps, ceiling, GpuLimits.first(minSources)).forEach { w.write(it + "\n") }
                 w.flush()
                 while (running && logFile.length() < MAX_BYTES) {
@@ -62,6 +63,7 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
                         line.append(" ${p.name.removePrefix("policy").let { "p$it" }} ${mhz(cur)}/${mhz(max)}")
                         if (hw != null && max != null && max < hw) line.append("(of ${mhz(hw)})")
                     }
+                    if (ceiling == null) ceiling = ceilingSource(maxSources)?.also { w.write("gpu ceiling from: $it\n") }
                     line.append(gpuField(gpu, ceiling, steps?.mhz?.last()))
                     if (power != null && Build.VERSION.SDK_INT >= 29) {
                         line.append(" | thermal ${power.currentThermalStatus}")
@@ -138,6 +140,10 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
             runCatching { Regex("\\d+").find(File(path).readText())?.value?.toLong() }.getOrNull()
 
         internal fun limit(path: String): Long? = firstNumber(path)?.takeIf { it > 0 }
+
+        internal fun firstStep(path: String): Long? = GpuLimits.read(path).firstOrNull()
+
+        internal fun ceilingSource(sources: List<String>): String? = sources.firstOrNull { limit(it) != null }
 
         private fun mhz(raw: Long?): String = raw?.let { GpuLimits.mhz(it).toString() } ?: "?"
     }
