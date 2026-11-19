@@ -791,7 +791,7 @@ private fun LibraryGrid(
             Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { CustomGamesCard(splashHeight, art) }
         }
         else if (signInStore != null) item(key = "sign-in:${signInStore.id}", span = { GridItemSpan(maxLineSpan) }) {
-            StoreTheme(signInStore) { Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { SignInCard(signInStore, splashHeight) } }
+            StoreTheme(signInStore) { Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { SignInCard(signInStore, splashHeight, inert = DevPreview.library != LibraryPreview.OFF) } }
         }
         else if (split == 0) {
             if (toggleAt == ToggleAt.TOP) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
@@ -895,7 +895,8 @@ private fun LibraryHeader(
         SortButton(s, a)
         ViewButton(s, a)
         if (!soundMode) GameFileFolderActions(s, a)
-        Store.byId(source)?.takeIf { !soundMode && StoresState.isSignedIn(it) }?.let { StoreAccountButton(it) }
+        // No sign-out in a preview: it would sign the real account out.
+        Store.byId(source)?.takeIf { !soundMode && DevPreview.library == LibraryPreview.OFF && StoresState.isSignedIn(it) }?.let { StoreAccountButton(it) }
         if (!s.shortcutPicker && (soundMode || (source == Library.ADDED && total > 0))) AddGameButton { if (soundMode) onAddSoundtrack() else GamesDialogState.adding = true }
     }
     if (s.steamGamesX64 && narrow) Box(Modifier.padding(top = 4.dp)) { ClientTag() }
