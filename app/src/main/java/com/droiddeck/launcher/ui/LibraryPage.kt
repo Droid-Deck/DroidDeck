@@ -839,7 +839,7 @@ private fun LibraryHeader(
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
     val heading = if (soundMode) stringResource(R.string.rail_soundtracks) else sourceTitle(source)
-    val soundLead: (@Composable () -> Unit)? = if (!soundMode) null else { ->
+    val soundLead: (@Composable () -> Unit)? = if (!soundMode) { -> if (s.steamGamesX64 && !narrow) ClientTag() } else { ->
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
             Text(heading, fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
             Text(total.toString(), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
