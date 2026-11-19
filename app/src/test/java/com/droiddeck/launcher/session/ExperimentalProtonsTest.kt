@@ -35,6 +35,15 @@ class ExperimentalProtonsTest {
     }
 
     @Test
+    fun fileLabelsDropTheWholeArchiveSuffix() {
+        assertEquals("Build-12.8-r34", ExperimentalProtons.fileLabel("Build-12.8-r34.tar.xz"))
+        assertEquals("Build-12.8-r34", ExperimentalProtons.fileLabel("Build-12.8-r34.tar"))
+        assertEquals("Build-12.8-r34", ExperimentalProtons.fileLabel("Build-12.8-r34.7z"))
+        assertEquals("Build-12.8-r34", ExperimentalProtons.fileLabel("Build-12.8-r34.tgz"))
+        assertEquals("Experimental-Build", ExperimentalProtons.dirName("Build", ExperimentalProtons.fileLabel("Build.tar.gz")))
+    }
+
+    @Test
     fun installedReleasesLeaveTheAvailableRows() {
         val rows = listOf("r34", "r35").map { ExperimentalProtons.Release(it, "$it.tar.xz", "https://example.invalid/$it", null, 1L) }
         val installed = listOf(

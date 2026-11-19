@@ -123,8 +123,11 @@ object ExperimentalProtons {
         if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + file.length()) {
             return context.getString(R.string.xproton_no_space)
         }
-        return install(context, file, file.name.substringBeforeLast('.'), file.name, null, onProgress, false)
+        return install(context, file, fileLabel(file.name), file.name, null, onProgress, false)
     }
+
+    internal fun fileLabel(name: String): String =
+        if (TARBALL.containsMatchIn(name)) name.replace(TARBALL, "") else name.substringBeforeLast('.')
 
     fun installRelease(context: Context, release: Release, onProgress: (String, Int) -> Unit): String? {
         preflight(context)?.let { return it }
