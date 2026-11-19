@@ -894,8 +894,13 @@ internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?, showDownlo
     }
 }
 
-private fun libraryUpdateAvailable(e: LibraryEntry): Boolean = e.storeKey?.let { it in ItchUpdates.available || it in GameJoltUpdates.available || it in com.droiddeck.launcher.stores.ea.EaUpdates.available } == true ||
-    e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE
+private fun libraryUpdateAvailable(e: LibraryEntry): Boolean =
+    e.storeKey?.let { key ->
+        StoresState.installed.firstOrNull { it.key == key }
+            ?.let { com.droiddeck.launcher.stores.battlenet.BattleNetInstall.updates[com.droiddeck.launcher.stores.battlenet.BattleNetInstall.updateKey(it.sidecar.id, it.folder)] == true }
+    } == true ||
+        e.storeKey?.let { it in ItchUpdates.available || it in GameJoltUpdates.available || it in com.droiddeck.launcher.stores.ea.EaUpdates.available } == true ||
+        e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE
 
 @Composable
 private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit) {

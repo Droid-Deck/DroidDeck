@@ -103,6 +103,8 @@ object StoresState {
                         accountsLoaded = true
                     }
                     com.droiddeck.launcher.stores.gog.GogMaintenance.checkInstalled(app, onDisk)
+                    onDisk.filter { it.sidecar.store == Store.BATTLENET }
+                        .forEach { com.droiddeck.launcher.stores.battlenet.BattleNetInstall.checkUpdate(app, it) }
                 }
             } while (!refreshRequests.compareAndSet(seen, 0))
         }

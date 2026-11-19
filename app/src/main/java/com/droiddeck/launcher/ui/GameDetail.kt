@@ -457,7 +457,12 @@ internal fun GameActions(
                 if (store == Store.BATTLENET) {
                     if (installed != null && id != null) {
                         val updateKey = BattleNetInstall.updateKey(id, installed.folder)
-                        LaunchedEffect(updateKey) { BattleNetInstall.checkUpdate(ctx, installed) }
+                        var wasRunning by remember(updateKey) { mutableStateOf(false) }
+                        LaunchedEffect(updateKey, SessionState.running) {
+                            val ended = wasRunning && !SessionState.running
+                            wasRunning = SessionState.running
+                            if (!SessionState.running) BattleNetInstall.checkUpdate(ctx, installed, force = ended)
+                        }
                         if (download != null) {
                             ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
                             if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
