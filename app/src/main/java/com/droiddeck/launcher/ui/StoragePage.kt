@@ -96,6 +96,7 @@ import com.droiddeck.launcher.agent.AgentHost
 import com.droiddeck.launcher.agent.AgentStorage
 import com.droiddeck.launcher.storage.StorageReport
 import com.droiddeck.launcher.storage.StorageState
+import com.droiddeck.launcher.storage.StorageSummary
 import com.droiddeck.launcher.storage.ToolReason
 import com.droiddeck.launcher.storage.ToolState
 import com.droiddeck.launcher.storage.ToolUsage
@@ -127,9 +128,10 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
     var view by remember { mutableStateOf("overview") }
     var cleanup by remember { mutableStateOf(false) }
     val report = StorageState.report
+    val summary = report?.let { remember(it) { StorageSummary.of(it) } } ?: StorageState.saved
     LaunchedEffect(Unit) { StorageState.refresh(ctx); AgentStorage.measure(ctx) }
     LaunchedEffect(s.sessionRunning) { if (!s.sessionRunning) StorageState.refresh(ctx, force = report != null) }
-    if (report == null) {
+    if (summary == null) {
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(MaterialTheme.colorScheme.surface)
@@ -143,7 +145,7 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         }
         return
     }
-    if (cleanup) CleanUpDialog(report, s.sessionRunning) { cleanup = false }
+    if (cleanup && report != null) CleanUpDialog(report, s.sessionRunning) { cleanup = false }
     val top = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     LaunchedEffect(view) {
         StorageState.lastFreed = null
@@ -151,7 +153,9 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         runCatching { top.bringIntoView() }
     }
     Box(Modifier.fillMaxWidth().height(1.dp).bringIntoViewRequester(top))
-    when (view) {
+    // Until this run's scan lands, the saved overview shows; a section opened meanwhile appears once it does.
+    if (report == null) Overview(summary, s.sessionRunning, onCleanUp = { cleanup = true }, onOpen = { view = it })
+    else when (view) {
         "games" -> GamesView(report, s.sessionRunning, a) { view = "overview" }
         "data" -> GameDataView(report, s.sessionRunning) { view = "overview" }
         "components" -> ComponentsView(report, s.sessionRunning) { view = "overview" }
@@ -159,7 +163,7 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         "stores" -> StoreGamesView(report, s.sessionRunning) { view = "overview" }
         "tools" -> ToolsView(report, s.sessionRunning) { view = "overview" }
         "system" -> SystemView(report, s.sessionRunning) { view = "overview" }
-        else -> Overview(report, s.sessionRunning, onCleanUp = { cleanup = true }, onOpen = { view = it })
+        else -> Overview(summary, s.sessionRunning, onCleanUp = { cleanup = true }, onOpen = { view = it })
     }
 }
 
@@ -271,7 +275,7 @@ private fun DefaultStorageGroup() {
 }
 
 @Composable
-private fun Overview(report: StorageReport, sessionRunning: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
+private fun Overview(report: StorageSummary, sessionRunning: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
     val narrowPane = LocalNarrowPane.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val wide = !narrowPane && maxWidth >= WIDE_OVERVIEW
@@ -284,11 +288,11 @@ private val NARROW_ROW = 640.dp
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun OverviewContent(report: StorageReport, sessionRunning: Boolean, wide: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
+private fun OverviewContent(report: StorageSummary, sessionRunning: Boolean, wide: Boolean, onCleanUp: () -> Unit, onOpen: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val used = report.total - report.free
-    val safe = StorageState.safeBytes(report)
+    val safe = report.safe
     val low = report.free < StorageState.LOW_SPACE_BYTES
     ActionStatus()
     val summary = Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)
@@ -315,7 +319,7 @@ private fun OverviewContent(report: StorageReport, sessionRunning: Boolean, wide
         Text(stringResource(R.string.storage_safe_now), fontSize = 13.sp, color = colors.onSurfaceVariant)
         Text(gb(safe), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (safe > 0) pal.good else colors.onBackground)
         Text(stringResource(R.string.storage_safe_hint), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 10.dp))
-        PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.busy, compact = true, onClick = onCleanUp)
+        PrimaryButton(stringResource(R.string.storage_clean_up), enabled = !sessionRunning && !StorageState.busy && StorageState.report != null, compact = true, onClick = onCleanUp)
     } }
     if (wide) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = summary) {
         usage(Modifier.weight(1f))
@@ -332,11 +336,11 @@ private fun OverviewContent(report: StorageReport, sessionRunning: Boolean, wide
     }
     DefaultStorageGroup()
     SectionTitle(stringResource(R.string.storage_where), null)
-    val unused = report.unusedTools.sumOf { it.bytes }
+    val unused = report.unusedTools
     val tiles = listOf<@Composable (Modifier) -> Unit>(
         { m ->
             BucketCard(Bucket.GAMES, Icons.Outlined.VideogameAsset, stringResource(R.string.storage_games),
-                pluralStringResource(R.plurals.storage_games_installed, report.games.size, report.games.size) +
+                pluralStringResource(R.plurals.storage_games_installed, report.games, report.games) +
                     if (report.gamesOnSd > 0) " · " + pluralStringResource(R.plurals.storage_games_on_sd, report.gamesOnSd, report.gamesOnSd) else "",
                 report.buckets.getValue(Bucket.GAMES), m) { onOpen("games") }
         },
@@ -347,29 +351,29 @@ private fun OverviewContent(report: StorageReport, sessionRunning: Boolean, wide
         },
         { m ->
             BucketCard(Bucket.TOOLS, Icons.Outlined.Layers, stringResource(R.string.storage_tools),
-                if (unused > 0) stringResource(R.string.storage_tools_unused, gb(unused)) else pluralStringResource(R.plurals.storage_tools_count, report.tools.size, report.tools.size),
+                if (unused > 0) stringResource(R.string.storage_tools_unused, gb(unused)) else pluralStringResource(R.plurals.storage_tools_count, report.tools, report.tools),
                 report.buckets.getValue(Bucket.TOOLS), m, attention = unused > 0) { onOpen("tools") }
         },
         { m ->
-            val unusedComponents = report.unusedComponents.sumOf { it.bytes }
+            val unusedComponents = report.unusedComponents
             BucketCard(Bucket.COMPONENTS, Icons.Outlined.Extension, stringResource(R.string.storage_components),
                 if (unusedComponents > 0) stringResource(R.string.storage_tools_unused, gb(unusedComponents))
-                else pluralStringResource(R.plurals.storage_components_count, report.components.size, report.components.size),
+                else pluralStringResource(R.plurals.storage_components_count, report.components, report.components),
                 report.buckets.getValue(Bucket.COMPONENTS), m, attention = unusedComponents > 0) { onOpen("components") }
         },
         { m ->
             BucketCard(Bucket.STORES, Icons.Outlined.ShoppingBag, stringResource(R.string.storage_stores),
-                pluralStringResource(R.plurals.storage_games_installed, report.storeGames.size, report.storeGames.size),
+                pluralStringResource(R.plurals.storage_games_installed, report.storeGames, report.storeGames),
                 report.buckets.getValue(Bucket.STORES), m) { onOpen("stores") }
         },
         { m ->
             BucketCard(Bucket.DESKTOP, Icons.Outlined.Monitor, stringResource(R.string.storage_desktop),
-                pluralStringResource(R.plurals.storage_desktop_apps, report.flatpakApps.size, report.flatpakApps.size) +
-                    " · " + stringResource(R.string.storage_desktop_shared, gb(report.flatpakRuntimes + report.flatpakCache)),
+                pluralStringResource(R.plurals.storage_desktop_apps, report.flatpakApps, report.flatpakApps) +
+                    " · " + stringResource(R.string.storage_desktop_shared, gb(report.flatpakShared)),
                 report.buckets.getValue(Bucket.DESKTOP), m) { onOpen("desktop") }
         },
         { m ->
-            val clearable = report.systemCacheBytes + agentBytes().sumOf { it.second }
+            val clearable = report.systemClearable + agentBytes().sumOf { it.second }
             BucketCard(Bucket.SYSTEM, Icons.Outlined.Storage, stringResource(R.string.storage_system),
                 if (clearable >= ONE_MB) stringResource(R.string.storage_system_clearable, gb(clearable)) else stringResource(R.string.storage_system_hint),
                 report.buckets.getValue(Bucket.SYSTEM), m) { onOpen("system") }
@@ -403,7 +407,7 @@ private fun bucketLabel(bucket: Bucket) = stringResource(when (bucket) {
 })
 
 @Composable
-private fun UsageBar(report: StorageReport, modifier: Modifier) {
+private fun UsageBar(report: StorageSummary, modifier: Modifier) {
     val total = report.total.coerceAtLeast(1).toFloat()
     val other = (report.total - report.free - report.droiddeck).coerceAtLeast(0)
     Row(modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(7.dp)).background(Color(0xFF0A0C0F))) {
@@ -1215,6 +1219,7 @@ private fun SystemView(report: StorageReport, sessionRunning: Boolean, onBack: (
     val ctx = LocalContext.current
     val busy = sessionRunning || StorageState.busy
     var confirmAgent by remember { mutableStateOf<AgentStorage.Item?>(null) }
+    var confirmCheckout by remember { mutableStateOf<com.droiddeck.launcher.storage.CheckoutUsage?>(null) }
     val removing = AgentStorage.removing.size
     var wasRemoving by remember { mutableStateOf(false) }
     LaunchedEffect(removing) {
@@ -1223,7 +1228,8 @@ private fun SystemView(report: StorageReport, sessionRunning: Boolean, onBack: (
     }
     val caches = report.systemCaches.sortedByDescending { it.bytes }
     val agent = agentBytes().sortedByDescending { it.second }
-    val agentTotal = agent.sumOf { it.second }
+    val checkouts = report.checkouts.filter { it.bytes >= ONE_MB }
+    val agentTotal = agent.sumOf { it.second } + checkouts.sumOf { it.bytes }
     val rest = (report.buckets.getValue(Bucket.SYSTEM) - report.systemCacheBytes - agentTotal).coerceAtLeast(0)
     SubHeader(stringResource(R.string.storage_system), stringResource(R.string.storage_system_clearable, gb(report.systemCacheBytes + agentTotal)), onBack) {
         if (caches.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_free_button, gb(report.systemCacheBytes)), compact = true, enabled = !busy) {
@@ -1242,14 +1248,21 @@ private fun SystemView(report: StorageReport, sessionRunning: Boolean, onBack: (
             }
         }
     }
-    if (agent.isNotEmpty()) {
+    if (agent.isNotEmpty() || checkouts.isNotEmpty()) {
         SectionTitle(stringResource(R.string.rail_agent), gb(agentTotal))
         ListCard {
             agent.forEachIndexed { i, (item, bytes) ->
-                ItemRow(stringResource(agentStorageTitle(item)), stringResource(agentStorageWarning(item)), bytes, i == agent.lastIndex,
+                ItemRow(stringResource(agentStorageTitle(item)), stringResource(agentStorageWarning(item)), bytes, i == agent.lastIndex && checkouts.isEmpty(),
                     action = {
                         SecondaryButton(stringResource(R.string.storage_remove), compact = true,
                             enabled = AgentStorage.removing[item] != true && AgentHost.state != AgentHost.State.WORKING) { confirmAgent = item }
+                    })
+            }
+            checkouts.forEachIndexed { i, c ->
+                ItemRow(c.dir.name, stringResource(R.string.agent_storage_source_warning), c.bytes, i == checkouts.lastIndex,
+                    action = {
+                        SecondaryButton(stringResource(R.string.storage_remove), compact = true,
+                            enabled = !busy && AgentHost.state != AgentHost.State.WORKING) { confirmCheckout = c }
                     })
             }
         }
@@ -1263,6 +1276,12 @@ private fun SystemView(report: StorageReport, sessionRunning: Boolean, onBack: (
         ConfirmDialog(
             stringResource(R.string.storage_remove_title, stringResource(agentStorageTitle(item))), stringResource(agentStorageWarning(item)),
             stringResource(R.string.storage_remove), onConfirm = { AgentStorage.remove(ctx, item) }, onDismiss = { confirmAgent = null },
+        )
+    }
+    confirmCheckout?.let { c ->
+        ConfirmDialog(
+            stringResource(R.string.storage_remove_title, c.dir.name), stringResource(R.string.agent_storage_source_warning),
+            stringResource(R.string.storage_remove), onConfirm = { StorageState.removeCheckout(ctx, c.dir) }, onDismiss = { confirmCheckout = null },
         )
     }
 }

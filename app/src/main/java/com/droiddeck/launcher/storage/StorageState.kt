@@ -61,8 +61,17 @@ object StorageState {
         }, "storage-store-sizes").start()
     }
 
+    /** The last scan's overview from disk, shown until this run's first scan lands. */
+    var saved by mutableStateOf<StorageSummary?>(null)
+        private set
+
     private fun publish(app: Context, result: StorageReport) {
         report = result
+        val summary = StorageSummary.of(result)
+        saved = summary
+        Thread({
+            runCatching { StorageSummary.file(app.filesDir).writeText(summary.toJson()) }.onFailure { Log.w(TAG, "could not keep the storage summary", it) }
+        }, "storage-summary").start()
         val live = result.storeGames.mapTo(HashSet()) { sizeKey(it) }
         storeSizes.keys.retainAll(live)
         measureStoreGames(app)
@@ -88,6 +97,9 @@ object StorageState {
 
     fun refresh(context: Context, force: Boolean = false) {
         val current = report
+        if (current == null && saved == null) {
+            saved = runCatching { StorageSummary.fromJson(StorageSummary.file(context.applicationContext.filesDir).readText()) }.getOrNull()
+        }
         if (scanning || cleaning) {
             if (force) refreshAgain = true
             return
@@ -240,6 +252,15 @@ object StorageState {
         val files = fresh.systemCaches.firstOrNull { it.kind == kind }?.files.orEmpty()
         files.forEach { FileOps.delete(it) }
         files.isNotEmpty()
+    })
+
+    /** Deletes a checkout the fresh scan still lists, and the main repository's record of it if it was a worktree. */
+    fun removeCheckout(context: Context, dir: java.io.File) = act(context, "checkout-${dir.name}", { app, fresh ->
+        val checkout = fresh.checkouts.firstOrNull { it.dir.path == dir.path } ?: return@act false
+        val record = SystemCaches.worktreeRecord(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), checkout.dir)
+        check(FileOps.delete(checkout.dir)) { "cannot delete ${checkout.dir}" }
+        record?.let { FileOps.delete(it) }
+        true
     })
 
     fun removeDirs(context: Context, dirs: List<java.io.File>) = act(context, "remove-${dirs.size}", { _, fresh ->

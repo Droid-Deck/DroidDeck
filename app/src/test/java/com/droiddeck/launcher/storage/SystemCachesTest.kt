@@ -37,4 +37,17 @@ class SystemCachesTest {
         assertEquals(listOf(File(steam, "config/htmlcache")), found.getValue(SystemCache.STEAM_WEB))
         assertEquals(listOf(File(steam, "steamapps/corrupt")), found.getValue(SystemCache.STEAM_CORRUPT))
     }
+
+    @Test fun checkoutsAndTheirWorktreeRecordsAreFound() {
+        val rootfs = File(tmp.root, "rootfs")
+        File(rootfs, "root/DroidDeck/.git/worktrees/dd-pet").mkdirs()
+        file("rootfs/root/dd-pet/.git", now).writeText("gitdir: /root/DroidDeck/.git/worktrees/dd-pet\n")
+        file("rootfs/root/own/.git/HEAD", now)
+        file("rootfs/root/notes/readme", now)
+        file("rootfs/root/bad/.git", now).writeText("gitdir: /root/DroidDeck/.git/worktrees/../../../etc\n")
+        assertEquals(listOf("bad", "dd-pet", "own"), SystemCaches.checkouts(rootfs).map { it.name }.sorted())
+        assertEquals(File(rootfs, "root/DroidDeck/.git/worktrees/dd-pet"), SystemCaches.worktreeRecord(rootfs, File(rootfs, "root/dd-pet")))
+        assertEquals(null, SystemCaches.worktreeRecord(rootfs, File(rootfs, "root/own")))
+        assertEquals(null, SystemCaches.worktreeRecord(rootfs, File(rootfs, "root/bad")))
+    }
 }

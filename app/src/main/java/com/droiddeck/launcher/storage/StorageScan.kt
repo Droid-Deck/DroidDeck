@@ -72,6 +72,7 @@ class StorageReport(
     val leftoversChecked: Boolean,
     val storeGames: List<StoreGameUsage> = emptyList(),
     val systemCaches: List<SystemCacheUsage> = emptyList(),
+    val checkouts: List<CheckoutUsage> = emptyList(),
 ) {
     val systemCacheBytes: Long get() = systemCaches.sumOf { it.bytes }
     val otherPrefixes: Long get() = kept.sumOf { it.bytes }
@@ -362,6 +363,7 @@ object StorageScan {
         val rootfsBytes = m(rootfs)
         val systemCaches = SystemCaches.find(rootfs, clientRoots, System.currentTimeMillis())
             .map { (kind, found) -> SystemCacheUsage(kind, found, found.sumOf { walker.measure(it) }) }.filter { it.bytes > 0 }
+        val checkouts = SystemCaches.checkouts(rootfs).map { CheckoutUsage(it, walker.measure(it)) }.sortedByDescending { it.bytes }
         val privateBytes = privateRoots.sumOf { m(it) }
         val system = rootfsBytes - installs - inApps("compatdata") - inApps("shadercache") - workshop -
             compatTools - stores - flatpak
@@ -385,7 +387,7 @@ object StorageScan {
             ),
             prefixes, shaders, workshop, flatpak,
             games.sortedByDescending { it.total }, tools.values.toList(), leftovers, logs, logBytes,
-            components, flatpakApps, flatpakRuntimes, kept, everyLibraryRead, storeGames, systemCaches,
+            components, flatpakApps, flatpakRuntimes, kept, everyLibraryRead, storeGames, systemCaches, checkouts,
         )
     }
 }
