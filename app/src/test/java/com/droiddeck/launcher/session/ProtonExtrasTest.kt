@@ -222,11 +222,14 @@ class ProtonExtrasTest {
         assertFalse(state.getJSONObject("active").has("GE-Proton11-7"))
         assertFalse(state.getJSONObject("queued").has("GE-Proton11-7"))
         assertTrue(state.getJSONObject("active").has("GE-Proton11-8"))
-        ComponentsManager.forgetProton(context, kept.name)
+        assertTrue(ComponentsManager.forgetProton(context, kept.name))
         assertTrue(File(originals, "GE-Proton11-8/GE-Proton11-8/dxvk.wcp").isFile)
-        ComponentsManager.forgetProton(context, kept.name, replaced = true)
-        assertFalse(File(originals, "GE-Proton11-8").exists())
-        assertFalse(JSONObject(File(context.filesDir, "components/state.json").readText()).getJSONObject("active").has("GE-Proton11-8"))
+        val published = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-components/desired.tsv")
+        published.appendText("*\tExperimental-Gone\t11\tdxvk\tfiles/lib/wine/dxvk/x86_64-windows/dxgi.dll\t-\t-\n")
+        File(originals, "Experimental-Gone/11/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
+        assertTrue(ComponentsManager.forgetProton(context, "Experimental-Gone"))
+        assertFalse(published.readLines().any { "Experimental-Gone" in it })
+        assertFalse(File(originals, "Experimental-Gone").exists())
     }
 
     @Test

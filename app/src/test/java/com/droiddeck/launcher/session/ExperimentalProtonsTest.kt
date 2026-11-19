@@ -93,29 +93,63 @@ class ExperimentalProtonsTest {
         assertNull(ExperimentalProtons.checksumEntry(listOf("Proton-debug.tar.gz.sha512sum"), "Proton.tar.gz"))
     }
 
-    @Test
-    fun failedPlacementRestoresTheExistingBuild() {
-        val staging = temp.newFolder("staging")
-        val backups = temp.newFolder("backups")
-        val final = temp.newFolder("final")
-        File(final, "marker").writeText("old")
-        assertFalse(ExperimentalProtons.placeTree(File(staging, "missing"), final, backups))
-        assertEquals("old", File(final, "marker").readText())
-        assertFalse(File(backups, "final").exists())
+    private fun build(dir: File, marker: String): File = dir.apply {
+        mkdirs()
+        File(this, "marker").writeText(marker)
     }
 
     @Test
-    fun anInterruptedReplacementIsRestoredAndAPlacedBuildIsKept() {
+    fun failedPlacementRestoresTheExistingBuild() {
         val tools = temp.newFolder("tools")
-        val backups = File(tools, "backups")
-        File(backups, "Experimental-A").mkdirs()
-        File(backups, "Experimental-A/marker").writeText("old")
-        File(backups, "Experimental-B").mkdirs()
-        File(tools, "Experimental-B").mkdirs()
-        File(tools, "Experimental-B/marker").writeText("new")
-        ExperimentalProtons.restoreInterrupted(tools, backups)
+        build(File(tools, "Experimental-A"), "old")
+        assertFalse(ExperimentalProtons.placeTree(File(tools, "missing"), tools, "Experimental-A") { true })
         assertEquals("old", File(tools, "Experimental-A/marker").readText())
-        assertEquals("new", File(tools, "Experimental-B/marker").readText())
-        assertFalse(File(backups, "Experimental-B").exists())
+        assertFalse(ExperimentalProtons.placeTree(build(File(tools, "staged"), "new"), tools, "Experimental-A") { false })
+        assertEquals("old", File(tools, "Experimental-A/marker").readText())
+        assertTrue(tools.walkTopDown().none { it.isFile && it.readText() == "new" })
+    }
+
+    @Test
+    fun aReplacedBuildIsForgottenWhileNeitherBuildIsInstalled() {
+        val tools = temp.newFolder("tools")
+        build(File(tools, "Experimental-A"), "old")
+        val forgotten = ArrayList<String>()
+        assertTrue(ExperimentalProtons.placeTree(build(File(tools, "staged"), "new"), tools, "Experimental-A") {
+            assertFalse(File(tools, it).exists())
+            forgotten.add(it)
+        })
+        assertEquals(listOf("Experimental-A"), forgotten)
+        assertEquals("new", File(tools, "Experimental-A/marker").readText())
+        assertTrue(ExperimentalProtons.placeTree(build(File(tools, "staged"), "first"), tools, "Experimental-B") { forgotten.add(it) })
+        assertEquals(listOf("Experimental-A"), forgotten)
+        assertEquals(listOf("Experimental-A", "Experimental-B"), tools.walkTopDown().filter { it.name == "marker" }.map { it.parentFile.name }.sorted().toList())
+    }
+
+    @Test
+    fun anInterruptedReplacementIsFinishedWithItsOldStateForgotten() {
+        val tools = temp.newFolder("tools")
+        build(File(tools, "Experimental-A"), "old")
+        build(File(tools, ".droiddeck-experimental-new/Experimental-A"), "new")
+        build(File(tools, ".droiddeck-experimental-old/Experimental-B"), "old")
+        build(File(tools, ".droiddeck-experimental-new/Experimental-B"), "new")
+        build(File(tools, ".droiddeck-experimental-old/Experimental-C"), "old")
+        build(File(tools, ".droiddeck-experimental-old/Experimental-D"), "old")
+        build(File(tools, "Experimental-D"), "new")
+        val forgotten = ArrayList<String>()
+        ExperimentalProtons.restoreInterrupted(tools) { forgotten.add(it) }
+        assertEquals(listOf("Experimental-A", "Experimental-B"), forgotten.sorted())
+        assertEquals(listOf("new", "new", "old", "new"), listOf("A", "B", "C", "D").map { File(tools, "Experimental-$it/marker").readText() })
+        assertTrue(File(tools, ".droiddeck-experimental-old").listFiles().isNullOrEmpty())
+        assertTrue(File(tools, ".droiddeck-experimental-new").listFiles().isNullOrEmpty())
+    }
+
+    @Test
+    fun anInterruptedReplacementKeepsTheOldBuildWhenItsStateCannotBeForgotten() {
+        val tools = temp.newFolder("tools")
+        build(File(tools, ".droiddeck-experimental-old/Experimental-A"), "old")
+        build(File(tools, ".droiddeck-experimental-new/Experimental-A"), "new")
+        ExperimentalProtons.restoreInterrupted(tools) { false }
+        assertEquals("old", File(tools, "Experimental-A/marker").readText())
+        assertTrue(File(tools, ".droiddeck-experimental-new").listFiles().isNullOrEmpty())
     }
 }

@@ -902,15 +902,16 @@ object ComponentsManager {
         }
     }
 
-    fun forgetProton(context: Context, dirName: String, replaced: Boolean = false) {
-        synchronized(lock) {
-            val id = safeName(dirName)
-            if (!replaced && protons(context).any { it.id == id }) return
-            val state = loadState(context)
-            val selected = listOf("active", "queued").map { state.sub(it).remove(id) != null }.any { it }
-            if (selected && runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "forget $id", it) }.isFailure) return
-            File(originalsDir(context), id).deleteRecursively()
-        }
+    fun forgetProton(context: Context, dirName: String): Boolean = synchronized(lock) {
+        val id = safeName(dirName)
+        if (protons(context).any { it.id == id }) return true
+        val state = loadState(context)
+        val selected = listOf("active", "queued").map { state.sub(it).remove(id) != null }.any { it }
+        val listed = File(launchDir(context), "desired.tsv").takeIf { it.isFile }
+            ?.useLines { rows -> rows.any { it.split('\t').getOrNull(1) == dirName } } == true
+        if ((selected || listed) && runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "forget $id", it) }.isFailure) return false
+        File(originalsDir(context), id).deleteRecursively()
+        true
     }
 
     private fun storePackage(context: Context, part: File, dest: File) {
