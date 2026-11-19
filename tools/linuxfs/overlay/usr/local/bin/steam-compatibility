@@ -1170,6 +1170,14 @@ def removed_tools(state, catalog):
     return previous - {t["name"] for t in catalog}
 
 
+def release_removed(overrides, requests, state, removed):
+    known = state.get("tools") if isinstance(state.get("tools"), list) else ()
+    dirs = {t.get("dir") for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name") in removed}
+    return {app: None if target is DEFERRED_GAME_TOOL and isinstance(requests.get(app), dict) and
+            requests[app].get("valve") is False and requests[app].get("dir") in dirs else target
+            for app, target in overrides.items()}
+
+
 def tool_entry(name, display, path, valve):
     return {"name": name, "display": display, "dir": os.path.basename(path) if path else "", "valve": valve}
 
@@ -1587,7 +1595,8 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             current.update(moved)
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
         requests = settled_game_requests(state, current, catalog, not steam_running(), directory)
-        overrides = requested_games(requests or {}, catalog)
+        removed = removed_tools(state, catalog)
+        overrides = release_removed(requested_games(requests or {}, catalog), requests or {}, state, removed)
         managed = state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else ()
         native_choices = state.get("native_choices", ())
         native = native_targets(steam_root, set(apps) | set(picks) | set(managed) | set(native_choices))
@@ -1597,7 +1606,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             current.setdefault(app, "")
         changes, auto = plan_mapping(
             current, apps, names, default, followers(state, current), native, picks,
-            overrides, managed, native_choices, tool_platforms(steam_root), removed_tools(state, catalog))
+            overrides, managed, native_choices, tool_platforms(steam_root), removed)
         set_mappings(tokens, mapping, changes)
         text = serialize(tokens)
         if text != serialize(tokenize(original)):

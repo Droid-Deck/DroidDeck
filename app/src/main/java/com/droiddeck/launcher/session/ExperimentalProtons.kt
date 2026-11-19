@@ -7,9 +7,12 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.file.Files
 import java.security.DigestOutputStream
 import java.security.MessageDigest
 import java.util.zip.ZipFile
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
 import org.json.JSONObject
 
 object ExperimentalProtons {
@@ -19,6 +22,7 @@ object ExperimentalProtons {
     private const val STAGING = ".droiddeck-experimental"
     private const val GUEST_TOOLS = "/root/.local/share/Steam/compatibilitytools.d"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
+    private const val USER_SETTINGS = "user_settings.py"
     private val TARBALL = Regex("(?i)\\.tar(\\.(gz|xz|zst|bz2))?$")
 
     data class Installed(val dir: String, val label: String, val source: String)
@@ -38,7 +42,7 @@ object ExperimentalProtons {
     fun remove(context: Context, dir: String): Boolean {
         val target = File(toolsDir(context), dir)
         if (!File(target, MARKER).isFile) return false
-        val gone = target.deleteRecursively()
+        val gone = deleteTree(target)
         if (gone) ComponentsManager.forgetProton(context, dir)
         return gone
     }
@@ -81,7 +85,7 @@ object ExperimentalProtons {
     private fun install(context: Context, zip: File, label: String, source: String, onProgress: (String, Int) -> Unit): String? {
         val tools = toolsDir(context).apply { mkdirs() }
         val staging = File(tools, STAGING)
-        staging.deleteRecursively()
+        deleteTree(staging)
         staging.mkdirs()
         try {
             LinuxRuntime.writeAccounts(context)
@@ -98,16 +102,19 @@ object ExperimentalProtons {
             tarball.delete()
             if (status != 0) return context.getString(R.string.xproton_untar_failed, status)
 
-            val tree = unpacked.listFiles()?.firstOrNull { it.isDirectory && File(it, "toolmanifest.vdf").isFile }
-                ?: return context.getString(R.string.xproton_no_tree)
+            val tree = buildTree(unpacked) ?: return context.getString(R.string.xproton_no_tree)
             val name = dirName(tree.name, label)
-            File(tree, "compatibilitytool.vdf").writeText(compatVdf(name))
-            File(tree, MARKER).writeText(
+            ownFile(tree, "compatibilitytool.vdf").writeText(compatVdf(name))
+            ownFile(tree, MARKER).writeText(
                 JSONObject().put("label", name).put("source", source).put("at", System.currentTimeMillis() / 1000).toString(),
             )
             val final = File(tools, name)
+            val settings = File(final, USER_SETTINGS)
+            if (Files.isRegularFile(settings.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                settings.copyTo(ownFile(tree, USER_SETTINGS))
+            }
             if (final.exists()) {
-                final.deleteRecursively()
+                if (!deleteTree(final)) return context.getString(R.string.xproton_place_failed)
                 ComponentsManager.forgetProton(context, name)
             }
             if (!tree.renameTo(final)) return context.getString(R.string.xproton_place_failed)
@@ -119,16 +126,37 @@ object ExperimentalProtons {
             Log.e(TAG, "install $source", e)
             return e.message ?: context.getString(R.string.xproton_bad_zip)
         } finally {
-            staging.deleteRecursively()
+            deleteTree(staging)
         }
+    }
+
+    internal fun buildTree(unpacked: File): File? {
+        val root = unpacked.canonicalFile
+        return unpacked.listFiles()?.sortedBy { it.name }?.firstOrNull {
+            !Files.isSymbolicLink(it.toPath()) && it.isDirectory && it.canonicalFile.parentFile == root &&
+                Files.isRegularFile(File(it, "toolmanifest.vdf").toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
+        }
+    }
+
+    @OptIn(ExperimentalPathApi::class)
+    internal fun deleteTree(dir: File): Boolean =
+        runCatching { dir.toPath().deleteRecursively() }.onFailure { Log.w(TAG, "delete $dir", it) }.isSuccess && !Files.exists(dir.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
+
+    internal fun ownFile(tree: File, name: String): File {
+        val file = File(tree, name)
+        Files.deleteIfExists(file.toPath())
+        return file
     }
 
     private fun extractTarball(zip: File, into: File): File? = ZipFile(zip).use { z ->
         val entries = z.entries().toList().filter { !it.isDirectory }
         val entry = entries.filter { TARBALL.containsMatchIn(it.name) }.maxByOrNull { it.size } ?: return null
         val name = File(entry.name).name
-        val expected = entries.firstOrNull { File(it.name).name.startsWith(name.substringBefore(".tar")) && it.name.contains("sha512", true) }
-            ?.let { e -> z.getInputStream(e).use { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it.readBytes().decodeToString())?.value } }
+        val sums = entries.firstOrNull { File(it.name).name.startsWith(name.substringBefore(".tar")) && it.name.contains("sha512", true) }
+        val expected = sums?.let { e ->
+            z.getInputStream(e).use { checksumIn(it.readBytes().decodeToString()) }
+                ?: throw IllegalStateException("${File(e.name).name} holds no SHA-512 checksum")
+        }
         val out = File(into, name)
         val digest = MessageDigest.getInstance("SHA-512")
         z.getInputStream(entry).use { input -> DigestOutputStream(FileOutputStream(out), digest).use { input.copyTo(it, 1 shl 16) } }
@@ -138,6 +166,8 @@ object ExperimentalProtons {
         }
         out
     }
+
+    internal fun checksumIn(text: String): String? = Regex("(?i)\\b[0-9a-f]{128}\\b").find(text)?.value
 
     private fun runGuest(context: Context, command: List<String>): Int {
         val guest = listOf(

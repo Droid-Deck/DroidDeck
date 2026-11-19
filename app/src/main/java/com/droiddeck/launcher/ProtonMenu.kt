@@ -121,11 +121,12 @@ internal class ProtonMenu(
         protonStage = activity.getString(R.string.main_removing_named, dir)
         protonPercent = -1
         Thread({
-            ExperimentalProtons.remove(activity, dir)
+            val removed = runCatching { ExperimentalProtons.remove(activity, dir) }.getOrDefault(false)
             ui.post {
                 protonBusyId = null
                 protonStage = null
                 refreshProtons()
+                if (!removed) android.widget.Toast.makeText(activity, activity.getString(R.string.xproton_remove_failed, dir), android.widget.Toast.LENGTH_LONG).show()
             }
         }, "remove-proton-experimental").start()
     }

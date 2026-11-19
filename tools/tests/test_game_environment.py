@@ -2630,6 +2630,41 @@ class ProtonDefaultTest(unittest.TestCase):
                 "11": COMPAT["TOOL_11"],
             })
 
+    def test_per_game_proton_that_was_removed_goes_back_to_the_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([
+                ("0", self.TOOL),
+                ("10", "Experimental-DroidDeck-Proton-11-12.8-pr34-build"),
+                ("12", "GE-Proton9-1"),
+            ]))
+            (Path(tmp) / "games.json").write_text(json.dumps({
+                "version": 1,
+                "games": {
+                    "10": {"valve": False, "dir": "Experimental-DroidDeck-Proton-11-12.8-pr34-build"},
+                    "12": {"valve": False, "dir": "GE-Proton9-1"},
+                },
+            }))
+            (Path(tmp) / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "tools": self.CATALOG + [{
+                    "name": "Experimental-DroidDeck-Proton-11-12.8-pr34-build",
+                    "display": "Experimental-DroidDeck-Proton-11-12.8-pr34-build",
+                    "dir": "Experimental-DroidDeck-Proton-11-12.8-pr34-build", "valve": False,
+                }],
+            }))
+
+            COMPAT["register_default"](
+                str(config), ["10", "12"], default=self.TOOL,
+                catalog=self.CATALOG, directory=tmp,
+            )
+
+            self.assertEqual(mapping_of(config.read_text()), {
+                "0": self.TOOL,
+                "10": self.TOOL,
+                "12": "GE-Proton9-1",
+            })
+
     def test_the_last_side_to_change_wins(self):
         state = {"default": self.TOOL, "applied": 5}
         default, state = COMPAT["choose_default"]("GE-Proton11-7", state, {"seq": 5, "dir": "Proton 11.0 (ARM64)", "valve": True}, self.CATALOG, now=100)
