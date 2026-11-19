@@ -573,7 +573,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 onCollections = { savedDialog = true },
                 trackHits = shownHits, onPlayHit = playHit,
                 // An expired account keeps showing its cached games; with none cached it asks to sign in again, like a signed-out store.
-                signInStore = Store.byId(source)?.takeIf { st -> st.id in signInChips && (storeAccount(st) != StoreAccount.EXPIRED || all.none { it.source == st.id }) },
+                signInStore = Store.byId(source)?.takeIf { st -> st.id in signInChips && (preview == LibraryPreview.SIGNED_OUT || storeAccount(st) != StoreAccount.EXPIRED || all.none { it.source == st.id }) },
             ) }
         },
     ) { key ->

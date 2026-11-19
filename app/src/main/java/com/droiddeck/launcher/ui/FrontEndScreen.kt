@@ -877,7 +877,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))
     val exitArmed = !processSettingsPageVisible && !hasBackTarget
     LaunchedEffect(exitArmed, selected) { ExitGesture.reset() }
-    BackHandler(enabled = exitArmed) {
+    BackHandler(enabled = exitArmed && DevPreview.drawer == null) {
         when (ExitGesture.back()) {
             2 -> android.widget.Toast.makeText(ctx, R.string.exit_hint_back, android.widget.Toast.LENGTH_SHORT).show()
             3 -> {
