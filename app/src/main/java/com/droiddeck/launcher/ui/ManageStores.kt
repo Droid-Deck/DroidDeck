@@ -174,8 +174,6 @@ private val STORE_HANDLE = 44.dp
 internal fun ManageStoresSheet() {
     val ctx = LocalContext.current
     LaunchedEffect(ManageStores.open) { if (ManageStores.open) StoreTabsState.load(ctx) }
-    var itchKey by remember { mutableStateOf(false) }
-    if (itchKey) ItchKeyDialog { itchKey = false }
     SideSheet(ManageStores.open, onClose = { ManageStores.open = false }, returnFocus = ManageStores.returnTo, tag = "manage-stores-sheet") {
         PageHeader(stringResource(R.string.library_manage_stores)) {
             Spacer(Modifier.weight(1f))
@@ -195,7 +193,7 @@ internal fun ManageStoresSheet() {
                 },
             ) { id, held, offset, hint, modifier, onFocus ->
                 val tab = StoreTabsState.tabs.firstOrNull { it.store.id == id }
-                if (tab != null) StoreSortRow(tab, held, offset, hint, modifier, onFocus, onItchKey = { itchKey = true })
+                if (tab != null) StoreSortRow(tab, held, offset, hint, modifier, onFocus)
             }
         }
     }
@@ -203,7 +201,7 @@ internal fun ManageStoresSheet() {
 
 @Composable
 private fun StoreSortRow(
-    tab: StoreTab, held: Boolean, offset: Float, hint: String?, modifier: Modifier, onFocus: (Boolean) -> Unit, onItchKey: () -> Unit,
+    tab: StoreTab, held: Boolean, offset: Float, hint: String?, modifier: Modifier, onFocus: (Boolean) -> Unit,
 ) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
@@ -213,7 +211,6 @@ private fun StoreSortRow(
     val name = StoresState.accounts[store]
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val note = when (account) {
         StoreAccount.SIGNED_IN -> name ?: ""
         StoreAccount.SIGNED_OUT -> stringResource(R.string.store_account_signed_out)
@@ -232,7 +229,7 @@ private fun StoreSortRow(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().weight(1f).padding(end = 10.dp).onGloballyPositioned { placed[0] = it },
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(end = 10.dp),
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(width = STORE_HANDLE, height = STORE_ROW).testTag("store-handle-${store.id}")) {
                 Icon(Icons.Filled.DragHandle, null, tint = if (held) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
@@ -248,19 +245,6 @@ private fun StoreSortRow(
                 }
             }
             if (hint != null) KeyHint("Y", hint)
-            when (account) {
-                StoreAccount.SIGNED_IN -> ConfirmButton(stringResource(R.string.library_account_sign_out), stringResource(R.string.stores_signout_title, store.label), compact = true) {
-                    StoresState.signOut(ctx, store)
-                }
-                else -> SecondaryButton(
-                    stringResource(when (account) {
-                        StoreAccount.EXPIRED -> R.string.store_account_reconnect
-                        StoreAccount.NEEDS_KEY -> R.string.store_account_add_key
-                        else -> R.string.library_account_sign_in
-                    }),
-                    compact = true, modifier = Modifier.testTag("store-account-${store.id}"),
-                ) { startStoreSignIn(ctx, store, placed[0]?.takeIf { it.isAttached }?.boundsInRoot(), pal.signal, onItchKey) }
-            }
             ToggleSwitch(
                 tab.shown, true, store.label,
                 Modifier.testTag("store-shown-${store.id}").focusProperties { canFocus = false },

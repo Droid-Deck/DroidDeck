@@ -41,6 +41,11 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -629,6 +634,7 @@ private fun LibraryGrid(
         }
     }
     val rowStart: (Int) -> Int? = { i -> if (i < 0) null else if (listMode) i else i - i % columns.coerceAtLeast(1) }
+    val switchedAt = remember(source) { android.os.SystemClock.uptimeMillis() }
     val tile: @Composable (LibraryEntry) -> Unit = { e ->
         val first = e.key == visible.firstOrNull()?.key
         val navigation = if (focus == null) Modifier else Modifier.onPreviewKeyEvent { event ->
@@ -661,7 +667,17 @@ private fun LibraryGrid(
         }
         val picker = s.shortcutPicker && e.game != null
         val choose = if (picker) ({ a.onSteamGame(e.game!!) }) else null
-        if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL || source == LIBRARY_FAVORITES || source == LIBRARY_HIDDEN)
+        val enter = remember(source) {
+            androidx.compose.animation.core.Animatable(if (Motion.scale == 0f || android.os.SystemClock.uptimeMillis() - switchedAt > 600) 1f else 0f)
+        }
+        LaunchedEffect(source) {
+            if (enter.value >= 1f) return@LaunchedEffect
+            kotlinx.coroutines.delay(Motion.ms(minOf(visible.indexOfFirst { it.key == e.key }.coerceAtLeast(0), 11) * 28).toLong())
+            enter.animateTo(1f, Motion.tw(320))
+        }
+        Box(Modifier.graphicsLayer { alpha = enter.value; translationY = (1f - enter.value) * 18.dp.toPx() }) {
+            if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL || source == LIBRARY_FAVORITES || source == LIBRARY_HIDDEN)
+        }
     }
     var rowFocused by remember { mutableStateOf(false) }
     val toggleRow: @Composable () -> Unit = {
@@ -841,33 +857,66 @@ private fun LibraryHeader(
     if (s.steamGamesX64 && narrow) Box(Modifier.padding(top = 4.dp)) { ClientTag() }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit, manage: Boolean) {
     val chips = sources.size >= 2 || sources.singleOrNull() == LIBRARY_HIDDEN
     if (!chips && !manage) return
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),
-    ) {
-        if (manage) ManageStoresChip()
-        if (chips) SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
-        if (chips) for (src in sources) {
-            val store = Store.byId(src)
-            val dot = when {
-                store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
-                src == LIBRARY_FAVORITES -> FavoritesColours.dot
-                src == LIBRARY_HIDDEN -> Color(0xFF9AA0A6)
-                src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
-                else -> null
+    val pal = LocalPalette.current
+    val keys = if (chips) listOf(LIBRARY_ALL) + sources else emptyList()
+    var focused by remember { mutableStateOf<String?>(null) }
+    val highlighted = focused?.takeIf { it in keys } ?: source
+    val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
+    val inputMode = LocalInputModeManager.current.inputMode
+    val fillShown = inputMode != InputMode.Keyboard
+    val scroll = rememberScrollState()
+    StoreTheme(Store.byId(highlighted)) {
+        val tint = androidx.compose.animation.animateColorAsState(sourceDot(highlighted) ?: LocalPalette.current.signal, Motion.tw(160), label = "libChipTint")
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
+        ) {
+            if (manage) ManageStoresChip()
+            Box(Modifier.weight(1f).edgeFade(scroll).horizontalScroll(scroll)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.focusGroup()) {
+                    for (id in keys) {
+                        val store = Store.byId(id)
+                        val dot = sourceDot(id)
+                        val label = when (id) {
+                            LIBRARY_ALL -> stringResource(R.string.stores_tab_all)
+                            Library.ADDED -> stringResource(R.string.library_filter_added)
+                            LIBRARY_FAVORITES -> stringResource(R.string.soundtracks_favorites)
+                            LIBRARY_HIDDEN -> stringResource(R.string.apps_filter_hidden)
+                            else -> store?.shortLabel ?: sourceLabel(id)
+                        }
+                        androidx.compose.runtime.key(id) {
+                            val reveal = remember { BringIntoViewRequester() }
+                            LaunchedEffect(source) { if (source == id) reveal.bringIntoView() }
+                            StoreChip(
+                                label = label, on = source == id, under = fillShown && highlighted == id, key = id, mark = dot ?: pal.signal,
+                                modifier = Modifier.bringIntoViewRequester(reveal).testTag("library-source-$id")
+                                    .onGloballyPositioned { bounds[id] = it.boundsInParent() },
+                                lead = { if (dot != null) Box(Modifier.size(9.dp).background(dot, CircleShape)) },
+                                onFocused = { focused = it },
+                                paneKey = "libchip:$id",
+                            ) { onSource(id) }
+                        }
+                    }
+                }
+                if (highlighted in keys) ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
             }
-            val label = when (src) {
-                Library.ADDED -> stringResource(R.string.library_filter_added)
-                LIBRARY_FAVORITES -> stringResource(R.string.soundtracks_favorites)
-                LIBRARY_HIDDEN -> stringResource(R.string.apps_filter_hidden)
-                else -> store?.shortLabel ?: sourceLabel(src)
-            }
-            SourceFilterChip(src, label, source == src, dot) { onSource(src) }
         }
+    }
+}
+
+private fun sourceDot(src: String): Color? {
+    val store = Store.byId(src)
+    return when {
+        store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
+        src == LIBRARY_FAVORITES -> FavoritesColours.dot
+        src == LIBRARY_HIDDEN -> Color(0xFF9AA0A6)
+        src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
+        else -> null
     }
 }
 
@@ -889,27 +938,6 @@ internal fun ManageStoresChip() {
             .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClickLabel = label, onClick = open)
             .controllerConfirm(onClick = open),
     ) { Icon(Icons.Filled.Tune, label, tint = if (hot) colors.onBackground else colors.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
-}
-
-@Composable
-private fun SourceFilterChip(key: String, label: String, on: Boolean, dot: Color?, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val shape = RoundedCornerShape(99.dp)
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
-        modifier = Modifier.paneItem("libchip:$key").testTag("library-source-$key").heightIn(min = 40.dp).clip(shape)
-            .background(if (on) pal.signal.copy(alpha = 0.16f) else colors.surface)
-            .glideBorder(hot, shape, pal.signal, if (on) pal.signal else pal.line)
-            .hoverable(src).selectable(selected = on, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
-            .controllerConfirm(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        if (dot != null) Box(Modifier.size(9.dp).background(dot, CircleShape))
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on || hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1)
-    }
 }
 
 private fun entryArt(e: LibraryEntry, tall: Boolean): Any? {

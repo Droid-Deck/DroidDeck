@@ -501,10 +501,10 @@ private fun StoreChips(
 }
 
 @Composable
-private fun StoreChip(
+internal fun StoreChip(
     label: String?, on: Boolean, under: Boolean, key: String, mark: Color, modifier: Modifier, lead: @Composable () -> Unit,
     trail: (@Composable () -> Unit)? = null, description: String? = null, lift: Float = 0f,
-    onFocused: (String?) -> Unit = {}, onClick: () -> Unit,
+    onFocused: (String?) -> Unit = {}, paneKey: String = "storechip:$key", onClick: () -> Unit,
 ) {
     val inputMode = androidx.compose.ui.platform.LocalInputModeManager.current
     val colors = MaterialTheme.colorScheme
@@ -523,7 +523,7 @@ private fun StoreChip(
     }
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        modifier = modifier.paneItem("storechip:$key")
+        modifier = modifier.paneItem(paneKey)
             .onFocusChanged { f ->
                 if (f.isFocused && inputMode.inputMode == androidx.compose.ui.input.InputMode.Keyboard) onFocused(key)
                 else if (!f.isFocused) onFocused(null)
