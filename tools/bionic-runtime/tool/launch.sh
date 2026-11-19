@@ -113,6 +113,10 @@ export WINESTEAMCLIENTPATH64=$ROOTFS/root/.local/share/Steam/androidarm64/libste
 # The layer sends a game's steamclient(64).dll to lsteamclient (and so to DroidDeck's Steam through the library
 # above) only with WINE_LSTEAMCLIENT set; without it Valve's Windows steamclient runs alone and SteamAPI_Init fails.
 export WINE_LSTEAMCLIENT=${WINE_LSTEAMCLIENT:-1}
+# Steam Input data (Valve's Steam Deck layouts with game actions) lives in DroidDeck's /dev/shm; libsteamshm.so
+# points the Android library's shared memory there (it keeps its own in-process otherwise) and gives it the
+# sem_open Android lacks (without it the game hangs once that data arrives).
+export DROIDDECK_BIONIC_SHM_DIR=${APP%/files}/no_backup/guest-runtime/shm
 export DXVK_LOG_PATH=$COMPAT PULSE_SERVER=unix:$APP/pulseaudio/PS0
 export ANDROID_SYSVSHM_SERVER=$COMPAT/.no-sysvshm-server  # its client faults on an unset name, inside a Wine lock
 
@@ -142,7 +146,7 @@ case "$KEEP" in *" mesa_glthread "*) ;; *) export mesa_glthread=false ;; esac
 
 # egl/ first: the layer's own lib/ carries a Wayland-only Mesa EGL of the same names, which winex11 cannot use
 LIBS=$PACK/egl:$F/lib:$PACK/lib:/system/lib64
-PRELOAD=$PACK/preload/libexecshim.so:$PACK/preload/libnotag.so:$PACK/preload/libfakeinput.so
+PRELOAD=$PACK/preload/libexecshim.so:$PACK/preload/libnotag.so:$PACK/preload/libfakeinput.so:$PACK/preload/libsteamshm.so
 wine_() { LD_LIBRARY_PATH=$LIBS LD_PRELOAD=$PRELOAD "$LINKER" "$F/lib/wine/aarch64-unix/wine" "$@"; }
 wineserver_() { LD_LIBRARY_PATH=$LIBS LD_PRELOAD=$PRELOAD "$LINKER" "$F/bin/wineserver" "$@"; }
 

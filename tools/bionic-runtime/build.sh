@@ -184,6 +184,7 @@ echo "== DroidDeck fake input (app/src/main/cpp/fakeinput_steam.cpp), heap-taggi
   -ldl -static-libstdc++ -o "$PACK/preload/libfakeinput.so"
 "$CC" -shared -fPIC -O2 -Wall "$HERE/notag.c" -ldl -o "$PACK/preload/libnotag.so"
 "$CC" -shared -fPIC -O2 -Wall "$HERE/execshim.c" -ldl -o "$PACK/preload/libexecshim.so"
+"$CC" -shared -fPIC -O2 -Wall -Wextra -fvisibility=hidden "$HERE/steamshm.c" -ldl -o "$PACK/preload/libsteamshm.so"
 "$CC" -O2 -Wall "$HERE/gstag.c" -o "$PACK/bin/gstag"
 "$STRIP" --strip-unneeded "$PACK/layer/"*.so "$PACK/preload/"*.so "$PACK/bin/gstag"
 
