@@ -1694,6 +1694,7 @@
     <string name="main_pick_game_storage">Выберите папку хранилища игр</string>
     <string name="main_pick_decky_zip">Выберите ZIP-файл плагина Decky</string>
     <string name="main_storage_not_usable">Нельзя использовать: %1$s</string>
+    <string name="main_storage_fat32">Это хранилище отформатировано в FAT32, который не поддерживает файлы больше 4 ГБ. Игры с более крупными файлами не установятся. Отформатируйте его в exFAT, чтобы установить их.</string>
     <string name="main_running_program">Программа</string>
     <string name="main_removing_runtime">Удаление среды выполнения Linux</string>
     <string name="main_settings_main_screen">Не удалось открыть настройки на нижнем экране; они открыты на главном экране.</string>
