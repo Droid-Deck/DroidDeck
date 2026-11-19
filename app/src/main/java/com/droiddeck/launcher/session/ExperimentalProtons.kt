@@ -86,6 +86,9 @@ object ExperimentalProtons {
         }?.forEach { it.delete() }
     }
 
+    internal fun available(releases: List<Release>, installed: List<Installed>): List<Release> =
+        releases.filter { release -> installed.none { it.releaseTag == release.tag } }
+
     internal fun shouldRemove(installedReleaseTag: String?, fetched: ProtonExtras.ReleaseFetch): Boolean {
         val tag = installedReleaseTag ?: return false
         val release = (0 until fetched.releases.length()).asSequence()

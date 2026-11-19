@@ -30,6 +30,7 @@ internal class ProtonMenu(
         val problem = mutableStateOf<String?>(null)
         val experimental = mutableStateOf<List<String>>(emptyList())
         val experimentalReleases = mutableStateOf<List<ExperimentalProtons.Release>>(emptyList())
+        var fetchedReleases = emptyList<ExperimentalProtons.Release>()
     }
     var protonRows by Operation.rows
     var protonBusyId by Operation.busyId
@@ -137,8 +138,14 @@ internal class ProtonMenu(
         }, "remove-proton-experimental").start()
     }
 
+    private fun refreshExperimental() {
+        val installed = ExperimentalProtons.installed(activity)
+        experimentalDirs = installed.map { it.dir }
+        experimentalReleases = ExperimentalProtons.available(Operation.fetchedReleases, installed)
+    }
+
     fun refreshProtons() {
-        experimentalDirs = ExperimentalProtons.installed(activity).map { it.dir }
+        refreshExperimental()
         protonRows = ProtonExtras.tools.map {
             val all = ProtonExtras.installedAll(activity, it)
             ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it))
@@ -151,9 +158,8 @@ internal class ProtonMenu(
             val asked = try { ProtonExtras.checkLatest(activity, force) } catch (_: Throwable) { false } finally { checking.set(false) }
             val experimental = runCatching { ExperimentalProtons.refresh(activity) }.getOrNull()
             ui.post {
-                experimentalReleases = experimental ?: emptyList()
-                if (asked) refreshProtons()
-                else experimentalDirs = ExperimentalProtons.installed(activity).map { it.dir }
+                Operation.fetchedReleases = experimental ?: emptyList()
+                if (asked) refreshProtons() else refreshExperimental()
                 ensureAutoUpdates()
             }
         }, "proton-updates").start()

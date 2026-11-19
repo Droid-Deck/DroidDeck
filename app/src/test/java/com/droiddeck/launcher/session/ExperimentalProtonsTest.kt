@@ -33,6 +33,17 @@ class ExperimentalProtonsTest {
     }
 
     @Test
+    fun installedReleasesLeaveTheAvailableRows() {
+        val rows = listOf("r34", "r35").map { ExperimentalProtons.Release(it, "$it.tar.xz", "https://example.invalid/$it", null, 1L) }
+        val installed = listOf(
+            ExperimentalProtons.Installed("Experimental-r34", "r34", "release", "r34"),
+            ExperimentalProtons.Installed("Experimental-file", "file", "file"),
+        )
+        assertEquals(listOf("r35"), ExperimentalProtons.available(rows, installed).map { it.tag })
+        assertEquals(listOf("r34", "r35"), ExperimentalProtons.available(rows, emptyList()).map { it.tag })
+    }
+
+    @Test
     fun releaseRowsOnlyUsePublishedPrereleaseTarAssets() {
         val tool = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
         val releases = JSONArray("""
