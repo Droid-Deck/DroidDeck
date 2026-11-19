@@ -216,6 +216,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var fullscreenSafeInsetsController: FullscreenSafeInsetsController? = null
     private val guestKeysDown = mutableSetOf<Int>()
     private val guestButtonsDown = mutableMapOf<Int, Boolean>()
+    private val regularGuestButtonsDown = mutableSetOf<Int>()
+    private val capturedGuestButtonsDown = mutableSetOf<Int>()
     private val trackpadButtonsDown = mutableSetOf<Int>()
     private lateinit var surfaceView: SurfaceView
     private lateinit var sessionOverlay: ComposeView
@@ -737,10 +739,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {
                 super.dispatchPointerCaptureChanged(hasCapture)
                 Log.i(TAG, "pointer capture " + if (hasCapture) "on" else "off")
-                if (!hasCapture) {
-                    releaseHeldGuestInput()
-                    uiHandler.postDelayed(::updatePointerCapture, 250)
-                }
+                onSessionPointerCaptureChanged(hasCapture)
             }
         }
         sessionRoot = root
@@ -3956,7 +3955,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else WaylandCompositor.sendPointerDelta(dx, dy)
     }
 
-    private fun sendSceneButton(code: Int, down: Boolean) {
+    private fun sendSceneButton(code: Int, down: Boolean) =
+        setSceneButton(regularGuestButtonsDown, code, down)
+
+    private fun sendCapturedSceneButton(code: Int, down: Boolean) =
+        setSceneButton(capturedGuestButtonsDown, code, down)
+
+    private fun setSceneButton(owner: MutableSet<Int>, code: Int, down: Boolean) {
+        val wasDown = code in regularGuestButtonsDown || code in capturedGuestButtonsDown
+        if (down) owner.add(code) else owner.remove(code)
+        val isDown = code in regularGuestButtonsDown || code in capturedGuestButtonsDown
+        if (wasDown != isDown) emitSceneButton(code, isDown)
+    }
+
+    private fun emitSceneButton(code: Int, down: Boolean) {
         val raw = if (down) evdevMouseActive.also { guestButtonsDown[code] = it }
             else guestButtonsDown.remove(code) ?: evdevMouseActive
         val writer = if (raw) mouseWriter else null
@@ -4021,8 +4033,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var dismissTouch = false
     private val mainSurfaceMouseOwnership = MainSurfaceMouseOwnership()
 
-    override fun onTouchEvent(event: MotionEvent): Boolean =
-        if (consumesMainSurfaceActivityFallback(event.source)) true else super.onTouchEvent(event)
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.isFromSource(InputDevice.SOURCE_MOUSE) && !drawerOpen && !touchEditorOpen && !pipUi)
+            return dispatchMainSurfaceMouseMotion(event)
+        return if (consumesMainSurfaceActivityFallback(event.source)) true else super.onTouchEvent(event)
+    }
 
     private fun installMainSurfaceTouchListener(view: SurfaceView) {
         view.setOnTouchListener { _, event ->
@@ -4035,7 +4050,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onSurfaceTouchEvent(event: MotionEvent): Boolean {
-        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
+        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) return onSurfaceMouseMotion(event)
         if (drawerOpen && drawerDocked && event.actionMasked == MotionEvent.ACTION_DOWN) {
             drawerLayerOpen = false
             drawerOpenState = false
@@ -4199,17 +4214,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else -> PointerGestures.BTN_LEFT
     }
 
-    private fun dispatchMainSurfaceMouseMotion(event: MotionEvent): Boolean {
+    private fun dispatchMainSurfaceMouseMotion(event: MotionEvent): Boolean =
+        withMainSurfaceCoordinates(event, ::onSurfaceMouseMotion)
+
+    private inline fun withMainSurfaceCoordinates(event: MotionEvent, handle: (MotionEvent) -> Boolean): Boolean {
+        if (!mainSurfaceBoundaryActive()) return handle(event)
+        val origin = IntArray(2).also(surfaceView::getLocationInWindow)
+        if (origin[0] == 0 && origin[1] == 0) return handle(event)
+        val local = MotionEvent.obtain(event)
+        return try {
+            local.offsetLocation(-origin[0].toFloat(), -origin[1].toFloat())
+            handle(local)
+        } finally {
+            local.recycle()
+        }
+    }
+
+    private fun onSurfaceMouseMotion(event: MotionEvent): Boolean {
         if (!mainSurfaceBoundaryActive()) return onMouse(event)
-        val surfaceAt = IntArray(2).also(surfaceView::getLocationInWindow)
-        val local = surfaceLocalPoint(
-            event.x,
-            event.y,
-            surfaceAt[0],
-            surfaceAt[1],
-            surfaceView.width,
-            surfaceView.height,
-        )
+        val inside = surfaceLocalPoint(event.x, event.y, 0, 0, surfaceView.width, surfaceView.height) != null
         val kind = when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> MainSurfaceMouseEvent.MOVE
             MotionEvent.ACTION_BUTTON_PRESS -> MainSurfaceMouseEvent.BUTTON_PRESS
@@ -4223,17 +4246,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             deviceId = event.deviceId,
             event = kind,
             actionButton = event.actionButton,
-            insideSurface = local != null,
+            insideSurface = inside,
         )
         releaseGuestMouseButtons(decision.releaseButtons)
         if (!decision.forward) return true
-        val translated = MotionEvent.obtain(event)
-        translated.offsetLocation(-surfaceAt[0].toFloat(), -surfaceAt[1].toFloat())
-        return try {
-            onMouse(translated)
-        } finally {
-            translated.recycle()
-        }
+        return onMouse(event)
     }
 
     private fun mainSurfaceBoundaryActive(): Boolean =
@@ -4249,6 +4266,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun releaseMainSurfaceMouseOwnership() {
         releaseGuestMouseButtons(mainSurfaceMouseOwnership.clear())
+    }
+
+    private fun onSessionPointerCaptureChanged(hasCapture: Boolean) {
+        if (hasCapture) {
+            releaseMainSurfaceMouseOwnership()
+        } else {
+            releaseHeldGuestInput()
+            uiHandler.postDelayed(::updatePointerCapture, 250)
+        }
     }
 
     private fun mouseAttached(): Boolean = InputDevice.getDeviceIds().any { id ->
@@ -4353,8 +4379,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     moveCapturedMouse(dx, dy)
                 }
             }
-            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE ->
-                guestMouseButton(event.actionButton)?.let { sendSceneButton(it, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS) }
+            MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
+                val down = event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS
+                guestMouseButton(event.actionButton)?.let { button ->
+                    sendCapturedSceneButton(button, down)
+                }
+            }
             MotionEvent.ACTION_SCROLL -> {
                 val v = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
                 if (v != 0f) sendSceneWheel(-Math.round(v))
@@ -4541,7 +4571,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         SessionState.mode == SessionService.MODE_STEAM && AgentGuest.steamKeyboard
 
     private fun releaseHeldGuestInput() {
-        guestButtonsDown.keys.toList().forEach { sendSceneButton(it, false) }
+        val buttons = guestButtonsDown.keys.toList()
+        regularGuestButtonsDown.clear()
+        capturedGuestButtonsDown.clear()
+        buttons.forEach { emitSceneButton(it, false) }
         mainSurfaceMouseOwnership.clear()
         trackpadButtonsDown.toList().forEach { WaylandCompositor.nativeSendSceneInput(3, it, 0) }
         trackpadButtonsDown.clear()
