@@ -875,6 +875,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
     private var pendingGameLink: String? = null
     private var pendingGameLinkRequest = 0L
+    private var gameLinkHandling = false
     private var gameLinkReading = false
     private var gameLinkTried = false
     private var gameSyncFolder by mutableStateOf<String?>(null)
@@ -932,6 +933,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         } else shortcutLibraryScanning = false
         pendingGameLink = null
         pendingGameLinkRequest = 0L
+        gameLinkHandling = false
         gameLinkReading = false
         gameLinkTried = false
         soundtrackLaunch = false
@@ -961,6 +963,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             }
                             pendingGameLink = null
                             pendingGameLinkRequest = 0L
+                            gameLinkHandling = false
                             syncDualPanel()
                             return@post
                         }
@@ -1223,6 +1226,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun handleGameLink(games: List<Library.SteamGame>, scanned: Boolean = true) {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
         val id = pendingGameLink ?: return
+        if (gameLinkHandling) return
         if (pendingGameLinkRequest != gameLaunchRequest.get()) {
             pendingGameLink = null
             pendingGameLinkRequest = 0L
@@ -1238,6 +1242,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val link = intent
         fun consume() {
             if (intent !== link || pendingGameLink != id) return
+            gameLinkHandling = false
             pendingGameLink = null
             pendingGameLinkRequest = 0L
             link.data = null
@@ -1248,7 +1253,14 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             consume()
             syncDualPanel()
             android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
-        } else launchGame(game, returnHome = true, onSettled = ::consume)
+        } else {
+            gameLinkHandling = true
+            launchGame(
+                game, returnHome = true,
+                onHandled = { gameLinkHandling = false },
+                onSettled = { gameLinkHandling = false; consume() },
+            )
+        }
     }
 
     private fun chooseGameShortcut(game: Library.SteamGame) {
