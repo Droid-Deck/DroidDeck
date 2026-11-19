@@ -62,6 +62,14 @@ class ClockLogComponentTest {
         assertEquals(" | gpu 230/443 MHz", ClockLogComponent.gpuField(clock.path, ceiling.path, steps.mhz.last()))
     }
 
+    @Test fun aZeroCeilingIsNotALimit() {
+        val clock = tmp.newFile("gpu_clock").apply { writeText("0\n") }
+        val zero = tmp.newFile("max_gpuclk").apply { writeText("0\n") }
+        assertEquals(" | gpu 0 MHz", ClockLogComponent.gpuField(clock.path, zero.path, 443))
+        assertEquals(listOf("gpu limit ${zero.path}: refused"), ClockLogComponent.probeLines("gpu limit", listOf(zero.path), ClockLogComponent::limit))
+        assertEquals(listOf("gpu source ${clock.path}: readable"), ClockLogComponent.probeLines("gpu source", listOf(clock.path)))
+    }
+
     @Test fun unreadableOrMissingLimitsLeaveTheSampleUnchanged() {
         val clock = tmp.newFile("clock_mhz").apply { writeText("230\n") }
         val refused = tmp.newFolder("max_clock_mhz")

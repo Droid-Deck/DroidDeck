@@ -41,7 +41,7 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
         val maxSources = GpuLimits.maxSources()
         val minSources = GpuLimits.minSources()
         val steps = GpuLimits.first(stepSources)
-        val ceiling = maxSources.firstOrNull { firstNumber(it) != null }
+        val ceiling = maxSources.firstOrNull { limit(it) != null }
         val power = app().getSystemService(Context.POWER_SERVICE) as? PowerManager
         val time = SimpleDateFormat("HH:mm:ss", Locale.US)
         try {
@@ -50,7 +50,7 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
                 w.write("cpu policies: ${policies.joinToString { p -> p.name + " " + (File(p, "related_cpus").readTextOrNull()?.trim() ?: "?") }}\n")
                 probeLines("gpu source", gpuCandidates).forEach { w.write(it + "\n") }
                 w.write("gpu clock from: ${gpu ?: "nothing readable"}\n")
-                probeLines("gpu limit", (stepSources + maxSources + minSources).distinct()).forEach { w.write(it + "\n") }
+                probeLines("gpu limit", (stepSources + maxSources + minSources).distinct(), ::limit).forEach { w.write(it + "\n") }
                 limitLines(steps, ceiling, GpuLimits.first(minSources)).forEach { w.write(it + "\n") }
                 w.flush()
                 while (running && logFile.length() < MAX_BYTES) {
@@ -108,10 +108,10 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
             return list.distinct()
         }
 
-        internal fun probeLines(label: String, sources: List<String>): List<String> = sources.mapNotNull { source ->
+        internal fun probeLines(label: String, sources: List<String>, read: (String) -> Long? = ::firstNumber): List<String> = sources.mapNotNull { source ->
             when {
                 !File(source).exists() -> null
-                firstNumber(source) != null -> "$label $source: readable"
+                read(source) != null -> "$label $source: readable"
                 else -> "$label $source: refused"
             }
         }
@@ -125,7 +125,7 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
         internal fun gpuField(clock: String?, ceiling: String?, top: Long?): String {
             if (clock == null && ceiling == null) return ""
             val field = StringBuilder(" | gpu ").append(mhz(clock?.let(::firstNumber)))
-            ceiling?.let(::firstNumber)?.let { max ->
+            ceiling?.let(::limit)?.let { max ->
                 field.append('/').append(mhz(max))
                 if (top != null && GpuLimits.mhz(max) < top) field.append("(of $top)")
             }
@@ -136,6 +136,8 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
 
         private fun firstNumber(path: String): Long? =
             runCatching { Regex("\\d+").find(File(path).readText())?.value?.toLong() }.getOrNull()
+
+        internal fun limit(path: String): Long? = firstNumber(path)?.takeIf { it > 0 }
 
         private fun mhz(raw: Long?): String = raw?.let { GpuLimits.mhz(it).toString() } ?: "?"
     }

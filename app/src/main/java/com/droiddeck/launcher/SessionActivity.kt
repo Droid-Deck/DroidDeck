@@ -1471,7 +1471,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 SessionPrefs.setGpuClockPin(this@SessionActivity, on)
                 gpuClockPin = on
                 Thread {
-                    GpuClockPin.sync(applicationContext)?.let { Log.i(TAG, it) }
+                    synchronized(GpuClockPin) { GpuClockPin.sync(applicationContext)?.let { Log.i(TAG, it) } }
                     runOnUiThread { gpuClockPin = gpuClockHeld() }
                 }.start()
             },
