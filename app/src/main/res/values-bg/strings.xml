@@ -628,7 +628,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Изкл.</string>
     <string name="perf_gpuclock">Задръжте GPU на максималната му честота</string>
-    <string name="perf_gpuclock_hint">Само за Adreno. По-малко засечки, по-голямо използване на батерията и повече топлина.</string>
     <string name="perf_fixes">Корекции на сесията</string>
     <string name="perf_sysmem">Turnip: рендиране sysmem</string>
     <string name="perf_sysmem_hint">Прилага се за клиента на Steam и игрите. Изисква се при Adreno 710/720/722.</string>

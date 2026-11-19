@@ -628,7 +628,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Ki</string>
     <string name="perf_gpuclock">A GPU legmagasabb órajelen tartása</string>
-    <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>
     <string name="perf_sysmem">Turnip: sysmem renderelés</string>
     <string name="perf_sysmem_hint">A Steam kliensre és a játékokra vonatkozik. Adreno 710/720/722-n szükséges.</string>

@@ -628,7 +628,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Kapalı</string>
     <string name="perf_gpuclock">GPU\'yu en yüksek saat hızında tut</string>
-    <string name="perf_gpuclock_hint">Yalnızca Adreno. Daha az takılma, daha fazla pil tüketimi ve ısınma.</string>
     <string name="perf_fixes">Oturum düzeltmeleri</string>
     <string name="perf_sysmem">Turnip: sysmem işleme</string>
     <string name="perf_sysmem_hint">Steam istemcisi ve oyunlar için geçerlidir. Adreno 710/720/722\'de gereklidir.</string>

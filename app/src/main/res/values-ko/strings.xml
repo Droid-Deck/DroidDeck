@@ -626,7 +626,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">끄기</string>
     <string name="perf_gpuclock">GPU를 최고 클럭으로 유지</string>
-    <string name="perf_gpuclock_hint">Adreno에만 해당됩니다. 끊김이 줄어들지만 전력 소모와 발열이 증가합니다.</string>
     <string name="perf_fixes">세션 수정</string>
     <string name="perf_sysmem">Turnip: sysmem 렌더링</string>
     <string name="perf_sysmem_hint">Steam 클라이언트와 게임에 적용됩니다. Adreno 710/720/722에 필수입니다.</string>

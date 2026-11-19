@@ -626,7 +626,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Mati</string>
     <string name="perf_gpuclock">Kekalkan GPU pada kelajuan tertinggi</string>
-    <string name="perf_gpuclock_hint">Adreno sahaja. Kurang tersekat-sekat, lebih penggunaan bateri dan haba.</string>
     <string name="perf_fixes">Pembetulan sesi</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
     <string name="perf_sysmem_hint">Terpakai pada klien Steam dan permainan. Diperlukan pada Adreno 710/720/722.</string>

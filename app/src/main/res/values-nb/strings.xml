@@ -628,7 +628,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Av</string>
     <string name="perf_gpuclock">Hold GPU-en på toppfrekvens</string>
-    <string name="perf_gpuclock_hint">Bare Adreno. Færre hikk, mer batteribruk og varme.</string>
     <string name="perf_fixes">Sesjonsfikser</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
     <string name="perf_sysmem_hint">Gjelder Steam-klienten og spill. Påkrevd på Adreno 710/720/722.</string>

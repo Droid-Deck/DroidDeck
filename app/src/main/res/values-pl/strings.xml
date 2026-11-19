@@ -632,7 +632,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Wyłączony</string>
     <string name="perf_gpuclock">Utrzymuj GPU na najwyższym taktowaniu</string>
-    <string name="perf_gpuclock_hint">Tylko Adreno. Mniej przycięć, większe zużycie baterii i więcej ciepła.</string>
     <string name="perf_fixes">Poprawki sesji</string>
     <string name="perf_sysmem">Turnip: renderowanie sysmem</string>
     <string name="perf_sysmem_hint">Dotyczy klienta Steam i gier. Wymagane na Adreno 710/720/722.</string>

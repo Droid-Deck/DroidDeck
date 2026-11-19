@@ -626,7 +626,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">オフ</string>
     <string name="perf_gpuclock">GPUを最高クロックに保つ</string>
-    <string name="perf_gpuclock_hint">Adrenoのみ。スタッターは減りますが、消費電力と発熱が増えます。</string>
     <string name="perf_fixes">セッション修正</string>
     <string name="perf_sysmem">Turnip：sysmemレンダリング</string>
     <string name="perf_sysmem_hint">Steamクライアントとゲームに適用。Adreno 710/720/722では必須です。</string>

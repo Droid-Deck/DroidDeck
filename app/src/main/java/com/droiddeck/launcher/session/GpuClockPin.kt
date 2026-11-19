@@ -20,8 +20,15 @@ object GpuClockPin {
 
     val supported: Boolean by lazy { File(KGSL_NODE).exists() }
 
+    private var live = false
+
     @Synchronized
     fun start(context: Context): String {
+        live = true
+        return hold(context)
+    }
+
+    private fun hold(context: Context): String {
         failed = false
         if (!SessionPrefs.gpuClockPin(context)) return "gpu clock: governed"
         if (!supported) return "gpu clock: no $KGSL_NODE, left governed"
@@ -40,11 +47,13 @@ object GpuClockPin {
 
     @Synchronized
     fun sync(context: Context) {
-        if (SessionPrefs.gpuClockPin(context)) start(context) else stop(context)
+        if (!live) return
+        if (SessionPrefs.gpuClockPin(context)) hold(context) else if (pinned) clear(context)
     }
 
     @Synchronized
     fun stop(context: Context) {
+        live = false
         if (pinned) clear(context)
     }
 

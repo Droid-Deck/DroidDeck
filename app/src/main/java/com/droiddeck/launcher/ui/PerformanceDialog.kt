@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.SessionPrefs
 
 class CoreRow(val core: Int, val label: String)
@@ -122,7 +123,7 @@ fun PerformancePage(
                 gamescopeRealtime, onChange = onGamescopeRealtime,
             )
         }
-        GpuClockGroup(host, gpuClockPin, onChange = onGpuClockPin)
+        if (GpuClockPin.supported) GpuClockGroup(host, gpuClockPin, onChange = onGpuClockPin)
         SettingsGroup(stringResource(R.string.perf_fixes)) {
             ToggleRow(
                 host, "sysmem", stringResource(R.string.perf_sysmem),
@@ -220,7 +221,7 @@ internal fun GpuClockGroup(host: MenuHost, on: Boolean, chipModifier: Modifier =
     SettingsGroup(stringResource(R.string.perf_gpu)) {
         ToggleRow(
             host, "gpuclock", stringResource(R.string.perf_gpuclock),
-            stringResource(R.string.perf_gpuclock_hint),
+            null,
             on, chipModifier = chipModifier, onChange = onChange,
         )
     }

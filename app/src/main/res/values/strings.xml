@@ -656,7 +656,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Off</string>
     <string name="perf_gpuclock">Hold the GPU at its top clock</string>
-    <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Applies to the Steam client and games. Required on Adreno 710/720/722.</string>

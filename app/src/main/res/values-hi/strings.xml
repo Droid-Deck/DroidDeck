@@ -628,7 +628,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">बंद</string>
     <string name="perf_gpuclock">GPU को उसकी टॉप क्लॉक पर बनाए रखें</string>
-    <string name="perf_gpuclock_hint">सिर्फ़ Adreno के लिए। कम हिचकोले, लेकिन ज़्यादा बैटरी खर्च और गर्मी।</string>
     <string name="perf_fixes">सेशन फ़िक्स</string>
     <string name="perf_sysmem">Turnip: sysmem रेंडरिंग</string>
     <string name="perf_sysmem_hint">Steam क्लाइंट और गेम पर लागू। Adreno 710/720/722 पर ज़रूरी।</string>

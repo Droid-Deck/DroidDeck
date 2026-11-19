@@ -626,7 +626,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Tắt</string>
     <string name="perf_gpuclock">Giữ GPU ở xung nhịp cao nhất</string>
-    <string name="perf_gpuclock_hint">Chỉ dành cho Adreno. Ít giật hơn, dùng nhiều pin và nhiệt hơn.</string>
     <string name="perf_fixes">Các bản sửa phiên</string>
     <string name="perf_sysmem">Turnip: render sysmem</string>
     <string name="perf_sysmem_hint">Áp dụng cho ứng dụng Steam và trò chơi. Bắt buộc trên Adreno 710/720/722.</string>

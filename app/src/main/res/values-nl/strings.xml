@@ -628,7 +628,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Uit</string>
     <string name="perf_gpuclock">GPU op hoogste kloksnelheid houden</string>
-    <string name="perf_gpuclock_hint">Alleen Adreno. Minder haperingen, meer batterijverbruik en warmte.</string>
     <string name="perf_fixes">Sessiefixes</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
     <string name="perf_sysmem_hint">Geldt voor de Steam-client en games. Vereist op Adreno 710/720/722.</string>

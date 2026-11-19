@@ -630,7 +630,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Dezactivat</string>
     <string name="perf_gpuclock">Fixează GPU-ul la frecvența maximă</string>
-    <string name="perf_gpuclock_hint">Doar Adreno. Mai puține întreruperi, consum mai mare de baterie și căldură.</string>
     <string name="perf_fixes">Remedieri de sesiune</string>
     <string name="perf_sysmem">Turnip: randare sysmem</string>
     <string name="perf_sysmem_hint">Se aplică clientului Steam și jocurilor. Necesară pe Adreno 710/720/722.</string>

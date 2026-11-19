@@ -630,7 +630,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Desactivado</string>
     <string name="perf_gpuclock">Mantener la GPU a su reloj máximo</string>
-    <string name="perf_gpuclock_hint">Solo Adreno. Menos microcortes, más consumo de batería y calor.</string>
     <string name="perf_fixes">Correcciones de sesión</string>
     <string name="perf_sysmem">Turnip: renderizado sysmem</string>
     <string name="perf_sysmem_hint">Se aplica al cliente de Steam y a los juegos. Obligatorio en Adreno 710/720/722.</string>
