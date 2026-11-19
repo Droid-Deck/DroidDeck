@@ -772,7 +772,7 @@ object SessionPrefs {
         val prefs = prefs(context)
         if (!prefs.contains("shaderPrecache")) {
             if (steamConfig(context).exists()) return null
-            prefs.edit().putBoolean("shaderPrecache", false).apply()
+            prefs.edit().putBoolean("shaderPrecache", true).apply()
         }
         val on = prefs.getBoolean("shaderPrecache", true)
         val applied = shaderPrecacheApplied(context)
