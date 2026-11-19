@@ -272,6 +272,20 @@ class InputSettingsTest {
         compose.runOnIdle { assertTrue(OnScreenLayout.generated(InputLibraries.read(context).layouts.first { it.id == layout.id })) }
     }
 
+    @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
+    fun removingAndRestoringAKitButtonKeepsItsAction() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.PRIMARY)!!
+        val bindingsId = library.profile("game").binding(InputRole.PRIMARY)
+        InputLibraries.update(context) { lib -> lib.preset(bindingsId).let { b -> lib.withPreset(b.copy(elements = b.elements + ("legacy:a" to InputAction.Keys(listOf(30))))) } }
+        val a = InputLibraries.defaultPositions(context, library, layout)!!.first.single { it.id == "legacy:a" }
+        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY, layoutId = layout.id, bindingsId = bindingsId) } }
+        compose.onNodeWithTag("input-layout-canvas").performTouchInput { click(percentOffset(a.x + a.width / 2, a.y + a.height / 2)) }
+        compose.onNodeWithText(context.getString(R.string.input_remove_element)).performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(InputAction.Keys(listOf(30)), InputLibraries.read(context).preset(bindingsId).elements["legacy:a"]) }
+    }
+
     @Test fun resetAndSaveKeepTheDpadDirectionOverrides() {
         val library = InputLibraries.read(context)
         val layout = library.layout("game", InputRole.PRIMARY)!!

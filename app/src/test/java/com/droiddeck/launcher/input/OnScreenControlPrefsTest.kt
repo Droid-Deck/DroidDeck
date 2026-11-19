@@ -176,7 +176,23 @@ class OnScreenControlPrefsTest {
         val edited = withUp.withLayout(saved.copy(style = saved.style.copy(opacity = 60))).validate()
         assertEquals(InputAction.Keys(listOf(103)), edited.preset(bindings.id).elements["legacy:up"])
         val noDpad = edited.withLayout(saved.copy(elements = saved.elements.filterNot { it.id == KitLayout.DPAD_ID }))
-        assertNull(noDpad.preset(bindings.id).elements["legacy:up"])
+        assertEquals(InputAction.Keys(listOf(103)), noDpad.preset(bindings.id).elements["legacy:up"])
+    }
+
+    @Test fun removingAKitControlFromAGamepadLayoutKeepsItsActionForReset() {
+        val library = InputLibraries.read(context)
+        val overlay = library.layouts.single { it.id == InputLibraries.OVERLAY }
+        val kit = KitLayout.elements(context, PadKit.XBOX, 1920, 1080)
+        val bindings = library.preset(library.activePart(false, InputRole.PRIMARY).bindings)
+        val withA = library.withLayout(overlay.copy(elements = kit, aspect = 16f / 9))
+            .withPreset(bindings.copy(elements = bindings.elements + ("legacy:a" to InputAction.Keys(listOf(30)))))
+        val noA = withA.withLayout(overlay.copy(elements = kit.filterNot { it.id == "legacy:a" }, aspect = 16f / 9)).validate()
+        assertEquals(InputAction.Keys(listOf(30)), noA.preset(bindings.id).elements["legacy:a"])
+        val kitless = noA.withLayout(overlay.copy(elements = emptyList(), kitless = true)).validate()
+        assertEquals(InputAction.Keys(listOf(30)), kitless.preset(bindings.id).elements["legacy:a"])
+        val custom = SavedInputLayout("custom", "Custom", listOf(InputSurfaceElement(InputControl.B, .1f, .1f, .1f, .1f, "legacy:b")))
+        assertNull(custom.element("legacy:a"))
+        assertNull(overlay.element("imported:404"))
     }
 
     @Test fun aFailedRecoverySaveLeavesTheStoredLibraryAsItWas() {

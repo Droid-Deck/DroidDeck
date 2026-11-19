@@ -315,6 +315,11 @@ internal fun InputAction.validFor(element: InputSurfaceElement): Boolean = when 
     else -> target.dimensions == 1 && target != InputControl.LT && target != InputControl.RT
 }
 
-/** A saved element, or, in a gamepad that keeps no kit positions, the kit control that [id] names. */
+/**
+ * A saved element, or the kit control that [id] names: in a layout made from the built-in gamepad every kit control keeps its
+ * binding while it's removed, so Reset or Restore brings it back with its action.
+ */
 internal fun SavedInputLayout.element(id: String): InputSurfaceElement? =
-    elements.firstOrNull { it.id == id } ?: KitLayout.element(id)?.takeIf { OnScreenLayout.generated(this) || KitLayout.bindsTo(id, elements) }
+    elements.firstOrNull { it.id == id } ?: KitLayout.element(id)?.takeIf {
+        this.id == InputLibraries.OVERLAY || origin == InputLibraries.OVERLAY || KitLayout.bindsTo(id, elements)
+    }

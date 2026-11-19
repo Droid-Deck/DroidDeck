@@ -116,7 +116,10 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     }
     fun hiddenDefaults(): List<InputSurfaceElement> = defaults?.let { refit(it, defaultsFrame) }?.filter { d -> elements.none { it.id == d.id } }.orEmpty()
     fun add(element: InputSurfaceElement) { checkpoint(); elements = elements + element; selected = element.id; popover = null }
-    fun remove(id: String) { checkpoint(); elements = elements.filterNot { it.id == id }; actions = actions - id; clicks = clicks - id; selected = null }
+    fun remove(id: String) {
+        checkpoint(); elements = elements.filterNot { it.id == id }; selected = null
+        if (!KitLayout.isKit(id)) { actions = actions - id; clicks = clicks - id }
+    }
     fun resizeSelected(factor: Float) {
         val e = element ?: return
         checkpoint()
@@ -173,9 +176,10 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                 val p = latest.preset(bindingsTarget)
                 val generated = draft.kitAtDefaults && OnScreenLayout.generated(l.copy(elements = emptyList(), kitless = false))
                 val extras = draft.elements.filterNot { KitLayout.isKit(it.id) }
-                latest.withLayout(if (generated) l.copy(elements = extras, aspect = if (extras.isEmpty()) 0f else draft.aspect, scale = draft.layoutScale, kitless = false)
-                    else l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale, kitless = draft.elements.none { KitLayout.isKit(it.id) })).withPreset(p.copy(elements = draft.actions.filterKeys { id -> KitLayout.bindsTo(id, draft.elements) },
-                    clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
+                val edited = if (generated) l.copy(elements = extras, aspect = if (extras.isEmpty()) 0f else draft.aspect, scale = draft.layoutScale, kitless = false)
+                    else l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale, kitless = draft.elements.none { KitLayout.isKit(it.id) })
+                latest.withLayout(edited).withPreset(p.copy(elements = draft.actions.filterKeys { id -> edited.element(id) != null },
+                    clicks = draft.clicks.filterKeys { id -> edited.element(id)?.hasClick == true }))
             }
             copy?.use?.invoke(bindingsTarget)
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
