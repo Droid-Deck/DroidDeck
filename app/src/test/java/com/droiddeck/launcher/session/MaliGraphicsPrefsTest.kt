@@ -5,9 +5,11 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
 import com.droiddeck.launcher.core.DeviceSupport
-import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.DriverBundle
+import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
+import com.droiddeck.launcher.gpu.ShadowGpuInfo
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -16,21 +18,29 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
-import org.robolectric.annotation.Implementation
-import org.robolectric.annotation.Implements
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33], application = Application::class,
-    instrumentedPackages = ["com.droiddeck.launcher.gpu.GpuInfo"], shadows = [MaliGraphicsPrefsTest.DetectedGpu::class])
+@Config(
+    sdk = [33], application = Application::class,
+    instrumentedPackages = ["com.droiddeck.launcher.gpu.GpuInfo"],
+    shadows = [ShadowGpuInfo::class],
+)
 class MaliGraphicsPrefsTest {
     private val context get() = RuntimeEnvironment.getApplication()
     private val prefs get() = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
-    @Before fun reset() { prefs.edit().clear().commit() }
+    @Before fun setUp() {
+        ShadowGpuInfo.setGpu(GpuInfo.Family.MALI_LATEST, "Mali-G715")
+        prefs.edit().clear().commit()
+    }
+
+    @After fun tearDown() {
+        ShadowGpuInfo.reset()
+    }
 
     @Test fun explicitChoiceSurvivesConcurrentLegacyMigration() {
         for (choice in listOf(MaliGraphicsMode.BRIDGE, MaliGraphicsMode.VENUS)) {
@@ -236,10 +246,5 @@ class MaliGraphicsPrefsTest {
         }
         assertTrue(com.droiddeck.launcher.ui.SettingsIndex.search(context, "MaliBridge")
             .any { it.title == com.droiddeck.launcher.R.string.mali_path_choice })
-    }
-
-    @Implements(value = GpuInfo.Companion::class, isInAndroidSdk = false)
-    class DetectedGpu {
-        @Implementation fun detect() = GpuInfo("Mali-G715", 0, GpuInfo.Family.MALI_LATEST, "", false)
     }
 }
