@@ -137,17 +137,15 @@ class LibraryVisibilityTest {
         compose.onNodeWithTag("library-not-installed").assertExists()
     }
 
-    @Test fun aHiddenStoreRemainsReachableInLibraryInItsConfiguredOrder() {
+    @Test fun aSwitchedOffStoreLeavesTheChipsButItsGamesStayUnderAll() {
         SessionPrefs.setStoresTabOrder(ctx, listOf("epic", "gog"))
         SessionPrefs.setStoresTabHidden(ctx, setOf("gog"))
         show()
         val steam = compose.onNodeWithTag("library-source-steam").fetchSemanticsNode().boundsInRoot.left
         val epic = compose.onNodeWithTag("library-source-epic").fetchSemanticsNode().boundsInRoot.left
-        val gog = compose.onNodeWithTag("library-source-gog").fetchSemanticsNode().boundsInRoot.left
-        assertTrue(steam < epic && epic < gog)
-        compose.onNodeWithTag("library-source-gog").performClick()
-        compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithTag("library-not-installed").assertIsDisplayed().performClick()
+        assertTrue(steam < epic)
+        compose.onNodeWithTag("library-source-gog").assertDoesNotExist()
+        compose.onNodeWithTag("library-not-installed").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Uninstalled GOG").assertExists()
     }
