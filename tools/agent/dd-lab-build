@@ -117,8 +117,8 @@ if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
 fi
 
 # A full Kotlin compile of the app runs out of memory with 2.7 GB of heap, and Gradle needs about 1 GB,
-# so devices with less memory to spare swap rather than fail. Both daemons end with this script's
-# process when the build is done.
+# so devices with less memory to spare swap rather than fail. The app runs this script under proot's
+# --kill-on-exit, which ends both daemons with this script's process when the build is done.
 heap=${DD_LAB_HEAP_MB:-6144}
 kotlin_heap=$(( heap * 2 / 3 )); gradle_heap=$(( heap - kotlin_heap ))
 
