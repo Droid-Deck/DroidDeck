@@ -387,7 +387,9 @@ while [ $n -lt 90 ] && [ -z "$(game_pids)" ]; do
   sleep 1; n=$((n + 1))
 done
 echo "$(date +%H:%M:%S) game process $(game_pids | tr '\n' ' ')after ${n}s"
-while [ -n "$(game_pids)" ]; do sleep 2; done
+# The program Steam started counts while it runs: a program that names its main thread (Chromium-based games call
+# it CrBrowserMain) changes its process name, which Wine copies, and is then no longer found by name.
+while [ -n "$(game_pids)" ] || kill -0 $WP 2>/dev/null; do sleep 2; done
 echo "$(date +%H:%M:%S) game exited"
 [ -n "$GT" ] && kill $GT 2>/dev/null
 stop_wine
