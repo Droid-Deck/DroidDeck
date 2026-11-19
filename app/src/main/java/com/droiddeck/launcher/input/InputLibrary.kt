@@ -22,6 +22,8 @@ data class SavedInputLayout(
     val aspect: Float = 0f,
     val origin: String? = null,
     val scale: Float = 1f,
+    /** The player removed every kit control from this gamepad, so it must not follow the virtual controller again. */
+    val kitless: Boolean = false,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
     val quickButtons get() = QUICK_BUTTONS.filter { button -> elements.any { it.quickButton == button } }
@@ -136,8 +138,8 @@ data class InputLibrary(
     fun withPreset(value: SavedInputBindings) = copy(bindings = bindings.filterNot { it.id == value.id } + value)
     fun withLayout(value: SavedInputLayout) = copy(layouts = layouts.filterNot { it.id == value.id } + value,
         bindings = bindings.map { preset -> if (preset.layoutId != value.id) preset else preset.copy(
-            elements = preset.elements.filter { (id, action) -> value.elements.any { it.id == id && action.validFor(it) } },
-            clicks = preset.clicks.filter { (id, action) -> value.elements.any { it.id == id && it.hasClick && action.validForClick() } }) })
+            elements = preset.elements.filter { (id, action) -> value.element(id)?.let { action.validFor(it) } == true },
+            clicks = preset.clicks.filter { (id, action) -> value.element(id)?.hasClick == true && action.validForClick() }) })
 
     fun duplicateProfile(id: String, name: String, newId: String = newInputId(), sharePhysical: Boolean = false): InputLibrary {
         require(profiles.size < 64)

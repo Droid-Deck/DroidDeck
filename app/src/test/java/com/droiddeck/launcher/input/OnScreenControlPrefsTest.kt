@@ -149,4 +149,21 @@ class OnScreenControlPrefsTest {
         assertEquals(SessionPrefs.OSC_ALWAYS, SessionPrefs.oscMode(context))
         assertTrue(SessionPrefs.steamTouchLayout(context))
     }
+
+    @Test fun aGamepadWithEveryKitControlRemovedStaysEmptyAndKeepsKitBindingsOnOtherEdits() {
+        val library = InputLibraries.read(context)
+        val overlay = library.layouts.single { it.id == InputLibraries.OVERLAY }
+        val key = InputSurfaceElement(InputControl.A, .4f, .4f, .1f, .1f, "imported:9", name = "Key")
+        val emptied = overlay.copy(elements = listOf(key), aspect = 16f / 9, kitless = true)
+        InputLibraries.update(context) { it.withLayout(emptied) }
+        val stored = InputLibraries.read(context).layouts.single { it.id == InputLibraries.OVERLAY }
+        assertFalse(OnScreenLayout.generated(stored))
+        assertEquals(listOf("imported:9"), OnScreenLayout.elements(context, stored, 1920, 1080, android.graphics.Rect()).map { it.id })
+        val bindings = library.preset(library.activePart(false, InputRole.PRIMARY).bindings)
+        val withKey = InputLibraries.update(context) { lib ->
+            lib.withLayout(overlay).withPreset(bindings.copy(elements = bindings.elements + ("legacy:a" to InputAction.Keys(listOf(30)))))
+        }
+        val dimmed = withKey.withLayout(overlay.copy(style = overlay.style.copy(opacity = 50)))
+        assertEquals(InputAction.Keys(listOf(30)), dimmed.preset(bindings.id).elements["legacy:a"])
+    }
 }

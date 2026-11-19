@@ -198,4 +198,19 @@ class InputSurfaceSourceTest {
         assertEquals(0, physical)
         assertTrue(player > 0)
     }
+
+    @Test fun theKitDpadUsesSavedDirectionButtonsAndCancellingNeverRunsADirectionCommand() {
+        val dpad = InputSurfaceElement(InputControl.LS, .1f, .1f, .3f, .3f, KitLayout.DPAD_ID, InputElementKind.DPAD)
+        bridge.setInputProfile(InputProfile("test", elements = mapOf(InputRole.SECONDARY to mapOf("legacy:up" to InputAction.Keys(listOf(103)),
+            "legacy:down" to InputAction.Command(InputCommand.KEYBOARD)))))
+        val pad = source(dpad)
+        pad.update(0f, -1f)
+        assertEquals("key:103:true", events.last())
+        pad.update(0f, 0f)
+        assertEquals("key:103:false", events.last())
+        events.clear()
+        pad.update(0f, 1f)
+        pad.cancel()
+        assertTrue(events.none { it.startsWith("KEYBOARD") })
+    }
 }

@@ -576,6 +576,7 @@ class InputSurfaceView(
 
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.actionMasked == MotionEvent.ACTION_CANCEL) { source?.cancel(); held = 0; invalidate(); return true }
             val bits = when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
                     val dx = event.getX(0) - width / 2f

@@ -27,7 +27,7 @@ class ControlsPresenterTest {
                 assertFalse(plan.shown)
                 continue
             }
-            val place = if (state.steamLayout) Place.STEAM else if (state.bottomScreen) Place.BOTTOM else Place.MAIN
+            val place = if (state.bottomScreen) Place.BOTTOM else if (state.steamLayout) Place.STEAM else Place.MAIN
             val hidden = if (state.hiddenByTap) Hidden.BY_TAP else if (state.mode == SessionPrefs.OSC_AUTO && state.controllerInUse) Hidden.BY_CONTROLLER else null
             assertEquals(state.toString(), ControlsPresenter.Plan(place, hidden), plan)
             assertEquals(state.toString(), hidden == null, plan.shown)
@@ -49,7 +49,7 @@ class ControlsPresenterTest {
     }
 
     @Test fun theSteamLayoutWinsOverTheBottomScreen() {
-        assertEquals(Place.STEAM, ControlsPresenter.plan(playing.copy(steamLayout = true, bottomScreen = true)).place)
+        assertEquals(Place.BOTTOM, ControlsPresenter.plan(playing.copy(steamLayout = true, bottomScreen = true)).place)
         assertEquals(Place.BOTTOM, ControlsPresenter.plan(playing.copy(bottomScreen = true)).place)
     }
 

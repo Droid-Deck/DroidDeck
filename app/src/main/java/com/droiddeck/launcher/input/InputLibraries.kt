@@ -277,7 +277,7 @@ object InputLibraries {
                 .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown))
             layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
                 .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
-                .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
+                .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL).put("kitless", layout.kitless))
         }
         val bindings = JSONArray()
         for (b in library.bindings) {
@@ -321,7 +321,7 @@ object InputLibraries {
                 InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100),
                     layout.optJSONArray("hidden")?.let { hidden -> (0 until hidden.length()).map { InputCommand.valueOf(hidden.getString(it)) }.toSet() }.orEmpty()),
                 InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)), layout.optDouble("aspect", 0.0).toFloat(), layout.optionalString("origin"),
-                    layout.optDouble("scale", 1.0).toFloat())
+                    layout.optDouble("scale", 1.0).toFloat(), layout.optBoolean("kitless", false))
         }
         val bindings = doc.getJSONArray("bindings").objects(512).map { b ->
             val controls = b.getJSONObject("controls").actions(28).mapKeys { requireNotNull(InputControl.fromId(it.key)) }

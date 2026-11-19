@@ -4479,6 +4479,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun controlsBelowWanted(): Boolean {
         if (!::sessionRoot.isInitialized || glassesScreen != null || bottomGame != null || cardboard.enabled) return false
+        if (SessionPrefs.oscMode(this) == SessionPrefs.OSC_NEVER) return false
         return SessionPrefs.controlsBelowWanted(this, SessionState.mode, sessionRoot.width, sessionRoot.height,
             pipUi || isInPictureInPictureMode)
     }

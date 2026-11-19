@@ -5,7 +5,8 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
     private val route = router?.channel(role, element.control, element = element)
     /** The kit's D-pad keeps each direction's own binding, as the separate direction buttons it replaced did. */
     private val arms = if (element.id == KitLayout.DPAD_ID && router != null)
-        listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT).map { router.channel(role, it) } else emptyList()
+        listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT).map { router.channel(role, it, element = KitLayout.element("legacy:${it.id}")) }
+    else emptyList()
     private val deck = DeckControls.source(role, routed = true)
     private val clickDeck = DeckControls.source(role, routed = true)
     private val clickOwner = Any()
@@ -59,6 +60,7 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
             if (latched) 1f else 0f
         } else value
         if (arms.isNotEmpty() && route?.action is InputAction.Native) {
+            route.update(x, y, touching)
             val values = listOf(y < -.5f, x > .5f, y > .5f, x < -.5f).map { if (it) 1f else 0f }
             val toPad = arms.mapIndexed { i, arm -> arm.update(values[i])?.takeIf { it.isPad }?.let { it to values[i] } }.filterNotNull()
             if (toPad.isNotEmpty() || nativePad) writePad(this, null) { state -> state.clear(); for ((t, v) in toPad) state.add(t, v) }
@@ -86,6 +88,7 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
     fun cancel() {
         if (closed) return
         route?.takeIf { it.action is InputAction.Command }?.release()
+        arms.filter { it.action is InputAction.Command }.forEach { it.release() }
         update(0f)
     }
 

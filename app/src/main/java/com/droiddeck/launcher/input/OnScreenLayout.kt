@@ -24,7 +24,7 @@ object OnScreenLayout {
      * the layout stores only the keys and controls the player added on top.
      */
     fun generated(layout: SavedInputLayout) = (layout.id == InputLibraries.OVERLAY || layout.origin == InputLibraries.OVERLAY) &&
-        layout.elements.none { KitLayout.isKit(it.id) }
+        !layout.kitless && layout.elements.none { KitLayout.isKit(it.id) }
 
     fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect, dock: Dock? = null): List<InputSurfaceElement> {
         layout ?: return emptyList()

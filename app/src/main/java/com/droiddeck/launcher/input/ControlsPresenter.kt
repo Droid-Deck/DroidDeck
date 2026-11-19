@@ -26,8 +26,8 @@ object ControlsPresenter {
         state.mode == SessionPrefs.OSC_AUTO && state.desktop -> Plan(Place.NONE)
         else -> Plan(
             when {
-                state.steamLayout -> Place.STEAM
                 state.bottomScreen -> Place.BOTTOM
+                state.steamLayout -> Place.STEAM
                 else -> Place.MAIN
             },
             when {
