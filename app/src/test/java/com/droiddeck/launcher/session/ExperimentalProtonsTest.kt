@@ -3,6 +3,8 @@ package com.droiddeck.launcher.session
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.file.Files
+import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
+import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import android.app.Activity
@@ -151,12 +153,57 @@ class ExperimentalProtonsTest {
             zip.putArchiveEntry(ZipArchiveEntry("build/link").apply { unixMode = 0xA1FF })
             zip.write("proton".toByteArray())
             zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("build/files/lib/up").apply { unixMode = 0xA1FF })
+            zip.write("../../proton".toByteArray())
+            zip.closeArchiveEntry()
         }
         val unpacked = temp.newFolder("direct")
         ExperimentalProtons.extractDirect(archive, unpacked, ExperimentalProtons.ArchiveType.ZIP)
         assertTrue(File(unpacked, "build/proton").canExecute())
         assertTrue(Files.isSymbolicLink(File(unpacked, "build/link").toPath()))
         assertEquals("proton", Files.readSymbolicLink(File(unpacked, "build/link").toPath()).toString())
+        assertEquals("../../proton", Files.readSymbolicLink(File(unpacked, "build/files/lib/up").toPath()).toString())
+        assertEquals("binary", File(unpacked, "build/files/lib/up").readText())
+    }
+
+    @Test
+    fun directSevenZipKeepsExecutableModeAndInTreeLinks() {
+        val archive = temp.newFile("tree.7z")
+        SevenZOutputFile(archive).use { seven ->
+            fun add(name: String, mode: Int, text: String) {
+                val entry = SevenZArchiveEntry().apply {
+                    this.name = name
+                    hasWindowsAttributes = true
+                    windowsAttributes = (mode shl 16) or 0x8000
+                }
+                seven.putArchiveEntry(entry)
+                seven.write(text.toByteArray())
+                seven.closeArchiveEntry()
+            }
+            add("build/proton", 0x81ED, "binary")
+            add("build/files/lib/up", 0xA1FF, "../../proton")
+            add("build/plain", 0x81A4, "data")
+        }
+        val unpacked = temp.newFolder("seven")
+        ExperimentalProtons.extractDirect(archive, unpacked, ExperimentalProtons.ArchiveType.SEVEN_Z)
+        assertTrue(File(unpacked, "build/proton").canExecute())
+        assertFalse(File(unpacked, "build/plain").canExecute())
+        assertEquals("../../proton", Files.readSymbolicLink(File(unpacked, "build/files/lib/up").toPath()).toString())
+    }
+
+    @Test
+    fun directArchivesRejectLinksThatClimbAfterAName() {
+        val archive = temp.newFile("climb.zip")
+        ZipArchiveOutputStream(archive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("build/a/b/top").apply { unixMode = 0xA1FF })
+            zip.write("../../..".toByteArray())
+            zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("build/a/b/out").apply { unixMode = 0xA1FF })
+            zip.write("top/../outside".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val result = runCatching { ExperimentalProtons.extractDirect(archive, temp.newFolder("climb-out"), ExperimentalProtons.ArchiveType.ZIP) }
+        assertTrue(result.exceptionOrNull() is ExperimentalProtons.UnsafeArchiveException)
     }
 
     @Test

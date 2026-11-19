@@ -9,6 +9,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermission
 import java.security.DigestOutputStream
@@ -329,44 +330,39 @@ object ExperimentalProtons {
             if (mode and 0x01 != 0) permissions += PosixFilePermission.OTHERS_EXECUTE
             if (permissions.isNotEmpty()) Files.setPosixFilePermissions(file.toPath(), permissions)
         }
+        fun place(name: String, mode: Int, directory: Boolean, content: () -> InputStream) {
+            val file = target(name)
+            when {
+                mode and 0xF000 == 0xA000 -> {
+                    val link = content().use { it.readBytes().decodeToString() }
+                    val parent = file.parentFile ?: throw UnsafeArchiveException()
+                    val climbsLater = link.split('/').dropWhile { it == ".." }.any { it == ".." }
+                    if (link.startsWith('/') || climbsLater || !parent.toPath().resolve(link).normalize().startsWith(root)) throw UnsafeArchiveException()
+                    parent.mkdirs()
+                    Files.deleteIfExists(file.toPath())
+                    Files.createSymbolicLink(file.toPath(), java.nio.file.Paths.get(link))
+                }
+                directory -> {
+                    file.mkdirs()
+                    applyMode(file, mode)
+                }
+                else -> {
+                    if (Files.isSymbolicLink(file.toPath())) throw UnsafeArchiveException()
+                    file.parentFile?.mkdirs()
+                    content().use { input -> file.outputStream().use { output -> input.copyTo(output, 1 shl 16) } }
+                    applyMode(file, mode)
+                }
+            }
+        }
         when (type) {
             ArchiveType.ZIP -> CommonsZipFile.builder().setFile(archive).get().use { zip ->
-                for (entry in zip.entries) {
-                    val file = target(entry.name)
-                    if (entry.isUnixSymlink) {
-                        val link = zip.getInputStream(entry).use { it.readBytes().decodeToString() }
-                        val parent = file.parentFile ?: throw UnsafeArchiveException()
-                        val resolved = parent.toPath().resolve(link).normalize()
-                        if (link.startsWith('/') || link.split('/').any { it == ".." } || !resolved.startsWith(root)) throw UnsafeArchiveException()
-                        Files.deleteIfExists(file.toPath())
-                        Files.createSymbolicLink(file.toPath(), java.nio.file.Paths.get(link))
-                    } else if (entry.isDirectory) {
-                        file.mkdirs()
-                        applyMode(file, entry.unixMode)
-                    } else {
-                        if (Files.isSymbolicLink(file.toPath())) throw UnsafeArchiveException()
-                        file.parentFile?.mkdirs()
-                        zip.getInputStream(entry).use { input -> file.outputStream().use { output -> input.copyTo(output) } }
-                        applyMode(file, entry.unixMode)
-                    }
-                }
+                for (entry in zip.entries) place(entry.name, entry.unixMode, entry.isDirectory) { zip.getInputStream(entry) }
             }
             ArchiveType.SEVEN_Z -> Files.newByteChannel(archive.toPath()).use { channel ->
                 SevenZFile.builder().setSeekableByteChannel(channel).get().use { seven ->
-                    while (true) {
-                        val entry = seven.nextEntry ?: break
-                        val file = target(entry.name)
-                        if (entry.isDirectory) file.mkdirs() else {
-                            file.parentFile?.mkdirs()
-                            file.outputStream().use { output ->
-                                val buffer = ByteArray(64 * 1024)
-                                while (true) {
-                                    val count = seven.read(buffer)
-                                    if (count < 0) break
-                                    output.write(buffer, 0, count)
-                                }
-                            }
-                        }
+                    for (entry in seven.entries) {
+                        val unix = entry.hasWindowsAttributes && entry.windowsAttributes and 0x8000 != 0
+                        place(entry.name, if (unix) entry.windowsAttributes ushr 16 else 0, entry.isDirectory) { seven.getInputStream(entry) }
                     }
                 }
             }
