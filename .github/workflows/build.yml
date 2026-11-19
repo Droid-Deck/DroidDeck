@@ -349,7 +349,7 @@ jobs:
     name: Compile APK and Android tests
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ${{ fromJSON(needs.build-runner.outputs.labels) }}
-    timeout-minutes: 90
+    timeout-minutes: 45
     outputs:
       variants: ${{ steps.variants.outputs.list }}
     steps:
@@ -652,9 +652,7 @@ jobs:
           set -o pipefail
           python3 tools/powervr/fetch.py
           python3 tools/release/runtime_inputs.py record
-          args=()
-          if [ "${{ github.event_name }}" = "pull_request" ]; then args+=("-PbundlePrProot"); fi
-          ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" "${args[@]}" 2>&1 | tee /tmp/build.log
+          ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
           python3 tools/release/runtime_inputs.py apk app/build/outputs/apk/release/app-release.apk
 
