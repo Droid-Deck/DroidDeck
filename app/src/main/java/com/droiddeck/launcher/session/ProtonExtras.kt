@@ -290,26 +290,12 @@ object ProtonExtras {
             val root = LinuxRuntime.rootDir(context)
             LinuxRuntime.writeAccounts(context)
             com.droiddeck.launcher.session.SessionFiles.stage(context, root)
-            val runtimeDir = File(context.filesDir, ".proton-install-rt").apply { mkdirs() }
             val guest = listOf(
                 "/usr/bin/env", "-i", "HOME=/root", "USER=root", "PATH=/usr/local/bin:/usr/bin:/bin",
                 "LANG=C.UTF-8", "XDG_DATA_HOME=/root/.local/share",
                 "/usr/local/bin/droiddeck-proton-extra", "/root/.local/share/Steam", archive.absolutePath,
             )
-            val process = if (com.droiddeck.launcher.runtime.NativeGuest.enabled(context)) {
-                com.droiddeck.launcher.runtime.NativeGuest.processBuilder(context, root,
-                    LinuxRuntime.binds(context, null, runtimeDir, null, null), guest).redirectErrorStream(true)
-            } else {
-                ProcessBuilder(LinuxRuntime.command(context, null, runtimeDir, null, guest))
-                    .directory(root)
-                    .redirectErrorStream(true)
-                    .also { builder ->
-                        val hostEnv = builder.environment()
-                        hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
-                        hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
-                        LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
-                    }
-            }
+            val process = guestProcess(context, guest)
             val child = process.start()
             var placed: String? = null
             child.inputStream.bufferedReader().useLines { lines ->
@@ -341,6 +327,25 @@ object ProtonExtras {
         } catch (e: Exception) {
             Log.e(TAG, "install ${tool.id}", e)
             e.message ?: context.getString(R.string.pextra_could_not_install, tool.name)
+        }
+    }
+
+    internal fun guestProcess(context: Context, guest: List<String>): ProcessBuilder {
+        val root = LinuxRuntime.rootDir(context)
+        val runtimeDir = File(context.filesDir, ".proton-install-rt").apply { mkdirs() }
+        return if (com.droiddeck.launcher.runtime.NativeGuest.enabled(context)) {
+            com.droiddeck.launcher.runtime.NativeGuest.processBuilder(context, root,
+                LinuxRuntime.binds(context, null, runtimeDir, null, null), guest).redirectErrorStream(true)
+        } else {
+            ProcessBuilder(LinuxRuntime.command(context, null, runtimeDir, null, guest))
+                .directory(root)
+                .redirectErrorStream(true)
+                .also { builder ->
+                    val hostEnv = builder.environment()
+                    hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
+                    hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
+                    LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
+                }
         }
     }
 

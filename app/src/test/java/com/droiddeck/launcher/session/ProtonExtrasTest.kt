@@ -222,8 +222,25 @@ class ProtonExtrasTest {
         assertFalse(state.getJSONObject("active").has("GE-Proton11-7"))
         assertFalse(state.getJSONObject("queued").has("GE-Proton11-7"))
         assertTrue(state.getJSONObject("active").has("GE-Proton11-8"))
-        ComponentsManager.forgetProton(context, kept.name)
+        assertTrue(ComponentsManager.forgetProton(context, kept.name))
         assertTrue(File(originals, "GE-Proton11-8/GE-Proton11-8/dxvk.wcp").isFile)
+        val published = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-components/desired.tsv")
+        published.appendText("*\tExperimental-Gone\t11\tdxvk\tfiles/lib/wine/dxvk/x86_64-windows/dxgi.dll\t-\t-\n")
+        File(originals, "Experimental-Gone/11/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
+        assertTrue(ComponentsManager.forgetProton(context, "Experimental-Gone"))
+        assertFalse(published.readLines().any { "Experimental-Gone" in it })
+        assertFalse(File(originals, "Experimental-Gone").exists())
+
+        val store = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-components/store")
+        File(originals, "Experimental-Stale/11/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
+        val stale = File(store, "original-Experimental-Stale-11-dxvk").apply { mkdirs(); File(this, ".complete").writeText("1\n") }
+        val other = File(store, "original-Experimental-Stale-2-11-dxvk").apply { mkdirs(); File(this, ".complete").writeText("1\n") }
+        File(originals, "Experimental-Stale/2-11/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
+        published.appendText("*\tExperimental-Stale-2\t11\tdxvk\tfiles/a.dll\t0\t/root/.local/share/droiddeck-components/store/${other.name}/files/a.dll\n")
+        assertTrue(ComponentsManager.forgetProton(context, "Experimental-Stale"))
+        assertFalse(stale.exists())
+        assertTrue(File(other, ".complete").isFile)
+        assertFalse(File(originals, "Experimental-Stale").exists())
     }
 
     @Test

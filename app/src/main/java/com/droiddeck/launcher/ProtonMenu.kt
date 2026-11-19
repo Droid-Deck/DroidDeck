@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.session.ExperimentalProtons
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.ui.ProtonRow
 import com.droiddeck.launcher.session.SessionState
@@ -27,12 +28,17 @@ internal class ProtonMenu(
         val stage = mutableStateOf<String?>(null)
         val percent = mutableIntStateOf(-1)
         val problem = mutableStateOf<String?>(null)
+        val experimental = mutableStateOf<List<String>>(emptyList())
     }
     var protonRows by Operation.rows
     var protonBusyId by Operation.busyId
     var protonStage by Operation.stage
     var protonPercent by Operation.percent
     var protonProblem by Operation.problem
+    var experimentalDirs by Operation.experimental
+    companion object {
+        const val EXPERIMENTAL = "experimental"
+    }
     private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
     @VisibleForTesting internal var installer: (ProtonExtras.Tool, Boolean, (String, Int) -> Unit) -> String? =
         { tool, test, progress -> ProtonExtras.install(activity, tool, test, progress) }
@@ -86,7 +92,47 @@ internal class ProtonMenu(
         }, "remove-proton-$id").start()
     }
 
+    fun installExperimental(work: ((String, Int) -> Unit) -> String?) {
+        if (protonBusyId != null || ProtonExtras.installInProgress || SessionState.running) return
+        protonBusyId = EXPERIMENTAL
+        protonProblem = null
+        protonStage = activity.getString(R.string.store_starting)
+        protonPercent = -1
+        Thread({
+            val problem = runCatching {
+                work { label, value -> ui.post { protonStage = label; protonPercent = value } }
+            }.getOrElse { it.message ?: it.javaClass.simpleName }
+            ui.post {
+                protonProblem = problem
+                protonBusyId = null
+                protonStage = null
+                protonPercent = -1
+                refreshProtons()
+                android.widget.Toast.makeText(activity, problem ?: activity.getString(R.string.xproton_installed), android.widget.Toast.LENGTH_LONG).show()
+                if (problem == null) onInstalled()
+            }
+        }, "install-proton-experimental").start()
+    }
+
+    fun removeExperimental(dir: String) {
+        if (protonBusyId != null || SessionState.running) return
+        protonBusyId = EXPERIMENTAL
+        protonProblem = null
+        protonStage = activity.getString(R.string.main_removing_named, dir)
+        protonPercent = -1
+        Thread({
+            val removed = runCatching { ExperimentalProtons.remove(activity, dir) }.getOrDefault(false)
+            ui.post {
+                protonBusyId = null
+                protonStage = null
+                refreshProtons()
+                if (!removed) android.widget.Toast.makeText(activity, activity.getString(R.string.xproton_remove_failed, dir), android.widget.Toast.LENGTH_LONG).show()
+            }
+        }, "remove-proton-experimental").start()
+    }
+
     fun refreshProtons() {
+        experimentalDirs = ExperimentalProtons.installed(activity).map { it.dir }
         protonRows = ProtonExtras.tools.map {
             val all = ProtonExtras.installedAll(activity, it)
             ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it), ProtonExtras.testBuild(activity, it))

@@ -539,7 +539,8 @@ fun ComponentsPage(
                     val key = "proton:${v.proton.id}"
                     val swaps = v.components.values.count { it.activeFile != null }
                     val extra = protons.rows.firstOrNull { v.proton.dir.name in it.installedAll }
-                    val removable = extra != null && protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
+                    val experimental = v.proton.dir.name in protons.experimental
+                    val removable = (extra != null || experimental) && protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
                     ChoiceLine(
                         v.proton.name,
                         (if (swaps > 0) stringResource(R.string.comp_swapped, v.proton.version, swaps) else stringResource(R.string.comp_all_original, v.proton.version))
@@ -548,7 +549,10 @@ fun ComponentsPage(
                         modifier = (if (i == 0 && !moded(l)) Modifier.focusRequester(firstRow) else Modifier).trackRow(key, rowsAt),
                         onSelect = { if (v.proton.id != view?.proton?.id) { onProton(v.proton.id); flyHome(key, PROTON_TAB) } },
                         onDelete = {
-                            if (extra != null) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.store_remove), true, v.proton.name) {
+                            if (experimental) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.store_remove), true, v.proton.name) {
+                                protonActions.onRemoveExperimental(v.proton.dir.name)
+                            }
+                            else if (extra != null) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.store_remove), true, v.proton.name) {
                                 protonActions.onRemove(extra.id, v.proton.dir.name)
                             }
                         },
@@ -737,6 +741,10 @@ fun ComponentsPage(
                             )
                         }
                     }
+                }
+                if (l == PROTON_TAB && DeveloperTools.on) {
+                    Spacer(Modifier.height(12.dp))
+                    ExperimentalProtonGroup(protons, protonActions)
                 }
                 if (l == PROTON_TAB) {
                     Spacer(Modifier.height(12.dp))
@@ -1631,6 +1639,18 @@ private fun DeviceChip(s: GpuDriversState) {
     ) { face() }
 }
 
+@Composable
+private fun ExperimentalProtonGroup(protons: ProtonsState, actions: ProtonsActions) {
+    val busy = protons.busyId == com.droiddeck.launcher.ProtonMenu.EXPERIMENTAL
+    val idle = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
+    RowGroup(stringResource(R.string.xproton_title)) {
+        if (busy) GetLine(stringResource(R.string.xproton_title), "", progress = protons.percent, enabled = false, stage = protons.stage) {}
+        else Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 8.dp)) {
+            SmallButton(stringResource(R.string.xproton_pick_zip), enabled = idle, onClick = actions.onExperimentalFile)
+        }
+    }
+}
+
 class ProtonsState(
     val rows: List<ProtonRow> = emptyList(),
     val busyId: String? = null,
@@ -1638,6 +1658,7 @@ class ProtonsState(
     val percent: Int = -1,
     val runtimeReady: Boolean = true,
     val sessionRunning: Boolean = false,
+    val experimental: List<String> = emptyList(),
 )
 
 class ProtonsActions(
@@ -1646,6 +1667,8 @@ class ProtonsActions(
     val onCancel: (String) -> Unit = {},
     val onRemove: (String, String) -> Unit = { _, _ -> },
     val onRemoveOlder: (String) -> Unit = {},
+    val onExperimentalFile: () -> Unit = {},
+    val onRemoveExperimental: (String) -> Unit = {},
 )
 
 class ProtonRow(
