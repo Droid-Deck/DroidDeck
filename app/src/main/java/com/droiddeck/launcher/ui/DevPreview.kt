@@ -15,7 +15,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,6 +65,14 @@ internal object DevPreview {
     var drawer by mutableStateOf<DrawerPreview?>(null)
     /** The UI zoo sheet: where previews are picked, one at a time, only when asked for. */
     var zoo by mutableStateOf(false)
+    /** Opt-in: a preview button where its state lives (the Library's toolbar), for switching states without the zoo. */
+    var shortcuts by mutableStateOf(false)
+
+    fun setShortcuts(context: android.content.Context, on: Boolean) {
+        shortcuts = on
+        SessionPrefs.setPreviewShortcuts(context, on)
+    }
+
     /** Set when a Library preview is picked, so the launcher switches to the Library to show it. */
     var openLibrary by mutableStateOf(false)
 }
@@ -217,6 +230,39 @@ internal fun UiZooSheet() {
                 stringResource(R.string.dev_ui_zoo_note), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
             )
+        }
+    }
+}
+
+/** The Library toolbar's preview button, shown only with preview shortcuts on: picks the Library state in place. */
+@Composable
+internal fun LibraryPreviewButton() {
+    val pal = LocalPalette.current
+    val title = stringResource(R.string.dev_preview_library)
+    var at by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    val states = listOf(
+        LibraryPreview.OFF to R.string.dev_preview_real,
+        LibraryPreview.NOTHING_INSTALLED to R.string.dev_preview_library_nothing_installed,
+        LibraryPreview.SIGNED_OUT to R.string.dev_preview_library_signed_out,
+        LibraryPreview.SAMPLE to R.string.dev_preview_library_sample,
+    )
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        HeaderIconButton(stringResource(R.string.dev_preview_shortcut), Icons.Outlined.Science, "library-preview") {
+            val from = at ?: return@HeaderIconButton
+            Steps.ask(StepAsk(
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = states.size,
+                handle = { Icon(Icons.Outlined.Science, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
+            ) {
+                StepTitle(title)
+                StepList {
+                    states.forEachIndexed { i, (state, label) ->
+                        StepChoice(
+                            stringResource(label), selected = DevPreview.library == state, enabled = open,
+                            modifier = Modifier.fillMaxWidth().stepItem(i).let { if (i == 0) it.focusRequester(first) else it },
+                        ) { DevPreview.library = state; Steps.fold() }
+                    }
+                }
+            })
         }
     }
 }

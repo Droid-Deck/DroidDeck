@@ -888,6 +888,7 @@ private fun LibraryHeader(
         lead = soundLead,
     ) {
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
+        if (!soundMode && DeveloperTools.on && DevPreview.shortcuts) LibraryPreviewButton()
         DisplayButton()
         if (!soundMode && xbox) LibraryFilterButton(null, onShowUninstalled, xbox)
         if (collections != null) CollectionsButton(collections)

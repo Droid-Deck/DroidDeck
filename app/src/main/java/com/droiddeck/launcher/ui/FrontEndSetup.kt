@@ -600,6 +600,10 @@ internal fun SetupPanel(
                                 stringResource(R.string.dev_ui_zoo), stringResource(R.string.dev_ui_zoo_hint), stringResource(R.string.dev_ui_zoo_open),
                                 onClick = { DevPreview.zoo = true }, modifier = Modifier.testTag("dev-ui-zoo"),
                             )
+                            if (DeveloperTools.on) ToggleRow(
+                                host, "preview-shortcuts", stringResource(R.string.dev_preview_shortcuts), stringResource(R.string.dev_preview_shortcuts_hint),
+                                DevPreview.shortcuts,
+                            ) { DevPreview.setShortcuts(devContext, it) }
                         }
                         SettingsGroup(stringResource(R.string.dev_group_logs)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }

@@ -4299,6 +4299,10 @@
     <string name="dev_preview_library_sample">Sample games in every store</string>
     <string name="dev_preview_banner">Preview: %1$s</string>
     <string name="dev_preview_end">End preview</string>
+    <string name="dev_preview_real">Real library</string>
+    <string name="dev_preview_shortcut">Preview a state</string>
+    <string name="dev_preview_shortcuts">Preview shortcuts</string>
+    <string name="dev_preview_shortcuts_hint">Adds a preview button where a state lives, such as the Library\'s toolbar, to switch states in place</string>
     <string name="dev_preview_read_only">Previews are read-only. End the preview to open games.</string>
     <string name="dev_preview_drawer">In-game menu</string>
     <string name="dev_preview_drawer_backdrop">In-game menu preview · Back to close</string>
