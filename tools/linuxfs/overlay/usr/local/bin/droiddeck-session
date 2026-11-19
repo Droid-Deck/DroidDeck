@@ -964,15 +964,15 @@ case $mode in
             [ "${_dd_deaf[$_k]:-0}" -le "$SECONDS" ] || continue
             dd_zram_usage "$_p" > /dev/null
             [ "$_dd_anon" -ge 8192 ] || continue
-            printf %s - > "/tmp/.dd-zram.ack.$_p"
-            _acks+=("/tmp/.dd-zram.ack.$_p")
+            printf %s - > "/tmp/.dd-zram.trim.$_p"
+            _acks+=("/tmp/.dd-zram.trim.$_p")
             printf '%s %s\n' "$_mode" "$_left" > /tmp/.dd-zram
             kill -URG "$_p" 2>/dev/null || continue
             _dd_deaf[$_k]=$((SECONDS + 60))
             for ((_i = 0; _dd_polls < 250 && SECONDS - _dd_pass_at < 6; _i++, _dd_polls++)); do
               [ ! -e /tmp/.dd-zram.hold ] || { _dd_deaf[$_k]=0; break; }
               _n=
-              read -r _n 2>/dev/null < "/tmp/.dd-zram.ack.$_p" || :
+              read -r _n 2>/dev/null < "/tmp/.dd-zram.trim.$_p" || :
               case $_n in
                 -) [ "$_i" -lt 25 ] || break ;;
                 ''|*[!0-9]*) ;;

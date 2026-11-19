@@ -253,9 +253,9 @@ static unsigned long zr_walk(int mode, unsigned long want, unsigned long lo, uns
   return done;
 }
 
-static void zr_ack(long value) {
-  static const char suffix[] = ".ack.";
-  char path[sizeof(ZR_CTL) + sizeof(suffix) + 20];
+static void zr_ack(long value, int trim) {
+  const char *suffix = trim ? ".trim." : ".ack.";
+  char path[sizeof(ZR_CTL) + sizeof(".trim.") + 20];
   char digits[20];
   size_t n = 0, d = 0;
   for (const char *p = ZR_CTL; *p; p++) path[n++] = *p;
@@ -278,17 +278,17 @@ static void zr_request(int worker) {
   if (mode < 0) return;
   if (!worker && want > ZR_INLINE_KB / (zr_page / 1024)) want = ZR_INLINE_KB / (zr_page / 1024);
   zr_visits = worker ? ZR_FAILED : ZR_INLINE_CHUNKS;
-  if (mode > 0) zr_ack(-1);
+  if (mode > 0) zr_ack(-1, mode > 1);
   if (mode < 2) {
     zr_walk(mode, 1, 0, 0);
     zr_gen++;
-    if (mode == 1) zr_ack(1);
+    if (mode == 1) zr_ack(1, 0);
     return;
   }
   unsigned long from = zr_cursor;
   unsigned long done = zr_walk(mode, want, from, ~0UL);
   if (done < want && from > 0) done += zr_walk(mode, want - done, 0, from);
-  zr_ack((long)(done * (zr_page / 1024)));
+  zr_ack((long)(done * (zr_page / 1024)), 1);
 }
 
 static void *zr_worker_main(void *unused) {

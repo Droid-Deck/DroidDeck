@@ -233,7 +233,7 @@ kill() {
   case ${reply[$2]} in
     deaf) ;;
     gone) return 1 ;;
-    *) printf %s "${reply[$2]}" > "$ROOT/ctl.ack.$2" ;;
+    *) printf %s "${reply[$2]}" > "$ROOT/ctl.trim.$2" ;;
   esac
 }
 '''
@@ -304,9 +304,15 @@ dd_zram_trim 2 9000 10 20
 echo $_dd_trimmed'''))
 
     def test_a_held_control_file_keeps_its_acknowledgements(self):
-        self.assertEqual(['signal:10:2 9000', 'ctl', 'ctl.ack.10', 'ctl.hold', '2 9000'], self.trim('''
+        self.assertEqual(['signal:10:2 9000', 'ctl', 'ctl.hold', 'ctl.trim.10', '2 9000'], self.trim('''
 anon=([10]=500000)
-kill() { echo "signal:$2:$(< "$ROOT/ctl")"; : > "$ROOT/ctl.hold"; printf 1 > "$ROOT/ctl.ack.$2"; }
+kill() { echo "signal:$2:$(< "$ROOT/ctl")"; : > "$ROOT/ctl.hold"; printf 1 > "$ROOT/ctl.trim.$2"; }
+dd_zram_trim 2 9000 10'''))
+
+    def test_a_trim_leaves_the_acknowledgement_of_a_suspend_page_out_alone(self):
+        self.assertEqual(['signal:10:2 9000', 'ctl', 'ctl.ack.10', '2 0'], self.trim('''
+anon=([10]=500000) reply=([10]=9000)
+: > "$ROOT/ctl.ack.10"
 dd_zram_trim 2 9000 10'''))
 
     READBACK = '''

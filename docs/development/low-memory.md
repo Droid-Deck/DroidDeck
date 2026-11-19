@@ -76,7 +76,8 @@ reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold` and 
 request (`1` to page out, `0` to read back) into that file. A signalled process reads the hold
 file first and the control file only when the hold file is missing or empty, so a trim request
 the monitor wrote at the same moment cannot replace the app's. The suspend page-out answers `1`
-and a trim answers its kB, which is a multiple of the page size, so the app never takes a
+in `/tmp/.dd-zram.ack.<pid>` and a trim answers its kB in `/tmp/.dd-zram.trim.<pid>`, so the
+monitor never removes or reads an answer the app is waiting for, and the app never takes a
 trim's answer for its own. A trim budget smaller than a chunk covers the stretch of the chunk
 that holds that many resident pages, and the next request continues from where it ended. With less than 64 MiB of zRAM room nothing is requested and the
 session log says so once a minute.

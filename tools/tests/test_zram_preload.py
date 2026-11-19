@@ -106,7 +106,7 @@ static void request(char mode) {
 
 static long trim(char mode, long kb) {
   char ack[256], text[32];
-  snprintf(ack, sizeof(ack), "%s.ack.%d", ctl, getpid());
+  snprintf(ack, sizeof(ack), "%s.trim.%d", ctl, getpid());
   unlink(ack);
   FILE *f = fopen(ctl, "w");
   if (!f) exit(3);
@@ -386,7 +386,7 @@ class ZramPreloadTest(unittest.TestCase):
 
     def setUp(self):
         self.ctl.write_text("0")
-        for ack in self.dir.glob("ctl.ack.*"):
+        for ack in [*self.dir.glob("ctl.ack.*"), *self.dir.glob("ctl.trim.*")]:
             ack.unlink()
         (self.dir / "ctl.hold").unlink(missing_ok=True)
 
