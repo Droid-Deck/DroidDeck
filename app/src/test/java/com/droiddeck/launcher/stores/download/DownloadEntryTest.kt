@@ -35,6 +35,7 @@ class DownloadEntryTest {
         assertTrue(backToDownload.streaming)
         assertEquals(0.25f, backToDownload.installFraction, 0.001f)
         assertFalse(base.copy(stage = DownloadStage.DOWNLOAD, bytesDone = 10, bytesTotal = 100).streaming)
+        assertTrue(installing.copy(bytesDone = 99_950, bytesTotal = 100_000).streaming)
         assertFalse(installing.copy(bytesDone = 100).streaming)
         assertFalse(installing.copy(state = DownloadState.PAUSED).streaming)
     }
