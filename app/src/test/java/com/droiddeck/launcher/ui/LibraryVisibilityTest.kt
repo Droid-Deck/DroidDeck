@@ -152,6 +152,14 @@ class LibraryVisibilityTest {
         compose.onNodeWithText("Uninstalled GOG").assertExists()
     }
 
+    @Test fun theHeaderCountsTheWholeLibraryWhicheverStoreIsPicked() {
+        show()
+        compose.onNodeWithText("3 games").assertExists()
+        compose.onNodeWithTag("library-source-gog").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("3 games").assertExists()
+    }
+
     @Test fun theStoresOwnedGamesLinkRevealsOwnedGamesDespiteTheSavedInstalledOnlyView() {
         assertFalse(SessionPrefs.libraryShowUninstalled(ctx))
         LibraryView.showOwned(ctx, Store.GOG)

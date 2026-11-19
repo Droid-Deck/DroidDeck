@@ -370,6 +370,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     }
     val collectionItems = collectionId?.let { if (source == Store.GAMEJOLT.id) GameJoltCollections.gamesOf(it) else ItchCollections.gamesOf(it) }
     val pool = if (collectionId == null) all else collectionEntries(all, collectionItems.orEmpty(), Store.byId(source) ?: Store.ITCH)
+    val libraryTotal = if (soundMode) 0 else all.count { inLibrarySource(LIBRARY_ALL, it, favorites, concealed) }
     val matching = pool.filter {
         inLibrarySource(source, it, favorites, concealed) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
@@ -514,7 +515,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
             LibraryGrid(
-                s, a, grid, visible, split, visible.size + hiddenUninstalled, sources, source, sizesPending, syncing,
+                s, a, grid, visible, split, if (soundMode) visible.size else libraryTotal, sources, source, sizesPending, syncing,
                 showUninstalled = listUninstalled.takeIf { !s.shortcutPicker },onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
