@@ -197,7 +197,8 @@ object ProtonExtras {
                 if (runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }.isFailure) continue
                 if (runCatching { keepUserSettings(context, old, newest) }.onFailure { Log.w(TAG, "user settings of $old", it) }.isFailure) continue
                 if (runCatching { ProtonDefault.moveGames(context, setOf(old), newest) }.onFailure { Log.w(TAG, "per-game picks of $old", it) }.isFailure) continue
-                if (runCatching { ProtonDefault.moveDefault(context, setOf(old), newest) }.onFailure { Log.w(TAG, "default pick of $old", it) }.isFailure) continue
+                // DroidDeck-Bionic only: the guest finds no default for a deleted Bionic build and falls back to DroidDeck-Proton
+                if (tool.id == BIONIC && runCatching { ProtonDefault.moveDefault(context, setOf(old), newest) }.onFailure { Log.w(TAG, "default pick of $old", it) }.isFailure) continue
                 if (deleteTool(context, old)) ComponentsManager.forgetProton(context, old)
                 else Log.w(TAG, "could not remove $old")
             }
