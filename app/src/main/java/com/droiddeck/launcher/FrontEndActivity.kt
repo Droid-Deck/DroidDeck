@@ -869,7 +869,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             runCatching { com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }.onFailure { Log.w(TAG, "components: restore failed", it) }
         }, "components-restore").start()
     }
-    private var pendingGameLink: String? = null
+    private var pendingGameLink: com.droiddeck.launcher.frontend.GameRequest? = null
     private var gameLinkReading = false
     private var gameLinkTried = false
     private var gameSyncFolder by mutableStateOf<String?>(null)
@@ -941,12 +941,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
             val copy = Intent(request)
             Thread({
-                val id = GameLaunchIntent.read(this, copy)
+                val game = GameLaunchIntent.read(this, copy)
                 ui.post {
                     if (intent === request && !isDestroyed) {
                         gameLinkReading = false
-                        pendingGameLink = id
-                        if (id == null) {
+                        pendingGameLink = game
+                        if (game == null) {
                             syncDualPanel()
                             android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
                         } else {
@@ -1196,16 +1196,16 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun handleGameLink(games: List<Library.SteamGame>, scanned: Boolean = true) {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
-        val id = pendingGameLink ?: return
-        if (!scanned && games.none { it.gameIdString == id }) return
+        val request = pendingGameLink ?: return
+        val game = request.find(games)
+        if (!scanned && game == null) return
         gameLinkTried = true
         ui.postDelayed({
             if (!isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) syncDualPanel()
         }, LINK_PANEL_MS)
-        val game = games.firstOrNull { it.gameIdString == id }
         val link = intent
         fun consume() {
-            if (intent !== link || pendingGameLink != id) return
+            if (intent !== link || pendingGameLink !== request) return
             pendingGameLink = null
             link.data = null
             link.action = Intent.ACTION_MAIN
@@ -1214,7 +1214,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (game == null) {
             consume()
             syncDualPanel()
-            android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(this,
+                if (request.program != null) R.string.game_link_program_unknown else R.string.game_link_missing,
+                android.widget.Toast.LENGTH_LONG).show()
         } else launchGame(game, returnHome = true, onSettled = ::consume)
     }
 
