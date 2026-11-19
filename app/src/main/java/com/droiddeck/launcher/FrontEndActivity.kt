@@ -1943,7 +1943,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (GameLaunchIntent.accepts(intent.action)) gameLaunchRequest.incrementAndGet()
+        val settingsLink = intent.data?.scheme == "droiddeck" && intent.data?.host == "settings"
+        if (GameLaunchIntent.accepts(intent.action) && !settingsLink) gameLaunchRequest.incrementAndGet()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
             pendingGameLink = null
