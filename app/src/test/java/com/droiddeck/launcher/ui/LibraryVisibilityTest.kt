@@ -81,7 +81,9 @@ class LibraryVisibilityTest {
         compose.onNodeWithText("Installed Steam game").assertExists()
         compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
         compose.onNodeWithText("NOT INSTALLED  ·  2").assertExists()
+        compose.onNodeWithText("3 games").assertExists()
         toggleNotInstalled(true)
+        compose.onNodeWithText("3 games").assertExists()
         compose.onNodeWithText("Uninstalled GOG").assertExists()
         compose.runOnIdle { generation++; Snapshot.sendApplyNotifications() }
         compose.mainClock.advanceTimeBy(2_000)

@@ -244,9 +244,24 @@ private fun NotInstalledRow(count: Int, expanded: Boolean, keys: Modifier, onFoc
             fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, color = if (hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1,
         )
         Box(Modifier.weight(1f).height(1.dp).background(pal.line))
+        val hop = remember { androidx.compose.animation.core.Animatable(0f) }
+        LaunchedEffect(expanded, hot, Motion.scale) {
+            hop.snapTo(0f)
+            if (Motion.scale == 0f) return@LaunchedEffect
+            val toward = if (expanded) -3.5f else 3.5f
+            kotlinx.coroutines.delay(if (hot) 0L else 1_200L)
+            while (true) {
+                repeat(2) {
+                    hop.animateTo(toward, androidx.compose.animation.core.tween(150, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                    hop.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = androidx.compose.animation.core.Spring.StiffnessMedium))
+                }
+                kotlinx.coroutines.delay(3_500L)
+            }
+        }
         Icon(
             if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, stringResource(if (expanded) R.string.library_filter_installed else R.string.library_browse_owned),
-            tint = if (hot) colors.onBackground else colors.onSurfaceVariant, modifier = Modifier.size(22.dp),
+            tint = if (hot) colors.onBackground else colors.onSurfaceVariant,
+            modifier = Modifier.size(22.dp).graphicsLayer { translationY = hop.value.dp.toPx() },
         )
     }
 }
@@ -499,7 +514,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
             LibraryGrid(
-                s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
+                s, a, grid, visible, split, visible.size + hiddenUninstalled, sources, source, sizesPending, syncing,
                 showUninstalled = listUninstalled.takeIf { !s.shortcutPicker },onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
