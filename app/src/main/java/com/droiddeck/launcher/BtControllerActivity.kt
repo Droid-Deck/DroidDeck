@@ -85,6 +85,7 @@ class BtControllerActivity : ComponentActivity() {
     private var profile by mutableStateOf(BtPadProfile.GENERIC)
     private var showTouch by mutableStateOf(true)
     private var permissionDenied by mutableStateOf(false)
+    private var locationDenied by mutableStateOf(false)
 
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLanguage.wrap(newBase))
 
@@ -108,6 +109,7 @@ class BtControllerActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        locationDenied = LOCATION.any { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (permissionDenied && Build.VERSION.SDK_INT >= 31 && NEARBY.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
             permissionDenied = false
             startPad()
@@ -124,6 +126,7 @@ class BtControllerActivity : ComponentActivity() {
         if (requestCode != REQUEST_NEARBY) return
         val nearbyDenied = Build.VERSION.SDK_INT >= 31 && NEARBY.any { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         permissionDenied = nearbyDenied
+        locationDenied = LOCATION.any { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (!nearbyDenied) startPad()
     }
 
@@ -261,6 +264,7 @@ class BtControllerActivity : ComponentActivity() {
                             color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (!narrow) types(Modifier.weight(1f))
+                    if (locationDenied && !permissionDenied && !connected) SecondaryButton(stringResource(R.string.btpad_permission_open), compact = true) { openAppInfo() }
                     if (permissionDenied) PrimaryButton(stringResource(R.string.btpad_permission_open), compact = true) { openAppInfo() }
                     else if (connected) SecondaryButton(stringResource(R.string.btpad_disconnect), compact = true) { BtGamepad.disconnect() }
                     else PrimaryButton(stringResource(R.string.btpad_pair), compact = true, enabled = status.phase == BtGamepad.Phase.READY) { BtGamepad.openPairingWindow() }
@@ -278,7 +282,8 @@ class BtControllerActivity : ComponentActivity() {
     @Composable
     private fun Instructions(status: BtGamepad.Status, modifier: Modifier, size: androidx.compose.ui.unit.TextUnit = 14.sp) {
         if (status.phase == BtGamepad.Phase.CONNECTED) return
-        Text(statusText(status), fontSize = size, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        val text = statusText(status) + if (locationDenied && !permissionDenied) "\n\n" + stringResource(R.string.btpad_location_hint) else ""
+        Text(text, fontSize = size, color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = modifier)
     }
 
