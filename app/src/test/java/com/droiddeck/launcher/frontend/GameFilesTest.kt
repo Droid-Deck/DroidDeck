@@ -44,7 +44,7 @@ class GameFilesTest {
 
     @Test fun readsIdsFromEveryFrontendFileFormat() {
         listOf("8400\n", "steam://rungameid/8400", "droiddeck://game/8400",
-            "# Daijishou Player Template\n[steamappid] 8400\n",
+            "# Daijishou Player Template\n[steamappid] 8400\n", "# DST\n[steamappid] 8400\n",
             "[InternetShortcut]\r\nIconIndex=0\r\nURL=steam://rungameid/8400\r\nIconFile=C:\\steam.ico\r\n").forEach { value ->
             assertEquals(value, "8400", GameFiles.read(ByteArrayInputStream(value.toByteArray())))
         }

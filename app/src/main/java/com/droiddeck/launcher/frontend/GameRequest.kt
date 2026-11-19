@@ -10,12 +10,13 @@ class GameRequest(
     val title: String? = null,
     val program: File? = null,
 ) {
-    fun find(games: List<Library.SteamGame>): Library.SteamGame? {
+    fun find(games: List<Library.SteamGame>, byTitle: Boolean = true): Library.SteamGame? {
         program?.let { return owner(games, it) }
         val exact = id?.let { id -> games.firstOrNull { it.gameIdString == id } }
         if (source == Library.SOURCE_STEAM) return exact ?: games.firstOrNull { it.appId > 0 && it.appId.toString() == id }
         exact?.takeIf { it.source == source }?.let { return it }
         id?.let { id -> games.firstOrNull { it.source == source && it.storeId == id } }?.let { return it }
+        if (!byTitle) return null
         val key = title?.let(::titleKey)?.takeIf { it.isNotEmpty() } ?: return null
         return games.firstOrNull { it.source == source && titleKey(it.name) == key }
     }
@@ -34,7 +35,7 @@ class GameRequest(
         val PROGRAMS = setOf("exe", "bat")
         private const val CUSTOM_GAME = "CUSTOM_GAME"
         private const val CUSTOM_EXTENSION = "pcgame"
-        private const val DAIJISHOU = "# Daijishou Player Template"
+        private val DAIJISHOU = setOf("# Daijishou Player Template", "# DST")
         private val daijishouId = Regex("""(?i)\[steamappid]\s*([0-9]+)""")
         private val steamLink = Regex("steam://rungameid/([1-9][0-9]{0,19})")
 
@@ -62,7 +63,7 @@ class GameRequest(
             val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
             val header = lines.firstOrNull() ?: return null
             return when {
-                header.equals(DAIJISHOU, ignoreCase = true) -> lines.firstNotNullOfOrNull { daijishouId.matchEntire(it) }
+                DAIJISHOU.any { header.equals(it, ignoreCase = true) } -> lines.firstNotNullOfOrNull { daijishouId.matchEntire(it) }
                     ?.groupValues?.get(1)?.takeIf(GameLaunchLink::validId)
                 header.equals("[InternetShortcut]", ignoreCase = true) -> lines.firstOrNull { it.startsWith("URL=", ignoreCase = true) }
                     ?.substring(4)?.trim()?.takeIf { !GameLaunchLink.validId(it) }?.let(::link)

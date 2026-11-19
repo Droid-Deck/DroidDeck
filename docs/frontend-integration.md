@@ -26,7 +26,7 @@ am start -n com.droiddeck.launcher/.FrontEndActivity \
   -a com.droiddeck.launcher.LAUNCH_GAME --es app_id 620 --es game_source STEAM
 ```
 
-- `app_id`: an int, long or decimal string. DroidDeck ids for added and store games are unsigned 64-bit, so send them with `--es` or `--el`, not `--ei`.
+- `app_id`: an int, long or decimal string. DroidDeck ids for added and store games are unsigned 64-bit, so send them with `--es`, not `--ei`. `--el` only accepts the signed 64-bit form, so an id above 9223372036854775807 such as `18446744073709551615` must be sent as `-1`, or better with `--es`.
 - `game_source` (optional, default `STEAM`): `STEAM`, `EPIC`, `GOG`, `AMAZON`, `XBOX`, `UBISOFT`, `EA`, `ROCKSTAR`, `BATTLENET`, `ITCH`, `GAMEJOLT` or `CUSTOM_GAME`.
 
 **View a link or a file**:

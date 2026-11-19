@@ -23,6 +23,13 @@ class GameRequestTest {
         assertNull(GameRequest("401").find(games))
     }
 
+    @Test fun titleMatchingWaitsForTheFullScan() {
+        val cached = game(-2L, "Example", source = "gog", storeId = "111")
+        assertNull(GameRequest("222", "gog", "Example").find(listOf(cached), byTitle = false))
+        assertSame(cached, GameRequest("222", "gog", "Example").find(listOf(cached)))
+        assertSame(cached, GameRequest("111", "gog", "Other").find(listOf(cached), byTitle = false))
+    }
+
     @Test fun gogMatchesItsProductIdThenTitle() {
         val witcher = game(-2L, "The Witcher 3: Wild Hunt", source = "gog", storeId = "1207664663")
         val games = listOf(game(292030, "The Witcher 3: Wild Hunt"), witcher)

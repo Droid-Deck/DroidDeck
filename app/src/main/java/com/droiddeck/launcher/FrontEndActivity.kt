@@ -1197,7 +1197,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun handleGameLink(games: List<Library.SteamGame>, scanned: Boolean = true) {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
         val request = pendingGameLink ?: return
-        val game = request.find(games)
+        val game = request.find(games, byTitle = scanned)
         if (!scanned && game == null) return
         gameLinkTried = true
         ui.postDelayed({
