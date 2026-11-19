@@ -4,6 +4,7 @@
 
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <errno.h>
 #include <limits.h>
 #include <linux/input.h>
 #include <pthread.h>
@@ -33,13 +34,14 @@
   "NAME=\"Xbox 360 Controller (%d)\"\n"                                                            \
   "PHYS=\"usb-fakeinput/input%d\"\n"
 
+#define PARENT_NAME "droiddeck-input"
+
 struct pad {
   char syspath[64];
   char devnode[32];
-  char sysname[16];
+  char sysname[24];
   char uevent[256];
   dev_t devnum;
-  void *udev;
   int node;
   int parent;
   int live;
@@ -53,17 +55,19 @@ static pthread_mutex_t enumerate_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /* The event device's parent has to answer as a separate device so that its syspath differs from
  * the child's: consumers compare parent syspaths to tell gamepads apart. */
-static void sync_parent(int node) {
-  struct pad *parent = &parents[node];
-
-  snprintf(parent->syspath, sizeof(parent->syspath), "/sys/devices/droiddeck%d/input%d", node, node);
-  snprintf(parent->sysname, sizeof(parent->sysname), "input%d", node);
-  memcpy(parent->uevent, pads[node].uevent, sizeof(parent->uevent));
+static void make_parent(int node, const struct pad *pad, struct pad *parent) {
+  snprintf(parent->syspath, sizeof(parent->syspath), "/sys/devices/droiddeck%d/" PARENT_NAME "%d", node, node);
+  snprintf(parent->sysname, sizeof(parent->sysname), PARENT_NAME "%d", node);
+  parent->devnode[0] = '\0';
+  memcpy(parent->uevent, pad->uevent, sizeof(parent->uevent));
   parent->devnum = makedev(0, 0);
-  parent->udev = pads[node].udev;
   parent->node = node;
   parent->parent = 1;
-  parent->live = pads[node].live;
+  parent->live = pad->live;
+}
+
+static void sync_parent(int node) {
+  make_parent(node, &pads[node], &parents[node]);
 }
 
 static void discover_pads(void) {
@@ -131,12 +135,9 @@ static int any_virtual_pad(void) {
   return 0;
 }
 
-static void refresh_pad(int node) {
-  struct pad *pad;
+static void refresh_locked(int node) {
+  struct pad *pad = &pads[node];
 
-  if (node < 0 || node >= PAD_MAX) return;
-  pad = &pads[node];
-  pthread_mutex_lock(&virtual_lock);
   if (node >= UINPUT_BASE) {
     char uevent[sizeof(pad->uevent)];
 
@@ -170,7 +171,19 @@ static void refresh_pad(int node) {
     }
   }
   sync_parent(node);
+}
+
+static int snapshot_pad(int node, int parent, struct pad *out) {
+  int found;
+
+  if (node < 0 || node >= PAD_MAX) return 0;
+  ensure_pads();
+  pthread_mutex_lock(&virtual_lock);
+  refresh_locked(node);
+  found = parent ? parents[node].live : pads[node].devnode[0] != '\0';
+  if (found) *out = parent ? parents[node] : pads[node];
   pthread_mutex_unlock(&virtual_lock);
+  return found;
 }
 
 static int parse_number(const char **cursor) {
@@ -216,46 +229,53 @@ static int node_from_syspath(const char *syspath, int *child) {
     if (*cursor == '\0') return node;
     return match_numbered(&cursor, "/event", node) && *cursor == '\0' ? node : -1;
   }
-  if (!match_numbered(&cursor, "/input", node)) return -1;
+  if (!match_numbered(&cursor, "/" PARENT_NAME, node)) return -1;
   if (*cursor == '\0') return node;
   if (!match_numbered(&cursor, "/event", node) || *cursor != '\0') return -1;
   *child = 0;
   return node;
 }
 
-static struct pad *pad_for_syspath(const char *syspath) {
+static int syspath_pad(const char *syspath, struct pad *out) {
   int child = 0;
   int node = node_from_syspath(syspath, &child);
 
-  ensure_pads();
-  if (node < 0) return NULL;
-  refresh_pad(node);
-  if (child) return parents[node].live ? &parents[node] : NULL;
-  return pads[node].devnode[0] != '\0' ? &pads[node] : NULL;
+  return node >= 0 && snapshot_pad(node, child, out);
 }
 
-/* A pad that went away keeps its address, so identity cannot depend on it still being live. */
-static struct pad *pad_for_device(void *device) {
-  int i;
+static int sysname_pad(const char *sysname, struct pad *out) {
+  static const char parent_name[] = PARENT_NAME;
+  const char *cursor;
+  int parent;
+  int node;
 
-  if (device == NULL) return NULL;
-  ensure_pads();
-  for (i = 0; i < pad_count; i++) {
-    if (&pads[i] == device) return &pads[i];
-    if (&parents[i] == device) return &parents[i];
+  if (strncmp(sysname, "event", 5) == 0) {
+    cursor = sysname + 5;
+    parent = 0;
+  } else if (strncmp(sysname, parent_name, sizeof(parent_name) - 1) == 0) {
+    cursor = sysname + sizeof(parent_name) - 1;
+    parent = 1;
+  } else {
+    return 0;
   }
-  return NULL;
+  node = parse_number(&cursor);
+  return node >= 0 && *cursor == '\0' && snapshot_pad(node, parent, out);
 }
 
 /* Each construction hands out its own handle bound to the context that built it, so one consumer
  * releasing its libudev context can never leave another consumer's device with a dangling one. */
 #define HANDLE_MAX 256
 
+static const char *const property_keys[] = {"DEVNAME", "DEVPATH", "ID_INPUT", "ID_INPUT_JOYSTICK"};
+
+#define PROPERTY_COUNT (sizeof(property_keys) / sizeof(property_keys[0]))
+
 struct handle {
-  struct pad *pad;
+  struct pad info;
   void *udev;
   struct handle *parent;
   int refs;
+  char properties[PROPERTY_COUNT];
 };
 
 static struct handle handles[HANDLE_MAX];
@@ -270,13 +290,13 @@ static struct handle *live_handle(void *device) {
   return handle->refs > 0 ? handle : NULL;
 }
 
-static struct handle *claim_slot(struct pad *pad, void *udev) {
+static struct handle *claim_slot(const struct pad *info, void *udev) {
   int i;
 
   for (i = 0; i < HANDLE_MAX; i++) {
     if (handles[i].refs == 0) {
       handles[i].refs = 1;
-      handles[i].pad = pad;
+      handles[i].info = *info;
       handles[i].udev = udev;
       handles[i].parent = NULL;
       return &handles[i];
@@ -285,14 +305,13 @@ static struct handle *claim_slot(struct pad *pad, void *udev) {
   return NULL;
 }
 
-static void *claim_handle(struct pad *pad, void *udev) {
+static void *claim_handle(const struct pad *info, void *udev) {
   struct handle *handle;
 
   pthread_mutex_lock(&handle_lock);
-  handle = claim_slot(pad, udev);
-  if (handle == NULL) pad->udev = udev;
+  handle = claim_slot(info, udev);
   pthread_mutex_unlock(&handle_lock);
-  return handle != NULL ? (void *)handle : (void *)pad;
+  return handle;
 }
 
 static int retain_handle(void *device) {
@@ -322,67 +341,74 @@ static int release_handle(void *device) {
   return found;
 }
 
-static struct pad *device_pad(void *device) {
+static struct handle *device_handle(void *device) {
   struct handle *handle;
-  struct pad *pad = NULL;
 
   if (device == NULL) return NULL;
   pthread_mutex_lock(&handle_lock);
   handle = live_handle(device);
-  if (handle != NULL) pad = handle->pad;
   pthread_mutex_unlock(&handle_lock);
-  return handle != NULL ? pad : pad_for_device(device);
+  return handle;
 }
 
-static void *device_udev(void *device) {
-  struct handle *handle;
-  void *udev = NULL;
+static struct pad *device_pad(void *device) {
+  struct handle *handle = device_handle(device);
 
-  pthread_mutex_lock(&handle_lock);
-  handle = live_handle(device);
-  if (handle != NULL) udev = handle->udev;
-  pthread_mutex_unlock(&handle_lock);
-  return udev;
+  return handle != NULL ? &handle->info : NULL;
 }
 
 /* The parent belongs to the child that handed it out and goes away with it, as in libudev. */
 static void *parent_device(void *device, struct pad *pad) {
   struct handle *handle;
   struct handle *parent = NULL;
+  struct pad info;
 
   if (pad->parent) return NULL;
+  make_parent(pad->node, pad, &info);
   pthread_mutex_lock(&handle_lock);
   handle = live_handle(device);
   if (handle != NULL) {
-    if (handle->parent == NULL) handle->parent = claim_slot(&parents[pad->node], handle->udev);
+    if (handle->parent == NULL) handle->parent = claim_slot(&info, handle->udev);
     parent = handle->parent;
   }
   pthread_mutex_unlock(&handle_lock);
-  return parent != NULL ? (void *)parent : (void *)&parents[pad->node];
+  return parent;
 }
 
-static struct pad *pad_for_syslink(const char *path) {
-  static const char prefix[] = "/sys/class/input/";
-  const char *name;
-  int i;
-
-  if (path == NULL || strncmp(path, prefix, sizeof(prefix) - 1) != 0) return NULL;
-  name = path + sizeof(prefix) - 1;
-  ensure_pads();
-  if (strncmp(name, "event", 5) == 0) {
-    const char *cursor = name + 5;
-    int node = parse_number(&cursor);
-
-    if (node >= 0 && node < PAD_MAX && *cursor == '\0') {
-      refresh_pad(node);
-      if (pads[node].devnode[0] != '\0') return &pads[node];
-    }
-  }
-  for (i = 0; i < pad_count; i++) {
-    if (pads[i].devnode[0] != '\0' && strcmp(pads[i].sysname, name) == 0) return &pads[i];
-    if (parents[i].live && strcmp(parents[i].sysname, name) == 0) return &parents[i];
-  }
+static const char *pad_property(const struct pad *pad, const char *key) {
+  if (key == NULL) return NULL;
+  if (strcmp(key, "ID_INPUT") == 0 || strcmp(key, "ID_INPUT_JOYSTICK") == 0) return "1";
+  if (strcmp(key, "DEVNAME") == 0) return !pad->parent && pad->devnode[0] != '\0' ? pad->devnode : NULL;
+  if (strcmp(key, "DEVPATH") == 0) return pad->syspath + 4;
   return NULL;
+}
+
+static struct handle *property_handle(void *entry, size_t *index) {
+  uintptr_t offset = (uintptr_t)entry - (uintptr_t)handles;
+  size_t within;
+
+  if (offset >= sizeof(handles)) return NULL;
+  within = offset % sizeof(handles[0]);
+  if (within < offsetof(struct handle, properties) ||
+      within >= offsetof(struct handle, properties) + PROPERTY_COUNT)
+    return NULL;
+  *index = within - offsetof(struct handle, properties);
+  return &handles[offset / sizeof(handles[0])];
+}
+
+static void *next_property(struct handle *handle, size_t from) {
+  size_t i;
+
+  for (i = from; i < PROPERTY_COUNT; i++)
+    if (pad_property(&handle->info, property_keys[i]) != NULL) return &handle->properties[i];
+  return NULL;
+}
+
+static int syslink_pad(const char *path, struct pad *out) {
+  static const char prefix[] = "/sys/class/input/";
+
+  if (path == NULL || strncmp(path, prefix, sizeof(prefix) - 1) != 0) return 0;
+  return sysname_pad(path + sizeof(prefix) - 1, out);
 }
 
 static void *real_dlsym(void);
@@ -401,8 +427,10 @@ static void *next_symbol(const char *name) {
   void *symbol;
 
   if (forward == NULL) return NULL;
-  symbol = atomic_load_explicit(&udev_handle, memory_order_acquire);
-  if (symbol != NULL && (symbol = forward(symbol, name)) != NULL) return symbol;
+  if (strncmp(name, "udev_", 5) == 0) {
+    symbol = atomic_load_explicit(&udev_handle, memory_order_acquire);
+    if (symbol != NULL && (symbol = forward(symbol, name)) != NULL) return symbol;
+  }
   return forward(RTLD_NEXT, name);
 }
 
@@ -432,11 +460,11 @@ __attribute__((visibility("hidden"))) int dd_winebus_rumble_ioctl(int (*real)(in
 
 char *realpath(const char *path, char *resolved) {
   static char *(*real_realpath)(const char *, char *);
-  struct pad *pad = pad_for_syslink(path);
+  struct pad pad;
 
-  if (pad != NULL) {
-    if (resolved == NULL) return strdup(pad->syspath);
-    memcpy(resolved, pad->syspath, strlen(pad->syspath) + 1);
+  if (syslink_pad(path, &pad)) {
+    if (resolved == NULL) return strdup(pad.syspath);
+    memcpy(resolved, pad.syspath, strlen(pad.syspath) + 1);
     return resolved;
   }
   if (real_realpath == NULL) real_realpath = next_symbol("realpath");
@@ -446,12 +474,9 @@ char *realpath(const char *path, char *resolved) {
 
 void *udev_device_new_from_syspath(void *udev, const char *syspath) {
   static void *(*real_new)(void *, const char *);
-  struct pad *pad = pad_for_syspath(syspath);
+  struct pad pad;
 
-  if (pad != NULL) {
-    sync_parent(pad->node);
-    return claim_handle(pad, udev);
-  }
+  if (syspath_pad(syspath, &pad)) return claim_handle(&pad, udev);
   if (real_new == NULL) real_new = next_symbol("udev_device_new_from_syspath");
   if (real_new == NULL) return NULL;
   return real_new(udev, syspath);
@@ -460,7 +485,7 @@ void *udev_device_new_from_syspath(void *udev, const char *syspath) {
 void *udev_device_ref(void *device) {
   static void *(*real_ref)(void *);
 
-  if (retain_handle(device) || device_pad(device) != NULL) return device;
+  if (retain_handle(device)) return device;
   if (real_ref == NULL) real_ref = next_symbol("udev_device_ref");
   if (real_ref == NULL) return NULL;
   return real_ref(device);
@@ -469,7 +494,7 @@ void *udev_device_ref(void *device) {
 void *udev_device_unref(void *device) {
   static void *(*real_unref)(void *);
 
-  if (release_handle(device) || device_pad(device) != NULL) return NULL;
+  if (release_handle(device)) return NULL;
   if (real_unref == NULL) real_unref = next_symbol("udev_device_unref");
   if (real_unref == NULL) return NULL;
   return real_unref(device);
@@ -567,12 +592,9 @@ dev_t udev_device_get_devnum(void *device) {
 
 void *udev_device_get_udev(void *device) {
   static void *(*real_get)(void *);
-  struct pad *pad = device_pad(device);
+  struct handle *handle = device_handle(device);
 
-  if (pad != NULL) {
-    void *udev = device_udev(device);
-    return udev != NULL ? udev : pad->udev;
-  }
+  if (handle != NULL) return handle->udev;
   if (real_get == NULL) real_get = next_symbol("udev_device_get_udev");
   return real_get != NULL ? real_get(device) : NULL;
 }
@@ -614,14 +636,7 @@ const char *udev_device_get_property_value(void *device, const char *key) {
   static const char *(*real_get)(void *, const char *);
   struct pad *pad = device_pad(device);
 
-  if (pad != NULL) {
-    if (key == NULL) return NULL;
-    if (strcmp(key, "ID_INPUT") == 0 || strcmp(key, "ID_INPUT_JOYSTICK") == 0) return "1";
-    if (strcmp(key, "DEVNAME") == 0 && !pad->parent && pad->devnode[0] != '\0')
-      return pad->devnode;
-    if (strcmp(key, "DEVPATH") == 0) return pad->syspath + 4;
-    return NULL;
-  }
+  if (pad != NULL) return pad_property(pad, key);
   if (real_get == NULL) real_get = next_symbol("udev_device_get_property_value");
   if (real_get == NULL) return NULL;
   return real_get(device, key);
@@ -646,8 +661,9 @@ int udev_device_has_tag(void *device, const char *tag) {
 
 void *udev_device_get_properties_list_entry(void *device) {
   static void *(*real_get)(void *);
+  struct handle *handle = device_handle(device);
 
-  if (device_pad(device) != NULL) return NULL;
+  if (handle != NULL) return next_property(handle, 0);
   if (real_get == NULL) real_get = next_symbol("udev_device_get_properties_list_entry");
   return real_get != NULL ? real_get(device) : NULL;
 }
@@ -670,120 +686,64 @@ void *udev_device_get_sysattr_list_entry(void *device) {
 
 void *udev_device_new_from_devnum(void *udev, char type, dev_t devnum) {
   static void *(*real_new)(void *, char, dev_t);
+  struct pad pad;
   int node;
 
-  ensure_pads();
-  for (node = 0; node < PAD_MAX; node++) {
-    refresh_pad(node);
-    if (pads[node].devnode[0] == '\0' || pads[node].devnum != devnum) continue;
-    sync_parent(node);
-    return claim_handle(&pads[node], udev);
-  }
+  for (node = 0; node < PAD_MAX; node++)
+    if (snapshot_pad(node, 0, &pad) && pad.devnum == devnum) return claim_handle(&pad, udev);
   if (real_new == NULL) real_new = next_symbol("udev_device_new_from_devnum");
   return real_new != NULL ? real_new(udev, type, devnum) : NULL;
 }
 
 void *udev_device_new_from_subsystem_sysname(void *udev, const char *subsystem, const char *sysname) {
   static void *(*real_new)(void *, const char *, const char *);
-  int node;
+  struct pad pad;
 
-  ensure_pads();
-  if (subsystem != NULL && sysname != NULL && strcmp(subsystem, "input") == 0) {
-    if (strncmp(sysname, "event", 5) == 0) {
-      const char *cursor = sysname + 5;
-
-      node = parse_number(&cursor);
-      if (node >= 0 && node < PAD_MAX && *cursor == '\0') {
-        refresh_pad(node);
-        if (pads[node].devnode[0] != '\0') {
-          sync_parent(node);
-          return claim_handle(&pads[node], udev);
-        }
-      }
-    }
-    if (strncmp(sysname, "input", 5) == 0) {
-      const char *cursor = sysname + 5;
-
-      node = parse_number(&cursor);
-      if (node >= 0 && node < PAD_MAX && *cursor == '\0') {
-        refresh_pad(node);
-        if (parents[node].live) {
-          sync_parent(node);
-          return claim_handle(&parents[node], udev);
-        }
-      }
-    }
-  }
+  if (subsystem != NULL && sysname != NULL && strcmp(subsystem, "input") == 0 && sysname_pad(sysname, &pad))
+    return claim_handle(&pad, udev);
   if (real_new == NULL) real_new = next_symbol("udev_device_new_from_subsystem_sysname");
   return real_new != NULL ? real_new(udev, subsystem, sysname) : NULL;
 }
 
 struct enumerate {
+  struct enumerate *next;
   void *real;
   void *real_head;
   int matched;
+  int filtered;
+  int parent_node;
+  int real_listed;
   int scanned;
   int refs;
-  unsigned seq;
-  char entries[PAD_MAX];
+  char names[PAD_MAX][sizeof(pads[0].syspath)];
 };
 
-#define ENUMERATE_MAX 16
-
-static struct enumerate enumerates[ENUMERATE_MAX];
-static unsigned enumerate_seq;
+static struct enumerate *enumerates;
 
 static struct enumerate *entry_state(void *entry, int *node) {
-  uintptr_t offset = (uintptr_t)entry - (uintptr_t)enumerates;
-  size_t within;
-
-  if (offset >= sizeof(enumerates)) return NULL;
-  within = offset % sizeof(enumerates[0]);
-  if (within < offsetof(struct enumerate, entries) ||
-      within >= offsetof(struct enumerate, entries) + PAD_MAX)
-    return NULL;
-  *node = (int)(within - offsetof(struct enumerate, entries));
-  return &enumerates[offset / sizeof(enumerates[0])];
-}
-
-static void *real_tail(struct enumerate *state) {
-  void *tail;
+  struct enumerate *state;
 
   pthread_mutex_lock(&enumerate_lock);
-  tail = state->real != NULL ? state->real_head : NULL;
+  for (state = enumerates; state != NULL; state = state->next) {
+    uintptr_t offset = (uintptr_t)entry - (uintptr_t)state->names;
+
+    if (offset < sizeof(state->names) && offset % sizeof(state->names[0]) == 0) {
+      *node = (int)(offset / sizeof(state->names[0]));
+      break;
+    }
+  }
   pthread_mutex_unlock(&enumerate_lock);
-  return tail;
+  return state;
 }
 
 static struct enumerate *enumerate_state(void *enumerate) {
-  int i;
+  struct enumerate *state;
 
   pthread_mutex_lock(&enumerate_lock);
-  for (i = 0; i < ENUMERATE_MAX; i++)
-    if (enumerates[i].real == enumerate) {
-      pthread_mutex_unlock(&enumerate_lock);
-      return &enumerates[i];
-    }
-  pthread_mutex_unlock(&enumerate_lock);
-  return NULL;
-}
-
-/* A caller that walks more than ENUMERATE_MAX enumerates without unrefing would silently lose the
-   pads, so the oldest slot is recycled instead of the new state being dropped. */
-static struct enumerate *enumerate_claim(void) {
-  struct enumerate *oldest = &enumerates[0];
-  int i;
-
-  pthread_mutex_lock(&enumerate_lock);
-  for (i = 0; i < ENUMERATE_MAX; i++) {
-    if (enumerates[i].real == NULL) {
-      pthread_mutex_unlock(&enumerate_lock);
-      return &enumerates[i];
-    }
-    if (enumerates[i].seq < oldest->seq) oldest = &enumerates[i];
+  for (state = enumerates; state != NULL && state->real != enumerate; state = state->next) {
   }
   pthread_mutex_unlock(&enumerate_lock);
-  return oldest;
+  return state;
 }
 
 void *udev_enumerate_new(void *udev) {
@@ -795,14 +755,14 @@ void *udev_enumerate_new(void *udev) {
   if (real_new == NULL) return NULL;
   enumerate = real_new(udev);
   if (enumerate == NULL) return NULL;
-  state = enumerate_claim();
-  pthread_mutex_lock(&enumerate_lock);
+  state = calloc(1, sizeof(*state));
+  if (state == NULL) return enumerate;
   state->real = enumerate;
-  state->real_head = NULL;
-  state->matched = 0;
-  state->scanned = 0;
+  state->parent_node = -1;
   state->refs = 1;
-  state->seq = ++enumerate_seq;
+  pthread_mutex_lock(&enumerate_lock);
+  state->next = enumerates;
+  enumerates = state;
   pthread_mutex_unlock(&enumerate_lock);
   return enumerate;
 }
@@ -823,17 +783,20 @@ void *udev_enumerate_ref(void *enumerate) {
 void *udev_enumerate_unref(void *enumerate) {
   static void *(*real_unref)(void *);
   struct enumerate *state = enumerate_state(enumerate);
-  int last = 1;
 
   if (state != NULL) {
     pthread_mutex_lock(&enumerate_lock);
-    last = --state->refs <= 0;
-    if (last) {
-      state->real = NULL;
-      state->matched = 0;
-      state->scanned = 0;
+    if (--state->refs <= 0) {
+      struct enumerate **link;
+
+      for (link = &enumerates; *link != NULL && *link != state; link = &(*link)->next) {
+      }
+      if (*link != NULL) *link = state->next;
+    } else {
+      state = NULL;
     }
     pthread_mutex_unlock(&enumerate_lock);
+    free(state);
   }
   if (real_unref == NULL) real_unref = next_symbol("udev_enumerate_unref");
   return real_unref != NULL ? real_unref(enumerate) : NULL;
@@ -846,9 +809,30 @@ int udev_enumerate_add_match_subsystem(void *enumerate, const char *subsystem) {
 
   if (real_add == NULL) real_add = next_symbol("udev_enumerate_add_match_subsystem");
   rc = real_add != NULL ? real_add(enumerate, subsystem) : 0;
-  if (rc == 0 && state != NULL && subsystem != NULL)
+  if (rc == 0 && state != NULL && subsystem != NULL) {
+    pthread_mutex_lock(&enumerate_lock);
+    state->filtered = 1;
     state->matched = state->matched || strcmp(subsystem, "input") == 0;
+    pthread_mutex_unlock(&enumerate_lock);
+  }
   return rc;
+}
+
+int udev_enumerate_add_match_parent(void *enumerate, void *parent) {
+  static int (*real_add)(void *, void *);
+  struct pad *pad = device_pad(parent);
+
+  if (pad != NULL) {
+    struct enumerate *state = enumerate_state(enumerate);
+
+    if (state == NULL) return -EINVAL;
+    pthread_mutex_lock(&enumerate_lock);
+    state->parent_node = pad->node;
+    pthread_mutex_unlock(&enumerate_lock);
+    return 0;
+  }
+  if (real_add == NULL) real_add = next_symbol("udev_enumerate_add_match_parent");
+  return real_add != NULL ? real_add(enumerate, parent) : -ENOSYS;
 }
 
 static void *real_get_list_entry(void *enumerate) {
@@ -861,60 +845,104 @@ static void *real_get_list_entry(void *enumerate) {
 int udev_enumerate_scan_devices(void *enumerate) {
   static int (*real_scan)(void *);
   struct enumerate *state = enumerate_state(enumerate);
+  char names[PAD_MAX][sizeof(pads[0].syspath)];
+  int include;
+  int parent_node;
+  int node;
   int rc;
 
   if (real_scan == NULL) real_scan = next_symbol("udev_enumerate_scan_devices");
   rc = real_scan != NULL ? real_scan(enumerate) : -1;
   if (state == NULL) return rc;
   pthread_mutex_lock(&enumerate_lock);
+  parent_node = state->parent_node;
+  include = state->filtered ? state->matched : parent_node >= 0;
+  pthread_mutex_unlock(&enumerate_lock);
+  for (node = 0; node < PAD_MAX; node++) {
+    struct pad pad;
+
+    names[node][0] = '\0';
+    if (include && (parent_node < 0 || parent_node == node) && snapshot_pad(node, 0, &pad))
+      memcpy(names[node], pad.syspath, sizeof(names[node]));
+  }
+  pthread_mutex_lock(&enumerate_lock);
+  memcpy(state->names, names, sizeof(names));
   state->scanned = 1;
-  state->real_head = rc == 0 ? real_get_list_entry(enumerate) : NULL;
+  state->real_listed = rc == 0 && parent_node < 0;
+  state->real_head = NULL;
+  include = state->matched || parent_node >= 0;
   pthread_mutex_unlock(&enumerate_lock);
   /* Both browsers abandon the enumeration when the scan reports an error, and the real scan always
      fails here because Android hides /sys/class from readdir. */
-  if (state->matched && rc < 0) rc = 0;
+  if (include && rc < 0) rc = 0;
   return rc;
 }
 
 static void *next_pad_entry(struct enumerate *state, int from) {
+  void *entry;
   int node;
 
-  ensure_pads();
-  for (node = from; node < PAD_MAX; node++) {
-    refresh_pad(node);
-    if (pads[node].devnode[0] != '\0') return &state->entries[node];
+  pthread_mutex_lock(&enumerate_lock);
+  for (node = from; node < PAD_MAX && state->names[node][0] == '\0'; node++) {
   }
-  return real_tail(state);
+  entry = node < PAD_MAX ? (void *)state->names[node] : state->real_head;
+  pthread_mutex_unlock(&enumerate_lock);
+  return entry;
 }
 
 void *udev_enumerate_get_list_entry(void *enumerate) {
   struct enumerate *state = enumerate_state(enumerate);
+  void *head = NULL;
+  int own;
+  int real_listed;
 
-  if (state == NULL || !state->matched || !state->scanned) return real_get_list_entry(enumerate);
+  if (state == NULL) return real_get_list_entry(enumerate);
+  pthread_mutex_lock(&enumerate_lock);
+  own = state->scanned && (state->matched || state->parent_node >= 0);
+  real_listed = state->real_listed;
+  pthread_mutex_unlock(&enumerate_lock);
+  if (!own) return real_get_list_entry(enumerate);
+  if (real_listed) head = real_get_list_entry(enumerate);
+  pthread_mutex_lock(&enumerate_lock);
+  state->real_head = head;
+  pthread_mutex_unlock(&enumerate_lock);
   return next_pad_entry(state, 0);
 }
 
 void *udev_list_entry_get_next(void *entry) {
   static void *(*real_get)(void *);
+  struct enumerate *state;
+  struct handle *handle;
+  size_t index;
   int node;
-  struct enumerate *state = entry_state(entry, &node);
 
-  if (state != NULL) return next_pad_entry(state, node + 1);
+  if ((state = entry_state(entry, &node)) != NULL) return next_pad_entry(state, node + 1);
+  if ((handle = property_handle(entry, &index)) != NULL) return next_property(handle, index + 1);
   if (real_get == NULL) real_get = next_symbol("udev_list_entry_get_next");
   return real_get != NULL ? real_get(entry) : NULL;
 }
 
 void *udev_list_entry_get_by_name(void *entry, const char *name) {
   static void *(*real_get)(void *, const char *);
+  struct enumerate *state;
+  struct handle *handle;
+  size_t index;
   int node;
-  struct enumerate *state = entry_state(entry, &node);
 
-  if (state != NULL) {
+  if ((state = entry_state(entry, &node)) != NULL) {
     if (name == NULL) return NULL;
-    for (node = 0; node < PAD_MAX; node++)
-      if (pads[node].devnode[0] != '\0' && strcmp(pads[node].syspath, name) == 0)
-        return &state->entries[node];
-    if ((entry = real_tail(state)) == NULL) return NULL;
+    pthread_mutex_lock(&enumerate_lock);
+    for (node = 0; node < PAD_MAX && (state->names[node][0] == '\0' || strcmp(state->names[node], name) != 0);
+         node++) {
+    }
+    entry = node < PAD_MAX ? (void *)state->names[node] : state->real_head;
+    pthread_mutex_unlock(&enumerate_lock);
+    if (entry == NULL || node < PAD_MAX) return entry;
+  } else if ((handle = property_handle(entry, &index)) != NULL) {
+    for (index = 0; index < PROPERTY_COUNT; index++)
+      if (name != NULL && strcmp(property_keys[index], name) == 0 && pad_property(&handle->info, name) != NULL)
+        return &handle->properties[index];
+    return NULL;
   }
   if (real_get == NULL) real_get = next_symbol("udev_list_entry_get_by_name");
   return real_get != NULL ? real_get(entry, name) : NULL;
@@ -922,18 +950,23 @@ void *udev_list_entry_get_by_name(void *entry, const char *name) {
 
 const char *udev_list_entry_get_name(void *entry) {
   static const char *(*real_get)(void *);
+  size_t index;
   int node;
 
-  if (entry_state(entry, &node) != NULL) return pads[node].syspath;
+  if (entry_state(entry, &node) != NULL) return entry;
+  if (property_handle(entry, &index) != NULL) return property_keys[index];
   if (real_get == NULL) real_get = next_symbol("udev_list_entry_get_name");
   return real_get != NULL ? real_get(entry) : NULL;
 }
 
 const char *udev_list_entry_get_value(void *entry) {
   static const char *(*real_get)(void *);
+  struct handle *handle;
+  size_t index;
   int node;
 
   if (entry_state(entry, &node) != NULL) return "";
+  if ((handle = property_handle(entry, &index)) != NULL) return pad_property(&handle->info, property_keys[index]);
   if (real_get == NULL) real_get = next_symbol("udev_list_entry_get_value");
   return real_get != NULL ? real_get(entry) : NULL;
 }
@@ -973,6 +1006,7 @@ static const struct udev_symbol udev_symbols[] = {
     {"udev_enumerate_ref", (void *)udev_enumerate_ref},
     {"udev_enumerate_unref", (void *)udev_enumerate_unref},
     {"udev_enumerate_add_match_subsystem", (void *)udev_enumerate_add_match_subsystem},
+    {"udev_enumerate_add_match_parent", (void *)udev_enumerate_add_match_parent},
     {"udev_enumerate_scan_devices", (void *)udev_enumerate_scan_devices},
     {"udev_enumerate_get_list_entry", (void *)udev_enumerate_get_list_entry},
     {"udev_list_entry_get_next", (void *)udev_list_entry_get_next},
@@ -1016,18 +1050,20 @@ static void *real_dlsym(void) {
 /* The Steam client reads the pads straight from /dev/input and hands whatever the udev enumeration
  * gives it back to the real libudev, which cannot read these synthetic devices. */
 static int steam_client_process(void) {
-  static int cached = -1;
+  static _Atomic int cached = -1;
   char path[PATH_MAX];
   ssize_t length;
+  int result = atomic_load_explicit(&cached, memory_order_acquire);
 
-  if (cached >= 0) return cached;
-  cached = 0;
+  if (result >= 0) return result;
+  result = 0;
   length = readlink("/proc/self/exe", path, sizeof(path) - 1);
   if (length > 0) {
     path[length] = '\0';
-    cached = strstr(path, "steamrtarm64/steam") != NULL || strstr(path, "steamrt64/steam") != NULL;
+    result = strstr(path, "steamrtarm64/steam") != NULL || strstr(path, "steamrt64/steam") != NULL;
   }
-  return cached;
+  atomic_store_explicit(&cached, result, memory_order_release);
+  return result;
 }
 
 static void *missing_dlsym(void *handle, const char *name) {
