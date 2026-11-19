@@ -2036,7 +2036,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun loadFrameGenFor(appId: Long?) {
-        if (appId != controlsGame) { controlsGame = appId; uiHandler.post { refreshInputProfile(); updateOnScreenControls() } }
+        val layoutGame = controlsGameId()
+        if (layoutGame != controlsGame) { controlsGame = layoutGame; uiHandler.post { refreshInputProfile(); updateOnScreenControls() } }
         val profileId = appId?.toString()
         frameGen = FrameGen.mode(this, profileId)
         frameGenHasGameOverride = appId?.let {
@@ -5892,6 +5893,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (!screenOff) {
             gestureSettingsOpen = false
             inputSettingsOpen = false
+            layoutEditor = null
         }
         releasePads()
         heldKeys.clear()
@@ -6269,6 +6271,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
             drawerControllerActive = false
             gestureTouchStreamGate.reset()
+            if (controllerInUse && event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN)) { controllerInUse = false; updateOnScreenControls() }
         }
         if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.SURFACE, event)) return false
         return onTouchEvent(event)

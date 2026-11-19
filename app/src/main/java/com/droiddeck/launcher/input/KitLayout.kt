@@ -17,6 +17,18 @@ object KitLayout {
 
     /** Whether [id] names one of a kit's own controls rather than a key or control the player added. */
     fun isKit(id: String) = id.startsWith("legacy:") || id == DPAD_ID || id == KEYBOARD_ID
+
+    /** The control a kit id stands for in a layout that keeps no kit positions, so bindings saved for it stay valid. */
+    fun element(id: String): InputSurfaceElement? = when {
+        id == DPAD_ID -> InputSurfaceElement(InputControl.LS, 0f, 0f, .1f, .1f, id, InputElementKind.DPAD)
+        id == KEYBOARD_ID -> InputSurfaceElement(InputControl.A, 0f, 0f, .1f, .1f, id)
+        id.startsWith("legacy:") -> InputControl.entries.firstOrNull { "legacy:${it.id}" == id }
+            ?.let { InputSurfaceElement(it, 0f, 0f, .1f, .1f, id, InputElementKind.from(it)) }
+        else -> null
+    }
+
+    /** Every kit control that has a click, across all virtual controllers. */
+    val clickIds = listOf(InputControl.LS, InputControl.RS, InputControl.LEFT_PAD, InputControl.RIGHT_PAD).map { "legacy:${it.id}" }
     private const val REF_W = 1600f
     private const val REF_H = 900f
     /** The widest pair of side controls on any kit: a larger size never pushes the two halves, or the rows, into each other. */

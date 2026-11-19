@@ -126,4 +126,27 @@ class OnScreenControlPrefsTest {
         assertEquals(listOf(key.id), upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.elements.map { it.id }.filter { it.startsWith("imported:") })
         assertEquals(InputAction.Keys(listOf(29, 33)), upgraded.compileActive(false).elementAction(InputRole.PRIMARY, key.id, InputControl.A))
     }
+
+    @Test fun bindingsSavedForKitControlsSurviveTheKitUpgrade() {
+        storeAt(14) { lib ->
+            val overlay = lib.layouts.single { it.id == InputLibraries.OVERLAY }
+            val bindings = lib.preset(lib.activePart(false, InputRole.PRIMARY).bindings)
+            lib.withLayout(overlay.copy(elements = KitLayout.elements(context, PadKit.STEAM_DECK, 1920, 1080), aspect = 16f / 9))
+                .withPreset(bindings.copy(elements = bindings.elements + ("legacy:a" to InputAction.Keys(listOf(57))),
+                    clicks = bindings.clicks + ("legacy:ls" to InputAction.Disabled)))
+        }
+        val upgraded = InputLibraries.read(context)
+        assertTrue(OnScreenLayout.generated(upgraded.layouts.single { it.id == InputLibraries.OVERLAY }))
+        val profile = upgraded.compileActive(false)
+        assertEquals(InputAction.Keys(listOf(57)), profile.elementAction(InputRole.PRIMARY, "legacy:a", InputControl.A))
+        assertEquals(InputAction.Disabled, profile.clicks[InputRole.PRIMARY]?.get("legacy:ls"))
+    }
+
+    @Test fun changingShowKeepsTheSteamLayoutAnOlderBuildStoredThere() {
+        val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+        prefs.edit().clear().putString("osc", SessionPrefs.OSC_STEAM_TOUCH).commit()
+        SessionPrefs.setOscMode(context, SessionPrefs.OSC_ALWAYS)
+        assertEquals(SessionPrefs.OSC_ALWAYS, SessionPrefs.oscMode(context))
+        assertTrue(SessionPrefs.steamTouchLayout(context))
+    }
 }

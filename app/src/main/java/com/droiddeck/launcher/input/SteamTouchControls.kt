@@ -241,7 +241,10 @@ class SteamTouchControls(
     private fun cx(e: Element) = e.x * width
     private fun cy(e: Element) = e.y * height
 
-    private fun reach(e: Element, x: Float, y: Float) = hypot((x - cx(e)) / radius(e), (y - cy(e)) / radiusY(e))
+    private fun reach(e: Element, x: Float, y: Float): Float {
+        val dx = (x - cx(e)) / radius(e); val dy = (y - cy(e)) / radiusY(e)
+        return if (e.type in TRACKPADS) max(abs(dx), abs(dy)) else hypot(dx, dy)
+    }
 
     private fun hit(list: List<Element>, x: Float, y: Float): Element? =
         list.filter { reach(it, x, y) <= 1.15f }.minByOrNull { reach(it, x, y) }
@@ -282,6 +285,8 @@ class SteamTouchControls(
         val r = radius(e)
         val pressed = !editing && e.type in pressedTypes()
         val alpha = (255 * alphaScale * if (faded) FADED else 1f).toInt().coerceIn(30, 255)
+        stroke.color = Color.rgb(Color.red(tint), Color.green(tint), Color.blue(tint)); stroke.strokeWidth = lineWidth()
+        fill.color = Color.argb(217, 230, 233, 236)
         if (alpha < 255) canvas.saveLayerAlpha(x - r * 1.5f, y - r * 1.5f, x + r * 1.5f, y + r * 1.5f, alpha)
         when (e.type) {
             SteamTouchConfig.DPAD -> if (visuals[SteamTouchConfig.DPAD].orEmpty().any { it.binding?.hasIcon == true }) drawDpad(canvas, e, x, y, r) else {
@@ -304,8 +309,8 @@ class SteamTouchControls(
             }
             SteamTouchConfig.TRACKPAD_LEFT, SteamTouchConfig.TRACKPAD_RIGHT, SteamTouchConfig.TRACKPAD_CENTER -> {
                 val f = fingers.values.firstOrNull { it.element?.type == e.type }.takeIf { !editing }
-                canvas.save(); canvas.translate(x - r * 1.3f, y - r * .85f)
-                art.trackpad(canvas, r * 2.6f, r * 1.7f, f != null, (f?.x ?: x) - x + r * 1.3f, (f?.y ?: y) - y + r * .85f)
+                canvas.save(); canvas.translate(x - r, y - r)
+                art.trackpad(canvas, r * 2f, r * 2f, f != null, (f?.x ?: x) - x + r, (f?.y ?: y) - y + r)
                 canvas.restore()
                 if (editing) art.text(canvas, context.getString(R.string.deck_surface_trackpad), x, y, r * .3f, Color.argb(128, 255, 255, 255))
             }
@@ -354,7 +359,7 @@ class SteamTouchControls(
         val icon = binding?.icon?.takeIf { it.isNotEmpty() }?.let(::iconOrLoad)
         val custom = binding != null && binding.background.isNotEmpty() && !binding.background.equals(SteamTouchBindings.DEFAULT_BACKGROUND, true)
         art.glass(canvas, shape, pressed && !custom, if (custom) parseColor(binding!!.background, SteamTouchBindings.DEFAULT_BACKGROUND) else 0x850E1014.toInt())
-        val ink = if (pressed && !custom) com.droiddeck.launcher.ui.PadArt.ON_ACCENT else com.droiddeck.launcher.ui.PadArt.INK
+        val ink = if (pressed && !custom) com.droiddeck.launcher.ui.PadArt.ON_ACCENT else if (tint != Color.WHITE) tint else com.droiddeck.launcher.ui.PadArt.INK
         if (icon != null) {
             val s = r * 0.62f
             if (custom) canvas.drawBitmap(tinted(binding!!.icon, icon, binding.foreground), null, RectF(x - s, y - s, x + s, y + s), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
@@ -1444,6 +1449,7 @@ class SteamTouchControls(
     var onSaved: () -> Unit = {}
 
     companion object {
+        private val TRACKPADS = setOf(SteamTouchConfig.TRACKPAD_LEFT, SteamTouchConfig.TRACKPAD_RIGHT, SteamTouchConfig.TRACKPAD_CENTER)
         private const val TAG = "SteamTouch"
         private const val POLL_MS = 150L
         private const val MOVE_REDRAW_MS = 33L

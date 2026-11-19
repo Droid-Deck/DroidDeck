@@ -171,4 +171,20 @@ class InputSurfaceSourceTest {
         surface.click(true); surface.click(false)
         assertEquals(listOf("button:272:true", "button:272:false"), events)
     }
+
+    @Test fun theKitDpadPressesOnlyTheHeldDirectionAndKeepsEachDirectionsBinding() {
+        val dpad = InputSurfaceElement(InputControl.LS, .1f, .1f, .3f, .3f, KitLayout.DPAD_ID, InputElementKind.DPAD)
+        bridge.setInputProfile(InputProfile("test", bindings = mapOf(InputRole.SECONDARY to mapOf(InputControl.LEFT to InputAction.Keys(listOf(30))))))
+        val pad = source(dpad)
+        pad.update(1f, 0f)
+        assertTrue(state().right)
+        assertFalse(state().up || state().down || state().left)
+        pad.update(0f, 0f)
+        assertFalse(state().right)
+        pad.update(-1f, 0f)
+        assertEquals("key:30:true", events.last())
+        assertFalse(state().left)
+        pad.update(0f, 0f)
+        assertEquals("key:30:false", events.last())
+    }
 }

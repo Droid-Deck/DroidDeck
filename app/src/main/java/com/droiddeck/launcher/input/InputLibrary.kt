@@ -271,8 +271,8 @@ data class InputLibrary(
             require(preset.physical || preset.keys.isEmpty())
             val layout = preset.layoutId?.let { id -> layouts.first { it.id == id } }
             require(!preset.physical || layout == null && preset.elements.isEmpty() && preset.clicks.isEmpty())
-            require(preset.elements.all { (id, action) -> layout?.elements?.firstOrNull { it.id == id }?.let { action.validFor(it) } == true })
-            require(preset.clicks.all { (id, action) -> layout?.elements?.any { it.id == id && it.hasClick } == true && action.validForClick() })
+            require(preset.elements.all { (id, action) -> layout?.element(id)?.let { action.validFor(it) } == true })
+            require(preset.clicks.all { (id, action) -> layout?.element(id)?.hasClick == true && action.validForClick() })
             require(preset.keys.all { it.key.device.isNotBlank() && it.key.keyCode >= 0 && it.key.scanCode >= 0 &&
                 it.action.validFor(InputControl.A) && (it.action !is InputAction.Native || it.action.target == null) })
         }
@@ -312,3 +312,7 @@ internal fun InputAction.validFor(element: InputSurfaceElement): Boolean = when 
     element.kind == InputElementKind.TRIGGER -> target == InputControl.LT || target == InputControl.RT
     else -> target.dimensions == 1 && target != InputControl.LT && target != InputControl.RT
 }
+
+/** A saved element, or, in a gamepad that keeps no kit positions, the kit control that [id] names. */
+internal fun SavedInputLayout.element(id: String): InputSurfaceElement? =
+    elements.firstOrNull { it.id == id } ?: KitLayout.element(id)?.takeIf { OnScreenLayout.generated(this) }

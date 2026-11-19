@@ -233,6 +233,11 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                 (remote || target == null) && draft.properties && element != null -> propertiesEditor(element)
                 target == null -> SettingsPage(rememberMenuHost(), savedLayout.name, ::leave) {
                     Text(stringResource(R.string.input_display_unavailable))
+                    if (draft.confirmDiscard) {
+                        Text(stringResource(R.string.input_editor_discard), style = MaterialTheme.typography.titleSmall)
+                        SecondaryButton(stringResource(R.string.input_keep_editing)) { draft.confirmDiscard = false }
+                        SecondaryButton(stringResource(R.string.input_discard), onClick = onDismiss)
+                    }
                     PrimaryButton(stringResource(R.string.input_editor_done)) { save() }
                 }
                 remote -> SettingsPage(rememberMenuHost(), stringResource(R.string.input_editor_remote), ::leave,
@@ -363,8 +368,16 @@ private fun EditorRow(title: String, action: String, onClick: () -> Unit) {
 }
 
 @Composable
+private fun CloseRow(draft: SurfaceDraft) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
+        SecondaryButton(stringResource(R.string.common_close), compact = true) { draft.popover = null }
+    }
+}
+
+@Composable
 private fun AddRows(draft: SurfaceDraft) {
     val context = LocalContext.current
+    CloseRow(draft)
     for (control in listOf(InputControl.L3, InputControl.R3).filter { c -> draft.elements.none { it.id == "legacy:${c.id}" } })
         EditorRow(control.label, stringResource(R.string.input_editor_add)) { draft.add(InputSurfaceElement(control, .47f, .45f, .06f, .1f, buttonShape = InputButtonShape.CIRCLE)) }
     for (kind in InputElementKind.entries) EditorRow(stringResource(kind.label()), stringResource(R.string.input_editor_add)) {
@@ -378,6 +391,7 @@ private fun AddRows(draft: SurfaceDraft) {
 @Composable
 private fun HiddenRows(draft: SurfaceDraft) {
     val hidden = draft.hiddenDefaults()
+    CloseRow(draft)
     if (hidden.isEmpty()) Text(stringResource(R.string.input_nothing_hidden), Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
     for (e in hidden) EditorRow(e.name, stringResource(R.string.input_restore)) { draft.add(e) }

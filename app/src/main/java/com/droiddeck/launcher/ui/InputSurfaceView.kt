@@ -155,6 +155,7 @@ class InputSurfaceView(
     /** Shows [layout]; a layout that has no elements of its own gets the virtual controller's defaults at this view's size. */
     fun showLayout(layout: SavedInputLayout?) {
         generated = layout?.takeIf(OnScreenLayout::generated)
+        kit = PadKit.current(context)
         updateStyle(layout?.style ?: InputSurfaceStyle())
         updateCustomLayout(generated?.let { OnScreenLayout.elements(context, it, width, height, android.graphics.Rect(), null) } ?: layout?.elements.orEmpty())
     }
@@ -313,7 +314,8 @@ class InputSurfaceView(
             val lit = if (element.toggle) source?.latched == true else down
             val w = width.toFloat(); val h = height.toFloat()
             val c = element.control
-            val native = element.id == "legacy:${c.id}" && element.showLabel && element.icon == 0 && bitmap == null
+            val native = element.id == "legacy:${c.id}" && element.showLabel && element.icon == 0 && bitmap == null &&
+                (element.name == c.label || element.name == kit.name(c)) && (c !in FACE || element.buttonShape == InputButtonShape.CIRCLE)
             when {
                 element.id == KitLayout.KEYBOARD_ID && element.icon == InputButtonIcons.KEYBOARD -> art.system(canvas, w, h, PadArt.Shape.ROUND, PadArt.Icon.KEYBOARD, lit)
                 native && c in FACE -> art.face(canvas, w / 2f, h / 2f, min(w, h) / 2f - art.dp(2f), c, kit, lit)
@@ -476,7 +478,7 @@ class InputSurfaceView(
         private var knobY = 0f
         val adaptive get() = adaptive(element)
 
-        private fun radius() = min(width, height) / 2f - 3 * density
+        private fun radius() = (min(width, height) / 2f - 3 * density).coerceAtLeast(1f)
 
         fun reach() = radius() * STICK_REACH
 

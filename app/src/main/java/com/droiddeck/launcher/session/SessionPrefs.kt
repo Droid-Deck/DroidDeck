@@ -647,7 +647,9 @@ object SessionPrefs {
     }
 
     fun setOscMode(context: Context, mode: String) {
-        prefs(context).edit().putString("osc", mode).apply()
+        val editor = prefs(context).edit()
+        if (!prefs(context).contains("steamTouchLayout")) editor.putBoolean("steamTouchLayout", steamTouchLayout(context))
+        editor.putString("osc", mode).apply()
     }
 
     /** Draw Steam's touch layout for the game instead of DroidDeck's own. */

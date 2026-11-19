@@ -61,11 +61,13 @@ class InputLayoutToolsTest {
         val (defaults, aspect) = InputLibraries.defaultPositions(context, library, gamepad)!!
         assertTrue(gamepad.elements.isEmpty())
         val (display, metrics) = InputLibraries.primaryDisplay(context)
-        val w = maxOf(metrics.widthPixels, metrics.heightPixels); val h = minOf(metrics.widthPixels, metrics.heightPixels)
+        val w = metrics.widthPixels; val h = metrics.heightPixels
         assertEquals(KitLayout.elements(display, PadKit.current(context), w, h), defaults)
         assertEquals(w.toFloat() / h, aspect, .0001f)
         val copy = SavedInputLayout("mine", "Mine", origin = InputLibraries.OVERLAY)
         assertEquals(defaults, InputLibraries.defaultPositions(context, library, copy)!!.first)
+        assertEquals(KitLayout.elements(display, PadKit.current(context), w, h, scale = 1.2f),
+            InputLibraries.defaultPositions(context, library, gamepad.copy(scale = 1.2f))!!.first)
         assertNull(InputLibraries.defaultPositions(context, library, SavedInputLayout("new", "New")))
     }
 

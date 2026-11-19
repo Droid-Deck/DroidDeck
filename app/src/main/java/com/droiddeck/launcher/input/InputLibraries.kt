@@ -130,9 +130,9 @@ object InputLibraries {
         InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements to it.aspect }
         if (origin == OVERLAY) {
             val (surfaceContext, metrics) = primaryDisplay(context)
-            val w = maxOf(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
-            val h = minOf(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
-            return KitLayout.elements(surfaceContext, PadKit.current(context), w, h) to w.toFloat() / h
+            val w = metrics.widthPixels.coerceAtLeast(1)
+            val h = metrics.heightPixels.coerceAtLeast(1)
+            return KitLayout.elements(surfaceContext, PadKit.current(context), w, h, scale = layout.scale) to w.toFloat() / h
         }
         return library.layouts.firstOrNull { it.id == origin && it.id != layout.id }?.let { it.elements to it.aspect }
     }
@@ -147,10 +147,9 @@ object InputLibraries {
     private fun upgradeOverlay(context: Context, library: InputLibrary): InputLibrary {
         if (library.layouts.none { it.template == InputLayoutTemplate.OVERLAY }) return library
         val settings = ControllerPrefs.read(context)
-        val elements = emptyList<InputSurfaceElement>()
         val style = InputSurfaceStyle(opacity = settings.opacity)
         val replacements = library.layouts.filter { it.template == InputLayoutTemplate.OVERLAY }.associate { old ->
-            old.id to old.copy(name = "Gamepad", elements = elements, template = InputLayoutTemplate.CUSTOM, style = style)
+            old.id to old.copy(name = "Gamepad", elements = emptyList(), template = InputLayoutTemplate.CUSTOM, style = style)
         }
         var result = library.copy(layouts = library.layouts.map { replacements[it.id] ?: it })
         val migrated = mutableMapOf<Pair<String, String>, String>()
@@ -161,9 +160,8 @@ object InputLibraries {
                 val id = migrated.getOrPut(key) {
                     val old = library.preset(part.bindings)
                     val newId = migrationBindingId(result, old.id, layout.id)
-                    val keyboard = elements.filter { it.id == "builtin:keyboard" }.associate { it.id to InputAction.Command(InputCommand.KEYBOARD) }
-                    val clicks = if (settings.stickClick) old.clicks else old.clicks + elements.filter { it.hasClick }.associate { it.id to InputAction.Disabled }
-                    result = result.withPreset(old.copy(id = newId, layoutId = layout.id, elements = old.elements + keyboard, clicks = clicks))
+                    val clicks = if (settings.stickClick) old.clicks else old.clicks + KitLayout.clickIds.associateWith { InputAction.Disabled }
+                    result = result.withPreset(old.copy(id = newId, layoutId = layout.id, clicks = clicks))
                     newId
                 }
                 part.copy(bindings = id)
