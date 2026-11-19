@@ -1040,12 +1040,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun launchWithoutSteam(game: Library.SteamGame, returnHome: Boolean, onHandled: () -> Unit = {}): Boolean {
         val app = applicationContext
+        val request = gameLaunchRequest.incrementAndGet()
         Thread({
             val added = if (com.droiddeck.launcher.session.NoSteamLaunch.needsAddedGame(game)) runCatching { com.droiddeck.launcher.session.NoSteamLaunch.addedGame(app, game) }.getOrNull() else null
             val command = com.droiddeck.launcher.session.NoSteamLaunch.command(app, game, added)
             ui.post {
                 onHandled()
-                if (isDestroyed) return@post
+                if (request != gameLaunchRequest.get() || isFinishing || isDestroyed) return@post
                 if (command == null) {
                     val message = if (game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id) {
                         R.string.game_link_battlenet_missing
