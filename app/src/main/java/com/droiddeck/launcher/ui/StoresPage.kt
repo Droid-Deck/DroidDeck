@@ -1406,8 +1406,7 @@ internal fun downloadLabel(d: com.droiddeck.launcher.stores.download.DownloadEnt
     DownloadState.PAUSED -> stringResource(R.string.stores_dl_paused)
     DownloadState.QUEUED -> stringResource(R.string.stores_dl_queued)
     else -> when {
-        d.streaming -> stringResource(R.string.stores_dl_active_percent, stringResource(R.string.stores_stage_downloading), (d.downloadFraction * 100).toInt()) + " · " +
-            stringResource(R.string.stores_dl_active_percent, stringResource(R.string.stores_stage_installing), (d.installFraction * 100).toInt())
+        d.streaming -> stringResource(R.string.stores_dl_active_percent, stringResource(R.string.stores_stage_installing), (d.installFraction * 100).toInt())
         d.stageFraction >= 0f -> stringResource(R.string.stores_dl_active_percent, activeStageLabel(d), d.percent)
         else -> activeStageLabel(d)
     }

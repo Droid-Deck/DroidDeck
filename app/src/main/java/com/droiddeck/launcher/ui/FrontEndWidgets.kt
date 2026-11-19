@@ -147,8 +147,8 @@ internal fun Chip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = n
     val shape = RoundedCornerShape(99.dp)
     val ink = if (ok) pal.good else colors.onSurfaceVariant
     Box(Modifier.clip(shape).background(colors.surfaceVariant).border(1.dp, if (ok) pal.good.copy(alpha = 0.3f) else pal.line, shape)) {
-        if (fraction != null) ChipFill(fraction, key, pal.signal.copy(alpha = 0.3f))
-        if (second != null) ChipTrack(second, pal.good)
+        if (fraction != null) ChipFill(fraction, key, pal.signal.copy(alpha = if (second != null) 0.14f else 0.3f))
+        if (second != null) ChipFill(second, "second", pal.signal.copy(alpha = 0.3f))
         Text(
             t, fontSize = 12.sp, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
@@ -168,18 +168,6 @@ internal fun androidx.compose.foundation.layout.BoxScope.ChipFill(fraction: Floa
             },
         )
     }
-}
-
-@Composable
-private fun androidx.compose.foundation.layout.BoxScope.ChipTrack(fraction: Float, color: Color) {
-    val shown by androidx.compose.animation.core.animateFloatAsState(fraction.coerceIn(0f, 1f), androidx.compose.animation.core.tween(250, easing = androidx.compose.animation.core.LinearEasing), label = "chip-track")
-    Box(
-        Modifier.matchParentSize().drawBehind {
-            val h = 3.dp.toPx()
-            drawRect(color.copy(alpha = 0.25f), topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width, h))
-            drawRect(color, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - h), size = androidx.compose.ui.geometry.Size(size.width * shown, h))
-        },
-    )
 }
 
 @Composable
