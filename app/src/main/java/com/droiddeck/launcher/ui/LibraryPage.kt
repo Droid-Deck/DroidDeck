@@ -178,8 +178,12 @@ internal const val LIBRARY_ALL = "all"
 internal fun librarySources(
     entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet(), favorites: Set<String> = emptySet(),
     hidden: (LibraryEntry) -> Boolean = { false }, showHidden: Boolean = false, offStores: Set<String> = emptySet(),
-): List<String> =
-    (listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM) + arrangeStoreTabs(order, offStores).filter { it.shown }.map { it.store.id } + Library.ADDED + Library.SOURCE_COLLECTION + LIBRARY_HIDDEN)
+    customAfter: String? = null,
+): List<String> {
+    val tabs = arrangeStoreTabs(order, offStores)
+    val shown = tabs.filter { it.shown }.map { it.store.id }.toSet()
+    val middle = withCustomTab(tabs.map { it.store.id }, customAfter).filter { it in shown || it == Library.ADDED }
+    return (listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM) + middle + Library.SOURCE_COLLECTION + LIBRARY_HIDDEN)
         .filter { source ->
             when (source) {
                 LIBRARY_HIDDEN -> showHidden
@@ -187,6 +191,7 @@ internal fun librarySources(
                 else -> source in always || entries.any { it.source == source && !hidden(it) }
             }
         }
+}
 
 internal object LibraryDisplay {
     const val DEFAULT_LEVEL = 2
@@ -365,6 +370,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.ADDED.takeIf { stores }).toSet() + signInChips,
         favorites, concealed, LibraryDisplay.hidden && !soundMode,
         offStores = if (soundMode) emptySet() else storeTabs.filterNot { it.shown }.map { it.store.id }.toSet(),
+        customAfter = StoreTabsState.customAfter,
     )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
@@ -610,7 +616,9 @@ private fun LibraryGrid(
     var columns by remember { mutableIntStateOf(1) }
     var gridH by remember { mutableIntStateOf(0) }
     var chipsH by remember { mutableIntStateOf(0) }
-    val splash = !soundMode && (signInStore != null || (source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0))
+    // A search that matches nothing keeps the toolbar, so the search can still be cleared.
+    val customEmpty = !soundMode && source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0 && LibraryView.query.isBlank()
+    val splash = !soundMode && (signInStore != null || customEmpty)
     val headerItems = (if (splash) 1 else 2) + (if (sizesPending) 1 else 0) + syncing.size
     val expanded = showUninstalled == true
     val notInstalled = if (expanded) visible.count { !it.installed } else hiddenUninstalled
@@ -760,7 +768,7 @@ private fun LibraryGrid(
             }
         }
         val empty = emptyText
-        if (source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0 && !soundMode) item(key = "custom-empty", span = { GridItemSpan(maxLineSpan) }) {
+        if (customEmpty) item(key = "custom-empty", span = { GridItemSpan(maxLineSpan) }) {
             val art = remember { wallArt() }
             Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { CustomGamesCard(splashHeight, art) }
         }
@@ -995,7 +1003,7 @@ internal fun ManageStoresChip() {
     val hot = rememberHot(src)
     val back = remember { FocusRequester() }
     val label = stringResource(R.string.library_manage_stores)
-    val open = { ManageStores.returnTo = back; ManageStores.open = true }
+    val open = { ManageStores.returnTo = back; ManageStores.custom = true; ManageStores.open = true }
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.paneItem("libchip:manage").focusRequester(back).testTag("library-manage-stores").size(44.dp).clip(CircleShape)

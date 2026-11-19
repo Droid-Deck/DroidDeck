@@ -285,7 +285,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                         chip, focusedChip, tabs,
                         onStore = { st -> openModes(st) },
                         onFocusChip = { focusedChip = it },
-                        onSettings = { at -> if (at != null) StoresMotion.ask(storesSettingsStep(at, liveState, a, pal.signal) { ManageStores.open = true }) },
+                        onSettings = { at -> if (at != null) StoresMotion.ask(storesSettingsStep(at, liveState, a, pal.signal) { ManageStores.custom = false; ManageStores.open = true }) },
                     )
                 }
             }

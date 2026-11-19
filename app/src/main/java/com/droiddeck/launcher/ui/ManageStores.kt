@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreTab
@@ -72,16 +73,28 @@ import com.droiddeck.launcher.stores.arrangeStoreTabs
 internal object StoreTabsState {
     var tabs by mutableStateOf<List<StoreTab>>(emptyList())
         private set
+    var customAfter by mutableStateOf<String?>(null)
+        private set
 
     fun load(context: android.content.Context) {
         SessionPrefs.settleStoresTabOrder(context, Store.entries.map { it.id })
         tabs = arrangeStoreTabs(SessionPrefs.storesTabOrder(context), SessionPrefs.storesTabHidden(context))
+        customAfter = SessionPrefs.libraryCustomAfter(context)
     }
 
+    /** [ids] may hold the Library's Custom games tab among the stores; its place is kept as the store it follows. */
     fun reorder(context: android.content.Context, ids: List<String>) {
+        val at = ids.indexOf(Library.ADDED)
+        if (at >= 0) {
+            customAfter = ids.getOrNull(at - 1) ?: ""
+            SessionPrefs.setLibraryCustomAfter(context, customAfter!!)
+        }
         val byId = tabs.associateBy { it.store.id }
-        tabs = ids.mapNotNull { byId[it] }
-        save(context, arranged = true)
+        val order = ids.mapNotNull { byId[it] }
+        if (order.map { it.store } != tabs.map { it.store }) {
+            tabs = order
+            save(context, arranged = true)
+        }
     }
 
     // The Stores tab needs at least one shown store to open on.
@@ -96,8 +109,20 @@ internal object StoreTabsState {
         SessionPrefs.saveStoresTabs(context, tabs.map { it.store.id }, tabs.filterNot { it.shown }.map { it.store.id }.toSet(), arranged)
 }
 
+/** Puts the Library's Custom games tab into a store tab order, after the store [after] names ("" for first, null or unknown for last). */
+internal fun withCustomTab(stores: List<String>, after: String?): List<String> {
+    val at = when {
+        after == "" -> 0
+        after != null && after in stores -> stores.indexOf(after) + 1
+        else -> stores.size
+    }
+    return stores.take(at) + Library.ADDED + stores.drop(at)
+}
+
 internal object ManageStores {
     var open by mutableStateOf(false)
+    /** Opened from the Library, which also lists the Custom games tab. */
+    var custom by mutableStateOf(false)
     var returnTo: FocusRequester? = null
 }
 
@@ -183,7 +208,10 @@ internal fun ManageStoresSheet() {
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             SortableRows(
-                rows = { StoreTabsState.tabs.map { it.store.id } },
+                rows = {
+                    val ids = StoreTabsState.tabs.map { it.store.id }
+                    if (ManageStores.custom) withCustomTab(ids, StoreTabsState.customAfter) else ids
+                },
                 commit = { StoreTabsState.reorder(ctx, it) },
                 movable = { true },
                 rowHeight = STORE_ROW, handleWidth = STORE_HANDLE,
@@ -193,7 +221,8 @@ internal fun ManageStoresSheet() {
                 },
             ) { id, held, offset, hint, modifier, onFocus ->
                 val tab = StoreTabsState.tabs.firstOrNull { it.store.id == id }
-                if (tab != null) StoreSortRow(tab, held, offset, hint, modifier, onFocus)
+                if (id == Library.ADDED) CustomSortRow(held, offset, hint, modifier, onFocus)
+                else if (tab != null) StoreSortRow(tab, held, offset, hint, modifier, onFocus)
             }
         }
     }
@@ -217,8 +246,37 @@ private fun StoreSortRow(
         StoreAccount.EXPIRED -> stringResource(R.string.store_account_expired)
         StoreAccount.NEEDS_KEY -> stringResource(R.string.store_account_api_key)
     }
+    SortRowFrame(held, offset, modifier.testTag("store-row-${store.id}"), hot, src, onFocus) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(width = STORE_HANDLE, height = STORE_ROW).testTag("store-handle-${store.id}")) {
+            Icon(Icons.Filled.DragHandle, null, tint = if (held) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f).alpha(if (tab.shown) 1f else 0.5f)) {
+            Box(Modifier.size(10.dp).background(sourceColours(store.id).dot.copy(alpha = if (account == StoreAccount.SIGNED_IN) 1f else 0.4f), CircleShape))
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text(store.label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (note.isNotEmpty()) Text(
+                    note, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = if (account == StoreAccount.EXPIRED) colors.error else colors.onSurfaceVariant,
+                )
+            }
+        }
+        if (hint != null) KeyHint("Y", hint)
+        ToggleSwitch(
+            tab.shown, true, store.label,
+            Modifier.testTag("store-shown-${store.id}").focusProperties { canFocus = false },
+        ) { StoreTabsState.setShown(ctx, store, it) }
+    }
+}
+
+@Composable
+private fun SortRowFrame(
+    held: Boolean, offset: Float, modifier: Modifier, hot: Boolean, src: MutableInteractionSource, onFocus: (Boolean) -> Unit,
+    content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
     Column(
-        modifier.fillMaxWidth().height(STORE_ROW).testTag("store-row-${store.id}")
+        modifier.fillMaxWidth().height(STORE_ROW)
             .zIndex(if (held) 1f else 0f)
             .graphicsLayer { translationY = offset }
             .background(if (held) colors.surfaceVariant else colors.surface)
@@ -230,26 +288,26 @@ private fun StoreSortRow(
         Row(
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth().weight(1f).padding(end = 10.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(width = STORE_HANDLE, height = STORE_ROW).testTag("store-handle-${store.id}")) {
-                Icon(Icons.Filled.DragHandle, null, tint = if (held) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f).alpha(if (tab.shown) 1f else 0.5f)) {
-                Box(Modifier.size(10.dp).background(sourceColours(store.id).dot.copy(alpha = if (account == StoreAccount.SIGNED_IN) 1f else 0.4f), CircleShape))
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(store.label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (note.isNotEmpty()) Text(
-                        note, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        color = if (account == StoreAccount.EXPIRED) colors.error else colors.onSurfaceVariant,
-                    )
-                }
-            }
-            if (hint != null) KeyHint("Y", hint)
-            ToggleSwitch(
-                tab.shown, true, store.label,
-                Modifier.testTag("store-shown-${store.id}").focusProperties { canFocus = false },
-            ) { StoreTabsState.setShown(ctx, store, it) }
-        }
+            content = content,
+        )
         Box(Modifier.fillMaxWidth().height(1.dp).background(if (held) Color.Transparent else pal.line))
+    }
+}
+
+@Composable
+private fun CustomSortRow(held: Boolean, offset: Float, hint: String?, modifier: Modifier, onFocus: (Boolean) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    SortRowFrame(held, offset, modifier.testTag("store-row-${Library.ADDED}"), hot, src, onFocus) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(width = STORE_HANDLE, height = STORE_ROW).testTag("store-handle-${Library.ADDED}")) {
+            Icon(Icons.Filled.DragHandle, null, tint = if (held) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
+            Box(Modifier.size(10.dp).background(sourceColours(Library.ADDED).dot, CircleShape))
+            Text(stringResource(R.string.library_custom_games), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (hint != null) KeyHint("Y", hint)
     }
 }

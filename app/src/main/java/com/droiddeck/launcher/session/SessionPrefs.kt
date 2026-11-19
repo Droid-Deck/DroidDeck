@@ -352,6 +352,13 @@ object SessionPrefs {
         prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
     }
 
+    /** The store tab the Library's Custom games tab follows: null for the end (the default), "" for before every store. */
+    fun libraryCustomAfter(context: Context): String? = prefs(context).getString("libraryCustomAfter", null)
+
+    fun setLibraryCustomAfter(context: Context, after: String) {
+        prefs(context).edit().putString("libraryCustomAfter", after).apply()
+    }
+
     fun storesTabHidden(context: Context): Set<String> = idList(prefs(context).getString("storesTabHidden", null)).toSet()
 
     fun setStoresTabHidden(context: Context, hidden: Set<String>) {

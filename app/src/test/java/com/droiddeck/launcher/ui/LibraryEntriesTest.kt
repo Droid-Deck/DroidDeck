@@ -82,6 +82,19 @@ class LibraryEntriesTest {
         assertEquals(listOf("steam", "xbox", "epic", "gog", "added"), librarySources(entries, listOf("xbox", "epic", "gog")))
     }
 
+    @Test fun theCustomGamesTabSitsAfterTheStoreItFollows() {
+        val entries = listOf("added", "gog", "steam", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
+        val order = listOf("xbox", "epic", "gog")
+        assertEquals(listOf("steam", "xbox", "added", "epic", "gog"), librarySources(entries, order, customAfter = "xbox"))
+        assertEquals(listOf("steam", "added", "xbox", "epic", "gog"), librarySources(entries, order, customAfter = ""))
+        assertEquals(listOf("steam", "xbox", "epic", "gog", "added"), librarySources(entries, order, customAfter = "nope"))
+    }
+
+    @Test fun hidingTheStoreTheCustomTabFollowsKeepsItInPlace() {
+        val entries = listOf("added", "gog", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
+        assertEquals(listOf("xbox", "added", "gog"), librarySources(entries, listOf("xbox", "epic", "gog"), customAfter = "epic", offStores = setOf("epic")))
+    }
+
     @Test fun librarySourcesIgnoreUnknownAndDuplicateOrderEntriesAndAppendNewStores() {
         val entries = listOf("epic", "gog", "battlenet").map { LibraryEntry(it, it, it, null, null, false) }
         assertEquals(listOf("epic", "gog", "battlenet"), librarySources(entries, listOf("missing", "epic", "epic", "amazon")))
