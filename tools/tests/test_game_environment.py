@@ -824,7 +824,6 @@ class GameEnvironmentTest(unittest.TestCase):
                 "offline_without_anticheat": lambda command, env: command,
                 "game_logs": lambda command, env, app_id: env,
                 "directaudio_settings": lambda env: env,
-                "vram_cap": lambda env: env,
                 "render_path_defaults": lambda *args: None,
                 "bridge_feature_level": lambda env: None,
                 "force_ssbs": lambda command, env: env,
@@ -1231,6 +1230,22 @@ class GameEnvironmentTest(unittest.TestCase):
         env = gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": ""})
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
+        def applied(config, app_id="42", env=None):
+            return MODULE["apply_config"](env or {"TU_DEBUG": "sysmem"}, config, app_id)
+        prefixed = "DROIDDECK_GAME_TU_DEBUG"
+        config = {"version": 1, "games": {"42": {prefixed: "gmem"}, "43": {prefixed: ""}}}
+        self.assertEqual(applied(config)["TU_DEBUG"], "gmem")
+        self.assertNotIn("TU_DEBUG", applied(config, "43"))
+        self.assertNotIn(prefixed, applied(config))
+        shared = {"version": 1, "shared": {prefixed: "gmem"}, "games": {"42": {"TU_DEBUG": "nolrz"}, "43": {"TU_DEBUG": None}}}
+        self.assertEqual(applied(shared)["TU_DEBUG"], "nolrz")
+        self.assertNotIn("TU_DEBUG", applied(shared, "43"))
+        self.assertEqual(applied(shared, "44")["TU_DEBUG"], "gmem")
+        self.assertNotIn(prefixed, applied(shared, "44"))
+        both = {"version": 1, "games": {"42": {"TU_DEBUG": "sysmem", prefixed: ""}, "43": {"TU_DEBUG": None, prefixed: "gmem"}}}
+        self.assertEqual(applied(both)["TU_DEBUG"], "sysmem")
+        self.assertNotIn("TU_DEBUG", applied(both, "43", {"TU_DEBUG": "nolrz"}))
+        self.assertNotIn(prefixed, applied(both))
 
     def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
         gpu = MODULE["game_gpu"]
@@ -1287,22 +1302,6 @@ class GameEnvironmentTest(unittest.TestCase):
             link = Path(tmp) / "app-link"
             link.symlink_to(other, target_is_directory=True)
             self.assertTrue(chromium(str(link)))
-
-    def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
-        cap = MODULE["vram_cap"]
-        self.assertEqual(cap({"DD_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096; dxgi.maxSharedMemory = 4096")
-        self.assertEqual(cap({"DD_VRAM_MB": "8192"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 8192; dxgi.maxSharedMemory = 8192")
-        self.assertEqual(cap({"DD_VRAM_MB": "4095"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4095; dxgi.maxSharedMemory = 4095; d3d9.maxAvailableMemory = 4095")
-        self.assertEqual(cap({"DD_VRAM_MB": "2048", "DXVK_CONFIG": "dxvk.maxFrameRate = 60;"})["DXVK_CONFIG"],
-                         "dxgi.maxDeviceMemory = 2048; dxgi.maxSharedMemory = 2048; d3d9.maxAvailableMemory = 2048; dxvk.maxFrameRate = 60")
-        for off in ({}, {"DD_VRAM_MB": "0"}, {"DD_VRAM_MB": "lots"}, {"DD_VRAM_MB": "²"}, {"DD_VRAM_MB": "-1"}):
-            self.assertNotIn("DXVK_CONFIG", cap(off))
-            self.assertNotIn("DROIDDECK_VRAM_CAP", cap(off))
-            self.assertNotIn("DROIDDECK_VRAM_CAP_MB", cap(off))
-
-    def test_the_vram_cap_also_turns_on_the_vulkan_layer_that_holds_the_game_to_it(self):
-        env = MODULE["vram_cap"]({"DD_VRAM_MB": "3072", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 16384"})
-        self.assertEqual((env["DROIDDECK_VRAM_CAP"], env["DROIDDECK_VRAM_CAP_MB"]), ("1", "3072"))
 
     def test_a_games_wine_sync_choice_also_reaches_its_setup_runs(self):
         env = {"DD_SYNC": "1", "DD_SYNC_FALLBACK": "1", "DD_FSYNC_FIRST": "0", "OTHER": "kept"}
@@ -1834,6 +1833,18 @@ class GameEnvironmentTest(unittest.TestCase):
                 self.assertTrue(notes)
                 config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
                 self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+
+    def test_kcd2_runs_at_feature_level_12_2_by_app_id_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Bin/Win64MasterMasterSteamPGO/KingdomCome.exe"
+            exe.parent.mkdir(parents=True)
+            exe.touch()
+            env, extra, notes = MODULE["engine_fixes"](str(exe), [], "1771300")
+            self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"})
+            self.assertTrue(notes)
+            config = {"version": 1, "shared": {}, "games": {"1771300": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "1771300", env), {"VKD3D_FEATURE_LEVEL": "12_1", "VKD3D_SHADER_MODEL": "6_9"})
+            self.assertEqual(MODULE["engine_fixes"](str(exe), [], "42")[0], {})
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -22,7 +22,6 @@
         <item>Thêm thư viện Steam từ thẻ SD, ổ USB hoặc SSD, và DroidDeck sẽ gom các game lại trong Thư viện của bạn.</item>
         <item>Cửa hàng cho phép bạn đăng nhập Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io và Game Jolt, rồi cài đặt và cập nhật game của họ ngay từ DroidDeck.</item>
         <item>Các thành phần như FEX, DXVK và VKD3D-Proton tự cập nhật, và mặc định là Proton Experimental ARM64, hoặc Proton 11.0 ARM64 khi bản dựng đó đã được cài.</item>
-        <item>Nén Steam khi game đang chạy giúp giải phóng RAM trên các thiết bị thiếu bộ nhớ.</item>
         <item>Vuốt vào từ mép phải để mở menu phiên: chế độ bàn di chuột, Bàn phím PC, độ trễ thấp, hồ sơ game và nhiều hơn nữa.</item>
         <item>Game chạy chậm? Hãy giới hạn tốc độ khung hình trong Truy cập nhanh, rồi thử phiên bản Proton khác hoặc bộ cài đặt sẵn FEX khác trong các thành phần của game.</item>
         <item>Âm thanh game bị rè hoặc mất tiếng? Hãy thử bật DirectAudio cho game trong cài đặt Steam, mục Âm thanh.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Chương trình này được build cho PC %1$s và chạy qua FEX, hiện chưa được thiết lập. Mở Steam một lần khi đã đăng nhập: DroidDeck sẽ tải FEX và Steam Linux Runtime cần thiết, sau đó ứng dụng này sẽ mở.</string>
     <string name="session_proot_missing">Không thể tải proot của DroidDeck. Hãy kiểm tra kết nối rồi thử lại. Phiên chưa được khởi động vì proot dự phòng quá chậm để chơi.</string>
     <string name="session_powervr_missing">Không thể tải môi trường đồ họa PowerVR. Hãy kiểm tra kết nối rồi thử lại.</string>
+    <string name="session_graphics_runtime_failed">Không thể chuẩn bị môi trường đồ họa nên phiên chưa được khởi động.</string>
+    <string name="session_game_environment_failed">Không thể thiết lập môi trường trò chơi nên phiên chưa được khởi động.</string>
     <string name="session_directaudio_missing">Không thể tải DirectAudio, nên âm thanh game dùng đường chậm hơn trong phiên này.</string>
     <string name="session_end_program">Chương trình này</string>
     <string name="session_end_present_fault">Phiên không thể vẽ lên màn hình: %1$s. Màn hình này cho biết lý do thay vì màn hình đen; chi tiết nằm trong nhật ký phiên.</string>
@@ -574,6 +575,7 @@
     <string name="comp_nightlies_count">Trên Nightlies · %1$d</string>
     <string name="comp_channel_stable">Ổn định</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">Thử nghiệm</string>
     <string name="comp_refresh_to_list">Làm mới để liệt kê các gói trên Nightlies và DroidDeck.</string>
     <string name="comp_nothing_new">Không có gì mới từ lần kiểm tra trước.</string>
     <string name="comp_import_wcp">Nhập tệp .wcp</string>
@@ -622,18 +624,7 @@
     <string name="perf_gsrealtime">gamescope: hàng đợi GPU thời gian thực</string>
     <string name="perf_gsrealtime_hint">Ưu tiên công việc GPU của compositor. Có thể làm nhịp khung hình mượt hơn với một phần chi phí cho game.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Bộ nhớ</string>
     <string name="perf_cap_off">Tắt</string>
-    <string name="perf_cap_auto">Mặc định của driver</string>
-    <string name="perf_zram_client">Nén Steam khi game đang chạy</string>
-    <string name="perf_zram_idle">Nén bộ nhớ game không hoạt động</string>
-    <string name="perf_zram_idle_hint">Nén bộ nhớ game không hoạt động khi RAM thấp. Tắt nếu game bị đứng vài giây khoảng mỗi nửa phút. Áp dụng từ lần khởi động phiên tiếp theo.</string>
-    <string name="perf_zram_client_hint">20 giây sau khi game bắt đầu, client Steam được nén vào zRAM để game có thêm bộ nhớ, và được đọc lại khi game đóng. Tắt nếu phiên bị đóng ngay sau khi game bắt đầu. Giới hạn RAM ở trên vẫn nén Steam khi phiên vượt quá mức đó.</string>
-    <string name="perf_ram_cap">Giới hạn RAM</string>
-    <string name="perf_ram_cap_hint">Áp dụng khi client Steam đang chạy, ở chế độ Steam hoặc từ desktop. Khi phiên dùng nhiều hơn mức này, Steam rồi đến các tiến trình được hỗ trợ khác của phiên sẽ bị nén vào zRAM. Giới hạn mềm: không có gì bị đóng, nhưng game có thể giật khi các trang được nạp lại.</string>
-    <string name="perf_ram_cap_unavailable">Cần swap zRAM, thiết bị này không có.</string>
-    <string name="perf_vram_cap">Giới hạn VRAM</string>
-    <string name="perf_vram_cap_hint">Báo ngân sách bộ nhớ video này cho các trò chơi Direct3D 9 đến 12 để giảm mức dùng bộ nhớ. Trò chơi có thể vượt ngân sách; tính năng này không bổ sung phân trang GPU hay bảo đảm tránh lỗi do hết bộ nhớ. Có hiệu lực ở phiên tiếp theo.</string>
     <string name="perf_gpuclock">Giữ GPU ở xung nhịp cao nhất</string>
     <string name="perf_gpuclock_hint">Chỉ dành cho Adreno. Ít giật hơn, dùng nhiều pin và nhiệt hơn.</string>
     <string name="perf_fixes">Các bản sửa phiên</string>

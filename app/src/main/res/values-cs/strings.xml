@@ -22,7 +22,6 @@
         <item>Přidejte knihovny Steamu z SD karty, USB disku nebo SSD a DroidDeck udrží hry pohromadě v Knihovně.</item>
         <item>Obchody vám umožní přihlásit se do Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io a Game Jolt a pak instalovat a aktualizovat jejich hry přímo z DroidDeck.</item>
         <item>Komponenty jako FEX, DXVK a VKD3D-Proton se aktualizují samy a výchozí je Proton Experimental ARM64, případně Proton 11.0 ARM64, jakmile je tato verze nainstalovaná.</item>
-        <item>Komprimovat Steam během hry uvolní RAM na zařízeních s nedostatkem paměti.</item>
         <item>Přejetím od pravého okraje otevřete nabídku relace: režim touchpadu, Klávesnice PC, Režim nízkého zpoždění, profil hry a další.</item>
         <item>Hra běží pomalu? Omezte snímkovou frekvenci v Quick Access a zkuste jinou verzi Proton nebo jinou předvolbu FEX v komponentách hry.</item>
         <item>Praskání nebo chybějící zvuk ve hře? Zkuste přepínač DirectAudio pro hry v nastavení Steamu v části Zvuk.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Tento program je sestaven pro PC %1$s a běží přes FEX, který ještě není nastaven. Jednou spusťte přihlášený Steam: DroidDeck tím stáhne FEX a Steam Linux Runtime, který potřebuje, a pak se tento program otevře.</string>
     <string name="session_proot_missing">Proot od DroidDeck se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu. Relace nebyla spuštěna, protože záložní proot je na hraní příliš pomalý.</string>
     <string name="session_powervr_missing">Grafické prostředí PowerVR se nepodařilo stáhnout. Zkontrolujte připojení a zkuste to znovu.</string>
+    <string name="session_graphics_runtime_failed">Grafické prostředí se nepodařilo připravit, a proto relace nebyla spuštěna.</string>
+    <string name="session_game_environment_failed">Herní prostředí se nepodařilo nastavit, a proto relace nebyla spuštěna.</string>
     <string name="session_directaudio_missing">DirectAudio se nepodařilo stáhnout, takže zvuk her v této relaci používá pomalejší cestu.</string>
     <string name="session_end_program">Tento program</string>
     <string name="session_end_present_fault">Relaci se nepodařilo vykreslit na obrazovku: %1$s. Místo černé obrazovky je zde důvod; podrobnosti jsou v protokolech relace.</string>
@@ -580,6 +581,7 @@
     <string name="comp_nightlies_count">Na Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabilní</string>
     <string name="comp_channel_nightly">Noční</string>
+    <string name="comp_channel_test">Testovací</string>
     <string name="comp_refresh_to_list">Obnovte pro zobrazení balíčků na Nightlies a DroidDeck.</string>
     <string name="comp_nothing_new">Od poslední kontroly nic nového.</string>
     <string name="comp_import_wcp">Importovat .wcp</string>
@@ -628,18 +630,7 @@
     <string name="perf_gsrealtime">gamescope: fronta GPU v reálném čase</string>
     <string name="perf_gsrealtime_hint">Dává prioritu práci GPU kompozitoru. Může vyhladit tempo snímků na úkor her.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Paměť</string>
     <string name="perf_cap_off">Vypnuto</string>
-    <string name="perf_cap_auto">Výchozí ovladače</string>
-    <string name="perf_zram_client">Komprimovat Steam během hry</string>
-    <string name="perf_zram_idle">Komprimovat neaktivní paměť hry</string>
-    <string name="perf_zram_idle_hint">Při nedostatku RAM stránkuje neaktivní paměť hry. Vypněte to, pokud hry zhruba každou půlminutu na několik sekund zamrznou. Projeví se při příštím spuštění relace.</string>
-    <string name="perf_zram_client_hint">20 s po spuštění hry se klient Steam zkomprimuje do zRAM, aby hře zbylo více paměti, a po zavření hry se načte zpět. Vypněte, pokud se relace krátce po spuštění her zavírá. Limit RAM výše stále komprimuje Steam, když ho relace překročí.</string>
-    <string name="perf_ram_cap">Limit RAM</string>
-    <string name="perf_ram_cap_hint">Platí, když běží klient Steam, v režimu Steam nebo z Plochy. Když relace použije víc, zkomprimuje se do zRAM Steam a poté další podporované procesy relace. Měkký limit: nic se nezavře, ale hry mohou trhat, než se stránky načtou zpět.</string>
-    <string name="perf_ram_cap_unavailable">Vyžaduje swap zRAM, který toto zařízení nemá.</string>
-    <string name="perf_vram_cap">Limit VRAM</string>
-    <string name="perf_vram_cap_hint">Hlásí hrám s Direct3D 9 až 12 tento rozpočet videopaměti, aby snížily její využití. Hry jej mohou překročit; nepřidává stránkování GPU ani nezaručuje ochranu před pády kvůli nedostatku paměti. Platí od příští relace.</string>
     <string name="perf_gpuclock">Udržet GPU na nejvyšších taktech</string>
     <string name="perf_gpuclock_hint">Jen Adreno. Méně zadrhávání, více spotřeby baterie a tepla.</string>
     <string name="perf_fixes">Opravy relace</string>

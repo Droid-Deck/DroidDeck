@@ -202,7 +202,7 @@ class CompatLaunchTest {
         val entered = CountDownLatch(1)
         val finish = CountDownLatch(1)
         protons.protonBusyId = null
-        protons.installer = { _, progress ->
+        protons.installer = { _, _, progress ->
             progress("Verifying download", 64)
             entered.countDown()
             check(finish.await(5, TimeUnit.SECONDS))

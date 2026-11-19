@@ -22,7 +22,6 @@
         <item>Προσθέστε βιβλιοθήκες Steam από κάρτα SD, μονάδα USB ή SSD, και το DroidDeck κρατά τα παιχνίδια μαζί στη Βιβλιοθήκη σας.</item>
         <item>Τα Καταστήματα σάς επιτρέπουν να συνδεθείτε σε Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io και Game Jolt και μετά να εγκαθιστάτε και να ενημερώνετε τα παιχνίδια τους από το DroidDeck.</item>
         <item>Στοιχεία όπως τα FEX, DXVK και VKD3D-Proton ενημερώνονται μόνα τους, και το Proton Experimental ARM64 είναι το προεπιλεγμένο, ή το Proton 11.0 ARM64 μόλις εγκατασταθεί αυτή η έκδοση.</item>
-        <item>Η επιλογή Συμπίεση του Steam όσο τρέχει παιχνίδι ελευθερώνει RAM σε συσκευές με λίγη μνήμη.</item>
         <item>Σύρετε προς τα μέσα από τη δεξιά άκρη για να ανοίξετε το μενού συνεδρίας: λειτουργία πινακίδας αφής, Πληκτρολόγιο PC, Λειτουργία χαμηλής καθυστέρησης, προφίλ παιχνιδιού και άλλα.</item>
         <item>Το παιχνίδι τρέχει αργά; Περιορίστε τον ρυθμό καρέ στο Quick Access και δοκιμάστε άλλη έκδοση Proton ή άλλη προεπιλογή FEX στα στοιχεία του παιχνιδιού.</item>
         <item>Κροταλίσματα ή απουσία ήχου στο παιχνίδι; Δοκιμάστε τον διακόπτη DirectAudio για παιχνίδια στις ρυθμίσεις του Steam, στην ενότητα Ήχος.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Αυτό το πρόγραμμα είναι χτισμένο για υπολογιστές %1$s και εκτελείται μέσω FEX, το οποίο δεν έχει ρυθμιστεί ακόμα. Ανοίξτε το Steam μία φορά ενώ είστε συνδεδεμένοι: το DroidDeck κάνει λήψη του FEX και του Steam Linux Runtime που χρειάζεται, και μετά αυτό ανοίγει.</string>
     <string name="session_proot_missing">Δεν ήταν δυνατή η λήψη του proot του DroidDeck. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά. Η συνεδρία δεν ξεκίνησε, επειδή το εναλλακτικό proot είναι πολύ αργό για παιχνίδι.</string>
     <string name="session_powervr_missing">Δεν ήταν δυνατή η λήψη του γραφικού περιβάλλοντος PowerVR. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>
+    <string name="session_graphics_runtime_failed">Δεν ήταν δυνατή η προετοιμασία του γραφικού περιβάλλοντος, οπότε η συνεδρία δεν ξεκίνησε.</string>
+    <string name="session_game_environment_failed">Δεν ήταν δυνατή η ρύθμιση του περιβάλλοντος του παιχνιδιού, οπότε η συνεδρία δεν ξεκίνησε.</string>
     <string name="session_directaudio_missing">Δεν ήταν δυνατή η λήψη του DirectAudio, οπότε ο ήχος των παιχνιδιών χρησιμοποιεί την πιο αργή διαδρομή σε αυτή τη συνεδρία.</string>
     <string name="session_end_program">Αυτό το πρόγραμμα</string>
     <string name="session_end_present_fault">Η συνεδρία δεν μπόρεσε να σχεδιάσει στην οθόνη: %1$s. Αυτή η οθόνη δείχνει τον λόγο αντί να είναι μαύρη· οι λεπτομέρειες βρίσκονται στα αρχεία καταγραφής της συνεδρίας.</string>
@@ -576,6 +577,7 @@
     <string name="comp_nightlies_count">Στα Nightlies · %1$d</string>
     <string name="comp_channel_stable">Σταθερή</string>
     <string name="comp_channel_nightly">Νυχτερινή</string>
+    <string name="comp_channel_test">Δοκιμαστική</string>
     <string name="comp_refresh_to_list">Ανανεώστε για να εμφανιστούν τα πακέτα στα Nightlies και στο DroidDeck.</string>
     <string name="comp_nothing_new">Τίποτα νέο από τον τελευταίο έλεγχο.</string>
     <string name="comp_import_wcp">Εισαγωγή .wcp</string>
@@ -624,18 +626,7 @@
     <string name="perf_gsrealtime">gamescope: ουρά GPU πραγματικού χρόνου</string>
     <string name="perf_gsrealtime_hint">Δίνει προτεραιότητα στην εργασία GPU του compositor. Μπορεί να εξομαλύνει τον ρυθμό καρέ με κάποιο κόστος για τα παιχνίδια.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Μνήμη</string>
     <string name="perf_cap_off">Ανενεργό</string>
-    <string name="perf_cap_auto">Προεπιλογή προγράμματος οδήγησης</string>
-    <string name="perf_zram_client">Συμπίεση του Steam όσο τρέχει παιχνίδι</string>
-    <string name="perf_zram_idle">Συμπίεση ανενεργής μνήμης παιχνιδιού</string>
-    <string name="perf_zram_idle_hint">Σελιδοποιεί την ανενεργή μνήμη του παιχνιδιού όταν η RAM είναι χαμηλή. Απενεργοποιήστε το αν τα παιχνίδια παγώνουν για λίγα δευτερόλεπτα περίπου κάθε μισό λεπτό. Ισχύει από την επόμενη έναρξη της συνεδρίας.</string>
-    <string name="perf_zram_client_hint">20 s μετά την εκκίνηση ενός παιχνιδιού, ο πελάτης Steam συμπιέζεται στη zRAM για να μείνει περισσότερη μνήμη στο παιχνίδι, και διαβάζεται πίσω όταν το παιχνίδι κλείσει. Απενεργοποιήστε το αν η συνεδρία κλείνει λίγο μετά την εκκίνηση παιχνιδιών. Ένα όριο RAM παραπάνω εξακολουθεί να συμπιέζει το Steam όταν η συνεδρία το ξεπεράσει.</string>
-    <string name="perf_ram_cap">Όριο RAM</string>
-    <string name="perf_ram_cap_hint">Ισχύει όσο τρέχει ο πελάτης Steam, σε λειτουργία Steam ή από την επιφάνεια εργασίας. Όταν η συνεδρία χρησιμοποιεί περισσότερη, το Steam και έπειτα οι άλλες υποστηριζόμενες διεργασίες της συνεδρίας συμπιέζονται στη zRAM. Ήπιο όριο: τίποτα δεν κλείνει, αλλά τα παιχνίδια μπορεί να κολλάνε όσο επιστρέφουν οι σελίδες.</string>
-    <string name="perf_ram_cap_unavailable">Απαιτεί zRAM swap, που δεν υπάρχει σε αυτή τη συσκευή.</string>
-    <string name="perf_vram_cap">Όριο VRAM</string>
-    <string name="perf_vram_cap_hint">Αναφέρει αυτόν τον προϋπολογισμό μνήμης βίντεο σε παιχνίδια Direct3D 9 έως 12 για να μειωθεί η χρήση μνήμης. Τα παιχνίδια μπορεί να τον υπερβούν· δεν προσθέτει σελιδοποίηση GPU ούτε εγγυάται προστασία από σφάλματα έλλειψης μνήμης. Ισχύει από την επόμενη συνεδρία.</string>
     <string name="perf_gpuclock">Διατήρηση της GPU στη μέγιστη συχνότητά της</string>
     <string name="perf_gpuclock_hint">Μόνο Adreno. Λιγότερα κολλήματα, μεγαλύτερη χρήση μπαταρίας και θερμότητα.</string>
     <string name="perf_fixes">Διορθώσεις συνεδρίας</string>

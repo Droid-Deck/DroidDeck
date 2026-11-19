@@ -34,10 +34,10 @@ internal class ProtonMenu(
     var protonPercent by Operation.percent
     var protonProblem by Operation.problem
     private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
-    @VisibleForTesting internal var installer: (ProtonExtras.Tool, (String, Int) -> Unit) -> String? =
-        { tool, progress -> ProtonExtras.install(activity, tool, progress) }
+    @VisibleForTesting internal var installer: (ProtonExtras.Tool, Boolean, (String, Int) -> Unit) -> String? =
+        { tool, test, progress -> ProtonExtras.install(activity, tool, test, progress) }
 
-    fun installProton(id: String, automatic: Boolean = false) {
+    fun installProton(id: String, automatic: Boolean = false, test: Boolean = false) {
         val tool = ProtonExtras.tools.firstOrNull { it.id == id } ?: return
         if (protonBusyId != null || ProtonExtras.installInProgress || SessionState.running) return
         ProtonExtras.unqueue(activity, tool)
@@ -47,7 +47,7 @@ internal class ProtonMenu(
         protonPercent = -1
         Thread({
             val problem = runCatching {
-                installer(tool) { label, value ->
+                installer(tool, test) { label, value ->
                     ui.post { protonStage = label; protonPercent = value }
                 }
             }.getOrElse { it.message ?: it.javaClass.simpleName }
@@ -89,7 +89,7 @@ internal class ProtonMenu(
     fun refreshProtons() {
         protonRows = ProtonExtras.tools.map {
             val all = ProtonExtras.installedAll(activity, it)
-            ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it))
+            ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it), ProtonExtras.testBuild(activity, it))
         }
     }
 

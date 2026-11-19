@@ -22,7 +22,6 @@
         <item>Dodaj biblioteki Steam z karty SD, dysku USB lub SSD, a DroidDeck zbierze gry razem w Twojej Bibliotece.</item>
         <item>Sklepy pozwalają zalogować się do Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io i Game Jolt, a następnie instalować i aktualizować ich gry z poziomu DroidDeck.</item>
         <item>Komponenty takie jak FEX, DXVK i VKD3D-Proton aktualizują się same, a domyślny jest Proton Experimental ARM64 albo Proton 11.0 ARM64, gdy ta wersja jest zainstalowana.</item>
-        <item>Kompresuj Steam podczas gry zwalnia pamięć RAM na urządzeniach, którym jej brakuje.</item>
         <item>Przesuń palcem od prawej krawędzi, aby otworzyć menu sesji: tryb touchpada, Klawiatura PC, Tryb niskiego opóźnienia, profil gry i więcej.</item>
         <item>Gra działa wolno? Ogranicz liczbę klatek w menu Szybki dostęp, a potem wypróbuj inną wersję Proton lub inny preset FEX w komponentach gry.</item>
         <item>Trzaski lub brak dźwięku w grze? Wypróbuj przełącznik DirectAudio dla gier w ustawieniach Steam w sekcji Dźwięk.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Ten program jest zbudowany dla komputerów %1$s i działa przez FEX, który nie jest jeszcze skonfigurowany. Otwórz raz Steam po zalogowaniu: DroidDeck pobierze wtedy FEX i potrzebne Steam Linux Runtime, a potem program się otworzy.</string>
     <string name="session_proot_missing">Nie udało się pobrać proot DroidDeck. Sprawdź połączenie i spróbuj ponownie. Sesja nie została uruchomiona, bo zapasowy proot jest zbyt wolny do grania.</string>
     <string name="session_powervr_missing">Nie udało się pobrać środowiska graficznego PowerVR. Sprawdź połączenie i spróbuj ponownie.</string>
+    <string name="session_graphics_runtime_failed">Nie udało się przygotować środowiska graficznego, więc sesja nie została uruchomiona.</string>
+    <string name="session_game_environment_failed">Nie udało się skonfigurować środowiska gry, więc sesja nie została uruchomiona.</string>
     <string name="session_directaudio_missing">Nie udało się pobrać DirectAudio, więc w tej sesji dźwięk gier używa wolniejszej ścieżki.</string>
     <string name="session_end_program">Ten program</string>
     <string name="session_end_present_fault">Sesja nie mogła wyświetlić obrazu na ekranie: %1$s. Ten ekran pokazuje przyczynę zamiast czarnego obrazu; szczegóły znajdują się w logach sesji.</string>
@@ -580,6 +581,7 @@
     <string name="comp_nightlies_count">W wersjach nightly · %1$d</string>
     <string name="comp_channel_stable">Stabilna</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">Testowa</string>
     <string name="comp_refresh_to_list">Odśwież, aby wyświetlić pakiety w Nightlies i DroidDeck.</string>
     <string name="comp_nothing_new">Nic nowego od ostatniego sprawdzenia.</string>
     <string name="comp_import_wcp">Importuj .wcp</string>
@@ -628,18 +630,7 @@
     <string name="perf_gsrealtime">gamescope: kolejka GPU czasu rzeczywistego</string>
     <string name="perf_gsrealtime_hint">Nadaje priorytet pracy GPU kompozytora. Może wygładzić tempo klatek kosztem części wydajności gier.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Pamięć</string>
     <string name="perf_cap_off">Wyłączony</string>
-    <string name="perf_cap_auto">Domyślny sterownika</string>
-    <string name="perf_zram_client">Kompresuj Steam podczas gry</string>
-    <string name="perf_zram_idle">Kompresuj nieużywaną pamięć gry</string>
-    <string name="perf_zram_idle_hint">Kompresuje nieużywaną pamięć gry przy małej ilości RAM. Wyłącz, jeśli gry zawieszają się na kilka sekund mniej więcej co pół minuty. Działa od następnego uruchomienia sesji.</string>
-    <string name="perf_zram_client_hint">20 s po starcie gry klient Steam jest kompresowany do zRAM, aby zostawić grze więcej pamięci, i wczytywany z powrotem po zamknięciu gry. Wyłącz, jeśli sesja zamyka się wkrótce po starcie gier. Powyższy limit RAM nadal kompresuje Steam, gdy sesja go przekroczy.</string>
-    <string name="perf_ram_cap">Limit RAM</string>
-    <string name="perf_ram_cap_hint">Działa, gdy działa klient Steam, w trybie Steam lub z pulpitu. Gdy sesja używa więcej, Steam, a następnie inne obsługiwane procesy sesji są kompresowane do zRAM. Miękki limit: nic nie jest zamykane, ale gry mogą się zacinać podczas wczytywania stron z powrotem.</string>
-    <string name="perf_ram_cap_unavailable">Wymaga swapu zRAM, którego to urządzenie nie ma.</string>
-    <string name="perf_vram_cap">Limit VRAM</string>
-    <string name="perf_vram_cap_hint">Zgłasza ten budżet pamięci wideo grom Direct3D od 9 do 12, aby ograniczyć zużycie pamięci. Gry mogą go przekroczyć; nie dodaje to stronicowania GPU ani nie gwarantuje ochrony przed awariami z powodu braku pamięci. Działa od następnej sesji.</string>
     <string name="perf_gpuclock">Utrzymuj GPU na najwyższym taktowaniu</string>
     <string name="perf_gpuclock_hint">Tylko Adreno. Mniej przycięć, większe zużycie baterii i więcej ciepła.</string>
     <string name="perf_fixes">Poprawki sesji</string>

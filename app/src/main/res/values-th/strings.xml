@@ -22,7 +22,6 @@
         <item>เพิ่มคลังเกม Steam จากการ์ด SD ไดรฟ์ USB หรือ SSD แล้ว DroidDeck จะรวมเกมไว้ด้วยกันใน ไลบรารี ของคุณ</item>
         <item>สโตร์ ให้คุณลงชื่อเข้าใช้ Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io และ Game Jolt แล้วติดตั้งและอัปเดตเกมของสโตร์เหล่านั้นจาก DroidDeck ได้</item>
         <item>คอมโพเนนต์อย่าง FEX, DXVK และ VKD3D-Proton อัปเดตตัวเอง และค่าเริ่มต้นคือ Proton Experimental ARM64 หรือ Proton 11.0 ARM64 เมื่อติดตั้งบิลด์นั้นแล้ว</item>
-        <item>บีบอัด Steam ขณะเล่นเกม ช่วยเพิ่ม RAM ว่างบนอุปกรณ์ที่หน่วยความจำเหลือน้อย</item>
         <item>ปัดเข้าจากขอบขวาเพื่อเปิดเมนูเซสชัน: โหมดทัชแพด แป้นพิมพ์พีซี โหมดหน่วงเวลาต่ำ โปรไฟล์เกม และอื่น ๆ</item>
         <item>เกมช้าใช่ไหม ลองจำกัดเฟรมเรตใน Quick Access แล้วลองใช้ Proton เวอร์ชันอื่นหรือพรีเซ็ต FEX อื่นในคอมโพเนนต์ของเกม</item>
         <item>เสียงเกมแตกพร่าหรือไม่มีเสียง ลองเปิดสวิตช์ DirectAudio สำหรับเกม ในการตั้งค่า Steam ภายใต้ เสียง</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">โปรแกรมนี้สร้างมาสำหรับพีซี %1$s และรันผ่าน FEX ซึ่งยังไม่ได้ตั้งค่า เปิด Steam สักครั้งขณะลงชื่อเข้าใช้: DroidDeck จะดาวน์โหลด FEX และ Steam Linux Runtime ที่จำเป็น จากนั้นโปรแกรมนี้จะเปิดขึ้น</string>
     <string name="session_proot_missing">ดาวน์โหลด proot ของ DroidDeck ไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่ เซสชันไม่ได้เริ่มเพราะ proot สำรองช้าเกินกว่าจะเล่นได้</string>
     <string name="session_powervr_missing">ดาวน์โหลดสภาพแวดล้อมกราฟิก PowerVR ไม่สำเร็จ ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
+    <string name="session_graphics_runtime_failed">เตรียมสภาพแวดล้อมกราฟิกไม่สำเร็จ จึงไม่ได้เริ่มเซสชัน</string>
+    <string name="session_game_environment_failed">ตั้งค่าสภาพแวดล้อมของเกมไม่สำเร็จ จึงไม่ได้เริ่มเซสชัน</string>
     <string name="session_directaudio_missing">ดาวน์โหลด DirectAudio ไม่ได้ เสียงเกมในเซสชันนี้จึงใช้เส้นทางที่ช้ากว่า</string>
     <string name="session_end_program">โปรแกรมนี้</string>
     <string name="session_end_present_fault">เซสชันไม่สามารถแสดงผลบนหน้าจอได้: %1$s หน้าจอนี้แสดงสาเหตุแทนที่จะเป็นหน้าจอสีดำ รายละเอียดอยู่ในบันทึกของเซสชัน</string>
@@ -574,6 +575,7 @@
     <string name="comp_nightlies_count">ใน Nightlies · %1$d</string>
     <string name="comp_channel_stable">เสถียร</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">ทดสอบ</string>
     <string name="comp_refresh_to_list">รีเฟรชเพื่อแสดงรายการแพ็กเกจใน Nightlies และ DroidDeck</string>
     <string name="comp_nothing_new">ไม่มีอะไรใหม่ตั้งแต่การตรวจสอบครั้งล่าสุด</string>
     <string name="comp_import_wcp">นำเข้า .wcp</string>
@@ -622,18 +624,7 @@
     <string name="perf_gsrealtime">gamescope: คิว GPU แบบเรียลไทม์</string>
     <string name="perf_gsrealtime_hint">ให้ความสำคัญกับงาน GPU ของตัวประกอบภาพก่อน อาจทำให้การเรียงเฟรมราบรื่นขึ้นโดยแลกกับประสิทธิภาพของเกมบางส่วน</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">หน่วยความจำ</string>
     <string name="perf_cap_off">ปิด</string>
-    <string name="perf_cap_auto">ค่าเริ่มต้นของไดรเวอร์</string>
-    <string name="perf_zram_client">บีบอัด Steam ขณะเล่นเกม</string>
-    <string name="perf_zram_idle">บีบอัดหน่วยความจำเกมที่ไม่ได้ใช้งาน</string>
-    <string name="perf_zram_idle_hint">บีบอัดหน่วยความจำเกมที่ไม่ได้ใช้งานเมื่อ RAM เหลือน้อย ปิดไว้หากเกมค้างไม่กี่วินาทีทุกประมาณครึ่งนาที มีผลเมื่อเริ่มเซสชันครั้งถัดไป</string>
-    <string name="perf_zram_client_hint">20 วินาทีหลังเกมเริ่ม ไคลเอนต์ Steam จะถูกบีบอัดลงใน zRAM เพื่อเหลือหน่วยความจำให้เกมมากขึ้น และอ่านกลับเมื่อปิดเกม ปิดตัวเลือกนี้หากเซสชันปิดไปไม่นานหลังเริ่มเกม ขีดจำกัด RAM ด้านบนยังคงบีบอัด Steam เมื่อเซสชันใช้เกินขีดจำกัด</string>
-    <string name="perf_ram_cap">ขีดจำกัด RAM</string>
-    <string name="perf_ram_cap_hint">มีผลขณะไคลเอนต์ Steam ทำงาน ทั้งในโหมด Steam หรือจากเดสก์ท็อป เมื่อเซสชันใช้เกินค่านี้ Steam และโปรเซสอื่นที่รองรับของเซสชันจะถูกบีบอัดลงใน zRAM ตามลำดับ เป็นขีดจำกัดแบบอ่อน: ไม่มีอะไรถูกปิด แต่เกมอาจกระตุกขณะดึงหน้าหน่วยความจำกลับมา</string>
-    <string name="perf_ram_cap_unavailable">ต้องใช้ zRAM swap ซึ่งอุปกรณ์นี้ไม่มี</string>
-    <string name="perf_vram_cap">ขีดจำกัด VRAM</string>
-    <string name="perf_vram_cap_hint">แจ้งงบประมาณหน่วยความจำวิดีโอนี้ให้เกม Direct3D 9 ถึง 12 เพื่อลดการใช้หน่วยความจำ เกมอาจใช้เกินงบได้ ฟีเจอร์นี้ไม่ได้เพิ่มการสลับหน้าหน่วยความจำ GPU และไม่รับประกันว่าจะป้องกันการแครชเมื่อหน่วยความจำหมด มีผลในเซสชันถัดไป</string>
     <string name="perf_gpuclock">ตรึง GPU ไว้ที่ความเร็วสัญญาณนาฬิกาสูงสุด</string>
     <string name="perf_gpuclock_hint">สำหรับ Adreno เท่านั้น สะดุดน้อยลง แต่ใช้แบตเตอรี่และเกิดความร้อนมากขึ้น</string>
     <string name="perf_fixes">การแก้ไขเซสชัน</string>

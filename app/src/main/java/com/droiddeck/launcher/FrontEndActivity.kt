@@ -180,10 +180,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var fsyncFirst by mutableStateOf(false)
     private var gamescopeRealtime by mutableStateOf(false)
     private var paceCores by mutableStateOf(true)
-    private var ramCapMb by mutableStateOf(0)
-    private var zramClient by mutableStateOf(true)
-    private var zramIdle by mutableStateOf(true)
-    private var vramCapMb by mutableStateOf(0)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
@@ -963,13 +959,36 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
     }
 
-    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false, onHandled: () -> Unit = {}): Boolean {
+    private fun launchGame(game: Library.SteamGame, returnHome: Boolean = false, onHandled: () -> Unit = {}, onSettled: () -> Unit = {}) {
+        val request = gameLaunchRequest.incrementAndGet()
         if (!SessionPrefs.soundtracksIngame(this)) com.droiddeck.launcher.playback.SoundtrackController.pause(this)
         if (pkgStage != null) {
             onHandled()
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
-            return false
+            return
         }
+        val files = game.gameFiles
+        if (game.source != com.droiddeck.launcher.stores.Store.XBOX.id || files == null) {
+            if (startGame(game, returnHome, onHandled)) onSettled()
+            return
+        }
+        Thread({
+            val refused = com.droiddeck.launcher.stores.xbox.XboxManifest.needsAppModel(files)
+            ui.post {
+                when {
+                    request != gameLaunchRequest.get() || isFinishing || isDestroyed -> onHandled()
+                    refused -> {
+                        onHandled()
+                        android.widget.Toast.makeText(this, getString(R.string.game_needs_app_model, game.name), android.widget.Toast.LENGTH_LONG).show()
+                        onSettled()
+                    }
+                    startGame(game, returnHome, onHandled) -> onSettled()
+                }
+            }
+        }, "xbox-app-model").start()
+    }
+
+    private fun startGame(game: Library.SteamGame, returnHome: Boolean, onHandled: () -> Unit): Boolean {
         if (com.droiddeck.launcher.session.NoSteamLaunch.enabled(this, game)) return launchWithoutSteam(game, returnHome, onHandled)
         onHandled()
         if (SessionState.running) {
@@ -1184,19 +1203,19 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             if (!isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) syncDualPanel()
         }, LINK_PANEL_MS)
         val game = games.firstOrNull { it.gameIdString == id }
-        if (game == null) {
+        val link = intent
+        fun consume() {
+            if (intent !== link || pendingGameLink != id) return
             pendingGameLink = null
-            intent.data = null
-            intent.action = Intent.ACTION_MAIN
-            intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+            link.data = null
+            link.action = Intent.ACTION_MAIN
+            link.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+        }
+        if (game == null) {
+            consume()
             syncDualPanel()
             android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
-        } else if (launchGame(game, returnHome = true)) {
-            pendingGameLink = null
-            intent.data = null
-            intent.action = Intent.ACTION_MAIN
-            intent.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
-        }
+        } else launchGame(game, returnHome = true, onSettled = ::consume)
     }
 
     private fun chooseGameShortcut(game: Library.SteamGame) {
@@ -1490,7 +1509,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onComponents = { focusContent -> openComponents(focusContent) },
                         onGameComponents = { game -> openComponents(gameKey = game.profileKey) },
                         onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
-                        onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
+                        onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(this@FrontEndActivity, sg) } },
                         onAddonImport = { sg, target -> importAddons(sg.name, target) },
                         onAddonDelete = { target, name ->
                             saveAction(getString(R.string.main_addons_deleting, name)) {
@@ -1498,7 +1517,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                                 getString(R.string.main_addons_deleted, name)
                             }
                         },
-                        onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
+                        onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(this@FrontEndActivity, sg) } },
                         onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
                         performancePanel = { PerformanceHost(embedded = true) },
                         onRoms = { showRoms = true },
@@ -1914,6 +1933,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        gameLaunchRequest.incrementAndGet()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
             pendingGameLink = null
@@ -2411,6 +2431,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             ),
             protonActions = com.droiddeck.launcher.ui.ProtonsActions(
                 onInstall = { id -> protons.installProton(id) },
+                onInstallTest = { id -> protons.installProton(id, test = true) },
                 onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
                 onRemove = { id, dir -> protons.removeProton(id, dir) },
                 onRemoveOlder = { id -> protons.removeProton(id, older = true) },
@@ -2721,10 +2742,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
-            ramCapMb = ramCapMb, vramCapMb = vramCapMb, zramClient = zramClient, zramIdle = zramIdle,
-            deviceRamMb = (android.app.ActivityManager.MemoryInfo()
-                .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
-            ramCapAvailable = com.droiddeck.launcher.core.ZramSupport.supported(),
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, nativeUserland = nativeUserland, cursorComposite = cursorComposite,
             guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
@@ -2739,10 +2756,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             onFsyncFirst = { on -> SessionPrefs.setFsyncFirst(this, on); fsyncFirst = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
-            onRamCapMb = { mb -> SessionPrefs.setRamCapMb(this, mb); ramCapMb = mb },
-            onZramClient = { on -> SessionPrefs.setZramClient(this, on); zramClient = on },
-            onZramIdle = { on -> SessionPrefs.setZramIdle(this, on); zramIdle = on },
-            onVramCapMb = { mb -> SessionPrefs.setVramCapMb(this, mb); vramCapMb = mb },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
             onNativeUserland = { on -> SessionPrefs.setNativeUserland(this, on); nativeUserland = on },
@@ -3041,10 +3054,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         paceCores = SessionPrefs.paceCores(this)
-        ramCapMb = SessionPrefs.ramCapMb(this)
-        zramClient = SessionPrefs.zramClient(this)
-        zramIdle = SessionPrefs.zramIdle(this)
-        vramCapMb = SessionPrefs.vramCapMb(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
@@ -3101,6 +3110,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
         vkBridge = SessionPrefs.vkBridge(this)
+        venus = SessionPrefs.venus(this)
+        venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)
         vkBridgeSafe = SessionPrefs.vkBridgeSafe(this)
         bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)

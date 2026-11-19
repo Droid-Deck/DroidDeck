@@ -22,7 +22,6 @@
         <item>Tilføj Steam-biblioteker fra et SD-kort, et USB-drev eller en SSD, så samler DroidDeck spillene i dit Bibliotek.</item>
         <item>Butikker lader dig logge ind på Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io og Game Jolt og derefter installere og opdatere deres spil fra DroidDeck.</item>
         <item>Komponenter som FEX, DXVK og VKD3D-Proton opdaterer sig selv, og Proton Experimental ARM64 er standard, eller Proton 11.0 ARM64, når den version er installeret.</item>
-        <item>Komprimer Steam, mens et spil kører frigør RAM på enheder med lidt hukommelse.</item>
         <item>Stryg ind fra højre kant for at åbne sessionsmenuen: touchpad-tilstand, PC-tastatur, Lav forsinkelse, spilprofil og mere.</item>
         <item>Kører spillet langsomt? Begræns billedfrekvensen i Hurtig adgang, og prøv så en anden Proton-version eller FEX-forudindstilling i spillets komponenter.</item>
         <item>Knitrende eller manglende lyd i spillet? Prøv kontakten DirectAudio til spil i Steam-indstillingerne under Lyd.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Dette program er bygget til %1$s-pc’er og køres via FEX, som ikke er sat op endnu. Åbn Steam én gang, mens du er logget ind: DroidDeck downloader så FEX og den Steam Linux Runtime, det kræver, hvorefter dette åbner.</string>
     <string name="session_proot_missing">DroidDecks proot kunne ikke downloades. Tjek forbindelsen, og prøv igen. Sessionen blev ikke startet, fordi reserve-proot er for langsom at spille på.</string>
     <string name="session_powervr_missing">PowerVR-grafikmiljøet kunne ikke hentes. Tjek forbindelsen, og prøv igen.</string>
+    <string name="session_graphics_runtime_failed">Grafikmiljøet kunne ikke klargøres, så sessionen blev ikke startet.</string>
+    <string name="session_game_environment_failed">Spilmiljøet kunne ikke sættes op, så sessionen blev ikke startet.</string>
     <string name="session_directaudio_missing">DirectAudio kunne ikke downloades, så spillyd bruger den langsommere vej i denne session.</string>
     <string name="session_end_program">Dette program</string>
     <string name="session_end_present_fault">Sessionen kunne ikke tegne på skærmen: %1$s. Denne skærm viser hvorfor i stedet for en sort skærm; sessionens logfiler indeholder detaljerne.</string>
@@ -576,6 +577,7 @@
     <string name="comp_nightlies_count">På Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Opdater for at se pakker på Nightlies og DroidDeck.</string>
     <string name="comp_nothing_new">Intet nyt siden sidste kontrol.</string>
     <string name="comp_import_wcp">Importer .wcp</string>
@@ -624,18 +626,7 @@
     <string name="perf_gsrealtime">gamescope: realtids-GPU-kø</string>
     <string name="perf_gsrealtime_hint">Prioriterer compositorens GPU-arbejde. Kan give jævnere billedtiming på bekostning af spillene.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Hukommelse</string>
     <string name="perf_cap_off">Fra</string>
-    <string name="perf_cap_auto">Driverstandard</string>
-    <string name="perf_zram_client">Komprimer Steam, mens et spil kører</string>
-    <string name="perf_zram_idle">Komprimer spillets inaktive hukommelse</string>
-    <string name="perf_zram_idle_hint">Pager spillets inaktive hukommelse ud, når RAM er lav. Slå det fra, hvis spil fryser i et par sekunder cirka hvert halve minut. Træder i kraft, næste gang sessionen starter.</string>
-    <string name="perf_zram_client_hint">20 s efter et spil starter, komprimeres Steam-klienten i zRAM for at give spillet mere hukommelse, og læses tilbage, når spillet lukkes. Slå fra, hvis sessionen lukker kort efter, at spil starter. En RAM-grænse ovenfor komprimerer stadig Steam, når sessionen overskrider den.</string>
-    <string name="perf_ram_cap">RAM-grænse</string>
-    <string name="perf_ram_cap_hint">Gælder, mens Steam-klienten kører, i Steam-tilstand eller fra skrivebordet. Når sessionen bruger mere end dette, komprimeres Steam og derefter sessionens andre understøttede processer i zRAM. En blød grænse: intet lukkes, men spil kan hakke, mens sider hentes tilbage.</string>
-    <string name="perf_ram_cap_unavailable">Kræver zRAM-swap, som denne enhed ikke har.</string>
-    <string name="perf_vram_cap">VRAM-grænse</string>
-    <string name="perf_vram_cap_hint">Rapporterer dette videohukommelsesbudget til Direct3D 9 til 12-spil for at mindske hukommelsesforbruget. Spil kan overskride det; dette tilføjer ikke GPU-paging og garanterer ikke beskyttelse mod nedbrud ved hukommelsesmangel. Gælder fra næste session.</string>
     <string name="perf_gpuclock">Hold GPU’en på dens højeste clock</string>
     <string name="perf_gpuclock_hint">Kun Adreno. Færre hak, mere batteribrug og varme.</string>
     <string name="perf_fixes">Sessionsrettelser</string>

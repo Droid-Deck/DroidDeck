@@ -22,7 +22,6 @@
         <item>Voeg Steam-bibliotheken toe vanaf een SD-kaart, USB-stick of SSD, en DroidDeck houdt de games bij elkaar in je Bibliotheek.</item>
         <item>Met Winkels log je in bij Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io en Game Jolt, en installeer en update je hun games vanuit DroidDeck.</item>
         <item>Componenten zoals FEX, DXVK en VKD3D-Proton updaten zichzelf, en Proton Experimental ARM64 is de standaard, of Proton 11.0 ARM64 zodra die build is geïnstalleerd.</item>
-        <item>Steam comprimeren terwijl een game draait maakt RAM vrij op apparaten die weinig geheugen hebben.</item>
         <item>Veeg vanaf de rechterrand naar binnen om het sessiemenu te openen: touchpadmodus, Pc-toetsenbord, modus voor lage latentie, gameprofiel en meer.</item>
         <item>Draait een game traag? Begrens de framerate in het Snelmenu en probeer dan een andere Proton-versie of FEX-preset in de componenten van de game.</item>
         <item>Kraakt de audio of ontbreekt het geluid? Probeer de schakelaar DirectAudio voor games in de Steam-instellingen onder Audio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Dit programma is gemaakt voor %1$s-pc’s en draait via FEX, dat nog niet is ingesteld. Open Steam één keer terwijl je bent ingelogd: DroidDeck laat het dan FEX en de benodigde Steam Linux Runtime downloaden. Daarna opent dit.</string>
     <string name="session_proot_missing">De proot van DroidDeck kon niet worden gedownload. Controleer de verbinding en probeer het opnieuw. De sessie is niet gestart, omdat de reserve-proot te traag is om op te spelen.</string>
     <string name="session_powervr_missing">De PowerVR-grafische omgeving kon niet worden gedownload. Controleer de verbinding en probeer het opnieuw.</string>
+    <string name="session_graphics_runtime_failed">De grafische omgeving kon niet worden voorbereid, dus de sessie is niet gestart.</string>
+    <string name="session_game_environment_failed">De spelomgeving kon niet worden ingesteld, dus de sessie is niet gestart.</string>
     <string name="session_directaudio_missing">DirectAudio kon niet worden gedownload, dus gamegeluid gebruikt deze sessie de tragere route.</string>
     <string name="session_end_program">Dit programma</string>
     <string name="session_end_present_fault">De sessie kon niet op het scherm tekenen: %1$s. Dit scherm laat zien waarom, in plaats van een zwart scherm; de details staan in de sessielogboeken.</string>
@@ -576,6 +577,7 @@
     <string name="comp_nightlies_count">In de Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabiel</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Vernieuw om de pakketten in de Nightlies en bij DroidDeck te tonen.</string>
     <string name="comp_nothing_new">Niets nieuws sinds de laatste controle.</string>
     <string name="comp_import_wcp">.wcp importeren</string>
@@ -624,18 +626,7 @@
     <string name="perf_gsrealtime">gamescope: realtime GPU-wachtrij</string>
     <string name="perf_gsrealtime_hint">Geeft het GPU-werk van de compositor voorrang. Kan de framepacing gladder maken, ten koste van wat gameprestaties.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Geheugen</string>
     <string name="perf_cap_off">Uit</string>
-    <string name="perf_cap_auto">Driverstandaard</string>
-    <string name="perf_zram_client">Steam comprimeren terwijl een game draait</string>
-    <string name="perf_zram_idle">Inactief gamegeheugen comprimeren</string>
-    <string name="perf_zram_idle_hint">Comprimeert inactief gamegeheugen bij weinig RAM. Zet dit uit als games ongeveer elke halve minuut een paar seconden vastlopen. Geldt vanaf de volgende keer dat de sessie start.</string>
-    <string name="perf_zram_client_hint">20 s nadat een game start, wordt de Steam-client in zRAM gecomprimeerd om de game meer geheugen te geven, en teruggelezen als de game sluit. Zet dit uit als de sessie kort na het starten van games sluit. Een RAM-limiet hierboven comprimeert Steam nog steeds als de sessie die overschrijdt.</string>
-    <string name="perf_ram_cap">RAM-limiet</string>
-    <string name="perf_ram_cap_hint">Geldt terwijl de Steam-client draait, in de Steam-modus of vanaf de desktop. Als de sessie meer gebruikt dan dit, worden Steam en daarna de andere ondersteunde processen van de sessie in zRAM gecomprimeerd. Een zachte limiet: er wordt niets gesloten, maar games kunnen haperen terwijl pagina’s terugkomen.</string>
-    <string name="perf_ram_cap_unavailable">Vereist zRAM-swap, die dit apparaat niet heeft.</string>
-    <string name="perf_vram_cap">VRAM-limiet</string>
-    <string name="perf_vram_cap_hint">Meldt dit videogeheugenbudget aan Direct3D 9- tot 12-games om het geheugengebruik te verlagen. Games kunnen het overschrijden; dit voegt geen GPU-paging toe en garandeert geen bescherming tegen crashes door geheugentekort. Geldt vanaf de volgende sessie.</string>
     <string name="perf_gpuclock">GPU op hoogste kloksnelheid houden</string>
     <string name="perf_gpuclock_hint">Alleen Adreno. Minder haperingen, meer batterijverbruik en warmte.</string>
     <string name="perf_fixes">Sessiefixes</string>

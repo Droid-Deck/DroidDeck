@@ -258,7 +258,7 @@ internal fun GameDetail(
                                 stringResource(R.string.game_tab_achievements_count, stringResource(R.string.achievements_title), achievementState.done, list.size)
                             } ?: stringResource(R.string.achievements_title)
                             GameTab.LAUNCH -> stringResource(R.string.game_tab_launch)
-                            GameTab.SAVES -> stringResource(if (Store.byId(source).let { it == Store.GOG || it == Store.EPIC }) R.string.game_tab_saves_cloud else R.string.games_saves)
+                            GameTab.SAVES -> stringResource(if (CloudSaves.supports(Store.byId(source))) R.string.game_tab_saves_cloud else R.string.games_saves)
                             GameTab.ADDONS -> stringResource(R.string.game_tab_addons)
                             GameTab.INSTALL -> stringResource(R.string.game_tab_install)
                         }
@@ -458,7 +458,7 @@ internal fun GameActions(
                     if (installed != null && id != null) {
                         LaunchedEffect(id) { BattleNetInstall.checkUpdate(ctx, installed) }
                         if (download != null) {
-                            ActionChip(downloadLabel(download), ok = false)
+                            ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
                             if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
                             else SecondaryButton(stringResource(R.string.stores_dl_resume)) { DownloadQueue.resume(ctx, download.key) }
                         } else if (BattleNetInstall.updates[id] == true) {
@@ -473,7 +473,7 @@ internal fun GameActions(
                 }
             }
             download != null -> {
-                ActionChip(downloadLabel(download), ok = false)
+                ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
                 if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause), modifier = leadOn) { DownloadQueue.pause(download.key) }
                 else PrimaryButton(stringResource(R.string.stores_dl_resume), main = true, modifier = leadOn) { DownloadQueue.resume(ctx, download.key) }
                 ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm)) { DownloadQueue.cancel(ctx, download.key) }
@@ -892,8 +892,10 @@ private fun ShortcutFields(game: Library.SteamGame, folder: File) {
 
 @Composable
 private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
-    val saves by produceState<List<GameSaves.SaveDir>?>(null, g.gameId) {
-        value = withContext(Dispatchers.IO) { runCatching { GameSaves.locate(prefix, g) }.getOrDefault(emptyList()) }
+    val context = LocalContext.current.applicationContext
+    var synced by remember(g.gameId) { mutableStateOf(0) }
+    val saves by produceState<List<GameSaves.SaveDir>?>(null, g.gameId, synced) {
+        value = withContext(Dispatchers.IO) { runCatching { GameSaves.saves(context, prefix, g) }.getOrDefault(emptyList()) }
     }
     val found = saves
     val summary = when {
@@ -911,9 +913,9 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
     }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(summary, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp).readable().padding(4.dp))
-        if (Store.byId(g.source).let { it == Store.GOG || it == Store.EPIC }) {
+        if (CloudSaves.supports(Store.byId(g.source))) {
             SectionLabel(stringResource(R.string.store_cloud_saves))
-            CloudRows(g)
+            CloudRows(g) { synced++ }
             SectionLabel(stringResource(R.string.games_saves))
         }
         MenuItem(stringResource(R.string.games_import_saves), checked = false) { a.onSaveImport(g) }
@@ -969,14 +971,16 @@ private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions)
 }
 
 @Composable
-private fun CloudRows(g: Library.SteamGame) {
-    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON && it != Store.EA } ?: return
+private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
+    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON } ?: return
     val id = g.storeId ?: return
     val context = LocalContext.current.applicationContext
     var busy by remember(g.gameId) { mutableStateOf<String?>(null) }
     var tick by remember(g.gameId) { mutableStateOf(0) }
+    var refreshing by remember(g.gameId) { mutableStateOf(false) }
     val status by produceState<CloudSaves.Status?>(null, g.gameId, tick) {
         value = withContext(Dispatchers.IO) { runCatching { CloudSaves.status(context, store, id) }.getOrNull() }
+        refreshing = false
     }
     val folder = g.gameFiles
     var enabled by remember(g.gameId) { mutableStateOf(folder?.let { StoreGameSidecar.read(it)?.cloud } ?: true) }
@@ -988,7 +992,7 @@ private fun CloudRows(g: Library.SteamGame) {
         busy = if (up) "up" else "down"
         Thread({
             val r = if (up) CloudSaves.upload(context, store, id, force) else CloudSaves.download(context, store, id, force)
-            StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
+            StoresState.post { refreshing = true; busy = null; tick++; onSynced(); android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
         }, "cloud-manual").start()
     }
     MenuItem(stringResource(R.string.store_cloud_saves), checked = enabled && supported, enabled = supported,
@@ -1000,11 +1004,13 @@ private fun CloudRows(g: Library.SteamGame) {
             StoresState.post { enabled = written?.cloud ?: enabled }
         }, "cloud-switch").start()
     }
-    val ready = st != null && supported && enabled && busy == null
+    val ready = st != null && supported && enabled && busy == null && !refreshing && st.folder != null && st.signedIn
     val pending = stringResource(R.string.cloud_pending)
     val summary = when {
         st == null || busy != null -> pending
         !supported -> stringResource(R.string.cloud_none)
+        !st.signedIn || st.reason == "not-signed-in" -> stringResource(R.string.cloud_signed_out)
+        st.folder == null -> stringResource(R.string.cloud_not_synced)
         conflict -> stringResource(R.string.cloud_conflict_files, st.conflicts.size)
         st.lastSync > 0 -> stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString())
         else -> stringResource(R.string.cloud_never)

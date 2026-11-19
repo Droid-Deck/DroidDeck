@@ -61,6 +61,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -371,6 +372,11 @@ private fun DownloadCard(d: DownloadEntry, s: FrontEndState, a: FrontEndActions)
                         CancelAction { DownloadQueue.cancel(ctx, d.key) }
                     }
                     DownloadState.FAILED -> {
+                        if (d.store == Store.XBOX && d.error == stringResource(R.string.stores_xbox_device_group_full)) {
+                            RoundAction(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.stores_xbox_manage_devices)) {
+                                runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(com.droiddeck.launcher.stores.xbox.XboxInstaller.DEVICES_URL)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            }
+                        }
                         RoundAction(Icons.Filled.Refresh, stringResource(R.string.stores_dl_resume), primary = true) { DownloadQueue.retry(ctx, d.key) }
                         CancelAction { DownloadQueue.clear(ctx, d.key) }
                     }
