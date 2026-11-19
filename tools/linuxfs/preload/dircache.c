@@ -454,7 +454,7 @@ static int plain(const char *where, char *dir) {
     char kept = dir[to];
     struct stat st;
     dir[to] = 0;
-    fine = lstat(dir, &st) == 0 && !S_ISLNK(st.st_mode);
+    fine = strcmp(dir + from, ".") != 0 && strcmp(dir + from, "..") != 0 && lstat(dir, &st) == 0 && !S_ISLNK(st.st_mode);
     dir[to] = kept;
     from = kept ? to + 1 : to;
   }

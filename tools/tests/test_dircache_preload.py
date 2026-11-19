@@ -815,6 +815,26 @@ class DirCachePreloadTest(unittest.TestCase):
                               "access", link / "x.bundle", between=repoint, env={"FOLD": "all"})
         self.assertEqual(["-1 2", "0 0"], out[1:])
 
+    def test_a_folder_reached_through_a_parent_step_is_checked_each_time(self):
+        s = self.staging
+        other = self.lib / "elsewhere"
+        (other / "branch").mkdir(parents=True)
+        (other / s.parent.name / s.name).mkdir(parents=True)
+        (other / s.parent.name / s.name / "x.bundle").touch()
+        (self.lib / "branch").mkdir()
+        twin = self.lib / "BRANCH"
+        twin.mkdir()
+        listed = self.lib / "branch" / ".." / s.parent.name / s.name
+        through = twin / ".." / s.parent.name / s.name
+
+        def repoint():
+            twin.rmdir()
+            twin.symlink_to(other / "branch")
+
+        out = self.run_paused("list", listed, "access", through / "x.bundle", "pause",
+                              "access", through / "x.bundle", between=repoint, env={"FOLD": "all"})
+        self.assertEqual(["-1 2", "0 0"], out[1:])
+
     def test_a_permission_change_on_the_folder_or_above_it_is_noticed(self):
         s = self.staging
         for target in (s, s.parent):
