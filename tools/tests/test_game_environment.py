@@ -2271,6 +2271,22 @@ class ProtonDefaultTest(unittest.TestCase):
         self.assertEqual(changes, {"0": "GE-Proton11-7", "10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
         self.assertEqual(auto, {"10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
 
+    def test_games_on_a_removed_custom_proton_go_back_to_the_default(self):
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL, "311210": "bo3fix-proton", "42": "GE-Proton11-7"}, ["311210", "42"], self.NAMES, self.TOOL, {},
+            removed={"bo3fix-proton"})
+        self.assertEqual(changes, {"311210": self.TOOL})
+        self.assertEqual(auto, {"311210": self.TOOL})
+
+    def test_removed_tools_are_custom_builds_missing_from_the_catalog(self):
+        state = {"tools": [
+            {"name": self.TOOL, "valve": True},
+            {"name": "bo3fix-proton", "valve": False},
+            {"name": "GE-Proton11-7", "valve": False},
+        ]}
+        self.assertEqual(COMPAT["removed_tools"](state, self.CATALOG), {"bo3fix-proton"})
+        self.assertEqual(COMPAT["removed_tools"]({}, self.CATALOG), set())
+
     def test_windows_only_titles_still_follow_the_default(self):
         changes, auto = COMPAT["plan_mapping"](
             {"0": self.TOOL}, ["42"], self.NAMES, self.TOOL, {})

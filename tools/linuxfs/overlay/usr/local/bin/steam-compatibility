@@ -1089,9 +1089,10 @@ NATIVE_CHOICE = object()
 
 
 def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None, managed=None,
-                 native_choices=(), tools=None):
+                 native_choices=(), tools=None, removed=()):
     tools = tools or {}
     runnable = {n.lower() for n in runnable}
+    removed = {n.lower() for n in removed} - runnable
     installed = set(installed)
     picks = set(picks) | {app for app, platforms in tools.items() if "linux" not in platforms}
     native = native or {}
@@ -1121,7 +1122,7 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
         target = native.get(app, default)
         if not name and (app in native_choices or (app in current and app in FEX_DEFAULT_APPS)):
             target = NATIVE_CHOICE
-        stale = unrunnable(name, runnable)
+        stale = unrunnable(name, runnable) or name.lower() in removed
         if name and not stale and (mine is None or name != mine):
             continue
         if target is NATIVE_CHOICE:
@@ -1161,6 +1162,12 @@ def followers(state, current):
     if "auto" in state:
         return state["auto"]
     return {app: name for app, name in current.items() if app != "0" and name == TOOL}
+
+
+def removed_tools(state, catalog):
+    known = state.get("tools") if isinstance(state.get("tools"), list) else ()
+    previous = {t.get("name") for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name")}
+    return previous - {t["name"] for t in catalog}
 
 
 def tool_entry(name, display, path, valve):
@@ -1590,7 +1597,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             current.setdefault(app, "")
         changes, auto = plan_mapping(
             current, apps, names, default, followers(state, current), native, picks,
-            overrides, managed, native_choices, tool_platforms(steam_root))
+            overrides, managed, native_choices, tool_platforms(steam_root), removed_tools(state, catalog))
         set_mappings(tokens, mapping, changes)
         text = serialize(tokens)
         if text != serialize(tokenize(original)):
