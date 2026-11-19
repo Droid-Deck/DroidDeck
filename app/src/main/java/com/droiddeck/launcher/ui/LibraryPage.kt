@@ -621,14 +621,14 @@ private fun LibraryGrid(
     }
     val itemIndex: (Int) -> Int = { i ->
         headerItems + i + when {
-            split > 0 -> if (i < split) 1 else 2
+            split > 0 -> if (i < split) 0 else 1
             toggleAt == ToggleAt.TOP -> 1
             else -> 0
         }
     }
     val toggleIndex = when (toggleAt) {
         ToggleAt.TOP -> headerItems
-        ToggleAt.SPLIT -> headerItems + split + 1
+        ToggleAt.SPLIT -> headerItems + split
         else -> headerItems + visible.size
     }
     val gapPx = with(density) { 10.dp.toPx() }
@@ -713,7 +713,7 @@ private fun LibraryGrid(
         }
         NotInstalledRow(notInstalled, expanded, keys, onFocus = { rowFocused = it }) {
             rowFocused = false
-            val landing = if (expanded) headerItems + split else headerItems + visible.size + 1
+            val landing = if (expanded) headerItems + split else headerItems + visible.size
             onShowUninstalled(!expanded)
             if (focus != null && focus.last == NOT_INSTALLED_ROW) scope.launch {
                 androidx.compose.runtime.withFrameNanos { }
@@ -771,7 +771,6 @@ private fun LibraryGrid(
             if (toggleAt == ToggleAt.BOTTOM) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
         }
         else {
-            item(key = "installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_installed)) }
             libraryGrid(visible.take(split), empty, tile)
             item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) {
                 if (toggleAt == ToggleAt.SPLIT) toggleRow() else SectionLabel(stringResource(R.string.stores_section_not_installed))

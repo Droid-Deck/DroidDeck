@@ -598,12 +598,12 @@ internal fun SignInCard(store: Store, height: Dp) {
         Box(
             Modifier.matchParentSize().background(
                 Brush.horizontalGradient(
-                    0f to colors.background.copy(alpha = 0.97f), 0.45f to colors.background.copy(alpha = 0.9f),
-                    0.78f to colors.background.copy(alpha = 0.35f), 1f to colors.background.copy(alpha = 0.15f),
+                    0f to colors.background.copy(alpha = 0.86f), 0.45f to colors.background.copy(alpha = 0.62f),
+                    0.78f to colors.background.copy(alpha = 0.18f), 1f to colors.background.copy(alpha = 0.06f),
                 ),
             ),
         )
-        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to colors.background.copy(alpha = 0.92f))))
+        Box(Modifier.matchParentSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
         Box(
             Modifier.matchParentSize().drawBehind {
                 drawRect(Brush.radialGradient(listOf(c.dot.copy(alpha = 0.22f), Color.Transparent), center = Offset(size.width * 0.16f, size.height * 0.9f), radius = size.height * 0.75f))
