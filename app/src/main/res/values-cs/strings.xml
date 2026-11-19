@@ -3420,6 +3420,15 @@
     <string name="storage_shared_prefix_detail">Steam zde spouští své pomocné programy pro Windows</string>
     <string name="storage_reset_shared_confirm">Smaže ho (%1$s). Steam si vytvoří nový, až ho bude příště potřebovat.</string>
     <string name="storage_remove_launcher_confirm">Smaže Wine prefix a mezipaměť shaderů této aplikace obchodu (%1$s) včetně přihlášení a uložených pozic, které jsou jen tam. Hry, které v něm běží, dostanou nový prefix a aplikaci možná bude třeba znovu nastavit. Cloudové uložené pozice zůstanou ve vašem účtu.</string>
+    <string name="storage_system_clearable">Lze uvolnit %1$s</string>
+    <string name="storage_item_system_caches">Mezipaměti Linuxu a Steamu</string>
+    <string name="storage_item_system_caches_detail">Staré dočasné soubory, stažené balíčky a webová mezipaměť Steamu</string>
+    <string name="storage_cache_temp">Staré dočasné soubory</string>
+    <string name="storage_cache_packages">Stažené balíčky</string>
+    <string name="storage_cache_steam_web">Webová mezipaměť Steamu</string>
+    <string name="storage_cache_steam_corrupt">Poškozená stahování Steamu</string>
+    <string name="storage_cache_detail">V případě potřeby se vytvoří znovu</string>
+    <string name="storage_clear">Vymazat</string>
     <string name="storage_launcher_prefix">Aplikace obchodu a hry, které s ní běží</string>
     <string name="storage_launcher_used_by">Používá: %1$s</string>
     <string name="storage_shortcut_app">Hra mimo Steam %1$s</string>

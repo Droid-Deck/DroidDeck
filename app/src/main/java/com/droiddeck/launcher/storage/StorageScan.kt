@@ -71,7 +71,9 @@ class StorageReport(
     val kept: List<KeptPrefix>,
     val leftoversChecked: Boolean,
     val storeGames: List<StoreGameUsage> = emptyList(),
+    val systemCaches: List<SystemCacheUsage> = emptyList(),
 ) {
+    val systemCacheBytes: Long get() = systemCaches.sumOf { it.bytes }
     val otherPrefixes: Long get() = kept.sumOf { it.bytes }
     val droiddeck: Long get() = buckets.values.sum()
     val installedShaders: Long get() = games.sumOf { it.shaders }
@@ -358,6 +360,8 @@ object StorageScan {
         val stores = m(File(rootfs, "root/Games"))
         val flatpak = m(File(rootfs, "root/.local/share/flatpak"))
         val rootfsBytes = m(rootfs)
+        val systemCaches = SystemCaches.find(rootfs, clientRoots, System.currentTimeMillis())
+            .map { (kind, found) -> SystemCacheUsage(kind, found, found.sumOf { walker.measure(it) }) }.filter { it.bytes > 0 }
         val privateBytes = privateRoots.sumOf { m(it) }
         val system = rootfsBytes - installs - inApps("compatdata") - inApps("shadercache") - workshop -
             compatTools - stores - flatpak
@@ -381,7 +385,7 @@ object StorageScan {
             ),
             prefixes, shaders, workshop, flatpak,
             games.sortedByDescending { it.total }, tools.values.toList(), leftovers, logs, logBytes,
-            components, flatpakApps, flatpakRuntimes, kept, everyLibraryRead, storeGames,
+            components, flatpakApps, flatpakRuntimes, kept, everyLibraryRead, storeGames, systemCaches,
         )
     }
 }

@@ -3420,6 +3420,15 @@
     <string name="storage_shared_prefix_detail">Steam запускает здесь свои вспомогательные программы Windows</string>
     <string name="storage_reset_shared_confirm">Удаляет его (%1$s). Steam создаст новый, когда он снова понадобится.</string>
     <string name="storage_remove_launcher_confirm">Удаляет префикс Wine и кеш шейдеров этого приложения магазина (%1$s) вместе со входом в аккаунт и сохранениями, которые есть только там. Игры, работающие в нём, получат новый префикс, а приложение, возможно, придётся настроить заново. Облачные сохранения остаются в аккаунте.</string>
+    <string name="storage_system_clearable">Можно очистить %1$s</string>
+    <string name="storage_item_system_caches">Кеши Linux и Steam</string>
+    <string name="storage_item_system_caches_detail">Старые временные файлы, скачанные пакеты и веб-кеш Steam</string>
+    <string name="storage_cache_temp">Старые временные файлы</string>
+    <string name="storage_cache_packages">Скачанные пакеты</string>
+    <string name="storage_cache_steam_web">Веб-кеш Steam</string>
+    <string name="storage_cache_steam_corrupt">Повреждённые загрузки Steam</string>
+    <string name="storage_cache_detail">Создаются заново при необходимости</string>
+    <string name="storage_clear">Очистить</string>
     <string name="storage_launcher_prefix">Приложение магазина и игры, которые с ним работают</string>
     <string name="storage_launcher_used_by">Используется: %1$s</string>
     <string name="storage_shortcut_app">Игра не из Steam %1$s</string>

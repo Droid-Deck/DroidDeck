@@ -91,6 +91,9 @@ import com.droiddeck.launcher.storage.GameUsage
 import com.droiddeck.launcher.storage.KeptPrefix
 import com.droiddeck.launcher.storage.PrefixOwner
 import com.droiddeck.launcher.storage.StoreGameUsage
+import com.droiddeck.launcher.storage.SystemCache
+import com.droiddeck.launcher.agent.AgentHost
+import com.droiddeck.launcher.agent.AgentStorage
 import com.droiddeck.launcher.storage.StorageReport
 import com.droiddeck.launcher.storage.StorageState
 import com.droiddeck.launcher.storage.ToolReason
@@ -124,7 +127,7 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
     var view by remember { mutableStateOf("overview") }
     var cleanup by remember { mutableStateOf(false) }
     val report = StorageState.report
-    LaunchedEffect(Unit) { StorageState.refresh(ctx) }
+    LaunchedEffect(Unit) { StorageState.refresh(ctx); AgentStorage.measure(ctx) }
     LaunchedEffect(s.sessionRunning) { if (!s.sessionRunning) StorageState.refresh(ctx, force = report != null) }
     if (report == null) {
         Row(
@@ -155,6 +158,7 @@ internal fun StoragePanel(s: FrontEndState, a: FrontEndActions) {
         "desktop" -> DesktopView(report, s.sessionRunning) { view = "overview" }
         "stores" -> StoreGamesView(report, s.sessionRunning) { view = "overview" }
         "tools" -> ToolsView(report, s.sessionRunning) { view = "overview" }
+        "system" -> SystemView(report, s.sessionRunning) { view = "overview" }
         else -> Overview(report, s.sessionRunning, onCleanUp = { cleanup = true }, onOpen = { view = it })
     }
 }
@@ -365,8 +369,10 @@ private fun OverviewContent(report: StorageReport, sessionRunning: Boolean, wide
                 report.buckets.getValue(Bucket.DESKTOP), m) { onOpen("desktop") }
         },
         { m ->
+            val clearable = report.systemCacheBytes + agentBytes().sumOf { it.second }
             BucketCard(Bucket.SYSTEM, Icons.Outlined.Storage, stringResource(R.string.storage_system),
-                stringResource(R.string.storage_system_hint), report.buckets.getValue(Bucket.SYSTEM), m, locked = true)
+                if (clearable >= ONE_MB) stringResource(R.string.storage_system_clearable, gb(clearable)) else stringResource(R.string.storage_system_hint),
+                report.buckets.getValue(Bucket.SYSTEM), m) { onOpen("system") }
         },
         { m ->
             BucketCard(Bucket.DROIDDECK, Icons.Outlined.Folder, stringResource(R.string.storage_app_data),
@@ -532,6 +538,7 @@ private fun CleanRow(item: CleanItem, report: StorageReport, on: Boolean, modifi
         CleanItem.UNUSED_CUSTOM -> Triple(custom.joinToString(", ") { it.name }, stringResource(R.string.storage_item_custom_detail), 1)
         CleanItem.UNUSED_COMPONENTS -> Triple(stringResource(R.string.storage_item_components), unusedLabels.joinToString(", "), 1)
         CleanItem.SHADERS -> Triple(stringResource(R.string.storage_item_shaders), stringResource(R.string.storage_item_shaders_detail), 2)
+        CleanItem.SYSTEM_CACHES -> Triple(stringResource(R.string.storage_item_system_caches), stringResource(R.string.storage_item_system_caches_detail), 0)
     }
     ToggleRow(
         title, detail, StorageState.bytes(report, item), on, modifier,
@@ -1184,6 +1191,78 @@ private fun StoreGamesView(report: StorageReport, sessionRunning: Boolean, onBac
             (if (list.size == 1) "" else list.joinToString("\n") { "• " + it.game.sidecar.title } + "\n\n") + stringResource(R.string.stores_uninstall_body_size, total),
             stringResource(R.string.storage_uninstall),
             onConfirm = { StorageState.uninstallStoreGames(ctx, list); picked = emptySet() }, onDismiss = { confirm = emptyList() },
+        )
+    }
+}
+
+/** What the Agent tab added to the Linux userland, with sizes once measured. */
+private fun agentBytes(): List<Pair<AgentStorage.Item, Long>> =
+    AgentStorage.Item.entries.mapNotNull { item -> AgentStorage.sizes[item]?.takeIf { it >= ONE_MB }?.let { item to it } }
+
+private fun cacheName(kind: SystemCache) = when (kind) {
+    SystemCache.TEMP -> R.string.storage_cache_temp
+    SystemCache.PACKAGES -> R.string.storage_cache_packages
+    SystemCache.STEAM_WEB -> R.string.storage_cache_steam_web
+    SystemCache.STEAM_CORRUPT -> R.string.storage_cache_steam_corrupt
+}
+
+/**
+ * The Linux system bucket opened up: caches that come back on their own, what the Agent tab installed, and the rest,
+ * which runs everything and stays.
+ */
+@Composable
+private fun SystemView(report: StorageReport, sessionRunning: Boolean, onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val busy = sessionRunning || StorageState.busy
+    var confirmAgent by remember { mutableStateOf<AgentStorage.Item?>(null) }
+    val removing = AgentStorage.removing.size
+    var wasRemoving by remember { mutableStateOf(false) }
+    LaunchedEffect(removing) {
+        if (wasRemoving && removing == 0) StorageState.refresh(ctx, force = true)
+        wasRemoving = removing > 0
+    }
+    val caches = report.systemCaches.sortedByDescending { it.bytes }
+    val agent = agentBytes().sortedByDescending { it.second }
+    val agentTotal = agent.sumOf { it.second }
+    val rest = (report.buckets.getValue(Bucket.SYSTEM) - report.systemCacheBytes - agentTotal).coerceAtLeast(0)
+    SubHeader(stringResource(R.string.storage_system), stringResource(R.string.storage_system_clearable, gb(report.systemCacheBytes + agentTotal)), onBack) {
+        if (caches.isNotEmpty()) PrimaryButton(stringResource(R.string.storage_free_button, gb(report.systemCacheBytes)), compact = true, enabled = !busy) {
+            StorageState.clean(ctx, setOf(CleanItem.SYSTEM_CACHES)) { }
+        }
+    }
+    ActionStatus()
+    if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(4.dp)) }
+    if (caches.isNotEmpty()) {
+        SectionTitle(stringResource(R.string.storage_item_system_caches), gb(report.systemCacheBytes))
+        ListCard {
+            caches.forEachIndexed { i, c ->
+                ItemRow(stringResource(cacheName(c.kind)), stringResource(R.string.storage_cache_detail), c.bytes, i == caches.lastIndex,
+                    pill = { Pill(stringResource(R.string.storage_tag_safe), LocalPalette.current.good) },
+                    action = { SecondaryButton(stringResource(R.string.storage_clear), compact = true, enabled = !busy) { StorageState.clearSystemCache(ctx, c.kind) } })
+            }
+        }
+    }
+    if (agent.isNotEmpty()) {
+        SectionTitle(stringResource(R.string.rail_agent), gb(agentTotal))
+        ListCard {
+            agent.forEachIndexed { i, (item, bytes) ->
+                ItemRow(stringResource(agentStorageTitle(item)), stringResource(agentStorageWarning(item)), bytes, i == agent.lastIndex,
+                    action = {
+                        SecondaryButton(stringResource(R.string.storage_remove), compact = true,
+                            enabled = AgentStorage.removing[item] != true && AgentHost.state != AgentHost.State.WORKING) { confirmAgent = item }
+                    })
+            }
+        }
+    }
+    SectionTitle(stringResource(R.string.storage_in_use), gb(rest))
+    ListCard {
+        ItemRow(stringResource(R.string.storage_system), stringResource(R.string.storage_system_hint), rest, true,
+            action = { Icon(Icons.Outlined.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp)) })
+    }
+    confirmAgent?.let { item ->
+        ConfirmDialog(
+            stringResource(R.string.storage_remove_title, stringResource(agentStorageTitle(item))), stringResource(agentStorageWarning(item)),
+            stringResource(R.string.storage_remove), onConfirm = { AgentStorage.remove(ctx, item) }, onDismiss = { confirmAgent = null },
         )
     }
 }

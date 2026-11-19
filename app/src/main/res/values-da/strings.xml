@@ -3346,6 +3346,15 @@
     <string name="storage_shared_prefix_detail">Steam kører sine egne Windows-hjælpere her</string>
     <string name="storage_reset_shared_confirm">Sletter det (%1$s). Steam opretter et nyt, næste gang det skal bruges.</string>
     <string name="storage_remove_launcher_confirm">Sletter denne butiksapps Wine-præfiks og shader-cache (%1$s) sammen med login og gemte spil, der kun ligger der. Spil, der kører i det, får et nyt præfiks, og du skal måske sætte appen op igen. Gemte spil i skyen bliver på din konto.</string>
+    <string name="storage_system_clearable">%1$s kan ryddes</string>
+    <string name="storage_item_system_caches">Linux- og Steam-cache</string>
+    <string name="storage_item_system_caches_detail">Gamle midlertidige filer, hentede pakker og Steams webcache</string>
+    <string name="storage_cache_temp">Gamle midlertidige filer</string>
+    <string name="storage_cache_packages">Hentede pakker</string>
+    <string name="storage_cache_steam_web">Steams webcache</string>
+    <string name="storage_cache_steam_corrupt">Beskadigede Steam-downloads</string>
+    <string name="storage_cache_detail">Oprettes igen efter behov</string>
+    <string name="storage_clear">Ryd</string>
     <string name="storage_launcher_prefix">En butiksapp og de spil, der kører med den</string>
     <string name="storage_launcher_used_by">Bruges af %1$s</string>
     <string name="storage_shortcut_app">Ikke-Steam-spil %1$s</string>

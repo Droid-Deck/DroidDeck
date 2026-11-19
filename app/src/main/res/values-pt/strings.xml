@@ -3390,6 +3390,15 @@
     <string name="storage_shared_prefix_detail">A Steam executa aqui seus próprios auxiliares do Windows</string>
     <string name="storage_reset_shared_confirm">Apaga o prefixo (%1$s). A Steam cria um novo na próxima vez que precisar.</string>
     <string name="storage_remove_launcher_confirm">Apaga o prefixo do Wine e o cache de shaders deste app de loja (%1$s), com o login e os saves guardados só ali. Os jogos que rodam nele recebem um prefixo novo, e talvez seja preciso configurar o app de novo. Os saves na nuvem continuam na sua conta.</string>
+    <string name="storage_system_clearable">Dá para liberar %1$s</string>
+    <string name="storage_item_system_caches">Caches do Linux e da Steam</string>
+    <string name="storage_item_system_caches_detail">Arquivos temporários antigos, pacotes baixados e o cache web da Steam</string>
+    <string name="storage_cache_temp">Arquivos temporários antigos</string>
+    <string name="storage_cache_packages">Pacotes baixados</string>
+    <string name="storage_cache_steam_web">Cache web da Steam</string>
+    <string name="storage_cache_steam_corrupt">Downloads danificados da Steam</string>
+    <string name="storage_cache_detail">Recriados quando necessário</string>
+    <string name="storage_clear">Limpar</string>
     <string name="storage_launcher_prefix">Um app de loja e os jogos que rodam com ele</string>
     <string name="storage_launcher_used_by">Usado por %1$s</string>
     <string name="storage_shortcut_app">Jogo não Steam %1$s</string>

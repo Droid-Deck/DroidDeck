@@ -15,7 +15,7 @@ import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.StoreGameSidecar
 
-enum class CleanItem { OLD_TOOLS, LEFTOVERS, LEFTOVERS_UNSURE, LOGS, UNUSED_CUSTOM, UNUSED_COMPONENTS, SHADERS }
+enum class CleanItem { OLD_TOOLS, LEFTOVERS, LEFTOVERS_UNSURE, LOGS, SYSTEM_CACHES, UNUSED_CUSTOM, UNUSED_COMPONENTS, SHADERS }
 
 object StorageState {
     private const val TAG = "StorageState"
@@ -122,9 +122,10 @@ object StorageState {
         CleanItem.UNUSED_CUSTOM -> report.unusedTools.filter { it.reason == ToolReason.CUSTOM }.sumOf { it.bytes }
         CleanItem.UNUSED_COMPONENTS -> report.unusedComponents.sumOf { it.bytes }
         CleanItem.SHADERS -> report.installedShaders
+        CleanItem.SYSTEM_CACHES -> report.systemCacheBytes
     }
 
-    val SAFE = setOf(CleanItem.OLD_TOOLS, CleanItem.LEFTOVERS, CleanItem.LOGS)
+    val SAFE = setOf(CleanItem.OLD_TOOLS, CleanItem.LEFTOVERS, CleanItem.LOGS, CleanItem.SYSTEM_CACHES)
 
     fun safeBytes(report: StorageReport): Long = SAFE.sumOf { bytes(report, it) }
 
@@ -234,6 +235,13 @@ object StorageState {
         com.droiddeck.launcher.stores.StoresState.uninstall(app, next.game) { uninstallNext(app, rest.drop(1)) }
     }
 
+    /** Clears one cache, as found by a fresh scan, so a file that became busy since stays. */
+    fun clearSystemCache(context: Context, kind: SystemCache) = act(context, "cache-$kind", { _, fresh ->
+        val files = fresh.systemCaches.firstOrNull { it.kind == kind }?.files.orEmpty()
+        files.forEach { FileOps.delete(it) }
+        files.isNotEmpty()
+    })
+
     fun removeDirs(context: Context, dirs: List<java.io.File>) = act(context, "remove-${dirs.size}", { _, fresh ->
         val allowed = (fresh.games.flatMap { it.shaderDirs + listOfNotNull(it.prefixDir) } + fresh.leftovers.flatMap { listOfNotNull(it.prefix, it.shaders) } +
             fresh.kept.filter { keptRemovable(fresh, it) }.flatMap { listOfNotNull(it.dir, it.shaders) }).mapTo(HashSet()) { it.path }
@@ -292,6 +300,7 @@ object StorageState {
             CleanItem.LEFTOVERS_UNSURE -> report.leftovers.filter { !it.safe }.forEach(::deleteLeftover)
             CleanItem.LOGS -> report.logs.forEach { FileOps.delete(it) }
             CleanItem.SHADERS -> report.games.flatMap { it.shaderDirs }.forEach { FileOps.delete(it) }
+            CleanItem.SYSTEM_CACHES -> report.systemCaches.flatMap { it.files }.forEach { FileOps.delete(it) }
         }
     }
 

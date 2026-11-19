@@ -3317,6 +3317,15 @@
     <string name="storage_shared_prefix_detail">Steam이 자체 Windows 도우미를 여기서 실행합니다</string>
     <string name="storage_reset_shared_confirm">삭제합니다(%1$s). 다음에 필요할 때 Steam이 새로 만듭니다.</string>
     <string name="storage_remove_launcher_confirm">이 스토어 앱의 Wine 접두사와 셰이더 캐시(%1$s)를 로그인 정보 및 그곳에만 있는 저장 데이터와 함께 삭제합니다. 그 안에서 실행되는 게임은 새 접두사를 받으며, 앱을 다시 설정해야 할 수 있습니다. 클라우드 저장 데이터는 계정에 남습니다.</string>
+    <string name="storage_system_clearable">%1$s 정리 가능</string>
+    <string name="storage_item_system_caches">Linux 및 Steam 캐시</string>
+    <string name="storage_item_system_caches_detail">오래된 임시 파일, 다운로드한 패키지, Steam 웹 캐시</string>
+    <string name="storage_cache_temp">오래된 임시 파일</string>
+    <string name="storage_cache_packages">다운로드한 패키지</string>
+    <string name="storage_cache_steam_web">Steam 웹 캐시</string>
+    <string name="storage_cache_steam_corrupt">손상된 Steam 다운로드</string>
+    <string name="storage_cache_detail">필요할 때 다시 만들어집니다</string>
+    <string name="storage_clear">지우기</string>
     <string name="storage_launcher_prefix">스토어 앱과 이 앱으로 실행되는 게임</string>
     <string name="storage_launcher_used_by">사용 중: %1$s</string>
     <string name="storage_shortcut_app">Steam이 아닌 게임 %1$s</string>
