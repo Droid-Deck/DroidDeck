@@ -4081,4 +4081,11 @@
     <string name="display_scaling_integer">Geheel getal</string>
     <string name="display_scaling_fit">Passend</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
+    <string name="desktop_lock">Pincodevergrendeling bureaublad</string>
+    <string name="desktop_lock_new">Nieuwe pincode (4–8 cijfers)</string>
+    <string name="desktop_lock_confirm">Pincode bevestigen</string>
+    <string name="desktop_lock_enter">Pincode invoeren</string>
+    <string name="desktop_lock_wrong">Onjuiste pincode</string>
+    <string name="desktop_lock_invalid">Gebruik 4 tot 8 cijfers</string>
+    <string name="desktop_lock_mismatch">Pincodes komen niet overeen</string>
 </resources>

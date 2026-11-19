@@ -98,8 +98,9 @@ object BottomDesktop {
         synchronized(launchLock) { if (stillCurrent()) launch = prepared }
     }
 
-    fun available(): Boolean =
-        launch?.installed == true && SessionState.running && SessionState.mode != SessionService.MODE_DESKTOP
+    fun available(context: android.content.Context): Boolean =
+        launch?.installed == true && SessionState.running && SessionState.mode != SessionService.MODE_DESKTOP &&
+            !DesktopLock.enabled(context)
 
     fun outputSizeFor(width: Int, height: Int, fullResolution: Boolean = false): Pair<Int, Int> =
         desktopOutputSize(width, height, fullResolution, TARGET_SHORT_SIDE)

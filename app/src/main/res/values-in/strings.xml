@@ -4051,4 +4051,11 @@
     <string name="display_scaling_integer">Bilangan bulat</string>
     <string name="display_scaling_fit">Sesuaikan</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
+    <string name="desktop_lock">Kunci PIN desktop</string>
+    <string name="desktop_lock_new">PIN baru (4–8 digit)</string>
+    <string name="desktop_lock_confirm">Konfirmasi PIN</string>
+    <string name="desktop_lock_enter">Masukkan PIN</string>
+    <string name="desktop_lock_wrong">PIN salah</string>
+    <string name="desktop_lock_invalid">Gunakan 4 sampai 8 digit</string>
+    <string name="desktop_lock_mismatch">PIN tidak cocok</string>
 </resources>

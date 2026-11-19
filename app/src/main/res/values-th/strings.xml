@@ -4051,4 +4051,11 @@
     <string name="display_scaling_integer">จำนวนเต็ม</string>
     <string name="display_scaling_fit">พอดีหน้าจอ</string>
     <string name="drawer_antialiasing">การลบรอยหยัก</string>
+    <string name="desktop_lock">ล็อกเดสก์ท็อปด้วย PIN</string>
+    <string name="desktop_lock_new">PIN ใหม่ (4–8 หลัก)</string>
+    <string name="desktop_lock_confirm">ยืนยัน PIN</string>
+    <string name="desktop_lock_enter">ป้อน PIN</string>
+    <string name="desktop_lock_wrong">PIN ไม่ถูกต้อง</string>
+    <string name="desktop_lock_invalid">ใช้ตัวเลข 4 ถึง 8 หลัก</string>
+    <string name="desktop_lock_mismatch">PIN ไม่ตรงกัน</string>
 </resources>

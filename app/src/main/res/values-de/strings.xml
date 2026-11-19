@@ -4081,4 +4081,11 @@
     <string name="display_scaling_integer">Ganzzahlig</string>
     <string name="display_scaling_fit">Anpassen</string>
     <string name="drawer_antialiasing">Kantenglättung</string>
+    <string name="desktop_lock">Desktop-PIN-Sperre</string>
+    <string name="desktop_lock_new">Neue PIN (4–8 Ziffern)</string>
+    <string name="desktop_lock_confirm">PIN bestätigen</string>
+    <string name="desktop_lock_enter">PIN eingeben</string>
+    <string name="desktop_lock_wrong">Falsche PIN</string>
+    <string name="desktop_lock_invalid">4 bis 8 Ziffern verwenden</string>
+    <string name="desktop_lock_mismatch">PINs stimmen nicht überein</string>
 </resources>

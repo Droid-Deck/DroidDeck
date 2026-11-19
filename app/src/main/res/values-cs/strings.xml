@@ -4161,4 +4161,11 @@
     <string name="display_scaling_integer">Celé číslo</string>
     <string name="display_scaling_fit">Přizpůsobit</string>
     <string name="drawer_antialiasing">Vyhlazování hran</string>
+    <string name="desktop_lock">Zámek plochy pomocí PIN</string>
+    <string name="desktop_lock_new">Nový PIN (4–8 číslic)</string>
+    <string name="desktop_lock_confirm">Potvrďte PIN</string>
+    <string name="desktop_lock_enter">Zadejte PIN</string>
+    <string name="desktop_lock_wrong">Nesprávný PIN</string>
+    <string name="desktop_lock_invalid">Použijte 4 až 8 číslic</string>
+    <string name="desktop_lock_mismatch">PIN kódy se neshodují</string>
 </resources>

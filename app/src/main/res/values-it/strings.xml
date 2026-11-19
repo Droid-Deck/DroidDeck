@@ -4120,4 +4120,11 @@
     <string name="display_scaling_integer">Intero</string>
     <string name="display_scaling_fit">Adatta</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+    <string name="desktop_lock">Blocco desktop con PIN</string>
+    <string name="desktop_lock_new">Nuovo PIN (4–8 cifre)</string>
+    <string name="desktop_lock_confirm">Conferma PIN</string>
+    <string name="desktop_lock_enter">Inserisci il PIN</string>
+    <string name="desktop_lock_wrong">PIN errato</string>
+    <string name="desktop_lock_invalid">Usa da 4 a 8 cifre</string>
+    <string name="desktop_lock_mismatch">I PIN non corrispondono</string>
 </resources>

@@ -4081,4 +4081,11 @@
     <string name="display_scaling_integer">Heltal</string>
     <string name="display_scaling_fit">Anpassa</string>
     <string name="drawer_antialiasing">Kantutjämning</string>
+    <string name="desktop_lock">PIN-lås för skrivbordet</string>
+    <string name="desktop_lock_new">Ny PIN (4–8 siffror)</string>
+    <string name="desktop_lock_confirm">Bekräfta PIN</string>
+    <string name="desktop_lock_enter">Ange PIN</string>
+    <string name="desktop_lock_wrong">Fel PIN</string>
+    <string name="desktop_lock_invalid">Använd 4 till 8 siffror</string>
+    <string name="desktop_lock_mismatch">PIN-koderna matchar inte</string>
 </resources>

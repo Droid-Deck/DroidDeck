@@ -904,6 +904,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun readGameIntent(request: Intent) {
+        com.droiddeck.launcher.session.DesktopLock.handoff(request)?.let(::askHandoff)
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         request.data?.takeIf { it.scheme == "droiddeck" && it.host == "settings" }?.let { uri ->
             val section = uri.pathSegments.firstOrNull()
@@ -1381,9 +1382,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             )
                         },
                         onPlayDesktopUi = {
-                            startSession(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
-                                .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
+                            whenUnlocked {
+                                startSession(Intent(this, SessionActivity::class.java)
+                                    .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
+                                    .putExtra(SessionService.EXTRA_STEAM_UI, "desktop"), steamSession = true)
+                            }
                         },
                         onSteamGame = { g ->
                             if (shortcutPicker) chooseGameShortcut(g)
@@ -1444,26 +1447,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText(g.name, link))
                             android.widget.Toast.makeText(this, R.string.game_link_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
-                        onDesktop = {
-                            startSession(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
-                        },
+                        onDesktop = { startDesktopSession() },
                         onEmulator = { e -> launchProgram(e.program) },
-                        onUserApp = { app ->
-                            app.args.firstOrNull()?.let { Library.flatpakNames[it] = app.name }
-                            startActivity(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-                                .putExtra(SessionService.EXTRA_PROGRAM, app.program)
-                                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
-                        },
+                        onUserApp = { app -> whenUnlocked { openUserApp(app) } },
                         onBattleNet = { openBattleNet() },
-                        onFlatpakApp = { id, name ->
-                            Library.flatpakNames[id] = name
-                            startActivity(Intent(this, SessionActivity::class.java)
-                                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
-                                .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER)
-                                .putExtra(SessionService.EXTRA_PROGRAM_ARGS, arrayOf(id)))
-                        },
+                        onFlatpakApp = { id, name -> whenUnlocked { openFlatpakApp(id, name) } },
                         onRom = { g ->
                             val e = emulatorList.first { it.id == g.emulatorId }
                             if (!SessionPrefs.soundtracksIngame(this)) com.droiddeck.launcher.playback.SoundtrackController.pause(this)
@@ -1846,6 +1834,15 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     onConfirm = { showRemove = false; removeRuntime() },
                     onDismiss = { showRemove = false },
                 )
+                pinAsk?.let { ask ->
+                    androidx.compose.runtime.key(ask) {
+                        com.droiddeck.launcher.ui.TextEntryDialog(
+                            title = androidx.compose.ui.res.stringResource(ask.title), initial = "", number = true, secret = true,
+                            confirm = androidx.compose.ui.res.stringResource(R.string.common_ok),
+                            onSubmit = ask.onPin, onDismiss = { if (pinAsk === ask) { pinAsk = null; ask.onCancel() } }, id = "desktop-lock",
+                        )
+                    }
+                }
                 lowSpace?.let { free ->
                     com.droiddeck.launcher.ui.LowSpaceDialog(
                         free,
@@ -1895,6 +1892,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         } else {
             restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
+            com.droiddeck.launcher.session.DesktopLock.handoff(savedInstanceState.getString(KEY_UNLOCK_MODE),
+                savedInstanceState.getString(KEY_UNLOCK_UI), savedInstanceState.getString(KEY_UNLOCK_URL))?.let(::askHandoff)
             savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
         }
 
@@ -1949,14 +1948,75 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var soundtrackLaunch = false
 
     private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
-        if (soundtrackLaunch) return
+        if (soundtrackLaunch || pendingUnlock != null) return
         if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
         if (isFinishing || isDestroyed) return
         when (SessionPrefs.startupSession(this)) {
             SessionPrefs.STARTUP_STEAM -> startSteamSession()
-            SessionPrefs.STARTUP_DESKTOP -> startSession(Intent(this, SessionActivity::class.java)
-                .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
+            SessionPrefs.STARTUP_DESKTOP -> startDesktopSession()
         }
+    }
+
+    private class PinAsk(@androidx.annotation.StringRes val title: Int, val onCancel: () -> Unit = {}, val onPin: (String) -> Unit)
+
+    private var pinAsk by mutableStateOf<PinAsk?>(null)
+    private var desktopLock by mutableStateOf(false)
+    private var pendingUnlock: com.droiddeck.launcher.session.DesktopLock.Handoff? = null
+
+    private fun pinToast(@androidx.annotation.StringRes text: Int) =
+        android.widget.Toast.makeText(this, text, android.widget.Toast.LENGTH_SHORT).show()
+
+    private fun whenUnlocked(action: () -> Unit) {
+        if (!com.droiddeck.launcher.session.DesktopLock.enabled(this)) return action()
+        pinAsk = PinAsk(R.string.desktop_lock_enter) { pin ->
+            if (com.droiddeck.launcher.session.DesktopLock.matches(this, pin)) action() else pinToast(R.string.desktop_lock_wrong)
+        }
+    }
+
+    private fun askHandoff(request: com.droiddeck.launcher.session.DesktopLock.Handoff) {
+        if (!com.droiddeck.launcher.session.DesktopLock.enabled(this)) return
+        pendingUnlock = request
+        pinAsk = PinAsk(R.string.desktop_lock_enter, onCancel = { if (pendingUnlock === request) pendingUnlock = null }) { pin ->
+            if (pendingUnlock === request) pendingUnlock = null
+            if (com.droiddeck.launcher.session.DesktopLock.matches(this, pin)) startAfterSession(request.session(this))
+            else pinToast(R.string.desktop_lock_wrong)
+        }
+    }
+
+    private fun toggleDesktopLock(on: Boolean) {
+        val lock = com.droiddeck.launcher.session.DesktopLock
+        desktopLock = lock.enabled(this)
+        if (on == desktopLock) return
+        pinAsk = if (on) PinAsk(R.string.desktop_lock_new) { pin ->
+            if (!lock.validPin(pin)) pinToast(R.string.desktop_lock_invalid)
+            else pinAsk = PinAsk(R.string.desktop_lock_confirm) { again ->
+                if (again != pin) pinToast(R.string.desktop_lock_mismatch)
+                else desktopLock = lock.set(this, pin)
+            }
+        } else PinAsk(R.string.desktop_lock_enter) { pin ->
+            if (lock.clear(this, pin)) desktopLock = false else pinToast(R.string.desktop_lock_wrong)
+        }
+    }
+
+    private fun startDesktopSession() = whenUnlocked {
+        startSession(Intent(this, SessionActivity::class.java)
+            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
+    }
+
+    private fun openUserApp(app: com.droiddeck.launcher.runtime.UserApps.App) {
+        app.args.firstOrNull()?.let { Library.flatpakNames[it] = app.name }
+        startActivity(Intent(this, SessionActivity::class.java)
+            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
+            .putExtra(SessionService.EXTRA_PROGRAM, app.program)
+            .putExtra(SessionService.EXTRA_PROGRAM_ARGS, app.args.toTypedArray()))
+    }
+
+    private fun openFlatpakApp(id: String, name: String) {
+        Library.flatpakNames[id] = name
+        startActivity(Intent(this, SessionActivity::class.java)
+            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_RUN)
+            .putExtra(SessionService.EXTRA_PROGRAM, com.droiddeck.launcher.runtime.FlatpakManager.LAUNCHER)
+            .putExtra(SessionService.EXTRA_PROGRAM_ARGS, arrayOf(id)))
     }
 
     private fun playSteam() {
@@ -2160,6 +2220,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
+        pendingUnlock?.let {
+            outState.putString(KEY_UNLOCK_MODE, it.mode)
+            outState.putString(KEY_UNLOCK_UI, it.ui)
+            outState.putString(KEY_UNLOCK_URL, it.url)
+        }
         switchingTo?.let {
             outState.putParcelable(KEY_SWITCHING_TO, it)
             outState.putLong(KEY_SWITCH_DEADLINE, switchDeadline)
@@ -2606,6 +2671,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 mangoapp = mangoapp,
                 steamController = if (mode == SessionService.MODE_STEAM) steamController else null,
                 startupSession = startupSession,
+                desktopLock = desktopLock,
                 bootMovie = if (mode == SessionService.MODE_STEAM) bootMovie else null,
                 bootMovieSound = bootMovieSound,
                 bootMovieCustomName = bootMovieCustomName,
@@ -2701,6 +2767,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onReturnAfterGame = { on -> SessionPrefs.setReturnAfterGame(this, on); returnAfterGame = on },
                 onShaderPrecache = { on -> SessionPrefs.setShaderPrecache(this, on); shaderPrecache = on },
                 onSteamController = { id -> SessionPrefs.setSteamController(this, id); steamController = id },
+                onDesktopLock = { on -> toggleDesktopLock(on) },
                 onStartupSession = { id ->
                     SessionPrefs.setStartupSession(this, id)
                     startupSession = id
@@ -2966,6 +3033,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         loadShaderPrecache(mode)
         steamController = SessionPrefs.steamController(this)
         startupSession = SessionPrefs.startupSession(this)
+        desktopLock = com.droiddeck.launcher.session.DesktopLock.enabled(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
         upscaler = SessionPrefs.upscaler(this)
@@ -3400,6 +3468,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val KEY_COMPAT_PROBLEM = "compat_problem"
         private const val KEY_SWITCHING_TO = "switching_to"
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
+        private const val KEY_UNLOCK_MODE = "desktop_unlock_mode"
+        private const val KEY_UNLOCK_UI = "desktop_unlock_ui"
+        private const val KEY_UNLOCK_URL = "desktop_unlock_url"
         private val SESSION_ENDED = setOf(SessionPhase.IDLE, SessionPhase.FAILED)
         private val ZIP_EXT = listOf("zip")
         private val WCP_EXT = listOf("wcp")

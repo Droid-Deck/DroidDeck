@@ -4081,4 +4081,11 @@
     <string name="display_scaling_integer">Цяло число</string>
     <string name="display_scaling_fit">Побиране</string>
     <string name="drawer_antialiasing">Заглаждане на ръбовете</string>
+    <string name="desktop_lock">ПИН заключване на работния плот</string>
+    <string name="desktop_lock_new">Нов ПИН (4–8 цифри)</string>
+    <string name="desktop_lock_confirm">Потвърдете ПИН</string>
+    <string name="desktop_lock_enter">Въведете ПИН</string>
+    <string name="desktop_lock_wrong">Грешен ПИН</string>
+    <string name="desktop_lock_invalid">Използвайте от 4 до 8 цифри</string>
+    <string name="desktop_lock_mismatch">ПИН кодовете не съвпадат</string>
 </resources>

@@ -4051,4 +4051,11 @@
     <string name="display_scaling_integer">Số nguyên</string>
     <string name="display_scaling_fit">Vừa màn hình</string>
     <string name="drawer_antialiasing">Khử răng cưa</string>
+    <string name="desktop_lock">Khóa màn hình nền bằng mã PIN</string>
+    <string name="desktop_lock_new">Mã PIN mới (4–8 chữ số)</string>
+    <string name="desktop_lock_confirm">Xác nhận mã PIN</string>
+    <string name="desktop_lock_enter">Nhập mã PIN</string>
+    <string name="desktop_lock_wrong">Mã PIN sai</string>
+    <string name="desktop_lock_invalid">Dùng 4 đến 8 chữ số</string>
+    <string name="desktop_lock_mismatch">Mã PIN không khớp</string>
 </resources>

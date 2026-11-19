@@ -1460,7 +1460,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 ?.let(com.droiddeck.launcher.input.DualScreen::builtIn) ?: true,
             onGameOnBottom = { on -> drawerOpen = false; putGameOnBottom(on) },
             dashboardAvailable = bottomPages().isNotEmpty(),
-            desktopAvailable = com.droiddeck.launcher.session.BottomDesktop.available(),
+            desktopAvailable = com.droiddeck.launcher.session.BottomDesktop.available(this@SessionActivity),
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
@@ -4140,7 +4140,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun openingPanel() = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this, desktopSession), SessionState.deckPad,
-        bottomPages().isNotEmpty(), com.droiddeck.launcher.session.BottomDesktop.available(), desktopSession)
+        bottomPages().isNotEmpty(), com.droiddeck.launcher.session.BottomDesktop.available(this@SessionActivity), desktopSession)
 
     private fun settleDualScreenControls() {
         if (!dualControlsProvisional || pipUi || !started || (::loading.isInitialized && loading.visible)) return
@@ -6234,7 +6234,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
         ) {
             when {
-                secondScreenMode == SecondScreenMode.DESKTOP && com.droiddeck.launcher.session.BottomDesktop.available() ->
+                secondScreenMode == SecondScreenMode.DESKTOP && com.droiddeck.launcher.session.BottomDesktop.available(this@SessionActivity) ->
                     androidx.compose.ui.viewinterop.AndroidView(
                         factory = { context ->
                             com.droiddeck.launcher.ui.BottomDesktopPanel(context, openMenu, openMenu,

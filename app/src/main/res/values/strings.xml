@@ -4287,4 +4287,11 @@
     <string name="tabs_reset_title">Reset tabs</string>
     <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>
     <string name="tabs_reset_body">Your tab order and what sits under More or is hidden go back to the defaults.</string>
+    <string name="desktop_lock">Desktop PIN lock</string>
+    <string name="desktop_lock_new">New PIN (4–8 digits)</string>
+    <string name="desktop_lock_confirm">Confirm PIN</string>
+    <string name="desktop_lock_enter">Enter PIN</string>
+    <string name="desktop_lock_wrong">Wrong PIN</string>
+    <string name="desktop_lock_invalid">Use 4 to 8 digits</string>
+    <string name="desktop_lock_mismatch">PINs do not match</string>
 </resources>

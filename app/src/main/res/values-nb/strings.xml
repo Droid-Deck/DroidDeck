@@ -4081,4 +4081,11 @@
     <string name="display_scaling_integer">Heltall</string>
     <string name="display_scaling_fit">Tilpass</string>
     <string name="drawer_antialiasing">Kantutjevning</string>
+    <string name="desktop_lock">PIN-lås for skrivebordet</string>
+    <string name="desktop_lock_new">Ny PIN (4–8 sifre)</string>
+    <string name="desktop_lock_confirm">Bekreft PIN</string>
+    <string name="desktop_lock_enter">Skriv inn PIN</string>
+    <string name="desktop_lock_wrong">Feil PIN</string>
+    <string name="desktop_lock_invalid">Bruk 4 til 8 sifre</string>
+    <string name="desktop_lock_mismatch">PIN-kodene samsvarer ikke</string>
 </resources>

@@ -4051,4 +4051,11 @@
     <string name="display_scaling_integer">整数</string>
     <string name="display_scaling_fit">画面に合わせる</string>
     <string name="drawer_antialiasing">アンチエイリアス</string>
+    <string name="desktop_lock">デスクトップの PIN ロック</string>
+    <string name="desktop_lock_new">新しい PIN（4～8 桁）</string>
+    <string name="desktop_lock_confirm">PIN を確認</string>
+    <string name="desktop_lock_enter">PIN を入力</string>
+    <string name="desktop_lock_wrong">PIN が違います</string>
+    <string name="desktop_lock_invalid">4～8 桁の数字を使用してください</string>
+    <string name="desktop_lock_mismatch">PIN が一致しません</string>
 </resources>

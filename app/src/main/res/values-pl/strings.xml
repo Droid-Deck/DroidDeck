@@ -4161,4 +4161,11 @@
     <string name="display_scaling_integer">Liczba całkowita</string>
     <string name="display_scaling_fit">Dopasuj</string>
     <string name="drawer_antialiasing">Wygładzanie krawędzi</string>
+    <string name="desktop_lock">Blokada pulpitu kodem PIN</string>
+    <string name="desktop_lock_new">Nowy PIN (4–8 cyfr)</string>
+    <string name="desktop_lock_confirm">Potwierdź PIN</string>
+    <string name="desktop_lock_enter">Wpisz PIN</string>
+    <string name="desktop_lock_wrong">Nieprawidłowy PIN</string>
+    <string name="desktop_lock_invalid">Użyj od 4 do 8 cyfr</string>
+    <string name="desktop_lock_mismatch">Kody PIN nie są zgodne</string>
 </resources>
