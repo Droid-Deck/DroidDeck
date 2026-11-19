@@ -1045,7 +1045,9 @@ object SessionPrefs {
 
     fun venus(context: Context): Boolean = MaliGraphics.resolve(context) == MaliGraphicsMode.VENUS
 
-    fun maliGraphicsMode(context: Context): MaliGraphicsMode {
+    private val maliGraphicsLock = Any()
+
+    fun maliGraphicsMode(context: Context): MaliGraphicsMode = synchronized(maliGraphicsLock) {
         val saved = prefs(context)
         MaliGraphicsMode.fromId(saved.getString("maliGraphicsMode", null))?.let { return it }
         // Auto wrote both switches; false and absent keys cannot establish a fixed choice.
@@ -1062,7 +1064,7 @@ object SessionPrefs {
         return choice
     }
 
-    fun setMaliGraphicsMode(context: Context, choice: MaliGraphicsMode) {
+    fun setMaliGraphicsMode(context: Context, choice: MaliGraphicsMode) = synchronized(maliGraphicsLock) {
         prefs(context).edit().putString("maliGraphicsMode", choice.id)
             .remove("vkBridge").remove("venus").remove("maliFallbackByAuto").apply()
     }

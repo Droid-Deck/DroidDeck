@@ -3122,6 +3122,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         offline = OfflineMode.enabled(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
+        maliGraphicsMode = SessionPrefs.maliGraphicsMode(this)
         vkBridge = SessionPrefs.vkBridge(this)
         venus = SessionPrefs.venus(this)
         venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)

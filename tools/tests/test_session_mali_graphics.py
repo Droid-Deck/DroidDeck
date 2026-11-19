@@ -1,4 +1,5 @@
 import os
+import shlex
 import shutil
 import socket
 import subprocess
@@ -39,10 +40,10 @@ exit "$GL_STATUS"
         self.addCleanup(sock.close)
         text = SESSION.read_text()
         self.graphics = text[text.index("dd_now_ms() {"):text.index('if [ "${DD_GAME_LOGS:-0}" = 1 ]')]
-        self.graphics = self.graphics.replace("/usr/local/share/vkbridge/droidbridge_icd.json", str(self.icd))
-        self.graphics = self.graphics.replace("/usr/local/lib/vkbridge/libvulkan_droidbridge.so", str(self.lib))
+        self.graphics = self.graphics.replace("/usr/local/share/vkbridge/droidbridge_icd.json", shlex.quote(str(self.icd)))
+        self.graphics = self.graphics.replace("/usr/local/lib/vkbridge/libvulkan_droidbridge.so", shlex.quote(str(self.lib)))
         self.gl = text[text.index('    if [ "${DD_VENUS:-0}" = 1 ]'):text.index('    rm -f "$HOME/.dd-restart-game"')]
-        self.gl = self.gl.replace("/usr/local/bin/droiddeck-glprobe", str(self.glprobe))
+        self.gl = self.gl.replace("/usr/local/bin/droiddeck-glprobe", shlex.quote(str(self.glprobe)))
         self.gamescope = text[text.index("run_gamescope() ("):text.index("collect_steam_logs() {")]
 
     def run_graphics(self, mode="bridge", path="bridge", smoke_status=1, vulkan_status=0,

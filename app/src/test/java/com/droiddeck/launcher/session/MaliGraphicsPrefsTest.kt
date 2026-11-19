@@ -2,6 +2,8 @@ package com.droiddeck.launcher.session
 
 import android.app.Application
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.DriverBundle
@@ -17,6 +19,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], application = Application::class,
@@ -26,6 +31,52 @@ class MaliGraphicsPrefsTest {
     private val prefs get() = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
     @Before fun reset() { prefs.edit().clear().commit() }
+
+    @Test fun explicitChoiceSurvivesConcurrentLegacyMigration() {
+        for (choice in listOf(MaliGraphicsMode.BRIDGE, MaliGraphicsMode.VENUS)) {
+            prefs.edit().clear().putString("maliFallbackByAuto", "bridge").commit()
+            val readMissing = CountDownLatch(1)
+            val resumeMigration = CountDownLatch(1)
+            val stored = prefs
+            val pausedPrefs = object : SharedPreferences by stored {
+                override fun getString(key: String?, defValue: String?): String? {
+                    val value = stored.getString(key, defValue)
+                    if (key == "maliGraphicsMode" && value == null) {
+                        readMissing.countDown()
+                        check(resumeMigration.await(5, TimeUnit.SECONDS))
+                    }
+                    return value
+                }
+            }
+            val pausedContext = object : ContextWrapper(context) {
+                override fun getSharedPreferences(name: String, mode: Int) = pausedPrefs
+            }
+            val migration = FutureTask { SessionPrefs.maliGraphicsMode(pausedContext) }
+            val writerStarted = CountDownLatch(1)
+            val write = FutureTask {
+                writerStarted.countDown()
+                SessionPrefs.setMaliGraphicsMode(context, choice)
+            }
+            val writer = Thread(write, "explicit-mali-choice")
+            Thread(migration, "legacy-mali-migration").start()
+            try {
+                assertTrue(readMissing.await(5, TimeUnit.SECONDS))
+                writer.start()
+                assertTrue(writerStarted.await(5, TimeUnit.SECONDS))
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+                while (writer.state != Thread.State.BLOCKED && !write.isDone && System.nanoTime() < deadline) {
+                    Thread.yield()
+                }
+                assertTrue("writer must reach the preference boundary", writer.state == Thread.State.BLOCKED || write.isDone)
+            } finally {
+                resumeMigration.countDown()
+                migration.get(5, TimeUnit.SECONDS)
+                if (writer.state != Thread.State.NEW) write.get(5, TimeUnit.SECONDS)
+            }
+            assertEquals(choice, SessionPrefs.maliGraphicsMode(context))
+            assertEquals(choice.id, stored.getString("maliGraphicsMode", null))
+        }
+    }
 
     @Test fun migrationIsStoredAndResetCannotResurrectLegacySwitches() {
         prefs.edit().putBoolean("venus", true).putBoolean("vkBridge", false).commit()
