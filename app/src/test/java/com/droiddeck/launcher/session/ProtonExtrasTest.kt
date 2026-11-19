@@ -363,6 +363,8 @@ class ProtonExtrasTest {
         assertTrue(ProtonExtras.recordLatest(cache, tool, "DroidDeck-Proton-11-12.8", false, 2L))
         assertEquals("DroidDeck-Proton-11-12.9", cache.getJSONObject(tool.id).getString("test"))
         assertEquals(2L, cache.getJSONObject(tool.id).getLong("at"))
+        assertTrue(ProtonExtras.recordLatest(cache, tool, "DroidDeck-Proton-11-13.0", false, 3L))
+        assertFalse(cache.getJSONObject(tool.id).has("test"))
     }
 
     @Test

@@ -140,7 +140,8 @@ object ProtonExtras {
         val entry = latest.optJSONObject(tool.id)
         val known = entry?.optString("tag")
         if (!known.isNullOrEmpty() && compareVersions(tag, known) < 0) return false
-        latest.put(tool.id, JSONObject().put("tag", tag).put("at", now).putOpt("test", entry?.optString("test")?.ifEmpty { null }))
+        val ahead = entry?.optString("test")?.takeIf { it.isNotEmpty() && compareVersions(it, tag) > 0 }
+        latest.put(tool.id, JSONObject().put("tag", tag).put("at", now).putOpt("test", ahead))
         return true
     }
 
