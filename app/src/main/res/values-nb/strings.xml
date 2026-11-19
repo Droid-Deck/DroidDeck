@@ -4102,4 +4102,18 @@
     <string name="display_scaling_integer">Heltall</string>
     <string name="display_scaling_fit">Tilpass</string>
     <string name="drawer_antialiasing">Kantutjevning</string>
+    <string name="theme_custom">Egendefinert</string>
+    <string name="theme_custom_detail">Velg hver grensesnittfarge individuelt.</string>
+    <string name="theme_custom_background">Bakgrunn</string>
+    <string name="theme_custom_surface">Paneler</string>
+    <string name="theme_custom_surface_variant">Hevede paneler</string>
+    <string name="theme_custom_line">Skillelinjer</string>
+    <string name="theme_custom_line2">Kanter</string>
+    <string name="theme_custom_on_background">Hovedtekst</string>
+    <string name="theme_custom_on_surface_variant">Sekundærtekst</string>
+    <string name="theme_custom_primary">Knapper og hovedfarge</string>
+    <string name="theme_custom_on_primary">Knappetekst</string>
+    <string name="theme_custom_signal">Uthevinger</string>
+    <string name="theme_custom_good">Suksess</string>
+    <string name="theme_custom_error">Feil</string>
 </resources>

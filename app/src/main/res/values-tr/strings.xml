@@ -4102,4 +4102,18 @@
     <string name="display_scaling_integer">Tam sayı</string>
     <string name="display_scaling_fit">Sığdır</string>
     <string name="drawer_antialiasing">Kenar yumuşatma</string>
+    <string name="theme_custom">Özel</string>
+    <string name="theme_custom_detail">Arayüzdeki her rengi ayrı ayrı seçin.</string>
+    <string name="theme_custom_background">Arka plan</string>
+    <string name="theme_custom_surface">Paneller</string>
+    <string name="theme_custom_surface_variant">Yükseltilmiş paneller</string>
+    <string name="theme_custom_line">Ayırıcılar</string>
+    <string name="theme_custom_line2">Kenarlıklar</string>
+    <string name="theme_custom_on_background">Ana metin</string>
+    <string name="theme_custom_on_surface_variant">İkincil metin</string>
+    <string name="theme_custom_primary">Düğmeler ve ana vurgu</string>
+    <string name="theme_custom_on_primary">Düğme metni</string>
+    <string name="theme_custom_signal">Vurgular</string>
+    <string name="theme_custom_good">Başarılı</string>
+    <string name="theme_custom_error">Hata</string>
 </resources>

@@ -4141,4 +4141,18 @@
     <string name="display_scaling_integer">Entier</string>
     <string name="display_scaling_fit">Ajuster</string>
     <string name="drawer_antialiasing">Anticrénelage</string>
+    <string name="theme_custom">Personnalisé</string>
+    <string name="theme_custom_detail">Choisissez séparément chaque couleur de l’interface.</string>
+    <string name="theme_custom_background">Arrière-plan</string>
+    <string name="theme_custom_surface">Panneaux</string>
+    <string name="theme_custom_surface_variant">Panneaux surélevés</string>
+    <string name="theme_custom_line">Séparateurs</string>
+    <string name="theme_custom_line2">Bordures</string>
+    <string name="theme_custom_on_background">Texte principal</string>
+    <string name="theme_custom_on_surface_variant">Texte secondaire</string>
+    <string name="theme_custom_primary">Boutons et accent principal</string>
+    <string name="theme_custom_on_primary">Texte des boutons</string>
+    <string name="theme_custom_signal">Mises en évidence</string>
+    <string name="theme_custom_good">Succès</string>
+    <string name="theme_custom_error">Erreur</string>
 </resources>

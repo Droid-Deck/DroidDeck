@@ -4072,4 +4072,18 @@
     <string name="display_scaling_integer">整數</string>
     <string name="display_scaling_fit">配合畫面</string>
     <string name="drawer_antialiasing">抗鋸齒</string>
+    <string name="theme_custom">自訂</string>
+    <string name="theme_custom_detail">分別選擇介面的每種顏色。</string>
+    <string name="theme_custom_background">背景</string>
+    <string name="theme_custom_surface">面板</string>
+    <string name="theme_custom_surface_variant">凸起面板</string>
+    <string name="theme_custom_line">分隔線</string>
+    <string name="theme_custom_line2">邊框</string>
+    <string name="theme_custom_on_background">主要文字</string>
+    <string name="theme_custom_on_surface_variant">次要文字</string>
+    <string name="theme_custom_primary">按鈕和主要強調色</string>
+    <string name="theme_custom_on_primary">按鈕文字</string>
+    <string name="theme_custom_signal">重點標示</string>
+    <string name="theme_custom_good">成功</string>
+    <string name="theme_custom_error">錯誤</string>
 </resources>
