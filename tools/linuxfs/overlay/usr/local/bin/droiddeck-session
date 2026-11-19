@@ -989,7 +989,12 @@ case $mode in
           local _mode=2 _budget _gain=0 _rest _cap=$((256 * 1024)) _all=$((1024 * 1024))
           dd_memory_need
           _dd_polls=0 _dd_pass_at=$SECONDS
-          [ "$_dd_need" -gt 0 ] || return 0
+          if [ "$_dd_need" -le 0 ]; then
+            _dd_rest=0
+            return 0
+          fi
+          [ "$_dd_rest" = 0 ] || [ "$_dd_force" = 1 ] || [ "$SECONDS" -ge "$_dd_rest_until" ] ||
+            [ "$_dd_available" -lt $((_dd_rest_available - _dd_floor / 8)) ] || return 0
           if [ "$_dd_swap_room" -lt $((64 * 1024)) ]; then
             if [ $((SECONDS - _dd_full_at)) -ge 60 ]; then
               _dd_full_at=$SECONDS
@@ -1029,6 +1034,13 @@ case $mode in
             _dd_note_session=$((_dd_note_session + _dd_trimmed))
           fi
           _dd_freed=$((_dd_freed + _gain))
+          if [ "$_dd_hard" -gt 0 ] && [ "$_gain" -lt $((_dd_hard / 4)) ]; then
+            _dd_rest=$((_dd_rest > 0 ? _dd_rest * 2 : 5))
+            [ "$_dd_rest" -le 60 ] || _dd_rest=60
+            _dd_rest_until=$((SECONDS + _dd_rest)) _dd_rest_available=$_dd_available
+          else
+            _dd_rest=0
+          fi
         }
         dd_memory_note() {
           [ $((_dd_note_client + _dd_note_session)) -ge $((16 * 1024)) ] && [ $((SECONDS - _dd_noted_at)) -ge 5 ] || return 0
@@ -1089,6 +1101,7 @@ case $mode in
         _dd_page_kb=$(($(getconf PAGESIZE 2>/dev/null || echo 4096) / 1024)) _dd_returned=0 _dd_polls=0 _dd_pass_at=0 _dd_goal=0
         _dd_sample_at= _dd_freed=0 _dd_client_out=0 _dd_note_client=0 _dd_note_session=0
         _dd_trim_at=-30 _dd_back_at=-30 _dd_forced_at=-10 _dd_full_at=-60 _dd_noted_at=-5
+        _dd_rest=0 _dd_rest_until=0 _dd_rest_available=0
         while kill -0 $$ 2>/dev/null; do
           dd_memory_tick
           if [ "$_dd_available" -ge 0 ] &&

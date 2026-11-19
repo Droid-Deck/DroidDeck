@@ -155,7 +155,7 @@ _dd_pids=(10 20) _dd_game=1 _dd_focus=0 _dd_saving=500
 
     def test_the_session_gives_what_the_client_could_not(self):
         self.assertEqual(['trim:2:660:10 20', 'others', 'trim:2:256:70 80', 'trim:2:660:10 20', 'trim:2:256:70 80'],
-                         self.relieve(self.sample(available=500) + f'paged={64 * MB}; relieve 500\nNOW=1; relieve 500\n'))
+                         self.relieve(self.sample(available=500) + f'paged={128 * MB}; relieve 500\nNOW=1; relieve 500\n'))
 
     def test_the_session_gets_what_the_client_left_of_the_pass(self):
         self.assertEqual(['trim:3:1024:10 20', 'others', 'trim:3:24:70 80'], self.relieve(
@@ -163,7 +163,7 @@ _dd_pids=(10 20) _dd_game=1 _dd_focus=0 _dd_saving=500
 
     def test_memory_that_keeps_coming_back_is_taken_off_what_a_pass_may_move(self):
         self.assertEqual(['trim:2:660:10 20', 'others', 'trim:2:156:70 80', 'trim:2:660:10 20', 'trim:2:24:10 20'], self.relieve(
-            self.sample(available=500) + f'paged={64 * MB}\nreturned={100 * MB}; relieve 500\n' +
+            self.sample(available=500) + f'paged={256 * MB}\nreturned={100 * MB}; relieve 500\n' +
             f'NOW=1 returned={300 * MB}; relieve 500\nNOW=2 returned={1000 * MB}; relieve 500\n'))
 
     def test_forcing_moves_memory_whatever_came_back(self):
@@ -172,12 +172,44 @@ _dd_pids=(10 20) _dd_game=1 _dd_focus=0 _dd_saving=500
 
     def test_the_session_is_scanned_again_after_a_new_process_scan(self):
         self.assertEqual(['others', 'others'], [line for line in self.relieve(
-            self.sample(available=500) + 'paged=0; relieve 500\n_dd_scan_at=5; relieve 500\n') if line == 'others'])
+            self.sample(available=500) + f'paged={256 * MB}; relieve 500\n_dd_scan_at=5; relieve 500\n') if line == 'others'])
 
     def test_forcing_ignores_heat_once_in_ten_seconds(self):
         lines = self.relieve(self.sample(available=300) + 'paged=0\nrelieve 300\nNOW=5; relieve 300\nNOW=10; relieve 300\n')
         self.assertEqual(['3', '3', '2', '2', '3', '3'], [line.split(':')[1] for line in lines if line.startswith('trim')])
         self.assertIn('trim:3:993:70 80', lines)
+
+    def trims(self, body):
+        return [line.split(':')[2] for line in self.relieve(body) if line.startswith('trim') and line.endswith('10 20')]
+
+    def test_passes_that_free_little_come_further_and_further_apart(self):
+        passes = ''.join(f'NOW={now}; relieve 500; echo at:{now}\n' for now in (0, 4, 5, 14, 15, 34, 35))
+        lines = self.relieve(self.sample(available=500) + f'paged={8 * MB}\n' + passes)
+        self.assertEqual(['0', '5', '15', '35'],
+                         [after.split(':')[1] for line, after in zip(lines, lines[1:] + ['']) if line == 'trim:2:256:70 80'])
+
+    def test_the_wait_between_passes_stops_at_a_minute(self):
+        self.assertEqual(['60 195'], self.relieve(
+            self.sample(available=500) + f'paged={8 * MB}\nfor NOW in 0 5 15 35 75 135; do relieve 500; done > /dev/null\n'
+            'echo $_dd_rest $_dd_rest_until\n'))
+
+    def test_a_pass_that_frees_enough_is_followed_at_once(self):
+        self.assertEqual(['660', '660'], self.trims(
+            self.sample(available=500) + f'paged={128 * MB}; relieve 500\nNOW=1; relieve 500\n'))
+
+    def test_memory_that_keeps_falling_ends_the_wait(self):
+        self.assertEqual(['326', '526'], self.trims(
+            self.sample(available=700) + f'paged={8 * MB}; relieve 700\nNOW=1; relieve 700\n' +
+            self.sample(available=600) + 'NOW=2; relieve 600\n' + self.sample(available=580) + 'NOW=3; relieve 580\n'))
+
+    def test_forcing_does_not_wait(self):
+        self.assertEqual(['993', '993'], self.trims(
+            self.sample(available=300) + 'paged=0\nrelieve 300\nNOW=1; relieve 300\n'))
+
+    def test_the_wait_is_forgotten_once_memory_is_back(self):
+        self.assertEqual(['660', '660'], self.trims(
+            self.sample(available=500) + f'paged={8 * MB}; relieve 500\n' +
+            self.sample(available=3000) + 'NOW=1; relieve 3000\n' + self.sample(available=500) + 'NOW=2; relieve 500\n'))
 
     def test_trims_stop_at_the_room_zram_has(self):
         self.assertEqual(['trim:2:100:10 20', 'step:memory: available 800 MB and zRAM has no room left'], self.relieve(

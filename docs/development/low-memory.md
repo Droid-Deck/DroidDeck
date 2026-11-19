@@ -59,6 +59,11 @@ is taken off what one pass may move (1 GiB in all, at most 256 MiB of it from th
 whose working set does not fit therefore stops being trimmed and is left to the kernel, until
 the forced level is reached.
 
+A pass that gives back less than a quarter of what the floor is short by is followed by a wait:
+five seconds, doubling after each such pass up to a minute. The wait ends early when available
+memory drops another eighth of the floor or reaches the forced level, and is forgotten after a
+pass that gives back enough or once nothing is needed.
+
 Requests go to one process at a time. The monitor waits for that process's acknowledgement
 (the kB it paged out) before the next, reads `MemAvailable` again, and stops once the budget is
 met or available memory is back at the level the pass was started for. A process that has not
