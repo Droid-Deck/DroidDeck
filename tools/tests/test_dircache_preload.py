@@ -797,6 +797,24 @@ class DirCachePreloadTest(unittest.TestCase):
                               "access", link / s.name / "x.bundle", between=repoint, env={"FOLD": "all"})
         self.assertEqual(["-1 2", "0 0"], out[1:])
 
+    def test_a_linked_last_component_follows_the_link(self):
+        s = self.staging
+        other = self.lib / "elsewhere" / s.name
+        other.mkdir(parents=True)
+        (other / "x.bundle").touch()
+        twin = self.lib / "DOWNLOADING"
+        twin.mkdir()
+        link = twin / s.name
+        link.symlink_to(s)
+
+        def repoint():
+            link.unlink()
+            link.symlink_to(other)
+
+        out = self.run_paused("list", s, "access", link / "x.bundle", "pause",
+                              "access", link / "x.bundle", between=repoint, env={"FOLD": "all"})
+        self.assertEqual(["-1 2", "0 0"], out[1:])
+
     def test_a_permission_change_on_the_folder_or_above_it_is_noticed(self):
         s = self.staging
         for target in (s, s.parent):
