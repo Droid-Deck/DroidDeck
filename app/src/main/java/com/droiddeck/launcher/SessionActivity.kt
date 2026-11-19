@@ -115,6 +115,7 @@ import com.droiddeck.launcher.hud.DroidDeckHudHost
 import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.session.GameEnvironmentStore
+import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.GameProfileFollowState
 import com.droiddeck.launcher.session.GameProfileInventoryCache
 import com.droiddeck.launcher.session.GameProfileRefreshState
@@ -553,6 +554,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
     private var achievementsOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
+    private var gpuClockPin by mutableStateOf(false)
     private var hudConfig by mutableStateOf<Map<String, String>>(emptyMap())
     private var hudColor by mutableStateOf(SessionPrefs.HUD_COLOR_MINT)
     private var hudOpacity by mutableStateOf(SessionPrefs.HUD_OPACITY_DEFAULT)
@@ -1407,6 +1409,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             androidApps = androidApps,
             hudOn = hudOn,
             hudConfig = hudConfig,
+            gpuClockPin = gpuClockPin,
             upscaler = upscaler, upscaleSharpness = upscaleSharpness,
             effects = effects,
             screenEffectsTarget = screenEffectsTarget,
@@ -1464,6 +1467,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
+            onGpuClockPin = { on ->
+                SessionPrefs.setGpuClockPin(this@SessionActivity, on)
+                gpuClockPin = on
+                Thread {
+                    synchronized(GpuClockPin) { GpuClockPin.sync(applicationContext)?.let { Log.i(TAG, it) } }
+                    runOnUiThread { gpuClockPin = gpuClockHeld() }
+                }.start()
+            },
             onHudSetting = { key, value -> hudConfig = DroidDeckHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
             onHudOrder = { switches, order -> hudConfig = DroidDeckHudConfig.choose(this@SessionActivity, switches, order); hud.applyConfig() },
             onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
@@ -2471,6 +2482,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             .show()
     }
 
+    private fun gpuClockHeld() = SessionPrefs.gpuClockPin(this) && !GpuClockPin.failed
+
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
@@ -2478,6 +2491,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         picturePosition = SessionPrefs.picturePosition(this)
         integerScaling = SessionPrefs.integerScaling(this)
         hudOn = SessionPrefs.hudEnabled(this)
+        gpuClockPin = gpuClockHeld()
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(this)
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)

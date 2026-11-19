@@ -772,7 +772,7 @@ object SessionPrefs {
         val prefs = prefs(context)
         if (!prefs.contains("shaderPrecache")) {
             if (steamConfig(context).exists()) return null
-            prefs.edit().putBoolean("shaderPrecache", false).apply()
+            prefs.edit().putBoolean("shaderPrecache", true).apply()
         }
         val on = prefs.getBoolean("shaderPrecache", true)
         val applied = shaderPrecacheApplied(context)
@@ -932,29 +932,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gamescopeRealtime", on).apply()
     }
 
-    fun ramCapMb(context: Context): Int = prefs(context).getInt("ramCapMb", 0).coerceAtLeast(0)
-
-    fun setRamCapMb(context: Context, mb: Int) {
-        prefs(context).edit().putInt("ramCapMb", mb.coerceAtLeast(0)).apply()
-    }
-
-    fun zramClient(context: Context): Boolean = prefs(context).getBoolean("zramClient", true)
-
-    fun setZramClient(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("zramClient", on).apply()
-    }
-
-    fun zramIdle(context: Context): Boolean = prefs(context).getBoolean("zramIdle", true)
-
-    fun setZramIdle(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("zramIdle", on).apply()
-    }
-
-    fun vramCapMb(context: Context): Int = prefs(context).getInt("vramCapMb", 0).coerceAtLeast(0)
-
-    fun setVramCapMb(context: Context, mb: Int) {
-        prefs(context).edit().putInt("vramCapMb", mb.coerceAtLeast(0)).apply()
-    }
 
     fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", false)
 
@@ -1555,6 +1532,45 @@ object SessionPrefs {
 
     fun setGradientColors(context: Context, primary: Int, secondary: Int) {
         prefs(context).edit().putInt("gradientPrimary", primary).putInt("gradientSecondary", secondary).apply()
+    }
+
+    fun customThemeColors(context: Context): com.droiddeck.launcher.ui.CustomThemeColors =
+        prefs(context).let { p ->
+            val defaults = com.droiddeck.launcher.ui.CustomThemeColors()
+            com.droiddeck.launcher.ui.CustomThemeColors(
+                background = p.getInt("customThemeBackground", defaults.background),
+                surface = p.getInt("customThemeSurface", defaults.surface),
+                surfaceVariant = p.getInt("customThemeSurfaceVariant", defaults.surfaceVariant),
+                line = p.getInt("customThemeLine", defaults.line),
+                line2 = p.getInt("customThemeLine2", defaults.line2),
+                onBackground = p.getInt("customThemeOnBackground", defaults.onBackground),
+                onSurfaceVariant = p.getInt("customThemeOnSurfaceVariant", defaults.onSurfaceVariant),
+                primary = p.getInt("customThemePrimary", defaults.primary),
+                onPrimary = p.getInt("customThemeOnPrimary", defaults.onPrimary),
+                signal = p.getInt("customThemeSignal", defaults.signal),
+                good = p.getInt("customThemeGood", defaults.good),
+                error = p.getInt("customThemeError", defaults.error),
+            )
+        }
+
+    fun setCustomThemeColors(
+        context: Context,
+        colors: com.droiddeck.launcher.ui.CustomThemeColors,
+    ) {
+        prefs(context).edit()
+            .putInt("customThemeBackground", colors.background)
+            .putInt("customThemeSurface", colors.surface)
+            .putInt("customThemeSurfaceVariant", colors.surfaceVariant)
+            .putInt("customThemeLine", colors.line)
+            .putInt("customThemeLine2", colors.line2)
+            .putInt("customThemeOnBackground", colors.onBackground)
+            .putInt("customThemeOnSurfaceVariant", colors.onSurfaceVariant)
+            .putInt("customThemePrimary", colors.primary)
+            .putInt("customThemeOnPrimary", colors.onPrimary)
+            .putInt("customThemeSignal", colors.signal)
+            .putInt("customThemeGood", colors.good)
+            .putInt("customThemeError", colors.error)
+            .apply()
     }
 
     fun trueBlackHighlight(context: Context): Int =

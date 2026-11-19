@@ -22,7 +22,6 @@
         <item>Lägg till Steam-bibliotek från ett SD-kort, USB-minne eller SSD, så håller DroidDeck ihop spelen i ditt Bibliotek.</item>
         <item>Butiker låter dig logga in på Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io och Game Jolt och sedan installera och uppdatera deras spel från DroidDeck.</item>
         <item>Komponenter som FEX, DXVK och VKD3D-Proton uppdaterar sig själva, och Proton Experimental ARM64 är standard, eller Proton 11.0 ARM64 när den versionen är installerad.</item>
-        <item>Komprimera Steam medan ett spel körs frigör RAM på enheter med lite minne.</item>
         <item>Svep in från högerkanten för att öppna sessionsmenyn: pekplattsläge, PC-tangentbord, låg latens, spelprofil med mera.</item>
         <item>Går spelet långsamt? Begränsa bildfrekvensen i Snabbåtkomst och prova sedan en annan Proton-version eller FEX-förinställning i spelets komponenter.</item>
         <item>Knaster eller saknat ljud i spelet? Prova växlaren DirectAudio för spel i Steam-inställningarna under Ljud.</item>
@@ -626,20 +625,8 @@
     <string name="perf_gsrealtime">gamescope: GPU-kö i realtid</string>
     <string name="perf_gsrealtime_hint">Prioriterar kompositorns GPU-arbete. Kan jämna ut bildtakten till viss kostnad för spelen.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Minne</string>
     <string name="perf_cap_off">Av</string>
-    <string name="perf_cap_auto">Drivrutinens standard</string>
-    <string name="perf_zram_client">Komprimera Steam medan ett spel körs</string>
-    <string name="perf_zram_idle">Komprimera spelets inaktiva minne</string>
-    <string name="perf_zram_idle_hint">Komprimerar spelets inaktiva minne när RAM-minnet är lågt. Stäng av om spel fryser några sekunder ungefär var halvminut. Gäller nästa gång sessionen startar.</string>
-    <string name="perf_zram_client_hint">20 s efter att ett spel startat komprimeras Steam-klienten till zRAM för att ge spelet mer minne, och läses tillbaka när spelet stängs. Stäng av om sessionen stängs strax efter att spel startar. En RAM-gräns ovan komprimerar fortfarande Steam när sessionen överskrider den.</string>
-    <string name="perf_ram_cap">RAM-gräns</string>
-    <string name="perf_ram_cap_hint">Gäller medan Steam-klienten körs, i Steam-läge eller från skrivbordet. När sessionen använder mer än detta komprimeras Steam och sedan sessionens övriga processer som stöds till zRAM. En mjuk gräns: inget stängs, men spel kan hacka medan sidor läses tillbaka.</string>
-    <string name="perf_ram_cap_unavailable">Kräver zRAM-swap, vilket den här enheten saknar.</string>
-    <string name="perf_vram_cap">VRAM-gräns</string>
-    <string name="perf_vram_cap_hint">Rapporterar denna videominnesbudget till Direct3D 9 till 12-spel för att minska minnesanvändningen. Spel kan överskrida den; detta lägger inte till sidväxling av GPU-minne och garanterar inte skydd mot krascher vid minnesbrist. Gäller från nästa session.</string>
     <string name="perf_gpuclock">Håll GPU:n på dess högsta klockfrekvens</string>
-    <string name="perf_gpuclock_hint">Bara Adreno. Färre hack, högre batteriförbrukning och mer värme.</string>
     <string name="perf_fixes">Sessionsfixar</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
     <string name="perf_sysmem_hint">Gäller Steam-klienten och spel. Krävs på Adreno 710/720/722.</string>
@@ -2313,6 +2300,17 @@
     <string name="pextra_checksum_mismatch">Kontrollsumman stämmer inte. Nedladdningen togs bort</string>
     <string name="pextra_session_started">En session startade under nedladdningen. Stoppa den innan du installerar kompatibilitetsverktyg</string>
     <string name="pextra_installing">Installerar %1$s</string>
+    <string name="xproton_title">Experimentella byggen</string>
+    <string name="xproton_install_file">Installera från fil</string>
+    <string name="xproton_archive_unsafe">Arkivet innehåller en osäker länk eller sökväg</string>
+    <string name="xproton_archive_invalid">Arkivet stöds inte eller är ogiltigt</string>
+    <string name="xproton_no_space">Inte tillräckligt med ledigt utrymme för den här Proton-versionen</string>
+    <string name="xproton_unpacking">Packar upp Proton (några minuter)</string>
+    <string name="xproton_untar_failed">Uppackningen misslyckades (tar %1$d)</string>
+    <string name="xproton_no_tree">Arkivet innehåller ingen Proton-version</string>
+    <string name="xproton_place_failed">Det gick inte att placera Proton-versionen</string>
+    <string name="xproton_remove_failed">Det gick inte att ta bort %1$s helt</string>
+    <string name="xproton_installed">Experimentell Proton installerad. Välj den i Steam → Egenskaper → Kompatibilitet.</string>
     <string name="pextra_install_failed">Installationen av %1$s misslyckades (avslutningskod %2$d)</string>
     <string name="pextra_could_not_install">Kunde inte installera %1$s</string>
     <string name="esync_fetching">Hämtar droiddeck-esync-paket</string>
@@ -3345,10 +3343,19 @@
     <string name="storage_shared_prefix">Steams delade prefix</string>
     <string name="storage_shared_prefix_detail">Steam kör sina egna Windows-hjälpprogram här</string>
     <string name="storage_reset_shared_confirm">Raderar det (%1$s). Steam skapar ett nytt nästa gång det behövs.</string>
+    <string name="storage_remove_launcher_confirm">Tar bort den här butiksappens Wine-prefix och shadercache (%1$s), med inloggning och sparfiler som bara finns där. Spel som körs i det får ett nytt prefix, och du kan behöva konfigurera appen igen. Molnsparningar finns kvar på ditt konto.</string>
+    <string name="storage_system_clearable">%1$s kan rensas</string>
+    <string name="storage_item_system_caches">Linux- och Steam-cacheminnen</string>
+    <string name="storage_item_system_caches_detail">Gamla tillfälliga filer, hämtade paket och Steams webbcache</string>
+    <string name="storage_cache_temp">Gamla tillfälliga filer</string>
+    <string name="storage_cache_packages">Hämtade paket</string>
+    <string name="storage_cache_steam_web">Steams webbcache</string>
+    <string name="storage_cache_steam_corrupt">Skadade Steam-nedladdningar</string>
+    <string name="storage_cache_detail">Skapas igen vid behov</string>
+    <string name="storage_clear">Rensa</string>
     <string name="storage_launcher_prefix">En butiksapp och spelen som körs med den</string>
     <string name="storage_launcher_used_by">Används av %1$s</string>
     <string name="storage_shortcut_app">Icke-Steam-spel %1$s</string>
-    <string name="storage_unknown_prefix_detail">Inte kopplat till något spel, så det behålls</string>
     <string name="storage_remove_selected">Ta bort valda · %1$s</string>
     <string name="storage_uninstall_selected">Avinstallera valda · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefix</string>
@@ -4093,4 +4100,18 @@
     <string name="display_scaling_integer">Heltal</string>
     <string name="display_scaling_fit">Anpassa</string>
     <string name="drawer_antialiasing">Kantutjämning</string>
+    <string name="theme_custom">Anpassat</string>
+    <string name="theme_custom_detail">Välj varje gränssnittsfärg separat.</string>
+    <string name="theme_custom_background">Bakgrund</string>
+    <string name="theme_custom_surface">Paneler</string>
+    <string name="theme_custom_surface_variant">Upphöjda paneler</string>
+    <string name="theme_custom_line">Avdelare</string>
+    <string name="theme_custom_line2">Kanter</string>
+    <string name="theme_custom_on_background">Huvudtext</string>
+    <string name="theme_custom_on_surface_variant">Sekundär text</string>
+    <string name="theme_custom_primary">Knappar och huvudaccent</string>
+    <string name="theme_custom_on_primary">Knapptext</string>
+    <string name="theme_custom_signal">Markeringar</string>
+    <string name="theme_custom_good">Lyckades</string>
+    <string name="theme_custom_error">Fel</string>
 </resources>

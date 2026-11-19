@@ -11,8 +11,8 @@ Built from source in this pack:
 - preload/libfakeinput.so: DroidDeck's app/src/main/cpp/fakeinput_steam.cpp, taken from WinNative by maxjivi05
   (GPL-3.0, https://github.com/WinNative-Emu/WinNative), mmap ring controller input by ribbit384 (WinNative #345).
 - preload/libnotag.so, bin/gstag: DroidDeck (GPL-3.0).
-- layer/libVkLayer_droiddeck_gpuload.so, layer/libVkLayer_droiddeck_vramcap.so: DroidDeck's HUD GPU-load and VRAM-cap
-  Vulkan layers (tools/gpuload, GPL-3.0), built for the bionic userland.
+- layer/libVkLayer_droiddeck_gpuload.so: DroidDeck's HUD GPU-load Vulkan layer (tools/gpuload, GPL-3.0), built for the
+  bionic userland.
 
 Taken unchanged from The412Banner's Bannerlator (GPL-3.0, https://github.com/The412Banner/Bannerlator):
 - lib/: Android builds of open-source libraries from Bannerlator's base imagefs

@@ -22,7 +22,6 @@
         <item>SDカード、USBドライブ、SSDからSteamライブラリを追加でき、DroidDeckはゲームをライブラリにまとめて表示します。</item>
         <item>ストアでは、Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io、Game Joltにサインインして、DroidDeckからそれらのゲームをインストール・更新できます。</item>
         <item>FEX、DXVK、VKD3D-Protonなどのコンポーネントは自動で更新されます。既定はProton Experimental ARM64で、Proton 11.0 ARM64がインストールされている場合はそちらになります。</item>
-        <item>ゲーム実行中はSteamを圧縮すると、メモリが少ない端末でRAMを確保できます。</item>
         <item>画面の右端から内側にスワイプするとセッションメニューが開きます。タッチパッドモード、PCキーボード、低遅延モード、ゲームプロファイルなどがあります。</item>
         <item>ゲームが重い場合は、クイックアクセスでフレームレートを制限し、ゲームのコンポーネントで別のProtonバージョンやFEXプリセットを試してください。</item>
         <item>ゲームの音が割れる、または出ない場合は、Steam設定のオーディオにある「ゲームでDirectAudioを使用」を試してください。</item>
@@ -624,20 +623,8 @@
     <string name="perf_gsrealtime">gamescope：リアルタイムGPUキュー</string>
     <string name="perf_gsrealtime_hint">コンポジタのGPU作業の優先度を上げます。フレームタイムの安定性が向上する場合がありますが、ゲームのパフォーマンスの一部を消費します。</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">メモリ</string>
     <string name="perf_cap_off">オフ</string>
-    <string name="perf_cap_auto">ドライバーのデフォルト</string>
-    <string name="perf_zram_client">ゲーム実行中はSteamを圧縮</string>
-    <string name="perf_zram_idle">ゲームのアイドルメモリを圧縮</string>
-    <string name="perf_zram_idle_hint">RAMが少ないときにゲームのアイドルメモリを圧縮します。ゲームが30秒ごとに数秒止まる場合はオフにしてください。次回のセッション開始時に適用されます。</string>
-    <string name="perf_zram_client_hint">ゲーム開始の20秒後、SteamクライアントをzRAMに圧縮してゲームに使えるメモリを増やし、ゲーム終了時に読み戻します。ゲーム開始直後にセッションが終了する場合はオフにしてください。上のRAM上限を設定している場合は、セッションが上限を超えるとSteamは引き続き圧縮されます。</string>
-    <string name="perf_ram_cap">RAM上限</string>
-    <string name="perf_ram_cap_hint">Steamモードでもデスクトップからでも、Steamクライアントの実行中に適用されます。セッションの使用量がこの値を超えると、Steam、次にセッション内の対応する他のプロセスがzRAMに圧縮されます。ソフトな上限のため何も終了されませんが、ページの読み戻し中にゲームがカクつくことがあります。</string>
-    <string name="perf_ram_cap_unavailable">zRAMスワップが必要ですが、このデバイスにはありません。</string>
-    <string name="perf_vram_cap">VRAM上限</string>
-    <string name="perf_vram_cap_hint">Direct3D 9～12のゲームにこのビデオメモリ予算を通知し、メモリ使用量の削減を促します。ゲームは予算を超える場合があります。GPUのページングを追加するものではなく、メモリ不足によるクラッシュの防止は保証されません。次のセッションから有効になります。</string>
     <string name="perf_gpuclock">GPUを最高クロックに保つ</string>
-    <string name="perf_gpuclock_hint">Adrenoのみ。スタッターは減りますが、消費電力と発熱が増えます。</string>
     <string name="perf_fixes">セッション修正</string>
     <string name="perf_sysmem">Turnip：sysmemレンダリング</string>
     <string name="perf_sysmem_hint">Steamクライアントとゲームに適用。Adreno 710/720/722では必須です。</string>
@@ -2288,6 +2275,17 @@
     <string name="pextra_checksum_mismatch">チェックサムが一致しないため、ダウンロードを削除しました</string>
     <string name="pextra_session_started">ダウンロード中にセッションが開始されました。停止してから互換性ツールをインストールしてください</string>
     <string name="pextra_installing">%1$sをインストール中</string>
+    <string name="xproton_title">試験版ビルド</string>
+    <string name="xproton_install_file">ファイルからインストール</string>
+    <string name="xproton_archive_unsafe">アーカイブに安全でないリンクまたはパスが含まれています</string>
+    <string name="xproton_archive_invalid">未対応または無効なアーカイブ</string>
+    <string name="xproton_no_space">このProtonビルド用の空き容量が足りません</string>
+    <string name="xproton_unpacking">Protonを展開中（数分かかります）</string>
+    <string name="xproton_untar_failed">展開に失敗しました（tar %1$d）</string>
+    <string name="xproton_no_tree">アーカイブにProtonビルドが含まれていません</string>
+    <string name="xproton_place_failed">Protonビルドを配置できませんでした</string>
+    <string name="xproton_remove_failed">%1$sを完全に削除できませんでした</string>
+    <string name="xproton_installed">試験版Protonをインストールしました。Steam → プロパティ → 互換性 で選択してください。</string>
     <string name="pextra_install_failed">%1$sのインストールに失敗しました（終了コード %2$d）</string>
     <string name="pextra_could_not_install">%1$sをインストールできませんでした</string>
     <string name="esync_fetching">droiddeck-esyncパックを取得中</string>
@@ -3316,10 +3314,19 @@
     <string name="storage_shared_prefix">Steam の共有プレフィックス</string>
     <string name="storage_shared_prefix_detail">Steam が独自の Windows ヘルパーをここで実行します</string>
     <string name="storage_reset_shared_confirm">削除します（%1$s）。次に必要になったとき Steam が新しく作成します。</string>
+    <string name="storage_remove_launcher_confirm">このストアアプリの Wine プレフィックスとシェーダーキャッシュ（%1$s）を、サインイン情報やそこにしかないセーブデータごと削除します。中で動くゲームは新しいプレフィックスで始まり、アプリの再セットアップが必要になる場合があります。クラウドのセーブデータはアカウントに残ります。</string>
+    <string name="storage_system_clearable">%1$s を消去できます</string>
+    <string name="storage_item_system_caches">Linux と Steam のキャッシュ</string>
+    <string name="storage_item_system_caches_detail">古い一時ファイル、ダウンロード済みパッケージ、Steam のウェブキャッシュ</string>
+    <string name="storage_cache_temp">古い一時ファイル</string>
+    <string name="storage_cache_packages">ダウンロード済みパッケージ</string>
+    <string name="storage_cache_steam_web">Steam のウェブキャッシュ</string>
+    <string name="storage_cache_steam_corrupt">破損した Steam ダウンロード</string>
+    <string name="storage_cache_detail">必要なときに再作成されます</string>
+    <string name="storage_clear">消去</string>
     <string name="storage_launcher_prefix">ストアアプリとそれで動くゲーム</string>
     <string name="storage_launcher_used_by">%1$s が使用</string>
     <string name="storage_shortcut_app">Steam 以外のゲーム %1$s</string>
-    <string name="storage_unknown_prefix_detail">どのゲームにも一致しないため保持されます</string>
     <string name="storage_remove_selected">選択項目を削除 · %1$s</string>
     <string name="storage_uninstall_selected">選択項目をアンインストール · %1$s</string>
     <string name="storage_bulk_prefixes">Wineプレフィックス</string>
@@ -4063,4 +4070,18 @@
     <string name="display_scaling_integer">整数</string>
     <string name="display_scaling_fit">画面に合わせる</string>
     <string name="drawer_antialiasing">アンチエイリアス</string>
+    <string name="theme_custom">カスタム</string>
+    <string name="theme_custom_detail">インターフェースの各色を個別に選択します。</string>
+    <string name="theme_custom_background">背景</string>
+    <string name="theme_custom_surface">パネル</string>
+    <string name="theme_custom_surface_variant">浮き上がったパネル</string>
+    <string name="theme_custom_line">区切り線</string>
+    <string name="theme_custom_line2">境界線</string>
+    <string name="theme_custom_on_background">メインテキスト</string>
+    <string name="theme_custom_on_surface_variant">サブテキスト</string>
+    <string name="theme_custom_primary">ボタンとメインアクセント</string>
+    <string name="theme_custom_on_primary">ボタンのテキスト</string>
+    <string name="theme_custom_signal">強調表示</string>
+    <string name="theme_custom_good">成功</string>
+    <string name="theme_custom_error">エラー</string>
 </resources>

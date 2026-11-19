@@ -178,6 +178,8 @@ object DownloadQueue {
 
     fun isActive(key: String): Boolean = entry(key)?.isActive == true
 
+    fun anyActive(): Boolean = synchronized(lock) { items.values.any { it.entry.isActive } }
+
     fun enqueue(context: Context, entry: DownloadEntry, factory: () -> DownloadJob) {
         val app = context.applicationContext
         synchronized(lock) {
