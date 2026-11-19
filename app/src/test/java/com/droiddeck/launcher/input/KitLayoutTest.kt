@@ -169,8 +169,8 @@ class KitLayoutTest {
     }
 
     @Test fun clustersStayTogetherOnTallAndSquareScreens() {
-        val ratio = mapOf(PadKit.STEAM_DECK to 82f / 50f, PadKit.STEAM_CONTROLLER to 82f / 50f, PadKit.XBOX to 94f / 58f,
-            PadKit.DUALSHOCK to 92f / 56f, PadKit.DUALSENSE to 92f / 56f)
+        val ratio = mapOf(PadKit.STEAM_DECK to 96f / 58f, PadKit.STEAM_CONTROLLER to 96f / 58f, PadKit.XBOX to 94f / 58f,
+            PadKit.DUALSHOCK to 96f / 58f, PadKit.DUALSENSE to 96f / 58f)
         for (kit in PadKit.entries) for ((w, h) in listOf(1080 to 1920, 1240 to 1080, 2400 to 1080)) {
             val e = KitLayout.elements(context, kit, w, h).associateBy { it.id }
             val face = listOf("legacy:y", "legacy:x", "legacy:b", "legacy:a").map { centre(e.getValue(it), w, h) }
@@ -260,6 +260,16 @@ class KitLayoutTest {
             val (w, h) = 720 to 1280
             val elements = KitLayout.elements(context, kit, w, h, Rect(120, 0, 0, 0))
             assertEquals(kit.toString(), emptyList<Pair<String, String>>(), overlapping(elements, w, h))
+        }
+    }
+
+    @Test fun noKitControlIsSmallerThanTheOldGamepadOnAHandheld() {
+        val dp = context.resources.displayMetrics.density
+        for (kit in PadKit.entries) {
+            val e = KitLayout.elements(context, kit, 1920, 1080).associateBy { it.id }
+            assertTrue("$kit face", e.getValue("legacy:a").width * 1920 / 2 >= 30 * dp - 1)
+            assertTrue("$kit d-pad", e.getValue(KitLayout.DPAD_ID).width * 1920 / 2 >= 60 * dp)
+            assertTrue("$kit stick", e.getValue("legacy:ls").width * 1920 / 2 >= 40 * dp)
         }
     }
 }

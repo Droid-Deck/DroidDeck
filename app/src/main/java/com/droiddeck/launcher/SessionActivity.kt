@@ -5314,7 +5314,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         val root = onScreenControls?.parent as? android.view.ViewGroup ?: return null
         val view = com.droiddeck.launcher.input.SteamTouchControls(this, device,
-            onMenu = { drawerOpen = true }, onKeyboard = ::togglePcKeyboard)
+            onMenu = ::openControllerMenu, onKeyboard = ::togglePcKeyboard)
         view.visibility = View.GONE
         view.onEditingChanged = { touchEditorChanged() }
         view.onOptions = { options ->

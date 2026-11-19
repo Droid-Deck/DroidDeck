@@ -51,8 +51,8 @@ object KitLayout {
         val ax: Float = cx, val ay: Float = cy)
 
     private fun shoulders() = listOf(
-        Spec(InputControl.LT, 140f, 66f, 88f, 34f, shape = InputButtonShape.PILL), Spec(InputControl.LB, 140f, 148f, 88f, 28f, shape = InputButtonShape.PILL),
-        Spec(InputControl.RT, 1460f, 66f, 88f, 34f, shape = InputButtonShape.PILL), Spec(InputControl.RB, 1460f, 148f, 88f, 28f, shape = InputButtonShape.PILL))
+        Spec(InputControl.LT, 140f, 66f, 88f, 34f, shape = InputButtonShape.PILL), Spec(InputControl.LB, 140f, 148f, 88f, 30f, shape = InputButtonShape.PILL),
+        Spec(InputControl.RT, 1460f, 66f, 88f, 34f, shape = InputButtonShape.PILL), Spec(InputControl.RB, 1460f, 148f, 88f, 30f, shape = InputButtonShape.PILL))
 
     private fun face(cx: Float, cy: Float, r: Float, off: Float) = listOf(
         Spec(InputControl.Y, cx, cy - off, r, ax = cx, ay = cy), Spec(InputControl.X, cx - off, cy, r, ax = cx, ay = cy),
@@ -67,13 +67,13 @@ object KitLayout {
         kit.steam -> shoulders() + listOf(
             Spec(InputControl.L4, 30f, 470f, 30f, 58f, shape = InputButtonShape.ROUNDED), Spec(InputControl.L5, 30f, 590f, 30f, 58f, shape = InputButtonShape.ROUNDED),
             Spec(InputControl.R4, 1570f, 470f, 30f, 58f, shape = InputButtonShape.ROUNDED), Spec(InputControl.R5, 1570f, 590f, 30f, 58f, shape = InputButtonShape.ROUNDED),
-            dpad(215f, 330f, 112f)) + face(1385f, 330f, 56f, 92f) + listOf(
-            Spec(InputControl.LS, 290f, 610f, 96f), Spec(InputControl.RS, 1310f, 610f, 96f),
-            Spec(InputControl.LEFT_PAD, 480f, 345f, 95f, shape = InputButtonShape.ROUNDED), Spec(InputControl.RIGHT_PAD, 1120f, 345f, 95f, shape = InputButtonShape.ROUNDED),
+            dpad(220f, 345f, 150f)) + face(1375f, 345f, 58f, 96f) + listOf(
+            Spec(InputControl.LS, 290f, 640f, 96f), Spec(InputControl.RS, 1310f, 640f, 96f),
+            Spec(InputControl.LEFT_PAD, 470f, 360f, 88f, shape = InputButtonShape.ROUNDED), Spec(InputControl.RIGHT_PAD, 1130f, 360f, 88f, shape = InputButtonShape.ROUNDED),
             Spec(InputControl.SELECT, 660f, 150f, 46f, 26f, shape = InputButtonShape.PILL), Spec(InputControl.START, 940f, 150f, 46f, 26f, shape = InputButtonShape.PILL),
             Spec(InputControl.GUIDE, 370f, 852f, 66f, 30f, shape = InputButtonShape.PILL), Spec(InputControl.QAM, 1230f, 852f, 66f, 30f, shape = InputButtonShape.PILL),
             keyboard(136f))
-        kit.playStation -> shoulders() + listOf(dpad(250f, 395f, 125f)) + face(1350f, 395f, 56f, 92f) + listOf(
+        kit.playStation -> shoulders() + listOf(dpad(250f, 395f, 125f)) + face(1350f, 395f, 58f, 96f) + listOf(
             Spec(InputControl.LS, 565f, 690f, 100f), Spec(InputControl.RS, 1035f, 690f, 100f),
             Spec(InputControl.L3, 430f, 590f, 42f, ax = 565f, ay = 690f), Spec(InputControl.R3, 1170f, 590f, 42f, ax = 1035f, ay = 690f),
             Spec(InputControl.SELECT, 640f, 150f, 50f, 30f, shape = InputButtonShape.PILL), Spec(InputControl.START, 960f, 150f, 50f, 30f, shape = InputButtonShape.PILL),
