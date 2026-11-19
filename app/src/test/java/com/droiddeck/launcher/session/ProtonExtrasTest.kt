@@ -84,6 +84,20 @@ class ProtonExtrasTest {
     }
 
     @Test
+    fun aTestBuildChoosesACompatibleArchiveWithVerification() {
+        val release = release(
+            "DroidDeck-Proton-11-12.9",
+            asset("DroidDeck-Proton-11-12.9-aarch64.tar.gz"),
+            asset("DroidDeck-Proton-11-12.9-aarch64.tar.xz", "sha256:" + "ab".repeat(32)),
+            prerelease = true,
+        )
+        val releases = JSONArray().put(release).put(droiddeckRelease("11-12.8"))
+        val picked = ProtonExtras.pickAsset(tool("droiddeck"), releases, test = true)!!
+        assertEquals("DroidDeck-Proton-11-12.9-aarch64.tar.xz", picked.name)
+        assertEquals("ab".repeat(32), picked.sha256)
+    }
+
+    @Test
     fun prereleasesDraftsAndReleasesWithoutAnArm64BuildAreSkipped() {
         val releases = JSONArray()
             .put(droiddeckRelease("11-8", prerelease = true))
@@ -318,6 +332,23 @@ class ProtonExtrasTest {
         assertEquals(0, ProtonExtras.releases(tool) { asked += it; JSONArray() }!!.length())
         assertEquals(listOf(1), asked)
         assertNull(ProtonExtras.releases(tool) { null })
+
+        asked.clear()
+        assertNull(ProtonExtras.releases(tool) { page ->
+            asked += page
+            if (page == 1) JSONArray().put(droiddeckRelease("11-12.10", prerelease = true)) else null
+        })
+        assertEquals(listOf(1, 2), asked)
+    }
+
+    @Test
+    fun anIncompleteLookupKeepsTheCachedTestBuildAndACompletedLookupClearsIt() {
+        val tool = tool("droiddeck")
+        val cache = JSONObject().put(tool.id, JSONObject().put("tag", "DroidDeck-Proton-11-12.8").put("test", "DroidDeck-Proton-11-12.9"))
+        ProtonExtras.updateLatest(cache, tool, null, 1L)
+        assertEquals("DroidDeck-Proton-11-12.9", cache.getJSONObject(tool.id).getString("test"))
+        ProtonExtras.updateLatest(cache, tool, JSONArray().put(droiddeckRelease("11-12.8")), 1L)
+        assertFalse(cache.getJSONObject(tool.id).has("test"))
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
+import java.util.Locale
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -127,14 +128,7 @@ object ProtonExtras {
             if (due.isEmpty() || !force && (now - lastAttempt) in 0 until RETRY_MS) return false
             lastAttempt = now
             for (tool in due) {
-                val array = releases(tool) ?: continue
-                val test = if (tool.id == OWN) pickAsset(tool, array, test = true)?.tag else null
-                val tag = pickAsset(tool, array)?.tag
-                if (tag == null) {
-                    cache.optJSONObject(tool.id)?.remove("test")
-                    continue
-                }
-                cache.put(tool.id, JSONObject().put("tag", tag).put("at", now).putOpt("test", test))
+                updateLatest(cache, tool, releases(tool), now)
             }
             runCatching { file.writeText(cache.toString()) }
             return true
@@ -345,7 +339,7 @@ object ProtonExtras {
     }
 
     private fun releases(tool: Tool): JSONArray? = releases(tool) { page ->
-        Downloader.downloadString(RELEASES.format(tool.repo, page))?.let { body ->
+        Downloader.downloadString(RELEASES.format(Locale.ROOT, tool.repo, page))?.let { body ->
             try {
                 JSONArray(body)
             } catch (e: Exception) {
@@ -360,7 +354,7 @@ object ProtonExtras {
         var page = 1
         var last = all.length()
         while (last > 0 && page < RELEASE_PAGES && pickAsset(tool, all) == null) {
-            val next = fetch(++page) ?: break
+            val next = fetch(++page) ?: return null
             for (i in 0 until next.length()) all.put(next.opt(i))
             last = next.length()
         }
@@ -375,15 +369,25 @@ object ProtonExtras {
         val stable = pickAsset(tool, array)?.tag ?: return null
         return candidates
             .filter { it.optString("tag_name").startsWith(tool.prefix) && updateFor(listOf(stable), it.optString("tag_name")) != null }
-            .mapNotNull { assetOf(tool, it) }
-            .filter { it.sha256 != null || it.sha512 != null }
+            .mapNotNull { assetOf(tool, it, requireChecksum = true) }
             .maxWithOrNull { a, b -> compareVersions(a.tag, b.tag) }
     }
 
-    private fun assetOf(tool: Tool, release: JSONObject): Asset? = try {
+    internal fun updateLatest(cache: JSONObject, tool: Tool, array: JSONArray?, now: Long) {
+        if (array == null) return
+        val test = if (tool.id == OWN) pickAsset(tool, array, test = true)?.tag else null
+        val tag = pickAsset(tool, array)?.tag
+        if (tag == null) {
+            cache.optJSONObject(tool.id)?.remove("test")
+            return
+        }
+        cache.put(tool.id, JSONObject().put("tag", tag).put("at", now).putOpt("test", test))
+    }
+
+    private fun assetOf(tool: Tool, release: JSONObject, requireChecksum: Boolean = false): Asset? = try {
         val assets = release.optJSONArray("assets")
         val entries = assets?.let { list -> (0 until list.length()).mapNotNull { list.optJSONObject(it) } }.orEmpty()
-        entries.sortedBy { it.optString("name") }.firstOrNull { tool.assetPattern.containsMatchIn(it.optString("name")) }?.let { archive ->
+        entries.sortedBy { it.optString("name") }.filter { tool.assetPattern.containsMatchIn(it.optString("name")) }.mapNotNull { archive ->
             val name = archive.optString("name")
             val stem = name.substringBefore(".tar")
             val checksum = entries.firstOrNull {
@@ -392,7 +396,7 @@ object ProtonExtras {
             archive.optString("browser_download_url").takeIf { it.startsWith("http") }?.let { url ->
                 Asset(release.optString("tag_name"), name, url, checksum, archive.optLong("size", 0L), Hashes.githubSha256(archive.optString("digest")))
             }
-        }
+        }.let { found -> if (requireChecksum) found.firstOrNull { it.sha256 != null || it.sha512 != null } else found.firstOrNull() }
     } catch (e: Exception) {
         Log.w(TAG, "release metadata for ${tool.id}", e)
         null
