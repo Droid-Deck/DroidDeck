@@ -874,6 +874,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }, "components-restore").start()
     }
     private var pendingGameLink: String? = null
+    private var pendingGameLinkRequest = 0L
     private var gameLinkReading = false
     private var gameLinkTried = false
     private var gameSyncFolder by mutableStateOf<String?>(null)
@@ -916,6 +917,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             request.data = null
             gameLinkReading = false
             pendingGameLink = null
+            pendingGameLinkRequest = 0L
             syncDualPanel()
             return
         }
@@ -929,6 +931,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             shortcutLibraryScanning = true
         } else shortcutLibraryScanning = false
         pendingGameLink = null
+        pendingGameLinkRequest = 0L
         gameLinkReading = false
         gameLinkTried = false
         soundtrackLaunch = false
@@ -950,8 +953,19 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 ui.post {
                     if (intent === request && !isDestroyed) {
                         gameLinkReading = false
-                        if (launchRequest != gameLaunchRequest.get()) return@post
+                        if (launchRequest != gameLaunchRequest.get()) {
+                            if (intent === request) {
+                                request.data = null
+                                request.action = Intent.ACTION_MAIN
+                                request.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
+                            }
+                            pendingGameLink = null
+                            pendingGameLinkRequest = 0L
+                            syncDualPanel()
+                            return@post
+                        }
                         pendingGameLink = id
+                        pendingGameLinkRequest = launchRequest
                         if (id == null) {
                             syncDualPanel()
                             android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
@@ -1209,6 +1223,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun handleGameLink(games: List<Library.SteamGame>, scanned: Boolean = true) {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
         val id = pendingGameLink ?: return
+        if (pendingGameLinkRequest != gameLaunchRequest.get()) {
+            pendingGameLink = null
+            pendingGameLinkRequest = 0L
+            syncDualPanel()
+            return
+        }
         if (!scanned && games.none { it.gameIdString == id }) return
         gameLinkTried = true
         ui.postDelayed({
@@ -1219,6 +1239,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         fun consume() {
             if (intent !== link || pendingGameLink != id) return
             pendingGameLink = null
+            pendingGameLinkRequest = 0L
             link.data = null
             link.action = Intent.ACTION_MAIN
             link.removeExtra(GameLaunchIntent.EXTRA_APP_ID)
@@ -1948,6 +1969,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
             pendingGameLink = null
+            pendingGameLinkRequest = 0L
             syncDualPanel()
             readIntegrationIntent(intent)
             return
