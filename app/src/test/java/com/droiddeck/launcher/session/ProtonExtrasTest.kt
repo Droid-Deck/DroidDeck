@@ -235,6 +235,8 @@ class ProtonExtrasTest {
         File(originals, "Experimental-Stale/11/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
         val stale = File(store, "original-Experimental-Stale-11-dxvk").apply { mkdirs(); File(this, ".complete").writeText("1\n") }
         val other = File(store, "original-Experimental-Stale-2-11-dxvk").apply { mkdirs(); File(this, ".complete").writeText("1\n") }
+        File(originals, "Experimental-Stale/2-11/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
+        published.appendText("*\tExperimental-Stale-2\t11\tdxvk\tfiles/a.dll\t0\t/root/.local/share/droiddeck-components/store/${other.name}/files/a.dll\n")
         assertTrue(ComponentsManager.forgetProton(context, "Experimental-Stale"))
         assertFalse(stale.exists())
         assertTrue(File(other, ".complete").isFile)
