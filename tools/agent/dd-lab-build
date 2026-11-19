@@ -116,10 +116,10 @@ if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
   "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" >/dev/null
 fi
 
-# A full Kotlin compile of the app runs out of memory with 2.4 GB of heap, and Gradle needs about 1 GB,
+# A full Kotlin compile of the app runs out of memory with 2.7 GB of heap, and Gradle needs about 1 GB,
 # so devices with less memory to spare swap rather than fail. Both daemons end with this script's
 # process when the build is done.
-heap=${DD_LAB_HEAP_MB:-4096}
+heap=${DD_LAB_HEAP_MB:-6144}
 kotlin_heap=$(( heap * 2 / 3 )); gradle_heap=$(( heap - kotlin_heap ))
 
 # Only the Kotlin daemon compiles incrementally; in-process compiles always redo the whole app, and the
