@@ -33,8 +33,24 @@ compat=$(real "${STEAM_COMPAT_DATA_PATH:-$HOME/.local/share/Steam/steamapps/comp
 case "$verb" in
   run|waitforexitandrun|runinprefix)
     [ $# -gt 0 ] || exit 0
-    exe=$(real "$1"); shift
+    # A Windows path (DroidDeck's Xbox launch names the game on a drive letter of its own) goes to Wine unchanged.
+    case "$1" in [A-Za-z]:[\\/]*) exe=$1 ;; *) exe=$(real "$1") ;; esac
+    shift
     export DROIDDECK_BIONIC_ROOT="$DDNATV_ROOT"
+    # The Xbox runtime's DLC and mount folders come as Z: paths of the guest; this Wine sees the Android side.
+    zreal() {
+      local out="" part p
+      local -a parts
+      IFS=';' read -r -a parts <<< "$1"
+      for part in "${parts[@]}"; do
+        case "$part" in [Zz]:\\*) p=${part:2}; p=$(real "${p//\\//}"); part="Z:${p//\//\\}" ;; esac
+        out="${out:+$out;}$part"
+      done
+      echo "$out"
+    }
+    for v in XODUS_MOUNT_ROOT XODUS_CONTENT_ROOTS; do
+      [ -n "${!v:-}" ] && { printf -v "$v" '%s' "$(zreal "${!v}")"; export "${v?}"; }
+    done
     # The HUD's GPU-load folder is a guest path; the bionic game writes to it by its Android path.
     [ -n "${DROIDDECK_GPU_LOAD_DIR:-}" ] && { DROIDDECK_GPU_LOAD_DIR=$(real "$DROIDDECK_GPU_LOAD_DIR"); export DROIDDECK_GPU_LOAD_DIR; }
     # DroidDeck's game environment (shared entries and this game's), already applied by droiddeck-game-env: the

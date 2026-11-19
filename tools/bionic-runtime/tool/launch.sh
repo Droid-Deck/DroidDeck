@@ -33,6 +33,7 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     mesa_glthread|vblank_mode|ZINK_*|GALLIUM_HUD|GALLIUM_THREAD) ;;
     DD_SYNC|DD_FSYNC_FIRST|DD_SYNC_FALLBACK|PROTON_NO_ESYNC|PROTON_NO_FSYNC|PROTON_NO_NTSYNC|WINEESYNC) ;;
     PROTON_USE_D7VK) ;;
+    XODUS_*|RUST_LOG) ;;
     WINE_OFFSCREEN_CHECK_MS|WINE_CPU_TOPOLOGY|WINE_LARGE_ADDRESS_AWARE|TZ) ;;
     DXVK_LOG_LEVEL|DXVK_HDR|VKD3D_DEBUG|VKD3D_SHADER_DEBUG) ;;
     DROIDDECK_GPU_LOAD|DROIDDECK_GPU_LOAD_DIR|DROIDDECK_VRAM_CAP|DROIDDECK_VRAM_CAP_MB|DROIDDECK_DISPLAY_DRIVER) ;;
@@ -353,14 +354,15 @@ elif [ -L "$S/ddraw_.dll" ] || [ -e "$S/ddraw_.dll" ]; then
   ln -s "$F/lib/wine/i386-windows/ddraw.dll" "$S/ddraw.dll"
   echo "$(date +%H:%M:%S) D7VK off: Wine's ddraw again"
 fi
-cd "$(dirname "$EXE")" || exit 1
+# A Windows path (an Xbox game on its own drive letter) starts in the folder Steam gave.
+case "$EXE" in [A-Za-z]:[\\/]*) ;; *) cd "$(dirname "$EXE")" || exit 1 ;; esac
 
 if [ "$verb" = runinprefix ]; then
   wine_ "$EXE" "$@"
   exit $?
 fi
 
-name=${EXE##*/}
+name=${EXE##*/}; name=${name##*\\}
 comm=$(echo "$name" | cut -c1-15)
 game_pids() { grep -lx "$comm" /proc/[0-9]*/comm 2>/dev/null | cut -d/ -f3; }
 # The game's windows go straight to gamescope's X server, as with DroidDeck-Proton (no Wine desktop): the game
