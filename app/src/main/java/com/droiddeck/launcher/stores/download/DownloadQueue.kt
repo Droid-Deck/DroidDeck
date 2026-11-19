@@ -45,13 +45,18 @@ object DownloadQueue {
         val e = item.entry
         if (e.stage == stage) return
         item.speedAt = 0L; item.speedBytes = 0L; item.speedEwma = 0.0
-        item.entry = e.copy(
-            stage = stage, stagesPassed = e.stagesPassed or (1 shl e.stage.ordinal), speedBps = 0, etaSeconds = -1,
+        val passed = e.stagesPassed or (1 shl e.stage.ordinal)
+        // Streaming installers (GOG) alternate between DOWNLOAD and INSTALL; the install count lives on across the swaps.
+        val streaming = e.stage in STREAMED && stage in STREAMED && (passed and (1 shl DownloadStage.INSTALL.ordinal)) != 0
+        item.entry = if (streaming) e.copy(stage = stage, stagesPassed = passed, speedBps = 0, etaSeconds = -1)
+        else e.copy(
+            stage = stage, stagesPassed = passed, speedBps = 0, etaSeconds = -1,
             stageDone = 0, stageTotal = 0, stageItems = 0, stageItemsTotal = 0,
         )
     }
 
     private const val SPEED_WINDOW_MS = 3000.0
+    private val STREAMED = setOf(DownloadStage.DOWNLOAD, DownloadStage.INSTALL)
 
     private fun stageCount(key: String, done: Long, total: Long, files: Int, filesTotal: Int, bytes: Boolean) {
         synchronized(lock) {
