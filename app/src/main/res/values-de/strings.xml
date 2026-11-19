@@ -628,7 +628,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Aus</string>
     <string name="perf_gpuclock">GPU auf höchstem Takt halten</string>
-    <string name="perf_gpuclock_hint">Nur Adreno. Weniger Ruckler, mehr Akkuverbrauch und Wärme.</string>
     <string name="perf_fixes">Sitzungskorrekturen</string>
     <string name="perf_sysmem">Turnip: Sysmem-Rendering</string>
     <string name="perf_sysmem_hint">Gilt für den Steam-Client und Spiele. Erforderlich bei Adreno 710/720/722.</string>

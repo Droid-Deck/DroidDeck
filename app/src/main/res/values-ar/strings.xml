@@ -636,7 +636,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">إيقاف</string>
     <string name="perf_gpuclock">تثبيت GPU على أعلى تردد له</string>
-    <string name="perf_gpuclock_hint">لـ Adreno فقط. تقطّع أقل، مع استهلاك أكبر للبطارية والحرارة.</string>
     <string name="perf_fixes">إصلاحات الجلسة</string>
     <string name="perf_sysmem">Turnip: التصيير عبر sysmem</string>
     <string name="perf_sysmem_hint">ينطبق على عميل Steam والألعاب. مطلوب على Adreno 710/720/722.</string>

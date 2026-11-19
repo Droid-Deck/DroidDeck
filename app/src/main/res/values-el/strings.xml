@@ -628,7 +628,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Ανενεργό</string>
     <string name="perf_gpuclock">Διατήρηση της GPU στη μέγιστη συχνότητά της</string>
-    <string name="perf_gpuclock_hint">Μόνο Adreno. Λιγότερα κολλήματα, μεγαλύτερη χρήση μπαταρίας και θερμότητα.</string>
     <string name="perf_fixes">Διορθώσεις συνεδρίας</string>
     <string name="perf_sysmem">Turnip: απόδοση sysmem</string>
     <string name="perf_sysmem_hint">Ισχύει για το πρόγραμμα-πελάτη Steam και τα παιχνίδια. Απαιτείται σε Adreno 710/720/722.</string>

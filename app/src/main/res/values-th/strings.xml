@@ -626,7 +626,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">ปิด</string>
     <string name="perf_gpuclock">ตรึง GPU ไว้ที่ความเร็วสัญญาณนาฬิกาสูงสุด</string>
-    <string name="perf_gpuclock_hint">สำหรับ Adreno เท่านั้น สะดุดน้อยลง แต่ใช้แบตเตอรี่และเกิดความร้อนมากขึ้น</string>
     <string name="perf_fixes">การแก้ไขเซสชัน</string>
     <string name="perf_sysmem">Turnip: การเรนเดอร์ sysmem</string>
     <string name="perf_sysmem_hint">ใช้กับไคลเอนต์ Steam และเกม จำเป็นสำหรับ Adreno 710/720/722</string>

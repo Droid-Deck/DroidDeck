@@ -628,7 +628,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Pois</string>
     <string name="perf_gpuclock">Pidä GPU huippukellotaajuudessaan</string>
-    <string name="perf_gpuclock_hint">Vain Adreno. Vähemmän nykäyksiä, enemmän akun kulutusta ja lämpöä.</string>
     <string name="perf_fixes">Istunnon korjaukset</string>
     <string name="perf_sysmem">Turnip: sysmem-renderöinti</string>
     <string name="perf_sysmem_hint">Koskee Steam-asiakasohjelmaa ja pelejä. Pakollinen Adreno 710/720/722:lla.</string>

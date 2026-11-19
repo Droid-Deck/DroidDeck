@@ -126,6 +126,7 @@ internal object SettingsIndex {
         d(R.string.drawer_page_display, R.string.frame_gen_title, "lsfg", "lossless", "fps"),
         d(R.string.drawer_page_display, R.string.display_filter, "upscale", "fsr", "sharpness"),
         d(R.string.drawer_hud, R.string.drawer_hud, "fps", "counter", "overlay", "performance"),
+        d(R.string.drawer_hud, R.string.perf_gpuclock, "gpu", "clock", "max"),
         d(R.string.drawer_page_controller, R.string.input_touchscreen, "touch", "mouse", "direct", "touchpad", "click"),
         d(R.string.drawer_page_controller, R.string.mode_osc, "on-screen", "controls", "touch controls", "buttons"),
         d(R.string.drawer_page_controller, R.string.osc_steam_layout, "touch layout", "edit layout", "on-screen"),

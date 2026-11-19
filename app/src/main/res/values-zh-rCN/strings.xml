@@ -626,7 +626,6 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">关闭</string>
     <string name="perf_gpuclock">把 GPU 锁定在最高频率</string>
-    <string name="perf_gpuclock_hint">仅限 Adreno。卡顿更少，但更耗电、更发热。</string>
     <string name="perf_fixes">会话修复</string>
     <string name="perf_sysmem">Turnip：sysmem 渲染</string>
     <string name="perf_sysmem_hint">适用于 Steam 客户端和游戏。Adreno 710/720/722 必需。</string>
