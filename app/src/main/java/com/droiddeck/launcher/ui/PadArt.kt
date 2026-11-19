@@ -19,6 +19,7 @@ import com.droiddeck.launcher.input.PadKit
 import com.droiddeck.launcher.input.StickCap
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -108,11 +109,15 @@ internal class PadArt(context: Context) {
         text(canvas, kit.label(control), w / 2f, h / 2f, (b - t) * .46f, if (pressed) ON_ACCENT else INK, (r - l) * .8f)
     }
 
+    /** A back grip: a capsule along the long side of its box, at most 2.2 times as long as it is thick. */
     fun grip(canvas: Canvas, w: Float, h: Float, label: String, pressed: Boolean) {
-        val vw = min(w * .8f, h * .4f); val vh = vw * 2.5f
+        val inset = dp(3f)
+        val thick = (min(w, h) - 2 * inset).coerceAtLeast(1f)
+        val long = (max(w, h) - 2 * inset).coerceAtMost(thick * 2.2f)
+        val bw = if (w >= h) long else thick; val bh = if (w >= h) thick else long
         val cx = w / 2f; val cy = h / 2f
-        glass(canvas, roundRect(cx - vw / 2, cy - vh / 2, cx + vw / 2, cy + vh / 2, vw / 2), pressed)
-        text(canvas, label, cx, cy, vw * .4f, if (pressed) ON_ACCENT else INK_SOFT)
+        glass(canvas, roundRect(cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2, thick / 2), pressed)
+        text(canvas, label, cx, cy, thick * .42f, if (pressed) ON_ACCENT else INK_SOFT)
     }
 
     fun small(canvas: Canvas, w: Float, h: Float, label: String, pressed: Boolean) {
