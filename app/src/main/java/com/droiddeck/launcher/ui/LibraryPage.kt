@@ -41,6 +41,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.outlined.FolderOpen
@@ -528,7 +529,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         bleedHorizontal = if (narrow) 14.dp else 22.dp, bleedTop = if (narrow) 10.dp else 14.dp,
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
-            LibraryGrid(
+            StoreTheme(Store.byId(source)) { LibraryGrid(
                 s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
                 showUninstalled = listUninstalled.takeIf { !s.shortcutPicker },onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
@@ -551,7 +552,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 onCollections = { savedDialog = true },
                 trackHits = shownHits, onPlayHit = playHit,
                 signInStore = Store.byId(source)?.takeIf { it.id in signInChips },
-            )
+            ) }
         },
     ) { key ->
         if (soundMode || (!s.soundtracksEnabled && s.soundtracks.any { GameRef.key(it) == key })) SoundtrackDetail(key, s, a, lead, backLabel, onBack = back)
@@ -858,6 +859,7 @@ private fun LibraryHeader(
         SortButton(s, a)
         ViewButton(s, a)
         if (!soundMode) GameFileFolderActions(s, a)
+        Store.byId(source)?.takeIf { !soundMode && StoresState.isSignedIn(it) }?.let { StoreAccountButton(it) }
         if (!s.shortcutPicker && (soundMode || (source == Library.ADDED && total > 0))) AddGameButton { if (soundMode) onAddSoundtrack() else GamesDialogState.adding = true }
     }
     if (s.steamGamesX64 && narrow) Box(Modifier.padding(top = 4.dp)) { ClientTag() }
@@ -902,7 +904,10 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
                                 label = label, on = source == id, under = fillShown && highlighted == id, key = id, mark = dot ?: pal.signal,
                                 modifier = Modifier.bringIntoViewRequester(reveal).testTag("library-source-$id")
                                     .onGloballyPositioned { bounds[id] = it.boundsInParent() },
-                                lead = { if (dot != null) Box(Modifier.size(9.dp).background(dot, CircleShape)) },
+                                lead = {
+                                    if (dot != null) Box(Modifier.size(9.dp).background(dot, CircleShape))
+                                    else Icon(Icons.Filled.GridView, null, modifier = Modifier.size(14.dp))
+                                },
                                 onFocused = { focused = it },
                                 paneKey = "libchip:$id",
                             ) { onSource(id) }
@@ -922,6 +927,35 @@ private fun sourceTitle(src: String): String = when (src) {
     LIBRARY_FAVORITES -> stringResource(R.string.soundtracks_favorites)
     LIBRARY_HIDDEN -> stringResource(R.string.apps_filter_hidden)
     else -> Store.byId(src)?.label ?: sourceLabel(src)
+}
+
+@Composable
+private fun StoreAccountButton(store: Store) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val name = StoresState.accounts[store] ?: store.label
+    val label = stringResource(R.string.stores_signout_named, name)
+    val title = stringResource(R.string.stores_signout_title, store.label)
+    val note = stringResource(R.string.stores_signout_note)
+    val stay = stringResource(R.string.stores_signout_stay)
+    val go = stringResource(R.string.stores_signout_go)
+    var at by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        HeaderIconButton(label, Icons.Filled.ManageAccounts, "library-account") {
+            val from = at ?: run { StoresState.signOut(ctx, store); return@HeaderIconButton }
+            Steps.ask(StepAsk(
+                anchor = from, side = StepSide.Left, accent = colors.error, pillCorner = 8.dp, items = 3,
+                handle = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.error, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            ) {
+                StepTitle(title)
+                Text(note, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth().stepItem(2)) {
+                    StepChoice(stay, enabled = open, modifier = Modifier.focusRequester(first)) { Steps.fold() }
+                    StepChoice(go, danger = true, enabled = open) { Steps.fold(); StoresState.signOut(ctx, store) }
+                }
+            })
+        }
+    }
 }
 
 @Composable
@@ -975,7 +1009,7 @@ internal fun ManageStoresChip() {
     val open = { ManageStores.returnTo = back; ManageStores.open = true }
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.paneItem("libchip:manage").focusRequester(back).testTag("library-manage-stores").size(40.dp).clip(CircleShape)
+        modifier = Modifier.paneItem("libchip:manage").focusRequester(back).testTag("library-manage-stores").size(44.dp).clip(CircleShape)
             .background(colors.surface)
             .glideBorder(hot, CircleShape, pal.signal, pal.line)
             .hoverable(src)
