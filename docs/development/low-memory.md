@@ -101,8 +101,10 @@ available.
 
 Page-out never runs on a thread of the game. The preload's signal handler only wakes its
 `zr-worker` thread, which does the `madvise` calls. A forked process
-without a worker pages out inline in steps of at most 32 MiB per request and looks at no more
-than 512 MiB of its address space each time. The monitor is a
+without a worker trims inline in steps of at most 32 MiB per request and looks at no more
+than 512 MiB of its address space each time. The page-out for a suspend and the read-back
+after it are not limited there: they run once, while the process is being stopped or
+started, and cover all of it. The monitor is a
 shell loop in the session, outside every game process.
 
 The session log gets a line once at least 16 MiB has moved since the last one, at most every
