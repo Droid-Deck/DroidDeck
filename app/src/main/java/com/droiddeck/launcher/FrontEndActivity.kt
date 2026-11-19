@@ -99,6 +99,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         this, ui,
         idle = { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null },
         onInstalled = { if (!OfflineMode.enabled(this)) components.checkComponentUpdates(force = false) },
+        onRemoved = { components.refreshComponents() },
     )
 
     private var installed by mutableStateOf<String?>(null)
@@ -274,6 +275,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
     private val pickAnyDriver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { drivers.importDriver(it, linux = null) }
+    }
+    private val pickExperimentalProton = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { zip ->
+            protons.installExperimental { progress -> com.droiddeck.launcher.session.ExperimentalProtons.installFromFile(this, zip, progress) }
+        }
     }
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
@@ -2429,13 +2435,20 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             ),
             protons = com.droiddeck.launcher.ui.ProtonsState(
                 rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,
-                runtimeReady = ready && !busy, sessionRunning = SessionState.running,
+                runtimeReady = ready && !busy, sessionRunning = SessionState.running, experimental = protons.experimentalDirs,
+                experimentalReleases = protons.experimentalReleases,
             ),
             protonActions = com.droiddeck.launcher.ui.ProtonsActions(
                 onInstall = { id -> protons.installProton(id) },
                 onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
                 onRemove = { id, dir -> protons.removeProton(id, dir) },
                 onRemoveOlder = { id -> protons.removeProton(id, older = true) },
+                onExperimentalFile = {
+                    pickExperimentalProton.launch(InAppFilePicker.buildIntent(this, EXPERIMENTAL_PROTON_EXT, getString(R.string.xproton_install_file),
+                        android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).path))
+                },
+                onExperimentalRelease = { release -> protons.installExperimentalRelease(release) },
+                onRemoveExperimental = { dir -> protons.removeExperimental(dir) },
             ),
             protonOptions = {
                 com.droiddeck.launcher.ui.ProtonOptions(
@@ -3404,6 +3417,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
         private val SESSION_ENDED = setOf(SessionPhase.IDLE, SessionPhase.FAILED)
         private val ZIP_EXT = listOf("zip")
+        private val EXPERIMENTAL_PROTON_EXT = listOf("zip", "7z", "tar", "gz", "xz", "zst", "bz2", "tgz", "txz", "tbz2", "tzst")
         private val WCP_EXT = listOf("wcp")
     }
 }

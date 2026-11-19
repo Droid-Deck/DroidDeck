@@ -15,7 +15,7 @@ import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.StoreGameSidecar
 
-enum class CleanItem { OLD_TOOLS, LEFTOVERS, LEFTOVERS_UNSURE, LOGS, UNUSED_CUSTOM, UNUSED_COMPONENTS, SHADERS }
+enum class CleanItem { OLD_TOOLS, LEFTOVERS, LEFTOVERS_UNSURE, LOGS, SYSTEM_CACHES, UNUSED_CUSTOM, UNUSED_COMPONENTS, SHADERS }
 
 object StorageState {
     private const val TAG = "StorageState"
@@ -61,8 +61,17 @@ object StorageState {
         }, "storage-store-sizes").start()
     }
 
+    /** The last scan's overview from disk, shown until this run's first scan lands. */
+    var saved by mutableStateOf<StorageSummary?>(null)
+        private set
+
     private fun publish(app: Context, result: StorageReport) {
         report = result
+        val summary = StorageSummary.of(result)
+        saved = summary
+        Thread({
+            runCatching { StorageSummary.file(app.filesDir).writeText(summary.toJson()) }.onFailure { Log.w(TAG, "could not keep the storage summary", it) }
+        }, "storage-summary").start()
         val live = result.storeGames.mapTo(HashSet()) { sizeKey(it) }
         storeSizes.keys.retainAll(live)
         measureStoreGames(app)
@@ -88,6 +97,9 @@ object StorageState {
 
     fun refresh(context: Context, force: Boolean = false) {
         val current = report
+        if (current == null && saved == null) {
+            saved = runCatching { StorageSummary.fromJson(StorageSummary.file(context.applicationContext.filesDir).readText()) }.getOrNull()
+        }
         if (scanning || cleaning) {
             if (force) refreshAgain = true
             return
@@ -122,9 +134,10 @@ object StorageState {
         CleanItem.UNUSED_CUSTOM -> report.unusedTools.filter { it.reason == ToolReason.CUSTOM }.sumOf { it.bytes }
         CleanItem.UNUSED_COMPONENTS -> report.unusedComponents.sumOf { it.bytes }
         CleanItem.SHADERS -> report.installedShaders
+        CleanItem.SYSTEM_CACHES -> report.systemCacheBytes
     }
 
-    val SAFE = setOf(CleanItem.OLD_TOOLS, CleanItem.LEFTOVERS, CleanItem.LOGS)
+    val SAFE = setOf(CleanItem.OLD_TOOLS, CleanItem.LEFTOVERS, CleanItem.LOGS, CleanItem.SYSTEM_CACHES)
 
     fun safeBytes(report: StorageReport): Long = SAFE.sumOf { bytes(report, it) }
 
@@ -200,10 +213,19 @@ object StorageState {
         true
     })
 
+    /**
+     * Whether a kept prefix may be removed. A store app's prefix can go, as Wine makes a new one and the app can be set up
+     * again, but not while a store game is installed inside it, as Battle.net does on drive C, or while a download may write to it.
+     */
+    internal fun keptRemovable(report: StorageReport, prefix: KeptPrefix): Boolean =
+        prefix.owner != PrefixOwner.LAUNCHER || (report.storeGames.none { it.game.folder.path.startsWith(prefix.dir.path + "/") } &&
+            !com.droiddeck.launcher.stores.download.DownloadQueue.anyActive())
+
     fun resetKept(context: Context, prefix: KeptPrefix) = act(context, "kept-${prefix.dir.name}", { _, fresh ->
-        val dir = fresh.kept.firstOrNull { it.dir.path == prefix.dir.path && it.owner == prefix.owner }
-            ?.takeIf { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }?.dir ?: return@act false
-        check(FileOps.delete(dir)) { "cannot delete $dir" }
+        val kept = fresh.kept.firstOrNull { it.dir.path == prefix.dir.path && it.owner == prefix.owner }
+            ?.takeIf { keptRemovable(fresh, it) } ?: return@act false
+        val reset = kept.owner == PrefixOwner.SHARED || kept.owner == PrefixOwner.GAME
+        (listOf(kept.dir) + listOfNotNull(kept.shaders?.takeUnless { reset })).forEach { check(FileOps.delete(it)) { "cannot delete $it" } }
         true
     })
 
@@ -225,9 +247,25 @@ object StorageState {
         com.droiddeck.launcher.stores.StoresState.uninstall(app, next.game) { uninstallNext(app, rest.drop(1)) }
     }
 
+    /** Clears one cache, as found by a fresh scan, so a file that became busy since stays. */
+    fun clearSystemCache(context: Context, kind: SystemCache) = act(context, "cache-$kind", { _, fresh ->
+        val files = fresh.systemCaches.firstOrNull { it.kind == kind }?.files.orEmpty()
+        files.forEach { FileOps.delete(it) }
+        files.isNotEmpty()
+    })
+
+    /** Deletes a checkout the fresh scan still lists, and the main repository's record of it if it was a worktree. */
+    fun removeCheckout(context: Context, dir: java.io.File) = act(context, "checkout-${dir.name}", { app, fresh ->
+        val checkout = fresh.checkouts.firstOrNull { it.dir.path == dir.path } ?: return@act false
+        val record = SystemCaches.worktreeRecord(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app), checkout.dir)
+        check(FileOps.delete(checkout.dir)) { "cannot delete ${checkout.dir}" }
+        record?.let { FileOps.delete(it) }
+        true
+    })
+
     fun removeDirs(context: Context, dirs: List<java.io.File>) = act(context, "remove-${dirs.size}", { _, fresh ->
         val allowed = (fresh.games.flatMap { it.shaderDirs + listOfNotNull(it.prefixDir) } + fresh.leftovers.flatMap { listOfNotNull(it.prefix, it.shaders) } +
-            fresh.kept.filter { it.owner == PrefixOwner.SHARED || it.owner == PrefixOwner.GAME }.flatMap { listOfNotNull(it.dir, it.shaders) }).mapTo(HashSet()) { it.path }
+            fresh.kept.filter { keptRemovable(fresh, it) }.flatMap { listOfNotNull(it.dir, it.shaders) }).mapTo(HashSet()) { it.path }
         val wanted = dirs.distinctBy { it.path }
         val targets = wanted.filter { it.path in allowed }
         if (targets.size < wanted.size) Log.w(TAG, "kept ${wanted.size - targets.size} folders that are no longer safe to remove")
@@ -283,6 +321,7 @@ object StorageState {
             CleanItem.LEFTOVERS_UNSURE -> report.leftovers.filter { !it.safe }.forEach(::deleteLeftover)
             CleanItem.LOGS -> report.logs.forEach { FileOps.delete(it) }
             CleanItem.SHADERS -> report.games.flatMap { it.shaderDirs }.forEach { FileOps.delete(it) }
+            CleanItem.SYSTEM_CACHES -> report.systemCaches.flatMap { it.files }.forEach { FileOps.delete(it) }
         }
     }
 
