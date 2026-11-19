@@ -941,6 +941,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             return
         }
         if (GameLaunchIntent.accepts(request.action)) {
+            gameLaunchRequest.incrementAndGet()
             gameLinkReading = true
             com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
             val copy = Intent(request)
@@ -1943,8 +1944,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val settingsLink = intent.data?.scheme == "droiddeck" && intent.data?.host == "settings"
-        if (GameLaunchIntent.accepts(intent.action) && !settingsLink) gameLaunchRequest.incrementAndGet()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
             pendingGameLink = null
