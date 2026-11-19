@@ -60,8 +60,8 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
             if (latched) 1f else 0f
         } else value
         if (arms.isNotEmpty() && route?.action is InputAction.Native) {
-            route.update(x, y, touching)
-            val values = listOf(y < -.5f, x > .5f, y > .5f, x < -.5f).map { if (it) 1f else 0f }
+            val ready = route.update(x, y, touching) != null
+            val values = listOf(y < -.5f, x > .5f, y > .5f, x < -.5f).map { if (it && ready) 1f else 0f }
             val toPad = arms.mapIndexed { i, arm -> arm.update(values[i])?.takeIf { it.isPad }?.let { it to values[i] } }.filterNotNull()
             if (toPad.isNotEmpty() || nativePad) writePad(this, null) { state -> state.clear(); for ((t, v) in toPad) state.add(t, v) }
             nativePad = toPad.isNotEmpty()

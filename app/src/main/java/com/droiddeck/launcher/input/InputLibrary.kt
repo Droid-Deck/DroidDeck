@@ -317,4 +317,4 @@ internal fun InputAction.validFor(element: InputSurfaceElement): Boolean = when 
 
 /** A saved element, or, in a gamepad that keeps no kit positions, the kit control that [id] names. */
 internal fun SavedInputLayout.element(id: String): InputSurfaceElement? =
-    elements.firstOrNull { it.id == id } ?: KitLayout.element(id)?.takeIf { OnScreenLayout.generated(this) }
+    elements.firstOrNull { it.id == id } ?: KitLayout.element(id)?.takeIf { OnScreenLayout.generated(this) || KitLayout.bindsTo(id, elements) }

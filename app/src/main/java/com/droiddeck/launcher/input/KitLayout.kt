@@ -27,6 +27,13 @@ object KitLayout {
         else -> null
     }
 
+    /** The direction buttons the kit's D-pad stands in for; their saved overrides stay with the D-pad. */
+    val dpadDirectionIds = listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT).map { "legacy:${it.id}" }
+
+    /** Whether a binding for [id] belongs to a layout made of [elements]. */
+    fun bindsTo(id: String, elements: List<InputSurfaceElement>) =
+        elements.any { it.id == id } || id in dpadDirectionIds && elements.any { it.id == DPAD_ID }
+
     /** Every kit control that has a click, across all virtual controllers. */
     val clickIds = listOf(InputControl.LS, InputControl.RS, InputControl.LEFT_PAD, InputControl.RIGHT_PAD).map { "legacy:${it.id}" }
     private const val REF_W = 1600f

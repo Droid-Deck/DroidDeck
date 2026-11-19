@@ -166,4 +166,16 @@ class OnScreenControlPrefsTest {
         val dimmed = withKey.withLayout(overlay.copy(style = overlay.style.copy(opacity = 50)))
         assertEquals(InputAction.Keys(listOf(30)), dimmed.preset(bindings.id).elements["legacy:a"])
     }
+
+    @Test fun aSavedKitDpadKeepsItsDirectionOverrides() {
+        val library = InputLibraries.read(context)
+        val overlay = library.layouts.single { it.id == InputLibraries.OVERLAY }
+        val saved = overlay.copy(elements = KitLayout.elements(context, PadKit.XBOX, 1920, 1080), aspect = 16f / 9)
+        val bindings = library.preset(library.activePart(false, InputRole.PRIMARY).bindings)
+        val withUp = library.withLayout(saved).withPreset(bindings.copy(elements = bindings.elements + ("legacy:up" to InputAction.Keys(listOf(103)))))
+        val edited = withUp.withLayout(saved.copy(style = saved.style.copy(opacity = 60))).validate()
+        assertEquals(InputAction.Keys(listOf(103)), edited.preset(bindings.id).elements["legacy:up"])
+        val noDpad = edited.withLayout(saved.copy(elements = saved.elements.filterNot { it.id == KitLayout.DPAD_ID }))
+        assertNull(noDpad.preset(bindings.id).elements["legacy:up"])
+    }
 }

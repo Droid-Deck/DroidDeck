@@ -1715,6 +1715,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 SessionPrefs.setOscMode(this@SessionActivity, v)
                 controlsHiddenByTap = false
                 readPrefs()
+                applyUnfoldedControls()
                 updateOnScreenControls()
             },
             layoutGame = controlsGameName(),

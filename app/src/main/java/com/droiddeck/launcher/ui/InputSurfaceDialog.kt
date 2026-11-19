@@ -163,10 +163,10 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             InputLibraries.update(context) { latest ->
                 val l = latest.layouts.first { it.id == savedLayout.id }
                 val p = latest.preset(savedBindings.id)
-                val generated = draft.kitAtDefaults && OnScreenLayout.generated(l.copy(elements = emptyList()))
+                val generated = draft.kitAtDefaults && OnScreenLayout.generated(l.copy(elements = emptyList(), kitless = false))
                 val extras = draft.elements.filterNot { KitLayout.isKit(it.id) }
                 latest.withLayout(if (generated) l.copy(elements = extras, aspect = if (extras.isEmpty()) 0f else draft.aspect, scale = draft.layoutScale, kitless = false)
-                    else l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale, kitless = draft.elements.none { KitLayout.isKit(it.id) })).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
+                    else l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale, kitless = draft.elements.none { KitLayout.isKit(it.id) })).withPreset(p.copy(elements = draft.actions.filterKeys { id -> KitLayout.bindsTo(id, draft.elements) },
                     clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
             }
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }

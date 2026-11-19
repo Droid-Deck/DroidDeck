@@ -213,4 +213,18 @@ class InputSurfaceSourceTest {
         pad.cancel()
         assertTrue(events.none { it.startsWith("KEYBOARD") })
     }
+
+    @Test fun aDirectionHeldAcrossAProfileChangeWaitsForNeutral() {
+        val dpad = InputSurfaceElement(InputControl.LS, .1f, .1f, .3f, .3f, KitLayout.DPAD_ID, InputElementKind.DPAD)
+        bridge.setInputProfile(InputProfile("first", elements = mapOf(InputRole.SECONDARY to mapOf(KitLayout.DPAD_ID to InputAction.Directions(17, 32, 31, 30)))))
+        val pad = source(dpad)
+        pad.update(0f, -1f)
+        bridge.setInputProfile(InputProfile("second", elements = mapOf(InputRole.SECONDARY to mapOf("legacy:up" to InputAction.Keys(listOf(103))))))
+        events.clear()
+        pad.update(0f, -1f)
+        assertTrue(events.none { it == "key:103:true" })
+        pad.update(0f, 0f)
+        pad.update(0f, -1f)
+        assertEquals("key:103:true", events.last())
+    }
 }
