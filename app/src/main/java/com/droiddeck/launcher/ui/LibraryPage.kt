@@ -607,7 +607,8 @@ private fun LibraryGrid(
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
     var columns by remember { mutableIntStateOf(1) }
-    val headerItems = 2 + (if (sizesPending) 1 else 0) + syncing.size
+    val splash = !soundMode && (signInStore != null || (source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0))
+    val headerItems = (if (splash) 1 else 2) + (if (sizesPending) 1 else 0) + syncing.size
     val expanded = showUninstalled == true
     val notInstalled = if (expanded) visible.count { !it.installed } else hiddenUninstalled
     val toggleAt = when {
@@ -737,7 +738,7 @@ private fun LibraryGrid(
         }
         val filters: @Composable () -> Unit = { LibraryFilters(sources, source, onSource, manage = !soundMode && !s.shortcutPicker) }
         item(key = if (soundMode) "header" else "filters", span = { GridItemSpan(maxLineSpan) }) { Rise(0) { if (soundMode) header() else filters() } }
-        item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
+        if (!splash) item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(store.shortLabel + " · " + line, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
