@@ -116,7 +116,7 @@ def through_client(folder, sidecar, timeout=CLIENT_TIMEOUT):
     return str(answer.get("reason") or "failed")
 
 
-def ask(channel, request, timeout=TIMEOUT):
+def ask(channel, request, timeout=TIMEOUT, claim=False):
     req_dir, resp_dir = channel / "req", channel / "resp"
     req_dir.mkdir(parents=True, exist_ok=True)
     resp_dir.mkdir(parents=True, exist_ok=True)
@@ -125,19 +125,33 @@ def ask(channel, request, timeout=TIMEOUT):
     tmp.write_text(json.dumps(request))
     os.rename(tmp, req_dir / (rid + ".json"))
     answer = resp_dir / (rid + ".json")
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+
+    def wait(seconds):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            try:
+                value = json.loads(answer.read_text())
+                answer.unlink()
+                return value
+            except (OSError, ValueError):
+                time.sleep(0.05)
+        return None
+
+    value = wait(timeout)
+    if value is not None:
+        return value
+    for pending in (req_dir / (rid + ".json"), resp_dir / (rid + ".taken")):
+        abandoned = pending.with_name(rid + ".abandoned")
         try:
-            value = json.loads(answer.read_text())
-            answer.unlink()
-            return value
-        except (OSError, ValueError):
-            time.sleep(0.05)
-    try:
-        (req_dir / (rid + ".json")).unlink()
-    except OSError:
-        pass
-    return None
+            os.rename(pending, abandoned)
+        except OSError:
+            continue
+        try:
+            abandoned.unlink()
+        except OSError:
+            pass
+        return None
+    return wait(CLAIMED_TIMEOUT) if claim else None
 
 
 def windows_path(unix):
@@ -255,7 +269,8 @@ def create_prefix(compat_data, proton, timeout=120):
 
 
 CLOUD_TIMEOUT = 15.0
-CLOUD_STORES = ("gog", "epic")
+CLAIMED_TIMEOUT = 120.0
+CLOUD_STORES = ("gog", "epic", "ea", "ubisoft")
 STORE_GAME = 10
 RAN = 11
 RAN_FAILED = 12
@@ -304,11 +319,14 @@ def exited(argv, code=0):
     if found is not None and launch_dir and str(found[1].get("store")) == "ea":
         ask(Path(launch_dir) / "stores", {"op": "ea-exited", "store": "ea", "id": str(found[1].get("id"))}, timeout=1.0)
         log("ea %s exited" % found[1].get("id"))
-        return 0
     if found is None or not launch_dir or not cloud_on(found[1]):
         return 0
     store, game = str(found[1].get("store")), str(found[1].get("id"))
-    ask(Path(launch_dir) / "stores", {"op": "cloud-up", "store": store, "id": game}, timeout=1.0)
+    try:
+        ask(Path(launch_dir) / "stores", {"op": "cloud-up", "store": store, "id": game}, timeout=1.0)
+    except OSError as error:
+        log("cloud %s %s up not requested (%s)" % (store, game, type(error).__name__))
+        return 0
     log("cloud %s %s up requested" % (store, game))
     return 0
 
@@ -1601,7 +1619,7 @@ def main(argv):
     compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     prefix_id = os.path.basename(compat_data) if compat_data else ""
     launch_dir = os.environ.get("DD_LAUNCH_DIR", "")
-    if launch_dir and cloud_on(sidecar):
+    if launch_dir and cloud_on(sidecar) and store != "ea":
         made = create_prefix(compat_data, os.environ.get("DD_STORE_PROTON", ""))
         if made != "present":
             log("cloud %s %s prefix=%s" % (store, game, made))
@@ -1670,13 +1688,16 @@ def main(argv):
         log("epic prefix=%s %s" % (prefix_id or "?", provision_prefix(compat_data)))
     if store == "ea":
         prepare_ea(folder, sidecar, compat_data, launch_dir)
-        return STORE_GAME
     if not cloud_on(sidecar):
         if store in CLOUD_STORES:
             log("cloud %s %s down result=skipped reason=off" % (store, game))
-        return 0
+        return STORE_GAME if store == "ea" else 0
     if launch_dir:
-        answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT)
+        try:
+            answer = ask(Path(launch_dir) / "stores", {"op": "cloud-down", "store": store, "id": game}, timeout=CLOUD_TIMEOUT, claim=True)
+        except OSError as error:
+            log("cloud %s %s down result=failed reason=%s" % (store, game, type(error).__name__))
+            return STORE_GAME
         if answer is None:
             log("cloud %s %s down result=timeout" % (store, game))
         else:

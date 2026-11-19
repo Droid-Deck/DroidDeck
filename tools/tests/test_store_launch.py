@@ -106,6 +106,62 @@ class Asking(unittest.TestCase):
             self.assertIsNone(store.ask(channel, {'op': 'epic-code'}, timeout=0.2))
             self.assertEqual([], list((channel / 'req').iterdir()))
 
+    def test_a_cloud_download_the_launcher_stops_waiting_for_loses_its_claim(self):
+        with tempfile.TemporaryDirectory() as root:
+            channel = Path(root) / 'stores'
+            taken = []
+            handed = threading.Event()
+
+            def app():
+                deadline = time.monotonic() + 5
+                while not taken and time.monotonic() < deadline:
+                    for request in (channel / 'req').glob('*.json') if (channel / 'req').is_dir() else []:
+                        target = channel / 'resp' / (request.stem + '.taken')
+                        os.rename(request, target)
+                        taken.append(target)
+                        handed.set()
+                    time.sleep(0.02)
+
+            t = threading.Thread(target=app, daemon=True)
+            t.start()
+            try:
+                self.assertIsNone(store.ask(channel, {'op': 'cloud-down'}, timeout=2.0, claim=True))
+            finally:
+                t.join(5)
+            self.assertTrue(handed.is_set(), 'the app never took the request')
+            with self.assertRaises(OSError):
+                os.rename(taken[0], taken[0].with_suffix('.writing'))
+
+    def test_a_claimed_cloud_download_is_waited_for(self):
+        with tempfile.TemporaryDirectory() as root:
+            channel = Path(root) / 'stores'
+            handed = threading.Event()
+
+            def app():
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    names = list((channel / 'req').glob('*.json')) if (channel / 'req').is_dir() else []
+                    if names:
+                        handed.set()
+                        writing = channel / 'resp' / (names[0].stem + '.writing')
+                        os.rename(names[0], writing)
+                        time.sleep(0.6)
+                        tmp = channel / 'resp' / (names[0].name + '.tmp')
+                        tmp.write_text(json.dumps({'ok': True, 'result': 'ok'}))
+                        os.rename(tmp, channel / 'resp' / names[0].name)
+                        writing.unlink()
+                        return
+                    time.sleep(0.02)
+
+            t = threading.Thread(target=app, daemon=True)
+            t.start()
+            try:
+                answer = store.ask(channel, {'op': 'cloud-down'}, timeout=0.2, claim=True)
+            finally:
+                t.join(5)
+            self.assertTrue(handed.is_set(), 'the app never took the request')
+            self.assertEqual({'ok': True, 'result': 'ok'}, answer)
+
     def test_a_stale_code_is_dropped_before_asking(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root)
@@ -214,7 +270,7 @@ class CloudHooks(unittest.TestCase):
             try:
                 original = store.ask
                 asked = []
-                store.ask = lambda channel, request, timeout=5.0: asked.append((request, timeout)) or {'ok': True, 'files': 2, 'reason': 'ok'}
+                store.ask = lambda channel, request, timeout=5.0, claim=False: asked.append((request, timeout)) or {'ok': True, 'files': 2, 'reason': 'ok'}
                 self.assertEqual(store.STORE_GAME, store.main([bat]))
                 self.assertEqual(0, store.main(['--exited', bat]))
             finally:
@@ -224,6 +280,55 @@ class CloudHooks(unittest.TestCase):
             self.assertEqual({'op': 'cloud-down', 'store': 'gog', 'id': '1207664643'}, asked[1][0])
             self.assertEqual(store.CLOUD_TIMEOUT, asked[1][1])
             self.assertEqual('cloud-up', asked[2][0]['op'])
+
+    def test_a_cloud_request_that_cannot_be_written_still_starts_the_game_and_uploads_on_exit(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='ubisoft', ident='space-1')
+            sc = json.loads((folder / '.droiddeck-store.json').read_text()); sc['extra'] = {'productId': '109'}
+            (folder / '.droiddeck-store.json').write_text(json.dumps(sc))
+            bat = str(folder / '.droiddeck-launch.bat')
+            asked = []
+
+            def ask(channel, request, timeout=5.0, claim=False):
+                asked.append(request['op'])
+                if request['op'] in ('cloud-down', 'cloud-up'):
+                    raise PermissionError(13, 'read-only')
+                return {'ok': True}
+
+            lines = []
+            with patch.dict(os.environ, {'DD_LAUNCH_DIR': str(Path(root) / 'session')}),                     patch.object(store, 'ask', side_effect=ask),                     patch.object(store, 'prepare_ubisoft', return_value='ready'),                     patch.object(store, 'create_prefix', return_value='present'),                     patch.object(store, 'log', side_effect=lines.append):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['cloud-down', 'cloud-up'], [op for op in asked if op.startswith('cloud-')])
+            self.assertIn('cloud ubisoft space-1 down result=failed reason=PermissionError', lines)
+            self.assertIn('cloud ubisoft space-1 up not requested (PermissionError)', lines)
+    def test_an_ea_game_with_cloud_saves_asks_after_its_preparation_and_exit(self):
+        ident = 'Origin.OFR.50.0002694'
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='ea', ident=ident)
+            bat = str(folder / '.droiddeck-launch.bat')
+            asked = []
+            env = {'DD_LAUNCH_DIR': str(Path(root) / 'session')}
+            record = lambda channel, request, timeout=5.0, claim=False: asked.append(request) or {'result': 'ok'}
+            with patch.dict(os.environ, env), \
+                    patch.object(store, 'prepare_ea', side_effect=lambda *a: asked.append({'op': 'prepared'})), \
+                    patch.object(store, 'create_prefix', side_effect=AssertionError('EA prepares its own prefix')), \
+                    patch.object(store, 'ask', side_effect=record):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual(['prepared', 'cloud-down'], [r['op'] for r in asked])
+                self.assertEqual({'op': 'cloud-down', 'store': 'ea', 'id': ident}, asked[1])
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['ea-exited', 'cloud-up'], [r['op'] for r in asked[2:]])
+            self.assertEqual({'op': 'cloud-up', 'store': 'ea', 'id': ident}, asked[3])
+            sidecar = json.loads((folder / store.SIDECAR).read_text())
+            sidecar['cloud'] = False
+            (folder / store.SIDECAR).write_text(json.dumps(sidecar))
+            asked.clear()
+            with patch.dict(os.environ, env), patch.object(store, 'prepare_ea'), patch.object(store, 'ask', side_effect=record):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual([], asked)
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['ea-exited'], [r['op'] for r in asked])
 
     def test_a_first_launch_creates_the_prefix_before_the_cloud_download(self):
         with tempfile.TemporaryDirectory() as root:
@@ -244,7 +349,7 @@ class CloudHooks(unittest.TestCase):
 
             env = {'DD_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': str(compat), 'DD_STORE_PROTON': str(proton)}
             with patch.dict(os.environ, env), patch.object(store.subprocess, 'run', side_effect=run), \
-                    patch.object(store, 'ask', side_effect=lambda channel, request, timeout=5.0: order.append(request) or {'result': 'ok'}):
+                    patch.object(store, 'ask', side_effect=lambda channel, request, timeout=5.0, claim=False: order.append(request) or {'result': 'ok'}):
                 self.assertEqual(store.STORE_GAME, store.main([str(folder / store.LAUNCHER)]))
                 self.assertEqual([str(proton), 'run', 'cmd.exe', '/d', '/c', 'exit'], order[0])
                 self.assertEqual({'op': 'cloud-down', 'store': 'epic', 'id': 'fa4240e5'}, order[-1])

@@ -22,7 +22,6 @@
         <item>أضف مكتبات Steam من بطاقة SD أو محرك USB أو SSD، وسيجمع DroidDeck الألعاب معًا في «المكتبة».</item>
         <item>تتيح لك «المتاجر» تسجيل الدخول إلى Epic Games وGOG وXbox وEA وBattle.net وUbisoft Connect وAmazon Games وitch.io وGame Jolt، ثم تثبيت ألعابها وتحديثها من DroidDeck.</item>
         <item>تحدّث المكوّنات مثل FEX وDXVK وVKD3D-Proton نفسها تلقائيًا، ويكون Proton Experimental ARM64 هو الافتراضي، أو Proton 11.0 ARM64 بعد تثبيت هذا الإصدار.</item>
-        <item>يحرر «ضغط Steam أثناء تشغيل لعبة» مساحة من الذاكرة في الأجهزة قليلة الذاكرة.</item>
         <item>اسحب من الحافة اليمنى للداخل لفتح قائمة الجلسة: وضع «لوحة اللمس» و«لوحة مفاتيح الكمبيوتر» و«وضع زمن الاستجابة المنخفض» وملف اللعبة والمزيد.</item>
         <item>اللعبة بطيئة؟ حدّد معدل الإطارات في الوصول السريع، ثم جرّب إصدار Proton آخر أو إعدادًا مسبقًا آخر لـ FEX في مكوّنات اللعبة.</item>
         <item>هل الصوت متقطع أو مفقود في اللعبة؟ جرّب مفتاح «DirectAudio للألعاب» في إعدادات Steam ضمن «الصوت».</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">هذا البرنامج مبني لأجهزة كمبيوتر %1$s ويعمل عبر FEX، الذي لم يتم إعداده بعد. افتح Steam مرة واحدة أثناء تسجيل الدخول: سيجعله DroidDeck يُنزّل FEX وSteam Linux Runtime اللازمة، ثم يُفتح هذا البرنامج.</string>
     <string name="session_proot_missing">تعذّر تنزيل proot الخاص بـ DroidDeck. تحقّق من الاتصال وحاول مرة أخرى. لم تبدأ الجلسة لأن proot الاحتياطي أبطأ من أن يصلح للعب.</string>
     <string name="session_powervr_missing">تعذّر تنزيل بيئة رسومات PowerVR. تحقق من الاتصال وحاول مرة أخرى.</string>
+    <string name="session_graphics_runtime_failed">تعذّر تجهيز بيئة الرسومات، لذا لم تبدأ الجلسة.</string>
+    <string name="session_game_environment_failed">تعذّر إعداد بيئة اللعبة، لذا لم تبدأ الجلسة.</string>
     <string name="session_directaudio_missing">تعذّر تنزيل DirectAudio، لذا يستخدم صوت الألعاب المسار الأبطأ في هذه الجلسة.</string>
     <string name="session_end_program">هذا البرنامج</string>
     <string name="session_end_present_fault">لم تتمكن الجلسة من الرسم على الشاشة: %1$s. تعرض هذه الشاشة السبب بدلًا من شاشة سوداء؛ والتفاصيل في سجلات الجلسة.</string>
@@ -632,20 +633,8 @@
     <string name="perf_gsrealtime">gamescope: طابور GPU بأولوية الوقت الفعلي</string>
     <string name="perf_gsrealtime_hint">يعطي الأولوية لعمل GPU الخاص بالمُركِّب. قد يحسّن انتظام الإطارات على حساب أداء الألعاب قليلًا.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">الذاكرة</string>
     <string name="perf_cap_off">إيقاف</string>
-    <string name="perf_cap_auto">افتراضي برنامج التشغيل</string>
-    <string name="perf_zram_client">ضغط Steam أثناء تشغيل لعبة</string>
-    <string name="perf_zram_idle">ضغط ذاكرة اللعبة الخاملة</string>
-    <string name="perf_zram_idle_hint">يرحّل ذاكرة اللعبة الخاملة عند انخفاض RAM. أوقفه إذا كانت الألعاب تتجمد لبضع ثوانٍ كل نصف دقيقة تقريبًا. يُطبَّق عند بدء الجلسة التالية.</string>
-    <string name="perf_zram_client_hint">بعد 20 ثانية من بدء اللعبة، يُضغط عميل Steam في zRAM لترك ذاكرة أكبر للعبة، ثم يُقرأ مجددًا عند إغلاقها. أوقف هذا الخيار إذا كانت الجلسة تُغلَق بعد بدء الألعاب بقليل. يظل حد RAM أعلاه يضغط Steam عندما تتجاوزه الجلسة.</string>
-    <string name="perf_ram_cap">حد RAM</string>
-    <string name="perf_ram_cap_hint">يُطبَّق أثناء تشغيل عميل Steam، في جلسة Steam أو من سطح المكتب. عندما تستخدم الجلسة أكثر من هذا الحد، يُضغط Steam ثم عمليات الجلسة المدعومة الأخرى في zRAM. حد مرن: لا يُغلَق شيء، لكن قد تتقطّع الألعاب أثناء استعادة الصفحات.</string>
-    <string name="perf_ram_cap_unavailable">يتطلب مساحة تبديل zRAM، وهي غير متوفرة على هذا الجهاز.</string>
-    <string name="perf_vram_cap">حد VRAM</string>
-    <string name="perf_vram_cap_hint">يُبلّغ ألعاب Direct3D من 9 إلى 12 بميزانية ذاكرة الفيديو هذه لتشجيع تقليل استخدامها. قد تتجاوزها الألعاب؛ لا يضيف هذا ترحيل ذاكرة GPU ولا يضمن منع الانهيار بسبب نفاد الذاكرة. يسري في الجلسة التالية.</string>
     <string name="perf_gpuclock">تثبيت GPU على أعلى تردد له</string>
-    <string name="perf_gpuclock_hint">لـ Adreno فقط. تقطّع أقل، مع استهلاك أكبر للبطارية والحرارة.</string>
     <string name="perf_fixes">إصلاحات الجلسة</string>
     <string name="perf_sysmem">Turnip: التصيير عبر sysmem</string>
     <string name="perf_sysmem_hint">ينطبق على عميل Steam والألعاب. مطلوب على Adreno 710/720/722.</string>
@@ -1605,6 +1594,8 @@
     <string name="pip_unavailable">تعذّر على Android فتح نافذة ضمن النافذة.</string>
     <string name="game_more">المزيد</string>
     <string name="game_edit_art">تعديل الصور</string>
+    <string name="game_unhide">إزالة من المخفية</string>
+    <string name="game_hide_failed">تعذّرت المزامنة مع Steam. أغلق Steam وحاول مرة أخرى.</string>
     <string name="stores_in_steam_label">في Steam</string>
     <string name="game_shortcut">اختصار</string>
     <string name="game_shortcut_add">إضافة إلى الشاشة الرئيسية</string>
@@ -2413,6 +2404,17 @@
     <string name="pextra_checksum_mismatch">عدم تطابق المجموع الاختباري؛ تم حذف التنزيل</string>
     <string name="pextra_session_started">بدأت جلسة خلال التنزيل، أوقفها قبل تثبيت أدوات التوافق</string>
     <string name="pextra_installing">جارٍ تثبيت %1$s</string>
+    <string name="xproton_title">إصدارات تجريبية</string>
+    <string name="xproton_install_file">تثبيت من ملف</string>
+    <string name="xproton_archive_unsafe">يحتوي الأرشيف على رابط أو مسار غير آمن</string>
+    <string name="xproton_archive_invalid">أرشيف غير مدعوم أو غير صالح</string>
+    <string name="xproton_no_space">لا توجد مساحة كافية لإصدار Proton هذا</string>
+    <string name="xproton_unpacking">جارٍ تفريغ Proton (بضع دقائق)</string>
+    <string name="xproton_untar_failed">فشل التفريغ (tar %1$d)</string>
+    <string name="xproton_no_tree">الأرشيف لا يحتوي على إصدار Proton</string>
+    <string name="xproton_place_failed">تعذّر وضع إصدار Proton</string>
+    <string name="xproton_remove_failed">تعذّرت الإزالة الكاملة لـ %1$s</string>
+    <string name="xproton_installed">تم تثبيت Proton التجريبي. اختره في Steam → الخصائص → التوافق.</string>
     <string name="pextra_install_failed">فشل تثبيت %1$s (حالة الخروج %2$d)</string>
     <string name="pextra_could_not_install">تعذّر تثبيت %1$s</string>
     <string name="esync_fetching">جارٍ جلب حزمة droiddeck-esync</string>
@@ -3489,10 +3491,19 @@
     <string name="storage_shared_prefix">بادئة Steam المشتركة</string>
     <string name="storage_shared_prefix_detail">يشغّل Steam مساعدات Windows الخاصة به هنا</string>
     <string name="storage_reset_shared_confirm">يحذفها (%1$s). ينشئ Steam بادئة جديدة في المرة التالية التي يحتاجها فيها.</string>
+    <string name="storage_remove_launcher_confirm">يحذف بادئة Wine وذاكرة التظليل المؤقتة لتطبيق المتجر هذا (%1$s)، مع تسجيل الدخول وأي حفظ موجود فيها فقط. تحصل الألعاب التي تعمل فيها على بادئة جديدة، وقد تحتاج إلى إعداد التطبيق مرة أخرى. تبقى عمليات الحفظ السحابية في حسابك.</string>
+    <string name="storage_system_clearable">يمكن مسح %1$s</string>
+    <string name="storage_item_system_caches">ذاكرات Linux وSteam المؤقتة</string>
+    <string name="storage_item_system_caches_detail">الملفات المؤقتة القديمة والحزم المنزّلة وذاكرة الويب المؤقتة لـ Steam</string>
+    <string name="storage_cache_temp">الملفات المؤقتة القديمة</string>
+    <string name="storage_cache_packages">الحزم المنزّلة</string>
+    <string name="storage_cache_steam_web">ذاكرة الويب المؤقتة لـ Steam</string>
+    <string name="storage_cache_steam_corrupt">تنزيلات Steam التالفة</string>
+    <string name="storage_cache_detail">تُنشأ مجددًا عند الحاجة</string>
+    <string name="storage_clear">مسح</string>
     <string name="storage_launcher_prefix">تطبيق متجر والألعاب التي تعمل به</string>
     <string name="storage_launcher_used_by">مستخدَمة بواسطة %1$s</string>
     <string name="storage_shortcut_app">لعبة خارج Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">غير مطابقة لأي لعبة، لذا يُحتفظ بها</string>
     <string name="storage_remove_selected">حذف المحدد · %1$s</string>
     <string name="storage_uninstall_selected">إلغاء تثبيت المحدد · %1$s</string>
     <string name="storage_bulk_prefixes">بادئات Wine</string>
@@ -4249,4 +4260,18 @@
     <string name="display_scaling_integer">عدد صحيح</string>
     <string name="display_scaling_fit">ملاءمة</string>
     <string name="drawer_antialiasing">تنعيم الحواف</string>
+    <string name="theme_custom">مخصص</string>
+    <string name="theme_custom_detail">اختر كل لون في الواجهة بشكل مستقل.</string>
+    <string name="theme_custom_background">الخلفية</string>
+    <string name="theme_custom_surface">اللوحات</string>
+    <string name="theme_custom_surface_variant">اللوحات المرتفعة</string>
+    <string name="theme_custom_line">الفواصل</string>
+    <string name="theme_custom_line2">الحدود</string>
+    <string name="theme_custom_on_background">النص الرئيسي</string>
+    <string name="theme_custom_on_surface_variant">النص الثانوي</string>
+    <string name="theme_custom_primary">الأزرار واللون الأساسي</string>
+    <string name="theme_custom_on_primary">نص الأزرار</string>
+    <string name="theme_custom_signal">الإبرازات</string>
+    <string name="theme_custom_good">نجاح</string>
+    <string name="theme_custom_error">خطأ</string>
 </resources>

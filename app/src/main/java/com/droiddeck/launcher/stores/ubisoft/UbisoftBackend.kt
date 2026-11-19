@@ -168,14 +168,14 @@ object UbisoftLibrary {
     internal fun assemble(listed: List<CatalogItem>, owned: JSONObject?): List<CatalogItem> {
         val known = owned?.optJSONArray("games") != null && owned.optString("error").isEmpty()
         val bySpace = ownedBySpace(owned)
-        val matched = listed.map { g -> bySpace[g.id]?.let { g.copy(extra = g.extra + download(it)) } ?: g }
+        val matched = listed.map { g -> bySpace[g.id]?.let { withArt(g.copy(extra = g.extra + download(it)), it) } ?: g }
             .filter { !known || it.extra["productId"] != null }
             .let { games -> games.filter { g -> g.extra["productId"] == null || games.first { it.extra["productId"] == g.extra["productId"] } === g } }
             .let { games -> games.filter { g -> g.extra["productId"] != null || games.none { it !== g && it.title == g.title && it.extra["productId"] != null } } }
         val products = matched.mapNotNull { it.extra["productId"] }.toSet()
         val unlisted = bySpace.filterKeys { space -> listed.none { it.id == space } }.filterValues { it.optLong("productId").toString() !in products }.mapNotNull { (space, o) ->
             val title = title(o.optString("configuration")) ?: return@mapNotNull null
-            CatalogItem(Store.UBISOFT, space, title, null, owned = true, extra = mapOf("spaceId" to space) + download(o))
+            withArt(CatalogItem(Store.UBISOFT, space, title, null, owned = true, extra = mapOf("spaceId" to space) + download(o)), o)
         }
         return (matched + unlisted).sortedBy { it.title.lowercase() }
     }
@@ -184,12 +184,36 @@ object UbisoftLibrary {
 
     private val NAME = Regex("""^\s{1,4}name:\s*['"]?(.+?)['"]?\s*$""", RegexOption.MULTILINE)
 
+    /** The default text of a localisation key such as `l1` or `THUMBIMAGE`. */
+    private fun localized(configuration: String, key: String): String? {
+        if (!Regex("""\w+""").matches(key)) return null
+        val local = configuration.indexOf("localizations:").takeIf { it >= 0 } ?: return null
+        return Regex("""^\s+${key}:\s*['"]?(.+?)['"]?\s*$""", RegexOption.MULTILINE).find(configuration, local)?.groupValues?.get(1)?.trim()
+    }
+
     /** The product's name from its configuration, following a localisation key such as `l1` to its default text. */
     internal fun title(configuration: String): String? {
         val raw = NAME.find(configuration)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         if (!Regex("""l\d+""").matches(raw)) return raw
-        val local = configuration.indexOf("localizations:").takeIf { it >= 0 } ?: return raw
-        return Regex("""^\s+${raw}:\s*['"]?(.+?)['"]?\s*$""", RegexOption.MULTILINE).find(configuration, local)?.groupValues?.get(1)?.trim() ?: raw
+        return localized(configuration, raw) ?: raw
+    }
+
+    private const val ASSETS = "https://static3.cdn.ubi.com/orbit/uplay_launcher_3_0/assets/"
+    private val ASSET = Regex("""[\w.-]+\.(?:jpe?g|png)""", RegexOption.IGNORE_CASE)
+
+    /** The URL of an image the configuration's `root` names, such as `thumb_image`, following a localisation key to its file. */
+    internal fun image(configuration: String, key: String): String? {
+        val raw = Regex("""^ {1,2}${key}:[ \t]*['"]?([^'"\r\n]+?)['"]?[ \t]*$""", RegexOption.MULTILINE).find(configuration)?.groupValues?.get(1)?.trim() ?: return null
+        val file = raw.takeIf { ASSET.matches(it) } ?: localized(configuration, raw)?.takeIf { ASSET.matches(it) } ?: return null
+        return ASSETS + file
+    }
+
+    /** Art the profile's game list lacks, from the product's configuration: games Connect owns but the list leaves out have none. */
+    private fun withArt(g: CatalogItem, owned: JSONObject): CatalogItem {
+        if (g.imageUrl != null && g.tallImageUrl != null) return g
+        val configuration = owned.optString("configuration")
+        val thumb = image(configuration, "thumb_image")
+        return g.copy(imageUrl = g.imageUrl ?: image(configuration, "background_image") ?: thumb, tallImageUrl = g.tallImageUrl ?: thumb)
     }
 
     /** The first launch path under `start_game` in a product's configuration. */

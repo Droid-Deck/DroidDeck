@@ -20,9 +20,9 @@ class ShaderPrecachePrefsTest {
         SessionPrefs.steamRoot(context, SessionPrefs.steamClientArch(context)).deleteRecursively()
     }
 
-    @Test fun clientWithoutConfigStartsWithPrecachingOff() {
-        assertEquals(false, SessionPrefs.pendingShaderPrecache(context))
-        assertEquals(false, SessionPrefs.shaderPrecache(context))
+    @Test fun clientWithoutConfigStartsWithPrecachingOn() {
+        assertEquals(true, SessionPrefs.pendingShaderPrecache(context))
+        assertEquals(true, SessionPrefs.shaderPrecache(context))
     }
 
     @Test fun existingConfigKeepsTheClientsChoice() {

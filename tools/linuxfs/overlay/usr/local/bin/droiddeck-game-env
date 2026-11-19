@@ -14,7 +14,6 @@ from pathlib import Path
 GAME_PREFIX = "DROIDDECK_GAME_"
 GAME_SPLIT_KEYS = ("TU_DEBUG", "MESA_NO_ERROR")
 CHROMIUM_FILES = {"chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"}
-D3D9_DEFAULT_MEMORY_MB = 4096
 SYNC_KEYS = ("DD_SYNC", "DD_SYNC_FALLBACK", "DD_FSYNC_FIRST", "DD_SYNC_MIN_NOFILE", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")
 SEED_REDISTS = "/usr/local/bin/droiddeck-seed-redists"
 PACK_KEYS = ("WINESERVER", "DD_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC")
@@ -86,9 +85,10 @@ def game_files(exe):
 
 class Game:
 
-    def __init__(self, exe, args):
+    def __init__(self, exe, args, app_id=""):
         self.exe = exe
         self.args = args
+        self.app_id = app_id
         self.stem = os.path.splitext(os.path.basename(exe))[0].lower()
         self.files = game_files(exe)
 
@@ -156,6 +156,12 @@ def deep_rock_gdk_raytracing(game):
 def ff7_rebirth_feature_level(game):
     if game.stem in ("ff7rebirth", "ff7rebirth_"):
         return {"VKD3D_FEATURE_LEVEL": "12_2"}, [], "Final Fantasy VII Rebirth: D3D12 feature level 12_2 (the device-reported level fails its DX12 check)"
+
+
+@fix
+def kcd2_feature_level(game):
+    if game.app_id == "1771300":
+        return {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"}, [], "Kingdom Come: Deliverance II: D3D12 feature level 12_2 and shader model 6_9 (the detected level fails its startup check, and 12_0 alone stalls on the splash screen)"
 
 
 @fix
@@ -367,8 +373,8 @@ def offline_without_anticheat(command, env):
     return command[:2] + [game] + command[3:]
 
 
-def engine_fixes(exe, args):
-    game = Game(exe, args)
+def engine_fixes(exe, args, app_id=""):
+    game = Game(exe, args, app_id)
     env, extra, notes = {}, [], []
     for check in FIXES:
         found = check(game)
@@ -453,18 +459,13 @@ def game_gpu(env, keep=False):
     return result
 
 
-def vram_cap(env):
-    value = env.get("DD_VRAM_MB", "")
-    if not re.fullmatch(r"[1-9][0-9]{0,6}", value):
-        return env
-    result = env.copy()
-    cap = "dxgi.maxDeviceMemory = {0}; dxgi.maxSharedMemory = {0}".format(int(value))
-    if int(value) < D3D9_DEFAULT_MEMORY_MB:
-        cap += "; d3d9.maxAvailableMemory = {0}".format(int(value))
-    own = result.get("DXVK_CONFIG", "").strip().strip(";").strip()
-    result["DXVK_CONFIG"] = cap + "; " + own if own else cap
-    result["DROIDDECK_VRAM_CAP"] = "1"
-    result["DROIDDECK_VRAM_CAP_MB"] = value
+def split_game_gpu(entries):
+    result = dict(entries)
+    for key in GAME_SPLIT_KEYS:
+        if GAME_PREFIX + key in result:
+            value = result.pop(GAME_PREFIX + key)
+            if key not in entries:
+                result[key] = None if value == "" else value
     return result
 
 
@@ -596,12 +597,12 @@ def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
     result = env.copy()
-    entries = dict(config.get("shared", {}))
+    entries = split_game_gpu(config.get("shared", {}))
     for name, value in (fixes or {}).items():
         if name == "WINEDLLOVERRIDES" and entries.get(name, env.get(name)):
             value = entries.get(name, env.get(name)) + ";" + value
         entries[name] = value
-    game = config.get("games", {}).get(app_id, {})
+    game = split_game_gpu(config.get("games", {}).get(app_id, {}))
     fix = (fixes or {}).get("WINEDLLOVERRIDES")
     if fix and isinstance(game.get("WINEDLLOVERRIDES"), str):
         own = game["WINEDLLOVERRIDES"]
@@ -1395,7 +1396,7 @@ def main():
                 death_stranding_allocator(app_id, command[2])
             ubisoft_overlay_off(env)
             project_zomboid_jvm(command)
-            fixes, extra, notes = engine_fixes(command[2], command[3:]) if len(command) > 2 else ({}, [], [])
+            fixes, extra, notes = engine_fixes(command[2], command[3:], app_id) if len(command) > 2 else ({}, [], [])
             if not gl_default:
                 fixes.pop("vblank_mode", None)
             for note in notes:
@@ -1439,7 +1440,6 @@ def main():
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
     env = directaudio_settings(env)
-    env = vram_cap(env)
     note = render_path_defaults(command, env) if app_id else None
     if note:
         print("droiddeck-game-env: " + note, file=sys.stderr)

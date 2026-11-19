@@ -754,11 +754,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             onRailSelect(key)
         }, a)
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
-        val agentKeyboardOpen = railSelection == "agent" && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+        val agentKeyboardOpen = openTab == "agent" && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         LauncherLayout(
             bottomNavigation && !s.dualScreen, pal.line,
             Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }
-                .then(if (railSelection == "agent") Modifier.imePadding() else Modifier)
+                .then(if (openTab == "agent") Modifier.imePadding() else Modifier)
                 .then(if (s.dualScreen) Modifier.onKeyEvent { event ->
                     val step = dualPageStep(event.nativeKeyEvent) ?: return@onKeyEvent false
                     if (event.type == KeyEventType.KeyDown && !processSettingsPageVisible) {

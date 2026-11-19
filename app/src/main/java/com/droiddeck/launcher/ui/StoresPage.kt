@@ -92,6 +92,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Download
@@ -155,22 +156,22 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
     val padH = if (narrow) 14.dp else 22.dp
     val tabs = remember {
         androidx.compose.runtime.mutableStateListOf<StoreTab>().apply {
+            SessionPrefs.settleStoresTabOrder(ctx, Store.entries.map { it.id })
             addAll(arrangeStoreTabs(SessionPrefs.storesTabOrder(ctx), SessionPrefs.storesTabHidden(ctx)))
         }
     }
     var chip by rememberSaveable { mutableStateOf(tabs.firstOrNull { it.shown }?.store?.id ?: Store.GOG.id) }
     var arranging by remember { mutableStateOf(false) }
     val shownStores = tabs.filter { it.shown }.map { it.store }
-    fun commitTabs() {
-        SessionPrefs.setStoresTabOrder(ctx, tabs.map { it.store.id })
-        SessionPrefs.setStoresTabHidden(ctx, tabs.filterNot { it.shown }.map { it.store.id }.toSet())
+    fun commitTabs(markCustomized: Boolean = false) {
+        SessionPrefs.saveStoresTabs(ctx, tabs.map { it.store.id }, tabs.filterNot { it.shown }.map { it.store.id }.toSet(), markCustomized)
     }
     fun shiftTab(store: Store, delta: Int) {
         val from = tabs.indexOfFirst { it.store == store }
         val to = from + delta
         if (from < 0 || to !in tabs.indices) return
         tabs.add(to, tabs.removeAt(from))
-        commitTabs()
+        commitTabs(markCustomized = true)
     }
     fun moveTab(store: Store, to: Int) {
         val from = tabs.indexOfFirst { it.store == store }
@@ -178,7 +179,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
         val target = to.coerceIn(0, tabs.lastIndex)
         if (target == from) return
         tabs.add(target, tabs.removeAt(from))
-        commitTabs()
+        commitTabs(markCustomized = true)
     }
     fun toggleTab(store: Store) {
         val i = tabs.indexOfFirst { it.store == store }
@@ -927,16 +928,13 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
             }
             Column(Modifier.weight(1f)) {
                 Text(name.ifEmpty { store.label }, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    if (loaded) store.shortLabel + " · " + androidx.compose.ui.res.pluralStringResource(R.plurals.mode_added_count, owned, owned) else store.label,
-                    fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Actions {
-                SmallTextButton(stringResource(R.string.stores_owned_in_library), key = "owned-in-library") {
+                if (loaded) OwnedLink(store.shortLabel + " · " + androidx.compose.ui.res.pluralStringResource(R.plurals.mode_added_count, owned, owned)) {
                     LibraryView.showOwned(ctx, store)
                     show("games")
                 }
+                else Text(store.label, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Actions {
                 SmallTextButton(stringResource(R.string.stores_refresh)) { StoresState.open(ctx, store, force = true) }
                 if (store == Store.XBOX) SmallTextButton(stringResource(R.string.stores_xbox_cloud_settings), key = "xbox-cloud-settings") {
                     ctx.startActivity(android.content.Intent(ctx, com.droiddeck.launcher.stores.xbox.XboxCloudSettingsActivity::class.java))
@@ -946,6 +944,28 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
         }
         if (store == Store.EPIC) EpicLauncherRow(s, a)
         if (store == Store.BATTLENET) BattleNetLauncherRow(s, a)
+    }
+}
+
+@Composable
+private fun OwnedLink(label: String, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(8.dp)
+    val description = stringResource(R.string.stores_owned_in_library)
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier.paneItem("owned-in-library").testTag("owned-in-library").clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
+            .glideBorder(hot, shape, pal.signal, Color.Transparent)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClickLabel = description, onClick = onClick)
+            .controllerConfirm(onClick = onClick)
+            .padding(start = 2.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+    ) {
+        Text(label, fontSize = 12.sp, color = if (hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, description, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -1385,7 +1405,25 @@ internal fun ProgressBarThin(fraction: Float, paused: Boolean = false, verify: B
 internal fun downloadLabel(d: com.droiddeck.launcher.stores.download.DownloadEntry): String = when (d.state) {
     DownloadState.PAUSED -> stringResource(R.string.stores_dl_paused)
     DownloadState.QUEUED -> stringResource(R.string.stores_dl_queued)
-    else -> if (d.stageFraction >= 0f) stringResource(R.string.stores_dl_active_percent, activeStageLabel(d), d.percent) else activeStageLabel(d)
+    else -> when {
+        d.streaming -> stringResource(R.string.stores_dl_active_percent, stringResource(R.string.stores_stage_installing), (d.installFraction * 100).toInt())
+        d.stageFraction >= 0f -> stringResource(R.string.stores_dl_active_percent, activeStageLabel(d), d.percent)
+        else -> activeStageLabel(d)
+    }
+}
+
+@Composable
+internal fun steadyProgress(d: com.droiddeck.launcher.stores.download.DownloadEntry): Float {
+    val best = androidx.compose.runtime.remember(d.key) { floatArrayOf(0f) }
+    best[0] = maxOf(best[0], d.overallFraction)
+    return best[0]
+}
+
+@Composable
+internal fun steadyLabel(d: com.droiddeck.launcher.stores.download.DownloadEntry, progress: Float): String = when (d.state) {
+    DownloadState.QUEUED -> stringResource(R.string.stores_dl_queued)
+    DownloadState.PAUSED -> stringResource(R.string.stores_dl_active_percent, stringResource(R.string.stores_dl_paused), (progress * 100).toInt())
+    else -> stringResource(R.string.stores_dl_active_percent, stringResource(R.string.stores_stage_installing), (progress * 100).toInt())
 }
 
 @Composable

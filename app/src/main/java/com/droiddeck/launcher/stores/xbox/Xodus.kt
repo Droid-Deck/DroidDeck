@@ -155,10 +155,12 @@ internal object Xodus {
 
     const val SIGN_IN_REJECTED = "Microsoft content licensing rejected sign-in \\(HTTP 401\\)\\. Sign in again in Settings\\."
 
+    internal val reportable = Regex("NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}|NEXUS_LIBRARY_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3} [0-9]{1,6}|NEXUS_SESSION_DIAGNOSTIC_V1 [a-z-]{1,64}|Account library unavailable \\([a-z-]{1,64}\\); credentials and installed games are unchanged\\.|Account library timed out; installed games are unchanged\\.|Xbox profile is temporarily unavailable \\([a-z-]{1,48}\\); stored account is unchanged\\.|Xbox profile request timed out; stored account is unchanged\\.|NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3}|NEXUS_LEGACY_INSTALL_DIAGNOSTIC_V1 [a-z0-9-]{1,48}( [0-9]{1,6})?|NEXUS_LEGACY_INSTALL_DETAIL_V1 [A-Za-z0-9 .,;-]{1,220}|NEXUS_EXTRACT_DIAGNOSTIC_V1 [a-z-]{1,48}|NEXUS_EXTRACT_DETAIL_V1 [A-Za-z0-9 ._?-]{1,220}|$SIGN_IN_REJECTED")
+
     fun diagnostics(child: Child, report: (String) -> Unit = { com.droiddeck.launcher.stores.StoresState.logLine("Xbox: $it") }): Thread = Thread({
         runCatching {
             child.process.errorStream.bufferedReader().useLines { lines -> lines.forEach { line ->
-                if (line.matches(Regex("NEXUS_CREDENTIAL_ERROR_V1 [a-z-]{1,48}|NEXUS_LIBRARY_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{1,3} [0-9]{1,6}|NEXUS_SESSION_DIAGNOSTIC_V1 [a-z-]{1,64}|Account library unavailable \\([a-z-]{1,64}\\); credentials and installed games are unchanged\\.|Account library timed out; installed games are unchanged\\.|Xbox profile is temporarily unavailable \\([a-z-]{1,48}\\); stored account is unchanged\\.|Xbox profile request timed out; stored account is unchanged\\.|NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 [a-z-]{1,48} [0-9]{3}|$SIGN_IN_REJECTED")))
+                if (line.matches(reportable))
                     report(line)
             } }
         }

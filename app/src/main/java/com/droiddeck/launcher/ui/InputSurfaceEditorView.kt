@@ -32,7 +32,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     var selected: String? = null
         set(value) { field = value; invalidate() }
     var onSelect: (String?) -> Unit = {}
-    var onBeginEdit: (List<InputSurfaceElement>, Float) -> Unit = { _, _ -> }
+    var onBeginEdit: (List<InputSurfaceElement>, Int, Int) -> Unit = { _, _, _ -> }
     var onChange: (InputSurfaceElement) -> Unit = {}
     private val preview = InputSurfaceView(context)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(26, 159, 255); strokeWidth = 2 * resources.displayMetrics.density }
@@ -101,7 +101,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
             MotionEvent.ACTION_MOVE -> {
                 val e = original ?: return true
                 if (!dragging && abs(event.x - downX) + abs(event.y - downY) > ViewConfiguration.get(context).scaledTouchSlop) {
-                    dragging = true; onBeginEdit(visibleElements, width.toFloat() / height)
+                    dragging = true; onBeginEdit(visibleElements, width, height)
                 }
                 if (!dragging) return true
                 val dx = (event.x - downX) / width; val dy = (event.y - downY) / height

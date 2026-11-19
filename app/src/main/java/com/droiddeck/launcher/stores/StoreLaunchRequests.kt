@@ -46,11 +46,18 @@ object StoreLaunchRequests {
     }
 
     private fun answer(app: Context, file: File) {
+        val resp = File(dir(app), "resp").apply { mkdirs() }
+        val rid = file.name.removeSuffix(".json")
+        val taken = File(resp, "$rid.taken")
+        val writing = File(resp, "$rid.writing")
+        if (!file.renameTo(taken)) return
         val request = try {
-            JSONObject(file.readText()).also { file.delete() }
+            JSONObject(taken.readText())
         } catch (e: Exception) {
+            taken.delete()
             return
         }
+        val claim = { taken.renameTo(writing) }
         val reply = when (request.optString("op")) {
             "xbox-released" -> {
                 com.droiddeck.launcher.stores.xbox.XboxRuntime.released(request.optString("lease"))
@@ -58,7 +65,10 @@ object StoreLaunchRequests {
             }
             "xbox-renew" -> JSONObject().put("ok", com.droiddeck.launcher.stores.xbox.XboxRuntime.renew(app, request.optString("id"), request.optString("lease")))
             "xbox-prepare" -> runCatching { com.droiddeck.launcher.stores.xbox.XboxRuntime.prepare(app, request.getString("id")) }
-                .getOrElse { JSONObject().put("ok", false).put("reason", "Xbox account service is unavailable. Sign in again and retry.") }
+                .getOrElse {
+                    StoresState.logLine("Xbox: launch prepare failed (${it.javaClass.simpleName}: ${it.message})")
+                    JSONObject().put("ok", false).put("reason", reasonFor(it))
+                }
             "ea-prepare" -> runCatching { lastLaunched = Store.EA to request.optString("id"); com.droiddeck.launcher.stores.ea.EaLaunch.prepare(app, request) }
                 .getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
             "ea-exited" -> {
@@ -105,7 +115,7 @@ object StoreLaunchRequests {
                 else {
                     lastLaunched = store to id
                     CloudSaves.markDirty(app, store, id)
-                    CloudSaves.downloadOrDefer(app, store, id).let { JSONObject().put("ok", it.ok).put("result", it.result).put("files", it.files).put("reason", it.reason) }
+                    CloudSaves.downloadOrDefer(app, store, id, claim).let { JSONObject().put("ok", it.ok).put("result", it.result).put("files", it.files).put("reason", it.reason) }
                 }
             }
             "cloud-up" -> {
@@ -164,12 +174,31 @@ object StoreLaunchRequests {
             else -> JSONObject().put("ok", false).put("reason", "unknown-op")
         }
         try {
-            val resp = File(dir(app), "resp").apply { mkdirs() }
             val tmp = File(resp, file.name + ".tmp")
             tmp.writeText(reply.toString())
             tmp.renameTo(File(resp, file.name))
         } catch (e: Exception) {
             Log.w(TAG, "could not answer ${file.name}: ${e.message}")
+        } finally {
+            taken.delete()
+            writing.delete()
         }
+    }
+
+    /// What the guest prints when a launch is refused.
+    ///
+    /// The message is the only thing that separates a stale sign-in from a title
+    /// that is not installed, so it is kept, minus anything that could carry a
+    /// device path or a token: segments lookng like a path are dropped and the
+    /// rest is folded to plain text.
+    internal fun reasonFor(error: Throwable): String {
+        val text = error.message.orEmpty()
+            .split(' ')
+            .filterNot { it.contains('/') || it.startsWith("http") }
+            .joinToString(" ")
+            .filter { it.isLetterOrDigit() || it in " .,:;_-()'" }
+            .trim()
+            .take(160)
+        return if (text.isEmpty()) "Xbox account service is unavailable. Sign in again and retry." else text
     }
 }

@@ -180,7 +180,7 @@ class ConfigAndMenuTest(Temp):
         self.assertEqual(config["Client"]["Streaming"]["StreamingEnabled"], "false")
         self.assertEqual(config["Client"]["GameLaunchWindowBehavior"], "2")
         self.assertIsNone(BNET["write_config"](root))
-        path.write_text('{"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "0"}, "Games": {"osi": {}}}')
+        path.write_text('{"Client": {"HardwareAcceleration": "false"}, "Games": {"osi": {}}}')
         self.assertEqual(BNET["write_config"](root), "launch 32-bit")
         config = json.loads(path.read_text())
         self.assertEqual(config, {"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "2"},
@@ -188,6 +188,29 @@ class ConfigAndMenuTest(Temp):
         path.write_text('{"Client": {"HardwareAcceleration": "true", "GameLaunchWindowBehavior": "2"}}')
         self.assertEqual(BNET["write_config"](root), "acceleration 32-bit")
         self.assertEqual(json.loads(path.read_text())["Client"]["HardwareAcceleration"], "false")
+
+    def test_a_launch_behavior_the_player_chose_is_kept(self):
+        root = str(self.tmp)
+        path = self.config_path()
+        path.parent.mkdir(parents=True)
+        for behavior in ("0", "1"):
+            with self.subTest(behavior):
+                path.write_text('{"Client": {"HardwareAcceleration": "false", "GameLaunchWindowBehavior": "%s"}, '
+                                '"Games": {"s1": {"Run64Bit": "false", "Run64BitSet": "true"}}}' % behavior)
+                self.assertIsNone(BNET["write_config"](root))
+                self.assertEqual(json.loads(path.read_text())["Client"]["GameLaunchWindowBehavior"], behavior)
+                self.assertTrue(BNET["keeps_open"](root))
+
+    def test_only_a_launch_behavior_other_than_exit_keeps_battle_net_open(self):
+        root = str(self.tmp)
+        self.assertFalse(BNET["keeps_open"](root))
+        path = self.config_path()
+        path.parent.mkdir(parents=True)
+        for text in ("{not json", "[1, 2]", '{"Client": "x"}', '{"Client": {}}',
+                     '{"Client": {"GameLaunchWindowBehavior": "2"}}'):
+            with self.subTest(text):
+                path.write_text(text)
+                self.assertFalse(BNET["keeps_open"](root))
 
     def test_starcraft_starts_its_32_bit_client_until_a_player_picks_one(self):
         root = str(self.tmp)
@@ -656,6 +679,7 @@ class TidyTest(unittest.TestCase):
             "say": lambda message: None,
             "stop": lambda found, wait=0: self.stopped.append(sorted(pid for pid, _ in found)),
             "notify": lambda title, body, icon=None: self.notified.append(title),
+            "keeps_open": lambda root: False,
         })
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -671,6 +695,14 @@ class TidyTest(unittest.TestCase):
         self.assertEqual(closed, [False, False, False, True, False])
         self.assertEqual(self.stopped, [[1, 2, 3]])
         self.assertEqual(self.notified, [])
+
+    def test_battle_net_the_player_set_to_stay_open_is_left_open(self):
+        up = [self.CLIENT, self.PAGE, self.AGENT, self.WINE]
+        tidy = BNET["Tidy"](settle=20, gone=30)
+        with mock.patch.dict(BNET, {"keeps_open": lambda root: True}):
+            closed = self.run_tidy(tidy, [(0, up), (5, up + [self.GAME]), (25, up + [self.GAME]), (60, up + [self.GAME])])
+        self.assertEqual(closed, [False, False, False, False])
+        self.assertEqual(self.stopped, [])
 
     def test_battle_net_beside_a_game_signing_in_with_its_token_is_left_open(self):
         d4 = (6, ["C:\\Program Files (x86)\\Diablo IV\\Diablo IV.exe", "-nostreamline", "-sso", "-launch", "-uid", "fenris"])

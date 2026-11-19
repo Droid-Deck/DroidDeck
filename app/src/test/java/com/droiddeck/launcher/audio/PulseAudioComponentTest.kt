@@ -69,6 +69,80 @@ class PulseAudioComponentTest {
     }
 
     @Test
+    fun aRestartWaitsForAnInFlightSinkGuardCommand() {
+        val killed = mutableListOf<Int>()
+        val host = PulseAudioComponent.HostLifecycle { killed.add(it) }
+        val generation = host.begin()
+        host.launch(generation) { 31463 }
+        val first = host.token()
+        val checked = CountDownLatch(1)
+        val resume = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(2)
+        try {
+            val command = pool.submit<String> {
+                host.command(first) {
+                    checked.countDown()
+                    resume.await()
+                    "old host"
+                }
+            }
+            assertTrue(checked.await(5, TimeUnit.SECONDS))
+            assertTrue(pool.submit<Boolean> { host.exited(generation) }.get(5, TimeUnit.SECONDS))
+            val launched = CountDownLatch(1)
+            val restart = pool.submit<Boolean> {
+                host.launch(generation) {
+                    launched.countDown()
+                    31464
+                }
+            }
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (!host.commands.hasQueuedThreads() && !restart.isDone && System.nanoTime() < deadline) Thread.yield()
+            assertTrue(host.commands.hasQueuedThreads())
+            assertEquals(1L, launched.count)
+            assertFalse(restart.isDone)
+            resume.countDown()
+            assertEquals("old host", command.get(5, TimeUnit.SECONDS))
+            assertTrue(restart.get(5, TimeUnit.SECONDS))
+            assertEquals(31464, host.pid)
+            assertEquals(null, host.command(first) { error("stale guard reached the replacement host") })
+            assertEquals("new host", host.command(host.token()) { "new host" })
+            assertTrue(killed.isEmpty())
+        } finally {
+            resume.countDown()
+            pool.shutdownNow()
+        }
+    }
+
+    @Test
+    fun stopIsNotHeldUpByAnInFlightSinkGuardCommand() {
+        val killed = mutableListOf<Int>()
+        val host = PulseAudioComponent.HostLifecycle { killed.add(it) }
+        host.launch(host.begin()) { 31463 }
+        val token = host.token()
+        val checked = CountDownLatch(1)
+        val resume = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(2)
+        try {
+            val command = pool.submit<String> {
+                host.command(token) {
+                    checked.countDown()
+                    resume.await()
+                    "done"
+                }
+            }
+            assertTrue(checked.await(5, TimeUnit.SECONDS))
+            pool.submit { host.stop() }.get(5, TimeUnit.SECONDS)
+            assertEquals(listOf(31463), killed)
+            assertFalse(host.live(token))
+            resume.countDown()
+            assertEquals("done", command.get(5, TimeUnit.SECONDS))
+        } finally {
+            resume.countDown()
+            pool.shutdownNow()
+        }
+    }
+
+    @Test
     fun failedLaunchDoesNotRestartOrTerminateAnInvalidPid() {
         val host = PulseAudioComponent.HostLifecycle { error("invalid pid terminated") }
         val generation = host.begin()

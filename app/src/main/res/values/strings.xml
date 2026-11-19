@@ -49,7 +49,6 @@
         <item>Add Steam libraries from an SD card, USB drive or SSD, and DroidDeck keeps the games together in your Library.</item>
         <item>Stores lets you sign in to Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io and Game Jolt, then install and update their games from DroidDeck.</item>
         <item>Components like FEX, DXVK and VKD3D-Proton update themselves, and Proton Experimental ARM64 is the default, or Proton 11.0 ARM64 once that build is installed.</item>
-        <item>Compress Steam while a game runs frees RAM on devices that run low.</item>
         <item>Swipe in from the right edge to open the session menu: touchpad mode, PC keyboard, low latency, game profile and more.</item>
         <item>Game running slow? Cap the frame rate in Quick Access, then try another Proton version or FEX preset in the game\'s components.</item>
         <item>Crackling or missing game audio? Try the DirectAudio for games toggle in Steam settings under Audio.</item>
@@ -231,6 +230,8 @@
     <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: DroidDeck has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
     <string name="session_proot_missing">DroidDeck\'s proot could not be downloaded. Check the connection and try again. The session was not started, because the fallback proot is too slow to play on.</string>
     <string name="session_powervr_missing">The PowerVR graphics runtime could not be downloaded. Check the connection and try again.</string>
+    <string name="session_graphics_runtime_failed">The graphics runtime could not be prepared, so the session was not started.</string>
+    <string name="session_game_environment_failed">The game environment could not be set up, so the session was not started.</string>
     <string name="session_directaudio_missing">DirectAudio could not be downloaded, so game audio uses the slower path this session.</string>
     <string name="session_end_program">This program</string>
     <string name="session_end_present_fault">The session could not draw to the screen: %1$s. This screen shows why instead of a black one; the session logs have the details.</string>
@@ -652,20 +653,8 @@
     <string name="perf_gsrealtime">gamescope: realtime GPU queue</string>
     <string name="perf_gsrealtime_hint">Prioritizes the compositor\'s GPU work. Can smooth frame pacing at some cost to games.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memory</string>
     <string name="perf_cap_off">Off</string>
-    <string name="perf_cap_auto">Driver default</string>
-    <string name="perf_zram_client">Compress Steam while a game runs</string>
-    <string name="perf_zram_idle">Compress idle game memory</string>
-    <string name="perf_zram_idle_hint">Pages out idle game memory when RAM is low. Turn this off if games freeze for a few seconds about every half minute. Applies the next time the session starts.</string>
-    <string name="perf_zram_client_hint">Compresses Steam while a game runs, starting sooner when memory is tight. Steam is read back after the game closes once enough RAM is available. Turn this off if the session closes shortly after games start. A RAM cap above still compresses Steam when the session goes over it.</string>
-    <string name="perf_ram_cap">RAM cap</string>
-    <string name="perf_ram_cap_hint">Applies while the Steam client runs, in Steam mode or from the desktop. When the session uses more than this, Steam and then the session\'s other supported processes are compressed into zRAM. A soft cap: nothing is closed, but games may stutter while pages come back.</string>
-    <string name="perf_ram_cap_unavailable">Needs zRAM swap, which this device does not have.</string>
-    <string name="perf_vram_cap">VRAM cap</string>
-    <string name="perf_vram_cap_hint">Reports this video memory budget to Direct3D 9 to 12 games to encourage lower memory use. Games may exceed it; this does not add GPU paging or guarantee protection from out-of-memory crashes. Takes effect at the next session.</string>
     <string name="perf_gpuclock">Hold the GPU at its top clock</string>
-    <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Applies to the Steam client and games. Required on Adreno 710/720/722.</string>
@@ -1238,6 +1227,15 @@
     <string name="agent_tools_add">Add</string>
     <string name="agent_voice">Dictate</string>
     <string name="agent_voice_stop">Stop dictating</string>
+    <string name="agent_voice_hold">Slide up to lock · left to cancel</string>
+    <string name="agent_voice_listening">Listening…</string>
+    <string name="agent_voice_setup">Set up talking to the agent</string>
+    <string name="agent_voice_setup_close">Close</string>
+    <string name="agent_voice_setup_service">Speech service</string>
+    <string name="agent_voice_setup_service_detail">Speech Services by Google turns your voice into text</string>
+    <string name="agent_voice_setup_app_mic">Microphone for DroidDeck</string>
+    <string name="agent_voice_setup_service_mic">Microphone for the speech service</string>
+    <string name="agent_voice_setup_service_mic_detail">Permissions › Microphone › Allow</string>
     <string name="agent_voice_denied">DroidDeck needs the microphone to dictate</string>
     <string name="agent_attach_game">Attach what the game shows</string>
     <string name="agent_attach_game_failed">Could not capture the game</string>
@@ -1245,6 +1243,7 @@
     <string name="agent_done">Agent finished</string>
     <string name="agent_done_failed">Agent stopped with an error</string>
     <string name="agent_done_question">Agent has a question</string>
+    <string name="agent_done_approval">Agent is waiting for your OK</string>
     <plurals name="agent_subagent_steps">
         <item quantity="one">%d step</item>
         <item quantity="other">%d steps</item>
@@ -1322,6 +1321,21 @@
     <string name="agent_plan">Plan first</string>
     <string name="agent_plan_short">Plan</string>
     <string name="agent_plan_hint">Proposes a plan without changing anything</string>
+    <string name="agent_permissions">Permissions</string>
+    <string name="agent_permission_ask">Ask first</string>
+    <string name="agent_permission_ask_hint">Asks before edits and commands that need your OK</string>
+    <string name="agent_permission_edits">Accept edits</string>
+    <string name="agent_permission_edits_hint">Edits files freely, asks before commands</string>
+    <string name="agent_permission_auto">Auto</string>
+    <string name="agent_permission_auto_hint">A safety check decides, blocking risky actions</string>
+    <string name="agent_permission_dont_ask">Don\'t ask</string>
+    <string name="agent_permission_dont_ask_hint">Denies anything your settings don\'t allow</string>
+    <string name="agent_permission_full">Full access</string>
+    <string name="agent_permission_full_hint">Runs everything without asking</string>
+    <string name="agent_approval_title">Allow %1$s?</string>
+    <string name="agent_approval_allow">Allow</string>
+    <string name="agent_approval_deny">Deny</string>
+    <string name="agent_approval_more">+%1$d more</string>
     <string name="agent_history">Conversations</string>
     <string name="agent_history_empty">No conversations yet</string>
     <string name="agent_just_now">Just now</string>
@@ -1372,10 +1386,13 @@
     <string name="agent_action_sign_in">Sign in</string>
     <string name="agent_action_free">Free models</string>
     <string name="agent_action_add_key">Add key</string>
-    <string name="agent_key_hint">Paste your API key from opencode.ai/auth</string>
+    <string name="agent_key_hint">Paste your %1$s key</string>
+    <string name="agent_key_optional_hint">API key, if the server needs one</string>
+    <string name="agent_key_server_hint">Server address, like 192.168.1.20:11434</string>
+    <string name="agent_key_get">Get key</string>
     <string name="agent_key_save">Save</string>
-    <string name="agent_step_sign_in_key_hint">Free models, or a Zen key from opencode.ai/auth</string>
-    <string name="agent_step_free_models">Free models · add a Zen key for the rest</string>
+    <string name="agent_step_sign_in_key_hint">Free models, or a key from your provider</string>
+    <string name="agent_step_free_models">Free models · add a key for more</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Not built for this copy of DroidDeck</string>
     <string name="upd_updated">Updated %1$s</string>
@@ -1746,6 +1763,8 @@
     <string name="pip_unavailable">Android could not open picture in picture.</string>
     <string name="game_more">More</string>
     <string name="game_edit_art">Edit art</string>
+    <string name="game_unhide">Remove hidden</string>
+    <string name="game_hide_failed">Couldn\'t sync with Steam. Close Steam and try again.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Shortcut</string>
     <string name="game_shortcut_add">Add to home screen</string>
@@ -1758,6 +1777,7 @@
     <string name="game_link_missing">This game is no longer in your DroidDeck library.</string>
     <string name="game_link_session_busy">Stop the current session before launching a Steam game.</string>
     <string name="game_link_failed">Could not send the game to Steam. Try launching it again.</string>
+    <string name="game_needs_app_model">%1$s is a UWP app. This runtime has no Windows app-model host to start it.</string>
     <string name="setup_retry_removal">Retry removal</string>
     <string name="runtime_removing">Removing</string>
     <string name="runtime_removal_incomplete">Removal incomplete</string>
@@ -2019,6 +2039,20 @@
     <string name="theme_color_saturation">Saturation</string>
     <string name="theme_color_brightness">Brightness</string>
     <string name="theme_color_hex">Hex color</string>
+    <string name="theme_custom">Custom</string>
+    <string name="theme_custom_detail">Choose each interface color independently.</string>
+    <string name="theme_custom_background">Background</string>
+    <string name="theme_custom_surface">Panels</string>
+    <string name="theme_custom_surface_variant">Raised panels</string>
+    <string name="theme_custom_line">Dividers</string>
+    <string name="theme_custom_line2">Borders</string>
+    <string name="theme_custom_on_background">Main text</string>
+    <string name="theme_custom_on_surface_variant">Secondary text</string>
+    <string name="theme_custom_primary">Buttons and main accent</string>
+    <string name="theme_custom_on_primary">Button text</string>
+    <string name="theme_custom_signal">Highlights</string>
+    <string name="theme_custom_good">Success</string>
+    <string name="theme_custom_error">Error</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2509,6 +2543,17 @@
     <string name="pextra_checksum_mismatch">Checksum mismatch; the download was deleted</string>
     <string name="pextra_session_started">A session started during the download; stop it before installing compatibility tools</string>
     <string name="pextra_installing">Installing %1$s</string>
+    <string name="xproton_title">Experimental builds</string>
+    <string name="xproton_install_file">Install from file</string>
+    <string name="xproton_archive_unsafe">Archive contains an unsafe link or path</string>
+    <string name="xproton_archive_invalid">Unsupported or invalid archive</string>
+    <string name="xproton_no_space">Not enough free space for this Proton build</string>
+    <string name="xproton_unpacking">Unpacking Proton (a few minutes)</string>
+    <string name="xproton_untar_failed">Unpacking failed (tar %1$d)</string>
+    <string name="xproton_no_tree">The archive holds no Proton build</string>
+    <string name="xproton_place_failed">Could not place the Proton build</string>
+    <string name="xproton_remove_failed">Could not fully remove %1$s</string>
+    <string name="xproton_installed">Experimental Proton installed. Pick it in Steam → Properties → Compatibility.</string>
     <string name="pextra_install_failed">%1$s installation failed (exit %2$d)</string>
     <string name="pextra_could_not_install">Could not install %1$s</string>
     <string name="esync_fetching">Fetching droiddeck-esync pack</string>
@@ -2866,6 +2911,8 @@
     <string name="cloud_up_to_date">Already up to date</string>
     <string name="cloud_signed_out">Sign in to the store to sync saves</string>
     <string name="cloud_not_synced">Saves were not synced</string>
+    <string name="cloud_partial">Some saves were not synced · %1$s</string>
+    <string name="cloud_conflict_files_detail">Cloud conflict · %1$d files · %2$s</string>
     <string name="stores_eyebrow_installed">installed</string>
     <string name="stores_eyebrow_library">in your library</string>
     <string name="stores_eyebrow_store">store</string>
@@ -2979,6 +3026,9 @@
     <string name="stores_login_close">Close</string>
     <string name="stores_login_retry">Try again</string>
     <string name="stores_login_finishing">Finishing sign-in…</string>
+    <string name="stores_xbox_device_group_full">This Microsoft account is at its device limit. Remove an old device under Manage devices, then resume.</string>
+    <string name="stores_xbox_manage_devices">Manage devices</string>
+    <string name="stores_xbox_license_refused">Microsoft does not license any available version of this game to this device.</string>
     <string name="stores_xbox_sign_in_again">Microsoft rejected the Xbox sign-in. Sign out of Xbox in Stores, sign in again, then resume.</string>
     <string name="stores_login_error_network">The sign-in page could not be loaded: %1$s</string>
     <string name="stores_login_error_idp_blocked">This provider refuses to sign in from an embedded page. Sign in with your store password instead.</string>
@@ -3585,10 +3635,19 @@
     <string name="storage_shared_prefix">Steam’s shared prefix</string>
     <string name="storage_shared_prefix_detail">Steam runs its own Windows helpers here</string>
     <string name="storage_reset_shared_confirm">Deletes it (%1$s). Steam makes a new one the next time it needs it.</string>
+    <string name="storage_remove_launcher_confirm">Deletes this store app’s Wine prefix and shader cache (%1$s), with its sign-in and any saves kept only there. Games that run in it get a fresh prefix, and you may need to set the app up again. Cloud saves stay in your account.</string>
+    <string name="storage_system_clearable">%1$s can be cleared</string>
+    <string name="storage_item_system_caches">Linux and Steam caches</string>
+    <string name="storage_item_system_caches_detail">Old temporary files, downloaded packages and Steam’s web cache</string>
+    <string name="storage_cache_temp">Old temporary files</string>
+    <string name="storage_cache_packages">Downloaded packages</string>
+    <string name="storage_cache_steam_web">Steam web cache</string>
+    <string name="storage_cache_steam_corrupt">Damaged Steam downloads</string>
+    <string name="storage_cache_detail">Made again when needed</string>
+    <string name="storage_clear">Clear</string>
     <string name="storage_launcher_prefix">A store app and the games that run with it</string>
     <string name="storage_launcher_used_by">Used by %1$s</string>
     <string name="storage_shortcut_app">Non-Steam game %1$s</string>
-    <string name="storage_unknown_prefix_detail">Not matched to a game, so it is kept</string>
     <string name="storage_remove_selected">Remove selected · %1$s</string>
     <string name="storage_uninstall_selected">Uninstall selected · %1$s</string>
     <string name="storage_bulk_prefixes">Wine prefixes</string>
