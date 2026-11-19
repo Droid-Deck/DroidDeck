@@ -362,7 +362,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     remember { StoreTabsState.load(ctx) }
     val storeTabs = StoreTabsState.tabs
     val signInChips = if (!stores || !StoresState.accountsLoaded) emptySet() else storeTabs
-        .filter { it.shown && StoresState.backend(it.store) != null && storeAccount(it.store).let { a -> a == StoreAccount.SIGNED_OUT || a == StoreAccount.NEEDS_KEY } }
+        .filter { it.shown && StoresState.backend(it.store) != null && storeAccount(it.store) != StoreAccount.SIGNED_IN }
         .map { it.store.id }.toSet()
     val sources = librarySources(
         all, storeTabs.map { it.store.id },
@@ -559,7 +559,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 onAddSoundtrack = { addingSoundtrack = true },
                 onCollections = { savedDialog = true },
                 trackHits = shownHits, onPlayHit = playHit,
-                signInStore = Store.byId(source)?.takeIf { it.id in signInChips },
+                // An expired account keeps showing its cached games; with none cached it asks to sign in again, like a signed-out store.
+                signInStore = Store.byId(source)?.takeIf { st -> st.id in signInChips && (storeAccount(st) != StoreAccount.EXPIRED || all.none { it.source == st.id }) },
             ) }
         },
     ) { key ->
