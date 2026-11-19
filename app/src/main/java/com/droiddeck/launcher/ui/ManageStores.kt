@@ -73,21 +73,24 @@ import com.droiddeck.launcher.stores.arrangeStoreTabs
 internal object StoreTabsState {
     var tabs by mutableStateOf<List<StoreTab>>(emptyList())
         private set
-    var customAfter by mutableStateOf<String?>(null)
+    var libraryPlaces by mutableStateOf(DEFAULT_LIBRARY_PLACES)
+        private set
+    var libraryHidden by mutableStateOf<Set<String>>(emptySet())
         private set
 
     fun load(context: android.content.Context) {
         SessionPrefs.settleStoresTabOrder(context, Store.entries.map { it.id })
         tabs = arrangeStoreTabs(SessionPrefs.storesTabOrder(context), SessionPrefs.storesTabHidden(context))
-        customAfter = SessionPrefs.libraryCustomAfter(context)
+        libraryPlaces = SessionPrefs.libraryTabPlaces(context) ?: DEFAULT_LIBRARY_PLACES
+        libraryHidden = SessionPrefs.libraryTabsHidden(context)
     }
 
-    /** [ids] may hold the Library's Custom games tab among the stores; its place is kept as the store it follows. */
+    /** [ids] may hold the Library's own tabs among the stores; each one's place is kept as the tab it follows. */
     fun reorder(context: android.content.Context, ids: List<String>) {
-        val at = ids.indexOf(Library.ADDED)
-        if (at >= 0) {
-            customAfter = ids.getOrNull(at - 1) ?: ""
-            SessionPrefs.setLibraryCustomAfter(context, customAfter!!)
+        if (ids.any { it in LIBRARY_OWN_TABS }) {
+            val places = libraryPlacesOf(ids)
+            libraryPlaces = places
+            SessionPrefs.setLibraryTabPlaces(context, places)
         }
         val byId = tabs.associateBy { it.store.id }
         val order = ids.mapNotNull { byId[it] }
@@ -105,19 +108,44 @@ internal object StoreTabsState {
         return true
     }
 
+    fun setLibraryShown(context: android.content.Context, id: String, show: Boolean) {
+        libraryHidden = if (show) libraryHidden - id else libraryHidden + id
+        SessionPrefs.setLibraryTabsHidden(context, libraryHidden)
+    }
+
     private fun save(context: android.content.Context, arranged: Boolean) =
         SessionPrefs.saveStoresTabs(context, tabs.map { it.store.id }, tabs.filterNot { it.shown }.map { it.store.id }.toSet(), arranged)
 }
 
-/** Puts the Library's Custom games tab into a store tab order, after the store [after] names ("" for first, null or unknown for last). */
-internal fun withCustomTab(stores: List<String>, after: String?): List<String> {
-    val at = when {
-        after == "" -> 0
-        after != null && after in stores -> stores.indexOf(after) + 1
-        else -> stores.size
+/** The Library tabs that are not stores but sort among them in Manage stores. Only Favorites and Custom games can be hidden. */
+internal val LIBRARY_OWN_TABS = listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM, Library.ADDED)
+internal val LIBRARY_HIDEABLE_TABS = setOf(LIBRARY_FAVORITES, Library.ADDED)
+
+/** Favorites, then Steam, ahead of the stores; Custom games after them (null: the end). */
+internal val DEFAULT_LIBRARY_PLACES: List<Pair<String, String?>> =
+    listOf(LIBRARY_FAVORITES to "", Library.SOURCE_STEAM to LIBRARY_FAVORITES, Library.ADDED to null)
+
+/**
+ * Puts the Library's own tabs into a store tab order. Each goes after the tab it follows ("" for first; null or a tab that is gone
+ * for last), in [places] order, so a place may name a tab placed before it. A tab [places] misses keeps its default place.
+ */
+internal fun placeLibraryTabs(stores: List<String>, places: List<Pair<String, String?>>): List<String> {
+    var out = stores.filterNot { it in LIBRARY_OWN_TABS }
+    for ((id, after) in places.filter { it.first in LIBRARY_OWN_TABS } + DEFAULT_LIBRARY_PLACES) {
+        if (id in out) continue
+        val at = when {
+            after == "" -> 0
+            after != null && after in out -> out.indexOf(after) + 1
+            else -> out.size
+        }
+        out = out.take(at) + id + out.drop(at)
     }
-    return stores.take(at) + Library.ADDED + stores.drop(at)
+    return out
 }
+
+/** The places that rebuild [order] with [placeLibraryTabs]. */
+internal fun libraryPlacesOf(order: List<String>): List<Pair<String, String>> =
+    order.mapIndexedNotNull { i, id -> if (id in LIBRARY_OWN_TABS) id to (order.getOrNull(i - 1) ?: "") else null }
 
 internal object ManageStores {
     var open by mutableStateOf(false)
@@ -167,13 +195,13 @@ internal fun SideSheet(open: Boolean, onClose: () -> Unit, returnFocus: FocusReq
             AnimatedVisibility(open, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
                 val inside = remember { FocusRequester() }
                 var holds by remember { mutableStateOf(false) }
-                val openInput = androidx.compose.ui.platform.LocalInputModeManager.current
-                // The launcher only takes focus in controller mode, so opening by touch switches to it like startup does.
-                LaunchedEffect(Unit) {
+                val pad = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode == androidx.compose.ui.input.InputMode.Keyboard
+                // Focus (and its ring) only matters to a controller: opened by touch the sheet waits until one is picked up.
+                LaunchedEffect(pad) {
+                    if (!pad) return@LaunchedEffect
                     repeat(60) {
                         androidx.compose.runtime.withFrameNanos { }
                         if (holds || !open) return@LaunchedEffect
-                        if (openInput.inputMode != androidx.compose.ui.input.InputMode.Keyboard) openInput.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard)
                         runCatching { inside.requestFocus() }
                     }
                 }
@@ -210,18 +238,22 @@ internal fun ManageStoresSheet() {
             SortableRows(
                 rows = {
                     val ids = StoreTabsState.tabs.map { it.store.id }
-                    if (ManageStores.custom) withCustomTab(ids, StoreTabsState.customAfter) else ids
+                    if (ManageStores.custom) placeLibraryTabs(ids, StoreTabsState.libraryPlaces) else ids
                 },
                 commit = { StoreTabsState.reorder(ctx, it) },
                 movable = { true },
                 rowHeight = STORE_ROW, handleWidth = STORE_HANDLE,
                 onActivate = { id ->
+                    if (id in LIBRARY_HIDEABLE_TABS) {
+                        StoreTabsState.setLibraryShown(ctx, id, id in StoreTabsState.libraryHidden)
+                        return@SortableRows
+                    }
                     val tab = StoreTabsState.tabs.firstOrNull { it.store.id == id } ?: return@SortableRows
                     StoreTabsState.setShown(ctx, tab.store, !tab.shown)
                 },
             ) { id, held, offset, hint, modifier, onFocus ->
                 val tab = StoreTabsState.tabs.firstOrNull { it.store.id == id }
-                if (id == Library.ADDED) CustomSortRow(held, offset, hint, modifier, onFocus)
+                if (id in LIBRARY_OWN_TABS) LibraryTabSortRow(id, held, offset, hint, modifier, onFocus)
                 else if (tab != null) StoreSortRow(tab, held, offset, hint, modifier, onFocus)
             }
         }
@@ -295,19 +327,32 @@ private fun SortRowFrame(
 }
 
 @Composable
-private fun CustomSortRow(held: Boolean, offset: Float, hint: String?, modifier: Modifier, onFocus: (Boolean) -> Unit) {
+private fun LibraryTabSortRow(id: String, held: Boolean, offset: Float, hint: String?, modifier: Modifier, onFocus: (Boolean) -> Unit) {
+    val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    SortRowFrame(held, offset, modifier.testTag("store-row-${Library.ADDED}"), hot, src, onFocus) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(width = STORE_HANDLE, height = STORE_ROW).testTag("store-handle-${Library.ADDED}")) {
+    val hideable = id in LIBRARY_HIDEABLE_TABS
+    val shown = id !in StoreTabsState.libraryHidden
+    val label = when (id) {
+        LIBRARY_FAVORITES -> stringResource(R.string.soundtracks_favorites)
+        Library.ADDED -> stringResource(R.string.library_custom_games)
+        else -> stringResource(R.string.source_steam)
+    }
+    val dot = if (id == LIBRARY_FAVORITES) FavoritesColours.dot else sourceColours(id).dot
+    SortRowFrame(held, offset, modifier.testTag("store-row-$id"), hot, src, onFocus) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(width = STORE_HANDLE, height = STORE_ROW).testTag("store-handle-$id")) {
             Icon(Icons.Filled.DragHandle, null, tint = if (held) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
-            Box(Modifier.size(10.dp).background(sourceColours(Library.ADDED).dot, CircleShape))
-            Text(stringResource(R.string.library_custom_games), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f).alpha(if (shown) 1f else 0.5f)) {
+            Box(Modifier.size(10.dp).background(dot, CircleShape))
+            Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (hint != null) KeyHint("Y", hint)
+        if (hideable) ToggleSwitch(
+            shown, true, label,
+            Modifier.testTag("store-shown-$id").focusProperties { canFocus = false },
+        ) { StoreTabsState.setLibraryShown(ctx, id, it) }
     }
 }

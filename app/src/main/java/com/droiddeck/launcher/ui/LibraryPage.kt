@@ -178,12 +178,11 @@ internal const val LIBRARY_ALL = "all"
 internal fun librarySources(
     entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet(), favorites: Set<String> = emptySet(),
     hidden: (LibraryEntry) -> Boolean = { false }, showHidden: Boolean = false, offStores: Set<String> = emptySet(),
-    customAfter: String? = null,
+    places: List<Pair<String, String?>> = DEFAULT_LIBRARY_PLACES, offTabs: Set<String> = emptySet(),
 ): List<String> {
     val tabs = arrangeStoreTabs(order, offStores)
-    val shown = tabs.filter { it.shown }.map { it.store.id }.toSet()
-    val middle = withCustomTab(tabs.map { it.store.id }, customAfter).filter { it in shown || it == Library.ADDED }
-    return (listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM) + middle + Library.SOURCE_COLLECTION + LIBRARY_HIDDEN)
+    val shown = tabs.filter { it.shown }.map { it.store.id }.toSet() + LIBRARY_OWN_TABS - offTabs
+    return (placeLibraryTabs(tabs.map { it.store.id }, places).filter { it in shown } + Library.SOURCE_COLLECTION + LIBRARY_HIDDEN)
         .filter { source ->
             when (source) {
                 LIBRARY_HIDDEN -> showHidden
@@ -370,7 +369,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.ADDED.takeIf { stores }).toSet() + signInChips,
         favorites, concealed, LibraryDisplay.hidden && !soundMode,
         offStores = if (soundMode) emptySet() else storeTabs.filterNot { it.shown }.map { it.store.id }.toSet(),
-        customAfter = StoreTabsState.customAfter,
+        places = if (soundMode) DEFAULT_LIBRARY_PLACES else StoreTabsState.libraryPlaces,
+        offTabs = if (soundMode) emptySet() else StoreTabsState.libraryHidden,
     )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
@@ -549,7 +549,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 searchCleared = open != null,
                 onFocus = { gridFocused = it },
                 soundMode = soundMode,
-                wallArt = { wallTiles(all.mapNotNull { entryArt(it, tall = true) }) },
+                wallArt = { wallTiles(all.filterNot(concealed).mapNotNull { entryArt(it, tall = true) }) },
                 emptyText = when {
                     soundMode && all.isEmpty() -> R.string.soundtracks_empty
                     !soundMode && all.isEmpty() && source == LIBRARY_ALL -> R.string.games_empty
