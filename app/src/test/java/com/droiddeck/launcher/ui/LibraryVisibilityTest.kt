@@ -148,6 +148,26 @@ class LibraryVisibilityTest {
         compose.onNodeWithText("Uninstalled GOG").assertExists()
     }
 
+    @Test fun anEmptyLibraryStillShowsItsChipsSoCustomGamesAndSignInAreReachable() {
+        for (store in listOf(Store.GOG, Store.EPIC)) StoreAccounts.clear(ctx, store)
+        StoresState.library.clear()
+        StoresState.accounts.clear()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            DroidDeckTheme {
+                CompositionLocalProvider(LocalFrontFocus provides FrontFocus()) {
+                    FocusGlideHost { Box(Modifier.fillMaxSize()) {
+                        LibraryPage(state(emptyList()), actions(), "games", {}, Modifier.fillMaxSize())
+                    } }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithTag("library-source-added").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithTag("library-custom-empty").assertExists()
+    }
+
     @Test fun theCustomGamesTabIsAlwaysThereAndOffersToAddWhenEmpty() {
         show()
         compose.onNodeWithTag("library-source-added").performClick()
@@ -196,11 +216,11 @@ class LibraryVisibilityTest {
         assertEquals(show, SessionPrefs.libraryShowUninstalled(ctx))
     }
 
-    private fun state() = FrontEndState(
+    private fun state(games: List<Library.SteamGame> = listOf(Library.SteamGame(440, "Installed Steam game", null, "internal"))) = FrontEndState(
         installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
         desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
         romsDir = null, logsEnabled = false,
-        steamGames = listOf(Library.SteamGame(440, "Installed Steam game", null, "internal")),
+        steamGames = games,
         emulators = emptyList(), running = null,
     )
 

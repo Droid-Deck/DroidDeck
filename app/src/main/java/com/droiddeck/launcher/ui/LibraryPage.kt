@@ -506,7 +506,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         kotlinx.coroutines.delay(Motion.ms(240).toLong())
         focusWithinFrames({ ff.last?.startsWith("card:") == true }) { if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
     }
-    if (!soundMode && all.isEmpty() && open == null && !itchSignedIn && !gameJoltSignedIn) {
+    if (!soundMode && s.shortcutPicker && all.isEmpty() && open == null && !itchSignedIn && !gameJoltSignedIn) {
         LibraryEmpty(s, a, modifier)
         return
     }
@@ -545,6 +545,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 soundMode = soundMode,
                 emptyText = when {
                     soundMode && all.isEmpty() -> R.string.soundtracks_empty
+                    !soundMode && all.isEmpty() && source == LIBRARY_ALL -> R.string.games_empty
                     soundMode && source == Library.SOURCE_COLLECTION && q.isEmpty() -> R.string.soundtracks_collections_empty
                     else -> R.string.stores_nothing_matches
                 },
@@ -868,7 +869,7 @@ private fun LibraryHeader(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit, manage: Boolean) {
-    val chips = sources.size >= 2 || sources.singleOrNull() == LIBRARY_HIDDEN
+    val chips = (manage && sources.isNotEmpty()) || sources.size >= 2 || sources.singleOrNull() == LIBRARY_HIDDEN
     if (!chips && !manage) return
     val pal = LocalPalette.current
     val keys = if (chips) listOf(LIBRARY_ALL) + sources else emptyList()
