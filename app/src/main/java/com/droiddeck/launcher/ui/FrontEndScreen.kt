@@ -650,6 +650,12 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(SetupTabs.openSection) {
         if (SetupTabs.openSection != null && (railSelection != "setup" || s.pageKey != null)) showRailPage("setup", true)
     }
+    LaunchedEffect(DevPreview.openLibrary) {
+        if (!DevPreview.openLibrary) return@LaunchedEffect
+        DevPreview.openLibrary = false
+        LibraryView.source = LIBRARY_ALL
+        showRailPage("games", true)
+    }
     val onRailFocus: (String) -> Unit = { key ->
         if (key != railSelection) showRailPage(key, false)
     }
@@ -806,6 +812,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         com.droiddeck.launcher.stores.StoresState.itchPicking?.let { item -> StoreTheme(item.store) { ItchBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.itchPicking = null } } }
         com.droiddeck.launcher.stores.StoresState.gameJoltPicking?.let { item -> StoreTheme(item.store) { GameJoltBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.gameJoltPicking = null } } }
         StepsLayer(screenAt)
+        UiZooSheet()
         SessionDrawerPreview(s.secondScreenDisplays)
 
         appToChooseDisplay?.let { app ->

@@ -59,6 +59,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -595,27 +596,10 @@ internal fun SetupPanel(
                             ToggleRow(host, "developer-tools", stringResource(R.string.dev_tools_title), stringResource(R.string.dev_tools_hint), DeveloperTools.on) {
                                 DeveloperTools.set(devContext, it)
                             }
-                        }
-                        if (DeveloperTools.on) SettingsGroup(stringResource(R.string.dev_group_preview)) {
-                            ChoiceRow(
-                                host, "dev-preview-library", stringResource(R.string.dev_preview_library), stringResource(R.string.dev_preview_library_hint),
-                                listOf(
-                                    LibraryPreview.OFF to stringResource(R.string.dev_preview_off),
-                                    LibraryPreview.NOTHING_INSTALLED to stringResource(R.string.dev_preview_library_nothing_installed),
-                                    LibraryPreview.SIGNED_OUT to stringResource(R.string.dev_preview_library_signed_out),
-                                    LibraryPreview.SAMPLE to stringResource(R.string.dev_preview_library_sample),
-                                ),
-                                DevPreview.library,
-                            ) { DevPreview.library = it }
-                            ChoiceRow(
-                                host, "dev-preview-drawer", stringResource(R.string.dev_preview_drawer), stringResource(R.string.dev_preview_drawer_hint),
-                                listOf(
-                                    DrawerPreview.STEAM to stringResource(R.string.source_steam),
-                                    DrawerPreview.DESKTOP to stringResource(R.string.rail_desktop),
-                                    DrawerPreview.GAME to stringResource(R.string.session_title_game),
-                                ),
-                                DevPreview.drawer ?: DrawerPreview.STEAM,
-                            ) { DevPreview.drawer = it }
+                            if (DeveloperTools.on) ActionRow(
+                                stringResource(R.string.dev_ui_zoo), stringResource(R.string.dev_ui_zoo_hint), stringResource(R.string.dev_ui_zoo_open),
+                                onClick = { DevPreview.zoo = true }, modifier = Modifier.testTag("dev-ui-zoo"),
+                            )
                         }
                         SettingsGroup(stringResource(R.string.dev_group_logs)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }

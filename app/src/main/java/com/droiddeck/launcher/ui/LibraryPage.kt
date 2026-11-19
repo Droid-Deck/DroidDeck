@@ -442,7 +442,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     fun sizeOf(e: LibraryEntry): Long? {
         val key = e.storeKey
         return when {
-            key != null && key in installedStore -> StoreSizes.onDisk[key]
+            key != null && e.installed && key in installedStore -> StoreSizes.onDisk[key]
             e.game?.gameFiles != null -> FolderSizes.known[e.game.gameFiles.path]
             e.item != null -> StoreSizes.size(e.item).takeIf { it > 0 }
             else -> 0L
@@ -558,7 +558,11 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                     LibraryView.source = ids[(ids.indexOf(source).coerceAtLeast(0) + step + ids.size) % ids.size]
                     cycled++
                 },
-                onOpen = { focusManager.clearFocus(force = true); onSelect(it) },
+                onOpen = {
+                    // A preview is read-only: a game's page would act on the real install behind the pretend one.
+                    if (preview != LibraryPreview.OFF) android.widget.Toast.makeText(ctx, R.string.dev_preview_read_only, android.widget.Toast.LENGTH_SHORT).show()
+                    else { focusManager.clearFocus(force = true); onSelect(it) }
+                },
                 searchCleared = open != null,
                 onFocus = { gridFocused = it },
                 soundMode = soundMode,

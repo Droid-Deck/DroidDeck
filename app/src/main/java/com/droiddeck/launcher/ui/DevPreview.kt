@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -56,6 +58,10 @@ internal enum class DrawerPreview { STEAM, DESKTOP, GAME }
 internal object DevPreview {
     var library by mutableStateOf(LibraryPreview.OFF)
     var drawer by mutableStateOf<DrawerPreview?>(null)
+    /** The UI zoo sheet: where previews are picked, one at a time, only when asked for. */
+    var zoo by mutableStateOf(false)
+    /** Set when a Library preview is picked, so the launcher switches to the Library to show it. */
+    var openLibrary by mutableStateOf(false)
 }
 
 /** How many of each store's sample games look installed. */
@@ -175,5 +181,42 @@ internal fun SessionDrawerPreview(secondScreens: List<SecondScreenDisplay>) {
             true, page, controllerActive = true, onPageChange = { page = it }, a = actions,
             backRequest = backRequests, onLayerChange = { layerOpen = it },
         )
+    }
+}
+
+/** Developer tools' UI zoo: a sheet listing the previews. Nothing shows until one is picked, and picking one closes the sheet. */
+@Composable
+internal fun UiZooSheet() {
+    val close = { DevPreview.zoo = false }
+    SideSheet(DevPreview.zoo, onClose = close, returnFocus = null, tag = "ui-zoo-sheet") {
+        PageHeader(stringResource(R.string.dev_ui_zoo)) {
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.onSurfaceVariant) { close() }
+        }
+        androidx.compose.foundation.layout.Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            val show = stringResource(R.string.dev_ui_zoo_show)
+            SettingsGroup(stringResource(R.string.dev_preview_drawer)) {
+                for ((mode, label) in listOf(
+                    DrawerPreview.STEAM to R.string.source_steam,
+                    DrawerPreview.DESKTOP to R.string.rail_desktop,
+                    DrawerPreview.GAME to R.string.session_title_game,
+                )) ActionRow(stringResource(label), null, show, onClick = { close(); DevPreview.drawer = mode }, modifier = Modifier.testTag("zoo-drawer-${mode.name.lowercase()}"))
+            }
+            SettingsGroup(stringResource(R.string.dev_preview_library)) {
+                for ((mode, label) in listOf(
+                    LibraryPreview.NOTHING_INSTALLED to R.string.dev_preview_library_nothing_installed,
+                    LibraryPreview.SIGNED_OUT to R.string.dev_preview_library_signed_out,
+                    LibraryPreview.SAMPLE to R.string.dev_preview_library_sample,
+                )) ActionRow(
+                    stringResource(label), null, show,
+                    onClick = { close(); DevPreview.library = mode; DevPreview.openLibrary = true },
+                    modifier = Modifier.testTag("zoo-library-${mode.name.lowercase()}"),
+                )
+            }
+            Text(
+                stringResource(R.string.dev_ui_zoo_note), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
     }
 }
