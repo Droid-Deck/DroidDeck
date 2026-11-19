@@ -25,9 +25,9 @@
 #define MAX_UP 32
 #define MAX_ALIASES 4
 #define FUSE_MAGIC 0x65735546
-#define WATCHED (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR)
-#define ABOVE (IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR | IN_MASK_ADD)
-#define GONE (IN_DELETE_SELF | IN_MOVE_SELF | IN_IGNORED)
+#define WATCHED (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ATTRIB | IN_ONLYDIR)
+#define ABOVE (IN_DELETE_SELF | IN_MOVE_SELF | IN_ATTRIB | IN_ONLYDIR | IN_MASK_ADD)
+#define GONE (IN_DELETE_SELF | IN_MOVE_SELF | IN_ATTRIB | IN_IGNORED)
 #define LINKED (IN_DELETE_SELF | IN_MOVE_SELF | IN_DONT_FOLLOW | IN_MASK_ADD)
 
 #if __SIZEOF_POINTER__ == 8
@@ -262,6 +262,7 @@ static void pump(struct expect *x, int nx) {
         changed(-1, 0);
         continue;
       }
+      if ((ev->mask & IN_ATTRIB) && ev->len) continue;
       int k = 0;
       while (k < nx && !(x[k].wd == ev->wd && (ev->mask & x[k].mask) && ev->len && strcmp(ev->name, x[k].name) == 0)) k++;
       if (k < nx) {
@@ -445,11 +446,31 @@ static int same_dir(const struct listing *l, const char *dir) {
   return same;
 }
 
+static int plain(const char *where, char *dir) {
+  const char *at = strstr(where, "/steamapps");
+  int saved = errno, fine = at != NULL;
+  for (size_t from = fine ? (size_t)(at - where) + 1 : 0; fine && dir[from];) {
+    size_t to = from + strcspn(dir + from, "/");
+    char kept = dir[to];
+    struct stat st;
+    dir[to] = 0;
+    if (strncmp(where + from, dir + from, to - from) != 0) fine = lstat(dir, &st) == 0 && !S_ISLNK(st.st_mode);
+    dir[to] = kept;
+    from = kept ? to + 1 : to;
+  }
+  errno = saved;
+  return fine;
+}
+
 static int aliased(struct listing *l, const char *dir) {
   for (int i = 0; i < MAX_ALIASES; i++)
     if (l->alias[i] && strcmp(l->alias[i], dir) == 0) return 1;
   if (!same_dir(l, dir)) return 0;
   char *copy = strdup(dir);
+  if (copy && !plain(l->where, copy)) {
+    free(copy);
+    copy = NULL;
+  }
   if (copy) {
     int at = l->aliases++ % MAX_ALIASES;
     free(l->alias[at]);
@@ -899,7 +920,7 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
   int fine = 1, expected = 1;
   if (what == ADDED) {
     if (exact < l->n) {
-      if (made_at(s, target, m)) l->e[exact].ino = m->ino;
+      if (event == IN_MOVED_TO && made_at(s, target, m)) l->e[exact].ino = m->ino;
       expected = event == IN_MOVED_TO;
     } else if (folded < l->n || !made_at(s, target, m)) {
       fine = 0;

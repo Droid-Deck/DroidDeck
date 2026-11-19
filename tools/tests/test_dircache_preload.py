@@ -34,31 +34,35 @@ static void coarse(const char *path, struct stat *st) {
   }
 }
 
-int stat(const char *path, struct stat *st) {
-  static int (*next)(const char *, struct stat *);
-  if (!next) next = dlsym(RTLD_NEXT, "stat");
-  char folded[4096];
+static const char *fold_case(const char *path, char *folded, size_t size) {
   const char *fold = getenv("FOLD");
   const char *upper = fold ? strstr(path, "/STEAMAPPS") : NULL;
   if (!upper && fold && !strcmp(fold, "all")) upper = strcasestr(path, "/steamapps/");
-  if (upper && strlen(path) < sizeof(folded)) {
-    strcpy(folded, path);
-    memcpy(folded + (upper - path) + 1, "steamapps", 9);
-    if (!strcmp(fold, "all"))
-      for (char *c = folded + (upper - path); *c; c++) if (*c >= 'A' && *c <= 'Z') *c += 'a' - 'A';
-    path = folded;
-  }
+  if (!upper || strlen(path) >= size) return path;
+  strcpy(folded, path);
+  memcpy(folded + (upper - path) + 1, "steamapps", 9);
+  if (!strcmp(fold, "all"))
+    for (char *c = folded + (upper - path); *c; c++) if (*c >= 'A' && *c <= 'Z') *c += 'a' - 'A';
+  return folded;
+}
+
+static int fold_stat(const char *name, const char *path, struct stat *st) {
+  int (*next)(const char *, struct stat *) = dlsym(RTLD_NEXT, name);
+  char folded[4096];
   if (strstr(path, "/fuse/")) real_stats++;
   int r = next(path, st);
+  if (r != 0) r = next(fold_case(path, folded, sizeof(folded)), st);
+  return r;
+}
+
+int stat(const char *path, struct stat *st) {
+  int r = fold_stat("stat", path, st);
   if (r == 0) coarse(path, st);
   return r;
 }
 
 int lstat(const char *path, struct stat *st) {
-  static int (*next)(const char *, struct stat *);
-  if (!next) next = dlsym(RTLD_NEXT, "lstat");
-  if (strstr(path, "/fuse/")) real_stats++;
-  return next(path, st);
+  return fold_stat("lstat", path, st);
 }
 
 int __xstat64(int version, const char *path, struct stat64 *st) {
@@ -337,6 +341,14 @@ int main(int argc, char **argv) {
       int r = old ? old(0, a, &st) : -2;
       printf("%d %d\n", r, r ? errno : 0);
       i++;
+    }
+    else if (!strcmp(op, "inode")) {
+      DIR *d = opendir(a);
+      struct dirent *e;
+      while (d && (e = readdir(d)))
+        if (!strcmp(e->d_name, argv[i + 2])) printf("%llu\n", (unsigned long long)e->d_ino);
+      if (d) closedir(d);
+      i += 2;
     }
     else if (!strcmp(op, "stats")) printf("%d\n", stats ? *stats : -1);
     else if (!strcmp(op, "accesses")) printf("%d\n", accesses ? *accesses : -1);
@@ -768,6 +780,42 @@ class DirCachePreloadTest(unittest.TestCase):
                                env={"FOLD": "all"})
         self.assertEqual(out[2], out[5])
         self.assertEqual("0", out[-1])
+
+    def test_a_folder_reached_through_a_link_follows_the_link(self):
+        s = self.staging
+        other = self.lib / "elsewhere" / s.name
+        other.mkdir(parents=True)
+        (other / "x.bundle").touch()
+        link = self.lib / "DOWNLOADING"
+        link.symlink_to("downloading")
+
+        def repoint():
+            link.unlink()
+            link.symlink_to("elsewhere")
+
+        out = self.run_paused("list", s, "access", link / s.name / "x.bundle", "pause",
+                              "access", link / s.name / "x.bundle", between=repoint, env={"FOLD": "all"})
+        self.assertEqual(["-1 2", "0 0"], out[1:])
+
+    def test_a_permission_change_on_the_folder_or_above_it_is_noticed(self):
+        s = self.staging
+        for target in (s, s.parent):
+            with self.subTest(target=target.name):
+                out = self.run_paused("list", s, "opens", "pause", "list", s, "opens",
+                                      between=lambda: target.chmod(0o700))
+                self.assertEqual(int(out[1]) + 1, int(out[3]))
+
+    def test_a_permission_change_on_a_file_keeps_the_listing(self):
+        s = self.staging
+        out = self.run_paused("list", s, "opens", "pause", "list", s, "opens",
+                              between=lambda: (s / "a.bundle").chmod(0o600))
+        self.assertEqual(out[1], out[3])
+
+    def test_opening_an_existing_link_keeps_its_entry(self):
+        s = self.staging
+        (s / "l.bundle").symlink_to("a.bundle")
+        out = self.run_program("list", s, "create", s / "l.bundle", "inode", s, "l.bundle", "raw", s)
+        self.assertEqual(str((s / "l.bundle").lstat().st_ino), out[1])
 
     def test_changes_made_around_the_cache_after_own_changes_are_noticed(self):
         s = self.staging
