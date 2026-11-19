@@ -120,14 +120,19 @@ class LibraryVisibilityTest {
         }
     }
 
-    @Test fun aSearchWithOnlyUninstalledMatchesOffersToRevealThem() {
+    @Test fun aSearchWithOnlyUninstalledMatchesShowsTheFoldedRowToRevealThem() {
         LibraryView.query = "Uninstalled GOG"
         show()
         compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
-        compose.onNodeWithTag("library-browse-owned").performClick()
+        compose.onNodeWithText("No installed games match these filters", substring = true).assertDoesNotExist()
+        compose.onNodeWithTag("library-not-installed").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Uninstalled GOG").assertExists()
         assertEquals("Uninstalled GOG", LibraryView.query)
+        compose.onNodeWithTag("library-not-installed").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
+        compose.onNodeWithTag("library-not-installed").assertExists()
     }
 
     @Test fun aHiddenStoreRemainsReachableInLibraryInItsConfiguredOrder() {
@@ -140,7 +145,7 @@ class LibraryVisibilityTest {
         assertTrue(steam < epic && epic < gog)
         compose.onNodeWithTag("library-source-gog").performClick()
         compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithTag("library-browse-owned").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("library-not-installed").assertIsDisplayed().performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Uninstalled GOG").assertExists()
     }

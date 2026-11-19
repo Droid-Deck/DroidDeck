@@ -577,7 +577,7 @@ private fun LibraryGrid(
     val expanded = showUninstalled == true
     val notInstalled = if (expanded) visible.count { !it.installed } else hiddenUninstalled
     val toggleAt = when {
-        showUninstalled == null || soundMode || notInstalled == 0 || visible.isEmpty() -> ToggleAt.NONE
+        showUninstalled == null || soundMode || notInstalled == 0 || (expanded && visible.isEmpty()) -> ToggleAt.NONE
         !expanded -> ToggleAt.BOTTOM
         split > 0 -> ToggleAt.SPLIT
         else -> ToggleAt.TOP
@@ -603,7 +603,7 @@ private fun LibraryGrid(
             focusWithinFrames({ focus.last == target }) { focus.items[target] ?: FocusRequester.Default }
         }
     }
-    val rowStart: (Int) -> Int = { i -> if (listMode) i else i - i % columns.coerceAtLeast(1) }
+    val rowStart: (Int) -> Int? = { i -> if (i < 0) null else if (listMode) i else i - i % columns.coerceAtLeast(1) }
     val tile: @Composable (LibraryEntry) -> Unit = { e ->
         val first = e.key == visible.firstOrNull()?.key
         val navigation = if (focus == null) Modifier else Modifier.onPreviewKeyEvent { event ->
@@ -707,15 +707,9 @@ private fun LibraryGrid(
             }
         }
         val empty = emptyText
-        if (visible.isEmpty() && hiddenUninstalled > 0) item(key = "browse-owned", span = { GridItemSpan(maxLineSpan) }) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
-                Text(stringResource(R.string.library_no_installed_matches), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                SecondaryButton(stringResource(R.string.library_browse_owned), modifier = Modifier.testTag("library-browse-owned")) { onShowUninstalled(true) }
-            }
-        }
-        else if (split == 0) {
+        if (split == 0) {
             if (toggleAt == ToggleAt.TOP) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
-            libraryGrid(visible, empty, tile)
+            if (visible.isNotEmpty() || toggleAt == ToggleAt.NONE) libraryGrid(visible, empty, tile)
             if (toggleAt == ToggleAt.BOTTOM) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
         }
         else {
