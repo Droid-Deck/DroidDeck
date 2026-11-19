@@ -98,7 +98,7 @@ class KitLayoutTest {
     }
 
     @Test fun safeInsetsMoveEdgeControlsInByTheInsetOnly() {
-        val safe = Rect(120, 30, 60, 40)
+        val safe = Rect(120, 0, 60, 0)
         for (kit in PadKit.entries) {
             val plain = KitLayout.elements(context, kit, 2400, 1080).associateBy { it.id }
             val inset = KitLayout.elements(context, kit, 2400, 1080, safe)
@@ -108,7 +108,6 @@ class KitLayoutTest {
             }
             val a = plain.getValue("legacy:lt"); val b = inset.single { it.id == "legacy:lt" }
             assertEquals(safe.left.toFloat(), (b.x - a.x) * 2400, .5f)
-            assertEquals(safe.top.toFloat(), (b.y - a.y) * 1080, .5f)
             val r = plain.getValue("legacy:rt"); val s = inset.single { it.id == "legacy:rt" }
             assertEquals(-safe.right.toFloat(), (s.x - r.x) * 2400, .5f)
         }
@@ -280,6 +279,18 @@ class KitLayoutTest {
             val lb = elements.single { it.id == "legacy:lb" }
             val middle = elements.filter { it.id == KitLayout.DPAD_ID || it.id == "legacy:y" }
             for (m in middle) assertTrue("$kit $top ${m.id}", m.y * 900 >= (lb.y + lb.height) * 900 - .5f || m.x * 1600 >= (lb.x + lb.width) * 1600)
+        }
+    }
+
+    @Test fun insetsThatLeaveLessRoomShrinkTheKitInsteadOfOverlappingIt() {
+        for (kit in PadKit.entries) for ((w, h, safe) in listOf(Triple(1600, 900, Rect(0, 60, 0, 0)), Triple(1600, 900, Rect(0, 730, 0, 0)),
+            Triple(1920, 1080, Rect(80, 120, 80, 90)), Triple(2400, 1080, Rect(120, 30, 60, 40)))) {
+            val elements = KitLayout.elements(context, kit, w, h, safe)
+            assertEquals("$kit $w x $h $safe", emptyList<Pair<String, String>>(), overlapping(elements, w, h))
+            if (safe.top <= h / 6) for (e in elements) {
+                val (x, y, ew, eh) = px(e, w, h).toList()
+                assertTrue("$kit $safe ${e.id}", x >= safe.left - .5f && y >= safe.top - .5f && x + ew <= w - safe.right + .5f && y + eh <= h - safe.bottom + .5f)
+            }
         }
     }
 }

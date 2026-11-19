@@ -41,6 +41,8 @@ object KitLayout {
     /** The widest pair of side controls on any kit: a larger size never pushes the two halves, or the rows, into each other. */
     private const val MIN_SPAN = 1200f
     private const val MAX_HEIGHT_MM = 80f
+    /** A cutout never takes more than this fraction of a side; larger insets would leave no room for a usable pad. */
+    private const val MAX_INSET = 6
     private const val CORNER_DP = 52f
     private const val ROW_DP = 60f
     private const val BUTTON_DP = 44f
@@ -85,11 +87,13 @@ object KitLayout {
     }
 
     /** The default controls for [kit] on a [width] × [height] screen. */
-    fun elements(context: Context, kit: PadKit, width: Int, height: Int, safe: Rect = Rect(), scale: Float = 1f): List<InputSurfaceElement> {
+    fun elements(context: Context, kit: PadKit, width: Int, height: Int, inset: Rect = Rect(), scale: Float = 1f): List<InputSurfaceElement> {
         if (width <= 0 || height <= 0) return emptyList()
+        val safe = Rect(inset.left.coerceIn(0, width / MAX_INSET), inset.top.coerceIn(0, height / MAX_INSET),
+            inset.right.coerceIn(0, width / MAX_INSET), inset.bottom.coerceIn(0, height / MAX_INSET))
         if (height > width) return portrait(context, kit, width, height, safe, scale)
         val w = width.toFloat(); val h = height.toFloat()
-        val unit = (min(w / REF_W, h / REF_H) * cap(context, min(width, height)) * scale).coerceAtMost(min(w / MIN_SPAN, h / REF_H))
+        val unit = (min(w / REF_W, h / REF_H) * cap(context, min(width, height)) * scale).coerceAtMost(min((w - safe.left - safe.right).coerceAtLeast(1f) / MIN_SPAN, (h - safe.top - safe.bottom).coerceAtLeast(1f) / REF_H))
         fun x(ref: Float) = when {
             ref < REF_W / 3f -> safe.left + ref * unit
             ref > REF_W * 2f / 3f -> w - safe.right - (REF_W - ref) * unit
