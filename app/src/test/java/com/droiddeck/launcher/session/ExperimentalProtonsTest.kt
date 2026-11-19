@@ -70,6 +70,10 @@ class ExperimentalProtonsTest {
         assertEquals("Proton-sha512.tar.gz.sha512sum", ExperimentalProtons.checksumEntry(
             listOf("Proton-sha512.tar.gz", "Proton-sha512.tar.gz.sha512sum"), "Proton-sha512.tar.gz"))
         assertNull(ExperimentalProtons.checksumEntry(listOf("Proton.tar.gz"), "Proton.tar.gz"))
+        assertEquals("Proton.tar.gz.sha512sum", ExperimentalProtons.checksumEntry(
+            listOf("Proton-debug.tar.gz.sha512sum", "Proton.tar.gz.sha512sum"), "Proton.tar.gz"))
+        assertEquals("Proton.sha512sum", ExperimentalProtons.checksumEntry(listOf("Proton.sha512sum"), "Proton.tar.gz"))
+        assertNull(ExperimentalProtons.checksumEntry(listOf("Proton-debug.tar.gz.sha512sum"), "Proton.tar.gz"))
     }
 
     @Test
@@ -79,5 +83,19 @@ class ExperimentalProtonsTest {
         File(final, "marker").writeText("old")
         assertFalse(ExperimentalProtons.placeTree(File(staging, "missing"), final, staging))
         assertEquals("old", File(final, "marker").readText())
+    }
+
+    @Test
+    fun anInterruptedReplacementIsRestoredAndAPlacedBuildIsKept() {
+        val tools = temp.newFolder("tools")
+        val staging = File(tools, "staging")
+        File(staging, "old/Experimental-A").mkdirs()
+        File(staging, "old/Experimental-A/marker").writeText("old")
+        File(staging, "old/Experimental-B").mkdirs()
+        File(tools, "Experimental-B").mkdirs()
+        File(tools, "Experimental-B/marker").writeText("new")
+        ExperimentalProtons.restoreInterrupted(tools, staging)
+        assertEquals("old", File(tools, "Experimental-A/marker").readText())
+        assertEquals("new", File(tools, "Experimental-B/marker").readText())
     }
 }

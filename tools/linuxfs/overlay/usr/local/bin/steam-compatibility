@@ -1177,7 +1177,7 @@ def removed_tools(state, catalog, directory=None):
 
 def removed_dirs(state, removed):
     known = state.get("tools") if isinstance(state.get("tools"), list) else ()
-    return {t.get("dir") for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name") in removed} - {"", None}
+    return {t["dir"] for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name") in removed and isinstance(t.get("dir"), str)} - {""}
 
 
 def tool_entry(name, display, path, valve):
@@ -1275,7 +1275,7 @@ def settle_game_requests(requests, state, current, catalog, missing_is_cleared=F
     gone = removed_dirs(state, removed)
     out = dict(requests)
     for app, request in requests.items():
-        if isinstance(request, dict) and request.get("valve") is False and request.get("dir") in gone:
+        if isinstance(request, dict) and request.get("valve") is False and isinstance(request.get("dir"), str) and request["dir"] in gone:
             del out[app]
             continue
         if not valid_game_request(app, request) or app not in applied or applied[app] != request:

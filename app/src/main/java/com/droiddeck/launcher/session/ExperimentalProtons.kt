@@ -20,6 +20,7 @@ object ExperimentalProtons {
     const val PREFIX = "Experimental-"
     private const val MARKER = ".droiddeck-experimental.json"
     private const val STAGING = ".droiddeck-experimental"
+    private const val BACKUPS = "old"
     private const val GUEST_TOOLS = "/root/.local/share/Steam/compatibilitytools.d"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private const val USER_SETTINGS = "user_settings.py"
@@ -85,6 +86,7 @@ object ExperimentalProtons {
     private fun install(context: Context, zip: File, label: String, source: String, onProgress: (String, Int) -> Unit): String? {
         val tools = toolsDir(context).apply { mkdirs() }
         val staging = File(tools, STAGING)
+        restoreInterrupted(tools, staging)
         deleteTree(staging)
         staging.mkdirs()
         try {
@@ -147,7 +149,7 @@ object ExperimentalProtons {
     }
 
     internal fun placeTree(tree: File, final: File, staging: File): Boolean {
-        val backup = File(staging, "old")
+        val backup = File(File(staging, BACKUPS).apply { mkdirs() }, final.name)
         if (final.exists() && !final.renameTo(backup)) return false
         if (!tree.renameTo(final)) {
             backup.renameTo(final)
@@ -155,6 +157,10 @@ object ExperimentalProtons {
         }
         if (backup.exists()) deleteTree(backup)
         return true
+    }
+
+    internal fun restoreInterrupted(tools: File, staging: File) {
+        File(staging, BACKUPS).listFiles()?.forEach { if (!File(tools, it.name).exists()) it.renameTo(File(tools, it.name)) }
     }
 
     private fun extractTarball(zip: File, into: File): File? = ZipFile(zip).use { z ->
@@ -181,7 +187,8 @@ object ExperimentalProtons {
     internal fun checksumEntry(entries: List<String>, tarball: String): String? {
         val stem = tarball.substringBefore(".tar")
         return entries.firstOrNull {
-            File(it).name != tarball && !TARBALL.containsMatchIn(it) && File(it).name.startsWith(stem) && it.contains("sha512", true)
+            val name = File(it).name
+            !TARBALL.containsMatchIn(name) && (name.startsWith("$tarball.") || name.startsWith("$stem.")) && name.contains("sha512", true)
         }
     }
 

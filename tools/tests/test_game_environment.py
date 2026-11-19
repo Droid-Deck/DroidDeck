@@ -2307,6 +2307,8 @@ class ProtonDefaultTest(unittest.TestCase):
         self.assertTrue(moved)
         self.assertEqual(settled, {"11": requests["11"], "12": requests["12"]})
         self.assertEqual(COMPAT["settle_game_requests"](requests, state, {}, catalog), (requests, False))
+        malformed = {"10": {"valve": False, "dir": []}}
+        self.assertEqual(COMPAT["settle_game_requests"](malformed, state, {}, catalog, removed={"GE-Proton11-7"}), (malformed, False))
 
     def test_a_game_on_a_removed_tool_follows_the_default_across_registrations(self):
         with tempfile.TemporaryDirectory() as tmp:
