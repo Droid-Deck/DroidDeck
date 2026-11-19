@@ -17,7 +17,9 @@
 #include "cas_frag.h"
 #include "color_frag.h"
 #include "fxaa_frag.h"
-#include "smaa_frag.h"
+#include "smaa_edge_frag.h"
+#include "smaa_weights_frag.h"
+#include "smaa_blend_frag.h"
 #include "toon_frag.h"
 #include "hdr_frag.h"
 #include "ntsc_frag.h"
@@ -106,6 +108,11 @@ static int spatial_mode(int m) { return m >= 3 && m <= 8; }
 static int cas_active(const struct fx_settings *s) { return s->cas_on && s->cas_pct > 0; }
 static int effect_count(const struct fx_settings *s) {
     return (s->aa_mode != 0) + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + s->deband_on;
+}
+
+static int effect_pass_count(const struct fx_settings *s) {
+    int aa_passes = s->aa_mode == 2 ? 3 : (s->aa_mode == 1 ? 1 : 0);
+    return aa_passes + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + s->deband_on;
 }
 
 static void log_settings(const struct fx_settings *s) {
@@ -209,9 +216,9 @@ static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
 static VkDescriptorPool g_dpool;
 static VkSampler g_sampler;
-enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_SMAA, P_TOON, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
+enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_SMAA_EDGE, P_SMAA_WEIGHTS, P_SMAA_BLEND, P_TOON, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
 static VkPipeline g_pipe[P_COUNT];
-static struct fx_target g_t[2], g_mid;
+static struct fx_target g_t[2], g_mid, g_smaa_weights;
 
 static struct { VkImage img; VkImageView view; VkDescriptorSet ds; int w, h; } g_scene;
 static uint32_t g_ntsc_frame;
@@ -359,6 +366,7 @@ static void objects_destroy(void) {
     if (!g_dev) return;
     scene_release();
     target_destroy(&g_t[0]); target_destroy(&g_t[1]); target_destroy(&g_mid);
+    target_destroy(&g_smaa_weights);
     for (int i = 0; i < P_COUNT; i++) { if (g_pipe[i]) g_vk.DestroyPipeline(g_dev, g_pipe[i], NULL); g_pipe[i] = VK_NULL_HANDLE; }
     if (g_dpool) g_vk.DestroyDescriptorPool(g_dev, g_dpool, NULL);
     if (g_pl) g_vk.DestroyPipelineLayout(g_dev, g_pl, NULL);
@@ -425,7 +433,8 @@ static int objects_ensure(void) {
     VkDescriptorSetLayoutCreateInfo dli = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .bindingCount = 1, .pBindings = &b};
     if (g_vk.CreateDescriptorSetLayout(g_dev, &dli, NULL, &g_dsl) != VK_SUCCESS) goto fail;
     VkPushConstantRange pcr = {.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, .offset = 0, .size = PC_MAX_SIZE};
-    VkPipelineLayoutCreateInfo pli = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .setLayoutCount = 1, .pSetLayouts = &g_dsl,
+    VkDescriptorSetLayout set_layouts[2] = {g_dsl, g_dsl};
+    VkPipelineLayoutCreateInfo pli = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .setLayoutCount = 2, .pSetLayouts = set_layouts,
                                       .pushConstantRangeCount = 1, .pPushConstantRanges = &pcr};
     if (g_vk.CreatePipelineLayout(g_dev, &pli, NULL, &g_pl) != VK_SUCCESS) goto fail;
     VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8};
@@ -445,7 +454,9 @@ static int objects_ensure(void) {
     MK(P_CAS, cas_code, "cas");
     MK(P_COLOR, color_code, "color");
     MK(P_FXAA, fxaa_code, "fxaa");
-    MK(P_SMAA, smaa_code, "smaa");
+    MK(P_SMAA_EDGE, smaa_edge_code, "smaa_edge");
+    MK(P_SMAA_WEIGHTS, smaa_weights_code, "smaa_weights");
+    MK(P_SMAA_BLEND, smaa_blend_code, "smaa_blend");
     MK(P_TOON, toon_code, "toon");
     MK(P_HDR, hdr_code, "hdr");
     MK(P_NTSC, ntsc_code, "ntsc");
@@ -454,7 +465,7 @@ static int objects_ensure(void) {
 #undef MK
     g_vk.DestroyShaderModule(g_dev, vert, NULL);
     g_ready = 1;
-    droiddeck_log("effects", "chain ready: 14 pipelines (SGSR, SGSR HQ, NIS, FSR EASU+RCAS, CAS, colour, FXAA, SMAA, Toon, HDR, NTSC, CRT, deband) on %s", vkp_gpu_name());
+    droiddeck_log("effects", "chain ready: 16 pipelines (SGSR, SGSR HQ, NIS, FSR EASU+RCAS, CAS, colour, FXAA, SMAA edge/weights/blend, Toon, HDR, NTSC, CRT, deband) on %s", vkp_gpu_name());
     return 0;
 fail:
     objects_destroy();
@@ -490,6 +501,24 @@ static void pass(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst, VkDes
     g_vk.CmdEndRenderPass(cmd);
 }
 
+static void pass_dual(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst,
+                      VkDescriptorSet src, VkDescriptorSet second,
+                      const void *pc, uint32_t pcsz) {
+    VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_rp, .framebuffer = dst->fb,
+                                 .renderArea = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}}};
+    VkViewport vp = {0, 0, (float)dst->w, (float)dst->h, 0, 1};
+    VkRect2D sc = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}};
+    VkDescriptorSet sets[2] = {src, second};
+    g_vk.CmdBeginRenderPass(cmd, &rpi, VK_SUBPASS_CONTENTS_INLINE);
+    g_vk.CmdSetViewport(cmd, 0, 1, &vp);
+    g_vk.CmdSetScissor(cmd, 0, 1, &sc);
+    g_vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
+    g_vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pl, 0, 2, sets, 0, NULL);
+    g_vk.CmdPushConstants(cmd, g_pl, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, pcsz, pc);
+    g_vk.CmdDraw(cmd, 4, 1, 0, 0);
+    g_vk.CmdEndRenderPass(cmd);
+}
+
 static const float FULL_NDC[4] = {-1.0f, -1.0f, 1.0f, 1.0f};
 #define SET_NDC(pc) memcpy((pc).ndc, FULL_NDC, sizeof(FULL_NDC))
 
@@ -510,10 +539,12 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     if (spatial_mode(s->scaling) && (s->scaling == 6 || upscaling)) spatial = s->scaling;
     const int nfx = effect_count(s);
     const int resize = cw != scene_w || ch != scene_h;
-    const int npasses = ((spatial || resize) ? 1 : 0) + nfx;
+    const int npasses = ((spatial || resize) ? 1 : 0) + effect_pass_count(s);
 
     if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
         target_ensure(&g_t[0], cw, ch, "chain") == 0 && (npasses < 2 || target_ensure(&g_t[1], cw, ch, "chain") == 0) &&
+        (s->aa_mode != 2 || (target_ensure(&g_mid, cw, ch, "SMAA edges") == 0 &&
+                             target_ensure(&g_smaa_weights, cw, ch, "SMAA weights") == 0)) &&
         (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, "EASU") == 0)) {
         VkDescriptorSet cur_ds;
         struct fx_target *cur = NULL;
@@ -593,7 +624,11 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             pr.res[0] = (float)cw; pr.res[1] = (float)ch;
             switch (order[i]) {
             case FX_FXAA: pass(cmd, g_pipe[P_FXAA], dst, cur_ds, &pr, sizeof(pr)); break;
-            case FX_SMAA: pass(cmd, g_pipe[P_SMAA], dst, cur_ds, &pr, sizeof(pr)); break;
+            case FX_SMAA:
+                pass(cmd, g_pipe[P_SMAA_EDGE], &g_mid, cur_ds, &pr, sizeof(pr));
+                pass(cmd, g_pipe[P_SMAA_WEIGHTS], &g_smaa_weights, g_mid.ds, &pr, sizeof(pr));
+                pass_dual(cmd, g_pipe[P_SMAA_BLEND], dst, cur_ds, g_smaa_weights.ds, &pr, sizeof(pr));
+                break;
             case FX_TOON: pass(cmd, g_pipe[P_TOON], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_COLOR: {
                 struct pc_color pc = {0};
