@@ -294,7 +294,7 @@ class SteamTouchControls(
                 val held = (if (bits and DPAD_UP != 0L) 1 else 0) or (if (bits and DPAD_RIGHT != 0L) 2 else 0) or
                     (if (bits and DPAD_DOWN != 0L) 4 else 0) or (if (bits and DPAD_LEFT != 0L) 8 else 0)
                 canvas.save(); canvas.translate(x - r, y - r)
-                art.dpad(canvas, 2 * r, 2 * r, PadKit.STEAM_DECK, held)
+                art.dpad(canvas, 2 * r, 2 * r, PadKit.STEAM_DECK, held, ink = glyphInk())
                 canvas.restore()
             }
             SteamTouchConfig.JOYSTICK_LEFT, SteamTouchConfig.JOYSTICK_RIGHT -> {
@@ -333,9 +333,12 @@ class SteamTouchControls(
     private fun systemButton(canvas: Canvas, x: Float, y: Float, r: Float, shape: com.droiddeck.launcher.ui.PadArt.Shape,
         icon: com.droiddeck.launcher.ui.PadArt.Icon, pressed: Boolean) {
         canvas.save(); canvas.translate(x - r * 1.4f, y - r * 1.4f)
-        art.system(canvas, r * 2.8f, r * 2.8f, shape, icon, pressed)
+        art.system(canvas, r * 2.8f, r * 2.8f, shape, icon, pressed, glyphInk())
         canvas.restore()
     }
+
+    /** Glyphs follow the colour picked for Steam touch controls; white keeps the shared artwork's own ink. */
+    private fun glyphInk() = if (tint != Color.WHITE) tint else com.droiddeck.launcher.ui.PadArt.INK
 
     private fun isSquare(type: Int) = type in setOf(SteamTouchConfig.BUMPER_LEFT, SteamTouchConfig.BUMPER_RIGHT,
         SteamTouchConfig.TRIGGER_LEFT, SteamTouchConfig.TRIGGER_RIGHT, SteamTouchConfig.THUMB, SteamTouchConfig.KEYBOARD,
@@ -359,7 +362,7 @@ class SteamTouchControls(
         val icon = binding?.icon?.takeIf { it.isNotEmpty() }?.let(::iconOrLoad)
         val custom = binding != null && binding.background.isNotEmpty() && !binding.background.equals(SteamTouchBindings.DEFAULT_BACKGROUND, true)
         art.glass(canvas, shape, pressed && !custom, if (custom) parseColor(binding!!.background, SteamTouchBindings.DEFAULT_BACKGROUND) else 0x850E1014.toInt())
-        val ink = if (pressed && !custom) com.droiddeck.launcher.ui.PadArt.ON_ACCENT else if (tint != Color.WHITE) tint else com.droiddeck.launcher.ui.PadArt.INK
+        val ink = if (pressed && !custom) com.droiddeck.launcher.ui.PadArt.ON_ACCENT else glyphInk()
         if (icon != null) {
             val s = r * 0.62f
             if (custom) canvas.drawBitmap(tinted(binding!!.icon, icon, binding.foreground), null, RectF(x - s, y - s, x + s, y + s), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))

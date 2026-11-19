@@ -124,7 +124,7 @@ internal class PadArt(context: Context) {
     enum class Shape { ROUND, PILL, CHIP }
     enum class Icon { VIEW, MENU, QAM, KEYBOARD, BACK, START, CREATE, HOME, STEAM, SHARE, OPTIONS, MARK }
 
-    fun system(canvas: Canvas, w: Float, h: Float, shape: Shape, icon: Icon, pressed: Boolean) {
+    fun system(canvas: Canvas, w: Float, h: Float, shape: Shape, icon: Icon, pressed: Boolean, ink: Int = INK) {
         val cx = w / 2f; val cy = h / 2f
         val size = when (shape) {
             Shape.ROUND -> { val r = min(w, h) / 2f * VISUAL; glass(canvas, circle(cx, cy, r), pressed); r * 1.2f }
@@ -133,7 +133,7 @@ internal class PadArt(context: Context) {
             Shape.CHIP -> { val vh = min(h * VISUAL, w * VISUAL / 1.9f); val vw = vh * 1.9f
                 glass(canvas, roundRect(cx - vw / 2, cy - vh / 2, cx + vw / 2, cy + vh / 2, vh * .32f), pressed); vh * 1.05f }
         }
-        icon(canvas, cx, cy, size, icon, if (pressed) ON_ACCENT else INK)
+        icon(canvas, cx, cy, size, icon, if (pressed) ON_ACCENT else ink)
     }
 
     fun icon(canvas: Canvas, cx: Float, cy: Float, size: Float, icon: Icon, color: Int) {
@@ -208,7 +208,7 @@ internal class PadArt(context: Context) {
     }
 
     /** [held] bits: up 1, right 2, down 4, left 8. */
-    fun dpad(canvas: Canvas, w: Float, h: Float, kit: PadKit, held: Int, chevrons: Boolean = true) {
+    fun dpad(canvas: Canvas, w: Float, h: Float, kit: PadKit, held: Int, chevrons: Boolean = true, ink: Int = INK) {
         val cx = w / 2f; val cy = h / 2f
         val s = min(w, h) / 2f - dp(3f)
         val dirs = arrayOf(floatArrayOf(0f, -1f), floatArrayOf(1f, 0f), floatArrayOf(0f, 1f), floatArrayOf(-1f, 0f))
@@ -235,7 +235,7 @@ internal class PadArt(context: Context) {
                         canvas.drawRoundRect(rect, half * .4f, half * .4f, fill)
                     }
                     val m = (arms + half) / 2f
-                    if (chevrons) chevron(canvas, cx + dx * m, cy + dy * m, dx, dy, half * .32f, if (on) ON_ACCENT else INK, half * .17f)
+                    if (chevrons) chevron(canvas, cx + dx * m, cy + dy * m, dx, dy, half * .32f, if (on) ON_ACCENT else ink, half * .17f)
                 }
                 if (!disc) { fill.shader = null; fill.color = Color.argb(18, 255, 255, 255); canvas.drawCircle(cx, cy, half * .36f, fill) }
             }
