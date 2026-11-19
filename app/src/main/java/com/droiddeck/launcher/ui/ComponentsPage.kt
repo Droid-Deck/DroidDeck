@@ -738,11 +738,9 @@ fun ComponentsPage(
                         }
                     }
                 }
-                if (l == PROTON_TAB && DeveloperTools.on) {
+                if (l == PROTON_TAB) {
                     Spacer(Modifier.height(12.dp))
                     ExperimentalProtonGroup(protons, protonActions)
-                }
-                if (l == PROTON_TAB) {
                     Spacer(Modifier.height(12.dp))
                     Note(stringResource(R.string.comp_about_text))
                 }
