@@ -220,9 +220,9 @@ private fun StorageCard() {
                 modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(stringResource(storageTitle(item)), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                    Text(stringResource(agentStorageTitle(item)), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
                     Text(
-                        if (armed) stringResource(storageWarning(item)) else Formatter.formatShortFileSize(context, AgentStorage.sizes[item] ?: 0L),
+                        if (armed) stringResource(agentStorageWarning(item)) else Formatter.formatShortFileSize(context, AgentStorage.sizes[item] ?: 0L),
                         fontSize = 13.sp, color = if (armed) AttentionAmber else pal.onSurfaceVariant,
                     )
                 }
@@ -241,7 +241,7 @@ private fun StorageCard() {
     }
 }
 
-private fun storageTitle(item: AgentStorage.Item) = when (item) {
+internal fun agentStorageTitle(item: AgentStorage.Item) = when (item) {
     AgentStorage.Item.CLAUDE_CODE -> R.string.agent_storage_claude
     AgentStorage.Item.CODEX -> R.string.agent_storage_codex
     AgentStorage.Item.OPENCODE -> R.string.agent_storage_opencode
@@ -250,7 +250,7 @@ private fun storageTitle(item: AgentStorage.Item) = when (item) {
     AgentStorage.Item.CACHES -> R.string.agent_storage_caches
 }
 
-private fun storageWarning(item: AgentStorage.Item) = when (item) {
+internal fun agentStorageWarning(item: AgentStorage.Item) = when (item) {
     AgentStorage.Item.SOURCE -> R.string.agent_storage_source_warning
     AgentStorage.Item.CACHES -> R.string.agent_storage_caches_warning
     else -> R.string.agent_storage_reinstall_warning
