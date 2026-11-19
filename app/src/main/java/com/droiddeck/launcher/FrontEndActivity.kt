@@ -2447,9 +2447,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     pickExperimentalProton.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.xproton_pick),
                         android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).path))
                 },
-                onExperimentalLink = { url ->
-                    protons.installExperimental { progress -> com.droiddeck.launcher.session.ExperimentalProtons.installFromGitHub(this, url, progress) }
-                },
                 onRemoveExperimental = { dir -> protons.removeExperimental(dir) },
             ),
             protonOptions = {

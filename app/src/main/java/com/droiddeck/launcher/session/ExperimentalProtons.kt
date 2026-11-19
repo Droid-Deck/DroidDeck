@@ -4,14 +4,12 @@ import android.content.Context
 import android.os.StatFs
 import android.util.Log
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 import java.io.FileOutputStream
 import java.security.DigestOutputStream
 import java.security.MessageDigest
 import java.util.zip.ZipFile
-import org.json.JSONArray
 import org.json.JSONObject
 
 object ExperimentalProtons {
@@ -22,14 +20,8 @@ object ExperimentalProtons {
     private const val GUEST_TOOLS = "/root/.local/share/Steam/compatibilitytools.d"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private val TARBALL = Regex("(?i)\\.tar(\\.(gz|xz|zst|bz2))?$")
-    private val NOT_BUILDS = Regex("(?i)^(make-log|build-info|state-|logs?\\b)")
-    private val RUN_URL = Regex("(?i)github\\.com/([\\w.-]+)/([\\w.-]+)/actions/runs/(\\d+)(?:/artifacts/(\\d+))?")
 
     data class Installed(val dir: String, val label: String, val source: String)
-
-    internal data class RunLink(val owner: String, val repo: String, val run: Long, val artifact: Long?)
-
-    internal data class Artifact(val id: Long, val name: String, val size: Long)
 
     private fun toolsDir(context: Context) = File(LinuxRuntime.rootDir(context), GUEST_TOOLS.removePrefix("/"))
 
@@ -49,21 +41,6 @@ object ExperimentalProtons {
         val gone = target.deleteRecursively()
         if (gone) ComponentsManager.forgetProton(context, dir)
         return gone
-    }
-
-    internal fun parseRunLink(url: String): RunLink? {
-        val m = RUN_URL.find(url.trim()) ?: return null
-        return RunLink(m.groupValues[1], m.groupValues[2], m.groupValues[3].toLong(), m.groupValues[4].toLongOrNull())
-    }
-
-    internal fun pickArtifact(artifacts: JSONArray, wanted: Long?): Artifact? {
-        val all = (0 until artifacts.length()).map { artifacts.getJSONObject(it) }
-            .filter { !it.optBoolean("expired", false) }
-            .map { Artifact(it.optLong("id"), it.optString("name"), it.optLong("size_in_bytes")) }
-        if (wanted != null) return all.firstOrNull { it.id == wanted }
-        return all.filter { !NOT_BUILDS.containsMatchIn(it.name) }
-            .sortedWith(compareByDescending<Artifact> { it.name.contains("proton", ignoreCase = true) }.thenByDescending { it.size })
-            .firstOrNull()
     }
 
     internal fun dirName(tree: String, label: String?): String {
@@ -86,38 +63,6 @@ object ExperimentalProtons {
 	}
 }
 """
-
-    fun installFromGitHub(context: Context, url: String, onProgress: (String, Int) -> Unit): String? {
-        val link = parseRunLink(url) ?: return context.getString(R.string.xproton_bad_link)
-        preflight(context)?.let { return it }
-        onProgress(context.getString(R.string.xproton_looking), -1)
-        val api = "https://api.github.com/repos/${link.owner}/${link.repo}/actions/runs/${link.run}"
-        val branch = runCatching { JSONObject(Downloader.downloadString(api) ?: "{}").optString("head_branch") }.getOrDefault("")
-        val listing = Downloader.downloadString("$api/artifacts?per_page=100")
-            ?: return context.getString(R.string.xproton_run_unreadable)
-        val artifact = runCatching { pickArtifact(JSONObject(listing).optJSONArray("artifacts") ?: JSONArray(), link.artifact) }.getOrNull()
-            ?: return context.getString(R.string.xproton_no_artifact)
-        if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + artifact.size * 2) {
-            return context.getString(R.string.xproton_no_space)
-        }
-        val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
-        val zip = File(downloads, "experimental-${link.run}-${artifact.id}.zip")
-        if (artifact.size > 0 && zip.length() > artifact.size) zip.delete()
-        val source = "https://nightly.link/${link.owner}/${link.repo}/actions/runs/${link.run}/${artifact.name}.zip"
-        val downloading = context.getString(R.string.xproton_downloading, artifact.name)
-        onProgress(downloading, 0)
-        var ok = false
-        for (attempt in 0 until 3) {
-            ok = Downloader.downloadFile(source, zip, true) { f -> onProgress(downloading, if (f < 0) -1 else (f * 100f).toInt().coerceIn(0, 100)) }
-            if (ok) break
-        }
-        if (!ok) return context.getString(R.string.pextra_download_failed)
-        return try {
-            install(context, zip, branch.ifEmpty { "run-${link.run}" }, "${link.owner}/${link.repo} run ${link.run}", onProgress)
-        } finally {
-            zip.delete()
-        }
-    }
 
     fun installFromFile(context: Context, zip: File, onProgress: (String, Int) -> Unit): String? {
         preflight(context)?.let { return it }
