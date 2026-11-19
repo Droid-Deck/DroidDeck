@@ -607,6 +607,8 @@ private fun LibraryGrid(
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
     var columns by remember { mutableIntStateOf(1) }
+    var gridH by remember { mutableIntStateOf(0) }
+    var chipsH by remember { mutableIntStateOf(0) }
     val splash = !soundMode && (signInStore != null || (source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0))
     val headerItems = (if (splash) 1 else 2) + (if (sizesPending) 1 else 0) + syncing.size
     val expanded = showUninstalled == true
@@ -729,6 +731,7 @@ private fun LibraryGrid(
         modifier = Modifier.fillMaxSize().onFocusChanged { onFocus(it.hasFocus) }.focusGroup().bumpers(onPrevious = { onCycle(-1) }, onNext = { onCycle(1) }).onSizeChanged {
             val gap = with(density) { 10.dp.roundToPx() }
             columns = if (listMode) 1 else libraryColumns(it.width, with(density) { baseWidth.roundToPx() }, gap, level)
+            gridH = it.height
         },
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
@@ -737,7 +740,10 @@ private fun LibraryGrid(
             LibraryHeader(s, a, if (soundMode) total else visible.size + hiddenUninstalled, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = Store.byId(source)?.takeIf { it == Store.ITCH || it == Store.GAMEJOLT }, soundMode = soundMode, onAddSoundtrack = onAddSoundtrack, onCollections = onCollections, source = source)
         }
         val filters: @Composable () -> Unit = { LibraryFilters(sources, source, onSource, manage = !soundMode && !s.shortcutPicker) }
-        item(key = if (soundMode) "header" else "filters", span = { GridItemSpan(maxLineSpan) }) { Rise(0) { if (soundMode) header() else filters() } }
+        item(key = if (soundMode) "header" else "filters", span = { GridItemSpan(maxLineSpan) }) {
+            Box(Modifier.onSizeChanged { chipsH = it.height }) { Rise(0) { if (soundMode) header() else filters() } }
+        }
+        val splashHeight = with(density) { (gridH - chipsH).toDp() - 28.dp }.coerceAtLeast(300.dp)
         if (!splash) item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
@@ -754,10 +760,10 @@ private fun LibraryGrid(
         }
         val empty = emptyText
         if (source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0 && !soundMode) item(key = "custom-empty", span = { GridItemSpan(maxLineSpan) }) {
-            Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { CustomGamesCard() }
+            Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { CustomGamesCard(splashHeight) }
         }
         else if (signInStore != null) item(key = "sign-in:${signInStore.id}", span = { GridItemSpan(maxLineSpan) }) {
-            StoreTheme(signInStore) { Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { SignInCard(signInStore, 300.dp) } }
+            StoreTheme(signInStore) { Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { SignInCard(signInStore, splashHeight) } }
         }
         else if (split == 0) {
             if (toggleAt == ToggleAt.TOP) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
@@ -961,14 +967,14 @@ private fun StoreAccountButton(store: Store) {
 }
 
 @Composable
-private fun CustomGamesCard() {
+private fun CustomGamesCard(height: androidx.compose.ui.unit.Dp) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val narrow = LocalNarrowPane.current
     val c = sourceColours(Library.ADDED)
     val shape = RoundedCornerShape(20.dp)
     Box(
-        Modifier.fillMaxWidth().heightIn(min = 300.dp).clip(shape)
+        Modifier.fillMaxWidth().height(height).clip(shape)
             .background(Brush.linearGradient(listOf(c.fill, colors.background)))
             .border(1.dp, pal.line, shape).testTag("library-custom-empty"),
     ) {
