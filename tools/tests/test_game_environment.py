@@ -2281,6 +2281,17 @@ class ProtonDefaultTest(unittest.TestCase):
             (tools / "GE-Proton11-7").rmdir()
             self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), {"GE-Proton11-7"})
 
+    def test_a_build_being_replaced_is_not_classified_as_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tools = Path(tmp) / "compatibilitytools.d"
+            state = {"tools": [{"name": "GE-Proton11-7", "dir": "GE-Proton11-7", "valve": False}]}
+            catalog = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            aside = tools / COMPAT["REPLACING"] / "GE-Proton11-7"
+            aside.mkdir(parents=True)
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), set())
+            aside.rmdir()
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), {"GE-Proton11-7"})
+
     def test_a_request_for_a_removed_tool_is_dropped_and_others_are_kept(self):
         state = {"tools": self.CATALOG, "games_applied": {}}
         requests = {"10": {"valve": False, "dir": "GE-Proton11-7"}, "11": {"valve": False, "dir": "Never-Installed"},

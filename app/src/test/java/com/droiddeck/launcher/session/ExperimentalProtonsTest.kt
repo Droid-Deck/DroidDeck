@@ -29,12 +29,29 @@ class ExperimentalProtonsTest {
 
     @Test
     fun buildTreeSkipsLinksOutOfTheArchive() {
-        val outside = temp.newFolder("installed").apply { File(this, "toolmanifest.vdf").writeText("x") }
+        val outside = protonTree(temp.newFolder("installed"))
         val unpacked = temp.newFolder("unpacked")
         Files.createSymbolicLink(File(unpacked, "a-link").toPath(), outside.toPath())
         assertNull(ExperimentalProtons.buildTree(unpacked))
-        val real = File(unpacked, "b-build").apply { mkdirs(); File(this, "toolmanifest.vdf").writeText("x") }
+        val real = protonTree(File(unpacked, "b-build"))
         assertEquals(real.canonicalFile, ExperimentalProtons.buildTree(unpacked)?.canonicalFile)
+    }
+
+    @Test
+    fun buildTreeNeedsWhatTheCatalogNeeds() {
+        val unpacked = temp.newFolder("unpacked")
+        val tree = File(unpacked, "build").apply { mkdirs(); File(this, "toolmanifest.vdf").writeText("x") }
+        assertNull(ExperimentalProtons.buildTree(unpacked))
+        File(tree, "proton").writeText("x")
+        assertNull(ExperimentalProtons.buildTree(unpacked))
+        File(tree, "files/lib/wine").mkdirs()
+        assertEquals(tree.canonicalFile, ExperimentalProtons.buildTree(unpacked)?.canonicalFile)
+    }
+
+    private fun protonTree(dir: File): File = dir.apply {
+        File(this, "files/lib/wine").mkdirs()
+        File(this, "toolmanifest.vdf").writeText("x")
+        File(this, "proton").writeText("x")
     }
 
     @Test
@@ -79,23 +96,26 @@ class ExperimentalProtonsTest {
     @Test
     fun failedPlacementRestoresTheExistingBuild() {
         val staging = temp.newFolder("staging")
+        val backups = temp.newFolder("backups")
         val final = temp.newFolder("final")
         File(final, "marker").writeText("old")
-        assertFalse(ExperimentalProtons.placeTree(File(staging, "missing"), final, staging))
+        assertFalse(ExperimentalProtons.placeTree(File(staging, "missing"), final, backups))
         assertEquals("old", File(final, "marker").readText())
+        assertFalse(File(backups, "final").exists())
     }
 
     @Test
     fun anInterruptedReplacementIsRestoredAndAPlacedBuildIsKept() {
         val tools = temp.newFolder("tools")
-        val staging = File(tools, "staging")
-        File(staging, "old/Experimental-A").mkdirs()
-        File(staging, "old/Experimental-A/marker").writeText("old")
-        File(staging, "old/Experimental-B").mkdirs()
+        val backups = File(tools, "backups")
+        File(backups, "Experimental-A").mkdirs()
+        File(backups, "Experimental-A/marker").writeText("old")
+        File(backups, "Experimental-B").mkdirs()
         File(tools, "Experimental-B").mkdirs()
         File(tools, "Experimental-B/marker").writeText("new")
-        ExperimentalProtons.restoreInterrupted(tools, staging)
+        ExperimentalProtons.restoreInterrupted(tools, backups)
         assertEquals("old", File(tools, "Experimental-A/marker").readText())
         assertEquals("new", File(tools, "Experimental-B/marker").readText())
+        assertFalse(File(backups, "Experimental-B").exists())
     }
 }

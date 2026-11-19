@@ -20,7 +20,7 @@ object ExperimentalProtons {
     const val PREFIX = "Experimental-"
     private const val MARKER = ".droiddeck-experimental.json"
     private const val STAGING = ".droiddeck-experimental"
-    private const val BACKUPS = "old"
+    private const val BACKUPS = ".droiddeck-experimental-old"
     private const val GUEST_TOOLS = "/root/.local/share/Steam/compatibilitytools.d"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
     private const val USER_SETTINGS = "user_settings.py"
@@ -41,9 +41,10 @@ object ExperimentalProtons {
             ?: emptyList()
 
     fun remove(context: Context, dir: String): Boolean {
-        val target = File(toolsDir(context), dir)
+        val tools = toolsDir(context)
+        val target = File(tools, dir)
         if (!File(target, MARKER).isFile) return false
-        val gone = deleteTree(target)
+        val gone = deleteTree(target) && deleteTree(File(File(tools, BACKUPS), dir))
         if (gone) ComponentsManager.forgetProton(context, dir)
         return gone
     }
@@ -86,7 +87,8 @@ object ExperimentalProtons {
     private fun install(context: Context, zip: File, label: String, source: String, onProgress: (String, Int) -> Unit): String? {
         val tools = toolsDir(context).apply { mkdirs() }
         val staging = File(tools, STAGING)
-        restoreInterrupted(tools, staging)
+        val backups = File(tools, BACKUPS)
+        restoreInterrupted(tools, backups)
         deleteTree(staging)
         staging.mkdirs()
         try {
@@ -116,8 +118,8 @@ object ExperimentalProtons {
                 settings.copyTo(ownFile(tree, USER_SETTINGS))
             }
             val replaced = final.exists()
-            if (!placeTree(tree, final, staging)) return context.getString(R.string.xproton_place_failed)
-            if (replaced) ComponentsManager.forgetProton(context, name)
+            if (!placeTree(tree, final, backups)) return context.getString(R.string.xproton_place_failed)
+            if (replaced) ComponentsManager.forgetProton(context, name, replaced = true)
 
             onProgress(context.getString(R.string.pextra_installing, name), -1)
             runGuest(context, listOf("steam-compatibility", "/root/.local/share/Steam"))
@@ -134,7 +136,8 @@ object ExperimentalProtons {
         val root = unpacked.canonicalFile
         return unpacked.listFiles()?.sortedBy { it.name }?.firstOrNull {
             !Files.isSymbolicLink(it.toPath()) && it.isDirectory && it.canonicalFile.parentFile == root &&
-                Files.isRegularFile(File(it, "toolmanifest.vdf").toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
+                Files.isRegularFile(File(it, "toolmanifest.vdf").toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS) &&
+                ComponentsManager.isProtonTree(it)
         }
     }
 
@@ -148,8 +151,8 @@ object ExperimentalProtons {
         return file
     }
 
-    internal fun placeTree(tree: File, final: File, staging: File): Boolean {
-        val backup = File(File(staging, BACKUPS).apply { mkdirs() }, final.name)
+    internal fun placeTree(tree: File, final: File, backups: File): Boolean {
+        val backup = File(backups.apply { mkdirs() }, final.name)
         if (final.exists() && !final.renameTo(backup)) return false
         if (!tree.renameTo(final)) {
             backup.renameTo(final)
@@ -159,8 +162,8 @@ object ExperimentalProtons {
         return true
     }
 
-    internal fun restoreInterrupted(tools: File, staging: File) {
-        File(staging, BACKUPS).listFiles()?.forEach { if (!File(tools, it.name).exists()) it.renameTo(File(tools, it.name)) }
+    internal fun restoreInterrupted(tools: File, backups: File) {
+        backups.listFiles()?.forEach { if (File(tools, it.name).exists()) deleteTree(it) else it.renameTo(File(tools, it.name)) }
     }
 
     private fun extractTarball(zip: File, into: File): File? = ZipFile(zip).use { z ->

@@ -224,6 +224,9 @@ class ProtonExtrasTest {
         assertTrue(state.getJSONObject("active").has("GE-Proton11-8"))
         ComponentsManager.forgetProton(context, kept.name)
         assertTrue(File(originals, "GE-Proton11-8/GE-Proton11-8/dxvk.wcp").isFile)
+        ComponentsManager.forgetProton(context, kept.name, replaced = true)
+        assertFalse(File(originals, "GE-Proton11-8").exists())
+        assertFalse(JSONObject(File(context.filesDir, "components/state.json").readText()).getJSONObject("active").has("GE-Proton11-8"))
     }
 
     @Test

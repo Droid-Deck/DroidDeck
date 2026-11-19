@@ -1164,6 +1164,9 @@ def followers(state, current):
     return {app: name for app, name in current.items() if app != "0" and name == TOOL}
 
 
+REPLACING = ".droiddeck-experimental-old"
+
+
 def removed_tools(state, catalog, directory=None):
     known = state.get("tools") if isinstance(state.get("tools"), list) else ()
     previous = {t.get("name") for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name")}
@@ -1172,7 +1175,8 @@ def removed_tools(state, catalog, directory=None):
         return removed
     known_dirs = {t.get("name"): t.get("dir") for t in known if isinstance(t, dict)}
     return {name for name in removed if isinstance(known_dirs.get(name), str) and
-            not os.path.lexists(os.path.join(directory, known_dirs[name]))}
+            not os.path.lexists(os.path.join(directory, known_dirs[name])) and
+            not os.path.lexists(os.path.join(directory, REPLACING, known_dirs[name]))}
 
 
 def removed_dirs(state, removed):
