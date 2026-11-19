@@ -122,6 +122,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindowProvider
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.agent.AgentAttachments
+import com.droiddeck.launcher.agent.AgentDraft
 import com.droiddeck.launcher.agent.AgentHost
 import com.droiddeck.launcher.agent.AgentHost.Entry
 import com.droiddeck.launcher.agent.AgentSetup
@@ -207,7 +208,7 @@ private fun AgentPageContent(
     }
     remember { AgentSetup.check(context) }
     var setup by rememberSaveable { mutableStateOf(false) }
-    val draft = rememberSaveable { mutableStateOf("") }
+    val draft = remember { AgentDraft.state(context) }
     if (setup || AgentHost.state == AgentHost.State.MISSING || !(AgentSetup.ready || AgentSetup.completed(context))) {
         AgentSetupView(modifier, firstControl = inputModifier, onDone = { setup = false })
         return
