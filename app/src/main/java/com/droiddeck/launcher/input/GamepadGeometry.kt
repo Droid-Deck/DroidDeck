@@ -26,10 +26,10 @@ object GamepadGeometry {
 
     fun tall(w: Float, h: Float): Boolean = h >= w * 0.45f
 
-    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false): Map<Slot, Box> {
+    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false, grips: Boolean = true): Map<Slot, Box> {
         if (w <= 0f || h <= 0f) return emptyMap()
-        if (portraitDock && h >= w * 0.9f && w >= 300 * density && h >= 360 * density) {
-            return portraitLayout(w, h, density)
+        if (portraitDock && h >= w * 0.6f && w >= 300 * density && h >= 300 * density) {
+            return portraitLayout(w, h, density, grips)
         }
         val pad = 8 * density
         val buttonH = 40 * density
@@ -92,38 +92,36 @@ object GamepadGeometry {
         return boxes
     }
 
-    private fun portraitLayout(w: Float, h: Float, density: Float): Map<Slot, Box> {
+    /**
+     * The panel under a portrait game: shoulders with View and Menu across the top, the back grips under them when the kit has
+     * them, then the d-pad and face buttons and, along the bottom edge, the sticks or trackpads, each as large as the panel allows.
+     */
+    private fun portraitLayout(w: Float, h: Float, density: Float, grips: Boolean): Map<Slot, Box> {
         val pad = 8 * density
         val gap = 8 * density
         val buttonH = 44 * density
-        val scale = min(1f, (h - 2 * pad - 4 * gap - 3 * buttonH) / (w * 0.7f))
-        val main = w * 0.4f * scale
-        val second = w * 0.3f * scale
+        val boxes = LinkedHashMap<Slot, Box>()
+        val topGap = 4 * density
+        val topW = (w - 2 * pad - 5 * topGap) / 6f
+        val top = listOf(Slot.LEFT_OUTER_SHOULDER, Slot.LEFT_INNER_SHOULDER, Slot.VIEW, Slot.MENU, Slot.RIGHT_INNER_SHOULDER, Slot.RIGHT_OUTER_SHOULDER)
+        for ((i, slot) in top.withIndex()) boxes[slot] = Box(pad + topW / 2f + i * (topW + topGap), pad + buttonH / 2f, topW, buttonH)
+        var areaTop = pad + buttonH + gap
+        if (grips) {
+            val gripW = (w - 2 * pad - 3 * gap) / 4f
+            val gripH = min(56 * density, (h - areaTop) * 0.12f).coerceAtLeast(buttonH)
+            for ((i, slot) in listOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4).withIndex())
+                boxes[slot] = Box(pad + gripW / 2f + i * (gripW + gap), areaTop + gripH / 2f, gripW, gripH)
+            areaTop += gripH + gap
+        }
+        val area = h - pad - areaTop - gap
+        val main = min(w * 0.46f, area * 0.53f)
+        val second = min(w * 0.42f, area - main)
+        val secondY = areaTop + second / 2f
         val mainY = h - pad - main / 2f
-        val secondY = mainY - main / 2f - gap - second / 2f
-        val shoulderY = secondY - second / 2f - gap - buttonH / 2f
-        val boxes = linkedMapOf(
-            Slot.LEFT_MAIN to Box(w * 0.25f, mainY, main, main),
-            Slot.RIGHT_MAIN to Box(w * 0.75f, mainY, main, main),
-            Slot.LEFT_SECOND to Box(w * 0.25f, secondY, second, second),
-            Slot.RIGHT_SECOND to Box(w * 0.75f, secondY, second, second),
-        )
-        val utilityW = (w - 2 * pad - 3 * gap) / 4f
-        for ((i, slot) in middle.withIndex()) {
-            boxes[slot] = Box(pad + utilityW / 2f + i * (utilityW + gap), pad + buttonH / 2f, utilityW, buttonH)
-        }
-        val gripTop = pad + buttonH + gap
-        val gripH = min(64 * density, shoulderY - buttonH / 2f - gap - gripTop)
-        for ((i, slot) in listOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4).withIndex()) {
-            boxes[slot] = Box(pad + utilityW / 2f + i * (utilityW + gap), gripTop + gripH / 2f, utilityW, gripH)
-        }
-        val panelsW = min(112 * density, w * 0.22f)
-        val shoulderW = (w - 2 * pad - 4 * gap - panelsW) / 4f
-        boxes[Slot.PANELS] = Box(w / 2f, shoulderY, panelsW, buttonH)
-        boxes[Slot.LEFT_OUTER_SHOULDER] = Box(pad + shoulderW / 2f, shoulderY, shoulderW, buttonH)
-        boxes[Slot.LEFT_INNER_SHOULDER] = Box(pad + shoulderW * 1.5f + gap, shoulderY, shoulderW, buttonH)
-        boxes[Slot.RIGHT_INNER_SHOULDER] = Box(w - pad - shoulderW * 1.5f - gap, shoulderY, shoulderW, buttonH)
-        boxes[Slot.RIGHT_OUTER_SHOULDER] = Box(w - pad - shoulderW / 2f, shoulderY, shoulderW, buttonH)
+        boxes[Slot.LEFT_SECOND] = Box(w * 0.25f, secondY, second, second)
+        boxes[Slot.RIGHT_SECOND] = Box(w * 0.75f, secondY, second, second)
+        boxes[Slot.LEFT_MAIN] = Box(w * 0.25f, mainY, main, main)
+        boxes[Slot.RIGHT_MAIN] = Box(w * 0.75f, mainY, main, main)
         return boxes
     }
 }

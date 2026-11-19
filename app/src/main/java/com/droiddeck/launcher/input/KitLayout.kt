@@ -8,8 +8,8 @@ import kotlin.math.min
 /**
  * Places a virtual controller's default on-screen controls. Each kit is drawn on a 1600 × 900 reference screen; controls keep
  * their distance from the nearest edge, so wider screens spread them apart instead of stretching them. Clusters such as the face
- * buttons are placed by their centre so they move as one. In portrait the whole pad sits along the bottom edge, and the row left of
- * the bottom edge always starts after DroidDeck's corner button.
+ * buttons are placed by their centre so they move as one, and the row along the bottom-left edge always starts after DroidDeck's
+ * corner button.
  */
 object KitLayout {
     const val DPAD_ID = "kit:dpad"
@@ -19,11 +19,12 @@ object KitLayout {
     fun isKit(id: String) = id.startsWith("legacy:") || id == DPAD_ID || id == KEYBOARD_ID
     private const val REF_W = 1600f
     private const val REF_H = 900f
-    private const val PORTRAIT_W = 1200f
     /** The widest pair of side controls on any kit: a larger size never pushes the two halves, or the rows, into each other. */
     private const val MIN_SPAN = 1200f
     private const val MAX_HEIGHT_MM = 80f
     private const val CORNER_DP = 52f
+    private const val ROW_DP = 60f
+    private const val BUTTON_DP = 44f
     private const val GAP_DP = 8f
 
     private class Spec(val control: InputControl, val cx: Float, val cy: Float, val hw: Float, val hh: Float = hw, val id: String = "legacy:${control.id}",
@@ -47,7 +48,7 @@ object KitLayout {
         kit.steam -> shoulders() + listOf(
             Spec(InputControl.L4, 30f, 470f, 30f, 58f, shape = InputButtonShape.ROUNDED), Spec(InputControl.L5, 30f, 590f, 30f, 58f, shape = InputButtonShape.ROUNDED),
             Spec(InputControl.R4, 1570f, 470f, 30f, 58f, shape = InputButtonShape.ROUNDED), Spec(InputControl.R5, 1570f, 590f, 30f, 58f, shape = InputButtonShape.ROUNDED),
-            dpad(215f, 330f, 100f)) + face(1385f, 330f, 50f, 82f) + listOf(
+            dpad(215f, 330f, 112f)) + face(1385f, 330f, 56f, 92f) + listOf(
             Spec(InputControl.LS, 290f, 610f, 96f), Spec(InputControl.RS, 1310f, 610f, 96f),
             Spec(InputControl.LEFT_PAD, 480f, 345f, 95f, shape = InputButtonShape.ROUNDED), Spec(InputControl.RIGHT_PAD, 1120f, 345f, 95f, shape = InputButtonShape.ROUNDED),
             Spec(InputControl.SELECT, 660f, 150f, 46f, 26f, shape = InputButtonShape.PILL), Spec(InputControl.START, 940f, 150f, 46f, 26f, shape = InputButtonShape.PILL),
@@ -67,16 +68,15 @@ object KitLayout {
     /** The default controls for [kit] on a [width] × [height] screen. */
     fun elements(context: Context, kit: PadKit, width: Int, height: Int, safe: Rect = Rect(), scale: Float = 1f): List<InputSurfaceElement> {
         if (width <= 0 || height <= 0) return emptyList()
+        if (height > width) return portrait(context, kit, width, height, safe, scale)
         val w = width.toFloat(); val h = height.toFloat()
-        val portrait = height > width
-        val unit = (min(w / if (portrait) PORTRAIT_W else REF_W, h / REF_H) * cap(context, min(width, height)) * scale).coerceAtMost(min(w / MIN_SPAN, h / REF_H))
+        val unit = (min(w / REF_W, h / REF_H) * cap(context, min(width, height)) * scale).coerceAtMost(min(w / MIN_SPAN, h / REF_H))
         fun x(ref: Float) = when {
             ref < REF_W / 3f -> safe.left + ref * unit
             ref > REF_W * 2f / 3f -> w - safe.right - (REF_W - ref) * unit
             else -> w / 2f + (ref - REF_W / 2f) * unit
         }
         fun y(ref: Float) = when {
-            portrait -> h - safe.bottom - (REF_H - ref) * unit
             ref < REF_H / 3f -> safe.top + ref * unit
             ref > REF_H * 2f / 3f -> h - safe.bottom - (REF_H - ref) * unit
             else -> h / 2f + (ref - REF_H / 2f) * unit
@@ -95,10 +95,49 @@ object KitLayout {
         }
     }
 
+    /**
+     * A portrait surface gets the same pad as the panel under the game, in the lower part of the screen, with the keyboard,
+     * Steam, Quick Access and stick-click buttons in a row along the bottom edge that starts after DroidDeck's corner button.
+     */
+    private fun portrait(context: Context, kit: PadKit, width: Int, height: Int, safe: Rect, scale: Float): List<InputSurfaceElement> {
+        val w = width.toFloat(); val h = height.toFloat()
+        val density = context.resources.displayMetrics.density
+        val row = ROW_DP * density
+        val inner = (w - safe.left - safe.right).coerceAtLeast(1f)
+        val area = (min(h * .6f, inner * 1.15f) * scale).coerceAtMost(h - safe.top - safe.bottom - row).coerceAtLeast(1f)
+        val top = h - safe.bottom - row - area
+        val pad = dock(context, kit, inner.toInt(), area.toInt(), true, InputControl.LS, if (kit.steam) InputControl.RIGHT_PAD else InputControl.RS).map { e ->
+            e.copy(x = (safe.left + e.x * inner) / w, y = (top + e.y * area) / h, width = e.width * inner / w, height = e.height * area / h,
+                floating = e.kind == InputElementKind.STICK)
+        }
+        val specs = specs(kit)
+        fun spec(control: InputControl, id: String = "legacy:${control.id}") = specs.firstOrNull { it.control == control && it.id == id }
+        val size = BUTTON_DP * density
+        val cy = h - safe.bottom - row / 2f
+        val placed = mutableListOf<InputSurfaceElement>()
+        fun put(s: Spec, cx: Float) {
+            val bw = size * s.hw / s.hh
+            placed += InputSurfaceElement(s.control, (cx - bw / 2) / w, (cy - size / 2) / h, bw / w, size / h, s.id, s.kind,
+                if (s.name == s.control.label) kit.name(s.control) else s.name, buttonShape = s.shape, icon = s.icon)
+        }
+        val gap = GAP_DP * density
+        var left = safe.left + CORNER_DP * density
+        for (s in listOfNotNull(spec(InputControl.A, KEYBOARD_ID), spec(InputControl.GUIDE).takeIf { kit.steam }, spec(InputControl.L3))) {
+            val bw = size * s.hw / s.hh
+            put(s, left + bw / 2); left += bw + gap
+        }
+        var right = w - safe.right - gap
+        for (s in listOfNotNull(spec(InputControl.QAM), spec(InputControl.GUIDE).takeIf { !kit.steam }, spec(InputControl.R3))) {
+            val bw = size * s.hw / s.hh
+            put(s, right - bw / 2); right -= bw + gap
+        }
+        return pad + placed
+    }
+
     /** Controls for the panel below the game, in [GamepadGeometry]'s slots. */
     fun dock(context: Context, kit: PadKit, width: Int, height: Int, portrait: Boolean, left: InputControl, right: InputControl): List<InputSurfaceElement> {
         val w = width.toFloat(); val h = height.toFloat()
-        val boxes = GamepadGeometry.layout(w, h, context.resources.displayMetrics.density, portrait)
+        val boxes = GamepadGeometry.layout(w, h, context.resources.displayMetrics.density, portrait, grips = kit.steam)
         val placed = mutableListOf<InputSurfaceElement>()
         fun put(control: InputControl, box: GamepadGeometry.Box?, shape: InputButtonShape, id: String = "legacy:${control.id}",
             kind: InputElementKind = InputElementKind.from(control), name: String = kit.name(control)) {
@@ -106,9 +145,11 @@ object KitLayout {
             placed += InputSurfaceElement(control, b.left / w, b.top / h, b.width / w, b.height / h, id, kind, name, floating = false, buttonShape = shape).bounded()
         }
         fun square(box: GamepadGeometry.Box?) = box?.let { val side = min(it.width, it.height); GamepadGeometry.Box(it.cx, it.cy, side, side) }
-        put(left, square(boxes[GamepadGeometry.Slot.LEFT_MAIN]), InputButtonShape.CIRCLE)
+        val leftMain = if (kit.steam || left != InputControl.LEFT_PAD) left else InputControl.LS
+        val rightMain = if (kit.steam || right != InputControl.RIGHT_PAD) right else InputControl.RS
+        put(leftMain, square(boxes[GamepadGeometry.Slot.LEFT_MAIN]), InputButtonShape.CIRCLE)
         put(InputControl.LS, square(boxes[GamepadGeometry.Slot.LEFT_SECOND]), InputButtonShape.ROUNDED, DPAD_ID, InputElementKind.DPAD, "D-pad")
-        put(right, square(boxes[GamepadGeometry.Slot.RIGHT_MAIN]), InputButtonShape.CIRCLE)
+        put(rightMain, square(boxes[GamepadGeometry.Slot.RIGHT_MAIN]), InputButtonShape.CIRCLE)
         square(boxes[GamepadGeometry.Slot.RIGHT_SECOND])?.let { b ->
             val r = b.width * .17f; val off = b.width * .3f
             listOf(InputControl.Y to (0f to -1f), InputControl.B to (1f to 0f), InputControl.A to (0f to 1f), InputControl.X to (-1f to 0f)).forEach { (c, d) ->

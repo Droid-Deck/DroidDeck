@@ -94,7 +94,7 @@ class GamepadGeometryTest {
     @Test fun portraitDockPlacesAllControlsWithinThePanel() {
         for (panel in portraitPanels) {
             val b = portraitBoxes(panel)
-            assertEquals(panel.name, Slot.values().toSet(), b.keys)
+            assertEquals(panel.name, Slot.values().toSet() - setOf(Slot.STEAM, Slot.QAM, Slot.PANELS), b.keys)
             for ((slot, box) in b) {
                 val where = "${panel.name}: $slot $box"
                 assertTrue(where, box.left >= 0f && box.top >= 0f)
@@ -126,14 +126,33 @@ class GamepadGeometryTest {
         }
     }
 
-    @Test fun portraitDockMovesUtilitiesAndGripsAboveTheGamepad() {
+    @Test fun portraitDockPutsShouldersAndMenusInOneRowAboveTheGripsAndTheGamepad() {
         for (panel in portraitPanels) {
             val b = portraitBoxes(panel)
-            assertEquals(panel.name, 8 * panel.density, b.getValue(Slot.VIEW).top, 0.5f)
+            val row = listOf(Slot.LEFT_OUTER_SHOULDER, Slot.LEFT_INNER_SHOULDER, Slot.VIEW, Slot.MENU, Slot.RIGHT_INNER_SHOULDER, Slot.RIGHT_OUTER_SHOULDER)
+            for (slot in row) assertEquals("${panel.name}: $slot", 8 * panel.density, b.getValue(slot).top, 0.5f)
+            assertEquals(panel.name, row, row.sortedBy { b.getValue(it).cx })
             assertTrue(panel.name, b.getValue(Slot.MENU).bottom < b.getValue(Slot.L4).top)
-            assertTrue(panel.name, b.getValue(Slot.L4).bottom < b.getValue(Slot.LEFT_OUTER_SHOULDER).top)
-            assertTrue(panel.name, b.getValue(Slot.LEFT_OUTER_SHOULDER).bottom < b.getValue(Slot.LEFT_SECOND).top)
+            assertTrue(panel.name, b.getValue(Slot.L4).bottom < b.getValue(Slot.LEFT_SECOND).top)
+            assertTrue(panel.name, b.getValue(Slot.LEFT_SECOND).bottom < b.getValue(Slot.LEFT_MAIN).top)
         }
+    }
+
+    @Test fun aPortraitDockWithoutGripsGivesTheirRowToTheGamepad() {
+        for (panel in portraitPanels) {
+            val with = portraitBoxes(panel)
+            val without = GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, portraitDock = true, grips = false)
+            assertTrue(panel.name, grips.none { it in without })
+            assertTrue(panel.name, without.getValue(Slot.LEFT_SECOND).top < with.getValue(Slot.LEFT_SECOND).top)
+            assertTrue(panel.name, without.getValue(Slot.LEFT_SECOND).width >= with.getValue(Slot.LEFT_SECOND).width)
+        }
+    }
+
+    @Test fun aShorterPortraitDockStillGetsTheUprightLayout() {
+        val (w, h, density) = Triple(1080f, 1010f, 369 / 160f)
+        val b = GamepadGeometry.layout(w, h, density, portraitDock = true, grips = false)
+        assertEquals(8 * density, b.getValue(Slot.VIEW).top, 0.5f)
+        assertTrue(b.getValue(Slot.RIGHT_SECOND).width >= w * 0.3f)
     }
 
     @Test fun shortPanelsKeepTheExistingLayoutEvenWhenPortraitDockIsRequested() {

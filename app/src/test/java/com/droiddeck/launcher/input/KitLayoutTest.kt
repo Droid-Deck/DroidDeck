@@ -176,8 +176,9 @@ class KitLayoutTest {
             val face = listOf("legacy:y", "legacy:x", "legacy:b", "legacy:a").map { centre(e.getValue(it), w, h) }
             val cx = face.map { it.first }.average().toFloat(); val cy = face.map { it.second }.average().toFloat()
             val radius = e.getValue("legacy:a").height * h / 2
-            for ((x, y) in face) assertEquals("$kit $w x $h", radius * ratio.getValue(kit), hypot(x - cx, y - cy), 1f)
-            if (kit == PadKit.XBOX) {
+            val spread = if (h > w) .3f / .17f else ratio.getValue(kit)
+            for ((x, y) in face) assertEquals("$kit $w x $h", radius * spread, hypot(x - cx, y - cy), 1f)
+            if (kit == PadKit.XBOX && h <= w) {
                 val (lx, ly) = centre(e.getValue("legacy:ls"), w, h); val (cx3, cy3) = centre(e.getValue("legacy:l3"), w, h)
                 val unit = e.getValue("legacy:ls").height * h / 208f
                 assertEquals("$w x $h", hypot(150f, 110f) * unit, hypot(cx3 - lx, cy3 - ly), 1f)
@@ -207,18 +208,19 @@ class KitLayoutTest {
         }
     }
 
-    @Test fun portraitSurfacesKeepEveryControlInTheBottomBlock() {
-        for (kit in PadKit.entries) for ((w, h) in listOf(1080 to 1920, 1200 to 2000)) {
+    @Test fun portraitSurfacesPutTheWholePadInTheLowerPartAboveABottomRow() {
+        val density = context.resources.displayMetrics.density
+        for (kit in PadKit.entries) for ((w, h) in listOf(1080 to 1920, 1200 to 2000, 1080 to 2400)) {
             val elements = KitLayout.elements(context, kit, w, h)
-            val unit = w / 1200f
-            val top = elements.minOf { it.y } * h
-            assertTrue("$kit $w x $h top $top", top >= h - 900 * unit - .5f)
-            assertEquals("$kit $w x $h", h.toFloat(), elements.maxOf { (it.y + it.height) * h }, 900 * unit * .1f)
-            val tall = KitLayout.elements(context, kit, w, h + 100).associateBy { it.id }
-            for (e in elements.filter { it.height > .031f && tall.getValue(it.id).height > .031f }) {
-                val t = tall.getValue(e.id)
-                assertEquals("$kit ${e.id}", (1 - e.y - e.height / 2) * h, (1 - t.y - t.height / 2) * (h + 100), 1f)
-            }
+            val row = 60 * density
+            val area = minOf(h * .6f, w * 1.15f)
+            assertTrue("$kit $w x $h", elements.minOf { it.y } * h >= h - row - area - .5f)
+            assertTrue("$kit $w x $h", elements.maxOf { (it.y + it.height) * h } <= h + .5f)
+            val bottomRow = elements.filter { (it.y + it.height / 2) * h > h - row }
+            assertTrue("$kit $w x $h", bottomRow.any { it.id == KitLayout.KEYBOARD_ID } && bottomRow.any { it.control == InputControl.QAM })
+            assertTrue("$kit $w x $h", bottomRow.minOf { it.x } * w >= 52 * density - .5f)
+            val stick = elements.first { it.id == "legacy:ls" }
+            assertTrue("$kit $w x $h", stick.width * w >= w * .3f)
         }
     }
 
@@ -236,6 +238,14 @@ class KitLayoutTest {
             assertNull(placed.firstOrNull { it.control == InputControl.GUIDE || it.control == InputControl.QAM })
             assertEquals(1, placed.count { it.id == KitLayout.DPAD_ID })
             assertTrue(placed.none { it.floating })
+        }
+    }
+
+    @Test fun onlySteamKitsPutTrackpadsInTheDockedStrip() {
+        for (kit in PadKit.entries) {
+            val placed = KitLayout.dock(context, kit, 1080, 1300, true, InputControl.LS, InputControl.RIGHT_PAD).map { it.control }
+            assertEquals(kit.toString(), kit.steam, InputControl.RIGHT_PAD in placed)
+            assertEquals(kit.toString(), !kit.steam, InputControl.RS in placed)
         }
     }
 }
