@@ -172,8 +172,9 @@ private fun DefaultStorageGroup() {
     val customLabel = SessionPrefs.defaultStorageFolderLabel(ctx).ifBlank {
         customPath.takeIf { it.isNotBlank() }?.let { File(it).name }.orEmpty()
     }
-    fun warnIfFat32(path: String) {
-        if (GameStorage.isFat32(path)) Toast.makeText(ctx, R.string.main_storage_fat32, Toast.LENGTH_LONG).show()
+    fun warnIfFat32() {
+        val target = StoreInstallRoot.externalTarget(ctx) ?: return
+        if (GameStorage.isFat32(target.root.path)) Toast.makeText(ctx, R.string.main_storage_fat32, Toast.LENGTH_LONG).show()
     }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
@@ -188,7 +189,7 @@ private fun DefaultStorageGroup() {
         value = SessionPrefs.DEFAULT_STORAGE_EXTERNAL
         revision++
         open = false
-        warnIfFat32(path)
+        warnIfFat32()
     }
     fun chooseFolder() {
         open = false
@@ -247,7 +248,7 @@ private fun DefaultStorageGroup() {
                                 SessionPrefs.clearDefaultStorageFolder(ctx)
                                 pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
                                 revision++
-                                warnIfFat32(detected.root.path)
+                                warnIfFat32()
                             }
                         }
                         if (customPath.isNotBlank()) {
@@ -262,7 +263,7 @@ private fun DefaultStorageGroup() {
                             ) {
                                 if (customTarget != null) {
                                     pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
-                                    warnIfFat32(customTarget.root.path)
+                                    warnIfFat32()
                                 } else chooseFolder()
                             }
                         }
