@@ -77,22 +77,13 @@ char *realpath(const char *path, char *resolved) {
 }
 """
 
-GLIBC = r"""
-#define _GNU_SOURCE
-#include <dlfcn.h>
-#include <gnu/libc-version.h>
-#include <stddef.h>
-
-int main(void) { return dlvsym(RTLD_NEXT, "dlsym", "GLIBC_2.2.5") == NULL && gnu_get_libc_version() == NULL; }
-"""
-
 UDEV = r"""
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-struct list { const char *name; };
-struct enumerate { struct list head; struct list added; char name[16]; int fail; int use_added; };
+struct list { const char *name; struct list *next; };
+struct enumerate { struct list head; struct list added; char name[16]; int fail; };
 
 void *udev_enumerate_new(void *udev) {
   static int count;
@@ -109,21 +100,18 @@ int udev_enumerate_add_match_subsystem(void *enumerate, const char *subsystem) {
   return 0;
 }
 int udev_enumerate_add_match_parent(void *enumerate, void *parent) {
-  (void)parent;
+  if (parent == NULL) return -1;
   ((struct enumerate *)enumerate)->head.name = "parented";
-  return 1;
+  return 0;
 }
 int udev_enumerate_add_syspath(void *enumerate, const char *syspath) {
   (void)syspath;
-  ((struct enumerate *)enumerate)->use_added = 1;
+  ((struct enumerate *)enumerate)->head.next = &((struct enumerate *)enumerate)->added;
   return 0;
 }
 int udev_enumerate_scan_devices(void *enumerate) { return ((struct enumerate *)enumerate)->fail ? -1 : 0; }
-void *udev_enumerate_get_list_entry(void *enumerate) {
-  struct enumerate *e = enumerate;
-  return e->use_added ? &e->added : &e->head;
-}
-void *udev_list_entry_get_next(void *entry) { (void)entry; return NULL; }
+void *udev_enumerate_get_list_entry(void *enumerate) { return &((struct enumerate *)enumerate)->head; }
+void *udev_list_entry_get_next(void *entry) { return ((struct list *)entry)->next; }
 void *udev_list_entry_get_by_name(void *entry, const char *name) {
   return strcmp(((struct list *)entry)->name, name) == 0 ? entry : NULL;
 }
@@ -150,7 +138,9 @@ PROGRAM = r"""
 #include <unistd.h>
 
 #define PAD "/sys/devices/virtual/input/droiddeck0"
-#define PAD1 "/sys/devices/virtual/input/droiddeck1"
+#define PARENT0 "/sys/devices/droiddeck0/droiddeck-input0"
+#define EVENT0 PARENT0 "/event0"
+#define EVENT1 "/sys/devices/droiddeck1/droiddeck-input1/event1"
 #define HANDLES 256
 
 int next_marker(void);
@@ -227,6 +217,11 @@ static void run_udev(void) {
   device = new_device(&udev_a, PAD);
   printf("syspath %s sysnum %s devnode %s\n", syspath(device), sysnum(device), devnode(device));
   parent = get_parent(device);
+  printf("nested %d\n", strncmp(syspath(device), syspath(parent), strlen(syspath(parent))) == 0 &&
+                             syspath(device)[strlen(syspath(parent))] == '/');
+  other = new_device(&udev_a, EVENT0);
+  printf("canonical %s\n", other != NULL ? syspath(other) : "none");
+  if (other != NULL) unref(other);
   printf("parent %s sysname %s stable %d\n", syspath(parent), sysname(parent), parent == get_parent(device));
   print_properties("device properties", device);
   print_properties("parent properties", parent);
@@ -242,7 +237,7 @@ static void run_udev(void) {
   for (i = 0; i < 1000; i++) {
     device = new_device(&udev_a, PAD);
     if (device == NULL || get_parent(device) == NULL || get_parent(device) != get_parent(device) ||
-        strcmp(syspath(device), PAD) != 0)
+        strcmp(syspath(device), EVENT0) != 0)
       failures++;
     if (device != NULL) unref(device);
   }
@@ -283,7 +278,7 @@ static void run_stable(void) {
 
 static void run_enumerate(void) {
   int udev, i;
-  void *first, *entry, *found, *missing, *failed, *parented, *real_parent, *device, *parent;
+  void *first, *entry, *found, *missing, *failed, *parented, *real_parent, *device, *parent, *other;
 
   first = matched(&udev, "input");
   scan(first);
@@ -292,8 +287,8 @@ static void run_enumerate(void) {
   pad_file("event1", 1);
   print_list("same scan", list(first));
   entry = list(first);
-  found = by_name(entry, PAD);
-  missing = by_name(entry, PAD1);
+  found = by_name(entry, EVENT0);
+  missing = by_name(entry, EVENT1);
   printf("by name %s missing %d\n", entry_name(found), missing == NULL);
   for (i = 0; i < 20; i++) {
     void *other = matched(&udev, "input");
@@ -303,7 +298,7 @@ static void run_enumerate(void) {
   printf("kept tail %s\n", entry_name(next(entry)));
   scan(first);
   print_list("rescan", list(first));
-  printf("rescan by name %s\n", entry_name(by_name(list(first), PAD1)));
+  printf("rescan by name %s\n", entry_name(by_name(list(first), EVENT1)));
   add_syspath(first, "/sys/devices/added");
   print_list("added", list(first));
   failed = matched(&udev, "input");
@@ -320,6 +315,35 @@ static void run_enumerate(void) {
   printf("real parent %d\n", match_parent(real_parent, &udev));
   scan(real_parent);
   print_list("real parent list", list(real_parent));
+  other = matched(&udev, "input");
+  match_parent(other, &udev);
+  scan(other);
+  print_list("real parent suppressed", list(other));
+  other = matched(&udev, "input");
+  match_parent(other, parent);
+  match_parent(other, &udev);
+  scan(other);
+  print_list("real replaces synthetic", list(other));
+  other = matched(&udev, "input");
+  match_parent(other, &udev);
+  match_parent(other, parent);
+  scan(other);
+  print_list("synthetic replaces real", list(other));
+  other = matched(&udev, "input");
+  match_parent(other, parent);
+  printf("bad parent %d\n", match_parent(other, NULL));
+  scan(other);
+  print_list("bad parent kept", list(other));
+  other = enumerate_new(&udev);
+  match(other, "fail");
+  match_parent(other, parent);
+  printf("nothing added scan %d\n", scan(other));
+}
+
+static void run_probe(void) {
+  int udev;
+
+  printf("pad %d\n", new_device(&udev, PAD) != NULL);
 }
 
 int main(int argc, char **argv) {
@@ -362,7 +386,8 @@ int main(int argc, char **argv) {
   by_name = sym("udev_list_entry_get_by_name");
   name = sym("udev_list_entry_get_name");
   value = sym("udev_list_entry_get_value");
-  if (strcmp(argv[1], "stable") == 0) run_stable();
+  if (strcmp(argv[1], "probe") == 0) run_probe();
+  else if (strcmp(argv[1], "stable") == 0) run_stable();
   else if (strcmp(argv[1], "enumerate") == 0) run_enumerate();
   else run_udev();
   fflush(stdout);
@@ -371,38 +396,38 @@ int main(int argc, char **argv) {
 """
 
 
+def compile_c(*args):
+    result = subprocess.run(["cc", *args], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise AssertionError(f"cc {' '.join(args)} failed:\n{result.stderr}")
+    return result.stdout
+
+
 @unittest.skipUnless(sys.platform == "linux" and shutil.which("cc"), "needs Linux and cc")
 class InputUdevPreloadTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dir = Path(tempfile.mkdtemp())
+        cls.addClassCleanup(shutil.rmtree, cls.dir, ignore_errors=True)
         build = cls.dir / "build"
         build.mkdir()
-        (build / "glibc.c").write_text(GLIBC)
-        probe = subprocess.run(["cc", "-o", str(build / "glibc"), str(build / "glibc.c"), "-ldl"], capture_output=True)
-        if probe.returncode != 0:
-            shutil.rmtree(cls.dir, ignore_errors=True)
+        if "__GLIBC__" not in compile_c("-dM", "-E", "-x", "c", "-include", "limits.h", "/dev/null"):
             raise unittest.SkipTest("needs a glibc toolchain")
         sources = (("once.c", ONCE), ("first.c", FIRST), ("second.c", SECOND), ("chain.c", CHAIN), ("mark.c", MARK),
                    ("udev.c", UDEV), ("program.c", PROGRAM))
         for name, text in sources:
             (build / name).write_text(text)
         cls.lib = cls.dir / "libddsession.so"
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(cls.lib),
-                        *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
+        compile_c("-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(cls.lib),
+                  *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl")
         for name in ("once", "first", "second", "chain", "mark"):
-            subprocess.run(["cc", "-shared", "-fPIC", "-O0", "-pthread", "-o", str(cls.dir / f"lib{name}.so"),
-                            str(build / f"{name}.c"), "-ldl"], check=True)
+            compile_c("-shared", "-fPIC", "-O0", "-pthread", "-o", str(cls.dir / f"lib{name}.so"),
+                      str(build / f"{name}.c"), "-ldl")
         cls.udev = cls.dir / "libudev.so.1"
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-o", str(cls.udev), str(build / "udev.c")], check=True)
+        compile_c("-shared", "-fPIC", "-O2", "-o", str(cls.udev), str(build / "udev.c"))
         cls.program = cls.dir / "program"
-        subprocess.run(["cc", "-O0", "-o", str(cls.program), str(build / "program.c"),
-                        str(cls.dir / "libfirst.so"), "-ldl"], check=True)
+        compile_c("-O0", "-o", str(cls.program), str(build / "program.c"), str(cls.dir / "libfirst.so"), "-ldl")
         cls.pads = cls.pad_dir("pads", "event0")
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(cls.dir, ignore_errors=True)
 
     @classmethod
     def pad_dir(cls, name, *nodes):
@@ -412,11 +437,11 @@ class InputUdevPreloadTest(unittest.TestCase):
             (pads / node).write_text("")
         return pads
 
-    def run_program(self, mode, *preloads, pads=None, slots="0=/pad"):
+    def run_program(self, mode, *preloads, pads=None, slots="0=/pad", program=None):
         env = dict(os.environ, LD_PRELOAD=":".join(str(self.dir / name) for name in ("libddsession.so", *preloads)),
                    FAKE_EVDEV_MEMFD_PATHS=slots, FAKE_EVDEV_DIR=str(pads or self.pads))
         env.pop("FAKE_EVDEV_UINPUT", None)
-        result = subprocess.run([str(self.program), mode, str(self.udev)], env=env, capture_output=True, text=True,
+        result = subprocess.run([str(program or self.program), mode, str(self.udev)], env=env, capture_output=True, text=True,
                                 timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         return result.stdout.splitlines()
@@ -434,12 +459,14 @@ class InputUdevPreloadTest(unittest.TestCase):
         self.assertEqual(self.run_program("realpath", "libmark.so"), ["realpath marked"])
 
     def test_a_program_resolving_udev_through_dlsym_gets_the_pads(self):
-        pad = "/sys/devices/virtual/input/droiddeck0"
         parent = "/sys/devices/droiddeck0/droiddeck-input0"
+        pad = f"{parent}/event0"
         self.assertEqual(self.run_program("udev"), [
             "missing 1",
             "plain 1",
             f"syspath {pad} sysnum 0 devnode /dev/input/event0",
+            "nested 1",
+            f"canonical {pad}",
             f"parent {parent} sysname droiddeck-input0 stable 1",
             f"device properties DEVNAME=/dev/input/event0 DEVPATH={pad[4:]} ID_INPUT=1 ID_INPUT_JOYSTICK=1",
             f"parent properties DEVPATH={parent[4:]} ID_INPUT=1 ID_INPUT_JOYSTICK=1",
@@ -463,8 +490,9 @@ class InputUdevPreloadTest(unittest.TestCase):
         ])
 
     def test_enumerations_keep_their_scan_and_their_state(self):
-        pad = "/sys/devices/virtual/input/droiddeck0"
-        pad1 = "/sys/devices/virtual/input/droiddeck1"
+        parent = "/sys/devices/droiddeck0/droiddeck-input0"
+        pad = f"{parent}/event0"
+        pad1 = "/sys/devices/droiddeck1/droiddeck-input1/event1"
         self.assertEqual(self.run_program("enumerate", pads=self.pad_dir("enumerate", "event0"), slots="0=/pad;1=/pad"), [
             f"scan {pad} real0",
             f"same scan {pad} real0",
@@ -472,14 +500,29 @@ class InputUdevPreloadTest(unittest.TestCase):
             "kept tail real0",
             f"rescan {pad} {pad1} real0",
             f"rescan by name {pad1}",
-            f"added {pad} {pad1} added",
+            f"added {pad} {pad1} real0 added",
             "failed scan 0",
             f"failed {pad} {pad1}",
             "synthetic parent 0",
-            f"parented {pad}",
-            "real parent 1",
+            f"parented {parent} {pad}",
+            "real parent 0",
             "real parent list parented",
+            "real parent suppressed parented",
+            "real replaces synthetic parented",
+            f"synthetic replaces real {parent} {pad}",
+            "bad parent -1",
+            f"bad parent kept {parent} {pad}",
+            "nothing added scan -1",
         ])
+
+    def test_only_the_steam_client_runtime_path_gets_the_real_libudev(self):
+        for path, pad in (("steamrt64/steam", 0), ("steamrtarm64/steam", 0), ("steamrt64/steam-probe", 1),
+                          ("xsteamrt64/steam", 1), ("steamrt64/xsteam", 1), ("steamrt/steam", 1)):
+            with self.subTest(path=path):
+                client = self.dir / "clients" / path
+                client.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(self.program, client)
+                self.assertEqual(self.run_program("probe", program=client), [f"pad {pad}"])
 
 
 if __name__ == "__main__":
