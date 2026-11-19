@@ -1257,8 +1257,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             gameLinkHandling = true
             launchGame(
                 game, returnHome = true,
-                onHandled = { gameLinkHandling = false },
-                onSettled = { gameLinkHandling = false; consume() },
+                onHandled = { if (intent === link) gameLinkHandling = false },
+                onSettled = { if (intent === link) { gameLinkHandling = false; consume() } },
             )
         }
     }
