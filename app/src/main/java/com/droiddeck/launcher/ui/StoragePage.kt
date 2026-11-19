@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.files.InAppFilePicker
+import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
@@ -184,6 +185,7 @@ private fun DefaultStorageGroup() {
         value = SessionPrefs.DEFAULT_STORAGE_EXTERNAL
         revision++
         open = false
+        if (GameStorage.isFat32(path)) Toast.makeText(ctx, R.string.main_storage_fat32, Toast.LENGTH_LONG).show()
     }
     fun chooseFolder() {
         open = false
@@ -242,6 +244,7 @@ private fun DefaultStorageGroup() {
                                 SessionPrefs.clearDefaultStorageFolder(ctx)
                                 pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
                                 revision++
+                                if (GameStorage.isFat32(detected.root.path)) Toast.makeText(ctx, R.string.main_storage_fat32, Toast.LENGTH_LONG).show()
                             }
                         }
                         if (customPath.isNotBlank()) {

@@ -75,6 +75,7 @@ class ModeSettings(
     val mic: Boolean?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
+    val storageFat32: Boolean = false,
     val steamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Entry> = emptyList(),
     val foundSteamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Found> = emptyList(),
     val allFilesAccessMissing: Boolean = false,
@@ -425,7 +426,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     ValueChip(options.firstOrNull { it.path == s.gameStorage }?.chip ?: "-", open) { host.open = if (open) null else "storage" }
                     AnchoredMenu(
                         open, onDismiss = { if (host.open == "storage") host.open = null }, title = stringResource(R.string.mode_second_library),
-                        note = stringResource(R.string.mode_storage_note),
+                        note = stringResource(if (s.storageFat32) R.string.main_storage_fat32 else R.string.mode_storage_note),
                     ) { firstItemFocus ->
                         options.forEachIndexed { index, choice ->
                             MenuItem(choice.label, checked = choice.path == s.gameStorage, focusRequester = if (index == 0) firstItemFocus else null) {

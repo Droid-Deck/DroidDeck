@@ -618,6 +618,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
     private var storageDiagnostics by mutableStateOf(false)
     private var storageOptions by mutableStateOf<List<GameStorage.Option>>(emptyList())
+    private var storageFat32 by mutableStateOf(false)
     private val pickGameStorage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedPath(r.data)?.let { path -> setGameStorage(path, GameStorage.labelFor(this, path)) }
     }
@@ -633,6 +634,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun addSteamLibrary(path: String) {
         Thread({
             val result = SteamLibraries.add(this, path)
+            val fat32 = result is SteamLibraries.AddResult.Added && GameStorage.isFat32(result.entry.path)
             ui.post {
                 steamLibraries = SteamLibraries.list(this)
                 refreshFoundSteamLibraries()
@@ -643,6 +645,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     result is SteamLibraries.AddResult.Added && result.entry.path != path ->
                         android.widget.Toast.makeText(this, getString(R.string.libraries_used_inner, result.entry.label), android.widget.Toast.LENGTH_LONG).show()
                 }
+                if (fat32) android.widget.Toast.makeText(this, R.string.main_storage_fat32, android.widget.Toast.LENGTH_LONG).show()
             }
         }, "steam-library-add").start()
     }
@@ -2603,6 +2606,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 mic = if (mode == SessionService.MODE_STEAM) mic else null,
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,
+                storageFat32 = storageFat32,
                 steamLibraries = steamLibraries,
                 foundSteamLibraries = foundSteamLibraries,
                 allFilesAccessMissing = allFilesAccessMissing,
@@ -3004,10 +3008,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         Thread({
             drivers.refreshDrivers()
             val storage = GameStorage.options(this)
+            val fat32 = GameStorage.effective(this)?.path?.let(GameStorage::isFat32) == true
             val deckyInstalled = if (mode == SessionService.MODE_STEAM) DeckyManager.installed(this) else null
             val deckySupervisor = mode == SessionService.MODE_STEAM && DeckyManager.supervisorEnabled(this)
             ui.post {
                 storageOptions = storage
+                storageFat32 = fat32
                 if (mode == SessionService.MODE_STEAM) {
                     decky.deckyInstalled = deckyInstalled
                     decky.deckySupervisor = deckySupervisor
@@ -3025,10 +3031,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, problem), android.widget.Toast.LENGTH_LONG).show()
                 return
             }
-            if (GameStorage.isFat32(path)) android.widget.Toast.makeText(this, R.string.main_storage_fat32, android.widget.Toast.LENGTH_LONG).show()
         }
         SessionPrefs.setGameStorage(this, path, label)
         gameStorage = path
+        storageFat32 = GameStorage.effective(this)?.path?.let(GameStorage::isFat32) == true
+        if (storageFat32) android.widget.Toast.makeText(this, R.string.main_storage_fat32, android.widget.Toast.LENGTH_LONG).show()
         checkUsbLink()
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
     }
