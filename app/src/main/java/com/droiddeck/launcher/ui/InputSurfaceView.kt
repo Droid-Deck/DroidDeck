@@ -824,16 +824,22 @@ class InputSurfaceView(
                         activePointer = event.getPointerId(next)
                         tapBlocked = true
                         cancelClick()
-                        set(sectors(event.getX(next) - width / 2f, event.getY(next) - height / 2f))
+                        val bits = sectors(event.getX(next) - width / 2f, event.getY(next) - height / 2f)
+                        if (bits == 0) cancelDirection() else set(bits)
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL || event.flags and MotionEvent.FLAG_CANCELED != 0
                     if (index >= 0) travel = maxOf(travel, hypot(event.getX(index) - downX, event.getY(index) - downY))
                     lastUp = if (element.hasClick && !clicking && !cancelled && !tapBlocked && event.eventTime - downAt <= STICK_TAP_MS && travel <= tapSlop) event.eventTime else 0L
-                    if (cancelled) cancelClick() else setClick(false)
+                    if (cancelled) {
+                        cancelClick()
+                        cancelDirection()
+                    } else {
+                        setClick(false)
+                        set(0)
+                    }
                     activePointer = -1
-                    set(0)
                 }
             }
             return true
@@ -846,6 +852,13 @@ class InputSurfaceView(
             source?.update((if (bits and 2 != 0) 1f else 0f) - (if (bits and 8 != 0) 1f else 0f),
                 (if (bits and 4 != 0) 1f else 0f) - (if (bits and 1 != 0) 1f else 0f))
 
+            invalidate()
+        }
+
+        private fun cancelDirection() {
+            if (held == 0) return
+            held = 0
+            source?.cancel()
             invalidate()
         }
 
@@ -867,12 +880,12 @@ class InputSurfaceView(
             if (visibility == VISIBLE) return
             lastUp = 0L
             activePointer = -1
-            set(0)
+            cancelDirection()
             cancelClick()
         }
 
         override fun onDetachedFromWindow() {
-            set(0)
+            cancelDirection()
             cancelClick()
             super.onDetachedFromWindow()
         }
