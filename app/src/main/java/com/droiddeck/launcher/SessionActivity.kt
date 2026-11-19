@@ -1471,8 +1471,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 SessionPrefs.setGpuClockPin(this@SessionActivity, on)
                 gpuClockPin = on
                 Thread {
-                    val held = GpuClockPin.sync(applicationContext)
-                    runOnUiThread { gpuClockPin = held }
+                    GpuClockPin.sync(applicationContext)
+                    runOnUiThread { gpuClockPin = gpuClockHeld() }
                 }.start()
             },
             onHudSetting = { key, value -> hudConfig = DroidDeckHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
@@ -2482,6 +2482,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             .show()
     }
 
+    private fun gpuClockHeld() = SessionPrefs.gpuClockPin(this) && !GpuClockPin.failed
+
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
@@ -2489,7 +2491,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         picturePosition = SessionPrefs.picturePosition(this)
         integerScaling = SessionPrefs.integerScaling(this)
         hudOn = SessionPrefs.hudEnabled(this)
-        gpuClockPin = SessionPrefs.gpuClockPin(this)
+        gpuClockPin = gpuClockHeld()
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(this)
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
