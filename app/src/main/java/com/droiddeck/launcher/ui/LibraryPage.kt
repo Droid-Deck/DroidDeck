@@ -41,6 +41,16 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ManageAccounts
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Add
@@ -167,9 +177,12 @@ internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = e
 internal const val LIBRARY_ALL = "all"
 internal fun librarySources(
     entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet(), favorites: Set<String> = emptySet(),
-    hidden: (LibraryEntry) -> Boolean = { false }, showHidden: Boolean = false,
-): List<String> =
-    (listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM) + arrangeStoreTabs(order, emptySet()).map { it.store.id } + Library.ADDED + Library.SOURCE_COLLECTION + LIBRARY_HIDDEN)
+    hidden: (LibraryEntry) -> Boolean = { false }, showHidden: Boolean = false, offStores: Set<String> = emptySet(),
+    places: List<Pair<String, String?>> = DEFAULT_LIBRARY_PLACES, offTabs: Set<String> = emptySet(),
+): List<String> {
+    val tabs = arrangeStoreTabs(order, offStores)
+    val shown = tabs.filter { it.shown }.map { it.store.id }.toSet() + LIBRARY_OWN_TABS - offTabs
+    return (placeLibraryTabs(tabs.map { it.store.id }, places).filter { it in shown } + Library.SOURCE_COLLECTION + LIBRARY_HIDDEN)
         .filter { source ->
             when (source) {
                 LIBRARY_HIDDEN -> showHidden
@@ -177,6 +190,7 @@ internal fun librarySources(
                 else -> source in always || entries.any { it.source == source && !hidden(it) }
             }
         }
+}
 
 internal object LibraryDisplay {
     const val DEFAULT_LEVEL = 2
@@ -345,10 +359,18 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     }
     val itchSignedIn = owned.containsKey(Store.ITCH)
     val gameJoltSignedIn = owned.containsKey(Store.GAMEJOLT)
+    remember { StoreTabsState.load(ctx) }
+    val storeTabs = StoreTabsState.tabs
+    val signInChips = if (!stores || !StoresState.accountsLoaded) emptySet() else storeTabs
+        .filter { it.shown && StoresState.backend(it.store) != null && storeAccount(it.store) != StoreAccount.SIGNED_IN }
+        .map { it.store.id }.toSet()
     val sources = librarySources(
-        all, SessionPrefs.storesTabOrder(ctx),
-        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }).toSet(),
+        all, storeTabs.map { it.store.id },
+        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.ADDED.takeIf { stores }).toSet() + signInChips,
         favorites, concealed, LibraryDisplay.hidden && !soundMode,
+        offStores = if (soundMode) emptySet() else storeTabs.filterNot { it.shown }.map { it.store.id }.toSet(),
+        places = if (soundMode) DEFAULT_LIBRARY_PLACES else StoreTabsState.libraryPlaces,
+        offTabs = if (soundMode) emptySet() else StoreTabsState.libraryHidden,
     )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
@@ -370,7 +392,6 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     }
     val collectionItems = collectionId?.let { if (source == Store.GAMEJOLT.id) GameJoltCollections.gamesOf(it) else ItchCollections.gamesOf(it) }
     val pool = if (collectionId == null) all else collectionEntries(all, collectionItems.orEmpty(), Store.byId(source) ?: Store.ITCH)
-    val libraryTotal = if (soundMode) 0 else all.count { inLibrarySource(LIBRARY_ALL, it, favorites, concealed) }
     val matching = pool.filter {
         inLibrarySource(source, it, favorites, concealed) && (q.isEmpty() || it.title.lowercase().contains(q)) && keepsXbox(xboxFilter, it)
     }
@@ -491,7 +512,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         kotlinx.coroutines.delay(Motion.ms(240).toLong())
         focusWithinFrames({ ff.last?.startsWith("card:") == true }) { if (ff.firstTileAttached > 0) ff.firstTile else FocusRequester.Default }
     }
-    if (!soundMode && all.isEmpty() && open == null && !itchSignedIn && !gameJoltSignedIn) {
+    if (!soundMode && s.shortcutPicker && all.isEmpty() && open == null && !itchSignedIn && !gameJoltSignedIn) {
         LibraryEmpty(s, a, modifier)
         return
     }
@@ -514,8 +535,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         bleedHorizontal = if (narrow) 14.dp else 22.dp, bleedTop = if (narrow) 10.dp else 14.dp,
         wrap = { key, content -> StoreTheme(GameRef.parse(key).let { r -> r.store ?: r.game(s.steamGames)?.source?.let { Store.byId(it) } }) { content() } },
         grid = {
-            LibraryGrid(
-                s, a, grid, visible, split, if (soundMode) visible.size else libraryTotal, sources, source, sizesPending, syncing,
+            StoreTheme(Store.byId(source)) { LibraryGrid(
+                s, a, grid, visible, split, visible.size, sources, source, sizesPending, syncing,
                 showUninstalled = listUninstalled.takeIf { !s.shortcutPicker },onShowUninstalled = setShowUninstalled,
                 hiddenUninstalled = hiddenUninstalled,
                 onSource = { LibraryView.source = it },
@@ -528,15 +549,19 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 searchCleared = open != null,
                 onFocus = { gridFocused = it },
                 soundMode = soundMode,
+                wallArt = { wallTiles(all.filterNot(concealed).mapNotNull { entryArt(it, tall = true) }) },
                 emptyText = when {
                     soundMode && all.isEmpty() -> R.string.soundtracks_empty
+                    !soundMode && all.isEmpty() && source == LIBRARY_ALL -> R.string.games_empty
                     soundMode && source == Library.SOURCE_COLLECTION && q.isEmpty() -> R.string.soundtracks_collections_empty
                     else -> R.string.stores_nothing_matches
                 },
                 onAddSoundtrack = { addingSoundtrack = true },
                 onCollections = { savedDialog = true },
                 trackHits = shownHits, onPlayHit = playHit,
-            )
+                // An expired account keeps showing its cached games; with none cached it asks to sign in again, like a signed-out store.
+                signInStore = Store.byId(source)?.takeIf { st -> st.id in signInChips && (storeAccount(st) != StoreAccount.EXPIRED || all.none { it.source == st.id }) },
+            ) }
         },
     ) { key ->
         if (soundMode || (!s.soundtracksEnabled && s.soundtracks.any { GameRef.key(it) == key })) SoundtrackDetail(key, s, a, lead, backLabel, onBack = back)
@@ -558,7 +583,7 @@ private fun LibraryEmpty(s: FrontEndState, a: FrontEndActions, modifier: Modifie
                 if (s.steamGamesX64) ClientTag()
                 if (!s.shortcutPicker) {
                     AddGameButton { GamesDialogState.adding = true }
-                    StoreAccountsButton()
+                    ManageStoresChip()
                 }
             }
         }
@@ -580,6 +605,7 @@ private fun LibraryGrid(
     onSource: (String) -> Unit, onCycle: (Int) -> Unit, onOpen: (String) -> Unit, onFocus: (Boolean) -> Unit, searchCleared: Boolean,
     soundMode: Boolean = false, emptyText: Int = R.string.stores_nothing_matches, onAddSoundtrack: () -> Unit = {},
     onCollections: () -> Unit = {}, trackHits: List<SoundtrackIndex.Hit> = emptyList(), onPlayHit: (SoundtrackIndex.Hit) -> Unit = {},
+    signInStore: Store? = null, wallArt: () -> List<Any> = { emptyList() },
 ) {
     val listMode = s.storesView == "list"
     val capsules = s.storesView == "capsules"
@@ -589,7 +615,12 @@ private fun LibraryGrid(
     val scope = rememberCoroutineScope()
     val density = androidx.compose.ui.platform.LocalDensity.current
     var columns by remember { mutableIntStateOf(1) }
-    val headerItems = 2 + (if (sizesPending) 1 else 0) + syncing.size
+    var gridH by remember { mutableIntStateOf(0) }
+    var chipsH by remember { mutableIntStateOf(0) }
+    // A search that matches nothing keeps the toolbar, so the search can still be cleared.
+    val customEmpty = !soundMode && source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0 && LibraryView.query.isBlank()
+    val splash = !soundMode && (signInStore != null || customEmpty)
+    val headerItems = (if (splash) 1 else 2) + (if (sizesPending) 1 else 0) + syncing.size
     val expanded = showUninstalled == true
     val notInstalled = if (expanded) visible.count { !it.installed } else hiddenUninstalled
     val toggleAt = when {
@@ -600,14 +631,14 @@ private fun LibraryGrid(
     }
     val itemIndex: (Int) -> Int = { i ->
         headerItems + i + when {
-            split > 0 -> if (i < split) 1 else 2
+            split > 0 -> if (i < split) 0 else 1
             toggleAt == ToggleAt.TOP -> 1
             else -> 0
         }
     }
     val toggleIndex = when (toggleAt) {
         ToggleAt.TOP -> headerItems
-        ToggleAt.SPLIT -> headerItems + split + 1
+        ToggleAt.SPLIT -> headerItems + split
         else -> headerItems + visible.size
     }
     val gapPx = with(density) { 10.dp.toPx() }
@@ -620,6 +651,7 @@ private fun LibraryGrid(
         }
     }
     val rowStart: (Int) -> Int? = { i -> if (i < 0) null else if (listMode) i else i - i % columns.coerceAtLeast(1) }
+    val switchedAt = remember(source) { android.os.SystemClock.uptimeMillis() }
     val tile: @Composable (LibraryEntry) -> Unit = { e ->
         val first = e.key == visible.firstOrNull()?.key
         val navigation = if (focus == null) Modifier else Modifier.onPreviewKeyEvent { event ->
@@ -652,7 +684,17 @@ private fun LibraryGrid(
         }
         val picker = s.shortcutPicker && e.game != null
         val choose = if (picker) ({ a.onSteamGame(e.game!!) }) else null
-        if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL || source == LIBRARY_FAVORITES || source == LIBRARY_HIDDEN)
+        val enter = remember(source) {
+            androidx.compose.animation.core.Animatable(if (Motion.scale == 0f || android.os.SystemClock.uptimeMillis() - switchedAt > 600) 1f else 0f)
+        }
+        LaunchedEffect(source) {
+            if (enter.value >= 1f) return@LaunchedEffect
+            kotlinx.coroutines.delay(Motion.ms(minOf(visible.indexOfFirst { it.key == e.key }.coerceAtLeast(0), 11) * 28).toLong())
+            enter.animateTo(1f, Motion.tw(320))
+        }
+        Box(Modifier.graphicsLayer { alpha = enter.value; translationY = (1f - enter.value) * 18.dp.toPx() }) {
+            if (listMode) LibraryRow(e, first, navigation, choose, onOpen) else LibraryTile(e, capsules, first, navigation, choose, onOpen, showSource = source == LIBRARY_ALL || source == LIBRARY_FAVORITES || source == LIBRARY_HIDDEN)
+        }
     }
     var rowFocused by remember { mutableStateOf(false) }
     val toggleRow: @Composable () -> Unit = {
@@ -681,7 +723,7 @@ private fun LibraryGrid(
         }
         NotInstalledRow(notInstalled, expanded, keys, onFocus = { rowFocused = it }) {
             rowFocused = false
-            val landing = if (expanded) headerItems + split else headerItems + visible.size + 1
+            val landing = if (expanded) headerItems + split else headerItems + visible.size
             onShowUninstalled(!expanded)
             if (focus != null && focus.last == NOT_INSTALLED_ROW) scope.launch {
                 androidx.compose.runtime.withFrameNanos { }
@@ -699,16 +741,20 @@ private fun LibraryGrid(
         modifier = Modifier.fillMaxSize().onFocusChanged { onFocus(it.hasFocus) }.focusGroup().bumpers(onPrevious = { onCycle(-1) }, onNext = { onCycle(1) }).onSizeChanged {
             val gap = with(density) { 10.dp.roundToPx() }
             columns = if (listMode) 1 else libraryColumns(it.width, with(density) { baseWidth.roundToPx() }, gap, level)
+            gridH = it.height
         },
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp),
     ) {
-        item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(0) { LibraryHeader(s, a, total, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = Store.byId(source)?.takeIf { it == Store.ITCH || it == Store.GAMEJOLT }, soundMode = soundMode, onAddSoundtrack = onAddSoundtrack, onCollections = onCollections) }
+        val header: @Composable () -> Unit = {
+            LibraryHeader(s, a, if (soundMode) total else visible.size + hiddenUninstalled, searchCleared, source == Store.XBOX.id, showUninstalled, onShowUninstalled, collections = Store.byId(source)?.takeIf { it == Store.ITCH || it == Store.GAMEJOLT }, soundMode = soundMode, onAddSoundtrack = onAddSoundtrack, onCollections = onCollections, source = source)
         }
-        item(key = "filters", span = { GridItemSpan(maxLineSpan) }) {
-            Rise(1) { LibraryFilters(sources, source, onSource, accounts = !soundMode && !s.shortcutPicker) }
+        val filters: @Composable () -> Unit = { LibraryFilters(sources, source, onSource, manage = !soundMode && !s.shortcutPicker) }
+        item(key = if (soundMode) "header" else "filters", span = { GridItemSpan(maxLineSpan) }) {
+            Box(Modifier.onSizeChanged { chipsH = it.height }) { Rise(0) { if (soundMode) header() else filters() } }
         }
+        val splashHeight = with(density) { (gridH - chipsH).toDp() - 28.dp }.coerceAtLeast(300.dp)
+        if (!splash) item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(store.shortLabel + " · " + line, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -723,13 +769,19 @@ private fun LibraryGrid(
             }
         }
         val empty = emptyText
-        if (split == 0) {
+        if (customEmpty) item(key = "custom-empty", span = { GridItemSpan(maxLineSpan) }) {
+            val art = remember { wallArt() }
+            Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { CustomGamesCard(splashHeight, art) }
+        }
+        else if (signInStore != null) item(key = "sign-in:${signInStore.id}", span = { GridItemSpan(maxLineSpan) }) {
+            StoreTheme(signInStore) { Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { SignInCard(signInStore, splashHeight) } }
+        }
+        else if (split == 0) {
             if (toggleAt == ToggleAt.TOP) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
             if (visible.isNotEmpty() || toggleAt == ToggleAt.NONE) libraryGrid(visible, empty, tile)
             if (toggleAt == ToggleAt.BOTTOM) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
         }
         else {
-            item(key = "installed-label", span = { GridItemSpan(maxLineSpan) }) { SectionLabel(stringResource(R.string.stores_section_installed)) }
             libraryGrid(visible.take(split), empty, tile)
             item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) {
                 if (toggleAt == ToggleAt.SPLIT) toggleRow() else SectionLabel(stringResource(R.string.stores_section_not_installed))
@@ -800,22 +852,23 @@ private fun LazyGridScope.libraryGrid(entries: List<LibraryEntry>, empty: Int, t
 private fun LibraryHeader(
     s: FrontEndState, a: FrontEndActions, total: Int, searchCleared: Boolean, xbox: Boolean,
     showUninstalled: Boolean?, onShowUninstalled: (Boolean) -> Unit, collections: Store?,
-    soundMode: Boolean = false, onAddSoundtrack: () -> Unit = {}, onCollections: () -> Unit = {},
+    soundMode: Boolean = false, onAddSoundtrack: () -> Unit = {}, onCollections: () -> Unit = {}, source: String = LIBRARY_ALL,
 ) {
     val colors = MaterialTheme.colorScheme
     val narrow = LocalNarrowPane.current
-    val heading = stringResource(if (soundMode) R.string.rail_soundtracks else R.string.rail_games)
+    val heading = if (soundMode) stringResource(R.string.rail_soundtracks) else sourceTitle(source)
+    val soundLead: (@Composable () -> Unit)? = if (!soundMode) { -> if (s.steamGamesX64 && !narrow) ClientTag() } else { ->
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
+            Text(heading, fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
+            Text(total.toString(), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
+            if (s.steamGamesX64 && !narrow) ClientTag()
+        }
+    }
     ModeHeader(
         heading, LibraryView.query, { LibraryView.query = it },
         placeholder = stringResource(if (soundMode) R.string.soundtracks_search else R.string.stores_search_library),
         clearSearchFocus = searchCleared, inlineWhenStacked = true,
-        lead = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(start = 2.dp, end = 4.dp)) {
-                Text(heading, fontSize = if (narrow) 20.sp else 24.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1)
-                Text(if (soundMode) total.toString() else pluralStringResource(R.plurals.mode_added_count, total, total), fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1)
-                if (s.steamGamesX64 && !narrow) ClientTag()
-            }
-        },
+        lead = soundLead,
     ) {
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
         DisplayButton()
@@ -824,63 +877,143 @@ private fun LibraryHeader(
         SortButton(s, a)
         ViewButton(s, a)
         if (!soundMode) GameFileFolderActions(s, a)
-        if (!s.shortcutPicker) AddGameButton { if (soundMode) onAddSoundtrack() else GamesDialogState.adding = true }
+        Store.byId(source)?.takeIf { !soundMode && StoresState.isSignedIn(it) }?.let { StoreAccountButton(it) }
+        if (!s.shortcutPicker && (soundMode || (source == Library.ADDED && total > 0))) AddGameButton { if (soundMode) onAddSoundtrack() else GamesDialogState.adding = true }
     }
     if (s.steamGamesX64 && narrow) Box(Modifier.padding(top = 4.dp)) { ClientTag() }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit, accounts: Boolean) {
-    val chips = sources.size >= 2 || sources.singleOrNull() == LIBRARY_HIDDEN
-    if (!chips && !accounts) return
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp).horizontalScroll(rememberScrollState()),
-    ) {
-        if (chips) SourceFilterChip(LIBRARY_ALL, stringResource(R.string.stores_tab_all), source == LIBRARY_ALL, dot = null) { onSource(LIBRARY_ALL) }
-        if (chips) for (src in sources) {
-            val store = Store.byId(src)
-            val dot = when {
-                store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
-                src == LIBRARY_FAVORITES -> FavoritesColours.dot
-                src == LIBRARY_HIDDEN -> Color(0xFF9AA0A6)
-                src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
-                else -> null
+private fun LibraryFilters(sources: List<String>, source: String, onSource: (String) -> Unit, manage: Boolean) {
+    val chips = (manage && sources.isNotEmpty()) || sources.size >= 2 || sources.singleOrNull() == LIBRARY_HIDDEN
+    if (!chips && !manage) return
+    val pal = LocalPalette.current
+    val keys = if (chips) listOf(LIBRARY_ALL) + sources else emptyList()
+    var focused by remember { mutableStateOf<String?>(null) }
+    val highlighted = focused?.takeIf { it in keys } ?: source
+    val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
+    val inputMode = LocalInputModeManager.current.inputMode
+    val fillShown = inputMode != InputMode.Keyboard
+    val scroll = rememberScrollState()
+    StoreTheme(Store.byId(highlighted)) {
+        val tint = androidx.compose.animation.animateColorAsState(sourceDot(highlighted) ?: LocalPalette.current.signal, Motion.tw(160), label = "libChipTint")
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
+        ) {
+            if (manage) ManageStoresChip()
+            Box(Modifier.weight(1f).edgeFade(scroll).horizontalScroll(scroll)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.focusGroup()) {
+                    for (id in keys) {
+                        val store = Store.byId(id)
+                        val dot = sourceDot(id)
+                        val label = when (id) {
+                            LIBRARY_ALL -> stringResource(R.string.stores_tab_all)
+                            Library.ADDED -> stringResource(R.string.library_custom_games)
+                            LIBRARY_FAVORITES -> stringResource(R.string.soundtracks_favorites)
+                            LIBRARY_HIDDEN -> stringResource(R.string.apps_filter_hidden)
+                            else -> store?.shortLabel ?: sourceLabel(id)
+                        }
+                        androidx.compose.runtime.key(id) {
+                            val reveal = remember { BringIntoViewRequester() }
+                            LaunchedEffect(source) { if (source == id) reveal.bringIntoView() }
+                            StoreChip(
+                                label = label, on = source == id, under = fillShown && highlighted == id, key = id, mark = dot ?: pal.signal,
+                                modifier = Modifier.bringIntoViewRequester(reveal).testTag("library-source-$id")
+                                    .onGloballyPositioned { bounds[id] = it.boundsInParent() },
+                                lead = {
+                                    if (dot != null) Box(Modifier.size(9.dp).background(dot, CircleShape))
+                                    else Icon(Icons.Filled.GridView, null, modifier = Modifier.size(14.dp))
+                                },
+                                onFocused = { focused = it },
+                                paneKey = "libchip:$id",
+                            ) { onSource(id) }
+                        }
+                    }
+                }
+                if (highlighted in keys) ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
             }
-            SourceFilterChip(
-                src,
-                when (src) {
-                    Library.ADDED -> stringResource(R.string.library_filter_added)
-                    LIBRARY_FAVORITES -> stringResource(R.string.soundtracks_favorites)
-                    LIBRARY_HIDDEN -> stringResource(R.string.apps_filter_hidden)
-                    else -> store?.shortLabel ?: sourceLabel(src)
-                },
-                source == src, dot,
-            ) { onSource(src) }
         }
-        if (accounts) StoreAccountsButton()
     }
 }
 
 @Composable
-private fun SourceFilterChip(key: String, label: String, on: Boolean, dot: Color?, onClick: () -> Unit) {
+private fun sourceTitle(src: String): String = when (src) {
+    LIBRARY_ALL -> stringResource(R.string.library_all_games)
+    Library.ADDED -> stringResource(R.string.library_custom_games)
+    LIBRARY_FAVORITES -> stringResource(R.string.soundtracks_favorites)
+    LIBRARY_HIDDEN -> stringResource(R.string.apps_filter_hidden)
+    else -> Store.byId(src)?.label ?: sourceLabel(src)
+}
+
+@Composable
+private fun StoreAccountButton(store: Store) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val name = StoresState.accounts[store] ?: store.label
+    val label = stringResource(R.string.stores_signout_named, name)
+    val title = stringResource(R.string.stores_signout_title, store.label)
+    val note = stringResource(R.string.stores_signout_note)
+    val stay = stringResource(R.string.stores_signout_stay)
+    val go = stringResource(R.string.stores_signout_go)
+    var at by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    Box(Modifier.onGloballyPositioned { at = it.boundsInRoot() }) {
+        HeaderIconButton(label, Icons.Filled.ManageAccounts, "library-account") {
+            val from = at ?: run { StoresState.signOut(ctx, store); return@HeaderIconButton }
+            Steps.ask(StepAsk(
+                anchor = from, side = StepSide.Left, accent = colors.error, pillCorner = 8.dp, items = 3,
+                handle = { Icon(Icons.Filled.ManageAccounts, null, tint = colors.error, modifier = Modifier.size(18.dp)) },
+            ) {
+                StepTitle(title)
+                Text(note, fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.stepItem(1).padding(start = 4.dp, bottom = 12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth().stepItem(2)) {
+                    StepChoice(stay, enabled = open, modifier = Modifier.focusRequester(first)) { Steps.fold() }
+                    StepChoice(go, danger = true, enabled = open) { Steps.fold(); StoresState.signOut(ctx, store) }
+                }
+            })
+        }
+    }
+}
+
+@Composable
+private fun CustomGamesCard(height: androidx.compose.ui.unit.Dp, art: List<Any>) {
+    HeroWallCard(stringResource(R.string.library_custom_games), art, sourceColours(Library.ADDED), height, Modifier.testTag("library-custom-empty")) {
+        PrimaryButton(stringResource(R.string.games_add), main = true, large = true, icon = Icons.Filled.Add, modifier = Modifier.testTag("library-custom-add")) {
+            GamesDialogState.adding = true
+        }
+    }
+}
+
+private fun sourceDot(src: String): Color? {
+    val store = Store.byId(src)
+    return when {
+        store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
+        src == LIBRARY_FAVORITES -> FavoritesColours.dot
+        src == LIBRARY_HIDDEN -> Color(0xFF9AA0A6)
+        src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
+        else -> null
+    }
+}
+
+@Composable
+internal fun ManageStoresChip() {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
-    val shape = RoundedCornerShape(99.dp)
-    Row(
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
-        modifier = Modifier.paneItem("libchip:$key").testTag("library-source-$key").heightIn(min = 40.dp).clip(shape)
-            .background(if (on) pal.signal.copy(alpha = 0.16f) else colors.surface)
-            .glideBorder(hot, shape, pal.signal, if (on) pal.signal else pal.line)
-            .hoverable(src).selectable(selected = on, interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)
-            .controllerConfirm(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-    ) {
-        if (dot != null) Box(Modifier.size(9.dp).background(dot, CircleShape))
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (on || hot) colors.onBackground else colors.onSurfaceVariant, maxLines = 1)
-    }
+    val back = remember { FocusRequester() }
+    val label = stringResource(R.string.library_manage_stores)
+    val open = { ManageStores.returnTo = back; ManageStores.custom = true; ManageStores.open = true }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.paneItem("libchip:manage").focusRequester(back).testTag("library-manage-stores").size(44.dp).clip(CircleShape)
+            .background(colors.surface)
+            .glideBorder(hot, CircleShape, pal.signal, pal.line)
+            .hoverable(src)
+            .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClickLabel = label, onClick = open)
+            .controllerConfirm(onClick = open),
+    ) { Icon(Icons.Filled.Tune, label, tint = if (hot) colors.onBackground else colors.onSurfaceVariant, modifier = Modifier.size(20.dp)) }
 }
 
 private fun entryArt(e: LibraryEntry, tall: Boolean): Any? {
