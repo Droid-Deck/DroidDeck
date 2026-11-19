@@ -310,9 +310,10 @@ def stageGogNotices = tasks.register('stageGogNotices', Copy) {
 android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('gogNotices'))
 tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
 
-if (!ciBuild) {
+if (!ciBuild || project.hasProperty('bundlePrProot')) {
+    def prProotOnly = ciBuild && project.hasProperty('bundlePrProot')
     def stageLocalPacks = tasks.register('stageLocalPacks', Sync) {
-        from(layout.buildDirectory.dir('packs')) { include '*.tar.zst' }
+        from(layout.buildDirectory.dir('packs')) { include(prProotOnly ? 'proot.tar.zst' : '*.tar.zst') }
         into(layout.buildDirectory.dir('localPackAssets/packs'))
     }
     android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('localPackAssets'))
