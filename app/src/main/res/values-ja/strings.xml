@@ -575,6 +575,7 @@
     <string name="comp_nightlies_count">Nightlies内 · %1$d</string>
     <string name="comp_channel_stable">安定版</string>
     <string name="comp_channel_nightly">ナイトリー</string>
+    <string name="comp_channel_test">テスト</string>
     <string name="comp_refresh_to_list">更新してNightliesとDroidDeckのパッケージを一覧表示します。</string>
     <string name="comp_nothing_new">前回の確認以降、新しいものはありません。</string>
     <string name="comp_import_wcp">.wcpをインポート</string>

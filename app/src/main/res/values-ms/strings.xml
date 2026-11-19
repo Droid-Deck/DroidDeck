@@ -575,6 +575,7 @@
     <string name="comp_nightlies_count">Pada Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">Ujian</string>
     <string name="comp_refresh_to_list">Segarkan semula untuk menyenaraikan pakej pada Nightlies dan DroidDeck.</string>
     <string name="comp_nothing_new">Tiada apa-apa yang baharu sejak semakan terakhir.</string>
     <string name="comp_import_wcp">Import .wcp</string>

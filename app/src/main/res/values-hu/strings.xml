@@ -577,6 +577,7 @@
     <string name="comp_nightlies_count">A Nightliesen · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
+    <string name="comp_channel_test">Teszt</string>
     <string name="comp_refresh_to_list">Frissítsen a Nightlies és a DroidDeck csomagjainak listázásához.</string>
     <string name="comp_nothing_new">Nincs semmi új az utolsó ellenőrzés óta.</string>
     <string name="comp_import_wcp">.wcp importálása</string>

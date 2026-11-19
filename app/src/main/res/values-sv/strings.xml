@@ -577,6 +577,7 @@
     <string name="comp_nightlies_count">I nattbyggena · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nattbygge</string>
+    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Uppdatera för att lista paket i Nightlies och DroidDeck.</string>
     <string name="comp_nothing_new">Inget nytt sedan senaste kontrollen.</string>
     <string name="comp_import_wcp">Importera .wcp</string>

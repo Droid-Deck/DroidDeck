@@ -581,6 +581,7 @@
     <string name="comp_nightlies_count">У нічних збірках · %1$d</string>
     <string name="comp_channel_stable">Стабільна</string>
     <string name="comp_channel_nightly">Нічна</string>
+    <string name="comp_channel_test">Тестова</string>
     <string name="comp_refresh_to_list">Оновіть, щоб побачити пакети з Nightlies і DroidDeck.</string>
     <string name="comp_nothing_new">Нічого нового з часу останньої перевірки.</string>
     <string name="comp_import_wcp">Імпортувати .wcp</string>

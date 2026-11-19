@@ -577,6 +577,7 @@
     <string name="comp_nightlies_count">Nightliesissä · %1$d</string>
     <string name="comp_channel_stable">Vakaa</string>
     <string name="comp_channel_nightly">Yöversio</string>
+    <string name="comp_channel_test">Testi</string>
     <string name="comp_refresh_to_list">Päivitä nähdäksesi Nightliesin ja DroidDeckin paketit.</string>
     <string name="comp_nothing_new">Ei mitään uutta viimeisimmän tarkistuksen jälkeen.</string>
     <string name="comp_import_wcp">Tuo .wcp</string>
