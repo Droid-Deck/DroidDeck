@@ -2542,7 +2542,6 @@
     <string name="pextra_session_started">A session started during the download; stop it before installing compatibility tools</string>
     <string name="pextra_installing">Installing %1$s</string>
     <string name="xproton_title">Experimental builds</string>
-    <string name="xproton_note">Install an unreleased Proton build from its GitHub Actions artifact .zip. It is installed next to your other Proton builds with “Experimental-” in its name, and never replaces or updates them.</string>
     <string name="xproton_pick">Pick a Proton build .zip</string>
     <string name="xproton_pick_zip">Install from .zip</string>
     <string name="xproton_no_space">Not enough free space for this Proton build</string>

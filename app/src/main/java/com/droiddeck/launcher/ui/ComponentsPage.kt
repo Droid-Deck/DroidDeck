@@ -1633,11 +1633,9 @@ private fun DeviceChip(s: GpuDriversState) {
 
 @Composable
 private fun ExperimentalProtonGroup(protons: ProtonsState, actions: ProtonsActions) {
-    val colors = MaterialTheme.colorScheme
     val busy = protons.busyId == com.droiddeck.launcher.ProtonMenu.EXPERIMENTAL
     val idle = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
     RowGroup(stringResource(R.string.xproton_title)) {
-        Text(stringResource(R.string.xproton_note), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 14.dp, end = 10.dp, bottom = 8.dp))
         if (busy) GetLine(stringResource(R.string.xproton_title), "", progress = protons.percent, enabled = false, stage = protons.stage) {}
         else Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 8.dp)) {
             SmallButton(stringResource(R.string.xproton_pick_zip), enabled = idle, onClick = actions.onExperimentalFile)

@@ -1164,18 +1164,20 @@ def followers(state, current):
     return {app: name for app, name in current.items() if app != "0" and name == TOOL}
 
 
-def removed_tools(state, catalog):
+def removed_tools(state, catalog, directory=None):
     known = state.get("tools") if isinstance(state.get("tools"), list) else ()
     previous = {t.get("name") for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name")}
-    return previous - {t["name"] for t in catalog}
+    removed = previous - {t["name"] for t in catalog}
+    if directory is None:
+        return removed
+    known_dirs = {t.get("name"): t.get("dir") for t in known if isinstance(t, dict)}
+    return {name for name in removed if isinstance(known_dirs.get(name), str) and
+            not os.path.lexists(os.path.join(directory, known_dirs[name]))}
 
 
-def release_removed(overrides, requests, state, removed):
+def removed_dirs(state, removed):
     known = state.get("tools") if isinstance(state.get("tools"), list) else ()
-    dirs = {t.get("dir") for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name") in removed}
-    return {app: None if target is DEFERRED_GAME_TOOL and isinstance(requests.get(app), dict) and
-            requests[app].get("valve") is False and requests[app].get("dir") in dirs else target
-            for app, target in overrides.items()}
+    return {t.get("dir") for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name") in removed} - {"", None}
 
 
 def tool_entry(name, display, path, valve):
@@ -1263,15 +1265,19 @@ def valid_game_request(app, request):
              request["dir"] != "" and isinstance(request.get("valve"), bool)))
 
 
-def settle_game_requests(requests, state, current, catalog, missing_is_cleared=False):
+def settle_game_requests(requests, state, current, catalog, missing_is_cleared=False, removed=()):
     recorded = state.get("games_applied")
     if isinstance(recorded, dict):
         applied = dict(recorded)
     else:
         applied = dict(requests) if "tools" in state else {}
     by_name = {t["name"]: t for t in catalog}
+    gone = removed_dirs(state, removed)
     out = dict(requests)
     for app, request in requests.items():
+        if isinstance(request, dict) and request.get("valve") is False and request.get("dir") in gone:
+            del out[app]
+            continue
         if not valid_game_request(app, request) or app not in applied or applied[app] != request:
             continue
         if request is None:
@@ -1296,10 +1302,10 @@ def settle_game_requests(requests, state, current, catalog, missing_is_cleared=F
     return out, out != requests
 
 
-def settled_game_requests(state, current, catalog, missing_is_cleared=False, directory=None):
+def settled_game_requests(state, current, catalog, missing_is_cleared=False, directory=None, removed=()):
     for _ in range(2):
         requests, text = read_game_requests(directory)
-        settled, moved = settle_game_requests(requests, state, current, catalog, missing_is_cleared)
+        settled, moved = settle_game_requests(requests, state, current, catalog, missing_is_cleared, removed)
         if not moved or write_game_requests(settled, text, directory):
             return settled
     return None
@@ -1594,9 +1600,9 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             set_mappings(tokens, mapping, moved)
             current.update(moved)
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
-        requests = settled_game_requests(state, current, catalog, not steam_running(), directory)
-        removed = removed_tools(state, catalog)
-        overrides = release_removed(requested_games(requests or {}, catalog), requests or {}, state, removed)
+        removed = removed_tools(state, catalog, os.path.join(steam_root, "compatibilitytools.d"))
+        requests = settled_game_requests(state, current, catalog, not steam_running(), directory, removed)
+        overrides = requested_games(requests or {}, catalog)
         managed = state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else ()
         native_choices = state.get("native_choices", ())
         native = native_targets(steam_root, set(apps) | set(picks) | set(managed) | set(native_choices))

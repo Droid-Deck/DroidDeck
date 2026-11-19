@@ -2287,6 +2287,58 @@ class ProtonDefaultTest(unittest.TestCase):
         self.assertEqual(COMPAT["removed_tools"](state, self.CATALOG), {"bo3fix-proton"})
         self.assertEqual(COMPAT["removed_tools"]({}, self.CATALOG), set())
 
+    def test_a_failed_extra_adoption_is_not_classified_as_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tools = Path(tmp) / "compatibilitytools.d"
+            tools.mkdir()
+            state = {"tools": [{"name": "GE-Proton11-7", "dir": "GE-Proton11-7", "valve": False}]}
+            (tools / "GE-Proton11-7").mkdir()
+            catalog = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), set())
+            (tools / "GE-Proton11-7").rmdir()
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), {"GE-Proton11-7"})
+
+    def test_a_request_for_a_removed_tool_is_dropped_and_others_are_kept(self):
+        state = {"tools": self.CATALOG, "games_applied": {}}
+        requests = {"10": {"valve": False, "dir": "GE-Proton11-7"}, "11": {"valve": False, "dir": "Never-Installed"},
+                    "12": {"valve": True, "dir": "GE-Proton11-7"}}
+        catalog = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+        settled, moved = COMPAT["settle_game_requests"](requests, state, {}, catalog, removed={"GE-Proton11-7"})
+        self.assertTrue(moved)
+        self.assertEqual(settled, {"11": requests["11"], "12": requests["12"]})
+        self.assertEqual(COMPAT["settle_game_requests"](requests, state, {}, catalog), (requests, False))
+
+    def test_a_game_on_a_removed_tool_follows_the_default_across_registrations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([("0", self.TOOL), ("10", "GE-Proton11-7"), ("11", "GE-Proton11-7")]))
+            request = {"valve": False, "dir": "GE-Proton11-7"}
+            available = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            (Path(tmp) / "games.json").write_text(json.dumps({"version": 1, "games": {"10": request}}))
+            (Path(tmp) / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "tools": self.CATALOG,
+            }))
+            for default in (self.TOOL, self.TOOL, COMPAT["TOOL_11"]):
+                COMPAT["register_default"](
+                    str(config), ["10", "11"], default=default, catalog=available,
+                    directory=tmp,
+                )
+            self.assertEqual(mapping_of(config.read_text()),
+                             {"0": COMPAT["TOOL_11"], "10": COMPAT["TOOL_11"], "11": COMPAT["TOOL_11"]})
+            self.assertEqual(json.loads((Path(tmp) / "games.json").read_text())["games"], {})
+
+    def test_a_steam_pick_survives_the_removal_of_another_tool(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([("0", self.TOOL), ("10", COMPAT["TOOL_11"])]))
+            available = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            (Path(tmp) / "games.json").write_text(json.dumps(
+                {"version": 1, "games": {"10": {"valve": False, "dir": "GE-Proton11-7"}}}))
+            (Path(tmp) / "state.json").write_text(json.dumps({"default": self.TOOL, "tools": self.CATALOG, "auto": {}}))
+            COMPAT["register_default"](str(config), ["10"], default=self.TOOL, catalog=available, directory=tmp)
+            self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "10": COMPAT["TOOL_11"]})
+
     def test_windows_only_titles_still_follow_the_default(self):
         changes, auto = COMPAT["plan_mapping"](
             {"0": self.TOOL}, ["42"], self.NAMES, self.TOOL, {})

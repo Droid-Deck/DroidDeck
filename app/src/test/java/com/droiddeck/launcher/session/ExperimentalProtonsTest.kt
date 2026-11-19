@@ -63,4 +63,21 @@ class ExperimentalProtonsTest {
         val digest = "a".repeat(128)
         assertEquals(digest, ExperimentalProtons.checksumIn("$digest  DroidDeck-Proton.tar.gz\n"))
     }
+
+    @Test
+    fun checksumLookupDoesNotSelectTheTarball() {
+        assertNull(ExperimentalProtons.checksumEntry(listOf("Proton-sha512.tar.gz"), "Proton-sha512.tar.gz"))
+        assertEquals("Proton-sha512.tar.gz.sha512sum", ExperimentalProtons.checksumEntry(
+            listOf("Proton-sha512.tar.gz", "Proton-sha512.tar.gz.sha512sum"), "Proton-sha512.tar.gz"))
+        assertNull(ExperimentalProtons.checksumEntry(listOf("Proton.tar.gz"), "Proton.tar.gz"))
+    }
+
+    @Test
+    fun failedPlacementRestoresTheExistingBuild() {
+        val staging = temp.newFolder("staging")
+        val final = temp.newFolder("final")
+        File(final, "marker").writeText("old")
+        assertFalse(ExperimentalProtons.placeTree(File(staging, "missing"), final, staging))
+        assertEquals("old", File(final, "marker").readText())
+    }
 }

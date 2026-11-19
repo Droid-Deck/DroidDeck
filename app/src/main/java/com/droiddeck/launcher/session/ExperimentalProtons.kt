@@ -113,11 +113,9 @@ object ExperimentalProtons {
             if (Files.isRegularFile(settings.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
                 settings.copyTo(ownFile(tree, USER_SETTINGS))
             }
-            if (final.exists()) {
-                if (!deleteTree(final)) return context.getString(R.string.xproton_place_failed)
-                ComponentsManager.forgetProton(context, name)
-            }
-            if (!tree.renameTo(final)) return context.getString(R.string.xproton_place_failed)
+            val replaced = final.exists()
+            if (!placeTree(tree, final, staging)) return context.getString(R.string.xproton_place_failed)
+            if (replaced) ComponentsManager.forgetProton(context, name)
 
             onProgress(context.getString(R.string.pextra_installing, name), -1)
             runGuest(context, listOf("steam-compatibility", "/root/.local/share/Steam"))
@@ -148,11 +146,22 @@ object ExperimentalProtons {
         return file
     }
 
+    internal fun placeTree(tree: File, final: File, staging: File): Boolean {
+        val backup = File(staging, "old")
+        if (final.exists() && !final.renameTo(backup)) return false
+        if (!tree.renameTo(final)) {
+            backup.renameTo(final)
+            return false
+        }
+        if (backup.exists()) deleteTree(backup)
+        return true
+    }
+
     private fun extractTarball(zip: File, into: File): File? = ZipFile(zip).use { z ->
         val entries = z.entries().toList().filter { !it.isDirectory }
         val entry = entries.filter { TARBALL.containsMatchIn(it.name) }.maxByOrNull { it.size } ?: return null
         val name = File(entry.name).name
-        val sums = entries.firstOrNull { File(it.name).name.startsWith(name.substringBefore(".tar")) && it.name.contains("sha512", true) }
+        val sums = checksumEntry(entries.map { it.name }, name)?.let { checksumName -> entries.first { it.name == checksumName } }
         val expected = sums?.let { e ->
             z.getInputStream(e).use { checksumIn(it.readBytes().decodeToString()) }
                 ?: throw IllegalStateException("${File(e.name).name} holds no SHA-512 checksum")
@@ -168,6 +177,13 @@ object ExperimentalProtons {
     }
 
     internal fun checksumIn(text: String): String? = Regex("(?i)\\b[0-9a-f]{128}\\b").find(text)?.value
+
+    internal fun checksumEntry(entries: List<String>, tarball: String): String? {
+        val stem = tarball.substringBefore(".tar")
+        return entries.firstOrNull {
+            File(it).name != tarball && !TARBALL.containsMatchIn(it) && File(it).name.startsWith(stem) && it.contains("sha512", true)
+        }
+    }
 
     private fun runGuest(context: Context, command: List<String>): Int {
         val guest = listOf(
