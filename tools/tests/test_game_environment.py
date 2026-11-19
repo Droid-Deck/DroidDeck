@@ -1475,7 +1475,7 @@ class GameEnvironmentTest(unittest.TestCase):
                 rows += [row("43", tool, unix, android), row("43", tool, dll, android_dll)]
                 rows += [row("*", tool, unix, saved)]
             (component_dir / "desired.tsv").write_text("".join(rows))
-            script = COMPAT["BL_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; bl_components "$1"\n'
+            script = COMPAT["DD_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; dd_components "$1"\n'
             run = lambda tool, app: subprocess.run(
                 ["bash", "-c", script, "test", str(root / tool)], check=True, capture_output=True,
                 env=dict(os.environ, HOME=str(home), STEAM_COMPAT_DATA_PATH="/steam/compatdata/" + app))
