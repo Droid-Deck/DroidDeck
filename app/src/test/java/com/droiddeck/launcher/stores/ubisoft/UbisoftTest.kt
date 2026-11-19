@@ -40,6 +40,23 @@ class UbisoftTest {
         assertEquals("Steam", UbisoftLibrary.thirdParty(steamConfig))
     }
 
+    @Test fun gamesTheProfileLeavesOutTakeTheirArtFromTheConfiguration() {
+        val config = "version: 2.0\r\nroot:\r\n  name: l1\r\n  thumb_image: THUMBIMAGE\r\n  background_image: 'b4c1.jpg'\r\n" +
+            "  installer:\r\n    thumb_image: nested.jpg\r\nlocalizations:\r\n  default:\r\n    l1: \"Assassin's Creed\u2122\"\r\n    THUMBIMAGE: a3a6.jpg\r\n"
+        val owned = JSONObject().put("games", JSONArray()
+            .put(JSONObject().put("productId", 109).put("spaceId", "space-sc").put("productType", 0).put("owned", true).put("manifest", "AB").put("configuration", config))
+            .put(JSONObject().put("productId", 82).put("spaceId", "space-ac").put("productType", 0).put("owned", true).put("manifest", "CD").put("configuration", config)))
+        val art = CatalogItem(Store.UBISOFT, "space-sc", "Splinter Cell", "https://x/wide.jpg", tallImageUrl = "https://x/tall.jpg", owned = true, extra = mapOf("spaceId" to "space-sc"))
+        val games = UbisoftLibrary.assemble(listOf(art), owned)
+        val assets = "https://static3.cdn.ubi.com/orbit/uplay_launcher_3_0/assets/"
+        val unlisted = games.first { it.id == "space-ac" }
+        assertEquals("Assassin's Creed\u2122", unlisted.title)
+        assertEquals(assets + "b4c1.jpg", unlisted.imageUrl)
+        assertEquals(assets + "a3a6.jpg", unlisted.tallImageUrl)
+        assertEquals("https://x/wide.jpg", games.first { it.id == "space-sc" }.imageUrl)
+        assertNull(UbisoftLibrary.image("root:\n  thumb_image: THUMBIMAGE\n", "thumb_image"))
+    }
+
     @Test fun withoutAnOwnershipAnswerTheProfileListStays() {
         val profile = listOf(listed("space-sc", "Splinter Cell"), listed("space-gone", "Free Weekend"))
         assertEquals(listOf("space-gone", "space-sc"), UbisoftLibrary.assemble(profile, JSONObject().put("error", "demux closed")).map { it.id })

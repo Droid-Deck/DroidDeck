@@ -132,6 +132,7 @@ clear_stale_tmp() {
 [ -z "${DD_INSIDE:-}" ] && clear_stale_tmp
 if [ -z "${DD_INSIDE:-}" ]; then
   if [ "${DD_ZRAM:-0}" = 1 ]; then printf 0 > /tmp/.dd-zram; else rm -f /tmp/.dd-zram; fi
+  rm -f /tmp/.dd-zram.hold
   dd if=/dev/zero of=/tmp/.dd-clock bs=8 count=1 conv=notrunc status=none
 fi
 
@@ -774,13 +775,6 @@ case $mode in
     fi
     if [ "${DD_ZRAM:-0}" = 1 ]; then
       step "zRAM compression: on"
-      [ "${DD_ZRAM_CLIENT:-1}" = 1 ] || step "zRAM: Steam, the hidden Epic Games Launcher and Battle.net are not compressed while games run (turned off in Performance)"
-      _dd_ram_cap=0
-      case ${DD_RAM_CAP_MB:-} in
-        ''|0) ;;
-        *[!0-9]*|0*|???????*) step "RAM cap: ignored invalid value '$DD_RAM_CAP_MB'" ;;
-        *) _dd_ram_cap=$((DD_RAM_CAP_MB * 1024)); step "RAM cap: ${DD_RAM_CAP_MB} MB" ;;
-      esac
       (
         dd_zram_scan() {
           _dd_game=0 _dd_pids=() _dd_others=() _dd_apps=
@@ -857,284 +851,235 @@ case $mode in
           echo "$# processes, resident $((_rss / 1024)) MB, in zram $((_swap / 1024)) MB"
         }
         dd_memory_read() {
-          local _k _v _u _kind _fields _avg _whole _frac _gpu_bytes _growth _saved_growth _saved_fall
-          _saved_growth=${_dd_preserved_growth:-0} _saved_fall=${_dd_preserved_fall:-0}
-          _dd_preserved_growth=0 _dd_preserved_fall=0
-          _dd_mem_total=0 _dd_available=-1 _dd_swap_total=0 _dd_swap_free=-1
-          _dd_psi_some=0 _dd_psi_full=0 _dd_gpu=0 _dd_unevictable=0 _dd_shmem=0
+          local _k _v _u _kind _fields _name _type _size _used _orig _comp _mem _dt _fall
+          local _stall=-1 _swap_total=0 _swap_free=0 _total=0 _room=0 _listed=0 _in=-1
+          _dd_mem_total=0 _dd_available=-1
           while read -r _k _v _u; do
             case $_v in ''|*[!0-9]*) continue ;; esac
             case $_k in
               MemTotal:) _dd_mem_total=$_v ;;
               MemAvailable:) _dd_available=$_v ;;
-              SwapTotal:) _dd_swap_total=$_v ;;
-              SwapFree:) _dd_swap_free=$_v ;;
-              Unevictable:) _dd_unevictable=$_v ;;
-              Shmem:) _dd_shmem=$_v ;;
+              SwapTotal:) _swap_total=$_v ;;
+              SwapFree:) _swap_free=$_v ;;
             esac
           done 2>/dev/null < /proc/meminfo
+          while read -r _name _type _size _used _u; do
+            _listed=1
+            case $_name in */zram[0-9]*) ;; *) continue ;; esac
+            case $_size$_used in ''|*[!0-9]*) continue ;; esac
+            _total=$((_total + _size)) _room=$((_room + _size - _used))
+          done 2>/dev/null < /proc/swaps
+          [ "$_listed" = 1 ] || _total=$_swap_total _room=$_swap_free
+          _dd_swap_room=$((_total / 8))
+          [ "$_dd_swap_room" -ge $((128 * 1024)) ] || _dd_swap_room=$((128 * 1024))
+          _dd_swap_room=$((_room - _dd_swap_room))
+          _dd_saving=600
+          if [ -r /sys/block/zram0/mm_stat ] && read -r _orig _comp _mem _u 2>/dev/null < /sys/block/zram0/mm_stat; then
+            case $_orig$_mem in
+              ''|*[!0-9]*) ;;
+              *) [ "$_orig" -lt $((64 << 20)) ] || _dd_saving=$(((_orig - _mem) / (_orig / 1000))) ;;
+            esac
+            [ "$_dd_saving" -ge 167 ] || _dd_saving=167
+            [ "$_dd_saving" -le 833 ] || _dd_saving=833
+          fi
           if [ -r /proc/pressure/memory ]; then
             while read -r _kind _fields; do
-              [ "$_kind" = some ] || [ "$_kind" = full ] || continue
-              _avg=${_fields#avg10=} _avg=${_avg%% *}
-              _whole=${_avg%%.*} _frac=${_avg#*.}
-              [ "$_frac" = "$_avg" ] && _frac=00
-              _frac=${_frac}00
-              _frac=${_frac:0:2}
-              case $_whole$_frac in ''|*[!0-9]*) continue ;; esac
-              if [ "$_kind" = some ]; then
-                _dd_psi_some=$((10#$_whole * 100 + 10#$_frac))
-              else
-                _dd_psi_full=$((10#$_whole * 100 + 10#$_frac))
-              fi
+              [ "$_kind" = some ] || continue
+              _fields=${_fields##*total=}
+              case $_fields in ''|*[!0-9]*) ;; *) _stall=$_fields ;; esac
             done 2>/dev/null < /proc/pressure/memory
           fi
-          if [ -r /sys/class/kgsl/kgsl/page_alloc ]; then
-            read -r _gpu_bytes _u < /sys/class/kgsl/kgsl/page_alloc
-            case $_gpu_bytes in ''|*[!0-9]*) _gpu_bytes=0 ;; esac
-            _dd_gpu=$((_gpu_bytes / 1024))
+          while read -r _k _v; do
+            [ "$_k" = pswpin ] || continue
+            case $_v in ''|*[!0-9]*) ;; *) _in=$((_v * _dd_page_kb)) ;; esac
+            break
+          done 2>/dev/null < /proc/vmstat
+          _dt=$((SECONDS - ${_dd_sample_at:-$SECONDS}))
+          if [ -z "${_dd_sample_at:-}" ]; then
+            _dd_rate=0 _dd_psi=0 _dd_returned=0
+          elif [ "$_dt" -gt 0 ] && [ "$_dd_available" -ge 0 ]; then
+            _fall=$(((_dd_sample_available - _dd_available + _dd_freed) / _dt))
+            _dd_rate=$((_dd_rate * 3 / 4))
+            [ "$_fall" -le "$_dd_rate" ] || _dd_rate=$_fall
+            _dd_psi=0
+            [ "$_stall" -lt 0 ] || [ "$_dd_sample_stall" -lt 0 ] || _dd_psi=$(((_stall - _dd_sample_stall) / (_dt * 100)))
+            _dd_returned=$((_dt < 30 ? _dd_returned * (30 - _dt) / 30 : 0))
+            [ "$_in" -lt "$_dd_sample_in" ] || [ "$_dd_sample_in" -lt 0 ] || _dd_returned=$((_dd_returned + _in - _dd_sample_in))
           fi
-          _dd_psi=$_dd_psi_some
-          [ "$_dd_psi_full" -gt "$_dd_psi" ] && _dd_psi=$_dd_psi_full
-          if [ "${_dd_sample_at:-}" = "" ]; then
-            _dd_growth=0 _dd_fall=0
-            _dd_sample_at=$SECONDS _dd_sample_available=$_dd_available _dd_sample_gpu=$_dd_gpu
-            _dd_sample_unevictable=$_dd_unevictable _dd_sample_shmem=$_dd_shmem
-          elif [ "$SECONDS" -gt "$_dd_sample_at" ]; then
-            _dd_growth=0 _dd_fall=0
-            _growth=$((_dd_gpu - _dd_sample_gpu)); [ "$_growth" -gt 0 ] && _dd_growth=$((_dd_growth + _growth))
-            _growth=$((_dd_unevictable - _dd_sample_unevictable)); [ "$_growth" -gt 0 ] && _dd_growth=$((_dd_growth + _growth))
-            _growth=$((_dd_shmem - _dd_sample_shmem)); [ "$_growth" -gt 0 ] && _dd_growth=$((_dd_growth + _growth))
-            _dd_fall=$((_dd_sample_available - _dd_available))
-            [ "$_saved_growth" -gt "$_dd_growth" ] && _dd_growth=$_saved_growth
-            [ "$_saved_fall" -gt "$_dd_fall" ] && _dd_fall=$_saved_fall
-            if [ $((SECONDS - _dd_sample_at)) -ge 5 ]; then
-              _dd_sample_at=$SECONDS _dd_sample_available=$_dd_available _dd_sample_gpu=$_dd_gpu
-              _dd_sample_unevictable=$_dd_unevictable _dd_sample_shmem=$_dd_shmem
-            fi
+          if [ "$_dd_available" -ge 0 ] && { [ -z "${_dd_sample_at:-}" ] || [ "$_dt" -gt 0 ]; }; then
+            _dd_sample_at=$SECONDS _dd_sample_available=$_dd_available _dd_sample_stall=$_stall _dd_sample_in=$_in _dd_freed=0
           fi
-          _dd_real_available=$_dd_available
-          [ "$_dd_real_available" -ge 0 ] && _dd_real_available=$((_dd_real_available - _dd_growth))
-          _dd_headroom=$((_dd_mem_total / 5))
-          [ "$_dd_headroom" -ge $((512 * 1024)) ] || _dd_headroom=$((512 * 1024))
-          [ "$_dd_headroom" -le $((1536 * 1024)) ] || _dd_headroom=$((1536 * 1024))
-          _dd_tier_headroom=$((_dd_mem_total / 4))
-          [ "$_dd_tier_headroom" -ge $((768 * 1024)) ] || _dd_tier_headroom=$((768 * 1024))
-          [ "$_dd_tier_headroom" -le $((2560 * 1024)) ] || _dd_tier_headroom=$((2560 * 1024))
-          _dd_fall_headroom=$((_dd_tier_headroom * 2))
-          [ "$_dd_fall_headroom" -ge $((_dd_mem_total * 2 / 5)) ] || _dd_fall_headroom=$((_dd_mem_total * 2 / 5))
-          _dd_swap_reserve=$((_dd_swap_total / 5))
-          [ "$_dd_swap_reserve" -ge $((256 * 1024)) ] || _dd_swap_reserve=$((256 * 1024))
+          _dd_floor=$((_dd_mem_total / 8))
+          [ "$_dd_floor" -ge $((640 * 1024)) ] || _dd_floor=$((640 * 1024))
+          [ "$_dd_floor" -le $((1280 * 1024)) ] || _dd_floor=$((1280 * 1024))
+          _dd_target=$((_dd_floor + _dd_rate * 10))
         }
-        dd_memory_tight() {
-          [ "$_dd_mem_total" -gt 0 ] && [ "$_dd_available" -ge 0 ] &&
-            { [ "$_dd_real_available" -lt "$_dd_headroom" ] ||
-              { [ "$_dd_psi" -ge 100 ] && [ "$_dd_real_available" -lt $((_dd_mem_total / 3)) ]; } ||
-              { [ "$_dd_fall" -ge $((256 * 1024)) ] && [ "$_dd_real_available" -lt $((_dd_headroom * 2)) ]; }; }
-        }
-        dd_client_can_pageout() {
-          dd_memory_read
-          dd_zram_usage "${_dd_pids[@]}" > /dev/null
-          [ "$_dd_mem_total" -gt 0 ] && dd_zram_has_room
-        }
-        dd_zram_has_room() {
-          [ "$_dd_swap_total" -gt 0 ] &&
-            [ $((_dd_swap_free - _dd_anon - ${_dd_client_reserve:-0})) -ge "$_dd_swap_reserve" ]
-        }
-        dd_client_can_readback() {
-          dd_memory_read
-          dd_zram_usage "${_dd_pids[@]}" > /dev/null
-          [ "$_dd_mem_total" -gt 0 ] && ! dd_memory_tight && ! dd_memory_critical &&
-            [ "$_dd_real_available" -ge $((_dd_swap * 2)) ] &&
-            [ $((_dd_real_available - _dd_swap)) -ge "$_dd_headroom" ]
-        }
-        dd_client_pressure() {
-          [ "${DD_ZRAM_CLIENT:-1}" = 1 ] && [ "$_dd_game" = 1 ] &&
-            [ "${#_dd_pids[@]}" -gt 0 ] && { dd_memory_tight || dd_memory_critical; } || return 0
-          [ "$_dd_pressure_at" -lt 0 ] ||
-            [ $((SECONDS - _dd_pressure_at)) -ge "$_dd_pressure_backoff" ] || return 0
-          [ "$_dd_packed" -lt 0 ] || [ $((SECONDS - _dd_packed)) -ge 30 ] || return 0
-          _dd_pressure_at=$SECONDS
-          if ! dd_client_can_pageout; then
-            step "zRAM: pressure reclaim skipped, swap headroom too small ($((_dd_swap_free / 1024)) MB free)"
-            return 0
+        dd_memory_need() {
+          local _burst=$((_dd_rate * 2))
+          _dd_need=0 _dd_hard=0 _dd_force=0
+          [ "$_dd_mem_total" -gt 0 ] && [ "$_dd_available" -ge 0 ] || return 0
+          _dd_need=$((_dd_target - _dd_available)) _dd_hard=$((_dd_floor - _dd_available))
+          if [ "$_burst" -ge $((64 * 1024)) ] && [ "$_dd_available" -lt $((_dd_mem_total * 2 / 5)) ] && [ "$_burst" -gt "$_dd_need" ]; then
+            _dd_need=$_burst
           fi
-          [ "$_dd_rss" -ge $((128 * 1024)) ] || return 0
-          _dd_pressure_before=$_dd_rss
-          if [ "${1:-}" = defer ]; then
-            _dd_client_reserve=$_dd_anon
-            _dd_client_pending=1
+          if [ "$_dd_psi" -ge 100 ] && [ "$_burst" -gt "$_dd_hard" ]; then
+            _dd_hard=$_burst
           fi
-          dd_zram_send 1 "memory pressure, compressing the client (available $((_dd_available / 1024)) MB, swap free $((_dd_swap_free / 1024)) MB)" client "${1:-}"
-          _dd_packed=$SECONDS
-          if [ "${1:-}" = defer ]; then
-            _dd_client_targets=("${_dd_zram_targets[@]}")
-          else
-            dd_client_pressure_result
-          fi
+          [ "$_dd_hard" -gt 0 ] || _dd_hard=0
+          [ "$_dd_need" -ge "$_dd_hard" ] || _dd_need=$_dd_hard
+          [ "$_dd_available" -ge $((_dd_floor / 2)) ] || _dd_force=1
         }
-        dd_client_pressure_finish() {
-          [ "${_dd_client_pending:-0}" = 1 ] || return 0
-          dd_zram_finish 1 "${_dd_client_targets[@]}"
-          dd_client_pressure_result "${_dd_client_targets[@]}"
-          _dd_client_pending=0 _dd_client_reserve=0 _dd_client_targets=()
-        }
-        dd_client_pressure_result() {
-          [ "${_dd_pageout_complete:-0}" = 1 ] || return 0
-          if [ "$#" -gt 0 ]; then dd_zram_usage "$@" > /dev/null; else dd_zram_usage "${_dd_pids[@]}" > /dev/null; fi
-          if [ $((_dd_pressure_before - _dd_rss)) -lt $((16 * 1024)) ]; then
-            _dd_pressure_backoff=$((_dd_pressure_backoff * 2 > 300 ? 300 : _dd_pressure_backoff * 2))
-          else
-            _dd_pressure_backoff=30
-          fi
-        }
-        dd_memory_critical() {
-          [ "$_dd_mem_total" -gt 0 ] && [ "$_dd_available" -ge 0 ] &&
-            { [ "$_dd_real_available" -lt "$_dd_tier_headroom" ] ||
-              { [ "$_dd_psi" -ge 100 ] && [ "$_dd_real_available" -lt $((_dd_tier_headroom * 3 / 2)) ]; } ||
-              { [ "$_dd_fall" -ge $((256 * 1024)) ] && [ "$_dd_real_available" -lt "$_dd_fall_headroom" ]; }; }
-        }
-        dd_session_pressure() {
-          dd_memory_read
-          dd_memory_critical || _dd_tier_backoff=30 _dd_tier_nogain=0
-          [ "$_dd_game" = 1 ] && dd_memory_critical || return 0
-          [ "${DD_ZRAM_IDLE:-1}" = 1 ] && dd_game_focused 0 || return 0
-          local _wait=$_dd_tier_backoff _before _available_before _pids _targets _gain _min_gain
-          [ "$_dd_available" -ge $((_dd_headroom / 2)) ] || [ "$_dd_tier_pushed" -lt 0 ] || _wait=30
-          [ "$_dd_tier_at" -lt 0 ] || [ $((SECONDS - _dd_tier_at)) -ge "$_wait" ] || return 0
-          if [ "$_dd_tier_at" -ge 0 ] && [ "$_dd_tier_pushed" -gt 0 ]; then
-            dd_tier_readback
-            if [ "$_dd_tier_back" -le $((_dd_tier_pushed / 2)) ]; then
-              [ "${_dd_tier_nogain:-0}" = 1 ] || _dd_tier_backoff=30
-            else
-              _dd_tier_backoff=$((_dd_tier_backoff * 2 > 300 ? 300 : _dd_tier_backoff * 2))
-              _dd_tier_at=$SECONDS _dd_tier_pushed=-1
-              step "zRAM: the game read back most of its last page-out, next try in ${_dd_tier_backoff} s"
-              return 0
-            fi
-          fi
-          _dd_tier_at=$SECONDS _dd_tier_pushed=0
-          dd_zram_pick session
-          dd_zram_usage "${_pids[@]}" > /dev/null
-          [ "$_dd_rss" -ge $((256 * 1024)) ] || return 0
-          if ! dd_zram_has_room; then
-            step "zRAM: low-memory page-out skipped, swap headroom too small ($((_dd_swap_free / 1024)) MB free)"
-            return 0
-          fi
-          _targets=("${_pids[@]}") _before=$_dd_swap _available_before=$_dd_available
-          dd_zram_send 1 "low memory (available $((_dd_real_available / 1024)) MB), compressing idle game memory" session
-          dd_zram_usage "${_targets[@]}" > /dev/null
-          _dd_tier_pushed=$((_dd_swap - _before))
-          dd_tier_note "${_targets[@]}"
-          if [ "${_dd_pageout_complete:-0}" = 1 ]; then
-            dd_memory_read
-            _gain=$((_dd_available - _available_before))
-            _min_gain=$((_dd_tier_headroom / 16))
-            [ "$_min_gain" -ge $((16 * 1024)) ] || _min_gain=$((16 * 1024))
-            if [ "$_gain" -lt "$_min_gain" ]; then
-              _dd_tier_backoff=$((_dd_tier_backoff * 2 > 300 ? 300 : _dd_tier_backoff * 2))
-              _dd_tier_at=$SECONDS _dd_tier_nogain=1
-              step "zRAM: low-memory page-out gained only $((_gain / 1024)) MB available, next try in ${_dd_tier_backoff} s"
-            else
-              _dd_tier_nogain=0
-            fi
-          fi
-        }
-        dd_proc_start() {
-          local _s=
-          _dd_start=
-          read -r _s 2>/dev/null < "/proc/$1/stat" || return 1
-          _s=${_s##*) }
-          set -- $_s
-          [ "$1" != Z ] && [ "$#" -ge 20 ] || return 1
-          _dd_start=${20}
-        }
-        dd_tier_note() {
-          local _p
-          _dd_tier_targets=() _dd_tier_swaps=() _dd_tier_starts=()
-          for _p in "$@"; do
-            dd_proc_start "$_p" || continue
-            dd_zram_usage "$_p" > /dev/null
-            _dd_tier_targets+=("$_p") _dd_tier_swaps+=("$_dd_swap") _dd_tier_starts+=("$_dd_start")
-          done
-        }
-        dd_tier_readback() {
-          local _i _back=0
-          for _i in "${!_dd_tier_targets[@]}"; do
-            dd_proc_start "${_dd_tier_targets[$_i]}" && [ "$_dd_start" = "${_dd_tier_starts[$_i]}" ] || continue
-            dd_zram_usage "${_dd_tier_targets[$_i]}" > /dev/null
-            [ "${_dd_tier_swaps[$_i]}" -le "$_dd_swap" ] || _back=$((_back + _dd_tier_swaps[_i] - _dd_swap))
-          done
-          _dd_tier_back=$_back
-        }
-        dd_watch_nap() {
-          local _i
-          if [ "$_dd_game" = 1 ] && [ "$_dd_available" -ge 0 ] && [ "$_dd_real_available" -lt "$_dd_fall_headroom" ]; then
-            for _i in 1 2 3 4 5; do
-              nap 1
-              dd_memory_read
-              dd_memory_critical && return 0
-            done
-          else
-            nap 5
-          fi
-          return 0
+        dd_pid_key() {
+          local _s
+          _dd_key=$1
+          read -r _s 2>/dev/null < "/proc/$1/stat" || return 0
+          set -- ${_s##*) }
+          _dd_key=$_dd_key.${20:-}
         }
         dd_session_others() {
           local _p
+          local -A _known=()
           _dd_session=()
           for _p in "${_dd_others[@]}"; do
-            grep -q -m1 '/libddsession\.so$' "/proc/$_p/maps" 2>/dev/null && _dd_session+=("$_p")
+            dd_pid_key "$_p"
+            [ -n "${_dd_preloaded[$_dd_key]:-}" ] ||
+              grep -q -m1 '/libddsession\.so$' "/proc/$_p/maps" 2>/dev/null || continue
+            _known[$_dd_key]=1
+            dd_zram_usage "$_p" > /dev/null
+            _dd_session+=("$_dd_anon $_p")
           done
+          _dd_preloaded=()
+          for _p in "${!_known[@]}"; do
+            _dd_preloaded[$_p]=1
+          done
+          [ "${#_dd_session[@]}" -gt 0 ] || return 0
+          mapfile -t _dd_session < <(printf '%s\n' "${_dd_session[@]}" | sort -rn)
+          _dd_session=("${_dd_session[@]#* }")
         }
-        dd_zram_pick() {
-          if [ "$1" = game ]; then
-            dd_session_others
-            _pids=("${_dd_session[@]}")
-            [ "${DD_ZRAM_CLIENT:-1}" != 1 ] || _pids+=("${_dd_pids[@]}")
-          elif [ "$1" = session ]; then
-            dd_session_others
-            _pids=("${_dd_session[@]}")
+        dd_memory_relieved() {
+          local _k _v _u
+          while read -r _k _v _u; do
+            [ "$_k" = MemAvailable: ] || continue
+            case $_v in ''|*[!0-9]*) return 1 ;; esac
+            [ "$_v" -ge "$_dd_goal" ]
+            return
+          done 2>/dev/null < /proc/meminfo
+          return 1
+        }
+        dd_zram_trim() {
+          local _mode=$1 _left=$2 _p _k _n _i _acks=()
+          shift 2
+          _dd_trimmed=0
+          for _k in "${!_dd_deaf[@]}"; do
+            [ "${_dd_deaf[$_k]}" -gt "$SECONDS" ] || unset "_dd_deaf[$_k]"
+          done
+          for _p in "$@"; do
+            [ "$_left" -ge 4096 ] && [ "$_dd_polls" -lt 250 ] && [ $((SECONDS - _dd_pass_at)) -lt 6 ] &&
+              [ ! -e /tmp/.dd-zram.hold ] || break
+            ! dd_memory_relieved || break
+            dd_pid_key "$_p"
+            _k=$_dd_key
+            [ "${_dd_deaf[$_k]:-0}" -le "$SECONDS" ] || continue
+            dd_zram_usage "$_p" > /dev/null
+            [ "$_dd_anon" -ge 8192 ] || continue
+            printf %s - > "/tmp/.dd-zram.trim.$_p"
+            _acks+=("/tmp/.dd-zram.trim.$_p")
+            printf '%s %s\n' "$_mode" "$_left" > /tmp/.dd-zram
+            kill -URG "$_p" 2>/dev/null || continue
+            _dd_deaf[$_k]=$((SECONDS + 60))
+            for ((_i = 0; _dd_polls < 250 && SECONDS - _dd_pass_at < 6; _i++, _dd_polls++)); do
+              [ ! -e /tmp/.dd-zram.hold ] || { _dd_deaf[$_k]=0; break; }
+              _n=
+              read -r _n 2>/dev/null < "/tmp/.dd-zram.trim.$_p" || :
+              case $_n in
+                -) [ "$_i" -lt 25 ] || break ;;
+                ''|*[!0-9]*) ;;
+                *) _dd_trimmed=$((_dd_trimmed + _n)) _left=$((_left - _n)) _dd_deaf[$_k]=0; break ;;
+              esac
+              nap 0.02
+            done
+          done
+          [ ! -e /tmp/.dd-zram.hold ] || return 0
+          printf '2 0\n' > /tmp/.dd-zram
+          [ "${#_acks[@]}" = 0 ] || rm -f "${_acks[@]}"
+        }
+        dd_memory_relieve() {
+          local _mode=2 _budget _gain=0 _rest _cap=$((256 * 1024)) _all=$((1024 * 1024))
+          dd_memory_need
+          _dd_polls=0 _dd_pass_at=$SECONDS
+          if [ "$_dd_need" -le 0 ]; then
+            _dd_rest=0
+            return 0
+          fi
+          [ "$_dd_rest" = 0 ] || [ "$_dd_force" = 1 ] || [ "$SECONDS" -ge "$_dd_rest_until" ] ||
+            [ "$_dd_available" -lt $((_dd_rest_available - _dd_floor / 8)) ] || return 0
+          if [ "$_dd_swap_room" -lt $((64 * 1024)) ]; then
+            if [ $((SECONDS - _dd_full_at)) -ge 60 ]; then
+              _dd_full_at=$SECONDS
+              step "memory: available $((_dd_available / 1024)) MB and zRAM has no room left"
+            fi
+            return 0
+          fi
+          if [ "$_dd_force" = 1 ] && [ $((SECONDS - _dd_forced_at)) -ge 10 ]; then
+            _mode=3 _dd_forced_at=$SECONDS _cap=$_all
           else
-            _pids=("${_dd_pids[@]}")
+            _cap=$((_cap - _dd_returned)) _all=$((_all - _dd_returned))
+          fi
+          if [ "${#_dd_pids[@]}" -gt 0 ] && [ "$_all" -ge 4096 ] &&
+             { [ "$_dd_hard" -gt 0 ] ||
+               { [ "$_dd_game" = 1 ] && [ "$_dd_focus" != 1 ] && [ $((SECONDS - _dd_back_at)) -ge 30 ]; }; }; then
+            _budget=$((_dd_need * 1000 / _dd_saving))
+            [ "$_budget" -le "$_all" ] || _budget=$_all
+            [ "$_budget" -le "$_dd_swap_room" ] || _budget=$_dd_swap_room
+            _dd_goal=$((_dd_available + _dd_need))
+            dd_zram_trim "$_mode" "$_budget" "${_dd_pids[@]}"
+            _gain=$((_dd_trimmed * _dd_saving / 1000))
+            _dd_swap_room=$((_dd_swap_room - _dd_trimmed)) _all=$((_all - _dd_trimmed))
+            [ "$_cap" -le "$_all" ] || _cap=$_all
+            _dd_client_out=$((_dd_client_out + _dd_trimmed)) _dd_note_client=$((_dd_note_client + _dd_trimmed))
+            [ "$_dd_trimmed" = 0 ] || _dd_trim_at=$SECONDS
+          fi
+          _rest=$((_dd_hard - _gain))
+          if [ "$_rest" -gt 0 ] && [ "$_cap" -ge 4096 ] && [ "$_dd_swap_room" -ge $((64 * 1024)) ]; then
+            [ "$_dd_session_at" = "$_dd_scan_at" ] || dd_session_others
+            _dd_session_at=$_dd_scan_at
+            _budget=$((_rest * 1000 / _dd_saving))
+            [ "$_budget" -le "$_cap" ] || _budget=$_cap
+            [ "$_budget" -le "$_dd_swap_room" ] || _budget=$_dd_swap_room
+            _dd_goal=$((_dd_available + _dd_hard))
+            dd_zram_trim "$_mode" "$_budget" "${_dd_session[@]}"
+            _gain=$((_gain + _dd_trimmed * _dd_saving / 1000))
+            _dd_note_session=$((_dd_note_session + _dd_trimmed))
+          fi
+          _dd_freed=$((_dd_freed + _gain))
+          if [ "$_dd_hard" -gt 0 ] && [ "$_gain" -lt $((_dd_hard / 4)) ]; then
+            _dd_rest=$((_dd_rest > 0 ? _dd_rest * 2 : 5))
+            [ "$_dd_rest" -le 60 ] || _dd_rest=60
+            _dd_rest_until=$((SECONDS + _dd_rest)) _dd_rest_available=$_dd_available
+          else
+            _dd_rest=0
           fi
         }
-        dd_zram_wait() {
-          local _p _left _start=$SECONDS
-          while [ $((SECONDS - _start)) -lt 12 ]; do
-            _left=0
-            for _p in "$@"; do
-              [ -s "/tmp/.dd-zram.ack.$_p" ] && continue
-              [ -d "/proc/$_p" ] || continue
-              [ $((SECONDS - _start)) -ge 2 ] && [ ! -e "/tmp/.dd-zram.ack.$_p" ] && continue
-              _left=1
-            done
-            [ "$_left" = 1 ] || break
-            nap 0.2
-          done
-          _dd_pageout_complete=1
-          for _p in "$@"; do
-            if [ -d "/proc/$_p" ] && [ ! -s "/tmp/.dd-zram.ack.$_p" ]; then _dd_pageout_complete=0; fi
-            rm -f "/tmp/.dd-zram.ack.$_p"
-          done
+        dd_memory_note() {
+          [ $((_dd_note_client + _dd_note_session)) -ge $((16 * 1024)) ] && [ $((SECONDS - _dd_noted_at)) -ge 5 ] || return 0
+          step "memory: available $((_dd_available / 1024)) MB, falling $((_dd_rate / 1024)) MB/s, compressed $((_dd_note_client / 1024)) MB of the client and $((_dd_note_session / 1024)) MB of the session"
+          _dd_note_client=0 _dd_note_session=0 _dd_noted_at=$SECONDS
         }
-        dd_zram_send() {
-          local _mode=$1 _what=$2 _which=$3 _pids _p
-          dd_zram_pick "$_which"
-          step "zRAM: $_what ($(dd_zram_usage "${_pids[@]}"))"
-          for _p in "${_pids[@]}"; do rm -f "/tmp/.dd-zram.ack.$_p"; done
-          printf '%s' "$_mode" > /tmp/.dd-zram
-          [ "${#_pids[@]}" = 0 ] || kill -URG "${_pids[@]}" 2>/dev/null
-          _dd_zram_targets=("${_pids[@]}")
-          [ "${4:-}" != defer ] || return 0
-          dd_zram_finish "$_mode" "${_pids[@]}"
-        }
-        dd_zram_finish() {
-          local _mode=$1
-          shift
-          if [ "$_mode" = 1 ]; then dd_zram_wait "$@"; else nap 5; fi
-          dd_zram_scan
-          step "zRAM: done ($(dd_zram_usage "$@"))"
+        dd_client_readback() {
+          [ "$_dd_client_out" -gt 0 ] && [ "${#_dd_pids[@]}" -gt 0 ] || return 0
+          [ "$_dd_game" = 0 ] || { [ -n "$_dd_away" ] && [ $((SECONDS - _dd_away)) -ge 5 ]; } || return 0
+          [ $((SECONDS - _dd_trim_at)) -ge 30 ] || return 0
+          dd_zram_usage "${_dd_pids[@]}" > /dev/null
+          if [ "$_dd_swap" -lt $((16 * 1024)) ]; then
+            _dd_client_out=0
+            return 0
+          fi
+          [ $((_dd_available - _dd_swap)) -ge $((_dd_target + _dd_floor)) ] || return 0
+          step "memory: available $((_dd_available / 1024)) MB, reading $((_dd_swap / 1024)) MB of the client back"
+          printf 0 > /tmp/.dd-zram || return 0
+          kill -URG "${_dd_pids[@]}" 2>/dev/null || return 0
+          _dd_freed=$((_dd_freed - _dd_swap * _dd_saving / 1000))
+          _dd_client_out=0 _dd_back_at=$SECONDS
         }
         dd_game_focused() {
           if [ "${DD_DESKTOP:-}" = 1 ] || [ -z "${DD_LAUNCH_DIR:-}" ]; then
@@ -1149,92 +1094,40 @@ case $mode in
           esac
           return 1
         }
-        dd_over_cap() {
-          [ "$_dd_ram_cap" -gt 0 ] || return 1
-          _dd_measured=$SECONDS
-          dd_session_others
-          dd_zram_usage "${_dd_pids[@]}" "${_dd_session[@]}" > /dev/null
-          [ "$_dd_rss" -gt "$_dd_ram_cap" ]
-        }
-        dd_cap_due() {
-          [ "$_dd_ram_cap" -gt 0 ] && { [ "$_dd_measured" -lt 0 ] || [ $((SECONDS - _dd_measured)) -ge 30 ]; }
-        }
-        _dd_since=-1 _dd_since_apps= _dd_packed=-1 _dd_measured=-1 _dd_unpack=0 _dd_capped=-1 _dd_backoff=30
-        _dd_pressure_at=-1 _dd_pressure_backoff=30 _dd_tier_at=-1 _dd_tier_backoff=30 _dd_tier_nogain=0 _dd_tier_pushed=0 _dd_tier_back=0 _dd_tier_targets=() _dd_tier_swaps=() _dd_tier_starts=()
-        _dd_client_pending=0 _dd_client_reserve=0 _dd_client_targets=() _dd_away=
-        _dd_sample_at= _dd_sample_available=0 _dd_sample_gpu=0 _dd_sample_unevictable=0 _dd_sample_shmem=0
-        while kill -0 $$ 2>/dev/null; do
-          dd_zram_scan
-          dd_memory_read
-          if dd_cap_due; then
-            if dd_over_cap; then
-              if [ "$_dd_capped" -lt 0 ] || [ $((SECONDS - _dd_capped)) -ge "$_dd_backoff" ]; then
-                dd_zram_usage "${_dd_pids[@]}" > /dev/null
-                if [ "$_dd_rss" -ge $((512 * 1024)) ]; then
-                  dd_zram_send 1 "over the ${DD_RAM_CAP_MB} MB RAM cap, compressing the client" client
-                  [ "$_dd_game" = 1 ] && _dd_packed=$SECONDS
-                else
-                  step "RAM cap: over, client already small ($((_dd_rss / 1024)) MB resident), skipping it"
-                fi
-                dd_over_cap && dd_zram_send 1 "still over the RAM cap, compressing the rest of the session" session
-                if dd_over_cap; then
-                  _dd_backoff=$((_dd_backoff * 2 > 600 ? 600 : _dd_backoff * 2))
-                  step "RAM cap: still over after paging out, next try in ${_dd_backoff} s"
-                else
-                  _dd_backoff=30
-                fi
-                _dd_capped=$SECONDS
-              fi
-            else
-              _dd_backoff=30
+        dd_memory_tick() {
+          if [ $((SECONDS - _dd_scan_at)) -ge 5 ]; then
+            _dd_scan_at=$SECONDS
+            dd_zram_scan
+            _dd_focus=1
+            if [ "$_dd_game" = 1 ]; then
+              dd_game_focused && _dd_focus=0 || _dd_focus=$?
             fi
-          fi
-          _dd_preserved_growth=$_dd_growth _dd_preserved_fall=$_dd_fall
-          dd_client_pressure defer
-          _dd_preserved_growth=$_dd_growth _dd_preserved_fall=$_dd_fall
-          dd_session_pressure
-          dd_client_pressure_finish
-          _dd_focus=1
-          [ "$_dd_game" = 1 ] && { dd_game_focused && _dd_focus=0 || _dd_focus=$?; }
-          if [ "$_dd_game" = 1 ] && [ "$_dd_focus" = 0 ]; then
-            _dd_away=
-            if [ "$_dd_since" -lt 0 ] || [ "$_dd_since_apps" != "$_dd_apps" ]; then
-              _dd_since=$SECONDS _dd_since_apps=$_dd_apps
-            fi
-            if [ "${DD_ZRAM_CLIENT:-1}" = 1 ] && [ $((SECONDS - _dd_since)) -ge 20 ] && [ "${#_dd_pids[@]}" -gt 0 ] &&
-               { [ "$_dd_packed" -lt 0 ] || [ $((SECONDS - _dd_packed)) -ge 300 ]; } && dd_client_can_pageout; then
-              dd_zram_send 1 "compressing the client" client
-              _dd_packed=$SECONDS
-            fi
-          elif [ "$_dd_game" != 1 ]; then
-            _dd_away=
-            if [ "$_dd_packed" -ge 0 ]; then
-              _dd_unpack=1
-            fi
-            _dd_since=-1 _dd_packed=-1 _dd_tier_at=-1 _dd_tier_backoff=30 _dd_tier_nogain=0 _dd_tier_pushed=0 _dd_tier_targets=() _dd_tier_swaps=() _dd_tier_starts=()
-          else
-            _dd_since=-1
-            if [ "$_dd_focus" = 1 ]; then
-              [ -n "${_dd_away-}" ] || _dd_away=$SECONDS
+            if [ "$_dd_game" = 1 ] && [ "$_dd_focus" = 1 ]; then
+              [ -n "$_dd_away" ] || _dd_away=$SECONDS
             else
               _dd_away=
             fi
-            if [ "$_dd_packed" -ge 0 ]; then
-              _dd_unpack=1
-            fi
           fi
-          if [ "$_dd_unpack" = 1 ] &&
-             { [ "$_dd_game" = 0 ] || { [ "${_dd_ram_cap:-0}" = 0 ] && [ -n "${_dd_away-}" ] && [ $((SECONDS - _dd_away)) -ge 5 ]; }; } &&
-             ! dd_over_cap && dd_client_can_readback; then
-            if [ "$_dd_game" = 0 ]; then
-              dd_zram_send 0 "memory recovered, reading the client back" client
-            else
-              dd_zram_send 0 "the client is in front of the game, reading it back" client
-              _dd_packed=-1
-            fi
-            _dd_unpack=0
+          dd_memory_read
+          [ ! -e /tmp/.dd-zram.hold ] || return 0
+          dd_memory_relieve
+          dd_memory_note
+          [ "$_dd_need" -gt 0 ] || dd_client_readback
+        }
+        declare -A _dd_deaf=() _dd_preloaded=()
+        _dd_scan_at=-5 _dd_session_at=-1 _dd_session=() _dd_focus=1 _dd_away=
+        _dd_page_kb=$(($(getconf PAGESIZE 2>/dev/null || echo 4096) / 1024)) _dd_returned=0 _dd_polls=0 _dd_pass_at=0 _dd_goal=0
+        _dd_sample_at= _dd_freed=0 _dd_client_out=0 _dd_note_client=0 _dd_note_session=0
+        _dd_trim_at=-30 _dd_back_at=-30 _dd_forced_at=-10 _dd_full_at=-60 _dd_noted_at=-5
+        _dd_rest=0 _dd_rest_until=0 _dd_rest_available=0
+        while kill -0 $$ 2>/dev/null; do
+          dd_memory_tick
+          if [ "$_dd_available" -ge 0 ] &&
+             { [ "$_dd_available" -lt $((_dd_mem_total * 2 / 5)) ] || [ "$_dd_rate" -ge $((16 * 1024)) ]; }; then
+            nap 1
+          else
+            nap 5
           fi
-          dd_watch_nap
         done
       ) &
     fi

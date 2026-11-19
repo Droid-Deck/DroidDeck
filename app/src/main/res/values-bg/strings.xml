@@ -22,7 +22,6 @@
         <item>Добавяйте библиотеки на Steam от SD карта, USB устройство или SSD, а DroidDeck държи игрите заедно в Библиотека.</item>
         <item>Магазини ви позволява да влезете в Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io и Game Jolt, а после да инсталирате и обновявате техните игри от DroidDeck.</item>
         <item>Компоненти като FEX, DXVK и VKD3D-Proton се обновяват сами, а Proton Experimental ARM64 е по подразбиране, или Proton 11.0 ARM64, щом тази версия е инсталирана.</item>
-        <item>Компресиране на Steam, докато върви игра освобождава RAM на устройства с малко памет.</item>
         <item>Плъзнете навътре от десния ръб, за да отворите менюто на сесията: режим на тъчпад, Клавиатура за компютър, Режим на ниска латентност, профил на играта и други.</item>
         <item>Играта е бавна? Ограничете кадрите в Quick Access, после опитайте друга версия на Proton или друга предварителна настройка на FEX в компонентите на играта.</item>
         <item>Пращене или липсващ звук в играта? Опитайте превключвателя DirectAudio за игри в настройките на Steam, под Звук.</item>
@@ -578,6 +577,7 @@
     <string name="comp_nightlies_count">В Nightlies · %1$d</string>
     <string name="comp_channel_stable">Стабилна</string>
     <string name="comp_channel_nightly">Нощна</string>
+    <string name="comp_channel_test">Тестова</string>
     <string name="comp_refresh_to_list">Обновете, за да видите пакетите в Nightlies и DroidDeck.</string>
     <string name="comp_nothing_new">Нищо ново от последната проверка.</string>
     <string name="comp_import_wcp">Импортиране на .wcp</string>
@@ -626,18 +626,7 @@
     <string name="perf_gsrealtime">gamescope: GPU опашка в реално време</string>
     <string name="perf_gsrealtime_hint">Дава приоритет на GPU работата на компоситора. Може да изглади темпото на кадрите с известна цена за игрите.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Памет</string>
     <string name="perf_cap_off">Изкл.</string>
-    <string name="perf_cap_auto">По подразбиране за драйвера</string>
-    <string name="perf_zram_client">Компресиране на Steam, докато върви игра</string>
-    <string name="perf_zram_idle">Компресиране на неактивната памет на играта</string>
-    <string name="perf_zram_idle_hint">Компресира неактивната памет на играта при малко RAM. Изключете го, ако игрите замръзват за няколко секунди приблизително на всеки половин минута. Прилага се при следващото стартиране на сесията.</string>
-    <string name="perf_zram_client_hint">20 s след стартиране на игра клиентът на Steam се компресира в zRAM, за да остави повече памет на играта, и се прочита обратно, когато играта се затвори. Изключете, ако сесията се затваря малко след стартиране на игри. Ограничение на RAM по-горе пак компресира Steam, когато сесията го надхвърли.</string>
-    <string name="perf_ram_cap">Ограничение на RAM</string>
-    <string name="perf_ram_cap_hint">Прилага се, докато клиентът на Steam работи, в режим Steam или от работния плот. Когато сесията използва повече от това, Steam и след това другите поддържани процеси на сесията се компресират в zRAM. Меко ограничение: нищо не се затваря, но игрите може да засичат, докато страниците се връщат.</string>
-    <string name="perf_ram_cap_unavailable">Изисква zRAM swap, който това устройство няма.</string>
-    <string name="perf_vram_cap">Ограничение на VRAM</string>
-    <string name="perf_vram_cap_hint">Съобщава този бюджет за видео памет на игри с Direct3D 9 до 12, за да намали използването на памет. Игрите може да го надвишат; това не добавя странициране на GPU и не гарантира защита от сривове при недостиг на памет. Прилага се от следващата сесия.</string>
     <string name="perf_gpuclock">Задръжте GPU на максималната му честота</string>
     <string name="perf_gpuclock_hint">Само за Adreno. По-малко засечки, по-голямо използване на батерията и повече топлина.</string>
     <string name="perf_fixes">Корекции на сесията</string>
@@ -2313,6 +2302,18 @@
     <string name="pextra_checksum_mismatch">Несъответствие в контролната сума; изтеглянето беше изтрито</string>
     <string name="pextra_session_started">По време на изтеглянето започна сесия - спри я, преди да инсталираш инструменти за съвместимост</string>
     <string name="pextra_installing">Инсталиране на %1$s</string>
+    <string name="xproton_title">Експериментални версии</string>
+    <string name="xproton_pick">Изберете .zip с версия на Proton</string>
+    <string name="xproton_pick_zip">Инсталиране от .zip</string>
+    <string name="xproton_no_space">Няма достатъчно свободно място за тази версия на Proton</string>
+    <string name="xproton_unzipping">Разархивиране</string>
+    <string name="xproton_unpacking">Разопаковане на Proton (няколко минути)</string>
+    <string name="xproton_bad_zip">В .zip няма архив tar на Proton</string>
+    <string name="xproton_untar_failed">Разопаковането не успя (tar %1$d)</string>
+    <string name="xproton_no_tree">Архивът не съдържа версия на Proton</string>
+    <string name="xproton_place_failed">Версията на Proton не можа да бъде поставена</string>
+    <string name="xproton_remove_failed">%1$s не можа да бъде премахнат напълно</string>
+    <string name="xproton_installed">Експерименталният Proton е инсталиран. Изберете го в Steam → Свойства → Съвместимост.</string>
     <string name="pextra_install_failed">Инсталирането на %1$s се провали (код %2$d)</string>
     <string name="pextra_could_not_install">%1$s не можа да бъде инсталиран</string>
     <string name="esync_fetching">Извличане на пакета droiddeck-esync</string>

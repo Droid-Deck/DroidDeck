@@ -1089,9 +1089,10 @@ NATIVE_CHOICE = object()
 
 
 def plan_mapping(current, installed, runnable, default, auto, native=None, picks=(), overrides=None, managed=None,
-                 native_choices=(), tools=None):
+                 native_choices=(), tools=None, removed=()):
     tools = tools or {}
     runnable = {n.lower() for n in runnable}
+    removed = {n.lower() for n in removed} - runnable
     installed = set(installed)
     picks = set(picks) | {app for app, platforms in tools.items() if "linux" not in platforms}
     native = native or {}
@@ -1121,7 +1122,7 @@ def plan_mapping(current, installed, runnable, default, auto, native=None, picks
         target = native.get(app, default)
         if not name and (app in native_choices or (app in current and app in FEX_DEFAULT_APPS)):
             target = NATIVE_CHOICE
-        stale = unrunnable(name, runnable)
+        stale = unrunnable(name, runnable) or name.lower() in removed
         if name and not stale and (mine is None or name != mine):
             continue
         if target is NATIVE_CHOICE:
@@ -1161,6 +1162,26 @@ def followers(state, current):
     if "auto" in state:
         return state["auto"]
     return {app: name for app, name in current.items() if app != "0" and name == TOOL}
+
+
+REPLACING = ".droiddeck-experimental-old"
+
+
+def removed_tools(state, catalog, directory=None):
+    known = state.get("tools") if isinstance(state.get("tools"), list) else ()
+    previous = {t.get("name") for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name")}
+    removed = previous - {t["name"] for t in catalog}
+    if directory is None:
+        return removed
+    known_dirs = {t.get("name"): t.get("dir") for t in known if isinstance(t, dict)}
+    return {name for name in removed if isinstance(known_dirs.get(name), str) and
+            not os.path.lexists(os.path.join(directory, known_dirs[name])) and
+            not os.path.lexists(os.path.join(directory, REPLACING, known_dirs[name]))}
+
+
+def removed_dirs(state, removed):
+    known = state.get("tools") if isinstance(state.get("tools"), list) else ()
+    return {t["dir"] for t in known if isinstance(t, dict) and not t.get("valve") and t.get("name") in removed and isinstance(t.get("dir"), str)} - {""}
 
 
 def tool_entry(name, display, path, valve):
@@ -1248,15 +1269,19 @@ def valid_game_request(app, request):
              request["dir"] != "" and isinstance(request.get("valve"), bool)))
 
 
-def settle_game_requests(requests, state, current, catalog, missing_is_cleared=False):
+def settle_game_requests(requests, state, current, catalog, missing_is_cleared=False, removed=()):
     recorded = state.get("games_applied")
     if isinstance(recorded, dict):
         applied = dict(recorded)
     else:
         applied = dict(requests) if "tools" in state else {}
     by_name = {t["name"]: t for t in catalog}
+    gone = removed_dirs(state, removed)
     out = dict(requests)
     for app, request in requests.items():
+        if isinstance(request, dict) and request.get("valve") is False and isinstance(request.get("dir"), str) and request["dir"] in gone:
+            del out[app]
+            continue
         if not valid_game_request(app, request) or app not in applied or applied[app] != request:
             continue
         if request is None:
@@ -1281,10 +1306,10 @@ def settle_game_requests(requests, state, current, catalog, missing_is_cleared=F
     return out, out != requests
 
 
-def settled_game_requests(state, current, catalog, missing_is_cleared=False, directory=None):
+def settled_game_requests(state, current, catalog, missing_is_cleared=False, directory=None, removed=()):
     for _ in range(2):
         requests, text = read_game_requests(directory)
-        settled, moved = settle_game_requests(requests, state, current, catalog, missing_is_cleared)
+        settled, moved = settle_game_requests(requests, state, current, catalog, missing_is_cleared, removed)
         if not moved or write_game_requests(settled, text, directory):
             return settled
     return None
@@ -1579,7 +1604,8 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             set_mappings(tokens, mapping, moved)
             current.update(moved)
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
-        requests = settled_game_requests(state, current, catalog, not steam_running(), directory)
+        removed = removed_tools(state, catalog, os.path.join(steam_root, "compatibilitytools.d"))
+        requests = settled_game_requests(state, current, catalog, not steam_running(), directory, removed)
         overrides = requested_games(requests or {}, catalog)
         managed = state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else ()
         native_choices = state.get("native_choices", ())
@@ -1590,7 +1616,7 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             current.setdefault(app, "")
         changes, auto = plan_mapping(
             current, apps, names, default, followers(state, current), native, picks,
-            overrides, managed, native_choices, tool_platforms(steam_root))
+            overrides, managed, native_choices, tool_platforms(steam_root), removed)
         set_mappings(tokens, mapping, changes)
         text = serialize(tokens)
         if text != serialize(tokenize(original)):
