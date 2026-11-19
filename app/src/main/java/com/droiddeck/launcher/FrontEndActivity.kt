@@ -941,7 +941,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             return
         }
         if (GameLaunchIntent.accepts(request.action)) {
-            gameLaunchRequest.incrementAndGet()
+            val launchRequest = gameLaunchRequest.incrementAndGet()
             gameLinkReading = true
             com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
             val copy = Intent(request)
@@ -950,6 +950,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 ui.post {
                     if (intent === request && !isDestroyed) {
                         gameLinkReading = false
+                        if (launchRequest != gameLaunchRequest.get()) return@post
                         pendingGameLink = id
                         if (id == null) {
                             syncDualPanel()
