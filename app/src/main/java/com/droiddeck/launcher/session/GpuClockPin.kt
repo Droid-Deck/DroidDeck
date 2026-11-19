@@ -46,9 +46,10 @@ object GpuClockPin {
     }
 
     @Synchronized
-    fun sync(context: Context) {
-        if (!live) return
-        if (SessionPrefs.gpuClockPin(context)) hold(context) else if (pinned) clear(context)
+    fun sync(context: Context): String? {
+        if (!live) return null
+        if (!SessionPrefs.gpuClockPin(context) && pinned) clear(context)
+        return hold(context)
     }
 
     @Synchronized
