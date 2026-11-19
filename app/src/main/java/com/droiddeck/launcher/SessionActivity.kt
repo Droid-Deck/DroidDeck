@@ -5389,7 +5389,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             controls.releaseAll(); controls.visibility = View.GONE
             if (!plan.shown) { steam.cancelEditing(); steam.releaseAll() }
             steam.visibility = if (plan.shown) View.VISIBLE else View.GONE
-            com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = plan.shown
+            // Steam takes seconds to configure a newly plugged touch controller, so hiding the layout keeps it plugged.
+            com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = true
             applyTouchRouting()
             return
         }

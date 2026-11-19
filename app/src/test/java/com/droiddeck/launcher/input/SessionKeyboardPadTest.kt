@@ -96,6 +96,22 @@ class SessionKeyboardPadTest {
         assertEquals(SessionPrefs.TOUCH_OFF, routedTouchMode())
     }
 
+    @Test fun hidingTheSteamLayoutForAControllerKeepsSteamsTouchControllerPlugged() {
+        SteamTouchDevice.prepare(directory)
+        val steam = SteamTouchControls(activity, SteamTouchDevice.current!!, {}, {})
+        ReflectionHelpers.setField(activity, "steamTouchControls", steam)
+        SessionPrefs.setOscMode(activity, SessionPrefs.OSC_AUTO)
+        SessionPrefs.setSteamTouchLayout(activity, true)
+        ReflectionHelpers.setField(activity, "controlsHiddenByTap", true)
+        update()
+        assertEquals(View.GONE, steam.visibility)
+        assertTrue(SteamTouchDevice.current!!.plugged)
+        ReflectionHelpers.setField(activity, "controlsHiddenByTap", false)
+        update()
+        assertEquals(View.VISIBLE, steam.visibility)
+        assertTrue(SteamTouchDevice.current!!.plugged)
+    }
+
     @Test fun endingTheAgentForgetsSteamsKeyboard() {
         steamKeyboard(true)
         AgentGuest.stop()
