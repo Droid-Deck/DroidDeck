@@ -93,6 +93,15 @@ class LaunchCoordinatorTest {
     }
 
     @Test
+    fun dropPendingLeavesTheCurrentTicketAlone() {
+        val coordinator = LaunchCoordinator<String>()
+        val ticket = coordinator.beginLink("link")
+        coordinator.dropPending()
+        assertFalse(coordinator.hasPending())
+        assertTrue(coordinator.isCurrent(ticket))
+    }
+
+    @Test
     fun cancelAllInvalidatesEveryOutstandingTicket() {
         val coordinator = LaunchCoordinator<String>()
         val launch = coordinator.beginLaunch()

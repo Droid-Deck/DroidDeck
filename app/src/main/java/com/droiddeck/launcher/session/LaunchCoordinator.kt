@@ -70,6 +70,12 @@ internal class LaunchCoordinator<T : Any> {
         return true
     }
 
+    /** Drop any waiting link without cancelling an already-running launch ticket. */
+    fun dropPending() {
+        pending = null
+        handling = null
+    }
+
     fun cancelAll() {
         next++
         current = null

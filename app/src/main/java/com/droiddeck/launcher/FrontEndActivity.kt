@@ -2005,7 +2005,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         setIntent(intent)
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
-            dropUnresolvedLink()
+            launchCoordinator.dropPending()
             syncDualPanel()
             readIntegrationIntent(intent)
             return
@@ -2241,6 +2241,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun prepareAndLaunch(g: Library.SteamGame, key: String) {
         if (pkgStage != null) {
+            preparingGames = preparingGames - key
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return
         }
