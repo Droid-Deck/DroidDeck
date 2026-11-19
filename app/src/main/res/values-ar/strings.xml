@@ -585,7 +585,6 @@
     <string name="comp_nightlies_count">في الإصدارات الليلية · %1$d</string>
     <string name="comp_channel_stable">مستقر</string>
     <string name="comp_channel_nightly">ليلي</string>
-    <string name="comp_channel_test">تجريبي</string>
     <string name="comp_refresh_to_list">حدّث لعرض الحزم في إصدارات Nightlies وDroidDeck.</string>
     <string name="comp_nothing_new">لا جديد منذ آخر فحص.</string>
     <string name="comp_import_wcp">استيراد ملف ‎.wcp</string>

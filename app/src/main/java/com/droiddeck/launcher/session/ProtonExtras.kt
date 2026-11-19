@@ -16,7 +16,8 @@ import org.json.JSONObject
 object ProtonExtras {
     private const val TAG = "ProtonExtras"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
-    private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=15&page=%d"
+    private const val RELEASE_PAGE_SIZE = 15
+    private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=$RELEASE_PAGE_SIZE&page=%d"
     private const val RELEASE_PAGES = 5
     const val CHECK_EVERY_MS = 60L * 60 * 1000
     @Volatile
@@ -107,12 +108,6 @@ object ProtonExtras {
     fun cachedLatest(context: Context, tool: Tool): String? =
         readJson(latestFile(context)).optJSONObject(tool.id)?.optString("tag")?.ifEmpty { null }
 
-    fun testBuild(context: Context, tool: Tool): String? =
-        if (tool.id == OWN) null else testFor(installedTags(context, tool), readJson(latestFile(context)).optJSONObject(tool.id)?.optString("test")?.ifEmpty { null })
-
-    internal fun testFor(installed: List<String>, test: String?): String? =
-        test?.takeIf { it !in installed && (installed.isEmpty() || updateFor(installed, it) != null) }
-
     private val checkLock = Any()
     private const val RETRY_MS = 15L * 60 * 1000
     private const val USER_SETTINGS = "user_settings.py"
@@ -136,20 +131,18 @@ object ProtonExtras {
         }
     }
 
-    internal fun recordLatest(latest: JSONObject, tool: Tool, tag: String, test: Boolean, now: Long): Boolean {
-        if (test) return false
+    internal fun recordLatest(latest: JSONObject, tool: Tool, tag: String, now: Long): Boolean {
         val entry = latest.optJSONObject(tool.id)
         val known = entry?.optString("tag")
         if (!known.isNullOrEmpty() && compareVersions(tag, known) < 0) return false
-        val ahead = entry?.optString("test")?.takeIf { it.isNotEmpty() && compareVersions(it, tag) > 0 }
-        latest.put(tool.id, JSONObject().put("tag", tag).put("at", now).putOpt("test", ahead))
+        latest.put(tool.id, JSONObject().put("tag", tag).put("at", now))
         return true
     }
 
-    private fun record(context: Context, tool: Tool, dir: String?, tag: String, test: Boolean) {
+    private fun record(context: Context, tool: Tool, dir: String?, tag: String) {
         runCatching {
             val latest = readJson(latestFile(context))
-            if (recordLatest(latest, tool, tag, test, System.currentTimeMillis())) latestFile(context).writeText(latest.toString())
+            if (recordLatest(latest, tool, tag, System.currentTimeMillis())) latestFile(context).writeText(latest.toString())
             if (dir != null) {
                 val releases = readJson(releasesFile(context))
                 val present = toolsDir(context).list()?.toSet() ?: emptySet()
@@ -222,17 +215,17 @@ object ProtonExtras {
     }
 
     @Synchronized
-    fun install(context: Context, tool: Tool, test: Boolean = false, onProgress: (String, Int) -> Unit): String? {
+    fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
         if (installInProgress) return context.getString(R.string.pextra_busy)
         installInProgress = true
-        return try { installNow(context, tool, test, onProgress) } finally { installInProgress = false }
+        return try { installNow(context, tool, onProgress) } finally { installInProgress = false }
     }
 
-    private fun installNow(context: Context, tool: Tool, test: Boolean, onProgress: (String, Int) -> Unit): String? {
+    private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
         if (SessionState.running) return context.getString(R.string.pextra_stop_session)
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
 
-        val asset = releases(tool)?.let { pickAsset(tool, it, test && tool.id == OWN) } ?: return context.getString(R.string.pextra_no_release, tool.name)
+        val asset = releases(tool)?.let { pickAsset(tool, it) } ?: return context.getString(R.string.pextra_no_release, tool.name)
         val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
         val archive = File(downloads, "${tool.id}-${asset.name}")
         if (asset.size > 0 && archive.length() > asset.size) archive.delete()
@@ -313,7 +306,7 @@ object ProtonExtras {
             else {
                 archive.delete()
                 unqueue(context, tool)
-                record(context, tool, placed, asset.tag, test)
+                record(context, tool, placed, asset.tag)
                 if (tool.id == OWN) replaceOlder(context, tool)
                 if (EsyncPacks.enabled(context)) {
                     onProgress(context.getString(R.string.esync_fetching), -1)
@@ -375,12 +368,12 @@ object ProtonExtras {
         val all = fetch(1) ?: return null
         var page = 1
         var last = all.length()
-        var complete = last == 0
-        while (last > 0 && page < RELEASE_PAGES && (!stopAtStable || pickAsset(tool, all) == null)) {
+        var complete = last < RELEASE_PAGE_SIZE
+        while (!complete && page < RELEASE_PAGES && (!stopAtStable || pickAsset(tool, all) == null)) {
             val next = fetch(++page) ?: return null
             for (i in 0 until next.length()) all.put(next.opt(i))
             last = next.length()
-            complete = last == 0
+            complete = last < RELEASE_PAGE_SIZE
         }
         return ReleaseFetch(all, complete)
     }
@@ -392,27 +385,20 @@ object ProtonExtras {
             .flatMap { release -> assetOf(tool, release, experimental = prerelease)?.let { sequenceOf(it) } ?: emptySequence() }
             .toList()
 
-    internal fun pickAsset(tool: Tool, array: JSONArray, test: Boolean = false): Asset? {
+    internal fun pickAsset(tool: Tool, array: JSONArray): Asset? {
         val candidates = (0 until array.length()).asSequence()
             .mapNotNull { array.optJSONObject(it) }
-            .filter { !it.optBoolean("draft", false) && it.optBoolean("prerelease", false) == test }
-        if (!test) return candidates.firstNotNullOfOrNull { assetOf(tool, it) }
-        val stable = pickAsset(tool, array)?.tag ?: return null
-        return candidates
-            .filter { (tool.id == OWN || it.optString("tag_name").startsWith(tool.prefix)) && updateFor(listOf(stable), it.optString("tag_name")) != null }
-            .mapNotNull { assetOf(tool, it, requireChecksum = true, experimental = true) }
-            .maxWithOrNull { a, b -> compareVersions(a.tag, b.tag) }
+            .filter { !it.optBoolean("draft", false) && !it.optBoolean("prerelease", false) }
+        return candidates.firstNotNullOfOrNull { assetOf(tool, it) }
     }
 
     internal fun updateLatest(cache: JSONObject, tool: Tool, array: JSONArray?, now: Long) {
         if (array == null) return
-        val test = if (tool.id == OWN) pickAsset(tool, array, test = true)?.tag else null
         val tag = pickAsset(tool, array)?.tag
         if (tag == null) {
-            cache.optJSONObject(tool.id)?.remove("test")
             return
         }
-        cache.put(tool.id, JSONObject().put("tag", tag).put("at", now).putOpt("test", test))
+        cache.put(tool.id, JSONObject().put("tag", tag).put("at", now))
     }
 
     internal fun assetOf(tool: Tool, release: JSONObject, requireChecksum: Boolean = false, experimental: Boolean = false): Asset? = try {

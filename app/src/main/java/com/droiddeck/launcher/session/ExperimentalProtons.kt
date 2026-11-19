@@ -172,27 +172,30 @@ object ExperimentalProtons {
             onProgress(context.getString(R.string.xproton_unpacking), -1)
             val unpacked = File(staging, "unpacked").apply { mkdirs() }
             val type = archiveType(archive)
-            val tarball = if (type == ArchiveType.ZIP) extractTarball(archive, staging) else null
-            when {
-                tarball == null && type == ArchiveType.ZIP -> extractDirect(archive, unpacked, ArchiveType.ZIP)
-                tarball == null && type == ArchiveType.SEVEN_Z -> extractDirect(archive, unpacked, ArchiveType.SEVEN_Z)
-            }
             if (SessionState.running) return context.getString(R.string.pextra_session_started)
 
             onProgress(context.getString(R.string.xproton_unpacking), -1)
-            if (tarball != null) {
-                val status = runGuest(context, listOf("tar", "-xf", "$GUEST_TOOLS/$STAGING/${tarball.name}", "-C", "$GUEST_TOOLS/$STAGING/unpacked"))
-                tarball.delete()
-                if (status != 0) return context.getString(R.string.xproton_untar_failed, status)
-            } else if (type == ArchiveType.UNKNOWN) {
-                return context.getString(R.string.xproton_archive_invalid)
-            } else if (type == ArchiveType.TAR) {
-                val stagedArchive = File(staging, archive.name)
-                if (!archive.canonicalFile.equals(stagedArchive.canonicalFile) && !(downloaded && archive.renameTo(stagedArchive))) {
-                    archive.copyTo(stagedArchive, overwrite = true)
+            when (type) {
+                ArchiveType.ZIP -> {
+                    val tarball = extractTarball(archive, staging)
+                    if (tarball == null) {
+                        extractDirect(archive, unpacked, ArchiveType.ZIP)
+                    } else {
+                        val status = runGuest(context, listOf("tar", "-xf", "$GUEST_TOOLS/$STAGING/${tarball.name}", "-C", "$GUEST_TOOLS/$STAGING/unpacked"))
+                        tarball.delete()
+                        if (status != 0) return context.getString(R.string.xproton_untar_failed, status)
+                    }
                 }
-                val status = runGuest(context, listOf("tar", "-xf", "$GUEST_TOOLS/$STAGING/${stagedArchive.name}", "-C", "$GUEST_TOOLS/$STAGING/unpacked"))
-                if (status != 0) return context.getString(R.string.xproton_untar_failed, status)
+                ArchiveType.SEVEN_Z -> extractDirect(archive, unpacked, ArchiveType.SEVEN_Z)
+                ArchiveType.TAR -> {
+                    val stagedArchive = File(staging, archive.name)
+                    if (!archive.canonicalFile.equals(stagedArchive.canonicalFile) && !(downloaded && archive.renameTo(stagedArchive))) {
+                        archive.copyTo(stagedArchive, overwrite = true)
+                    }
+                    val status = runGuest(context, listOf("tar", "-xf", "$GUEST_TOOLS/$STAGING/${stagedArchive.name}", "-C", "$GUEST_TOOLS/$STAGING/unpacked"))
+                    if (status != 0) return context.getString(R.string.xproton_untar_failed, status)
+                }
+                ArchiveType.UNKNOWN -> return context.getString(R.string.xproton_archive_invalid)
             }
 
             val tree = buildTree(unpacked) ?: return context.getString(R.string.xproton_no_tree)

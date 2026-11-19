@@ -598,11 +598,9 @@ fun ComponentsPage(
                 if (rows.isEmpty()) EmptyLine(stringResource(R.string.comp_nothing_new))
                 for (row in rows) {
                     val idle = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
-                    val test = row.test != null && (nightlyPicked[row.id] == true || row.installed != null && row.update == null)
                     GetLine(
                         row.name,
                         when {
-                            test -> row.test!!
                             row.update != null -> stringResource(R.string.proton_update_available, row.update)
                             row.queued -> stringResource(R.string.proton_queued)
                             else -> stringResource(R.string.proton_not_installed)
@@ -611,11 +609,8 @@ fun ComponentsPage(
                         stage = if (protons.busyId == row.id) protons.stage else null,
                         enabled = idle,
                         onCancel = if (row.queued && protons.busyId == null && !protons.sessionRunning) ({ protonActions.onCancel(row.id) }) else null,
-                        action = if (!test && row.update != null) stringResource(R.string.common_update) else null,
-                        channel = if (row.test != null) ({
-                            ChannelToggle(test, enabled = idle && (row.installed == null || row.update != null), other = R.string.comp_channel_test) { nightlyPicked[row.id] = !test }
-                        }) else null,
-                    ) { if (test) protonActions.onInstallTest(row.id) else protonActions.onInstall(row.id) }
+                        action = if (row.update != null) stringResource(R.string.common_update) else null,
+                    ) { protonActions.onInstall(row.id) }
                 }
             }
             else -> {
@@ -1672,7 +1667,6 @@ class ProtonsState(
 
 class ProtonsActions(
     val onInstall: (String) -> Unit = {},
-    val onInstallTest: (String) -> Unit = {},
     val onCancel: (String) -> Unit = {},
     val onRemove: (String, String) -> Unit = { _, _ -> },
     val onRemoveOlder: (String) -> Unit = {},
@@ -1683,9 +1677,9 @@ class ProtonsActions(
 
 class ProtonRow(
     val id: String, val name: String, val installed: String?, val queued: Boolean,
-    val installedAll: List<String> = listOfNotNull(installed), val update: String? = null, val test: String? = null,
+    val installedAll: List<String> = listOfNotNull(installed), val update: String? = null,
 ) {
-    val available: Boolean get() = installed == null || update != null || test != null
+    val available: Boolean get() = installed == null || update != null
 }
 
 @Composable

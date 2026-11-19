@@ -577,7 +577,6 @@
     <string name="comp_nightlies_count">På Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Oppdater for å liste pakker på Nightlies og DroidDeck.</string>
     <string name="comp_nothing_new">Ingenting nytt siden siste sjekk.</string>
     <string name="comp_import_wcp">Importer .wcp</string>

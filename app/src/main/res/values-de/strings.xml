@@ -577,7 +577,6 @@
     <string name="comp_nightlies_count">In den Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Aktualisiere, um die Pakete in den Nightlies und bei DroidDeck aufzulisten.</string>
     <string name="comp_nothing_new">Nichts Neues seit der letzten Prüfung.</string>
     <string name="comp_import_wcp">.wcp importieren</string>

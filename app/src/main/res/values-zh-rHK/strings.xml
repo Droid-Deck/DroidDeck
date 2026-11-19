@@ -575,7 +575,6 @@
     <string name="comp_nightlies_count">Nightlies · %1$d</string>
     <string name="comp_channel_stable">穩定版</string>
     <string name="comp_channel_nightly">每夜版</string>
-    <string name="comp_channel_test">測試</string>
     <string name="comp_refresh_to_list">重新整理以列出 Nightlies 及 DroidDeck 中的軟件包。</string>
     <string name="comp_nothing_new">自上次檢查以來沒有新內容。</string>
     <string name="comp_import_wcp">匯入 .wcp</string>

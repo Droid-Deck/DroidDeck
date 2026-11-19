@@ -581,7 +581,6 @@
     <string name="comp_nightlies_count">W wersjach nightly · %1$d</string>
     <string name="comp_channel_stable">Stabilna</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Testowa</string>
     <string name="comp_refresh_to_list">Odśwież, aby wyświetlić pakiety w Nightlies i DroidDeck.</string>
     <string name="comp_nothing_new">Nic nowego od ostatniego sprawdzenia.</string>
     <string name="comp_import_wcp">Importuj .wcp</string>
