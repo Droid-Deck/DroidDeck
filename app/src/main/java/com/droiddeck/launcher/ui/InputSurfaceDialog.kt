@@ -129,7 +129,8 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
 }
 
 /** Offered when the layout being edited is shared: [create] makes the copy that Done then saves into, and [scope] describes it. */
-class InputEditorSplit(val label: String, val scope: String, val create: () -> Pair<String, String>)
+/** Turns an edit of a shared layout into a copy for one game: [copy] adds it to the library being saved, [use] picks it once that save succeeded. */
+class InputEditorSplit(val label: String, val scope: String, val copy: (InputLibrary, String, String) -> InputLibrary, val use: (String) -> Unit)
 
 @Composable
 fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> Unit,
@@ -164,8 +165,10 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
     fun leave() { if (draft.dirty) draft.confirmDiscard = true else onDismiss() }
     fun save() {
         runCatching {
-            val (layoutTarget, bindingsTarget) = split?.takeIf { splitting }?.create?.invoke() ?: (savedLayout.id to savedBindings.id)
-            InputLibraries.update(context) { latest ->
+            val copy = split?.takeIf { splitting }
+            val (layoutTarget, bindingsTarget) = if (copy != null) newInputId() to newInputId() else savedLayout.id to savedBindings.id
+            InputLibraries.update(context) { saved ->
+                val latest = copy?.copy?.invoke(saved, layoutTarget, bindingsTarget) ?: saved
                 val l = latest.layouts.first { it.id == layoutTarget }
                 val p = latest.preset(bindingsTarget)
                 val generated = draft.kitAtDefaults && OnScreenLayout.generated(l.copy(elements = emptyList(), kitless = false))
@@ -174,6 +177,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                     else l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale, kitless = draft.elements.none { KitLayout.isKit(it.id) })).withPreset(p.copy(elements = draft.actions.filterKeys { id -> KitLayout.bindsTo(id, draft.elements) },
                     clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
             }
+            copy?.use?.invoke(bindingsTarget)
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
     }
     DisposableEffect(manager) {
@@ -235,6 +239,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                 (remote || target == null) && draft.properties && element != null -> propertiesEditor(element)
                 target == null -> SettingsPage(rememberMenuHost(), savedLayout.name, ::leave) {
                     Text(stringResource(R.string.input_display_unavailable))
+                    failure?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                     if (draft.confirmDiscard) {
                         Text(stringResource(R.string.input_editor_discard), style = MaterialTheme.typography.titleSmall)
                         SecondaryButton(stringResource(R.string.input_keep_editing)) { draft.confirmDiscard = false }
@@ -245,6 +250,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                 remote -> SettingsPage(rememberMenuHost(), stringResource(R.string.input_editor_remote), ::leave, lede = editorScope) {
                     splitLabel?.let { SecondaryButton(it, compact = true, modifier = Modifier.padding(horizontal = 8.dp).testTag("input-editor-split")) { splitting = true } }
                     SurfaceToolbar(draft, ::save, ::leave, onDismiss)
+                    failure?.let { Text(it, Modifier.padding(horizontal = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                     SurfaceSelection(draft)
                     when (draft.popover) { EditorPopover.ADD -> AddRows(draft); EditorPopover.HIDDEN -> HiddenRows(draft); null -> Unit }
                 }

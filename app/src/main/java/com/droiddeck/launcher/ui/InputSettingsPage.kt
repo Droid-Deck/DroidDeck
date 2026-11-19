@@ -116,7 +116,8 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                 InputPage.HOME -> {
                     if (InputLibraries.hasPendingScreenKeyMigration(context)) InputHint(stringResource(R.string.input_import_failed))
                     if (InputLibraries.hasLibraryRecovery(context)) InputHint(stringResource(R.string.input_library_recovered))
-                    DefaultControlsGroup(host, revision, onEdit = { surface = it }, onChanged = ::changed)
+                    DefaultControlsGroup(host, revision, onEdit = { surface = it }, onChanged = ::changed,
+                        onFailure = { error = it.message ?: context.getString(R.string.input_save_failed) })
                     SettingsGroup(stringResource(R.string.drawer_page_controller)) {
                         var padType by remember { mutableStateOf(SessionPrefs.steamController(context)) }
                         ChoiceRow(host, "pad-type", stringResource(R.string.input_virtual_controller), null,
@@ -189,7 +190,8 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
 
 /** The in-game "On-screen controls" group, for games without a layout of their own. */
 @Composable
-private fun DefaultControlsGroup(host: MenuHost, revision: Int, onEdit: (Triple<String, String, String>) -> Unit, onChanged: () -> Unit) {
+private fun DefaultControlsGroup(host: MenuHost, revision: Int, onEdit: (Triple<String, String, String>) -> Unit, onChanged: () -> Unit,
+    onFailure: (Throwable) -> Unit) {
     val context = LocalContext.current
     val options = remember(revision) { ControlsChoice.options(context, null, steamMode = true) }
     val choice = remember(revision) { ControlsChoice.current(context, null, steamMode = true) }
@@ -198,7 +200,7 @@ private fun DefaultControlsGroup(host: MenuHost, revision: Int, onEdit: (Triple<
     var below by remember { mutableStateOf(SessionPrefs.unfoldedControls(context)) }
     SettingsGroup(stringResource(R.string.osc_group_for, stringResource(R.string.osc_default))) {
         ChoiceRow(host, "osc-layout", stringResource(R.string.osc_layout), null, options, choice) { id ->
-            runCatching { ControlsChoice.choose(context, null, id, desktop = false) }
+            runCatching { ControlsChoice.choose(context, null, id, desktop = false) }.onFailure(onFailure)
             onChanged()
         }
         if (choice != GameControls.STEAM) ActionRow(stringResource(R.string.osc_edit_layout), null, stringResource(R.string.ctrl_edit), {

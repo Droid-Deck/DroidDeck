@@ -190,9 +190,9 @@ class InputSettingsTest {
         compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", { closed = true }, {}, role = InputRole.PRIMARY,
             layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY),
             scope = context.getString(R.string.osc_scope_default, layout.name),
-            split = InputEditorSplit(context.getString(R.string.osc_just_this_game), "Gamepad · saved for Castle Crashers") {
-                ControlsChoice.newForGame(context, 7, "Castle Crashers", desktop = false)
-            }) } }
+            split = InputEditorSplit(context.getString(R.string.osc_just_this_game), "Gamepad · saved for Castle Crashers",
+                { lib, layoutId, bindingsId -> ControlsChoice.copyForGame(context, lib, 7, "Castle Crashers", false, layoutId, bindingsId) },
+                { bindingsId -> ControlsChoice.useForGame(context, 7, "Castle Crashers", bindingsId) }) ) } }
         compose.onNodeWithTag("input-editor-split").performClick()
         compose.onNodeWithText("Gamepad · saved for Castle Crashers").assertExists()
         compose.onNodeWithTag("input-editor-split").assertDoesNotExist()

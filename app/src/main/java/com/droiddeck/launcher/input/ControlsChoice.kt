@@ -45,14 +45,14 @@ object ControlsChoice {
         val bindings = if (steam) null else {
             val library = InputLibraries.read(context)
             val layout = library.layouts.first { it.id == id }
-            library.bindings.firstOrNull { !it.physical && it.compatible(layout) }?.id ?: newInputId().also { newId ->
+            library.bindings.firstOrNull { !it.physical && it.layoutId == layout.id && it.compatible(layout) }?.id ?: newInputId().also { newId ->
                 InputLibraries.update(context) { it.withPreset(SavedInputBindings(newId, layout.name, false, layout.id)) }
             }
         }
         if (game != null) GameControls.choose(context, game, bindings, steam, gameName)
         else {
-            SessionPrefs.setSteamTouchLayout(context, steam)
             if (bindings != null) InputLibraries.update(context) { it.selectPart(desktop, InputRole.PRIMARY, bindings) }
+            SessionPrefs.setSteamTouchLayout(context, steam)
         }
     }
 
@@ -60,7 +60,14 @@ object ControlsChoice {
     fun newForGame(context: Context, game: Long, name: String, desktop: Boolean): Pair<String, String> {
         val layoutId = newInputId()
         val bindingsId = newInputId()
-        InputLibraries.update(context) { latest ->
+        InputLibraries.update(context) { latest -> copyForGame(context, latest, game, name, desktop, layoutId, bindingsId) }
+        GameControls.choose(context, game, bindingsId, steam = false, name = name)
+        return layoutId to bindingsId
+    }
+
+    /** [latest] with a copy of the layout [game] draws now, actions included, under the given ids. Nothing is chosen for the game. */
+    fun copyForGame(context: Context, latest: InputLibrary, game: Long, name: String, desktop: Boolean, layoutId: String, bindingsId: String): InputLibrary {
+        run {
             val chosen = own(context, latest, game)
             val part = (if (chosen == null) latest else latest.selectPart(desktop, InputRole.PRIMARY, chosen)).activePart(desktop, InputRole.PRIMARY)
             val source = latest.layouts.firstOrNull { it.id == part.layout && it.editable } ?: latest.layouts.first { it.id == InputLibraries.OVERLAY }
@@ -68,11 +75,12 @@ object ControlsChoice {
                 ?: latest.bindings.firstOrNull { !it.physical && it.compatible(source) }
                 ?: SavedInputBindings(bindingsId, source.name, false, source.id)
             val title = name.trim().take(80).ifEmpty { source.name }
-            latest.withLayout(source.derived(layoutId, title)).withPreset(actions.copy(id = bindingsId, name = title, layoutId = layoutId))
+            return latest.withLayout(source.derived(layoutId, title)).withPreset(actions.copy(id = bindingsId, name = title, layoutId = layoutId))
         }
-        GameControls.choose(context, game, bindingsId, steam = false, name = name)
-        return layoutId to bindingsId
     }
+
+    /** Uses [bindingsId], made by [copyForGame], for [game] only. */
+    fun useForGame(context: Context, game: Long, name: String, bindingsId: String) = GameControls.choose(context, game, bindingsId, steam = false, name = name)
 
     /** The profile, layout and actions the editor opens for [game], or null when its layout can't be edited here. */
     fun editTarget(context: Context, game: Long?, desktop: Boolean): Triple<String, String, String>? {

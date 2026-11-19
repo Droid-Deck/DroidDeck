@@ -184,4 +184,12 @@ class GamepadGeometryTest {
             for ((slot, box) in b) assertTrue("${panel.name}: $slot", box.top >= -.5f && box.bottom <= panel.controlsHeight + .5f)
         }
     }
+
+    @Test fun gripsNeverOverlapTheClustersOnSmallTallPanels() {
+        for ((w, h) in listOf(360f to 296f, 480f to 300f, 640f to 420f, 900f to 520f)) {
+            val b = GamepadGeometry.layout(w, h, 1f, grips = true)
+            for (g in grips.filter { it in b }) for ((slot, box) in b) if (slot != g)
+                assertFalse("$w x $h: $g overlaps $slot", b.getValue(g).overlaps(box))
+        }
+    }
 }

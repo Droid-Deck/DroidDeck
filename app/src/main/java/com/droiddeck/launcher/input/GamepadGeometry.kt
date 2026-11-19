@@ -90,7 +90,7 @@ object GamepadGeometry {
             val rows = (middle.size + columns - 1) / columns
             val gridTop = h - pad - rows * buttonH - (rows - 1) * 10 * density
             middleGrid(columns, gap - 2 * gutter, gridTop)
-            if (grips) gripsBetween(boxes, w, gap - 2 * gutter, shoulderY + buttonH / 2f + gutter, gridTop - gutter, density)
+            if (grips) gripsBetween(boxes, w, w - 2 * (side * 0.74f + second / 2f) - 2 * gutter, shoulderY + buttonH / 2f + gutter, gridTop - gutter, density)
             val panelsW = min(112 * density, w - 2 * (side * 0.57f + shoulderW / 2f) - 2 * gutter)
             if (panelsW >= buttonH) boxes[Slot.PANELS] = Box(w / 2f, shoulderY, panelsW, buttonH)
         }

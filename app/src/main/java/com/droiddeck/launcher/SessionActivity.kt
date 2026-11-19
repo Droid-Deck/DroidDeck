@@ -4413,7 +4413,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             else -> getString(R.string.osc_scope_game, layoutName, name)
         }
         layoutEditorSplit = if (game != null && name != null && shared) com.droiddeck.launcher.ui.InputEditorSplit(getString(R.string.osc_just_this_game),
-            getString(R.string.osc_scope_game, layoutName, name)) { com.droiddeck.launcher.input.ControlsChoice.newForGame(this, game, name, desktop) } else null
+            getString(R.string.osc_scope_game, layoutName, name),
+            { library, layoutId, bindingsId -> com.droiddeck.launcher.input.ControlsChoice.copyForGame(this, library, game, name, desktop, layoutId, bindingsId) },
+            { bindingsId -> com.droiddeck.launcher.input.ControlsChoice.useForGame(this, game, name, bindingsId) }) else null
         releasePads()
         drawerOpen = false
         layoutEditor = target
@@ -5349,12 +5351,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun controlsPlan(): com.droiddeck.launcher.input.ControlsPresenter.Plan {
         val steam = SessionState.mode == SessionService.MODE_STEAM
+        if (!PadBridge.anyControllerConnected() && !SteamControllerBle.connected) controllerInUse = false
         return com.droiddeck.launcher.input.ControlsPresenter.plan(com.droiddeck.launcher.input.ControlsPresenter.State(
             mode = SessionPrefs.oscMode(this),
             desktop = SessionState.mode == SessionService.MODE_DESKTOP,
             virtualPad = !steam || SessionPrefs.builtinPad(this),
             covered = controlsCovered(),
-            controllerInUse = controllerInUse && (PadBridge.anyControllerConnected() || SteamControllerBle.connected),
+            controllerInUse = controllerInUse,
             hiddenByTap = controlsHiddenByTap,
             steamLayout = steam && com.droiddeck.launcher.input.GameControls.steamLayout(this, controlsGameId()),
             bottomScreen = bottomGame?.surfaceView?.parent is android.view.ViewGroup,
