@@ -27,12 +27,11 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
   case "$v" in
     SteamAppId|SteamGameId|SteamOverlayGameId|SteamClientLaunch|SteamEnv|SteamAppUser|SteamUser|STEAM_COMPAT_*) ;;
     ANDROID_*|BOOTCLASSPATH|DEX2OATBOOTCLASSPATH|SYSTEMSERVERCLASSPATH|EXTERNAL_STORAGE|ASEC_MOUNTPOINT) ;;
-    FAKE_*|SDL_*|DD_WIDTH|DD_HEIGHT|DD_VK_DRIVER|BL_WIDTH|BL_HEIGHT|BL_VK_DRIVER|WINEDLLOVERRIDES) ;;
+    FAKE_*|SDL_*|DD_WIDTH|DD_HEIGHT|DD_VK_DRIVER|WINEDLLOVERRIDES) ;;
     DISPLAY|GAMESCOPE_WAYLAND_DISPLAY|FEX_*) ;;
     TU_DEBUG|MESA_NO_ERROR|DXVK_CONFIG|DXVK_HUD|DROIDDECK_FORCE_SSBS) ;;
     mesa_glthread|vblank_mode|ZINK_*|GALLIUM_HUD|GALLIUM_THREAD) ;;
-    DD_SYNC|DD_FSYNC_FIRST|DD_SYNC_FALLBACK|BL_SYNC|BL_FSYNC_FIRST|BL_SYNC_FALLBACK) ;;
-    PROTON_NO_ESYNC|PROTON_NO_FSYNC|PROTON_NO_NTSYNC|WINEESYNC) ;;
+    DD_SYNC|DD_FSYNC_FIRST|DD_SYNC_FALLBACK|PROTON_NO_ESYNC|PROTON_NO_FSYNC|PROTON_NO_NTSYNC|WINEESYNC) ;;
     PROTON_USE_D7VK) ;;
     WINE_OFFSCREEN_CHECK_MS|WINE_CPU_TOPOLOGY|WINE_LARGE_ADDRESS_AWARE|TZ) ;;
     DXVK_LOG_LEVEL|DXVK_HDR|VKD3D_DEBUG|VKD3D_SHADER_DEBUG) ;;
@@ -54,7 +53,7 @@ drvlib() { # an Android driver folder's library: meta.json's libraryName, else l
   l=$(sed -n 's/.*"libraryName"[[:space:]]*:[[:space:]]*"\([^"/]*\)".*/\1/p' "$1/meta.json" 2>/dev/null | head -1)
   echo "${l:-libvulkan_freedreno.so}"
 }
-DRV=$(basename "$(dirname "${DD_VK_DRIVER:-${BL_VK_DRIVER:-/x/none/icd.json}}")")
+DRV=$(basename "$(dirname "${DD_VK_DRIVER:-/x/none/icd.json}")")
 DRVDIR=$APP/graphics_driver/$DRV
 if [ ! -f "$DRVDIR/$(drvlib "$DRVDIR")" ]; then
   # The runtime driver has no Android build: the one DroidDeck's display uses, else the first one installed.
@@ -81,13 +80,10 @@ export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:+$WINEDLLOVERRIDES;}d3d8,d3d9,d3d10c
 # Sync as chosen in DroidDeck (Wine sync, per-game PROTON_NO_*): ntsync is userspace ntsync (no /dev/ntsync on
 # Android) with esync as its fallback; Android has no futex_waitv, so an fsync choice runs ntsync.
 on() { case "$1" in 1|on|true|yes) return 0 ;; esac; return 1; }
-# DroidDeck builds before #2800 send these settings as BL_*, newer ones as DD_*.
-SYNC=${DD_SYNC:-${BL_SYNC:-1}}; FSYNC_FIRST=${DD_FSYNC_FIRST:-${BL_FSYNC_FIRST:-0}}
-SYNC_FALLBACK=${DD_SYNC_FALLBACK:-${BL_SYNC_FALLBACK:-1}}
 NT=1; ES=1
-[ "$SYNC" = 0 ] && NT=0
-[ "$FSYNC_FIRST" = 1 ] && NT=1
-[ "$SYNC" = 0 ] && [ "$SYNC_FALLBACK" = 0 ] && ES=0
+[ "${DD_SYNC:-1}" = 0 ] && NT=0
+[ "${DD_FSYNC_FIRST:-0}" = 1 ] && NT=1
+[ "${DD_SYNC:-1}" = 0 ] && [ "${DD_SYNC_FALLBACK:-1}" = 0 ] && ES=0
 on "${PROTON_NO_NTSYNC:-}" && NT=0
 { on "${PROTON_NO_ESYNC:-}" || [ "${WINEESYNC:-}" = 0 ]; } && ES=0
 export WINENTSYNC=$NT WINEESYNC=$ES
