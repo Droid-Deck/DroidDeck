@@ -230,6 +230,15 @@ class ProtonExtrasTest {
         assertTrue(ComponentsManager.forgetProton(context, "Experimental-Gone"))
         assertFalse(published.readLines().any { "Experimental-Gone" in it })
         assertFalse(File(originals, "Experimental-Gone").exists())
+
+        val store = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-components/store")
+        File(originals, "Experimental-Stale/11/dxvk.wcp").apply { parentFile?.mkdirs(); writeText("x") }
+        val stale = File(store, "original-Experimental-Stale-11-dxvk").apply { mkdirs(); File(this, ".complete").writeText("1\n") }
+        val other = File(store, "original-Experimental-Stale-2-11-dxvk").apply { mkdirs(); File(this, ".complete").writeText("1\n") }
+        assertTrue(ComponentsManager.forgetProton(context, "Experimental-Stale"))
+        assertFalse(stale.exists())
+        assertTrue(File(other, ".complete").isFile)
+        assertFalse(File(originals, "Experimental-Stale").exists())
     }
 
     @Test

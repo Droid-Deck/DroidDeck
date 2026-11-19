@@ -910,7 +910,13 @@ object ComponentsManager {
         val listed = File(launchDir(context), "desired.tsv").takeIf { it.isFile }
             ?.useLines { rows -> rows.any { it.split('\t').getOrNull(1) == dirName } } == true
         if ((selected || listed) && runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "forget $id", it) }.isFailure) return false
-        File(originalsDir(context), id).deleteRecursively()
+        val originals = File(originalsDir(context), id)
+        val store = File(launchDir(context), "store")
+        val unpacked = originals.listFiles().orEmpty().flatMap { version ->
+            version.listFiles().orEmpty().map { File(store, "original-$id-${version.name}-${it.name.removeSuffix(".wcp")}") }
+        }
+        if (unpacked.any { File(it, ".complete").delete(); !it.deleteRecursively() && it.exists() }) return false
+        originals.deleteRecursively()
         true
     }
 
