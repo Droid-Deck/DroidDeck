@@ -172,6 +172,9 @@ private fun DefaultStorageGroup() {
     val customLabel = SessionPrefs.defaultStorageFolderLabel(ctx).ifBlank {
         customPath.takeIf { it.isNotBlank() }?.let { File(it).name }.orEmpty()
     }
+    fun warnIfFat32(path: String) {
+        if (GameStorage.isFat32(path)) Toast.makeText(ctx, R.string.main_storage_fat32, Toast.LENGTH_LONG).show()
+    }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
         val path = InAppFilePicker.pickedPath(result.data) ?: return@rememberLauncherForActivityResult
@@ -185,7 +188,7 @@ private fun DefaultStorageGroup() {
         value = SessionPrefs.DEFAULT_STORAGE_EXTERNAL
         revision++
         open = false
-        if (GameStorage.isFat32(path)) Toast.makeText(ctx, R.string.main_storage_fat32, Toast.LENGTH_LONG).show()
+        warnIfFat32(path)
     }
     fun chooseFolder() {
         open = false
@@ -244,7 +247,7 @@ private fun DefaultStorageGroup() {
                                 SessionPrefs.clearDefaultStorageFolder(ctx)
                                 pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
                                 revision++
-                                if (GameStorage.isFat32(detected.root.path)) Toast.makeText(ctx, R.string.main_storage_fat32, Toast.LENGTH_LONG).show()
+                                warnIfFat32(detected.root.path)
                             }
                         }
                         if (customPath.isNotBlank()) {
@@ -256,7 +259,12 @@ private fun DefaultStorageGroup() {
                                     if (free >= 0) stringResource(R.string.storage_default_folder_free, gb(free))
                                     else stringResource(R.string.storage_default_folder_missing)
                                 } ?: stringResource(R.string.storage_default_folder_missing),
-                            ) { if (customTarget != null) pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL) else chooseFolder() }
+                            ) {
+                                if (customTarget != null) {
+                                    pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+                                    warnIfFat32(customTarget.root.path)
+                                } else chooseFolder()
+                            }
                         }
                         MenuItem(
                             stringResource(R.string.storage_default_choose_folder), checked = false,
