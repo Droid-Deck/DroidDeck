@@ -95,7 +95,7 @@
     <string name="input_shortcut_guide">Home / Guide</string>
     <string name="input_shortcut_back_once">Back · single tap</string>
     <string name="input_shortcut_back_twice">Back · double tap</string>
-    <string name="input_shortcut_back_modes">Back · twice in Steam, once in Desktop</string>
+    <string name="input_shortcut_back_modes">Back · 2× Steam, 1× Desktop</string>
     <string name="input_shortcut_hold_hint">In Steam mode. Holding Back also opens quick access.</string>
     <string name="input_restore_shortcut">Restore to default</string>
     <string name="input_virtual_controller">Virtual controller</string>
