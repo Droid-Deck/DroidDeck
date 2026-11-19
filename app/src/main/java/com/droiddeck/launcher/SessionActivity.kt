@@ -645,6 +645,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var layoutOptions by mutableStateOf<List<Pair<String, String>>>(emptyList())
     private var layoutChoice by mutableStateOf("")
     private var layoutEditor by mutableStateOf<Triple<String, String, String>?>(null)
+    private var layoutEditorScope: String? = null
+    private var layoutEditorSplit: com.droiddeck.launcher.ui.InputEditorSplit? = null
     private var controlsGame: Long? = null
     private var controllerInUse = false
     private var controlsHiddenByTap = false
@@ -1258,9 +1260,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         layoutEditor = null; inputSettingsOpen = false
                         refreshInputProfile(); updateOnScreenControls()
                     }, onChanged = { refreshInputProfile() }, role = InputRole.PRIMARY, layoutId = layout, bindingsId = bindings,
-                        scope = primaryInputLayout?.name?.let { name -> controlsGameName()?.let { getString(R.string.osc_scope_game, name, it) } ?: getString(R.string.osc_scope_default, name) })
+                        scope = layoutEditorScope, split = layoutEditorSplit)
                 }
                 if (inputSettingsOpen && layoutEditor == null) com.droiddeck.launcher.ui.InputSettingsDialog(
+                    desktop = loadingMode() == SessionService.MODE_DESKTOP,
                     onBack = { inputSettingsOpen = false; secondScreenPresentation?.refreshControls() },
                     onChanged = {
                         controllerSettings = ControllerPrefs.read(this@SessionActivity)
@@ -1723,10 +1726,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             layoutChoice = layoutChoice,
             onLayout = ::chooseLayout,
             onEditLayout = when {
-                layoutChoice == com.droiddeck.launcher.input.GameControls.STEAM -> if (steamTouchAvailable && onScreenButtonsVisible) ({
+                layoutChoice == com.droiddeck.launcher.input.GameControls.STEAM -> steamTouchControls?.takeIf { steamTouchAvailable && onScreenButtonsVisible && it.visibility == View.VISIBLE }?.let { view -> {
                     drawerOpen = false
-                    steamTouchControls?.startEditing()
-                }) else null
+                    view.startEditing()
+                } }
                 primaryInputLayout?.editable == true -> ({ openLayoutEditor() })
                 else -> null
             },
@@ -4370,56 +4373,50 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun controlsGameName(): String? = controlsGameId()?.let { frameGenTargetGameName() }
 
-    /** The input library with the current game's main-screen layout selected, without saving it. */
-    private fun gameLibrary(): com.droiddeck.launcher.input.InputLibrary {
-        val library = com.droiddeck.launcher.input.InputLibraries.read(this)
-        val desktop = loadingMode() == SessionService.MODE_DESKTOP
-        val chosen = com.droiddeck.launcher.input.GameControls.bindings(this, controlsGameId())
-            ?.takeIf { id -> library.bindings.any { it.id == id && !it.physical && it.layoutId?.let { l -> library.layouts.any { x -> x.id == l && x.supports(InputRole.PRIMARY) } } == true } }
-        return if (chosen == null) library else library.selectPart(desktop, InputRole.PRIMARY, chosen)
-    }
+    private fun gameLibrary(): com.droiddeck.launcher.input.InputLibrary =
+        com.droiddeck.launcher.input.ControlsChoice.library(this, controlsGameId(), loadingMode() == SessionService.MODE_DESKTOP)
 
-    private fun refreshLayoutOptions(library: com.droiddeck.launcher.input.InputLibrary) {
+    private fun refreshLayoutOptions() {
         val steam = SessionState.mode == SessionService.MODE_STEAM
-        layoutOptions = listOf(com.droiddeck.launcher.input.InputLibraries.OVERLAY to getString(R.string.osc_layout_gamepad)) +
-            (if (steam) listOf(com.droiddeck.launcher.input.GameControls.STEAM to getString(R.string.osc_layout_steam)) else emptyList()) +
-            library.layouts.filter { it.editable && it.supports(InputRole.PRIMARY) && it.id != com.droiddeck.launcher.input.InputLibraries.OVERLAY }.map { it.id to it.name }
-        layoutChoice = if (steam && com.droiddeck.launcher.input.GameControls.steamLayout(this, controlsGameId())) com.droiddeck.launcher.input.GameControls.STEAM
-            else primaryInputLayout?.id ?: com.droiddeck.launcher.input.InputLibraries.OVERLAY
+        val game = controlsGameId()
+        layoutOptions = com.droiddeck.launcher.input.ControlsChoice.options(this, game, steam, controlsGameName())
+        layoutChoice = com.droiddeck.launcher.input.ControlsChoice.current(this, game, steam, loadingMode() == SessionService.MODE_DESKTOP)
     }
 
     private fun chooseLayout(id: String) {
         val game = controlsGameId()
+        val name = controlsGameName()
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
-        val steam = id == com.droiddeck.launcher.input.GameControls.STEAM
-        runCatching {
-            val bindings = if (steam) null else {
-                var library = com.droiddeck.launcher.input.InputLibraries.read(this)
-                val layout = library.layouts.first { it.id == id }
-                library.bindings.firstOrNull { !it.physical && it.compatible(layout) }?.id ?: com.droiddeck.launcher.input.newInputId().also { newId ->
-                    library = com.droiddeck.launcher.input.InputLibraries.update(this) {
-                        it.withPreset(com.droiddeck.launcher.input.SavedInputBindings(newId, layout.name, false, layout.id))
-                    }
-                }
-            }
-            if (game != null) com.droiddeck.launcher.input.GameControls.choose(this, game, bindings, steam)
-            else {
-                SessionPrefs.setSteamTouchLayout(this, steam)
-                if (bindings != null) com.droiddeck.launcher.input.InputLibraries.update(this) { it.selectPart(desktop, InputRole.PRIMARY, bindings) }
-            }
-        }.onFailure { Log.w(TAG, "could not choose layout $id", it) }
+        val created = runCatching {
+            if (id == com.droiddeck.launcher.input.ControlsChoice.NEW) {
+                if (game != null && name != null) com.droiddeck.launcher.input.ControlsChoice.newForGame(this, game, name, desktop) else null
+            } else { com.droiddeck.launcher.input.ControlsChoice.choose(this, game, id, desktop, name); null }
+        }.onFailure { Log.w(TAG, "could not choose layout $id", it) }.getOrNull()
         releasePads()
         refreshInputProfile()
         updateOnScreenControls()
+        if (created != null) openLayoutEditor()
     }
 
     private fun openLayoutEditor() {
-        val library = gameLibrary()
+        val game = controlsGameId()
+        val name = controlsGameName()
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
-        val layout = primaryInputLayout ?: return
+        val target = com.droiddeck.launcher.input.ControlsChoice.editTarget(this, game, desktop) ?: return
+        val layoutName = com.droiddeck.launcher.input.InputLibraries.read(this).layouts.firstOrNull { it.id == target.second }?.name ?: return
+        val own = com.droiddeck.launcher.input.ControlsChoice.hasOwn(this, game)
+        val shared = com.droiddeck.launcher.input.ControlsChoice.shared(this, game)
+        layoutEditorScope = when {
+            game == null || name == null || !own -> getString(R.string.osc_scope_default, layoutName)
+            shared -> getString(R.string.osc_scope_shared, layoutName)
+            layoutName == name -> getString(R.string.osc_scope_own, name)
+            else -> getString(R.string.osc_scope_game, layoutName, name)
+        }
+        layoutEditorSplit = if (game != null && name != null && shared) com.droiddeck.launcher.ui.InputEditorSplit(getString(R.string.osc_just_this_game),
+            getString(R.string.osc_scope_game, layoutName, name)) { com.droiddeck.launcher.input.ControlsChoice.newForGame(this, game, name, desktop) } else null
         releasePads()
         drawerOpen = false
-        layoutEditor = Triple(library.activeId(desktop), layout.id, library.activePart(desktop, InputRole.PRIMARY).bindings)
+        layoutEditor = target
         inputSettingsOpen = true
     }
 
@@ -4429,7 +4426,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         inputProfile = library.compileActive(desktop, secondScreenMode.panel(this))
         stockInputProfile = library.compileStock(desktop, secondScreenMode.panel(this))
         primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY)
-        refreshLayoutOptions(library)
+        refreshLayoutOptions()
         secondaryInputLayout = library.panelLayout(desktop, secondScreenMode.panel(this))
         deckPanelLayouts = com.droiddeck.launcher.input.DeckPanel.entries.associateWith { library.panelLayout(desktop, it.bindings) }
         inputUsesLocalActions = InputControl.padControls.any { inputProfile.action(InputRole.PHYSICAL, it) !is InputAction.Native }

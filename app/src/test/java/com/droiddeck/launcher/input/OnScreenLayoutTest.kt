@@ -150,7 +150,7 @@ class OnScreenLayoutTest {
             assertEquals(box.height, ls.height * h, 1f)
             assertSquare(placed.first { it.id == "legacy:a" }, w, h)
             assertNull(placed.firstOrNull { it.control == InputControl.GUIDE || it.control == InputControl.QAM })
-            assertEquals(portrait, placed.any { it.control == InputControl.L4 })
+            assertEquals(steam && GamepadGeometry.Slot.L4 in boxes, placed.any { it.control == InputControl.L4 })
             assertInside(placed, w, h)
             val solid = placed.filter { it.kind != InputElementKind.STICK }
             for (a in solid) for (b in solid) if (a !== b) {

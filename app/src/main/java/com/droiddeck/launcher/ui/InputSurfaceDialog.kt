@@ -128,16 +128,20 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
 }
 
+/** Offered when the layout being edited is shared: [create] makes the copy that Done then saves into, and [scope] describes it. */
+class InputEditorSplit(val label: String, val scope: String, val create: () -> Pair<String, String>)
+
 @Composable
 fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> Unit,
-    role: InputRole = InputRole.SECONDARY, layoutId: String? = null, bindingsId: String? = null, scope: String? = null) {
+    role: InputRole = InputRole.SECONDARY, layoutId: String? = null, bindingsId: String? = null, scope: String? = null,
+    split: InputEditorSplit? = null) {
     val context = LocalContext.current
     val host = LocalInputActivity.current ?: context.findActivity() as? ComponentActivity
     val library = remember { InputLibraries.read(context) }
     val savedLayout = remember { library.layouts.first { it.id == (layoutId ?: library.profile(profile).parts.getValue(role).layout) } }
     val savedBindings = remember { library.preset(bindingsId ?: library.profile(profile).binding(role)) }
     val layoutUsers = library.usersOfLayout(savedLayout.id).size
-    val bindingUsers = library.usersOfBindings(savedBindings.id).size
+    var splitting by remember { mutableStateOf(false) }
     val draft = remember {
         val defaults = InputLibraries.defaultPositions(context, library, savedLayout)
         val start = if (OnScreenLayout.generated(savedLayout) && defaults != null) savedLayout.copy(elements = defaults.first +
@@ -160,9 +164,10 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
     fun leave() { if (draft.dirty) draft.confirmDiscard = true else onDismiss() }
     fun save() {
         runCatching {
+            val (layoutTarget, bindingsTarget) = split?.takeIf { splitting }?.create?.invoke() ?: (savedLayout.id to savedBindings.id)
             InputLibraries.update(context) { latest ->
-                val l = latest.layouts.first { it.id == savedLayout.id }
-                val p = latest.preset(savedBindings.id)
+                val l = latest.layouts.first { it.id == layoutTarget }
+                val p = latest.preset(bindingsTarget)
                 val generated = draft.kitAtDefaults && OnScreenLayout.generated(l.copy(elements = emptyList(), kitless = false))
                 val extras = draft.elements.filterNot { KitLayout.isKit(it.id) }
                 latest.withLayout(if (generated) l.copy(elements = extras, aspect = if (extras.isEmpty()) 0f else draft.aspect, scale = draft.layoutScale, kitless = false)
@@ -209,7 +214,8 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surface) {
             val element = draft.element
             BackHandler { if (draft.properties) draft.properties = false else leave() }
-            val editorScope = scope ?: if (layoutUsers > 1) stringResource(R.string.input_editor_shared, layoutUsers) else savedLayout.name
+            val editorScope = split?.scope?.takeIf { splitting } ?: scope ?: if (layoutUsers > 1) stringResource(R.string.input_editor_shared, layoutUsers) else savedLayout.name
+            val splitLabel = split?.label?.takeIf { !splitting }
             val propertiesEditor: @Composable (InputSurfaceElement) -> Unit = { element ->
                 var properties by remember(element.id) { mutableStateOf(element) }
                 InputActionEditor(if (draft.clickProperties) InputControl.A else element.control,
@@ -218,11 +224,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                     onBack = { draft.properties = false }, element = element, click = draft.clickProperties,
                     properties = { action ->
                         if (!draft.clickProperties) InputElementProperties(properties, action) { properties = it }
-                        if (layoutUsers > 1) Text(stringResource(R.string.input_editor_shared, layoutUsers),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 12.dp))
-                    }, detail = if (bindingUsers > 1) stringResource(R.string.input_shared_detail, savedBindings.name, bindingUsers)
-                        else "${library.profile(profile).name} · ${roleLabel(role)}", onSave = { action ->
+                    }, detail = editorScope, onSave = { action ->
                         draft.checkpoint()
                         if (draft.clickProperties) draft.clicks = draft.clicks + (element.id to action) else draft.actions = draft.actions + (element.id to action)
                         draft.elements = draft.elements.map { if (it.id == element.id) properties.copy(name = properties.name.trim().ifBlank { element.name }) else it }
@@ -240,15 +242,15 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                     }
                     PrimaryButton(stringResource(R.string.input_editor_done)) { save() }
                 }
-                remote -> SettingsPage(rememberMenuHost(), stringResource(R.string.input_editor_remote), ::leave,
-                    lede = if (layoutUsers > 1) stringResource(R.string.input_editor_shared, layoutUsers) else savedLayout.name) {
+                remote -> SettingsPage(rememberMenuHost(), stringResource(R.string.input_editor_remote), ::leave, lede = editorScope) {
+                    splitLabel?.let { SecondaryButton(it, compact = true, modifier = Modifier.padding(horizontal = 8.dp).testTag("input-editor-split")) { splitting = true } }
                     SurfaceToolbar(draft, ::save, ::leave, onDismiss)
                     SurfaceSelection(draft)
                     when (draft.popover) { EditorPopover.ADD -> AddRows(draft); EditorPopover.HIDDEN -> HiddenRows(draft); null -> Unit }
                 }
                 else -> Box(Modifier.fillMaxSize()) {
                     SurfaceCanvas(draft, transparent = host is SessionActivity && role == InputRole.PRIMARY)
-                    EditorChrome(draft, editorScope, failure, ::save, ::leave, onDismiss)
+                    EditorChrome(draft, editorScope, splitLabel, { splitting = true }, failure, ::save, ::leave, onDismiss)
                     if (draft.properties && element != null) Surface(Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(.44f),
                         color = MaterialTheme.colorScheme.surface, shadowElevation = 12.dp) {
                         propertiesEditor(element)
@@ -286,7 +288,8 @@ private fun EditorBar(modifier: Modifier = Modifier, content: @Composable RowSco
 
 /** The editor's tools over the canvas: one toolbar, a bar on the selected control, and the Add and Hidden lists. */
 @Composable
-private fun EditorChrome(draft: SurfaceDraft, scope: String, failure: String?, onSave: () -> Unit, onLeave: () -> Unit, onDiscard: () -> Unit) {
+private fun EditorChrome(draft: SurfaceDraft, scope: String, splitLabel: String?, onSplit: () -> Unit, failure: String?,
+    onSave: () -> Unit, onLeave: () -> Unit, onDiscard: () -> Unit) {
     val context = LocalContext.current
     BoxWithConstraints(Modifier.fillMaxSize()) {
         Column(Modifier.align(Alignment.TopCenter).padding(top = 10.dp).widthIn(max = maxWidth - 16.dp),
@@ -319,8 +322,11 @@ private fun EditorChrome(draft: SurfaceDraft, scope: String, failure: String?, o
                     PrimaryButton(stringResource(R.string.input_editor_done), compact = true, onClick = onSave)
                 }
             }
-            Text(scope, Modifier.background(MaterialTheme.colorScheme.background.copy(alpha = .7f), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(Modifier.background(MaterialTheme.colorScheme.background.copy(alpha = .7f), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(scope, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                splitLabel?.let { SecondaryButton(it, compact = true, modifier = Modifier.testTag("input-editor-split"), onClick = onSplit) }
+            }
             failure?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             when (draft.popover) {
                 EditorPopover.ADD -> EditorList { AddRows(draft) }

@@ -27,7 +27,7 @@ object GamepadGeometry {
 
     fun tall(w: Float, h: Float): Boolean = h >= w * 0.45f
 
-    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false, grips: Boolean = true, upright: Boolean = false,
+    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false, grips: Boolean = false, upright: Boolean = false,
         trackpads: Boolean = false): Map<Slot, Box> {
         if (w <= 0f || h <= 0f) return emptyMap()
         if (upright || portraitDock && h >= w * 0.6f && w >= 300 * density && h >= 300 * density) {
@@ -72,6 +72,7 @@ object GamepadGeometry {
                 else -> 1
             }
             middleGrid(columns, gap - 2 * gutter, shoulderY - buttonH / 2f)
+            if (grips) gripsBetween(boxes, w, gap - 2 * gutter, boxes.values.maxOf { if (it.cx in (w - gap) / 2f..(w + gap) / 2f) it.bottom else 0f } + gutter, h - pad, density)
         } else {
             val side = min(min(w * 0.5f, h * 0.70f), (w - 2 * gridButton - 2 * gutter) / 1.42f)
             val main = side * 0.62f
@@ -87,11 +88,28 @@ object GamepadGeometry {
             val gap = w - 2 * (side * 0.40f + main / 2f)
             val columns = if (gap >= 2 * gridButton) 2 else 1
             val rows = (middle.size + columns - 1) / columns
-            middleGrid(columns, gap - 2 * gutter, h - pad - rows * buttonH - (rows - 1) * 10 * density)
+            val gridTop = h - pad - rows * buttonH - (rows - 1) * 10 * density
+            middleGrid(columns, gap - 2 * gutter, gridTop)
+            if (grips) gripsBetween(boxes, w, gap - 2 * gutter, shoulderY + buttonH / 2f + gutter, gridTop - gutter, density)
             val panelsW = min(112 * density, w - 2 * (side * 0.57f + shoulderW / 2f) - 2 * gutter)
             if (panelsW >= buttonH) boxes[Slot.PANELS] = Box(w / 2f, shoulderY, panelsW, buttonH)
         }
         return boxes
+    }
+
+    /** The back grips in the gap between a landscape panel's two clusters: one row of four, or two rows of two. */
+    private fun gripsBetween(boxes: MutableMap<Slot, Box>, w: Float, span: Float, top: Float, bottom: Float, density: Float) {
+        val gap = 8 * density
+        val minimum = 44 * density
+        val rows = if ((span - 3 * gap) / 4f >= minimum) 1 else if ((span - gap) / 2f >= minimum) 2 else return
+        val perRow = 4 / rows
+        val cellW = ((span - (perRow - 1) * gap) / perRow).coerceAtMost(96 * density)
+        val cellH = ((bottom - top - (rows - 1) * gap) / rows).coerceAtMost(64 * density)
+        if (cellH < minimum) return
+        for ((i, slot) in listOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4).withIndex()) {
+            val col = i % perRow; val row = i / perRow
+            boxes[slot] = Box(w / 2f + (col - (perRow - 1) / 2f) * (cellW + gap), bottom - (rows - 1 - row) * (cellH + gap) - cellH / 2f, cellW, cellH)
+        }
     }
 
     /**

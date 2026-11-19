@@ -93,12 +93,12 @@ object KitLayout {
         fun x(ref: Float) = when {
             ref < REF_W / 3f -> safe.left + ref * unit
             ref > REF_W * 2f / 3f -> w - safe.right - (REF_W - ref) * unit
-            else -> w / 2f + (ref - REF_W / 2f) * unit
+            else -> (w / 2f + (ref - REF_W / 2f) * unit).between(safe.left + ref * unit, w - safe.right - (REF_W - ref) * unit)
         }
         fun y(ref: Float) = when {
             ref < REF_H / 3f -> safe.top + ref * unit
             ref > REF_H * 2f / 3f -> h - safe.bottom - (REF_H - ref) * unit
-            else -> h / 2f + (ref - REF_H / 2f) * unit
+            else -> (h / 2f + (ref - REF_H / 2f) * unit).between(safe.top + ref * unit, h - safe.bottom - (REF_H - ref) * unit)
         }
         val density = context.resources.displayMetrics.density
         var edge = safe.left + CORNER_DP * density
@@ -204,4 +204,7 @@ object KitLayout {
         val mm = shortSide / dpi * 25.4f
         return min(1f, MAX_HEIGHT_MM / max(mm, 1f))
     }
+
+    /** The middle band never comes closer to an edge than the edge rows' own reference spacing allows. */
+    private fun Float.between(low: Float, high: Float) = coerceIn(low, max(low, high))
 }

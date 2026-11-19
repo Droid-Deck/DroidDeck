@@ -345,6 +345,13 @@
     <string name="input_click_short">Click</string>
     <string name="osc_scope_game">%1$s · saved for %2$s</string>
     <string name="osc_scope_default">%1$s · default for games without their own</string>
+    <string name="osc_scope_own">Saved for %1$s</string>
+    <string name="osc_scope_shared">%1$s · shared with other games</string>
+    <string name="osc_just_this_game">Just this game</string>
+    <string name="osc_layout_new_for">+ New for %1$s</string>
+    <string name="osc_default">Default</string>
+    <string name="osc_games_own">Games with their own layout</string>
+    <string name="osc_use_default">Use default</string>
     <string name="osc_hidden_controller">Controller in use. Touch the screen to show the controls.</string>
     <string name="osc_steam_layout">Steam touch layout</string>
     <string name="screen_key_image">Image</string>

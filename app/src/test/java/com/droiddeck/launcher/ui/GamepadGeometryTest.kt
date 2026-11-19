@@ -33,7 +33,7 @@ class GamepadGeometryTest {
     private val grips = setOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4)
     private val portraitPanels get() = panels.take(3) + Panel("312dp phone portrait", 720, 1280, 369 / 160f)
     private fun portraitBoxes(panel: Panel) =
-        GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, portraitDock = true)
+        GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, portraitDock = true, grips = true)
 
     @Test fun everyControlIsPlacedAndPanelsOnlyWhenUpright() {
         for (panel in panels) {
@@ -171,6 +171,17 @@ class GamepadGeometryTest {
             for (i in placed.indices) for (j in i + 1 until placed.size)
                 assertFalse("${panel.name}: ${placed[i].key} overlaps ${placed[j].key}", placed[i].value.overlaps(placed[j].value))
             for ((slot, box) in b) assertTrue("${panel.name}: $slot", box.bottom <= panel.controlsHeight + .5f && box.right <= panel.width + .5f)
+        }
+    }
+
+    @Test fun landscapePanelsGiveTheGripsSlotsWithoutOverlap() {
+        for (panel in panels.filter { it.width > it.height }) {
+            val b = GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, grips = true)
+            assertTrue(panel.name, grips.all { it in b })
+            val placed = b.entries.toList()
+            for (i in placed.indices) for (j in i + 1 until placed.size)
+                assertFalse("${panel.name}: ${placed[i].key} overlaps ${placed[j].key}", placed[i].value.overlaps(placed[j].value))
+            for ((slot, box) in b) assertTrue("${panel.name}: $slot", box.top >= -.5f && box.bottom <= panel.controlsHeight + .5f)
         }
     }
 }

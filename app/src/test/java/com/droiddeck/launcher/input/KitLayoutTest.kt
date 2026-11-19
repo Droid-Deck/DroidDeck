@@ -234,8 +234,9 @@ class KitLayoutTest {
         val density = context.resources.displayMetrics.density
         for (kit in PadKit.entries) {
             val placed = KitLayout.dock(context, kit, 1080, 1300, true, InputControl.LS, InputControl.RS)
-            val boxes = GamepadGeometry.layout(1080f, 1300f, density, true)
+            val boxes = GamepadGeometry.layout(1080f, 1300f, density, true, grips = kit.steam, trackpads = kit.steam)
             assertEquals(kit.name, kit.steam && boxes.containsKey(GamepadGeometry.Slot.L4), placed.any { it.control == InputControl.L4 })
+            assertEquals(kit.name, kit.steam, placed.any { it.control == InputControl.L4 })
             assertNull(placed.firstOrNull { it.control == InputControl.GUIDE || it.control == InputControl.QAM })
             assertEquals(1, placed.count { it.id == KitLayout.DPAD_ID })
             assertTrue(placed.none { it.floating })
@@ -270,6 +271,15 @@ class KitLayoutTest {
             assertTrue("$kit face", e.getValue("legacy:a").width * 1920 / 2 >= 30 * dp - 1)
             assertTrue("$kit d-pad", e.getValue(KitLayout.DPAD_ID).width * 1920 / 2 >= 60 * dp)
             assertTrue("$kit stick", e.getValue("legacy:ls").width * 1920 / 2 >= 40 * dp)
+        }
+    }
+
+    @Test fun aTopCutoutNeverPushesTheShoulderRowIntoTheMiddleControls() {
+        for (kit in PadKit.entries) for (top in listOf(0, 20, 60, 120)) {
+            val elements = KitLayout.elements(context, kit, 1600, 900, Rect(0, top, 0, 0))
+            val lb = elements.single { it.id == "legacy:lb" }
+            val middle = elements.filter { it.id == KitLayout.DPAD_ID || it.id == "legacy:y" }
+            for (m in middle) assertTrue("$kit $top ${m.id}", m.y * 900 >= (lb.y + lb.height) * 900 - .5f || m.x * 1600 >= (lb.x + lb.width) * 1600)
         }
     }
 }

@@ -3,43 +3,7 @@ package com.droiddeck.launcher.ui
 import android.content.Context
 import android.graphics.Canvas
 import android.view.View
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.*
-
-@Composable
-internal fun InputLayoutRow(layout: SavedInputLayout, role: InputRole, detail: String?, onManage: () -> Unit, onPick: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Row(Modifier.weight(1f).focusRow(onClick = onPick).padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InputLayoutThumbnail(layout, role)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(layout.name, style = MaterialTheme.typography.titleMedium)
-                Text(detail ?: stringResource(R.string.input_layout_count, layout.elements.size),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        PadTextButton(onClick = onManage, modifier = Modifier.testTag("layout-manage-${layout.id}")) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
-    }
-}
-
-@Composable
-internal fun InputLayoutThumbnail(layout: SavedInputLayout, role: InputRole) {
-    AndroidView(factory = { InputLayoutPreviewView(it) }, modifier = Modifier.width(112.dp).height(76.dp).testTag("layout-preview-${layout.id}"),
-        update = { it.update(layout, role) })
-}
 
 internal class InputLayoutPreviewView(context: Context) : View(context) {
     private val renderer = InputSurfaceView(context)
