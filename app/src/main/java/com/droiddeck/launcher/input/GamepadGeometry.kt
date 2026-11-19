@@ -26,9 +26,9 @@ object GamepadGeometry {
 
     fun tall(w: Float, h: Float): Boolean = h >= w * 0.45f
 
-    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false, grips: Boolean = true): Map<Slot, Box> {
+    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false, grips: Boolean = true, upright: Boolean = false): Map<Slot, Box> {
         if (w <= 0f || h <= 0f) return emptyMap()
-        if (portraitDock && h >= w * 0.6f && w >= 300 * density && h >= 300 * density) {
+        if (upright || portraitDock && h >= w * 0.6f && w >= 300 * density && h >= 300 * density) {
             return portraitLayout(w, h, density, grips)
         }
         val pad = 8 * density

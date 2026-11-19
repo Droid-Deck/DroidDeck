@@ -248,4 +248,17 @@ class KitLayoutTest {
             assertEquals(kit.toString(), !kit.steam, InputControl.RS in placed)
         }
     }
+
+    @Test fun aSmallerPortraitPadKeepsTheGripsAndANarrowBottomRowNeverOverlaps() {
+        val grips = setOf("legacy:l4", "legacy:l5", "legacy:r4", "legacy:r5")
+        for (scale in listOf(.8f, 1f)) {
+            val ids = KitLayout.elements(context, PadKit.STEAM_DECK, 720, 1280, scale = scale).map { it.id }
+            assertTrue("$scale", ids.containsAll(grips))
+        }
+        for (kit in PadKit.entries) {
+            val (w, h) = 720 to 1280
+            val elements = KitLayout.elements(context, kit, w, h, Rect(120, 0, 0, 0))
+            assertEquals(kit.toString(), emptyList<Pair<String, String>>(), overlapping(elements, w, h))
+        }
+    }
 }

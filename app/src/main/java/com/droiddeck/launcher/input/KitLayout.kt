@@ -118,13 +118,18 @@ object KitLayout {
         val inner = (w - safe.left - safe.right).coerceAtLeast(1f)
         val area = (min(h * .6f, inner * 1.15f) * scale).coerceAtMost(h - safe.top - safe.bottom - row).coerceAtLeast(1f)
         val top = h - safe.bottom - row - area
-        val pad = dock(context, kit, inner.toInt(), area.toInt(), true, InputControl.LS, if (kit.steam) InputControl.RIGHT_PAD else InputControl.RS).map { e ->
+        val pad = dock(context, kit, inner.toInt(), area.toInt(), true, InputControl.LS, if (kit.steam) InputControl.RIGHT_PAD else InputControl.RS, upright = true).map { e ->
             e.copy(x = (safe.left + e.x * inner) / w, y = (top + e.y * area) / h, width = e.width * inner / w, height = e.height * area / h,
                 floating = e.kind == InputElementKind.STICK)
         }
         val specs = specs(kit)
         fun spec(control: InputControl, id: String = "legacy:${control.id}") = specs.firstOrNull { it.control == control && it.id == id }
-        val size = BUTTON_DP * density
+        val gap = GAP_DP * density
+        val leftRow = listOfNotNull(spec(InputControl.A, KEYBOARD_ID), spec(InputControl.GUIDE).takeIf { kit.steam }, spec(InputControl.L3))
+        val rightRow = listOfNotNull(spec(InputControl.QAM), spec(InputControl.GUIDE).takeIf { !kit.steam }, spec(InputControl.R3))
+        val start = safe.left + CORNER_DP * density
+        val span = (w - safe.right - gap - start - gap * (leftRow.size + rightRow.size - 1)).coerceAtLeast(1f)
+        val size = min(BUTTON_DP * density, span / (leftRow + rightRow).sumOf { (it.hw / it.hh).toDouble() }.toFloat())
         val cy = h - safe.bottom - row / 2f
         val placed = mutableListOf<InputSurfaceElement>()
         fun put(s: Spec, cx: Float) {
@@ -132,14 +137,13 @@ object KitLayout {
             placed += InputSurfaceElement(s.control, (cx - bw / 2) / w, (cy - size / 2) / h, bw / w, size / h, s.id, s.kind,
                 if (s.name == s.control.label) kit.name(s.control) else s.name, buttonShape = s.shape, icon = s.icon)
         }
-        val gap = GAP_DP * density
-        var left = safe.left + CORNER_DP * density
-        for (s in listOfNotNull(spec(InputControl.A, KEYBOARD_ID), spec(InputControl.GUIDE).takeIf { kit.steam }, spec(InputControl.L3))) {
+        var left = start
+        for (s in leftRow) {
             val bw = size * s.hw / s.hh
             put(s, left + bw / 2); left += bw + gap
         }
         var right = w - safe.right - gap
-        for (s in listOfNotNull(spec(InputControl.QAM), spec(InputControl.GUIDE).takeIf { !kit.steam }, spec(InputControl.R3))) {
+        for (s in rightRow) {
             val bw = size * s.hw / s.hh
             put(s, right - bw / 2); right -= bw + gap
         }
@@ -147,9 +151,10 @@ object KitLayout {
     }
 
     /** Controls for the panel below the game, in [GamepadGeometry]'s slots. */
-    fun dock(context: Context, kit: PadKit, width: Int, height: Int, portrait: Boolean, left: InputControl, right: InputControl): List<InputSurfaceElement> {
+    fun dock(context: Context, kit: PadKit, width: Int, height: Int, portrait: Boolean, left: InputControl, right: InputControl,
+        upright: Boolean = false): List<InputSurfaceElement> {
         val w = width.toFloat(); val h = height.toFloat()
-        val boxes = GamepadGeometry.layout(w, h, context.resources.displayMetrics.density, portrait, grips = kit.steam)
+        val boxes = GamepadGeometry.layout(w, h, context.resources.displayMetrics.density, portrait, grips = kit.steam, upright = upright)
         val placed = mutableListOf<InputSurfaceElement>()
         fun put(control: InputControl, box: GamepadGeometry.Box?, shape: InputButtonShape, id: String = "legacy:${control.id}",
             kind: InputElementKind = InputElementKind.from(control), name: String = kit.name(control)) {
