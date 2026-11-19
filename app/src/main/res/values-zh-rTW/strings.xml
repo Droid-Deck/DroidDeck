@@ -575,7 +575,6 @@
     <string name="comp_nightlies_count">Nightlies 中 · %1$d</string>
     <string name="comp_channel_stable">穩定版</string>
     <string name="comp_channel_nightly">每夜版</string>
-    <string name="comp_channel_test">測試</string>
     <string name="comp_refresh_to_list">重新整理以列出 Nightlies 和 DroidDeck 中的套件。</string>
     <string name="comp_nothing_new">自上次檢查以來沒有新內容。</string>
     <string name="comp_import_wcp">匯入 .wcp</string>
@@ -2276,12 +2275,11 @@
     <string name="pextra_session_started">下載期間有工作階段啟動；請先停止它，再安裝相容性工具</string>
     <string name="pextra_installing">正在安裝 %1$s</string>
     <string name="xproton_title">實驗版本</string>
-    <string name="xproton_pick">選擇 Proton 版本 .zip</string>
-    <string name="xproton_pick_zip">從 .zip 安裝</string>
+    <string name="xproton_install_file">從檔案安裝</string>
+    <string name="xproton_archive_unsafe">壓縮檔包含不安全的連結或路徑</string>
+    <string name="xproton_archive_invalid">不支援或無效的壓縮檔</string>
     <string name="xproton_no_space">可用空間不足，無法安裝此 Proton 版本</string>
-    <string name="xproton_unzipping">正在解壓縮</string>
     <string name="xproton_unpacking">正在解包 Proton（需要幾分鐘）</string>
-    <string name="xproton_bad_zip">.zip 中不含 Proton tar 包</string>
     <string name="xproton_untar_failed">解包失敗（tar %1$d）</string>
     <string name="xproton_no_tree">壓縮檔中不含 Proton 版本</string>
     <string name="xproton_place_failed">無法放置 Proton 版本</string>

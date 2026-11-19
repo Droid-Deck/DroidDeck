@@ -417,10 +417,12 @@ class SessionService : Service() {
             SessionPrefs.screenEffectsProfileId(SessionState.mode, resolvedGameId, SessionState.program),
         )
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
-        val gen = synchronized(stopLock) {
-            SessionState.steamClientArch = null
-            SessionState.running = true
-            ++sessionGen
+        val gen = synchronized(SessionState.startLock) {
+            synchronized(stopLock) {
+                SessionState.steamClientArch = null
+                SessionState.running = true
+                ++sessionGen
+            }
         }
         if (SessionState.stopRequested) {
             stopSession(0)

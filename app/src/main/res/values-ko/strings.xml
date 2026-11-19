@@ -575,7 +575,6 @@
     <string name="comp_nightlies_count">Nightlies 내 · %1$d</string>
     <string name="comp_channel_stable">안정판</string>
     <string name="comp_channel_nightly">나이틀리</string>
-    <string name="comp_channel_test">테스트</string>
     <string name="comp_refresh_to_list">새로 고쳐 Nightlies 및 DroidDeck의 패키지를 나열합니다.</string>
     <string name="comp_nothing_new">마지막 확인 이후 새로운 내용이 없습니다.</string>
     <string name="comp_import_wcp">.wcp 가져오기</string>
@@ -2277,12 +2276,11 @@
     <string name="pextra_session_started">다운로드 중에 세션이 시작되었습니다. 호환성 도구를 설치하기 전에 세션을 중지하세요</string>
     <string name="pextra_installing">%1$s 설치 중</string>
     <string name="xproton_title">실험용 빌드</string>
-    <string name="xproton_pick">Proton 빌드 .zip 선택</string>
-    <string name="xproton_pick_zip">.zip에서 설치</string>
+    <string name="xproton_install_file">파일에서 설치</string>
+    <string name="xproton_archive_unsafe">압축 파일에 안전하지 않은 링크 또는 경로가 포함되어 있습니다</string>
+    <string name="xproton_archive_invalid">지원되지 않거나 잘못된 압축 파일</string>
     <string name="xproton_no_space">이 Proton 빌드를 설치할 여유 공간이 부족합니다</string>
-    <string name="xproton_unzipping">압축 해제 중</string>
     <string name="xproton_unpacking">Proton 풀는 중 (몇 분 소요)</string>
-    <string name="xproton_bad_zip">.zip에 Proton tar 파일이 없습니다</string>
     <string name="xproton_untar_failed">압축 풀기 실패 (tar %1$d)</string>
     <string name="xproton_no_tree">아카이브에 Proton 빌드가 없습니다</string>
     <string name="xproton_place_failed">Proton 빌드를 배치할 수 없습니다</string>

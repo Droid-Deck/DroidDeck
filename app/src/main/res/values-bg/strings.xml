@@ -577,7 +577,6 @@
     <string name="comp_nightlies_count">В Nightlies · %1$d</string>
     <string name="comp_channel_stable">Стабилна</string>
     <string name="comp_channel_nightly">Нощна</string>
-    <string name="comp_channel_test">Тестова</string>
     <string name="comp_refresh_to_list">Обновете, за да видите пакетите в Nightlies и DroidDeck.</string>
     <string name="comp_nothing_new">Нищо ново от последната проверка.</string>
     <string name="comp_import_wcp">Импортиране на .wcp</string>
@@ -2302,12 +2301,11 @@
     <string name="pextra_session_started">По време на изтеглянето започна сесия - спри я, преди да инсталираш инструменти за съвместимост</string>
     <string name="pextra_installing">Инсталиране на %1$s</string>
     <string name="xproton_title">Експериментални версии</string>
-    <string name="xproton_pick">Изберете .zip с версия на Proton</string>
-    <string name="xproton_pick_zip">Инсталиране от .zip</string>
+    <string name="xproton_install_file">Инсталиране от файл</string>
+    <string name="xproton_archive_unsafe">Архивът съдържа опасна връзка или път</string>
+    <string name="xproton_archive_invalid">Неподдържан или невалиден архив</string>
     <string name="xproton_no_space">Няма достатъчно свободно място за тази версия на Proton</string>
-    <string name="xproton_unzipping">Разархивиране</string>
     <string name="xproton_unpacking">Разопаковане на Proton (няколко минути)</string>
-    <string name="xproton_bad_zip">В .zip няма архив tar на Proton</string>
     <string name="xproton_untar_failed">Разопаковането не успя (tar %1$d)</string>
     <string name="xproton_no_tree">Архивът не съдържа версия на Proton</string>
     <string name="xproton_place_failed">Версията на Proton не можа да бъде поставена</string>

@@ -575,7 +575,6 @@
     <string name="comp_nightlies_count">Di Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Uji</string>
     <string name="comp_refresh_to_list">Segarkan untuk melihat daftar paket di Nightlies dan DroidDeck.</string>
     <string name="comp_nothing_new">Tidak ada yang baru sejak pemeriksaan terakhir.</string>
     <string name="comp_import_wcp">Impor .wcp</string>
@@ -2277,12 +2276,11 @@
     <string name="pextra_session_started">Sesi dimulai saat pengunduhan berlangsung; hentikan sesi tersebut sebelum menginstal alat kompatibilitas</string>
     <string name="pextra_installing">Menginstal %1$s</string>
     <string name="xproton_title">Build eksperimental</string>
-    <string name="xproton_pick">Pilih .zip build Proton</string>
-    <string name="xproton_pick_zip">Instal dari .zip</string>
+    <string name="xproton_install_file">Instal dari file</string>
+    <string name="xproton_archive_unsafe">Arsip berisi tautan atau jalur yang tidak aman</string>
+    <string name="xproton_archive_invalid">Arsip tidak didukung atau tidak valid</string>
     <string name="xproton_no_space">Ruang kosong tidak cukup untuk build Proton ini</string>
-    <string name="xproton_unzipping">Mengekstrak zip</string>
     <string name="xproton_unpacking">Membuka paket Proton (beberapa menit)</string>
-    <string name="xproton_bad_zip">.zip tidak berisi tarball Proton</string>
     <string name="xproton_untar_failed">Gagal membuka paket (tar %1$d)</string>
     <string name="xproton_no_tree">Arsip tidak berisi build Proton</string>
     <string name="xproton_place_failed">Tidak dapat menempatkan build Proton</string>

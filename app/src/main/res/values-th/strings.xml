@@ -575,7 +575,6 @@
     <string name="comp_nightlies_count">ใน Nightlies · %1$d</string>
     <string name="comp_channel_stable">เสถียร</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">ทดสอบ</string>
     <string name="comp_refresh_to_list">รีเฟรชเพื่อแสดงรายการแพ็กเกจใน Nightlies และ DroidDeck</string>
     <string name="comp_nothing_new">ไม่มีอะไรใหม่ตั้งแต่การตรวจสอบครั้งล่าสุด</string>
     <string name="comp_import_wcp">นำเข้า .wcp</string>
@@ -2277,12 +2276,11 @@
     <string name="pextra_session_started">มีเซสชันเริ่มขึ้นระหว่างการดาวน์โหลด หยุดเซสชันก่อนติดตั้งเครื่องมือความเข้ากันได้</string>
     <string name="pextra_installing">กำลังติดตั้ง %1$s</string>
     <string name="xproton_title">บิลด์ทดลอง</string>
-    <string name="xproton_pick">เลือกไฟล์ .zip ของบิลด์ Proton</string>
-    <string name="xproton_pick_zip">ติดตั้งจากไฟล์ .zip</string>
+    <string name="xproton_install_file">ติดตั้งจากไฟล์</string>
+    <string name="xproton_archive_unsafe">ไฟล์เก็บถาวรมีลิงก์หรือเส้นทางที่ไม่ปลอดภัย</string>
+    <string name="xproton_archive_invalid">ไฟล์เก็บถาวรไม่รองรับหรือไม่ถูกต้อง</string>
     <string name="xproton_no_space">พื้นที่ว่างไม่เพียงพอสำหรับบิลด์ Proton นี้</string>
-    <string name="xproton_unzipping">กำลังแตกไฟล์ zip</string>
     <string name="xproton_unpacking">กำลังแตกไฟล์ Proton (ใช้เวลาไม่กี่นาที)</string>
-    <string name="xproton_bad_zip">ไฟล์ .zip ไม่มี tarball ของ Proton</string>
     <string name="xproton_untar_failed">แตกไฟล์ไม่สำเร็จ (tar %1$d)</string>
     <string name="xproton_no_tree">ไฟล์เก็บถาวรไม่มีบิลด์ Proton</string>
     <string name="xproton_place_failed">ไม่สามารถวางบิลด์ Proton ได้</string>

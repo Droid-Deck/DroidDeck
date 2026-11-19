@@ -577,7 +577,6 @@
     <string name="comp_nightlies_count">Nightlies पर · %1$d</string>
     <string name="comp_channel_stable">स्थिर</string>
     <string name="comp_channel_nightly">नाइटली</string>
-    <string name="comp_channel_test">परीक्षण</string>
     <string name="comp_refresh_to_list">Nightlies और DroidDeck के पैकेज सूचीबद्ध करने के लिए रीफ़्रेश करें।</string>
     <string name="comp_nothing_new">पिछली जांच के बाद कुछ नया नहीं है।</string>
     <string name="comp_import_wcp">.wcp इंपोर्ट करें</string>
@@ -2302,12 +2301,11 @@
     <string name="pextra_session_started">डाउनलोड के दौरान एक सेशन शुरू हुआ; कम्पैटिबिलिटी टूल इंस्टॉल करने से पहले इसे बंद करें</string>
     <string name="pextra_installing">%1$s इंस्टॉल हो रहा है</string>
     <string name="xproton_title">प्रायोगिक बिल्ड</string>
-    <string name="xproton_pick">Proton बिल्ड की .zip चुनें</string>
-    <string name="xproton_pick_zip">.zip से इंस्टॉल करें</string>
+    <string name="xproton_install_file">फ़ाइल से इंस्टॉल करें</string>
+    <string name="xproton_archive_unsafe">आर्काइव में असुरक्षित लिंक या पथ है</string>
+    <string name="xproton_archive_invalid">असमर्थित या अमान्य आर्काइव</string>
     <string name="xproton_no_space">इस Proton बिल्ड के लिए पर्याप्त खाली जगह नहीं है</string>
-    <string name="xproton_unzipping">अनज़िप हो रहा है</string>
     <string name="xproton_unpacking">Proton अनपैक हो रहा है (कुछ मिनट)</string>
-    <string name="xproton_bad_zip">.zip में Proton का कोई tar आर्काइव नहीं है</string>
     <string name="xproton_untar_failed">अनपैक करना विफल रहा (tar %1$d)</string>
     <string name="xproton_no_tree">आर्काइव में कोई Proton बिल्ड नहीं है</string>
     <string name="xproton_place_failed">Proton बिल्ड को रखा नहीं जा सका</string>

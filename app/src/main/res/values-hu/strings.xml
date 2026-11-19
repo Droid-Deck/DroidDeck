@@ -577,7 +577,6 @@
     <string name="comp_nightlies_count">A Nightliesen · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Teszt</string>
     <string name="comp_refresh_to_list">Frissítsen a Nightlies és a DroidDeck csomagjainak listázásához.</string>
     <string name="comp_nothing_new">Nincs semmi új az utolsó ellenőrzés óta.</string>
     <string name="comp_import_wcp">.wcp importálása</string>
@@ -2302,12 +2301,11 @@
     <string name="pextra_session_started">Egy munkamenet elindult a letöltés közben; állítsa le a kompatibilitási eszközök telepítése előtt</string>
     <string name="pextra_installing">%1$s telepítése</string>
     <string name="xproton_title">Kísérleti buildek</string>
-    <string name="xproton_pick">Válassz egy Proton-build .zip fájlt</string>
-    <string name="xproton_pick_zip">Telepítés .zip fájlból</string>
+    <string name="xproton_install_file">Telepítés fájlból</string>
+    <string name="xproton_archive_unsafe">Az archívum nem biztonságos hivatkozást vagy útvonalat tartalmaz</string>
+    <string name="xproton_archive_invalid">Nem támogatott vagy érvénytelen archívum</string>
     <string name="xproton_no_space">Nincs elég szabad hely ehhez a Proton-buildhez</string>
-    <string name="xproton_unzipping">Kicsomagolás</string>
     <string name="xproton_unpacking">A Proton kibontása (néhány perc)</string>
-    <string name="xproton_bad_zip">A .zip nem tartalmaz Proton tar-csomagot</string>
     <string name="xproton_untar_failed">A kibontás nem sikerült (tar %1$d)</string>
     <string name="xproton_no_tree">Az archívum nem tartalmaz Proton-buildet</string>
     <string name="xproton_place_failed">Nem sikerült elhelyezni a Proton-buildet</string>

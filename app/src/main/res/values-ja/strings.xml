@@ -575,7 +575,6 @@
     <string name="comp_nightlies_count">Nightlies内 · %1$d</string>
     <string name="comp_channel_stable">安定版</string>
     <string name="comp_channel_nightly">ナイトリー</string>
-    <string name="comp_channel_test">テスト</string>
     <string name="comp_refresh_to_list">更新してNightliesとDroidDeckのパッケージを一覧表示します。</string>
     <string name="comp_nothing_new">前回の確認以降、新しいものはありません。</string>
     <string name="comp_import_wcp">.wcpをインポート</string>
@@ -2277,12 +2276,11 @@
     <string name="pextra_session_started">ダウンロード中にセッションが開始されました。停止してから互換性ツールをインストールしてください</string>
     <string name="pextra_installing">%1$sをインストール中</string>
     <string name="xproton_title">試験版ビルド</string>
-    <string name="xproton_pick">Protonビルドの.zipを選択</string>
-    <string name="xproton_pick_zip">.zipからインストール</string>
+    <string name="xproton_install_file">ファイルからインストール</string>
+    <string name="xproton_archive_unsafe">アーカイブに安全でないリンクまたはパスが含まれています</string>
+    <string name="xproton_archive_invalid">未対応または無効なアーカイブ</string>
     <string name="xproton_no_space">このProtonビルド用の空き容量が足りません</string>
-    <string name="xproton_unzipping">解凍中</string>
     <string name="xproton_unpacking">Protonを展開中（数分かかります）</string>
-    <string name="xproton_bad_zip">.zipにProtonのtarballが含まれていません</string>
     <string name="xproton_untar_failed">展開に失敗しました（tar %1$d）</string>
     <string name="xproton_no_tree">アーカイブにProtonビルドが含まれていません</string>
     <string name="xproton_place_failed">Protonビルドを配置できませんでした</string>
