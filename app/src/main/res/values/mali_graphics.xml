@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mali_path_choice">Mali graphics</string>
+    <string name="mali_path_bridge">MaliBridge</string>
+    <string name="mali_path_venus">Venus</string>
+    <string name="mali_path_selected">Mali graphics: %1$s</string>
+    <string name="mali_bridge_unsupported">MaliBridge requires a usable Mali GPU node on this device.</string>
+    <string name="mali_bridge_missing">MaliBridge server is missing. Reinstall DroidDeck with MaliBridge support.</string>
+    <string name="mali_venus_missing">Venus driver or renderer is missing. Reinstall DroidDeck with Venus support.</string>
+    <string name="mali_venus_old_vulkan">Venus requires host Vulkan 1.2 or newer; this device reports %1$s. Choose another Mali graphics option.</string>
+    <string name="mali_venus_start_failed">Venus renderer could not start. See the session logs.</string>
+</resources>

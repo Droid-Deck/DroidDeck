@@ -66,6 +66,20 @@ class SessionEndHintTest {
     }
 
     @Test
+    fun maliFailureKeepsItsSpecificReason() {
+        assertEquals("Venus lacks nullDescriptor required by Zink.",
+            hintText(log("== mali graphics failed: Venus lacks nullDescriptor required by Zink.\n== steam exited rc=69\n")))
+        try {
+            SessionState.failureCode = "MALI_GRAPHICS_FAILED"
+            SessionState.failureMessage = "MaliBridge is unavailable."
+            assertEquals("MaliBridge is unavailable.", ReflectionHelpers.getField<String>(exitHint(-1), "text"))
+        } finally {
+            SessionState.failureCode = null
+            SessionState.failureMessage = null
+        }
+    }
+
+    @Test
     fun sigillOnArm64IncludesTheExperimentalX64Fallback() {
         SessionState.steamClientArch = "arm64"
 

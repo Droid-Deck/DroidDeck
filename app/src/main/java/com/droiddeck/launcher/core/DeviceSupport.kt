@@ -18,8 +18,7 @@ object DeviceSupport {
     internal fun graphicsAvailable(adreno: Boolean, powerVrReady: Boolean): Boolean = adreno || powerVrReady
 
     fun vkBridge(context: Context): Boolean =
-        bridgeUsable() && !com.droiddeck.launcher.session.VenusComponent.wanted(context) &&
-            com.droiddeck.launcher.session.SessionPrefs.vkBridge(context)
+        com.droiddeck.launcher.session.SessionPrefs.vkBridge(context)
 
     fun mali(): Boolean = isMali
 
@@ -33,8 +32,9 @@ object DeviceSupport {
     fun openDriverActive(context: Context): Boolean {
         if (adreno()) return false
         if (com.droiddeck.launcher.session.VenusComponent.wanted(context)) return false
-        if (bridgeUsable() && com.droiddeck.launcher.session.SessionPrefs.vkBridge(context)) return false
+        if (com.droiddeck.launcher.session.SessionPrefs.vkBridge(context)) return false
         val linux = com.droiddeck.launcher.session.SessionPrefs.linuxDriver(context).ifEmpty { return false }
+        if (mali() && com.droiddeck.launcher.gpu.LinuxVulkanDriverManager(context).isMaliCompatible(linux)) return true
         return com.droiddeck.launcher.gpu.DriverPairs.isNonAdreno(com.droiddeck.launcher.gpu.DriverBundle.containing(context, linux, true)?.id)
     }
 

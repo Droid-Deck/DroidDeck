@@ -227,7 +227,7 @@ internal fun SetupPanel(
     val runtimeOk = s.ready && !s.busy && !s.removalPending
     val checks = listOf(gpuOk, runtimeOk, !limitBlocks, signedIn)
     val passing = checks.count { it }
-    var showChecks by rememberSaveable { mutableStateOf(s.vkBridge) }
+    var showChecks by rememberSaveable { mutableStateOf(DeviceSupport.mali()) }
     Rise(0, Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().bumpers(
@@ -244,7 +244,10 @@ internal fun SetupPanel(
             val listing = searching && query.isNotBlank()
             val fixed = tab == CONTROLLER_TAB && !listing
             Column(modifier = Modifier.weight(1f).fillMaxWidth().then(if (fixed) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(bottom = if (fixed) 0.dp else 24.dp)) {
-                if (listing) SettingsSearchResults(query) { section -> pick(section.ordinal) }
+                if (listing) SettingsSearchResults(query) { section ->
+                    if (section == SettingsSection.OVERVIEW) showChecks = true
+                    pick(section.ordinal)
+                }
                 else when (tab) {
                     OVERVIEW_TAB -> {
                         // Setup's "Safe mode" row, under the GPU row while the bridge is on and can be used here.
@@ -272,17 +275,13 @@ internal fun SetupPanel(
                                     else stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
                                 },
                                 divider = divider || bridgeModeRow,
-                                action = if (s.adreno) null else { {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        SecondaryButton(
-                                            stringResource(if (s.venus) R.string.setup_gpu_venus_on else R.string.setup_gpu_venus_off),
-                                            enabled = !s.sessionRunning, compact = true, onClick = { a.onVenus(!s.venus) },
-                                        )
-                                        SecondaryButton(
-                                            stringResource(if (s.vkBridge) R.string.setup_gpu_bridge_on else R.string.setup_gpu_bridge_off),
-                                            enabled = !s.sessionRunning, compact = true, onClick = { a.onVkBridge(!s.vkBridge) },
-                                        )
-                                    }
+                                action = if (!DeviceSupport.mali()) null else { {
+                                    ChoiceChip(
+                                        host, "mali-graphics", stringResource(R.string.mali_path_choice),
+                                        com.droiddeck.launcher.session.MaliGraphicsMode.entries.map { it to stringResource(it.label) },
+                                        s.maliGraphicsMode, enabled = !s.sessionRunning && !s.runtimeActionsBlocked,
+                                        onPick = a.onMaliGraphicsMode,
+                                    )
                                 } },
                             )
                             if (bridgeModeRow) CheckRow(

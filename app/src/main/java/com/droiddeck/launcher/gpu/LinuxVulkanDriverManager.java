@@ -54,6 +54,10 @@ public class LinuxVulkanDriverManager {
         return isInstalled(id) ? new File(getDriverDir(id), ICD_NAME).getAbsolutePath() : null;
     }
 
+    public boolean isMaliCompatible(String id) {
+        return isInstalled(id) && new File(getDriverDir(id), "libvulkan_panfrost.so").isFile();
+    }
+
     public List<String> enumerateInstalledDrivers() {
         ArrayList<String> ids = new ArrayList<>();
         File[] dirs = rootDir.listFiles();

@@ -32,6 +32,18 @@ import org.robolectric.util.ReflectionHelpers
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE, shadows = [DriverMenusAutoTest.XclipseDriver::class])
 class DriverMenusAutoTest {
+    @Test fun overallDriverModeChangesPreserveEveryMaliChoice() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val menus = DriverMenus(activity, Handler(Looper.getMainLooper()))
+        for (choice in com.droiddeck.launcher.session.MaliGraphicsMode.entries) {
+            SessionPrefs.setMaliGraphicsMode(activity, choice)
+            menus.setMode(false)
+            menus.setMode(true)
+            menus.ensureAuto(force = true)
+            assertEquals(choice, SessionPrefs.maliGraphicsMode(activity))
+        }
+    }
+
     @Implements(SystemVulkanDriver::class)
     class XclipseDriver {
         companion object {
