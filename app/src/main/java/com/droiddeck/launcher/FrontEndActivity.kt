@@ -3025,6 +3025,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 android.widget.Toast.makeText(this, getString(R.string.main_storage_not_usable, problem), android.widget.Toast.LENGTH_LONG).show()
                 return
             }
+            if (GameStorage.isFat32(path)) android.widget.Toast.makeText(this, R.string.main_storage_fat32, android.widget.Toast.LENGTH_LONG).show()
         }
         SessionPrefs.setGameStorage(this, path, label)
         gameStorage = path
