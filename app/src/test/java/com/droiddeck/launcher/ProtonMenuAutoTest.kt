@@ -7,6 +7,7 @@ import android.os.Looper
 import androidx.compose.ui.geometry.Rect
 import com.droiddeck.launcher.frontend.AutoComponents
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.ExperimentalProtons
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SessionPhase
@@ -25,7 +26,9 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
@@ -60,7 +63,7 @@ class ProtonMenuAutoTest {
         menu.protonProblem = null
         menu.protonStage = null
         menu.protonPercent = -1
-        menu.installer = { tool, _, progress ->
+        menu.installer = { tool, progress ->
             progress("Installing ${tool.name}", 50)
             install("${tool.prefix}-11-12")
             null
@@ -86,6 +89,67 @@ class ProtonMenuAutoTest {
         File(this, "toolmanifest.vdf").writeText("\"manifest\" { \"commandline\" \"/proton %verb%\" }")
         File(this, "compatibilitytool.vdf").writeText("\"from_oslist\" \"windows\"")
         File(this, "proton").apply { writeText(""); setExecutable(true) }
+    }
+
+    private fun prerelease(tag: String) = ExperimentalProtons.Release(tag, "$tag.tar.xz", "https://github.com/o/r/releases/download/$tag/$tag.tar.xz", null, 1L)
+
+    private fun recreatedMenu(refreshes: AtomicInteger, tag: String) = ProtonMenu(activity, Handler(Looper.getMainLooper())) { idle }.apply {
+        installer = menu.installer
+        latestCheck = { false }
+        experimentalRefresh = {
+            refreshes.incrementAndGet()
+            listOf(prerelease(tag))
+        }
+    }
+
+    @Test
+    fun aRecreatedMenuJoinsTheRunningRefresh() {
+        idle = false
+        val started = CountDownLatch(1)
+        val gate = CountDownLatch(1)
+        val refreshes = AtomicInteger()
+        menu.latestCheck = { false }
+        menu.experimentalRefresh = {
+            started.countDown()
+            gate.await(5, TimeUnit.SECONDS)
+            listOf(prerelease("first"))
+        }
+        menu.checkUpdates()
+        assertTrue(started.await(5, TimeUnit.SECONDS))
+        val recreated = recreatedMenu(refreshes, "second")
+        recreated.checkUpdates()
+        gate.countDown()
+        waitUntil { recreated.experimentalReleases.map { it.tag } == listOf("first") }
+        assertEquals(0, refreshes.get())
+        recreated.checkUpdates()
+        waitUntil { recreated.experimentalReleases.map { it.tag } == listOf("second") }
+        assertEquals(1, refreshes.get())
+    }
+
+    @Test
+    fun aFinishedRefreshIsPublishedBeforeTheNextOneStarts() {
+        idle = false
+        val finished = CountDownLatch(1)
+        val refreshes = AtomicInteger()
+        menu.experimentalReleases = emptyList()
+        menu.latestCheck = { false }
+        menu.experimentalRefresh = {
+            finished.countDown()
+            listOf(prerelease("older"))
+        }
+        menu.checkUpdates()
+        assertTrue(finished.await(5, TimeUnit.SECONDS))
+        val recreated = recreatedMenu(refreshes, "newer")
+        repeat(20) {
+            recreated.checkUpdates()
+            Thread.sleep(10)
+        }
+        assertEquals(0, refreshes.get())
+        assertTrue(recreated.experimentalReleases.isEmpty())
+        waitUntil { recreated.experimentalReleases.map { it.tag } == listOf("older") }
+        recreated.checkUpdates()
+        waitUntil { recreated.experimentalReleases.map { it.tag } == listOf("newer") }
+        assertEquals(1, refreshes.get())
     }
 
     private fun waitUntil(done: () -> Boolean) {
@@ -116,7 +180,7 @@ class ProtonMenuAutoTest {
 
     @Test fun downloadsWaitForTheSessionNetworkPowerAndOtherInstallWork() {
         install("DroidDeck-Proton-11-11.1")
-        menu.installer = { tool, _, _ -> attempts.add(tool.id); "failed" }
+        menu.installer = { tool, _ -> attempts.add(tool.id); "failed" }
         SessionState.running = true
         menu.ensureAutoUpdates()
         SessionState.running = false
@@ -139,11 +203,11 @@ class ProtonMenuAutoTest {
     @Test fun aFinishedInstallStartsTheComponentCheckAndAFailedOneDoesNot() {
         var checks = 0
         val watched = ProtonMenu(activity, Handler(Looper.getMainLooper()), onInstalled = { checks++ }) { idle }
-        watched.installer = { tool, _, _ -> install("${tool.prefix}-11-12"); null }
+        watched.installer = { tool, _ -> install("${tool.prefix}-11-12"); null }
         watched.installProton("droiddeck")
         waitUntil { watched.protonBusyId == null && checks == 1 }
         assertEquals(1, checks)
-        watched.installer = { _, _, _ -> "failed" }
+        watched.installer = { _, _ -> "failed" }
         watched.installProton("ge")
         waitUntil { watched.protonBusyId == null }
         assertEquals(1, checks)
@@ -152,7 +216,7 @@ class ProtonMenuAutoTest {
     @Test fun aFailedUpdateDoesNotLoopOrBlockOtherInstalledFamilies() {
         val ge = install("GE-Proton11-11")
         install("DroidDeck-Proton-11-11.1")
-        menu.installer = { tool, _, _ ->
+        menu.installer = { tool, _ ->
             attempts.add(tool.id)
             if (tool.id == "ge") throw IllegalStateException("download failed")
             install("${tool.prefix}-11-12")
@@ -171,7 +235,7 @@ class ProtonMenuAutoTest {
 
     @Test fun anUninstalledRuntimeOrCurrentProtonDoesNotStartADownload() {
         install("DroidDeck-Proton-11-12")
-        menu.installer = { tool, _, _ -> attempts.add(tool.id); null }
+        menu.installer = { tool, _ -> attempts.add(tool.id); null }
         menu.ensureAutoUpdates()
         assertTrue(attempts.isEmpty())
         install("GE-Proton11-11")
@@ -183,12 +247,12 @@ class ProtonMenuAutoTest {
 
     @Test fun aFailedReleaseIsNotRetriedAfterRecreatingTheLauncher() {
         install("DroidDeck-Proton-11-11.1")
-        menu.installer = { tool, _, _ -> attempts.add(tool.id); "failed" }
+        menu.installer = { tool, _ -> attempts.add(tool.id); "failed" }
         menu.ensureAutoUpdates()
         waitUntil { menu.protonBusyId == null }
         val recreated = Robolectric.buildActivity(Activity::class.java).setup().get()
         val next = ProtonMenu(recreated, Handler(Looper.getMainLooper()))
-        next.installer = { tool, _, _ -> attempts.add(tool.id); "failed" }
+        next.installer = { tool, _ -> attempts.add(tool.id); "failed" }
         next.ensureAutoUpdates()
         assertNull(next.protonBusyId)
         assertEquals(listOf("droiddeck"), attempts)
@@ -208,7 +272,7 @@ class ProtonMenuAutoTest {
     }
 
     @Test fun droidDeckProtonIsInstalledWhenMissingUnlessTheUserRemovedIt() {
-        menu.installer = { tool, test, _ -> attempts.add(if (test) "test" else tool.id); install("${tool.prefix}-11-12"); null }
+        menu.installer = { tool, _ -> attempts.add(tool.id); install("${tool.prefix}-11-12"); null }
         ProtonExtras.setDeclined(activity, true)
         menu.ensureAutoUpdates()
         assertNull(menu.protonBusyId)
@@ -222,11 +286,11 @@ class ProtonMenuAutoTest {
         menu.removeProton("droiddeck")
         waitUntil { menu.protonBusyId == null }
         assertTrue(ProtonExtras.declined(activity))
-        menu.installer = { _, _, _ -> "failed" }
+        menu.installer = { _, _ -> "failed" }
         menu.installProton("droiddeck")
         waitUntil { menu.protonBusyId == null }
         assertTrue(ProtonExtras.declined(activity))
-        menu.installer = { tool, _, _ -> install("${tool.prefix}-11-12"); null }
+        menu.installer = { tool, _ -> install("${tool.prefix}-11-12"); null }
         menu.installProton("droiddeck")
         waitUntil { menu.protonBusyId == null }
         assertFalse(ProtonExtras.declined(activity))
@@ -236,7 +300,7 @@ class ProtonMenuAutoTest {
         install("DroidDeck-Proton-11-11.1")
         val launcher = Robolectric.buildActivity(FrontEndActivity::class.java).get()
         val protons = ReflectionHelpers.getField<ProtonMenu>(launcher, "protons")
-        protons.installer = { tool, _, _ -> attempts.add(tool.id); "failed" }
+        protons.installer = { tool, _ -> attempts.add(tool.id); "failed" }
         Motion.refresh(launcher)
         LaunchOrigin.mark(Rect(0f, 0f, 100f, 100f), "game")
         launcher.startActivity(Intent(launcher, SessionActivity::class.java))

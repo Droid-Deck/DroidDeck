@@ -581,7 +581,6 @@
     <string name="comp_nightlies_count">В Nightlies · %1$d</string>
     <string name="comp_channel_stable">Стабильная</string>
     <string name="comp_channel_nightly">Ночная</string>
-    <string name="comp_channel_test">Тестовая</string>
     <string name="comp_refresh_to_list">Обновите, чтобы увидеть пакеты в Nightlies и DroidDeck.</string>
     <string name="comp_nothing_new">С момента последней проверки нового нет.</string>
     <string name="comp_import_wcp">Импорт .wcp</string>
@@ -2354,12 +2353,11 @@
     <string name="pextra_session_started">Во время загрузки запустилась сессия; остановите ее перед установкой инструментов совместимости</string>
     <string name="pextra_installing">Установка %1$s</string>
     <string name="xproton_title">Экспериментальные сборки</string>
-    <string name="xproton_pick">Выберите .zip со сборкой Proton</string>
-    <string name="xproton_pick_zip">Установить из .zip</string>
+    <string name="xproton_install_file">Установить из файла</string>
+    <string name="xproton_archive_unsafe">Архив содержит небезопасную ссылку или путь</string>
+    <string name="xproton_archive_invalid">Неподдерживаемый или недействительный архив</string>
     <string name="xproton_no_space">Недостаточно свободного места для этой сборки Proton</string>
-    <string name="xproton_unzipping">Распаковка архива</string>
     <string name="xproton_unpacking">Распаковка Proton (несколько минут)</string>
-    <string name="xproton_bad_zip">В .zip нет архива tar с Proton</string>
     <string name="xproton_untar_failed">Не удалось распаковать (tar %1$d)</string>
     <string name="xproton_no_tree">В архиве нет сборки Proton</string>
     <string name="xproton_place_failed">Не удалось разместить сборку Proton</string>

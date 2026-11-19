@@ -605,7 +605,6 @@
     <string name="comp_nightlies_count">On the Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stable</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Refresh to list packages on the Nightlies and DroidDeck releases.</string>
     <string name="comp_nothing_new">Nothing new since the last check.</string>
     <string name="comp_import_wcp">Import .wcp</string>
@@ -2544,12 +2543,11 @@
     <string name="pextra_session_started">A session started during the download; stop it before installing compatibility tools</string>
     <string name="pextra_installing">Installing %1$s</string>
     <string name="xproton_title">Experimental builds</string>
-    <string name="xproton_pick">Pick a Proton build .zip</string>
-    <string name="xproton_pick_zip">Install from .zip</string>
+    <string name="xproton_install_file">Install from file</string>
+    <string name="xproton_archive_unsafe">Archive contains an unsafe link or path</string>
+    <string name="xproton_archive_invalid">Unsupported or invalid archive</string>
     <string name="xproton_no_space">Not enough free space for this Proton build</string>
-    <string name="xproton_unzipping">Unzipping</string>
     <string name="xproton_unpacking">Unpacking Proton (a few minutes)</string>
-    <string name="xproton_bad_zip">The .zip holds no Proton tarball</string>
     <string name="xproton_untar_failed">Unpacking failed (tar %1$d)</string>
     <string name="xproton_no_tree">The archive holds no Proton build</string>
     <string name="xproton_place_failed">Could not place the Proton build</string>

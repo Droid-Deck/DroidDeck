@@ -577,7 +577,6 @@
     <string name="comp_nightlies_count">På Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Opdater for at se pakker på Nightlies og DroidDeck.</string>
     <string name="comp_nothing_new">Intet nyt siden sidste kontrol.</string>
     <string name="comp_import_wcp">Importer .wcp</string>
@@ -2302,12 +2301,11 @@
     <string name="pextra_session_started">En session startede under downloadet; stop den før du installerer kompatibilitetsværktøjer</string>
     <string name="pextra_installing">Installerer %1$s</string>
     <string name="xproton_title">Eksperimentelle builds</string>
-    <string name="xproton_pick">Vælg en Proton-build som .zip</string>
-    <string name="xproton_pick_zip">Installer fra .zip</string>
+    <string name="xproton_install_file">Installer fra fil</string>
+    <string name="xproton_archive_unsafe">Arkivet indeholder et usikkert link eller en sti</string>
+    <string name="xproton_archive_invalid">Ikke-understøttet eller ugyldigt arkiv</string>
     <string name="xproton_no_space">Der er ikke nok ledig plads til denne Proton-build</string>
-    <string name="xproton_unzipping">Udpakker zip</string>
     <string name="xproton_unpacking">Udpakker Proton (nogle få minutter)</string>
-    <string name="xproton_bad_zip">Filen .zip indeholder ingen Proton-tarball</string>
     <string name="xproton_untar_failed">Udpakning mislykkedes (tar %1$d)</string>
     <string name="xproton_no_tree">Arkivet indeholder ingen Proton-build</string>
     <string name="xproton_place_failed">Kunne ikke placere Proton-builden</string>

@@ -579,7 +579,6 @@
     <string name="comp_nightlies_count">Pe versiunile nightly · %1$d</string>
     <string name="comp_channel_stable">Stabilă</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Reîmprospătează pentru a lista pachetele din Nightlies și DroidDeck.</string>
     <string name="comp_nothing_new">Nimic nou de la ultima verificare.</string>
     <string name="comp_import_wcp">Importă .wcp</string>
@@ -2328,12 +2327,11 @@
     <string name="pextra_session_started">O sesiune a pornit în timpul descărcării; oprește-o înainte de a instala instrumente de compatibilitate</string>
     <string name="pextra_installing">Se instalează %1$s</string>
     <string name="xproton_title">Versiuni experimentale</string>
-    <string name="xproton_pick">Alege un .zip cu o versiune Proton</string>
-    <string name="xproton_pick_zip">Instalează din .zip</string>
+    <string name="xproton_install_file">Instalează din fișier</string>
+    <string name="xproton_archive_unsafe">Arhiva conține o legătură sau o cale nesigură</string>
+    <string name="xproton_archive_invalid">Arhivă neacceptată sau nevalidă</string>
     <string name="xproton_no_space">Nu există suficient spațiu liber pentru această versiune Proton</string>
-    <string name="xproton_unzipping">Se dezarhivează</string>
     <string name="xproton_unpacking">Se despachetează Proton (câteva minute)</string>
-    <string name="xproton_bad_zip">Fișierul .zip nu conține nicio arhivă tar Proton</string>
     <string name="xproton_untar_failed">Despachetarea a eșuat (tar %1$d)</string>
     <string name="xproton_no_tree">Arhiva nu conține nicio versiune Proton</string>
     <string name="xproton_place_failed">Versiunea Proton nu a putut fi plasată</string>

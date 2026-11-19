@@ -577,7 +577,6 @@
     <string name="comp_nightlies_count">In den Nightlies · %1$d</string>
     <string name="comp_channel_stable">Stabil</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Test</string>
     <string name="comp_refresh_to_list">Aktualisiere, um die Pakete in den Nightlies und bei DroidDeck aufzulisten.</string>
     <string name="comp_nothing_new">Nichts Neues seit der letzten Prüfung.</string>
     <string name="comp_import_wcp">.wcp importieren</string>
@@ -2294,12 +2293,11 @@
     <string name="pextra_session_started">Während des Downloads wurde eine Sitzung gestartet; beende sie, bevor du Kompatibilitätstools installierst</string>
     <string name="pextra_installing">%1$s wird installiert</string>
     <string name="xproton_title">Experimentelle Builds</string>
-    <string name="xproton_pick">Proton-Build als .zip auswählen</string>
-    <string name="xproton_pick_zip">Aus .zip installieren</string>
+    <string name="xproton_install_file">Aus Datei installieren</string>
+    <string name="xproton_archive_unsafe">Das Archiv enthält einen unsicheren Link oder Pfad</string>
+    <string name="xproton_archive_invalid">Nicht unterstütztes oder ungültiges Archiv</string>
     <string name="xproton_no_space">Nicht genug freier Speicher für diesen Proton-Build</string>
-    <string name="xproton_unzipping">Wird entpackt</string>
     <string name="xproton_unpacking">Proton wird entpackt (einige Minuten)</string>
-    <string name="xproton_bad_zip">Die .zip enthält kein Proton-Tarball</string>
     <string name="xproton_untar_failed">Entpacken fehlgeschlagen (tar %1$d)</string>
     <string name="xproton_no_tree">Das Archiv enthält keinen Proton-Build</string>
     <string name="xproton_place_failed">Der Proton-Build konnte nicht abgelegt werden</string>

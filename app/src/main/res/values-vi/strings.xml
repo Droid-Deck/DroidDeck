@@ -575,7 +575,6 @@
     <string name="comp_nightlies_count">Trên Nightlies · %1$d</string>
     <string name="comp_channel_stable">Ổn định</string>
     <string name="comp_channel_nightly">Nightly</string>
-    <string name="comp_channel_test">Thử nghiệm</string>
     <string name="comp_refresh_to_list">Làm mới để liệt kê các gói trên Nightlies và DroidDeck.</string>
     <string name="comp_nothing_new">Không có gì mới từ lần kiểm tra trước.</string>
     <string name="comp_import_wcp">Nhập tệp .wcp</string>
@@ -2277,12 +2276,11 @@
     <string name="pextra_session_started">Một phiên đã bắt đầu trong khi tải; hãy dừng nó trước khi cài công cụ tương thích</string>
     <string name="pextra_installing">Đang cài %1$s</string>
     <string name="xproton_title">Bản dựng thử nghiệm</string>
-    <string name="xproton_pick">Chọn tệp .zip bản dựng Proton</string>
-    <string name="xproton_pick_zip">Cài đặt từ .zip</string>
+    <string name="xproton_install_file">Cài đặt từ tệp</string>
+    <string name="xproton_archive_unsafe">Tệp lưu trữ chứa liên kết hoặc đường dẫn không an toàn</string>
+    <string name="xproton_archive_invalid">Tệp lưu trữ không được hỗ trợ hoặc không hợp lệ</string>
     <string name="xproton_no_space">Không đủ dung lượng trống cho bản dựng Proton này</string>
-    <string name="xproton_unzipping">Đang giải nén zip</string>
     <string name="xproton_unpacking">Đang giải nén Proton (vài phút)</string>
-    <string name="xproton_bad_zip">Tệp .zip không chứa tarball Proton</string>
     <string name="xproton_untar_failed">Giải nén thất bại (tar %1$d)</string>
     <string name="xproton_no_tree">Tệp lưu trữ không chứa bản dựng Proton</string>
     <string name="xproton_place_failed">Không thể đặt bản dựng Proton</string>
