@@ -378,12 +378,13 @@ object ProtonExtras {
         return ReleaseFetch(all, complete)
     }
 
-    internal fun assets(tool: Tool, array: JSONArray, prerelease: Boolean): List<Asset> =
-        (0 until array.length()).asSequence()
-            .mapNotNull { array.optJSONObject(it) }
-            .filter { !it.optBoolean("draft", false) && it.optBoolean("prerelease", false) == prerelease }
-            .flatMap { release -> assetOf(tool, release, experimental = prerelease)?.let { sequenceOf(it) } ?: emptySequence() }
-            .toList()
+    internal fun assets(tool: Tool, array: JSONArray, prerelease: Boolean): List<Asset> {
+        val releases = (0 until array.length()).mapNotNull { array.optJSONObject(it) }.filter { !it.optBoolean("draft", false) }
+        val stableAt = releases.filter { !it.optBoolean("prerelease", false) }.maxOfOrNull { it.optString("published_at") }.orEmpty()
+        return releases
+            .filter { it.optBoolean("prerelease", false) == prerelease && (!prerelease || it.optString("published_at") > stableAt) }
+            .mapNotNull { assetOf(tool, it, experimental = prerelease) }
+    }
 
     internal fun pickAsset(tool: Tool, array: JSONArray): Asset? {
         val candidates = (0 until array.length()).asSequence()
@@ -406,7 +407,7 @@ object ProtonExtras {
         val entries = assets?.let { list -> (0 until list.length()).mapNotNull { list.optJSONObject(it) } }.orEmpty()
         entries.sortedBy { it.optString("name") }.filter {
             val name = it.optString("name")
-            if (experimental && tool.id == OWN) name.matches(Regex("(?i).+\\.tar\\.[^/]+$")) else tool.assetPattern.containsMatchIn(name)
+            if (experimental && tool.id == OWN) name.startsWith(release.optString("tag_name")) && name.matches(Regex("(?i).+\\.tar\\.[^/]+$")) else tool.assetPattern.containsMatchIn(name)
         }.mapNotNull { archive ->
             val name = archive.optString("name")
             val stem = name.substringBefore(".tar")

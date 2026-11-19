@@ -1648,7 +1648,7 @@ private fun ExperimentalProtonGroup(protons: ProtonsState, actions: ProtonsActio
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 8.dp)) {
-                SmallButton(stringResource(R.string.setup_install), enabled = idle, onClick = actions.onExperimentalFile)
+                SmallButton(stringResource(R.string.xproton_install_file), enabled = idle, onClick = actions.onExperimentalFile)
             }
         }
     }

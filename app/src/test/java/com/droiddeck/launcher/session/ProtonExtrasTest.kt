@@ -30,7 +30,7 @@ class ProtonExtrasTest {
         .apply { if (digest != null) put("digest", digest) }
 
     private fun release(tag: String, vararg assets: JSONObject, prerelease: Boolean = false, draft: Boolean = false) = JSONObject()
-        .put("tag_name", tag).put("prerelease", prerelease).put("draft", draft)
+        .put("tag_name", tag).put("prerelease", prerelease).put("draft", draft).put("published_at", "2026-11-12T00:00:00Z")
         .put("assets", JSONArray().apply { assets.forEach { put(it) } })
 
     private fun droiddeckRelease(ver: String, prerelease: Boolean = false) = release(

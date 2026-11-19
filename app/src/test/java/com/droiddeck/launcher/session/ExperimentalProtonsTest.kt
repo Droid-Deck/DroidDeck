@@ -36,10 +36,12 @@ class ExperimentalProtonsTest {
     fun releaseRowsOnlyUsePublishedPrereleaseTarAssets() {
         val tool = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
         val releases = JSONArray("""
-            [{"tag_name":"old","prerelease":false,"assets":[{"name":"aarch64.tar.gz","browser_download_url":"https://example/old"}]},
-             {"tag_name":"pre","prerelease":true,"assets":[{"name":"aarch64.tar.gz","browser_download_url":"https://example/pre"}]},
-             {"tag_name":"draft","draft":true,"prerelease":true,"assets":[{"name":"aarch64.tar.gz","browser_download_url":"https://example/draft"}]},
-             {"tag_name":"no-tar","prerelease":true,"assets":[{"name":"checksums.sha512sum","browser_download_url":"https://example/sum"}]}]
+            [{"tag_name":"stable","prerelease":false,"published_at":"2026-11-10T00:00:00Z","assets":[{"name":"stable-aarch64.tar.gz","browser_download_url":"https://example/stable"}]},
+             {"tag_name":"pre","prerelease":true,"published_at":"2026-11-12T00:00:00Z","assets":[{"name":"pre-aarch64.tar.xz","browser_download_url":"https://example/pre"}]},
+             {"tag_name":"superseded","prerelease":true,"published_at":"2026-10-25T00:00:00Z","assets":[{"name":"superseded-aarch64.tar.gz","browser_download_url":"https://example/superseded"}]},
+             {"tag_name":"sources","prerelease":true,"published_at":"2026-11-13T00:00:00Z","assets":[{"name":"wine-gecko-x86.tar.xz","browser_download_url":"https://example/sources"}]},
+             {"tag_name":"draft","draft":true,"prerelease":true,"published_at":"2026-11-14T00:00:00Z","assets":[{"name":"draft-aarch64.tar.gz","browser_download_url":"https://example/draft"}]},
+             {"tag_name":"no-tar","prerelease":true,"published_at":"2026-11-15T00:00:00Z","assets":[{"name":"no-tar.sha512sum","browser_download_url":"https://example/sum"}]}]
         """.trimIndent())
         assertEquals(listOf("pre"), ProtonExtras.assets(tool, releases, true).map { it.tag })
     }
