@@ -22,7 +22,6 @@
         <item>SD 카드, USB 드라이브, SSD에서 Steam 라이브러리를 추가할 수 있으며, DroidDeck이 게임을 라이브러리에 함께 모아 줍니다.</item>
         <item>스토어에서는 Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io, Game Jolt에 로그인하고 DroidDeck에서 해당 게임을 설치하고 업데이트할 수 있습니다.</item>
         <item>FEX, DXVK, VKD3D-Proton 같은 구성 요소는 스스로 업데이트되며, 기본값은 Proton Experimental ARM64이고 Proton 11.0 ARM64 빌드가 설치되면 그쪽이 기본값이 됩니다.</item>
-        <item>게임 실행 중 Steam 압축은 메모리가 부족한 기기에서 RAM을 확보해 줍니다.</item>
         <item>오른쪽 가장자리에서 안쪽으로 스와이프하면 세션 메뉴가 열립니다. 터치패드 모드, PC 키보드, 저지연 모드, 게임 프로필 등이 있습니다.</item>
         <item>게임이 느린가요? 빠른 액세스에서 프레임 레이트를 제한한 다음, 게임의 구성 요소에서 다른 Proton 버전이나 FEX 프리셋을 시도해 보세요.</item>
         <item>게임 소리가 지직거리거나 나오지 않나요? Steam 설정의 오디오에서 게임에서 DirectAudio 사용 토글을 시도해 보세요.</item>
@@ -624,18 +623,7 @@
     <string name="perf_gsrealtime">gamescope: 실시간 GPU 큐</string>
     <string name="perf_gsrealtime_hint">컴포지터 GPU 작업의 우선순위를 높입니다. 프레임 타임 안정성을 개선할 수 있지만 게임 성능의 일부를 소모합니다.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">메모리</string>
     <string name="perf_cap_off">끄기</string>
-    <string name="perf_cap_auto">드라이버 기본값</string>
-    <string name="perf_zram_client">게임 실행 중 Steam 압축</string>
-    <string name="perf_zram_idle">유휴 게임 메모리 압축</string>
-    <string name="perf_zram_idle_hint">RAM이 부족할 때 유휴 게임 메모리를 압축합니다. 게임이 약 30초마다 몇 초씩 멈추면 끄세요. 다음 세션을 시작할 때 적용됩니다.</string>
-    <string name="perf_zram_client_hint">게임이 시작되고 20초 후 Steam 클라이언트를 zRAM으로 압축해 게임에 더 많은 메모리를 남기고, 게임이 종료되면 다시 읽어 들입니다. 게임 시작 직후 세션이 종료되면 이 옵션을 끄세요. 위의 RAM 제한을 설정하면 세션이 이를 초과할 때 여전히 Steam을 압축합니다.</string>
-    <string name="perf_ram_cap">RAM 제한</string>
-    <string name="perf_ram_cap_hint">Steam 모드나 데스크톱에서 Steam 클라이언트가 실행되는 동안 적용됩니다. 세션이 이 값보다 많이 사용하면 Steam과 세션의 다른 지원 프로세스를 차례로 zRAM으로 압축합니다. 소프트 제한이므로 종료되는 것은 없지만, 페이지를 다시 읽어 들이는 동안 게임이 끊길 수 있습니다.</string>
-    <string name="perf_ram_cap_unavailable">zRAM 스왑이 필요하지만 이 기기에는 없습니다.</string>
-    <string name="perf_vram_cap">VRAM 제한</string>
-    <string name="perf_vram_cap_hint">메모리 사용량을 줄이도록 Direct3D 9~12 게임에 이 비디오 메모리 예산을 알립니다. 게임은 예산을 초과할 수 있으며, GPU 페이징을 추가하거나 메모리 부족으로 인한 충돌 방지를 보장하지 않습니다. 다음 세션부터 적용됩니다.</string>
     <string name="perf_gpuclock">GPU를 최고 클럭으로 유지</string>
     <string name="perf_gpuclock_hint">Adreno에만 해당됩니다. 끊김이 줄어들지만 전력 소모와 발열이 증가합니다.</string>
     <string name="perf_fixes">세션 수정</string>

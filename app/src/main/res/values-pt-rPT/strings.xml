@@ -22,7 +22,6 @@
         <item>Adicione bibliotecas Steam de um cartão SD, unidade USB ou SSD, e o DroidDeck mantém os jogos juntos na sua Biblioteca.</item>
         <item>Lojas permite iniciar sessão no Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io e Game Jolt, e depois instalar e atualizar os jogos deles a partir do DroidDeck.</item>
         <item>Componentes como FEX, DXVK e VKD3D-Proton atualizam-se sozinhos, e o Proton Experimental ARM64 é o predefinido, ou o Proton 11.0 ARM64 quando essa versão estiver instalada.</item>
-        <item>Comprimir o Steam durante um jogo liberta RAM em dispositivos com pouca memória.</item>
         <item>Deslize a partir do limite direito para abrir o menu da sessão: modo de painel tátil, Teclado de PC, Modo de baixa latência, perfil do jogo e mais.</item>
         <item>O jogo está lento? Limite a taxa de fotogramas no Acesso rápido e experimente outra versão do Proton ou outra predefinição do FEX nos componentes do jogo.</item>
         <item>Áudio do jogo com estalidos ou ausente? Experimente a opção DirectAudio para jogos nas definições do Steam, em Áudio.</item>
@@ -628,18 +627,7 @@
     <string name="perf_gsrealtime">gamescope: fila de GPU em tempo real</string>
     <string name="perf_gsrealtime_hint">Dá prioridade ao trabalho de GPU do compositor. Pode suavizar o ritmo de fotogramas, com algum custo para os jogos.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memória</string>
     <string name="perf_cap_off">Desativado</string>
-    <string name="perf_cap_auto">Predefinição do controlador</string>
-    <string name="perf_zram_client">Comprimir o Steam durante um jogo</string>
-    <string name="perf_zram_idle">Comprimir memória inativa do jogo</string>
-    <string name="perf_zram_idle_hint">Comprime a memória inativa do jogo quando há pouca RAM. Desative se os jogos bloquearem durante alguns segundos aproximadamente a cada meio minuto. Aplica-se no próximo início da sessão.</string>
-    <string name="perf_zram_client_hint">20 s após o início de um jogo, o cliente Steam é comprimido na zRAM para deixar mais memória ao jogo, e é lido de volta quando o jogo fecha. Desative se a sessão fechar pouco depois de os jogos iniciarem. Um limite de RAM acima continua a comprimir o Steam quando a sessão o ultrapassa.</string>
-    <string name="perf_ram_cap">Limite de RAM</string>
-    <string name="perf_ram_cap_hint">Aplica-se enquanto o cliente Steam está em execução, no modo Steam ou a partir do ambiente de trabalho. Quando a sessão utiliza mais do que isto, o Steam e depois os outros processos suportados da sessão são comprimidos na zRAM. Um limite flexível: nada é fechado, mas os jogos podem ter soluços enquanto as páginas são repostas.</string>
-    <string name="perf_ram_cap_unavailable">Requer swap em zRAM, que este dispositivo não tem.</string>
-    <string name="perf_vram_cap">Limite de VRAM</string>
-    <string name="perf_vram_cap_hint">Comunica este orçamento de memória de vídeo aos jogos Direct3D 9 a 12 para reduzir a utilização de memória. Os jogos podem excedê-lo; isto não adiciona paginação da GPU nem garante proteção contra falhas por falta de memória. Aplica-se na próxima sessão.</string>
     <string name="perf_gpuclock">Manter a GPU na frequência máxima</string>
     <string name="perf_gpuclock_hint">Apenas Adreno. Menos soluços, mais consumo de bateria e mais calor.</string>
     <string name="perf_fixes">Correções da sessão</string>

@@ -22,7 +22,6 @@
         <item>Lägg till Steam-bibliotek från ett SD-kort, USB-minne eller SSD, så håller DroidDeck ihop spelen i ditt Bibliotek.</item>
         <item>Butiker låter dig logga in på Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io och Game Jolt och sedan installera och uppdatera deras spel från DroidDeck.</item>
         <item>Komponenter som FEX, DXVK och VKD3D-Proton uppdaterar sig själva, och Proton Experimental ARM64 är standard, eller Proton 11.0 ARM64 när den versionen är installerad.</item>
-        <item>Komprimera Steam medan ett spel körs frigör RAM på enheter med lite minne.</item>
         <item>Svep in från högerkanten för att öppna sessionsmenyn: pekplattsläge, PC-tangentbord, låg latens, spelprofil med mera.</item>
         <item>Går spelet långsamt? Begränsa bildfrekvensen i Snabbåtkomst och prova sedan en annan Proton-version eller FEX-förinställning i spelets komponenter.</item>
         <item>Knaster eller saknat ljud i spelet? Prova växlaren DirectAudio för spel i Steam-inställningarna under Ljud.</item>
@@ -626,18 +625,7 @@
     <string name="perf_gsrealtime">gamescope: GPU-kö i realtid</string>
     <string name="perf_gsrealtime_hint">Prioriterar kompositorns GPU-arbete. Kan jämna ut bildtakten till viss kostnad för spelen.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Minne</string>
     <string name="perf_cap_off">Av</string>
-    <string name="perf_cap_auto">Drivrutinens standard</string>
-    <string name="perf_zram_client">Komprimera Steam medan ett spel körs</string>
-    <string name="perf_zram_idle">Komprimera spelets inaktiva minne</string>
-    <string name="perf_zram_idle_hint">Komprimerar spelets inaktiva minne när RAM-minnet är lågt. Stäng av om spel fryser några sekunder ungefär var halvminut. Gäller nästa gång sessionen startar.</string>
-    <string name="perf_zram_client_hint">20 s efter att ett spel startat komprimeras Steam-klienten till zRAM för att ge spelet mer minne, och läses tillbaka när spelet stängs. Stäng av om sessionen stängs strax efter att spel startar. En RAM-gräns ovan komprimerar fortfarande Steam när sessionen överskrider den.</string>
-    <string name="perf_ram_cap">RAM-gräns</string>
-    <string name="perf_ram_cap_hint">Gäller medan Steam-klienten körs, i Steam-läge eller från skrivbordet. När sessionen använder mer än detta komprimeras Steam och sedan sessionens övriga processer som stöds till zRAM. En mjuk gräns: inget stängs, men spel kan hacka medan sidor läses tillbaka.</string>
-    <string name="perf_ram_cap_unavailable">Kräver zRAM-swap, vilket den här enheten saknar.</string>
-    <string name="perf_vram_cap">VRAM-gräns</string>
-    <string name="perf_vram_cap_hint">Rapporterar denna videominnesbudget till Direct3D 9 till 12-spel för att minska minnesanvändningen. Spel kan överskrida den; detta lägger inte till sidväxling av GPU-minne och garanterar inte skydd mot krascher vid minnesbrist. Gäller från nästa session.</string>
     <string name="perf_gpuclock">Håll GPU:n på dess högsta klockfrekvens</string>
     <string name="perf_gpuclock_hint">Bara Adreno. Färre hack, högre batteriförbrukning och mer värme.</string>
     <string name="perf_fixes">Sessionsfixar</string>
