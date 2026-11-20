@@ -487,13 +487,17 @@ class InputLibraryTest {
         assertEquals(256, upgraded.layouts.size)
     }
 
-    @Test fun aGamepadWithOnlyAddedKeysIsNotKeptTwice() {
+    @Test fun aLayoutWithAllKitControlsRemovedStaysKeyOnly() {
         val fresh = InputLibraries.read(context)
         val key = InputSurfaceElement(InputControl.A, .4f, .1f, .08f, .15f, "jump", name = "Jump")
         val old = JSONObject(InputLibraries.encode(fresh.withLayout(fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = listOf(key), aspect = 2f))))
             .put("version", 14)
         prefs.edit().putString("library", old.toString()).commit()
-        assertTrue(InputLibraries.read(context).layouts.none { it.name.endsWith("(old layout)") })
+        val upgraded = InputLibraries.read(context)
+        val active = requireNotNull(upgraded.activeLayout(false, InputRole.PRIMARY))
+        assertEquals(listOf(key), active.elements)
+        assertTrue(active.kitless)
+        assertTrue(OnScreenLayout.generated(upgraded.layouts.single { it.id == InputLibraries.OVERLAY }))
     }
 
     @Test fun versionTenStockPanelsReturnToGrayOnce() {

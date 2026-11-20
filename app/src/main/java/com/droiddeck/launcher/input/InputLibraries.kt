@@ -32,7 +32,7 @@ object InputLibraries {
         if (version < 12) library = barStockLayouts(library)
         if (version < 13) library = LegacyScreenKeyMigration.pin(library)
         if (version < 14) library = deckGamepadSurfaces(context, library)
-        if (version < 15) library = kitGamepads(context, library)
+        if (version < 15) library = kitGamepads(context, library, version)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -239,14 +239,17 @@ object InputLibraries {
         return library.withLayout(saved.copy(elements = InputStockLayouts.gamepad(leftPad, rightStick))).validate()
     }
 
-    private fun kitGamepads(context: Context, library: InputLibrary): InputLibrary {
+    private fun kitGamepads(context: Context, library: InputLibrary, version: Int): InputLibrary {
         fun old(layout: SavedInputLayout) = (layout.origin ?: layout.id).let { it == OVERLAY || it.startsWith("migrated.layout.") }
         fun follow(layout: SavedInputLayout): SavedInputLayout {
             val extras = layout.elements.filterNot { KitLayout.isKit(it.id) }
             return layout.copy(elements = extras, origin = if (layout.id == OVERLAY) null else OVERLAY, aspect = if (extras.isEmpty()) 0f else layout.aspect, scale = 1f)
         }
         val positioned = library.layouts.filter { layout ->
-            old(layout) && layout.elements.any { KitLayout.isKit(it.id) } && !stockLegacyGeometry(context, layout)
+            if (!old(layout)) return@filter false
+            val hasKit = layout.elements.any { KitLayout.isKit(it.id) }
+            if (hasKit) !stockLegacyGeometry(context, layout)
+            else version == 14 && layout.aspect > 0f
         }
         val inPlace = positioned.fold(library.copy(layouts = library.layouts.map { if (old(it) && it !in positioned) follow(it) else it })) { acc, layout ->
             acc.withLayout(layout.copy(kitless = true))

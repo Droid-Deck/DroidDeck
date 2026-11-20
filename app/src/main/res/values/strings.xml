@@ -332,11 +332,11 @@
     <string name="osc_layout_steam_detail">Each game\'s touch controls from Steam. Steam games only; edit them in Steam.</string>
     <string name="osc_layout_steam_unavailable">Steam touch controls only work in games launched through Steam, so these are shown instead.</string>
     <string name="osc_layout_detail_game">Just for %1$s</string>
+    <string name="osc_try_new_layout">Try the new layout</string>
+    <string name="osc_restore_previous_layout">Restore previous layout</string>
     <string name="osc_delete_layout">Delete layout</string>
     <string name="osc_edit_layout">Edit layout</string>
     <string name="osc_show">Show</string>
-    <string name="osc_try_new_layout">Try the new layout</string>
-    <string name="osc_restore_previous_layout">Restore previous layout</string>
     <string name="osc_rear_buttons">Rear buttons</string>
     <string name="osc_trackpads">Trackpads</string>
     <string name="osc_more">More controller settings</string>
