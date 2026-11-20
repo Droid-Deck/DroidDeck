@@ -106,13 +106,14 @@ static const char *scaling_name(int m) {
 }
 static int spatial_mode(int m) { return m >= 3 && m <= 8; }
 static int cas_active(const struct fx_settings *s) { return s->cas_on && s->cas_pct > 0; }
+static int deband_active(const struct fx_settings *s) { return s->deband_on && s->deband_pct > 0; }
 static int effect_count(const struct fx_settings *s) {
-    return (s->aa_mode != 0) + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + s->deband_on;
+    return (s->aa_mode != 0) + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + deband_active(s);
 }
 
 static int effect_pass_count(const struct fx_settings *s) {
     int aa_passes = s->aa_mode == 2 ? 3 : (s->aa_mode == 1 ? 1 : 0);
-    return aa_passes + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + s->deband_on;
+    return aa_passes + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + deband_active(s);
 }
 
 static void log_settings(const struct fx_settings *s) {
@@ -136,7 +137,7 @@ static void log_settings(const struct fx_settings *s) {
     if (s->hdr_on) n += snprintf(line + n, sizeof(line) - n, ", HDR on");
     if (s->ntsc) n += snprintf(line + n, sizeof(line) - n, ", NTSC on");
     if (s->crt) n += snprintf(line + n, sizeof(line) - n, ", CRT on");
-    if (s->deband_on) n += snprintf(line + n, sizeof(line) - n, ", Deband on %d%%", s->deband_pct);
+    if (deband_active(s)) n += snprintf(line + n, sizeof(line) - n, ", Deband on %d%%", s->deband_pct);
     (void)n;
     droiddeck_log("effects", "%s", line);
 }
@@ -616,7 +617,7 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
         if (s->hdr_on) order[n++] = FX_HDR;
         if (s->ntsc) order[n++] = FX_NTSC;
         if (s->crt) order[n++] = FX_CRT;
-        if (s->deband_on) order[n++] = FX_DEBAND;
+        if (deband_active(s)) order[n++] = FX_DEBAND;
         for (int i = 0; i < n; i++) {
             struct fx_target *dst = FREE_TARGET();
             struct pc_res pr = {0};
