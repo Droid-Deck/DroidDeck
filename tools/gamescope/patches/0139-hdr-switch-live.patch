@@ -1,0 +1,42 @@
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index 9862641..e9d2923 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -1972,7 +1972,7 @@ namespace gamescope
+     {
+         auto *pHDRInfo = &m_pConnector->m_HDRInfo;
+         if (m_pBackend->SupportsColorManagement()) {
+-            pHDRInfo->bExposeHDRSupport   = ( cv_hdr_enabled && m_pConnector->m_uMaxTargetLuminance > m_pConnector->m_uReferenceLuminance );
++            pHDRInfo->bExposeHDRSupport   = ( m_pConnector->m_uMaxTargetLuminance > m_pConnector->m_uReferenceLuminance );
+             pHDRInfo->eOutputEncodingEOTF = pHDRInfo->bExposeHDRSupport ? EOTF_PQ : EOTF_Gamma22;
+         }
+ 
+@@ -2282,7 +2282,7 @@ namespace gamescope
+ 
+         assert( u8BitFormat != DRM_FORMAT_INVALID );
+ 
+-        *pPrimaryPlaneFormat = u10BitFormat != DRM_FORMAT_INVALID ? u10BitFormat : u8BitFormat;
++        *pPrimaryPlaneFormat = ( cv_hdr_enabled && u10BitFormat != DRM_FORMAT_INVALID ) ? u10BitFormat : u8BitFormat;
+         *pOverlayPlaneFormat = u8BitFormat;
+     }
+ 
+@@ -2493,13 +2493,17 @@ namespace gamescope
+ 
+         // XXX: We should do this a better way that handles per-window and appid stuff
+         // down the line
+-        if ( cv_hdr_enabled && GetCurrentConnector()->GetHDRInfo().bExposeHDRSupport )
++        if ( !GetCurrentConnector()->GetHDRInfo().bExposeHDRSupport )
++        {
++            setenv( "DXVK_HDR", "0", true );
++        }
++        else if ( cv_hdr_enabled )
+         {
+             setenv( "DXVK_HDR", "1", true );
+         }
+         else
+         {
+-            setenv( "DXVK_HDR", "0", true );
++            unsetenv( "DXVK_HDR" );
+         }
+ 
+         WritePatchedEdid( GetCurrentConnector()->GetRawEDID(), GetCurrentConnector()->GetHDRInfo(), false );

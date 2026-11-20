@@ -396,3 +396,13 @@ turn, 40 for one and two, and a limit that divides the refresh rate is paced as 
 refresh late, or more than a refresh early, starts the line again from that frame, so a stall is not followed by a
 burst. `tools/tests/test_gamescope_limiter_cadence.py` compiles the two rules from this patch and runs them across
 refresh rates and limits.
+
+## 0139 HDR output can be switched while a session runs
+
+The Wayland backend read `hdr_enabled` once, when the host compositor described its output, and kept the answer: a
+session started with HDR off told its clients the display had no HDR for as long as it ran, and its environment
+carried `DXVK_HDR=0`. Whether the display can show HDR now comes from the host's output description alone, and
+`hdr_enabled` decides only whether HDR is used, so setting it during a session takes effect on the next frame in
+either direction. The 10-bit output format is chosen only while HDR is enabled, so an SDR session keeps the 8-bit
+output it had. On a display that can show HDR, a session that starts with HDR off leaves `DXVK_HDR` unset instead of
+forcing it to 0, so a game started after HDR is switched on finds it.

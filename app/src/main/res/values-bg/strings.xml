@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 изход</string>
     <string name="mode_hdr_unavailable">Не е налично: %1$s.</string>
-    <string name="mode_hdr_restart">Рестартирайте приложението, за да се приложи.</string>
     <string name="mode_drivers">Драйвери</string>
     <string name="mode_gpu_drivers">GPU драйвери</string>
     <string name="mode_gpu_drivers_hint">Общи за Steam и работния плот. Задават се в страницата Компоненти.</string>

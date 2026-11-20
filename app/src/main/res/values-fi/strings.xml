@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-lähtö</string>
     <string name="mode_hdr_unavailable">Ei käytettävissä: %1$s.</string>
-    <string name="mode_hdr_restart">Käynnistä sovellus uudelleen, jotta muutos tulee voimaan.</string>
     <string name="mode_drivers">Ajurit</string>
     <string name="mode_gpu_drivers">GPU-ajurit</string>
     <string name="mode_gpu_drivers_hint">Jaettu Steamin ja Työpöydän kesken. Asetetaan Komponentit-sivulla.</string>

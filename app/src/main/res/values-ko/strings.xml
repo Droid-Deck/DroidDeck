@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 출력</string>
     <string name="mode_hdr_unavailable">사용 불가: %1$s.</string>
-    <string name="mode_hdr_restart">앱을 다시 시작한 후 적용됩니다.</string>
     <string name="mode_drivers">드라이버</string>
     <string name="mode_gpu_drivers">GPU 드라이버</string>
     <string name="mode_gpu_drivers_hint">Steam과 데스크톱에서 공유됩니다. \"구성 요소\" 페이지에서 설정하세요.</string>

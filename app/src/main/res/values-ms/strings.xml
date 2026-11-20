@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Output HDR10</string>
     <string name="mode_hdr_unavailable">Tidak tersedia: %1$s.</string>
-    <string name="mode_hdr_restart">Mulakan semula apl untuk menggunakannya.</string>
     <string name="mode_drivers">Pemacu</string>
     <string name="mode_gpu_drivers">Pemacu GPU</string>
     <string name="mode_gpu_drivers_hint">Dikongsi oleh Steam dan Desktop. Ditetapkan pada halaman Komponen.</string>

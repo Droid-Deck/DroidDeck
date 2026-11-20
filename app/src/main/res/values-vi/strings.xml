@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Xuất HDR10</string>
     <string name="mode_hdr_unavailable">Không khả dụng: %1$s.</string>
-    <string name="mode_hdr_restart">Khởi động lại ứng dụng để áp dụng.</string>
     <string name="mode_drivers">Driver</string>
     <string name="mode_gpu_drivers">Driver GPU</string>
     <string name="mode_gpu_drivers_hint">Dùng chung cho Steam và Desktop. Đặt ở trang Components.</string>

@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 आउटपुट</string>
     <string name="mode_hdr_unavailable">उपलब्ध नहीं: %1$s।</string>
-    <string name="mode_hdr_restart">लागू करने के लिए ऐप रीस्टार्ट करें।</string>
     <string name="mode_drivers">ड्राइवर</string>
     <string name="mode_gpu_drivers">GPU ड्राइवर</string>
     <string name="mode_gpu_drivers_hint">Steam और डेस्कटॉप दोनों में साझा। Components पेज पर सेट करें।</string>

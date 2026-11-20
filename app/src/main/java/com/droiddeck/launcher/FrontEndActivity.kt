@@ -2641,7 +2641,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onIntegrationAppInfo = ::openAppInfo,
                 onIntegrationLocation = ::openWifiDiscoverySettings,
                 onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); resolution = value },
-                onHdr = { on -> SessionPrefs.setHdr(this, mode, on); hdrOn = on },
+                onHdr = { on -> com.droiddeck.launcher.session.SessionHdr.set(this, mode, on); hdrOn = on },
                 onZeroCopy = { on ->
                     SessionPrefs.setZeroCopy(this, mode, on); zeroCopyOn = on
                     if (com.droiddeck.launcher.wayland.CompositorHost.isStarted && !SessionState.hdr)

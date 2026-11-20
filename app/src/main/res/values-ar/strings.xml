@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">إخراج HDR10</string>
     <string name="mode_hdr_unavailable">غير متاح: %1$s.</string>
-    <string name="mode_hdr_restart">أعد تشغيل التطبيق لتطبيق التغيير.</string>
     <string name="mode_drivers">برامج التشغيل</string>
     <string name="mode_gpu_drivers">برامج تشغيل GPU</string>
     <string name="mode_gpu_drivers_hint">مشتركة بين Steam وسطح المكتب. يتم ضبطها في صفحة «المكوّنات».</string>

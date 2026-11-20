@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Вывод HDR10</string>
     <string name="mode_hdr_unavailable">Недоступно: %1$s.</string>
-    <string name="mode_hdr_restart">Вступит в силу после перезапуска приложения.</string>
     <string name="mode_drivers">Драйверы</string>
     <string name="mode_gpu_drivers">Драйверы GPU</string>
     <string name="mode_gpu_drivers_hint">Общие для Steam и рабочего стола. Настройте на странице «Компоненты».</string>

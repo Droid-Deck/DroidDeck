@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-utgång</string>
     <string name="mode_hdr_unavailable">Inte tillgängligt: %1$s.</string>
-    <string name="mode_hdr_restart">Starta om appen för att tillämpa.</string>
     <string name="mode_drivers">Drivrutiner</string>
     <string name="mode_gpu_drivers">GPU-drivrutiner</string>
     <string name="mode_gpu_drivers_hint">Delas av Steam och skrivbordet. Ställs in på sidan Komponenter.</string>

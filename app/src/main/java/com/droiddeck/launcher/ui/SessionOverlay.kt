@@ -1164,7 +1164,7 @@ private fun ScreenEffectsGroup(
         ToggleRow(host, "toon", stringResource(R.string.drawer_toon), null, e.toon, chipModifier = track("toon")) { a.onEffects(e.copy(toon = it)) }
         ToggleRow(host, "crt", stringResource(R.string.drawer_crt), null, e.crt, chipModifier = track("crt")) { a.onEffects(e.copy(crt = it)) }
         ToggleRow(host, "ntsc", stringResource(R.string.drawer_ntsc), null, e.ntsc, chipModifier = track("ntsc")) { a.onEffects(e.copy(ntsc = it)) }
-        if (a.hdrAvailable) ToggleRow(host, "hdr", stringResource(R.string.mode_hdr), stringResource(R.string.mode_hdr_restart), a.hdr,
+        if (a.hdrAvailable) ToggleRow(host, "hdr", stringResource(R.string.mode_hdr), null, a.hdr,
             chipModifier = track("hdr"), onChange = a.onHdr)
         else ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
         if (a.blackFrameInsertionAvailable) ToggleRow(host, "bfi", stringResource(R.string.drawer_bfi),

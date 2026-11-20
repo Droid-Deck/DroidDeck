@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-output</string>
     <string name="mode_hdr_unavailable">Ikke tilgængelig: %1$s.</string>
-    <string name="mode_hdr_restart">Genstart appen for at anvende ændringen.</string>
     <string name="mode_drivers">Drivere</string>
     <string name="mode_gpu_drivers">GPU-drivere</string>
     <string name="mode_gpu_drivers_hint">Delt mellem Steam og Skrivebord. Indstilles på siden Komponenter.</string>

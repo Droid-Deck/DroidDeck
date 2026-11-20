@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10出力</string>
     <string name="mode_hdr_unavailable">利用不可：%1$s。</string>
-    <string name="mode_hdr_restart">アプリの再起動後に有効になります。</string>
     <string name="mode_drivers">ドライバー</string>
     <string name="mode_gpu_drivers">GPUドライバー</string>
     <string name="mode_gpu_drivers_hint">Steamとデスクトップで共有されます。「コンポーネント」ページで設定してください。</string>

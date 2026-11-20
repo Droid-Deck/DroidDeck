@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Вивід HDR10</string>
     <string name="mode_hdr_unavailable">Недоступно: %1$s.</string>
-    <string name="mode_hdr_restart">Перезапустіть додаток, щоб застосувати.</string>
     <string name="mode_drivers">Драйвери</string>
     <string name="mode_gpu_drivers">Драйвери GPU</string>
     <string name="mode_gpu_drivers_hint">Спільні для Steam і робочого столу. Налаштовуються на сторінці «Компоненти».</string>

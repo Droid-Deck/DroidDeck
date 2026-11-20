@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Έξοδος HDR10</string>
     <string name="mode_hdr_unavailable">Μη διαθέσιμο: %1$s.</string>
-    <string name="mode_hdr_restart">Κάντε επανεκκίνηση της εφαρμογής για να εφαρμοστεί.</string>
     <string name="mode_drivers">Προγράμματα οδήγησης</string>
     <string name="mode_gpu_drivers">Προγράμματα οδήγησης GPU</string>
     <string name="mode_gpu_drivers_hint">Κοινά για το Steam και την Επιφάνεια εργασίας. Ορίζονται στη σελίδα Στοιχεία.</string>

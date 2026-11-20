@@ -1659,7 +1659,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             },
             hdr = hdrWanted,
             hdrAvailable = hdrAvailable,
-            onHdr = { on -> SessionPrefs.setHdr(this@SessionActivity, hdrPrefMode(), on); hdrWanted = on },
+            onHdr = { on -> com.droiddeck.launcher.session.SessionHdr.set(this@SessionActivity, hdrPrefMode(), on); hdrWanted = on },
             onFrameGenPick = { mode ->
                 val appId = frameGenTargetGameId()
 
@@ -2784,7 +2784,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
         }
         val mode = hdrPrefMode()
-        if (!CompositorHost.isStarted) {
+        val attached = CompositorHost.isStarted
+        if (!attached) {
             val probe = HdrSupport.probe(this, glassesScreen?.display)
             SessionState.hdrDisplay = probe.reason == null
             WaylandCompositor.nativeSetHdrDisplay(
@@ -2792,22 +2793,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 probe.maxLuminance, probe.maxAverageLuminance, probe.minLuminance,
                 probe.ratioAvailable, probe.ratio, Build.VERSION.SDK_INT,
             )
-            val wanted = SessionPrefs.hdr(this, mode)
-            val tonemap = wanted && probe.reason != null && HdrSupport.blocked(this) == null
-            val on = wanted && (probe.reason == null || tonemap)
-            SessionState.hdr = on
-            if (on) {
+            val capable = HdrSupport.blocked(this) == null
+            val tonemap = capable && probe.reason != null
+            SessionState.hdrCapable = capable
+            if (capable) {
                 try { android.system.Os.setenv("DROIDDECK_WAYLAND_HDR", "1", true) } catch (e: Exception) { Log.w(TAG, "DROIDDECK_WAYLAND_HDR", e) }
             }
-            if (on || SessionPrefs.zeroCopy(this, mode)) WaylandCompositor.nativeSetZeroCopy(true)
             WaylandCompositor.nativeSetHdrRequest(
-                if (tonemap) WaylandCompositor.HDR_MODE_TONEMAP else if (on) WaylandCompositor.HDR_MODE_ON else WaylandCompositor.HDR_MODE_OFF,
-                "$mode session settings" + (if (wanted && !on) " (refused: ${probe.reason})" else ""),
-                on, on,
+                if (tonemap) WaylandCompositor.HDR_MODE_TONEMAP else if (capable) WaylandCompositor.HDR_MODE_ON else WaylandCompositor.HDR_MODE_OFF,
+                "$mode session settings", capable, false,
             )
-            Log.i(TAG, "hdr: " + (if (tonemap) "tone-mapped (${probe.reason})" else if (on) "on" else if (wanted) "wanted but ${probe.reason}" else "off") + " · display ${probe.formats.ifEmpty { "SDR" }}")
-        } else if (!SessionState.running && !SessionState.hdr) {
-            WaylandCompositor.nativeSetZeroCopy(SessionPrefs.zeroCopy(this, mode))
+            Log.i(TAG, "hdr: " + (if (tonemap) "tone-mapped (${probe.reason})" else if (capable) "available" else "unavailable") + " · display ${probe.formats.ifEmpty { "SDR" }}")
+        }
+        if (!SessionState.running) {
+            val on = SessionState.hdrCapable && SessionPrefs.hdr(this, mode)
+            SessionState.hdr = on
+            if (attached) WaylandCompositor.nativeSetHdrOutput(on)
+            WaylandCompositor.nativeSetZeroCopy(on || SessionPrefs.zeroCopy(this, mode))
+            Log.i(TAG, "hdr: " + (if (on) "on" else "off") + " for this $mode session")
         }
         com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "compositor.start driver=$driverId")
         CompositorHost.startOrAttach(
@@ -3823,23 +3826,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         )) == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
         val mode = com.droiddeck.launcher.input.TouchGestureConfig.gamescopeRelativeMouse(wanted, mouseAttached(), touchpadRoute)
         if (appliedRelativeMouseMode == mode) return
-        if (setGamescopeConvar("relative_mouse", mode)) appliedRelativeMouseMode = mode
+        if (AgentGuest.setGamescopeConvar(this, "relative_mouse", mode)) appliedRelativeMouseMode = mode
         else if (relativeMouseRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestRelativeMouse() }, 2_000)
         if (desiredRelativeMouseMode != wanted) requestRelativeMouse()
-    }
-
-    private fun setGamescopeConvar(name: String, value: Int): Boolean {
-        val request = org.json.JSONObject()
-            .put("kind", "exec")
-            .put("argv", org.json.JSONArray(listOf("gamescopectl", name, value.toString())))
-            .put("timeout", 5.0)
-        val result = runCatching { AgentGuest.call(this, request, 8_000, trusted = true) }
-        val answer = result.getOrNull()
-        val applied = answer?.optBoolean("ok") == true
-            && answer.optInt("exitCode", -1) == 0
-            && !answer.optBoolean("timedOut")
-        if (!applied) Log.w(TAG, "gamescope did not take $name $value: ${result.exceptionOrNull() ?: answer}")
-        return applied
     }
 
     @Volatile private var desiredOverlayPlanes = -1
@@ -3880,7 +3869,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun applyOverlayPlanes() {
         val wanted = desiredOverlayPlanes
         if (appliedOverlayPlanes == wanted) return
-        if (setGamescopeConvar("wayland_overlay_planes", wanted)) appliedOverlayPlanes = wanted
+        if (AgentGuest.setGamescopeConvar(this, "wayland_overlay_planes", wanted)) appliedOverlayPlanes = wanted
         else if (overlayPlanesRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestOverlayPlanes() }, 2_000)
         if (desiredOverlayPlanes != wanted) requestOverlayPlanes()
     }

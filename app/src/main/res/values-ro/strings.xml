@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Ieșire HDR10</string>
     <string name="mode_hdr_unavailable">Indisponibil: %1$s.</string>
-    <string name="mode_hdr_restart">Repornește aplicația pentru a aplica.</string>
     <string name="mode_drivers">Drivere</string>
     <string name="mode_gpu_drivers">Drivere GPU</string>
     <string name="mode_gpu_drivers_hint">Partajate de Steam și Desktop. Se stabilesc pe pagina Componente.</string>

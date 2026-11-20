@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 输出</string>
     <string name="mode_hdr_unavailable">不可用：%1$s。</string>
-    <string name="mode_hdr_restart">重启应用以生效。</string>
     <string name="mode_drivers">驱动</string>
     <string name="mode_gpu_drivers">GPU 驱动</string>
     <string name="mode_gpu_drivers_hint">由 Steam 和桌面共享。在“组件”页面设置。</string>

@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Wyjście HDR10</string>
     <string name="mode_hdr_unavailable">Niedostępne: %1$s.</string>
-    <string name="mode_hdr_restart">Uruchom ponownie aplikację, aby zastosować.</string>
     <string name="mode_drivers">Sterowniki</string>
     <string name="mode_gpu_drivers">Sterowniki GPU</string>
     <string name="mode_gpu_drivers_hint">Wspólne dla Steam i pulpitu. Ustawiane na stronie Komponenty.</string>

@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Výstup HDR10</string>
     <string name="mode_hdr_unavailable">Není k dispozici: %1$s.</string>
-    <string name="mode_hdr_restart">Pro použití restartujte aplikaci.</string>
     <string name="mode_drivers">Ovladače</string>
     <string name="mode_gpu_drivers">Ovladače GPU</string>
     <string name="mode_gpu_drivers_hint">Společné pro Steam a Plochu. Nastavuje se na stránce Komponenty.</string>

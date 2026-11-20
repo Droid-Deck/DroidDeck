@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 çıkışı</string>
     <string name="mode_hdr_unavailable">Kullanılamıyor: %1$s.</string>
-    <string name="mode_hdr_restart">Uygulamak için uygulamayı yeniden başlatın.</string>
     <string name="mode_drivers">Sürücüler</string>
     <string name="mode_gpu_drivers">GPU sürücüleri</string>
     <string name="mode_gpu_drivers_hint">Steam ve Masaüstü tarafından paylaşılır. Bileşenler sayfasından ayarlanır.</string>

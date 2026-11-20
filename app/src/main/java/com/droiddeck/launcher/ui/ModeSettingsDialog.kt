@@ -281,8 +281,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         SettingsGroup(stringResource(R.string.mode_hdr)) {
             ToggleRow(
                 host, "hdr", stringResource(if (s.hdrDisplay) R.string.mode_hdr10 else R.string.drawer_fake_hdr),
-                s.hdrReason?.let { stringResource(R.string.mode_hdr_unavailable, it) }
-                    ?: stringResource(R.string.mode_hdr_restart),
+                s.hdrReason?.let { stringResource(R.string.mode_hdr_unavailable, it) },
                 checked = s.hdr && s.hdrReason == null, enabled = s.hdrReason == null, onChange = a.onHdr,
             )
         }

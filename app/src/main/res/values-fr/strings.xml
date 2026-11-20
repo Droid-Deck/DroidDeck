@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Sortie HDR10</string>
     <string name="mode_hdr_unavailable">Non disponible : %1$s.</string>
-    <string name="mode_hdr_restart">Prendra effet après le redémarrage de l\'application.</string>
     <string name="mode_drivers">Pilotes</string>
     <string name="mode_gpu_drivers">Pilotes GPU</string>
     <string name="mode_gpu_drivers_hint">Partagés entre Steam et le bureau. À configurer dans la page « Composants ».</string>
