@@ -494,11 +494,7 @@ static void pass(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst, VkDes
                  const void *pc, uint32_t pcsz) {
     VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_rp, .framebuffer = dst->fb,
                                  .renderArea = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}}};
-    VkViewport vp = {0, 0, (float)dst->w, (float)dst->h, 0, 1};
-    VkRect2D sc = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}};
     g_vk.CmdBeginRenderPass(cmd, &rpi, VK_SUBPASS_CONTENTS_INLINE);
-    g_vk.CmdSetViewport(cmd, 0, 1, &vp);
-    g_vk.CmdSetScissor(cmd, 0, 1, &sc);
     g_vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
     g_vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pl, 0, 1, &src, 0, NULL);
     g_vk.CmdPushConstants(cmd, g_pl, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, pcsz, pc);
@@ -511,12 +507,8 @@ static void pass_dual(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst,
                       const void *pc, uint32_t pcsz) {
     VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_rp, .framebuffer = dst->fb,
                                  .renderArea = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}}};
-    VkViewport vp = {0, 0, (float)dst->w, (float)dst->h, 0, 1};
-    VkRect2D sc = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}};
     VkDescriptorSet sets[2] = {src, second};
     g_vk.CmdBeginRenderPass(cmd, &rpi, VK_SUBPASS_CONTENTS_INLINE);
-    g_vk.CmdSetViewport(cmd, 0, 1, &vp);
-    g_vk.CmdSetScissor(cmd, 0, 1, &sc);
     g_vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
     g_vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pl, 0, 2, sets, 0, NULL);
     g_vk.CmdPushConstants(cmd, g_pl, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, pcsz, pc);
@@ -555,6 +547,11 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
         struct fx_target *cur = NULL;
 #define FREE_TARGET() ((cur == &g_t[0]) ? &g_t[1] : &g_t[0])
         const float sharp01 = (float)s->sharp_pct / 100.0f;
+
+        VkViewport chain_vp = {0, 0, (float)cw, (float)ch, 0, 1};
+        VkRect2D chain_sc = {{0, 0}, {(uint32_t)cw, (uint32_t)ch}};
+        g_vk.CmdSetViewport(cmd, 0, 1, &chain_vp);
+        g_vk.CmdSetScissor(cmd, 0, 1, &chain_sc);
 
         if (spatial) {
             barrier(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
