@@ -459,6 +459,22 @@ class InputLibraryTest {
         assertTrue(upgraded.layouts.none { it.id == InputLibraries.previousLayoutId(InputLibraries.OVERLAY) })
     }
 
+    @Test
+    @Config(qualifiers = "w640dp-h360dp-land-mdpi")
+    fun anOldStockLayoutWithACustomFrameStaysActive() {
+        val old = JSONObject(requireNotNull(javaClass.getResource("/input/schema14-stock.json")).readText())
+        val layouts = old.getJSONArray("layouts")
+        val overlay = (0 until layouts.length()).map(layouts::getJSONObject)
+            .single { it.getString("id") == InputLibraries.OVERLAY }
+        overlay.put("aspect", 4.0 / 3.0)
+        prefs.edit().putString("library", old.toString()).commit()
+
+        val active = requireNotNull(InputLibraries.read(context).activeLayout(false, InputRole.PRIMARY))
+        assertEquals(InputLibraries.previousLayoutId(InputLibraries.OVERLAY), active.id)
+        assertEquals(4f / 3f, active.aspect)
+        assertTrue(active.kitless)
+    }
+
     @Test fun anActionForAKitButtonTheOldGamepadDidNotPlaceStillLoads() {
         val fresh = InputLibraries.read(context)
         val a = InputSurfaceElement(InputControl.A, .7f, .6f, .1f, .2f)

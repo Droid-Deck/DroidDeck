@@ -303,6 +303,7 @@ object InputLibraries {
         val sizes = listOfNotNull(named, width to height, height to width).distinct()
         val positions = layout.elements.filter { KitLayout.isKit(it.id) }.associateBy { it.id }
         return sizes.any { (w, h) ->
+            if (layout.aspect != (w.toFloat() / h).coerceIn(.05f, 20f)) return@any false
             val stock = LegacyLayoutGeometry(display, w, h)
             listOf(stock.elements(), stock.elements(previousStickGeometry = true)).any { elements ->
                 elements.size == positions.size && elements.all { element -> positions[element.id] == element }
