@@ -16,6 +16,25 @@ class DesktopUinputDevice(
         fun wheel(vertical120: Int, horizontal120: Int)
     }
 
+    class SharedSink(private val out: Sink) : Sink by out {
+        private val keys = IntArray(KEY_MAX + 1)
+        private val buttons = IntArray(KEY_MAX + 1)
+
+        @Synchronized
+        override fun key(code: Int, down: Boolean) { if (hold(keys, code, down)) out.key(code, down) }
+
+        @Synchronized
+        override fun button(code: Int, down: Boolean) { if (hold(buttons, code, down)) out.button(code, down) }
+
+        private fun hold(holds: IntArray, code: Int, down: Boolean): Boolean {
+            if (code !in holds.indices) return false
+            val before = holds[code]
+            if (!down && before == 0) return false
+            holds[code] = before + if (down) 1 else -1
+            return if (down) before == 0 else before == 1
+        }
+    }
+
     private val heldKeys = HeldInput(sink::key)
     private val heldButtons = HeldInput(sink::button)
     private var dx = 0

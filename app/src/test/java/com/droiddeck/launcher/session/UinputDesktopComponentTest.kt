@@ -94,6 +94,43 @@ class UinputDesktopComponentTest {
         assertEquals(listOf("key 42 true", "button 273 true", "key 42 false", "button 273 false"), r.calls)
     }
 
+    @Test fun aKeyOrButtonHeldByTwoDevicesIsReleasedOnlyWhenBothLetGo() {
+        val r = Recorder()
+        val shared = DesktopUinputDevice.SharedSink(r)
+        val keyboard = DesktopUinputDevice(null, null, shared)
+        val mouse = DesktopUinputDevice(null, null, shared)
+        keyboard.event(EV_KEY, 42, 1)
+        mouse.event(EV_KEY, 42, 1)
+        keyboard.event(EV_KEY, BTN_LEFT, 1)
+        mouse.event(EV_KEY, BTN_LEFT, 1)
+        keyboard.event(EV_KEY, 42, 0)
+        keyboard.release()
+        assertEquals(listOf("key 42 true", "button $BTN_LEFT true"), r.calls)
+        mouse.release()
+        assertEquals(listOf("key 42 true", "button $BTN_LEFT true", "key 42 false", "button $BTN_LEFT false"), r.calls)
+    }
+
+    @Test fun aSharedSinkPassesASingleDeviceThroughUnchanged() {
+        val direct = Recorder()
+        val shared = Recorder()
+        val events = arrayOf(ev(EV_KEY, 30, 1), syn, ev(EV_KEY, 30, 0), ev(EV_REL, REL_X, 4), ev(EV_KEY, BTN_LEFT, 1), syn,
+            ev(EV_KEY, BTN_LEFT, 0), ev(EV_REL, REL_WHEEL, 1), syn, ev(EV_KEY, 42, 1), syn)
+        UinputDesktopComponent.read(stream(0, 0, 0, 0, *events), direct)
+        UinputDesktopComponent.read(stream(0, 0, 0, 0, *events), DesktopUinputDevice.SharedSink(shared))
+        assertEquals(direct.calls, shared.calls)
+    }
+
+    @Test fun aSharedSinkDropsReleasesNothingHeld() {
+        val r = Recorder()
+        val shared = DesktopUinputDevice.SharedSink(r)
+        shared.key(30, false)
+        shared.button(BTN_LEFT, false)
+        shared.key(30, true)
+        shared.key(30, false)
+        shared.key(30, false)
+        assertEquals(listOf("key 30 true", "key 30 false"), r.calls)
+    }
+
     @Test fun aStreamWithoutTheHeaderIsIgnored() {
         val r = Recorder()
         UinputDesktopComponent.read(stream(0, 0, 0, 0, ev(EV_KEY, 30, 1), syn, magic = 0x1234), r)

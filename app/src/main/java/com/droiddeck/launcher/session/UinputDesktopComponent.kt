@@ -15,6 +15,7 @@ import java.nio.ByteOrder
 class UinputDesktopComponent : SessionPart() {
     @Volatile private var server: LocalServerSocket? = null
     private val clients = HashSet<LocalSocket>()
+    private val sink = DesktopUinputDevice.SharedSink(CompositorSink)
 
     override fun start() {
         val s = try { LocalServerSocket(NAME) } catch (e: Exception) { Log.w(TAG, "uinput: no listener ($e)"); return }
@@ -26,7 +27,10 @@ class UinputDesktopComponent : SessionPart() {
                     runCatching { client.close() }
                     continue
                 }
-                synchronized(clients) { clients.add(client) }
+                if (!synchronized(clients) { server === s && clients.add(client) }) {
+                    runCatching { client.close() }
+                    continue
+                }
                 Thread({ serve(client) }, "uinput-device").apply { isDaemon = true; start() }
             }
         }, "uinput-desktop").apply { isDaemon = true; start() }
@@ -45,7 +49,7 @@ class UinputDesktopComponent : SessionPart() {
 
     private fun serve(client: LocalSocket) {
         try {
-            read(client.inputStream, CompositorSink)
+            read(client.inputStream, sink)
         } catch (e: Exception) {
             Log.w(TAG, "uinput: device stream ended ($e)")
         } finally {
