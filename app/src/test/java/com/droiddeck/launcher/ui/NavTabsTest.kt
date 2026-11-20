@@ -48,6 +48,29 @@ class NavTabsTest {
         assertTrue(NavTabs.isDefault())
     }
 
+    @Test fun aFreshInstallPutsAppsOnTheBarWhileDroidDeckIsTheHomeApp() {
+        makeHome()
+        NavTabs.load(ctx)
+        assertEquals(listOf("steam", "desktop", "games", "downloads", "android-apps", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
+        assertEquals(listOf("stores", "soundtracks", "components", "storage", "sync"), NavTabs.more(state()))
+        assertTrue(NavTabs.isDefault())
+        NavTabs.setHidden(ctx, "android-apps", true)
+        NavTabs.load(ctx)
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+        NavTabs.reset(ctx)
+        assertEquals(TabPlace.BAR, NavTabs.place(state(), "android-apps"))
+    }
+
+    private fun makeHome() {
+        ctx.packageManager.setComponentEnabledSetting(
+            android.content.ComponentName(ctx, com.droiddeck.launcher.HomeActivity::class.java),
+            android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED, android.content.pm.PackageManager.DONT_KILL_APP,
+        )
+        val roles = org.robolectric.Shadows.shadowOf(ctx.getSystemService(android.app.role.RoleManager::class.java))
+        roles.addAvailableRole(android.app.role.RoleManager.ROLE_HOME)
+        roles.addHeldRole(android.app.role.RoleManager.ROLE_HOME)
+    }
+
     @Test fun showingMusicOnceKeepsItShownAfterReload() {
         place("soundtracks", TabPlace.BAR)
         NavTabs.load(ctx)
@@ -119,9 +142,9 @@ class NavTabsTest {
     }
 
     @Test fun tabsMissingFromASavedOrderSlotInAfterTheirDefaultNeighbour() {
-        assertEquals(listOf("updates", "stores", "soundtracks", "components", "storage", "sync", "android-apps", "agent", "steam", "desktop", "games", "downloads", "setup"),
+        assertEquals(listOf("updates", "stores", "soundtracks", "components", "storage", "sync", "agent", "steam", "desktop", "games", "downloads", "android-apps", "setup"),
             NavTabs.arrange(listOf("updates", "steam")))
-        assertEquals(listOf("games", "downloads", "steam", "setup", "stores", "soundtracks", "desktop", "components", "storage", "sync", "android-apps", "agent", "updates"),
+        assertEquals(listOf("games", "downloads", "steam", "setup", "stores", "soundtracks", "desktop", "components", "storage", "sync", "agent", "android-apps", "updates"),
             NavTabs.arrange(listOf("games", "steam", "setup", "stores", "desktop", "components", "android-apps", "updates", "bogus")))
     }
 
