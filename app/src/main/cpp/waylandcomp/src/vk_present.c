@@ -1330,7 +1330,7 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
     img->fmt = drm_to_vk(drm_format);
     const int through_buffer = vkp_linear_dmabuf_through_buffer(g_drm_modifiers, modifier, as_blit_dst);
     const VkImageUsageFlags sampled_usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    const int modifier_sampled = !as_blit_dst && g_vk.GetPhysicalDeviceImageFormatProperties2 &&
+    const int modifier_sampled = !as_blit_dst && g_drm_modifiers && g_vk.GetPhysicalDeviceImageFormatProperties2 &&
                                  modifier_importable(img->fmt, modifier, sampled_usage);
     img->sampled = through_buffer ? optimal_sampled(img->fmt) : modifier_sampled;
     /* Each new format/modifier/size a client hands over, once, for the graphics report: a colour

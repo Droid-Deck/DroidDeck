@@ -105,6 +105,16 @@ class VkLinearDmabufTest(unittest.TestCase):
         self.assertIn(".srcAccessMask = vkp_linear_dmabuf_readback_access(src->in_general)", body[stage:barrier])
         self.assertNotIn("CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT", body)
 
+    def test_modifier_query_needs_drm_modifier_extension(self):
+        body = function((SRC / "vk_present.c").read_text(), "vkp_image_import_dmabuf")
+        query = re.search(r"const int modifier_sampled = (.*?);", body, re.S)
+        self.assertIsNotNone(query, "modifier_sampled not found in vkp_image_import_dmabuf")
+        terms = [t.strip() for t in query.group(1).split("&&")]
+        self.assertIn("g_drm_modifiers", terms)
+        self.assertLess(terms.index("g_drm_modifiers"), terms.index("modifier_importable(img->fmt, modifier, sampled_usage)"))
+        self.assertIn("!as_blit_dst", terms)
+        self.assertIn("g_vk.GetPhysicalDeviceImageFormatProperties2", terms)
+
     def test_staged_client_image_stays_layer_candidate(self):
         vk = (SRC / "vk_present.c").read_text()
         comp = (SRC / "compositor.c").read_text()
