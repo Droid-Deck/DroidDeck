@@ -2,6 +2,7 @@ import hashlib
 import io
 import os
 import json
+import shlex
 import shutil
 import socket
 import subprocess
@@ -278,10 +279,10 @@ class SteamVrHelperTest(unittest.TestCase):
         self.executable(self.commands / 'curl', '\n'.join((
             'out=; previous=',
             'for argument in "$@"; do [ "$previous" = -o ] && out=$argument; previous=$argument; done',
-            'echo "$*" >> %s' % (self.root / 'curl-calls'),
+            'echo "$*" >> %s' % shlex.quote(str(self.root / 'curl-calls')),
             'have=$(stat -c %s "$out" 2>/dev/null || echo 0)',
-            'tail -c +$((have + 1)) %s | head -c %d >> "$out"' % (source, chunk),
-            '[ "$(stat -c %%s "$out")" -lt "$(stat -c %%s %s)" ] || exit 0' % source,
+            'tail -c +$((have + 1)) %s | head -c %d >> "$out"' % (shlex.quote(str(source)), chunk),
+            '[ "$(stat -c %%s "$out")" -lt "$(stat -c %%s %s)" ] || exit 0' % shlex.quote(str(source)),
             'echo "curl: (28) Operation too slow" >&2',
             'exit %d' % exit_code,
         )))
