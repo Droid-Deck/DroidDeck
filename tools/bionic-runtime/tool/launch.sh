@@ -189,8 +189,22 @@ winpath() { echo "Z:$1" | sed 's#/#\\#g'; }
 # The prefix carries this tool's builtins when it was last set up by this version; another Proton (or an
 # older DroidDeck-Bionic) leaves its own links there, and the compatdata version file tells DroidDeck-Proton
 # to relink when it runs this prefix again.
+# Drive Z: is the whole device for this tool: winpath, getcompatpath and the Xbox paths name Android paths on Z:.
+# Proton copies a prefix's links as relative ones, and DroidDeck-Proton's relative z: reaches only the Linux userland
+# here, so a game outside it (SD card, shared storage) was on no drive and Wine crashed on its path at start.
+# DroidDeck-Proton follows z: -> / in the guest's view, with proot and without.
+drive_z() {
+  z=$1/dosdevices/z:
+  [ -d "$1/dosdevices" ] || return 0
+  [ -L "$z" ] || { [ -e "$z" ] && return 0; }
+  old=$(readlink "$z" 2>/dev/null)
+  [ "$old" = / ] && return 0
+  rm -f "$z" && ln -s / "$z" && echo "$(date +%H:%M:%S) drive z: -> / (was ${old:-missing})"
+}
+
 prepare_prefix() {
   P=$COMPAT/pfx
+  drive_z "$P"
   if [ -f "$P/.droiddeck-bionic" ] && [ "$(cat "$P/.droiddeck-bionic")" = "$VERSION" ] && \
      [ "$(cat "$COMPAT/version" 2>/dev/null)" = "$VERSION" ]; then return 0; fi
   if [ ! -f "$P/system.reg" ]; then
