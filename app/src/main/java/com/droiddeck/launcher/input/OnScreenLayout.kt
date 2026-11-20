@@ -44,6 +44,22 @@ object OnScreenLayout {
         return fit(elements, aspect(context, layout), 1f, width, height, safe)
     }
 
+    internal const val STEAM_SHORTCUT_ID = "shortcut:steam"
+    internal const val QAM_SHORTCUT_ID = "shortcut:qam"
+
+    internal fun steamShortcuts(width: Int, height: Int, safe: Rect, density: Float): List<InputSurfaceElement> {
+        if (width <= 0 || height <= 0) return emptyList()
+        val size = min(48f * density, (width - safe.left - safe.right - 64f * density) / 2f)
+        if (size <= 0f || height - safe.bottom - safe.top < size) return emptyList()
+        val y = max(safe.top.toFloat(), height - safe.bottom - size - 4f * density) / height
+        fun button(control: InputControl, id: String, x: Float) =
+            InputSurfaceElement(control, x / width, y, size / width, size / height, id).bounded()
+        return listOf(
+            button(InputControl.GUIDE, STEAM_SHORTCUT_ID, safe.left + 56f * density),
+            button(InputControl.QAM, QAM_SHORTCUT_ID, width - safe.right - size - 4f * density),
+        )
+    }
+
     fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false): List<InputSurfaceElement> =
         elements(context, if (edited && width > 0 && height > 0) layout.copy(aspect = width.toFloat() / height) else layout, width, height, Rect())
 

@@ -25,7 +25,7 @@ class OnScreenControlPrefsTest {
     @Test fun oldShowModesMapOntoAutoAlwaysAndNever() {
         assertEquals(SessionPrefs.OSC_AUTO, SessionPrefs.oscMode(context))
         for ((saved, mode) in listOf(SessionPrefs.OSC_AUTO to SessionPrefs.OSC_AUTO, SessionPrefs.OSC_ALWAYS to SessionPrefs.OSC_ALWAYS,
-            SessionPrefs.OSC_NEVER to SessionPrefs.OSC_NEVER, SessionPrefs.OSC_STEAM_QAM to SessionPrefs.OSC_ALWAYS,
+            SessionPrefs.OSC_NEVER to SessionPrefs.OSC_NEVER, SessionPrefs.OSC_STEAM_QAM to SessionPrefs.OSC_STEAM_QAM,
             SessionPrefs.OSC_STEAM_TOUCH to SessionPrefs.OSC_AUTO, "buttons" to SessionPrefs.OSC_AUTO)) {
             session.edit().putString("osc", saved).commit()
             assertEquals(saved, mode, SessionPrefs.oscMode(context))

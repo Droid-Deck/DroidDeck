@@ -677,11 +677,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     ActionRow(stringResource(R.string.osc_edit_layout), null, stringResource(R.string.ctrl_edit), { host.open = null; edit() },
                                         modifier = focus.track(page, "osc-edit"))
                                 }
-                                SettingsRow(stringResource(R.string.osc_show), null) {
-                                    SegmentedTabs(listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
-                                        SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)), a.oscMode,
-                                        tabModifier = { focus.track(page, "osc-$it") }, onPick = a.onOsc)
-                                }
+                                ControlsVisibilityRow(host, a.oscMode, a.steam, focus.track(page, "osc-show"), a.onOsc)
                                 a.oscRearButtons?.let { rearButtons ->
                                     ToggleRow(host, "osc-rear-buttons", stringResource(R.string.osc_rear_buttons), null, rearButtons,
                                         chipModifier = focus.track(page, "osc-rear-buttons"), onChange = a.onOscRearButtons)

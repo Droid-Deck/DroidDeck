@@ -120,5 +120,7 @@ internal fun InputAction.validFor(control: InputControl): Boolean = when (this) 
 internal fun defaultElementAction(id: String): InputAction = when (id) {
     KitLayout.DPAD_ID -> InputAction.Native()
     KitLayout.KEYBOARD_ID -> InputAction.Command(InputCommand.KEYBOARD)
+    OnScreenLayout.STEAM_SHORTCUT_ID -> InputAction.Command(InputCommand.STEAM)
+    OnScreenLayout.QAM_SHORTCUT_ID -> InputAction.Command(InputCommand.QUICK_ACCESS)
     else -> InputAction.Disabled
 }

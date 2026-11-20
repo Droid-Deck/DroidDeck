@@ -231,7 +231,7 @@ class OnScreenControlsTest {
 
     @Test fun aControllerHideReleasesHeldControlsAndATapBringsThemBack() {
         touch(MotionEvent.ACTION_DOWN, 4 to (800f to 250f))
-        view.setHidden(OnScreenControls.Hidden.BY_CONTROLLER)
+        view.setPresentation(OnScreenControls.Hidden.BY_CONTROLLER)
         measure(view)
         assertFalse(state().isDown(PadState.A))
         assertFalse(view.takesTouchAt(800f, 250f))

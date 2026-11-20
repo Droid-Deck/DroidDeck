@@ -32,6 +32,8 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     private val corner = CornerButton(context)
     var hidden: Hidden? = null
         private set
+    var shortcutsOnly = false
+        private set
     /** Holding the corner button opens DroidDeck's controller menu. */
     var onCornerHold: (() -> Unit)? = null
     /** The player tapped the corner button. */
@@ -56,17 +58,24 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         render()
     }
 
-    fun setHidden(value: Hidden?) {
-        if (hidden == value) return
+    fun setPresentation(value: Hidden?, shortcuts: Boolean = false) {
+        if (hidden == value && shortcutsOnly == shortcuts) return
         releaseAll()
         hidden = value
+        shortcutsOnly = shortcuts
         render()
     }
 
     private fun render() {
         val placed = OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, dock, cutouts,
             rearButtons = SessionPrefs.oscRearButtons(context), trackpads = SessionPrefs.oscTrackpads(context))
-        surface.updateCustomLayout(if (hidden != null) placed.filter { it.alwaysShown } else placed)
+        val visible = when {
+            hidden != null -> placed.filter { it.alwaysShown }
+            shortcutsOnly -> OnScreenLayout.steamShortcuts(viewWidth, viewHeight, safe, resources.displayMetrics.density) +
+                placed.filter { it.alwaysShown }
+            else -> placed
+        }
+        surface.updateCustomLayout(visible)
         surface.updateStyle(layout?.style ?: InputSurfaceStyle())
         corner.visibility = if (layout == null || dock != null) GONE else VISIBLE
         corner.alpha = (layout?.style?.opacity ?: 100) / 100f

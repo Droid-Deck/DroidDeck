@@ -58,6 +58,15 @@ class ControlsPresenterTest {
         assertEquals(Place.MAIN, ControlsPresenter.plan(playing.copy(desktop = true, mode = SessionPrefs.OSC_ALWAYS)).place)
     }
 
+    @Test fun steamShortcutsOverrideTheSteamLayoutAndFollowTheGameDisplay() {
+        val state = playing.copy(mode = SessionPrefs.OSC_STEAM_QAM, steamLayout = true, controllerInUse = true)
+        assertEquals(ControlsPresenter.Plan(Place.MAIN, shortcutsOnly = true), ControlsPresenter.plan(state))
+        assertEquals(ControlsPresenter.Plan(Place.BOTTOM, shortcutsOnly = true), ControlsPresenter.plan(state.copy(bottomScreen = true)))
+        assertEquals(ControlsPresenter.Plan(Place.MAIN, Hidden.BY_TAP, shortcutsOnly = true),
+            ControlsPresenter.plan(state.copy(hiddenByTap = true)))
+        assertEquals(ControlsPresenter.Plan(Place.NONE), ControlsPresenter.plan(state.copy(covered = true)))
+    }
+
     @Test fun aCoveringPanelOrNoVirtualPadRemovesTheControls() {
         assertEquals(Place.NONE, ControlsPresenter.plan(playing.copy(covered = true)).place)
         assertEquals(Place.NONE, ControlsPresenter.plan(playing.copy(virtualPad = false, mode = SessionPrefs.OSC_ALWAYS)).place)
