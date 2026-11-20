@@ -21,22 +21,22 @@ DRIVER = r'''
 #include <string.h>
 #include <sys/mman.h>
 
-int bl_venc_open(const char *path, int flags);
-int bl_venc_ioctl(int fd, unsigned long req, void *arg, int *rc);
-int bl_venc_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off,
+int dd_venc_open(const char *path, int flags);
+int dd_venc_ioctl(int fd, unsigned long req, void *arg, int *rc);
+int dd_venc_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off,
                  void *(*real)(void *, size_t, int, int, int, off_t), void **out);
-void bl_venc_closed(int fd);
+void dd_venc_closed(int fd);
 
 static int fd;
 static int call(unsigned long req, void *arg) {
     int rc;
-    if (!bl_venc_ioctl(fd, req, arg, &rc)) return -100;
+    if (!dd_venc_ioctl(fd, req, arg, &rc)) return -100;
     return rc < 0 ? -errno : 0;
 }
 
 int main(void) {
-    if (bl_venc_open("/dev/video0", 0) != -2) return 2;
-    fd = bl_venc_open("/dev/video-enc0", 0);
+    if (dd_venc_open("/dev/video0", 0) != -2) return 2;
+    fd = dd_venc_open("/dev/video-enc0", 0);
     if (fd < 0) return 3;
     struct v4l2_capability cap;
     if (call(VIDIOC_QUERYCAP, &cap) || !(cap.device_caps & V4L2_CAP_VIDEO_M2M_MPLANE)) return 4;
@@ -58,7 +58,7 @@ int main(void) {
             struct v4l2_buffer b = { .index = i, .type = types[t], .memory = V4L2_MEMORY_MMAP, .length = 1, .m.planes = &p };
             if (call(VIDIOC_QUERYBUF, &b)) return 9;
             void *m;
-            if (!bl_venc_mmap(NULL, p.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, p.m.mem_offset, mmap, &m) ||
+            if (!dd_venc_mmap(NULL, p.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, p.m.mem_offset, mmap, &m) ||
                 m == MAP_FAILED) return 10;
             maps[t][i] = m;
             if (t == 1 && call(VIDIOC_QBUF, &b)) return 11;
@@ -84,7 +84,7 @@ int main(void) {
         if (call(VIDIOC_DQBUF, &b)) return 16;
         if (call(VIDIOC_QBUF, &cb)) return 17;
     }
-    bl_venc_closed(fd);
+    dd_venc_closed(fd);
     return 0;
 }
 '''
@@ -95,8 +95,8 @@ TOUCH_DRIVER = r'''
 #include <sys/wait.h>
 #include <unistd.h>
 
-int bl_venc_open(const char *path, int flags);
-void bl_venc_closed(int fd);
+int dd_venc_open(const char *path, int flags);
+void dd_venc_closed(int fd);
 int XTestFakeMotionEvent(void *dpy, int screen, int x, int y, unsigned long delay);
 int XTestFakeButtonEvent(void *dpy, unsigned int button, int press, unsigned long delay);
 int XDisplayWidth(void *dpy, int screen) { return 1281; }
@@ -105,7 +105,7 @@ int XDisplayHeight(void *dpy, int screen) { return 721; }
 int main(void) {
     XTestFakeButtonEvent(NULL, 1, 1, 0);
     XTestFakeButtonEvent(NULL, 1, 0, 0);
-    int fd = bl_venc_open("/dev/video-enc0", 0);
+    int fd = dd_venc_open("/dev/video-enc0", 0);
     if (fd < 0) return 3;
     XTestFakeMotionEvent(NULL, 0, 1280, 360, 0);
     XTestFakeButtonEvent(NULL, 1, 1, 0);
@@ -116,11 +116,11 @@ int main(void) {
     snprintf(marker, sizeof marker, "%s/droiddeck-remote-play", getenv("XDG_RUNTIME_DIR"));
     if (access(marker, F_OK) != 0) return 4;
     pid_t child = fork();
-    if (child == 0) { bl_venc_closed(fd); _exit(access(marker, F_OK) == 0 ? 0 : 1); }
+    if (child == 0) { dd_venc_closed(fd); _exit(access(marker, F_OK) == 0 ? 0 : 1); }
     int status;
     waitpid(child, &status, 0);
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) return 5;
-    bl_venc_closed(fd);
+    dd_venc_closed(fd);
     if (access(marker, F_OK) == 0) return 6;
     XTestFakeButtonEvent(NULL, 1, 1, 0);
     usleep(200000);
@@ -191,7 +191,7 @@ class VencEmulatorTest(unittest.TestCase):
             server = FakeEncoder(str(sock))
             self.addCleanup(server.listener.close)
             server.start()
-            done = subprocess.run([str(binary)], env=dict(os.environ, BL_VENC_SOCKET=str(sock)),
+            done = subprocess.run([str(binary)], env=dict(os.environ, DD_VENC_SOCKET=str(sock)),
                                   capture_output=True, text=True, timeout=20)
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
             self.assertEqual(done.stdout.split('\n')[:3],
@@ -217,7 +217,7 @@ class VencEmulatorTest(unittest.TestCase):
             server = FakeEncoder(str(sock))
             self.addCleanup(server.listener.close)
             server.start()
-            done = subprocess.run([str(binary)], env=dict(os.environ, BL_VENC_SOCKET=str(sock), XDG_RUNTIME_DIR=str(tmp)),
+            done = subprocess.run([str(binary)], env=dict(os.environ, DD_VENC_SOCKET=str(sock), XDG_RUNTIME_DIR=str(tmp)),
                                   capture_output=True, text=True, timeout=20)
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual(server.touches, [(0, 65535, 32767), (1, 32767, 0), (2, 32767, 0)])

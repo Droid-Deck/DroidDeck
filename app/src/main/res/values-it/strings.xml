@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">Grafica di SteamVR interrotta</string>
     <string name="steamvr_recovery_countdown">DroidDeck si riavvierà tra %1$d secondi per ripristinare la grafica e riaprire SteamVR. Il gioco in esecuzione verrà chiuso; i progressi non salvati non potranno essere recuperati.</string>
@@ -22,7 +22,6 @@
         <item>Aggiungi librerie Steam da una scheda SD, un\'unità USB o un SSD, e DroidDeck tiene i giochi insieme nella tua Libreria.</item>
         <item>Negozi ti permette di accedere a Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io e Game Jolt, poi di installare e aggiornare i loro giochi da DroidDeck.</item>
         <item>I componenti come FEX, DXVK e VKD3D-Proton si aggiornano da soli, e Proton Experimental ARM64 è il predefinito, oppure Proton 11.0 ARM64 una volta installata quella build.</item>
-        <item>Comprimi Steam durante il gioco libera RAM sui dispositivi che ne hanno poca.</item>
         <item>Scorri verso l\'interno dal bordo destro per aprire il menu della sessione: modalità touchpad, Tastiera PC, Modalità bassa latenza, Profilo del gioco e altro.</item>
         <item>Il gioco è lento? Limita il frame rate in Accesso rapido, poi prova un\'altra versione di Proton o un altro preset FEX nei componenti del gioco.</item>
         <item>Audio del gioco che gracchia o manca? Prova l\'opzione DirectAudio per i giochi nelle impostazioni di Steam, sotto Audio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Questo programma è compilato per PC %1$s e viene eseguito tramite FEX, che non è ancora configurato. Apri Steam una volta dopo aver eseguito l\'accesso: DroidDeck gli farà scaricare FEX e lo Steam Linux Runtime necessario, poi il programma si aprirà.</string>
     <string name="session_proot_missing">Impossibile scaricare il proot di DroidDeck. Controlla la connessione e riprova. La sessione non è stata avviata perché il proot di riserva è troppo lento per giocare.</string>
     <string name="session_powervr_missing">Non è stato possibile scaricare l\'ambiente grafico PowerVR. Controlla la connessione e riprova.</string>
+    <string name="session_graphics_runtime_failed">Non è stato possibile preparare l\'ambiente grafico, quindi la sessione non è stata avviata.</string>
+    <string name="session_game_environment_failed">Non è stato possibile configurare l\'ambiente di gioco, quindi la sessione non è stata avviata.</string>
     <string name="session_directaudio_missing">Impossibile scaricare DirectAudio, quindi l\'audio dei giochi usa il percorso più lento in questa sessione.</string>
     <string name="session_end_program">Questo programma</string>
     <string name="session_end_present_fault">La sessione non è riuscita a disegnare sullo schermo: %1$s. Questa schermata mostra il motivo al posto di una schermata nera; i log della sessione contengono i dettagli.</string>
@@ -357,7 +358,7 @@
     <string name="mode_return_after_game">Torna a DroidDeck dopo un gioco</string>
     <string name="mode_return_after_game_hint">Quando si chiude un gioco avviato da DroidDeck o da un altro launcher, Steam esce in modo pulito (prima termina il salvataggio nel cloud) e torni lì. Disattivo: resti in Steam.</string>
     <string name="mode_shader_precache">Pre-caching degli shader</string>
-    <string name="mode_shader_precache_hint">Steam scarica shader precompilati per i tuoi giochi e li elabora in background, così i giochi scattano meno. Disattivato risparmia dati, spazio e batteria; i giochi compilano gli shader mentre giochi. È la stessa impostazione di Download > Pre-caching degli shader in Steam. Si applica dalla prossima sessione.</string>
+    <string name="mode_shader_precache_hint">Steam scarica shader precompilati per i tuoi giochi e li elabora in background, così i giochi scattano meno. Disattivato risparmia dati, spazio e batteria; i giochi compilano gli shader mentre giochi. È la stessa impostazione di Download &gt; Pre-caching degli shader in Steam. Si applica dalla prossima sessione.</string>
     <string name="mode_steam_repair">Ripara il client Steam</string>
     <string name="mode_steam_repair_hint">Scarica di nuovo il client Steam al prossimo avvio di Steam. Usalo se Steam resta sulla schermata di caricamento. Giochi, accesso e impostazioni vengono mantenuti.</string>
     <string name="mode_steam_repair_queued">Il client Steam verrà scaricato di nuovo al prossimo avvio di Steam.</string>
@@ -626,20 +627,8 @@
     <string name="perf_gsrealtime">gamescope: coda GPU in tempo reale</string>
     <string name="perf_gsrealtime_hint">Dà priorità al lavoro GPU del compositor. Può rendere più regolare il frame pacing, a scapito dei giochi.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memoria</string>
     <string name="perf_cap_off">Disattivo</string>
-    <string name="perf_cap_auto">Predefinito del driver</string>
-    <string name="perf_zram_client">Comprimi Steam durante il gioco</string>
-    <string name="perf_zram_idle">Comprimi la memoria inattiva del gioco</string>
-    <string name="perf_zram_idle_hint">Comprime la memoria inattiva del gioco quando la RAM scarseggia. Disattivalo se i giochi si bloccano per qualche secondo circa ogni mezzo minuto. Si applica al prossimo avvio della sessione.</string>
-    <string name="perf_zram_client_hint">20 s dopo l\'avvio di un gioco, il client Steam viene compresso in zRAM per lasciare più memoria al gioco e viene riletto quando il gioco si chiude. Disattivalo se la sessione si chiude poco dopo l\'avvio dei giochi. Un limite di RAM impostato sopra comprime comunque Steam quando la sessione lo supera.</string>
-    <string name="perf_ram_cap">Limite RAM</string>
-    <string name="perf_ram_cap_hint">Si applica mentre il client Steam è in esecuzione, in modalità Steam o dal desktop. Quando la sessione usa più di questo valore, Steam e poi gli altri processi supportati della sessione vengono compressi in zRAM. È un limite morbido: non viene chiuso nulla, ma i giochi possono scattare mentre le pagine vengono recuperate.</string>
-    <string name="perf_ram_cap_unavailable">Richiede lo swap zRAM, che questo dispositivo non ha.</string>
-    <string name="perf_vram_cap">Limite VRAM</string>
-    <string name="perf_vram_cap_hint">La memoria video che DXVK comunica ai giochi Direct3D, così usano meno texture. Le impostazioni DXVK del gioco hanno comunque la priorità. Si applica dalla prossima sessione.</string>
     <string name="perf_gpuclock">Mantieni la GPU alla frequenza massima</string>
-    <string name="perf_gpuclock_hint">Solo Adreno. Meno scatti, più consumo di batteria e più calore.</string>
     <string name="perf_fixes">Correzioni della sessione</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
     <string name="perf_sysmem_hint">Si applica al client Steam e ai giochi. Necessario su Adreno 710/720/722.</string>
@@ -712,7 +701,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Barra</string>
     <string name="hud_locked">Blocca in posizione</string>
-    <string name="hud_locked_hint">Trascina l\'HUD per spostarlo; una pressione prolungata lo blocca o lo sblocca. Mentre è bloccato, i controlli su schermo sotto di esso continuano a funzionare.</string>
+    <string name="hud_locked_hint">Trascina l\'HUD per spostarlo. Mentre è bloccato, i controlli su schermo sotto di esso continuano a funzionare.</string>
+    <string name="hud_hold">Pressione prolungata</string>
+    <string name="hud_hold_collapse">Comprimi o espandi</string>
+    <string name="hud_hold_lock">Blocca o sblocca</string>
     <string name="hud_snap">Aggancia ai lati</string>
     <string name="hud_snap_hint">Rilascia l\'HUD e si sposta sul lato più vicino dello schermo. Un gesto rapido lo lancia in quella direzione.</string>
     <string name="hud_group_look">Aspetto</string>
@@ -1140,7 +1132,7 @@
     <string name="lab_off_title">Build Lab disattivata</string>
     <string name="lab_off_other_install">È stata compilata per un\'altra versione di DroidDeck. È conservata in Aggiornamenti.</string>
     <string name="lab_off_did_not_start">DroidDeck non si è avviato con essa due volte</string>
-    <string name="rail_agent">Agente</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agente</string>
     <string name="agent_working">L\'agente sta lavorando</string>
     <string name="agent_missing">Installa Claude Code nella userland Linux per usare l\'agente.</string>
@@ -1313,6 +1305,7 @@
     <string name="gate_enter_manually">Inserisci l\'indirizzo manualmente</string>
     <string name="gate_from_computer">Da un computer con ADB:</string>
     <string name="gate_copy_command">Copia comando</string>
+    <string name="gate_sidequest_steps">Collega il visore a un computer e apri SideQuest. Scegli “Run ADB Command”, poi “Custom Command”, digita il comando mostrato sotto e seleziona “Run Command”.</string>
     <string name="gate_choose_display">Scegli su quale schermo aprire le Impostazioni di Android.</string>
     <string name="gate_main_screen">Schermo principale</string>
     <string name="wadb_finding_port">Accoppiato. Ricerca della porta del Debug wireless…</string>
@@ -1568,6 +1561,8 @@
     <string name="pip_unavailable">Android non è riuscito ad aprire il picture in picture.</string>
     <string name="game_more">Altro</string>
     <string name="game_edit_art">Modifica grafica</string>
+    <string name="game_unhide">Rimuovi dai nascosti</string>
+    <string name="game_hide_failed">Impossibile sincronizzare con Steam. Chiudi Steam e riprova.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Scorciatoia</string>
     <string name="game_shortcut_add">Aggiungi alla schermata Home</string>
@@ -1589,7 +1584,6 @@
     <string name="game_file_folder">Scegli una cartella per i file dei giochi del frontend</string>
     <string name="game_file_exported">File dei giochi salvati in %1$s</string>
     <string name="game_frontend_files">File del frontend</string>
-
     <string name="main_wait_runtime">Attendi la fine dell\'operazione sul runtime</string>
     <string name="main_wait_proton_install">Attendi la fine dell\'installazione dello strumento di compatibilità</string>
     <string name="load_compat_title">Preparazione degli strumenti di compatibilità</string>
@@ -1680,7 +1674,6 @@
     <string name="main_removing_runtime">Rimozione del runtime Linux</string>
     <string name="main_settings_main_screen">Impossibile aprire Impostazioni sullo schermo inferiore; aperte sullo schermo principale.</string>
     <string name="main_open_dev_options">Apri Opzioni sviluppatore in Impostazioni</string>
-
     <string name="upd_unknown_apps_failed">Impossibile aprire l\'impostazione Android “Installa app sconosciute”</string>
     <string name="upd_couldnt_check">Impossibile controllare: %1$s</string>
     <string name="upd_no_download">Questa build non ha un download per questa copia di DroidDeck</string>
@@ -1690,12 +1683,10 @@
     <string name="upd_stage_confirm">In attesa della tua conferma</string>
     <string name="upd_failed">Aggiornamento non riuscito</string>
     <string name="upd_not_offered">Android non ha proposto di installare l\'aggiornamento</string>
-
     <string name="decky_install_failed">Installazione di Decky non riuscita: %1$s</string>
     <string name="decky_plugin_starting">Avvio dell\'importazione del plugin…</string>
     <string name="decky_plugin_failed">Importazione del plugin non riuscita: %1$s</string>
     <string name="decky_plugin_installed">Plugin installato. Riavvia Steam per caricarlo.</string>
-
     <string name="drivers_not_checked">Non ancora controllato - tocca aggiorna per cercare nuovi driver</string>
     <string name="drivers_bundle_sets_display">Android + Linux: imposta anche il driver video</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: imposta anche il driver del runtime</string>
@@ -1751,7 +1742,6 @@
     <string name="drivers_check_failed">controllo non riuscito</string>
     <string name="drivers_installed_pick_either">Installato %1$s - sceglilo in uno dei due elenchi per impostare entrambi i driver</string>
     <string name="drivers_installed_pick">Installato %1$s - sceglilo nel menu</string>
-
     <string name="session_wait_removal">Attendi la fine della rimozione del runtime</string>
     <string name="session_title_game">Gioco</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
@@ -1799,7 +1789,6 @@
         <item quantity="many">Il log mostra %1$d errori “Function not implemented”: l\'accelerazione seccomp di proot fa fallire un helper su questo dispositivo. Prova %2$s → “%3$s” (o “%4$s”) e riavvia.</item>
         <item quantity="other">Il log mostra %1$d errori “Function not implemented”: l\'accelerazione seccomp di proot fa fallire un helper su questo dispositivo. Prova %2$s → “%3$s” (o “%4$s”) e riavvia.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Plugin</string>
     <string name="mode_decky_plugins_hint">Installa uno ZIP di plugin per la prossima sessione Steam.</string>
     <string name="mode_decky_plugin_downloading">Download…</string>
@@ -2163,7 +2152,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">La porta %1$d riceve dati (%2$d pacchetti da %3$d byte), ma in un formato che questa pagina non sa ancora leggere.</string>
     <string name="bottom_telemetry_port_busy">Un altro programma usa già la porta %1$s, quindi quel gioco non può essere mostrato qui.</string>
-
     <string name="rtinst_removing">Rimozione del runtime Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Rimozione del runtime Linux · %1$d elemento</item>
@@ -2179,7 +2167,6 @@
     <string name="rtinst_channel_description">Visibile durante l\'installazione o la rimozione del runtime Linux</string>
     <string name="rtinst_title_installing">Installazione del runtime Linux</string>
     <string name="rtinst_title_removing">Rimozione del runtime Linux</string>
-
     <string name="deskpkg_runtime_missing">Il runtime Linux non è installato</string>
     <string name="deskpkg_no_checksum">Il catalogo non ha un checksum per %1$s</string>
     <string name="deskpkg_checksum_mismatch">Checksum non corrispondente - non è stato modificato nulla</string>
@@ -2187,7 +2174,6 @@
     <string name="deskpkg_place_failed">Impossibile posizionare l\'AppImage</string>
     <string name="deskpkg_extract_failed">Estrazione non riuscita</string>
     <string name="deskpkg_install_failed">Installazione non riuscita</string>
-
     <string name="flatpakmgr_setup_failed">Configurazione di Flatpak non riuscita (uscita %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">La configurazione di Flatpak non è stata completata</string>
     <string name="flatpakmgr_busy">È in corso un\'altra operazione del Negozio</string>
@@ -2206,7 +2192,6 @@
     <string name="flatpakmgr_ref_media_codecs">codec multimediali</string>
     <string name="flatpakmgr_ref_runtime">runtime %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">runtime %1$s %2$s</string>
-
     <string name="appimg_too_small">Il file è troppo piccolo per essere un AppImage</string>
     <string name="appimg_unreadable">Impossibile leggere il file: %1$s</string>
     <string name="appimg_not_linux">Questo non è un AppImage (non è un programma Linux)</string>
@@ -2221,7 +2206,6 @@
     <string name="appimg_extracting">Estrazione di %1$s</string>
     <string name="appimg_extract_failed">Impossibile estrarre l\'AppImage</string>
     <string name="appimg_extract_failed_detail">Impossibile estrarre l\'AppImage: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Interrompi la sessione attiva prima di installare Decky Loader</string>
     <string name="deckymgr_download_failed">Download di Decky Loader non riuscito</string>
     <string name="deckymgr_size_mismatch">La dimensione di Decky Loader non corrisponde ai metadati della release</string>
@@ -2270,13 +2254,11 @@
     <string name="deckymgr_activate_failed">Impossibile attivare il plugin importato</string>
     <string name="deckymgr_settings_failed">Impossibile aggiornare le impostazioni dei plugin Decky</string>
     <string name="deckymgr_restore_failed">Impossibile ripristinare il plugin esistente</string>
-
     <string name="adbfix_save_failed">Impossibile salvare l\'identità del debug wireless</string>
     <string name="adbfix_command_failed">Comando ADB non riuscito (%1$d)</string>
     <string name="adbfix_not_confirmed">Android non ha confermato la modifica del limite dei processi secondari: %1$s</string>
     <string name="adbfix_no_pairing">Nessun accoppiamento del debug wireless salvato</string>
     <string name="adbfix_enter_address">Inserisci l\'indirizzo IP e la porta attuali del debug wireless</string>
-
     <string name="adbpair_timed_out">Tempo scaduto in attesa del popup di accoppiamento. Riprova da DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Impossibile cercare il popup di accoppiamento (%1$d). Controlla che il Wi-Fi sia attivo.</string>
     <string name="adbpair_discovery_failed">Impossibile cercare il popup di accoppiamento: %1$s</string>
@@ -2302,7 +2284,6 @@
     <string name="adbpair_title_done">Steam è pronto</string>
     <string name="adbpair_done_text">Tocca per tornare a DroidDeck. Ora puoi disattivare il debug wireless.</string>
     <string name="adbpair_title_failed">Configurazione del debug wireless interrotta</string>
-
     <string name="selfinst_download_failed">Download non riuscito</string>
     <string name="selfinst_size_mismatch">La dimensione del download non corrispondeva all\'APK pubblicato ed è stato scartato - riprova</string>
     <string name="selfinst_checksum_mismatch">Il download non corrispondeva al suo checksum ed è stato scartato - riprova</string>
@@ -2315,13 +2296,11 @@
     <string name="selfinst_no_signing">L\'APK scaricato non ha informazioni di firma</string>
     <string name="selfinst_wrong_signer">L\'APK scaricato non è firmato con la chiave di release di DroidDeck</string>
     <string name="appupd_http">Il catalogo degli aggiornamenti ha risposto HTTP %1$d</string>
-
     <string name="loadstate_starting">Avvio della sessione…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d trascorsi · ancora in corso</string>
     <string name="loadstate_steam_update">Download dell\'aggiornamento del client Steam · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Applicazione dell\'aggiornamento del client Steam…</string>
     <string name="loadstate_steam_client">Download del client Steam · %1$s</string>
-
     <string name="pextra_busy">È già in corso l\'installazione di uno strumento di compatibilità</string>
     <string name="pextra_stop_session">Interrompi la sessione attiva prima di installare strumenti di compatibilità</string>
     <string name="pextra_no_release">Impossibile trovare una release ARM64 per %1$s</string>
@@ -2338,10 +2317,20 @@
     <string name="pextra_checksum_mismatch">Checksum non corrispondente; il download è stato eliminato</string>
     <string name="pextra_session_started">È stata avviata una sessione durante il download; interrompila prima di installare strumenti di compatibilità</string>
     <string name="pextra_installing">Installazione di %1$s</string>
+    <string name="xproton_title">Build sperimentali</string>
+    <string name="xproton_install_file">Installa da file</string>
+    <string name="xproton_archive_unsafe">L\'archivio contiene un collegamento o percorso non sicuro</string>
+    <string name="xproton_archive_invalid">Archivio non supportato o non valido</string>
+    <string name="xproton_no_space">Spazio libero insufficiente per questa build di Proton</string>
+    <string name="xproton_unpacking">Estrazione di Proton (qualche minuto)</string>
+    <string name="xproton_untar_failed">Estrazione non riuscita (tar %1$d)</string>
+    <string name="xproton_no_tree">L\'archivio non contiene alcuna build di Proton</string>
+    <string name="xproton_place_failed">Impossibile posizionare la build di Proton</string>
+    <string name="xproton_remove_failed">Impossibile rimuovere completamente %1$s</string>
+    <string name="xproton_installed">Proton sperimentale installato. Selezionalo in Steam → Proprietà → Compatibilità.</string>
     <string name="pextra_install_failed">Installazione di %1$s non riuscita (uscita %2$d)</string>
     <string name="pextra_could_not_install">Impossibile installare %1$s</string>
     <string name="esync_fetching">Recupero del pacchetto droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">con helper Linux</string>
     <string name="cmgr_fex_dlls_only">Solo DLL</string>
     <string name="cmgr_original_proton_updated">Originale (Proton aggiornato dopo l\'ultima sostituzione)</string>
@@ -2364,13 +2353,11 @@
     <string name="cmgr_nightly_replaced">Download non riuscito: questa build nightly potrebbe essere stata sostituita da una più recente. Aggiorna l’elenco e riprova.</string>
     <string name="cmgr_list_predates_checksums">Questo elenco di pacchetti è anteriore ai checksum - aggiornalo e riprova</string>
     <string name="cmgr_checksum_mismatch">Checksum non corrispondente</string>
-
     <string name="sprefs_upscaler_linear">Lineare</string>
     <string name="sprefs_upscaler_nearest">Più vicino</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (qualità)</string>
     <string name="sprefs_upscaler_sharpen">Solo nitidezza</string>
     <string name="sprefs_lod_bias_auto">Auto (segue il ridimensionamento)</string>
-
     <string name="look_off_desc">Nessun effetto applicato.</string>
     <string name="look_game_clarity">Chiarezza di gioco</string>
     <string name="look_game_clarity_desc">Nitidezza con un tocco di contrasto - quello per tutti i giorni.</string>
@@ -2394,7 +2381,6 @@
     <string name="look_pixel_clean_desc">Pixel nitidi per il 2D e i titoli più vecchi.</string>
     <string name="look_anime_edge">Contorni anime</string>
     <string name="look_anime_edge_desc">Contorni da cartone animato più nitidezza.</string>
-
     <string name="gpuinfo_not_adreno">Non è una GPU Adreno</string>
     <string name="gpuinfo_powervr">Driver PowerVR di sistema: la compatibilità varia in base al dispositivo</string>
     <string name="gpuinfo_xclipse">Sperimentale: RADV o il driver Xclipse di sistema</string>
@@ -2419,7 +2405,6 @@
     <string name="gpuinfo_unsupported">Non supportata: nessun backend grafico compatibile disponibile per questa GPU</string>
     <string name="gpuinfo_bridge">Funziona tramite il bridge Mali, sul driver Vulkan del telefono</string>
     <string name="gpuinfo_bridge_off">Non supportato con il bridge Mali disattivato: Turnip richiede una GPU Adreno (Snapdragon)</string>
-
     <string name="turnip_rate_limited">Raggiunto il limite di richieste di GitHub - riprova più tardi</string>
     <string name="turnip_github_http">GitHub ha risposto HTTP %1$d</string>
     <string name="turnip_download_failed">Download non riuscito</string>
@@ -2440,16 +2425,12 @@
     <string name="bundle_no_manifest">Non è un pacchetto di driver: manca un manifest.json che indichi un driver Android e uno Linux</string>
     <string name="bundle_entry_outside">Non è un pacchetto di driver: %1$s punta al di fuori di esso</string>
     <string name="bundle_too_large">Non è un pacchetto di driver: una volta estratto supera %1$d MB</string>
-
     <string name="gstore_sd_card">Scheda SD</string>
     <string name="gstore_folder">Cartella</string>
-
     <string name="logshare_chooser">Condividi log di sessione</string>
-
     <string name="hdr_needs_android_10">richiede Android 10 o successivo (livelli di visualizzazione con spazio colore)</string>
     <string name="hdr_none">questo schermo non segnala supporto HDR</string>
     <string name="hdr_not_hdr10">questo schermo supporta %1$s, non HDR10</string>
-
     <string name="gpu_this_gpu">questa GPU</string>
     <string name="phantom_title_on">Limite dei processi secondari attivo</string>
     <string name="phantom_title_unset">Limite dei processi secondari non impostato</string>
@@ -2523,7 +2504,6 @@
     <string name="device_info_copied">Copiato.</string>
     <string name="force_ssbs_title">Forza SSBS</string>
     <string name="force_ssbs_hint">Mantiene attiva un\'impostazione di velocità della CPU che Wine continua a disattivare. Può rendere più veloci i giochi Windows su Snapdragon 8 Elite; poche differenze sui chip più vecchi. Si applica al prossimo avvio del gioco.</string>
-
     <string name="rail_stores">Negozi</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Personalizzati</string>
@@ -3009,7 +2989,6 @@
     <string name="touch_icon_color">Colore dell\'icona</string>
     <string name="touch_button_color">Colore del tasto</string>
     <string name="touch_no_icon">Nessuna icona</string>
-
     <string name="stores_sync_sign_in">Verifica dell\'accesso…</string>
     <string name="stores_sync_library">Recupero della libreria…</string>
     <string name="stores_sync_game_list">Recupero dell\'elenco giochi…</string>
@@ -3400,10 +3379,19 @@
     <string name="storage_shared_prefix">Prefisso condiviso di Steam</string>
     <string name="storage_shared_prefix_detail">Steam esegue qui i propri strumenti Windows</string>
     <string name="storage_reset_shared_confirm">Lo elimina (%1$s). Steam ne crea uno nuovo la prossima volta che serve.</string>
+    <string name="storage_remove_launcher_confirm">Elimina il prefisso Wine e la cache degli shader di questa app dello store (%1$s), con il suo accesso e i salvataggi presenti solo lì. I giochi che vi girano ricevono un nuovo prefisso e potrebbe essere necessario configurare di nuovo l\'app. I salvataggi cloud restano nel tuo account.</string>
+    <string name="storage_system_clearable">Si possono liberare %1$s</string>
+    <string name="storage_item_system_caches">Cache di Linux e Steam</string>
+    <string name="storage_item_system_caches_detail">Vecchi file temporanei, pacchetti scaricati e cache web di Steam</string>
+    <string name="storage_cache_temp">Vecchi file temporanei</string>
+    <string name="storage_cache_packages">Pacchetti scaricati</string>
+    <string name="storage_cache_steam_web">Cache web di Steam</string>
+    <string name="storage_cache_steam_corrupt">Download di Steam danneggiati</string>
+    <string name="storage_cache_detail">Ricreati quando servono</string>
+    <string name="storage_clear">Svuota</string>
     <string name="storage_launcher_prefix">Un\'app di uno store e i giochi che girano con essa</string>
     <string name="storage_launcher_used_by">Usato da %1$s</string>
     <string name="storage_shortcut_app">Gioco non Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Non associato a nessun gioco, quindi viene conservato</string>
     <string name="storage_remove_selected">Rimuovi selezionati · %1$s</string>
     <string name="storage_uninstall_selected">Disinstalla selezionati · %1$s</string>
     <string name="storage_bulk_prefixes">Prefissi Wine</string>
@@ -4068,10 +4056,8 @@
     <string name="input_show_label">Mostra etichetta</string>
     <string name="input_layout_import_failed">Impossibile importare questo layout</string>
     <string name="epic_third_party_managed">Si installa tramite %1$s</string>
-
     <string name="theme_white_red">Neve scarlatta</string>
     <string name="theme_white_red_detail">Superfici bianche con accenti rossi.</string>
-
     <string name="rail_soundtracks">Colonne sonore</string>
     <string name="rail_music">Musica</string>
     <string name="soundtracks_options">Opzioni di riproduzione</string>
@@ -4148,9 +4134,23 @@
     <string name="hud_readings_shown">Mostrati</string>
     <string name="hud_readings_count">%1$d di %2$d</string>
     <string name="exit_hint_back">Premi di nuovo indietro per uscire</string>
-
     <string name="display_integer_scaling">Ridimensionamento intero</string>
     <string name="display_integer_scaling_hint">Usa il massimo fattore di scala intero che entra nello schermo. I bordi potrebbero essere tagliati. Se la sorgente è più grande dell\'output, la scalatura frazionaria mostra l\'intera immagine. La risoluzione si configura separatamente.</string>
     <string name="display_scaling_integer">Intero</string>
     <string name="display_scaling_fit">Adatta</string>
+    <string name="drawer_antialiasing">Antialiasing</string>
+    <string name="theme_custom">Personalizzato</string>
+    <string name="theme_custom_detail">Scegli separatamente ogni colore dell’interfaccia.</string>
+    <string name="theme_custom_background">Sfondo</string>
+    <string name="theme_custom_surface">Pannelli</string>
+    <string name="theme_custom_surface_variant">Pannelli rialzati</string>
+    <string name="theme_custom_line">Separatori</string>
+    <string name="theme_custom_line2">Bordi</string>
+    <string name="theme_custom_on_background">Testo principale</string>
+    <string name="theme_custom_on_surface_variant">Testo secondario</string>
+    <string name="theme_custom_primary">Pulsanti e colore principale</string>
+    <string name="theme_custom_on_primary">Testo dei pulsanti</string>
+    <string name="theme_custom_signal">Evidenziazioni</string>
+    <string name="theme_custom_good">Successo</string>
+    <string name="theme_custom_error">Errore</string>
 </resources>

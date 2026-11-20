@@ -36,6 +36,7 @@ public class HudLockController {
         default void onDragged(float rawX, float rawY) {}
         default void onFlung(float velocityX, float velocityY) {}
         void onLockChanged(boolean locked);
+        default void onHold(float rawX, float rawY) {}
         default void onPinch(float factor) {}
         default void onPinchEnd() {}
     }
@@ -53,6 +54,7 @@ public class HudLockController {
     private final android.view.VelocityTracker velocity = android.view.VelocityTracker.obtain();
 
     private boolean locked = false;
+    private boolean holdLocks = false;
 
     private float downRawX, downRawY, startX, startY;
     private boolean dragging = false;
@@ -79,6 +81,8 @@ public class HudLockController {
     }
 
     public void setLocked(boolean locked) { this.locked = locked; }
+
+    public void setHoldLocks(boolean holdLocks) { this.holdLocks = holdLocks; }
 
     public boolean isLocked() { return locked; }
 
@@ -119,6 +123,10 @@ public class HudLockController {
 
         @Override
         public void onLongPress(MotionEvent e) {
+            if (!holdLocks) {
+                cb.onHold(e.getRawX(), e.getRawY());
+                return;
+            }
             locked = !locked;
             cb.onLockChanged(locked);
             flash(locked, HOLD_TOGGLE_MS);

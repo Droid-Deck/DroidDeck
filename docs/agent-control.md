@@ -122,9 +122,12 @@ tools/droiddeckctl stop
 tools/droiddeckctl resume
 
 tools/droiddeckctl launch 489830 --wait
+tools/droiddeckctl library --source xbox
+tools/droiddeckctl launch --game "dead space" --wait
 tools/droiddeckctl wait focused 489830
 tools/droiddeckctl wait game
 tools/droiddeckctl quit 489830
+tools/droiddeckctl quit
 tools/droiddeckctl focus
 
 tools/droiddeckctl input key ENTER
@@ -145,13 +148,17 @@ tools/droiddeckctl ui click --match "Play"
 tools/droiddeckctl ui set-text some-field --text abc
 
 tools/droiddeckctl guest -- xprop -root GAMESCOPE_FOCUSED_APP
+tools/droiddeckctl native -- ls /usr/local/lib/droiddeck-xbox
+tools/droiddeckctl xodus --timeout 60 -- resolve-package 9N51S9QZMSB6 --json --market US
+tools/droiddeckctl cloud down ubisoft 92c79ab6-a69a-411d-ba2b-625ab104235d
+tools/droiddeckctl cloud up ea DR:105641400 --force
 tools/droiddeckctl cdp targets
 tools/droiddeckctl cdp eval 'SteamClient.Apps.GetMyRunningApps?.()'
 tools/droiddeckctl env set DXVK_HUD=fps
 tools/droiddeckctl env list
 tools/droiddeckctl env clear [next|persistent|all]
 tools/droiddeckctl override gamescope ./gamescope
-tools/droiddeckctl override libblfastpath.so ./libblfastpath.so
+tools/droiddeckctl override libddfastpath.so ./libddfastpath.so
 tools/droiddeckctl proot-profile enable --slow-us 1000
 tools/droiddeckctl proot-profile disable
 tools/droiddeckctl proot-profile report ./session.log --sort wall
@@ -209,8 +216,23 @@ every 10 s until the battery is under that temperature, so runs being compared s
 
 `input` needs a session that has drawn its first frame. Pad input goes through the session screen's
 virtual pad, the same one the on-screen controls drive, so games that ignore touch still respond.
-`launch`, `quit` and `cdp` need a Steam session; `focus` and `wait focused` need gamescope (every
+`launch` with an app id and `cdp` need a Steam session; `focus` and `wait focused` need gamescope (every
 mode except the desktop).
+
+Store and added games (Xbox, EA, Ubisoft, GOG, Epic, Battle.net, Rockstar, a folder added by hand) are
+launched by their library id, the same `droiddeck://game/<id>` link a home screen shortcut opens, so
+they go through the front end's own launch path and start a session when none is running. `library`
+lists the ids with each game's name, source, store id and folder (`--query` and `--source` narrow it),
+and `launch --game` takes an id or a unique part of a name; an ambiguous name exits with
+`GAME_AMBIGUOUS` and lists the matches. With `--wait` it returns once a game other than the Steam
+client has focus. `quit` without an id quits the focused game, so store games close the same way.
+
+`xodus` runs the Xbox backend with the app's own credentials and runtime, as the Xbox store does,
+and returns its exit code with the last 160 KiB of stdout and stderr (`--timeout` stops it).
+`cloud down|up <store> <id>` syncs one game's cloud saves now, without launching it, with the
+`result`, `files`, `bytes`, `reason`, `conflicts` and `detail` the game page shows; `--force` takes
+that side over conflicts. The store id is the one in the game's install record (`library` shows
+it). Both need Setup > Developer > Debugging tools.
 
 `input pen` does not go through the app. It registers a virtual pen with `adb shell uinput -`, so
 Android's own input reader makes the stylus events, as for a built-in pen, and it works on whatever
@@ -402,6 +424,7 @@ Automator show them:
 | Tag | Where |
 |---|---|
 | `rail-steam`, `rail-games` (the Library), `rail-desktop`, `rail-store`, `rail-components`, `rail-android-apps`, `rail-setup`, `rail-updates` | the front end's rail |
+| `dual-rail-<key>` (`dual-rail-games`, `dual-rail-downloads`, ...) | the rail on the second screen of a dual-screen device |
 | `play-steam` | Play on the Steam page, and on the Library when it has no games |
 | `library-source-<source>` | the Library's source filter chips (`all`, `steam`, `gog`, ...) |
 | `game-tab-<about\|achievements\|launch\|saves\|install>` | the open tab of a game page |
@@ -436,7 +459,7 @@ through first, since the launcher window carries the game's app id too:
 `proot-profile enable` queues handler profiling for the next session using the existing debugging
 consent gate. Counters and bounded slow samples appear in `session.log`; `proot-profile report`
 ranks a saved local log without ADB. This measures PRoot handler work, not full syscall latency.
-`override libblfastpath.so FILE` selects a glibc ARM64 shared library in the next session's preload
+`override libddfastpath.so FILE` selects a glibc ARM64 shared library in the next session's preload
 list, reports its SHA-256, and refuses installation until the current session stops. It lasts for
 one session; the next session stages the bundled library again. See
 [the profiling workflow](development/proot-performance.md#finding-the-next-fast-path) for timing

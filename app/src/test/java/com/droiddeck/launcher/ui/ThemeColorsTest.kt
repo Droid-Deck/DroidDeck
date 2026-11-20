@@ -188,4 +188,45 @@ class ThemeColorsTest {
         SessionPrefs.setTheme(app, Themes.TRUE_BLACK)
         assertEquals(Color(0xFFFF8800), Themes.current(app).primary)
     }
+
+    @Test fun customThemeRestoresIndependentColorsAndUsesASolidAccent() {
+        val chosen = CustomThemeColors(
+            background = 0xFF101112.toInt(),
+            surface = 0xFF202122.toInt(),
+            surfaceVariant = 0xFF303132.toInt(),
+            line = 0xFF404142.toInt(),
+            line2 = 0xFF505152.toInt(),
+            onBackground = 0xFFF1F2F3.toInt(),
+            onSurfaceVariant = 0xFFD1D2D3.toInt(),
+            primary = 0xFF336699.toInt(),
+            onPrimary = 0xFFFFFFFF.toInt(),
+            signal = 0xFFFFAA00.toInt(),
+            good = 0xFF00CC66.toInt(),
+            error = 0xFFFF4433.toInt(),
+        )
+
+        Themes.setCustomColors(app, CustomThemeColors())
+        SessionPrefs.setCustomThemeColors(app, chosen)
+        SessionPrefs.setTheme(app, Themes.CUSTOM)
+
+        assertEquals(chosen, SessionPrefs.customThemeColors(app))
+
+        val palette = Themes.current(app)
+        assertEquals(Themes.CUSTOM, palette.id)
+        assertEquals(Color(chosen.background), palette.background)
+        assertEquals(Color(chosen.surface), palette.surface)
+        assertEquals(Color(chosen.surfaceVariant), palette.surfaceVariant)
+        assertEquals(Color(chosen.line), palette.line)
+        assertEquals(Color(chosen.line2), palette.line2)
+        assertEquals(Color(chosen.onBackground), palette.onBackground)
+        assertEquals(Color(chosen.onSurfaceVariant), palette.onSurfaceVariant)
+        assertEquals(Color(chosen.primary), palette.primary)
+        assertEquals(Color(chosen.primary), palette.primary2)
+        assertEquals(Color(chosen.onPrimary), palette.onPrimary)
+        assertEquals(Color(chosen.signal), palette.signal)
+        assertEquals(Color(chosen.good), palette.good)
+        assertEquals(Color(chosen.error), palette.error)
+        assertTrue(Themes.all.any { it.id == Themes.CUSTOM })
+    }
+
 }

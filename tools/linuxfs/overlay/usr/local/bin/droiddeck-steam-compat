@@ -1315,7 +1315,7 @@ def main():
     files_only = sys.argv[1:2] == ["--files-only"]
     steam_root = sys.argv[2 if files_only else 1]
     try:
-        port = int(os.environ.get("BL_CDP_PORT", ""))
+        port = int(os.environ.get("DD_CDP_PORT", ""))
     except ValueError:
         say("no devtools port for this session; the client's mapping is kept through config.vdf")
         return 0
@@ -1339,7 +1339,7 @@ def main():
     watcher = Watcher([COMPAT["state_path"]("request.json"), COMPAT["state_path"]("games.json"),
                        os.path.join(steam_root, "appcache", "appinfo.vdf")] +
                       [os.path.join(lib, "steamapps", "libraryfolders.vdf") for lib in (steam_root, COMPAT["LIBRARY"] + "-sd")])
-    steamos = os.environ.get("BL_STEAMDECK") == "1" and os.environ.get("BL_STEAM_UI") != "desktop"
+    steamos = os.environ.get("DD_STEAMDECK") == "1" and os.environ.get("DD_STEAM_UI") != "desktop"
     helper = Helper(steam_root, port, steamos)
     failures = 0
     last = None

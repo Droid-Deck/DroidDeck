@@ -11,22 +11,26 @@ object GameLaunchIntent {
 
     fun accepts(action: String?): Boolean = action == Intent.ACTION_VIEW || action == ACTION || action == GAMENATIVE_ACTION
 
-    fun read(context: Context, intent: Intent): String? = when (intent.action) {
+    fun read(context: Context, intent: Intent): GameRequest? = when (intent.action) {
         Intent.ACTION_VIEW -> GameFiles.readIntent(context, intent)
-        ACTION, GAMENATIVE_ACTION -> readId(intent)
+        ACTION, GAMENATIVE_ACTION -> readExtras(intent)
         else -> null
     }
 
     @Suppress("DEPRECATION")
-    internal fun readId(intent: Intent): String? = runCatching {
+    internal fun readExtras(intent: Intent): GameRequest? = runCatching {
         if (intent.action != ACTION && intent.action != GAMENATIVE_ACTION) return null
-        val source = intent.extras?.get(EXTRA_GAME_SOURCE)
-        if (source != null && (source !is String || !source.equals("STEAM", ignoreCase = true))) return null
+        val source = when (val value = intent.extras?.get(EXTRA_GAME_SOURCE)) {
+            null -> Library.SOURCE_STEAM
+            is String -> GameRequest.sourceNamed(value) ?: return null
+            else -> return null
+        }
         val id = when (val value = intent.extras?.get(EXTRA_APP_ID)) {
             is Int -> value.takeIf { it > 0 }?.toString()
+            is Long -> value.takeIf { it != 0L }?.let(java.lang.Long::toUnsignedString)
             is String -> value.takeIf(GameLaunchLink::validId)
             else -> null
-        }
-        id
+        } ?: return null
+        GameRequest(id, source)
     }.getOrNull()
 }

@@ -9,7 +9,7 @@ import java.security.MessageDigest
 
 object ProotFastPath {
     private const val TAG = "ProotFastPath"
-    const val LIBRARY = "/usr/local/lib/libblfastpath.so"
+    const val LIBRARY = "/usr/local/lib/libddfastpath.so"
     const val MAX_BINDS = 256
 
     fun allows(preference: Boolean, noSeccomp: Boolean, source: String, nativeUserland: Boolean = false): Boolean =
