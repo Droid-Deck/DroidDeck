@@ -1699,6 +1699,14 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertTrue(notes)
         self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
 
+    def test_black_ops_ii_starts_with_steam_exec_handling(self):
+        for exe in ("/game/Call of Duty Black Ops II/t6zm.exe", "/game/Call of Duty Black Ops II/t6mp.exe", "/game/Call of Duty Black Ops II/t6sp.exe"):
+            env, extra, notes = MODULE["engine_fixes"](exe, [])
+            self.assertEqual((env, extra), ({"WINESTEAMNOEXEC": "0"}, []))
+            self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/Other.exe", [], "202990")[0], {"WINESTEAMNOEXEC": "0"})
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/Other.exe", []), ({}, [], []))
+
     def test_little_nightmares_keeps_its_render_thread(self):
         env, extra, notes = MODULE["engine_fixes"]("/game/Little Nightmares/Atlas/Binaries/Win64/LittleNightmares.exe", [])
         self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))

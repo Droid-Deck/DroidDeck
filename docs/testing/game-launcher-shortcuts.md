@@ -6,21 +6,21 @@ DroidDeck exposes installed Steam titles and AddedGames through a canonical laun
 droiddeck://game/<unsigned-decimal-game-id>
 ```
 
-The ID is the value accepted by `steam://rungameid/`, including an AddedGames shortcut ID that occupies the unsigned 64-bit range. The app accepts only the exact URI form and only after a fresh library scan finds that game. The deep link does not accept paths, Steam URLs, extra parameters, leading zeroes, or IDs outside the unsigned 64-bit range. Frontends that scan files can instead pass a file or content URI for an exported `.droiddeck` launch file.
+The ID is the value accepted by `steam://rungameid/`, including an AddedGames shortcut ID that occupies the unsigned 64-bit range. The app accepts only the exact URI form and only after a fresh library scan finds that game. The deep link does not accept paths, Steam URLs, extra parameters, leading zeroes, or IDs outside the unsigned 64-bit range. Frontends that scan files can instead pass a file or content URI for an exported game file. See [Launching DroidDeck games from a frontend](../frontend-integration.md) for every accepted intent and file format.
 
 Each game page's **Shortcut** menu offers **Add to home screen** through Android's pinned-shortcut request and **Copy launch link**. When a launcher invokes `ACTION_CREATE_SHORTCUT`, DroidDeck opens the Games page and returns Android's standard shortcut result after the user chooses a game.
 
 With the debug app installed, exercise link routing with an installed game ID from the current library:
 
 ```sh
-adb shell am start -n com.droiddeck.launcher/.MainActivity \
+adb shell am start -n com.droiddeck.launcher/.FrontEndActivity \
   -a android.intent.action.VIEW -d 'droiddeck://game/620'
 ```
 
 Open the standard shortcut picker with:
 
 ```sh
-adb shell am start -n com.droiddeck.launcher/.MainActivity \
+adb shell am start -n com.droiddeck.launcher/.FrontEndActivity \
   -a android.intent.action.CREATE_SHORTCUT
 ```
 

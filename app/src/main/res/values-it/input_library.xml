@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">Indietro · due volte in Steam, una su desktop</string>
     <string name="input_shortcut_hold_hint">In modalità Steam. Tenere premuto Indietro apre anche l\'accesso rapido.</string>
     <string name="input_restore_shortcut">Ripristina i valori predefiniti</string>
-    <string name="input_second_mode_hint">La scelta del pannello viene ricordata. Desktop apre un secondo spazio di lavoro; non cambia la sessione né il suo profilo di input.</string>
     <string name="input_virtual_controller">Controller virtuale</string>
     <string name="input_virtual_controller_hint">Il tipo di controller visto da Steam o dal gioco.</string>
     <string name="input_touchscreen">Touchscreen</string>

@@ -812,7 +812,6 @@
     <string name="drawer_pc_keyboard">لوحة مفاتيح الكمبيوتر</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">الشاشة الثانية</string>
-    <string name="drawer_second_screen_mode">الوضع</string>
     <string name="drawer_second_screen_shows">يعرض</string>
     <string name="drawer_android_apps">تطبيقات Android</string>
     <string name="drawer_launch_app">تشغيل تطبيق</string>

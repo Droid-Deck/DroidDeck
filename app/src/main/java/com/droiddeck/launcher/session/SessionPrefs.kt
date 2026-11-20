@@ -280,6 +280,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("developerTools", on).apply()
     }
 
+    fun previewShortcuts(context: Context): Boolean = prefs(context).getBoolean("previewShortcuts", false)
+
+    fun setPreviewShortcuts(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("previewShortcuts", on).apply()
+    }
+
     fun fpsLimitKey(mode: String?, game: String?): String? = when (mode) {
         SessionService.MODE_RUN -> game?.trim()?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)?.let { "fpsLimit.game.$it" }
         SessionService.MODE_DESKTOP -> "fpsLimit.desktop"
@@ -350,6 +356,25 @@ object SessionPrefs {
 
     fun setStoresTabOrder(context: Context, order: List<String>) {
         prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
+    }
+
+    /**
+     * Where the Library's own tabs (Favorites, Steam, Custom games) sit among the store tabs, as "tab=the tab it follows" pairs in
+     * strip order ("" follows nothing, i.e. first). Null until arranged.
+     */
+    fun libraryTabPlaces(context: Context): List<Pair<String, String>>? =
+        prefs(context).getString("libraryTabPlaces", null)?.split(',')?.mapNotNull { pair ->
+            pair.split('=', limit = 2).takeIf { it.size == 2 && it[0].isNotEmpty() }?.let { it[0] to it[1] }
+        }
+
+    fun setLibraryTabPlaces(context: Context, places: List<Pair<String, String>>) {
+        prefs(context).edit().putString("libraryTabPlaces", places.joinToString(",") { "${it.first}=${it.second}" }).apply()
+    }
+
+    fun libraryTabsHidden(context: Context): Set<String> = idList(prefs(context).getString("libraryTabsHidden", null)).toSet()
+
+    fun setLibraryTabsHidden(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("libraryTabsHidden", hidden.joinToString(",")).apply()
     }
 
     fun storesTabHidden(context: Context): Set<String> = idList(prefs(context).getString("storesTabHidden", null)).toSet()

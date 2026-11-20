@@ -804,7 +804,6 @@
     <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Második képernyő</string>
-    <string name="drawer_second_screen_mode">Mód</string>
     <string name="drawer_second_screen_shows">Megjelenít</string>
     <string name="drawer_android_apps">Android-alkalmazások</string>
     <string name="drawer_launch_app">Alkalmazás indítása</string>

@@ -802,7 +802,6 @@
     <string name="drawer_pc_keyboard">PCキーボード</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">セカンドスクリーン</string>
-    <string name="drawer_second_screen_mode">モード</string>
     <string name="drawer_second_screen_shows">表示</string>
     <string name="drawer_android_apps">Androidアプリ</string>
     <string name="drawer_launch_app">アプリを起動</string>
