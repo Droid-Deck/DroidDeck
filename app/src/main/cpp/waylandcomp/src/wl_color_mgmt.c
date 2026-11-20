@@ -84,6 +84,7 @@ static struct {
 static _Atomic int g_gate = -1;
 static char g_gate_why[320];
 static _Atomic int g_output_on = 1;
+static _Atomic int g_output_wanted = 1;
 
 void droiddeck_color_set_request(int mode, const char *source, int dxvk_hdr, int zero_copy_forced) {
     pthread_mutex_lock(&g_mu);
@@ -93,6 +94,7 @@ void droiddeck_color_set_request(int mode, const char *source, int dxvk_hdr, int
     g_req.zero_copy_forced = zero_copy_forced ? 1 : 0;
     pthread_mutex_unlock(&g_mu);
     atomic_store(&g_output_on, 1);
+    atomic_store(&g_output_wanted, 1);
 }
 
 void droiddeck_color_set_display(int id, const char *name, const char *formats, int hdr10, float max_lum,
@@ -610,8 +612,10 @@ int droiddeck_color_tonemapped_on_screen(void) {
 
 void droiddeck_color_set_output(int on) {
     on = on ? 1 : 0;
-    if (atomic_load(&g_gate) != 1) {
-        droiddeck_log(TAG, "HDR output switch (%s) ignored: HDR is not open in this session", on ? "on" : "off");
+    atomic_store(&g_output_wanted, on);
+    const int gate = atomic_load(&g_gate);
+    if (gate != 1) {
+        if (gate == 0) droiddeck_log(TAG, "HDR output switch (%s) ignored: HDR is not open in this session", on ? "on" : "off");
         return;
     }
     pthread_mutex_lock(&g_mu);
@@ -1335,6 +1339,7 @@ void droiddeck_color_init(struct wl_display *display) {
                "+ ST 2084 PQ, parametric descriptions with mastering metadata) and 10-bit AB30/XB30 dma-buf formats; HDR "
                "frames go on the game's own display layer as BT2020_PQ (%s)",
                mode == 2 ? "FORCED OPEN (testing)" : "OPEN", asked, disp, syms);
+    if (!atomic_load(&g_output_wanted)) atomic_store(&g_output_on, 0);
     if (mode == 3) {
         atomic_store(&g_output_on, 0);
         droiddeck_log(TAG, "this display cannot show HDR10: games still render HDR and every HDR frame is tone-mapped to "

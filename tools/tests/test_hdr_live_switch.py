@@ -60,6 +60,20 @@ class HdrLiveSwitchTest(unittest.TestCase):
             self.assertEqual(len(re.findall(r"onHdr = \{ on -> com\.droiddeck\.launcher\.session\.SessionHdr\.set\(", text)), 1, name)
             self.assertNotIn("SessionPrefs.setHdr(", text, name)
 
+    def test_a_saved_opt_out_applies_before_the_gate_opens(self):
+        native = (ROOT / "app/src/main/cpp/waylandcomp/src/wl_color_mgmt.c").read_text()
+        switch = native[native.index("void droiddeck_color_set_output(int on)"):]
+        self.assertLess(switch.index("atomic_store(&g_output_wanted, on)"), switch.index("gate != 1"))
+        opened = native[native.index("atomic_store(&g_gate, 1);"):]
+        self.assertIn("if (!atomic_load(&g_output_wanted)) atomic_store(&g_output_on, 0);", opened[:opened.index("if (mode == 3)")])
+        text = (APP / "SessionActivity.kt").read_text()
+        self.assertNotIn("if (attached) WaylandCompositor.nativeSetHdrOutput", text)
+
+    def test_retries_stay_with_the_session_that_asked(self):
+        helper = (APP / "session/SessionHdr.kt").read_text()
+        self.assertIn("val session = SessionState.sessionId", helper)
+        self.assertIn("SessionState.sessionId == session", helper)
+
     def test_no_restart_hint_is_left(self):
         for path in list(RES.glob("values*/strings.xml")) + list(APP.rglob("*.kt")):
             self.assertNotIn("mode_hdr_restart", path.read_text(), str(path))

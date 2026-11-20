@@ -2808,7 +2808,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (!SessionState.running) {
             val on = SessionState.hdrCapable && SessionPrefs.hdr(this, mode)
             SessionState.hdr = on
-            if (attached) WaylandCompositor.nativeSetHdrOutput(on)
+            WaylandCompositor.nativeSetHdrOutput(on)
             WaylandCompositor.nativeSetZeroCopy(on || SessionPrefs.zeroCopy(this, mode))
             Log.i(TAG, "hdr: " + (if (on) "on" else "off") + " for this $mode session")
         }

@@ -24,9 +24,10 @@ object SessionHdr {
         WaylandCompositor.nativeSetHdrOutput(on)
         WaylandCompositor.nativeSetZeroCopy(on || SessionPrefs.zeroCopy(context, mode))
         val app = context.applicationContext
+        val session = SessionState.sessionId
         requests.execute {
             var tries = 0
-            while (wanted == on && SessionState.running &&
+            while (wanted == on && SessionState.running && SessionState.sessionId == session &&
                 !AgentGuest.setGamescopeConvar(app, "hdr_enabled", if (on) 1 else 0) && tries++ < RETRIES) {
                 try { Thread.sleep(RETRY_MS) } catch (e: InterruptedException) { return@execute }
             }
