@@ -808,7 +808,6 @@
     <string name="drawer_pc_keyboard">Klávesnice PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Druhá obrazovka</string>
-    <string name="drawer_second_screen_mode">Režim</string>
     <string name="drawer_second_screen_shows">Zobrazuje</string>
     <string name="drawer_android_apps">Aplikace Android</string>
     <string name="drawer_launch_app">Spustit aplikaci</string>

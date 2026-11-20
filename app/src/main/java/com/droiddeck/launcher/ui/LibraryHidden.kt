@@ -17,6 +17,7 @@ import com.droiddeck.launcher.frontend.SteamHidden
 import com.droiddeck.launcher.session.SessionPrefs
 
 internal const val LIBRARY_HIDDEN = "hidden"
+internal val HIDDEN_DOT = androidx.compose.ui.graphics.Color(0xFF9AA0A6)
 
 internal object LibraryHidden {
     var keys by mutableStateOf<Set<String>>(emptySet())

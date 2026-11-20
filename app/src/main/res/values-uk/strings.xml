@@ -808,7 +808,6 @@
     <string name="drawer_pc_keyboard">Клавіатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Другий екран</string>
-    <string name="drawer_second_screen_mode">Режим</string>
     <string name="drawer_second_screen_shows">Показує</string>
     <string name="drawer_android_apps">Додатки Android</string>
     <string name="drawer_launch_app">Запустити додаток</string>

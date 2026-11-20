@@ -804,7 +804,6 @@
     <string name="drawer_pc_keyboard">PC-näppäimistö</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Toinen näyttö</string>
-    <string name="drawer_second_screen_mode">Tila</string>
     <string name="drawer_second_screen_shows">Näyttää</string>
     <string name="drawer_android_apps">Android-sovellukset</string>
     <string name="drawer_launch_app">Käynnistä sovellus</string>

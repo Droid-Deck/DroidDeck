@@ -806,7 +806,6 @@
     <string name="drawer_pc_keyboard">Tastatură de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Al doilea ecran</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Arată</string>
     <string name="drawer_android_apps">Aplicații Android</string>
     <string name="drawer_launch_app">Lansează o aplicație</string>

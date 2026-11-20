@@ -9,11 +9,15 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.view.Display
+import android.view.MotionEvent
 import android.view.WindowManager
 
-// While a session runs, sits invisibly on top of every other display until it ends, so
-// that display's home launcher is not its top activity. lmkd kills the launcher first; restarted as a
-// top activity it takes focus from the session, which then drops to adj 50 and is killed next.
+// While a session is on screen, sits invisibly on top of every other display, so that display's
+// home launcher is not its top activity. lmkd kills the launcher first; restarted as a top activity
+// it takes focus from the session, which then drops to adj 50 and is killed next.
+// Android gives a translucent activity alone in its task an input sink that eats every touch on the
+// display whatever its window flags say, so a touch makes the guard leave that display until the
+// session is back on top.
 class KeepTopActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,11 +31,26 @@ class KeepTopActivity : Activity() {
             finishAndRemoveTask()
             return
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
         val id = display?.displayId ?: Display.INVALID_DISPLAY
         starting.remove(id)
+        if (id in yielded) {
+            finishAndRemoveTask()
+            return
+        }
         guards[id]?.takeIf { it !== this && !it.isFinishing }?.finishAndRemoveTask()
         guards[id] = this
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN && !isFinishing) {
+            val id = display?.displayId ?: Display.INVALID_DISPLAY
+            yielded.add(id)
+            Log.i(TAG, "display $id touched, leaving it to the app below")
+            finishAndRemoveTask()
+            onYield?.invoke()
+        }
+        return true
     }
 
     override fun onDestroy() {
@@ -49,13 +68,18 @@ class KeepTopActivity : Activity() {
         private val guards = HashMap<Int, KeepTopActivity>()
         private const val START_TIMEOUT_MS = 2_000L
         private val starting = HashMap<Int, Long>()
+        private val yielded = HashSet<Int>()
+        const val YIELD_GRACE_MS = 5_000L
+        var onYield: (() -> Unit)? = null
+
+        fun rearm() = yielded.clear()
 
         fun guardOtherDisplays(context: Context, sessionDisplay: Int): Boolean {
             val displays = context.getSystemService(DisplayManager::class.java)?.displays ?: return false
             var started = false
             for (display in displays) {
                 val id = display.displayId
-                if (id == sessionDisplay || display.state != Display.STATE_ON || guards[id]?.isFinishing == false ||
+                if (id == sessionDisplay || id in yielded || display.state != Display.STATE_ON || guards[id]?.isFinishing == false ||
                     starting[id]?.let { SystemClock.elapsedRealtime() - it < START_TIMEOUT_MS } == true) continue
                 runCatching {
                     launch(context, id, bounce = false)
@@ -73,11 +97,16 @@ class KeepTopActivity : Activity() {
 
         const val RETRY_MS = START_TIMEOUT_MS + 250
 
-        fun release() {
+        fun stepAside() {
             generation++
             guards.values.toList().forEach { it.finishAndRemoveTask() }
             guards.clear()
             starting.clear()
+        }
+
+        fun release() {
+            stepAside()
+            yielded.clear()
         }
 
         private fun launch(context: Context, displayId: Int, bounce: Boolean) {

@@ -802,7 +802,6 @@
     <string name="drawer_pc_keyboard">電腦鍵盤</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">第二螢幕</string>
-    <string name="drawer_second_screen_mode">模式</string>
     <string name="drawer_second_screen_shows">顯示</string>
     <string name="drawer_android_apps">Android 應用程式</string>
     <string name="drawer_launch_app">啟動應用程式</string>
