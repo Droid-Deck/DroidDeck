@@ -34,7 +34,7 @@ object GameThreadHints {
     @Synchronized
     fun start(context: Context): String {
         if (!SessionPrefs.gameThreadHints(context)) return "game thread hints: off"
-        if (Build.VERSION.SDK_INT < 31 || !supported(Build.SOC_MODEL)) return "game thread hints: Snapdragon 8 Elite only"
+        if (Build.VERSION.SDK_INT < 31 || !supported(SocNames.model())) return "game thread hints: Snapdragon 8 Elite only"
         val hm = context.getSystemService(PerformanceHintManager::class.java)
             ?: return "game thread hints: no PerformanceHintManager"
         val pm = context.getSystemService(PowerManager::class.java)
