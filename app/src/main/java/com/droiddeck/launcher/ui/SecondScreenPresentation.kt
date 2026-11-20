@@ -324,11 +324,11 @@ class SecondScreenPresentation(
         return when (mode) {
             SecondScreenMode.KEYBOARD_TRACKPAD -> model(listOf(BarExtra(
                 context.getString(if (keyboardShown.value) R.string.second_hide_keyboard else R.string.second_show_keyboard),
-                icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") { showKeyboard() }))
+                icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") { showKeyboard() }) + swap)
             SecondScreenMode.DECK_CONTROLS -> model(swap, deckPanelTabs(context, deckPanel.value, ::selectDeckPanel))
             SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS -> model(swap)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
-                tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }))
+                tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + swap)
             else -> null
         }
     }
