@@ -148,6 +148,38 @@ class AddedGamesSessionListingTest {
         assertEquals(listOf("Alpha"), attempts.toList())
     }
 
+    @Test fun aDeliveryQueuedForAnEndedSessionIsNotSentToTheNextOne() {
+        gamesFolder("Alpha")
+        AddedGames.listingFile(app).apply { parentFile!!.mkdirs(); writeText(stale) }
+        val delivered = Collections.synchronizedList(ArrayList<String>())
+        AddedGamesPublisher.live = { _, found, include -> delivered.addAll(found.filter(include).map { it.name }); true }
+        session(SessionPhase.READY)
+        val first = CountDownLatch(1)
+        val firstHeld = CountDownLatch(1)
+        val second = CountDownLatch(1)
+        val secondHeld = CountDownLatch(1)
+        AddedGamesPublisher.later(app) { firstHeld.countDown(); first.await() }
+        try {
+            assertTrue(firstHeld.await(30, TimeUnit.SECONDS))
+            AddedGamesPublisher.sessionListing(app)
+            val refresh = refreshes().single()
+            until("the refresh did not wait for its scan") { refresh.state == Thread.State.WAITING }
+            AddedGamesPublisher.later(app) { secondHeld.countDown(); second.await() }
+            first.countDown()
+            assertTrue(secondHeld.await(30, TimeUnit.SECONDS))
+            until("the refresh did not queue its delivery") {
+                refresh.state == Thread.State.WAITING && refresh.stackTrace.any { it.methodName == "deliver" }
+            }
+            SessionState.sessionId = "session-next"
+        } finally {
+            first.countDown()
+            second.countDown()
+        }
+        refreshes().forEach { it.join(30_000) }
+        assertTrue(refreshes().isEmpty())
+        assertTrue(delivered.isEmpty())
+    }
+
     @Test fun theRefreshWaitsForEarlierPublicationsBeforeWriting() {
         gamesFolder("Alpha")
         val listing = AddedGames.listingFile(app).apply { parentFile!!.mkdirs(); writeText(stale) }

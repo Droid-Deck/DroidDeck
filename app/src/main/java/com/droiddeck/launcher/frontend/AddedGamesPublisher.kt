@@ -72,13 +72,16 @@ object AddedGamesPublisher {
 
     private fun deliver(app: Context, session: String?, games: List<AddedGames.Game>) {
         val until = SystemClock.uptimeMillis() + CLIENT_WAIT_MS
-        while (SessionState.running && !SessionState.stopRequested && SessionState.sessionId == session) {
+        while (current(session)) {
             val ready = SessionState.phase == SessionPhase.READY
-            if (ready && serial { syncUnremoved(app, games) }) return
+            if (ready && serial { !current(session) || (SessionState.phase == SessionPhase.READY && syncUnremoved(app, games)) }) return
             if (now || SystemClock.uptimeMillis() >= until) return
             Thread.sleep(if (ready) RETRY_MS else POLL_MS)
         }
     }
+
+    private fun current(session: String?): Boolean =
+        SessionState.running && !SessionState.stopRequested && SessionState.sessionId == session
 
     private fun syncUnremoved(app: Context, games: List<AddedGames.Game>): Boolean {
         val removed = SessionPrefs.removedAddedGames(app).toSet()
