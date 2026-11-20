@@ -88,4 +88,17 @@ class SteamGameProcessTest {
         process("301", "reaper", "SteamLaunch", "AppId=351710", "--", "proton", "waitforexitandrun", "game.exe")
         assertTrue(SteamGameProcess.running("351710", proc))
     }
+
+    @Test fun onlyTheRunningCurrentGameCountsAsAlreadyRunning() {
+        val proc = tmp.newFolder("proc-relaunch")
+        File(proc, "200").apply { mkdirs() }.resolve("cmdline")
+            .writeBytes(cmdline("reaper", "SteamLaunch", "AppId=584400", "--", "proton", "waitforexitandrun", "SonicMania.exe"))
+        assertTrue(SteamGameProcess.alreadyRunning("584400", "584400", proc))
+        assertFalse(SteamGameProcess.alreadyRunning("584400", "311340", proc))
+        assertFalse(SteamGameProcess.alreadyRunning("311340", "311340", proc))
+        assertFalse(SteamGameProcess.alreadyRunning("584400", null, proc))
+        val shortcutId = ((584400uL shl 32) or 0x02000000uL).toString()
+        assertTrue(SteamGameProcess.alreadyRunning(shortcutId, "584400", proc))
+        assertTrue(SteamGameProcess.alreadyRunning("584400", shortcutId, proc))
+    }
 }

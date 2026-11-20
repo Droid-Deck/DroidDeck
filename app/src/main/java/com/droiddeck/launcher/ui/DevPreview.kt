@@ -152,7 +152,7 @@ internal fun SessionDrawerPreview(secondScreens: List<SecondScreenDisplay>) {
         suspendPolicy = suspend, onSuspendPolicy = { suspend = it },
         backActionsInverted = inverted, onBackActionsInverted = { inverted = it },
         touchMode = touch, onTouch = { touch = it },
-        touchAuto = stringResource(R.string.session_touch_auto_direct),
+        touchAuto = stringResource(R.string.mode_touch_mouse),
         fexPreset = fex, onFexPreset = { fex = it },
         fpsLimit = fps, onFpsLimit = { fps = it },
         secondScreenMode = second, onSecondScreenMode = { second = it },
@@ -175,7 +175,7 @@ internal fun SessionDrawerPreview(secondScreens: List<SecondScreenDisplay>) {
                 val code = e.nativeKeyEvent.keyCode
                 if (code != android.view.KeyEvent.KEYCODE_BUTTON_L1 && code != android.view.KeyEvent.KEYCODE_BUTTON_R1) return@onPreviewKeyEvent false
                 if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) {
-                    page = sessionDrawerPages(secondScreens.isNotEmpty()).step(page, if (code == android.view.KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
+                    page = sessionDrawerPages().step(page, if (code == android.view.KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
                 }
                 true
             }

@@ -33,27 +33,64 @@ class GameFilesTest {
         assertEquals("18446744073709551615", file.readText())
         val context = RuntimeEnvironment.getApplication()
         listOf(Uri.fromFile(file), Uri.parse(file.path)).forEach { uri ->
-            assertEquals("18446744073709551615", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, uri)))
+            assertEquals("18446744073709551615", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, uri))?.id)
         }
         val provider = LaunchFileProvider(file)
         provider.attachInfo(context, android.content.pm.ProviderInfo().apply { authority = "frontend" })
         ShadowContentResolver.registerProviderInternal("frontend", provider)
         val uri = Uri.parse("content://frontend/document/opaque%3A42")
-        assertEquals("18446744073709551615", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, uri)))
+        assertEquals("18446744073709551615", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, uri))?.id)
+    }
+
+    @Test fun readsIdsFromEveryFrontendFileFormat() {
+        listOf("8400\n", "steam://rungameid/8400", "droiddeck://game/8400",
+            "# Daijishou Player Template\n[steamappid] 8400\n", "# DST\n[steamappid] 8400\n",
+            "[InternetShortcut]\r\nIconIndex=0\r\nURL=steam://rungameid/8400\r\nIconFile=C:\\steam.ico\r\n").forEach { value ->
+            assertEquals(value, "8400", GameFiles.read(ByteArrayInputStream(value.toByteArray())))
+        }
     }
 
     @Test fun rejectsCommandsMalformedIdsLargeFilesAndUnsupportedIntents() {
-        listOf("", "0", "01", "-1", "18446744073709551616", "steam://rungameid/8400",
-            "8400\n8401", "droiddeck://game/8400", "droiddeck://game/8400?command=quit", "x".repeat(129)).forEach { value ->
+        listOf("", "0", "01", "-1", "18446744073709551616", "steam://rungameid/8400?x=1", "steam://run/8400",
+            "8400\n8401", "droiddeck://game/8400?command=quit", "x".repeat(4097),
+            "[InternetShortcut]\nURL=https://example.com/8400", "[InternetShortcut]\nURL=8400",
+            "# Daijishou Player Template\n[epicappid] 8400").forEach { value ->
             assertNull(value, GameFiles.read(ByteArrayInputStream(value.toByteArray())))
         }
-        assertEquals("8400", GameFiles.read(ByteArrayInputStream("8400\n".toByteArray())))
         val context = RuntimeEnvironment.getApplication()
         assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_SEND, Uri.parse("droiddeck://game/8400"))))
         assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/8400.steam"))))
         assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("file://remote/game.steam"))))
         assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.fromFile(File(tmp.root, "missing.steam")))))
-        assertEquals("8400", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("droiddeck://game/8400"))))
+        assertEquals("8400", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("droiddeck://game/8400")))?.id)
+        assertEquals("8400", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("8400")))?.id)
+        assertEquals("8400", GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse("steam://rungameid/8400")))?.id)
+    }
+
+    @Test fun storeFilesCarryTheirSourceAndTitle() {
+        val context = RuntimeEnvironment.getApplication()
+        val epic = File(tmp.root, "Hades II.epic").apply { writeText("17") }
+        val request = GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.fromFile(epic)))!!
+        assertEquals("epic", request.source)
+        assertEquals("Hades II", request.title)
+        val daijishou = File(tmp.root, "Portal.steamappid").apply { writeText("# Daijishou Player Template\n[steamappid] 400\n") }
+        val steam = GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.fromFile(daijishou)))!!
+        assertEquals(Library.SOURCE_STEAM, steam.source)
+        assertEquals("400", steam.id)
+    }
+
+    @Test fun programFilesArriveAsPathsNotContents() {
+        val context = RuntimeEnvironment.getApplication()
+        val exe = File(tmp.newFolder("Game"), "Game.exe").apply { writeBytes(byteArrayOf(0x4d, 0x5a)) }
+        val request = GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.fromFile(exe)))!!
+        assertEquals(exe.canonicalFile, request.program)
+        assertNull(request.id)
+        val provider = LaunchFileProvider(exe)
+        provider.attachInfo(context, android.content.pm.ProviderInfo().apply { authority = "frontend.files" })
+        ShadowContentResolver.registerProviderInternal("frontend.files", provider)
+        val shared = Uri.parse("content://frontend.files/root" + exe.canonicalPath)
+        assertEquals(exe.canonicalFile, GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, shared))?.program)
+        assertNull(GameFiles.readIntent(context, Intent(Intent.ACTION_VIEW, Uri.fromFile(File(exe.parentFile, "Missing.exe")))))
     }
 
     @Test fun exportsGameIconBeforeCapsuleAndPreservesCustomArtwork() {
@@ -185,11 +222,30 @@ class GameFilesTest {
         val file = GameFiles.export(app, folder, game("620", "Portal 2"))
         assertEquals("Portal 2.steam", file.name)
         assertEquals("620", file.readText())
-        assertEquals("620", GameFiles.readIntent(RuntimeEnvironment.getApplication(), Intent(Intent.ACTION_VIEW, Uri.fromFile(file))))
+        assertEquals("620", GameFiles.readIntent(RuntimeEnvironment.getApplication(), Intent(Intent.ACTION_VIEW, Uri.fromFile(file)))?.id)
         val added = Library.SteamGame(1, "Added Game", null, Library.ADDED, -1L)
         val addedFile = GameFiles.export(app, folder, added)
         assertEquals("Added Game.steam", addedFile.name)
         assertEquals("18446744073709551615", addedFile.readText())
+    }
+
+    @Test fun storeGamesExportUnderTheirStoreExtensionAndLaunchBack() {
+        val folder = tmp.newFolder()
+        val forza = Library.SteamGame(1, "Forza Horizon 5", null, Library.ADDED, -7L, source = "xbox", storeId = "9NKX70BBCDRN")
+        val steam = File(folder, "Forza Horizon 5.steam").apply { writeText(forza.gameIdString) }
+        File(folder, ".droiddeck-sync.json").writeText(
+            """{"format":"droiddeck-game-files-v1","games":{"Forza Horizon 5.steam":"${forza.gameIdString}"}}""")
+        GameFiles.sync(app, folder, listOf(forza))
+        val file = File(folder, "Forza Horizon 5.xbox")
+        assertEquals(forza.gameIdString, file.readText())
+        assertFalse(steam.exists())
+        val request = GameFiles.readIntent(RuntimeEnvironment.getApplication(), Intent(Intent.ACTION_VIEW, Uri.fromFile(file)))!!
+        assertEquals("xbox", request.source)
+        assertSame(forza, request.find(listOf(game("620", "Portal 2"), forza)))
+        listOf("ubisoft", "ea", "rockstar", "battlenet", "itch", "gamejolt", "epic", "gog", "amazon").forEach { store ->
+            val game = Library.SteamGame(1, "Game", null, Library.ADDED, -8L, source = store)
+            assertEquals("Game.$store", GameFiles.filename(game))
+        }
     }
 
     @Test fun steamSyncDisambiguatesTitlesAndPreservesEditedAndForeignFiles() {

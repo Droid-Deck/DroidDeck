@@ -2,10 +2,8 @@ package com.droiddeck.launcher.input
 
 import android.content.Context
 import android.graphics.Rect
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 object OnScreenLayout {
     data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
@@ -21,25 +19,29 @@ object OnScreenLayout {
         }
     }
 
-    private const val TOLERANCE = .01f
-    private const val KEYBOARD_ID = "builtin:keyboard"
+    /**
+     * The built-in gamepad keeps no kit positions until its kit is edited; until then the kit follows the virtual controller and
+     * the layout stores only the keys and controls the player added on top.
+     */
+    fun generated(layout: SavedInputLayout) = hasBuiltInKit(layout) && layout.elements.none { KitLayout.isKit(it.id) }
 
-    fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect,
-        buttonsOnly: Boolean = false, dock: Dock? = null): List<InputSurfaceElement> {
-        val stored = layout?.elements ?: return emptyList()
-        if (width <= 0 || height <= 0) return stored
-        val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
-        val (reference, generated) = reference(context, layout, width, height)
-        if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
-        val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
-        val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
-        val placed = when {
-            gamepad.isEmpty() -> emptyList()
-            dock != null -> generator.dock(gamepad, dock.portrait, dock.grips, dock.left, dock.right)
-            else -> generator.regenerate(gamepad)
+    fun hasBuiltInKit(layout: SavedInputLayout) =
+        !layout.kitless && (layout.id == InputLibraries.OVERLAY || layout.origin == InputLibraries.OVERLAY)
+
+    fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect, dock: Dock? = null,
+        cutouts: List<Rect> = emptyList(), rearButtons: Boolean = true, trackpads: Boolean = true): List<InputSurfaceElement> {
+        layout ?: return emptyList()
+        if (width <= 0 || height <= 0) return layout.elements
+        if (generated(layout)) {
+            val kit = PadKit.current(context)
+            val extras = if (layout.elements.isEmpty()) emptyList() else fit(layout.elements, aspect(context, layout), 1f, width, height, safe)
+            return (if (dock != null) KitLayout.dock(context, kit, width, height, dock.portrait, dock.left, dock.right)
+                else KitLayout.elements(context, kit, width, height, safe, layout.scale, cutouts, rearButtons, trackpads, addedControls = extras)) + extras
         }
-        val byId = (placed + others).associateBy { it.id }
-        return stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
+        val elements = if (dock == null && hasBuiltInKit(layout)) layout.elements.filter { element ->
+            !KitLayout.isKit(element.id) || KitLayout.visibleOnOverlay(element.control, rearButtons, trackpads)
+        } else layout.elements
+        return fit(elements, aspect(context, layout), 1f, width, height, safe)
     }
 
     fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false): List<InputSurfaceElement> =
@@ -73,35 +75,8 @@ object OnScreenLayout {
         }
     }
 
-    private fun isGamepad(e: InputSurfaceElement) = e.id.startsWith("legacy:") || e.id == KEYBOARD_ID
-
-    fun generatedSize(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Int, Int>? =
-        reference(context, layout, width, height).takeIf { it.second }?.first?.let { it.first.toInt() to it.second.toInt() }
-
-    private fun reference(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Pair<Float, Float>, Boolean> {
-        val (display, metrics) = InputLibraries.primaryDisplay(context)
-        val long = max(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
-        val short = min(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
-        val gamepad = layout.elements.filter(::isGamepad)
-        if (gamepad.any { it.id.startsWith("legacy:") }) {
-            val named = layout.id.removePrefix("migrated.layout.").takeIf { it != layout.id }?.split('x')?.mapNotNull { it.toIntOrNull() }
-                ?.takeIf { it.size == 2 && it.all { size -> size > 0 } }?.let { it[0] to it[1] }
-            val aspectSize = layout.aspect.takeIf { layout.id == InputLibraries.OVERLAY && it > 0f }
-                ?.let { (it * height).roundToInt().coerceAtLeast(1) to height }
-            for ((w, h) in listOfNotNull(named, width to height, aspectSize, long to short, short to long).distinct()) {
-                val generator = LegacyGamepadLayout(display, w, h, scale = layout.scale)
-                if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true))) return (w.toFloat() to h.toFloat()) to true
-            }
-        }
-        val aspect = layout.aspect.takeIf { it > 0f } ?: (long.toFloat() / short)
-        return (aspect to 1f) to false
-    }
-
-    private fun matches(stored: List<InputSurfaceElement>, generated: List<InputSurfaceElement>): Boolean {
-        val byId = generated.associateBy { it.id }
-        return stored.all { e ->
-            val g = byId[e.id] ?: return@all false
-            abs(e.x - g.x) <= TOLERANCE && abs(e.y - g.y) <= TOLERANCE && abs(e.width - g.width) <= TOLERANCE && abs(e.height - g.height) <= TOLERANCE
-        }
+    private fun aspect(context: Context, layout: SavedInputLayout): Float = layout.aspect.takeIf { it > 0f } ?: run {
+        val metrics = InputLibraries.primaryDisplay(context).second
+        max(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1).toFloat() / min(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
     }
 }

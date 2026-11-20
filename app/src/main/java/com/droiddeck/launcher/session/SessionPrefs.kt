@@ -676,10 +676,38 @@ object SessionPrefs {
         prefs(context).getString("shape", null)
             ?: if (context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")) SHAPE_WIDE else SHAPE_AUTO
 
-    fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
+    /** Auto, Always or Never. Older builds also stored the Steam layout and a buttons-only mode here. */
+    fun oscMode(context: Context, steamSession: Boolean = false): String = when (val mode = prefs(context).getString("osc", OSC_AUTO)) {
+        OSC_ALWAYS, OSC_NEVER -> mode
+        OSC_STEAM_QAM -> OSC_ALWAYS
+        OSC_STEAM_TOUCH -> if (steamSession) OSC_ALWAYS else OSC_AUTO
+        else -> OSC_AUTO
+    }
 
     fun setOscMode(context: Context, mode: String) {
-        prefs(context).edit().putString("osc", mode).apply()
+        val editor = prefs(context).edit()
+        if (!prefs(context).contains("steamTouchLayout")) editor.putBoolean("steamTouchLayout", steamTouchLayout(context))
+        editor.putString("osc", mode).apply()
+    }
+
+    fun oscRearButtons(context: Context): Boolean = prefs(context).getBoolean("oscRearButtons", false)
+
+    fun setOscRearButtons(context: Context, shown: Boolean) {
+        prefs(context).edit().putBoolean("oscRearButtons", shown).apply()
+    }
+
+    fun oscTrackpads(context: Context): Boolean = prefs(context).getBoolean("oscTrackpads", false)
+
+    fun setOscTrackpads(context: Context, shown: Boolean) {
+        prefs(context).edit().putBoolean("oscTrackpads", shown).apply()
+    }
+
+    /** Draw Steam's touch layout for the game instead of DroidDeck's own. */
+    fun steamTouchLayout(context: Context): Boolean =
+        prefs(context).getBoolean("steamTouchLayout", prefs(context).getString("osc", null) == OSC_STEAM_TOUCH)
+
+    fun setSteamTouchLayout(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("steamTouchLayout", on).apply()
     }
 
     fun linuxDriver(context: Context): String =
@@ -1958,7 +1986,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
     }
 
-    fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", false)
+    fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", true)
 
     fun controlsBelowWanted(context: Context, mode: String, width: Int, height: Int, pip: Boolean = false): Boolean =
         SessionDisplay.unfoldedControlsWanted(

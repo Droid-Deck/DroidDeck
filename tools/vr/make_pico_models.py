@@ -43,7 +43,7 @@ def fetch_sources():
         path.write_bytes(data)
 
 
-def pack_models(directory, destination):
+def pack_models(directory, destination, zstd):
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as temp:
         archive = Path(temp) / 'models.tar'
@@ -57,7 +57,7 @@ def pack_models(directory, destination):
                 info.mtime, info.uid, info.gid, info.uname, info.gname, info.mode = 0, 0, 0, '', '', 0o644
                 with path.open('rb') as stream:
                     tar.addfile(info, stream)
-        subprocess.run(['zstd', '-q', '-19', '-f', str(archive), '-o', str(destination)], check=True)
+        subprocess.run([zstd, '-q', '-19', '-f', str(archive), '-o', str(destination)], check=True)
 
 
 def cpp_array(values):
@@ -260,6 +260,7 @@ def main():
     parser.add_argument('--source', type=Path, default=SOURCE, help='Checksum-verified download cache')
     parser.add_argument('--out', type=Path, default=OUTPUT.parent, help='Generated model and animation directory')
     parser.add_argument('--packs', type=Path, help='Write the three independent model packs here')
+    parser.add_argument('--zstd', default='zstd', help='Zstandard executable used for model packs')
     args = parser.parse_args()
     SOURCE, OUTPUT, ANIMATION = args.source, args.out / 'rendermodels', args.out / 'include/xr_profile_animation_data.h'
     fetch_sources()
@@ -317,7 +318,7 @@ def main():
                 metadata = dict(provenance, models={n: m for n, m in provenance['models'].items()
                                                    if n.startswith(f'droiddeck_pico_{family}_')}, files=files)
                 (root / 'provenance.json').write_text(json.dumps(metadata, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-                pack_models(root, args.packs / f'{profile}.tar.zst')
+                pack_models(root, args.packs / f'{profile}.tar.zst', args.zstd)
 
 
 if __name__ == '__main__':

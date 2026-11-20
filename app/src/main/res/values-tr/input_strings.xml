@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">Giriş profilleri</string>
     <string name="input_profiles">Profiller</string>
     <string name="input_physical">Fiziksel denetleyici</string>
     <string name="input_primary">Ana ekran</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Steam menüsünü aç</string>
     <string name="input_command_qam">Steam hızlı erişimini aç</string>
     <string name="input_remove_element">Denetimi kaldır</string>
-    <string name="input_add_element">Denetim ekle</string>
     <string name="input_extra_keys">Cihaza özel düğmeler</string>
     <string name="input_capture">Fiziksel düğme ata</string>
     <string name="input_capture_confirm">Düğmeyi bırakın, ardından Düzenle, Yeniden dene veya İptal seçin. B veya Geri, bıraktıktan sonra iptal eder.</string>

@@ -1,9 +1,8 @@
 package com.droiddeck.launcher.ui
 
 internal enum class SessionDrawerPage(val firstControl: String) {
-    CONTROLLER("input-profile"),
+    CONTROLLER("touch"),
     GLASSES("glasses-game"),
-    SECOND_SCREEN("second-screen:custom-controls"),
     DISPLAY("fg"),
     HUD("hud"),
     EFFECTS("look"),
@@ -14,10 +13,10 @@ internal enum class SessionDrawerPage(val firstControl: String) {
 }
 
 internal fun sessionDrawerPages(
-    hasSecondScreen: Boolean, hasGlasses: Boolean = false, hasAgent: Boolean = com.droiddeck.launcher.agent.AgentTab.shown,
+    hasGlasses: Boolean = false, hasAgent: Boolean = com.droiddeck.launcher.agent.AgentTab.shown,
 ): List<SessionDrawerPage> =
     SessionDrawerPage.entries.filter {
-        (hasSecondScreen || it != SessionDrawerPage.SECOND_SCREEN) && (hasGlasses || it != SessionDrawerPage.GLASSES) &&
+        (hasGlasses || it != SessionDrawerPage.GLASSES) &&
             (hasAgent || it != SessionDrawerPage.AGENT)
     }
 

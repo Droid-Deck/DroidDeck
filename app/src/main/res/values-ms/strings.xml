@@ -295,14 +295,10 @@
     <string name="mode_pen_touch">Sentuhan</string>
     <string name="mode_pen_button">Butang sisi</string>
     <string name="mode_osc">Kawalan pada skrin</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto memaparkan kawalan apabila tiada pengawal disambungkan.</string>
-    <string name="osc_steam_touch">Sentuhan Steam (beta)</string>
-    <string name="osc_style_next_session">Kawalan sentuh Steam bermula pada sesi Steam seterusnya</string>
     <string name="osc_steam_layout">Susun atur sentuh Steam</string>
     <string name="screen_key_layout_export">Eksport</string>
     <string name="screen_key_image">Imej</string>
-    <string name="osc_steam_layout_hint">Gerakkan, ubah saiz atau sembunyikan kawalan sentuh permainan ini; disimpan ke Steam</string>
     <string name="mode_controller">Pengawal</string>
     <string name="mode_controller_hint">Cara Steam mengesan pengawal anda. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="mode_controller_deck">Pengawal Steam Deck</string>
@@ -428,7 +424,6 @@
     <string name="mode_directaudio_hint">Memintas PulseAudio untuk kependaman yang lebih rendah.</string>
     <string name="mode_mic">Mikrofon</string>
     <string name="mode_mic_hint">Untuk sembang suara.</string>
-    <string name="drawer_mic_hint">Hidupkan atau matikan tangkapan mikrofon untuk sesi ini.</string>
     <string name="drawer_mic_failed">Tidak dapat menukar mikrofon. Sila cuba lagi.</string>
     <string name="mode_network">Rangkaian</string>
     <string name="mode_wifi_discovery">Penemuan Wi-Fi</string>
@@ -789,7 +784,6 @@
     <string name="drawer_keyboard">Papan kekunci</string>
     <string name="drawer_latency">Kependaman</string>
     <string name="drawer_low_latency">Mod kependaman rendah</string>
-    <string name="drawer_low_latency_hint">Meningkatkan penggunaan CPU dan bateri</string>
     <string name="drawer_low_latency_controller">Pengawal kependaman rendah</string>
     <string name="drawer_low_latency_controller_hint">Pengawal melapor pada 1000 Hz dan bukan 250 Hz. Sedikit lebih banyak CPU.</string>
     <string name="drawer_low_latency_touch">Sentuh kependaman rendah</string>
@@ -802,7 +796,6 @@
     <string name="drawer_pc_keyboard">Papan kekunci PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Skrin kedua</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Memaparkan</string>
     <string name="drawer_android_apps">Apl Android</string>
     <string name="drawer_launch_app">Lancarkan apl</string>
@@ -1340,12 +1333,8 @@
     <string name="ctrl_opacity">Kelegapan</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Saiz butang</string>
-    <string name="ctrl_adaptive">Stik adaptif</string>
     <string name="ctrl_rumble">Getaran permainan</string>
     <string name="ctrl_dead_zone">Zon mati kayu bedik</string>
-    <string name="ctrl_steam_button">Butang Steam</string>
-    <string name="ctrl_qam_button">Butang QAM</string>
-    <string name="ctrl_keyboard_button">Butang papan kekunci</string>
     <string name="ctrl_joycon_vr">Joy-Con sebagai pengawal VR</string>
     <string name="ctrl_joycon_vr_hint">Semasa SteamVR berjalan, setiap Joy-Con menjadi tangan. Halakan ke hadapan dan tahan Home atau Capture untuk memusatkannya semula.</string>
     <string name="setup_animations">Animasi</string>
@@ -1473,8 +1462,6 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Tutup kawalan skrin kedua</string>
     <string name="deck_open_steam_menu">Buka menu Steam</string>
-    <string name="deck_right_trackpad">Trackpad kanan</string>
-    <string name="deck_left_trackpad">Trackpad kiri</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Papar papan kekunci</string>
     <string name="second_hide_keyboard">Sembunyikan papan kekunci</string>
@@ -1513,11 +1500,8 @@
     <string name="pckb_android">Papan kekunci Android</string>
     <string name="pckb_hide">Sembunyi  ✕</string>
     <string name="pckb_size">Saiz pada skrin</string>
-    <string name="pckb_size_hint">Bahagian skrin yang digunakan papan kekunci, termasuk pengepala.</string>
     <string name="pckb_opacity">Kelegapan</string>
-    <string name="pckb_opacity_hint">Turunkan untuk melihat permainan di belakang papan kekunci.</string>
     <string name="pckb_hidden_keys">Kekunci tersembunyi</string>
-    <string name="pckb_hidden_keys_hint">Kekunci yang jarang digunakan tidak dipaparkan pada papan kekunci.</string>
     <string name="pckb_group_function">Esc dan baris kekunci fungsi</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Kekunci anak panah</string>
@@ -1722,8 +1706,6 @@
     <string name="drivers_installed_pick">%1$s dipasang - pilih dalam menu</string>
     <string name="session_wait_removal">Tunggu pengalihan keluar masa jalan selesai</string>
     <string name="session_title_game">Permainan</string>
-    <string name="session_touch_auto_touchpad">touchpad</string>
-    <string name="session_touch_auto_direct">langsung</string>
     <string name="session_swap_failed">Penukaran gagal: %1$s</string>
     <string name="session_profile_save_failed">Penyimpanan profil gagal: %1$s</string>
     <string name="session_desktop_paused">Desktop dijeda</string>
@@ -1970,15 +1952,6 @@
     <string name="fm_up_one_level">Naik satu tahap</string>
     <string name="fm_choose_folder">Pilih folder</string>
     <string name="fm_choose_file">Pilih fail</string>
-    <string name="ctrl_tint_steam_blue">Biru Steam</string>
-    <string name="ctrl_tint_sky">Langit</string>
-    <string name="ctrl_tint_white">Putih</string>
-    <string name="ctrl_tint_violet">Ungu</string>
-    <string name="ctrl_tint_green">Hijau</string>
-    <string name="ctrl_tint_amber">Ambar</string>
-    <string name="ctrl_tint_red">Merah</string>
-    <string name="ctrl_tint_pink">Merah jambu</string>
-    <string name="ctrl_tint_gray">Kelabu</string>
     <string name="ctrl_button_a">Butang A</string>
     <string name="ctrl_button_b">Butang B</string>
     <string name="ctrl_button_x">Butang X</string>
@@ -3111,7 +3084,6 @@
     <string name="glasses_pro2_experimental">Penjejakan kepala Pro 2 secara eksperimen. Pelarasan kecerahan, kelantangan dan pertukaran mod paparan belum disokong.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mod Cardboard</string>
-    <string name="cardboard_mode_hint">Paparan mata kiri dan kanan untuk kaca mata VR telefon.</string>
     <string name="cardboard_source">Gambar</string>
     <string name="cardboard_source_screen">Skrin maya</string>
     <string name="cardboard_source_sbs">3D sebelah-menyebelah</string>
@@ -3134,7 +3106,6 @@
     <string name="cardboard_steamvr_unavailable">Tidak tersedia dalam sesi ini.</string>
     <string name="cardboard_steamvr_failed">SteamVR tidak memberi respons; semak log sesi.</string>
     <string name="drawer_component_downloads">Muat turun komponen</string>
-    <string name="drawer_component_downloads_hint">Muat turun dikongsi dengan halaman Komponen. Pilih versi yang telah dimuat turun di atas untuk menggunakannya pada pelancaran permainan seterusnya.</string>
     <string name="drawer_component_choose_download">Pilih versi untuk dimuat turun</string>
     <string name="stores_fact_developer">Pembangun</string>
     <string name="stores_fact_publisher">Penerbit</string>

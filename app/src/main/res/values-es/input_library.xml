@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Copia independiente</string>
     <string name="input_floating_stick">Iniciar el stick en el punto de toque</string>
     <string name="input_hide_idle">Ocultar el stick cuando no se use</string>
-    <string name="input_tools">Herramientas</string>
-    <string name="input_quick_auto">Auto (%1$s)</string>
-    <string name="input_quick_mixed">Personalizado (%1$s)</string>
     <string name="input_save_combination">Guardar como perfil nuevo</string>
     <string name="input_profile_controls_mode">Controles del perfil</string>
-    <string name="input_profile">Perfil</string>
     <string name="input_mouse_gestures">Gestos del panel táctil del ratón</string>
-    <string name="input_mouse_gestures_hint">Si se asigna al puntero del ratón: toca para hacer clic, mantén para arrastrar y desplaza con dos dedos.</string>
     <string name="input_quick_override_hint">%1$s tiene una anulación del menú rápido. Selecciona Auto allí para usar su perfil predeterminado y sus tres partes guardadas.</string>
     <string name="input_route_local">Entrada de DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Se mantiene mientras el stick se mueve en cualquier dirección: se pulsa por encima del 55 %, se suelta por debajo del 35 %. Usa Teclas de dirección para asignar cada dirección por separado. Los comandos de DroidDeck se ejecutan una vez por desvío. El clic del stick se configura aparte.</string>
@@ -103,19 +98,12 @@
     <string name="input_shortcut_back_modes">Atrás · dos veces en Steam, una en escritorio</string>
     <string name="input_shortcut_hold_hint">En modo Steam. Mantener Atrás también abre el acceso rápido.</string>
     <string name="input_restore_shortcut">Restaurar valores predeterminados</string>
-    <string name="input_second_mode_hint">Tu elección de panel se recuerda. Escritorio abre un segundo espacio de trabajo; no cambia la sesión ni su perfil de entrada.</string>
     <string name="input_virtual_controller">Mando virtual</string>
-    <string name="input_virtual_controller_hint">El tipo de mando que ven Steam o el juego.</string>
     <string name="input_touchscreen">Pantalla táctil</string>
-    <string name="input_touchscreen_hint">Cómo se manejan los toques en la pantalla del juego. Los botones del perfil mantienen sus acciones asignadas.</string>
     <string name="input_touch_cursor">Cursor táctil</string>
-    <string name="input_touch_cursor_hint">Muestra un puntero para toques directos en la pantalla del juego.</string>
     <string name="input_touch_hold">Tocar y mantener</string>
-    <string name="input_touch_hold_hint">Acción del ratón al mantener un dedo en la pantalla del juego.</string>
     <string name="input_back_taps">Toques del botón Atrás</string>
-    <string name="input_back_taps_hint">Primera acción: un toque. Segunda acción: doble toque.</string>
     <string name="input_toggle_button">Botón de alternar</string>
-    <string name="input_toggle_button_hint">Toca para mantener, toca de nuevo para soltar. Abrir un menú o cambiar de perfil suelta el botón.</string>
     <string name="input_button_shape">Forma</string>
     <string name="input_shape_rounded">Redondeada</string>
     <string name="input_shape_pill">Píldora</string>

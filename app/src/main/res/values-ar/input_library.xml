@@ -75,14 +75,9 @@
     <string name="input_independent_copy">نسخة مستقلة</string>
     <string name="input_floating_stick">بدء العصا عند موضع اللمس</string>
     <string name="input_hide_idle">إخفاء العصا عند عدم الاستخدام</string>
-    <string name="input_tools">الأدوات</string>
-    <string name="input_quick_auto">تلقائي (%1$s)</string>
-    <string name="input_quick_mixed">مخصص (%1$s)</string>
     <string name="input_save_combination">حفظ كملف تعريف جديد</string>
     <string name="input_profile_controls_mode">عناصر تحكم ملف التعريف</string>
-    <string name="input_profile">ملف التعريف</string>
     <string name="input_mouse_gestures">إيماءات لوحة لمس الفأرة</string>
-    <string name="input_mouse_gestures_hint">عند تعيينها لمؤشر الفأرة: اضغط للنقر، واستمر للتمرير بالسحب، ومرّر بإصبعين.</string>
     <string name="input_quick_override_hint">لدى %1$s تجاوز للقائمة السريعة. اختر تلقائي هناك لاستخدام ملف التعريف الافتراضي والأجزاء الثلاثة المحفوظة.</string>
     <string name="input_route_local">إدخال DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">يُحتجز أثناء تحريك العصا في أي اتجاه: يُضغط فوق 55% ويُحرّر تحت 35%. استخدم مفاتيح الاتجاه لتعيين كل اتجاه على حدة. تُنفَّذ أوامر DroidDeck مرة واحدة لكل انحراف. يُضبط النقر على العصا على حدة.</string>
@@ -103,19 +98,12 @@
     <string name="input_shortcut_back_modes">رجوع · مرتان في Steam ومرة في سطح المكتب</string>
     <string name="input_shortcut_hold_hint">في وضع Steam. الاستمرار بالضغط على رجوع يفتح الوصول السريع أيضًا.</string>
     <string name="input_restore_shortcut">الاستعادة إلى الافتراضي</string>
-    <string name="input_second_mode_hint">يتم تذكر اختيار اللوحة. يفتح سطح المكتب مساحة عمل ثانية؛ ولا يغيّر الجلسة أو ملف تعريف الإدخال.</string>
     <string name="input_virtual_controller">وحدة تحكم افتراضية</string>
-    <string name="input_virtual_controller_hint">نوع وحدة التحكم التي يراها Steam أو اللعبة.</string>
     <string name="input_touchscreen">شاشة لمس</string>
-    <string name="input_touchscreen_hint">كيفية التعامل مع اللمسات على شاشة اللعبة. تحتفظ أزرار ملف التعريف بإجراءاتها المعيّنة.</string>
     <string name="input_touch_cursor">مؤشر اللمس</string>
-    <string name="input_touch_cursor_hint">إظهار مؤشر للمسات المباشرة على شاشة اللعبة.</string>
     <string name="input_touch_hold">اللمس والاستمرار</string>
-    <string name="input_touch_hold_hint">إجراء الفأرة عند الاستمرار بإصبع على شاشة اللعبة.</string>
     <string name="input_back_taps">نقرات زر رجوع</string>
-    <string name="input_back_taps_hint">الإجراء الأول: نقرة واحدة. الإجراء الثاني: نقرتان.</string>
     <string name="input_toggle_button">زر تبديل</string>
-    <string name="input_toggle_button_hint">اضغط للاستمرار، واضغط مرة أخرى للتحرير. فتح قائمة أو تبديل ملف التعريف يحرّر الزر.</string>
     <string name="input_button_shape">الشكل</string>
     <string name="input_shape_rounded">مستدير</string>
     <string name="input_shape_pill">كبسولة</string>

@@ -75,14 +75,9 @@
     <string name="input_independent_copy">獨立副本</string>
     <string name="input_floating_stick">從按下位置開始</string>
     <string name="input_hide_idle">不使用時隱藏搖桿</string>
-    <string name="input_tools">工具</string>
-    <string name="input_quick_auto">自動 (%1$s)</string>
-    <string name="input_quick_mixed">自訂 (%1$s)</string>
     <string name="input_save_combination">另存為新設定檔</string>
     <string name="input_profile_controls_mode">設定檔控制</string>
-    <string name="input_profile">設定檔</string>
     <string name="input_mouse_gestures">滑鼠觸控板手勢</string>
-    <string name="input_mouse_gestures_hint">綁定到滑鼠指標時：輕點點擊、按住拖曳、雙指捲動。</string>
     <string name="input_quick_override_hint">%1$s 有快速選單覆寫。在那裡選「自動」會使用它的預設設定檔與全部三個已儲存部分。</string>
     <string name="input_route_local">DroidDeck 輸入</string>
     <string name="input_axis_action_hint" formatted="false">搖桿朝任意方向推動期間保持：超過 55% 時按下，低於 35% 時放開。用「方向鍵」逐方向指定。DroidDeck 動作每次推動只執行一次。搖桿點擊另外設定。</string>
@@ -103,19 +98,12 @@
     <string name="input_shortcut_back_modes">返回 · Steam 裡兩下，桌面上一下</string>
     <string name="input_shortcut_hold_hint">Steam 模式下。按住返回也會開啟快速選單。</string>
     <string name="input_restore_shortcut">恢復預設</string>
-    <string name="input_second_mode_hint">面板選擇會被記住。桌面會開啟第二個工作區，不切換工作階段或其輸入設定檔。</string>
     <string name="input_virtual_controller">虛擬控制器</string>
-    <string name="input_virtual_controller_hint">Steam 或遊戲看到的控制器類型。</string>
     <string name="input_touchscreen">觸控螢幕</string>
-    <string name="input_touchscreen_hint">遊戲畫面上的觸碰如何處理。設定檔裡的按鍵保持各自指定的動作。</string>
     <string name="input_touch_cursor">觸碰游標</string>
-    <string name="input_touch_cursor_hint">在遊戲畫面上直接觸碰時顯示指標。</string>
     <string name="input_touch_hold">觸碰並按住</string>
-    <string name="input_touch_hold_hint">手指按住遊戲畫面時的滑鼠動作。</string>
     <string name="input_back_taps">返回鍵點擊</string>
-    <string name="input_back_taps_hint">第一個動作：單擊。第二個動作：雙擊。</string>
     <string name="input_toggle_button">開關按鍵</string>
-    <string name="input_toggle_button_hint">點一下按住，再點一下放開。開啟選單或切換設定檔會放開按鍵。</string>
     <string name="input_button_shape">形狀</string>
     <string name="input_shape_rounded">圓角</string>
     <string name="input_shape_pill">膠囊</string>

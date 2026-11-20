@@ -295,14 +295,10 @@
     <string name="mode_pen_touch">Докосване</string>
     <string name="mode_pen_button">Страничен бутон</string>
     <string name="mode_osc">Екранни контроли</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматично показва контролите, когато няма свързан контролер.</string>
-    <string name="osc_steam_touch">Докосване в Steam (бета)</string>
-    <string name="osc_style_next_session">Сензорните контроли на Steam ще стартират от следващата сесия на Steam</string>
     <string name="osc_steam_layout">Разположение на докосването в Steam</string>
     <string name="screen_key_layout_export">Експорт</string>
     <string name="screen_key_image">Изображение</string>
-    <string name="osc_steam_layout_hint">Премествайте, преоразмерявайте или скривайте сензорните контроли на тази игра; записва се в Steam</string>
     <string name="mode_controller">Контролер</string>
     <string name="mode_controller_hint">Как Steam разпознава контролера ви. Прилага се от следващата сесия.</string>
     <string name="mode_controller_deck">Контролер на Steam Deck</string>
@@ -429,7 +425,6 @@
     <string name="mode_directaudio_hint">Пропуска PulseAudio за по-ниска латентност.</string>
     <string name="mode_mic">Микрофон</string>
     <string name="mode_mic_hint">За гласов чат.</string>
-    <string name="drawer_mic_hint">Включване или изключване на записа от микрофона за тази сесия.</string>
     <string name="drawer_mic_failed">Микрофонът не можа да бъде променен. Опитайте пак.</string>
     <string name="mode_network">Мрежа</string>
     <string name="mode_wifi_discovery">Откриване на Wi-Fi</string>
@@ -791,7 +786,6 @@
     <string name="drawer_keyboard">Клавиатура</string>
     <string name="drawer_latency">Закъснение</string>
     <string name="drawer_low_latency">Режим на ниска латентност</string>
-    <string name="drawer_low_latency_hint">Увеличава използването на CPU и батерията</string>
     <string name="drawer_low_latency_controller">Контролер с ниско закъснение</string>
     <string name="drawer_low_latency_controller_hint">Контролерът докладва при 1000 Hz вместо 250 Hz. Малко повече CPU.</string>
     <string name="drawer_low_latency_touch">Докосване с ниско закъснение</string>
@@ -804,7 +798,6 @@
     <string name="drawer_pc_keyboard">Клавиатура за компютър</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Втори екран</string>
-    <string name="drawer_second_screen_mode">Режим</string>
     <string name="drawer_second_screen_shows">Показва</string>
     <string name="drawer_android_apps">Приложения за Android</string>
     <string name="drawer_launch_app">Стартиране на приложение</string>
@@ -1346,12 +1339,8 @@
     <string name="ctrl_opacity">Прозрачност</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Размер на бутоните</string>
-    <string name="ctrl_adaptive">Адаптивни стикове</string>
     <string name="ctrl_rumble">Вибрация от играта</string>
     <string name="ctrl_dead_zone">Мъртва зона на стика</string>
-    <string name="ctrl_steam_button">Бутон Steam</string>
-    <string name="ctrl_qam_button">Бутон QAM</string>
-    <string name="ctrl_keyboard_button">Бутон за клавиатура</string>
     <string name="ctrl_joycon_vr">Joy-Con като VR контролери</string>
     <string name="ctrl_joycon_vr_hint">Докато SteamVR работи, всеки Joy-Con става ръка. Насочете го напред и задръжте Home или Capture, за да го центрирате отново.</string>
     <string name="setup_animations">Анимации</string>
@@ -1480,8 +1469,6 @@
     <string name="deck_surface_trackpad">Тракпад</string>
     <string name="deck_close">Затваряне на контролите за втория екран</string>
     <string name="deck_open_steam_menu">Отваряне на менюто на Steam</string>
-    <string name="deck_right_trackpad">Десен тракпад</string>
-    <string name="deck_left_trackpad">Ляв тракпад</string>
     <string name="second_trackpad">Тракпад</string>
     <string name="second_show_keyboard">Показване на клавиатурата</string>
     <string name="second_hide_keyboard">Скриване на клавиатурата</string>
@@ -1520,11 +1507,8 @@
     <string name="pckb_android">Клавиатура на Android</string>
     <string name="pckb_hide">Скриване  ✕</string>
     <string name="pckb_size">Размер на екрана</string>
-    <string name="pckb_size_hint">Каква част от екрана заема клавиатурата, включително заглавката.</string>
     <string name="pckb_opacity">Непрозрачност</string>
-    <string name="pckb_opacity_hint">Намалете я, за да виждате играта зад клавиатурата.</string>
     <string name="pckb_hidden_keys">Скрити клавиши</string>
-    <string name="pckb_hidden_keys_hint">Рядко използваните клавиши не се показват на клавиатурата.</string>
     <string name="pckb_group_function">Esc и ред с функционални клавиши</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Клавиши със стрелки</string>
@@ -1737,8 +1721,6 @@
     <string name="drivers_installed_pick">Инсталирано: %1$s - избери го от менюто</string>
     <string name="session_wait_removal">Изчакай премахването на средата да приключи</string>
     <string name="session_title_game">Игра</string>
-    <string name="session_touch_auto_touchpad">тракпад</string>
-    <string name="session_touch_auto_direct">директно</string>
     <string name="session_swap_failed">Размяната се провали: %1$s</string>
     <string name="session_profile_save_failed">Запазването на профила се провали: %1$s</string>
     <string name="session_desktop_paused">Работният плот е на пауза</string>
@@ -1994,15 +1976,6 @@
     <string name="fm_up_one_level">Едно ниво нагоре</string>
     <string name="fm_choose_folder">Избор на папка</string>
     <string name="fm_choose_file">Избор на файл</string>
-    <string name="ctrl_tint_steam_blue">Синьо на Steam</string>
-    <string name="ctrl_tint_sky">Небесно</string>
-    <string name="ctrl_tint_white">Бяло</string>
-    <string name="ctrl_tint_violet">Виолетово</string>
-    <string name="ctrl_tint_green">Зелено</string>
-    <string name="ctrl_tint_amber">Кехлибарено</string>
-    <string name="ctrl_tint_red">Червено</string>
-    <string name="ctrl_tint_pink">Розово</string>
-    <string name="ctrl_tint_gray">Сиво</string>
     <string name="ctrl_button_a">Бутон A</string>
     <string name="ctrl_button_b">Бутон B</string>
     <string name="ctrl_button_x">Бутон X</string>
@@ -3140,7 +3113,6 @@
     <string name="glasses_pro2_experimental">Експериментално проследяване на движенията на главата за Pro 2. Регулирането на яркостта и силата на звука и превключването на режима на показване все още не се поддържат.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
-    <string name="cardboard_mode_hint">Изображения за лявото и дясното око за VR очила за телефон.</string>
     <string name="cardboard_source">Картина</string>
     <string name="cardboard_source_screen">Виртуален екран</string>
     <string name="cardboard_source_sbs">3D един до друг</string>
@@ -3163,7 +3135,6 @@
     <string name="cardboard_steamvr_unavailable">Не е налично в тази сесия.</string>
     <string name="cardboard_steamvr_failed">SteamVR не отговори; проверете лога на сесията.</string>
     <string name="drawer_component_downloads">Изтегляне на компоненти</string>
-    <string name="drawer_component_downloads_hint">Изтеглянията са общи със страницата Компоненти. Изберете по-горе изтеглена версия, за да се използва при следващото стартиране на играта.</string>
     <string name="drawer_component_choose_download">Изберете версия за изтегляне</string>
     <string name="stores_fact_developer">Разработчик</string>
     <string name="stores_fact_publisher">Издател</string>

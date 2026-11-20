@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Független másolat</string>
     <string name="input_floating_stick">Kar indítása az érintési ponttól</string>
     <string name="input_hide_idle">Kar elrejtése, ha nincs használatban</string>
-    <string name="input_tools">Eszközök</string>
-    <string name="input_quick_auto">Automatikus (%1$s)</string>
-    <string name="input_quick_mixed">Egyéni (%1$s)</string>
     <string name="input_save_combination">Mentés új profilként</string>
     <string name="input_profile_controls_mode">Profil vezérlői</string>
-    <string name="input_profile">Profil</string>
     <string name="input_mouse_gestures">Egér érintőfelület-gesztusok</string>
-    <string name="input_mouse_gestures_hint">Ha az egérkurzorhoz van rendelve: koppintson a kattintáshoz, tartsa nyomva a húzáshoz, és két ujjal görgessen.</string>
     <string name="input_quick_override_hint">A(z) %1$s gyorsmenü-felülírással rendelkezik. Válassza ott az Automatikust, hogy az alapértelmezett profilját és mindhárom mentett részét használja.</string>
     <string name="input_route_local">DroidDeck bemenet</string>
     <string name="input_axis_action_hint" formatted="false">Nyomva tartva, amíg a kart bármely irányba mozgatja: nyomás 55% felett, elengedés 35% alatt. Az Iránybillentyűkkel külön rendelhető minden irány. A DroidDeck parancsok kitérésenként egyszer futnak. A kar kattintása külön állítható.</string>
@@ -103,19 +98,12 @@
     <string name="input_shortcut_back_modes">Vissza · kétszer Steam módban, egyszer asztali módban</string>
     <string name="input_shortcut_hold_hint">Steam módban. A Vissza nyomva tartása a gyorselérést is megnyitja.</string>
     <string name="input_restore_shortcut">Visszaállítás alapértelmezettre</string>
-    <string name="input_second_mode_hint">A panelválasztás megjegyződik. Az asztali mód második munkateret nyit; nem váltja a munkamenetet vagy annak beviteli profilját.</string>
     <string name="input_virtual_controller">Virtuális vezérlő</string>
-    <string name="input_virtual_controller_hint">A Steam vagy a játék által látott vezérlőtípus.</string>
     <string name="input_touchscreen">Érintőképernyő</string>
-    <string name="input_touchscreen_hint">Hogyan kezelődnek a játék képernyőjén történő érintések. A profilgombok megtartják hozzárendelt műveleteiket.</string>
     <string name="input_touch_cursor">Érintéskurzor</string>
-    <string name="input_touch_cursor_hint">Mutatót jelenít meg a játék képernyőjén történő közvetlen érintésekhez.</string>
     <string name="input_touch_hold">Érintés és nyomva tartás</string>
-    <string name="input_touch_hold_hint">Egér művelet, amikor ujját a játék képernyőjén tartja.</string>
     <string name="input_back_taps">Vissza gomb koppintásai</string>
-    <string name="input_back_taps_hint">Első művelet: egy koppintás. Második művelet: dupla koppintás.</string>
     <string name="input_toggle_button">Kapcsológomb</string>
-    <string name="input_toggle_button_hint">Koppintson a tartáshoz, koppintson újra az elengedéshez. Menü megnyitása vagy profilváltás elengedi a gombot.</string>
     <string name="input_button_shape">Forma</string>
     <string name="input_shape_rounded">Lekerekített</string>
     <string name="input_shape_pill">Kapszula</string>

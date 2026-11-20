@@ -295,14 +295,10 @@
     <string name="mode_pen_touch">觸控</string>
     <string name="mode_pen_button">側鍵</string>
     <string name="mode_osc">螢幕控制</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">「自動」會在未連接控制器時顯示螢幕控制。</string>
-    <string name="osc_steam_touch">Steam 觸控（測試版）</string>
-    <string name="osc_style_next_session">Steam 的觸控控制會在下次 Steam 會話啟用</string>
     <string name="osc_steam_layout">Steam 觸控佈局</string>
     <string name="screen_key_layout_export">匯出</string>
     <string name="screen_key_image">圖片</string>
-    <string name="osc_steam_layout_hint">移動、調整大小或隱藏此遊戲的觸控控制；會儲存至 Steam</string>
     <string name="mode_controller">控制器</string>
     <string name="mode_controller_hint">Steam 如何識別你的控制器。下次會話生效。</string>
     <string name="mode_controller_deck">Steam Deck 控制器</string>
@@ -428,7 +424,6 @@
     <string name="mode_directaudio_hint">繞過 PulseAudio 以減低延遲。</string>
     <string name="mode_mic">麥克風</string>
     <string name="mode_mic_hint">用於語音聊天。</string>
-    <string name="drawer_mic_hint">為此會話開啟或關閉麥克風收音。</string>
     <string name="drawer_mic_failed">無法變更麥克風設定，請再試一次。</string>
     <string name="mode_network">網絡</string>
     <string name="mode_wifi_discovery">Wi-Fi 探索</string>
@@ -789,7 +784,6 @@
     <string name="drawer_keyboard">鍵盤</string>
     <string name="drawer_latency">延遲</string>
     <string name="drawer_low_latency">低延遲模式</string>
-    <string name="drawer_low_latency_hint">會增加 CPU 和電池用量</string>
     <string name="drawer_low_latency_controller">低延遲控制器</string>
     <string name="drawer_low_latency_controller_hint">控制器以 1000 Hz 而非 250 Hz 回報。CPU 使用率略高。</string>
     <string name="drawer_low_latency_touch">低延遲觸控</string>
@@ -804,7 +798,6 @@
     <string name="drawer_auto_keyboard">自動彈出虛擬鍵盤</string>
     <string name="drawer_auto_keyboard_hint">點選 Linux 主介面的輸入框時，自動開啟 Android 鍵盤。</string>
     <string name="drawer_second_screen">第二螢幕</string>
-    <string name="drawer_second_screen_mode">模式</string>
     <string name="drawer_second_screen_shows">顯示</string>
     <string name="drawer_android_apps">Android 應用程式</string>
     <string name="drawer_launch_app">啟動應用程式</string>
@@ -1341,12 +1334,8 @@
     <string name="ctrl_opacity">不透明度</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">按鍵大小</string>
-    <string name="ctrl_adaptive">自動調整搖桿</string>
     <string name="ctrl_rumble">遊戲震動</string>
     <string name="ctrl_dead_zone">搖桿死區</string>
-    <string name="ctrl_steam_button">Steam 按鈕</string>
-    <string name="ctrl_qam_button">QAM 按鈕</string>
-    <string name="ctrl_keyboard_button">鍵盤按鈕</string>
     <string name="ctrl_joycon_vr">將 Joy-Con 用作 VR 控制器</string>
     <string name="ctrl_joycon_vr_hint">SteamVR 執行時，每個 Joy-Con 都會變成一隻手。將它指向前方並按住 HOME 鍵或擷取鍵，即可重新置中。</string>
     <string name="setup_animations">動畫</string>
@@ -1474,8 +1463,6 @@
     <string name="deck_surface_trackpad">觸控板</string>
     <string name="deck_close">關閉第二螢幕控制</string>
     <string name="deck_open_steam_menu">開啟 Steam 選單</string>
-    <string name="deck_right_trackpad">右側觸控板</string>
-    <string name="deck_left_trackpad">左側觸控板</string>
     <string name="second_trackpad">觸控板</string>
     <string name="second_show_keyboard">顯示鍵盤</string>
     <string name="second_hide_keyboard">隱藏鍵盤</string>
@@ -1514,11 +1501,8 @@
     <string name="pckb_android">Android 鍵盤</string>
     <string name="pckb_hide">隱藏 ✕</string>
     <string name="pckb_size">畫面佔比</string>
-    <string name="pckb_size_hint">鍵盤佔用的畫面比例，包括標題列。</string>
     <string name="pckb_opacity">不透明度</string>
-    <string name="pckb_opacity_hint">調低即可看到鍵盤後方的遊戲畫面。</string>
     <string name="pckb_hidden_keys">隱藏按鍵</string>
-    <string name="pckb_hidden_keys_hint">少用的按鍵不會顯示在鍵盤上。</string>
     <string name="pckb_group_function">Esc 與功能鍵列</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">方向鍵</string>
@@ -1723,8 +1707,6 @@
     <string name="drivers_installed_pick">已安裝 %1$s - 請在選單中選擇</string>
     <string name="session_wait_removal">請等待運行環境移除完成</string>
     <string name="session_title_game">遊戲</string>
-    <string name="session_touch_auto_touchpad">觸控板</string>
-    <string name="session_touch_auto_direct">直接</string>
     <string name="session_swap_failed">替換失敗：%1$s</string>
     <string name="session_profile_save_failed">設定檔儲存失敗：%1$s</string>
     <string name="session_desktop_paused">桌面已暫停</string>
@@ -1971,15 +1953,6 @@
     <string name="fm_up_one_level">返回上一層</string>
     <string name="fm_choose_folder">選擇資料夾</string>
     <string name="fm_choose_file">選擇檔案</string>
-    <string name="ctrl_tint_steam_blue">Steam 藍</string>
-    <string name="ctrl_tint_sky">天藍</string>
-    <string name="ctrl_tint_white">白色</string>
-    <string name="ctrl_tint_violet">紫羅蘭</string>
-    <string name="ctrl_tint_green">綠色</string>
-    <string name="ctrl_tint_amber">琥珀色</string>
-    <string name="ctrl_tint_red">紅色</string>
-    <string name="ctrl_tint_pink">粉紅色</string>
-    <string name="ctrl_tint_gray">灰色</string>
     <string name="ctrl_button_a">A 鍵</string>
     <string name="ctrl_button_b">B 鍵</string>
     <string name="ctrl_button_x">X 鍵</string>
@@ -3118,7 +3091,6 @@
     <string name="stores_hltb_minutes">%1$d 分鐘</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard 模式</string>
-    <string name="cardboard_mode_hint">為手機 VR 眼鏡提供左右眼畫面。</string>
     <string name="cardboard_source">畫面</string>
     <string name="cardboard_source_screen">虛擬螢幕</string>
     <string name="cardboard_source_sbs">左右並排 3D</string>
@@ -3141,7 +3113,6 @@
     <string name="cardboard_steamvr_unavailable">此工作階段中無法使用。</string>
     <string name="cardboard_steamvr_failed">SteamVR 沒有回應；請查看工作階段日誌。</string>
     <string name="drawer_component_downloads">下載元件</string>
-    <string name="drawer_component_downloads_hint">下載內容與「元件」頁面共用。在上方選擇已下載的版本，即可在下次啟動遊戲時使用。</string>
     <string name="drawer_component_choose_download">選擇要下載的版本</string>
     <string name="display_picture_position">畫面位置</string>
     <string name="display_position_top">置頂</string>
