@@ -79,13 +79,13 @@ def required():
     paths = ['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst']
     paths += [f'assets/graphics_driver/adrenotools-{name}.tzst'
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
-    paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libblsession.so',
-             'libblfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
+    paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libddsession.so',
+             'libddfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
              'usr/local/bin/droiddeck-gog-maintenance',
              'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
              'usr/local/lib/droiddeck-pipewire.tzst']]
     for arch in ['x86_64', 'i386']:
-        paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libblsession.so']]
+        paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libddsession.so']]
     paths += ['assets/linuxfs/x86_64/' + lib for lib in
               ['libfaultreport.so', 'libvulkan-thunk.so', 'libwebkitinput.so']]
     paths += ['assets/linuxfs/i386/libfaultreport.so']
@@ -100,8 +100,7 @@ def required():
                'layer/VK_LAYER_DROIDDECK_vr.json', 'layer/VK_LAYER_DROIDDECK_vr_implicit.json',
                'layer/libdroiddeck_vr_scheduling.so']]
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-gpuload/' + name for name in
-              ['libVkLayer_droiddeck_gpuload.so', 'VK_LAYER_DROIDDECK_gpu_load.json',
-               'libVkLayer_droiddeck_vramcap.so', 'VK_LAYER_DROIDDECK_vram_cap.json']]
+              ['libVkLayer_droiddeck_gpuload.so', 'VK_LAYER_DROIDDECK_gpu_load.json']]
     for side in ['left', 'right']:
         paths += [f'assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_hand_{side}/{name}'
                   for name in [f'droiddeck_hand_{side}.json', 'hand.mtl', 'hand.png', 'hand_open.obj', 'hand_fist.obj',

@@ -426,7 +426,7 @@ path.
   still fall back.
 
 Same workloads on the Thor, stock library against the new one (session started with
-`droiddeckctl override libblfastpath.so`, PRoot profiler on):
+`droiddeckctl override libddfastpath.so`, PRoot profiler on):
 
 | Workload | Stock | New |
 |---|---|---|
@@ -451,3 +451,69 @@ synchronous directory updates, so SD installs stay bound by them (about 4 to 5 m
 2,000 files of reserving plus commit on this card). Removing those costs needs fewer
 directory operations per file, not faster path translation.
 
+
+## Repeated round trips in the Steam client (2026-11-19)
+
+Measured on an AYANEO Pocket FIT Elite with a SanDisk 128 GB U1 card (exFAT, `dirsync`,
+MediaProvider FUSE) as the second Steam library, by timing every file call the Steam
+client makes under `/steamapps` during a real uninstall and install.
+
+Where the time went before, for one install of 3,800 files and directories:
+
+| Call | Total before | Total after |
+| --- | --- | --- |
+| `faccessat` | 31.1 s | 0 s |
+| `stat` | 29.4 s | 0 s |
+| `access` | 40.3 s | 13.2 s |
+| `opendir` | 8.6 s | 3.3 s |
+| `__xstat64` | 5.4 s | about 0 s |
+| `rename` | 124.8 s | 91 to 106 s |
+| file creation | about 22 s | about 22 s |
+
+Most of the removed calls asked the card a question the directory cache could already
+answer:
+
+- A directory the cache holds a fresh listing for is now opened from that listing without
+  a `stat` of the directory first, and its own create, rename and remove calls update the
+  listing from what the call returned instead of re-reading the directory and the new
+  entry.
+- `access`, `faccessat` and `__xstat64` on a name that a fresh listing shows is missing
+  return `ENOENT` without a round trip, including the differently cased spellings the
+  client probes. An absolute path passed with a directory descriptor takes the same path.
+- The path cache spreads its slots with the high hash bits, which stops install paths that
+  differ only near the end from evicting each other.
+
+Results on the card (the first four rows are the 3,800 entry install; the moves are
+single runs timed to about 3 s):
+
+| Step | Before | After |
+| --- | --- | --- |
+| Reserving space | 68.9 s | 27 to 28 s |
+| Commit | 150.9 s | 97 to 111 s |
+| Whole install | 261.0 s | 172 to 195 s |
+| Uninstall | about 31 s | 28.5 to 29.4 s |
+| Reserving space, second program (4.4 GB, few files) | 33.9 s | 12.5 s |
+| Uninstall, second program | 12.3 s | 9.2 s |
+| Steam move, internal storage to card | 156.8 s | 121.7 s |
+| Steam move, card to internal storage | 56.5 s | 62.0 s |
+
+What is left is the card: each rename and each file creation is one synchronous directory
+update, and the second program's 4.4 GB download and final commit took the same time
+before and after.
+
+### Launching from the card
+
+A program started from the card was traced the same way. Three things were measured:
+
+- Sequential reads through the mount run at the card's own speed (88 MB/s cold), with or
+  without read-ahead hints. A launch that reads 1 GB spends about 12 s there on this card.
+- A warm directory listing takes about 0.8 ms. A cold one takes about 77 ms for every
+  128 KB directory cluster, even for a directory with one entry, so listing a 167
+  directory install tree takes 12.9 s cold and 0.37 s warm.
+- The listings stay warm while the device is idle, but a launch that fills memory pushes
+  them out again in bursts, so a program that lists its tree more than once pays the cold
+  price more than once. Keeping the tree warm from outside for the whole launch moved the
+  traced program's start-up forward by 5.5 to 7 s out of about 89 s.
+
+The rest of that launch was the program's own launcher and CPU-bound start-up, which did
+not wait on the card in these traces.

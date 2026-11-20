@@ -138,16 +138,16 @@ object InputLibraries {
         update(context) { library -> library.layouts.firstOrNull { it.id == layoutId && it.editable }?.let { library.withLayout(it.withQuickButton(button, shown)) } ?: library }
     }.isSuccess
 
-    fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): List<InputSurfaceElement>? {
+    fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): Pair<List<InputSurfaceElement>, Float>? {
         val origin = layout.origin ?: layout.id
-        InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements }
+        InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements to it.aspect }
         if (origin == OVERLAY || origin.startsWith("migrated.layout.")) {
             val (surfaceContext, metrics) = primaryDisplay(context)
             val size = if (origin == OVERLAY) listOf(metrics.widthPixels, metrics.heightPixels)
                 else origin.removePrefix("migrated.layout.").split('x').mapNotNull { it.toIntOrNull() }
-            return size.takeIf { it.size == 2 && it.all { side -> side > 0 } }?.let { LegacyGamepadLayout(surfaceContext, it[0], it[1]).elements() }
+            return size.takeIf { it.size == 2 && it.all { side -> side > 0 } }?.let { LegacyGamepadLayout(surfaceContext, it[0], it[1]).elements() to it[0].toFloat() / it[1] }
         }
-        return library.layouts.firstOrNull { it.id == origin && it.id != layout.id }?.elements
+        return library.layouts.firstOrNull { it.id == origin && it.id != layout.id }?.let { it.elements to it.aspect }
     }
 
     @Suppress("DEPRECATION")

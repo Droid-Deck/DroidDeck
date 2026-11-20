@@ -15,12 +15,12 @@ done
 if grep -qxE '__gxx_personality_v0|__cxa_throw|_Unwind_Resume' <<<"$FAKE"; then
   echo "::error::libfakeinput.so exports the C++ runtime"; exit 1
 fi
-SESSION=$(syms "$D/libblsession.so")
+SESSION=$(syms "$D/libddsession.so")
 for sym in socket bind getsockname setsockopt statfs statvfs syscall shm_open shm_unlink mmap mmap64 munmap mprotect drmPrimeFDToHandle drmCloseBufferHandle; do
-  grep -qx "$sym" <<<"$SESSION" || { echo "::error::libblsession.so does not export $sym"; exit 1; }
+  grep -qx "$sym" <<<"$SESSION" || { echo "::error::libddsession.so does not export $sym"; exit 1; }
 done
 if grep -qx drmIoctl <<<"$SESSION"; then
-  echo "::error::libblsession.so exports drmIoctl"; exit 1
+  echo "::error::libddsession.so exports drmIoctl"; exit 1
 fi
 SSBS=$(syms "$D/libssbs.so")
 for sym in sigaction signal bsd_signal sysv_signal; do

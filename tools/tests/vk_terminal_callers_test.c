@@ -72,6 +72,7 @@ PFN_vkGetInstanceProcAddr vk_loader_gipa(void) { return NULL; }
 void vkp_effects_bind_device(VkDevice d, VkPhysicalDevice p, const VkPhysicalDeviceMemoryProperties *m) {}
 int vkp_effects_active(void) { return 0; }
 int vkp_effects_upscaling(void) { return 0; }
+int vkp_effects_sharpening(void) { return 0; }
 int vkp_effects_postprocessing(void) { return 0; }
 VkFilter vkp_effects_blit_filter(void) { return VK_FILTER_NEAREST; }
 void vkp_effects_set_formats(VkFormat a, VkFormat b) {}

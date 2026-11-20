@@ -48,7 +48,7 @@ static char g_dir[PATH_MAX - NAME_MAX - 2];
 
 static const char *object_dir(void) {
     if (!g_dir[0]) {
-        const char *d = getenv("BL_SYSV_DIR");
+        const char *d = getenv("DD_SYSV_DIR");
         snprintf(g_dir, sizeof(g_dir), "%s", d && *d ? d : DIR_DEFAULT);
         mkdir(g_dir, 0700);
     }

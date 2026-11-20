@@ -345,7 +345,7 @@ def main():
         cfg = os.path.join(steam_root, "config", "config.vdf")
         if os.path.isfile(cfg) and (ours or routes):
             tools = os.path.join(steam_root, "compatibilitytools.d")
-            x64_tool = os.environ.get("BL_COMPAT_TOOL")
+            x64_tool = os.environ.get("DD_COMPAT_TOOL")
             own = {}
             if x64_tool:
                 protect = {compat.first_key(os.path.join(tools, e, "compatibilitytool.vdf"), ["compatibilitytools", "compat_tools"]) or e: e

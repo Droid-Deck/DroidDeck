@@ -60,7 +60,7 @@ static int grant_owner_write(int dirfd, const char *path) {
 }
 
 __attribute__((visibility("hidden")))
-int bl_writable_retry(int dirfd, const char *path, int flags) {
+int dd_writable_retry(int dirfd, const char *path, int flags) {
   int saved = errno;
   int granted = 0;
   char parent[PATH_MAX];
@@ -84,7 +84,7 @@ int bl_writable_retry(int dirfd, const char *path, int flags) {
 }
 
 __attribute__((visibility("hidden")))
-int bl_writable_access(int dirfd, const char *path, int mode, int flags) {
+int dd_writable_access(int dirfd, const char *path, int mode, int flags) {
   int saved = errno;
   struct stat st;
   int owned;

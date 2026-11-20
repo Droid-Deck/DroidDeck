@@ -315,4 +315,27 @@ class GameEnvironmentStoreTest {
         GameEnvironmentStore.save(context, config)
         assertEquals(config, GameEnvironmentStore.read(context))
     }
+
+    @Test fun savedSettingsFromBeforeTheRenameKeepTheirValues() {
+        val json = JSONObject("""{"version":1,"shared":{"BL_SYNC":"1","DXVK_HUD":"fps"},
+            "games":{"440":{"BL_FSYNC_FIRST":"1","BL_SYNC_FALLBACK":"0","DD_SYNC_FALLBACK":"1"}}}""")
+        val config = GameEnvironmentStore.decode(json)
+        assertEquals(mapOf("DD_SYNC" to "1", "DXVK_HUD" to "fps"), config.shared)
+        assertEquals(mapOf("DD_FSYNC_FIRST" to "1", "DD_SYNC_FALLBACK" to "1"), config.games["440"])
+    }
+
+    @Test fun unreadableSettingsAreSetAsideAndSessionsStillStart() {
+        val settings = File(context.filesDir, "game-environment.json")
+        val aside = File(context.filesDir, "game-environment.json.unreadable")
+        aside.delete()
+        for (broken in listOf("", """{"version":1,"shared":{"bad name":"1"}}""")) {
+            settings.writeText(broken)
+            assertEquals(GameEnvironment.Config(), GameEnvironmentStore.read(context))
+            assertFalse(settings.exists())
+            assertEquals(broken, aside.readText())
+        }
+        GameEnvironmentStore.publish(context)
+        assertEquals(1, JSONObject(guest.readText()).getInt("version"))
+        aside.delete()
+    }
 }

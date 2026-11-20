@@ -50,7 +50,7 @@ class X64SignInTest(unittest.TestCase):
     def sync(self):
         env = dict(os.environ, HOME=str(self.home), PATH='%s:%s' % (self.bin, os.environ['PATH']))
         env.pop('XDG_DATA_HOME', None)
-        env.pop('BL_X64_HOME', None)
+        env.pop('DD_X64_HOME', None)
         return subprocess.run(['bash', str(SCRIPT), '--sync-login'], env=env, capture_output=True, text=True, check=True)
 
     def test_a_refused_x64_sign_in_gets_the_token_account_and_auto_login(self):

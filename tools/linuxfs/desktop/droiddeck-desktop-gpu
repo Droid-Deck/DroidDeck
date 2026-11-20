@@ -15,7 +15,7 @@ CHROMIUM_FLAGS = " --no-sandbox --ozone-platform=x11"
 
 
 def enabled():
-    return os.environ.get("BL_DESKTOP_GPU", "on").strip().lower() not in ("off", "0", "no", "false")
+    return os.environ.get("DD_DESKTOP_GPU", "on").strip().lower() not in ("off", "0", "no", "false")
 
 
 def main_group(text):

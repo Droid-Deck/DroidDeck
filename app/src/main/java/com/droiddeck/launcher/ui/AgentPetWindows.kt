@@ -397,11 +397,14 @@ internal class PetWindows(private val context: Context) {
 
     /**
      * The chat window is always drawn; closed, it waits off the screen and takes neither touches nor
-     * keys, so opening it is a move and not a first layout.
+     * keys, so opening it is a move and not a first layout. Only FLAG_LAYOUT_NO_LIMITS keeps it off the
+     * screen: without it the system moves the window back over the app below, where every touch reaches
+     * that app marked obscured, and apps that filter obscured touches, such as GitHub, ignore them all.
      */
     private fun showChat(on: Boolean) {
         chat.params.x = if (on) 0 else OFFSCREEN
-        val quiet = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        val quiet = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         chat.params.flags = if (on) chat.params.flags and quiet.inv() else chat.params.flags or quiet
         if (added) runCatching { windows.updateViewLayout(chat.view, chat.params) }
     }
