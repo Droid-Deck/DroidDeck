@@ -22,7 +22,6 @@
         <item>Adaugă biblioteci Steam de pe un card SD, o unitate USB sau un SSD, iar DroidDeck păstrează jocurile împreună în Biblioteca ta.</item>
         <item>Magazine îți permite să te conectezi la Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io și Game Jolt, apoi să instalezi și să actualizezi jocurile lor din DroidDeck.</item>
         <item>Componente precum FEX, DXVK și VKD3D-Proton se actualizează singure, iar Proton Experimental ARM64 este implicit, sau Proton 11.0 ARM64 odată ce acea versiune este instalată.</item>
-        <item>Comprimă Steam cât rulează un joc eliberează RAM pe dispozitivele cu memorie puțină.</item>
         <item>Glisează dinspre marginea dreaptă ca să deschizi meniul sesiunii: mod touchpad, Tastatură de PC, Mod latență redusă, profilul jocului și altele.</item>
         <item>Jocul rulează greu? Limitează rata de cadre în Acces rapid, apoi încearcă altă versiune de Proton sau alt preset FEX în componentele jocului.</item>
         <item>Sunet de joc cu pârâituri sau lipsă? Încearcă opțiunea DirectAudio pentru jocuri din setările Steam, la Sunet.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Acest program este compilat pentru PC-uri %1$s și rulează prin FEX, care nu este încă configurat. Deschide Steam o dată, fiind autentificat: DroidDeck îl pune să descarce FEX și Steam Linux Runtime de care are nevoie, apoi acesta se deschide.</string>
     <string name="session_proot_missing">Proot-ul DroidDeck nu a putut fi descărcat. Verifică conexiunea și încearcă din nou. Sesiunea nu a fost pornită, deoarece proot-ul de rezervă este prea lent pentru jocuri.</string>
     <string name="session_powervr_missing">Mediul grafic PowerVR nu a putut fi descărcat. Verifică conexiunea și încearcă din nou.</string>
+    <string name="session_graphics_runtime_failed">Mediul grafic nu a putut fi pregătit, așa că sesiunea nu a pornit.</string>
+    <string name="session_game_environment_failed">Mediul jocului nu a putut fi configurat, așa că sesiunea nu a pornit.</string>
     <string name="session_directaudio_missing">DirectAudio nu a putut fi descărcat, așa că sunetul jocurilor folosește calea mai lentă în această sesiune.</string>
     <string name="session_end_program">Acest program</string>
     <string name="session_end_present_fault">Sesiunea nu a putut reda pe ecran: %1$s. Acest ecran arată motivul în locul unui ecran negru; detaliile sunt în jurnalele sesiunii.</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">Atingere</string>
     <string name="mode_pen_button">Buton lateral</string>
     <string name="mode_osc">Comenzi pe ecran</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automat afișează comenzile când niciun controller nu este conectat.</string>
-    <string name="osc_steam_touch">Atingere Steam (beta)</string>
-    <string name="osc_style_next_session">Comenzile tactile Steam pornesc odată cu următoarea sesiune Steam</string>
     <string name="osc_steam_layout">Aranjament tactil Steam</string>
     <string name="screen_key_layout_export">Exportă</string>
     <string name="screen_key_image">Imagine</string>
-    <string name="osc_steam_layout_hint">Mută, redimensionează sau ascunde comenzile tactile ale acestui joc; salvate în Steam</string>
     <string name="mode_controller">Controller</string>
     <string name="mode_controller_hint">Cum vede Steam controllerul tău. Se aplică la sesiunea următoare.</string>
     <string name="mode_controller_deck">Controller Steam Deck</string>
@@ -429,7 +426,6 @@
     <string name="mode_directaudio_hint">Evită PulseAudio pentru o latență mai mică.</string>
     <string name="mode_mic">Microfon</string>
     <string name="mode_mic_hint">Pentru chat vocal.</string>
-    <string name="drawer_mic_hint">Activează sau dezactivează captarea microfonului pentru această sesiune.</string>
     <string name="drawer_mic_failed">Microfonul nu a putut fi schimbat. Încearcă din nou.</string>
     <string name="mode_network">Rețea</string>
     <string name="mode_wifi_discovery">Descoperire Wi-Fi</string>
@@ -626,20 +622,8 @@
     <string name="perf_gsrealtime">gamescope: coadă GPU în timp real</string>
     <string name="perf_gsrealtime_hint">Prioritizează lucrul GPU al compositorului. Poate netezi ritmul cadrelor, cu un cost pentru jocuri.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memorie</string>
     <string name="perf_cap_off">Dezactivat</string>
-    <string name="perf_cap_auto">Implicit driver</string>
-    <string name="perf_zram_client">Comprimă Steam cât rulează un joc</string>
-    <string name="perf_zram_idle">Comprimă memoria inactivă a jocului</string>
-    <string name="perf_zram_idle_hint">Comprimă memoria inactivă a jocului când memoria RAM este redusă. Dezactivează dacă jocurile îngheață câteva secunde aproximativ la fiecare jumătate de minut. Se aplică la următoarea pornire a sesiunii.</string>
-    <string name="perf_zram_client_hint">La 20 s după pornirea unui joc, clientul Steam este comprimat în zRAM pentru a lăsa jocului mai multă memorie și este citit înapoi când jocul se închide. Dezactivează dacă sesiunea se închide la scurt timp după pornirea jocurilor. O limită RAM de mai sus tot comprimă Steam când sesiunea o depășește.</string>
-    <string name="perf_ram_cap">Limită RAM</string>
-    <string name="perf_ram_cap_hint">Se aplică cât rulează clientul Steam, în modul Steam sau de pe desktop. Când sesiunea folosește mai mult de atât, Steam și apoi celelalte procese acceptate ale sesiunii sunt comprimate în zRAM. O limită flexibilă: nimic nu se închide, dar jocurile pot sacada cât paginile revin.</string>
-    <string name="perf_ram_cap_unavailable">Necesită swap zRAM, pe care acest dispozitiv nu îl are.</string>
-    <string name="perf_vram_cap">Limită VRAM</string>
-    <string name="perf_vram_cap_hint">Raportează acest buget de memorie video jocurilor Direct3D 9 până la 12 pentru a reduce utilizarea memoriei. Jocurile îl pot depăși; nu adaugă paginare GPU și nu garantează protecție împotriva blocărilor cauzate de lipsa memoriei. Se aplică din sesiunea următoare.</string>
     <string name="perf_gpuclock">Fixează GPU-ul la frecvența maximă</string>
-    <string name="perf_gpuclock_hint">Doar Adreno. Mai puține întreruperi, consum mai mare de baterie și căldură.</string>
     <string name="perf_fixes">Remedieri de sesiune</string>
     <string name="perf_sysmem">Turnip: randare sysmem</string>
     <string name="perf_sysmem_hint">Se aplică clientului Steam și jocurilor. Necesară pe Adreno 710/720/722.</string>
@@ -804,7 +788,6 @@
     <string name="drawer_keyboard">Tastatură</string>
     <string name="drawer_latency">Latență</string>
     <string name="drawer_low_latency">Mod latență redusă</string>
-    <string name="drawer_low_latency_hint">Crește consumul de CPU și baterie</string>
     <string name="drawer_low_latency_controller">Controller cu latență mică</string>
     <string name="drawer_low_latency_controller_hint">Controllerul raportează la 1000 Hz în loc de 250 Hz. Consum CPU puțin mai mare.</string>
     <string name="drawer_low_latency_touch">Atingere cu latență mică</string>
@@ -817,7 +800,6 @@
     <string name="drawer_pc_keyboard">Tastatură de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Al doilea ecran</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Arată</string>
     <string name="drawer_android_apps">Aplicații Android</string>
     <string name="drawer_launch_app">Lansează o aplicație</string>
@@ -1364,12 +1346,8 @@
     <string name="ctrl_opacity">Opacitate</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Dimensiunea butoanelor</string>
-    <string name="ctrl_adaptive">Manșe adaptive</string>
     <string name="ctrl_rumble">Vibrații de joc</string>
     <string name="ctrl_dead_zone">Zonă moartă a manetei</string>
-    <string name="ctrl_steam_button">Butonul Steam</string>
-    <string name="ctrl_qam_button">Butonul QAM</string>
-    <string name="ctrl_keyboard_button">Butonul tastaturii</string>
     <string name="ctrl_joycon_vr">Joy-Con ca controllere VR</string>
     <string name="ctrl_joycon_vr_hint">Cât timp rulează SteamVR, fiecare Joy-Con devine o mână. Îndreaptă-l înainte și ține apăsat Home sau Capture pentru a-l recentra.</string>
     <string name="setup_animations">Animații</string>
@@ -1499,8 +1477,6 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Închide comenzile celui de-al doilea ecran</string>
     <string name="deck_open_steam_menu">Deschide meniul Steam</string>
-    <string name="deck_right_trackpad">Trackpad-ul drept</string>
-    <string name="deck_left_trackpad">Trackpad-ul stâng</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Arată tastatura</string>
     <string name="second_hide_keyboard">Ascunde tastatura</string>
@@ -1539,11 +1515,8 @@
     <string name="pckb_android">Tastatura Android</string>
     <string name="pckb_hide">Ascunde  ✕</string>
     <string name="pckb_size">Dimensiune pe ecran</string>
-    <string name="pckb_size_hint">Partea din ecran ocupată de tastatură, inclusiv antetul.</string>
     <string name="pckb_opacity">Opacitate</string>
-    <string name="pckb_opacity_hint">Reduceți-o pentru a vedea jocul din spatele tastaturii.</string>
     <string name="pckb_hidden_keys">Taste ascunse</string>
-    <string name="pckb_hidden_keys_hint">Tastele pe care le folosiți rar nu apar pe tastatură.</string>
     <string name="pckb_group_function">Esc și rândul tastelor funcționale</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Tastele cu săgeți</string>
@@ -1581,6 +1554,8 @@
     <string name="pip_unavailable">Android nu a putut deschide imaginea în imagine.</string>
     <string name="game_more">Mai multe</string>
     <string name="game_edit_art">Editează grafica</string>
+    <string name="game_unhide">Elimină din ascunse</string>
+    <string name="game_hide_failed">Nu s-a putut sincroniza cu Steam. Închide Steam și încearcă din nou.</string>
     <string name="stores_in_steam_label">În Steam</string>
     <string name="game_shortcut">Comandă rapidă</string>
     <string name="game_shortcut_add">Adaugă pe ecranul principal</string>
@@ -1762,8 +1737,6 @@
     <string name="drivers_installed_pick">Instalat %1$s - alege-l în meniu</string>
     <string name="session_wait_removal">Așteaptă să se termine eliminarea mediului de execuție</string>
     <string name="session_title_game">Joc</string>
-    <string name="session_touch_auto_touchpad">touchpad</string>
-    <string name="session_touch_auto_direct">direct</string>
     <string name="session_swap_failed">Comutarea a eșuat: %1$s</string>
     <string name="session_profile_save_failed">Salvarea profilului a eșuat: %1$s</string>
     <string name="session_desktop_paused">Desktopul este pus pe pauză</string>
@@ -2028,15 +2001,6 @@
     <string name="fm_up_one_level">Un nivel mai sus</string>
     <string name="fm_choose_folder">Alege un folder</string>
     <string name="fm_choose_file">Alege un fișier</string>
-    <string name="ctrl_tint_steam_blue">Albastru Steam</string>
-    <string name="ctrl_tint_sky">Cer</string>
-    <string name="ctrl_tint_white">Alb</string>
-    <string name="ctrl_tint_violet">Violet</string>
-    <string name="ctrl_tint_green">Verde</string>
-    <string name="ctrl_tint_amber">Chihlimbariu</string>
-    <string name="ctrl_tint_red">Roșu</string>
-    <string name="ctrl_tint_pink">Roz</string>
-    <string name="ctrl_tint_gray">Gri</string>
     <string name="ctrl_button_a">Butonul A</string>
     <string name="ctrl_button_b">Butonul B</string>
     <string name="ctrl_button_x">Butonul X</string>
@@ -2335,6 +2299,17 @@
     <string name="pextra_checksum_mismatch">Sumă de control incorectă; descărcarea a fost ștearsă</string>
     <string name="pextra_session_started">O sesiune a pornit în timpul descărcării; oprește-o înainte de a instala instrumente de compatibilitate</string>
     <string name="pextra_installing">Se instalează %1$s</string>
+    <string name="xproton_title">Versiuni experimentale</string>
+    <string name="xproton_install_file">Instalează din fișier</string>
+    <string name="xproton_archive_unsafe">Arhiva conține o legătură sau o cale nesigură</string>
+    <string name="xproton_archive_invalid">Arhivă neacceptată sau nevalidă</string>
+    <string name="xproton_no_space">Nu există suficient spațiu liber pentru această versiune Proton</string>
+    <string name="xproton_unpacking">Se despachetează Proton (câteva minute)</string>
+    <string name="xproton_untar_failed">Despachetarea a eșuat (tar %1$d)</string>
+    <string name="xproton_no_tree">Arhiva nu conține nicio versiune Proton</string>
+    <string name="xproton_place_failed">Versiunea Proton nu a putut fi plasată</string>
+    <string name="xproton_remove_failed">%1$s nu a putut fi eliminat complet</string>
+    <string name="xproton_installed">Proton experimental a fost instalat. Selectează-l în Steam → Proprietăți → Compatibilitate.</string>
     <string name="pextra_install_failed">Instalarea %1$s a eșuat (cod de ieșire %2$d)</string>
     <string name="pextra_could_not_install">%1$s nu a putut fi instalat</string>
     <string name="esync_fetching">Se obține pachetul droiddeck-esync</string>
@@ -3168,7 +3143,6 @@
     <string name="glasses_pro2_experimental">Urmărire experimentală a mișcărilor capului pentru Pro 2. Reglarea luminozității și a volumului și schimbarea modului de afișare nu sunt încă acceptate.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mod Cardboard</string>
-    <string name="cardboard_mode_hint">Imagini pentru ochiul stâng și cel drept, pentru un vizor VR pentru telefon.</string>
     <string name="cardboard_source">Imagine</string>
     <string name="cardboard_source_screen">Ecran virtual</string>
     <string name="cardboard_source_sbs">3D alăturat</string>
@@ -3191,7 +3165,6 @@
     <string name="cardboard_steamvr_unavailable">Indisponibil în această sesiune.</string>
     <string name="cardboard_steamvr_failed">SteamVR nu a răspuns; verifică jurnalul sesiunii.</string>
     <string name="drawer_component_downloads">Descarcă componente</string>
-    <string name="drawer_component_downloads_hint">Descărcările sunt comune cu pagina Componente. Alege mai sus o versiune descărcată pentru a o folosi la următoarea lansare a jocului.</string>
     <string name="drawer_component_choose_download">Alege o versiune de descărcat</string>
     <string name="stores_fact_developer">Dezvoltator</string>
     <string name="stores_fact_publisher">Editor</string>
@@ -3378,10 +3351,19 @@
     <string name="storage_shared_prefix">Prefixul Steam partajat</string>
     <string name="storage_shared_prefix_detail">Steam rulează aici propriile utilitare Windows</string>
     <string name="storage_reset_shared_confirm">Îl șterge (%1$s). Steam creează unul nou data viitoare când are nevoie.</string>
+    <string name="storage_remove_launcher_confirm">Șterge prefixul Wine și memoria cache de shadere ale acestei aplicații de magazin (%1$s), cu autentificarea și salvările păstrate doar acolo. Jocurile care rulează în el primesc un prefix nou și poate fi nevoie să configurezi din nou aplicația. Salvările din cloud rămân în cont.</string>
+    <string name="storage_system_clearable">Se pot elibera %1$s</string>
+    <string name="storage_item_system_caches">Cache-uri Linux și Steam</string>
+    <string name="storage_item_system_caches_detail">Fișiere temporare vechi, pachete descărcate și cache-ul web Steam</string>
+    <string name="storage_cache_temp">Fișiere temporare vechi</string>
+    <string name="storage_cache_packages">Pachete descărcate</string>
+    <string name="storage_cache_steam_web">Cache web Steam</string>
+    <string name="storage_cache_steam_corrupt">Descărcări Steam deteriorate</string>
+    <string name="storage_cache_detail">Se recreează când e nevoie</string>
+    <string name="storage_clear">Golește</string>
     <string name="storage_launcher_prefix">O aplicație de magazin și jocurile care rulează cu ea</string>
     <string name="storage_launcher_used_by">Folosit de %1$s</string>
     <string name="storage_shortcut_app">Joc non-Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Nu corespunde niciunui joc, deci este păstrat</string>
     <string name="storage_remove_selected">Elimină selecția · %1$s</string>
     <string name="storage_uninstall_selected">Dezinstalează selecția · %1$s</string>
     <string name="storage_bulk_prefixes">Prefixuri Wine</string>
@@ -4129,4 +4111,18 @@
     <string name="display_scaling_integer">Număr întreg</string>
     <string name="display_scaling_fit">Potrivire</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+    <string name="theme_custom">Personalizat</string>
+    <string name="theme_custom_detail">Alege separat fiecare culoare a interfeței.</string>
+    <string name="theme_custom_background">Fundal</string>
+    <string name="theme_custom_surface">Panouri</string>
+    <string name="theme_custom_surface_variant">Panouri ridicate</string>
+    <string name="theme_custom_line">Separatoare</string>
+    <string name="theme_custom_line2">Margini</string>
+    <string name="theme_custom_on_background">Text principal</string>
+    <string name="theme_custom_on_surface_variant">Text secundar</string>
+    <string name="theme_custom_primary">Butoane și accent principal</string>
+    <string name="theme_custom_on_primary">Textul butoanelor</string>
+    <string name="theme_custom_signal">Evidențieri</string>
+    <string name="theme_custom_good">Succes</string>
+    <string name="theme_custom_error">Eroare</string>
 </resources>

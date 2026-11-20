@@ -60,6 +60,19 @@ static long status(const char *key) {
   return v;
 }
 
+static long resident(char *start, size_t size) {
+  long page = sysconf(_SC_PAGESIZE), kb = 0;
+  int fd = open("/proc/self/pagemap", O_RDONLY);
+  if (fd < 0) exit(8);
+  for (size_t i = 0; i < size; i += page) {
+    uint64_t entry;
+    if (pread(fd, &entry, sizeof(entry), ((uintptr_t)start + i) / page * sizeof(entry)) != sizeof(entry)) exit(8);
+    if (entry >> 63) kb += page / 1024;
+  }
+  close(fd);
+  return kb;
+}
+
 static void send_request(char mode) {
   int fd = open(ctl, O_WRONLY | O_TRUNC);
   if (fd < 0 || write(fd, &mode, 1) != 1) exit(3);
@@ -89,6 +102,25 @@ static void request(char mode) {
     wait_ack();
   }
   usleep(1000000);
+}
+
+static long trim(char mode, long kb) {
+  char ack[256], text[32];
+  snprintf(ack, sizeof(ack), "%s.trim.%d", ctl, getpid());
+  unlink(ack);
+  FILE *f = fopen(ctl, "w");
+  if (!f) exit(3);
+  fprintf(f, "%c %ld\n", mode, kb);
+  fclose(f);
+  kill(getpid(), SIGURG);
+  for (int i = 0; i < 1200; i++) {
+    f = fopen(ack, "r");
+    char *line = f ? fgets(text, sizeof(text), f) : NULL;
+    if (f) fclose(f);
+    if (line) return atol(text);
+    usleep(10000);
+  }
+  exit(5);
 }
 
 static uint64_t sum(const unsigned char *p, size_t n) {
@@ -167,6 +199,80 @@ int main(int argc, char **argv) {
       int status_code;
       waitpid(child, &status_code, 0);
       printf("childack %d\n", WIFEXITED(status_code) && WEXITSTATUS(status_code) == 0);
+    } else if (!strcmp(argv[4], "trim")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      printf("first %ld\n", trim('2', 8192));
+      printf("second %ld\n", trim('2', 8192));
+      printf("swapped %ld\n", status("VmSwap:"));
+      printf("rest %ld\n", trim('2', 1L << 30));
+      printf("touched %d\n", sum(shared, size) != 0);
+      printf("hot %ld\n", trim('2', 1L << 30));
+      printf("forced %ld\n", trim('3', 1L << 30));
+      request('0');
+      printf("again %ld\n", trim('2', 1L << 30));
+      printf("intact %d\n", sum(data, size) == before);
+      return 0;
+    } else if (!strcmp(argv[4], "trim-small")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      long total = 0, largest = 0;
+      for (int i = 0; i < 112; i++) {
+        long step = trim('2', 512);
+        total += step;
+        if (step > largest) largest = step;
+      }
+      printf("small %ld\n", total);
+      printf("largest %ld\n", largest);
+      return 0;
+    } else if (!strcmp(argv[4], "trim-sparse")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      size_t wide = 32UL << 20;
+      char *thin = mmap(NULL, wide, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+      if (thin == MAP_FAILED) exit(7);
+      for (size_t i = 0; i < wide; i += 2 * page) thin[i] = 1;
+      printf("sparse %ld\n", resident(thin, wide));
+      for (int i = 0; i < 240; i++) trim('2', 512);
+      printf("kept %ld\n", resident(thin, wide));
+      return 0;
+    } else if (!strcmp(argv[4], "hold")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      char hold[256];
+      snprintf(hold, sizeof(hold), "%s.hold", ctl);
+      FILE *f = fopen(hold, "w");
+      if (!f) exit(3);
+      fclose(f);
+      printf("empty %ld\n", trim('2', 512));
+      f = fopen(hold, "w");
+      if (!f) exit(3);
+      fputs("1", f);
+      fclose(f);
+      f = fopen(ctl, "w");
+      if (!f) exit(3);
+      fputs("2 512\n", f);
+      fclose(f);
+      kill(getpid(), SIGURG);
+      wait_ack();
+      printf("held %ld\n", status("VmSwap:"));
+      unlink(hold);
+      return 0;
+    } else if (!strcmp(argv[4], "trim-fork")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      fflush(stdout);
+      pid_t child = fork();
+      if (child < 0) exit(6);
+      if (child == 0) {
+        for (size_t i = 0; i < size; i += page) data[i]++;
+        printf("inline_trim %ld\n", trim('2', 1L << 30));
+        fflush(stdout);
+        _exit(0);
+      }
+      waitpid(child, NULL, 0);
+      printf("worker_trim %ld\n", trim('2', 1L << 30));
+      return 0;
     } else if (!strcmp(argv[4], "burst")) {
       send_request('0');
       usleep(10000);
@@ -280,8 +386,9 @@ class ZramPreloadTest(unittest.TestCase):
 
     def setUp(self):
         self.ctl.write_text("0")
-        for ack in self.dir.glob("ctl.ack.*"):
+        for ack in [*self.dir.glob("ctl.ack.*"), *self.dir.glob("ctl.trim.*")]:
             ack.unlink()
+        (self.dir / "ctl.hold").unlink(missing_ok=True)
 
     def run_program(self, program=None, mb=48, cycles=1, *extra):
         environment = dict(os.environ, LD_PRELOAD=str(self.lib))
@@ -347,7 +454,9 @@ class ZramPreloadTest(unittest.TestCase):
                 os.kill(process.pid, signal.SIGURG)
                 os.kill(process.pid, signal.SIGUSR1)
                 self.assertEqual(f"received {_ + 1}", process.stdout.readline().strip())
-            output, _ = process.communicate(timeout=10)
+            process.stdin.close()
+            process.wait(timeout=10)
+            output = process.stdout.read()
             values = dict(line.split() for line in output.splitlines())
             self.assertNotEqual(0, int(values["urg"]))
             self.assertNotEqual(0, int(values["usr"]))
@@ -387,6 +496,50 @@ class ZramPreloadTest(unittest.TestCase):
     def test_forked_child_still_acknowledges_pageout(self):
         out = self.run_program(None, 48, 0, "fork")
         self.assertEqual([1], out["childack"])
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_trim_stops_at_its_budget_and_continues_where_it_stopped(self):
+        out = self.run_program(None, 32, 0, "trim")
+        self.assertTrue(7168 < out["first"][0] <= 8192, out)
+        self.assertTrue(7168 < out["second"][0] <= 8192, out)
+        self.assertGreater(out["swapped"][0], 15 * 1024)
+        self.assertGreater(out["rest"][0], 40 * 1024)
+        self.assertEqual([1], out["intact"])
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_trim_leaves_memory_that_came_straight_back(self):
+        out = self.run_program(None, 32, 0, "trim")
+        self.assertLess(out["hot"][0], 4 * 1024, out)
+        self.assertGreater(out["forced"][0], 28 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_requested_read_back_does_not_count_as_heat(self):
+        out = self.run_program(None, 32, 0, "trim")
+        self.assertTrue(28 * 1024 < out["again"][0] < 40 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_budgets_smaller_than_a_chunk_still_reach_all_of_it(self):
+        out = self.run_program(None, 32, 0, "trim-small")
+        self.assertLessEqual(out["largest"][0], 512)
+        self.assertGreater(out["small"][0], 52 * 1024)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_small_budgets_reach_the_end_of_a_thinly_used_chunk(self):
+        out = self.run_program(None, 8, 0, "trim-sparse")
+        self.assertEqual([16 * 1024], out["sparse"])
+        self.assertLess(out["kept"][0], 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_a_request_in_the_hold_file_wins_over_the_control_file(self):
+        out = self.run_program(None, 32, 0, "hold")
+        self.assertTrue(0 < out["empty"][0] <= 512, out)
+        self.assertGreater(out["held"][0], 40 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_process_without_a_worker_trims_in_small_steps(self):
+        out = self.run_program(None, 48, 0, "trim-fork")
+        self.assertTrue(16 * 1024 < out["inline_trim"][0] <= 32 * 1024, out)
+        self.assertGreater(out["worker_trim"][0], 64 * 1024, out)
 
     def test_worker_acknowledges_back_to_back_requests(self):
         out = self.run_program(None, 48, 0, "burst")

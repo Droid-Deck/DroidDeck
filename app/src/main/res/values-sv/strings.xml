@@ -22,7 +22,6 @@
         <item>Lägg till Steam-bibliotek från ett SD-kort, USB-minne eller SSD, så håller DroidDeck ihop spelen i ditt Bibliotek.</item>
         <item>Butiker låter dig logga in på Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io och Game Jolt och sedan installera och uppdatera deras spel från DroidDeck.</item>
         <item>Komponenter som FEX, DXVK och VKD3D-Proton uppdaterar sig själva, och Proton Experimental ARM64 är standard, eller Proton 11.0 ARM64 när den versionen är installerad.</item>
-        <item>Komprimera Steam medan ett spel körs frigör RAM på enheter med lite minne.</item>
         <item>Svep in från högerkanten för att öppna sessionsmenyn: pekplattsläge, PC-tangentbord, låg latens, spelprofil med mera.</item>
         <item>Går spelet långsamt? Begränsa bildfrekvensen i Snabbåtkomst och prova sedan en annan Proton-version eller FEX-förinställning i spelets komponenter.</item>
         <item>Knaster eller saknat ljud i spelet? Prova växlaren DirectAudio för spel i Steam-inställningarna under Ljud.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Programmet är byggt för %1$s-datorer och körs via FEX, som inte har konfigurerats än. Öppna Steam en gång medan du är inloggad: DroidDeck låter Steam ladda ned FEX och den Steam Linux Runtime som behövs, sedan öppnas detta.</string>
     <string name="session_proot_missing">Det gick inte att ladda ned DroidDecks proot. Kontrollera anslutningen och försök igen. Sessionen startades inte eftersom reserv-proot är för långsam att spela på.</string>
     <string name="session_powervr_missing">PowerVR-grafikmiljön kunde inte laddas ned. Kontrollera anslutningen och försök igen.</string>
+    <string name="session_graphics_runtime_failed">Grafikmiljön kunde inte förberedas, så sessionen startades inte.</string>
+    <string name="session_game_environment_failed">Spelmiljön kunde inte konfigureras, så sessionen startades inte.</string>
     <string name="session_directaudio_missing">Det gick inte att ladda ned DirectAudio, så spelljudet använder den långsammare vägen den här sessionen.</string>
     <string name="session_end_program">Det här programmet</string>
     <string name="session_end_present_fault">Sessionen kunde inte rita på skärmen: %1$s. Den här skärmen visar orsaken i stället för att vara svart; detaljerna finns i sessionsloggarna.</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">Pekskärm</string>
     <string name="mode_pen_button">Sidoknapp</string>
     <string name="mode_osc">Skärmkontroller</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto visar kontrollerna när ingen handkontroll är ansluten.</string>
-    <string name="osc_steam_touch">Steam-pekstyrning (beta)</string>
-    <string name="osc_style_next_session">Steams pekstyrning startar med nästa Steam-session</string>
     <string name="osc_steam_layout">Steams peklayout</string>
     <string name="screen_key_layout_export">Exportera</string>
     <string name="screen_key_image">Bild</string>
-    <string name="osc_steam_layout_hint">Flytta, ändra storlek på eller dölj spelets pekkontroller; sparas i Steam</string>
     <string name="mode_controller">Handkontroll</string>
     <string name="mode_controller_hint">Hur Steam ser din handkontroll. Gäller från nästa session.</string>
     <string name="mode_controller_deck">Steam Deck-kontroll</string>
@@ -428,7 +425,6 @@
     <string name="mode_directaudio_hint">Kringgår PulseAudio för lägre latens.</string>
     <string name="mode_mic">Mikrofon</string>
     <string name="mode_mic_hint">För röstchatt.</string>
-    <string name="drawer_mic_hint">Slå på eller av mikrofoninspelning för den här sessionen.</string>
     <string name="drawer_mic_failed">Det gick inte att ändra mikrofonen. Försök igen.</string>
     <string name="mode_network">Nätverk</string>
     <string name="mode_wifi_discovery">Wi-Fi-identifiering</string>
@@ -624,20 +620,8 @@
     <string name="perf_gsrealtime">gamescope: GPU-kö i realtid</string>
     <string name="perf_gsrealtime_hint">Prioriterar kompositorns GPU-arbete. Kan jämna ut bildtakten till viss kostnad för spelen.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Minne</string>
     <string name="perf_cap_off">Av</string>
-    <string name="perf_cap_auto">Drivrutinens standard</string>
-    <string name="perf_zram_client">Komprimera Steam medan ett spel körs</string>
-    <string name="perf_zram_idle">Komprimera spelets inaktiva minne</string>
-    <string name="perf_zram_idle_hint">Komprimerar spelets inaktiva minne när RAM-minnet är lågt. Stäng av om spel fryser några sekunder ungefär var halvminut. Gäller nästa gång sessionen startar.</string>
-    <string name="perf_zram_client_hint">20 s efter att ett spel startat komprimeras Steam-klienten till zRAM för att ge spelet mer minne, och läses tillbaka när spelet stängs. Stäng av om sessionen stängs strax efter att spel startar. En RAM-gräns ovan komprimerar fortfarande Steam när sessionen överskrider den.</string>
-    <string name="perf_ram_cap">RAM-gräns</string>
-    <string name="perf_ram_cap_hint">Gäller medan Steam-klienten körs, i Steam-läge eller från skrivbordet. När sessionen använder mer än detta komprimeras Steam och sedan sessionens övriga processer som stöds till zRAM. En mjuk gräns: inget stängs, men spel kan hacka medan sidor läses tillbaka.</string>
-    <string name="perf_ram_cap_unavailable">Kräver zRAM-swap, vilket den här enheten saknar.</string>
-    <string name="perf_vram_cap">VRAM-gräns</string>
-    <string name="perf_vram_cap_hint">Rapporterar denna videominnesbudget till Direct3D 9 till 12-spel för att minska minnesanvändningen. Spel kan överskrida den; detta lägger inte till sidväxling av GPU-minne och garanterar inte skydd mot krascher vid minnesbrist. Gäller från nästa session.</string>
     <string name="perf_gpuclock">Håll GPU:n på dess högsta klockfrekvens</string>
-    <string name="perf_gpuclock_hint">Bara Adreno. Färre hack, högre batteriförbrukning och mer värme.</string>
     <string name="perf_fixes">Sessionsfixar</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
     <string name="perf_sysmem_hint">Gäller Steam-klienten och spel. Krävs på Adreno 710/720/722.</string>
@@ -802,7 +786,6 @@
     <string name="drawer_keyboard">Tangentbord</string>
     <string name="drawer_latency">Latens</string>
     <string name="drawer_low_latency">Läge för låg latens</string>
-    <string name="drawer_low_latency_hint">Ökar CPU- och batteriförbrukningen</string>
     <string name="drawer_low_latency_controller">Handkontroll med låg latens</string>
     <string name="drawer_low_latency_controller_hint">Handkontrollen rapporterar i 1000 Hz i stället för 250 Hz. Något mer CPU.</string>
     <string name="drawer_low_latency_touch">Pekning med låg latens</string>
@@ -815,7 +798,6 @@
     <string name="drawer_pc_keyboard">PC-tangentbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Andra skärmen</string>
-    <string name="drawer_second_screen_mode">Läge</string>
     <string name="drawer_second_screen_shows">Visar</string>
     <string name="drawer_android_apps">Android-appar</string>
     <string name="drawer_launch_app">Starta en app</string>
@@ -1357,12 +1339,8 @@
     <string name="ctrl_opacity">Opacitet</string>
     <string name="ctrl_percent">%1$d %%</string>
     <string name="ctrl_size">Knappstorlek</string>
-    <string name="ctrl_adaptive">Adaptiva spakar</string>
     <string name="ctrl_rumble">Spelvibration</string>
     <string name="ctrl_dead_zone">Styrspakens dödzon</string>
-    <string name="ctrl_steam_button">Steam-knappen</string>
-    <string name="ctrl_qam_button">QAM-knappen</string>
-    <string name="ctrl_keyboard_button">Tangentbordsknappen</string>
     <string name="ctrl_joycon_vr">Joy-Con som VR-handkontroller</string>
     <string name="ctrl_joycon_vr_hint">Medan SteamVR körs blir varje Joy-Con en hand. Rikta den framåt och håll in Home eller Capture för att centrera den igen.</string>
     <string name="setup_animations">Animationer</string>
@@ -1491,8 +1469,6 @@
     <string name="deck_surface_trackpad">Styrplatta</string>
     <string name="deck_close">Stäng kontrollerna på andra skärmen</string>
     <string name="deck_open_steam_menu">Öppna Steam-menyn</string>
-    <string name="deck_right_trackpad">Höger styrplatta</string>
-    <string name="deck_left_trackpad">Vänster styrplatta</string>
     <string name="second_trackpad">Styrplatta</string>
     <string name="second_show_keyboard">Visa tangentbord</string>
     <string name="second_hide_keyboard">Dölj tangentbord</string>
@@ -1531,11 +1507,8 @@
     <string name="pckb_android">Android-tangentbord</string>
     <string name="pckb_hide">Dölj  ✕</string>
     <string name="pckb_size">Storlek på skärmen</string>
-    <string name="pckb_size_hint">Andel av skärmen som tangentbordet tar upp, inklusive toppfältet.</string>
     <string name="pckb_opacity">Opacitet</string>
-    <string name="pckb_opacity_hint">Sänk den för att se spelet bakom tangentbordet.</string>
     <string name="pckb_hidden_keys">Dolda tangenter</string>
-    <string name="pckb_hidden_keys_hint">Tangenter du sällan använder hålls borta från tangentbordet.</string>
     <string name="pckb_group_function">Raden med Esc och funktionstangenter</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Piltangenter</string>
@@ -1573,6 +1546,8 @@
     <string name="pip_unavailable">Android kunde inte öppna bild-i-bild.</string>
     <string name="game_more">Mer</string>
     <string name="game_edit_art">Redigera grafik</string>
+    <string name="game_unhide">Ta bort från dolda</string>
+    <string name="game_hide_failed">Kunde inte synkronisera med Steam. Stäng Steam och försök igen.</string>
     <string name="stores_in_steam_label">I Steam</string>
     <string name="game_shortcut">Genväg</string>
     <string name="game_shortcut_add">Lägg till på hemskärmen</string>
@@ -1746,8 +1721,6 @@
     <string name="drivers_installed_pick">Installerad %1$s - välj den i menyn</string>
     <string name="session_wait_removal">Vänta tills borttagningen av körmiljön är klar</string>
     <string name="session_title_game">Spel</string>
-    <string name="session_touch_auto_touchpad">pekplatta</string>
-    <string name="session_touch_auto_direct">direkt</string>
     <string name="session_swap_failed">Bytet misslyckades: %1$s</string>
     <string name="session_profile_save_failed">Kunde inte spara profilen: %1$s</string>
     <string name="session_desktop_paused">Skrivbordet är pausat</string>
@@ -2003,15 +1976,6 @@
     <string name="fm_up_one_level">Upp en nivå</string>
     <string name="fm_choose_folder">Välj en mapp</string>
     <string name="fm_choose_file">Välj en fil</string>
-    <string name="ctrl_tint_steam_blue">Steamblå</string>
-    <string name="ctrl_tint_sky">Himmelsblå</string>
-    <string name="ctrl_tint_white">Vit</string>
-    <string name="ctrl_tint_violet">Lila</string>
-    <string name="ctrl_tint_green">Grön</string>
-    <string name="ctrl_tint_amber">Bärnsten</string>
-    <string name="ctrl_tint_red">Röd</string>
-    <string name="ctrl_tint_pink">Rosa</string>
-    <string name="ctrl_tint_gray">Grå</string>
     <string name="ctrl_button_a">A-knappen</string>
     <string name="ctrl_button_b">B-knappen</string>
     <string name="ctrl_button_x">X-knappen</string>
@@ -2309,6 +2273,17 @@
     <string name="pextra_checksum_mismatch">Kontrollsumman stämmer inte. Nedladdningen togs bort</string>
     <string name="pextra_session_started">En session startade under nedladdningen. Stoppa den innan du installerar kompatibilitetsverktyg</string>
     <string name="pextra_installing">Installerar %1$s</string>
+    <string name="xproton_title">Experimentella byggen</string>
+    <string name="xproton_install_file">Installera från fil</string>
+    <string name="xproton_archive_unsafe">Arkivet innehåller en osäker länk eller sökväg</string>
+    <string name="xproton_archive_invalid">Arkivet stöds inte eller är ogiltigt</string>
+    <string name="xproton_no_space">Inte tillräckligt med ledigt utrymme för den här Proton-versionen</string>
+    <string name="xproton_unpacking">Packar upp Proton (några minuter)</string>
+    <string name="xproton_untar_failed">Uppackningen misslyckades (tar %1$d)</string>
+    <string name="xproton_no_tree">Arkivet innehåller ingen Proton-version</string>
+    <string name="xproton_place_failed">Det gick inte att placera Proton-versionen</string>
+    <string name="xproton_remove_failed">Det gick inte att ta bort %1$s helt</string>
+    <string name="xproton_installed">Experimentell Proton installerad. Välj den i Steam → Egenskaper → Kompatibilitet.</string>
     <string name="pextra_install_failed">Installationen av %1$s misslyckades (avslutningskod %2$d)</string>
     <string name="pextra_could_not_install">Kunde inte installera %1$s</string>
     <string name="esync_fetching">Hämtar droiddeck-esync-paket</string>
@@ -3138,7 +3113,6 @@
     <string name="glasses_pro2_experimental">Experimentell huvudspårning för Pro 2. Justering av ljusstyrka och volym samt byte av visningsläge stöds inte ännu.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-läge</string>
-    <string name="cardboard_mode_hint">Bilder för vänster och höger öga till ett VR-headset för mobilen.</string>
     <string name="cardboard_source">Bild</string>
     <string name="cardboard_source_screen">Virtuell skärm</string>
     <string name="cardboard_source_sbs">Sida vid sida-3D</string>
@@ -3161,7 +3135,6 @@
     <string name="cardboard_steamvr_unavailable">Inte tillgängligt i den här sessionen.</string>
     <string name="cardboard_steamvr_failed">SteamVR svarade inte; kontrollera sessionsloggen.</string>
     <string name="drawer_component_downloads">Ladda ned komponenter</string>
-    <string name="drawer_component_downloads_hint">Nedladdningar delas med sidan Komponenter. Välj en nedladdad version ovan för att använda den nästa gång ett spel startas.</string>
     <string name="drawer_component_choose_download">Välj en version att ladda ned</string>
     <string name="stores_fact_developer">Utvecklare</string>
     <string name="stores_fact_publisher">Utgivare</string>
@@ -3341,10 +3314,19 @@
     <string name="storage_shared_prefix">Steams delade prefix</string>
     <string name="storage_shared_prefix_detail">Steam kör sina egna Windows-hjälpprogram här</string>
     <string name="storage_reset_shared_confirm">Raderar det (%1$s). Steam skapar ett nytt nästa gång det behövs.</string>
+    <string name="storage_remove_launcher_confirm">Tar bort den här butiksappens Wine-prefix och shadercache (%1$s), med inloggning och sparfiler som bara finns där. Spel som körs i det får ett nytt prefix, och du kan behöva konfigurera appen igen. Molnsparningar finns kvar på ditt konto.</string>
+    <string name="storage_system_clearable">%1$s kan rensas</string>
+    <string name="storage_item_system_caches">Linux- och Steam-cacheminnen</string>
+    <string name="storage_item_system_caches_detail">Gamla tillfälliga filer, hämtade paket och Steams webbcache</string>
+    <string name="storage_cache_temp">Gamla tillfälliga filer</string>
+    <string name="storage_cache_packages">Hämtade paket</string>
+    <string name="storage_cache_steam_web">Steams webbcache</string>
+    <string name="storage_cache_steam_corrupt">Skadade Steam-nedladdningar</string>
+    <string name="storage_cache_detail">Skapas igen vid behov</string>
+    <string name="storage_clear">Rensa</string>
     <string name="storage_launcher_prefix">En butiksapp och spelen som körs med den</string>
     <string name="storage_launcher_used_by">Används av %1$s</string>
     <string name="storage_shortcut_app">Icke-Steam-spel %1$s</string>
-    <string name="storage_unknown_prefix_detail">Inte kopplat till något spel, så det behålls</string>
     <string name="storage_remove_selected">Ta bort valda · %1$s</string>
     <string name="storage_uninstall_selected">Avinstallera valda · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefix</string>
@@ -4089,4 +4071,18 @@
     <string name="display_scaling_integer">Heltal</string>
     <string name="display_scaling_fit">Anpassa</string>
     <string name="drawer_antialiasing">Kantutjämning</string>
+    <string name="theme_custom">Anpassat</string>
+    <string name="theme_custom_detail">Välj varje gränssnittsfärg separat.</string>
+    <string name="theme_custom_background">Bakgrund</string>
+    <string name="theme_custom_surface">Paneler</string>
+    <string name="theme_custom_surface_variant">Upphöjda paneler</string>
+    <string name="theme_custom_line">Avdelare</string>
+    <string name="theme_custom_line2">Kanter</string>
+    <string name="theme_custom_on_background">Huvudtext</string>
+    <string name="theme_custom_on_surface_variant">Sekundär text</string>
+    <string name="theme_custom_primary">Knappar och huvudaccent</string>
+    <string name="theme_custom_on_primary">Knapptext</string>
+    <string name="theme_custom_signal">Markeringar</string>
+    <string name="theme_custom_good">Lyckades</string>
+    <string name="theme_custom_error">Fel</string>
 </resources>

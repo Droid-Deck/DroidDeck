@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -39,6 +40,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -120,6 +122,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindowProvider
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.agent.AgentAttachments
+import com.droiddeck.launcher.agent.AgentDraft
 import com.droiddeck.launcher.agent.AgentHost
 import com.droiddeck.launcher.agent.AgentHost.Entry
 import com.droiddeck.launcher.agent.AgentSetup
@@ -128,7 +131,7 @@ import kotlinx.coroutines.launch
 internal enum class AgentPanel { NONE, MODEL, USAGE, HISTORY, PROCESSES, TOOLS }
 
 /** Slash commands the app handles itself; others go to the CLI, which has its own. */
-private val LOCAL_COMMANDS = listOf("/new", "/model", "/plan", "/history", "/processes", "/stop")
+private val LOCAL_COMMANDS = listOf("/new", "/model", "/permissions", "/plan", "/history", "/processes", "/stop")
 private val CLI_COMMANDS = listOf("/compact", "/cost", "/review", "/init")
 
 /**
@@ -205,9 +208,9 @@ private fun AgentPageContent(
     }
     remember { AgentSetup.check(context) }
     var setup by rememberSaveable { mutableStateOf(false) }
-    val draft = rememberSaveable { mutableStateOf("") }
+    val draft = remember { AgentDraft.state(context) }
     if (setup || AgentHost.state == AgentHost.State.MISSING || !(AgentSetup.ready || AgentSetup.completed(context))) {
-        AgentSetupView(modifier, onDone = { setup = false })
+        AgentSetupView(modifier, firstControl = inputModifier, onDone = { setup = false })
         return
     }
     var panel by rememberSaveable { mutableStateOf(AgentPanel.NONE) }
@@ -233,6 +236,10 @@ private fun AgentPageContent(
     // The keyboard leaves too little height for a panel and the editor together, so typing closes the panel.
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     LaunchedEffect(keyboardOpen) { if (keyboardOpen && (panel == AgentPanel.MODEL || panel == AgentPanel.USAGE)) panel = AgentPanel.NONE }
+    // History, processes and tools take the whole page, which would hide an approval the turn is waiting on.
+    LaunchedEffect(AgentHost.approvals.size, panel) {
+        if (AgentHost.approvals.isNotEmpty() && (panel == AgentPanel.HISTORY || panel == AgentPanel.PROCESSES || panel == AgentPanel.TOOLS)) panel = AgentPanel.NONE
+    }
     Column(
         modifier.fillMaxSize().imePadding().onPreviewKeyEvent { e ->
             val k = e.nativeKeyEvent
@@ -279,7 +286,8 @@ private fun AgentPageContent(
                     readingBack = false
                     scope.launch { list.scrollToItem(maxOf(0, list.layoutInfo.totalItemsCount - 1), Int.MAX_VALUE / 2) }
                 }
-                val hidden = !composer.focused && !composer.hasUnconsumedFocusRequest() && readingBack && AgentHost.entries.isNotEmpty()
+                val hidden = !composer.focused && !composer.hasUnconsumedFocusRequest() && readingBack && AgentHost.entries.isNotEmpty() &&
+                    AgentHost.approvals.isEmpty()
                 var listHeight by remember { mutableIntStateOf(0) }
                 Box(
                     Modifier.weight(1f).fillMaxWidth().clipToBounds().nestedScroll(dragBack).onGloballyPositioned {
@@ -354,7 +362,7 @@ private fun AgentTopBar(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstC
     }
 }
 
-/** The harness, model, effort and plan mode, opening the model picker; [compact] names only the model. */
+/** The harness, model, effort, a permission mode other than asking first and plan mode, opening the model picker; [compact] names only the model. */
 @Composable
 private fun ModelChip(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstControl: Modifier, modifier: Modifier = Modifier, compact: Boolean = false) {
     val context = LocalContext.current
@@ -365,8 +373,12 @@ private fun ModelChip(panel: AgentPanel, onPanel: (AgentPanel) -> Unit, firstCon
         modifier = modifier.then(if (compact) Modifier.widthIn(max = 120.dp) else Modifier).height(36.dp).clip(Shape12).then(firstControl)
             .clickable { onPanel(AgentPanel.MODEL) }.padding(horizontal = 8.dp).testTag("agent-model"),
     ) {
-        val parts = if (compact) listOf(model)
-        else listOfNotNull(AgentHost.harness.name, model, AgentHost.effort, stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans })
+        val mode = AgentHost.harness.permissions.drop(1).firstOrNull { it.id == AgentHost.permission }?.let { stringResource(it.label) }
+        val parts = if (compact) listOfNotNull(mode ?: model)
+        else listOfNotNull(
+            AgentHost.harness.name, model, AgentHost.effort, mode,
+            stringResource(R.string.agent_plan_short).takeIf { AgentHost.plan && AgentHost.harness.plans },
+        )
         Text(parts.joinToString(" · "), fontSize = 13.sp, color = if (panel == AgentPanel.MODEL) pal.primary else pal.onSurfaceVariant,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         Icon(Icons.Outlined.ExpandMore, null, tint = pal.onSurfaceVariant, modifier = Modifier.size(16.dp))
@@ -523,6 +535,39 @@ internal fun clock(seconds: Long): String {
     }
 }
 
+/** The oldest tool call that waits for the user; tapping its input shows all of it. */
+@Composable
+private fun AgentApprovalCard(approval: AgentHost.Approval, more: Int) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    var open by remember(approval.id) { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, AttentionAmber, Shape14)
+            .padding(horizontal = 14.dp, vertical = 10.dp).testTag("agent-approval"),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.agent_approval_title, approval.tool), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                if (more > 0) Text(stringResource(R.string.agent_approval_more, more), fontSize = 12.5.sp, color = pal.onSurfaceVariant)
+            }
+            SecondaryButton(stringResource(R.string.agent_approval_deny), compact = true, modifier = Modifier.testTag("agent-approval-deny")) {
+                AgentHost.answer(context, approval, allow = false)
+            }
+            PrimaryButton(stringResource(R.string.agent_approval_allow), compact = true, modifier = Modifier.testTag("agent-approval-allow")) {
+                AgentHost.answer(context, approval, allow = true)
+            }
+        }
+        val body = approval.input.ifBlank { approval.detail }
+        val shown = Modifier.fillMaxWidth().padding(top = 6.dp)
+            .then(if (open) Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState()) else Modifier).clickable { open = !open }
+        if (body.isNotBlank()) Text(
+            body, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = pal.onSurfaceVariant,
+            maxLines = if (open) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis, modifier = shown,
+        )
+    }
+}
+
 @Composable
 private fun AgentLabCard() {
     val context = LocalContext.current
@@ -675,7 +720,7 @@ private fun AgentComposer(
         val text = draft.trim()
         when (text.substringBefore(' ')) {
             "/new" -> AgentHost.forget(context)
-            "/model" -> onPanel(AgentPanel.MODEL)
+            "/model", "/permissions" -> onPanel(AgentPanel.MODEL)
             "/plan" -> AgentHost.choosePlan(context, !AgentHost.plan)
             "/history" -> onPanel(AgentPanel.HISTORY)
             "/processes" -> onPanel(AgentPanel.PROCESSES)
@@ -692,6 +737,7 @@ private fun AgentComposer(
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     Column(Modifier.fillMaxWidth().padding(bottom = if (keyboardOpen) 4.dp else 8.dp)) {
         if (labOpen) AgentLabCard()
+        AgentHost.approvals.firstOrNull()?.let { AgentApprovalCard(it, AgentHost.approvals.size - 1) }
         if (hasActivity()) Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),

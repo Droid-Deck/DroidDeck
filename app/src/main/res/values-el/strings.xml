@@ -22,7 +22,6 @@
         <item>Προσθέστε βιβλιοθήκες Steam από κάρτα SD, μονάδα USB ή SSD, και το DroidDeck κρατά τα παιχνίδια μαζί στη Βιβλιοθήκη σας.</item>
         <item>Τα Καταστήματα σάς επιτρέπουν να συνδεθείτε σε Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io και Game Jolt και μετά να εγκαθιστάτε και να ενημερώνετε τα παιχνίδια τους από το DroidDeck.</item>
         <item>Στοιχεία όπως τα FEX, DXVK και VKD3D-Proton ενημερώνονται μόνα τους, και το Proton Experimental ARM64 είναι το προεπιλεγμένο, ή το Proton 11.0 ARM64 μόλις εγκατασταθεί αυτή η έκδοση.</item>
-        <item>Η επιλογή Συμπίεση του Steam όσο τρέχει παιχνίδι ελευθερώνει RAM σε συσκευές με λίγη μνήμη.</item>
         <item>Σύρετε προς τα μέσα από τη δεξιά άκρη για να ανοίξετε το μενού συνεδρίας: λειτουργία πινακίδας αφής, Πληκτρολόγιο PC, Λειτουργία χαμηλής καθυστέρησης, προφίλ παιχνιδιού και άλλα.</item>
         <item>Το παιχνίδι τρέχει αργά; Περιορίστε τον ρυθμό καρέ στο Quick Access και δοκιμάστε άλλη έκδοση Proton ή άλλη προεπιλογή FEX στα στοιχεία του παιχνιδιού.</item>
         <item>Κροταλίσματα ή απουσία ήχου στο παιχνίδι; Δοκιμάστε τον διακόπτη DirectAudio για παιχνίδια στις ρυθμίσεις του Steam, στην ενότητα Ήχος.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Αυτό το πρόγραμμα είναι χτισμένο για υπολογιστές %1$s και εκτελείται μέσω FEX, το οποίο δεν έχει ρυθμιστεί ακόμα. Ανοίξτε το Steam μία φορά ενώ είστε συνδεδεμένοι: το DroidDeck κάνει λήψη του FEX και του Steam Linux Runtime που χρειάζεται, και μετά αυτό ανοίγει.</string>
     <string name="session_proot_missing">Δεν ήταν δυνατή η λήψη του proot του DroidDeck. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά. Η συνεδρία δεν ξεκίνησε, επειδή το εναλλακτικό proot είναι πολύ αργό για παιχνίδι.</string>
     <string name="session_powervr_missing">Δεν ήταν δυνατή η λήψη του γραφικού περιβάλλοντος PowerVR. Ελέγξτε τη σύνδεση και δοκιμάστε ξανά.</string>
+    <string name="session_graphics_runtime_failed">Δεν ήταν δυνατή η προετοιμασία του γραφικού περιβάλλοντος, οπότε η συνεδρία δεν ξεκίνησε.</string>
+    <string name="session_game_environment_failed">Δεν ήταν δυνατή η ρύθμιση του περιβάλλοντος του παιχνιδιού, οπότε η συνεδρία δεν ξεκίνησε.</string>
     <string name="session_directaudio_missing">Δεν ήταν δυνατή η λήψη του DirectAudio, οπότε ο ήχος των παιχνιδιών χρησιμοποιεί την πιο αργή διαδρομή σε αυτή τη συνεδρία.</string>
     <string name="session_end_program">Αυτό το πρόγραμμα</string>
     <string name="session_end_present_fault">Η συνεδρία δεν μπόρεσε να σχεδιάσει στην οθόνη: %1$s. Αυτή η οθόνη δείχνει τον λόγο αντί να είναι μαύρη· οι λεπτομέρειες βρίσκονται στα αρχεία καταγραφής της συνεδρίας.</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">Αφή</string>
     <string name="mode_pen_button">Πλαϊνό κουμπί</string>
     <string name="mode_osc">Χειριστήρια στην οθόνη</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Το Αυτόματο εμφανίζει τα χειριστήρια όταν δεν είναι συνδεδεμένο χειριστήριο.</string>
-    <string name="osc_steam_touch">Αφή Steam (beta)</string>
-    <string name="osc_style_next_session">Τα χειριστήρια αφής του Steam ξεκινούν από την επόμενη συνεδρία Steam</string>
     <string name="osc_steam_layout">Διάταξη αφής Steam</string>
     <string name="screen_key_layout_export">Εξαγωγή</string>
     <string name="screen_key_image">Εικόνα</string>
-    <string name="osc_steam_layout_hint">Μετακινήστε, αλλάξτε μέγεθος ή αποκρύψτε τα χειριστήρια αφής αυτού του παιχνιδιού· αποθηκεύεται στο Steam</string>
     <string name="mode_controller">Χειριστήριο</string>
     <string name="mode_controller_hint">Πώς βλέπει το Steam το χειριστήριό σας. Εφαρμόζεται στην επόμενη συνεδρία.</string>
     <string name="mode_controller_deck">Χειριστήριο Steam Deck</string>
@@ -428,7 +425,6 @@
     <string name="mode_directaudio_hint">Παρακάμπτει το PulseAudio για μικρότερη καθυστέρηση.</string>
     <string name="mode_mic">Μικρόφωνο</string>
     <string name="mode_mic_hint">Για φωνητική συνομιλία.</string>
-    <string name="drawer_mic_hint">Ενεργοποίηση ή απενεργοποίηση της λήψης μικροφώνου για αυτή τη συνεδρία.</string>
     <string name="drawer_mic_failed">Δεν ήταν δυνατή η αλλαγή του μικροφώνου. Δοκιμάστε ξανά.</string>
     <string name="mode_network">Δίκτυο</string>
     <string name="mode_wifi_discovery">Εντοπισμός Wi-Fi</string>
@@ -624,20 +620,8 @@
     <string name="perf_gsrealtime">gamescope: ουρά GPU πραγματικού χρόνου</string>
     <string name="perf_gsrealtime_hint">Δίνει προτεραιότητα στην εργασία GPU του compositor. Μπορεί να εξομαλύνει τον ρυθμό καρέ με κάποιο κόστος για τα παιχνίδια.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Μνήμη</string>
     <string name="perf_cap_off">Ανενεργό</string>
-    <string name="perf_cap_auto">Προεπιλογή προγράμματος οδήγησης</string>
-    <string name="perf_zram_client">Συμπίεση του Steam όσο τρέχει παιχνίδι</string>
-    <string name="perf_zram_idle">Συμπίεση ανενεργής μνήμης παιχνιδιού</string>
-    <string name="perf_zram_idle_hint">Σελιδοποιεί την ανενεργή μνήμη του παιχνιδιού όταν η RAM είναι χαμηλή. Απενεργοποιήστε το αν τα παιχνίδια παγώνουν για λίγα δευτερόλεπτα περίπου κάθε μισό λεπτό. Ισχύει από την επόμενη έναρξη της συνεδρίας.</string>
-    <string name="perf_zram_client_hint">20 s μετά την εκκίνηση ενός παιχνιδιού, ο πελάτης Steam συμπιέζεται στη zRAM για να μείνει περισσότερη μνήμη στο παιχνίδι, και διαβάζεται πίσω όταν το παιχνίδι κλείσει. Απενεργοποιήστε το αν η συνεδρία κλείνει λίγο μετά την εκκίνηση παιχνιδιών. Ένα όριο RAM παραπάνω εξακολουθεί να συμπιέζει το Steam όταν η συνεδρία το ξεπεράσει.</string>
-    <string name="perf_ram_cap">Όριο RAM</string>
-    <string name="perf_ram_cap_hint">Ισχύει όσο τρέχει ο πελάτης Steam, σε λειτουργία Steam ή από την επιφάνεια εργασίας. Όταν η συνεδρία χρησιμοποιεί περισσότερη, το Steam και έπειτα οι άλλες υποστηριζόμενες διεργασίες της συνεδρίας συμπιέζονται στη zRAM. Ήπιο όριο: τίποτα δεν κλείνει, αλλά τα παιχνίδια μπορεί να κολλάνε όσο επιστρέφουν οι σελίδες.</string>
-    <string name="perf_ram_cap_unavailable">Απαιτεί zRAM swap, που δεν υπάρχει σε αυτή τη συσκευή.</string>
-    <string name="perf_vram_cap">Όριο VRAM</string>
-    <string name="perf_vram_cap_hint">Αναφέρει αυτόν τον προϋπολογισμό μνήμης βίντεο σε παιχνίδια Direct3D 9 έως 12 για να μειωθεί η χρήση μνήμης. Τα παιχνίδια μπορεί να τον υπερβούν· δεν προσθέτει σελιδοποίηση GPU ούτε εγγυάται προστασία από σφάλματα έλλειψης μνήμης. Ισχύει από την επόμενη συνεδρία.</string>
     <string name="perf_gpuclock">Διατήρηση της GPU στη μέγιστη συχνότητά της</string>
-    <string name="perf_gpuclock_hint">Μόνο Adreno. Λιγότερα κολλήματα, μεγαλύτερη χρήση μπαταρίας και θερμότητα.</string>
     <string name="perf_fixes">Διορθώσεις συνεδρίας</string>
     <string name="perf_sysmem">Turnip: απόδοση sysmem</string>
     <string name="perf_sysmem_hint">Ισχύει για το πρόγραμμα-πελάτη Steam και τα παιχνίδια. Απαιτείται σε Adreno 710/720/722.</string>
@@ -802,7 +786,6 @@
     <string name="drawer_keyboard">Πληκτρολόγιο</string>
     <string name="drawer_latency">Καθυστέρηση</string>
     <string name="drawer_low_latency">Λειτουργία χαμηλής καθυστέρησης</string>
-    <string name="drawer_low_latency_hint">Αυξάνει τη χρήση CPU και μπαταρίας</string>
     <string name="drawer_low_latency_controller">Χειριστήριο χαμηλής καθυστέρησης</string>
     <string name="drawer_low_latency_controller_hint">Το χειριστήριο αναφέρει στα 1000 Hz αντί για 250 Hz. Λίγο περισσότερο CPU.</string>
     <string name="drawer_low_latency_touch">Αφή χαμηλής καθυστέρησης</string>
@@ -815,7 +798,6 @@
     <string name="drawer_pc_keyboard">Πληκτρολόγιο PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Δεύτερη οθόνη</string>
-    <string name="drawer_second_screen_mode">Λειτουργία</string>
     <string name="drawer_second_screen_shows">Εμφανίζει</string>
     <string name="drawer_android_apps">Εφαρμογές Android</string>
     <string name="drawer_launch_app">Εκκίνηση εφαρμογής</string>
@@ -1357,12 +1339,8 @@
     <string name="ctrl_opacity">Διαφάνεια</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Μέγεθος κουμπιών</string>
-    <string name="ctrl_adaptive">Προσαρμοστικοί μοχλοί</string>
     <string name="ctrl_rumble">Κραδασμός παιχνιδιού</string>
     <string name="ctrl_dead_zone">Νεκρή ζώνη μοχλού</string>
-    <string name="ctrl_steam_button">Κουμπί Steam</string>
-    <string name="ctrl_qam_button">Κουμπί QAM</string>
-    <string name="ctrl_keyboard_button">Κουμπί πληκτρολογίου</string>
     <string name="ctrl_joycon_vr">Joy-Con ως χειριστήρια VR</string>
     <string name="ctrl_joycon_vr_hint">Όσο εκτελείται το SteamVR, κάθε Joy-Con γίνεται χέρι. Στρέψτε το μπροστά και κρατήστε πατημένο το Home ή το Capture για να το επανακεντράρετε.</string>
     <string name="setup_animations">Κινήσεις</string>
@@ -1491,8 +1469,6 @@
     <string name="deck_surface_trackpad">Πινακίδα αφής</string>
     <string name="deck_close">Κλείσιμο χειριστηρίων δεύτερης οθόνης</string>
     <string name="deck_open_steam_menu">Άνοιγμα μενού Steam</string>
-    <string name="deck_right_trackpad">Δεξιά πινακίδα αφής</string>
-    <string name="deck_left_trackpad">Αριστερή πινακίδα αφής</string>
     <string name="second_trackpad">Πινακίδα αφής</string>
     <string name="second_show_keyboard">Εμφάνιση πληκτρολογίου</string>
     <string name="second_hide_keyboard">Απόκρυψη πληκτρολογίου</string>
@@ -1531,11 +1507,8 @@
     <string name="pckb_android">Πληκτρολόγιο Android</string>
     <string name="pckb_hide">Απόκρυψη  ✕</string>
     <string name="pckb_size">Μέγεθος στην οθόνη</string>
-    <string name="pckb_size_hint">Ποσοστό της οθόνης που καταλαμβάνει το πληκτρολόγιο, συμπεριλαμβανομένης της κεφαλίδας.</string>
     <string name="pckb_opacity">Αδιαφάνεια</string>
-    <string name="pckb_opacity_hint">Μειώστε την για να βλέπετε το παιχνίδι πίσω από το πληκτρολόγιο.</string>
     <string name="pckb_hidden_keys">Κρυφά πλήκτρα</string>
-    <string name="pckb_hidden_keys_hint">Τα πλήκτρα που χρησιμοποιείτε σπάνια δεν εμφανίζονται στο πληκτρολόγιο.</string>
     <string name="pckb_group_function">Esc και σειρά λειτουργιών</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Πλήκτρα βελών</string>
@@ -1573,6 +1546,8 @@
     <string name="pip_unavailable">Το Android δεν μπόρεσε να ανοίξει τη λειτουργία εικόνας εντός εικόνας.</string>
     <string name="game_more">Περισσότερα</string>
     <string name="game_edit_art">Επεξεργασία εικαστικών</string>
+    <string name="game_unhide">Κατάργηση από τις κρυφές</string>
+    <string name="game_hide_failed">Αποτυχία συγχρονισμού με το Steam. Κλείστε το Steam και δοκιμάστε ξανά.</string>
     <string name="stores_in_steam_label">Στο Steam</string>
     <string name="game_shortcut">Συντόμευση</string>
     <string name="game_shortcut_add">Προσθήκη στην αρχική οθόνη</string>
@@ -1746,8 +1721,6 @@
     <string name="drivers_installed_pick">Εγκατεστημένο %1$s - επιλέξτε το στο μενού</string>
     <string name="session_wait_removal">Περιμένετε να ολοκληρωθεί η κατάργηση του runtime</string>
     <string name="session_title_game">Παιχνίδι</string>
-    <string name="session_touch_auto_touchpad">πινακίδα αφής</string>
-    <string name="session_touch_auto_direct">απευθείας</string>
     <string name="session_swap_failed">Η εναλλαγή απέτυχε: %1$s</string>
     <string name="session_profile_save_failed">Η αποθήκευση προφίλ απέτυχε: %1$s</string>
     <string name="session_desktop_paused">Η επιφάνεια εργασίας είναι σε παύση</string>
@@ -2003,15 +1976,6 @@
     <string name="fm_up_one_level">Ένα επίπεδο πάνω</string>
     <string name="fm_choose_folder">Επιλέξτε φάκελο</string>
     <string name="fm_choose_file">Επιλέξτε αρχείο</string>
-    <string name="ctrl_tint_steam_blue">Μπλε Steam</string>
-    <string name="ctrl_tint_sky">Γαλάζιο</string>
-    <string name="ctrl_tint_white">Λευκό</string>
-    <string name="ctrl_tint_violet">Βιολετί</string>
-    <string name="ctrl_tint_green">Πράσινο</string>
-    <string name="ctrl_tint_amber">Κεχριμπαρί</string>
-    <string name="ctrl_tint_red">Κόκκινο</string>
-    <string name="ctrl_tint_pink">Ροζ</string>
-    <string name="ctrl_tint_gray">Γκρι</string>
     <string name="ctrl_button_a">Κουμπί A</string>
     <string name="ctrl_button_b">Κουμπί B</string>
     <string name="ctrl_button_x">Κουμπί X</string>
@@ -2309,6 +2273,17 @@
     <string name="pextra_checksum_mismatch">Αναντιστοιχία αθροίσματος ελέγχου· η λήψη διαγράφηκε</string>
     <string name="pextra_session_started">Μια συνεδρία ξεκίνησε κατά τη λήψη· διακόψτε την πριν εγκαταστήσετε εργαλεία συμβατότητας</string>
     <string name="pextra_installing">Εγκατάσταση %1$s</string>
+    <string name="xproton_title">Πειραματικές εκδόσεις</string>
+    <string name="xproton_install_file">Εγκατάσταση από αρχείο</string>
+    <string name="xproton_archive_unsafe">Το αρχείο περιέχει μη ασφαλή σύνδεσμο ή διαδρομή</string>
+    <string name="xproton_archive_invalid">Μη υποστηριζόμενο ή μη έγκυρο αρχείο</string>
+    <string name="xproton_no_space">Δεν υπάρχει αρκετός ελεύθερος χώρος για αυτήν την έκδοση Proton</string>
+    <string name="xproton_unpacking">Αποσυσκευασία του Proton (λίγα λεπτά)</string>
+    <string name="xproton_untar_failed">Η αποσυσκευασία απέτυχε (tar %1$d)</string>
+    <string name="xproton_no_tree">Το αρχείο δεν περιέχει έκδοση Proton</string>
+    <string name="xproton_place_failed">Δεν ήταν δυνατή η τοποθέτηση της έκδοσης Proton</string>
+    <string name="xproton_remove_failed">Δεν ήταν δυνατή η πλήρης κατάργηση του %1$s</string>
+    <string name="xproton_installed">Το πειραματικό Proton εγκαταστάθηκε. Επιλέξτε το στο Steam → Ιδιότητες → Συμβατότητα.</string>
     <string name="pextra_install_failed">Η εγκατάσταση του %1$s απέτυχε (έξοδος %2$d)</string>
     <string name="pextra_could_not_install">Δεν ήταν δυνατή η εγκατάσταση του %1$s</string>
     <string name="esync_fetching">Λήψη πακέτου droiddeck-esync</string>
@@ -3138,7 +3113,6 @@
     <string name="glasses_pro2_experimental">Πειραματική παρακολούθηση κεφαλής για Pro 2. Η ρύθμιση της φωτεινότητας και της έντασης ήχου και η αλλαγή λειτουργίας οθόνης δεν υποστηρίζονται ακόμη.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Λειτουργία Cardboard</string>
-    <string name="cardboard_mode_hint">Εικόνες για το αριστερό και το δεξί μάτι, για γυαλιά VR κινητού.</string>
     <string name="cardboard_source">Εικόνα</string>
     <string name="cardboard_source_screen">Εικονική οθόνη</string>
     <string name="cardboard_source_sbs">3D δίπλα-δίπλα</string>
@@ -3161,7 +3135,6 @@
     <string name="cardboard_steamvr_unavailable">Δεν είναι διαθέσιμο σε αυτή τη συνεδρία.</string>
     <string name="cardboard_steamvr_failed">Το SteamVR δεν αποκρίθηκε· ελέγξτε το αρχείο καταγραφής της συνεδρίας.</string>
     <string name="drawer_component_downloads">Λήψη στοιχείων</string>
-    <string name="drawer_component_downloads_hint">Οι λήψεις είναι κοινές με τη σελίδα Στοιχεία. Επιλέξτε παραπάνω μια έκδοση που έχει ληφθεί για να χρησιμοποιηθεί στην επόμενη εκκίνηση παιχνιδιού.</string>
     <string name="drawer_component_choose_download">Επιλέξτε έκδοση για λήψη</string>
     <string name="stores_fact_developer">Δημιουργός</string>
     <string name="stores_fact_publisher">Εκδότης</string>
@@ -3341,10 +3314,19 @@
     <string name="storage_shared_prefix">Κοινό prefix του Steam</string>
     <string name="storage_shared_prefix_detail">Το Steam εκτελεί εδώ τα δικά του βοηθητικά προγράμματα Windows</string>
     <string name="storage_reset_shared_confirm">Το διαγράφει (%1$s). Το Steam δημιουργεί νέο την επόμενη φορά που θα το χρειαστεί.</string>
+    <string name="storage_remove_launcher_confirm">Διαγράφει το πρόθεμα Wine και την cache των shader αυτής της εφαρμογής καταστήματος (%1$s), μαζί με τη σύνδεση και όσες αποθηκεύσεις υπάρχουν μόνο εκεί. Τα παιχνίδια που τρέχουν σε αυτό παίρνουν νέο πρόθεμα και ίσως χρειαστεί να ρυθμίσετε ξανά την εφαρμογή. Οι αποθηκεύσεις στο cloud μένουν στον λογαριασμό σας.</string>
+    <string name="storage_system_clearable">Μπορούν να εκκαθαριστούν %1$s</string>
+    <string name="storage_item_system_caches">Cache του Linux και του Steam</string>
+    <string name="storage_item_system_caches_detail">Παλιά προσωρινά αρχεία, πακέτα που κατέβηκαν και η cache ιστού του Steam</string>
+    <string name="storage_cache_temp">Παλιά προσωρινά αρχεία</string>
+    <string name="storage_cache_packages">Πακέτα που κατέβηκαν</string>
+    <string name="storage_cache_steam_web">Cache ιστού του Steam</string>
+    <string name="storage_cache_steam_corrupt">Κατεστραμμένες λήψεις Steam</string>
+    <string name="storage_cache_detail">Δημιουργούνται ξανά όταν χρειάζεται</string>
+    <string name="storage_clear">Εκκαθάριση</string>
     <string name="storage_launcher_prefix">Μια εφαρμογή καταστήματος και τα παιχνίδια που τρέχουν με αυτήν</string>
     <string name="storage_launcher_used_by">Χρησιμοποιείται από %1$s</string>
     <string name="storage_shortcut_app">Παιχνίδι εκτός Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Δεν αντιστοιχεί σε παιχνίδι, οπότε διατηρείται</string>
     <string name="storage_remove_selected">Αφαίρεση επιλεγμένων · %1$s</string>
     <string name="storage_uninstall_selected">Κατάργηση επιλεγμένων · %1$s</string>
     <string name="storage_bulk_prefixes">Prefix Wine</string>
@@ -4089,4 +4071,18 @@
     <string name="display_scaling_integer">Ακέραιος</string>
     <string name="display_scaling_fit">Προσαρμογή</string>
     <string name="drawer_antialiasing">Εξομάλυνση ακμών</string>
+    <string name="theme_custom">Προσαρμοσμένο</string>
+    <string name="theme_custom_detail">Επιλέξτε ξεχωριστά κάθε χρώμα της διεπαφής.</string>
+    <string name="theme_custom_background">Φόντο</string>
+    <string name="theme_custom_surface">Πλαίσια</string>
+    <string name="theme_custom_surface_variant">Ανυψωμένα πλαίσια</string>
+    <string name="theme_custom_line">Διαχωριστικά</string>
+    <string name="theme_custom_line2">Περιγράμματα</string>
+    <string name="theme_custom_on_background">Κύριο κείμενο</string>
+    <string name="theme_custom_on_surface_variant">Δευτερεύον κείμενο</string>
+    <string name="theme_custom_primary">Κουμπιά και κύριο χρώμα έμφασης</string>
+    <string name="theme_custom_on_primary">Κείμενο κουμπιών</string>
+    <string name="theme_custom_signal">Επισημάνσεις</string>
+    <string name="theme_custom_good">Επιτυχία</string>
+    <string name="theme_custom_error">Σφάλμα</string>
 </resources>

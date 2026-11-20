@@ -22,7 +22,6 @@
         <item>Adj hozzá Steam-könyvtárakat SD-kártyáról, USB-meghajtóról vagy SSD-ről, és a DroidDeck egy helyen tartja a játékokat a Könyvtárban.</item>
         <item>Az Áruházak lehetővé teszi, hogy bejelentkezz a Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io és Game Jolt szolgáltatásokba, majd telepítsd és frissítsd a játékaikat a DroidDeckből.</item>
         <item>Az olyan összetevők, mint a FEX, a DXVK és a VKD3D-Proton, maguktól frissülnek, az alapértelmezett pedig a Proton Experimental ARM64, vagy a Proton 11.0 ARM64, ha az a build telepítve van.</item>
-        <item>A Steam tömörítése játék közben RAM-ot szabadít fel a kevés memóriával rendelkező eszközökön.</item>
         <item>Húzd be az ujjad a jobb szélről a munkamenet menü megnyitásához: érintőpad mód, PC-billentyűzet, alacsony késleltetésű mód, játékprofil és más.</item>
         <item>Lassan fut a játék? Korlátozd a képkockasebességet a Gyors hozzáférésben, majd próbálj ki másik Proton-verziót vagy FEX-előbeállítást a játék összetevőiben.</item>
         <item>Ropog vagy hiányzik a játék hangja? Próbáld ki a DirectAudio a játékokhoz kapcsolót a Steam beállításaiban a Hang alatt.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Ez a program %1$s PC-khez készült, és a FEX-en keresztül fut, amely még nincs beállítva. Nyissa meg egyszer a Steamet bejelentkezve: a DroidDeck ekkor letölti a FEX-et és a szükséges Steam Linux Runtime-ot, majd ez megnyílik.</string>
     <string name="session_proot_missing">A DroidDeck proot nem tölthető le. Ellenőrizze a kapcsolatot, és próbálja újra. A munkamenet nem indult el, mert a tartalék proot túl lassú a játékhoz.</string>
     <string name="session_powervr_missing">A PowerVR grafikus környezetet nem sikerült letölteni. Ellenőrizd a kapcsolatot, és próbáld újra.</string>
+    <string name="session_graphics_runtime_failed">A grafikus környezetet nem sikerült előkészíteni, ezért a munkamenet nem indult el.</string>
+    <string name="session_game_environment_failed">A játékkörnyezetet nem sikerült beállítani, ezért a munkamenet nem indult el.</string>
     <string name="session_directaudio_missing">A DirectAudio nem tölthető le, ezért a játékhang ebben a munkamenetben a lassabb útvonalat használja.</string>
     <string name="session_end_program">Ez a program</string>
     <string name="session_end_present_fault">A munkamenet nem tudta megjeleníteni a képet a képernyőn: %1$s. Fekete képernyő helyett ez a képernyő mutatja az okot; a részletek a munkamenet naplóiban találhatók.</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">Érintés</string>
     <string name="mode_pen_button">Oldalsó gomb</string>
     <string name="mode_osc">Képernyőn megjelenő vezérlők</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Az Automatikus megjeleníti a vezérlőket, ha nincs csatlakoztatott kontroller.</string>
-    <string name="osc_steam_touch">Steam érintés (béta)</string>
-    <string name="osc_style_next_session">A Steam érintésvezérlői a következő Steam-munkamenettől lépnek életbe</string>
     <string name="osc_steam_layout">Steam érintéskiosztás</string>
     <string name="screen_key_layout_export">Exportálás</string>
     <string name="screen_key_image">Kép</string>
-    <string name="osc_steam_layout_hint">Mozgassa, méretezze vagy rejtse el a játék érintésvezérlőit; a Steamben mentve</string>
     <string name="mode_controller">Kontroller</string>
     <string name="mode_controller_hint">Hogyan látja a Steam a kontrollerét. A következő munkamenettől érvényes.</string>
     <string name="mode_controller_deck">Steam Deck kontroller</string>
@@ -428,7 +425,6 @@
     <string name="mode_directaudio_hint">Megkerüli a PulseAudiót a kisebb késleltetés érdekében.</string>
     <string name="mode_mic">Mikrofon</string>
     <string name="mode_mic_hint">Hangos csevegéshez.</string>
-    <string name="drawer_mic_hint">A mikrofonrögzítés be- vagy kikapcsolása ebben a munkamenetben.</string>
     <string name="drawer_mic_failed">Nem sikerült módosítani a mikrofont. Próbálja újra.</string>
     <string name="mode_network">Hálózat</string>
     <string name="mode_wifi_discovery">Wi-Fi felderítés</string>
@@ -624,20 +620,8 @@
     <string name="perf_gsrealtime">gamescope: valós idejű GPU-sor</string>
     <string name="perf_gsrealtime_hint">Előnyben részesíti a kompozitor GPU-munkáját. Egyenletesebbé teheti a képkocka-ütemezést, kisebb költséggel a játékoknak.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memória</string>
     <string name="perf_cap_off">Ki</string>
-    <string name="perf_cap_auto">Illesztőprogram alapértéke</string>
-    <string name="perf_zram_client">A Steam tömörítése játék közben</string>
-    <string name="perf_zram_idle">Játék inaktív memóriájának tömörítése</string>
-    <string name="perf_zram_idle_hint">Kevés RAM esetén tömöríti a játék inaktív memóriáját. Kapcsold ki, ha a játékok nagyjából félpercenként néhány másodpercre lefagynak. A munkamenet következő indításakor lép érvénybe.</string>
-    <string name="perf_zram_client_hint">20 mp-cel a játék indulása után a Steam-kliens a zRAM-ba tömörül, hogy több memória maradjon a játéknak, és a játék bezárásakor visszaolvasódik. Kapcsolja ki, ha a munkamenet röviddel a játékok indulása után bezárul. A fenti RAM-korlát akkor is tömöríti a Steamet, ha a munkamenet túllépi.</string>
-    <string name="perf_ram_cap">RAM-korlát</string>
-    <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>
-    <string name="perf_ram_cap_unavailable">zRAM swap szükséges, amely ezen az eszközön nincs.</string>
-    <string name="perf_vram_cap">VRAM-korlát</string>
-    <string name="perf_vram_cap_hint">Ezt a videomemória-keretet jelzi a Direct3D 9–12 játékoknak a memóriahasználat csökkentésére. A játékok túlléphetik; nem biztosít GPU-lapozást, és nem garantál védelmet a memóriahiány miatti összeomlás ellen. A következő munkamenettől érvényes.</string>
     <string name="perf_gpuclock">A GPU legmagasabb órajelen tartása</string>
-    <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>
     <string name="perf_sysmem">Turnip: sysmem renderelés</string>
     <string name="perf_sysmem_hint">A Steam kliensre és a játékokra vonatkozik. Adreno 710/720/722-n szükséges.</string>
@@ -802,7 +786,6 @@
     <string name="drawer_keyboard">Billentyűzet</string>
     <string name="drawer_latency">Késleltetés</string>
     <string name="drawer_low_latency">Alacsony késleltetésű mód</string>
-    <string name="drawer_low_latency_hint">Növeli a CPU- és akkumulátorhasználatot</string>
     <string name="drawer_low_latency_controller">Alacsony késleltetésű kontroller</string>
     <string name="drawer_low_latency_controller_hint">A kontroller 250 Hz helyett 1000 Hz-en jelent. Kicsit több CPU.</string>
     <string name="drawer_low_latency_touch">Alacsony késleltetésű érintés</string>
@@ -815,7 +798,6 @@
     <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Második képernyő</string>
-    <string name="drawer_second_screen_mode">Mód</string>
     <string name="drawer_second_screen_shows">Megjelenít</string>
     <string name="drawer_android_apps">Android-alkalmazások</string>
     <string name="drawer_launch_app">Alkalmazás indítása</string>
@@ -1357,12 +1339,8 @@
     <string name="ctrl_opacity">Átlátszatlanság</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Gombméret</string>
-    <string name="ctrl_adaptive">Adaptív karok</string>
     <string name="ctrl_rumble">Játékvibráció</string>
     <string name="ctrl_dead_zone">Kar holtzónája</string>
-    <string name="ctrl_steam_button">Steam gomb</string>
-    <string name="ctrl_qam_button">QAM gomb</string>
-    <string name="ctrl_keyboard_button">Billentyűzet gomb</string>
     <string name="ctrl_joycon_vr">Joy-Conok VR-kontrollerként</string>
     <string name="ctrl_joycon_vr_hint">Amíg a SteamVR fut, minden Joy-Con egy kéz lesz. Irányítsa előre, és tartsa lenyomva a Home vagy a Capture gombot az újraközpontosításhoz.</string>
     <string name="setup_animations">Animációk</string>
@@ -1491,8 +1469,6 @@
     <string name="deck_surface_trackpad">Érintőpad</string>
     <string name="deck_close">Második képernyős vezérlők bezárása</string>
     <string name="deck_open_steam_menu">Steam-menü megnyitása</string>
-    <string name="deck_right_trackpad">Jobb érintőpad</string>
-    <string name="deck_left_trackpad">Bal érintőpad</string>
     <string name="second_trackpad">Érintőpad</string>
     <string name="second_show_keyboard">Billentyűzet megjelenítése</string>
     <string name="second_hide_keyboard">Billentyűzet elrejtése</string>
@@ -1531,11 +1507,8 @@
     <string name="pckb_android">Android billentyűzet</string>
     <string name="pckb_hide">Elrejtés  ✕</string>
     <string name="pckb_size">Méret a képernyőn</string>
-    <string name="pckb_size_hint">A képernyő hányadát foglalja el a billentyűzet, a fejlécet is beleszámítva.</string>
     <string name="pckb_opacity">Átlátszatlanság</string>
-    <string name="pckb_opacity_hint">Csökkentsd, hogy lásd a billentyűzet mögötti játékot.</string>
     <string name="pckb_hidden_keys">Rejtett billentyűk</string>
-    <string name="pckb_hidden_keys_hint">A ritkán használt billentyűk nem jelennek meg a billentyűzeten.</string>
     <string name="pckb_group_function">Esc és a funkcióbillentyűk sora</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Nyílbillentyűk</string>
@@ -1573,6 +1546,8 @@
     <string name="pip_unavailable">Az Android nem tudta megnyitni a kép a képben módot.</string>
     <string name="game_more">Továbbiak</string>
     <string name="game_edit_art">Illusztrációk szerkesztése</string>
+    <string name="game_unhide">Eltávolítás a rejtettek közül</string>
+    <string name="game_hide_failed">Nem sikerült szinkronizálni a Steammel. Zárd be a Steamet, és próbáld újra.</string>
     <string name="stores_in_steam_label">A Steamben</string>
     <string name="game_shortcut">Parancsikon</string>
     <string name="game_shortcut_add">Hozzáadás a kezdőképernyőhöz</string>
@@ -1746,8 +1721,6 @@
     <string name="drivers_installed_pick">%1$s telepítve – válassza ki a menüben</string>
     <string name="session_wait_removal">Várja meg a futtatókörnyezet eltávolításának befejezését</string>
     <string name="session_title_game">Játék</string>
-    <string name="session_touch_auto_touchpad">érintőpad</string>
-    <string name="session_touch_auto_direct">közvetlen</string>
     <string name="session_swap_failed">A csere sikertelen: %1$s</string>
     <string name="session_profile_save_failed">A profil mentése sikertelen: %1$s</string>
     <string name="session_desktop_paused">Az asztal szünetel</string>
@@ -2003,15 +1976,6 @@
     <string name="fm_up_one_level">Egy szinttel feljebb</string>
     <string name="fm_choose_folder">Válasszon mappát</string>
     <string name="fm_choose_file">Válasszon fájlt</string>
-    <string name="ctrl_tint_steam_blue">Steam kék</string>
-    <string name="ctrl_tint_sky">Égszínkék</string>
-    <string name="ctrl_tint_white">Fehér</string>
-    <string name="ctrl_tint_violet">Lila</string>
-    <string name="ctrl_tint_green">Zöld</string>
-    <string name="ctrl_tint_amber">Borostyán</string>
-    <string name="ctrl_tint_red">Piros</string>
-    <string name="ctrl_tint_pink">Rózsaszín</string>
-    <string name="ctrl_tint_gray">Szürke</string>
     <string name="ctrl_button_a">A gomb</string>
     <string name="ctrl_button_b">B gomb</string>
     <string name="ctrl_button_x">X gomb</string>
@@ -2309,6 +2273,17 @@
     <string name="pextra_checksum_mismatch">Az ellenőrzőösszeg nem egyezik; a letöltés törlésre került</string>
     <string name="pextra_session_started">Egy munkamenet elindult a letöltés közben; állítsa le a kompatibilitási eszközök telepítése előtt</string>
     <string name="pextra_installing">%1$s telepítése</string>
+    <string name="xproton_title">Kísérleti buildek</string>
+    <string name="xproton_install_file">Telepítés fájlból</string>
+    <string name="xproton_archive_unsafe">Az archívum nem biztonságos hivatkozást vagy útvonalat tartalmaz</string>
+    <string name="xproton_archive_invalid">Nem támogatott vagy érvénytelen archívum</string>
+    <string name="xproton_no_space">Nincs elég szabad hely ehhez a Proton-buildhez</string>
+    <string name="xproton_unpacking">A Proton kibontása (néhány perc)</string>
+    <string name="xproton_untar_failed">A kibontás nem sikerült (tar %1$d)</string>
+    <string name="xproton_no_tree">Az archívum nem tartalmaz Proton-buildet</string>
+    <string name="xproton_place_failed">Nem sikerült elhelyezni a Proton-buildet</string>
+    <string name="xproton_remove_failed">Nem sikerült teljesen eltávolítani: %1$s</string>
+    <string name="xproton_installed">A kísérleti Proton telepítve. Válaszd ki a Steam → Tulajdonságok → Kompatibilitás menüben.</string>
     <string name="pextra_install_failed">A %1$s telepítése sikertelen (kilépési kód: %2$d)</string>
     <string name="pextra_could_not_install">Nem sikerült telepíteni a %1$s-t</string>
     <string name="esync_fetching">droiddeck-esync csomag letöltése</string>
@@ -3138,7 +3113,6 @@
     <string name="glasses_pro2_experimental">Kísérleti fejkövetés a Pro 2-höz. A fényerő és a hangerő beállítása, valamint a megjelenítési mód váltása még nem támogatott.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard mód</string>
-    <string name="cardboard_mode_hint">Bal és jobb szem képe telefonos VR-szemüveghez.</string>
     <string name="cardboard_source">Kép</string>
     <string name="cardboard_source_screen">Virtuális képernyő</string>
     <string name="cardboard_source_sbs">Egymás melletti 3D</string>
@@ -3161,7 +3135,6 @@
     <string name="cardboard_steamvr_unavailable">Ebben a munkamenetben nem érhető el.</string>
     <string name="cardboard_steamvr_failed">A SteamVR nem válaszolt; nézd meg a munkamenet naplóját.</string>
     <string name="drawer_component_downloads">Összetevők letöltése</string>
-    <string name="drawer_component_downloads_hint">A letöltések közösek az Összetevők oldallal. Fent válassz egy letöltött verziót, hogy a következő játékindítástól azt használd.</string>
     <string name="drawer_component_choose_download">Válassz letöltendő verziót</string>
     <string name="stores_fact_developer">Fejlesztő</string>
     <string name="stores_fact_publisher">Kiadó</string>
@@ -3341,10 +3314,19 @@
     <string name="storage_shared_prefix">A Steam megosztott prefixe</string>
     <string name="storage_shared_prefix_detail">A Steam itt futtatja saját Windows-segédprogramjait</string>
     <string name="storage_reset_shared_confirm">Törli (%1$s). A Steam újat hoz létre, amikor legközelebb szüksége lesz rá.</string>
+    <string name="storage_remove_launcher_confirm">Törli ennek az áruházalkalmazásnak a Wine-prefixét és shadergyorsítótárát (%1$s), a bejelentkezéssel és a csak ott tárolt mentésekkel együtt. A benne futó játékok új prefixet kapnak, és lehet, hogy az alkalmazást újra be kell állítani. A felhőmentések a fiókodban maradnak.</string>
+    <string name="storage_system_clearable">%1$s üríthető</string>
+    <string name="storage_item_system_caches">Linux- és Steam-gyorsítótárak</string>
+    <string name="storage_item_system_caches_detail">Régi ideiglenes fájlok, letöltött csomagok és a Steam webes gyorsítótára</string>
+    <string name="storage_cache_temp">Régi ideiglenes fájlok</string>
+    <string name="storage_cache_packages">Letöltött csomagok</string>
+    <string name="storage_cache_steam_web">Steam webes gyorsítótár</string>
+    <string name="storage_cache_steam_corrupt">Sérült Steam-letöltések</string>
+    <string name="storage_cache_detail">Szükség esetén újra létrejön</string>
+    <string name="storage_clear">Ürítés</string>
     <string name="storage_launcher_prefix">Egy áruházalkalmazás és a vele futó játékok</string>
     <string name="storage_launcher_used_by">Használja: %1$s</string>
     <string name="storage_shortcut_app">Nem Steam-es játék: %1$s</string>
-    <string name="storage_unknown_prefix_detail">Nem tartozik játékhoz, ezért megmarad</string>
     <string name="storage_remove_selected">Kijelöltek eltávolítása · %1$s</string>
     <string name="storage_uninstall_selected">Kijelöltek eltávolítása · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefixek</string>
@@ -4089,4 +4071,18 @@
     <string name="display_scaling_integer">Egész szám</string>
     <string name="display_scaling_fit">Igazítás</string>
     <string name="drawer_antialiasing">Élsimítás</string>
+    <string name="theme_custom">Egyéni</string>
+    <string name="theme_custom_detail">Válaszd ki külön a felület minden színét.</string>
+    <string name="theme_custom_background">Háttér</string>
+    <string name="theme_custom_surface">Panelek</string>
+    <string name="theme_custom_surface_variant">Kiemelt panelek</string>
+    <string name="theme_custom_line">Elválasztók</string>
+    <string name="theme_custom_line2">Szegélyek</string>
+    <string name="theme_custom_on_background">Fő szöveg</string>
+    <string name="theme_custom_on_surface_variant">Másodlagos szöveg</string>
+    <string name="theme_custom_primary">Gombok és fő kiemelés</string>
+    <string name="theme_custom_on_primary">Gombok szövege</string>
+    <string name="theme_custom_signal">Kiemelések</string>
+    <string name="theme_custom_good">Siker</string>
+    <string name="theme_custom_error">Hiba</string>
 </resources>

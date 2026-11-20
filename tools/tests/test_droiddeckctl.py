@@ -274,6 +274,60 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual(0, code)
         self.assertEqual(489830, out["focus"]["focusedApp"])
 
+    LIBRARY = {"ok": True, "command": "library", "games": [
+        {"id": "9227380185612091392", "name": "TimeSplitters Future Perfect", "source": "xbox", "storeId": "9N51S9QZMSB6", "folder": "/g/ts"},
+        {"id": "12302733539203571712", "name": "Dead Space (2008)", "source": "ea", "storeId": "DR:105641400", "folder": "/g/ds"},
+        {"id": "12302733539203571999", "name": "Dead Space 2", "source": "ea", "storeId": "DR:1", "folder": "/g/ds2"},
+    ]}
+
+    def test_launch_by_name_opens_the_game_link_and_waits_for_a_game(self):
+        self.configure({"library": self.LIBRARY, "state": [state(focused=769, focusable=[769]), state(focused=7, focusable=[7, 769])]})
+        code, out = self.run_ctl("launch", "--game", "timesplitters", "--wait", "--timeout", "5")
+        self.assertEqual(0, code)
+        self.assertEqual("TimeSplitters Future Perfect", out["game"]["name"])
+        self.assertEqual(7, out["focus"]["focusedApp"])
+        started = [e["args"] for e in self.calls() if e["args"][:3] == ["shell", "am", "start"]]
+        self.assertIn("droiddeck://game/9227380185612091392", started[0])
+        self.assertIn("com.droiddeck.launcher/com.droiddeck.launcher.FrontEndActivity", started[0])
+        self.assertFalse(self.calls("launch"))
+
+    def test_launch_by_name_refuses_an_ambiguous_or_missing_game(self):
+        self.configure({"library": self.LIBRARY})
+        code, out = self.run_ctl("launch", "--game", "dead space")
+        self.assertNotEqual(0, code)
+        self.assertEqual("GAME_AMBIGUOUS", out["error"]["code"])
+        self.assertIn("Dead Space 2 (12302733539203571999)", out["error"]["message"])
+        code, out = self.run_ctl("launch", "--game", "12302733539203571712")
+        self.assertEqual(0, code)
+        self.assertEqual("ea", out["game"]["source"])
+        code, out = self.run_ctl("launch", "--game", "halo")
+        self.assertEqual("GAME_NOT_FOUND", out["error"]["code"])
+        code, out = self.run_ctl("launch")
+        self.assertEqual("INVALID_ARGUMENTS", out["error"]["code"])
+        self.assertFalse([e for e in self.calls() if e["args"][:3] == ["shell", "am", "start"] and "droiddeck://game/12302733539203571999" in e["args"]])
+
+    def test_quit_without_an_app_quits_the_focused_game(self):
+        self.configure({"state": state(focused=4040, focusable=[4040, 769]), "quit": {"ok": True, "command": "quit"}})
+        code, _ = self.run_ctl("quit")
+        self.assertEqual(0, code)
+        self.assertEqual(4040, self.calls("quit")[0]["request"]["appId"])
+        self.configure({"state": state(focused=769, focusable=[769])})
+        code, out = self.run_ctl("quit")
+        self.assertEqual("NO_FOCUSED_GAME", out["error"]["code"])
+        self.assertEqual(1, len(self.calls("quit")))
+
+    def test_library_xodus_and_cloud_pass_their_requests(self):
+        self.configure({"library": self.LIBRARY, "xodus": {"ok": True, "command": "xodus", "exit": 0, "stdout": "{}", "stderr": ""},
+                        "cloud": {"ok": True, "command": "cloud", "result": "ok", "files": 2, "reason": "downloaded"}})
+        self.assertEqual(0, self.run_ctl("library", "--source", "ea", "--query", "dead")[0])
+        self.assertEqual({"query": "dead", "source": "ea"}, self.calls("library")[0]["request"])
+        self.assertEqual(0, self.run_ctl("xodus", "--timeout", "30", "--", "license", "abc", "--market", "US")[0])
+        self.assertEqual({"args": ["license", "abc", "--market", "US"], "timeout": 30.0}, self.calls("xodus")[0]["request"])
+        code, out = self.run_ctl("cloud", "down", "ubisoft", "92c79ab6", "--force")
+        self.assertEqual(0, code)
+        self.assertEqual("downloaded", out["reason"])
+        self.assertEqual({"direction": "down", "store": "ubisoft", "id": "92c79ab6", "force": True}, self.calls("cloud")[0]["request"])
+
     def test_start_reuse_keeps_a_running_session(self):
         running = state(focused=769)
         running["session"]["mode"] = "steam"

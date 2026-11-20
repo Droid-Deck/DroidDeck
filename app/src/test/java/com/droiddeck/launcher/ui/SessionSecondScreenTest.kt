@@ -71,11 +71,8 @@ class SessionSecondScreenTest {
 
     @Test fun steamMenuKeepsTheExistingTrackpadAndTerminal() = checkModes(steam = true)
 
-    @Test fun desktopQuickMenuChangesTheRunningDesktopLayout() = checkQuickSelection(steam = false, desktop = true, direct = true)
 
-    @Test fun steamQuickMenuLeavesTheDesktopSelectionAlone() = checkQuickSelection(steam = true, desktop = false, direct = false)
 
-    @Test fun directGameQuickMenuLeavesTheDesktopSelectionAlone() = checkQuickSelection(steam = false, desktop = false, direct = true)
 
     @Test fun closingTheDockedDrawerKeepsTheSelectedControlsPanel() {
         SessionState.mode = SessionService.MODE_STEAM
@@ -83,7 +80,7 @@ class SessionSecondScreenTest {
         var selected = SecondScreenMode.CUSTOM_CONTROLS
         compose.setContent {
             DroidDeckTheme {
-                SessionDrawer(true, SessionDrawerPage.SECOND_SCREEN, false, {},
+                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {},
                     actions(true, listOf(SecondScreenDisplay(1, "Bottom screen")),
                         onClose = { closes++ }, select = { selected = it }), docked = true)
             }
@@ -93,16 +90,45 @@ class SessionSecondScreenTest {
         assertEquals(SecondScreenMode.CUSTOM_CONTROLS, selected)
     }
 
-    @Test fun desktopWithoutASecondDisplayFallsBackToController() {
+    @Test fun desktopWithoutASecondDisplayHasNoScreenPicker() {
         SessionState.mode = SessionService.MODE_DESKTOP
-        var page = SessionDrawerPage.SECOND_SCREEN
         compose.setContent {
             DroidDeckTheme {
-                SessionDrawer(true, page, false, { page = it }, actions(false, emptyList()))
+                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {}, actions(false, emptyList()))
             }
         }
-        compose.runOnIdle { assertEquals(SessionDrawerPage.CONTROLLER, page) }
+        compose.onNodeWithTag("drawer-screen-picker").assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.second_mode_keyboard_trackpad)).assertDoesNotExist()
+    }
+
+    @Test fun dockedMenuPickerReturnsToThePanelAndHasNoMenuButton() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val selected = mutableListOf<SecondScreenMode>()
+        compose.setContent {
+            DroidDeckTheme {
+                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {},
+                    actions(true, listOf(SecondScreenDisplay(1, "Bottom screen")), mode = SecondScreenMode.TERMINAL) { selected += it },
+                    docked = true)
+            }
+        }
+        compose.onNodeWithTag("bottom-bar-menu").assertDoesNotExist()
+        compose.onNodeWithContentDescription(context.getString(R.string.screen_picker_description,
+            context.getString(R.string.touch_droiddeck_menu))).performClick()
+        compose.onNodeWithTag("screen-picker-menu").assertExists()
+        compose.onNodeWithTag("screen-picker:${SecondScreenMode.TERMINAL.id}").performClick()
+        assertEquals(listOf(SecondScreenMode.TERMINAL), selected)
+    }
+
+    @Test fun displayPageCarriesTheGameScreenAndDisplayChoices() {
+        SessionState.mode = SessionService.MODE_STEAM
+        compose.setContent {
+            DroidDeckTheme {
+                SessionDrawer(true, SessionDrawerPage.DISPLAY, false, {},
+                    actions(true, listOf(SecondScreenDisplay(1, "Bottom screen"), SecondScreenDisplay(2, "Monitor")), gameSwap = true))
+            }
+        }
+        compose.onNodeWithText(context.getString(R.string.swap_game_screen)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Bottom screen").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun provisionalBottomScreenPanelSettlesOnlyOnceTheSessionIsInFront() {
@@ -236,7 +262,7 @@ class SessionSecondScreenTest {
             state<Boolean>("drawerOpenState").value = true
             state<Boolean>("drawerControllerActive").value = true
             state<List<SecondScreenDisplay>>("secondScreenDisplays").value = listOf(SecondScreenDisplay(1, "Bottom screen"))
-            for ((button, page) in listOf(KeyEvent.KEYCODE_BUTTON_R1 to SessionDrawerPage.SECOND_SCREEN,
+            for ((button, page) in listOf(KeyEvent.KEYCODE_BUTTON_R1 to SessionDrawerPage.DISPLAY,
                 KeyEvent.KEYCODE_BUTTON_L1 to SessionDrawerPage.CONTROLLER)) {
                 assertTrue(activity.dispatchKeyEvent(KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, button, 0, 0,
                     device.id, 0, 0, InputDevice.SOURCE_GAMEPAD)))
@@ -308,57 +334,22 @@ class SessionSecondScreenTest {
         compose.onNodeWithText(context.getString(R.string.mode_mic)).assertDoesNotExist()
     }
 
-    private fun checkQuickSelection(steam: Boolean, desktop: Boolean, direct: Boolean) {
-        SessionState.mode = if (desktop) SessionService.MODE_DESKTOP else if (steam) SessionService.MODE_STEAM else SessionService.MODE_RUN
-        val original = InputLibraries.update(context) { it.chooseLayout("desktop", InputRole.SECONDARY, InputLibraries.DECK) }
-        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
-        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
-        val panel = SecondScreenPresentation(activity, display, {}, {}, {})
-        val open = androidx.compose.runtime.mutableStateOf(true)
-        try {
-            panel.show()
-            panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
-            compose.setContent {
-                DroidDeckTheme {
-                    SessionDrawer(open.value, SessionDrawerPage.CONTROLLER, false, {},
-                        actions(steam, emptyList(), desktop = desktop, direct = direct,
-                            onInputSelection = { panel.refreshControls() }, onClose = { open.value = false }))
-                }
-            }
-            compose.onNodeWithTag("setting-input-profile").performScrollTo().performClick()
-            compose.onNodeWithText("Desktop").performScrollTo().performClick()
-            compose.onNodeWithTag("input-profile-expand").performScrollTo().performClick()
-            compose.onNodeWithTag("setting-input-part-SECONDARY").performScrollTo().performClick()
-            compose.onNodeWithText("Trackpad + keyboard").performScrollTo().performClick()
-            compose.onNode(hasContentDescription(context.getString(R.string.common_close)) and
-                SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.Role, androidx.compose.ui.semantics.Role.Button)).performClick()
-            compose.runOnIdle {
-                val updated = InputLibraries.read(context)
-                assertEquals("desktop", updated.selection(desktop).profile)
-                assertEquals(InputLibraries.TRACKPAD, updated.activeLayout(desktop, InputRole.SECONDARY)?.id)
-                assertEquals(original.selection(!desktop), updated.selection(!desktop))
-                assertEquals(original.profiles, updated.profiles)
-                val controls = descendants(panel.window!!.decorView).filterIsInstance<InputSurfaceView>().single()
-                val pads = descendants(controls).mapNotNull { it.tag as? InputSurfaceElement }.filter { it.kind == InputElementKind.TRACKPAD }.toList()
-                assertEquals(1, pads.size)
-            }
-        } finally { panel.closeControls() }
-    }
-
     private fun checkModes(steam: Boolean) {
         SessionState.mode = if (steam) SessionService.MODE_STEAM else SessionService.MODE_DESKTOP
         val selected = mutableListOf<SecondScreenMode>()
         val displays = listOf(SecondScreenDisplay(1, "Bottom screen"))
         compose.setContent {
             DroidDeckTheme {
-                SessionDrawer(true, SessionDrawerPage.SECOND_SCREEN, false, {}, actions(steam, displays) { selected += it })
+                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {}, actions(steam, displays) { selected += it })
             }
         }
         val modes = listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL, SecondScreenMode.CUSTOM_CONTROLS)
         for (mode in modes) {
-            compose.onNodeWithText(context.getString(mode.label)).performScrollTo().assertIsDisplayed().performClick()
+            compose.onNodeWithTag("drawer-screen-picker").performClick()
+            compose.onNodeWithTag("screen-picker-menu").assertDoesNotExist()
+            compose.onNodeWithTag("screen-picker:${SecondScreenMode.DECK_CONTROLS.id}").assertDoesNotExist()
+            compose.onNodeWithTag("screen-picker:${mode.id}").assertIsDisplayed().performClick()
         }
-        compose.onNodeWithText(context.getString(SecondScreenMode.DECK_CONTROLS.label)).assertDoesNotExist()
         assertEquals(modes, selected)
     }
 
@@ -370,7 +361,7 @@ class SessionSecondScreenTest {
     private fun actions(steam: Boolean, displays: List<SecondScreenDisplay>,
         micAvailable: Boolean = false, micEnabled: Boolean = false, onMic: (Boolean) -> Unit = {},
         desktop: Boolean = !steam, direct: Boolean = false, onInputSelection: (InputRole?) -> Unit = {},
-        onClose: () -> Unit = {},
+        onClose: () -> Unit = {}, mode: SecondScreenMode = SecondScreenMode.NONE, gameSwap: Boolean = false,
         select: (SecondScreenMode) -> Unit = {}) =
         DrawerActions(steam = steam, desktop = desktop, direct = direct, onInputSelection = onInputSelection,
             isHomeApp = false, androidApps = emptyList(), hudOn = false,
@@ -378,7 +369,7 @@ class SessionSecondScreenTest {
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
             suspendPolicy = "auto", backActionsInverted = false,
             touchMode = "auto", touchAuto = "trackpad", fexPreset = "default",
-            secondScreenMode = SecondScreenMode.NONE, secondScreenDisplays = displays, selectedSecondScreenDisplay = 1,
+            secondScreenMode = mode, secondScreenDisplays = displays, selectedSecondScreenDisplay = 1, gameSwapAvailable = gameSwap,
             onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
             onSteamMenu = null, onQam = null, onOsc = {}, onSuspendPolicy = {}, onBackActionsInverted = {},
             onTouch = {}, onFexPreset = {}, onSecondScreenMode = select, onSecondScreenDisplay = {},

@@ -37,7 +37,7 @@ class InputSurfaceEditorViewTest {
     @Test fun editingStartsInTheDisplayedFrame() {
         val view = view()
         var started: Pair<List<InputSurfaceElement>, Float>? = null
-        view.onBeginEdit = { elements, aspect -> started = elements to aspect }
+        view.onBeginEdit = { elements, w, h -> started = elements to w.toFloat() / h }
         val (x, y) = center()
         view.touch(MotionEvent.ACTION_DOWN, x, y)
         view.touch(MotionEvent.ACTION_MOVE, x + 100f, y + 50f)

@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Незалежна копія</string>
     <string name="input_floating_stick">Починати стік від точки дотику</string>
     <string name="input_hide_idle">Ховати стік, коли він не використовується</string>
-    <string name="input_tools">Інструменти</string>
-    <string name="input_quick_auto">Авто (%1$s)</string>
-    <string name="input_quick_mixed">Користувацький (%1$s)</string>
     <string name="input_save_combination">Зберегти як новий профіль</string>
     <string name="input_profile_controls_mode">Керування профілю</string>
-    <string name="input_profile">Профіль</string>
     <string name="input_mouse_gestures">Жести тачпада миші</string>
-    <string name="input_mouse_gestures_hint">Якщо призначено вказівнику миші: торкніться для кліку, утримуйте для перетягування та прокручуйте двома пальцями.</string>
     <string name="input_quick_override_hint">Для %1$s задано перевизначення швидкого меню. Виберіть «Авто», щоб використати профіль за замовчуванням і всі три збережені частини.</string>
     <string name="input_route_local">Введення DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Утримується, поки стік відхилено в будь-якому напрямку: натискання вище 55%, відпускання нижче 35%. Використовуйте «Клавіші напрямків», щоб призначити кожен напрямок окремо. Команди DroidDeck спрацьовують раз на відхилення. Натискання стіка налаштовується окремо.</string>
@@ -103,19 +98,12 @@
     <string name="input_shortcut_back_modes">Назад · двічі в Steam, один раз у робочому столі</string>
     <string name="input_shortcut_hold_hint">У режимі Steam. Утримання «Назад» також відкриває швидкий доступ.</string>
     <string name="input_restore_shortcut">Відновити типове</string>
-    <string name="input_second_mode_hint">Ваш вибір панелі запам\'ятовується. Робочий стіл відкриває другий робочий простір; він не перемикає сеанс або його профіль введення.</string>
     <string name="input_virtual_controller">Віртуальний контролер</string>
-    <string name="input_virtual_controller_hint">Тип контролера, який бачать Steam або гра.</string>
     <string name="input_touchscreen">Сенсорний екран</string>
-    <string name="input_touchscreen_hint">Як обробляються дотики на екрані гри. Кнопки профілю зберігають призначені дії.</string>
     <string name="input_touch_cursor">Курсор дотику</string>
-    <string name="input_touch_cursor_hint">Показувати вказівник для прямих дотиків на екрані гри.</string>
     <string name="input_touch_hold">Торкнутися й утримувати</string>
-    <string name="input_touch_hold_hint">Дія миші при утриманні пальця на екрані гри.</string>
     <string name="input_back_taps">Натискання кнопки «Назад»</string>
-    <string name="input_back_taps_hint">Перша дія: одне натискання. Друга дія: подвійне натискання.</string>
     <string name="input_toggle_button">Кнопка-перемикач</string>
-    <string name="input_toggle_button_hint">Торкніться, щоб утримувати, торкніться ще раз, щоб відпустити. Відкриття меню або зміна профілю відпускає кнопку.</string>
     <string name="input_button_shape">Форма</string>
     <string name="input_shape_rounded">Заокруглена</string>
     <string name="input_shape_pill">Капсула</string>

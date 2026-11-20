@@ -255,6 +255,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("libraryShowSize", show).apply()
     }
 
+    fun libraryShowHidden(context: Context): Boolean = prefs(context).getBoolean("libraryShowHidden", false)
+
+    fun setLibraryShowHidden(context: Context, show: Boolean) {
+        prefs(context).edit().putBoolean("libraryShowHidden", show).apply()
+    }
+
+    fun libraryHidden(context: Context): Set<String> = prefs(context).getStringSet("libraryHidden", null)?.toSet().orEmpty()
+
+    fun setLibraryHidden(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet("libraryHidden", keys.toSet()).apply()
+    }
+
     fun railLabels(context: Context): Boolean = prefs(context).getBoolean("railLabels", false)
 
     fun setRailLabels(context: Context, show: Boolean) {
@@ -266,6 +278,12 @@ object SessionPrefs {
 
     fun setDeveloperTools(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("developerTools", on).apply()
+    }
+
+    fun previewShortcuts(context: Context): Boolean = prefs(context).getBoolean("previewShortcuts", false)
+
+    fun setPreviewShortcuts(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("previewShortcuts", on).apply()
     }
 
     fun fpsLimitKey(mode: String?, game: String?): String? = when (mode) {
@@ -338,6 +356,25 @@ object SessionPrefs {
 
     fun setStoresTabOrder(context: Context, order: List<String>) {
         prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
+    }
+
+    /**
+     * Where the Library's own tabs (Favorites, Steam, Custom games) sit among the store tabs, as "tab=the tab it follows" pairs in
+     * strip order ("" follows nothing, i.e. first). Null until arranged.
+     */
+    fun libraryTabPlaces(context: Context): List<Pair<String, String>>? =
+        prefs(context).getString("libraryTabPlaces", null)?.split(',')?.mapNotNull { pair ->
+            pair.split('=', limit = 2).takeIf { it.size == 2 && it[0].isNotEmpty() }?.let { it[0] to it[1] }
+        }
+
+    fun setLibraryTabPlaces(context: Context, places: List<Pair<String, String>>) {
+        prefs(context).edit().putString("libraryTabPlaces", places.joinToString(",") { "${it.first}=${it.second}" }).apply()
+    }
+
+    fun libraryTabsHidden(context: Context): Set<String> = idList(prefs(context).getString("libraryTabsHidden", null)).toSet()
+
+    fun setLibraryTabsHidden(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("libraryTabsHidden", hidden.joinToString(",")).apply()
     }
 
     fun storesTabHidden(context: Context): Set<String> = idList(prefs(context).getString("storesTabHidden", null)).toSet()
@@ -627,10 +664,38 @@ object SessionPrefs {
         prefs(context).getString("shape", null)
             ?: if (context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")) SHAPE_WIDE else SHAPE_AUTO
 
-    fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
+    /** Auto, Always or Never. Older builds also stored the Steam layout and a buttons-only mode here. */
+    fun oscMode(context: Context, steamSession: Boolean = false): String = when (val mode = prefs(context).getString("osc", OSC_AUTO)) {
+        OSC_ALWAYS, OSC_NEVER -> mode
+        OSC_STEAM_QAM -> OSC_ALWAYS
+        OSC_STEAM_TOUCH -> if (steamSession) OSC_ALWAYS else OSC_AUTO
+        else -> OSC_AUTO
+    }
 
     fun setOscMode(context: Context, mode: String) {
-        prefs(context).edit().putString("osc", mode).apply()
+        val editor = prefs(context).edit()
+        if (!prefs(context).contains("steamTouchLayout")) editor.putBoolean("steamTouchLayout", steamTouchLayout(context))
+        editor.putString("osc", mode).apply()
+    }
+
+    fun oscRearButtons(context: Context): Boolean = prefs(context).getBoolean("oscRearButtons", false)
+
+    fun setOscRearButtons(context: Context, shown: Boolean) {
+        prefs(context).edit().putBoolean("oscRearButtons", shown).apply()
+    }
+
+    fun oscTrackpads(context: Context): Boolean = prefs(context).getBoolean("oscTrackpads", false)
+
+    fun setOscTrackpads(context: Context, shown: Boolean) {
+        prefs(context).edit().putBoolean("oscTrackpads", shown).apply()
+    }
+
+    /** Draw Steam's touch layout for the game instead of DroidDeck's own. */
+    fun steamTouchLayout(context: Context): Boolean =
+        prefs(context).getBoolean("steamTouchLayout", prefs(context).getString("osc", null) == OSC_STEAM_TOUCH)
+
+    fun setSteamTouchLayout(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("steamTouchLayout", on).apply()
     }
 
     fun linuxDriver(context: Context): String =
@@ -685,14 +750,42 @@ object SessionPrefs {
     }
 
     @JvmStatic
-    fun ensurePowerVrAutoDrivers(context: Context) {
-        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context)) return
-        ensurePowerVrAutoDrivers(context, SystemVulkanDriver.isPowerVr())
+    fun ensurePowerVrAutoDrivers(context: Context) = reconcilePowerVrAutoDrivers(
+        context, SystemVulkanDriver.isPowerVr(), SystemVulkanDriver.isXclipse(),
+        com.droiddeck.launcher.gpu.VulkanInfo::cachedOrNull,
+    )
+
+    fun ensurePowerVrAutoDriversAfterGpuQuery(context: Context) = reconcilePowerVrAutoDrivers(
+        context, SystemVulkanDriver.isPowerVr(), SystemVulkanDriver.isXclipse(),
+        com.droiddeck.launcher.gpu.VulkanInfo::query,
+    )
+
+    internal fun reconcilePowerVrAutoDrivers(
+        context: Context, powerVr: Boolean, xclipse: Boolean, vulkan: () -> Map<String, String>?,
+    ) {
+        val device = if (xclipse) vulkan() ?: return else null
+        val unsupported = unsupportedXclipse(xclipse) {
+            com.droiddeck.launcher.gpu.GpuInfo.systemDriverName(SystemVulkanDriver.gpuName(), device)
+        }
+        val activeKey = com.droiddeck.launcher.gpu.DriverBundle.active(context)
+            ?.id
+            ?.let(com.droiddeck.launcher.gpu.DriverPairs::nonAdreno)
+        val upstreamBundle = activeKey == com.droiddeck.launcher.gpu.DriverPairs.NAD_RADV_XCLIPSE_UPSTREAM ||
+            (activeKey != null && activeKey.startsWith("${com.droiddeck.launcher.gpu.DriverPairs.NAD_RADV_XCLIPSE_UPSTREAM}-"))
+        if (com.droiddeck.launcher.core.DeviceSupport.openDriverActive(context) && (!unsupported || upstreamBundle)) return
+        ensurePowerVrAutoDrivers(context, powerVr, unsupported)
     }
 
-    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean) {
+    internal fun unsupportedXclipse(xclipse: Boolean, gpuName: () -> String): Boolean =
+        xclipse && com.droiddeck.launcher.gpu.DriverPairs.xclipseNeedsUpstream(gpuName())
+
+    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean, autoOwnedOnly: Boolean = false) {
         if (!powerVr || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
-        prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
+        val owned = gpuAutoInstalled(context)
+        val edit = prefs(context).edit()
+        if (!autoOwnedOnly || linuxDriver(context) in owned) edit.putString("linuxDriver", "")
+        if (!autoOwnedOnly || androidDriver(context) in owned) edit.putString("androidDriver", TurnipDriver.AUTO)
+        edit.apply()
     }
 
     fun gpuAutoInstalled(context: Context): Set<String> =
@@ -732,7 +825,7 @@ object SessionPrefs {
         val prefs = prefs(context)
         if (!prefs.contains("shaderPrecache")) {
             if (steamConfig(context).exists()) return null
-            prefs.edit().putBoolean("shaderPrecache", false).apply()
+            prefs.edit().putBoolean("shaderPrecache", true).apply()
         }
         val on = prefs.getBoolean("shaderPrecache", true)
         val applied = shaderPrecacheApplied(context)
@@ -892,29 +985,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gamescopeRealtime", on).apply()
     }
 
-    fun ramCapMb(context: Context): Int = prefs(context).getInt("ramCapMb", 0).coerceAtLeast(0)
-
-    fun setRamCapMb(context: Context, mb: Int) {
-        prefs(context).edit().putInt("ramCapMb", mb.coerceAtLeast(0)).apply()
-    }
-
-    fun zramClient(context: Context): Boolean = prefs(context).getBoolean("zramClient", true)
-
-    fun setZramClient(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("zramClient", on).apply()
-    }
-
-    fun zramIdle(context: Context): Boolean = prefs(context).getBoolean("zramIdle", true)
-
-    fun setZramIdle(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("zramIdle", on).apply()
-    }
-
-    fun vramCapMb(context: Context): Int = prefs(context).getInt("vramCapMb", 0).coerceAtLeast(0)
-
-    fun setVramCapMb(context: Context, mb: Int) {
-        prefs(context).edit().putInt("vramCapMb", mb.coerceAtLeast(0)).apply()
-    }
 
     fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", false)
 
@@ -1444,6 +1514,8 @@ object SessionPrefs {
         (id and 0xFFFFFFFFL) to key.removePrefix("addedAppId:")
     }.toMap()
 
+    fun storeGameFolder(context: Context, key: String): String? = prefs(context).getString("storeFolder:$key", null)
+
     fun followStoreGame(context: Context, key: String, folderPath: String, gone: (String) -> Boolean) = synchronized(addedGameLock) {
         val p = prefs(context)
         val previous = p.getString("storeFolder:$key", null)
@@ -1513,6 +1585,45 @@ object SessionPrefs {
 
     fun setGradientColors(context: Context, primary: Int, secondary: Int) {
         prefs(context).edit().putInt("gradientPrimary", primary).putInt("gradientSecondary", secondary).apply()
+    }
+
+    fun customThemeColors(context: Context): com.droiddeck.launcher.ui.CustomThemeColors =
+        prefs(context).let { p ->
+            val defaults = com.droiddeck.launcher.ui.CustomThemeColors()
+            com.droiddeck.launcher.ui.CustomThemeColors(
+                background = p.getInt("customThemeBackground", defaults.background),
+                surface = p.getInt("customThemeSurface", defaults.surface),
+                surfaceVariant = p.getInt("customThemeSurfaceVariant", defaults.surfaceVariant),
+                line = p.getInt("customThemeLine", defaults.line),
+                line2 = p.getInt("customThemeLine2", defaults.line2),
+                onBackground = p.getInt("customThemeOnBackground", defaults.onBackground),
+                onSurfaceVariant = p.getInt("customThemeOnSurfaceVariant", defaults.onSurfaceVariant),
+                primary = p.getInt("customThemePrimary", defaults.primary),
+                onPrimary = p.getInt("customThemeOnPrimary", defaults.onPrimary),
+                signal = p.getInt("customThemeSignal", defaults.signal),
+                good = p.getInt("customThemeGood", defaults.good),
+                error = p.getInt("customThemeError", defaults.error),
+            )
+        }
+
+    fun setCustomThemeColors(
+        context: Context,
+        colors: com.droiddeck.launcher.ui.CustomThemeColors,
+    ) {
+        prefs(context).edit()
+            .putInt("customThemeBackground", colors.background)
+            .putInt("customThemeSurface", colors.surface)
+            .putInt("customThemeSurfaceVariant", colors.surfaceVariant)
+            .putInt("customThemeLine", colors.line)
+            .putInt("customThemeLine2", colors.line2)
+            .putInt("customThemeOnBackground", colors.onBackground)
+            .putInt("customThemeOnSurfaceVariant", colors.onSurfaceVariant)
+            .putInt("customThemePrimary", colors.primary)
+            .putInt("customThemeOnPrimary", colors.onPrimary)
+            .putInt("customThemeSignal", colors.signal)
+            .putInt("customThemeGood", colors.good)
+            .putInt("customThemeError", colors.error)
+            .apply()
     }
 
     fun trueBlackHighlight(context: Context): Int =
@@ -1863,7 +1974,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("pipAutoEnter", enabled).apply()
     }
 
-    fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", false)
+    fun unfoldedControls(context: Context): Boolean = prefs(context).getBoolean("unfoldedControls", true)
 
     fun controlsBelowWanted(context: Context, mode: String, width: Int, height: Int, pip: Boolean = false): Boolean =
         SessionDisplay.unfoldedControlsWanted(

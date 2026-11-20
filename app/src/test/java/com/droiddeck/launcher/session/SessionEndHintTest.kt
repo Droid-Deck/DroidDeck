@@ -34,14 +34,20 @@ class SessionEndHintTest {
     private var previousArchitecture: String? = null
     private var previousLog: File? = null
     private var previousDirectory: File? = null
+    private var previousFailureCode: String? = null
+    private var previousFailureMessage: String? = null
 
     @Before
     fun setUp() {
         previousArchitecture = SessionState.steamClientArch
         previousLog = SessionState.logFile
         previousDirectory = SessionState.logDirectory
+        previousFailureCode = SessionState.failureCode
+        previousFailureMessage = SessionState.failureMessage
         SessionState.logFile = null
         SessionState.logDirectory = null
+        SessionState.failureCode = null
+        SessionState.failureMessage = null
         DetectedGpu.family = GpuInfo.Family.NOT_ADRENO
         DetectedGpu.name = "test GPU"
         activity = Robolectric.buildActivity(SessionActivity::class.java).get()
@@ -53,6 +59,8 @@ class SessionEndHintTest {
         SessionState.steamClientArch = previousArchitecture
         SessionState.logFile = previousLog
         SessionState.logDirectory = previousDirectory
+        SessionState.failureCode = previousFailureCode
+        SessionState.failureMessage = previousFailureMessage
         DetectedGpu.family = GpuInfo.Family.NOT_ADRENO
         DetectedGpu.name = "test GPU"
     }
@@ -120,6 +128,22 @@ class SessionEndHintTest {
         File(temporary.root, "wayland.log").writeText("DD_PRESENT_FAULT: old fault\npresentation recovered: fault cleared\n")
         SessionState.logFile = sigillLog()
         assertNull(exitHint(0))
+    }
+
+    @Test
+    fun startFailureShowsTheRecordedMessage() {
+        SessionState.failureCode = "POWERVR_MISSING"
+        SessionState.failureMessage = "x"
+        val hint = exitHint(-1)
+        assertNotNull(hint)
+        assertEquals("x", ReflectionHelpers.getField<String>(hint, "text"))
+    }
+
+    @Test
+    fun guestExitMessageIsNotShownAsAStartFailure() {
+        SessionState.failureCode = "GUEST_EXIT"
+        SessionState.failureMessage = "Session guest exited with status 1"
+        assertNull(exitHint(1))
     }
 
     @Test

@@ -83,12 +83,21 @@ private const val DRIFT_STEP_NS = 15_000_000L
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { com.droiddeck.launcher.frontend.SteamFeatured.load(ctx) }
-    val featured = com.droiddeck.launcher.frontend.SteamFeatured.games
+    rememberHiddenSync()
+    val featuredAll = com.droiddeck.launcher.frontend.SteamFeatured.games
     val signedIn = s.offlineAccount != null
-    val owned by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn) {
-        value = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
+    val account = LibraryHidden.account
+    val scanned by produceState<Pair<java.io.File?, List<Pair<Int, java.io.File>>>>(account to emptyList(), signedIn, LibraryHidden.steam, account) {
+        val art = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
+        value = account to art
     }
-    val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
+    val ownedAll = if (scanned.first == account) scanned.second else emptyList()
+    val concealed = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) {
+        LibraryHidden.steam + s.steamGames.filter { LibraryHidden.isHidden(hideKey(it), it) }.map { it.appId.toLong() }
+    }
+    val owned = remember(ownedAll, concealed) { ownedAll.filter { it.first.toLong() !in concealed } }
+    val featured = remember(featuredAll, concealed) { featuredAll.filter { it.appId.toLong() !in concealed } }
+    val games = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) { s.steamGames.filterNot { LibraryHidden.isHidden(hideKey(it), it) }.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     var words by remember { mutableStateOf<Rect?>(null) }
     val mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
@@ -177,19 +186,19 @@ internal fun Modifier.overhang(by: androidx.compose.ui.unit.Dp = 4.dp): Modifier
 }
 
 @Composable
-internal fun WallFade() {
+internal fun WallFade(modifier: Modifier = Modifier.fillMaxSize().overhang()) {
     val colors = MaterialTheme.colorScheme
     Box(
-        Modifier.fillMaxSize().overhang().background(
+        modifier.background(
             Brush.horizontalGradient(
-                0f to colors.background.copy(alpha = 0.97f),
-                0.34f to colors.background.copy(alpha = 0.86f),
-                0.68f to colors.background.copy(alpha = 0.25f),
-                1f to colors.background.copy(alpha = 0.1f),
+                0f to colors.background.copy(alpha = 0.86f),
+                0.34f to colors.background.copy(alpha = 0.6f),
+                0.68f to colors.background.copy(alpha = 0.14f),
+                1f to colors.background.copy(alpha = 0.04f),
             ),
         ),
     )
-    Box(Modifier.fillMaxSize().overhang().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
+    Box(modifier.background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
 }
 
 @Composable

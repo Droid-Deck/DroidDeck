@@ -28,8 +28,12 @@ internal object LibraryFavorites {
 
 internal fun toggled(keys: Set<String>, key: String): Set<String> = if (key in keys) keys - key else keys + key
 
-internal fun inLibrarySource(source: String, entry: LibraryEntry, favorites: Set<String>): Boolean = when (source) {
-    LIBRARY_ALL -> true
-    LIBRARY_FAVORITES -> entry.favoriteKey in favorites
-    else -> entry.source == source
+internal fun inLibrarySource(source: String, entry: LibraryEntry, favorites: Set<String>, hidden: (LibraryEntry) -> Boolean = { false }): Boolean {
+    val concealed = hidden(entry)
+    return when (source) {
+        LIBRARY_HIDDEN -> concealed
+        LIBRARY_ALL -> !concealed
+        LIBRARY_FAVORITES -> !concealed && entry.favoriteKey in favorites
+        else -> !concealed && entry.source == source
+    }
 }

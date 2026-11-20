@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">Профили ввода</string>
     <string name="input_profiles">Профили</string>
     <string name="input_physical">Физический контроллер</string>
     <string name="input_primary">Основной экран</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Открыть меню Steam</string>
     <string name="input_command_qam">Открыть быстрый доступ Steam</string>
     <string name="input_remove_element">Удалить элемент</string>
-    <string name="input_add_element">Добавить элемент</string>
     <string name="input_extra_keys">Кнопки конкретного устройства</string>
     <string name="input_capture">Назначить физическую кнопку</string>
     <string name="input_capture_confirm">Отпустите кнопку и выберите «Изменить», «Повторить» или «Отмена». B или «Назад» отменяет после отпускания.</string>

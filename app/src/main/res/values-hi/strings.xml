@@ -22,7 +22,6 @@
         <item>SD कार्ड, USB ड्राइव या SSD से Steam लाइब्रेरी जोड़ें, और DroidDeck गेम को आपकी लाइब्रेरी में एक साथ रखता है।</item>
         <item>स्टोर से आप Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io और Game Jolt में साइन इन कर सकते हैं, फिर DroidDeck से उनके गेम इंस्टॉल और अपडेट कर सकते हैं।</item>
         <item>FEX, DXVK और VKD3D-Proton जैसे कॉम्पोनेंट खुद अपडेट होते हैं, और डिफ़ॉल्ट Proton Experimental ARM64 है, या वह बिल्ड इंस्टॉल होने पर Proton 11.0 ARM64।</item>
-        <item>गेम चलते समय Steam को कंप्रेस करें कम RAM वाले डिवाइस पर RAM खाली करता है।</item>
         <item>सत्र मेनू खोलने के लिए दाएँ किनारे से अंदर की ओर स्वाइप करें: टचपैड मोड, पीसी कीबोर्ड, लो लेटेंसी मोड, गेम प्रोफ़ाइल और बहुत कुछ।</item>
         <item>गेम धीमा चल रहा है? Quick Access में फ़्रेम रेट सीमित करें, फिर गेम के कॉम्पोनेंट में कोई दूसरा Proton वर्शन या FEX प्रीसेट आज़माएँ।</item>
         <item>गेम की आवाज़ में खरखराहट है या आवाज़ नहीं आ रही? Steam सेटिंग में ऑडियो के अंतर्गत गेम के लिए DirectAudio टॉगल आज़माएँ।</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">यह प्रोग्राम %1$s पीसी के लिए बना है और FEX के ज़रिए चलता है, जो अभी सेट नहीं है। साइन इन रहते हुए Steam एक बार खोलें: DroidDeck इससे FEX और ज़रूरी Steam Linux Runtime डाउनलोड करवा लेगा, फिर यह खुल जाएगा।</string>
     <string name="session_proot_missing">DroidDeck का proot डाउनलोड नहीं हो सका। कनेक्शन जांचें और फिर कोशिश करें। सेशन शुरू नहीं किया गया, क्योंकि बैकअप proot खेलने के लिए बहुत धीमा है।</string>
     <string name="session_powervr_missing">PowerVR ग्राफ़िक्स एनवायरमेंट डाउनलोड नहीं हो सका। कनेक्शन जाँचें और फिर कोशिश करें।</string>
+    <string name="session_graphics_runtime_failed">ग्राफ़िक्स एनवायरमेंट तैयार नहीं हो सका, इसलिए सेशन शुरू नहीं हुआ।</string>
+    <string name="session_game_environment_failed">गेम एनवायरमेंट सेट अप नहीं हो सका, इसलिए सेशन शुरू नहीं हुआ।</string>
     <string name="session_directaudio_missing">DirectAudio डाउनलोड नहीं हो सका, इसलिए इस सेशन में गेम ऑडियो धीमा पाथ इस्तेमाल करता है।</string>
     <string name="session_end_program">यह प्रोग्राम</string>
     <string name="session_end_present_fault">सत्र स्क्रीन पर ड्रॉ नहीं कर सका: %1$s। काली स्क्रीन के बजाय यह स्क्रीन कारण दिखाती है; पूरा विवरण सत्र लॉग में है।</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">टच</string>
     <string name="mode_pen_button">साइड बटन</string>
     <string name="mode_osc">ऑन-स्क्रीन कंट्रोल</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">कोई कंट्रोलर कनेक्ट न होने पर ऑटो कंट्रोल दिखाता है।</string>
-    <string name="osc_steam_touch">Steam टच (बीटा)</string>
-    <string name="osc_style_next_session">Steam के टच कंट्रोल अगले Steam सेशन से शुरू होंगे</string>
     <string name="osc_steam_layout">Steam टच लेआउट</string>
     <string name="screen_key_layout_export">निर्यात</string>
     <string name="screen_key_image">छवि</string>
-    <string name="osc_steam_layout_hint">इस गेम के टच कंट्रोल को घुमाएं, आकार बदलें या छिपाएं; Steam में सेव होता है</string>
     <string name="mode_controller">कंट्रोलर</string>
     <string name="mode_controller_hint">Steam आपके कंट्रोलर को किस तरह पहचानता है। अगले सेशन से लागू होता है।</string>
     <string name="mode_controller_deck">Steam Deck कंट्रोलर</string>
@@ -428,7 +425,6 @@
     <string name="mode_directaudio_hint">कम लेटेंसी के लिए PulseAudio को बायपास करता है।</string>
     <string name="mode_mic">माइक्रोफ़ोन</string>
     <string name="mode_mic_hint">वॉइस चैट के लिए।</string>
-    <string name="drawer_mic_hint">इस सेशन के लिए माइक्रोफ़ोन कैप्चर चालू या बंद करें।</string>
     <string name="drawer_mic_failed">माइक्रोफ़ोन बदला नहीं जा सका। कृपया फिर कोशिश करें।</string>
     <string name="mode_network">नेटवर्क</string>
     <string name="mode_wifi_discovery">Wi-Fi खोज</string>
@@ -624,20 +620,8 @@
     <string name="perf_gsrealtime">gamescope: रीयलटाइम GPU क्यू</string>
     <string name="perf_gsrealtime_hint">कम्पोज़िटर के GPU काम को प्राथमिकता देता है। गेम की कुछ कीमत पर फ़्रेम पेसिंग को स्मूथ कर सकता है।</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">मेमोरी</string>
     <string name="perf_cap_off">बंद</string>
-    <string name="perf_cap_auto">ड्राइवर डिफ़ॉल्ट</string>
-    <string name="perf_zram_client">गेम चलते समय Steam को कंप्रेस करें</string>
-    <string name="perf_zram_idle">गेम की निष्क्रिय मेमोरी को संपीड़ित करें</string>
-    <string name="perf_zram_idle_hint">RAM कम होने पर गेम की निष्क्रिय मेमोरी को पेज करता है। अगर गेम लगभग हर आधे मिनट में कुछ सेकंड के लिए रुकते हैं, तो इसे बंद करें। अगली बार सत्र शुरू होने पर लागू होता है।</string>
-    <string name="perf_zram_client_hint">गेम शुरू होने के 20 s बाद, Steam क्लाइंट को zRAM में कंप्रेस किया जाता है ताकि गेम को ज़्यादा मेमोरी मिले, और गेम बंद होने पर वापस पढ़ा जाता है। अगर गेम शुरू होने के कुछ देर बाद सेशन बंद हो जाता है तो इसे बंद करें। ऊपर दी गई RAM सीमा पार होने पर भी Steam कंप्रेस होता है।</string>
-    <string name="perf_ram_cap">RAM सीमा</string>
-    <string name="perf_ram_cap_hint">Steam क्लाइंट चलते समय लागू होती है, Steam मोड में या डेस्कटॉप से। जब सेशन इससे ज़्यादा इस्तेमाल करता है, तो Steam और फिर सेशन की दूसरी समर्थित प्रोसेस zRAM में कंप्रेस होती हैं। यह सॉफ़्ट सीमा है: कुछ बंद नहीं होता, लेकिन पेज वापस आते समय गेम अटक सकते हैं।</string>
-    <string name="perf_ram_cap_unavailable">zRAM स्वैप चाहिए, जो इस डिवाइस में नहीं है।</string>
-    <string name="perf_vram_cap">VRAM सीमा</string>
-    <string name="perf_vram_cap_hint">मेमोरी का उपयोग कम करने के लिए Direct3D 9 से 12 गेम को यह वीडियो मेमोरी बजट बताता है। गेम इसे पार कर सकते हैं; यह GPU पेजिंग नहीं जोड़ता और मेमोरी खत्म होने से क्रैश रोकने की गारंटी नहीं देता। अगले सत्र से लागू होगा।</string>
     <string name="perf_gpuclock">GPU को उसकी टॉप क्लॉक पर बनाए रखें</string>
-    <string name="perf_gpuclock_hint">सिर्फ़ Adreno के लिए। कम हिचकोले, लेकिन ज़्यादा बैटरी खर्च और गर्मी।</string>
     <string name="perf_fixes">सेशन फ़िक्स</string>
     <string name="perf_sysmem">Turnip: sysmem रेंडरिंग</string>
     <string name="perf_sysmem_hint">Steam क्लाइंट और गेम पर लागू। Adreno 710/720/722 पर ज़रूरी।</string>
@@ -802,7 +786,6 @@
     <string name="drawer_keyboard">कीबोर्ड</string>
     <string name="drawer_latency">लेटेंसी</string>
     <string name="drawer_low_latency">लो लेटेंसी मोड</string>
-    <string name="drawer_low_latency_hint">CPU और बैटरी का इस्तेमाल बढ़ाता है</string>
     <string name="drawer_low_latency_controller">कम लेटेंसी कंट्रोलर</string>
     <string name="drawer_low_latency_controller_hint">कंट्रोलर 250 Hz के बजाय 1000 Hz पर रिपोर्ट करता है। थोड़ा ज़्यादा CPU।</string>
     <string name="drawer_low_latency_touch">कम लेटेंसी टच</string>
@@ -815,7 +798,6 @@
     <string name="drawer_pc_keyboard">पीसी कीबोर्ड</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">दूसरी स्क्रीन</string>
-    <string name="drawer_second_screen_mode">मोड</string>
     <string name="drawer_second_screen_shows">दिखाता है</string>
     <string name="drawer_android_apps">Android ऐप</string>
     <string name="drawer_launch_app">ऐप लॉन्च करें</string>
@@ -1357,12 +1339,8 @@
     <string name="ctrl_opacity">ओपैसिटी</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">बटन का आकार</string>
-    <string name="ctrl_adaptive">एडैप्टिव स्टिक</string>
     <string name="ctrl_rumble">गेम वाइब्रेशन</string>
     <string name="ctrl_dead_zone">स्टिक का डेड ज़ोन</string>
-    <string name="ctrl_steam_button">Steam बटन</string>
-    <string name="ctrl_qam_button">QAM बटन</string>
-    <string name="ctrl_keyboard_button">कीबोर्ड बटन</string>
     <string name="ctrl_joycon_vr">Joy-Con को VR कंट्रोलर की तरह</string>
     <string name="ctrl_joycon_vr_hint">SteamVR चलते समय हर Joy-Con एक हाथ बन जाता है। उसे सामने की ओर करें और फिर से केंद्रित करने के लिए Home या Capture दबाए रखें।</string>
     <string name="setup_animations">एनिमेशन</string>
@@ -1491,8 +1469,6 @@
     <string name="deck_surface_trackpad">ट्रैकपैड</string>
     <string name="deck_close">दूसरी स्क्रीन के कंट्रोल बंद करें</string>
     <string name="deck_open_steam_menu">Steam मेनू खोलें</string>
-    <string name="deck_right_trackpad">दायां ट्रैकपैड</string>
-    <string name="deck_left_trackpad">बायां ट्रैकपैड</string>
     <string name="second_trackpad">ट्रैकपैड</string>
     <string name="second_show_keyboard">कीबोर्ड दिखाएं</string>
     <string name="second_hide_keyboard">कीबोर्ड छिपाएं</string>
@@ -1531,11 +1507,8 @@
     <string name="pckb_android">Android कीबोर्ड</string>
     <string name="pckb_hide">छिपाएं  ✕</string>
     <string name="pckb_size">स्क्रीन पर आकार</string>
-    <string name="pckb_size_hint">कीबोर्ड स्क्रीन का कितना हिस्सा घेरता है, हेडर समेत।</string>
     <string name="pckb_opacity">अपारदर्शिता</string>
-    <string name="pckb_opacity_hint">कीबोर्ड के पीछे गेम दिखाने के लिए इसे घटाएँ।</string>
     <string name="pckb_hidden_keys">छिपी कुंजियाँ</string>
-    <string name="pckb_hidden_keys_hint">जिन कुंजियों का आप कम इस्तेमाल करते हैं, वे कीबोर्ड पर नहीं रहतीं।</string>
     <string name="pckb_group_function">Esc और फ़ंक्शन पंक्ति</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn कुंजियाँ</string>
     <string name="pckb_group_arrows">तीर कुंजियाँ</string>
@@ -1573,6 +1546,8 @@
     <string name="pip_unavailable">Android पिक्चर इन पिक्चर नहीं खोल सका।</string>
     <string name="game_more">और</string>
     <string name="game_edit_art">आर्ट एडिट करें</string>
+    <string name="game_unhide">छिपे हुए से हटाएं</string>
+    <string name="game_hide_failed">Steam के साथ सिंक नहीं हो सका। Steam बंद करके फिर कोशिश करें।</string>
     <string name="stores_in_steam_label">Steam में</string>
     <string name="game_shortcut">शॉर्टकट</string>
     <string name="game_shortcut_add">होम स्क्रीन पर जोड़ें</string>
@@ -1746,8 +1721,6 @@
     <string name="drivers_installed_pick">इंस्टॉल है %1$s - इसे मेनू में चुनें</string>
     <string name="session_wait_removal">रनटाइम हटाना खत्म होने का इंतज़ार करें</string>
     <string name="session_title_game">गेम</string>
-    <string name="session_touch_auto_touchpad">टचपैड</string>
-    <string name="session_touch_auto_direct">डायरेक्ट</string>
     <string name="session_swap_failed">स्वैप विफल: %1$s</string>
     <string name="session_profile_save_failed">प्रोफ़ाइल सेव विफल: %1$s</string>
     <string name="session_desktop_paused">डेस्कटॉप रुका हुआ है</string>
@@ -2003,15 +1976,6 @@
     <string name="fm_up_one_level">एक लेवल ऊपर</string>
     <string name="fm_choose_folder">फ़ोल्डर चुनें</string>
     <string name="fm_choose_file">फ़ाइल चुनें</string>
-    <string name="ctrl_tint_steam_blue">Steam ब्लू</string>
-    <string name="ctrl_tint_sky">स्काई</string>
-    <string name="ctrl_tint_white">सफ़ेद</string>
-    <string name="ctrl_tint_violet">वायलेट</string>
-    <string name="ctrl_tint_green">हरा</string>
-    <string name="ctrl_tint_amber">एम्बर</string>
-    <string name="ctrl_tint_red">लाल</string>
-    <string name="ctrl_tint_pink">गुलाबी</string>
-    <string name="ctrl_tint_gray">धूसर</string>
     <string name="ctrl_button_a">A बटन</string>
     <string name="ctrl_button_b">B बटन</string>
     <string name="ctrl_button_x">X बटन</string>
@@ -2309,6 +2273,17 @@
     <string name="pextra_checksum_mismatch">चेकसम मेल नहीं खाया; डाउनलोड हटा दिया गया</string>
     <string name="pextra_session_started">डाउनलोड के दौरान एक सेशन शुरू हुआ; कम्पैटिबिलिटी टूल इंस्टॉल करने से पहले इसे बंद करें</string>
     <string name="pextra_installing">%1$s इंस्टॉल हो रहा है</string>
+    <string name="xproton_title">प्रायोगिक बिल्ड</string>
+    <string name="xproton_install_file">फ़ाइल से इंस्टॉल करें</string>
+    <string name="xproton_archive_unsafe">आर्काइव में असुरक्षित लिंक या पथ है</string>
+    <string name="xproton_archive_invalid">असमर्थित या अमान्य आर्काइव</string>
+    <string name="xproton_no_space">इस Proton बिल्ड के लिए पर्याप्त खाली जगह नहीं है</string>
+    <string name="xproton_unpacking">Proton अनपैक हो रहा है (कुछ मिनट)</string>
+    <string name="xproton_untar_failed">अनपैक करना विफल रहा (tar %1$d)</string>
+    <string name="xproton_no_tree">आर्काइव में कोई Proton बिल्ड नहीं है</string>
+    <string name="xproton_place_failed">Proton बिल्ड को रखा नहीं जा सका</string>
+    <string name="xproton_remove_failed">%1$s को पूरी तरह हटाया नहीं जा सका</string>
+    <string name="xproton_installed">प्रायोगिक Proton इंस्टॉल हो गया। इसे Steam → गुण → संगतता में चुनें।</string>
     <string name="pextra_install_failed">%1$s इंस्टॉलेशन विफल रहा (exit %2$d)</string>
     <string name="pextra_could_not_install">%1$s इंस्टॉल नहीं हो सका</string>
     <string name="esync_fetching">droiddeck-esync पैक लिया जा रहा है</string>
@@ -3138,7 +3113,6 @@
     <string name="glasses_pro2_experimental">Pro 2 के लिए प्रायोगिक हेड ट्रैकिंग। चमक और वॉल्यूम बदलना और डिस्प्ले मोड स्विच करना अभी समर्थित नहीं है।</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard मोड</string>
-    <string name="cardboard_mode_hint">फ़ोन VR व्यूअर के लिए बाईं और दाईं आंख के व्यू।</string>
     <string name="cardboard_source">तस्वीर</string>
     <string name="cardboard_source_screen">वर्चुअल स्क्रीन</string>
     <string name="cardboard_source_sbs">साइड-बाय-साइड 3D</string>
@@ -3161,7 +3135,6 @@
     <string name="cardboard_steamvr_unavailable">इस सेशन में उपलब्ध नहीं है।</string>
     <string name="cardboard_steamvr_failed">SteamVR ने जवाब नहीं दिया; सेशन लॉग देखें।</string>
     <string name="drawer_component_downloads">कंपोनेंट डाउनलोड करें</string>
-    <string name="drawer_component_downloads_hint">डाउनलोड Components पेज के साथ साझा होते हैं। अगली बार गेम शुरू होने पर इस्तेमाल करने के लिए ऊपर डाउनलोड किया गया वर्शन चुनें।</string>
     <string name="drawer_component_choose_download">डाउनलोड करने के लिए वर्शन चुनें</string>
     <string name="stores_fact_developer">डेवलपर</string>
     <string name="stores_fact_publisher">पब्लिशर</string>
@@ -3341,10 +3314,19 @@
     <string name="storage_shared_prefix">Steam का साझा प्रीफ़िक्स</string>
     <string name="storage_shared_prefix_detail">Steam यहाँ अपने Windows हेल्पर चलाता है</string>
     <string name="storage_reset_shared_confirm">इसे डिलीट करता है (%1$s)। अगली बार ज़रूरत पड़ने पर Steam नया बना लेता है।</string>
+    <string name="storage_remove_launcher_confirm">इस स्टोर ऐप का Wine प्रीफ़िक्स और शेडर कैश (%1$s) हटाता है, साथ में इसका साइन-इन और सिर्फ़ वहीं रखे सेव भी। इसमें चलने वाले गेम को नया प्रीफ़िक्स मिलता है, और ऐप को फिर से सेट अप करना पड़ सकता है। क्लाउड सेव आपके खाते में रहते हैं।</string>
+    <string name="storage_system_clearable">%1$s साफ़ किया जा सकता है</string>
+    <string name="storage_item_system_caches">Linux और Steam कैश</string>
+    <string name="storage_item_system_caches_detail">पुरानी अस्थायी फ़ाइलें, डाउनलोड किए गए पैकेज और Steam का वेब कैश</string>
+    <string name="storage_cache_temp">पुरानी अस्थायी फ़ाइलें</string>
+    <string name="storage_cache_packages">डाउनलोड किए गए पैकेज</string>
+    <string name="storage_cache_steam_web">Steam वेब कैश</string>
+    <string name="storage_cache_steam_corrupt">खराब Steam डाउनलोड</string>
+    <string name="storage_cache_detail">ज़रूरत पड़ने पर फिर से बनते हैं</string>
+    <string name="storage_clear">साफ़ करें</string>
     <string name="storage_launcher_prefix">एक स्टोर ऐप और उसके साथ चलने वाले गेम</string>
     <string name="storage_launcher_used_by">%1$s द्वारा इस्तेमाल</string>
     <string name="storage_shortcut_app">गैर-Steam गेम %1$s</string>
-    <string name="storage_unknown_prefix_detail">किसी गेम से मेल नहीं खाता, इसलिए रखा जाता है</string>
     <string name="storage_remove_selected">चुने गए हटाएँ · %1$s</string>
     <string name="storage_uninstall_selected">चुने गए अनइंस्टॉल करें · %1$s</string>
     <string name="storage_bulk_prefixes">Wine प्रीफ़िक्स</string>
@@ -4089,4 +4071,18 @@
     <string name="display_scaling_integer">पूर्णांक</string>
     <string name="display_scaling_fit">फ़िट</string>
     <string name="drawer_antialiasing">एंटी-अलियासिंग</string>
+    <string name="theme_custom">कस्टम</string>
+    <string name="theme_custom_detail">इंटरफ़ेस का हर रंग अलग-अलग चुनें।</string>
+    <string name="theme_custom_background">पृष्ठभूमि</string>
+    <string name="theme_custom_surface">पैनल</string>
+    <string name="theme_custom_surface_variant">उभरे हुए पैनल</string>
+    <string name="theme_custom_line">विभाजक</string>
+    <string name="theme_custom_line2">किनारे</string>
+    <string name="theme_custom_on_background">मुख्य टेक्स्ट</string>
+    <string name="theme_custom_on_surface_variant">द्वितीयक टेक्स्ट</string>
+    <string name="theme_custom_primary">बटन और मुख्य हाइलाइट</string>
+    <string name="theme_custom_on_primary">बटन का टेक्स्ट</string>
+    <string name="theme_custom_signal">हाइलाइट</string>
+    <string name="theme_custom_good">सफलता</string>
+    <string name="theme_custom_error">त्रुटि</string>
 </resources>

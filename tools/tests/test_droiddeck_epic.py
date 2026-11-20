@@ -1318,7 +1318,7 @@ class StoreLaunchClientTest(unittest.TestCase):
         (self.folder / ".droiddeck-store.json").write_text(json.dumps(sidecar))
         with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.tmp / "launch"), "STEAM_COMPAT_DATA_PATH": ""}), \
                 mock.patch.dict(S, {"client_wanted": lambda: calls.append("wanted") or True,
-                                    "ask": lambda channel, request, timeout=0: calls.append(request["op"]) or {"ok": True}}):
+                                    "ask": lambda channel, request, timeout=0, claim=False: calls.append(request["op"]) or {"ok": True}}):
             S["main"]([str(self.folder / ".droiddeck-launch.bat")])
         self.assertNotIn("wanted", calls)
         self.assertNotIn("epic-code", calls)
@@ -1341,7 +1341,7 @@ class StoreLaunchClientTest(unittest.TestCase):
         with mock.patch.dict(os.environ, env), \
                 mock.patch.dict(S, {"client_wanted": lambda: True,
                                     "through_client": lambda folder, sidecar, timeout=0: calls.append("client") or "timeout",
-                                    "ask": lambda channel, request, timeout=0: calls.append(request["op"]) or {"ok": True, "code": True}}):
+                                    "ask": lambda channel, request, timeout=0, claim=False: calls.append(request["op"]) or {"ok": True, "code": True}}):
             S["main"]([str(self.folder / ".droiddeck-launch.bat")])
         self.assertEqual(["client", "epic-code", "cloud-down"], calls)
 
@@ -1356,7 +1356,7 @@ class StoreLaunchClientTest(unittest.TestCase):
         (self.folder / ".droiddeck-epic-code").write_text("stale")
         with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.tmp / "launch"), "STEAM_COMPAT_DATA_PATH": ""}), \
                 mock.patch.dict(S, {"client_wanted": lambda: True, "through_client": through,
-                                    "ask": lambda channel, request, timeout=0: calls.append(request["op"]) or {"ok": True}}):
+                                    "ask": lambda channel, request, timeout=0, claim=False: calls.append(request["op"]) or {"ok": True}}):
             S["main"]([str(self.folder / ".droiddeck-launch.bat")])
         self.assertEqual(["client", "cloud-down"], calls)
         self.assertFalse((self.folder / ".droiddeck-epic-code").exists())
@@ -1368,7 +1368,7 @@ class StoreLaunchClientTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.tmp / "launch"), "DROIDDECK_EPIC_HANDLED": "1",
                                           "STEAM_COMPAT_DATA_PATH": ""}), \
                 mock.patch.dict(S, {"client_wanted": lambda: calls.append("wanted") or True,
-                                    "ask": lambda channel, request, timeout=0: calls.append(request["op"]) or {"ok": True}}):
+                                    "ask": lambda channel, request, timeout=0, claim=False: calls.append(request["op"]) or {"ok": True}}):
             S["main"]([str(self.folder / ".droiddeck-launch.bat")])
         self.assertEqual(["cloud-down"], calls)
         self.assertTrue((self.folder / ".droiddeck-epic-args").exists())

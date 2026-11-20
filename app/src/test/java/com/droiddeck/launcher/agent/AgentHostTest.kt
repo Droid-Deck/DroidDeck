@@ -84,10 +84,10 @@ class AgentHostTest {
         val command = ClaudeCode.turn("hello there", null, AgentHarness.Options())
         assertEquals("stream-json", command[command.indexOf("--input-format") + 1])
         assertFalse("hello there" in command)
-        val line = org.json.JSONObject(ClaudeCode.input("hello there")!!)
+        val line = org.json.JSONObject(ClaudeCode.input("hello there"))
         assertEquals("user", line.getString("type"))
         assertEquals("hello there", line.getJSONObject("message").getJSONArray("content").getJSONObject(0).getString("text"))
-        assertNull(Codex.input("hi"))
+        assertEquals(listOf(ClaudeCode.input("hi")), ClaudeCode.protocol().input("hi", "abc", AgentHarness.Options(), started = false))
     }
 
     @Test fun aTaskNotificationResultIsMarkedBackgroundAndCarriesItsUsage() {
@@ -126,13 +126,35 @@ class AgentHostTest {
         assertTrue(used("Monitor", """{"command":"tail -f log"}""").background)
     }
 
-    @Test fun claudeTurnsBypassPermissionsOrPlanAndTakeAModel() {
+    @Test fun claudeTurnsAskFirstByDefaultAndTakeAModel() {
         val first = ClaudeCode.turn("hi", null, AgentHarness.Options())
-        assertTrue("bypassPermissions" in first && "--resume" !in first && "--model" !in first && "--include-partial-messages" in first)
+        assertEquals("manual", first[first.indexOf("--permission-mode") + 1])
+        assertTrue("--permission-prompt-tool=stdio" in first && "--resume" !in first && "--model" !in first && "--include-partial-messages" in first)
         val next = ClaudeCode.turn("hi", "abc", AgentHarness.Options(model = "opus", plan = true))
         assertEquals("abc", next[next.indexOf("--resume") + 1])
         assertEquals("opus", next[next.indexOf("--model") + 1])
         assertEquals("plan", next[next.indexOf("--permission-mode") + 1])
+        assertFalse("--permission-prompt-tool=stdio" in next)
+        fun mode(permission: String) = ClaudeCode.turn("hi", null, AgentHarness.Options(permission = permission)).let { it[it.indexOf("--permission-mode") + 1] }
+        assertEquals(listOf("manual", "acceptEdits", "auto", "dontAsk", "bypassPermissions"), ClaudeCode.permissions.map { mode(it.id) })
+        assertFalse("--permission-prompt-tool=stdio" in ClaudeCode.turn("hi", null, AgentHarness.Options(permission = AgentHarness.FULL)))
+    }
+
+    @Test fun claudePermissionPromptsBecomeApprovalsAnsweredOnStdin() {
+        val event = ClaudeCode.parse("""{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"rm -rf build"},"tool_use_id":"t1"}}""")!!
+        val approval = event.approval!!
+        assertEquals(AgentHost.Approval("r1", "Bash", "rm -rf build", "rm -rf build", """{"command":"rm -rf build"}"""), approval)
+        val allow = org.json.JSONObject(ClaudeCode.answer(approval, allow = true))
+        assertEquals("control_response", allow.getString("type"))
+        val response = allow.getJSONObject("response")
+        assertEquals("r1", response.getString("request_id"))
+        assertEquals("allow", response.getJSONObject("response").getString("behavior"))
+        assertEquals("rm -rf build", response.getJSONObject("response").getJSONObject("updatedInput").getString("command"))
+        val deny = org.json.JSONObject(ClaudeCode.answer(approval, allow = false)).getJSONObject("response").getJSONObject("response")
+        assertEquals("deny", deny.getString("behavior"))
+        assertTrue(deny.getString("message").isNotEmpty())
+        assertEquals("r1", ClaudeCode.parse("""{"type":"control_cancel_request","request_id":"r1"}""")!!.resolved)
+        assertNull(ClaudeCode.parse("""{"type":"control_request","request_id":"r2","request":{"subtype":"hook_callback"}}"""))
     }
 
     @Test fun claudeShowsWholeEditsAndTodos() {
@@ -142,28 +164,99 @@ class AgentHostTest {
             """{"todos":[{"content":"read","status":"completed"},{"content":"fix","status":"in_progress"},{"content":"test","status":"pending"}]}""")))
     }
 
-    @Test fun codexEventsBecomeEntries() {
-        assertEquals("t1", Codex.parse("""{"type":"thread.started","thread_id":"t1"}""")!!.conversation)
-        assertEquals(listOf(Entry.Used("i1", "Shell", "uname -m", "uname -m")),
-            Codex.parse("""{"type":"item.started","item":{"id":"i1","type":"command_execution","command":"uname -m","status":"in_progress"}}""")!!.entries)
-        assertEquals(listOf(Entry.Result("i1", "aarch64\n", false)),
-            Codex.parse("""{"type":"item.completed","item":{"id":"i1","type":"command_execution","command":"uname -m","aggregated_output":"aarch64\n","exit_code":0}}""")!!.entries)
-        assertEquals(listOf(Entry.Said("It is aarch64.")),
-            Codex.parse("""{"type":"item.completed","item":{"id":"i2","type":"agent_message","text":"It is aarch64."}}""")!!.entries)
-        assertEquals(Entry.Used("i3", "Edit", "a.kt, b.kt", "a.kt\nb.kt"),
-            Codex.parse("""{"type":"item.completed","item":{"id":"i3","type":"file_change","status":"completed","changes":[{"path":"a.kt"},{"path":"b.kt"}]}}""")!!.entries.first())
-        assertEquals(listOf(Entry.Finished(null)), Codex.parse("""{"type":"turn.completed","usage":{}}""")!!.entries)
-        assertEquals(listOf(Entry.Finished("quota")), Codex.parse("""{"type":"turn.failed","error":{"message":"quota"}}""")!!.entries)
-        assertNull(Codex.parse("""{"type":"error","message":"Reconnecting... 1/5 (stream disconnected before completion)"}"""))
-        assertEquals(listOf(Entry.Finished("unauthorized")), Codex.parse("""{"type":"error","message":"unauthorized"}""")!!.entries)
-        assertNull(Codex.parse("""{"type":"item.started","item":{"type":"reasoning"}}"""))
+    private fun json(line: String) = org.json.JSONObject(line)
+
+    @Test fun codexOpensAThreadThenStartsTheTurn() {
+        val command = Codex.turn("hi", null, AgentHarness.Options())
+        assertEquals(listOf("/root/.local/bin/codex", "app-server"), command.takeLast(2))
+        assertTrue(command[2].endsWith("2>/root/.cache/droiddeck/codex.log"))
+        val p = Codex.Protocol()
+        val init = json(p.input("hi", null, AgentHarness.Options(model = "gpt", effort = "high", brief = "brief"), started = true).single())
+        assertEquals("initialize", init.getString("method"))
+        val lines = p.parse("""{"id":${init.getInt("id")},"result":{"userAgent":"codex"}}""")!!.reply
+        assertEquals(listOf("initialized", "thread/start"), lines.map { json(it).getString("method") })
+        val start = json(lines[1])
+        val params = start.getJSONObject("params")
+        assertEquals("untrusted", params.getString("approvalPolicy"))
+        assertEquals("danger-full-access", params.getString("sandbox"))
+        assertEquals("brief", params.getString("developerInstructions"))
+        val opened = p.parse("""{"id":${start.getInt("id")},"result":{"thread":{"id":"t1"},"approvalPolicy":"untrusted"}}""")!!
+        assertEquals("t1", opened.conversation)
+        val turn = json(opened.reply.single())
+        assertEquals("turn/start", turn.getString("method"))
+        assertEquals("t1", turn.getJSONObject("params").getString("threadId"))
+        assertEquals("hi", turn.getJSONObject("params").getJSONArray("input").getJSONObject(0).getString("text"))
+        assertEquals("high", turn.getJSONObject("params").getString("effort"))
+        val next = json(p.input("again", "t1", AgentHarness.Options(), started = false).single())
+        assertEquals("turn/start", next.getString("method"))
+        assertEquals("t1", next.getJSONObject("params").getString("threadId"))
+        fun opening(q: Codex.Protocol, conversation: String?, options: AgentHarness.Options): org.json.JSONObject {
+            val id = json(q.input("hi", conversation, options, started = true).single()).getInt("id")
+            return json(q.parse("""{"id":$id,"result":{}}""")!!.reply.last())
+        }
+        val resumed = opening(Codex.Protocol(), "t9", AgentHarness.Options(permission = AgentHarness.FULL))
+        assertEquals("thread/resume", resumed.getString("method"))
+        assertEquals("t9", resumed.getJSONObject("params").getString("threadId"))
+        assertEquals("never", resumed.getJSONObject("params").getString("approvalPolicy"))
+        assertEquals(listOf(Entry.Finished("no such thread")), Codex.Protocol().let { q ->
+            val id = opening(q, "gone", AgentHarness.Options()).getInt("id")
+            q.parse("""{"id":$id,"error":{"code":-32600,"message":"no such thread"}}""")!!.entries
+        })
+        // A thread that failed to open is asked for again on the same connection without a second initialize.
+        Codex.Protocol().let { q ->
+            val id = opening(q, "gone", AgentHarness.Options()).getInt("id")
+            q.parse("""{"id":$id,"error":{"code":-32600,"message":"no such thread"}}""")
+            assertEquals(listOf("thread/resume"), q.input("again", "gone", AgentHarness.Options(), started = false).map { json(it).getString("method") })
+        }
+        assertEquals(listOf(Entry.Finished("not signed in")), Codex.Protocol().let { q ->
+            val id = json(q.input("hi", null, AgentHarness.Options(), started = true).single()).getInt("id")
+            q.parse("""{"id":$id,"error":{"code":-32600,"message":"not signed in"}}""")!!.entries
+        })
     }
 
-    @Test fun codexTurnsSkipItsSandboxResumeAndTakeAModel() {
-        assertEquals(listOf("/root/.local/bin/codex", "exec", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "hi"),
-            Codex.turn("hi", null, AgentHarness.Options()))
-        assertEquals(listOf("/root/.local/bin/codex", "exec", "resume", "t1", "--json", "--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "-m", "gpt", "hi"),
-            Codex.turn("hi", "t1", AgentHarness.Options(model = "gpt")))
+    @Test fun codexItemsBecomeEntries() {
+        val p = Codex.Protocol()
+        assertEquals(listOf(Entry.Used("e1", "Shell", "touch x", "touch x")), p.parse(
+            """{"method":"item/started","params":{"item":{"type":"commandExecution","id":"e1","command":"/bin/bash -lc 'touch x'","status":"inProgress","aggregatedOutput":null,"exitCode":null}}}""")!!.entries)
+        assertEquals(listOf(Entry.Result("e1", "", false)), p.parse(
+            """{"method":"item/completed","params":{"item":{"type":"commandExecution","id":"e1","command":"/bin/bash -lc 'touch x'","status":"completed","aggregatedOutput":null,"exitCode":0}}}""")!!.entries)
+        assertTrue((p.parse("""{"method":"item/completed","params":{"item":{"type":"commandExecution","id":"e2","command":"false","status":"declined","aggregatedOutput":null,"exitCode":null}}}""")!!.entries.single() as Entry.Result).failed)
+        assertEquals(listOf(Entry.Said("done")), p.parse("""{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"m1","text":"done","phase":"final_answer"}}}""")!!.entries)
+        assertEquals("Do", p.parse("""{"method":"item/agentMessage/delta","params":{"itemId":"m1","delta":"Do"}}""")!!.text)
+        assertEquals(listOf(Entry.Used("f1#0", "Edit", "/w/note.txt", "/w/note.txt\n+hi")), p.parse(
+            """{"method":"item/started","params":{"item":{"type":"fileChange","id":"f1","changes":[{"path":"/w/note.txt","kind":{"type":"add"},"diff":"hi\n"}],"status":"inProgress"}}}""")!!.entries)
+        assertEquals(listOf(Entry.Result("f1#0", "", false)), p.parse(
+            """{"method":"item/completed","params":{"item":{"type":"fileChange","id":"f1","changes":[{"path":"/w/note.txt","kind":{"type":"add"},"diff":"hi\n"}],"status":"completed"}}}""")!!.entries)
+        p.parse("""{"method":"turn/started","params":{"turn":{"id":"u1"}}}""")
+        assertEquals("[x] read\n[~] fix\n[ ] test", (p.parse("""{"method":"turn/plan/updated","params":{"plan":[{"step":"read","status":"completed"},{"step":"fix","status":"inProgress"},{"step":"test","status":"pending"}]}}""")!!.entries.single() as Entry.Used).input)
+        val usage = p.parse("""{"method":"thread/tokenUsage/updated","params":{"tokenUsage":{"total":{"totalTokens":32017},"last":{"totalTokens":16055,"inputTokens":16019,"outputTokens":36},"modelContextWindow":258400}}}""")!!
+        assertEquals(16_055L, usage.context)
+        assertEquals(258_400L, usage.window)
+        assertEquals(listOf(AgentHost.Limit(10_080, 84, 1795123687)), p.parse(
+            """{"method":"account/rateLimits/updated","params":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":84,"windowDurationMins":10080,"resetsAt":1795123687},"secondary":null}}}""")!!.limits)
+        val end = p.parse("""{"method":"turn/completed","params":{"turn":{"id":"u1","status":"completed","error":null,"durationMs":4200}}}""")!!
+        assertEquals(listOf(Entry.Finished(null)), end.entries)
+        assertEquals(AgentHost.Usage(4200, 0.0, 16_019, 36), end.usage)
+        assertEquals(listOf(Entry.Finished("quota")), p.parse("""{"method":"turn/completed","params":{"turn":{"id":"u2","status":"failed","error":{"message":"quota"},"durationMs":null}}}""")!!.entries)
+        assertNull(p.parse("""{"method":"error","params":{"error":{"message":"Reconnecting..."},"willRetry":true}}"""))
+        assertNull(p.parse("not json"))
+    }
+
+    @Test fun codexApprovalRequestsWaitForTheUser() {
+        val p = Codex.Protocol()
+        val command = p.parse("""{"method":"item/commandExecution/requestApproval","id":0,"params":{"kind":"command","itemId":"e1","command":"/bin/bash -lc 'touch x'","cwd":"/w"}}""")!!.approval!!
+        assertEquals(AgentHost.Approval("0", "Shell", "touch x", "touch x", """{"id":0}"""), command)
+        assertEquals("""{"id":0,"result":{"decision":"accept"}}""", p.answer(command, allow = true))
+        assertEquals("decline", json(p.answer(command, allow = false)).getJSONObject("result").getString("decision"))
+        p.parse("""{"method":"item/started","params":{"item":{"type":"fileChange","id":"f1","changes":[{"path":"/w/a.kt","kind":{"type":"update"},"diff":"@@ -1 +1 @@\n-old\n+new\n"}],"status":"inProgress"}}}""")
+        val edit = p.parse("""{"method":"item/fileChange/requestApproval","id":1,"params":{"itemId":"f1","reason":null}}""")!!.approval!!
+        assertEquals("Edit", edit.tool)
+        assertEquals("/w/a.kt", edit.detail)
+        assertEquals("/w/a.kt\n-old\n+new", edit.input)
+        val refused = json(p.parse("""{"method":"item/tool/requestUserInput","id":2,"params":{}}""")!!.reply.single())
+        assertEquals(2, refused.getInt("id"))
+        assertTrue(refused.has("error"))
+        assertEquals("1", p.parse("""{"method":"serverRequest/resolved","params":{"requestId":1}}""")!!.resolved)
     }
 
     @Test fun aToolIdUsedAgainInALaterTurnIsANewCall() {
@@ -287,28 +380,6 @@ class AgentHostTest {
         assertEquals(listOf(AgentHost.Limit(300, 7, 1794435600), AgentHost.Limit(10_080, 85, 1794592800)), event.limits)
         val result = ClaudeCode.parse("""{"type":"result","subtype":"success","is_error":false,"result":"done","usage":{},"modelUsage":{"claude-haiku":{"costUSD":0.01,"contextWindow":200000},"claude-sonnet":{"costUSD":0.7,"contextWindow":1000000}}}""")!!
         assertEquals(1_000_000L, result.window)
-    }
-
-    @Test fun codexTokenCountsCarryContextAndLimits() {
-        val event = Codex.tokenCount("""{"timestamp":"t","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":90000},"last_token_usage":{"total_tokens":41000},"model_context_window":272000},"rate_limits":{"primary":{"used_percent":12.5,"window_minutes":300,"resets_at":1794435600},"secondary":{"used_percent":40.0,"window_minutes":10080,"resets_at":1794592800}}}}""")!!
-        assertEquals(41_000L, event.context)
-        assertEquals(272_000L, event.window)
-        assertEquals(listOf(AgentHost.Limit(300, 12, 1794435600), AgentHost.Limit(10_080, 40, 1794592800)), event.limits)
-        assertNull(Codex.tokenCount("""{"type":"event_msg","payload":{"type":"agent_message"}}"""))
-    }
-
-    @Test fun codexUsageComesFromTheThreadsSessionLog() {
-        val root = Files.createTempDirectory("rootfs").toFile()
-        val log = File(root, "root/.codex/sessions/2026/11/12/rollout-2026-11-12T10-00-00-thread1.jsonl").apply { parentFile!!.mkdirs() }
-        log.writeText(
-            """{"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"total_tokens":15692},"model_context_window":258400},"rate_limits":{"primary":{"used_percent":86.0,"window_minutes":10080,"resets_at":1794716485},"secondary":null}}}""" + "\n" +
-                """{"type":"response_item","payload":{"type":"additional_tools","tools":[{"description":"reports token_count as it goes"}]}}""" + "\n",
-        )
-        val event = Codex.usage(root, "thread1")!!
-        assertEquals(15_692L, event.context)
-        assertEquals(258_400L, event.window)
-        assertEquals(listOf(AgentHost.Limit(10_080, 86, 1794716485)), event.limits)
-        assertNull(Codex.usage(root, "other"))
     }
 
     @Test fun limitsRoundTripThroughPrefs() {

@@ -22,7 +22,6 @@
         <item>Aggiungi librerie Steam da una scheda SD, un\'unità USB o un SSD, e DroidDeck tiene i giochi insieme nella tua Libreria.</item>
         <item>Negozi ti permette di accedere a Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io e Game Jolt, poi di installare e aggiornare i loro giochi da DroidDeck.</item>
         <item>I componenti come FEX, DXVK e VKD3D-Proton si aggiornano da soli, e Proton Experimental ARM64 è il predefinito, oppure Proton 11.0 ARM64 una volta installata quella build.</item>
-        <item>Comprimi Steam durante il gioco libera RAM sui dispositivi che ne hanno poca.</item>
         <item>Scorri verso l\'interno dal bordo destro per aprire il menu della sessione: modalità touchpad, Tastiera PC, Modalità bassa latenza, Profilo del gioco e altro.</item>
         <item>Il gioco è lento? Limita il frame rate in Accesso rapido, poi prova un\'altra versione di Proton o un altro preset FEX nei componenti del gioco.</item>
         <item>Audio del gioco che gracchia o manca? Prova l\'opzione DirectAudio per i giochi nelle impostazioni di Steam, sotto Audio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Questo programma è compilato per PC %1$s e viene eseguito tramite FEX, che non è ancora configurato. Apri Steam una volta dopo aver eseguito l\'accesso: DroidDeck gli farà scaricare FEX e lo Steam Linux Runtime necessario, poi il programma si aprirà.</string>
     <string name="session_proot_missing">Impossibile scaricare il proot di DroidDeck. Controlla la connessione e riprova. La sessione non è stata avviata perché il proot di riserva è troppo lento per giocare.</string>
     <string name="session_powervr_missing">Non è stato possibile scaricare l\'ambiente grafico PowerVR. Controlla la connessione e riprova.</string>
+    <string name="session_graphics_runtime_failed">Non è stato possibile preparare l\'ambiente grafico, quindi la sessione non è stata avviata.</string>
+    <string name="session_game_environment_failed">Non è stato possibile configurare l\'ambiente di gioco, quindi la sessione non è stata avviata.</string>
     <string name="session_directaudio_missing">Impossibile scaricare DirectAudio, quindi l\'audio dei giochi usa il percorso più lento in questa sessione.</string>
     <string name="session_end_program">Questo programma</string>
     <string name="session_end_present_fault">La sessione non è riuscita a disegnare sullo schermo: %1$s. Questa schermata mostra il motivo al posto di una schermata nera; i log della sessione contengono i dettagli.</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">Tocco</string>
     <string name="mode_pen_button">Tasto laterale</string>
     <string name="mode_osc">Controlli su schermo</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto mostra i controlli quando non è collegato nessun controller.</string>
-    <string name="osc_steam_touch">Touch di Steam (beta)</string>
-    <string name="osc_style_next_session">I controlli touch di Steam partono dalla prossima sessione Steam</string>
     <string name="osc_steam_layout">Layout touch di Steam</string>
     <string name="screen_key_layout_export">Esporta</string>
     <string name="screen_key_image">Immagine</string>
-    <string name="osc_steam_layout_hint">Sposta, ridimensiona o nascondi i controlli touch di questo gioco; vengono salvati su Steam</string>
     <string name="mode_controller">Controller</string>
     <string name="mode_controller_hint">Come Steam vede il tuo controller. Si applica dalla prossima sessione.</string>
     <string name="mode_controller_deck">Controller di Steam Deck</string>
@@ -429,7 +426,6 @@
     <string name="mode_directaudio_hint">Bypassa PulseAudio per ridurre la latenza.</string>
     <string name="mode_mic">Microfono</string>
     <string name="mode_mic_hint">Per la chat vocale.</string>
-    <string name="drawer_mic_hint">Attiva o disattiva l\'acquisizione del microfono per questa sessione.</string>
     <string name="drawer_mic_failed">Impossibile cambiare il microfono. Riprova.</string>
     <string name="mode_network">Rete</string>
     <string name="mode_wifi_discovery">Rilevamento Wi-Fi</string>
@@ -626,20 +622,8 @@
     <string name="perf_gsrealtime">gamescope: coda GPU in tempo reale</string>
     <string name="perf_gsrealtime_hint">Dà priorità al lavoro GPU del compositor. Può rendere più regolare il frame pacing, a scapito dei giochi.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memoria</string>
     <string name="perf_cap_off">Disattivo</string>
-    <string name="perf_cap_auto">Predefinito del driver</string>
-    <string name="perf_zram_client">Comprimi Steam durante il gioco</string>
-    <string name="perf_zram_idle">Comprimi la memoria inattiva del gioco</string>
-    <string name="perf_zram_idle_hint">Comprime la memoria inattiva del gioco quando la RAM scarseggia. Disattivalo se i giochi si bloccano per qualche secondo circa ogni mezzo minuto. Si applica al prossimo avvio della sessione.</string>
-    <string name="perf_zram_client_hint">20 s dopo l\'avvio di un gioco, il client Steam viene compresso in zRAM per lasciare più memoria al gioco e viene riletto quando il gioco si chiude. Disattivalo se la sessione si chiude poco dopo l\'avvio dei giochi. Un limite di RAM impostato sopra comprime comunque Steam quando la sessione lo supera.</string>
-    <string name="perf_ram_cap">Limite RAM</string>
-    <string name="perf_ram_cap_hint">Si applica mentre il client Steam è in esecuzione, in modalità Steam o dal desktop. Quando la sessione usa più di questo valore, Steam e poi gli altri processi supportati della sessione vengono compressi in zRAM. È un limite morbido: non viene chiuso nulla, ma i giochi possono scattare mentre le pagine vengono recuperate.</string>
-    <string name="perf_ram_cap_unavailable">Richiede lo swap zRAM, che questo dispositivo non ha.</string>
-    <string name="perf_vram_cap">Limite VRAM</string>
-    <string name="perf_vram_cap_hint">La memoria video che DXVK comunica ai giochi Direct3D, così usano meno texture. Le impostazioni DXVK del gioco hanno comunque la priorità. Si applica dalla prossima sessione.</string>
     <string name="perf_gpuclock">Mantieni la GPU alla frequenza massima</string>
-    <string name="perf_gpuclock_hint">Solo Adreno. Meno scatti, più consumo di batteria e più calore.</string>
     <string name="perf_fixes">Correzioni della sessione</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
     <string name="perf_sysmem_hint">Si applica al client Steam e ai giochi. Necessario su Adreno 710/720/722.</string>
@@ -804,7 +788,6 @@
     <string name="drawer_keyboard">Tastiera</string>
     <string name="drawer_latency">Latenza</string>
     <string name="drawer_low_latency">Modalità bassa latenza</string>
-    <string name="drawer_low_latency_hint">Aumenta l\'uso di CPU e batteria</string>
     <string name="drawer_low_latency_controller">Controller a bassa latenza</string>
     <string name="drawer_low_latency_controller_hint">Il controller invia dati a 1000 Hz invece di 250 Hz. Un po\' più di CPU.</string>
     <string name="drawer_low_latency_touch">Touch a bassa latenza</string>
@@ -817,7 +800,6 @@
     <string name="drawer_pc_keyboard">Tastiera PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Secondo schermo</string>
-    <string name="drawer_second_screen_mode">Modalità</string>
     <string name="drawer_second_screen_shows">Mostra</string>
     <string name="drawer_android_apps">App Android</string>
     <string name="drawer_launch_app">Avvia un\'app</string>
@@ -1355,12 +1337,8 @@
     <string name="ctrl_opacity">Opacità</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Dimensione dei tasti</string>
-    <string name="ctrl_adaptive">Levette adattive</string>
     <string name="ctrl_rumble">Vibrazione di gioco</string>
     <string name="ctrl_dead_zone">Zona morta dello stick</string>
-    <string name="ctrl_steam_button">Tasto Steam</string>
-    <string name="ctrl_qam_button">Tasto QAM</string>
-    <string name="ctrl_keyboard_button">Tasto tastiera</string>
     <string name="ctrl_joycon_vr">Joy-Con come controller VR</string>
     <string name="ctrl_joycon_vr_hint">Mentre SteamVR è in esecuzione, ogni Joy-Con diventa una mano. Puntalo in avanti e tieni premuto Home o Capture per ricentrarlo.</string>
     <string name="setup_animations">Animazioni</string>
@@ -1490,8 +1468,6 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Chiudi i controlli sul secondo schermo</string>
     <string name="deck_open_steam_menu">Apri il menu Steam</string>
-    <string name="deck_right_trackpad">Trackpad destro</string>
-    <string name="deck_left_trackpad">Trackpad sinistro</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Mostra tastiera</string>
     <string name="second_hide_keyboard">Nascondi tastiera</string>
@@ -1530,11 +1506,8 @@
     <string name="pckb_android">Tastiera Android</string>
     <string name="pckb_hide">Nascondi  ✕</string>
     <string name="pckb_size">Dimensioni sullo schermo</string>
-    <string name="pckb_size_hint">Porzione dello schermo occupata dalla tastiera, intestazione inclusa.</string>
     <string name="pckb_opacity">Opacità</string>
-    <string name="pckb_opacity_hint">Riducila per vedere il gioco dietro la tastiera.</string>
     <string name="pckb_hidden_keys">Tasti nascosti</string>
-    <string name="pckb_hidden_keys_hint">I tasti che usi raramente non compaiono sulla tastiera.</string>
     <string name="pckb_group_function">Esc e riga dei tasti funzione</string>
     <string name="pckb_group_nav">Ins / Canc / Home / Fine / PgSu / PgGiù</string>
     <string name="pckb_group_arrows">Tasti freccia</string>
@@ -1572,6 +1545,8 @@
     <string name="pip_unavailable">Android non è riuscito ad aprire il picture in picture.</string>
     <string name="game_more">Altro</string>
     <string name="game_edit_art">Modifica grafica</string>
+    <string name="game_unhide">Rimuovi dai nascosti</string>
+    <string name="game_hide_failed">Impossibile sincronizzare con Steam. Chiudi Steam e riprova.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Scorciatoia</string>
     <string name="game_shortcut_add">Aggiungi alla schermata Home</string>
@@ -1753,8 +1728,6 @@
     <string name="drivers_installed_pick">Installato %1$s - sceglilo nel menu</string>
     <string name="session_wait_removal">Attendi la fine della rimozione del runtime</string>
     <string name="session_title_game">Gioco</string>
-    <string name="session_touch_auto_touchpad">touchpad</string>
-    <string name="session_touch_auto_direct">diretto</string>
     <string name="session_swap_failed">Sostituzione non riuscita: %1$s</string>
     <string name="session_profile_save_failed">Salvataggio del profilo non riuscito: %1$s</string>
     <string name="session_desktop_paused">Il desktop è in pausa</string>
@@ -2019,15 +1992,6 @@
     <string name="fm_up_one_level">Livello superiore</string>
     <string name="fm_choose_folder">Scegli una cartella</string>
     <string name="fm_choose_file">Scegli un file</string>
-    <string name="ctrl_tint_steam_blue">Blu Steam</string>
-    <string name="ctrl_tint_sky">Cielo</string>
-    <string name="ctrl_tint_white">Bianco</string>
-    <string name="ctrl_tint_violet">Viola</string>
-    <string name="ctrl_tint_green">Verde</string>
-    <string name="ctrl_tint_amber">Ambra</string>
-    <string name="ctrl_tint_red">Rosso</string>
-    <string name="ctrl_tint_pink">Rosa</string>
-    <string name="ctrl_tint_gray">Grigio</string>
     <string name="ctrl_button_a">Pulsante A</string>
     <string name="ctrl_button_b">Pulsante B</string>
     <string name="ctrl_button_x">Pulsante X</string>
@@ -2326,6 +2290,17 @@
     <string name="pextra_checksum_mismatch">Checksum non corrispondente; il download è stato eliminato</string>
     <string name="pextra_session_started">È stata avviata una sessione durante il download; interrompila prima di installare strumenti di compatibilità</string>
     <string name="pextra_installing">Installazione di %1$s</string>
+    <string name="xproton_title">Build sperimentali</string>
+    <string name="xproton_install_file">Installa da file</string>
+    <string name="xproton_archive_unsafe">L\'archivio contiene un collegamento o percorso non sicuro</string>
+    <string name="xproton_archive_invalid">Archivio non supportato o non valido</string>
+    <string name="xproton_no_space">Spazio libero insufficiente per questa build di Proton</string>
+    <string name="xproton_unpacking">Estrazione di Proton (qualche minuto)</string>
+    <string name="xproton_untar_failed">Estrazione non riuscita (tar %1$d)</string>
+    <string name="xproton_no_tree">L\'archivio non contiene alcuna build di Proton</string>
+    <string name="xproton_place_failed">Impossibile posizionare la build di Proton</string>
+    <string name="xproton_remove_failed">Impossibile rimuovere completamente %1$s</string>
+    <string name="xproton_installed">Proton sperimentale installato. Selezionalo in Steam → Proprietà → Compatibilità.</string>
     <string name="pextra_install_failed">Installazione di %1$s non riuscita (uscita %2$d)</string>
     <string name="pextra_could_not_install">Impossibile installare %1$s</string>
     <string name="esync_fetching">Recupero del pacchetto droiddeck-esync</string>
@@ -3156,7 +3131,6 @@
     <string name="glasses_pro2_experimental">Tracciamento sperimentale della testa per Pro 2. La regolazione di luminosità e volume e il cambio della modalità di visualizzazione non sono ancora supportati.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Modalità Cardboard</string>
-    <string name="cardboard_mode_hint">Immagini per l\'occhio sinistro e destro, per un visore VR per telefono.</string>
     <string name="cardboard_source">Immagine</string>
     <string name="cardboard_source_screen">Schermo virtuale</string>
     <string name="cardboard_source_sbs">3D affiancato</string>
@@ -3179,7 +3153,6 @@
     <string name="cardboard_steamvr_unavailable">Non disponibile in questa sessione.</string>
     <string name="cardboard_steamvr_failed">SteamVR non ha risposto; controlla il log della sessione.</string>
     <string name="drawer_component_downloads">Scarica componenti</string>
-    <string name="drawer_component_downloads_hint">I download sono condivisi con la pagina Componenti. Scegli sopra una versione scaricata per usarla al prossimo avvio del gioco.</string>
     <string name="drawer_component_choose_download">Scegli una versione da scaricare</string>
     <string name="stores_fact_developer">Sviluppatore</string>
     <string name="stores_fact_publisher">Editore</string>
@@ -3377,10 +3350,19 @@
     <string name="storage_shared_prefix">Prefisso condiviso di Steam</string>
     <string name="storage_shared_prefix_detail">Steam esegue qui i propri strumenti Windows</string>
     <string name="storage_reset_shared_confirm">Lo elimina (%1$s). Steam ne crea uno nuovo la prossima volta che serve.</string>
+    <string name="storage_remove_launcher_confirm">Elimina il prefisso Wine e la cache degli shader di questa app dello store (%1$s), con il suo accesso e i salvataggi presenti solo lì. I giochi che vi girano ricevono un nuovo prefisso e potrebbe essere necessario configurare di nuovo l\'app. I salvataggi cloud restano nel tuo account.</string>
+    <string name="storage_system_clearable">Si possono liberare %1$s</string>
+    <string name="storage_item_system_caches">Cache di Linux e Steam</string>
+    <string name="storage_item_system_caches_detail">Vecchi file temporanei, pacchetti scaricati e cache web di Steam</string>
+    <string name="storage_cache_temp">Vecchi file temporanei</string>
+    <string name="storage_cache_packages">Pacchetti scaricati</string>
+    <string name="storage_cache_steam_web">Cache web di Steam</string>
+    <string name="storage_cache_steam_corrupt">Download di Steam danneggiati</string>
+    <string name="storage_cache_detail">Ricreati quando servono</string>
+    <string name="storage_clear">Svuota</string>
     <string name="storage_launcher_prefix">Un\'app di uno store e i giochi che girano con essa</string>
     <string name="storage_launcher_used_by">Usato da %1$s</string>
     <string name="storage_shortcut_app">Gioco non Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Non associato a nessun gioco, quindi viene conservato</string>
     <string name="storage_remove_selected">Rimuovi selezionati · %1$s</string>
     <string name="storage_uninstall_selected">Disinstalla selezionati · %1$s</string>
     <string name="storage_bulk_prefixes">Prefissi Wine</string>
@@ -4128,4 +4110,18 @@
     <string name="display_scaling_integer">Intero</string>
     <string name="display_scaling_fit">Adatta</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+    <string name="theme_custom">Personalizzato</string>
+    <string name="theme_custom_detail">Scegli separatamente ogni colore dell’interfaccia.</string>
+    <string name="theme_custom_background">Sfondo</string>
+    <string name="theme_custom_surface">Pannelli</string>
+    <string name="theme_custom_surface_variant">Pannelli rialzati</string>
+    <string name="theme_custom_line">Separatori</string>
+    <string name="theme_custom_line2">Bordi</string>
+    <string name="theme_custom_on_background">Testo principale</string>
+    <string name="theme_custom_on_surface_variant">Testo secondario</string>
+    <string name="theme_custom_primary">Pulsanti e colore principale</string>
+    <string name="theme_custom_on_primary">Testo dei pulsanti</string>
+    <string name="theme_custom_signal">Evidenziazioni</string>
+    <string name="theme_custom_good">Successo</string>
+    <string name="theme_custom_error">Errore</string>
 </resources>

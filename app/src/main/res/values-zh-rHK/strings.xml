@@ -22,7 +22,6 @@
         <item>可加入 SD 卡、USB 隨身碟或 SSD 上的 Steam 遊戲庫，DroidDeck 會把這些遊戲集中在你的收藏庫中。</item>
         <item>「商店」讓你登入 Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io 和 Game Jolt，然後在 DroidDeck 中安裝和更新它們的遊戲。</item>
         <item>FEX、DXVK 和 VKD3D-Proton 等元件會自動更新，預設使用 Proton Experimental ARM64，安裝 Proton 11.0 ARM64 後則預設使用它。</item>
-        <item>「遊戲執行時壓縮 Steam」可在記憶體不足的裝置上釋放 RAM。</item>
         <item>從右邊緣向內滑動可開啟工作階段選單：觸控板模式、電腦鍵盤、低延遲、遊戲設定檔等。</item>
         <item>遊戲執行緩慢？先在快速存取中限制影格率，再到遊戲的元件中嘗試其他 Proton 版本或 FEX 預設。</item>
         <item>遊戲音訊爆音或沒有聲音？請在 Steam 設定的「音訊」下嘗試「遊戲使用 DirectAudio」開關。</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">此程式是為 %1$s 電腦而設，需透過 FEX 執行，但 FEX 尚未設定。請在登入狀態下開啟一次 Steam：DroidDeck 會讓它下載 FEX 及所需的 Steam Linux Runtime，之後便會開啟此程式。</string>
     <string name="session_proot_missing">無法下載 DroidDeck 的 proot。請檢查連線後再試一次。會話未啟動，因為備用 proot 太慢，無法用來玩遊戲。</string>
     <string name="session_powervr_missing">無法下載 PowerVR 圖形環境。請檢查網絡連線後再試。</string>
+    <string name="session_graphics_runtime_failed">無法準備圖形環境，因此未有啟動工作階段。</string>
+    <string name="session_game_environment_failed">無法設定遊戲環境，因此未有啟動工作階段。</string>
     <string name="session_directaudio_missing">無法下載 DirectAudio，因此本次會話的遊戲音訊會使用較慢的路徑。</string>
     <string name="session_end_program">此程式</string>
     <string name="session_end_present_fault">工作階段無法把畫面繪製到螢幕：%1$s。這個畫面會顯示原因，而不是黑畫面；詳情載於工作階段記錄。</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">觸控</string>
     <string name="mode_pen_button">側鍵</string>
     <string name="mode_osc">螢幕控制</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">「自動」會在未連接控制器時顯示螢幕控制。</string>
-    <string name="osc_steam_touch">Steam 觸控（測試版）</string>
-    <string name="osc_style_next_session">Steam 的觸控控制會在下次 Steam 會話啟用</string>
     <string name="osc_steam_layout">Steam 觸控佈局</string>
     <string name="screen_key_layout_export">匯出</string>
     <string name="screen_key_image">圖片</string>
-    <string name="osc_steam_layout_hint">移動、調整大小或隱藏此遊戲的觸控控制；會儲存至 Steam</string>
     <string name="mode_controller">控制器</string>
     <string name="mode_controller_hint">Steam 如何識別你的控制器。下次會話生效。</string>
     <string name="mode_controller_deck">Steam Deck 控制器</string>
@@ -427,7 +424,6 @@
     <string name="mode_directaudio_hint">繞過 PulseAudio 以減低延遲。</string>
     <string name="mode_mic">麥克風</string>
     <string name="mode_mic_hint">用於語音聊天。</string>
-    <string name="drawer_mic_hint">為此會話開啟或關閉麥克風收音。</string>
     <string name="drawer_mic_failed">無法變更麥克風設定，請再試一次。</string>
     <string name="mode_network">網絡</string>
     <string name="mode_wifi_discovery">Wi-Fi 探索</string>
@@ -622,20 +618,8 @@
     <string name="perf_gsrealtime">gamescope：即時 GPU 佇列</string>
     <string name="perf_gsrealtime_hint">優先處理合成器的 GPU 工作。可令幀間隔更平穩，但會犧牲少許遊戲效能。</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">記憶體</string>
     <string name="perf_cap_off">關閉</string>
-    <string name="perf_cap_auto">驅動程式預設</string>
-    <string name="perf_zram_client">遊戲執行時壓縮 Steam</string>
-    <string name="perf_zram_idle">壓縮遊戲閒置記憶體</string>
-    <string name="perf_zram_idle_hint">RAM 偏低時壓縮遊戲閒置記憶體。如果遊戲大約每半分鐘凍結幾秒，請關閉此項。下次啟動工作階段時生效。</string>
-    <string name="perf_zram_client_hint">遊戲啟動 20 秒後，Steam 用戶端會被壓縮到 zRAM，為遊戲騰出更多記憶體，並在遊戲關閉時讀回。如果會話在遊戲啟動後不久就關閉，請關閉此選項。若超過上方的 RAM 上限，會話仍會壓縮 Steam。</string>
-    <string name="perf_ram_cap">RAM 上限</string>
-    <string name="perf_ram_cap_hint">在 Steam 用戶端執行時生效，無論是 Steam 模式或從桌面啟動。當會話的用量超過此值時，會先將 Steam、再將會話中其他受支援的程序壓縮到 zRAM。這是軟性上限：不會關閉任何程式，但在分頁讀回時遊戲可能會卡頓。</string>
-    <string name="perf_ram_cap_unavailable">需要 zRAM 交換空間，但此裝置沒有。</string>
-    <string name="perf_vram_cap">VRAM 上限</string>
-    <string name="perf_vram_cap_hint">向 Direct3D 9 至 12 遊戲報告此顯存預算，以促使遊戲減少記憶體用量。遊戲可能超出預算；此功能不提供 GPU 分頁，也不保證避免因記憶體不足而崩潰。下次工作階段生效。</string>
     <string name="perf_gpuclock">讓 GPU 保持最高頻率</string>
-    <string name="perf_gpuclock_hint">只限 Adreno。減少卡頓，但更耗電、更發熱。</string>
     <string name="perf_fixes">會話修正</string>
     <string name="perf_sysmem">Turnip：sysmem 渲染</string>
     <string name="perf_sysmem_hint">適用於 Steam 用戶端和遊戲。Adreno 710/720/722 必須開啟。</string>
@@ -800,7 +784,6 @@
     <string name="drawer_keyboard">鍵盤</string>
     <string name="drawer_latency">延遲</string>
     <string name="drawer_low_latency">低延遲模式</string>
-    <string name="drawer_low_latency_hint">會增加 CPU 和電池用量</string>
     <string name="drawer_low_latency_controller">低延遲控制器</string>
     <string name="drawer_low_latency_controller_hint">控制器以 1000 Hz 而非 250 Hz 回報。CPU 使用率略高。</string>
     <string name="drawer_low_latency_touch">低延遲觸控</string>
@@ -813,7 +796,6 @@
     <string name="drawer_pc_keyboard">電腦鍵盤</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">第二螢幕</string>
-    <string name="drawer_second_screen_mode">模式</string>
     <string name="drawer_second_screen_shows">顯示</string>
     <string name="drawer_android_apps">Android 應用程式</string>
     <string name="drawer_launch_app">啟動應用程式</string>
@@ -1350,12 +1332,8 @@
     <string name="ctrl_opacity">不透明度</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">按鍵大小</string>
-    <string name="ctrl_adaptive">自動調整搖桿</string>
     <string name="ctrl_rumble">遊戲震動</string>
     <string name="ctrl_dead_zone">搖桿死區</string>
-    <string name="ctrl_steam_button">Steam 按鈕</string>
-    <string name="ctrl_qam_button">QAM 按鈕</string>
-    <string name="ctrl_keyboard_button">鍵盤按鈕</string>
     <string name="ctrl_joycon_vr">將 Joy-Con 用作 VR 控制器</string>
     <string name="ctrl_joycon_vr_hint">SteamVR 執行時，每個 Joy-Con 都會變成一隻手。將它指向前方並按住 HOME 鍵或擷取鍵，即可重新置中。</string>
     <string name="setup_animations">動畫</string>
@@ -1483,8 +1461,6 @@
     <string name="deck_surface_trackpad">觸控板</string>
     <string name="deck_close">關閉第二螢幕控制</string>
     <string name="deck_open_steam_menu">開啟 Steam 選單</string>
-    <string name="deck_right_trackpad">右側觸控板</string>
-    <string name="deck_left_trackpad">左側觸控板</string>
     <string name="second_trackpad">觸控板</string>
     <string name="second_show_keyboard">顯示鍵盤</string>
     <string name="second_hide_keyboard">隱藏鍵盤</string>
@@ -1523,11 +1499,8 @@
     <string name="pckb_android">Android 鍵盤</string>
     <string name="pckb_hide">隱藏 ✕</string>
     <string name="pckb_size">畫面佔比</string>
-    <string name="pckb_size_hint">鍵盤佔用的畫面比例，包括標題列。</string>
     <string name="pckb_opacity">不透明度</string>
-    <string name="pckb_opacity_hint">調低即可看到鍵盤後方的遊戲畫面。</string>
     <string name="pckb_hidden_keys">隱藏按鍵</string>
-    <string name="pckb_hidden_keys_hint">少用的按鍵不會顯示在鍵盤上。</string>
     <string name="pckb_group_function">Esc 與功能鍵列</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">方向鍵</string>
@@ -1565,6 +1538,8 @@
     <string name="pip_unavailable">Android 無法開啟畫中畫。</string>
     <string name="game_more">更多</string>
     <string name="game_edit_art">編輯圖片</string>
+    <string name="game_unhide">取消隱藏</string>
+    <string name="game_hide_failed">無法與 Steam 同步。請關閉 Steam 後再試。</string>
     <string name="stores_in_steam_label">在 Steam 中</string>
     <string name="game_shortcut">捷徑</string>
     <string name="game_shortcut_add">加至主畫面</string>
@@ -1730,8 +1705,6 @@
     <string name="drivers_installed_pick">已安裝 %1$s - 請在選單中選擇</string>
     <string name="session_wait_removal">請等待運行環境移除完成</string>
     <string name="session_title_game">遊戲</string>
-    <string name="session_touch_auto_touchpad">觸控板</string>
-    <string name="session_touch_auto_direct">直接</string>
     <string name="session_swap_failed">替換失敗：%1$s</string>
     <string name="session_profile_save_failed">設定檔儲存失敗：%1$s</string>
     <string name="session_desktop_paused">桌面已暫停</string>
@@ -1978,15 +1951,6 @@
     <string name="fm_up_one_level">返回上一層</string>
     <string name="fm_choose_folder">選擇資料夾</string>
     <string name="fm_choose_file">選擇檔案</string>
-    <string name="ctrl_tint_steam_blue">Steam 藍</string>
-    <string name="ctrl_tint_sky">天藍</string>
-    <string name="ctrl_tint_white">白色</string>
-    <string name="ctrl_tint_violet">紫羅蘭</string>
-    <string name="ctrl_tint_green">綠色</string>
-    <string name="ctrl_tint_amber">琥珀色</string>
-    <string name="ctrl_tint_red">紅色</string>
-    <string name="ctrl_tint_pink">粉紅色</string>
-    <string name="ctrl_tint_gray">灰色</string>
     <string name="ctrl_button_a">A 鍵</string>
     <string name="ctrl_button_b">B 鍵</string>
     <string name="ctrl_button_x">X 鍵</string>
@@ -2283,6 +2247,17 @@
     <string name="pextra_checksum_mismatch">校驗和不符；已刪除下載的檔案</string>
     <string name="pextra_session_started">下載期間有會話啟動；請先停止該會話，再安裝兼容性工具</string>
     <string name="pextra_installing">正在安裝 %1$s</string>
+    <string name="xproton_title">實驗版本</string>
+    <string name="xproton_install_file">從檔案安裝</string>
+    <string name="xproton_archive_unsafe">壓縮檔包含不安全的連結或路徑</string>
+    <string name="xproton_archive_invalid">不支援或無效的壓縮檔</string>
+    <string name="xproton_no_space">可用空間不足，無法安裝此 Proton 版本</string>
+    <string name="xproton_unpacking">正在解包 Proton（需要幾分鐘）</string>
+    <string name="xproton_untar_failed">解包失敗（tar %1$d）</string>
+    <string name="xproton_no_tree">壓縮檔中不含 Proton 版本</string>
+    <string name="xproton_place_failed">無法放置 Proton 版本</string>
+    <string name="xproton_remove_failed">無法完全移除 %1$s</string>
+    <string name="xproton_installed">實驗版 Proton 已安裝。請在 Steam → 內容 → 相容性 中選擇。</string>
     <string name="pextra_install_failed">%1$s 安裝失敗（結束代碼 %2$d）</string>
     <string name="pextra_could_not_install">無法安裝 %1$s</string>
     <string name="esync_fetching">正在下載 droiddeck-esync 套件</string>
@@ -3114,7 +3089,6 @@
     <string name="stores_hltb_minutes">%1$d 分鐘</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard 模式</string>
-    <string name="cardboard_mode_hint">為手機 VR 眼鏡提供左右眼畫面。</string>
     <string name="cardboard_source">畫面</string>
     <string name="cardboard_source_screen">虛擬螢幕</string>
     <string name="cardboard_source_sbs">左右並排 3D</string>
@@ -3137,7 +3111,6 @@
     <string name="cardboard_steamvr_unavailable">此工作階段中無法使用。</string>
     <string name="cardboard_steamvr_failed">SteamVR 沒有回應；請查看工作階段日誌。</string>
     <string name="drawer_component_downloads">下載元件</string>
-    <string name="drawer_component_downloads_hint">下載內容與「元件」頁面共用。在上方選擇已下載的版本，即可在下次啟動遊戲時使用。</string>
     <string name="drawer_component_choose_download">選擇要下載的版本</string>
     <string name="display_picture_position">畫面位置</string>
     <string name="display_position_top">置頂</string>
@@ -3309,10 +3282,19 @@
     <string name="storage_shared_prefix">Steam 的共用前綴</string>
     <string name="storage_shared_prefix_detail">Steam 在此執行其自帶的 Windows 輔助程式</string>
     <string name="storage_reset_shared_confirm">刪除該前綴（%1$s）。Steam 下次需要時會新建一個。</string>
+    <string name="storage_remove_launcher_confirm">刪除此商店應用程式的 Wine 前綴和著色器快取（%1$s），包括其登入資料和只存於其中的存檔。在其中執行的遊戲會獲得新的前綴，你可能需要重新設定該應用程式。雲端存檔仍會保留在你的帳戶中。</string>
+    <string name="storage_system_clearable">可清理 %1$s</string>
+    <string name="storage_item_system_caches">Linux 和 Steam 快取</string>
+    <string name="storage_item_system_caches_detail">舊暫存檔、已下載的套件和 Steam 網頁快取</string>
+    <string name="storage_cache_temp">舊暫存檔</string>
+    <string name="storage_cache_packages">已下載的套件</string>
+    <string name="storage_cache_steam_web">Steam 網頁快取</string>
+    <string name="storage_cache_steam_corrupt">損壞的 Steam 下載</string>
+    <string name="storage_cache_detail">需要時會重新建立</string>
+    <string name="storage_clear">清理</string>
     <string name="storage_launcher_prefix">商店應用程式及透過它執行的遊戲</string>
     <string name="storage_launcher_used_by">由 %1$s 使用</string>
     <string name="storage_shortcut_app">非 Steam 遊戲 %1$s</string>
-    <string name="storage_unknown_prefix_detail">未配對到任何遊戲，因此保留</string>
     <string name="storage_remove_selected">移除所選 · %1$s</string>
     <string name="storage_uninstall_selected">解除安裝所選 · %1$s</string>
     <string name="storage_bulk_prefixes">Wine 前綴</string>
@@ -4059,4 +4041,18 @@
     <string name="display_scaling_integer">整數</string>
     <string name="display_scaling_fit">配合畫面</string>
     <string name="drawer_antialiasing">抗鋸齒</string>
+    <string name="theme_custom">自訂</string>
+    <string name="theme_custom_detail">分別選擇介面的每種顏色。</string>
+    <string name="theme_custom_background">背景</string>
+    <string name="theme_custom_surface">面板</string>
+    <string name="theme_custom_surface_variant">凸起面板</string>
+    <string name="theme_custom_line">分隔線</string>
+    <string name="theme_custom_line2">邊框</string>
+    <string name="theme_custom_on_background">主要文字</string>
+    <string name="theme_custom_on_surface_variant">次要文字</string>
+    <string name="theme_custom_primary">按鈕和主要強調色</string>
+    <string name="theme_custom_on_primary">按鈕文字</string>
+    <string name="theme_custom_signal">重點標示</string>
+    <string name="theme_custom_good">成功</string>
+    <string name="theme_custom_error">錯誤</string>
 </resources>

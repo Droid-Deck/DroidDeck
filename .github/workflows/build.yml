@@ -291,7 +291,7 @@ jobs:
       - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse layer)
         run: |
           set -euo pipefail
-          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libc6-dev-arm64-cross libvulkan-dev
           D=app/src/main/assets/linuxfs
           mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
@@ -588,7 +588,7 @@ jobs:
           path: |
             ~/.cache/droiddeck-pack-inputs
             ~/.cache/droiddeck-build
-          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env', 'tools/powervr/release.json') }}
+          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env', 'tools/packs/zstd/release.env', 'tools/powervr/release.json') }}
           restore-keys: pack-inputs-v2-
       - name: Build the add-on packs
         run: |
@@ -619,14 +619,18 @@ jobs:
           export NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
           tools/syncthing/build.sh app/src/main/jniLibs/arm64-v8a
 
-      - name: Note when the proot pack pin is behind this build
+      - name: Check the proot pack pin against this build
         run: |
           set -euo pipefail
           # shellcheck disable=SC1091
           source tools/packs/proot/release.env
           sha=$(sha256sum app/build/packs/proot.tar.zst | cut -d' ' -f1)
-          if [ "$sha" != "$PROOT_PACK_SHA256" ]; then
-            echo "::warning::built proot pack $sha does not match tools/packs/proot/release.env ($PROOT_PACK_SHA256). This build publishes the pack it just built. Source builds keep downloading the pinned pack until release.env is updated."
+          size=$(stat -c %s app/build/packs/proot.tar.zst)
+          if [ "$sha" != "$PROOT_PACK_SHA256" ] || [ "$size" != "$PROOT_PACK_SIZE" ]; then
+            level=warning
+            if [ "$GITHUB_EVENT_NAME" = pull_request ]; then level=error; fi
+            echo "::$level::built proot pack $sha ($size bytes) does not match tools/packs/proot/release.env ($PROOT_PACK_SHA256, $PROOT_PACK_SIZE bytes). Source builds download the pinned pack, so set PROOT_PACK_SHA256=$sha and PROOT_PACK_SIZE=$size in tools/packs/proot/release.env."
+            if [ "$level" = error ]; then exit 1; fi
           fi
 
       - name: Check out MaliBridge
@@ -765,7 +769,6 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    continue-on-error: true
     permissions:
       contents: read
       actions: read
@@ -811,7 +814,6 @@ jobs:
             stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-
       - name: Store engines host unit tests
         timeout-minutes: 10
-        continue-on-error: true
         run: |
           set -o pipefail
           cd app/src/main/rust/stores
@@ -900,7 +902,7 @@ jobs:
 
   checks:
     name: Compile and test APK
-    needs: [build, python-tests]
+    needs: [build, python-tests, store-tests]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -909,7 +911,8 @@ jobs:
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           PYTHON_RESULT: ${{ needs.python-tests.result }}
-        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success
+          STORE_RESULT: ${{ needs.store-tests.result }}
+        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success && test "$STORE_RESULT" = success
 
   sign:
     needs: [build, checks]

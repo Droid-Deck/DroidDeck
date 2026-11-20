@@ -22,7 +22,6 @@
         <item>Добавляйте библиотеки Steam с SD-карты, USB-накопителя или SSD, и DroidDeck соберёт игры вместе в вашей «Библиотеке».</item>
         <item>«Магазины» позволяют войти в Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io и Game Jolt, а затем устанавливать и обновлять их игры из DroidDeck.</item>
         <item>Компоненты вроде FEX, DXVK и VKD3D-Proton обновляются сами, а по умолчанию используется Proton Experimental ARM64 или Proton 11.0 ARM64, когда эта сборка установлена.</item>
-        <item>«Сжимать Steam во время игры» освобождает ОЗУ на устройствах с нехваткой памяти.</item>
         <item>Проведите от правого края, чтобы открыть меню сеанса: режим тачпада, «Клавиатура ПК», «Режим низкой задержки», профиль игры и другое.</item>
         <item>Игра тормозит? Ограничьте частоту кадров в меню «Быстрый доступ», затем попробуйте другую версию Proton или другой пресет FEX в компонентах игры.</item>
         <item>Треск или нет звука в игре? Попробуйте переключатель «DirectAudio для игр» в настройках Steam в разделе «Аудио».</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Эта программа собрана для ПК на %1$s и работает через FEX, который еще не настроен. Откройте Steam один раз, войдя в аккаунт: DroidDeck скачает через него FEX и нужную Steam Linux Runtime, после чего программа откроется.</string>
     <string name="session_proot_missing">Не удалось скачать proot DroidDeck. Проверьте подключение и повторите попытку. Сессия не запущена, так как резервный proot слишком медленный для игры.</string>
     <string name="session_powervr_missing">Не удалось скачать графическую среду PowerVR. Проверьте подключение и повторите попытку.</string>
+    <string name="session_graphics_runtime_failed">Не удалось подготовить графическую среду, поэтому сеанс не запущен.</string>
+    <string name="session_game_environment_failed">Не удалось настроить игровую среду, поэтому сеанс не запущен.</string>
     <string name="session_directaudio_missing">Не удалось скачать DirectAudio, поэтому в этой сессии звук игр идёт по более медленному пути.</string>
     <string name="session_end_program">Эта программа</string>
     <string name="session_end_present_fault">Сеансу не удалось вывести изображение на экран: %1$s. Вместо чёрного экрана здесь показана причина; подробности в журналах сеанса.</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">Сенсорный ввод</string>
     <string name="mode_pen_button">Боковая кнопка</string>
     <string name="mode_osc">Экранные элементы управления</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматический режим показывает экранные элементы управления, если контроллер не подключен.</string>
-    <string name="osc_steam_touch">Сенсорное управление Steam (бета)</string>
-    <string name="osc_style_next_session">Сенсорное управление Steam включится со следующей сессии Steam</string>
     <string name="osc_steam_layout">Сенсорная раскладка Steam</string>
     <string name="screen_key_layout_export">Экспорт</string>
     <string name="screen_key_image">Изображение</string>
-    <string name="osc_steam_layout_hint">Перемещайте, меняйте размер или скрывайте сенсорные кнопки этой игры; сохраняется в Steam</string>
     <string name="mode_controller">Контроллер</string>
     <string name="mode_controller_hint">Как Steam распознает ваш контроллер. Вступит в силу в следующей сессии.</string>
     <string name="mode_controller_deck">Контроллер Steam Deck</string>
@@ -430,7 +427,6 @@
     <string name="mode_directaudio_hint">Обходит PulseAudio для снижения задержки.</string>
     <string name="mode_mic">Микрофон</string>
     <string name="mode_mic_hint">Используется для голосового чата.</string>
-    <string name="drawer_mic_hint">Включить или отключить захват микрофона в этой сессии.</string>
     <string name="drawer_mic_failed">Не удалось изменить микрофон. Повторите попытку.</string>
     <string name="mode_network">Сеть</string>
     <string name="mode_wifi_discovery">Обнаружение Wi-Fi</string>
@@ -628,20 +624,8 @@
     <string name="perf_gsrealtime">gamescope: очередь GPU в реальном времени</string>
     <string name="perf_gsrealtime_hint">Повышает приоритет работы GPU композитора. Может улучшить стабильность времени кадра, но потребляет часть производительности игры.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Память</string>
     <string name="perf_cap_off">Выкл.</string>
-    <string name="perf_cap_auto">По умолчанию драйвера</string>
-    <string name="perf_zram_client">Сжимать Steam во время игры</string>
-    <string name="perf_zram_idle">Сжимать неактивную память игры</string>
-    <string name="perf_zram_idle_hint">Сжимает неактивную память игры при нехватке RAM. Отключите, если игры зависают на несколько секунд примерно каждые полминуты. Применяется при следующем запуске сеанса.</string>
-    <string name="perf_zram_client_hint">Через 20 с после запуска игры клиент Steam сжимается в zRAM, чтобы оставить игре больше памяти, и считывается обратно после закрытия игры. Отключите, если сессия закрывается вскоре после запуска игр. Лимит RAM выше всё равно сжимает Steam, когда сессия его превышает.</string>
-    <string name="perf_ram_cap">Лимит RAM</string>
-    <string name="perf_ram_cap_hint">Действует, пока работает клиент Steam, в режиме Steam или с рабочего стола. Когда сессия использует больше этого значения, Steam, а затем другие поддерживаемые процессы сессии сжимаются в zRAM. Мягкий лимит: ничего не закрывается, но игры могут подтормаживать, пока страницы возвращаются.</string>
-    <string name="perf_ram_cap_unavailable">Нужен своп zRAM, которого на этом устройстве нет.</string>
-    <string name="perf_vram_cap">Лимит VRAM</string>
-    <string name="perf_vram_cap_hint">Сообщает играм Direct3D 9–12 этот бюджет видеопамяти для снижения её использования. Игры могут его превысить; это не добавляет подкачку памяти GPU и не гарантирует защиту от сбоев из-за нехватки памяти. Действует со следующего сеанса.</string>
     <string name="perf_gpuclock">Поддерживать максимальную частоту GPU</string>
-    <string name="perf_gpuclock_hint">Только для Adreno. Меньше подтормаживаний, но больше энергопотребления и нагрева.</string>
     <string name="perf_fixes">Исправления сессии</string>
     <string name="perf_sysmem">Turnip: рендеринг sysmem</string>
     <string name="perf_sysmem_hint">Применяется к клиенту Steam и играм. Требуется на Adreno 710/720/722.</string>
@@ -806,7 +790,6 @@
     <string name="drawer_keyboard">Клавиатура</string>
     <string name="drawer_latency">Задержка</string>
     <string name="drawer_low_latency">Режим низкой задержки</string>
-    <string name="drawer_low_latency_hint">Увеличивает нагрузку на CPU и расход батареи</string>
     <string name="drawer_low_latency_controller">Контроллер с низкой задержкой</string>
     <string name="drawer_low_latency_controller_hint">Контроллер опрашивается на 1000 Гц вместо 250 Гц. Немного больше нагрузки на CPU.</string>
     <string name="drawer_low_latency_touch">Сенсор с низкой задержкой</string>
@@ -819,7 +802,6 @@
     <string name="drawer_pc_keyboard">Клавиатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Второй экран</string>
-    <string name="drawer_second_screen_mode">Режим</string>
     <string name="drawer_second_screen_shows">Показывать</string>
     <string name="drawer_android_apps">Приложения Android</string>
     <string name="drawer_launch_app">Запустить приложение</string>
@@ -1371,12 +1353,8 @@
     <string name="ctrl_opacity">Непрозрачность</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Размер кнопок</string>
-    <string name="ctrl_adaptive">Адаптивные стики</string>
     <string name="ctrl_rumble">Вибрация в играх</string>
     <string name="ctrl_dead_zone">Мёртвая зона стика</string>
-    <string name="ctrl_steam_button">Кнопка Steam</string>
-    <string name="ctrl_qam_button">Кнопка QAM</string>
-    <string name="ctrl_keyboard_button">Кнопка клавиатуры</string>
     <string name="ctrl_joycon_vr">Joy-Con как VR-контроллеры</string>
     <string name="ctrl_joycon_vr_hint">Пока работает SteamVR, каждый Joy-Con становится рукой. Направьте его вперёд и удерживайте Home или Capture, чтобы снова его отцентрировать.</string>
     <string name="setup_animations">Анимации</string>
@@ -1507,8 +1485,6 @@
     <string name="deck_surface_trackpad">Тачпад</string>
     <string name="deck_close">Закрыть управление вторым экраном</string>
     <string name="deck_open_steam_menu">Открыть меню Steam</string>
-    <string name="deck_right_trackpad">Правый тачпад</string>
-    <string name="deck_left_trackpad">Левый тачпад</string>
     <string name="second_trackpad">Тачпад</string>
     <string name="second_show_keyboard">Показать клавиатуру</string>
     <string name="second_hide_keyboard">Скрыть клавиатуру</string>
@@ -1547,11 +1523,8 @@
     <string name="pckb_android">Клавиатура Android</string>
     <string name="pckb_hide">Скрыть ✕</string>
     <string name="pckb_size">Размер на экране</string>
-    <string name="pckb_size_hint">Какую часть экрана занимает клавиатура вместе с заголовком.</string>
     <string name="pckb_opacity">Непрозрачность</string>
-    <string name="pckb_opacity_hint">Уменьшите, чтобы видеть игру за клавиатурой.</string>
     <string name="pckb_hidden_keys">Скрытые клавиши</string>
-    <string name="pckb_hidden_keys_hint">Клавиши, которыми вы редко пользуетесь, не показываются на клавиатуре.</string>
     <string name="pckb_group_function">Esc и ряд F-клавиш</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Стрелки</string>
@@ -1589,6 +1562,8 @@
     <string name="pip_unavailable">Android не может открыть PiP.</string>
     <string name="game_more">Ещё</string>
     <string name="game_edit_art">Изменить обложку</string>
+    <string name="game_unhide">Убрать из скрытых</string>
+    <string name="game_hide_failed">Не удалось синхронизировать со Steam. Закройте Steam и повторите попытку.</string>
     <string name="stores_in_steam_label">В Steam</string>
     <string name="game_shortcut">Ярлык</string>
     <string name="game_shortcut_add">Добавить на главный экран</string>
@@ -1778,8 +1753,6 @@
     <string name="drivers_installed_pick">Установлен %1$s — выберите его в меню</string>
     <string name="session_wait_removal">Дождитесь завершения удаления среды выполнения</string>
     <string name="session_title_game">Игра</string>
-    <string name="session_touch_auto_touchpad">тачпад</string>
-    <string name="session_touch_auto_direct">прямой</string>
     <string name="session_swap_failed">Ошибка замены: %1$s</string>
     <string name="session_profile_save_failed">Ошибка сохранения профиля: %1$s</string>
     <string name="session_desktop_paused">Рабочий стол приостановлен</string>
@@ -2053,15 +2026,6 @@
     <string name="fm_up_one_level">На уровень вверх</string>
     <string name="fm_choose_folder">Выберите папку</string>
     <string name="fm_choose_file">Выберите файл</string>
-    <string name="ctrl_tint_steam_blue">Синий Steam</string>
-    <string name="ctrl_tint_sky">Небесный</string>
-    <string name="ctrl_tint_white">Белый</string>
-    <string name="ctrl_tint_violet">Фиолетовый</string>
-    <string name="ctrl_tint_green">Зеленый</string>
-    <string name="ctrl_tint_amber">Янтарный</string>
-    <string name="ctrl_tint_red">Красный</string>
-    <string name="ctrl_tint_pink">Розовый</string>
-    <string name="ctrl_tint_gray">Серый</string>
     <string name="ctrl_button_a">Кнопка A</string>
     <string name="ctrl_button_b">Кнопка B</string>
     <string name="ctrl_button_x">Кнопка X</string>
@@ -2361,6 +2325,17 @@
     <string name="pextra_checksum_mismatch">Контрольная сумма не совпадает; загруженный файл удален</string>
     <string name="pextra_session_started">Во время загрузки запустилась сессия; остановите ее перед установкой инструментов совместимости</string>
     <string name="pextra_installing">Установка %1$s</string>
+    <string name="xproton_title">Экспериментальные сборки</string>
+    <string name="xproton_install_file">Установить из файла</string>
+    <string name="xproton_archive_unsafe">Архив содержит небезопасную ссылку или путь</string>
+    <string name="xproton_archive_invalid">Неподдерживаемый или недействительный архив</string>
+    <string name="xproton_no_space">Недостаточно свободного места для этой сборки Proton</string>
+    <string name="xproton_unpacking">Распаковка Proton (несколько минут)</string>
+    <string name="xproton_untar_failed">Не удалось распаковать (tar %1$d)</string>
+    <string name="xproton_no_tree">В архиве нет сборки Proton</string>
+    <string name="xproton_place_failed">Не удалось разместить сборку Proton</string>
+    <string name="xproton_remove_failed">Не удалось полностью удалить %1$s</string>
+    <string name="xproton_installed">Экспериментальная сборка Proton установлена. Выберите её в Steam → Свойства → Совместимость.</string>
     <string name="pextra_install_failed">Ошибка установки %1$s (код выхода %2$d)</string>
     <string name="pextra_could_not_install">Не удалось установить %1$s</string>
     <string name="esync_fetching">Загрузка пакета droiddeck-esync</string>
@@ -3203,7 +3178,6 @@
     <string name="stores_hltb_minutes">%1$d мин</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
-    <string name="cardboard_mode_hint">Изображения для левого и правого глаза для VR-очков под телефон.</string>
     <string name="cardboard_source">Изображение</string>
     <string name="cardboard_source_screen">Виртуальный экран</string>
     <string name="cardboard_source_sbs">Стереопара 3D</string>
@@ -3226,7 +3200,6 @@
     <string name="cardboard_steamvr_unavailable">Недоступно в этой сессии.</string>
     <string name="cardboard_steamvr_failed">SteamVR не отвечает; проверьте журнал сессии.</string>
     <string name="drawer_component_downloads">Скачать компоненты</string>
-    <string name="drawer_component_downloads_hint">Загрузки общие со страницей «Компоненты». Выберите выше скачанную версию, чтобы использовать её при следующем запуске игры.</string>
     <string name="drawer_component_choose_download">Выберите версию для скачивания</string>
     <string name="stores_storage_insufficient">Недостаточно свободного места: нужно %1$s, свободно только %2$s</string>
     <string name="stores_storage_low">Недостаточно места (свободно %1$s, нужно %2$s)</string>
@@ -3415,10 +3388,19 @@
     <string name="storage_shared_prefix">Общий префикс Steam</string>
     <string name="storage_shared_prefix_detail">Steam запускает здесь свои вспомогательные программы Windows</string>
     <string name="storage_reset_shared_confirm">Удаляет его (%1$s). Steam создаст новый, когда он снова понадобится.</string>
+    <string name="storage_remove_launcher_confirm">Удаляет префикс Wine и кеш шейдеров этого приложения магазина (%1$s) вместе со входом в аккаунт и сохранениями, которые есть только там. Игры, работающие в нём, получат новый префикс, а приложение, возможно, придётся настроить заново. Облачные сохранения остаются в аккаунте.</string>
+    <string name="storage_system_clearable">Можно очистить %1$s</string>
+    <string name="storage_item_system_caches">Кеши Linux и Steam</string>
+    <string name="storage_item_system_caches_detail">Старые временные файлы, скачанные пакеты и веб-кеш Steam</string>
+    <string name="storage_cache_temp">Старые временные файлы</string>
+    <string name="storage_cache_packages">Скачанные пакеты</string>
+    <string name="storage_cache_steam_web">Веб-кеш Steam</string>
+    <string name="storage_cache_steam_corrupt">Повреждённые загрузки Steam</string>
+    <string name="storage_cache_detail">Создаются заново при необходимости</string>
+    <string name="storage_clear">Очистить</string>
     <string name="storage_launcher_prefix">Приложение магазина и игры, которые с ним работают</string>
     <string name="storage_launcher_used_by">Используется: %1$s</string>
     <string name="storage_shortcut_app">Игра не из Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Не сопоставлен с игрой, поэтому сохраняется</string>
     <string name="storage_remove_selected">Удалить выбранные · %1$s</string>
     <string name="storage_uninstall_selected">Удалить выбранные · %1$s</string>
     <string name="storage_bulk_prefixes">Префиксы Wine</string>
@@ -4169,4 +4151,18 @@
     <string name="display_scaling_integer">Целое число</string>
     <string name="display_scaling_fit">По размеру</string>
     <string name="drawer_antialiasing">Сглаживание</string>
+    <string name="theme_custom">Пользовательская</string>
+    <string name="theme_custom_detail">Выберите каждый цвет интерфейса отдельно.</string>
+    <string name="theme_custom_background">Фон</string>
+    <string name="theme_custom_surface">Панели</string>
+    <string name="theme_custom_surface_variant">Приподнятые панели</string>
+    <string name="theme_custom_line">Разделители</string>
+    <string name="theme_custom_line2">Границы</string>
+    <string name="theme_custom_on_background">Основной текст</string>
+    <string name="theme_custom_on_surface_variant">Вторичный текст</string>
+    <string name="theme_custom_primary">Кнопки и основной акцент</string>
+    <string name="theme_custom_on_primary">Текст кнопок</string>
+    <string name="theme_custom_signal">Выделения</string>
+    <string name="theme_custom_good">Успех</string>
+    <string name="theme_custom_error">Ошибка</string>
 </resources>

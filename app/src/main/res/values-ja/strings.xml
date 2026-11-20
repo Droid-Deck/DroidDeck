@@ -22,7 +22,6 @@
         <item>SDカード、USBドライブ、SSDからSteamライブラリを追加でき、DroidDeckはゲームをライブラリにまとめて表示します。</item>
         <item>ストアでは、Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io、Game Joltにサインインして、DroidDeckからそれらのゲームをインストール・更新できます。</item>
         <item>FEX、DXVK、VKD3D-Protonなどのコンポーネントは自動で更新されます。既定はProton Experimental ARM64で、Proton 11.0 ARM64がインストールされている場合はそちらになります。</item>
-        <item>ゲーム実行中はSteamを圧縮すると、メモリが少ない端末でRAMを確保できます。</item>
         <item>画面の右端から内側にスワイプするとセッションメニューが開きます。タッチパッドモード、PCキーボード、低遅延モード、ゲームプロファイルなどがあります。</item>
         <item>ゲームが重い場合は、クイックアクセスでフレームレートを制限し、ゲームのコンポーネントで別のProtonバージョンやFEXプリセットを試してください。</item>
         <item>ゲームの音が割れる、または出ない場合は、Steam設定のオーディオにある「ゲームでDirectAudioを使用」を試してください。</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">このプログラムは%1$s PC向けにビルドされており、FEX経由で実行されますが、FEXはまだセットアップされていません。ログインした状態で一度Steamを開いてください。DroidDeckがFEXと必要なSteam Linux Runtimeをダウンロードした後、このプログラムが開きます。</string>
     <string name="session_proot_missing">DroidDeckのprootをダウンロードできませんでした。接続を確認して、もう一度お試しください。代替のprootではプレイするには遅すぎるため、セッションは開始されませんでした。</string>
     <string name="session_powervr_missing">PowerVRのグラフィックス環境をダウンロードできませんでした。接続を確認して、もう一度お試しください。</string>
+    <string name="session_graphics_runtime_failed">グラフィックス環境を準備できなかったため、セッションを開始しませんでした。</string>
+    <string name="session_game_environment_failed">ゲーム環境を設定できなかったため、セッションを開始しませんでした。</string>
     <string name="session_directaudio_missing">DirectAudioをダウンロードできなかったため、このセッションではゲーム音声に低速な経路を使用します。</string>
     <string name="session_end_program">このプログラム</string>
     <string name="session_end_present_fault">セッションが画面に描画できませんでした: %1$s。黒い画面の代わりに、この画面で理由を表示しています。詳細はセッションログにあります。</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">タッチ</string>
     <string name="mode_pen_button">サイドボタン</string>
     <string name="mode_osc">画面コントローラー</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自動では、コントローラーが接続されていないときに画面コントローラーを表示します。</string>
-    <string name="osc_steam_touch">Steamタッチ（ベータ版）</string>
-    <string name="osc_style_next_session">Steamのタッチコントロールは次回のSteamセッションから有効になります</string>
     <string name="osc_steam_layout">Steamタッチのレイアウト</string>
     <string name="screen_key_layout_export">エクスポート</string>
     <string name="screen_key_image">画像</string>
-    <string name="osc_steam_layout_hint">このゲームのタッチコントロールを移動、サイズ変更、非表示にします。Steamに保存されます</string>
     <string name="mode_controller">コントローラー</string>
     <string name="mode_controller_hint">Steamがコントローラーを認識する方法。次回のセッションで有効になります。</string>
     <string name="mode_controller_deck">Steam Deckコントローラー</string>
@@ -427,7 +424,6 @@
     <string name="mode_directaudio_hint">PulseAudioをバイパスして遅延を減らします。</string>
     <string name="mode_mic">マイク</string>
     <string name="mode_mic_hint">ボイスチャットに使用します。</string>
-    <string name="drawer_mic_hint">このセッションのマイク入力をオンまたはオフにします。</string>
     <string name="drawer_mic_failed">マイクを変更できませんでした。もう一度お試しください。</string>
     <string name="mode_network">ネットワーク</string>
     <string name="mode_wifi_discovery">Wi-Fi検出</string>
@@ -622,20 +618,8 @@
     <string name="perf_gsrealtime">gamescope：リアルタイムGPUキュー</string>
     <string name="perf_gsrealtime_hint">コンポジタのGPU作業の優先度を上げます。フレームタイムの安定性が向上する場合がありますが、ゲームのパフォーマンスの一部を消費します。</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">メモリ</string>
     <string name="perf_cap_off">オフ</string>
-    <string name="perf_cap_auto">ドライバーのデフォルト</string>
-    <string name="perf_zram_client">ゲーム実行中はSteamを圧縮</string>
-    <string name="perf_zram_idle">ゲームのアイドルメモリを圧縮</string>
-    <string name="perf_zram_idle_hint">RAMが少ないときにゲームのアイドルメモリを圧縮します。ゲームが30秒ごとに数秒止まる場合はオフにしてください。次回のセッション開始時に適用されます。</string>
-    <string name="perf_zram_client_hint">ゲーム開始の20秒後、SteamクライアントをzRAMに圧縮してゲームに使えるメモリを増やし、ゲーム終了時に読み戻します。ゲーム開始直後にセッションが終了する場合はオフにしてください。上のRAM上限を設定している場合は、セッションが上限を超えるとSteamは引き続き圧縮されます。</string>
-    <string name="perf_ram_cap">RAM上限</string>
-    <string name="perf_ram_cap_hint">Steamモードでもデスクトップからでも、Steamクライアントの実行中に適用されます。セッションの使用量がこの値を超えると、Steam、次にセッション内の対応する他のプロセスがzRAMに圧縮されます。ソフトな上限のため何も終了されませんが、ページの読み戻し中にゲームがカクつくことがあります。</string>
-    <string name="perf_ram_cap_unavailable">zRAMスワップが必要ですが、このデバイスにはありません。</string>
-    <string name="perf_vram_cap">VRAM上限</string>
-    <string name="perf_vram_cap_hint">Direct3D 9～12のゲームにこのビデオメモリ予算を通知し、メモリ使用量の削減を促します。ゲームは予算を超える場合があります。GPUのページングを追加するものではなく、メモリ不足によるクラッシュの防止は保証されません。次のセッションから有効になります。</string>
     <string name="perf_gpuclock">GPUを最高クロックに保つ</string>
-    <string name="perf_gpuclock_hint">Adrenoのみ。スタッターは減りますが、消費電力と発熱が増えます。</string>
     <string name="perf_fixes">セッション修正</string>
     <string name="perf_sysmem">Turnip：sysmemレンダリング</string>
     <string name="perf_sysmem_hint">Steamクライアントとゲームに適用。Adreno 710/720/722では必須です。</string>
@@ -800,7 +784,6 @@
     <string name="drawer_keyboard">キーボード</string>
     <string name="drawer_latency">遅延</string>
     <string name="drawer_low_latency">低遅延モード</string>
-    <string name="drawer_low_latency_hint">CPUとバッテリーの使用量が増えます</string>
     <string name="drawer_low_latency_controller">低遅延コントローラー</string>
     <string name="drawer_low_latency_controller_hint">コントローラーが 250 Hz ではなく 1000 Hz で報告されます。CPU 使用率がわずかに上がります。</string>
     <string name="drawer_low_latency_touch">低遅延タッチ</string>
@@ -813,7 +796,6 @@
     <string name="drawer_pc_keyboard">PCキーボード</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">セカンドスクリーン</string>
-    <string name="drawer_second_screen_mode">モード</string>
     <string name="drawer_second_screen_shows">表示</string>
     <string name="drawer_android_apps">Androidアプリ</string>
     <string name="drawer_launch_app">アプリを起動</string>
@@ -1351,12 +1333,8 @@
     <string name="ctrl_opacity">不透明度</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">ボタンのサイズ</string>
-    <string name="ctrl_adaptive">アダプティブスティック</string>
     <string name="ctrl_rumble">ゲームの振動</string>
     <string name="ctrl_dead_zone">スティックのデッドゾーン</string>
-    <string name="ctrl_steam_button">Steamボタン</string>
-    <string name="ctrl_qam_button">QAMボタン</string>
-    <string name="ctrl_keyboard_button">キーボードボタン</string>
     <string name="ctrl_joycon_vr">Joy-ConをVRコントローラーとして使う</string>
     <string name="ctrl_joycon_vr_hint">SteamVRの実行中は各Joy-Conが手になります。前に向けてHOMEボタンかキャプチャーボタンを長押しすると、向きを合わせ直します。</string>
     <string name="setup_animations">アニメーション</string>
@@ -1484,8 +1462,6 @@
     <string name="deck_surface_trackpad">トラックパッド</string>
     <string name="deck_close">セカンドスクリーンコントロールを閉じる</string>
     <string name="deck_open_steam_menu">Steamメニューを開く</string>
-    <string name="deck_right_trackpad">右トラックパッド</string>
-    <string name="deck_left_trackpad">左トラックパッド</string>
     <string name="second_trackpad">トラックパッド</string>
     <string name="second_show_keyboard">キーボードを表示</string>
     <string name="second_hide_keyboard">キーボードを隠す</string>
@@ -1524,11 +1500,8 @@
     <string name="pckb_android">Androidキーボード</string>
     <string name="pckb_hide">隠す ✕</string>
     <string name="pckb_size">画面上のサイズ</string>
-    <string name="pckb_size_hint">ヘッダーを含め、キーボードが画面に占める割合。</string>
     <string name="pckb_opacity">不透明度</string>
-    <string name="pckb_opacity_hint">下げると、キーボードの背後にあるゲームが見えます。</string>
     <string name="pckb_hidden_keys">非表示のキー</string>
-    <string name="pckb_hidden_keys_hint">ほとんど使わないキーはキーボードに表示されません。</string>
     <string name="pckb_group_function">Esc とファンクションキー列</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">矢印キー</string>
@@ -1566,6 +1539,8 @@
     <string name="pip_unavailable">Androidがピクチャーインピクチャーを開けませんでした。</string>
     <string name="game_more">その他</string>
     <string name="game_edit_art">アートを編集</string>
+    <string name="game_unhide">非表示を解除</string>
+    <string name="game_hide_failed">Steamと同期できませんでした。Steamを終了してもう一度お試しください。</string>
     <string name="stores_in_steam_label">Steamに追加済み</string>
     <string name="game_shortcut">ショートカット</string>
     <string name="game_shortcut_add">ホーム画面に追加</string>
@@ -1731,8 +1706,6 @@
     <string name="drivers_installed_pick">%1$sをインストールしました - メニューで選択してください</string>
     <string name="session_wait_removal">実行環境の削除が完了するまでお待ちください</string>
     <string name="session_title_game">ゲーム</string>
-    <string name="session_touch_auto_touchpad">トラックパッド</string>
-    <string name="session_touch_auto_direct">ダイレクト</string>
     <string name="session_swap_failed">置き換えに失敗しました：%1$s</string>
     <string name="session_profile_save_failed">プロファイルの保存に失敗しました：%1$s</string>
     <string name="session_desktop_paused">デスクトップは一時停止中です</string>
@@ -1979,15 +1952,6 @@
     <string name="fm_up_one_level">1つ上の階層へ</string>
     <string name="fm_choose_folder">フォルダを選択</string>
     <string name="fm_choose_file">ファイルを選択</string>
-    <string name="ctrl_tint_steam_blue">Steamブルー</string>
-    <string name="ctrl_tint_sky">スカイ</string>
-    <string name="ctrl_tint_white">ホワイト</string>
-    <string name="ctrl_tint_violet">バイオレット</string>
-    <string name="ctrl_tint_green">グリーン</string>
-    <string name="ctrl_tint_amber">アンバー</string>
-    <string name="ctrl_tint_red">レッド</string>
-    <string name="ctrl_tint_pink">ピンク</string>
-    <string name="ctrl_tint_gray">グレー</string>
     <string name="ctrl_button_a">Aボタン</string>
     <string name="ctrl_button_b">Bボタン</string>
     <string name="ctrl_button_x">Xボタン</string>
@@ -2284,6 +2248,17 @@
     <string name="pextra_checksum_mismatch">チェックサムが一致しないため、ダウンロードを削除しました</string>
     <string name="pextra_session_started">ダウンロード中にセッションが開始されました。停止してから互換性ツールをインストールしてください</string>
     <string name="pextra_installing">%1$sをインストール中</string>
+    <string name="xproton_title">試験版ビルド</string>
+    <string name="xproton_install_file">ファイルからインストール</string>
+    <string name="xproton_archive_unsafe">アーカイブに安全でないリンクまたはパスが含まれています</string>
+    <string name="xproton_archive_invalid">未対応または無効なアーカイブ</string>
+    <string name="xproton_no_space">このProtonビルド用の空き容量が足りません</string>
+    <string name="xproton_unpacking">Protonを展開中（数分かかります）</string>
+    <string name="xproton_untar_failed">展開に失敗しました（tar %1$d）</string>
+    <string name="xproton_no_tree">アーカイブにProtonビルドが含まれていません</string>
+    <string name="xproton_place_failed">Protonビルドを配置できませんでした</string>
+    <string name="xproton_remove_failed">%1$sを完全に削除できませんでした</string>
+    <string name="xproton_installed">試験版Protonをインストールしました。Steam → プロパティ → 互換性 で選択してください。</string>
     <string name="pextra_install_failed">%1$sのインストールに失敗しました（終了コード %2$d）</string>
     <string name="pextra_could_not_install">%1$sをインストールできませんでした</string>
     <string name="esync_fetching">droiddeck-esyncパックを取得中</string>
@@ -3117,7 +3092,6 @@
     <string name="stores_hltb_minutes">%1$d分</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboardモード</string>
-    <string name="cardboard_mode_hint">スマホ用VRビューアー向けの左右の目の映像です。</string>
     <string name="cardboard_source">映像</string>
     <string name="cardboard_source_screen">仮想スクリーン</string>
     <string name="cardboard_source_sbs">サイドバイサイド3D</string>
@@ -3140,7 +3114,6 @@
     <string name="cardboard_steamvr_unavailable">このセッションでは利用できません。</string>
     <string name="cardboard_steamvr_failed">SteamVRが応答しませんでした。セッションログを確認してください。</string>
     <string name="drawer_component_downloads">コンポーネントをダウンロード</string>
-    <string name="drawer_component_downloads_hint">ダウンロードは「コンポーネント」ページと共有されます。上でダウンロード済みのバージョンを選ぶと、次回のゲーム起動時に使用されます。</string>
     <string name="drawer_component_choose_download">ダウンロードするバージョンを選択</string>
     <string name="display_picture_position">画面の位置</string>
     <string name="display_position_top">上</string>
@@ -3312,10 +3285,19 @@
     <string name="storage_shared_prefix">Steam の共有プレフィックス</string>
     <string name="storage_shared_prefix_detail">Steam が独自の Windows ヘルパーをここで実行します</string>
     <string name="storage_reset_shared_confirm">削除します（%1$s）。次に必要になったとき Steam が新しく作成します。</string>
+    <string name="storage_remove_launcher_confirm">このストアアプリの Wine プレフィックスとシェーダーキャッシュ（%1$s）を、サインイン情報やそこにしかないセーブデータごと削除します。中で動くゲームは新しいプレフィックスで始まり、アプリの再セットアップが必要になる場合があります。クラウドのセーブデータはアカウントに残ります。</string>
+    <string name="storage_system_clearable">%1$s を消去できます</string>
+    <string name="storage_item_system_caches">Linux と Steam のキャッシュ</string>
+    <string name="storage_item_system_caches_detail">古い一時ファイル、ダウンロード済みパッケージ、Steam のウェブキャッシュ</string>
+    <string name="storage_cache_temp">古い一時ファイル</string>
+    <string name="storage_cache_packages">ダウンロード済みパッケージ</string>
+    <string name="storage_cache_steam_web">Steam のウェブキャッシュ</string>
+    <string name="storage_cache_steam_corrupt">破損した Steam ダウンロード</string>
+    <string name="storage_cache_detail">必要なときに再作成されます</string>
+    <string name="storage_clear">消去</string>
     <string name="storage_launcher_prefix">ストアアプリとそれで動くゲーム</string>
     <string name="storage_launcher_used_by">%1$s が使用</string>
     <string name="storage_shortcut_app">Steam 以外のゲーム %1$s</string>
-    <string name="storage_unknown_prefix_detail">どのゲームにも一致しないため保持されます</string>
     <string name="storage_remove_selected">選択項目を削除 · %1$s</string>
     <string name="storage_uninstall_selected">選択項目をアンインストール · %1$s</string>
     <string name="storage_bulk_prefixes">Wineプレフィックス</string>
@@ -4059,4 +4041,18 @@
     <string name="display_scaling_integer">整数</string>
     <string name="display_scaling_fit">画面に合わせる</string>
     <string name="drawer_antialiasing">アンチエイリアス</string>
+    <string name="theme_custom">カスタム</string>
+    <string name="theme_custom_detail">インターフェースの各色を個別に選択します。</string>
+    <string name="theme_custom_background">背景</string>
+    <string name="theme_custom_surface">パネル</string>
+    <string name="theme_custom_surface_variant">浮き上がったパネル</string>
+    <string name="theme_custom_line">区切り線</string>
+    <string name="theme_custom_line2">境界線</string>
+    <string name="theme_custom_on_background">メインテキスト</string>
+    <string name="theme_custom_on_surface_variant">サブテキスト</string>
+    <string name="theme_custom_primary">ボタンとメインアクセント</string>
+    <string name="theme_custom_on_primary">ボタンのテキスト</string>
+    <string name="theme_custom_signal">強調表示</string>
+    <string name="theme_custom_good">成功</string>
+    <string name="theme_custom_error">エラー</string>
 </resources>

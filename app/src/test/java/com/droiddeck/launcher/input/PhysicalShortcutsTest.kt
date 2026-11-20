@@ -177,8 +177,8 @@ class PhysicalShortcutsTest {
     }
 
     @Test fun resetAndRemovalPreserveOtherControllerSettings() {
-        ControllerPrefs.setSelectSteam(context, true)
-        ControllerPrefs.setTarget(context, "a", "b")
+        LegacyControllerPrefs.setSelectSteam(context, true)
+        LegacyControllerPrefs.setTarget(context, "a", "b")
         assign(key(), Action.STEAM)
         assign(key(KeyEvent.KEYCODE_BUTTON_2), Action.QAM)
         PhysicalShortcuts.remove(context, PhysicalShortcuts.read(context).first())
@@ -186,7 +186,7 @@ class PhysicalShortcutsTest {
         PhysicalShortcuts.remove(context, PhysicalShortcuts.read(context).single())
         assertTrue(PhysicalShortcuts.read(context).isEmpty())
         assertTrue(ControllerPrefs.read(context).selectSteam)
-        assertEquals("b", ControllerPrefs.target(context, "a"))
+        assertEquals("b", LegacyControllerPrefs.target(context, "a"))
         assign(key(), Action.STEAM)
         ControllerPrefs.resetAll(context)
         assertTrue(PhysicalShortcuts.read(context).isEmpty())

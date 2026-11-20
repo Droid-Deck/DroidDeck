@@ -119,6 +119,7 @@ class SteamTouchControls(
     private var selectedArm = 0
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val art = com.droiddeck.launcher.ui.PadArt(context)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true }
 
@@ -240,7 +241,10 @@ class SteamTouchControls(
     private fun cx(e: Element) = e.x * width
     private fun cy(e: Element) = e.y * height
 
-    private fun reach(e: Element, x: Float, y: Float) = hypot((x - cx(e)) / radius(e), (y - cy(e)) / radiusY(e))
+    private fun reach(e: Element, x: Float, y: Float): Float {
+        val dx = (x - cx(e)) / radius(e); val dy = (y - cy(e)) / radiusY(e)
+        return if (e.type in TRACKPADS) max(abs(dx), abs(dy)) else hypot(dx, dy)
+    }
 
     private fun hit(list: List<Element>, x: Float, y: Float): Element? =
         list.filter { reach(it, x, y) <= 1.15f }.minByOrNull { reach(it, x, y) }
@@ -281,57 +285,60 @@ class SteamTouchControls(
         val r = radius(e)
         val pressed = !editing && e.type in pressedTypes()
         val alpha = (255 * alphaScale * if (faded) FADED else 1f).toInt().coerceIn(30, 255)
-        val ink = Color.argb(alpha, Color.red(tint), Color.green(tint), Color.blue(tint))
-        stroke.color = if (isSelected) Color.rgb(26, 159, 255) else ink
-        stroke.strokeWidth = if (isSelected) lineWidth() * 2f else lineWidth()
-        fill.color = Color.argb((alpha * 0.85f).toInt(), 230, 233, 236)
-        text.color = ink
-        text.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        stroke.color = Color.rgb(Color.red(tint), Color.green(tint), Color.blue(tint)); stroke.strokeWidth = lineWidth()
+        fill.color = Color.argb(217, 230, 233, 236)
+        if (alpha < 255) canvas.saveLayerAlpha(x - r * 1.5f, y - r * 1.5f, x + r * 1.5f, y + r * 1.5f, alpha)
         when (e.type) {
-            SteamTouchConfig.DPAD -> drawDpad(canvas, e, x, y, r)
+            SteamTouchConfig.DPAD -> if (visuals[SteamTouchConfig.DPAD].orEmpty().any { it.binding?.hasIcon == true }) drawDpad(canvas, e, x, y, r) else {
+                val bits = if (editing) 0L else dpadBits(e)
+                val held = (if (bits and DPAD_UP != 0L) 1 else 0) or (if (bits and DPAD_RIGHT != 0L) 2 else 0) or
+                    (if (bits and DPAD_DOWN != 0L) 4 else 0) or (if (bits and DPAD_LEFT != 0L) 8 else 0)
+                canvas.save(); canvas.translate(x - r, y - r)
+                art.dpad(canvas, 2 * r, 2 * r, PadKit.STEAM_DECK, held, ink = glyphInk())
+                canvas.restore()
+            }
             SteamTouchConfig.JOYSTICK_LEFT, SteamTouchConfig.JOYSTICK_RIGHT -> {
-                canvas.drawCircle(x, y, r, stroke)
-                val f = fingers.values.firstOrNull { it.element?.type == e.type }
-                if (f != null && !editing) {
+                val f = fingers.values.firstOrNull { it.element?.type == e.type }.takeIf { !editing }
+                var kx = 0f; var ky = 0f
+                if (f != null) {
                     val d = hypot(f.x - x, f.y - y)
                     val k = if (d > r) r / d else 1f
-                    val kx = x + (f.x - x) * k
-                    val ky = y + (f.y - y) * k
-                    canvas.drawCircle(kx, ky, r * 0.42f, fill)
+                    kx = (f.x - x) * k * .54f; ky = (f.y - y) * k * .54f
                 }
+                art.stick(canvas, x, y, r, PadKit.STEAM_DECK, kx, ky, f != null)
             }
             SteamTouchConfig.TRACKPAD_LEFT, SteamTouchConfig.TRACKPAD_RIGHT, SteamTouchConfig.TRACKPAD_CENTER -> {
-                val rect = RectF(x - r * 1.3f, y - r * 0.85f, x + r * 1.3f, y + r * 0.85f)
-                if (pressed) canvas.drawRoundRect(rect, r * 0.18f, r * 0.18f, fill)
-                canvas.drawRoundRect(rect, r * 0.18f, r * 0.18f, stroke)
-                if (editing) {
-                    text.textSize = r * 0.3f
-                    text.color = Color.argb(alpha / 2, 255, 255, 255)
-                    canvas.drawText(context.getString(R.string.deck_surface_trackpad), x, y - (text.descent() + text.ascent()) / 2, text)
-                }
+                val f = fingers.values.firstOrNull { it.element?.type == e.type }.takeIf { !editing }
+                canvas.save(); canvas.translate(x - r, y - r)
+                art.trackpad(canvas, r * 2f, r * 2f, f != null, (f?.x ?: x) - x + r, (f?.y ?: y) - y + r)
+                canvas.restore()
+                if (editing) art.text(canvas, context.getString(R.string.deck_surface_trackpad), x, y, r * .3f, Color.argb(128, 255, 255, 255))
             }
-            SteamTouchConfig.STEAM -> {
-                if (isSelected) canvas.drawCircle(x, y, r, stroke)
-                drawMark(canvas, x, y, r * 0.5f, if (pressed) accent else ink, alpha)
-            }
+            SteamTouchConfig.STEAM -> systemButton(canvas, x, y, r, com.droiddeck.launcher.ui.PadArt.Shape.PILL, com.droiddeck.launcher.ui.PadArt.Icon.STEAM, pressed)
             SteamTouchConfig.SELECT, SteamTouchConfig.START -> {
                 val binding = visuals[e.type]?.firstOrNull()?.binding
-                if (binding?.hasIcon == true) {
-                    drawFace(canvas, e.type, binding, x, y, r, alpha, pressed); return
-                }
-                val rect = RectF(x - r * 1.08f, y - r * 0.55f, x + r * 1.08f, y + r * 0.55f)
-                if (pressed) canvas.drawRoundRect(rect, r * 0.5f, r * 0.5f, fill)
-                canvas.drawRoundRect(rect, r * 0.5f, r * 0.5f, stroke)
-                val t = r * 0.26f
-                val dir = if (e.type == SteamTouchConfig.START) 1f else -1f
-                val tri = Path().apply {
-                    moveTo(x + dir * t, y); lineTo(x - dir * t * 0.75f, y - t); lineTo(x - dir * t * 0.75f, y + t); close()
-                }
-                canvas.drawPath(tri, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (pressed) Color.argb(alpha, 23, 26, 33) else ink })
+                if (binding?.hasIcon == true) drawFace(canvas, e.type, binding, x, y, r, pressed)
+                else systemButton(canvas, x, y, r, com.droiddeck.launcher.ui.PadArt.Shape.CHIP,
+                    if (e.type == SteamTouchConfig.START) com.droiddeck.launcher.ui.PadArt.Icon.MENU else com.droiddeck.launcher.ui.PadArt.Icon.VIEW, pressed)
             }
-            else -> drawFace(canvas, e.type, visuals[e.type]?.firstOrNull()?.binding, x, y, r, alpha, pressed)
+            else -> drawFace(canvas, e.type, visuals[e.type]?.firstOrNull()?.binding, x, y, r, pressed)
+        }
+        if (alpha < 255) canvas.restore()
+        if (isSelected) {
+            stroke.color = accent; stroke.strokeWidth = lineWidth() * 2f
+            if (isSquare(e.type)) canvas.drawRoundRect(RectF(x - r, y - r, x + r, y + r), r * .3f, r * .3f, stroke) else canvas.drawCircle(x, y, r, stroke)
         }
     }
+
+    private fun systemButton(canvas: Canvas, x: Float, y: Float, r: Float, shape: com.droiddeck.launcher.ui.PadArt.Shape,
+        icon: com.droiddeck.launcher.ui.PadArt.Icon, pressed: Boolean) {
+        canvas.save(); canvas.translate(x - r * 1.4f, y - r * 1.4f)
+        art.system(canvas, r * 2.8f, r * 2.8f, shape, icon, pressed, glyphInk())
+        canvas.restore()
+    }
+
+    /** Glyphs follow the colour picked for Steam touch controls; white keeps the shared artwork's own ink. */
+    private fun glyphInk() = if (tint != Color.WHITE) tint else com.droiddeck.launcher.ui.PadArt.INK
 
     private fun isSquare(type: Int) = type in setOf(SteamTouchConfig.BUMPER_LEFT, SteamTouchConfig.BUMPER_RIGHT,
         SteamTouchConfig.TRIGGER_LEFT, SteamTouchConfig.TRIGGER_RIGHT, SteamTouchConfig.THUMB, SteamTouchConfig.KEYBOARD,
@@ -350,67 +357,34 @@ class SteamTouchControls(
         canvas.restore()
     }
 
-    private fun drawFace(canvas: Canvas, type: Int, binding: SteamTouchBindings.Binding?, x: Float, y: Float, r: Float,
-                         alpha: Int, pressed: Boolean) {
-        val square = isSquare(type)
-        val rect = RectF(x - r, y - r, x + r, y + r)
-        val corner = r * 0.3f
-        fun shape(paint: Paint) = if (square) canvas.drawRoundRect(rect, corner, corner, paint) else canvas.drawCircle(x, y, r, paint)
+    private fun drawFace(canvas: Canvas, type: Int, binding: SteamTouchBindings.Binding?, x: Float, y: Float, r: Float, pressed: Boolean) {
+        val shape = if (isSquare(type)) art.roundRect(x - r, y - r, x + r, y + r, r * .3f) else art.circle(x, y, r)
         val icon = binding?.icon?.takeIf { it.isNotEmpty() }?.let(::iconOrLoad)
+        val custom = binding != null && binding.background.isNotEmpty() && !binding.background.equals(SteamTouchBindings.DEFAULT_BACKGROUND, true)
+        art.glass(canvas, shape, pressed && !custom, if (custom) parseColor(binding!!.background, SteamTouchBindings.DEFAULT_BACKGROUND) else 0x850E1014.toInt())
+        val ink = if (pressed && !custom) com.droiddeck.launcher.ui.PadArt.ON_ACCENT else glyphInk()
         if (icon != null) {
             val s = r * 0.62f
-            val custom = binding.background.isNotEmpty() && !binding.background.equals(SteamTouchBindings.DEFAULT_BACKGROUND, true)
-            if (custom) {
-                shape(Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = parseColor(binding.background, SteamTouchBindings.DEFAULT_BACKGROUND)
-                    this.alpha = if (pressed) alpha else (alpha * 0.85f).toInt()
-                })
-                canvas.drawBitmap(tinted(binding.icon, icon, binding.foreground), null, RectF(x - s, y - s, x + s, y + s),
-                    Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { this.alpha = alpha })
-            } else {
-                if (pressed) shape(fill)
-                val ink = if (pressed) Color.argb(alpha, 23, 26, 33) else stroke.color
-                canvas.drawBitmap(inked(binding.icon, icon), null, RectF(x - s, y - s, x + s, y + s),
-                    Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-                        colorFilter = android.graphics.PorterDuffColorFilter(ink, android.graphics.PorterDuff.Mode.SRC_IN)
-                    })
-            }
-            shape(stroke)
+            if (custom) canvas.drawBitmap(tinted(binding!!.icon, icon, binding.foreground), null, RectF(x - s, y - s, x + s, y + s), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+            else canvas.drawBitmap(inked(binding!!.icon, icon), null, RectF(x - s, y - s, x + s, y + s),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { colorFilter = android.graphics.PorterDuffColorFilter(ink, android.graphics.PorterDuff.Mode.SRC_IN) })
             return
         }
-        if (pressed) shape(fill)
-        shape(stroke)
-        if (type == SteamTouchConfig.THUMB) { drawDots(canvas, x, y, r, if (pressed) Color.argb(alpha, 23, 26, 33) else text.color); return }
-        if (type == SteamTouchConfig.KEYBOARD) { drawKeyboardGlyph(canvas, x, y, r, if (pressed) Color.argb(alpha, 23, 26, 33) else text.color); return }
-        val own = label(type)
-        val shown = own
-        text.textSize = when {
+        if (type == SteamTouchConfig.THUMB) { art.icon(canvas, x, y, r * 1.1f, com.droiddeck.launcher.ui.PadArt.Icon.QAM, ink); return }
+        if (type == SteamTouchConfig.KEYBOARD) { art.icon(canvas, x, y, r * 1.1f, com.droiddeck.launcher.ui.PadArt.Icon.KEYBOARD, ink); return }
+        val shown = label(type)
+        val size = when {
             shown.length <= 1 -> r * 0.9f
             shown.length <= 2 -> r * 0.66f
             shown.length <= 5 -> r * 0.4f
             else -> r * 0.3f
         }
-        text.color = when {
-            pressed -> Color.argb(alpha, 23, 26, 33)
-            shown == own -> LABEL_COLORS[type]?.let { Color.argb(alpha, Color.red(it), Color.green(it), Color.blue(it)) } ?: text.color
-            else -> text.color
-        }
-        val line = if (shown.length > 10) shown.take(9) + "…" else shown
-        canvas.drawText(line, x, y - (text.descent() + text.ascent()) / 2, text)
+        art.text(canvas, if (shown.length > 10) shown.take(9) + "…" else shown, x, y, size, ink, r * 1.8f)
     }
 
     private fun drawDots(canvas: Canvas, x: Float, y: Float, r: Float, color: Int) {
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
         for (i in -1..1) canvas.drawCircle(x + i * r * 0.3f, y + r * 0.22f, r * 0.08f, p)
-    }
-
-    private fun drawKeyboardGlyph(canvas: Canvas, x: Float, y: Float, r: Float, color: Int) {
-        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; style = Paint.Style.STROKE; strokeWidth = lineWidth() * 0.8f }
-        val body = RectF(x - r * 0.6f, y - r * 0.34f, x + r * 0.6f, y + r * 0.34f)
-        canvas.drawRoundRect(body, r * 0.08f, r * 0.08f, p)
-        val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
-        for (row in 0..1) for (i in 0..5) canvas.drawCircle(body.left + r * 0.15f + i * r * 0.18f, body.top + r * 0.18f + row * r * 0.17f, r * 0.035f, dot)
-        canvas.drawLine(x - r * 0.3f, body.bottom - r * 0.14f, x + r * 0.3f, body.bottom - r * 0.14f, p)
     }
 
     private val iconsLoading = HashSet<String>()
@@ -1478,6 +1452,7 @@ class SteamTouchControls(
     var onSaved: () -> Unit = {}
 
     companion object {
+        private val TRACKPADS = setOf(SteamTouchConfig.TRACKPAD_LEFT, SteamTouchConfig.TRACKPAD_RIGHT, SteamTouchConfig.TRACKPAD_CENTER)
         private const val TAG = "SteamTouch"
         private const val POLL_MS = 150L
         private const val MOVE_REDRAW_MS = 33L
@@ -1519,11 +1494,5 @@ class SteamTouchControls(
             put(SteamTouchConfig.PASTE, 0L)
         }
 
-        private val LABEL_COLORS = mapOf(
-            SteamTouchConfig.A to Color.rgb(72, 133, 48),
-            SteamTouchConfig.B to Color.rgb(211, 68, 37),
-            SteamTouchConfig.X to Color.rgb(23, 60, 184),
-            SteamTouchConfig.Y to Color.rgb(235, 200, 70),
-        )
     }
 }

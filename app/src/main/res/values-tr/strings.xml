@@ -22,7 +22,6 @@
         <item>SD karttan, USB sürücüden veya SSD\'den Steam kütüphaneleri ekle; DroidDeck oyunları Kütüphane\'nde bir arada tutar.</item>
         <item>Mağazalar, Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ve Game Jolt\'ta oturum açmanı, ardından oyunlarını DroidDeck\'ten yüklemeni ve güncellemeni sağlar.</item>
         <item>FEX, DXVK ve VKD3D-Proton gibi bileşenler kendini günceller; varsayılan Proton Experimental ARM64\'tür, Proton 11.0 ARM64 kurulduktan sonra ise o olur.</item>
-        <item>Oyun çalışırken Steam\'i sıkıştır, belleği az olan cihazlarda RAM boşaltır.</item>
         <item>Oturum menüsünü açmak için sağ kenardan içeri kaydır: dokunmatik yüzey modu, PC klavyesi, düşük gecikme, oyun profili ve daha fazlası.</item>
         <item>Oyun yavaş mı çalışıyor? Hızlı erişim\'de kare hızını sınırla, sonra oyunun bileşenlerinde başka bir Proton sürümü veya FEX ön ayarı dene.</item>
         <item>Oyun sesinde cızırtı var ya da ses yok mu? Steam ayarlarında Ses altındaki Oyunlar için DirectAudio düğmesini dene.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Bu program %1$s PC\'ler için derlenmiş ve FEX ile çalışır, ancak FEX henüz kurulmadı. Oturum açmışken Steam\'i bir kez açın: DroidDeck, FEX\'i ve gereken Steam Linux Runtime\'ı indirtir, ardından bu program açılır.</string>
     <string name="session_proot_missing">DroidDeck\'in proot\'u indirilemedi. Bağlantıyı kontrol edip tekrar deneyin. Yedek proot oynamak için fazla yavaş olduğundan oturum başlatılmadı.</string>
     <string name="session_powervr_missing">PowerVR grafik ortamı indirilemedi. Bağlantıyı kontrol edip tekrar deneyin.</string>
+    <string name="session_graphics_runtime_failed">Grafik ortamı hazırlanamadı, bu yüzden oturum başlatılmadı.</string>
+    <string name="session_game_environment_failed">Oyun ortamı ayarlanamadı, bu yüzden oturum başlatılmadı.</string>
     <string name="session_directaudio_missing">DirectAudio indirilemedi, bu yüzden oyun sesi bu oturumda daha yavaş yolu kullanıyor.</string>
     <string name="session_end_program">Bu program</string>
     <string name="session_end_present_fault">Oturum ekrana görüntü çizemedi: %1$s. Bu ekran, siyah bir ekran yerine nedenini gösteriyor; ayrıntılar oturum günlüklerinde.</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">Dokunma</string>
     <string name="mode_pen_button">Yan düğme</string>
     <string name="mode_osc">Ekran üstü kontroller</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatik, kumanda bağlı değilken kontrolleri gösterir.</string>
-    <string name="osc_steam_touch">Steam dokunmatik (beta)</string>
-    <string name="osc_style_next_session">Steam\'in dokunmatik kontrolleri sonraki Steam oturumunda başlar</string>
     <string name="osc_steam_layout">Steam dokunmatik düzeni</string>
     <string name="screen_key_layout_export">Dışa aktar</string>
     <string name="screen_key_image">Görsel</string>
-    <string name="osc_steam_layout_hint">Bu oyunun dokunmatik kontrollerini taşıyın, boyutlandırın veya gizleyin; Steam\'e kaydedilir</string>
     <string name="mode_controller">Kumanda</string>
     <string name="mode_controller_hint">Steam\'in kumandanızı nasıl gördüğü. Sonraki oturumda uygulanır.</string>
     <string name="mode_controller_deck">Steam Deck kumandası</string>
@@ -428,7 +425,6 @@
     <string name="mode_directaudio_hint">Daha düşük gecikme için PulseAudio\'yu atlar.</string>
     <string name="mode_mic">Mikrofon</string>
     <string name="mode_mic_hint">Sesli sohbet için.</string>
-    <string name="drawer_mic_hint">Bu oturum için mikrofon kaydını açın veya kapatın.</string>
     <string name="drawer_mic_failed">Mikrofon değiştirilemedi. Lütfen tekrar deneyin.</string>
     <string name="mode_network">Ağ</string>
     <string name="mode_wifi_discovery">Wi-Fi keşfi</string>
@@ -624,20 +620,8 @@
     <string name="perf_gsrealtime">gamescope: gerçek zamanlı GPU kuyruğu</string>
     <string name="perf_gsrealtime_hint">Bileştiricinin GPU işine öncelik verir. Oyunlardan biraz feda ederek kare zamanlamasını yumuşatabilir.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Bellek</string>
     <string name="perf_cap_off">Kapalı</string>
-    <string name="perf_cap_auto">Sürücü varsayılanı</string>
-    <string name="perf_zram_client">Oyun çalışırken Steam\'i sıkıştır</string>
-    <string name="perf_zram_idle">Oyunun boşta belleğini sıkıştır</string>
-    <string name="perf_zram_idle_hint">RAM azaldığında oyunun boşta belleğini sıkıştırır. Oyunlar yaklaşık her yarım dakikada birkaç saniye donuyorsa kapatın. Oturum bir sonraki başlatıldığında geçerli olur.</string>
-    <string name="perf_zram_client_hint">Oyun başladıktan 20 sn sonra oyuna daha fazla bellek kalması için Steam istemcisi zRAM\'e sıkıştırılır ve oyun kapanınca geri okunur. Oyunlar başladıktan kısa süre sonra oturum kapanıyorsa bunu kapatın. Yukarıdaki RAM sınırı, oturum onu aştığında Steam\'i yine sıkıştırır.</string>
-    <string name="perf_ram_cap">RAM sınırı</string>
-    <string name="perf_ram_cap_hint">Steam istemcisi Steam oturumunda veya masaüstünden çalışırken uygulanır. Oturum bundan fazlasını kullandığında önce Steam, ardından oturumun desteklenen diğer işlemleri zRAM\'e sıkıştırılır. Yumuşak bir sınırdır: hiçbir şey kapatılmaz, ancak sayfalar geri yüklenirken oyunlar takılabilir.</string>
-    <string name="perf_ram_cap_unavailable">Bu cihazda olmayan zRAM takası gerekir.</string>
-    <string name="perf_vram_cap">VRAM sınırı</string>
-    <string name="perf_vram_cap_hint">Bellek kullanımını azaltmak için Direct3D 9–12 oyunlarına bu video belleği bütçesini bildirir. Oyunlar bütçeyi aşabilir; GPU sayfalaması eklemez veya bellek yetersizliğinden kaynaklanan çökmeleri önlemeyi garanti etmez. Sonraki oturumda geçerli olur.</string>
     <string name="perf_gpuclock">GPU\'yu en yüksek saat hızında tut</string>
-    <string name="perf_gpuclock_hint">Yalnızca Adreno. Daha az takılma, daha fazla pil tüketimi ve ısınma.</string>
     <string name="perf_fixes">Oturum düzeltmeleri</string>
     <string name="perf_sysmem">Turnip: sysmem işleme</string>
     <string name="perf_sysmem_hint">Steam istemcisi ve oyunlar için geçerlidir. Adreno 710/720/722\'de gereklidir.</string>
@@ -802,7 +786,6 @@
     <string name="drawer_keyboard">Klavye</string>
     <string name="drawer_latency">Gecikme</string>
     <string name="drawer_low_latency">Düşük gecikme modu</string>
-    <string name="drawer_low_latency_hint">CPU ve pil kullanımını artırır</string>
     <string name="drawer_low_latency_controller">Düşük gecikmeli kumanda</string>
     <string name="drawer_low_latency_controller_hint">Kumanda 250 Hz yerine 1000 Hz bildirir. CPU kullanımı biraz artar.</string>
     <string name="drawer_low_latency_touch">Düşük gecikmeli dokunma</string>
@@ -815,7 +798,6 @@
     <string name="drawer_pc_keyboard">PC klavyesi</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">İkinci ekran</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Gösterilen</string>
     <string name="drawer_android_apps">Android uygulamaları</string>
     <string name="drawer_launch_app">Uygulama başlat</string>
@@ -1349,12 +1331,8 @@
     <string name="ctrl_opacity">Opaklık</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Düğme boyutu</string>
-    <string name="ctrl_adaptive">Uyarlanabilir çubuklar</string>
     <string name="ctrl_rumble">Oyun titreşimi</string>
     <string name="ctrl_dead_zone">Çubuk ölü bölgesi</string>
-    <string name="ctrl_steam_button">Steam düğmesi</string>
-    <string name="ctrl_qam_button">QAM düğmesi</string>
-    <string name="ctrl_keyboard_button">Klavye düğmesi</string>
     <string name="ctrl_joycon_vr">VR kumandası olarak Joy-Con\'lar</string>
     <string name="ctrl_joycon_vr_hint">SteamVR çalışırken her Joy-Con bir el olur. Öne doğrultun ve yeniden ortalamak için Home veya Capture düğmesini basılı tutun.</string>
     <string name="setup_animations">Animasyonlar</string>
@@ -1483,8 +1461,6 @@
     <string name="deck_surface_trackpad">Dokunmatik yüzey</string>
     <string name="deck_close">İkinci ekran kontrollerini kapat</string>
     <string name="deck_open_steam_menu">Steam menüsünü aç</string>
-    <string name="deck_right_trackpad">Sağ dokunmatik yüzey</string>
-    <string name="deck_left_trackpad">Sol dokunmatik yüzey</string>
     <string name="second_trackpad">Dokunmatik yüzey</string>
     <string name="second_show_keyboard">Klavyeyi göster</string>
     <string name="second_hide_keyboard">Klavyeyi gizle</string>
@@ -1523,11 +1499,8 @@
     <string name="pckb_android">Android klavyesi</string>
     <string name="pckb_hide">Gizle  ✕</string>
     <string name="pckb_size">Ekrandaki boyut</string>
-    <string name="pckb_size_hint">Başlık dahil, klavyenin ekranda kapladığı oran.</string>
     <string name="pckb_opacity">Opaklık</string>
-    <string name="pckb_opacity_hint">Klavyenin arkasındaki oyunu görmek için azaltın.</string>
     <string name="pckb_hidden_keys">Gizli tuşlar</string>
-    <string name="pckb_hidden_keys_hint">Az kullandığınız tuşlar klavyede gösterilmez.</string>
     <string name="pckb_group_function">Esc ve işlev tuşları sırası</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Ok tuşları</string>
@@ -1565,6 +1538,8 @@
     <string name="pip_unavailable">Android, pencere içinde pencereyi açamadı.</string>
     <string name="game_more">Diğer</string>
     <string name="game_edit_art">Görseli düzenle</string>
+    <string name="game_unhide">Gizlilikten çıkar</string>
+    <string name="game_hide_failed">Steam ile senkronize edilemedi. Steam\'i kapatıp tekrar deneyin.</string>
     <string name="stores_in_steam_label">Steam\'de</string>
     <string name="game_shortcut">Kısayol</string>
     <string name="game_shortcut_add">Ana ekrana ekle</string>
@@ -1738,8 +1713,6 @@
     <string name="drivers_installed_pick">%1$s yüklendi - menüden seçin</string>
     <string name="session_wait_removal">Çalışma ortamının kaldırılmasının bitmesini bekleyin</string>
     <string name="session_title_game">Oyun</string>
-    <string name="session_touch_auto_touchpad">dokunmatik yüzey</string>
-    <string name="session_touch_auto_direct">doğrudan</string>
     <string name="session_swap_failed">Değiştirme başarısız oldu: %1$s</string>
     <string name="session_profile_save_failed">Profil kaydedilemedi: %1$s</string>
     <string name="session_desktop_paused">Masaüstü duraklatıldı</string>
@@ -1995,15 +1968,6 @@
     <string name="fm_up_one_level">Bir üst düzey</string>
     <string name="fm_choose_folder">Bir klasör seçin</string>
     <string name="fm_choose_file">Bir dosya seçin</string>
-    <string name="ctrl_tint_steam_blue">Steam mavisi</string>
-    <string name="ctrl_tint_sky">Gök mavisi</string>
-    <string name="ctrl_tint_white">Beyaz</string>
-    <string name="ctrl_tint_violet">Mor</string>
-    <string name="ctrl_tint_green">Yeşil</string>
-    <string name="ctrl_tint_amber">Kehribar</string>
-    <string name="ctrl_tint_red">Kırmızı</string>
-    <string name="ctrl_tint_pink">Pembe</string>
-    <string name="ctrl_tint_gray">Gri</string>
     <string name="ctrl_button_a">A düğmesi</string>
     <string name="ctrl_button_b">B düğmesi</string>
     <string name="ctrl_button_x">X düğmesi</string>
@@ -2301,6 +2265,17 @@
     <string name="pextra_checksum_mismatch">Sağlama toplamı uyuşmuyor; indirme silindi</string>
     <string name="pextra_session_started">İndirme sırasında bir oturum başladı; uyumluluk araçlarını yüklemeden önce durdurun</string>
     <string name="pextra_installing">%1$s yükleniyor</string>
+    <string name="xproton_title">Deneysel sürümler</string>
+    <string name="xproton_install_file">Dosyadan yükle</string>
+    <string name="xproton_archive_unsafe">Arşiv güvenli olmayan bir bağlantı veya yol içeriyor</string>
+    <string name="xproton_archive_invalid">Desteklenmeyen veya geçersiz arşiv</string>
+    <string name="xproton_no_space">Bu Proton sürümü için yeterli boş alan yok</string>
+    <string name="xproton_unpacking">Proton paketten çıkarılıyor (birkaç dakika)</string>
+    <string name="xproton_untar_failed">Paketten çıkarma başarısız oldu (tar %1$d)</string>
+    <string name="xproton_no_tree">Arşivde Proton sürümü yok</string>
+    <string name="xproton_place_failed">Proton sürümü yerleştirilemedi</string>
+    <string name="xproton_remove_failed">%1$s tamamen kaldırılamadı</string>
+    <string name="xproton_installed">Deneysel Proton yüklendi. Steam → Özellikler → Uyumluluk bölümünden seçin.</string>
     <string name="pextra_install_failed">%1$s yüklemesi başarısız oldu (çıkış %2$d)</string>
     <string name="pextra_could_not_install">%1$s yüklenemedi</string>
     <string name="esync_fetching">droiddeck-esync paketi getiriliyor</string>
@@ -3127,7 +3102,6 @@
     <string name="glasses_pro2_experimental">Pro 2 için deneysel baş takibi. Parlaklık ve ses düzeyi ayarı ile ekran modu değiştirme henüz desteklenmiyor.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard modu</string>
-    <string name="cardboard_mode_hint">Telefon VR gözlüğü için sol ve sağ göz görüntüleri.</string>
     <string name="cardboard_source">Görüntü</string>
     <string name="cardboard_source_screen">Sanal ekran</string>
     <string name="cardboard_source_sbs">Yan yana 3D</string>
@@ -3150,7 +3124,6 @@
     <string name="cardboard_steamvr_unavailable">Bu oturumda kullanılamaz.</string>
     <string name="cardboard_steamvr_failed">SteamVR yanıt vermedi; oturum günlüğünü kontrol et.</string>
     <string name="drawer_component_downloads">Bileşenleri indir</string>
-    <string name="drawer_component_downloads_hint">İndirmeler Bileşenler sayfasıyla paylaşılır. Bir sonraki oyun başlatmada kullanmak için yukarıdan indirilmiş bir sürüm seç.</string>
     <string name="drawer_component_choose_download">İndirilecek sürümü seç</string>
     <string name="stores_fact_developer">Geliştirici</string>
     <string name="stores_fact_publisher">Yayıncı</string>
@@ -3341,10 +3314,19 @@
     <string name="storage_shared_prefix">Steam\'in ortak öneki</string>
     <string name="storage_shared_prefix_detail">Steam kendi Windows yardımcılarını burada çalıştırır</string>
     <string name="storage_reset_shared_confirm">Siler (%1$s). Steam bir dahaki ihtiyacında yenisini oluşturur.</string>
+    <string name="storage_remove_launcher_confirm">Bu mağaza uygulamasının Wine önekini ve gölgelendirici önbelleğini (%1$s), oturum açma bilgisi ve yalnızca orada duran kayıtlarla birlikte siler. İçinde çalışan oyunlar yeni bir önek alır ve uygulamayı yeniden kurmanız gerekebilir. Bulut kayıtları hesabınızda kalır.</string>
+    <string name="storage_system_clearable">%1$s temizlenebilir</string>
+    <string name="storage_item_system_caches">Linux ve Steam önbellekleri</string>
+    <string name="storage_item_system_caches_detail">Eski geçici dosyalar, indirilen paketler ve Steam’in web önbelleği</string>
+    <string name="storage_cache_temp">Eski geçici dosyalar</string>
+    <string name="storage_cache_packages">İndirilen paketler</string>
+    <string name="storage_cache_steam_web">Steam web önbelleği</string>
+    <string name="storage_cache_steam_corrupt">Hasarlı Steam indirmeleri</string>
+    <string name="storage_cache_detail">Gerektiğinde yeniden oluşturulur</string>
+    <string name="storage_clear">Temizle</string>
     <string name="storage_launcher_prefix">Bir mağaza uygulaması ve onunla çalışan oyunlar</string>
     <string name="storage_launcher_used_by">Kullanan: %1$s</string>
     <string name="storage_shortcut_app">Steam dışı oyun %1$s</string>
-    <string name="storage_unknown_prefix_detail">Bir oyunla eşleşmedi, bu yüzden korunuyor</string>
     <string name="storage_remove_selected">Seçilenleri kaldır · %1$s</string>
     <string name="storage_uninstall_selected">Seçilenlerin yüklemesini kaldır · %1$s</string>
     <string name="storage_bulk_prefixes">Wine önekleri</string>
@@ -4089,4 +4071,18 @@
     <string name="display_scaling_integer">Tam sayı</string>
     <string name="display_scaling_fit">Sığdır</string>
     <string name="drawer_antialiasing">Kenar yumuşatma</string>
+    <string name="theme_custom">Özel</string>
+    <string name="theme_custom_detail">Arayüzdeki her rengi ayrı ayrı seçin.</string>
+    <string name="theme_custom_background">Arka plan</string>
+    <string name="theme_custom_surface">Paneller</string>
+    <string name="theme_custom_surface_variant">Yükseltilmiş paneller</string>
+    <string name="theme_custom_line">Ayırıcılar</string>
+    <string name="theme_custom_line2">Kenarlıklar</string>
+    <string name="theme_custom_on_background">Ana metin</string>
+    <string name="theme_custom_on_surface_variant">İkincil metin</string>
+    <string name="theme_custom_primary">Düğmeler ve ana vurgu</string>
+    <string name="theme_custom_on_primary">Düğme metni</string>
+    <string name="theme_custom_signal">Vurgular</string>
+    <string name="theme_custom_good">Başarılı</string>
+    <string name="theme_custom_error">Hata</string>
 </resources>

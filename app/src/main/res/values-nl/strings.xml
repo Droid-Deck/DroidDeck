@@ -22,7 +22,6 @@
         <item>Voeg Steam-bibliotheken toe vanaf een SD-kaart, USB-stick of SSD, en DroidDeck houdt de games bij elkaar in je Bibliotheek.</item>
         <item>Met Winkels log je in bij Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io en Game Jolt, en installeer en update je hun games vanuit DroidDeck.</item>
         <item>Componenten zoals FEX, DXVK en VKD3D-Proton updaten zichzelf, en Proton Experimental ARM64 is de standaard, of Proton 11.0 ARM64 zodra die build is geïnstalleerd.</item>
-        <item>Steam comprimeren terwijl een game draait maakt RAM vrij op apparaten die weinig geheugen hebben.</item>
         <item>Veeg vanaf de rechterrand naar binnen om het sessiemenu te openen: touchpadmodus, Pc-toetsenbord, modus voor lage latentie, gameprofiel en meer.</item>
         <item>Draait een game traag? Begrens de framerate in het Snelmenu en probeer dan een andere Proton-versie of FEX-preset in de componenten van de game.</item>
         <item>Kraakt de audio of ontbreekt het geluid? Probeer de schakelaar DirectAudio voor games in de Steam-instellingen onder Audio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Dit programma is gemaakt voor %1$s-pc’s en draait via FEX, dat nog niet is ingesteld. Open Steam één keer terwijl je bent ingelogd: DroidDeck laat het dan FEX en de benodigde Steam Linux Runtime downloaden. Daarna opent dit.</string>
     <string name="session_proot_missing">De proot van DroidDeck kon niet worden gedownload. Controleer de verbinding en probeer het opnieuw. De sessie is niet gestart, omdat de reserve-proot te traag is om op te spelen.</string>
     <string name="session_powervr_missing">De PowerVR-grafische omgeving kon niet worden gedownload. Controleer de verbinding en probeer het opnieuw.</string>
+    <string name="session_graphics_runtime_failed">De grafische omgeving kon niet worden voorbereid, dus de sessie is niet gestart.</string>
+    <string name="session_game_environment_failed">De spelomgeving kon niet worden ingesteld, dus de sessie is niet gestart.</string>
     <string name="session_directaudio_missing">DirectAudio kon niet worden gedownload, dus gamegeluid gebruikt deze sessie de tragere route.</string>
     <string name="session_end_program">Dit programma</string>
     <string name="session_end_present_fault">De sessie kon niet op het scherm tekenen: %1$s. Dit scherm laat zien waarom, in plaats van een zwart scherm; de details staan in de sessielogboeken.</string>
@@ -294,14 +295,10 @@
     <string name="mode_pen_touch">Aanraken</string>
     <string name="mode_pen_button">Zijknop</string>
     <string name="mode_osc">Schermbediening</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automatisch toont de bediening als er geen controller is verbonden.</string>
-    <string name="osc_steam_touch">Steam-aanraakbediening (bèta)</string>
-    <string name="osc_style_next_session">De aanraakbediening van Steam start bij de volgende Steam-sessie</string>
     <string name="osc_steam_layout">Steam-aanraakindeling</string>
     <string name="screen_key_layout_export">Exporteren</string>
     <string name="screen_key_image">Afbeelding</string>
-    <string name="osc_steam_layout_hint">Verplaats, schaal of verberg de aanraakbediening van deze game; opgeslagen in Steam</string>
     <string name="mode_controller">Controller</string>
     <string name="mode_controller_hint">Hoe Steam je controller ziet. Geldt vanaf de volgende sessie.</string>
     <string name="mode_controller_deck">Steam Deck-controller</string>
@@ -428,7 +425,6 @@
     <string name="mode_directaudio_hint">Omzeilt PulseAudio voor minder vertraging.</string>
     <string name="mode_mic">Microfoon</string>
     <string name="mode_mic_hint">Voor spraakchat.</string>
-    <string name="drawer_mic_hint">Zet microfoonopname aan of uit voor deze sessie.</string>
     <string name="drawer_mic_failed">Kan de microfoon niet wijzigen. Probeer het opnieuw.</string>
     <string name="mode_network">Netwerk</string>
     <string name="mode_wifi_discovery">Wi-Fi-detectie</string>
@@ -624,20 +620,8 @@
     <string name="perf_gsrealtime">gamescope: realtime GPU-wachtrij</string>
     <string name="perf_gsrealtime_hint">Geeft het GPU-werk van de compositor voorrang. Kan de framepacing gladder maken, ten koste van wat gameprestaties.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Geheugen</string>
     <string name="perf_cap_off">Uit</string>
-    <string name="perf_cap_auto">Driverstandaard</string>
-    <string name="perf_zram_client">Steam comprimeren terwijl een game draait</string>
-    <string name="perf_zram_idle">Inactief gamegeheugen comprimeren</string>
-    <string name="perf_zram_idle_hint">Comprimeert inactief gamegeheugen bij weinig RAM. Zet dit uit als games ongeveer elke halve minuut een paar seconden vastlopen. Geldt vanaf de volgende keer dat de sessie start.</string>
-    <string name="perf_zram_client_hint">20 s nadat een game start, wordt de Steam-client in zRAM gecomprimeerd om de game meer geheugen te geven, en teruggelezen als de game sluit. Zet dit uit als de sessie kort na het starten van games sluit. Een RAM-limiet hierboven comprimeert Steam nog steeds als de sessie die overschrijdt.</string>
-    <string name="perf_ram_cap">RAM-limiet</string>
-    <string name="perf_ram_cap_hint">Geldt terwijl de Steam-client draait, in de Steam-modus of vanaf de desktop. Als de sessie meer gebruikt dan dit, worden Steam en daarna de andere ondersteunde processen van de sessie in zRAM gecomprimeerd. Een zachte limiet: er wordt niets gesloten, maar games kunnen haperen terwijl pagina’s terugkomen.</string>
-    <string name="perf_ram_cap_unavailable">Vereist zRAM-swap, die dit apparaat niet heeft.</string>
-    <string name="perf_vram_cap">VRAM-limiet</string>
-    <string name="perf_vram_cap_hint">Meldt dit videogeheugenbudget aan Direct3D 9- tot 12-games om het geheugengebruik te verlagen. Games kunnen het overschrijden; dit voegt geen GPU-paging toe en garandeert geen bescherming tegen crashes door geheugentekort. Geldt vanaf de volgende sessie.</string>
     <string name="perf_gpuclock">GPU op hoogste kloksnelheid houden</string>
-    <string name="perf_gpuclock_hint">Alleen Adreno. Minder haperingen, meer batterijverbruik en warmte.</string>
     <string name="perf_fixes">Sessiefixes</string>
     <string name="perf_sysmem">Turnip: sysmem-rendering</string>
     <string name="perf_sysmem_hint">Geldt voor de Steam-client en games. Vereist op Adreno 710/720/722.</string>
@@ -802,7 +786,6 @@
     <string name="drawer_keyboard">Toetsenbord</string>
     <string name="drawer_latency">Latentie</string>
     <string name="drawer_low_latency">Modus voor lage latentie</string>
-    <string name="drawer_low_latency_hint">Verhoogt CPU- en batterijgebruik</string>
     <string name="drawer_low_latency_controller">Controller met lage latentie</string>
     <string name="drawer_low_latency_controller_hint">De controller rapporteert op 1000 Hz in plaats van 250 Hz. Iets meer CPU.</string>
     <string name="drawer_low_latency_touch">Aanraking met lage latentie</string>
@@ -815,7 +798,6 @@
     <string name="drawer_pc_keyboard">Pc-toetsenbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Tweede scherm</string>
-    <string name="drawer_second_screen_mode">Modus</string>
     <string name="drawer_second_screen_shows">Toont</string>
     <string name="drawer_android_apps">Android-apps</string>
     <string name="drawer_launch_app">Een app starten</string>
@@ -1357,12 +1339,8 @@
     <string name="ctrl_opacity">Transparantie</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Knopgrootte</string>
-    <string name="ctrl_adaptive">Adaptieve sticks</string>
     <string name="ctrl_rumble">Trillen in games</string>
     <string name="ctrl_dead_zone">Dode zone van stick</string>
-    <string name="ctrl_steam_button">Steam-knop</string>
-    <string name="ctrl_qam_button">QAM-knop</string>
-    <string name="ctrl_keyboard_button">Toetsenbordknop</string>
     <string name="ctrl_joycon_vr">Joy-Cons als VR-controllers</string>
     <string name="ctrl_joycon_vr_hint">Zolang SteamVR draait, wordt elke Joy-Con een hand. Richt hem naar voren en houd Home of Capture ingedrukt om hem opnieuw te centreren.</string>
     <string name="setup_animations">Animaties</string>
@@ -1491,8 +1469,6 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Bediening op tweede scherm sluiten</string>
     <string name="deck_open_steam_menu">Steam-menu openen</string>
-    <string name="deck_right_trackpad">Rechtertrackpad</string>
-    <string name="deck_left_trackpad">Linkertrackpad</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Toetsenbord tonen</string>
     <string name="second_hide_keyboard">Toetsenbord verbergen</string>
@@ -1531,11 +1507,8 @@
     <string name="pckb_android">Android-toetsenbord</string>
     <string name="pckb_hide">Verbergen  ✕</string>
     <string name="pckb_size">Grootte op scherm</string>
-    <string name="pckb_size_hint">Het deel van het scherm dat het toetsenbord inneemt, inclusief de header.</string>
     <string name="pckb_opacity">Dekking</string>
-    <string name="pckb_opacity_hint">Verlaag deze om het spel achter het toetsenbord te zien.</string>
     <string name="pckb_hidden_keys">Verborgen toetsen</string>
-    <string name="pckb_hidden_keys_hint">Toetsen die je zelden gebruikt staan niet op het toetsenbord.</string>
     <string name="pckb_group_function">Esc en functierij</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Pijltjestoetsen</string>
@@ -1573,6 +1546,8 @@
     <string name="pip_unavailable">Android kon scherm-in-scherm niet openen.</string>
     <string name="game_more">Meer</string>
     <string name="game_edit_art">Afbeeldingen bewerken</string>
+    <string name="game_unhide">Niet meer verbergen</string>
+    <string name="game_hide_failed">Synchroniseren met Steam is mislukt. Sluit Steam en probeer het opnieuw.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Snelkoppeling</string>
     <string name="game_shortcut_add">Toevoegen aan startscherm</string>
@@ -1746,8 +1721,6 @@
     <string name="drivers_installed_pick">%1$s geïnstalleerd - kies hem in het menu</string>
     <string name="session_wait_removal">Wacht tot de runtime is verwijderd</string>
     <string name="session_title_game">Game</string>
-    <string name="session_touch_auto_touchpad">touchpad</string>
-    <string name="session_touch_auto_direct">direct</string>
     <string name="session_swap_failed">Wisselen mislukt: %1$s</string>
     <string name="session_profile_save_failed">Profiel opslaan mislukt: %1$s</string>
     <string name="session_desktop_paused">De desktop is gepauzeerd</string>
@@ -2003,15 +1976,6 @@
     <string name="fm_up_one_level">Eén niveau omhoog</string>
     <string name="fm_choose_folder">Kies een map</string>
     <string name="fm_choose_file">Kies een bestand</string>
-    <string name="ctrl_tint_steam_blue">Steam-blauw</string>
-    <string name="ctrl_tint_sky">Hemelsblauw</string>
-    <string name="ctrl_tint_white">Wit</string>
-    <string name="ctrl_tint_violet">Violet</string>
-    <string name="ctrl_tint_green">Groen</string>
-    <string name="ctrl_tint_amber">Amber</string>
-    <string name="ctrl_tint_red">Rood</string>
-    <string name="ctrl_tint_pink">Roze</string>
-    <string name="ctrl_tint_gray">Grijs</string>
     <string name="ctrl_button_a">A-knop</string>
     <string name="ctrl_button_b">B-knop</string>
     <string name="ctrl_button_x">X-knop</string>
@@ -2309,6 +2273,17 @@
     <string name="pextra_checksum_mismatch">Checksum komt niet overeen; de download is verwijderd</string>
     <string name="pextra_session_started">Er is een sessie gestart tijdens het downloaden; stop die voordat je compatibiliteitstools installeert</string>
     <string name="pextra_installing">%1$s installeren</string>
+    <string name="xproton_title">Experimentele builds</string>
+    <string name="xproton_install_file">Installeren vanuit bestand</string>
+    <string name="xproton_archive_unsafe">Archief bevat een onveilige link of pad</string>
+    <string name="xproton_archive_invalid">Niet-ondersteund of ongeldig archief</string>
+    <string name="xproton_no_space">Niet genoeg vrije ruimte voor deze Proton-build</string>
+    <string name="xproton_unpacking">Proton uitpakken (enkele minuten)</string>
+    <string name="xproton_untar_failed">Uitpakken mislukt (tar %1$d)</string>
+    <string name="xproton_no_tree">Het archief bevat geen Proton-build</string>
+    <string name="xproton_place_failed">Kan de Proton-build niet plaatsen</string>
+    <string name="xproton_remove_failed">Kan %1$s niet volledig verwijderen</string>
+    <string name="xproton_installed">Experimentele Proton geïnstalleerd. Kies het in Steam → Eigenschappen → Compatibiliteit.</string>
     <string name="pextra_install_failed">Installeren van %1$s is mislukt (afsluitcode %2$d)</string>
     <string name="pextra_could_not_install">Kan %1$s niet installeren</string>
     <string name="esync_fetching">Pakket droiddeck-esync ophalen</string>
@@ -3138,7 +3113,6 @@
     <string name="glasses_pro2_experimental">Experimentele hoofdtracking voor Pro 2. Het aanpassen van helderheid en volume en het wisselen van weergavemodus worden nog niet ondersteund.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-modus</string>
-    <string name="cardboard_mode_hint">Beelden voor linker- en rechteroog voor een VR-bril voor je telefoon.</string>
     <string name="cardboard_source">Beeld</string>
     <string name="cardboard_source_screen">Virtueel scherm</string>
     <string name="cardboard_source_sbs">Side-by-side 3D</string>
@@ -3161,7 +3135,6 @@
     <string name="cardboard_steamvr_unavailable">Niet beschikbaar in deze sessie.</string>
     <string name="cardboard_steamvr_failed">SteamVR reageerde niet; controleer het sessielog.</string>
     <string name="drawer_component_downloads">Componenten downloaden</string>
-    <string name="drawer_component_downloads_hint">Downloads worden gedeeld met de pagina Componenten. Kies hierboven een gedownloade versie om die bij de volgende start van een game te gebruiken.</string>
     <string name="drawer_component_choose_download">Kies een versie om te downloaden</string>
     <string name="stores_fact_developer">Ontwikkelaar</string>
     <string name="stores_fact_publisher">Uitgever</string>
@@ -3341,10 +3314,19 @@
     <string name="storage_shared_prefix">Gedeeld Steam-prefix</string>
     <string name="storage_shared_prefix_detail">Steam voert hier eigen Windows-hulpmiddelen uit</string>
     <string name="storage_reset_shared_confirm">Verwijdert het (%1$s). Steam maakt een nieuw aan zodra het er weer een nodig heeft.</string>
+    <string name="storage_remove_launcher_confirm">Verwijdert de Wine-prefix en shadercache van deze winkel-app (%1$s), met de aanmelding en saves die alleen daar staan. Games die erin draaien krijgen een nieuwe prefix, en je moet de app misschien opnieuw instellen. Cloudsaves blijven in je account.</string>
+    <string name="storage_system_clearable">%1$s kan worden gewist</string>
+    <string name="storage_item_system_caches">Linux- en Steam-caches</string>
+    <string name="storage_item_system_caches_detail">Oude tijdelijke bestanden, gedownloade pakketten en de webcache van Steam</string>
+    <string name="storage_cache_temp">Oude tijdelijke bestanden</string>
+    <string name="storage_cache_packages">Gedownloade pakketten</string>
+    <string name="storage_cache_steam_web">Steam-webcache</string>
+    <string name="storage_cache_steam_corrupt">Beschadigde Steam-downloads</string>
+    <string name="storage_cache_detail">Wordt opnieuw gemaakt wanneer nodig</string>
+    <string name="storage_clear">Wissen</string>
     <string name="storage_launcher_prefix">Een winkel-app en de games die ermee draaien</string>
     <string name="storage_launcher_used_by">Gebruikt door %1$s</string>
     <string name="storage_shortcut_app">Niet-Steam-game %1$s</string>
-    <string name="storage_unknown_prefix_detail">Niet aan een game gekoppeld, dus het blijft bewaard</string>
     <string name="storage_remove_selected">Selectie verwijderen · %1$s</string>
     <string name="storage_uninstall_selected">Selectie verwijderen · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefixen</string>
@@ -4089,4 +4071,18 @@
     <string name="display_scaling_integer">Geheel getal</string>
     <string name="display_scaling_fit">Passend</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
+    <string name="theme_custom">Aangepast</string>
+    <string name="theme_custom_detail">Kies elke interfacekleur afzonderlijk.</string>
+    <string name="theme_custom_background">Achtergrond</string>
+    <string name="theme_custom_surface">Panelen</string>
+    <string name="theme_custom_surface_variant">Verhoogde panelen</string>
+    <string name="theme_custom_line">Scheidingslijnen</string>
+    <string name="theme_custom_line2">Randen</string>
+    <string name="theme_custom_on_background">Hoofdtekst</string>
+    <string name="theme_custom_on_surface_variant">Secundaire tekst</string>
+    <string name="theme_custom_primary">Knoppen en hoofdkleur</string>
+    <string name="theme_custom_on_primary">Knoptekst</string>
+    <string name="theme_custom_signal">Accenten</string>
+    <string name="theme_custom_good">Geslaagd</string>
+    <string name="theme_custom_error">Fout</string>
 </resources>
