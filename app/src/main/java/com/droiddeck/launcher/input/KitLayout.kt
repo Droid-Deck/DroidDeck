@@ -86,10 +86,10 @@ object KitLayout {
             Spec(InputControl.LS, 565f, 690f, 100f), Spec(InputControl.RS, 1035f, 690f, 100f),
             Spec(InputControl.L3, 430f, 590f, 42f, ax = 565f, ay = 690f), Spec(InputControl.R3, 1170f, 590f, 42f, ax = 1035f, ay = 690f),
             Spec(InputControl.SELECT, 640f, 850f, 50f, 30f, shape = InputButtonShape.PILL), Spec(InputControl.START, 960f, 850f, 50f, 30f, shape = InputButtonShape.PILL),
-            Spec(InputControl.GUIDE, 800f, 250f, 46f), Spec(InputControl.QAM, 220f, 848f, 46f), keyboard(136f))
+            Spec(InputControl.GUIDE, 800f, 850f, 46f), Spec(InputControl.QAM, 220f, 848f, 46f), keyboard(136f))
         else -> shoulders() + listOf(Spec(InputControl.LS, 235f, 400f, 104f), dpad(470f, 675f, 118f)) + face(1375f, 400f, 58f, 94f) + listOf(
             Spec(InputControl.RS, 1130f, 690f, 104f), Spec(InputControl.L3, 385f, 290f, 42f, ax = 235f, ay = 400f), Spec(InputControl.R3, 1290f, 790f, 42f, ax = 1130f, ay = 690f),
-            Spec(InputControl.SELECT, 690f, 850f, 38f), Spec(InputControl.GUIDE, 800f, 162f, 54f), Spec(InputControl.START, 910f, 850f, 38f),
+            Spec(InputControl.SELECT, 690f, 850f, 38f), Spec(InputControl.GUIDE, 800f, 850f, 46f), Spec(InputControl.START, 910f, 850f, 38f),
             Spec(InputControl.QAM, 220f, 848f, 46f), keyboard(136f))
     }
 
@@ -151,10 +151,8 @@ object KitLayout {
             max(x(s.cx), edge + hw).also { edge = it + hw + GAP_DP * density }
         }
         return controls.map { s ->
-            val cx = when (s.control) {
-                InputControl.START, InputControl.SELECT -> (w + safe.left - safe.right) / 2f + (s.cx - REF_W / 2f) * unit
-                else -> row[s] ?: (x(s.ax) + (s.cx - s.ax) * unit)
-            }
+            val cx = if (s.cy > REF_H * .88f && s.cx > REF_W / 3f && s.cx < REF_W * 2f / 3f) (w + safe.left - safe.right) / 2f + (s.cx - REF_W / 2f) * unit
+                else row[s] ?: (x(s.ax) + (s.cx - s.ax) * unit)
             val cy = y(s.ay) + (s.cy - s.ay) * unit; val hw = s.hw * unit; val hh = s.hh * unit
             InputSurfaceElement(s.control, (cx - hw) / w, (cy - hh) / h, 2 * hw / w, 2 * hh / h, s.id, s.kind, if (s.name == s.control.label) kit.name(s.control) else s.name,
                 floating = s.kind == InputElementKind.STICK, buttonShape = s.shape, icon = s.icon).bounded()
