@@ -42,10 +42,16 @@ object ControlsChoice {
     private fun deletable(context: Context, library: InputLibrary, layout: SavedInputLayout): Boolean {
         if (!layout.editable || layout.id == InputLibraries.OVERLAY || layout.id in defaults(library)) return false
         if (GameControls.games(context).any { game -> own(library, GameControls.bindings(context, game))?.let { library.preset(it).layoutId } == layout.id }) return false
-        val reachable = setOf(InputProfile.GAME, InputProfile.DESKTOP, library.activeId(false), library.activeId(true))
-        return library.usersOfLayout(layout.id).none { it.id in reachable } &&
+        return library.profiles.none { p -> p.parts.any { (role, part) -> part.layout == layout.id && drawn(library, p.id, role) } } &&
             library.bindings.none { it.layoutId == layout.id && library.selectedBindings(it.id) }
     }
+
+    /** Whether [profile]'s [role] part is what a mode shows, rather than one a choice made since covers. */
+    private fun drawn(library: InputLibrary, profile: String, role: InputRole) =
+        listOf(false, true).any { desktop -> library.activeId(desktop) == profile && library.selection(desktop).parts[role] == null }
+
+    private fun keeps(library: InputLibrary, profile: String) =
+        profile == InputProfile.GAME || profile == InputProfile.DESKTOP || listOf(false, true).any { library.activeId(it) == profile }
 
     fun options(context: Context, game: Long?, steamMode: Boolean, gameName: String? = null, desktop: Boolean = false): List<Option> {
         val library = InputLibraries.read(context)
@@ -71,14 +77,24 @@ object ControlsChoice {
     /** Whether [game] chose Steam's touch controls but runs where they can't be shown. */
     fun steamUnavailable(context: Context, game: Long?, steamMode: Boolean) = !steamMode && GameControls.steamLayout(context, game)
 
-    /** Deletes the saved layout [id] and its actions, with any profile that still uses it but can no longer be chosen. */
+    /** Deletes the saved layout [id] and its actions. A profile that can no longer be chosen goes with it; one that can falls back to the stock layout. */
     fun delete(context: Context, id: String) {
         val games = GameControls.games(context).mapNotNull { GameControls.bindings(context, it) }.toSet()
         InputLibraries.update(context) { library ->
             val layout = library.layouts.first { it.id == id }
             require(deletable(context, library, layout))
-            val orphans = library.usersOfLayout(id)
-            var result = orphans.fold(library) { acc, p -> acc.removeProfile(p.id) }
+            val users = library.usersOfLayout(id)
+            val orphans = users.filterNot { keeps(library, it.id) }
+            var result = users.filter { keeps(library, it.id) }.fold(library) { acc, p ->
+                p.parts.filterValues { it.layout == id }.keys.fold(acc) { lib, role ->
+                    lib.chooseLayout(p.id, role, when {
+                        role == InputRole.PRIMARY -> InputLibraries.OVERLAY
+                        p.base == InputProfile.DESKTOP -> InputLibraries.TRACKPAD
+                        else -> InputLibraries.DECK
+                    })
+                }
+            }
+            result = orphans.fold(result) { acc, p -> acc.removeProfile(p.id) }
             val loose = orphans.flatMap { p -> p.parts.values.map { it.bindings } }.toSet()
                 .filter { b -> b !in games && result.usersOfBindings(b).isEmpty() && !result.selectedBindings(b) && result.bindings.any { it.id == b } }
                 .filterNot { b -> InputStockLayouts.presets(InputStockLayouts.layouts()).any { it.id == b } }

@@ -184,4 +184,18 @@ class ControlsChoiceTest {
         assertEquals(context.getString(R.string.osc_layout_detail_game, "ARMSX1"),
             ControlsChoice.options(context, 7, steamMode = true, gameName = "ARMSX1").first { it.id == source }.detail)
     }
+
+    @Test fun aLayoutTheGameProfileStillListsCanBeDeletedOnceAnotherIsChosen() {
+        val source = bigSticks()
+        InputLibraries.update(context) { it.chooseLayout(InputProfile.GAME, InputRole.PRIMARY, source) }
+        assertEquals(source, ControlsChoice.current(context, null, steamMode = true))
+        assertFalse(ControlsChoice.options(context, null, steamMode = true).first { it.id == source }.deletable)
+        ControlsChoice.choose(context, null, InputLibraries.OVERLAY, desktop = false)
+        assertTrue(ControlsChoice.options(context, null, steamMode = true).first { it.id == source }.deletable)
+        ControlsChoice.delete(context, source)
+        val library = InputLibraries.read(context)
+        assertTrue(library.layouts.none { it.id == source })
+        assertEquals(InputLibraries.OVERLAY, library.profile(InputProfile.GAME).parts.getValue(InputRole.PRIMARY).layout)
+        assertEquals(InputLibraries.OVERLAY, ControlsChoice.current(context, null, steamMode = true))
+    }
 }
