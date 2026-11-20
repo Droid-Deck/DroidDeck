@@ -281,6 +281,8 @@ static int g_dirty;
 static int64_t g_dirty_since_ns;
 volatile int g_render_on_commit = 1;
 static int64_t g_rendered_tick_ns;
+static int g_tick_spare;
+static int g_scene_queues;
 static int g_tick_held;
 static int64_t g_hold_missed_ns;
 #define HOLD_RETRY_NS 1000000000LL
@@ -2323,6 +2325,8 @@ static void render_scene(void) {
         g_dirty_since_ns = 0;
     }
     g_dirty = 0;
+    if (g_rendered_tick_ns == g_tick_vsync_ns) g_tick_spare = 0;
+    g_scene_queues = 0;
     g_rendered_tick_ns = g_tick_vsync_ns;
     g_tick_held = 0;
     g_hud_fresh = 0;
@@ -2468,6 +2472,7 @@ static void render_scene(void) {
                 hdr_copy = "the overlay layer refused the window above it";
             } else {
                 rendered = vkp_base_black(w, h) == 0;
+                g_scene_queues = sc_layer_queues();
             }
         } else {
             rendered = vkp_render(w, h, dl.d, dl.n) == 0;
@@ -2529,8 +2534,12 @@ static int commit_renders_on(void) {
            !g_bfi_running;
 }
 
+static int tick_takes_scene(void) {
+    return g_rendered_tick_ns != g_tick_vsync_ns || (g_tick_spare && g_scene_queues);
+}
+
 static int render_on_commit(void) {
-    return commit_renders_on() && !g_render_idle && g_rendered_tick_ns != g_tick_vsync_ns;
+    return commit_renders_on() && !g_render_idle && tick_takes_scene();
 }
 
 static void schedule_render(void) {
@@ -2557,7 +2566,7 @@ static int scene_waits_for_game(int64_t now) {
 
 static void on_commit_idle(void *data) {
     g_render_idle = NULL;
-    if (!g_dirty || !commit_renders_on() || g_rendered_tick_ns == g_tick_vsync_ns || scene_waits_for_game(now_ns())) return;
+    if (!g_dirty || !commit_renders_on() || !tick_takes_scene() || scene_waits_for_game(now_ns())) return;
     g_pace.commit_renders++;
     render_scene();
 }
@@ -2632,6 +2641,7 @@ static void on_vsync(int64_t frame_time_ns) {
         if (d > 3000000LL && d < 40000000LL) g_refresh_ns = (g_refresh_ns * 7 + d) / 8;
     }
     g_last_vsync_ns = now;
+    g_tick_spare = g_rendered_tick_ns != g_tick_vsync_ns;
     g_tick_vsync_ns = frame_time_ns;
     int tick_change = 0;
     if (vkp_apply_window_request()) tick_change = 1;

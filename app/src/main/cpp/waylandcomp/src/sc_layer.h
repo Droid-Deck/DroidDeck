@@ -35,6 +35,8 @@ void sc_layer_set_frame_rate(float fps);
 
 int sc_layer_overlay_affordable(void);
 
+int sc_layer_queues(void);
+
 int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int translucent);
 
 void sc_layer_hide(void);

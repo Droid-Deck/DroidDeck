@@ -64,6 +64,7 @@ static struct {
     void (*setHdrMetadata_cta861_3)(ASurfaceTransaction *, ASurfaceControl *, const struct droiddeck_hdr_cta861_3 *);
     const void *(*getNativeHandle)(const AHardwareBuffer *);
     void (*setDesiredHdrHeadroom)(ASurfaceTransaction *, ASurfaceControl *, float);
+    void (*setEnableBackPressure)(ASurfaceTransaction *, ASurfaceControl *, bool);
     int state;
 } api;
 
@@ -105,6 +106,7 @@ static int load_api(void) {
     SYM(setHdrMetadata_smpte2086, "ASurfaceTransaction_setHdrMetadata_smpte2086");
     SYM(setHdrMetadata_cta861_3, "ASurfaceTransaction_setHdrMetadata_cta861_3");
     SYM(setDesiredHdrHeadroom, "ASurfaceTransaction_setDesiredHdrHeadroom");
+    SYM(setEnableBackPressure, "ASurfaceTransaction_setEnableBackPressure");
 #undef SYM
     if (!api.createFromWindow || !api.release || !api.txCreate || !api.txDelete || !api.txApply ||
         !api.setBuffer || !api.setZOrder || !api.setVisibility || !api.setGeometry ||
@@ -565,6 +567,8 @@ static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait
 
 int sc_layer_available(void) { return load_api() == 0; }
 
+int sc_layer_queues(void) { return load_api() == 0 && api.setEnableBackPressure != NULL; }
+
 void sc_layer_probe_dmabuf_fd(int fd) {
     static int done;
     if (done || fd < 0) return;
@@ -764,6 +768,7 @@ static int present_slot(struct layer *l, int idx, const int r[8], const struct d
     ASurfaceControl *old = swap_sc_begin(l);
     if (old) api.setZOrder(tx, l->sc, l->z);
     api.setBuffer(tx, l->sc, s->ahb, -1);
+    if (api.setEnableBackPressure) api.setEnableBackPressure(tx, l->sc, true);
     api.setBufferTransparency(tx, l->sc,
                               translucent ? ASC_TRANSPARENCY_TRANSLUCENT : ASC_TRANSPARENCY_OPAQUE);
     apply_geometry(tx, l, r);
@@ -828,6 +833,7 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
     ASurfaceControl *old = swap_sc_begin(l);
     if (old) api.setZOrder(tx, l->sc, l->z);
     api.setBuffer(tx, l->sc, ahb, acquire_fd);
+    if (api.setEnableBackPressure) api.setEnableBackPressure(tx, l->sc, true);
     api.setBufferTransparency(tx, l->sc, ASC_TRANSPARENCY_OPAQUE);
     apply_geometry(tx, l, r);
     apply_frame_rate(tx, l);
