@@ -135,20 +135,29 @@ void *udev_device_new_from_devnum(void *udev, char type, unsigned long devnum) {
 }
 """
 
-# Every libudev function that takes a struct udev_device; ref comes before unref so the pad stays alive.
+# Every libudev function that takes a struct udev_device, with a letter for its signature (run_every's
+# switch); ref comes before unref so the pad stays alive.
 DEVICE_FUNCTIONS = (
-    "udev_device_ref", "udev_device_get_udev", "udev_device_get_parent",
-    "udev_device_get_parent_with_subsystem_devtype", "udev_device_get_devpath", "udev_device_get_subsystem",
-    "udev_device_get_devtype", "udev_device_get_syspath", "udev_device_get_sysname", "udev_device_get_sysnum",
-    "udev_device_get_devnode", "udev_device_get_is_initialized", "udev_device_get_devlinks_list_entry",
-    "udev_device_get_properties_list_entry", "udev_device_get_tags_list_entry",
-    "udev_device_get_current_tags_list_entry", "udev_device_get_sysattr_list_entry",
-    "udev_device_get_property_value", "udev_device_get_driver", "udev_device_get_devnum", "udev_device_get_action",
-    "udev_device_get_seqnum", "udev_device_get_usec_since_initialized", "udev_device_get_sysattr_value",
-    "udev_device_set_sysattr_value", "udev_device_has_tag", "udev_device_has_current_tag", "udev_device_unref",
+    "p:udev_device_ref", "p:udev_device_get_udev", "p:udev_device_get_parent",
+    "P:udev_device_get_parent_with_subsystem_devtype", "s:udev_device_get_devpath", "s:udev_device_get_subsystem",
+    "s:udev_device_get_devtype", "s:udev_device_get_syspath", "s:udev_device_get_sysname",
+    "s:udev_device_get_sysnum", "s:udev_device_get_devnode", "i:udev_device_get_is_initialized",
+    "p:udev_device_get_devlinks_list_entry", "p:udev_device_get_properties_list_entry",
+    "p:udev_device_get_tags_list_entry", "p:udev_device_get_current_tags_list_entry",
+    "p:udev_device_get_sysattr_list_entry", "S:udev_device_get_property_value", "s:udev_device_get_driver",
+    "d:udev_device_get_devnum", "s:udev_device_get_action", "u:udev_device_get_seqnum",
+    "u:udev_device_get_usec_since_initialized", "S:udev_device_get_sysattr_value",
+    "W:udev_device_set_sysattr_value", "I:udev_device_has_tag", "I:udev_device_has_current_tag",
+    "p:udev_device_unref",
 )
-UDEV += "".join(f"long {name}(void *device) {{ (void)device; real_device_calls++; return 1; }}\n"
-                for name in DEVICE_FUNCTIONS if not re.search(rf"\b{name}\(", UDEV))
+SIGNATURES = {
+    "p": ("void *", ""), "s": ("const char *", ""), "i": ("int", ""), "d": ("dev_t", ""),
+    "u": ("unsigned long long", ""), "S": ("const char *", ", const char *a"), "I": ("int", ", const char *a"),
+    "P": ("void *", ", const char *a, const char *b"), "W": ("int", ", const char *a, const char *b"),
+}
+UDEV += "#include <sys/types.h>\n" + "".join(
+    f"{SIGNATURES[kind][0]} {name}(void *device{SIGNATURES[kind][1]}) {{ (void)device; real_device_calls++; return 0; }}\n"
+    for kind, _, name in (entry.partition(":") for entry in DEVICE_FUNCTIONS) if not re.search(rf"\b{name}\(", UDEV))
 
 PROGRAM = r"""
 #define _GNU_SOURCE
@@ -362,7 +371,7 @@ static void run_enumerate(void) {
   printf("nothing added scan %d\n", scan(other));
 }
 
-static void run_every(int count, char **names) {
+static void run_every(int count, char **entries) {
   void *(*from_devnum)(void *, char, dev_t) = sym("udev_device_new_from_devnum");
   int *real_calls = dlsym(lib, "real_device_calls");
   int udev;
@@ -370,10 +379,25 @@ static void run_every(int count, char **names) {
   int i;
 
   for (i = 0; pad != NULL && i < count; i++) {
-    long (*call)(void *, const char *, const char *) = sym(names[i]);
+    const char *name = entries[i] + 2;
+    void *call = sym(name);
 
-    if (call == NULL) printf("missing %s\n", names[i]);
-    else call(pad, "attr", "value");
+    if (call == NULL) {
+      printf("missing %s\n", name);
+      continue;
+    }
+    switch (entries[i][0]) {
+      case 'p': ((void *(*)(void *))call)(pad); break;
+      case 's': ((const char *(*)(void *))call)(pad); break;
+      case 'i': ((int (*)(void *))call)(pad); break;
+      case 'd': ((dev_t (*)(void *))call)(pad); break;
+      case 'u': ((unsigned long long (*)(void *))call)(pad); break;
+      case 'S': ((const char *(*)(void *, const char *))call)(pad, "attr"); break;
+      case 'I': ((int (*)(void *, const char *))call)(pad, "attr"); break;
+      case 'P': ((void *(*)(void *, const char *, const char *))call)(pad, "input", NULL); break;
+      case 'W': ((int (*)(void *, const char *, const char *))call)(pad, "attr", "value"); break;
+      default: printf("unknown signature %s\n", entries[i]);
+    }
   }
   printf("pad %d real calls %d\n", pad != NULL, real_calls != NULL ? *real_calls : -1);
 }
