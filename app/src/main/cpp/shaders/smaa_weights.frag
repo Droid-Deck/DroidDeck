@@ -90,7 +90,7 @@ void main() {
     float diagonalPattern = smoothstep(threshold, threshold * 2.5, diagonalStrength);
     float diagonalContinuity = smoothstep(1.0, 3.0, span);
     float shortDiagonalFallback =
-        (span <= 1.0 && crossingContrast <= threshold && diagonalStrength > threshold)
+        (span > 0.0 && span <= 1.0 && crossingContrast <= threshold && diagonalStrength > threshold)
             ? 1.0 : 0.0;
     float diagonalFallback = 0.16 * diagonalPattern * edgeConfidence
         * cornerFactor * max(diagonalContinuity, shortDiagonalFallback);

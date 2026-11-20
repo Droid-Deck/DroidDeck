@@ -2145,11 +2145,15 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
 
     int drawn = 0;
     int hdr_how = 0;
-    if (hf && pass && n > 0 &&
+    const int hdr_compose_requested = hf && pass && n > 0;
+    int hdr_unconverted = 0;
+    if (hdr_compose_requested &&
         compose_hdr(cmd, draws, n, hf, scene_w, scene_h, scene_img, scene_fmt,
                     g_swap_is_hdr ? HDRC_OUT_PQ : HDRC_OUT_SDR) == 0) {
         hdr_how = g_swap_is_hdr ? 1 : 2;
         drawn = n;
+    } else if (hdr_compose_requested) {
+        hdr_unconverted = 1;
     }
     for (int i = 0; i < draw_n && !hdr_how; i++) {
         VkImageBlit blit;
@@ -2180,7 +2184,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         if (fx) {
             int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
             if (fg && !vkp_effects_sharpening()) { mapped_w = scene_w; mapped_h = scene_h; }
-            vkp_effects_set_formats(scene_fmt, scene_fmt, hdr_how == 1);
+            vkp_effects_set_formats(scene_fmt, scene_fmt, hdr_how == 1 || hdr_unconverted);
             result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h, &rw, &rh);
             effects_overlay_draws(cmd, result, rw, rh, scene_w, scene_h,
                                   draws ? draws + overlay_start : NULL, n - overlay_start);
