@@ -140,6 +140,19 @@ class KitLayoutTest {
         assertTrue(overlapping(adjusted, w, h).isEmpty())
     }
 
+    @Test fun aCutoutShiftDoesNotCoverAnAddedControl() {
+        val w = 2400
+        val h = 1080
+        val safe = Rect(120, 0, 0, 0)
+        val extra = InputSurfaceElement(InputControl.B, .05f, .4f, .025f, .06f, id = "added")
+        val layout = SavedInputLayout(InputLibraries.OVERLAY, "Gamepad", listOf(extra), aspect = w.toFloat() / h)
+        val fallback = OnScreenLayout.elements(context, layout, w, h, safe, rearButtons = false, trackpads = false)
+        val placed = OnScreenLayout.elements(context, layout, w, h, safe, cutouts = listOf(Rect(0, 380, 120, 480)),
+            rearButtons = false, trackpads = false)
+        assertEquals(fallback, placed)
+        assertTrue(overlapping(placed, w, h).isEmpty())
+    }
+
     @Test fun startAndSelectAreOnTheFloatingOverlayBottomRow() {
         for (kit in PadKit.entries) for ((w, h) in sizes) {
             val buttons = KitLayout.elements(context, kit, w, h)

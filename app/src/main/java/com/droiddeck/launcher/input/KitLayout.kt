@@ -95,7 +95,8 @@ object KitLayout {
 
     /** The default controls for [kit] on a [width] × [height] screen. */
     fun elements(context: Context, kit: PadKit, width: Int, height: Int, inset: Rect = Rect(), scale: Float = 1f,
-        cutouts: List<Rect> = emptyList(), rearButtons: Boolean = true, trackpads: Boolean = true): List<InputSurfaceElement> {
+        cutouts: List<Rect> = emptyList(), rearButtons: Boolean = true, trackpads: Boolean = true,
+        addedControls: List<InputSurfaceElement> = emptyList()): List<InputSurfaceElement> {
         if (width <= 0 || height <= 0) return emptyList()
         // Insets stay as reported unless what's left is too small to keep every control above the minimum element size.
         val smallestUnit = InputSurfaceElement.MIN_SIZE * max(width, height) / (2 * SMALLEST_HALF)
@@ -116,7 +117,7 @@ object KitLayout {
             (left == 0 || leftCutouts.isNotEmpty()) && (right == 0 || rightCutouts.isNotEmpty())) {
             val corner = cornerInset(safe, cutouts, height, context.resources.displayMetrics.density)
             val fullWidth = landscape(context, kit, width, height, Rect(0, top, 0, bottom), scale, corner, controls)
-            avoidSideCutouts(fullWidth, leftCutouts, rightCutouts, width, height)?.let { return it }
+            avoidSideCutouts(fullWidth, leftCutouts, rightCutouts, width, height, addedControls)?.let { return it }
         }
         return landscape(context, kit, width, height, safe, scale, left, controls)
     }
@@ -161,8 +162,10 @@ object KitLayout {
     }
 
     private fun avoidSideCutouts(elements: List<InputSurfaceElement>, leftCutouts: List<Rect>, rightCutouts: List<Rect>,
-        width: Int, height: Int): List<InputSurfaceElement>? {
-        val boxes = elements.map { e -> RectF(e.x * width, e.y * height, (e.x + e.width) * width, (e.y + e.height) * height) }
+        width: Int, height: Int, addedControls: List<InputSurfaceElement>): List<InputSurfaceElement>? {
+        fun bounds(e: InputSurfaceElement) = RectF(e.x * width, e.y * height, (e.x + e.width) * width, (e.y + e.height) * height)
+        val boxes = elements.map(::bounds)
+        val addedBoxes = addedControls.map(::bounds)
         // Move a face-button cross or a stick and its click button together.
         val groups = elements.indices.groupBy { index ->
             val element = elements[index]
@@ -191,6 +194,7 @@ object KitLayout {
         val moved = boxes.mapIndexed { index, box -> RectF(box).apply { offset(shifts[index], 0f) } }
         for (i in moved.indices) {
             if (moved[i].left < 0f || moved[i].right > width || obstacles.any { RectF.intersects(moved[i], it) }) return null
+            if (shifts[i] != 0f && addedBoxes.any { RectF.intersects(moved[i], it) }) return null
             for (j in 0 until i) {
                 if (shifts[i] != shifts[j] && RectF.intersects(moved[i], moved[j]) && !RectF.intersects(boxes[i], boxes[j])) return null
             }

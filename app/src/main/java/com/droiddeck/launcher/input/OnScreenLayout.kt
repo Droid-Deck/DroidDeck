@@ -36,7 +36,7 @@ object OnScreenLayout {
             val kit = PadKit.current(context)
             val extras = if (layout.elements.isEmpty()) emptyList() else fit(layout.elements, aspect(context, layout), 1f, width, height, safe)
             return (if (dock != null) KitLayout.dock(context, kit, width, height, dock.portrait, dock.left, dock.right)
-                else KitLayout.elements(context, kit, width, height, safe, layout.scale, cutouts, rearButtons, trackpads)) + extras
+                else KitLayout.elements(context, kit, width, height, safe, layout.scale, cutouts, rearButtons, trackpads, addedControls = extras)) + extras
         }
         val elements = if (dock == null && hasBuiltInKit(layout)) layout.elements.filter { element ->
             !KitLayout.isKit(element.id) || KitLayout.visibleOnOverlay(element.control, rearButtons, trackpads)
