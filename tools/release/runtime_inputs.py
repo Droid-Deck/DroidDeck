@@ -49,12 +49,15 @@ def digest(path):
 
 
 def sources(root):
-    files = []
+    files, builds = [], set()
     for name in SOURCE_PATHS:
         path = root / name
         files.extend(path.rglob('*') if path.is_dir() else [path])
+        if path.is_dir():
+            builds.update(manifest.parent / 'target' for manifest in path.rglob('Cargo.toml'))
     return {path.relative_to(root).as_posix(): digest(path) for path in sorted(set(files))
-            if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'}
+            if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'
+            and not any(build in path.parents for build in builds)}
 
 
 def outputs(root):

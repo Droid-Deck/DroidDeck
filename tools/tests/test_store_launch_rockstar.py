@@ -375,10 +375,15 @@ class EpicRockstarLaunch(unittest.TestCase):
         self.assertIsNone(self.stage())
         self.assertEqual([], self.unpacked)
 
-    def launch(self, bat, parent):
+    def game_environment(self, shared=None, games=None):
+        config = self.root / 'home/.config/droiddeck/game-environment.json'
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(json.dumps({'version': 1, 'shared': shared or {}, 'games': games or {}}))
+
+    def launch(self, bat, parent, compat_data=''):
         (self.folder / '.droiddeck-launch.bat').write_text(bat)
         calls = []
-        env = {'DD_LAUNCH_DIR': str(self.root / 'launch'), 'STEAM_COMPAT_DATA_PATH': ''}
+        env = {'DD_LAUNCH_DIR': str(self.root / 'launch'), 'STEAM_COMPAT_DATA_PATH': compat_data, 'HOME': str(self.root / 'home')}
         with patch.dict(os.environ, env), patch.object(store, 'EPIC_PARENT', parent), \
                 patch.object(store, 'client_wanted', return_value=False), \
                 patch.object(store, 'ask', side_effect=lambda channel, request, timeout=0, claim=False: calls.append((request['op'], timeout)) or {'ok': False}):
@@ -398,6 +403,26 @@ class EpicRockstarLaunch(unittest.TestCase):
         bat = '@echo off\r\nsetlocal\r\nset "DD_P="\r\nif "%DD_EPIC_PARENT%"=="1" set "DD_P=1"\r\n'
         calls = self.launch(bat, self.root / 'missing/EpicGamesLauncher.exe')
         self.assertEqual(['epic-code', 'cloud-down'], [op for op, _ in calls])
+
+    def test_the_games_own_switch_decides_whether_the_stand_in_is_fetched(self):
+        compat_data = str(self.root / 'compatdata/4089453117')
+        missing = self.root / 'missing/EpicGamesLauncher.exe'
+        self.game_environment(games={'4089453117': {'DD_EPIC_PARENT': '1'}})
+        self.assertEqual('store-service', self.launch('@echo off\r\nset "DD_P="\r\n', missing, compat_data)[0][0])
+        self.game_environment(games={'4089453117': {'DD_EPIC_PARENT': '0'}})
+        self.assertEqual(['epic-code', 'cloud-down'], [op for op, _ in self.launch('@echo off\r\nset "DD_P=1"\r\n', missing, compat_data)])
+        self.game_environment(games={'4089453117': {'DD_EPIC_PARENT': None}}, shared={'DD_EPIC_PARENT': '0'})
+        self.assertEqual('store-service', self.launch('@echo off\r\nset "DD_P=1"\r\n', missing, compat_data)[0][0])
+
+    def test_the_switch_is_read_the_way_the_game_will_see_it(self):
+        env = {'HOME': str(self.root / 'home'), 'STEAM_COMPAT_DATA_PATH': str(self.root / 'compatdata/4089453117')}
+        self.assertEqual('', store.epic_parent_switch(env))
+        self.assertEqual('1', store.epic_parent_switch(dict(env, DD_EPIC_PARENT='1')))
+        self.game_environment(shared={'DD_EPIC_PARENT': '1'}, games={'4089453117': {'DD_EPIC_PARENT': '0'}, '7': {'DD_EPIC_PARENT': '1'}})
+        self.assertEqual('0', store.epic_parent_switch(env))
+        self.assertEqual('1', store.epic_parent_switch(dict(env, STEAM_COMPAT_DATA_PATH=str(self.root / 'compatdata/12'))))
+        (self.root / 'home/.config/droiddeck/game-environment.json').write_text('{"version": 9}')
+        self.assertEqual('1', store.epic_parent_switch(dict(env, DD_EPIC_PARENT='1')))
 
 
 if __name__ == '__main__':

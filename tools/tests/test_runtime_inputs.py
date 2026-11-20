@@ -137,6 +137,19 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'sources changed'):
             runtime.verify(self.root)
 
+    def test_cargo_output_beside_a_windows_helper_is_not_a_source(self):
+        crate = self.root / 'tools/epic-launcher'
+        (crate / 'src').mkdir(parents=True)
+        (crate / 'Cargo.toml').write_text('[package]\n')
+        (crate / 'src/lib.rs').write_text('old')
+        runtime.record(self.root)
+        (crate / 'target/debug').mkdir(parents=True)
+        (crate / 'target/debug/build.log').write_text('local cargo test')
+        runtime.verify(self.root)
+        (crate / 'src/lib.rs').write_text('new')
+        with self.assertRaisesRegex(ValueError, 'sources changed'):
+            runtime.verify(self.root)
+
     def test_missing_quest_driver_cannot_be_attested(self):
         (self.root / 'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst').unlink()
         with self.assertRaisesRegex(ValueError, 'quest1.tzst'):

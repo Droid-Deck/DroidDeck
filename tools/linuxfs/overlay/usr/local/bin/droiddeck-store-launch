@@ -5,6 +5,7 @@ import binascii
 import json
 import os
 import re
+import runpy
 import shlex
 import shutil
 import stat
@@ -342,6 +343,7 @@ SDK_SOURCE = ".droiddeck-sdk-source"
 SDK_SETUP_LIMIT = 256 * 1024 * 1024
 EPIC_PARENT = Path("/usr/local/lib/droiddeck-epic/EpicGamesLauncher.exe")
 EPIC_PARENT_ON = 'set "DD_P=1"'
+EPIC_PARENT_SWITCH = "DD_EPIC_PARENT"
 EPIC_SERVICE_WAIT = 60.0
 ROCKSTAR_TITLES = {"gta3": "Grand Theft Auto III", "gtavc": "Grand Theft Auto: Vice City", "gtasa": "GTA: San Andreas",
                    "gta4": "Grand Theft Auto IV", "lanoire": "LANoireMTL"}
@@ -505,7 +507,23 @@ def rockstar_runtime(folder, exe, compat_data, arch, installer=None):
     return "installed"
 
 
-def wants_epic_parent(folder):
+def epic_parent_switch(env=None):
+    env = os.environ if env is None else env
+    try:
+        game_env = runpy.run_path(str(Path(__file__).resolve().with_name("droiddeck-game-env")))
+        try:
+            config = json.loads((Path(env.get("HOME") or "/root") / ".config/droiddeck/game-environment.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            config = {"version": 1}
+        env = game_env["apply_config"](env, config, game_env["game_id"](env))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+    return env.get(EPIC_PARENT_SWITCH, "")
+
+
+def wants_epic_parent(folder, switch):
+    if switch in ("0", "1"):
+        return switch == "1"
     try:
         return EPIC_PARENT_ON in (folder / LAUNCHER).read_text(errors="replace").splitlines()
     except OSError:
@@ -1695,7 +1713,7 @@ def main(argv):
             log("ubisoft %s: not prepared (%s), starting directly" % (game, e))
     if store == "epic":
         try:
-            if launch_dir and not EPIC_PARENT.is_file() and wants_epic_parent(folder):
+            if launch_dir and not EPIC_PARENT.is_file() and wants_epic_parent(folder, epic_parent_switch()):
                 got = fetch_service(EPIC_PARENT, "epic", launch_dir, timeout=EPIC_SERVICE_WAIT)
                 log("epic parent stand-in: " + ("staged" if got else "unavailable"))
             sdk = epic_rockstar_sdk(folder, sidecar, compat_data, os.environ.get("DD_STORE_PROTON", ""))
