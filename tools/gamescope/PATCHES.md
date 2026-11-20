@@ -327,6 +327,12 @@ each frame's motion to the X pointer itself until the game stops warping. Absolu
 motion, as a real compositor does, so XInput2 raw motion reaches games that read only that. A touch moves the
 pointer without relative motion, so tapping the screen does not turn the camera.
 
+The X pointer is read in root coordinates and the seat position is local to the focused window, so the X pointer
+is moved into the focused window's coordinates before the two are compared. Without that, any window not at the
+root origin (a dialog, or a windowed program) looked like a game warping the pointer, following started, and the
+pointer was pinned to the window's corner. A touch always lands where the finger is and ends following, so taps
+work in every window.
+
 ## 0132 sdl, steamcompmgr: follow a game's window mode
 With `--follow-game-window-mode`, the outer window of a nested SDL gamescope follows the focused game window. A window
 asking for `_NET_WM_STATE_FULLSCREEN`, or a Steam game covering the X screen without minimise or maximise functions or
@@ -344,3 +350,11 @@ motion while the seat is locked) with how the X pointer moves. A hinted constrai
 after 30 moving frames on which the X pointer follows. Any constraint goes relative once the X pointer moves less than a quarter
 of that motion on three frames within half a second, as it does when the game recentres it or clips it to a small rectangle
 (PEAK). `tools/tests/test_gamescope_pointer_hold.py` compiles the rule from this patch.
+
+## 0134 wlserver: a touch presses the emulated click button only once
+
+In the Left, Right and Middle touch click modes every finger pressed the button, but a finger lifting releases it once
+and clears the held flag. wlroots counts repeated presses of one button and sends the release only when the count
+reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
+game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
+earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.

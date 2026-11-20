@@ -7,7 +7,7 @@ X64_CHANNEL=steamdeck_publicbeta
 MANIFEST=steam_client_${X64_CHANNEL}_steamrt64
 
 REAL_HOME=${HOME:-/root}
-X64_HOME=${BL_X64_HOME:-$REAL_HOME/.droiddeck-x64}
+X64_HOME=${DD_X64_HOME:-$REAL_HOME/.droiddeck-x64}
 ROOTFS=$X64_HOME/rootfs
 STEAM_X64=$X64_HOME/.local/share/Steam
 ARM_STEAM=${XDG_DATA_HOME:-$REAL_HOME/.local/share}/Steam
@@ -88,7 +88,7 @@ x64_map_direct() {
   done
   python3 - "$mode" "$STEAM_X64/config/config.vdf" "$STEAM_X64/appcache/appinfo.vdf" "$X64_HOME/direct-auto.json" \
     "$X64_HOME/direct-sniper" "$libraries" "$(x64_default_tool)" \
-    "$REAL_HOME/.bl-compat-pending" ${BL_X64_DIRECT_APPS:-550} \
+    "$REAL_HOME/.dd-compat-pending" ${DD_X64_DIRECT_APPS:-550} \
     <<'PY' || { [ "$mode" = live ] || step "could not map titles to DroidDeck direct"; }
 # Steam does not swap an installed build when the tool changes: a title installed for Windows stays on Proton.
 import json, os, re, struct, sys
@@ -356,7 +356,7 @@ if [ ! -f "$ROOTFS/.droiddeck-complete" ]; then
 fi
 echo "== x86-64 rootfs: $(sed -n 's|.*/download/\([^/]*\)/.*|\1|p' <<<"$ROOTFS_URL") (sha256 ${ROOTFS_SHA256:0:12})" >&2
 : > "$ROOTFS/etc/ld.so.preload"
-for lib in libblsession libfakeinput; do
+for lib in libddsession libfakeinput; do
   have=0
   arches="x86_64 i386"; [ "$lib" = libfakeinput ] && arches=x86_64
   rm -f "$ROOTFS/usr/local/lib/i386-linux-gnu/libfakeinput.so"
@@ -371,11 +371,11 @@ for lib in libblsession libfakeinput; do
   elif [ "$have" = 1 ]; then echo "/usr/local/\$LIB/$lib.so" >> "$ROOTFS/etc/ld.so.preload"
   else step "warning: no x86 build of $lib (/usr/local/lib/droiddeck-fex/x86_64/$lib.so)"; fi
 done
-rm -f "$ROOTFS/usr/local/lib/libblsession-x86_64.so" "$ROOTFS/usr/local/lib/libfakeinput-x86_64.so"
+rm -f "$ROOTFS/usr/local/lib/libddsession-x86_64.so" "$ROOTFS/usr/local/lib/libfakeinput-x86_64.so"
 unconfirmed=$STEAM_X64/package/droiddeck-unconfirmed
 if [ -d "${unconfirmed%/*}" ] && ! grep -qx tracked "$unconfirmed" 2>/dev/null; then echo tracked > "$unconfirmed"; fi
 x64_repair=
-if [ "${BL_X64_REPAIR:-0}" = 1 ]; then
+if [ "${DD_X64_REPAIR:-0}" = 1 ]; then
   x64_repair=requested
 elif [ -f "$unconfirmed" ] && ! grep -qx repaired "$unconfirmed" && [ "$(grep -cx start "$unconfirmed")" -ge 2 ]; then
   x64_repair="the client was started $(grep -cx start "$unconfirmed") times without showing anything"
@@ -449,7 +449,11 @@ mkdir -p "$srt_libs"
 for d in "$STEAM_X64"/steamrt64/pv-runtime/steam-runtime-steamrt/steamrt3c_platform_*/files/lib/x86_64-linux-gnu \
          "$STEAM_X64"/steamrt64/pv-runtime/steam-runtime-steamrt/steamrt3c_platform_*/files/usr/lib/x86_64-linux-gnu; do
   [ -d "$d" ] || continue
-  for f in "$d"/*.so*; do [ -e "$srt_libs/$(basename "$f")" ] || ln -s "$f" "$srt_libs/"; done
+  for f in "$d"/*.so*; do
+    [ -e "$f" ] || [ -L "$f" ] || continue
+    s="$srt_libs/$(basename "$f")"
+    { [ -e "$s" ] || [ -L "$s" ]; } || ln -s "$f" "$srt_libs/"
+  done
 done
 FEX_ROOTFS=$ROOTFS /usr/local/bin/FEX "$ROOTFS/usr/sbin/ldconfig.real" -n "$srt_libs" >>"$LOG" 2>&1 || step "ldconfig on $srt_libs failed"
 sniper_compat=$X64_HOME/sniper-compat
@@ -458,6 +462,7 @@ mkdir -p "$sniper_compat"
 hb=$(ls "$srt_libs"/libharfbuzz.so.0.* 2>/dev/null | head -n 1)
 if [ -n "$hb" ]; then ln -s "$hb" "$sniper_compat/libharfbuzz.so.0"; else step "warning: no HarfBuzz in Valve's runtime for the newer-runtime titles"; fi
 for f in "$srt_libs"/*; do
+  [ -e "$f" ] || [ -L "$f" ] || continue
   n=$(basename "$f")
   if [ -e "$ROOTFS/usr/lib/x86_64-linux-gnu/$n" ] || [ -e "$ROOTFS/lib/x86_64-linux-gnu/$n" ]; then rm -f "$f"; fi
 done
@@ -497,7 +502,7 @@ marker=$(cat "${0%/*}/vac-marker" 2>/dev/null)
 case "$*" in *hl2.sh*|*hl2_linux*|*srcds*) [ -n "$marker" ] && [ -f "$marker" ] && set -- "$@" -condebug ;; esac
 # game-gpu.env is rewritten whenever the launcher runs; game-gpu.local is the user's and is read after it.
 gpu=$HOME/game-gpu.env
-if [ -f "$gpu" ] && [ "${BL_X64_GAME_SOFTWARE:-0}" != 1 ]; then
+if [ -f "$gpu" ] && [ "${DD_X64_GAME_SOFTWARE:-0}" != 1 ]; then
   . "$gpu"
   [ -f "$HOME/game-gpu.local" ] && . "$HOME/game-gpu.local"
 else
@@ -575,9 +580,9 @@ VDF
   x64_sync_login
   if ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
     listing_ok=0
-    if BL_X64_SHARED=$X64_HOME/shared/arm64 python3 - "$STEAM_X64" "${BL_X64_STEAM_LIBRARIES:-}" "$STEAM_X64/config/libraryfolders.vdf" "$STEAM_X64/steamapps/libraryfolders.vdf" <<'PY'; then
+    if DD_X64_SHARED=$X64_HOME/shared/arm64 python3 - "$STEAM_X64" "${DD_X64_STEAM_LIBRARIES:-}" "$STEAM_X64/config/libraryfolders.vdf" "$STEAM_X64/steamapps/libraryfolders.vdf" <<'PY'; then
 import json, os, re, sys
-keep = {os.path.realpath(sys.argv[1]), os.path.realpath(os.environ["BL_X64_SHARED"])}
+keep = {os.path.realpath(sys.argv[1]), os.path.realpath(os.environ["DD_X64_SHARED"])}
 # Without the session's list nothing is known about the card: leave the folders as they are.
 if not sys.argv[2]:
     sys.exit(3)
@@ -617,7 +622,7 @@ PY
       step "could not check the x86-64 client's library folders"
     fi
     if [ "$listing_ok" = 1 ]; then
-      BL_STEAM_LIBRARIES=$BL_X64_STEAM_LIBRARIES droiddeck-steam-library "$STEAM_X64" ||
+      DD_STEAM_LIBRARIES=$DD_X64_STEAM_LIBRARIES droiddeck-steam-library "$STEAM_X64" ||
         step "could not add the card to the x86-64 client's library folders"
     fi
   fi
@@ -701,11 +706,11 @@ PY
 }
 
 x64_gpu() {
-  [ "${BL_X64_SOFTWARE:-0}" != 1 ] && [ -d /usr/local/share/fex-emu/GuestThunks ] && [ -d /usr/local/lib/fex-emu/HostThunks ]
+  [ "${DD_X64_SOFTWARE:-0}" != 1 ] && [ -d /usr/local/share/fex-emu/GuestThunks ] && [ -d /usr/local/lib/fex-emu/HostThunks ]
 }
 
 x64_webhelper_gpu() {
-  x64_gpu && [ "${BL_X64_CLIENT_SOFTWARE:-0}" != 1 ] && [ "${BL_X64_CEF_GPU:-1}" != 0 ]
+  x64_gpu && [ "${DD_X64_CLIENT_SOFTWARE:-0}" != 1 ] && [ "${DD_X64_CEF_GPU:-1}" != 0 ]
 }
 
 x64_env() {
@@ -724,7 +729,7 @@ if x64_gpu; then
     done
   } > "$X64_HOME/game-gpu.env"
 fi
-if x64_gpu && [ "${BL_X64_CLIENT_SOFTWARE:-0}" != 1 ]; then
+if x64_gpu && [ "${DD_X64_CLIENT_SOFTWARE:-0}" != 1 ]; then
   export FEX_THUNKCONFIG=$X64_HOME/thunks.json
   unset LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE
 else
@@ -732,7 +737,7 @@ unset FEX_THUNKCONFIG $gpu_vars
 export LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
 export LIBGL_DRI3_DISABLE=1
 fi
-[ "${BL_X64_FP_OFF:-0}" = 1 ] && export PROOT_FP_OFF=1
+[ "${DD_X64_FP_OFF:-0}" = 1 ] && export PROOT_FP_OFF=1
 export FEX_TSOENABLED=${FEX_TSOENABLED:-1} FEX_VECTORTSOENABLED=${FEX_VECTORTSOENABLED:-0} \
   FEX_MEMCPYSETTSOENABLED=${FEX_MEMCPYSETTSOENABLED:-0} FEX_HALFBARRIERTSOENABLED=${FEX_HALFBARRIERTSOENABLED:-0} \
   FEX_X87REDUCEDPRECISION=${FEX_X87REDUCEDPRECISION:-1} FEX_MULTIBLOCK=${FEX_MULTIBLOCK:-1}
@@ -745,7 +750,7 @@ export STEAM_RUNTIME=1
 [ -d "$X64_HOME/steamrt-shim/bin" ] && export PATH=$X64_HOME/steamrt-shim/bin:$PATH
 export LD_LIBRARY_PATH=$STEAM_X64/steamrt64:$STEAM_X64/steamrt64/panorama:$X64_HOME/steamrt-libs
 export STEAM_STEAMRT_RECURSION_GUARD=1
-export BL_WEBHELPER_HIDE_TRACER=1
+export DD_WEBHELPER_HIDE_TRACER=1
 }
 
 x64_manifest_version() {
@@ -755,7 +760,7 @@ x64_manifest_version() {
 }
 
 x64_gpu_probe() {
-  local fex=${BL_FEX:-/usr/local/bin/FEX}
+  local fex=${DD_FEX:-/usr/local/bin/FEX}
   echo "== x86-64 GPU probe (x86 glxinfo and vulkaninfo through FEX):"
   (
     unset LD_LIBRARY_PATH
@@ -790,23 +795,23 @@ x64_arm_webhelper_cpu_supported() {
 x64_exec() {
   x64_env
   cd "$STEAM_X64"
-  if [ "${BL_X64_X86_WEBHELPER:-0}" != 1 ] && [ -x /usr/local/bin/droiddeck-x64-arm-webhelper ] &&
+  if [ "${DD_X64_X86_WEBHELPER:-0}" != 1 ] && [ -x /usr/local/bin/droiddeck-x64-arm-webhelper ] &&
      [ -x "$ARM_STEAM/steamrtarm64/steamwebhelper" ] && x64_arm_webhelper_cpu_supported; then
     local chan x86_build arm_build
     chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo "$X64_CHANNEL")
     x86_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_steamrt64.manifest" 2>/dev/null || true)
     arm_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$ARM_STEAM/package/steam_client_${chan}_linuxarm64.manifest" 2>/dev/null || true)
     if [ -n "$x86_build" ] && [ "$x86_build" = "$arm_build" ]; then
-      export BL_X64_ARM_WEBHELPER=/usr/local/bin/droiddeck-x64-arm-webhelper
+      export DD_X64_ARM_WEBHELPER=/usr/local/bin/droiddeck-x64-arm-webhelper
     else
       echo "== x86-64 client build ${x86_build:-?}, arm64 web helper's ${arm_build:-?}: keeping the x86 web helper" >&2
     fi
   fi
-  if [ -z "${BL_X64_ARM_WEBHELPER:-}" ] && x64_webhelper_gpu; then
-    export BL_WEBHELPER_ARGS="--ignore-gpu-blocklist --use-gl=angle --use-angle=gl --ozone-platform=x11"
-    [ -x /usr/local/bin/droiddeck-x64-webhelper ] && export BL_X64_ARM_WEBHELPER=/usr/local/bin/droiddeck-x64-webhelper
-  elif [ -z "${BL_X64_ARM_WEBHELPER:-}" ]; then
-    export BL_WEBHELPER_ARGS=stock
+  if [ -z "${DD_X64_ARM_WEBHELPER:-}" ] && x64_webhelper_gpu; then
+    export DD_WEBHELPER_ARGS="--ignore-gpu-blocklist --use-gl=angle --use-angle=gl --ozone-platform=x11"
+    [ -x /usr/local/bin/droiddeck-x64-webhelper ] && export DD_X64_ARM_WEBHELPER=/usr/local/bin/droiddeck-x64-webhelper
+  elif [ -z "${DD_X64_ARM_WEBHELPER:-}" ]; then
+    export DD_WEBHELPER_ARGS=stock
     local a args=() soft=0
     for a in "$@"; do
       case $a in
@@ -822,7 +827,7 @@ x64_exec() {
       grep --line-buffered -oE 'Downloading update \([0-9,]+ of [0-9,]+ KB\)|^[[:space:]]*(\[[^]]+\][[:space:]]*)*(Extracting package|Installing update)\.\.\.[[:space:]]*$' | sed -u 's/,//g' >&2 ) &
   echo "== x86-64 client: steamrt64 $(x64_manifest_version steamrt64) (the client may update itself)" >&2
   x64_webhelper_gpu && { x64_gpu_watch >&2 & }
-  exec "${BL_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
+  exec "${DD_FEX:-/usr/local/bin/FEX}" "$STEAM_X64/steamrt64/steam" "$@"
 }
 
 x64_share() {
@@ -964,8 +969,8 @@ if pgrep -f 'steamrtarm64/steam( |$)' >/dev/null 2>&1; then
 fi
 x64_prepare
 step "FEX, rootfs and client ready"
-if [ -n "${BL_FEXSERVER_LOG:-}" ]; then
-  FEX_ROOTFS=$ROOTFS "$(dirname "${BL_FEX:-/usr/local/bin/FEX}")/FEXServer" -f -p 600 >"$BL_FEXSERVER_LOG" 2>&1 &
+if [ -n "${DD_FEXSERVER_LOG:-}" ]; then
+  FEX_ROOTFS=$ROOTFS "$(dirname "${DD_FEX:-/usr/local/bin/FEX}")/FEXServer" -f -p 600 >"$DD_FEXSERVER_LOG" 2>&1 &
   sleep 1
 fi
 x64_bus= x64_nm= x64_pin=
@@ -1012,11 +1017,11 @@ if ! pgrep -f 'steamrt64/steam( |$)' >/dev/null 2>&1; then
     { [ -e "$f" ] || [ -L "$f" ]; } && rm -f "$f"
   done
 fi
-if [ -n "${BL_CLIENT_CPUS:-}" ] && command -v taskset >/dev/null 2>&1; then
+if [ -n "${DD_CLIENT_CPUS:-}" ] && command -v taskset >/dev/null 2>&1; then
   (
     while sleep 5; do
       for pid in $(ps -A -o PID,ARGS | awk '($2 ~ /^(.*\/)?FEX(Interpreter)?$/) && ($3 ~ /steamrt64\/steam$/ || $3 ~ /steamwebhelper$/) {print $1} $2 ~ /steamrtarm64\/steamwebhelper$/ {print $1}'); do
-        taskset -a -p -c "$BL_CLIENT_CPUS" "$pid" >/dev/null 2>&1
+        taskset -a -p -c "$DD_CLIENT_CPUS" "$pid" >/dev/null 2>&1
       done
     done
   ) &
@@ -1026,7 +1031,7 @@ for attempt in 1 2 3 4 5; do
   echo "$X64_CHANNEL" > "$STEAM_X64/package/beta"
   step "starting the x86-64 SteamRT3 client under FEX (attempt $attempt): $*"
   rc=0
-  if [ "${BL_X64_X86_WEBHELPER:-0}" != 1 ] || x64_webhelper_gpu; then cef=(-cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan); else cef=(-cef-disable-gpu); fi
+  if [ "${DD_X64_X86_WEBHELPER:-0}" != 1 ] || x64_webhelper_gpu; then cef=(-cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=vulkan); else cef=(-cef-disable-gpu); fi
   ( x64_exec -clientbeta "$X64_CHANNEL" -no-cef-sandbox "${cef[@]}" "$@" ) >>"$LOG" 2>&1 || rc=$?
   step "client exited rc=$rc"
   [ "$rc" = 42 ] || break

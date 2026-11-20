@@ -99,11 +99,11 @@ def desktop_environment(base, proc=Path("/proc")):
                 if command != b"/usr/bin/plasmashell":
                     continue
                 values = dict(os.fsdecode(item).split("=", 1) for item in (entry / "environ").read_bytes().split(b"\0") if b"=" in item)
-                if values.get("BL_DESKTOP") != "1" or values.get("XDG_RUNTIME_DIR") != env.get("XDG_RUNTIME_DIR"):
+                if values.get("DD_DESKTOP") != "1" or values.get("XDG_RUNTIME_DIR") != env.get("XDG_RUNTIME_DIR"):
                     continue
                 if not values.get("DISPLAY") or values.get("WAYLAND_DISPLAY") == env.get("WAYLAND_DISPLAY"):
                     continue
-                for key in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "BL_DESKTOP"):
+                for key in ("DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "DD_DESKTOP"):
                     if key in values:
                         env[key] = values[key]
                 return env
@@ -130,10 +130,10 @@ def runner(folder, appid, game, graphical=False):
         raise ValueError("No Proton tool is installed for this game")
     tool, command = available[name]
     base = desktop_environment(os.environ) if graphical else dict(os.environ)
-    env = run["environment"](base, target, tool, root, window=base.get("BL_DESKTOP") == "1")
+    env = run["environment"](base, target, tool, root, window=base.get("DD_DESKTOP") == "1")
     env["DROIDDECK_GOG_MAINTENANCE"] = "1"
     env["FEX_X87REDUCEDPRECISION"] = "0"
-    env.pop("BL_STORE_EXIT", None)
+    env.pop("DD_STORE_EXIT", None)
     return str(Path(tool) / command), env, target.compatdata
 
 

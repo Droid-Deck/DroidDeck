@@ -48,10 +48,20 @@ data class InputProfile(
         copy(bindings = bindings + (role to (bindings[role].orEmpty() + (control to action))))
 
     fun elementAction(role: InputRole, id: String, control: InputControl): InputAction =
-        elements[role]?.get(id) ?: if (id == "legacy:${control.id}") action(role, control) else InputAction.Disabled
+        elements[role]?.get(id) ?: if (id == "legacy:${control.id}") action(role, control) else defaultElementAction(id)
 
     fun elementClickAction(role: InputRole, element: InputSurfaceElement): InputAction = clicks[role]?.get(element.id)
         ?: defaultElementClick(element, elementAction(role, element.id, element.control)) { action(role, it) }
+
+    fun showsMouseButton(role: InputRole, shown: List<InputSurfaceElement>, stock: InputProfile): Boolean = shown.any { element ->
+        val action = elementAction(role, element.id, element.control).takeIf {
+            elements[role]?.get(element.id) != stock.elements[role]?.get(element.id) || it != stock.elementAction(role, element.id, element.control)
+        }
+        val click = elementClickAction(role, element).takeIf {
+            clicks[role]?.get(element.id) != stock.clicks[role]?.get(element.id) || it != stock.elementClickAction(role, element)
+        }
+        listOfNotNull(action, click).any { it is InputAction.MouseButton && it.validFor(element.control) }
+    }
 
     companion object {
         const val GAME = "game"
@@ -104,4 +114,11 @@ internal fun InputAction.validFor(control: InputControl): Boolean = when (this) 
     is InputAction.Pointer -> control.dimensions == 2 && speed.isFinite() && speed in 100f..3000f
     is InputAction.Scroll -> control.dimensions == 2 && speed.isFinite() && speed in 1f..60f
     else -> true
+}
+
+/** What an on-screen element with no saved action does: kit controls press their own button, everything else is unassigned. */
+internal fun defaultElementAction(id: String): InputAction = when (id) {
+    KitLayout.DPAD_ID -> InputAction.Native()
+    KitLayout.KEYBOARD_ID -> InputAction.Command(InputCommand.KEYBOARD)
+    else -> InputAction.Disabled
 }

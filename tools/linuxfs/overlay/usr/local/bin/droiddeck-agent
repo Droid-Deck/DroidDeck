@@ -283,7 +283,7 @@ def sandboxed_apps(proc=Path("/proc")):
 def window_steam_app(win, flatpaks, proc=Path("/proc")):
     match = STEAM_APP_CLASS.match(win.get("class") or "")
     if match:
-        return match.group(1) if os.environ.get("BL_STEAM_CLIENT_ARCH") == "x86_64" else None
+        return match.group(1) if os.environ.get("DD_STEAM_CLIENT_ARCH") == "x86_64" else None
     pid = win.get("pid")
     if pid:
         if under_reaper(pid, proc):
@@ -391,18 +391,26 @@ class FocusWatcher(threading.Thread):
                         x.close()
             except (OSError, AgentError) as e:
                 log("focus snapshot failed: %s" % e)
+                self.publish({})
                 time.sleep(2)
                 continue
             if tag_game_windows(snap):
                 self.changed.set()
                 continue
-            body = {k: v for k, v in snap.items() if k != "t"}
-            if body == self.last:
-                continue
-            self.last = body
-            self.seq += 1
-            snap["seq"] = self.seq
-            write_json(self.path, snap)
+            self.publish(snap)
+
+    def publish(self, snap):
+        body = {k: v for k, v in snap.items() if k != "t"}
+        if body == self.last:
+            return
+        try:
+            write_json(self.path, dict(snap, seq=self.seq + 1))
+        except OSError as e:
+            log("focus publication failed: %s" % e)
+            self.changed.set()
+            return
+        self.seq += 1
+        self.last = body
 
     def listen(self):
         while True:
@@ -521,7 +529,7 @@ def cdp_port(agent_dir):
     try:
         port = (agent_dir / "cdp-port").read_text().strip()
     except OSError:
-        port = os.environ.get("BL_CDP_PORT", "")
+        port = os.environ.get("DD_CDP_PORT", "")
     if not port.isdigit():
         raise AgentError("NO_DEVTOOLS", "The Steam client's DevTools port is not known (no Steam client in this session yet)")
     return int(port)
@@ -927,6 +935,33 @@ def steam_shortcut_state(agent_dir, game_id, timeout=6):
         time.sleep(min(0.5, max(0, deadline - time.monotonic())))
 
 
+def steam_ready(agent_dir):
+    expression = """(() => {
+        const store = globalThis.appStore;
+        return !!store?.m_bIsInitialized && typeof globalThis.SteamClient?.Apps?.ContinueGameAction === 'function';
+    })()"""
+    return cdp_eval(agent_dir, expression, await_promise=False, timeout=3).get("value") is True
+
+
+def steam_clear_pending_interstitial(agent_dir, app_id):
+    if not isinstance(app_id, str) or not app_id.isascii() or not app_id.isdigit() or int(app_id) <= 0:
+        raise AgentError("INVALID_APP_ID", "appId must be a positive decimal Steam app id")
+    expression = """(async () => {
+        const apps = globalThis.SteamClient?.Apps;
+        if (typeof apps?.GetActiveGameActions !== 'function' || typeof apps.ContinueGameAction !== 'function') return false;
+        const active = await apps.GetActiveGameActions() || [];
+        for (const action of active) {
+            const appid = String(action?.strAppID ?? action?.gameid ?? action?.nAppID ?? '');
+            if (appid === %s && action?.strTaskName === 'ShowInterstitials') {
+                apps.ContinueGameAction(action.nGameActionID, appid, 'ShowInterstitials');
+                return true;
+            }
+        }
+        return false;
+    })()""" % json.dumps(app_id)
+    return cdp_eval(agent_dir, expression, timeout=3).get("value") is True
+
+
 def game_pids(app_id):
     wanted = [("SteamAppId=%s" % app_id).encode(), ("SteamGameId=%s" % app_id).encode()]
     me = os.getpid()
@@ -1183,9 +1218,9 @@ def serve(agent_dir, focus=True, poll=0.1):
 
 
 def main(argv):
-    base = os.environ.get("BL_LAUNCH_DIR")
+    base = os.environ.get("DD_LAUNCH_DIR")
     if not base:
-        print("BL_LAUNCH_DIR is not set", file=sys.stderr)
+        print("DD_LAUNCH_DIR is not set", file=sys.stderr)
         return 2
     if argv and argv[0] == "--wait-steam-shortcut-overview":
         if len(argv) not in (2, 3):
@@ -1261,6 +1296,19 @@ def main(argv):
             return 1
         print(state)
         return {"ready": 0, "missing": 4, "not-shortcut": 3}.get(state, 1)
+    if argv and argv[0] == "--steam-ready":
+        try:
+            return 0 if steam_ready(Path(base) / "agent") else 1
+        except (AgentError, OSError, ValueError):
+            return 1
+    if argv and argv[0] == "--steam-clear-pending-interstitial":
+        if len(argv) != 2:
+            print("usage: droiddeck-agent --steam-clear-pending-interstitial <appid>", file=sys.stderr)
+            return 2
+        try:
+            return 0 if steam_clear_pending_interstitial(Path(base) / "agent", argv[1]) else 1
+        except (AgentError, OSError, ValueError):
+            return 1
     serve(Path(base) / "agent", focus="--no-focus" not in argv)
     return 0
 

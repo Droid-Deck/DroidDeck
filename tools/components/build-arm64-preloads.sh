@@ -7,14 +7,15 @@ aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compa
   -o "$D/libfakeinput.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
 aarch64-linux-gnu-strip --strip-unneeded "$D/libfakeinput.so"
 aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-  -o "$D/libblsession.so" tools/linuxfs/preload/*.c -ldl
-aarch64-linux-gnu-strip --strip-unneeded "$D/libblsession.so"
+  -o "$D/libddsession.so" tools/linuxfs/preload/*.c -ldl
+aarch64-linux-gnu-strip --strip-unneeded "$D/libddsession.so"
 aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-  -o "$D/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
-aarch64-linux-gnu-strip --strip-unneeded "$D/libblfastpath.so"
+  -o "$D/libddfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+aarch64-linux-gnu-strip --strip-unneeded "$D/libddfastpath.so"
+bash tools/nativeguest/build.sh "$D/libddnatv-hook.so"
 aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
-  -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$D/libblaudit.so" tools/proot/fastpath/audit.c
-aarch64-linux-gnu-strip --strip-unneeded "$D/libblaudit.so"
+  -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$D/libddaudit.so" tools/proot/fastpath/audit.c
+aarch64-linux-gnu-strip --strip-unneeded "$D/libddaudit.so"
 aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
   -o "$D/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
 aarch64-linux-gnu-strip --strip-unneeded "$D/libssbs.so"

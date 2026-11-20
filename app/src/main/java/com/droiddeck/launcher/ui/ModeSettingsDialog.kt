@@ -63,6 +63,7 @@ class ModeSettings(
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
     val touchMode: String,
+    val pen: SessionPrefs.Pen? = null,
     val suspendPolicy: String,
     val steamDownloadsInBackground: Boolean = false,
     val pipSupported: Boolean = false,
@@ -82,6 +83,7 @@ class ModeSettings(
     val forceSsbs: Boolean = false,
     val syncBackend: String? = null,
     val picturePosition: String? = null,
+    val integerScaling: Boolean? = null,
     val stretch16x9: Boolean? = null,
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
@@ -116,6 +118,7 @@ class ModeSettingsActions(
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onTouch: (String) -> Unit,
+    val onPen: (key: String, value: String) -> Unit = { _, _ -> },
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
@@ -137,6 +140,7 @@ class ModeSettingsActions(
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
     val onPicturePosition: (String) -> Unit = {},
+    val onIntegerScaling: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onSteamClientArch: (String) -> Unit = {},
@@ -209,6 +213,14 @@ class SheetExtras(
 fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: SheetExtras = SheetExtras()) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
+    Text(
+        stringResource(when (s.mode) {
+            SessionService.MODE_STEAM -> R.string.sheet_scope_steam
+            SessionService.MODE_DESKTOP -> R.string.sheet_scope_desktop
+            else -> R.string.sheet_scope_other
+        }),
+        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 4.dp),
+    )
     if (tab == SheetTab.DISPLAY) {
         val context = LocalContext.current
         val portraitWindow = SessionPrefs.portrait(context)
@@ -224,6 +236,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
                     listOf("top" to stringResource(R.string.display_position_top),
                         "bottom" to stringResource(R.string.display_position_bottom),
+                        "left" to stringResource(R.string.display_position_left),
+                        "right" to stringResource(R.string.display_position_right),
                         "center" to stringResource(R.string.display_position_center)),
                     position, onPick = a.onPicturePosition)
             }
@@ -238,6 +252,18 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
         }
         SettingsGroup(stringResource(R.string.display_image_scaling)) {
+            s.integerScaling?.let { enabled ->
+                ChoiceRow(
+                    host, "integer-scaling",
+                    stringResource(R.string.display_integer_scaling),
+                    stringResource(R.string.display_integer_scaling_hint),
+                    listOf(
+                        false to stringResource(R.string.display_scaling_fit),
+                        true to stringResource(R.string.display_scaling_integer),
+                    ),
+                    enabled, onPick = a.onIntegerScaling,
+                )
+            }
             ChoiceRow(
                 host, "upscaler", stringResource(R.string.display_filter), null,
                 SessionPrefs.upscalerChoices(LocalContext.current), s.upscaler,
@@ -260,7 +286,9 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         extras.drivers(s.gpuDrivers)
     }
     if (tab == SheetTab.CONTROLS) {
-        InputQuickSettings(host, desktop = s.mode == SessionService.MODE_DESKTOP, onEdit = a.onInputSettings)
+        SettingsGroup(stringResource(R.string.drawer_page_controller)) {
+            ActionRow(stringResource(R.string.input_remap_buttons), null, stringResource(R.string.ctrl_edit), a.onInputSettings)
+        }
         SettingsGroup(if (steam) stringResource(R.string.mode_touch_controls) else stringResource(R.string.mode_touch)) {
             ChoiceRow(
                 host, "touch", stringResource(R.string.mode_touch), null,
@@ -273,8 +301,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 listOf(
                     SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto),
                     SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
-                    SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch),
-                    SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam),
                     SessionPrefs.OSC_NEVER to stringResource(R.string.common_never),
                 ), s.oscMode,
                 note = stringResource(R.string.mode_osc_note), onPick = a.onOsc,
@@ -319,6 +345,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             PhysicalShortcutRows()
         }
+        s.pen?.let { PenSettingsGroup(host, it, onPick = a.onPen) }
     }
     if (tab == SheetTab.AUDIO && steam) {
         if (s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {

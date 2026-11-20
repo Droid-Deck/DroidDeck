@@ -123,7 +123,7 @@ class PreloadSnapshotTest(unittest.TestCase):
 
     def test_forged_binary_hash_cannot_prove_main_origin(self):
         data = copy.deepcopy(self.data)
-        data['outputs']['libblsession.so'] = 'f' * 64
+        data['outputs']['libddsession.so'] = 'f' * 64
         with patch.object(snapshots, 'artifact_bytes', return_value=self.binaries):
             with self.assertRaisesRegex(ValueError, 'original main APK'):
                 snapshots.prove_origin(data, self.root / 'cache', self.root)
@@ -150,12 +150,36 @@ class PreloadSnapshotTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'successful main'):
                     snapshots.artifact_bytes(self.data['origin'], self.root / 'cache')
 
+    def test_origin_apk_without_a_newer_output_reads_the_rest(self):
+        from zipfile import ZipFile
+        newest = 'libddnatv-hook.so'
+        apk = io.BytesIO()
+        with ZipFile(apk, 'w') as z:
+            for name, value in self.binaries.items():
+                if name != newest:
+                    z.writestr('assets/linuxfs/' + name, value)
+        outer = io.BytesIO()
+        with ZipFile(outer, 'w') as z:
+            z.writestr('app-release.apk', apk.getvalue())
+        digest = snapshots.sha(outer.getvalue())
+        origin = dict(self.data['origin'], artifact_sha256=digest)
+        build = dict(event='push', head_branch='main', conclusion='success', head_sha=origin['commit'],
+                     path='.github/workflows/build.yml', repository=dict(full_name=snapshots.REPO))
+        artifact = dict(name='droiddeck-apk', workflow_run=dict(id=origin['run']), digest='sha256:' + digest)
+        cache = self.root / 'cache'
+        cache.mkdir()
+        (cache / (digest + '.zip')).write_bytes(outer.getvalue())
+        with patch.object(snapshots, 'api', side_effect=[build, artifact]):
+            content = snapshots.artifact_bytes(origin, cache)
+        self.assertNotIn(newest, content)
+        self.assertEqual(set(content), snapshots.FILES - {newest})
+
     def test_corrupt_archive_is_rejected(self):
         with self.assertRaisesRegex(ValueError, 'checksum'):
             snapshots.unpack(self.content + b'tampered', self.data)
 
     def test_missing_duplicate_or_traversal_entries_are_rejected(self):
-        for files in ({}, {'../escaped': b'bad'}, {'libblsession.so': b'wrong'}):
+        for files in ({}, {'../escaped': b'bad'}, {'libddsession.so': b'wrong'}):
             content = archive(files)
             data = dict(self.data, archive_sha256=snapshots.sha(content))
             with self.subTest(names=list(files)), self.assertRaises(ValueError):

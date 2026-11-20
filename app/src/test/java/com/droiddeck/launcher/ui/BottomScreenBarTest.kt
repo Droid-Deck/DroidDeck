@@ -1,8 +1,11 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import org.junit.After
@@ -74,5 +77,36 @@ class BottomScreenBarTest {
         compose.onNodeWithContentDescription(context.getString(R.string.touch_droiddeck_menu)).assertDoesNotExist()
         compose.onNodeWithContentDescription(context.getString(R.string.drawer_steam_menu)).assertDoesNotExist()
         compose.onNodeWithContentDescription(context.getString(R.string.drawer_open_qam)).assertDoesNotExist()
+    }
+
+    @Test fun thePanelNameOpensTheScreenPickerInsteadOfAMenuButton() {
+        var menus = 0
+        val picked = mutableListOf<SecondScreenMode>()
+        val modes = listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL, SecondScreenMode.CUSTOM_CONTROLS)
+        compose.setContent {
+            DroidDeckTheme {
+                BottomScreenBar(BottomBarModel("Trackpad", {}, { menus++ }, null, null,
+                    picker = ScreenPicker(modes, SecondScreenMode.KEYBOARD_TRACKPAD, { picked += it }, onMenu = { menus++ })))
+            }
+        }
+        compose.onNodeWithTag("bottom-bar-menu").assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.second_mode_keyboard_trackpad)).assertExists()
+        compose.onNodeWithTag("bottom-bar-screen").performClick()
+        compose.onNodeWithTag("screen-picker:${SecondScreenMode.TERMINAL.id}").performClick()
+        compose.waitForIdle()
+        assertEquals(listOf(SecondScreenMode.TERMINAL), picked)
+        compose.onNodeWithTag("screen-picker:${SecondScreenMode.TERMINAL.id}").assertDoesNotExist()
+        compose.onNodeWithTag("bottom-bar-screen").performClick()
+        compose.onNodeWithTag("screen-picker-menu").performClick()
+        compose.waitForIdle()
+        assertEquals(1, menus)
+    }
+
+    @Test fun focusStartsOnTheMenuFromAPanelAndOnThePanelFromTheMenu() {
+        val modes = listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL)
+        assertNull(ScreenPicker(modes, SecondScreenMode.TERMINAL, {}, onMenu = {}).focusTarget())
+        assertEquals(SecondScreenMode.TERMINAL, ScreenPicker(modes, SecondScreenMode.TERMINAL, {}, onMenu = {}, menuShown = true).focusTarget())
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, ScreenPicker(modes, SecondScreenMode.NONE, {}, onMenu = {}, menuShown = true).focusTarget())
+        assertEquals(SecondScreenMode.TERMINAL, ScreenPicker(modes, SecondScreenMode.TERMINAL, {}).focusTarget())
     }
 }

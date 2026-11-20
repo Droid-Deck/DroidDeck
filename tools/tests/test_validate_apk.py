@@ -28,7 +28,7 @@ class ValidateApkTest(unittest.TestCase):
     def git(self, *args):
         return subprocess.check_output(["git", "-C", self.root, *args], text=True).strip()
 
-    def validate(self, message="Source change", body="", result="success", stale=False, completed=False, filename="source.kt", permission="write", role_name="write"):
+    def validate(self, message="Source change", body="", result="success", stale=False, completed=False, filename="source.kt", permission="write", role_name="write", fork=False):
         (self.root / filename).parent.mkdir(parents=True, exist_ok=True)
         (self.root / filename).write_text(message)
         self.git("add", filename)
@@ -38,7 +38,8 @@ class ValidateApkTest(unittest.TestCase):
               "title": "Source change", "body": body}
         event = {"number": 1, "pull_request": {"head": {"sha": "stale" if stale else sha}}}
         if completed:
-            event = {"workflow_run": {"event": "pull_request", "head_sha": "stale" if stale else sha}}
+            event = {"workflow_run": {"event": "pull_request", "head_sha": "stale" if stale else sha,
+                                      "head_branch": "fix/branch", "head_repository": {"owner": {"login": "contributor"}}}}
         path = self.root / "event.json"
         path.write_text(json.dumps(event))
 
@@ -51,6 +52,8 @@ class ValidateApkTest(unittest.TestCase):
             if path.endswith("/pulls/1"):
                 return pr
             if "/commits/" in path and path.endswith("/pulls"):
+                return [] if fork else [pr]
+            if path.endswith("/pulls?state=open&head=contributor%3Afix%2Fbranch"):
                 return [pr]
             if "workflows/build.yml/runs?" in path:
                 return {"workflow_runs": [{"id": 7, "head_sha": sha, "status": "completed", "html_url": "https://example.org/build"}]}
@@ -94,6 +97,12 @@ class ValidateApkTest(unittest.TestCase):
     def test_superseded_build_cannot_replace_current_status(self):
         self.validate(stale=True, completed=True)
         self.assertEqual(self.statuses, [])
+        self.validate(stale=True, completed=True, fork=True)
+        self.assertEqual(self.statuses, [])
+
+    def test_a_completed_fork_build_reports_on_its_pull_request(self):
+        self.validate(completed=True, fork=True)
+        self.assertEqual(self.statuses[-1]["state"], "success")
 
     def test_documentation_passes_without_waiting_for_a_skipped_build(self):
         self.validate(filename="README.md", result="pending")
@@ -121,3 +130,41 @@ class ValidateApkTest(unittest.TestCase):
         self.git("commit", "-qm", "Rename source")
         with contextlib.chdir(self.root):
             self.assertFalse(validate_apk.documentation_only(self.git("rev-parse", "HEAD")))
+
+
+class RateLimitTest(unittest.TestCase):
+    def call(self, results):
+        replies = list(results)
+        runs = []
+
+        def run(args, **kwargs):
+            runs.append(args)
+            code, out, err = replies.pop(0)
+            return subprocess.CompletedProcess(args, code, out, err)
+
+        with patch.object(validate_apk.subprocess, "run", side_effect=run), \
+                patch.object(validate_apk, "rate_limit_wait", return_value=7), \
+                patch.object(validate_apk.time, "sleep") as sleep, \
+                contextlib.redirect_stderr(open(os.devnull, "w")):
+            try:
+                return validate_apk.api("repos/x/pulls/1"), runs, sleep
+            except subprocess.CalledProcessError as error:
+                return error, runs, sleep
+
+    def test_waits_for_the_rate_limit_then_retries(self):
+        result, runs, sleep = self.call([(1, "", "gh: API rate limit exceeded for installation."), (0, '{"number": 1}', "")])
+        self.assertEqual(result, {"number": 1})
+        self.assertEqual(len(runs), 2)
+        sleep.assert_called_once_with(7)
+
+    def test_other_errors_fail_without_waiting(self):
+        result, runs, sleep = self.call([(1, "", "gh: Not Found (HTTP 404)")])
+        self.assertIsInstance(result, subprocess.CalledProcessError)
+        self.assertEqual(len(runs), 1)
+        sleep.assert_not_called()
+
+    def test_gives_up_after_the_last_attempt(self):
+        result, runs, sleep = self.call([(1, "", "API rate limit exceeded")] * 3)
+        self.assertIsInstance(result, subprocess.CalledProcessError)
+        self.assertEqual(len(runs), 3)
+        self.assertEqual(sleep.call_count, 2)

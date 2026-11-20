@@ -2,10 +2,12 @@
 
 DroidDeck uses the Nexus backend protocol with a native Linux AArch64 CLI and
 service. It does not install the Nexus desktop launcher or x86 Linux Wine.
-`backend.lock.json` pins Xodus, the Nexus commit, Rust, and the ordered patch
-checksums. `runtime.lock.json` pins the Nexus Windows runtime release and each
-extracted PE DLL. `prepare.py` verifies both source revisions and all Nexus patch
-checksums before applying the local transport, launch and library patches.
+`backend.lock.json` pins the Nexus backend (domsvoboda/nexus-backend, a fork of
+Xodus that carries Nexus's changes as commits), its Xodus base, Rust and the
+Cargo.lock checksum. `runtime.lock.json` pins the Nexus Windows runtime release
+(domsvoboda/nexus-runtime) and each extracted PE DLL. `prepare.py` verifies the
+source revision and Cargo.lock before applying the local transport, launch and
+library patches.
 
 `droiddeck-cloud-token.patch` adds `xodus-cli cloud-token`: the stored account's
 Xbox Cloud Gaming sign-in (XSTS for `http://gssv.xboxlive.com/`, then the streaming
@@ -40,6 +42,17 @@ artifact; distribute corresponding sources with published binaries.
 app's credential socket (`NEXUS_CREDENTIAL_ERROR_V1 socket-refused`, `-denied`, ...) and then
 uses a keyed loopback port the app also listens on; some devices refuse the abstract socket
 from inside PRoot. The key is passed in the backend's environment only.
+
+`droiddeck-licensing-device-ticket.patch` sends a delegation-compact device ticket to content
+licensing in the licensing wire form (`t=` or a bare compact JWE), as user tickets already are;
+a plain compact device ticket is sent unchanged. Store license tokens already do this in
+nexus-backend 0.2.15 ([@domsvoboda](https://github.com/domsvoboda)'s commit `27c335e`); the
+content licensing path does not yet (xodus-gaming/xodus#238).
+
+`droiddeck-dlc-mount.patch`: the C++ XGameRuntime mounts downloadable content only inside a
+host-owned workspace named by `XODUS_MOUNT_ROOT`. DroidDeck starts Wine itself, so the
+`droiddeck:prepare` session creates that workspace in its launch directory, reports it as
+`mountRoot`, and removes it when the session ends; `droiddeck-xbox` passes it to the game.
 
 `droiddeck-credential-diagnostics.patch` names the step behind a `credential-io` failure: the
 session lock (`lock-dir-owner`, `lock-file-mode`, `lock-flock-<reason>`, ...), a socket or loopback
@@ -95,11 +108,38 @@ lets ARM64EC Wine load the AMD64 modules through its normal native DLL path.
 Only each Xbox game's prefix receives these Windows modules. Existing
 Steam games and other store prefixes retain their selected runtimes.
 
+`droiddeck-legacy-packages.patch` lets the plan, license and extract verbs handle a legacy
+package. A bundle is expanded in place, nesting is bounded at three, and each inner EAppx
+container is decrypted with the same content keys; inner files without an EAppx header are left
+as extracted. `streaming` still serves MSIXVC only.
+
+`droiddeck-legacy-install.patch` adds `xodus-cli legacy-install`: resolve, license, download,
+extract, hoist. Resolution asks the Xbox content service first and Windows Update
+(`fe3cr.delivery.mp.microsoft.com`, SOAP) second, because some legacy products return no files
+from the content service. The WU endpoint needs no Xbox credential but chains to Microsoft's ECC
+Product Root CA 2018, which Android's CA bundle does not carry, so that one public root is
+pinned in `wu-root.pem` for these requests. Only `.eappx`/`.eappxbundle` files from a WU result
+are kept; the `.appx` framework packages and `.cab` metadata beside them are dropped. Licensing
+runs before the first byte and must return content keys. Free space is checked against the
+download plus two copies of the largest container, and each container is deleted once unpacked.
+The download has no control channel: cancelling kills it and the next attempt starts that
+container from zero.
+
+`droiddeck-msixvc2.patch` installs MSIXVC2 packages, the format Xbox 360 backward-compatible
+titles ship in. The package Windows Update serves is only an index (`XboxPackage.cbor`, chunk and
+file tables); the files are encrypted, Brotli-compressed segments inside `.box` blobs on the Xbox
+content hosts. `streaming` unpacks the index, licenses its content id, derives the package key from
+the content key (SP800-108 HMAC-SHA256, label `MSIXVC2:PackageData:AES_256_CBC`), unwraps each
+segment key with AES-256-CBC, fetches adjacent segments in one ranged request, and checks the
+SHA-384 of every stored segment, decompressed segment and finished file before it is renamed into
+place. Files already complete are skipped on a retry.
+
 Cloud saves and in-game identity use the reused XGameRuntime/service interfaces;
 those are game-dependent. Entitlements distinguish purchases from Game Pass
 access, and the backend performs a fresh license check for downloads and launch.
-The store lists PC MSIXVC games only. It does not emulate Xbox consoles or add
-support for UWP/APPX packages. Update / verify refreshes an installed package through the normal licensed
+The store lists PC packages it can install: streamed MSIXVC, and the legacy EAppx bundles older
+desktop titles still ship as. It does not emulate Xbox consoles or host UWP titles in a
+packaged-app host. Update / verify refreshes an installed package through the normal licensed
 streaming path. Manage content resolves manifest-related licensed PC DLC into
 separate content roots and checks its parent identity after download. These
 flows still require game/account validation; runtime API presence does not
@@ -111,8 +151,10 @@ contributions to Xodus.
 
 Sources and licenses:
 
-- Xodus: https://github.com/xodus-gaming/xodus (GPL-3.0, `LICENSE.xodus`).
-- Nexus patches: https://github.com/domsvoboda/xodus-nexus (MIT, `LICENSE.nexus`).
+- Nexus backend: https://github.com/domsvoboda/nexus-backend, a fork of Xodus
+  https://github.com/xodus-gaming/xodus (GPL-3.0, `LICENSE.xodus`).
+- Nexus launcher and runtime compatibility files: https://github.com/domsvoboda/nexus-launcher
+  (formerly xodus-nexus; MIT, `LICENSE.nexus`, `LICENSE.runtime-compat`).
 - XGameRuntime/Wine modules: the exact source archive is identified in
   `runtime.lock.json` (LGPL-2.1, `LICENSE.LGPL-2.1`).
 - `libnghttp2.dll`: nghttp2, MIT; its license is retained in the runtime source

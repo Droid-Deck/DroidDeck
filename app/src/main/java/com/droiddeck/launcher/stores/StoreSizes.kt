@@ -27,13 +27,20 @@ object StoreSizes {
 
     fun size(item: CatalogItem): Long = known[item.key] ?: item.sizeBytes
 
+    private val NO_REMOTE_SIZE = setOf(Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR)
+    private val settled = mutableStateMapOf<String, Boolean>()
+
+    // A size that can still arrive this session: not known yet, the store can report one, and no lookup came back empty.
+    fun coming(item: CatalogItem): Boolean =
+        item.accessible && item.sizeBytes <= 0 && item.store !in NO_REMOTE_SIZE && !known.containsKey(item.key) && settled[item.key] != true
+
     private val caches = ConcurrentHashMap<Store, SizeCache>()
     private fun cache(context: Context, store: Store) = caches.getOrPut(store) { SizeCache.forStore(context.applicationContext.filesDir, store) }
 
     fun request(context: Context, item: CatalogItem) {
         if (!item.accessible || item.sizeBytes > 0 || item.store == Store.GOG || known.containsKey(item.key)) return
-        resolve(context, item).thenAccept { bytes ->
-            if (bytes != null) StoresState.post { known[item.key] = bytes }
+        resolve(context, item).whenComplete { bytes, _ ->
+            StoresState.post { if (bytes != null && bytes > 0) known[item.key] = bytes else settled[item.key] = true }
         }
     }
 
@@ -43,7 +50,7 @@ object StoreSizes {
         if (available != null) return CompletableFuture.completedFuture(available)
         val app = context.applicationContext
         val version = item.extra["version"].orEmpty()
-        return sizeRequests.computeIfAbsent(item.key) {
+        return shared(sizeRequests, item.key) {
             CompletableFuture.supplyAsync({
                 val cached = cache(app, item.store).get(item.id, version)
                 val bytes = cached ?: runCatching { fetch(app, item) }
@@ -55,7 +62,8 @@ object StoreSizes {
                         Store.EPIC -> EpicPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
                         Store.AMAZON -> AmazonPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
                         Store.ITCH, Store.GAMEJOLT -> {}
-                        Store.GOG, Store.XBOX, Store.BATTLENET -> {}
+                        Store.EA -> com.droiddeck.launcher.stores.ea.EaPrefs.get(app).edit().putLong("size_${item.id}", it).apply()
+                        Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> {}
                     }
                 }
             }, pool).exceptionally { error ->
@@ -63,6 +71,25 @@ object StoreSizes {
                 null
             }
         }
+    }
+
+    internal fun shared(
+        requests: ConcurrentHashMap<String, CompletableFuture<Long?>>,
+        key: String,
+        start: () -> CompletableFuture<Long?>,
+    ): CompletableFuture<Long?> {
+        var created: CompletableFuture<Long?>? = null
+        val shared = requests.computeIfAbsent(key) { CompletableFuture<Long?>().also { created = it } }
+        if (created === shared) {
+            val source = runCatching(start).getOrElse { failure ->
+                CompletableFuture<Long?>().apply { completeExceptionally(failure) }
+            }
+            source.whenComplete { bytes, error ->
+                if (bytes == null) requests.remove(key, shared)
+                if (error != null) shared.completeExceptionally(error) else shared.complete(bytes)
+            }
+        }
+        return shared
     }
 
     val onDisk = mutableStateMapOf<String, Long>()
@@ -77,7 +104,7 @@ object StoreSizes {
         onDisk[key]?.let { return CompletableFuture.completedFuture(it) }
         val app = context.applicationContext
         val version = "disk:${game.sidecar.installedAt}:${game.sidecar.installVersion}"
-        return diskRequests.computeIfAbsent(key) {
+        return shared(diskRequests, key) {
             CompletableFuture.supplyAsync({
                 val c = cache(app, game.sidecar.store)
                 c.get("disk:${game.sidecar.id}", version)
@@ -111,7 +138,8 @@ object StoreSizes {
             val bytes = AmazonApiClient.getBytes(AmazonApiClient.appendPath(spec.downloadUrl, "manifest.proto"), token) ?: return 0L
             AmazonManifest.parse(bytes).totalInstallSize
         }
-        Store.GOG, Store.XBOX, Store.BATTLENET -> 0L
+        Store.EA -> com.droiddeck.launcher.stores.ea.EaSizes.size(context, item)
+        Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> 0L
         Store.ITCH -> com.droiddeck.launcher.stores.itch.ItchLibrary.size(context, item)
         Store.GAMEJOLT -> com.droiddeck.launcher.stores.gamejolt.GameJoltBuilds.size(context, item)
     } }

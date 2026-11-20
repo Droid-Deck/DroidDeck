@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">Графика SteamVR перестала работать</string>
     <string name="steamvr_recovery_countdown">DroidDeck перезапустится через %1$d сек., чтобы сбросить графику и снова открыть SteamVR. Запущенная игра закроется; несохранённый прогресс восстановить не удастся.</string>
@@ -9,15 +9,34 @@
     <string name="steamvr_recovery_failed">Не удалось автоматически перезапустить DroidDeck. Полностью закройте приложение и откройте его снова.</string>
     <string name="app_name">DroidDeck</string>
     <string-array name="loading_hints">
-        <item>При первом запуске будет загружен Steam. Это может занять несколько минут.</item>
-        <item>По умолчанию при выходе из приложения Steam приостанавливается; при возвращении работа возобновляется с того же места.</item>
-        <item>Ваш контроллер отображается как геймпад Xbox 360. Если контроллера нет, используйте экранные элементы управления.</item>
+        <item>При первом запуске загружается Steam. Это может занять несколько минут.</item>
+        <item>Ваш контроллер отображается в Steam как контроллер Steam Deck. В настройках сеанса переключите его на Steam Controller, DualShock 4, DualSense или геймпад Xbox 360; изменение вступит в силу со следующего сеанса.</item>
+        <item>Удерживайте «Назад» на контроллере, чтобы открыть меню «Быстрый доступ» Steam. Параметр «Удержание «Назад» для сочетаний Steam» должен быть включён в настройках сеанса.</item>
+        <item>«Поведение в фоне» определяет, что происходит при выходе из приложения: «Штатный» готовит Steam ко сну, «Авто» ставит его на паузу, «Вручную» ждёт «Продолжить», «Никогда» оставляет его работать.</item>
+        <item>Игры Steam используют «Ограничение кадров» Steam в меню «Быстрый доступ». Экран переключается на частоту обновления, на которую ограничение делится без остатка, если такая есть.</item>
+        <item>«Режим низкой задержки» в меню сеанса передаёт ввод с контроллера с частотой 1000 Гц вместо 250 Гц ценой небольшой нагрузки на процессор и аккумулятор.</item>
+        <item>У каждой игры есть свой профиль с Proton, FEX, компонентами и настройками окружения.</item>
+        <item>В меню сеанса есть переключатель микрофона для голосового чата и кнопка «Приостановить сейчас», чтобы заморозить сеанс по требованию.</item>
+        <item>Перетащите HUD DroidDeck, чтобы переместить его, сведите пальцы, чтобы изменить размер, и сдвиньте за край, чтобы закрепить его маленькой вкладкой FPS.</item>
+        <item>На портативных консолях с двумя экранами нижний экран может показывать загрузки, уведомления, скриншоты и чат Steam. «Поменять экраны местами» переносит игру вниз.</item>
+        <item>Добавляйте библиотеки Steam с SD-карты, USB-накопителя или SSD, и DroidDeck соберёт игры вместе в вашей «Библиотеке».</item>
+        <item>«Магазины» позволяют войти в Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io и Game Jolt, а затем устанавливать и обновлять их игры из DroidDeck.</item>
+        <item>Компоненты вроде FEX, DXVK и VKD3D-Proton обновляются сами, а по умолчанию используется Proton Experimental ARM64 или Proton 11.0 ARM64, когда эта сборка установлена.</item>
+        <item>Проведите от правого края, чтобы открыть меню сеанса: режим тачпада, «Клавиатура ПК», «Режим низкой задержки», профиль игры и другое.</item>
+        <item>Игра тормозит? Ограничьте частоту кадров в меню «Быстрый доступ», затем попробуйте другую версию Proton или другой пресет FEX в компонентах игры.</item>
+        <item>Треск или нет звука в игре? Попробуйте переключатель «DirectAudio для игр» в настройках Steam в разделе «Аудио».</item>
+        <item>«Настройка», а затем «Хранилище» могут очистить кэши шейдеров и остатки префиксов от удалённых игр.</item>
+        <item>Нашли ошибку? «Поделиться журналами» в меню сеанса собирает диагностику. Опубликуйте её в #bug-reports в Discord.</item>
     </string-array>
     <string-array name="loading_hints_desktop">
-        <item>При первом запуске будет настроен рабочий стол. Это может занять несколько минут.</item>
-        <item>По умолчанию при выходе из приложения сессия приостанавливается; при возвращении работа возобновляется с того же места.</item>
-        <item>Сенсорный ввод работает как тачпад: перетаскивайте для перемещения курсора, нажимайте для клика.</item>
-        <item>Ваш контроллер отображается как геймпад Xbox 360. Если контроллера нет, используйте экранные элементы управления.</item>
+        <item>При первом запуске настраивается рабочий стол. Это может занять несколько минут.</item>
+        <item>Касание работает как тачпад: проведите пальцем, чтобы переместить указатель, коснитесь, чтобы щёлкнуть.</item>
+        <item>«Поведение в фоне» определяет, что происходит при выходе из приложения: «Вручную» по умолчанию ждёт «Продолжить», «Авто» ставит на паузу, «Никогда» оставляет работать.</item>
+        <item>Проведите от правого края, чтобы открыть меню сеанса, затем выберите «Клавиатура ПК», чтобы вводить текст в приложениях, игнорирующих клавиатуру Android.</item>
+        <item>У «Клавиатуры ПК» в меню сеанса настраиваются размер, прозрачность и группы клавиш.</item>
+        <item>Ваш контроллер отображается как геймпад Xbox 360. Иначе используйте элементы управления на экране.</item>
+        <item>В меню сеанса есть переключатель микрофона и кнопка «Приостановить сейчас», чтобы заморозить сеанс по требованию.</item>
+        <item>Нашли ошибку? «Поделиться журналами» в меню сеанса собирает диагностику. Опубликуйте её в #bug-reports в Discord.</item>
     </string-array>
     <string name="session_channel">Сессия</string>
     <string name="session_channel_description">Отображается, пока открыта сессия Steam или рабочего стола</string>
@@ -28,6 +47,8 @@
     <string name="suspend_now">Приостановить сейчас</string>
     <string name="stop_session">Остановить сессию</string>
     <string name="frame_gen_title">Генерация кадров</string>
+    <string name="frame_gen_scope_game">Настройки этой игры</string>
+    <string name="frame_gen_scope_global">Настройки по умолчанию</string>
     <string name="frame_gen_hint">Выберите режим генерации кадров</string>
     <string name="frame_gen_off">Выкл.</string>
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
@@ -181,8 +202,11 @@
     <string name="app_fex_not_ready">Эта программа собрана для ПК на %1$s и работает через FEX, который еще не настроен. Откройте Steam один раз, войдя в аккаунт: DroidDeck скачает через него FEX и нужную Steam Linux Runtime, после чего программа откроется.</string>
     <string name="session_proot_missing">Не удалось скачать proot DroidDeck. Проверьте подключение и повторите попытку. Сессия не запущена, так как резервный proot слишком медленный для игры.</string>
     <string name="session_powervr_missing">Не удалось скачать графическую среду PowerVR. Проверьте подключение и повторите попытку.</string>
+    <string name="session_graphics_runtime_failed">Не удалось подготовить графическую среду, поэтому сеанс не запущен.</string>
+    <string name="session_game_environment_failed">Не удалось настроить игровую среду, поэтому сеанс не запущен.</string>
     <string name="session_directaudio_missing">Не удалось скачать DirectAudio, поэтому в этой сессии звук игр идёт по более медленному пути.</string>
     <string name="session_end_program">Эта программа</string>
+    <string name="session_end_present_fault">Сеансу не удалось вывести изображение на экран: %1$s. Вместо чёрного экрана здесь показана причина; подробности в журналах сеанса.</string>
     <string name="session_end_steam_download">Не удалось скачать клиент Steam. Возможно, ваша сеть или VPN блокирует серверы Steam; проверьте подключение и повторите попытку.</string>
     <string name="session_end_steam_setup">Не удалось настроить клиент Steam. Проверьте подключение и свободное место, затем повторите попытку.</string>
     <string name="session_end_fex_missing">%1$s — сборка для x86-ПК, которая работает через FEX, а он еще не установлен. Запустите Steam один раз, войдя в аккаунт, и дайте ему скачать FEX и Steam Linux Runtime, затем запустите программу снова.</string>
@@ -266,15 +290,15 @@
     <string name="mode_touch_touchpad">Тачпад</string>
     <string name="mode_touch_direct">Прямой</string>
     <string name="mode_touch_note">Авто: тачпад для рабочего стола, прямой сенсорный ввод для Steam.</string>
+    <string name="mode_pen">Перо</string>
+    <string name="mode_pen_mouse">Мышь</string>
+    <string name="mode_pen_touch">Сенсорный ввод</string>
+    <string name="mode_pen_button">Боковая кнопка</string>
     <string name="mode_osc">Экранные элементы управления</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматический режим показывает экранные элементы управления, если контроллер не подключен.</string>
-    <string name="osc_steam_touch">Сенсорное управление Steam (бета)</string>
-    <string name="osc_style_next_session">Сенсорное управление Steam включится со следующей сессии Steam</string>
     <string name="osc_steam_layout">Сенсорная раскладка Steam</string>
     <string name="screen_key_layout_export">Экспорт</string>
     <string name="screen_key_image">Изображение</string>
-    <string name="osc_steam_layout_hint">Перемещайте, меняйте размер или скрывайте сенсорные кнопки этой игры; сохраняется в Steam</string>
     <string name="mode_controller">Контроллер</string>
     <string name="mode_controller_hint">Как Steam распознает ваш контроллер. Вступит в силу в следующей сессии.</string>
     <string name="mode_controller_deck">Контроллер Steam Deck</string>
@@ -330,7 +354,7 @@
     <string name="mode_return_after_game">Возвращаться в DroidDeck после игры</string>
     <string name="mode_return_after_game_hint">Когда игра, запущенная из DroidDeck или другого лаунчера, закрывается, Steam корректно завершает работу (сначала синхронизирует облачные сохранения), и вы возвращаетесь туда. Выкл.: остаётесь в Steam.</string>
     <string name="mode_shader_precache">Предварительное кэширование шейдеров</string>
-    <string name="mode_shader_precache_hint">Steam скачивает готовые шейдеры для ваших игр и обрабатывает их в фоне, поэтому игры меньше подтормаживают. Если отключено, экономятся трафик, место и батарея; игры собирают шейдеры прямо во время игры. Это та же настройка, что и «Загрузки > Предварительное кэширование шейдеров» в Steam. Применится в следующей сессии.</string>
+    <string name="mode_shader_precache_hint">Steam скачивает готовые шейдеры для ваших игр и обрабатывает их в фоне, поэтому игры меньше подтормаживают. Если отключено, экономятся трафик, место и батарея; игры собирают шейдеры прямо во время игры. Это та же настройка, что и «Загрузки &gt; Предварительное кэширование шейдеров» в Steam. Применится в следующей сессии.</string>
     <string name="mode_steam_repair">Восстановить клиент Steam</string>
     <string name="mode_steam_repair_hint">При следующем запуске Steam клиент будет скачан заново. Используйте, если Steam зависает на экране загрузки. Игры, вход и настройки сохраняются.</string>
     <string name="mode_steam_repair_queued">Клиент Steam будет скачан заново при следующем запуске Steam.</string>
@@ -403,7 +427,6 @@
     <string name="mode_directaudio_hint">Обходит PulseAudio для снижения задержки.</string>
     <string name="mode_mic">Микрофон</string>
     <string name="mode_mic_hint">Используется для голосового чата.</string>
-    <string name="drawer_mic_hint">Включить или отключить захват микрофона в этой сессии.</string>
     <string name="drawer_mic_failed">Не удалось изменить микрофон. Повторите попытку.</string>
     <string name="mode_network">Сеть</string>
     <string name="mode_wifi_discovery">Обнаружение Wi-Fi</string>
@@ -501,6 +524,7 @@
     <string name="game_no_steam_on">Включено</string>
     <string name="game_steam_with">Запускается со Steam</string>
     <string name="game_steam_without">Запускается без Steam</string>
+    <string name="game_res_title">Разрешение игры</string>
     <string name="game_settings_card">Настройки</string>
     <string name="game_settings_menu_title">Настройки %1$s</string>
     <string name="game_settings_default">По умолчанию</string>
@@ -588,6 +612,8 @@
     <string name="perf_game_cores_group">Ядра игры</string>
     <string name="perf_game_cores">Ядра игры</string>
     <string name="perf_game_cores_hint">Ядра, используемые играми. При выборе всех ядер Android планирует свободно.</string>
+    <string name="perf_pace_cores">Экономить энергию в стабильных играх</string>
+    <string name="perf_pace_cores_hint">Запускает игру на более медленных ядрах, пока она держит стабильную частоту кадров, и возвращает её на обычные ядра, как только она отстаёт.</string>
     <string name="perf_client_ui">Интерфейс клиента</string>
     <string name="perf_glthread">Многопоточность GL</string>
     <string name="perf_glthread_hint">Может ускорить отклик меню Steam.</string>
@@ -598,21 +624,11 @@
     <string name="perf_gsrealtime">gamescope: очередь GPU в реальном времени</string>
     <string name="perf_gsrealtime_hint">Повышает приоритет работы GPU композитора. Может улучшить стабильность времени кадра, но потребляет часть производительности игры.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Память</string>
     <string name="perf_cap_off">Выкл.</string>
-    <string name="perf_cap_auto">По умолчанию драйвера</string>
-    <string name="perf_zram_client">Сжимать Steam во время игры</string>
-    <string name="perf_zram_client_hint">Через 20 с после запуска игры клиент Steam сжимается в zRAM, чтобы оставить игре больше памяти, и считывается обратно после закрытия игры. Отключите, если сессия закрывается вскоре после запуска игр. Лимит RAM выше всё равно сжимает Steam, когда сессия его превышает.</string>
-    <string name="perf_ram_cap">Лимит RAM</string>
-    <string name="perf_ram_cap_hint">Действует, пока работает клиент Steam, в режиме Steam или с рабочего стола. Когда сессия использует больше этого значения, Steam, а затем другие поддерживаемые процессы сессии сжимаются в zRAM. Мягкий лимит: ничего не закрывается, но игры могут подтормаживать, пока страницы возвращаются.</string>
-    <string name="perf_ram_cap_unavailable">Нужен своп zRAM, которого на этом устройстве нет.</string>
-    <string name="perf_vram_cap">Лимит VRAM</string>
-    <string name="perf_vram_cap_hint">Сообщает играм Direct3D 9–12 этот бюджет видеопамяти для снижения её использования. Игры могут его превысить; это не добавляет подкачку памяти GPU и не гарантирует защиту от сбоев из-за нехватки памяти. Действует со следующего сеанса.</string>
     <string name="perf_gpuclock">Поддерживать максимальную частоту GPU</string>
-    <string name="perf_gpuclock_hint">Только для Adreno. Меньше подтормаживаний, но больше энергопотребления и нагрева.</string>
     <string name="perf_fixes">Исправления сессии</string>
     <string name="perf_sysmem">Turnip: рендеринг sysmem</string>
-    <string name="perf_sysmem_hint">Клиент Steam будет быстрее; в играх драйвер для каждого прохода выбирает тайловый рендеринг или рендеринг в системной памяти. Требуется для Adreno 710/720/722.</string>
+    <string name="perf_sysmem_hint">Применяется к клиенту Steam и играм. Требуется на Adreno 710/720/722.</string>
     <string name="perf_xalia">Пропустить помощник xalia в Steam</string>
     <string name="perf_fastsync">droiddeck-ntsync</string>
     <string name="perf_fastsync_hint">Замена драйвера ntsync Linux в пространстве пользователя. Пока включено, Proton использует ее вместо droiddeck-esync и droiddeck-fsync. Работает с Proton Experimental ARM64, GE-Proton и proton-cachyos. Вступит в силу в следующей сессии.</string>
@@ -623,7 +639,10 @@
     <string name="perf_xalia_hint">Отключает помощник навигации геймпада Proton, который потребляет CPU в каждой игре.</string>
     <string name="perf_seccomp">Запускать proot без seccomp</string>
     <string name="perf_seccomp_hint">Может исправить ошибки отсутствующих системных вызовов на некоторых ядрах, но может снизить производительность.</string>
+    <string name="perf_native_userland">Запуск без proot (экспериментально)</string>
+    <string name="perf_native_userland_hint">Запускает окружение Linux напрямую в Android. Применяется к следующему сеансу. Отключите, если что-то не запускается.</string>
     <string name="perf_fastpath">Быстрый путь proot</string>
+    <string name="perf_fastpath_needs_proot">Без proot не используется.</string>
     <string name="perf_fastpath_needs_seccomp">Требуется фильтр seccomp для proot.</string>
     <string name="perf_fastpath_hint">Быстрый поиск файлов, меньше подтормаживаний. Отключите, если программа не находит файлы.</string>
     <string name="perf_cursor_composite">Рисовать курсор внутри gamescope</string>
@@ -644,6 +663,8 @@
     <string name="drawer_page_display">Экран</string>
     <string name="drawer_frame_limit">Ограничение кадров</string>
     <string name="drawer_frame_limit_note">Ограничивает эту игру. Экран переключается на частоту обновления, которая делится на ограничение без остатка, если такая есть; при других ограничениях движение может быть неровным. Игры Steam используют ограничение кадров Steam в меню быстрого доступа.</string>
+    <string name="drawer_bfi">Вставка чёрных кадров</string>
+    <string name="drawer_bfi_note">Более чёткое движение: после каждого кадра идёт чёрное обновление. Нужно 100 Гц или больше; игра работает на половине частоты обновления и выглядит темнее. Отключено при генерации кадров.</string>
     <string name="drawer_page_effects">Эффекты</string>
     <string name="drawer_page_controls">Управление</string>
     <string name="drawer_page_components">Компоненты</string>
@@ -677,7 +698,10 @@
     <string name="hud_size_mega">Мега</string>
     <string name="hud_size_strip">Полоса</string>
     <string name="hud_locked">Закрепить на месте</string>
-    <string name="hud_locked_hint">Перетащите HUD, чтобы переместить его; долгое нажатие закрепляет или открепляет его. Пока он закреплён, экранные элементы управления под ним продолжают работать.</string>
+    <string name="hud_locked_hint">Перетащите HUD, чтобы переместить его. Пока он закреплён, экранные элементы управления под ним продолжают работать.</string>
+    <string name="hud_hold">Долгое нажатие</string>
+    <string name="hud_hold_collapse">Свернуть или развернуть</string>
+    <string name="hud_hold_lock">Закрепить или открепить</string>
     <string name="hud_snap">Прилипание к бокам</string>
     <string name="hud_snap_hint">Отпустите HUD, и он переместится к ближайшей стороне экрана. Резкий жест отбросит его в ту сторону.</string>
     <string name="hud_group_look">Внешний вид</string>
@@ -706,6 +730,7 @@
     <string name="hud_metric_vram">Видеопамять</string>
     <string name="hud_metric_swap">Подкачка</string>
     <string name="hud_metric_battery">Заряд батареи</string>
+    <string name="hud_metric_battery_time">Оставшееся время работы батареи</string>
     <string name="hud_metric_power">Потребляемая мощность</string>
     <string name="hud_metric_network">Сеть</string>
     <string name="hud_metric_resolution">Разрешение</string>
@@ -765,7 +790,6 @@
     <string name="drawer_keyboard">Клавиатура</string>
     <string name="drawer_latency">Задержка</string>
     <string name="drawer_low_latency">Режим низкой задержки</string>
-    <string name="drawer_low_latency_hint">Увеличивает нагрузку на CPU и расход батареи</string>
     <string name="drawer_low_latency_controller">Контроллер с низкой задержкой</string>
     <string name="drawer_low_latency_controller_hint">Контроллер опрашивается на 1000 Гц вместо 250 Гц. Немного больше нагрузки на CPU.</string>
     <string name="drawer_low_latency_touch">Сенсор с низкой задержкой</string>
@@ -778,7 +802,6 @@
     <string name="drawer_pc_keyboard">Клавиатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Второй экран</string>
-    <string name="drawer_second_screen_mode">Режим</string>
     <string name="drawer_second_screen_shows">Показывать</string>
     <string name="drawer_android_apps">Приложения Android</string>
     <string name="drawer_launch_app">Запустить приложение</string>
@@ -864,11 +887,21 @@
     <string name="setup_session">Сессия</string>
     <string name="setup_logs">Журналы сессии</string>
     <string name="setup_logs_hint">Сохраняется после каждой сессии</string>
+    <string name="setup_enhanced_diagnostics">Расширенная диагностика для следующего сеанса</string>
+    <string name="setup_enhanced_diagnostics_hint">Записывает подробные журналы за один сеанс. Может снизить производительность и занять больше места. Отключается сама при запуске сеанса; перед отправкой просмотрите журналы.</string>
     <string name="setup_game_debug_logs">Журналы отладки игр</string>
     <string name="setup_game_debug_logs_hint">Добавлять диагностику Proton, Wine и графики при следующем запуске игры. Может снизить производительность и занять больше места.</string>
     <string name="setup_game_debug_logs_restart">Перезапустите сессию, чтобы сохранять журналы отладки игр</string>
     <string name="setup_logging_update_failed">Не удалось обновить журналирование. Проверьте переключатель и повторите попытку.</string>
     <string name="setup_agent_commands">Инструменты отладки</string>
+    <string name="setup_graphics_logs">Подробные журналы графики</string>
+    <string name="setup_steam_gpu_drawing">Интерфейс Steam: отрисовка на GPU</string>
+    <string name="setup_steam_gpu_drawing_hint">С парой драйверов Xclipse Steam отрисовывает страницы программно (при отрисовке на GPU появлялись битые тайлы). Включите, чтобы ускорить интерфейс Steam, если на этом телефоне он выглядит корректно.</string>
+    <string name="drivers_built_on">сборка %1$s</string>
+    <string name="drivers_pair_updated">%1$s обновлён до последней сборки</string>
+    <string name="setup_gpu_bridge_fell_back">В прошлом сеансе мост Mali не прошёл самопроверку на %1$s (изображения или отрисовка), поэтому в сеансе использовалась пара драйверов PanVK.</string>
+    <string name="setup_gpu_bridge_no_memory_sharing">В прошлом сеансе мост Mali не нашёл способа разделять память с драйвером на %1$s, поэтому в сеансе использовалась пара драйверов PanVK. На этом телефоне мост работать не может; при его отключении останется пара PanVK.</string>
+    <string name="setup_graphics_logs_hint">Журналы Proton, DXVK и драйверов для каждой игры находятся в журналах сеанса. Всегда включено, если GPU не Adreno.</string>
     <string name="setup_latest_logs">Последние журналы сессии</string>
     <string name="setup_saved_logs">Сохраненные журналы сессии</string>
     <string name="setup_saved_logs_hint">Хранятся последние %1$d</string>
@@ -912,6 +945,8 @@
     <string name="setup_home">Использовать как главный экран</string>
     <string name="setup_home_on">DroidDeck может использоваться как приложение главного экрана</string>
     <string name="setup_home_off">DroidDeck не будет доступен как приложение главного экрана</string>
+    <string name="setup_home_page">Кнопка «Домой» открывает</string>
+    <string name="setup_home_page_hint">Страница, которая открывается, когда DroidDeck — приложение главного экрана по умолчанию и нажата кнопка «Домой».</string>
     <string name="setup_home_game_space_first">В разделе «Добавить игры» переключите DroidDeck на «Включить»</string>
     <string name="setup_orientation">Ориентация</string>
     <string name="setup_launcher_orientation">Ориентация лаунчера</string>
@@ -933,11 +968,14 @@
     <string name="setup_dual_screen_on">Вкл.</string>
     <string name="setup_dual_screen_off">Выкл.</string>
     <string name="setup_dual_screen_controls">Управление на нижнем экране в играх</string>
+    <string name="setup_android_text_field_keyboard">Клавиатура Android для текстовых полей</string>
     <string name="setup_dual_screen_controls_hint">Открывает тачпад и клавиатуру на втором экране при запуске сеанса.</string>
     <string name="dual_typing_title">Ввод для верхнего экрана</string>
     <string name="dual_typing_done">Готово</string>
     <string name="setup_default_home">Главный экран по умолчанию</string>
     <string name="setup_choose_home">Выбрать главный экран</string>
+    <string name="setup_hide_home_from_recents">Скрывать лаунчер из «Недавних приложений» в режиме ожидания</string>
+    <string name="setup_hide_home_from_recents_hint">Применяется только если DroidDeck — приложение главного экрана по умолчанию и нет активного сеанса.</string>
     <string name="setup_choose">Выбрать</string>
     <string name="setup_linux_apps">Приложения Linux (бета)</string>
     <string name="setup_tool_files">Файлы</string>
@@ -1049,9 +1087,175 @@
     <string name="upd_preview">Preview</string>
     <string name="upd_preview_hint">Последние исправления перед Stable</string>
     <string name="upd_preview_current">Актуально</string>
+    <string name="upd_copy_build">Скопировать сведения о сборке</string>
+    <string name="upd_copied">Сведения о сборке скопированы</string>
+    <string name="upd_ahead_preview_status">Новее Preview</string>
+    <string name="upd_ahead_preview_headline">Вы опережаете Preview</string>
+    <string name="upd_ahead_preview_detail">Эта сборка новее последней Preview. Её обновит следующая сборка Preview.</string>
+    <string name="upd_preview_pick">Выберите сборку, чтобы увидеть изменения или установить её.</string>
+    <string name="upd_installed_tag">Установлена</string>
+    <string name="upd_install_this">Установить эту сборку%1$s</string>
+    <string name="upd_rollback_this">Вернуться к этой сборке%1$s</string>
+    <string name="upd_version_code">versionCode %1$d</string>
+    <string name="upd_link_commit">Коммит %1$s</string>
+    <string name="upd_link_release">Страница релиза</string>
+    <string name="upd_newer_commit">В PR есть более новый коммит (%1$s). Его тестовая сборка ещё не готова, поэтому в этой его нет.</string>
+    <string name="upd_newer_commit_short">Есть новый коммит, сборка ожидается</string>
+    <string name="upd_tests_find">Номер PR, название или автор</string>
+    <string name="upd_tests_no_match">Подходящих тестовых сборок нет</string>
+    <string name="upd_tests_old_row">Нужна пересборка (versionCode %1$d)</string>
+    <string name="upd_watch_channel">Обновления тестовых сборок</string>
+    <string name="upd_watch_title">Новая тестовая сборка PR #%1$d</string>
+    <string name="upd_watch_text">%1$s. Откройте Обновления, чтобы установить её.</string>
+    <string name="upd_show_more">Показать ещё (%1$d)</string>
+    <string name="upd_tests_old">Нужна пересборка для versionCode %2$d (%1$d)</string>
+    <string name="upd_main_moved">Сборок Preview в main после этой тестовой сборки: %1$d</string>
     <string name="upd_tests">Тестовые сборки</string>
     <string name="upd_tests_hint">Попробовать исправление до официального выпуска</string>
     <string name="upd_tests_none">Сейчас нет</string>
+    <string name="upd_lab">Лабораторная сборка</string>
+    <string name="lab_builds">Лабораторные сборки</string>
+    <string name="lab_in_use">Используется</string>
+    <string name="lab_paused_row">Приостановлено после повторной оптимизации DroidDeck в Android</string>
+    <string name="lab_not_loaded">Не загружено: %1$s</string>
+    <string name="lab_waiting">Ожидает перезапуска</string>
+    <string name="lab_kept">Сохранено</string>
+    <string name="lab_other_install">Для другой версии</string>
+    <string name="lab_rebuild">Пересобрать</string>
+    <string name="lab_delete_warning">Удаляет эту сборку с устройства</string>
+    <string name="lab_restart">Перезапустить с ней</string>
+    <string name="lab_turn_off">Отключить</string>
+    <string name="lab_use">Использовать</string>
+    <string name="lab_delete">Удалить</string>
+    <string name="lab_delete_confirm">Удалить сейчас</string>
+    <string name="lab_restart_failed">Не удалось подготовить перезапуск: %1$s. Выполните сопряжение для беспроводной отладки в «Настройке» и повторите попытку.</string>
+    <string name="lab_installed_title">Лабораторная сборка установлена</string>
+    <string name="lab_installed_text">DroidDeck перезапущен на %1$s</string>
+    <string name="lab_paused_title">Лабораторная сборка приостановлена</string>
+    <string name="lab_paused_text">Android повторно оптимизировал DroidDeck, поэтому %1$s не загружена. Откройте «Обновления», чтобы перезапустить на ней.</string>
+    <string name="lab_off_title">Лабораторная сборка отключена</string>
+    <string name="lab_off_other_install">Сборка создана для другой версии DroidDeck. Она сохранена в «Обновления».</string>
+    <string name="lab_off_did_not_start">DroidDeck дважды не запустился на ней</string>
+    <string name="rail_agent">Dev Harness</string>
+    <string name="agent_channel_name">Агент</string>
+    <string name="agent_working">Агент работает</string>
+    <string name="agent_missing">Установите Claude Code в пользовательской среде Linux, чтобы использовать агента.</string>
+    <string name="agent_hint">Спросите об игре, сбое или изменении DroidDeck</string>
+    <string name="agent_send">Отправить</string>
+    <string name="agent_new">Новый диалог</string>
+    <string name="agent_stop">Остановить</string>
+    <string name="agent_storage_title">Хранилище</string>
+    <string name="agent_storage_remove">Удалить</string>
+    <string name="agent_storage_confirm">Удалить сейчас</string>
+    <string name="agent_storage_claude">Claude Code</string>
+    <string name="agent_storage_codex">Codex</string>
+    <string name="agent_storage_source">Исходный код DroidDeck</string>
+    <string name="agent_storage_caches">Кэш загрузок</string>
+    <string name="agent_storage_source_warning">Неотправленные изменения будут потеряны</string>
+    <string name="agent_storage_caches_warning">Сборки скачают их заново</string>
+    <string name="agent_storage_reinstall_warning">«Настройка» может установить его снова; авторизация сохранится</string>
+    <string name="agent_resumed">DroidDeck перезапущен на вашей лабораторной сборке. Продолжите с того места, где остановились.</string>
+    <string name="agent_empty">Спросите, почему игра не запускается, попросите объяснить лог, изменить DroidDeck и проверить изменение на этом устройстве.</string>
+    <string name="agent_failed">Ошибка: %1$s</string>
+    <string name="agent_exited">%1$s завершён (код выхода %2$d)</string>
+    <string name="agent_stopped">Остановлено</string>
+    <string name="agent_no_reply">Завершено без ответа</string>
+    <string name="agent_retry">Повторить</string>
+    <string name="agent_setting_up">Настройка агента</string>
+    <string name="agent_rebuild_lab">Пересоберите мою лабораторную сборку %1$s под установленную версию DroidDeck и перезапустите на ней.</string>
+    <string name="agent_tokens">%1$s на входе · %2$s на выходе</string>
+    <string name="agent_thinking">Думает</string>
+    <string name="agent_thought">Мысль</string>
+    <string name="agent_thinking_for">Думает · %1$s</string>
+    <string name="agent_running">%1$s · %2$s</string>
+    <string name="agent_tool_input">ВВОД</string>
+    <string name="agent_tool_output">ВЫВОД</string>
+    <string name="agent_tool_running">Выполняется…</string>
+    <string name="agent_tool_no_result">Нет результата: ход завершился раньше</string>
+    <string name="agent_tool_empty">Нет вывода</string>
+    <string name="agent_hint_working">Введите текст, чтобы поставить следующее сообщение в очередь</string>
+    <string name="agent_queue">В очередь</string>
+    <string name="agent_queued">Далее: %1$s</string>
+    <string name="agent_tools_missing">Инструменты агента не установлены: %1$s</string>
+    <string name="agent_unqueue">Не отправлять</string>
+    <string name="agent_attach">Прикрепить</string>
+    <string name="agent_remove_attachment">Удалить</string>
+    <string name="agent_model_default">По умолчанию</string>
+    <string name="agent_effort">Уровень рассуждений</string>
+    <string name="agent_plan_go">Вперёд</string>
+    <string name="agent_plan_revise">Изменить</string>
+    <string name="agent_plan_untouched">Изменений пока нет</string>
+    <string name="agent_plan_go_message">Действуйте по плану.</string>
+    <string name="agent_send_now">Отправить сейчас</string>
+    <string name="agent_more">Ещё</string>
+    <string name="agent_close">Закрыть</string>
+    <string name="agent_latest">Последняя версия</string>
+    <string name="agent_working_short">Работает</string>
+    <string name="agent_usage_context">Контекст</string>
+    <string name="agent_usage_of">%1$s из %2$s</string>
+    <string name="agent_usage_conversation">Этот диалог · %1$s</string>
+    <string name="agent_usage_unknown">Данные об использовании появятся после первого ответа</string>
+    <string name="agent_limit_hours">Лимит %1$d ч</string>
+    <string name="agent_limit_minutes">Лимит %1$d мин</string>
+    <string name="agent_limit_week">Недельный лимит</string>
+    <string name="agent_limit_resets">%1$d%% · сброс %2$s</string>
+    <plurals name="agent_files_changed">
+        <item quantity="few">%1$d файла</item>
+        <item quantity="many">%1$d файлов</item>
+        <item quantity="one">%1$d файл</item>
+        <item quantity="other">%1$d файлов</item>
+    </plurals>
+    <string name="agent_plan">Сначала план</string>
+    <string name="agent_plan_short">План</string>
+    <string name="agent_plan_hint">Предлагает план, ничего не меняя</string>
+    <string name="agent_history">Диалоги</string>
+    <string name="agent_history_empty">Диалогов пока нет</string>
+    <string name="agent_just_now">Только что</string>
+    <string name="agent_history_delete">Удалить</string>
+    <string name="agent_history_delete_warning">Удалит диалог и вложения</string>
+    <string name="agent_processes">Процессы</string>
+    <string name="agent_processes_empty">В пользовательском пространстве Linux ничего не запущено</string>
+    <string name="agent_process_agent">АГЕНТ</string>
+    <string name="agent_process_stop">Остановить</string>
+    <string name="agent_lab_building">Сборка Lab</string>
+    <string name="agent_lab_preparing">Подготовка сборок Lab</string>
+    <string name="agent_lab_progress">%1$d%% · осталось около %2$s</string>
+    <string name="agent_lab_left">осталось около %1$s</string>
+    <string name="agent_lab_cancel">Отмена</string>
+    <string name="agent_lab_cancel_confirm">Отменить сборку</string>
+    <string name="agent_lab_stage_starting">Запуск</string>
+    <string name="agent_lab_stage_building">%1$d%%</string>
+    <string name="agent_lab_stage_packaging">Упаковка</string>
+    <string name="agent_lab_stage_restarting">Перезапуск DroidDeck на ней</string>
+    <string name="agent_lab_stage_ready">Готово</string>
+    <string name="agent_lab_stage_failed">Ошибка: %1$s</string>
+    <string name="agent_setup_title">Настройка агента</string>
+    <string name="agent_setup_runtime">Сначала установите среду выполнения Linux в разделе «Настройка».</string>
+    <string name="agent_setup_retry">Повторить</string>
+    <string name="agent_setup_done">Начать диалог</string>
+    <string name="agent_step_connection">Подключение устройства</string>
+    <string name="agent_step_connection_hint">Беспроводная отладка, чтобы агент видел DroidDeck и управлял им</string>
+    <string name="agent_step_install">Установить %1$s</string>
+    <string name="agent_step_install_hint">В пользовательскую среду Linux, с git, gh и adb</string>
+    <string name="agent_step_sign_in">Войти в %1$s</string>
+    <string name="agent_step_sign_in_hint">Откроет браузер</string>
+    <string name="agent_step_github">GitHub</string>
+    <string name="agent_step_github_hint">Необязательно, для открытия пулл-реквестов</string>
+    <string name="agent_step_build">Инструменты сборки</string>
+    <string name="agent_step_build_hint">Необязательно, для сборок Lab на этом устройстве · около 5 ГБ</string>
+    <string name="agent_summary_ready">Агент готов</string>
+    <string name="agent_summary_not_ready">Завершите настройку агента</string>
+    <string name="agent_summary_signed_in">Вы вошли в %1$s</string>
+    <string name="agent_summary_lab">Сборки Lab</string>
+    <string name="agent_summary_fast">быстрые сборки</string>
+    <string name="agent_step_prepare">Быстрые сборки Lab</string>
+    <string name="agent_step_prepare_hint">Заранее компилирует эту версию, чтобы сборки Lab занимали минуты · около 20 минут один раз</string>
+    <string name="agent_prepare_progress">Компиляция · %1$d%% · осталось около %2$s</string>
+    <string name="agent_action_prepare">Подготовить</string>
+    <string name="agent_connection_off">Беспроводная отладка недоступна; «Сопряжение» включит её</string>
+    <string name="agent_action_pair">Сопряжение</string>
+    <string name="agent_action_install">Установить</string>
+    <string name="agent_action_sign_in">Войти</string>
     <string name="upd_pr">PR #%1$d</string>
     <string name="upd_not_built">Не собрано для этой копии DroidDeck</string>
     <string name="upd_updated">Обновлено %1$s</string>
@@ -1110,6 +1314,7 @@
     <string name="gate_enter_manually">Ввести адрес вручную</string>
     <string name="gate_from_computer">С компьютера через ADB:</string>
     <string name="gate_copy_command">Копировать команду</string>
+    <string name="gate_sidequest_steps">Подключите шлем к компьютеру и откройте SideQuest. Выберите «Run ADB Command», затем «Custom Command», введите команду, показанную ниже, и нажмите «Run Command».</string>
     <string name="gate_choose_display">Выберите экран для открытия настроек Android.</string>
     <string name="gate_main_screen">Главный экран</string>
     <string name="wadb_finding_port">Сопряжено. Поиск порта отладки по Wi-Fi…</string>
@@ -1148,12 +1353,8 @@
     <string name="ctrl_opacity">Непрозрачность</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Размер кнопок</string>
-    <string name="ctrl_adaptive">Адаптивные стики</string>
     <string name="ctrl_rumble">Вибрация в играх</string>
     <string name="ctrl_dead_zone">Мёртвая зона стика</string>
-    <string name="ctrl_steam_button">Кнопка Steam</string>
-    <string name="ctrl_qam_button">Кнопка QAM</string>
-    <string name="ctrl_keyboard_button">Кнопка клавиатуры</string>
     <string name="ctrl_joycon_vr">Joy-Con как VR-контроллеры</string>
     <string name="ctrl_joycon_vr_hint">Пока работает SteamVR, каждый Joy-Con становится рукой. Направьте его вперёд и удерживайте Home или Capture, чтобы снова его отцентрировать.</string>
     <string name="setup_animations">Анимации</string>
@@ -1284,8 +1485,6 @@
     <string name="deck_surface_trackpad">Тачпад</string>
     <string name="deck_close">Закрыть управление вторым экраном</string>
     <string name="deck_open_steam_menu">Открыть меню Steam</string>
-    <string name="deck_right_trackpad">Правый тачпад</string>
-    <string name="deck_left_trackpad">Левый тачпад</string>
     <string name="second_trackpad">Тачпад</string>
     <string name="second_show_keyboard">Показать клавиатуру</string>
     <string name="second_hide_keyboard">Скрыть клавиатуру</string>
@@ -1299,6 +1498,9 @@
     <string name="rail_apps">Приложения</string>
     <string name="rail_setup">Настройка</string>
     <string name="rail_updates">Обновления</string>
+    <string name="rail_more">Ещё</string>
+    <string name="more_edit_tabs">Настроить вкладки</string>
+    <string name="setup_group_tabs">Вкладки</string>
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Продолжить %1$s</string>
     <string name="roms_text">Отображается как /root/ROMs в каждой сессии. Внутреннее хранилище находится в /root/Storage.</string>
@@ -1321,11 +1523,8 @@
     <string name="pckb_android">Клавиатура Android</string>
     <string name="pckb_hide">Скрыть ✕</string>
     <string name="pckb_size">Размер на экране</string>
-    <string name="pckb_size_hint">Какую часть экрана занимает клавиатура вместе с заголовком.</string>
     <string name="pckb_opacity">Непрозрачность</string>
-    <string name="pckb_opacity_hint">Уменьшите, чтобы видеть игру за клавиатурой.</string>
     <string name="pckb_hidden_keys">Скрытые клавиши</string>
-    <string name="pckb_hidden_keys_hint">Клавиши, которыми вы редко пользуетесь, не показываются на клавиатуре.</string>
     <string name="pckb_group_function">Esc и ряд F-клавиш</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Стрелки</string>
@@ -1363,6 +1562,8 @@
     <string name="pip_unavailable">Android не может открыть PiP.</string>
     <string name="game_more">Ещё</string>
     <string name="game_edit_art">Изменить обложку</string>
+    <string name="game_unhide">Убрать из скрытых</string>
+    <string name="game_hide_failed">Не удалось синхронизировать со Steam. Закройте Steam и повторите попытку.</string>
     <string name="stores_in_steam_label">В Steam</string>
     <string name="game_shortcut">Ярлык</string>
     <string name="game_shortcut_add">Добавить на главный экран</string>
@@ -1384,7 +1585,6 @@
     <string name="game_file_folder">Выбрать папку для файлов игры фронтенда</string>
     <string name="game_file_exported">Файлы игры сохранены в %1$s</string>
     <string name="game_frontend_files">Файлы фронтенда</string>
-
     <string name="main_wait_runtime">Дождитесь завершения операции со средой выполнения</string>
     <string name="main_wait_proton_install">Дождитесь завершения установки инструмента совместимости</string>
     <string name="load_compat_title">Подготовка инструментов совместимости</string>
@@ -1480,7 +1680,6 @@
     <string name="main_removing_runtime">Удаление среды выполнения Linux</string>
     <string name="main_settings_main_screen">Не удалось открыть настройки на нижнем экране; они открыты на главном экране.</string>
     <string name="main_open_dev_options">Откройте раздел «Для разработчиков» в настройках</string>
-
     <string name="upd_unknown_apps_failed">Не удалось открыть настройку Android «Установка неизвестных приложений»</string>
     <string name="upd_couldnt_check">Не удалось проверить: %1$s</string>
     <string name="upd_no_download">В этой сборке нет файла для этой копии DroidDeck</string>
@@ -1490,12 +1689,10 @@
     <string name="upd_stage_confirm">Ожидание вашего подтверждения</string>
     <string name="upd_failed">Ошибка обновления</string>
     <string name="upd_not_offered">Android не предложил установить обновление</string>
-
     <string name="decky_install_failed">Ошибка установки Decky: %1$s</string>
     <string name="decky_plugin_starting">Начало импорта плагина…</string>
     <string name="decky_plugin_failed">Ошибка импорта плагина: %1$s</string>
     <string name="decky_plugin_installed">Плагин установлен. Перезапустите Steam, чтобы загрузить его.</string>
-
     <string name="drivers_not_checked">Еще не проверялось — нажмите «Обновить», чтобы найти новые драйверы</string>
     <string name="drivers_bundle_sets_display">Android + Linux: заодно задает драйвер дисплея</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: заодно задает драйвер среды выполнения</string>
@@ -1554,11 +1751,8 @@
     <string name="drivers_check_failed">ошибка проверки</string>
     <string name="drivers_installed_pick_either">Установлен %1$s — выберите его в любом из списков, чтобы задать оба драйвера</string>
     <string name="drivers_installed_pick">Установлен %1$s — выберите его в меню</string>
-
     <string name="session_wait_removal">Дождитесь завершения удаления среды выполнения</string>
     <string name="session_title_game">Игра</string>
-    <string name="session_touch_auto_touchpad">тачпад</string>
-    <string name="session_touch_auto_direct">прямой</string>
     <string name="session_swap_failed">Ошибка замены: %1$s</string>
     <string name="session_profile_save_failed">Ошибка сохранения профиля: %1$s</string>
     <string name="session_desktop_paused">Рабочий стол приостановлен</string>
@@ -1604,7 +1798,6 @@
         <item quantity="many">В журнале %1$d ошибок «Function not implemented»: ускорение seccomp в proot вызывает сбой вспомогательной программы на этом устройстве. Попробуйте %2$s → «%3$s» (или «%4$s») и запустите снова.</item>
         <item quantity="other">В журнале %1$d ошибки «Function not implemented»: ускорение seccomp в proot вызывает сбой вспомогательной программы на этом устройстве. Попробуйте %2$s → «%3$s» (или «%4$s») и запустите снова.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Плагины</string>
     <string name="mode_decky_plugins_hint">Установите ZIP-архив плагина для следующей сессии Steam.</string>
     <string name="mode_decky_plugin_downloading">Загрузка…</string>
@@ -1679,6 +1872,7 @@
     <string name="second_key_on">%1$s ✓</string>
     <string name="second_key_ctrl_c">Ctrl+C</string>
     <string name="second_key_ctrl_d">Ctrl+D</string>
+    <string name="second_key_clear">Очистить</string>
     <string name="game_sync_err_runtime">Сначала установите среду выполнения</string>
     <string name="game_sync_err_steam_library">Библиотека Steam недоступна</string>
     <string name="game_sync_err_previous_sd">Предыдущая библиотека на SD-карте недоступна</string>
@@ -1832,15 +2026,6 @@
     <string name="fm_up_one_level">На уровень вверх</string>
     <string name="fm_choose_folder">Выберите папку</string>
     <string name="fm_choose_file">Выберите файл</string>
-    <string name="ctrl_tint_steam_blue">Синий Steam</string>
-    <string name="ctrl_tint_sky">Небесный</string>
-    <string name="ctrl_tint_white">Белый</string>
-    <string name="ctrl_tint_violet">Фиолетовый</string>
-    <string name="ctrl_tint_green">Зеленый</string>
-    <string name="ctrl_tint_amber">Янтарный</string>
-    <string name="ctrl_tint_red">Красный</string>
-    <string name="ctrl_tint_pink">Розовый</string>
-    <string name="ctrl_tint_gray">Серый</string>
     <string name="ctrl_button_a">Кнопка A</string>
     <string name="ctrl_button_b">Кнопка B</string>
     <string name="ctrl_button_x">Кнопка X</string>
@@ -1888,13 +2073,6 @@
     <string name="bottom_downloads_shader">Загрузка кэша шейдеров</string>
     <string name="bottom_downloads_paused">Приостановлено</string>
     <string name="bottom_downloads_queued">Ожидает начала</string>
-    <string name="bottom_page_notifications">Уведомления</string>
-    <string name="bottom_notifications_listener">Нижний экран DroidDeck</string>
-    <string name="bottom_notifications_why">Показывает сообщения и другие уведомления здесь, пока вы играете. Они отображаются только на этом экране и не сохраняются. Android спросит один раз: на этом экране откроется страница доступа к уведомлениям; включите там DroidDeck, и эта страница вернется сама.</string>
-    <string name="bottom_notifications_allow">Разрешить доступ к уведомлениям</string>
-    <string name="bottom_notifications_none">Нет уведомлений.</string>
-    <string name="bottom_notifications_count">Уведомлений: %1$d</string>
-    <string name="bottom_notifications_clear">Очистить</string>
     <string name="bottom_page_screenshots">Скриншоты</string>
     <string name="stats_fps_needs_hud">Для FPS нужно включить HUD</string>
     <string name="stats_speed">Скорость</string>
@@ -1981,7 +2159,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Порт %1$d получает данные (пакетов: %2$d, размер: %3$d байт), но в формате, который эта страница пока не умеет читать.</string>
     <string name="bottom_telemetry_port_busy">Порт %1$s уже занят другой программой, поэтому эта игра не может отображаться здесь.</string>
-
     <string name="rtinst_removing">Удаление среды выполнения Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Удаление среды выполнения Linux · %1$d элемент</item>
@@ -1998,7 +2175,6 @@
     <string name="rtinst_channel_description">Отображается во время установки или удаления среды выполнения Linux</string>
     <string name="rtinst_title_installing">Установка среды выполнения Linux</string>
     <string name="rtinst_title_removing">Удаление среды выполнения Linux</string>
-
     <string name="deskpkg_runtime_missing">Среда выполнения Linux не установлена</string>
     <string name="deskpkg_no_checksum">В каталоге нет контрольной суммы для %1$s</string>
     <string name="deskpkg_checksum_mismatch">Контрольная сумма не совпадает — ничего не изменено</string>
@@ -2006,7 +2182,6 @@
     <string name="deskpkg_place_failed">Не удалось разместить AppImage</string>
     <string name="deskpkg_extract_failed">Ошибка распаковки</string>
     <string name="deskpkg_install_failed">Ошибка установки</string>
-
     <string name="flatpakmgr_setup_failed">Ошибка настройки Flatpak (код %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">Настройка Flatpak не завершилась</string>
     <string name="flatpakmgr_busy">Выполняется другая задача магазина</string>
@@ -2025,7 +2200,6 @@
     <string name="flatpakmgr_ref_media_codecs">медиакодеки</string>
     <string name="flatpakmgr_ref_runtime">среда выполнения %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">среда выполнения %1$s %2$s</string>
-
     <string name="appimg_too_small">Файл слишком мал для AppImage</string>
     <string name="appimg_unreadable">Не удается прочитать файл: %1$s</string>
     <string name="appimg_not_linux">Это не AppImage (это не программа Linux)</string>
@@ -2040,7 +2214,6 @@
     <string name="appimg_extracting">Распаковка %1$s</string>
     <string name="appimg_extract_failed">Не удалось распаковать AppImage</string>
     <string name="appimg_extract_failed_detail">Не удалось распаковать AppImage: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Остановите текущую сессию перед установкой Decky Loader</string>
     <string name="deckymgr_download_failed">Ошибка загрузки Decky Loader</string>
     <string name="deckymgr_size_mismatch">Размер Decky Loader не совпадает с метаданными выпуска</string>
@@ -2089,13 +2262,11 @@
     <string name="deckymgr_activate_failed">Не удалось активировать импортированный плагин</string>
     <string name="deckymgr_settings_failed">Не удалось обновить настройки плагинов Decky</string>
     <string name="deckymgr_restore_failed">Не удалось восстановить прежний плагин</string>
-
     <string name="adbfix_save_failed">Не удалось сохранить идентификатор для отладки по Wi-Fi</string>
     <string name="adbfix_command_failed">Ошибка команды ADB (%1$d)</string>
     <string name="adbfix_not_confirmed">Android не подтвердил изменение ограничения дочерних процессов: %1$s</string>
     <string name="adbfix_no_pairing">Нет сохраненного сопряжения для отладки по Wi-Fi</string>
     <string name="adbfix_enter_address">Введите текущие IP-адрес и порт отладки по Wi-Fi</string>
-
     <string name="adbpair_timed_out">Время ожидания окна сопряжения истекло. Повторите попытку из DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Не удалось найти окно сопряжения (%1$d). Убедитесь, что Wi-Fi включен.</string>
     <string name="adbpair_discovery_failed">Не удалось найти окно сопряжения: %1$s</string>
@@ -2121,7 +2292,6 @@
     <string name="adbpair_title_done">Steam готов</string>
     <string name="adbpair_done_text">Нажмите, чтобы вернуться в DroidDeck. Теперь отладку по Wi-Fi можно отключить.</string>
     <string name="adbpair_title_failed">Настройка отладки по Wi-Fi остановлена</string>
-
     <string name="selfinst_download_failed">Ошибка загрузки</string>
     <string name="selfinst_size_mismatch">Размер загруженного файла не совпал с опубликованным APK, файл удален — повторите попытку</string>
     <string name="selfinst_checksum_mismatch">Загруженный файл не совпал с контрольной суммой и был удален — повторите попытку</string>
@@ -2134,12 +2304,11 @@
     <string name="selfinst_no_signing">В загруженном APK нет сведений о подписи</string>
     <string name="selfinst_wrong_signer">Загруженный APK не подписан ключом релизов DroidDeck</string>
     <string name="appupd_http">Каталог обновлений ответил HTTP %1$d</string>
-
     <string name="loadstate_starting">Запуск сессии…</string>
     <string name="loadstate_elapsed">Прошло %1$d:%2$02d · работа продолжается</string>
     <string name="loadstate_steam_update">Загрузка обновления клиента Steam · %1$d%%</string>
+    <string name="loadstate_steam_update_applying">Применение обновления клиента Steam…</string>
     <string name="loadstate_steam_client">Загрузка клиента Steam · %1$s</string>
-
     <string name="pextra_busy">Инструмент совместимости уже устанавливается</string>
     <string name="pextra_stop_session">Остановите текущую сессию перед установкой инструментов совместимости</string>
     <string name="pextra_no_release">Не найден выпуск %1$s для ARM64</string>
@@ -2156,10 +2325,20 @@
     <string name="pextra_checksum_mismatch">Контрольная сумма не совпадает; загруженный файл удален</string>
     <string name="pextra_session_started">Во время загрузки запустилась сессия; остановите ее перед установкой инструментов совместимости</string>
     <string name="pextra_installing">Установка %1$s</string>
+    <string name="xproton_title">Экспериментальные сборки</string>
+    <string name="xproton_install_file">Установить из файла</string>
+    <string name="xproton_archive_unsafe">Архив содержит небезопасную ссылку или путь</string>
+    <string name="xproton_archive_invalid">Неподдерживаемый или недействительный архив</string>
+    <string name="xproton_no_space">Недостаточно свободного места для этой сборки Proton</string>
+    <string name="xproton_unpacking">Распаковка Proton (несколько минут)</string>
+    <string name="xproton_untar_failed">Не удалось распаковать (tar %1$d)</string>
+    <string name="xproton_no_tree">В архиве нет сборки Proton</string>
+    <string name="xproton_place_failed">Не удалось разместить сборку Proton</string>
+    <string name="xproton_remove_failed">Не удалось полностью удалить %1$s</string>
+    <string name="xproton_installed">Экспериментальная сборка Proton установлена. Выберите её в Steam → Свойства → Совместимость.</string>
     <string name="pextra_install_failed">Ошибка установки %1$s (код выхода %2$d)</string>
     <string name="pextra_could_not_install">Не удалось установить %1$s</string>
     <string name="esync_fetching">Загрузка пакета droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">с помощниками Linux</string>
     <string name="cmgr_fex_dlls_only">только DLL</string>
     <string name="cmgr_original_proton_updated">Оригинал (Proton обновлен после последней замены)</string>
@@ -2182,13 +2361,11 @@
     <string name="cmgr_nightly_replaced">Не удалось загрузить: возможно, эта ночная сборка заменена более новой. Обновите список и повторите попытку.</string>
     <string name="cmgr_list_predates_checksums">Этот список пакетов создан до появления контрольных сумм — обновите его и повторите попытку</string>
     <string name="cmgr_checksum_mismatch">Контрольная сумма не совпадает</string>
-
     <string name="sprefs_upscaler_linear">Линейный</string>
     <string name="sprefs_upscaler_nearest">Ближайший</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (качество)</string>
     <string name="sprefs_upscaler_sharpen">Только резкость</string>
     <string name="sprefs_lod_bias_auto">Авто (по масштабированию)</string>
-
     <string name="look_off_desc">Без эффектов.</string>
     <string name="look_game_clarity">Игровая четкость</string>
     <string name="look_game_clarity_desc">Резкость с легким добавлением контраста — на каждый день.</string>
@@ -2212,8 +2389,23 @@
     <string name="look_pixel_clean_desc">Четкие пиксели для 2D и старых игр.</string>
     <string name="look_anime_edge">Аниме-контуры</string>
     <string name="look_anime_edge_desc">Мультяшные контуры плюс резкость.</string>
-
     <string name="gpuinfo_not_adreno">GPU не Adreno</string>
+    <string name="gpuinfo_powervr">Системный драйвер PowerVR: совместимость зависит от устройства</string>
+    <string name="gpuinfo_xclipse">Экспериментально: RADV или системный драйвер Xclipse</string>
+    <string name="gpu_system_powervr">Системный PowerVR</string>
+    <string name="gpu_auto_system_hint">Использует встроенные драйверы для этого GPU</string>
+    <string name="drivers_powervr_builtin">Для среды выполнения и отображения выбран системный драйвер PowerVR.</string>
+    <string name="drivers_mali_bridge_auto">Ни один открытый драйвер пока не поддерживает этот Mali: включён мост Mali.</string>
+    <string name="upd_block_non_adreno_test">Это тестовая сборка для устройств без Snapdragon: официальные сборки здесь работают только на Adreno, поэтому они не устанавливаются поверх неё. Новые тестовые сборки доступны на github.com/The412Banner/droiddeck-nonadreno-drivers.</string>
+    <string name="session_killed_for_memory">Последний сеанс завершился потому, что Android закрыл DroidDeck, чтобы освободить память; это не сбой. Закройте другие приложения или снизьте настройки качества текстур в игре, затем попробуйте снова.</string>
+    <string name="drivers_route_venus">Mali (Venus)</string>
+    <string name="drivers_route_bridge">мост Mali</string>
+    <string name="drivers_mali_no_pair_auto">Ни один открытый драйвер пока не поддерживает этот Mali: используется %1$s поверх собственного драйвера телефона.</string>
+    <string name="drivers_mali_unpublished_auto">%1$s ещё не опубликован: до публикации используется %2$s.</string>
+    <string name="drivers_mali_old_vulkan_bridge">%1$s недоступен, а драйвер этого телефона сообщает версию Vulkan %2$s (для Venus нужен Vulkan 1.2): используется мост Mali.</string>
+    <string name="drivers_mali_bridge_fallback">%1$s ещё не опубликован: мост Mali включён до его публикации.</string>
+    <string name="cmgr_powervr_dxvk_queued">В очереди: %1$s (ожидает другой драйвер среды выполнения)</string>
+    <string name="cmgr_powervr_dxvk_managed">DXVK предоставляется системной средой выполнения PowerVR. Другие пакеты DXVK можно хранить, но при использовании этого драйвера они не применяются.</string>
     <string name="gpuinfo_supported">Поддерживается</string>
     <string name="gpuinfo_experimental">Экспериментально: его драйверы — тестовые сборки</string>
     <string name="gpuinfo_a850_experimental">Экспериментальная поддержка Adreno 850: требуются совместимые экспериментальные драйверы дисплея и игр; не проверено на этом устройстве</string>
@@ -2221,7 +2413,6 @@
     <string name="gpuinfo_unsupported">Не поддерживается: для этого GPU нет совместимого графического бэкенда</string>
     <string name="gpuinfo_bridge">Работает через мост Mali на собственном драйвере Vulkan телефона</string>
     <string name="gpuinfo_bridge_off">Не поддерживается без моста Mali: Turnip нужен GPU Adreno (Snapdragon)</string>
-
     <string name="turnip_rate_limited">Превышен лимит запросов GitHub — повторите попытку позже</string>
     <string name="turnip_github_http">GitHub ответил HTTP %1$d</string>
     <string name="turnip_download_failed">Ошибка загрузки</string>
@@ -2242,16 +2433,12 @@
     <string name="bundle_no_manifest">Не пакет драйверов: нет manifest.json с указанием драйверов для Android и Linux</string>
     <string name="bundle_entry_outside">Не пакет драйверов: %1$s указывает за его пределы</string>
     <string name="bundle_too_large">Не пакет драйверов: после распаковки занимает больше %1$d МБ</string>
-
     <string name="gstore_sd_card">SD-карта</string>
     <string name="gstore_folder">Папка</string>
-
     <string name="logshare_chooser">Поделиться журналами сессии</string>
-
     <string name="hdr_needs_android_10">требуется Android 10 или новее (слои дисплея с цветовым пространством)</string>
     <string name="hdr_none">этот дисплей не сообщает о поддержке HDR</string>
     <string name="hdr_not_hdr10">этот дисплей поддерживает %1$s, но не HDR10</string>
-
     <string name="gpu_this_gpu">этот GPU</string>
     <string name="phantom_title_on">Ограничение дочерних процессов включено</string>
     <string name="phantom_title_unset">Ограничение дочерних процессов не задано</string>
@@ -2325,11 +2512,9 @@
     <string name="device_info_copied">Скопировано.</string>
     <string name="force_ssbs_title">Принудительный SSBS</string>
     <string name="force_ssbs_hint">Удерживает включенной настройку скорости CPU, которую Wine постоянно отключает. Может ускорить игры Windows на Snapdragon 8 Elite; на старых чипах разница почти не заметна. Вступит в силу при следующем запуске игры.</string>
-
     <string name="rail_stores">Магазины</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Свои</string>
-    <string name="setup_stores">Магазины</string>
     <string name="setup_stores_speed">Уровень скорости загрузки</string>
     <string name="stores_tier_balanced">Сбалансированный</string>
     <string name="stores_tier_fast">Быстрый</string>
@@ -2368,6 +2553,7 @@
     <string name="bnet_dl_queued">Ожидание другой загрузки Battle.net…</string>
     <string name="bnet_dl_client_first">Откройте Battle.net и войдите один раз, затем устанавливайте его игры здесь.</string>
     <string name="bnet_dl_failed">Загрузчик Blizzard остановился: %1$s</string>
+    <string name="bnet_dl_stalled">Загрузчик Blizzard перестал продвигаться.</string>
     <string name="bnet_dl_agent_error">Ошибка Blizzard %1$s</string>
     <string name="bnet_update">Обновить</string>
     <string name="bnet_store">Игры Blizzard</string>
@@ -2375,6 +2561,7 @@
     <string name="stores_dl_interrupted">Прервано</string>
     <string name="stores_install_size">Установить · %1$s</string>
     <string name="stores_get_free">Получить бесплатно</string>
+    <string name="stores_claiming">Добавление в библиотеку…</string>
     <string name="stores_view_on">Открыть в %1$s</string>
     <string name="stores_buy_price">Купить · %1$s</string>
     <string name="stores_installed_chip">Установлено</string>
@@ -2421,6 +2608,12 @@
     <string name="stores_sort">Сортировка</string>
     <string name="setup_rail_labels">Подписи боковой панели</string>
     <string name="setup_rail_labels_hint">Показывать названия под значками боковой панели. Отключите, чтобы сделать панель уже.</string>
+    <string name="setup_agent_pet">Питомец агента</string>
+    <string name="setup_agent_pet_hint">DeeDee отображается поверх лаунчера и игр и показывает, что делает агент.</string>
+    <string name="setup_agent_pet_float">Поверх других приложений</string>
+    <string name="setup_agent_pet_float_hint">Разрешить DeeDee отображаться поверх всех приложений и открывать там чат с DeeDee</string>
+    <string name="setup_agent_pet_allow">Разрешить</string>
+    <string name="agent_pet_open">Чат с DeeDee</string>
     <string name="library_display">Вид</string>
     <string name="library_display_larger">Крупные карточки</string>
     <string name="library_display_smaller">Мелкие карточки</string>
@@ -2706,7 +2899,14 @@
     <string name="gpu_chip_restart">%1$s · нужен перезапуск</string>
     <string name="comp_this_device">Это устройство</string>
     <string name="proton_remove_title">Удалить %1$s?</string>
-    <string name="setup_tab_diagnostics">Диагностика</string>
+    <string name="setup_tab_diagnostics">Разработчик</string>
+    <string name="setup_build_watermark">Водяной знак с меткой сборки</string>
+    <string name="setup_build_watermark_hint">Показывать на экране метку тестовой сборки или сборки Lab. Включено по умолчанию.</string>
+    <string name="diagnostics_share_title">Поделиться наборами диагностики</string>
+    <string name="diagnostics_share_session">Сеанс и устройство</string>
+    <string name="diagnostics_share_graphics">Графика</string>
+    <string name="diagnostics_share_games">Игры и совместимость</string>
+    <string name="diagnostics_share_all">Все наборы</string>
     <string name="setup_ready">Готово к игре</string>
     <string name="setup_not_ready">Пока не готово к игре</string>
     <string name="setup_ready_runtime">среда выполнения %1$s</string>
@@ -2745,6 +2945,9 @@
     <string name="gog_achievements_enable_store">Включите достижения GOG в настройках магазинов</string>
     <string name="gog_achievements_unavailable">Достижения недоступны; проверьте журналы сессии</string>
     <string name="achievement_unlocked">Достижение открыто</string>
+    <string name="setup_gpu_venus_off">Mali (Venus): отключено</string>
+    <string name="setup_gpu_venus_on">Mali (Venus): включено</string>
+    <string name="setup_gpu_venus_host_too_old">Драйвер на %1$s сообщает версию Vulkan %2$s. Для Mali (Venus) нужен Vulkan 1.2 или новее (на более старых версиях gamescope не запускается), поэтому Venus в сеансах не используется: вместо этого применяется пара драйверов PanVK.</string>
     <string name="touch_paste">Вставить</string>
     <string name="touch_left_stick">Левый стик</string>
     <string name="touch_right_stick">Правый стик</string>
@@ -2797,7 +3000,6 @@
     <string name="touch_icon_color">Цвет значка</string>
     <string name="touch_button_color">Цвет кнопки</string>
     <string name="touch_no_icon">Без значка</string>
-
     <string name="stores_sync_sign_in">Проверка входа…</string>
     <string name="stores_sync_library">Получение вашей библиотеки…</string>
     <string name="stores_sync_game_list">Получение списка игр…</string>
@@ -2976,7 +3178,6 @@
     <string name="stores_hltb_minutes">%1$d мин</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
-    <string name="cardboard_mode_hint">Изображения для левого и правого глаза для VR-очков под телефон.</string>
     <string name="cardboard_source">Изображение</string>
     <string name="cardboard_source_screen">Виртуальный экран</string>
     <string name="cardboard_source_sbs">Стереопара 3D</string>
@@ -2999,7 +3200,6 @@
     <string name="cardboard_steamvr_unavailable">Недоступно в этой сессии.</string>
     <string name="cardboard_steamvr_failed">SteamVR не отвечает; проверьте журнал сессии.</string>
     <string name="drawer_component_downloads">Скачать компоненты</string>
-    <string name="drawer_component_downloads_hint">Загрузки общие со страницей «Компоненты». Выберите выше скачанную версию, чтобы использовать её при следующем запуске игры.</string>
     <string name="drawer_component_choose_download">Выберите версию для скачивания</string>
     <string name="stores_storage_insufficient">Недостаточно свободного места: нужно %1$s, свободно только %2$s</string>
     <string name="stores_storage_low">Недостаточно места (свободно %1$s, нужно %2$s)</string>
@@ -3008,6 +3208,8 @@
     <string name="display_position_top">Сверху</string>
     <string name="display_position_bottom">Снизу</string>
     <string name="display_position_center">По центру (по умолчанию)</string>
+    <string name="display_position_left">Слева</string>
+    <string name="display_position_right">Справа</string>
     <string name="setup_tab_storage">Хранилище</string>
     <string name="storage_measuring">Измерение хранилища…</string>
     <string name="storage_measuring_hint">В первый раз занимает несколько секунд.</string>
@@ -3036,7 +3238,7 @@
     <string name="storage_default_choose_folder">Выбрать папку…</string>
     <string name="storage_default_choose_folder_detail">Любая папка на SD-карте или USB-накопителе</string>
     <string name="storage_default_note">Игры помещаются в папку Games в выбранном месте. Установленные игры не перемещаются.</string>
-    <string name="storage_where">Куда уходит</string>
+    <string name="storage_where">Что занимает место</string>
     <string name="storage_games">Игры Steam</string>
     <string name="storage_game_data">Данные игр</string>
     <string name="storage_game_data_hint">Префиксы %1$s · мастерская %2$s · шейдеры %3$s</string>
@@ -3105,6 +3307,7 @@
     <string name="storage_tool_redist">Установщики VC++ и DirectX, которые требуют игры</string>
     <string name="storage_tool_fex">Запускает игры Linux x86</string>
     <string name="storage_tool_steam">Инструмент Steam</string>
+    <string name="storage_tool_anticheat">Steam загружает этот компонент для игр с античитом, даже если он отключён. Если его удалить, установка этих игр зависнет на 0%</string>
     <string name="storage_tool_old_runtime">DroidDeck запускает игры без этой среды выполнения</string>
     <string name="storage_tool_x86_proton">Proton x86, который DroidDeck не может запустить</string>
     <string name="storage_tool_custom_default">По умолчанию для всех игр</string>
@@ -3182,6 +3385,28 @@
     <string name="storage_data_other">Сохранённые</string>
     <string name="storage_data_other_title">Игры не из Steam и общий префикс Steam</string>
     <string name="storage_data_other_detail">Префиксы игр, добавленных магазинами или вручную</string>
+    <string name="storage_shared_prefix">Общий префикс Steam</string>
+    <string name="storage_shared_prefix_detail">Steam запускает здесь свои вспомогательные программы Windows</string>
+    <string name="storage_reset_shared_confirm">Удаляет его (%1$s). Steam создаст новый, когда он снова понадобится.</string>
+    <string name="storage_remove_launcher_confirm">Удаляет префикс Wine и кеш шейдеров этого приложения магазина (%1$s) вместе со входом в аккаунт и сохранениями, которые есть только там. Игры, работающие в нём, получат новый префикс, а приложение, возможно, придётся настроить заново. Облачные сохранения остаются в аккаунте.</string>
+    <string name="storage_system_clearable">Можно очистить %1$s</string>
+    <string name="storage_item_system_caches">Кеши Linux и Steam</string>
+    <string name="storage_item_system_caches_detail">Старые временные файлы, скачанные пакеты и веб-кеш Steam</string>
+    <string name="storage_cache_temp">Старые временные файлы</string>
+    <string name="storage_cache_packages">Скачанные пакеты</string>
+    <string name="storage_cache_steam_web">Веб-кеш Steam</string>
+    <string name="storage_cache_steam_corrupt">Повреждённые загрузки Steam</string>
+    <string name="storage_cache_detail">Создаются заново при необходимости</string>
+    <string name="storage_clear">Очистить</string>
+    <string name="storage_launcher_prefix">Приложение магазина и игры, которые с ним работают</string>
+    <string name="storage_launcher_used_by">Используется: %1$s</string>
+    <string name="storage_shortcut_app">Игра не из Steam %1$s</string>
+    <string name="storage_remove_selected">Удалить выбранные · %1$s</string>
+    <string name="storage_uninstall_selected">Удалить выбранные · %1$s</string>
+    <string name="storage_bulk_prefixes">Префиксы Wine</string>
+    <string name="storage_bulk_prefixes_detail">Сохранения и настройки в них будут потеряны; сохранения Steam Cloud остаются в вашем аккаунте.</string>
+    <string name="storage_bulk_shaders">Кэши шейдеров</string>
+    <string name="storage_prefix_shaders">Префикс %1$s · шейдеры %2$s</string>
     <string name="storage_components_packages">Загруженные пакеты</string>
     <string name="storage_components_originals">Сохранённые оригиналы</string>
     <string name="storage_components_none">Пакеты компонентов не загружены.</string>
@@ -3220,6 +3445,9 @@
     <string name="boot_movie_droiddeck">DroidDeck · %1$d кадр/с</string>
     <string name="boot_movie_note">60 кадр/с выглядит плавнее, но сильнее нагружает процессор при запуске Steam. Видео, выбранное в настройках самого Steam, тоже появляется здесь.</string>
     <string name="boot_movie_sound">Звук</string>
+    <string name="boot_movie_skip">Пропускать стартовое видео</string>
+    <string name="boot_movie_skip_hint">Использовать 0,1-секундный чёрный клип в качестве стартового видео Steam. Применится в следующем сеансе.</string>
+    <string name="boot_movie_shuffle">Случайный порядок</string>
     <string name="boot_movie_custom">Своё видео</string>
     <string name="boot_movie_custom_hint">MP4, MOV, MKV или WebM. Другие форматы и файлы больше %1$d МБ преобразуются на устройстве в WebM 720p, до %2$d секунд.</string>
     <string name="boot_movie_import">Импорт</string>
@@ -3677,10 +3905,9 @@
     <string name="integration_shortcuts_hint">Alt+Tab, клавиша Win и кнопка «Домой» работают в сеансе</string>
     <string name="integration_shortcuts_maybe_restricted">Неактивно в Android? «О приложении» → ⋮ → «Разрешить доступ к настройкам с ограниченным доступом»</string>
     <string name="integration_shortcuts_restricted">Заблокировано Android · «О приложении» → ⋮ → «Разрешить доступ к настройкам с ограниченным доступом»</string>
-    <string name="integration_shortcuts_service">Системные клавиши DroidDeck</string>
-    <string name="integration_shortcuts_service_description">Оставляет Alt+Tab, клавишу Win и кнопку «Домой» в активном сеансе DroidDeck, а не в Android.</string>
     <string name="integration_brightness_needed">Включите «Яркость» в «Настройка → Интеграция со Steam»</string>
     <string name="setup_gpu_bridge_off">Мост Mali: выкл.</string>
+    <string name="setup_gpu_bridge_unusable">%1$s не может использовать мост Mali (для него нужен GPU Mali без маршрута через системный драйвер), поэтому этот переключатель здесь ни на что не влияет.</string>
     <string name="setup_gpu_bridge_on">Мост Mali: вкл.</string>
     <string name="setup_gpu_bridge_detail">%1$s — не Adreno. Включён экспериментальный мост Vulkan: сеанс рисует через собственный драйвер телефона. Возможны ошибки; отправьте журналы сеанса.</string>
     <string name="setup_bridge_safe">Безопасный режим</string>
@@ -3706,6 +3933,25 @@
     <string name="apps_widget_move_later">Переместить позже</string>
     <string name="apps_widget_configure">Настройки виджета</string>
     <string name="apps_widget_remove">Удалить виджет</string>
+    <string name="apps_appearance">Внешний вид</string>
+    <string name="apps_icon_pack">Набор иконок</string>
+    <string name="apps_icon_pack_system">Как в системе</string>
+    <string name="apps_icon_app_colors">Фон цвета приложения</string>
+    <string name="apps_icon_size">Размер иконок</string>
+    <string name="apps_icon_small">Мелкие</string>
+    <string name="apps_icon_medium">Средние</string>
+    <string name="apps_icon_large">Крупные</string>
+    <string name="apps_hide_names">Скрыть названия приложений</string>
+    <string name="apps_spacing">Отступы</string>
+    <string name="apps_spacing_tight">Узко</string>
+    <string name="apps_spacing_normal">Средне</string>
+    <string name="apps_spacing_roomy">Широко</string>
+    <string name="apps_change_icon">Сменить иконку</string>
+    <string name="apps_reset_icon">Сбросить иконку</string>
+    <string name="apps_icons_search">Поиск иконок</string>
+    <string name="apps_icons_loading">Загрузка иконок…</string>
+    <string name="apps_icons_none">Иконки не найдены.</string>
+    <string name="apps_icons_custom">Свои иконки</string>
     <string name="apps_add_to_folder">Добавить в папку</string>
     <string name="apps_new_folder">Новая папка</string>
     <string name="apps_remove_from_folder">Убрать из папки</string>
@@ -3821,4 +4067,102 @@
     <string name="input_reset_positions">Сбросить положение</string>
     <string name="input_show_label">Показывать подпись</string>
     <string name="input_layout_import_failed">Не удалось импортировать эту раскладку</string>
+    <string name="epic_third_party_managed">Устанавливается через %1$s</string>
+    <string name="theme_white_red">Алый снег</string>
+    <string name="theme_white_red_detail">Белые поверхности с красными акцентами.</string>
+    <string name="rail_soundtracks">Саундтреки</string>
+    <string name="rail_music">Музыка</string>
+    <string name="soundtracks_options">Параметры воспроизведения</string>
+    <string name="soundtracks_favorites">Избранное</string>
+    <string name="soundtracks_collections">Коллекции</string>
+    <string name="soundtracks_collections_empty">Коллекций пока нет. Нажмите на значок закладки, чтобы создать её.</string>
+    <string name="soundtracks_saved">Сохранено</string>
+    <string name="soundtracks_create_collection">Создать коллекцию</string>
+    <string name="soundtracks_organise">Упорядочите сохранённое</string>
+    <string name="soundtracks_new">Новая</string>
+    <string name="soundtracks_create">Создать</string>
+    <string name="soundtracks_collection_name">Название коллекции</string>
+    <string name="soundtracks_name_invalid">Введите название, которое не используется в другой коллекции</string>
+    <string name="soundtracks_manage">Управление</string>
+    <string name="soundtracks_rename">Переименовать</string>
+    <string name="soundtracks_add_tracks">Добавить треки</string>
+    <string name="soundtracks_add_count">Добавить (%1$d)</string>
+    <string name="soundtracks_remove_tracks">Убрать треки</string>
+    <string name="soundtracks_delete_collection">Удалить коллекцию</string>
+    <string name="soundtracks_delete_title">Удалить %1$s?</string>
+    <string name="soundtracks_delete_body">Треки останутся на устройстве. Будет удалена только коллекция.</string>
+    <string name="soundtracks_select">Выбрать</string>
+    <string name="soundtracks_select_all">Выбрать все</string>
+    <string name="soundtracks_deselect_all">Снять выбор</string>
+    <string name="soundtracks_selected">Выбрано: %1$d</string>
+    <string name="soundtracks_add_to_collection">Добавить в коллекцию</string>
+    <string name="soundtracks_add_favorites">Добавить в избранное</string>
+    <string name="soundtracks_remove_from_collection">Убрать из коллекции</string>
+    <string name="soundtracks_search_tracks">Поиск треков</string>
+    <string name="soundtracks_sort_default">Порядок в альбоме</string>
+    <string name="soundtracks_sort_longest">Сначала длинные</string>
+    <string name="soundtracks_sort_shortest">Сначала короткие</string>
+    <string name="soundtracks_tracks_heading">Треки</string>
+    <string name="soundtracks_pitch">Высота тона</string>
+    <string name="soundtracks_reset">Сбросить</string>
+    <string name="soundtracks_skip_silence">Пропускать тишину</string>
+    <string name="soundtracks_sleep">Таймер сна</string>
+    <string name="soundtracks_sleep_minutes">%1$d мин</string>
+    <string name="soundtracks_sleep_track_end">Конец трека</string>
+    <string name="soundtracks_sleep_left">Осталось %1$s</string>
+    <string name="soundtracks_equalizer">Эквалайзер</string>
+    <string name="soundtracks_bass">Усиление баса</string>
+    <string name="soundtracks_eq_unavailable">Эквалайзер недоступен на этом устройстве</string>
+    <string name="setup_soundtracks_ingame">Включить в игре</string>
+    <string name="setup_soundtracks_ingame_hint">Продолжать воспроизведение саундтрека во время игры</string>
+    <string name="soundtracks_empty">Саундтреки ещё не установлены.</string>
+    <string name="soundtracks_search">Поиск саундтреков</string>
+    <string name="soundtracks_add_title">Добавить папку саундтрека</string>
+    <string name="soundtracks_add_empty">В этой папке нет аудиофайлов</string>
+    <string name="soundtracks_total_length">Общая длительность</string>
+    <string name="soundtracks_length_value">Треков: %1$d / %2$s</string>
+    <string name="soundtracks_disc">Диск %1$s</string>
+    <string name="soundtracks_shuffle">Перемешать</string>
+    <string name="soundtracks_previous">Назад</string>
+    <string name="soundtracks_play">Воспроизвести</string>
+    <string name="soundtracks_pause">Пауза</string>
+    <string name="soundtracks_next">Далее</string>
+    <string name="soundtracks_repeat_off">Повтор выключен</string>
+    <string name="soundtracks_repeat_all">Повторять всё</string>
+    <string name="soundtracks_repeat_one">Повторять один</string>
+    <string name="soundtracks_volume">Громкость</string>
+    <string name="soundtracks_no_tracks">В этом саундтреке нет аудиофайлов</string>
+    <string name="stores_rockstar_launch_unavailable">Запуск недоступен</string>
+    <string name="agent_browser_unavailable">Нет доступного веб-браузера для открытия этой ссылки.</string>
+    <string name="hud_hint_grab">Взять</string>
+    <string name="hud_hint_drop">Отпустить</string>
+    <string name="hud_hint_save">Сохранить</string>
+    <string name="hud_hint_reset">Удерживайте для сброса</string>
+    <string name="setup_stores">Магазины</string>
+    <string name="hud_metric_latency">Время кадра</string>
+    <string name="hud_metric_avg">Средняя частота кадров</string>
+    <string name="hud_metric_display">Сервер вывода</string>
+    <string name="hud_metric_hdr">Состояние HDR</string>
+    <string name="hud_readings_shown">Показано</string>
+    <string name="hud_readings_count">%1$d из %2$d</string>
+    <string name="exit_hint_back">Нажмите «Назад» ещё раз, чтобы выйти</string>
+    <string name="display_integer_scaling">Целочисленное масштабирование</string>
+    <string name="display_integer_scaling_hint">Использует наибольший целочисленный масштаб, который помещается на экране. Края могут обрезаться. Если исходное изображение больше выходного, дробное масштабирование показывает его целиком. Разрешение настраивается отдельно.</string>
+    <string name="display_scaling_integer">Целое число</string>
+    <string name="display_scaling_fit">По размеру</string>
+    <string name="drawer_antialiasing">Сглаживание</string>
+    <string name="theme_custom">Пользовательская</string>
+    <string name="theme_custom_detail">Выберите каждый цвет интерфейса отдельно.</string>
+    <string name="theme_custom_background">Фон</string>
+    <string name="theme_custom_surface">Панели</string>
+    <string name="theme_custom_surface_variant">Приподнятые панели</string>
+    <string name="theme_custom_line">Разделители</string>
+    <string name="theme_custom_line2">Границы</string>
+    <string name="theme_custom_on_background">Основной текст</string>
+    <string name="theme_custom_on_surface_variant">Вторичный текст</string>
+    <string name="theme_custom_primary">Кнопки и основной акцент</string>
+    <string name="theme_custom_on_primary">Текст кнопок</string>
+    <string name="theme_custom_signal">Выделения</string>
+    <string name="theme_custom_good">Успех</string>
+    <string name="theme_custom_error">Ошибка</string>
 </resources>

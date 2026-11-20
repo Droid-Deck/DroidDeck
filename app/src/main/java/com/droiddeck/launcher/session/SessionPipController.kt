@@ -16,11 +16,13 @@ class SessionPipController(
     private val activity: SessionActivity,
     private val bounds: () -> Rect,
     private val showPipUi: (Boolean) -> Unit,
+    private val launchedByAnotherApp: () -> Boolean = { false },
 ) {
     var transitioning = false
         private set
     private var suppressAuto = false
     private var visit = false
+    private var requested = false
     private var lastParams = ""
     val floating get() = transitioning || activity.isInPictureInPictureMode
 
@@ -28,7 +30,8 @@ class SessionPipController(
         PipPolicy.eligible(SessionState.running, SessionState.firstFrameSeen, SessionState.phase,
             SessionState.suspended, automatic)
 
-    fun automatic() = !suppressAuto && SessionPrefs.pipAutoEnter(activity) && eligible(true)
+    fun automatic() = !suppressAuto && PipPolicy.autoEnter(SessionPrefs.pipAutoEnter(activity), launchedByAnotherApp()) &&
+        eligible(true)
 
     fun refresh(force: Boolean = false) {
         if (!supported(activity)) return
@@ -47,7 +50,7 @@ class SessionPipController(
         return builder.build()
     }
 
-    fun enter() {
+    fun enter(explicit: Boolean = true) {
         if (!eligible()) {
             Toast.makeText(activity, R.string.pip_not_ready, Toast.LENGTH_SHORT).show()
             return
@@ -59,8 +62,10 @@ class SessionPipController(
             return
         }
         prepare()
+        requested = explicit
         val entered = runCatching { activity.enterPictureInPictureMode(params(bounds())) }.getOrDefault(false)
         if (!entered) {
+            requested = false
             restore()
             Toast.makeText(activity, R.string.pip_unavailable, Toast.LENGTH_SHORT).show()
         }
@@ -68,7 +73,7 @@ class SessionPipController(
 
     fun leaving() {
         if (!automatic() || !allowed()) return
-        if (Build.VERSION.SDK_INT < 31) enter() else prepare()
+        if (Build.VERSION.SDK_INT < 31) enter(explicit = false) else prepare()
     }
 
     private fun prepare() {
@@ -85,6 +90,8 @@ class SessionPipController(
             showPipUi(true)
             SessionService.beginPip(activity)
             SessionService.setActivityVisible(activity, true)
+            if (requested) runCatching { com.droiddeck.launcher.HomeApp.showFrontEnd(activity) }
+            requested = false
         } else restore()
         refresh(true)
     }

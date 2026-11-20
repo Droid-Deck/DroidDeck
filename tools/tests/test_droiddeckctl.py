@@ -55,6 +55,19 @@ FAKE_ADB = textwrap.dedent('''\
         print("Result: Bundle[{json=" + json.dumps(answers) + "}]")
     elif args[:3] == ["shell", "dumpsys", "display"]:
         print(config.get("dumpsys_display", ""))
+    elif args[:3] == ["shell", "dumpsys", "input"]:
+        print(config.get("dumpsys_input", ""))
+    elif args[:3] == ["shell", "uinput", "-"]:
+        entry["stdin"] = sys.stdin.read()
+        if "uinput_stdout" in config:
+            print(config["uinput_stdout"])
+        else:
+            for line in entry["stdin"].splitlines():
+                command = json.loads(line)
+                if command["command"] == "sync":
+                    print(json.dumps({"reason": "sync", "id": command["id"], "syncToken": command["syncToken"]}))
+    elif args[:1] == ["shell"] and len(args) == 2 and "command -v uinput" in args[1]:
+        print(config.get("uinput_probe", ""))
     elif args[:3] == ["shell", "dumpsys", "power"]:
         print("  mWakefulness=Awake")
     elif args[:3] == ["shell", "dumpsys", "SurfaceFlinger"] and "-dump" in args:
@@ -213,6 +226,18 @@ class DroiddeckctlTest(FakeAdbTest):
         started = [e["args"] for e in self.calls() if e["args"][:3] == ["shell", "am", "start"]]
         self.assertIn("com.antutu.benchmark.full/com.droiddeck.launcher.agent.AgentStartActivity", started[0])
 
+    def test_a_start_delivered_to_an_existing_task_is_a_failure(self):
+        output = (b"Starting: Intent { cmp=com.droiddeck.launcher/.agent.AgentStartActivity (has extras) }\n"
+                  b"Warning: Activity not started, intent has been delivered to currently running top-most instance.\n"
+                  b"Status: ok\nActivity: com.droiddeck.launcher/.FrontEndActivity\nComplete\n")
+
+        def adb(_adb, _serial, *args, timeout=30):
+            return ctl.subprocess.CompletedProcess(args, 0, output, b"")
+
+        with unittest.mock.patch.object(ctl, "run_adb", adb), self.assertRaises(ctl.ControlError) as caught:
+            ctl.start_agent_activity("adb", "fake-1", {"mode": "steam"})
+        self.assertEqual("ACTIVITY_START_FAILED", caught.exception.code)
+
     def test_a_malformed_package_is_refused_before_adb(self):
         with unittest.mock.patch.dict(os.environ, {"DROIDDECK_PACKAGE": "com.example;reboot"}):
             variant = load("droiddeckctl")
@@ -248,6 +273,60 @@ class DroiddeckctlTest(FakeAdbTest):
         code, out = self.run_ctl("launch", "489830", "--wait", "--timeout", "5")
         self.assertEqual(0, code)
         self.assertEqual(489830, out["focus"]["focusedApp"])
+
+    LIBRARY = {"ok": True, "command": "library", "games": [
+        {"id": "9227380185612091392", "name": "TimeSplitters Future Perfect", "source": "xbox", "storeId": "9N51S9QZMSB6", "folder": "/g/ts"},
+        {"id": "12302733539203571712", "name": "Dead Space (2008)", "source": "ea", "storeId": "DR:105641400", "folder": "/g/ds"},
+        {"id": "12302733539203571999", "name": "Dead Space 2", "source": "ea", "storeId": "DR:1", "folder": "/g/ds2"},
+    ]}
+
+    def test_launch_by_name_opens_the_game_link_and_waits_for_a_game(self):
+        self.configure({"library": self.LIBRARY, "state": [state(focused=769, focusable=[769]), state(focused=7, focusable=[7, 769])]})
+        code, out = self.run_ctl("launch", "--game", "timesplitters", "--wait", "--timeout", "5")
+        self.assertEqual(0, code)
+        self.assertEqual("TimeSplitters Future Perfect", out["game"]["name"])
+        self.assertEqual(7, out["focus"]["focusedApp"])
+        started = [e["args"] for e in self.calls() if e["args"][:3] == ["shell", "am", "start"]]
+        self.assertIn("droiddeck://game/9227380185612091392", started[0])
+        self.assertIn("com.droiddeck.launcher/com.droiddeck.launcher.FrontEndActivity", started[0])
+        self.assertFalse(self.calls("launch"))
+
+    def test_launch_by_name_refuses_an_ambiguous_or_missing_game(self):
+        self.configure({"library": self.LIBRARY})
+        code, out = self.run_ctl("launch", "--game", "dead space")
+        self.assertNotEqual(0, code)
+        self.assertEqual("GAME_AMBIGUOUS", out["error"]["code"])
+        self.assertIn("Dead Space 2 (12302733539203571999)", out["error"]["message"])
+        code, out = self.run_ctl("launch", "--game", "12302733539203571712")
+        self.assertEqual(0, code)
+        self.assertEqual("ea", out["game"]["source"])
+        code, out = self.run_ctl("launch", "--game", "halo")
+        self.assertEqual("GAME_NOT_FOUND", out["error"]["code"])
+        code, out = self.run_ctl("launch")
+        self.assertEqual("INVALID_ARGUMENTS", out["error"]["code"])
+        self.assertFalse([e for e in self.calls() if e["args"][:3] == ["shell", "am", "start"] and "droiddeck://game/12302733539203571999" in e["args"]])
+
+    def test_quit_without_an_app_quits_the_focused_game(self):
+        self.configure({"state": state(focused=4040, focusable=[4040, 769]), "quit": {"ok": True, "command": "quit"}})
+        code, _ = self.run_ctl("quit")
+        self.assertEqual(0, code)
+        self.assertEqual(4040, self.calls("quit")[0]["request"]["appId"])
+        self.configure({"state": state(focused=769, focusable=[769])})
+        code, out = self.run_ctl("quit")
+        self.assertEqual("NO_FOCUSED_GAME", out["error"]["code"])
+        self.assertEqual(1, len(self.calls("quit")))
+
+    def test_library_xodus_and_cloud_pass_their_requests(self):
+        self.configure({"library": self.LIBRARY, "xodus": {"ok": True, "command": "xodus", "exit": 0, "stdout": "{}", "stderr": ""},
+                        "cloud": {"ok": True, "command": "cloud", "result": "ok", "files": 2, "reason": "downloaded"}})
+        self.assertEqual(0, self.run_ctl("library", "--source", "ea", "--query", "dead")[0])
+        self.assertEqual({"query": "dead", "source": "ea"}, self.calls("library")[0]["request"])
+        self.assertEqual(0, self.run_ctl("xodus", "--timeout", "30", "--", "license", "abc", "--market", "US")[0])
+        self.assertEqual({"args": ["license", "abc", "--market", "US"], "timeout": 30.0}, self.calls("xodus")[0]["request"])
+        code, out = self.run_ctl("cloud", "down", "ubisoft", "92c79ab6", "--force")
+        self.assertEqual(0, code)
+        self.assertEqual("downloaded", out["reason"])
+        self.assertEqual({"direction": "down", "store": "ubisoft", "id": "92c79ab6", "force": True}, self.calls("cloud")[0]["request"])
 
     def test_start_reuse_keeps_a_running_session(self):
         running = state(focused=769)
@@ -291,7 +370,7 @@ class DroiddeckctlTest(FakeAdbTest):
         code, out = self.run_ctl("run", "/usr/bin/sh", "--", "-c", "true")
         self.assertEqual(7, code)
         self.assertEqual("AGENT_COMMANDS_DISABLED", out["error"]["code"])
-        self.assertIn("Setup > Diagnostics > Debugging tools", out["error"]["message"])
+        self.assertIn("Setup > Developer > Debugging tools", out["error"]["message"])
         self.assertEqual(["access"], [c.get("method") for c in self.calls()])
 
     def test_override_checks_names_before_pushing_any_file(self):
@@ -320,6 +399,21 @@ class DroiddeckctlTest(FakeAdbTest):
         shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
         self.assertEqual(["exec-out", "screencap", "-p", "-d", "222"], shot["args"])
 
+    def test_screenshot_with_two_screens_takes_the_main_display(self):
+        self.configure({}, dumpsys_display=DUMPSYS_DISPLAY)
+        code, out = self.run_ctl("screenshot", str(self.dir / "shot.png"))
+        self.assertEqual(0, code)
+        shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
+        self.assertEqual(["exec-out", "screencap", "-p", "-d", "111"], shot["args"])
+
+    def test_screenshot_with_one_screen_names_no_display(self):
+        one = DUMPSYS_DISPLAY.split("  Display 4:")[0]
+        self.configure({}, dumpsys_display=one)
+        code, out = self.run_ctl("screenshot", str(self.dir / "shot.png"))
+        self.assertEqual(0, code)
+        shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
+        self.assertEqual(["exec-out", "screencap", "-p"], shot["args"])
+
     def test_displays(self):
         self.configure({}, dumpsys_display=DUMPSYS_DISPLAY)
         code, out = self.run_ctl("displays")
@@ -327,6 +421,15 @@ class DroiddeckctlTest(FakeAdbTest):
         self.assertEqual([0, 4], [d["display"] for d in out["displays"]])
         self.assertEqual("222", out["displays"][1]["physicalId"])
         self.assertEqual([1080, 1240], out["displays"][1]["size"])
+
+    def test_displays_named_with_their_unique_id(self):
+        text = DUMPSYS_DISPLAY.replace("mPrimaryDisplayDevice=Screen-2",
+                                       "mPrimaryDisplayDevice=Screen-2(local:222)")
+        self.configure({}, dumpsys_display=text)
+        code, out = self.run_ctl("screenshot", str(self.dir / "shot.png"), "--display", "4")
+        self.assertEqual(0, code)
+        shot = [c for c in self.calls() if c["args"][:2] == ["exec-out", "screencap"]][0]
+        self.assertEqual(["exec-out", "screencap", "-p", "-d", "222"], shot["args"])
 
     def test_unknown_display_is_an_error(self):
         self.configure({}, dumpsys_display=DUMPSYS_DISPLAY)
@@ -397,6 +500,30 @@ class DroiddeckctlTest(FakeAdbTest):
             code, out = self.run_ctl("pacing", "--seconds", "1")
         self.assertEqual(4, code)
         self.assertEqual("NO_FRAMES", out["error"]["code"])
+
+    def test_provider_call_falls_back_to_a_broadcast_without_content(self):
+        calls = []
+        answers = iter([b"", b'{"ok": true, "command": "state"}'])
+
+        def adb(_adb, _serial, *args, timeout=30):
+            calls.append(args)
+            if args[:2] == ("shell", "content"):
+                return ctl.subprocess.CompletedProcess(args, 127, b"", b"/system/bin/sh: content: inaccessible or not found")
+            if args[:2] == ("shell", "am"):
+                return ctl.subprocess.CompletedProcess(args, 0, b"Broadcast completed: result=0", b"")
+            if args[:2] == ("shell", "pidof " + ctl.PACKAGE):
+                return ctl.subprocess.CompletedProcess(args, 0, b"4940\n", b"")
+            return ctl.subprocess.CompletedProcess(args, 0, next(answers), b"")
+
+        with unittest.mock.patch.object(ctl, "run_adb", adb), unittest.mock.patch.object(ctl.time, "sleep"):
+            answer = ctl.provider_call("adb", "fake-1", "state", arg="a b", request={"x": 1})
+        self.assertEqual({"ok": True, "command": "state"}, answer)
+        broadcast = next(c for c in calls if c[:2] == ("shell", "am"))
+        self.assertEqual(("shell", "am", "broadcast", "-a", ctl.PACKAGE + ".AGENT_CALL", "-p", ctl.PACKAGE), broadcast[:7])
+        self.assertIn("'a b'", broadcast)
+        self.assertEqual(ctl.encode_request({"x": 1}), broadcast[broadcast.index("request") + 1])
+        call_id = broadcast[broadcast.index("id") + 1]
+        self.assertIn("agent-calls/%s.json" % call_id, calls[-1][1])
 
     def test_pacing_turns_timestats_off_when_the_dump_fails(self):
         calls = []
@@ -790,6 +917,49 @@ class ScenarioTest(FakeAdbTest):
         self.assertEqual(1, code)
         self.assertEqual(2, len(report["runs"]))
         self.assertEqual([{"appId": 7, "timeout": 15.0}] * 2, [c["request"] for c in self.calls("quit")])
+
+
+class ProviderFallbackTest(unittest.TestCase):
+    MISSING = "/system/bin/sh: content: inaccessible or not found\n"
+
+    def adb(self, answers):
+        calls = []
+
+        def run(adb, serial, *args, timeout=None):
+            calls.append(args)
+            for prefix, (code, out, err) in answers:
+                if " ".join(args).startswith(" ".join(prefix)):
+                    return unittest.mock.Mock(returncode=code, stdout=out.encode(), stderr=err.encode())
+            raise AssertionError(f"unexpected adb call {args}")
+        return calls, unittest.mock.patch.object(ctl, "run_adb", run)
+
+    def test_a_command_that_prints_the_shell_error_is_not_run_again(self):
+        result = 'Result: Bundle[{json={"ok":true,"stdout":{"text":"' + self.MISSING.strip() + '"}}}]'
+        calls, patch = self.adb([(["shell", "content"], (0, result, ""))])
+        with patch:
+            self.assertTrue(ctl.provider_call("adb", "s", "native", request={"argv": ["x"]})["ok"])
+        self.assertEqual(1, len(calls))
+
+    def test_a_shell_without_content_uses_the_broadcast(self):
+        calls, patch = self.adb([
+            (["shell", "content"], (127, "", self.MISSING)),
+            (["shell", "pidof"], (0, "4940\n", "")),
+            (["shell", "am", "broadcast"], (0, "Broadcast completed", "")),
+            (["shell"], (0, '{"ok": true}', "")),
+        ])
+        with patch:
+            self.assertTrue(ctl.provider_call("adb", "s", "state")["ok"])
+        self.assertEqual(["shell", "am", "broadcast"], list(calls[2][:3]))
+
+    def test_the_broadcast_needs_the_app_running(self):
+        calls, patch = self.adb([
+            (["shell", "content"], (127, "", self.MISSING)),
+            (["shell", "pidof"], (1, "", "")),
+        ])
+        with patch, self.assertRaises(ctl.ControlError) as raised:
+            ctl.provider_call("adb", "s", "state")
+        self.assertEqual("APP_NOT_RUNNING", raised.exception.code)
+        self.assertFalse(any(c[:3] == ("shell", "am", "broadcast") for c in calls))
 
 
 if __name__ == "__main__":

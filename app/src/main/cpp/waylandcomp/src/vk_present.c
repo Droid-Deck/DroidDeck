@@ -13,6 +13,7 @@
 #include "quest_device.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 #include <sys/system_properties.h>
 #include <unistd.h>
@@ -46,6 +47,7 @@ struct vkp_image {
 static ANativeWindow *g_window;
 static int g_ahb_import;
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
+static int g_allow_driver_fallback;
 static int g_dev_state;
 static void device_lost(const char *where);
 static const char *vk_result_name(VkResult r);
@@ -213,7 +215,7 @@ static struct {
 } g_map;
 static pthread_mutex_t g_game_picture_lock = PTHREAD_MUTEX_INITIALIZER;
 static float g_game_picture_rect[4];
-static int g_game_picture_top;
+static int g_game_picture_placed;
 
 static int64_t g_swap_retry_at_ns;
 static int g_swap_fail_logged;
@@ -249,6 +251,8 @@ void vk_present_set_driver(const char *driver_path, const char *library_name,
     g_library_name = library_name ? strdup(library_name) : NULL;
     g_native_lib_dir = native_lib_dir ? strdup(native_lib_dir) : NULL;
 }
+
+void vk_present_set_driver_fallback(int allow) { g_allow_driver_fallback = allow; }
 
 static void reset_sync(void) {
     VkSemaphoreCreateInfo semci = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
@@ -362,7 +366,7 @@ int vkp_completion_unknown(void) { return g_dev_state == -3; }
 
 void vk_present_set_scale_mode(int mode, int alignment) {
     if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;
-    if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_PICTURE_BOTTOM) alignment = VKP_ALIGN_CENTER;
+    if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_PICTURE_RIGHT) alignment = VKP_ALIGN_CENTER;
     g_mode = mode;
     g_align = alignment;
 }
@@ -383,6 +387,8 @@ static const char *align_name(int a) {
     case VKP_ALIGN_BOTTOM: return "bottom";
     case VKP_ALIGN_PICTURE_TOP: return "picture top";
     case VKP_ALIGN_PICTURE_BOTTOM: return "picture bottom";
+    case VKP_ALIGN_PICTURE_LEFT: return "picture left";
+    case VKP_ALIGN_PICTURE_RIGHT: return "picture right";
     default: return "center";
     }
 }
@@ -411,8 +417,13 @@ static void update_map(int scene_w, int scene_h) {
         if (mode == VKP_MODE_FILL) aspect = sx > sy ? sx : sy;
         else if (mode == VKP_MODE_INTEGER) {
             float m = sx < sy ? sx : sy;
-            aspect = (float)(int)m;
-            if (aspect < 1.0f) aspect = 1.0f;
+            float nearest = roundf(m);
+            if (nearest >= 1.0f && nearest > m &&
+                nearest - m < 0.15f) {
+                aspect = nearest;
+            } else {
+                aspect = m >= 1.0f ? (float)(int)m : m;
+            }
         } else aspect = sx < sy ? sx : sy;
         g_map.kx = g_map.ky = aspect;
         g_map.off_x = (float)(g_map.rx + (int)((g_map.rw - scene_w * aspect) * 0.5f));
@@ -420,9 +431,11 @@ static void update_map(int scene_w, int scene_h) {
     }
     if (align == VKP_ALIGN_PICTURE_TOP) g_map.off_y = 0;
     else if (align == VKP_ALIGN_PICTURE_BOTTOM) g_map.off_y = H - scene_h * g_map.ky;
+    else if (align == VKP_ALIGN_PICTURE_LEFT) g_map.off_x = 0;
+    else if (align == VKP_ALIGN_PICTURE_RIGHT) g_map.off_x = W - scene_w * g_map.kx;
     g_map.valid = 1;
     pthread_mutex_lock(&g_game_picture_lock);
-    g_game_picture_top = align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM;
+    g_game_picture_placed = mode == VKP_MODE_INTEGER || align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM || align == VKP_ALIGN_PICTURE_LEFT || align == VKP_ALIGN_PICTURE_RIGHT;
     g_game_picture_rect[0] = g_map.off_x;
     g_game_picture_rect[1] = g_map.off_y;
     g_game_picture_rect[2] = g_map.off_x + scene_w * g_map.kx;
@@ -436,7 +449,7 @@ static void update_map(int scene_w, int scene_h) {
 
 int vkp_game_picture_rect(float rect[4]) {
     pthread_mutex_lock(&g_game_picture_lock);
-    int active = g_game_picture_top;
+    int active = g_game_picture_placed;
     if (active) memcpy(rect, g_game_picture_rect, sizeof(g_game_picture_rect));
     pthread_mutex_unlock(&g_game_picture_lock);
     return active;
@@ -545,6 +558,18 @@ static int dev_init(void) {
     uint32_t npd = 0;
     g_vk.EnumeratePhysicalDevices(g_inst, &npd, NULL);
     if (!npd) {
+        if (g_allow_driver_fallback && g_driver_path && g_library_name) {
+            LOGE("present: display driver exposed no physical devices; retrying the system Vulkan driver");
+            g_vk.DestroyInstance(g_inst, NULL);
+            g_inst = VK_NULL_HANDLE;
+            vk_loader_close();
+            free(g_driver_path); g_driver_path = NULL;
+            free(g_library_name); g_library_name = NULL;
+            g_allow_driver_fallback = 0;
+            g_colorspace_ext = 0;
+            g_dev_state = 0;
+            return dev_init();
+        }
         LOGE("present: no physical devices"); g_dev_state = -1;
         set_fault("the display driver exposed no GPU to the app");
         return -1;
@@ -1981,7 +2006,9 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
                    1 + vkp_framegen_extra_images(), vkp_framegen_extra_images() ? "s" : "");
         destroy_swapchain();
     }
-    const int want_hdr = hf && !hf->tonemap && g_colorspace_ext && !g_swap_hdr_unavailable;
+    /* A black refresh carries no HDR frame; it keeps the swapchain's colour mode rather than flipping it. */
+    const int want_hdr = (g_plain_frame && !hf) ? (g_swapchain && g_swap_is_hdr)
+                                                : (hf && !hf->tonemap && g_colorspace_ext && !g_swap_hdr_unavailable);
     if (g_swapchain && want_hdr != g_swap_is_hdr) {
         droiddeck_log("color", want_hdr ? "HDR frames with frame generation: rebuilding the screen swapchain as HDR10"
                             : hf     ? "HDR output switched off: rebuilding the screen swapchain as SDR (frames tone-mapped)"
@@ -2152,7 +2179,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         VkImageLayout result_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         if (fx) {
             int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
-            if (fg) { mapped_w = scene_w; mapped_h = scene_h; }
+            if (fg && !vkp_effects_sharpening()) { mapped_w = scene_w; mapped_h = scene_h; }
             vkp_effects_set_formats(scene_fmt, scene_fmt);
             result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h, &rw, &rh);
             effects_overlay_draws(cmd, result, rw, rh, scene_w, scene_h,

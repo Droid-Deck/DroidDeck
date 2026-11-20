@@ -87,20 +87,10 @@ object DeviceInfo {
     private fun ghz(khz: Long) = String.format(Locale.US, "%.2f GHz", khz / 1e6)
 
     private fun gpuRange(): String? {
-        fun mhz(hz: Long) = "${hz / 1_000_000} MHz"
-        val kgsl = read("/sys/class/kgsl/kgsl-3d0/gpu_available_frequencies")
-            ?.split(Regex("\\s+"))?.mapNotNull { it.toLongOrNull() }?.filter { it > 0 }.orEmpty()
-        if (kgsl.isNotEmpty()) return "${mhz(kgsl.min())}–${mhz(kgsl.max())} (${kgsl.size} steps)"
-        read("/sys/class/kgsl/kgsl-3d0/max_gpuclk")?.toLongOrNull()?.let { return "up to ${mhz(it)}" }
-        val node = File("/sys/class/devfreq").listFiles()?.firstOrNull { f ->
-            val n = f.name.lowercase()
-            (n.contains("gpu") || n.contains("mali") || n.contains("kgsl-3d")) && listOf("bus", "bw", "memlat").none { n.contains(it) }
-        } ?: return null
-        val steps = read("${node.path}/available_frequencies")?.split(Regex("\\s+"))?.mapNotNull { it.toLongOrNull() }?.filter { it > 0 }.orEmpty()
-        if (steps.isNotEmpty()) return "${mhz(steps.min())}–${mhz(steps.max())} (${steps.size} steps)"
-        val min = read("${node.path}/min_freq")?.toLongOrNull()
-        val max = read("${node.path}/max_freq")?.toLongOrNull() ?: return null
-        return (if (min != null) "${mhz(min)}–" else "up to ") + mhz(max)
+        GpuLimits.first(GpuLimits.stepSources())?.mhz?.let { return "${it.first()} MHz–${it.last()} MHz (${it.size} steps)" }
+        val max = GpuLimits.first(GpuLimits.maxSources())?.mhz?.last() ?: return null
+        val min = GpuLimits.first(GpuLimits.minSources())?.mhz?.first()
+        return (if (min != null) "$min MHz–" else "up to ") + "$max MHz"
     }
 
     private fun memory(context: Context) = Section("Memory", buildList<Pair<String, String>> {
@@ -145,15 +135,21 @@ object DeviceInfo {
     private fun drivers(context: Context, gpu: GpuInfo) = Section("Drivers DroidDeck uses", buildList<Pair<String, String>> {
         add("Driver mode", SessionPrefs.gpuDriverMode(context))
         val turnip = TurnipDriver(context)
-        val choice = SessionPrefs.androidDriver(context).ifEmpty { turnip.autoId() }
+        val choice = turnip.effectiveId()
         val powerVr = gpu.family == GpuInfo.Family.POWERVR
         add("Display driver", if (choice == "system") builtinDriverLabel(powerVr, runtime = false)
             else "${turnip.displayName(choice)} ${turnip.driverVersion(choice)}".trim())
         val linux = LinuxVulkanDriverManager(context)
         val id = SessionPrefs.linuxDriver(context)
-        add("Game driver", if (id.isEmpty()) builtinDriverLabel(powerVr, runtime = true) else "${linux.getDriverName(id)} ${linux.getDriverVersion(id)}".trim())
+        add("Game driver", hostRoute(context) ?: if (id.isEmpty()) builtinDriverLabel(powerVr, runtime = true) else "${linux.getDriverName(id)} ${linux.getDriverVersion(id)}".trim())
         if (gpu.oneUi8Gen2) add("Note", "One UI on an 8 Gen 2: needs the OneUI Turnip build")
     })
+
+    internal fun hostRoute(context: Context): String? = when {
+        com.droiddeck.launcher.session.VenusComponent.wanted(context) -> "Mali (Venus)"
+        com.droiddeck.launcher.core.DeviceSupport.vkBridge(context) -> "the Mali bridge"
+        else -> null
+    }
 
     /** Shared by the device card and the session report, which are written in English. */
     internal fun builtinDriverLabel(powerVr: Boolean, runtime: Boolean): String = when {

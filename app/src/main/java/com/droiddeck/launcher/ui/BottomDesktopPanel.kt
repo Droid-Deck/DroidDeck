@@ -28,6 +28,7 @@ import com.droiddeck.launcher.input.PointerGestures
 import com.droiddeck.launcher.input.TouchpadGestures
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.BottomDesktop
+import com.droiddeck.launcher.wayland.WaylandCompositor
 
 @SuppressLint("ViewConstructor")
 class BottomDesktopPanel(
@@ -37,6 +38,7 @@ class BottomDesktopPanel(
     steamButtons: Pair<() -> Unit, () -> Unit>?,
     onSwap: (() -> Unit)? = null,
     private val fullResolution: Boolean = false,
+    picker: (() -> ScreenPicker?)? = null,
 ) : LinearLayout(context), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private val area = FrameLayout(context).apply { clipChildren = true }
@@ -66,7 +68,7 @@ class BottomDesktopPanel(
         setBackgroundColor(Color.BLACK)
         isFocusable = true
         isFocusableInTouchMode = true
-        addView(bar(onClose, onMenu, steamButtons, onSwap), LayoutParams(-1, -2))
+        addView(bar(onClose, onMenu, steamButtons, onSwap, picker), LayoutParams(-1, -2))
         area.addView(keyboardHost)
         addSurface()
         area.addView(status, FrameLayout.LayoutParams(-1, -1))
@@ -83,7 +85,8 @@ class BottomDesktopPanel(
         area.addView(surfaceView, 1, FrameLayout.LayoutParams(fullWidth.takeIf { it > 0 } ?: -1, fullHeight.takeIf { it > 0 } ?: -1))
     }
 
-    private fun bar(onClose: (() -> Unit)?, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?, onSwap: (() -> Unit)?): View =
+    private fun bar(onClose: (() -> Unit)?, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?, onSwap: (() -> Unit)?,
+        picker: (() -> ScreenPicker?)?): View =
         bottomScreenBarView(context) {
             val touch = touchMode.value
             BottomBarModel(
@@ -96,6 +99,7 @@ class BottomDesktopPanel(
                     BarExtra(context.getString(R.string.second_show_keyboard), icon = R.drawable.ic_bottom_keyboard) { keyboardHost.toggle() },
                     onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = it) },
                 ),
+                picker = picker?.invoke(),
             )
         }
 
@@ -289,10 +293,10 @@ class BottomDesktopPanel(
 
         override fun onButton(button: Int, pressed: Boolean, x: Float, y: Float) {
             movePointer(x, y)
-            BottomDesktop.sendScene(SCENE_BUTTON, button, if (pressed) 1 else 0)
+            BottomDesktop.sendScene(WaylandCompositor.SCENE_BUTTON, button, if (pressed) 1 else 0)
         }
 
-        override fun onWheel(steps: Int) = BottomDesktop.sendScene(SCENE_WHEEL, steps)
+        override fun onWheel(steps: Int) = BottomDesktop.sendScene(WaylandCompositor.SCENE_WHEEL, steps)
 
         override fun onScroll(dx: Float, dy: Float) {
             val (outW, outH) = BottomDesktop.outputSize
@@ -303,18 +307,18 @@ class BottomDesktopPanel(
             if (h == 0 && v == 0) return
             scrollRestX -= h
             scrollRestY -= v
-            BottomDesktop.sendScene(SCENE_AXIS, v, h)
+            BottomDesktop.sendScene(WaylandCompositor.SCENE_AXIS_FINGER, v, h)
         }
 
         override fun onScrollEnd() {
             scrollRestX = 0f
             scrollRestY = 0f
-            BottomDesktop.sendScene(SCENE_AXIS, 0, 0)
+            BottomDesktop.sendScene(WaylandCompositor.SCENE_AXIS_FINGER, 0, 0)
         }
 
         override fun onZoom(steps: Int) {
             BottomDesktop.sendKey(KEY_LEFTCTRL, true)
-            BottomDesktop.sendScene(SCENE_WHEEL, steps)
+            BottomDesktop.sendScene(WaylandCompositor.SCENE_WHEEL, steps)
             BottomDesktop.sendKey(KEY_LEFTCTRL, false)
         }
 
@@ -331,9 +335,6 @@ class BottomDesktopPanel(
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private companion object {
-        const val SCENE_BUTTON = 3
-        const val SCENE_WHEEL = 4
-        const val SCENE_AXIS = 12
         const val KEY_LEFTCTRL = 29
         const val AXIS_UNITS_PER_PIXEL = 3f
         const val TEXT_FIELD_TAP_MS = 1_000L

@@ -4,6 +4,7 @@ import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import java.io.File
 import org.junit.Assert.*
+import org.junit.Assume.assumeFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -65,6 +66,26 @@ class SteamLibrariesTest {
         assertTrue(SteamLibraries.add(app, nested.path) is SteamLibraries.AddResult.Refused)
     }
 
+    @Test fun aGamesFolderIsOfferedWholeUnlessItIsAlreadyALibrary() {
+        val games = "/storage/card/GameNative"
+        assertTrue(SteamLibraries.offered(emptyList(), listOf(games), games))
+        assertFalse(SteamLibraries.offered(emptyList(), listOf(games), "$games/Steam"))
+        assertFalse(SteamLibraries.offered(emptyList(), listOf(games), "/storage/card"))
+        assertFalse(SteamLibraries.offered(listOf(games), listOf(games), games))
+        assertTrue(SteamLibraries.offered(listOf("/storage/card/Other"), listOf(games), "/storage/card/New"))
+    }
+
+    @Test fun aGamesFolderRemainsDiscoverableBesideChosenGameStorage() {
+        val card = tmp.newFolder("card")
+        val games = File(card, "GameNative").path
+        val selected = File(card, "Selected").apply { mkdirs() }
+        SessionPrefs.setGameStorage(app, selected.path, "Selected")
+        val effective = GameStorage.effective(app)!!
+        assertTrue(SteamLibraries.offered(listOf(effective.path), listOf(games), games))
+        SessionPrefs.setGameStorage(app, card.path, "Card")
+        assertFalse(SteamLibraries.offered(listOf(GameStorage.effective(app)!!.path), listOf(games), games))
+    }
+
     private fun library(dir: File): File = dir.apply { File(this, "steamapps").mkdirs(); File(this, "steamapps/appmanifest_220.acf").writeText("x") }
 
     @Test fun pickingTheFolderAboveALibraryAddsTheLibraryInside() {
@@ -122,6 +143,15 @@ class SteamLibrariesTest {
         val scanned = AddedGames.scan(app).single()
         assertEquals(game, scanned.folder)
         assertEquals("${lib.guest}/steamapps/common/Game", AddedGames.guestPath(app, scanned.folder))
+    }
+
+    @Test fun rawAndStorageMountViewsOverlapButDistinctFoldersDoNot() {
+        assumeFalse(java.nio.file.Files.isSymbolicLink(File("/mnt").toPath()))
+        val raw = SteamLibraries.canonical(File("/mnt/media_rw/ABCD-1234/Games"))
+        val storage = SteamLibraries.canonical(File("/storage/ABCD-1234/Games"))
+        assertEquals(storage, raw)
+        assertTrue(SteamLibraries.overlaps(raw, SteamLibraries.canonical(File("/storage/ABCD-1234/Games/Steam"))))
+        assertFalse(SteamLibraries.overlaps(raw, SteamLibraries.canonical(File("/storage/ABCD-1234/Other"))))
     }
 
     @Test fun unreadableOrInvalidEntriesAreDropped() {

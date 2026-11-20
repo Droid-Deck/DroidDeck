@@ -9,6 +9,7 @@ import com.droiddeck.launcher.input.InputControl
 import com.droiddeck.launcher.input.InputProfile
 import com.droiddeck.launcher.input.InputProfiles
 import com.droiddeck.launcher.input.InputRole
+import com.droiddeck.launcher.input.LegacyControllerPrefs
 import com.droiddeck.launcher.input.InputSurfaceLayout
 import org.junit.Assert.*
 import org.junit.Before
@@ -34,6 +35,9 @@ class SettingsResetTest {
     @Test fun settingsGoBackToTheirDefaults() {
         SessionPrefs.setTheme(app, "ocean")
         SessionPrefs.setBackDoubleTapMs(app, 100)
+        SessionPrefs.setPenSetting(app, "pen", SessionPrefs.PEN_TOUCH)
+        SessionPrefs.setPenSetting(app, "penButton", SessionPrefs.PEN_BUTTON_OFF)
+        SessionPrefs.setPenSeen(app)
         SessionPrefs.setUnfoldedControlsWithController(app, true)
         SessionPrefs.setNoXalia(app, false)
         session.edit().putInt("fpsLimit.steam", 30).commit()
@@ -49,7 +53,7 @@ class SettingsResetTest {
         SessionPrefs.setHudOpacity(app, 40)
         SessionPrefs.setDroidDeckHudConfig(app, "hudSize=mega,showFPSGraph=0")
         SessionPrefs.setDroidDeckHudPosition(app, 120f, 40f)
-        ControllerPrefs.setOpacity(app, 40)
+        LegacyControllerPrefs.setOpacity(app, 40)
         AppUiPrefs.setScale(app, 150)
         FrameGen.set(app, FrameGen.Mode(FrameGen.ENGINE_DDFG, 3))
         prefs("steam_touch").edit().putBoolean("gyro", false).commit()
@@ -58,6 +62,8 @@ class SettingsResetTest {
 
         assertEquals("graphite", SessionPrefs.theme(app))
         assertEquals(500, SessionPrefs.backDoubleTapMs(app))
+        assertEquals(SessionPrefs.Pen(), SessionPrefs.pen(app))
+        assertTrue(SessionPrefs.penSeen(app))
         assertFalse(SessionPrefs.unfoldedControlsWithController(app))
         assertTrue(SessionPrefs.noXalia(app))
         assertFalse(session.contains("fpsLimit.steam"))
@@ -80,6 +86,26 @@ class SettingsResetTest {
         assertEquals(AppUiPrefs.DEFAULT_SCALE, AppUiPrefs.scale(app))
         assertEquals(FrameGen.Mode.OFF.engine, FrameGen.engine(app))
         assertFalse(prefs("steam_touch").contains("gyro"))
+    }
+
+    @Test fun penSettingsKeepOnlyKnownValues() {
+        val settings = mapOf(
+            "pen" to listOf(SessionPrefs.PEN_MOUSE, SessionPrefs.PEN_TOUCH),
+            "penButton" to listOf(SessionPrefs.PEN_BUTTON_RIGHT, SessionPrefs.PEN_BUTTON_MIDDLE, SessionPrefs.PEN_BUTTON_OFF),
+        )
+        fun read(key: String) = if (key == "pen") SessionPrefs.penMode(app) else SessionPrefs.penButton(app)
+        for ((key, values) in settings) {
+            assertTrue(key, SettingsReset.isSessionSetting(key))
+            assertEquals(key, values.first(), read(key))
+            for (value in values.drop(1)) {
+                SessionPrefs.setPenSetting(app, key, value)
+                assertEquals(key, value, read(key))
+            }
+            session.edit().putString(key, "left").commit()
+            assertEquals(key, values.first(), read(key))
+            assertThrows(IllegalArgumentException::class.java) { SessionPrefs.setPenSetting(app, key, "left") }
+        }
+        assertFalse(SettingsReset.isSessionSetting("penSeen"))
     }
 
     @Test fun aFailedDebugOptOutDoesNotHideTheEnabledPreference() {
@@ -129,7 +155,7 @@ class SettingsResetTest {
         val defaultGame = InputProfiles.read(app, InputProfile.GAME)
         val defaultDesktop = InputProfiles.read(app, InputProfile.DESKTOP)
         val defaultSurface = InputSurfaceLayout.read(app, InputProfile.DESKTOP)
-        ControllerPrefs.setTarget(app, "a", "b")
+        LegacyControllerPrefs.setTarget(app, "a", "b")
         InputProfiles.select(app, InputProfile.DESKTOP)
         InputProfiles.save(app, InputProfile.defaults(InputProfile.GAME)
             .withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.Disabled))

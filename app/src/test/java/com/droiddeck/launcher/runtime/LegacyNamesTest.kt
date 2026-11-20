@@ -79,4 +79,55 @@ class LegacyNamesTest {
         assertEquals("Exec=/usr/local/bin/bannerlator-steam-launch\n",
             File(root, "usr/local/share/applications/firefox.desktop").readText())
     }
+
+    @Test fun catalogAppImageMenusStartThroughTheSharedLauncher() {
+        write("usr/share/applications/droiddeck-rpcs3.desktop",
+            "[Desktop Entry]\nName=RPCS3\nExec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/rpcs3.AppImage\nCategories=Emulator;\n")
+        write("usr/share/applications/droiddeck-steam-x64.desktop", "[Desktop Entry]\nExec=droiddeck-steam-x64\n")
+        write("usr/share/applications/other.desktop", "Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/other.AppImage\n")
+        LegacyNames.migrateRootfs(root)
+        LegacyNames.migrateRootfs(root)
+        assertEquals("[Desktop Entry]\nName=RPCS3\nExec=/usr/local/bin/droiddeck-appimage-exec /opt/appimages/rpcs3.AppImage\nCategories=Emulator;\n",
+            File(root, "usr/share/applications/droiddeck-rpcs3.desktop").readText())
+        assertEquals("[Desktop Entry]\nExec=droiddeck-steam-x64\n", File(root, "usr/share/applications/droiddeck-steam-x64.desktop").readText())
+        assertEquals("Exec=env APPIMAGE_EXTRACT_AND_RUN=1 /opt/appimages/other.AppImage\n",
+            File(root, "usr/share/applications/other.desktop").readText())
+    }
+
+    @Test fun homeMarkersKeepTheirStateAndRetiredLibrariesGo() {
+        write("root/.bl-lossless-asked", "1")
+        write("root/.bl-compat-pending", "550\n")
+        write("root/.dd-seed-beat", "new")
+        write("root/.bl-seed-beat", "old")
+        write("usr/local/lib/libblsession.so", "old")
+        write("usr/local/lib/droiddeck-fex/x86_64/libblsession.so", "old")
+        write("usr/local/lib/libddsession.so", "new")
+        LegacyNames.migrateRootfs(root)
+        assertEquals("1", File(root, "root/.dd-lossless-asked").readText())
+        assertEquals("550\n", File(root, "root/.dd-compat-pending").readText())
+        assertEquals("new", File(root, "root/.dd-seed-beat").readText())
+        assertFalse(File(root, "root/.bl-lossless-asked").exists())
+        assertFalse(File(root, "root/.bl-seed-beat").exists())
+        assertFalse(File(root, "usr/local/lib/libblsession.so").exists())
+        assertFalse(File(root, "usr/local/lib/droiddeck-fex/x86_64/libblsession.so").exists())
+        assertEquals("new", File(root, "usr/local/lib/libddsession.so").readText())
+    }
+
+    @Test fun queuedRequestsUnderBothNamesAreAllKept() {
+        write("root/.bl-proton-extra", "ge")
+        write("root/.dd-proton-extra", "em\n")
+        LegacyNames.migrateRootfs(root)
+        assertEquals("em\nge\n", File(root, "root/.dd-proton-extra").readText())
+        assertFalse(File(root, "root/.bl-proton-extra").exists())
+    }
+
+    @Test fun queuedRequestsStaySeparateWhenTheNewQueueIsUnterminated() {
+        write("root/.bl-proton-extra", "ge\n")
+        write("root/.dd-proton-extra", "cachyos")
+        write("root/.bl-steam-urls", "steam://run/440")
+        write("root/.dd-steam-urls", "steam://run/570")
+        LegacyNames.migrateRootfs(root)
+        assertEquals("cachyos\nge\n", File(root, "root/.dd-proton-extra").readText())
+        assertEquals("steam://run/570\nsteam://run/440\n", File(root, "root/.dd-steam-urls").readText())
+    }
 }

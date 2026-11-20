@@ -76,6 +76,9 @@ class AgentBridgeProvider : ContentProvider() {
         "stop" -> stop(context)
         "resume" -> resume(context)
         "launch" -> launch(context, request)
+        "library" -> AgentStores.library(context, request)
+        "xodus" -> AgentStores.xodus(context, request)
+        "cloud" -> AgentStores.cloud(context, request)
         "focus" -> guest(context, JSONObject().put("kind", "focus"), 15_000)
         "quit" -> guest(context, JSONObject().put("kind", "quit").put("appId", request.opt("appId"))
             .put("timeout", request.optDouble("timeout", 15.0)), timeoutMs(request, 15.0, 30_000))
@@ -84,6 +87,10 @@ class AgentBridgeProvider : ContentProvider() {
         "guest" -> {
             AgentAccess.requireCommands(context)
             guest(context, JSONObject(request.toString()).put("kind", "exec"), timeoutMs(request, 30.0, 10_000))
+        }
+        "native" -> {
+            AgentAccess.requireCommands(context)
+            AgentNative.run(context, request, timeoutMs(request, 30.0, 0))
         }
         "cdp" -> {
             AgentAccess.requireCommands(context)
@@ -284,6 +291,8 @@ class AgentBridgeProvider : ContentProvider() {
         return JSONObject()
             .put("schema", SCHEMA)
             .put("build", BuildConfig.BUILD_LABEL)
+            .put("apkCommit", com.droiddeck.launcher.lab.LabOverlay.apkCommit)
+            .put("lab", com.droiddeck.launcher.lab.LabOverlay.active?.label ?: JSONObject.NULL)
             .put("appVersion", context.packageManager.getPackageInfo(context.packageName, 0).versionName)
             .put("runtime", JSONObject()
                 .put("installed", LinuxRuntime.isInstalled(context))

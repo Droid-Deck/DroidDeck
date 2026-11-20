@@ -11,12 +11,12 @@ SESSION = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/d
 class SessionPacingTest(unittest.TestCase):
     def launch(self, refresh, **overrides):
         source = SESSION.read_text()
-        start = source.index('  width=${BL_WIDTH:-1280}')
-        end = source.index('\nfi\n\nbl_displays()', start)
+        start = source.index('  width=${DD_WIDTH:-1280}')
+        end = source.index('\nfi\n\ndd_displays()', start)
         block = source[start:end].replace('/usr/local/bin/droiddeck-pipewire', 'pipewire_stub')
         with tempfile.TemporaryDirectory() as directory:
-            env = dict(os.environ, XDG_RUNTIME_DIR=directory, BL_REFRESH=str(refresh),
-                       BL_MANGOAPP='0', BL_FPS='0', DROIDDECK_GAME_FRAME_LIMIT='0')
+            env = dict(os.environ, XDG_RUNTIME_DIR=directory, DD_REFRESH=str(refresh),
+                       DD_MANGOAPP='0', DD_FPS='0', DROIDDECK_GAME_FRAME_LIMIT='0')
             env.pop('GAMESCOPE_NESTED_REFRESH_FOLLOWS_HOST', None)
             env.update(overrides)
             script = '''
@@ -49,12 +49,12 @@ run_gamescope() { printf 'ARG:%s\\n' "$@"; printf 'FOLLOW:%s\\n' "${GAMESCOPE_NE
     def test_retired_cap_variables_do_not_override_the_display_rate(self):
         for performance in ('0', '1'):
             with self.subTest(performance=performance):
-                args = self.launch(120, BL_FPS='30', DROIDDECK_GAME_FRAME_LIMIT=performance)
+                args = self.launch(120, DD_FPS='30', DROIDDECK_GAME_FRAME_LIMIT=performance)
                 self.assertEqual('120', args[args.index('-r') + 1])
                 self.assertNotIn('--framerate-limit', args)
 
     def test_retired_cap_cannot_set_the_rate_when_the_display_rate_is_unknown(self):
-        args = self.launch(0, BL_FPS='30', DROIDDECK_GAME_FRAME_LIMIT='1')
+        args = self.launch(0, DD_FPS='30', DROIDDECK_GAME_FRAME_LIMIT='1')
         self.assertNotIn('-r', args)
         self.assertNotIn('--framerate-limit', args)
 

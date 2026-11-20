@@ -31,9 +31,9 @@ int probe(void) {
 #define _GNU_SOURCE
 #include <assert.h>
 #include <dlfcn.h>
-int bl_fsync_syscall(long n, const long *a, long *r) { (void)n; (void)a; (void)r; return 0; }
-int bl_writewatch_syscall(long n, const long *a, long (*real)(long, ...), long *r) { (void)n; (void)a; (void)real; (void)r; return 0; }
-int bl_clock_syscall(long n, const long *a, long (*real)(long, ...), long *r) { (void)n; (void)a; (void)real; (void)r; return 0; }
+int dd_fsync_syscall(long n, const long *a, long *r) { (void)n; (void)a; (void)r; return 0; }
+int dd_writewatch_syscall(long n, const long *a, long (*real)(long, ...), long *r) { (void)n; (void)a; (void)real; (void)r; return 0; }
+int dd_clock_syscall(long n, const long *a, long (*real)(long, ...), long *r) { (void)n; (void)a; (void)real; (void)r; return 0; }
 #include """ + '"' + robust.as_posix() + '"' + r"""
 int main(int argc, char **argv) {
     assert(argc == 3);

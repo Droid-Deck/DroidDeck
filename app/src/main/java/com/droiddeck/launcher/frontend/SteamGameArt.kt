@@ -24,11 +24,7 @@ object SteamGameArt {
         val icon = chosenFile(context, game.appId, AddedGameArt.Slot.ICON)
         val logo = chosenFile(context, game.appId, AddedGameArt.Slot.LOGO)
         if (cover == null && hero == null && icon == null && logo == null) return game
-        return Library.SteamGame(
-            game.appId, game.name, cover ?: game.art, game.library, game.gameId,
-            hero ?: game.hero, game.lastPlayed, game.gameFiles, game.protonPrefix, icon ?: game.icon, game.source, game.storeId,
-            logo ?: game.logo,
-        )
+        return game.withArt(cover ?: game.art, hero ?: game.hero, icon ?: game.icon, logo ?: game.logo)
     }
 
     fun chosenSource(context: Context, appId: Int, slot: AddedGameArt.Slot): Pair<String, String> {

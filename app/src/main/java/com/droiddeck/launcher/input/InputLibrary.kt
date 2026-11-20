@@ -22,6 +22,8 @@ data class SavedInputLayout(
     val aspect: Float = 0f,
     val origin: String? = null,
     val scale: Float = 1f,
+    /** The player removed every kit control from this gamepad, so it must not follow the virtual controller again. */
+    val kitless: Boolean = false,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
     val quickButtons get() = QUICK_BUTTONS.filter { button -> elements.any { it.quickButton == button } }
@@ -49,7 +51,7 @@ data class SavedInputBindings(
 
     fun action(element: InputSurfaceElement) = elements[element.id]
         ?: if (element.id == "legacy:${element.control.id}") controls[element.control] ?: InputAction.Native()
-        else InputAction.Disabled
+        else defaultElementAction(element.id)
 
     fun clickAction(element: InputSurfaceElement) = clicks[element.id]
         ?: defaultElementClick(element, action(element)) { controls[it] ?: InputAction.Native() }
@@ -97,6 +99,16 @@ data class InputLibrary(
     fun compileActive(isDesktop: Boolean, panel: String? = null): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith {
         preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel).bindings else activePart(isDesktop, it).bindings)
     })
+    fun compileStock(isDesktop: Boolean, panel: String? = null): InputProfile {
+        val defaults = InputProfile.defaults(profile(activeId(isDesktop)).base)
+        val stock = InputStockLayouts.presets(InputStockLayouts.layouts())
+        return compileParts(defaults.id, InputRole.entries.associateWith { role ->
+            val part = if (role == InputRole.SECONDARY) panelPart(isDesktop, panel) else activePart(isDesktop, role)
+            val origin = layouts.firstOrNull { it.id == part.layout }?.origin ?: part.layout
+            stock.firstOrNull { it.id == part.bindings || (origin != null && it.layoutId == origin) }
+                ?: SavedInputBindings(part.bindings, "", role == InputRole.PHYSICAL, part.layout, defaults.bindings[role].orEmpty())
+        })
+    }
 
     fun saveSelection(isDesktop: Boolean, name: String, id: String = newInputId()): InputLibrary {
         val current = profile(activeId(isDesktop))
@@ -126,8 +138,8 @@ data class InputLibrary(
     fun withPreset(value: SavedInputBindings) = copy(bindings = bindings.filterNot { it.id == value.id } + value)
     fun withLayout(value: SavedInputLayout) = copy(layouts = layouts.filterNot { it.id == value.id } + value,
         bindings = bindings.map { preset -> if (preset.layoutId != value.id) preset else preset.copy(
-            elements = preset.elements.filter { (id, action) -> value.elements.any { it.id == id && action.validFor(it) } },
-            clicks = preset.clicks.filter { (id, action) -> value.elements.any { it.id == id && it.hasClick && action.validForClick() } }) })
+            elements = preset.elements.filter { (id, action) -> value.element(id)?.let { action.validFor(it) } == true },
+            clicks = preset.clicks.filter { (id, action) -> value.element(id)?.hasClick == true && action.validForClick() }) })
 
     fun duplicateProfile(id: String, name: String, newId: String = newInputId(), sharePhysical: Boolean = false): InputLibrary {
         require(profiles.size < 64)
@@ -261,8 +273,8 @@ data class InputLibrary(
             require(preset.physical || preset.keys.isEmpty())
             val layout = preset.layoutId?.let { id -> layouts.first { it.id == id } }
             require(!preset.physical || layout == null && preset.elements.isEmpty() && preset.clicks.isEmpty())
-            require(preset.elements.all { (id, action) -> layout?.elements?.firstOrNull { it.id == id }?.let { action.validFor(it) } == true })
-            require(preset.clicks.all { (id, action) -> layout?.elements?.any { it.id == id && it.hasClick } == true && action.validForClick() })
+            require(preset.elements.all { (id, action) -> layout?.element(id)?.let { action.validFor(it) } == true })
+            require(preset.clicks.all { (id, action) -> layout?.element(id)?.hasClick == true && action.validForClick() })
             require(preset.keys.all { it.key.device.isNotBlank() && it.key.keyCode >= 0 && it.key.scanCode >= 0 &&
                 it.action.validFor(InputControl.A) && (it.action !is InputAction.Native || it.action.target == null) })
         }
@@ -302,3 +314,12 @@ internal fun InputAction.validFor(element: InputSurfaceElement): Boolean = when 
     element.kind == InputElementKind.TRIGGER -> target == InputControl.LT || target == InputControl.RT
     else -> target.dimensions == 1 && target != InputControl.LT && target != InputControl.RT
 }
+
+/**
+ * A saved element, or the kit control that [id] names: in a layout made from the built-in gamepad every kit control keeps its
+ * binding while it's removed, so Reset or Restore brings it back with its action.
+ */
+internal fun SavedInputLayout.element(id: String): InputSurfaceElement? =
+    elements.firstOrNull { it.id == id } ?: KitLayout.element(id)?.takeIf {
+        this.id == InputLibraries.OVERLAY || origin == InputLibraries.OVERLAY || KitLayout.bindsTo(id, elements)
+    }

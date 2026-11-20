@@ -58,11 +58,17 @@ class CiChecksTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             sudo = root / 'sudo'
-            sudo.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$APT_LOG"\nexit "${APT_RESULT:-0}"\n')
+            sudo.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$APT_LOG"\n'
+                            'for arg; do case "$arg" in Dir::Etc::sourcelist=*) '
+                            'grep -h "^URIs:" "${arg#*=}" >> "$APT_LOG.mirrors";; esac; done\n'
+                            'exit "${APT_RESULT:-0}"\n')
             sudo.chmod(0o755)
             query = root / 'dpkg-query'
             query.write_text('#!/bin/sh\nexit 1\n')
             query.chmod(0o755)
+            dpkg = root / 'dpkg'
+            dpkg.write_text('#!/bin/sh\necho "${DPKG_ARCH:-amd64}"\n')
+            dpkg.chmod(0o755)
             log = root / 'apt.log'
             sources = root / 'ubuntu.sources'
             sources.write_text('URIs: http://mirror.invalid/ubuntu\n')
@@ -71,8 +77,23 @@ class CiChecksTest(unittest.TestCase):
             installer = ROOT / 'tools/ci/install-ubuntu-packages.sh'
             result = subprocess.run(['bash', str(installer), 'qemu-user'], env=dict(env, APT_RESULT='17'))
             self.assertEqual(result.returncode, 17)
-            self.assertEqual(len(log.read_text().splitlines()), 2)
+            self.assertEqual(len(log.read_text().splitlines()), 3)
+            mirrors = Path(str(log) + '.mirrors')
+            self.assertEqual(mirrors.read_text().splitlines(), [
+                'URIs: http://mirror.invalid/ubuntu',
+                'URIs: https://archive.ubuntu.com/ubuntu',
+                'URIs: https://mirrors.edge.kernel.org/ubuntu',
+            ])
             log.unlink()
+            mirrors.unlink()
+            result = subprocess.run(['bash', str(installer), 'qemu-user'], env=dict(env, APT_RESULT='17', DPKG_ARCH='arm64'))
+            self.assertEqual(result.returncode, 17)
+            self.assertEqual(mirrors.read_text().splitlines()[1:], [
+                'URIs: https://ports.ubuntu.com/ubuntu-ports',
+                'URIs: https://mirrors.ocf.berkeley.edu/ubuntu-ports',
+            ])
+            log.unlink()
+            mirrors.unlink()
             subprocess.run(['bash', str(installer), 'qemu-user'], env=env, check=True)
             update, install = log.read_text().splitlines()
             for command in (update, install):
@@ -94,15 +115,15 @@ class CiChecksTest(unittest.TestCase):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
         gate = jobs['checks']
         self.assertEqual(gate['name'], 'Compile and test APK')
-        self.assertEqual(set(gate['needs']), {'build', 'python-tests'})
+        self.assertEqual(set(gate['needs']), {'build', 'python-tests', 'store-tests'})
         self.assertIn('!cancelled()', gate['if'])
-        for build, python in itertools.product(('success', 'failure', 'cancelled', 'skipped'), repeat=2):
-            with self.subTest(build=build, python=python):
+        for build, python, store in itertools.product(('success', 'failure', 'cancelled', 'skipped'), repeat=3):
+            with self.subTest(build=build, python=python, store=store):
                 result = subprocess.run(
                     ['bash', '-c', gate['steps'][0]['run']],
-                    env=dict(os.environ, BUILD_RESULT=build, PYTHON_RESULT=python),
+                    env=dict(os.environ, BUILD_RESULT=build, PYTHON_RESULT=python, STORE_RESULT=store),
                     capture_output=True)
-                self.assertEqual(result.returncode == 0, build == python == 'success')
+                self.assertEqual(result.returncode == 0, build == python == store == 'success')
         for publisher in ('sign', 'packs'):
             self.assertIn('checks', jobs[publisher]['needs'])
 

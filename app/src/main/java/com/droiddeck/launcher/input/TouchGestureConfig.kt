@@ -213,6 +213,9 @@ data class TouchGestureConfig(
             return if (value == MOUSE_BEHAVIOR_CLICK) MOUSE_BEHAVIOR_CLICK else MOUSE_BEHAVIOR_HOLD
         }
 
+        fun gamescopeRelativeMouse(mode: Int, mouseAttached: Boolean, touchpad: Boolean): Int =
+            if (mode == RELATIVE_MOUSE_AUTO && !mouseAttached && !touchpad) RELATIVE_MOUSE_OFF else mode
+
         private fun normalizeRelativeMouseMode(mode: Int): Int {
             return if (mode in RELATIVE_MOUSE_AUTO..RELATIVE_MOUSE_OFF) mode else RELATIVE_MOUSE_AUTO
         }

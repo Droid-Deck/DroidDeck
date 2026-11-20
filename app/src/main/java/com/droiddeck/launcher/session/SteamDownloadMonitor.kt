@@ -115,7 +115,7 @@ internal class SteamDownloadMonitor {
             val steam = File(home, ".local/share/Steam")
             val stamped = File(steam, "package/droiddeck-installed").isFile ||
                 File(steam, "package/bannerlator-installed").isFile
-            return !(stamped && File(steam, "steamrtarm64/steam").isFile) || File(home, ".bl-steam-repair").exists()
+            return !(stamped && File(steam, "steamrtarm64/steam").isFile) || File(home, ".dd-steam-repair").exists()
         }
 
         internal fun manifests(runtimeRoot: File, mounts: Map<String, File>): List<File> {

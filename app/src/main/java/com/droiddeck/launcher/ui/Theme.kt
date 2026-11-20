@@ -41,6 +41,21 @@ class Palette(
     val good: Color, val error: Color = Color(0xFFFF8A80),
 )
 
+data class CustomThemeColors(
+    val background: Int = 0xFF0A0B0D.toInt(),
+    val surface: Int = 0xFF121417.toInt(),
+    val surfaceVariant: Int = 0xFF1A1D22.toInt(),
+    val line: Int = 0xFF262A31.toInt(),
+    val line2: Int = 0xFF343A43.toInt(),
+    val onBackground: Int = 0xFFF2F4F7.toInt(),
+    val onSurfaceVariant: Int = 0xFF9AA3AF.toInt(),
+    val primary: Int = 0xFF1A9FFF.toInt(),
+    val onPrimary: Int = 0xFF03111F.toInt(),
+    val signal: Int = 0xFF1A9FFF.toInt(),
+    val good: Int = 0xFF4CD37F.toInt(),
+    val error: Int = 0xFFFF8A80.toInt(),
+)
+
 object Themes {
     const val GRAPHITE = "graphite"
     const val PAPER = "paper"
@@ -48,6 +63,7 @@ object Themes {
     const val ELECTRIC = "electric"
     const val INNER_GAMER = "inner_gamer"
     const val GRADIENT = "gradient"
+    const val CUSTOM = "custom"
 
     const val DEFAULT_PRIMARY = 0xFF8B5CF6.toInt()
     const val DEFAULT_SECONDARY = 0xFF22D3EE.toInt()
@@ -55,9 +71,18 @@ object Themes {
     var gradientColors by mutableStateOf(DEFAULT_PRIMARY to DEFAULT_SECONDARY)
         private set
 
+    var customColors by mutableStateOf(CustomThemeColors())
+        private set
+
     const val RGB_SPEEDS = 10
     const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
+    const val WHITE_RED = "white_red"
+    const val TRUE_BLACK = "true_black"
+    const val DEFAULT_HIGHLIGHT = 0xFF1A9FFF.toInt()
+
+    var trueBlackHighlight by mutableStateOf(DEFAULT_HIGHLIGHT)
+        private set
 
     var rgbSpeed by mutableStateOf(DEFAULT_RGB_SPEED)
         private set
@@ -80,6 +105,13 @@ object Themes {
     fun loadGradient(context: Context) {
         gradientColors = SessionPrefs.gradientColors(context)
         rgbSpeed = SessionPrefs.rgbSpeed(context)
+        trueBlackHighlight = SessionPrefs.trueBlackHighlight(context)
+        customColors = SessionPrefs.customThemeColors(context)
+    }
+
+    fun setTrueBlackHighlight(context: Context, highlight: Int) {
+        SessionPrefs.setTrueBlackHighlight(context, highlight)
+        trueBlackHighlight = highlight
     }
 
     fun innerGamer(hue: Float): Palette = ThemeColors.palette(
@@ -92,9 +124,51 @@ object Themes {
         gradientColors = primary to secondary
     }
 
+    fun setCustomColors(context: Context, colors: CustomThemeColors) {
+        SessionPrefs.setCustomThemeColors(context, colors)
+        customColors = colors
+    }
+
+    fun setCustomColor(context: Context, key: String, color: Int) {
+        val current = customColors
+        val updated = when (key) {
+            "background" -> current.copy(background = color)
+            "surface" -> current.copy(surface = color)
+            "surfaceVariant" -> current.copy(surfaceVariant = color)
+            "line" -> current.copy(line = color)
+            "line2" -> current.copy(line2 = color)
+            "onBackground" -> current.copy(onBackground = color)
+            "onSurfaceVariant" -> current.copy(onSurfaceVariant = color)
+            "primary" -> current.copy(primary = color)
+            "onPrimary" -> current.copy(onPrimary = color)
+            "signal" -> current.copy(signal = color)
+            "good" -> current.copy(good = color)
+            "error" -> current.copy(error = color)
+            else -> return
+        }
+        setCustomColors(context, updated)
+    }
+
+    private fun customPalette(colors: CustomThemeColors): Palette = Palette(
+        CUSTOM, R.string.theme_custom, R.string.theme_custom_detail,
+        background = Color(colors.background),
+        surface = Color(colors.surface),
+        surfaceVariant = Color(colors.surfaceVariant),
+        line = Color(colors.line),
+        line2 = Color(colors.line2),
+        onBackground = Color(colors.onBackground),
+        onSurfaceVariant = Color(colors.onSurfaceVariant),
+        primary = Color(colors.primary),
+        primary2 = Color(colors.primary),
+        onPrimary = Color(colors.onPrimary),
+        signal = Color(colors.signal),
+        good = Color(colors.good),
+        error = Color(colors.error),
+    )
+
     fun current(context: Context): Palette {
         val id = SessionPrefs.theme(context)
-        if (id == GRADIENT || id == INNER_GAMER) loadGradient(context)
+        if (id == GRADIENT || id == INNER_GAMER || id == TRUE_BLACK || id == CUSTOM) loadGradient(context)
         return byId(id)
     }
 
@@ -127,12 +201,23 @@ object Themes {
             primary = Color(0xFF2E86FF), primary2 = Color(0xFF2684FF), onPrimary = Color(0xFF03111F), signal = Color(0xFF2E86FF),
             good = Color(0xFF4CD37F),
         ),
+        ThemeColors.trueBlack(DEFAULT_HIGHLIGHT),
+        Palette(
+            WHITE_RED, R.string.theme_white_red, R.string.theme_white_red_detail,
+            background = Color(0xFFF8F8F8), surface = Color(0xFFFFFFFF), surfaceVariant = Color(0xFFF0F0F0), line = Color(0xFFDDDDDD), line2 = Color(0xFFC8C8C8),
+            onBackground = Color(0xFF191919), onSurfaceVariant = Color(0xFF555555),
+            primary = Color(0xFFD62828), primary2 = Color(0xFFB71C1C), onPrimary = Color(0xFFFFFFFF), signal = Color(0xFFD62828),
+            good = Color(0xFF248548),
+        ),
         innerGamer(0f),
         ThemeColors.palette(DEFAULT_PRIMARY, DEFAULT_SECONDARY, R.string.theme_gradient, R.string.theme_gradient_detail),
+        customPalette(customColors),
     )
 
     fun byId(id: String): Palette {
         if (id == INNER_GAMER) return innerGamer(rgbHue)
+        if (id == TRUE_BLACK) return ThemeColors.trueBlack(trueBlackHighlight)
+        if (id == CUSTOM) return customPalette(customColors)
         if (id == GRADIENT) return ThemeColors.palette(gradientColors.first, gradientColors.second, R.string.theme_gradient, R.string.theme_gradient_detail)
         return all.firstOrNull { it.id == id } ?: all[0]
     }
@@ -182,7 +267,6 @@ private val ContentDirected = Typography().run {
 
 @Composable
 private fun InnerGamerHue(speed: Int) {
-    if (Motion.scale == 0f) return
     key(speed) { InnerGamerCycle(speed) }
 }
 

@@ -1,6 +1,8 @@
 import importlib.machinery
 import importlib.util
 import json
+import shlex
+import subprocess
 import os
 from pathlib import Path
 import tempfile
@@ -63,13 +65,13 @@ class Detection(unittest.TestCase):
             folder = game(root, store_id='gog')
             sc = json.loads((folder / '.droiddeck-store.json').read_text()); sc['cloud'] = False
             (folder / '.droiddeck-store.json').write_text(json.dumps(sc))
-            os.environ['BL_LAUNCH_DIR'] = str(Path(root) / 'session')
+            os.environ['DD_LAUNCH_DIR'] = str(Path(root) / 'session')
             try:
                 with patch.object(store, 'ask', return_value={'ready': False, 'reason': 'off'}) as ask:
                     self.assertEqual(0, store.main([str(folder / '.droiddeck-launch.bat')]))
                     self.assertEqual('gog-achievements', ask.call_args.args[1]['op'])
             finally:
-                del os.environ['BL_LAUNCH_DIR']
+                del os.environ['DD_LAUNCH_DIR']
 
 
 
@@ -103,6 +105,62 @@ class Asking(unittest.TestCase):
             channel = Path(root) / 'stores'
             self.assertIsNone(store.ask(channel, {'op': 'epic-code'}, timeout=0.2))
             self.assertEqual([], list((channel / 'req').iterdir()))
+
+    def test_a_cloud_download_the_launcher_stops_waiting_for_loses_its_claim(self):
+        with tempfile.TemporaryDirectory() as root:
+            channel = Path(root) / 'stores'
+            taken = []
+            handed = threading.Event()
+
+            def app():
+                deadline = time.monotonic() + 5
+                while not taken and time.monotonic() < deadline:
+                    for request in (channel / 'req').glob('*.json') if (channel / 'req').is_dir() else []:
+                        target = channel / 'resp' / (request.stem + '.taken')
+                        os.rename(request, target)
+                        taken.append(target)
+                        handed.set()
+                    time.sleep(0.02)
+
+            t = threading.Thread(target=app, daemon=True)
+            t.start()
+            try:
+                self.assertIsNone(store.ask(channel, {'op': 'cloud-down'}, timeout=2.0, claim=True))
+            finally:
+                t.join(5)
+            self.assertTrue(handed.is_set(), 'the app never took the request')
+            with self.assertRaises(OSError):
+                os.rename(taken[0], taken[0].with_suffix('.writing'))
+
+    def test_a_claimed_cloud_download_is_waited_for(self):
+        with tempfile.TemporaryDirectory() as root:
+            channel = Path(root) / 'stores'
+            handed = threading.Event()
+
+            def app():
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    names = list((channel / 'req').glob('*.json')) if (channel / 'req').is_dir() else []
+                    if names:
+                        handed.set()
+                        writing = channel / 'resp' / (names[0].stem + '.writing')
+                        os.rename(names[0], writing)
+                        time.sleep(0.6)
+                        tmp = channel / 'resp' / (names[0].name + '.tmp')
+                        tmp.write_text(json.dumps({'ok': True, 'result': 'ok'}))
+                        os.rename(tmp, channel / 'resp' / names[0].name)
+                        writing.unlink()
+                        return
+                    time.sleep(0.02)
+
+            t = threading.Thread(target=app, daemon=True)
+            t.start()
+            try:
+                answer = store.ask(channel, {'op': 'cloud-down'}, timeout=0.2, claim=True)
+            finally:
+                t.join(5)
+            self.assertTrue(handed.is_set(), 'the app never took the request')
+            self.assertEqual({'ok': True, 'result': 'ok'}, answer)
 
     def test_a_stale_code_is_dropped_before_asking(self):
         with tempfile.TemporaryDirectory() as root:
@@ -161,12 +219,12 @@ class Choices(unittest.TestCase):
             (compat / 'pfx').mkdir(parents=True)
             reg = compat / 'pfx/user.reg'
             reg.write_text('WINE REGISTRY Version 2\n\n[Software\\\\Epic Games\\\\EOS] 1\n"OverlayPath"="Z:\\\\x"\n"Other"="kept"\n')
-            os.environ['BL_LAUNCH_DIR'] = str(Path(root) / 'session')
+            os.environ['DD_LAUNCH_DIR'] = str(Path(root) / 'session')
             os.environ['STEAM_COMPAT_DATA_PATH'] = str(compat)
             try:
                 self.assertEqual(0, store.main([str(folder / '.droiddeck-launch.bat')]))
             finally:
-                del os.environ['BL_LAUNCH_DIR']
+                del os.environ['DD_LAUNCH_DIR']
                 del os.environ['STEAM_COMPAT_DATA_PATH']
             self.assertFalse((Path(root) / 'session/stores/req').exists())
             self.assertFalse((folder / '.droiddeck-epic-code').exists())
@@ -179,11 +237,11 @@ class Browser(unittest.TestCase):
     def test_a_web_address_is_handed_to_the_app(self):
         xdg = load_path(BIN / 'droiddeck-open-url', 'open_url')
         with tempfile.TemporaryDirectory() as root:
-            os.environ['BL_LAUNCH_DIR'] = root
+            os.environ['DD_LAUNCH_DIR'] = root
             try:
                 self.assertEqual(0, xdg.main(['https://www.epicgames.com/activate']))
             finally:
-                del os.environ['BL_LAUNCH_DIR']
+                del os.environ['DD_LAUNCH_DIR']
             reqs = list((Path(root) / 'stores/req').glob('*.json'))
             self.assertEqual(1, len(reqs))
             self.assertEqual({'op': 'open-url', 'url': 'https://www.epicgames.com/activate'}, json.loads(reqs[0].read_text()))
@@ -208,20 +266,69 @@ class CloudHooks(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog', ident='1207664643')
             bat = str(folder / '.droiddeck-launch.bat')
-            os.environ['BL_LAUNCH_DIR'] = str(Path(root) / 'session')
+            os.environ['DD_LAUNCH_DIR'] = str(Path(root) / 'session')
             try:
                 original = store.ask
                 asked = []
-                store.ask = lambda channel, request, timeout=5.0: asked.append((request, timeout)) or {'ok': True, 'files': 2, 'reason': 'ok'}
+                store.ask = lambda channel, request, timeout=5.0, claim=False: asked.append((request, timeout)) or {'ok': True, 'files': 2, 'reason': 'ok'}
                 self.assertEqual(store.STORE_GAME, store.main([bat]))
                 self.assertEqual(0, store.main(['--exited', bat]))
             finally:
                 store.ask = original
-                del os.environ['BL_LAUNCH_DIR']
+                del os.environ['DD_LAUNCH_DIR']
             self.assertEqual('gog-achievements', asked[0][0]['op'])
             self.assertEqual({'op': 'cloud-down', 'store': 'gog', 'id': '1207664643'}, asked[1][0])
             self.assertEqual(store.CLOUD_TIMEOUT, asked[1][1])
             self.assertEqual('cloud-up', asked[2][0]['op'])
+
+    def test_a_cloud_request_that_cannot_be_written_still_starts_the_game_and_uploads_on_exit(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='ubisoft', ident='space-1')
+            sc = json.loads((folder / '.droiddeck-store.json').read_text()); sc['extra'] = {'productId': '109'}
+            (folder / '.droiddeck-store.json').write_text(json.dumps(sc))
+            bat = str(folder / '.droiddeck-launch.bat')
+            asked = []
+
+            def ask(channel, request, timeout=5.0, claim=False):
+                asked.append(request['op'])
+                if request['op'] in ('cloud-down', 'cloud-up'):
+                    raise PermissionError(13, 'read-only')
+                return {'ok': True}
+
+            lines = []
+            with patch.dict(os.environ, {'DD_LAUNCH_DIR': str(Path(root) / 'session')}),                     patch.object(store, 'ask', side_effect=ask),                     patch.object(store, 'prepare_ubisoft', return_value='ready'),                     patch.object(store, 'create_prefix', return_value='present'),                     patch.object(store, 'log', side_effect=lines.append):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['cloud-down', 'cloud-up'], [op for op in asked if op.startswith('cloud-')])
+            self.assertIn('cloud ubisoft space-1 down result=failed reason=PermissionError', lines)
+            self.assertIn('cloud ubisoft space-1 up not requested (PermissionError)', lines)
+    def test_an_ea_game_with_cloud_saves_asks_after_its_preparation_and_exit(self):
+        ident = 'Origin.OFR.50.0002694'
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='ea', ident=ident)
+            bat = str(folder / '.droiddeck-launch.bat')
+            asked = []
+            env = {'DD_LAUNCH_DIR': str(Path(root) / 'session')}
+            record = lambda channel, request, timeout=5.0, claim=False: asked.append(request) or {'result': 'ok'}
+            with patch.dict(os.environ, env), \
+                    patch.object(store, 'prepare_ea', side_effect=lambda *a: asked.append({'op': 'prepared'})), \
+                    patch.object(store, 'create_prefix', side_effect=AssertionError('EA prepares its own prefix')), \
+                    patch.object(store, 'ask', side_effect=record):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual(['prepared', 'cloud-down'], [r['op'] for r in asked])
+                self.assertEqual({'op': 'cloud-down', 'store': 'ea', 'id': ident}, asked[1])
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['ea-exited', 'cloud-up'], [r['op'] for r in asked[2:]])
+            self.assertEqual({'op': 'cloud-up', 'store': 'ea', 'id': ident}, asked[3])
+            sidecar = json.loads((folder / store.SIDECAR).read_text())
+            sidecar['cloud'] = False
+            (folder / store.SIDECAR).write_text(json.dumps(sidecar))
+            asked.clear()
+            with patch.dict(os.environ, env), patch.object(store, 'prepare_ea'), patch.object(store, 'ask', side_effect=record):
+                self.assertEqual(store.STORE_GAME, store.main([bat]))
+                self.assertEqual([], asked)
+                self.assertEqual(0, store.main(['--exited', bat]))
+            self.assertEqual(['ea-exited'], [r['op'] for r in asked])
 
     def test_a_first_launch_creates_the_prefix_before_the_cloud_download(self):
         with tempfile.TemporaryDirectory() as root:
@@ -240,9 +347,9 @@ class CloudHooks(unittest.TestCase):
                 (compat / 'pfx/user.reg').write_text('WINE REGISTRY Version 2\n')
                 return __import__('subprocess').CompletedProcess(argv, 0)
 
-            env = {'BL_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': str(compat), 'BL_STORE_PROTON': str(proton)}
+            env = {'DD_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': str(compat), 'DD_STORE_PROTON': str(proton)}
             with patch.dict(os.environ, env), patch.object(store.subprocess, 'run', side_effect=run), \
-                    patch.object(store, 'ask', side_effect=lambda channel, request, timeout=5.0: order.append(request) or {'result': 'ok'}):
+                    patch.object(store, 'ask', side_effect=lambda channel, request, timeout=5.0, claim=False: order.append(request) or {'result': 'ok'}):
                 self.assertEqual(store.STORE_GAME, store.main([str(folder / store.LAUNCHER)]))
                 self.assertEqual([str(proton), 'run', 'cmd.exe', '/d', '/c', 'exit'], order[0])
                 self.assertEqual({'op': 'cloud-down', 'store': 'epic', 'id': 'fa4240e5'}, order[-1])
@@ -272,11 +379,11 @@ class CloudHooks(unittest.TestCase):
 
     def test_both_launchers_wait_for_proton_only_for_a_store_game(self):
         for sh in (compat.LAUNCHER_SH, compat.EXTRA_WRAPPER_SH):
-            self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
-            self.assertNotIn('exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
-        self.assertIn('[ $rc -eq 10 ] && BL_STORE_EXIT=1', compat.BL_STORE_SETUP)
-        self.assertIn('droiddeck-store-launch --exited --code "$rc" "${BL_STORE_ARGS[@]}"', compat.BL_STORE_SETUP)
-        self.assertIn('exec "$@"', compat.BL_STORE_SETUP)
+            self.assertIn('dd_run ${DD_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
+            self.assertNotIn('exec ${DD_TASKSET:-} /usr/local/bin/droiddeck-game-env', sh)
+        self.assertIn('[ $rc -eq 10 ] && DD_STORE_EXIT=1', compat.DD_STORE_SETUP)
+        self.assertIn('droiddeck-store-launch --exited --code "$rc" "${DD_STORE_ARGS[@]}"', compat.DD_STORE_SETUP)
+        self.assertIn('exec "$@"', compat.DD_STORE_SETUP)
 
 
 BNET_EXE = '/root/.local/share/Steam/steamapps/compatdata/2596113170/pfx/drive_c/Program Files (x86)/Battle.net/Battle.net.exe'
@@ -292,30 +399,57 @@ class BattleNet(unittest.TestCase):
         other = BNET_EXE.replace('2596113170', '123')
         self.assertIsNone(store.battlenet([other, '--exec=launch Fen'], env={}))
         self.assertIsNone(store.battlenet(['/x/Diablo IV/Diablo IV.exe'], env={}))
-        self.assertIsNone(store.battlenet([BNET_EXE, '--exec=launch Fen'], env={'BL_BATTLENET': '1'}))
+        self.assertIsNone(store.battlenet([BNET_EXE, '--exec=launch Fen'], env={'DD_BATTLENET': '1'}))
         self.assertEqual([store.BATTLENET, 'open'], store.battlenet([BNET_EXE, '--exec=launch Fen;rm'], env={}))
 
     def test_the_launch_runs_there_and_the_wrapper_ends_with_it(self):
         with patch.dict(os.environ, {}, clear=False), patch.object(store.subprocess, 'call', return_value=0) as call:
-            os.environ.pop('BL_BATTLENET', None)
+            os.environ.pop('DD_BATTLENET', None)
             self.assertEqual(store.RAN, store.main([BNET_EXE, '--exec=launch Pro']))
         call.assert_called_once_with([store.BATTLENET, 'launch', 'Pro'])
         with patch.dict(os.environ, {}, clear=False), patch.object(store.subprocess, 'call', return_value=1):
-            os.environ.pop('BL_BATTLENET', None)
+            os.environ.pop('DD_BATTLENET', None)
             self.assertEqual(store.RAN_FAILED, store.main([BNET_EXE, '--exec=launch Pro']))
-        self.assertIn('[ $rc -eq 11 ] && exit 0', compat.BL_STORE_SETUP)
-        self.assertIn('[ $rc -eq 12 ] && exit 1', compat.BL_STORE_SETUP)
-        self.assertLess(compat.BL_STORE_SETUP.index('droiddeck-store-launch "$@"'), compat.BL_STORE_SETUP.index('[ $rc -eq 11 ] && exit 0'))
+        self.assertIn('[ $rc -eq 11 ] && exit 0', compat.DD_STORE_SETUP)
+        self.assertIn('[ $rc -eq 12 ] && exit 1', compat.DD_STORE_SETUP)
+        self.assertLess(compat.DD_STORE_SETUP.index('droiddeck-store-launch "$@"'), compat.DD_STORE_SETUP.index('[ $rc -eq 11 ] && exit 0'))
 
 
 class Launchers(unittest.TestCase):
     def test_both_proton_launchers_ask_before_proton_starts(self):
         sh = compat.LAUNCHER_SH
-        self.assertIn('bl_store_launch() {', sh)
-        self.assertLess(sh.index('bl_store_launch "$@"'), sh.index('droiddeck-game-env "$depot/proton"'))
-        self.assertIn('bl_store_launch "$@"', compat.EXTRA_WRAPPER_SH)
-        self.assertIn('bl_store_launch() {', compat.BL_STORE_SETUP)
-        self.assertIn('waitforexitandrun', compat.BL_STORE_SETUP)
+        self.assertIn('dd_store_launch() {', sh)
+        self.assertLess(sh.index('dd_store_launch "$@"'), sh.index('droiddeck-game-env "$depot/proton"'))
+        self.assertIn('dd_store_launch "$@"', compat.EXTRA_WRAPPER_SH)
+        self.assertIn('dd_store_launch() {', compat.DD_STORE_SETUP)
+        self.assertIn('waitforexitandrun', compat.DD_STORE_SETUP)
+
+    def run_store_game(self, game, store_exit=True):
+        with tempfile.TemporaryDirectory() as root:
+            hook = Path(root) / 'hook'
+            record = Path(root) / 'exited'
+            hook.write_text('#!/bin/sh\necho "$@" > "%s"\n' % record)
+            hook.chmod(0o755)
+            setup = compat.DD_STORE_SETUP.replace('/usr/local/bin/droiddeck-store-launch --exited', str(hook) + ' --exited')
+            script = setup + '\nDD_STORE_ARGS=(game.bat)\n%sdd_run sh -c %s\nexit 99\n' % (
+                'DD_STORE_EXIT=1\n' if store_exit else '', shlex.quote(game))
+            done = subprocess.run(['bash', '-c', script], start_new_session=True, timeout=20)
+            return done.returncode, record.read_text().split() if record.exists() else None
+
+    def test_a_store_game_ended_by_a_group_signal_still_reports_its_exit(self):
+        for signal_name, code in (('INT', '130'), ('TERM', '143'), ('HUP', '129')):
+            rc, hook = self.run_store_game('kill -%s 0; sleep 5' % signal_name)
+            self.assertEqual(['--exited', '--code', code, 'game.bat'], hook, signal_name)
+            self.assertEqual(int(code), rc, signal_name)
+
+    def test_a_store_game_that_exits_by_itself_reports_its_code_once(self):
+        self.assertEqual((3, ['--exited', '--code', '3', 'game.bat']), self.run_store_game('exit 3'))
+
+    def test_other_games_still_replace_the_wrapper_without_the_exit_hook(self):
+        self.assertEqual((4, None), self.run_store_game('exit 4', store_exit=False))
+        rc, hook = self.run_store_game('kill -INT 0; sleep 5', store_exit=False)
+        self.assertIsNone(hook)
+        self.assertEqual(-2, rc)
 
 
 if __name__ == '__main__':
@@ -329,7 +463,7 @@ class GogAchievements(unittest.TestCase):
             sidecar = json.loads((folder / store.SIDECAR).read_text())
             sidecar['cloud'] = False
             (folder / store.SIDECAR).write_text(json.dumps(sidecar))
-            with patch.dict(os.environ, {'BL_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': root + '/compat', 'BL_STORE_PROTON': '/chosen/proton'}), patch.object(store, 'ask', return_value={'ready': True}) as ask, patch.object(store, 'provision_galaxy', return_value='ready') as provision:
+            with patch.dict(os.environ, {'DD_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': root + '/compat', 'DD_STORE_PROTON': '/chosen/proton'}), patch.object(store, 'ask', return_value={'ready': True}) as ask, patch.object(store, 'provision_galaxy', return_value='ready') as provision:
                 self.assertEqual(0, store.main([str(folder / store.LAUNCHER)]))
                 ask.assert_called_once()
                 provision.assert_called_once_with(root + '/compat', '/chosen/proton')
@@ -385,6 +519,193 @@ def gog_script(folder, product, actions):
 
 def set_registry(**arguments):
     return {'install': {'action': 'setRegistry', 'arguments': arguments}, 'name': 'setRegistry'}
+
+
+def support_data(**arguments):
+    return {'install': {'action': 'supportData', 'arguments': arguments}, 'name': 'supportData'}
+
+
+class GogSupportData(unittest.TestCase):
+    def prefix(self, root):
+        user = Path(root) / 'compat/pfx/drive_c/users/steamuser'
+        user.mkdir(parents=True)
+        return user
+
+    def test_support_files_reach_the_prefix_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            support = folder / 'support/9'
+            (support / 'Docs').mkdir(parents=True)
+            (support / 'Docs/Fallout4.ini').write_text('[Archive]\n')
+            (support / 'Plugins.txt').write_text('*LondonWorldSpace.esm\n')
+            (folder / '__AppData/Saves').mkdir(parents=True)
+            (folder / '__AppData/Saves/a.txt').write_text('a')
+            gog_script(folder, '9', [
+                set_registry(root='HKLM', subkey='Software\\Game', valueName='a', valueData='b', valueType='string'),
+                support_data(type='folder', target='{userdocs}/My Games/Fallout4'),
+                support_data(type='file', overwrite=True, source='{supportDir}/docs/Fallout4.ini',
+                             target='{userdocs}/My Games/Fallout4/Fallout4.ini'),
+                support_data(type='file', overwrite=True, source='{supportDir}/Plugins.txt',
+                             target='{localappdata}/Fallout4/Plugins.txt'),
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/Fallout4'),
+            ])
+            with patch.object(store, 'create_prefix') as create:
+                self.assertEqual('copied=3', store.gog_support_data(folder, root + '/compat', '/proton'))
+                create.assert_not_called()
+            self.assertTrue((user / 'Documents/My Games/Fallout4').is_dir())
+            self.assertEqual('[Archive]\n', (user / 'Documents/My Games/Fallout4/Fallout4.ini').read_text())
+            self.assertEqual('*LondonWorldSpace.esm\n', (user / 'AppData/Local/Fallout4/Plugins.txt').read_text())
+            self.assertEqual('a', (user / 'AppData/Local/Fallout4/Saves/a.txt').read_text())
+            (user / 'AppData/Local/Fallout4/Plugins.txt').write_text('player order')
+            self.assertEqual('ready', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('player order', (user / 'AppData/Local/Fallout4/Plugins.txt').read_text())
+
+    def test_a_source_the_build_lacks_does_not_recopy_the_rest_every_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/Plugins.txt').write_text('x')
+            gog_script(folder, '9', [
+                support_data(type='file', overwrite=True, source='{supportDir}/Plugins.txt', target='{localappdata}/G/Plugins.txt'),
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G'),
+            ])
+            self.assertEqual('copied=1 missing=1', store.gog_support_data(folder, root + '/compat', '/proton'))
+            (user / 'AppData/Local/G/Plugins.txt').write_text('player order')
+            self.assertEqual('ready', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('player order', (user / 'AppData/Local/G/Plugins.txt').read_text())
+
+    def test_a_link_never_carries_a_copy_outside(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.ini').write_text('s')
+            (folder / '__AppData').mkdir()
+            (folder / '__AppData/linked').symlink_to(outside)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('a')
+            gog_script(folder, '9', [
+                support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G'),
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{localappdata}/G/linked/a.ini'),
+                support_data(type='file', overwrite=True, source='{app}/__AppData/linked/secret.ini', target='{userdocs}/secret.ini'),
+            ])
+            self.assertEqual('copied=1 skipped=2', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((user / 'AppData/Local/G/linked').is_symlink())
+            self.assertEqual(['secret.ini'], sorted(p.name for p in outside.iterdir()))
+            self.assertFalse((user / 'Documents/secret.ini').exists())
+
+    def test_a_linked_source_folder_is_copied_as_a_link(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.ini').write_text('s')
+            (folder / 'linked').symlink_to(outside)
+            gog_script(folder, '9', [support_data(type='folder', overwrite=True, source='{app}/linked', target='{userdocs}/G')])
+            store.gog_support_data(folder, root + '/compat', '/proton')
+            self.assertTrue((user / 'Documents/G').is_symlink())
+            self.assertEqual(outside, Path(os.readlink(user / 'Documents/G')))
+
+    def test_a_players_own_links_stay_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9/Saves').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('a')
+            (folder / 'support/9/Saves/b.ini').write_text('b')
+            (user / 'Documents/G').mkdir(parents=True)
+            (user / 'Documents/a.ini').symlink_to(user / 'mine.ini')
+            (user / 'Documents/G/b.ini').symlink_to(user / 'gone.ini')
+            gog_script(folder, '9', [
+                support_data(type='file', source='{supportDir}/a.ini', target='{userdocs}/a.ini'),
+                support_data(type='folder', source='{supportDir}/Saves', target='{userdocs}/G'),
+            ])
+            self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual(user / 'mine.ini', Path(os.readlink(user / 'Documents/a.ini')))
+            self.assertEqual(user / 'gone.ini', Path(os.readlink(user / 'Documents/G/b.ini')))
+
+    def test_a_changed_script_applies_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('1')
+            action = support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{userdocs}/a.ini')
+            gog_script(folder, '9', [action])
+            self.assertEqual('copied=1', store.gog_support_data(folder, root + '/compat', '/proton'))
+            (folder / 'support/9/b.ini').write_text('2')
+            gog_script(folder, '9', [action, support_data(type='file', overwrite=True, source='{supportDir}/b.ini',
+                                                          target='{userdocs}/b.ini')])
+            self.assertEqual('copied=2', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('2', (user / 'Documents/b.ini').read_text())
+
+    def test_a_players_file_is_kept_unless_the_script_overwrites_it(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('default')
+            (user / 'Documents').mkdir()
+            (user / 'Documents/a.ini').write_text('mine')
+            gog_script(folder, '9', [support_data(type='file', source='{supportDir}/a.ini', target='{userdocs}/a.ini')])
+            self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual('mine', (user / 'Documents/a.ini').read_text())
+
+    def test_paths_outside_the_known_folders_are_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            self.prefix(root)
+            (folder / 'support/9').mkdir(parents=True)
+            (folder / 'support/9/a.ini').write_text('x')
+            gog_script(folder, '9', [
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='{userdocs}/../../../../escape.ini'),
+                support_data(type='file', overwrite=True, source='{supportDir}/a.ini', target='C:/escape.ini'),
+                support_data(type='folder', target='{windir}/x'),
+            ])
+            self.assertEqual('copied=0 skipped=3', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertEqual([], list(Path(root).rglob('escape.ini')))
+            self.assertFalse((Path(root) / 'compat/pfx' / store.GOG_SUPPORT_MARK).exists())
+
+    def test_links_in_a_support_folder_are_copied_as_links(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            user = self.prefix(root)
+            outside = Path(root) / 'outside'
+            outside.mkdir()
+            (outside / 'secret.txt').write_text('s')
+            (folder / '__AppData').mkdir()
+            (folder / '__AppData/linked').symlink_to(outside, target_is_directory=True)
+            gog_script(folder, '9', [support_data(type='folder', overwrite=True, source='{app}/__AppData', target='{localappdata}/G')])
+            self.assertEqual('copied=1', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((user / 'AppData/Local/G/linked').is_symlink())
+            self.assertEqual('s', (outside / 'secret.txt').read_text())
+
+    def test_without_support_data_no_prefix_is_made(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            gog_script(folder, '9', [set_registry(root='HKLM', subkey='Software\\Game', valueName='a', valueData='b', valueType='string')])
+            with patch.object(store, 'create_prefix') as create:
+                self.assertEqual('none', store.gog_support_data(folder, root + '/compat', '/proton'))
+                create.assert_not_called()
+
+    def test_a_missing_prefix_is_made_first(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder = game(root, store_id='gog', ident='9')
+            gog_script(folder, '9', [support_data(type='folder', target='{userdocs}/My Games/G')])
+            with patch.object(store, 'create_prefix', return_value='failed') as create:
+                self.assertEqual('no-prefix', store.gog_support_data(folder, root + '/compat', '/proton'))
+                create.assert_called_once_with(root + '/compat', '/proton')
+
+            def made(compat_data, proton):
+                self.prefix(root)
+                return 'created'
+            with patch.object(store, 'create_prefix', side_effect=made):
+                self.assertEqual('copied=0', store.gog_support_data(folder, root + '/compat', '/proton'))
+            self.assertTrue((Path(root) / 'compat/pfx/drive_c/users/steamuser/Documents/My Games/G').is_dir())
 
 
 class GogRegistry(unittest.TestCase):
@@ -603,8 +924,109 @@ class GogRegistry(unittest.TestCase):
     def test_every_gog_launch_brings_the_registry_in(self):
         with tempfile.TemporaryDirectory() as root:
             folder = game(root, store_id='gog')
-            with patch.dict(os.environ, {'BL_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': root + '/compat/', 'BL_STORE_PROTON': '/chosen/proton'}), \
+            with patch.dict(os.environ, {'DD_LAUNCH_DIR': root, 'STEAM_COMPAT_DATA_PATH': root + '/compat/', 'DD_STORE_PROTON': '/chosen/proton'}), \
                     patch.object(store, 'prepare_gog', return_value=False), patch.object(store, 'ask', return_value=None), \
-                    patch.object(store, 'apply_gog_registry', return_value='ready') as apply:
+                    patch.object(store, 'apply_gog_registry', return_value='ready') as apply, \
+                    patch.object(store, 'gog_support_data', return_value='ready') as support:
                 store.main([str(folder / store.LAUNCHER)])
                 apply.assert_called_once_with(folder, root + '/compat', '/chosen/proton')
+                support.assert_called_once_with(folder, root + '/compat', '/chosen/proton')
+
+
+class Ubisoft(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.compat_data = self.root / 'compatdata/2929927072'
+        (self.compat_data / 'pfx').mkdir(parents=True)
+        (self.compat_data / 'pfx/system.reg').write_text('WINE REGISTRY Version 2\n')
+        (self.compat_data / 'pfx/user.reg').write_text('WINE REGISTRY Version 2\n')
+        self.folder = self.root / 'Games/Stores/Ubisoft/Splinter Cell'
+        (self.folder / 'system').mkdir(parents=True)
+        self.sidecar = {'store': 'ubisoft', 'id': 'space-1', 'exe': 'system/SplinterCell.exe', 'extra': {'productId': '109'}}
+        service = self.root / 'droiddeck-upc.exe'
+        service.write_bytes(b'MZ')
+        for patcher in (patch.object(store, 'UBISOFT_SERVICE', service), patch.object(store, 'UBISOFT_CACHE', self.root / 'cache'),
+                        patch.object(store, 'wait_for_server', return_value=True)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def runtime(self):
+        folder = store.ubisoft_runtime_dir(self.compat_data)
+        folder.mkdir(parents=True, exist_ok=True)
+        for name in store.UBISOFT_RUNTIME:
+            (folder / name).write_bytes(b'MZ')
+
+    def answer(self, *_args, **_kwargs):
+        return {'ok': True, 'ticket': 'PC', 'owned': [82, 109], 'appId': 'app',
+                'account': {'userId': 'u1', 'username': 'name', 'nameOnPlatform': 'name', 'email': 'e@x', 'country': 'US'}}
+
+    def prepare(self, ask_app):
+        return store.prepare_ubisoft(self.folder, self.sidecar, str(self.compat_data), str(self.root / 'launch'), '/proton', ask_app=ask_app)
+
+    def test_an_extracted_runtime_is_not_extracted_again(self):
+        self.runtime()
+        with patch.object(store.subprocess, 'run') as run:
+            self.assertEqual('present', store.install_runtime(str(self.compat_data)))
+        run.assert_not_called()
+
+    def test_the_runtime_comes_from_the_installer_through_7z(self):
+        installer = self.root / 'UbisoftConnectInstaller.exe'
+
+        def run(command, **_kwargs):
+            self.assertEqual(['7z', 'e', '-y'], command[:3])
+            self.assertEqual(str(installer), command[4])
+            out = Path(command[3][2:])
+            for name in command[5:]:
+                (out / name).write_bytes(b'MZ')
+
+        (self.root / 'cache').mkdir()
+        with patch.object(store, 'fetch_installer', return_value=installer), patch.object(store.subprocess, 'run', side_effect=run):
+            self.assertEqual('installed', store.install_runtime(str(self.compat_data)))
+        self.assertTrue(store.ubisoft_runtime_ready(str(self.compat_data)))
+
+    def test_a_launch_registers_the_game_and_writes_the_session_for_the_service(self):
+        self.runtime()
+        result = self.prepare(self.answer)
+        self.assertEqual('runtime present, registered 109, 0 manifest value(s), session ready', result)
+        reg = (self.compat_data / 'pfx/system.reg').read_text()
+        for view in ('[Software\\\\Ubisoft\\\\Launcher]', '[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher]'):
+            self.assertIn(view, reg)
+        self.assertIn('[Software\\\\Wow6432Node\\\\Ubisoft\\\\Launcher\\\\Installs\\\\109]', reg)
+        self.assertIn('"InstallDir"="C:\\\\Program Files (x86)\\\\Ubisoft\\\\Ubisoft Game Launcher\\\\"', reg)
+        launch = json.loads((self.folder / store.UBISOFT_LAUNCH).read_text())
+        self.assertEqual(109, launch['productId'])
+        self.assertEqual('PC', launch['ticket'])
+        self.assertEqual([82, 109], launch['owned'])
+        self.assertEqual(store.windows_path(str(self.folder / 'system/SplinterCell.exe')), launch['exe'])
+        self.assertEqual('C:/users/steamuser/Saved Games/Ubisoft/u1/109/', launch['saves'])
+        self.assertTrue((self.compat_data / 'pfx/drive_c/users/steamuser/Saved Games/Ubisoft/u1/109').is_dir())
+
+    def test_without_a_session_the_launch_file_is_removed_and_the_game_starts_as_is(self):
+        self.runtime()
+        (self.folder / store.UBISOFT_LAUNCH).write_text('{}')
+        result = self.prepare(lambda *_a, **_k: {'ok': False, 'reason': 'signed-out'})
+        self.assertEqual('runtime present, registered 109, session signed-out', result)
+        self.assertFalse((self.folder / store.UBISOFT_LAUNCH).exists())
+
+    def test_a_game_without_a_product_is_left_alone(self):
+        self.sidecar['extra'] = {}
+        self.assertEqual('no-product', self.prepare(self.answer))
+
+    def test_the_manifest_registry_lands_in_both_views_with_the_install_folder_and_language(self):
+        self.runtime()
+        registry = [{'key': r'HKEY_LOCAL_MACHINE\SOFTWARE\Ubisoft\Launcher\Installs\109\Language',
+                     'values': [{'name': 'French', 'value': 'fr-FR'}, {'name': 'English', 'value': 'en-US'}]},
+                    {'key': r'HKEY_LOCAL_MACHINE\SOFTWARE\Ubisoft\Splinter Cell\GamePath', 'values': [{'name': '$INSTALL_DIR', 'value': ''}]}]
+        answer = dict(self.answer(), registry=registry, language='en-US')
+        result = self.prepare(lambda *_a, **_k: answer)
+        self.assertEqual('runtime present, registered 109, 4 manifest value(s), session ready', result)
+        reg = (self.compat_data / 'pfx/system.reg').read_text()
+        self.assertIn(r'[SOFTWARE\\Wow6432Node\\Ubisoft\\Launcher\\Installs\\109]', reg)
+        self.assertIn(r'[SOFTWARE\\Ubisoft\\Launcher\\Installs\\109]', reg)
+        self.assertIn('"Language"="en-US"', reg)
+        folder = store.windows_path(str(self.folder)).replace('\\', '\\\\')
+        self.assertIn('"GamePath"="%s\\\\"' % folder, reg)

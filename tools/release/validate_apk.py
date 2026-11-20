@@ -2,13 +2,33 @@
 import json
 import os
 import subprocess
+import sys
+import time
 from urllib.parse import urlencode
 
 from check_authorship import check_revision, event_violations
 
 
-def api(path, *args):
-    return json.loads(subprocess.check_output(["gh", "api", path, *args], text=True))
+RATE_LIMIT_WAIT = 1800
+
+
+def rate_limit_wait():
+    try:
+        reset = json.loads(subprocess.check_output(["gh", "api", "rate_limit"], text=True))["resources"]["core"]["reset"]
+    except (subprocess.CalledProcessError, KeyError, ValueError):
+        return 60
+    return max(5, min(RATE_LIMIT_WAIT, reset - time.time() + 5))
+
+
+def api(path, *args, attempts=3):
+    for attempt in range(attempts):
+        done = subprocess.run(["gh", "api", path, *args], text=True, capture_output=True)
+        if done.returncode == 0:
+            return json.loads(done.stdout)
+        if "--method" in args or "rate limit" not in done.stderr.lower() or attempt == attempts - 1:
+            sys.stderr.write(done.stderr)
+            raise subprocess.CalledProcessError(done.returncode, done.args, done.stdout, done.stderr)
+        time.sleep(rate_limit_wait())
 
 
 def compilation_state(run, jobs):
@@ -63,6 +83,10 @@ def main():
         expected = run["head_sha"]
         if run["event"] == "pull_request":
             prs = api(f"repos/{repo}/commits/{expected}/pulls")
+            owner = (run.get("head_repository") or {}).get("owner", {}).get("login")
+            if not prs and owner and run.get("head_branch"):
+                query = urlencode({"state": "open", "head": f"{owner}:{run['head_branch']}"})
+                prs = api(f"repos/{repo}/pulls?{query}")
             pr_number = next((pr["number"] for pr in prs
                               if pr["state"] == "open" and pr["head"]["sha"] == expected), None)
             if pr_number is None:

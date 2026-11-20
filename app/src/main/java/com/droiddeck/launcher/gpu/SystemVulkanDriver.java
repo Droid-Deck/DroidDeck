@@ -191,6 +191,7 @@ public final class SystemVulkanDriver {
 
     /** Collect abandoned stages, and obsolete versions once older guests can no longer load them. */
     public static synchronized void pruneUnused(Context context, boolean guestsStopped) throws IOException {
+        if (!AddonPack.POWERVR.installed(context)) return;
         pruneUnused(runtimeDirectory(context), guestsStopped);
     }
 
@@ -255,12 +256,12 @@ public final class SystemVulkanDriver {
         if (xclipse) environment.add("DROIDDECK_HYBRIS_DXVK=dxvk-2.6.2");
         // The Android driver has a render node, but no KMS primary node. SDL presents
         // through the wrapper's Wayland Vulkan swapchain instead of a KMS-style path.
-        environment.add("BL_GAMESCOPE_BACKEND=sdl");
+        environment.add("DD_GAMESCOPE_BACKEND=sdl");
         // The Android pvr kernel accepts Vulkan DMA-BUF imports but rejects PRIME GEM handles.
-        environment.add("BL_POWERVR_DRM_HANDLES=1");
-        environment.add("BL_POWERVR_RENDER_NODE=" + node);
+        environment.add("DD_POWERVR_DRM_HANDLES=1");
+        environment.add("DD_POWERVR_RENDER_NODE=" + node);
         // Inner Gamescope/Xwayland lacks the bridge's Android-buffer WSI protocols.
-        environment.add("BL_STEAM_GL_PRESENT=1");
+        environment.add("DD_STEAM_GL_PRESENT=1");
         // Only actual Proton game launches use the bundled DXVK and X11 WSI layer.
         environment.add("DROIDDECK_POWERVR_RUNTIME=" + directory.getPath());
     }

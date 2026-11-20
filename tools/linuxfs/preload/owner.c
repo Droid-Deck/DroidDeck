@@ -12,7 +12,8 @@
 #define FAT_MAGIC 0x4d44
 #define EXFAT_MAGIC 0x2011bab0
 
-static int is_wineserver(void) {
+__attribute__((visibility("hidden")))
+int dd_is_wineserver(void) {
   static int cached = -1;
   char exe[PATH_MAX];
   const char *base;
@@ -39,11 +40,11 @@ static int has_no_unix_owner(int fd) {
 }
 
 __attribute__((visibility("hidden")))
-void bl_storage_owner(int fd, struct stat *st) {
+void dd_storage_owner(int fd, struct stat *st) {
   int saved = errno;
   uid_t uid;
 
-  if (st != NULL && is_wineserver()) {
+  if (st != NULL && dd_is_wineserver()) {
     uid = getuid();
     if (st->st_uid != uid && has_no_unix_owner(fd)) st->st_uid = uid;
   }
@@ -60,7 +61,7 @@ int fchmod(int fd, mode_t mode) {
     return -1;
   }
   result = next_fchmod(fd, mode);
-  if (result != 0 && errno == EPERM && is_wineserver()) {
+  if (result != 0 && errno == EPERM && dd_is_wineserver()) {
     if (has_no_unix_owner(fd)) {
       errno = saved;
       return 0;

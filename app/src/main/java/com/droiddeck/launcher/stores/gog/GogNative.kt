@@ -6,8 +6,6 @@ import com.droiddeck.launcher.stores.StoresNative
 object GogNative {
     private const val TAG = "GogNative"
 
-    const val KIND_GEN2_CHUNKS = 0
-
     const val KIND_GEN1_RANGES = 1
 
     interface Listener {

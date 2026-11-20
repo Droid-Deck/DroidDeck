@@ -17,6 +17,7 @@ PROTON_RUN = os.path.join(BIN, "droiddeck-proton-run")
 APPIMAGE_RUN = os.path.join(BIN, "droiddeck-appimage-run")
 SCRIPT_RUN = os.path.join(BIN, "droiddeck-script-run")
 STEAM_LAUNCH = os.path.join(BIN, "droiddeck-steam-launch")
+STORE_LAUNCH = os.path.join(BIN, "droiddeck-store-launch")
 PROGRAMS = os.path.join(BIN, "droiddeck-desktop-programs")
 CACHE = os.path.join(HOME, ".cache", "droiddeck")
 IMPORTS = {"appimage": ("/opt/appimages/user", "app"), "folder": ("/opt/droiddeck-apps", "entry")}
@@ -186,7 +187,7 @@ def import_of(key, what):
 
 
 def imported(what, real, key, name):
-    launch = os.environ.get("BL_LAUNCH_DIR")
+    launch = os.environ.get("DD_LAUNCH_DIR")
     if not launch or not os.path.isdir(launch):
         raise RuntimeError("%s cannot run from here; add it in DroidDeck with Add an app." % name)
     result = os.path.join(launch, "desktop-import-%s.result" % key)
@@ -272,12 +273,32 @@ def steam_title(path):
         return None
 
 
+def exe_prefix(path):
+    try:
+        run = runpy.run_path(PROTON_RUN)
+        root = os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or run["STEAM_ROOT"]
+        target = run["locate"](path, root)
+        return ["--prefix", target.appid, "--compatdata", target.compatdata]
+    except (OSError, ValueError, KeyError, IndexError):
+        return None
+
+
+def store_launcher(path):
+    try:
+        return runpy.run_path(STORE_LAUNCH)["store_launcher"](path)
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def command(path, args, what, window=False, appid=None):
     folder = os.path.dirname(path)
     if what == "steam":
         return [STEAM_LAUNCH, "desktop", appid], folder
     if what == "windows":
-        return [PROTON_RUN] + (["--window"] if window else []) + [path] + args, folder
+        launcher = None if args else store_launcher(path)
+        prefix = exe_prefix(path) if launcher else None
+        keep = prefix or []
+        return [PROTON_RUN] + (["--window"] if window else []) + keep + [launcher or path] + args, folder
     if what == "x86 script":
         return [FEX, "run", "--mode", "on", "--for", folder, "--"] + interpreter(path) + [path] + args, folder
     if what == "script":
@@ -290,7 +311,7 @@ def command(path, args, what, window=False, appid=None):
 
 
 def on_desktop(env):
-    return env.get("BL_DESKTOP") == "1" and not env.get("GAMESCOPE_WAYLAND_DISPLAY") and os.access(GPU, os.X_OK)
+    return env.get("DD_DESKTOP") == "1" and not env.get("GAMESCOPE_WAYLAND_DISPLAY") and os.access(GPU, os.X_OK)
 
 
 def unattended(env):
@@ -300,7 +321,7 @@ def unattended(env):
         return True
     if stat.S_ISCHR(out.st_mode):
         return not os.isatty(1)
-    folder = env.get("BL_DEBUG_DIR")
+    folder = env.get("DD_DEBUG_DIR")
     try:
         log = os.stat(os.path.join(folder, "desktop.log")) if folder else None
     except OSError:
@@ -396,7 +417,7 @@ def main(argv):
         say("%s: %s" % (cmd[0], error))
     if status != 0 and time.monotonic() - started < QUICK_FAILURE:
         notify("%s did not start" % os.path.basename(path),
-               "It exited with status %d; the session's desktop.log says why." % status)
+               "desktop.log (%d)" % status)
     if what == "windows":
         try:
             subprocess.call([sys.executable, PROGRAMS])

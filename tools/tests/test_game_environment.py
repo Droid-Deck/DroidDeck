@@ -33,6 +33,94 @@ class SupergiantDotnetReporterTest(unittest.TestCase):
         self.assertIsNone(MODULE["supergiant_dotnet_reporter"](game))
 
 
+class DeathStrandingAllocatorTest(unittest.TestCase):
+    def make_exe(self, name="ds.exe", size=None, window=None, tail=None):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, name)
+        with open(path, "wb") as game:
+            game.truncate(MODULE["DS_SIZE"] if size is None else size)
+            game.seek(MODULE["DS_WINDOW_OFFSET"] - 1)
+            game.write(b"<" + (MODULE["DS_WINDOW"] if window is None else window) + (MODULE["DS_ORIGINAL"] if tail is None else tail) + b">")
+        return path
+
+    def read_tail(self, path):
+        with open(path, "rb") as game:
+            game.seek(MODULE["DS_WINDOW_OFFSET"] - 1)
+            return game.read(len(MODULE["DS_WINDOW"]) + len(MODULE["DS_ORIGINAL"]) + 2)
+
+    def run_fix(self, path, app_id="1850570"):
+        errors = io.StringIO()
+        with mock.patch("sys.stderr", errors):
+            return MODULE["death_stranding_allocator"](app_id, path), errors.getvalue()
+
+    def test_window_and_patch_have_the_measured_shape(self):
+        self.assertEqual(41, len(MODULE["DS_WINDOW"]))
+        self.assertEqual(6, len(MODULE["DS_ORIGINAL"]))
+        self.assertEqual(6, len(MODULE["DS_FIXED"]))
+        self.assertEqual(0x38FE1B9, MODULE["DS_WINDOW_OFFSET"] + len(MODULE["DS_WINDOW"]))
+
+    def test_replaces_only_the_jump_in_the_original_build(self):
+        path = self.make_exe()
+        patched, message = self.run_fix(path)
+        self.assertTrue(patched)
+        self.assertIn("Death Stranding", message)
+        self.assertEqual(b"<" + MODULE["DS_WINDOW"] + MODULE["DS_FIXED"] + b">", self.read_tail(path))
+        self.assertEqual(MODULE["DS_SIZE"], os.path.getsize(path))
+
+    def test_an_already_patched_game_is_left_alone(self):
+        path = self.make_exe(tail=MODULE["DS_FIXED"])
+        before = os.stat(path).st_mtime_ns
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(before, os.stat(path).st_mtime_ns)
+        self.assertEqual(b"<" + MODULE["DS_WINDOW"] + MODULE["DS_FIXED"] + b">", self.read_tail(path))
+
+    def test_a_second_run_changes_nothing(self):
+        path = self.make_exe()
+        self.assertTrue(self.run_fix(path)[0])
+        after_first = self.read_tail(path)
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(after_first, self.read_tail(path))
+
+    def test_other_builds_of_the_game_are_not_touched(self):
+        for size, window in ((MODULE["DS_SIZE"] + 1, None), (None, bytes(len(MODULE["DS_WINDOW"])))):
+            path = self.make_exe(size=size, window=window)
+            before = self.read_tail(path)
+            self.assertEqual((False, ""), self.run_fix(path))
+            self.assertEqual(before, self.read_tail(path))
+
+    def test_an_unknown_instruction_at_the_patch_site_is_not_touched(self):
+        path = self.make_exe(tail=bytes.fromhex("0f85a6000000"))
+        before = self.read_tail(path)
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(before, self.read_tail(path))
+
+    def test_other_executables_are_ignored(self):
+        path = self.make_exe(name="game.exe")
+        before = self.read_tail(path)
+        self.assertEqual((False, ""), self.run_fix(path))
+        self.assertEqual(before, self.read_tail(path))
+
+    def test_other_games_are_not_touched_even_with_a_matching_file(self):
+        for app_id in ("440", "", None):
+            path = self.make_exe()
+            before = self.read_tail(path)
+            self.assertEqual((False, ""), self.run_fix(path, app_id))
+            self.assertEqual(before, self.read_tail(path))
+
+    def test_both_death_stranding_app_ids_are_patched(self):
+        for app_id in ("1850570", "1190460"):
+            self.assertTrue(self.run_fix(self.make_exe(), app_id)[0])
+
+    def test_the_file_name_check_ignores_case(self):
+        self.assertTrue(self.run_fix(self.make_exe(name="DS.EXE"))[0])
+
+    def test_a_missing_game_file_is_reported_without_raising(self):
+        patched, message = self.run_fix(os.path.join(tempfile.gettempdir(), "droiddeck-no-such-folder", "ds.exe"))
+        self.assertFalse(patched)
+        self.assertIn("not applied", message)
+
+
 def mapping_of(text):
     tokens = COMPAT["tokenize"](text)
     return COMPAT["read_mapping"](tokens, COMPAT["mapping_block"](tokens))
@@ -403,7 +491,7 @@ class EgoCorePlanTest(unittest.TestCase):
             probe = Path(tmp) / "probe"
             probe.write_text('#!/bin/sh\ngrep -c \'value="5"\' "%s"\n' % self.path)
             probe.chmod(0o755)
-            env = {k: v for k, v in os.environ.items() if not k.startswith(("WINE", "PROTON", "DROIDDECK", "BL_", "STEAM"))}
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("WINE", "PROTON", "DROIDDECK", "DD_", "STEAM"))}
             env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/3791535942", WINE_CPU_TOPOLOGY="5:7,3,4,5,6")
             result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", self.command[2]],
                                     env=env, text=True, capture_output=True, check=True)
@@ -541,7 +629,7 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
                    "STEAM_COMPAT_DATA_PATH": "/compatdata/42"}
             command = ["/stock/proton", "waitforexitandrun", "game.exe"]
             selected = ["/sync-pack/proton", *command[1:]]
-            selected_env = dict(env, WINESERVER="/sync-pack/wineserver", BL_SYNC_PACK="selected")
+            selected_env = dict(env, WINESERVER="/sync-pack/wineserver", DD_SYNC_PACK="selected")
             main = MODULE["main"]
             with patch.dict(os.environ, env, clear=True), patch.object(sys, "argv", ["game-env", *command]), \
                     patch.dict(main.__globals__, {"load_sync": lambda: {},
@@ -556,7 +644,7 @@ class SystemGraphicsLaunchTest(unittest.TestCase):
             self.assertEqual(path, str(runtime / "run-proton.py"))
             self.assertEqual(args, [path, *selected])
             self.assertEqual(actual_env["WINESERVER"], "/sync-pack/wineserver")
-            self.assertEqual(actual_env["BL_SYNC_PACK"], "selected")
+            self.assertEqual(actual_env["DD_SYNC_PACK"], "selected")
 
 
 class GameDebugLoggingTest(unittest.TestCase):
@@ -587,22 +675,22 @@ class GameDebugLoggingTest(unittest.TestCase):
             result = subprocess.run(
                 [sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun"],
                 env={**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/42"),
-                     "BL_DEBUG_DIR": tmp, "PROTON_LOG": "0"},
+                     "DD_DEBUG_DIR": tmp, "PROTON_LOG": "0"},
                 text=True, capture_output=True, check=True,
             )
             self.assertEqual(result.stdout.strip(), "0")
 
     def test_game_debug_logs_override_only_diagnostic_values_and_keep_raw_settings(self):
         with tempfile.TemporaryDirectory(prefix="game logs '") as debug_dir:
-            inherited = {"BL_DEBUG_DIR": debug_dir, "PROTON_LOG": "0", "WINEDEBUG": "-all,+relay",
+            inherited = {"DD_DEBUG_DIR": debug_dir, "PROTON_LOG": "0", "WINEDEBUG": "-all,+relay",
                          "PROTON_LOG_DIR": "/old", "PROTON_CRASH_REPORT_DIR": "/old-crashes",
                          "DXVK_LOG_PATH": "/old-dxvk", "DXVK_LOG_LEVEL": "none", "VKD3D_DEBUG": "none",
                          "CUSTOM": "$(touch never); 'quoted' = literal", "DXVK_CONFIG": "dxvk.tearFree = True"}
             config = {"version": 1, "gameDebugLogs": True,
-                      "shared": {"PROTON_LOG": "0", "BL_DEBUG_DIR": "/profile-redirect"},
+                      "shared": {"PROTON_LOG": "0", "DD_DEBUG_DIR": "/profile-redirect"},
                       "games": {"42": {"PROTON_LOG_DIR": None, "DXVK_LOG_PATH": "/game-redirect"}}}
             normal = MODULE["apply_config"](inherited, config, "42")
-            debug = MODULE["apply_game_debug_logs"](normal, config, inherited["BL_DEBUG_DIR"])
+            debug = MODULE["apply_game_debug_logs"](normal, config, inherited["DD_DEBUG_DIR"])
             self.assertEqual(debug["PROTON_LOG"], "1")
             for key in ("PROTON_LOG_DIR", "PROTON_CRASH_REPORT_DIR", "DXVK_LOG_PATH"):
                 self.assertEqual(debug[key], debug_dir)
@@ -610,7 +698,7 @@ class GameDebugLoggingTest(unittest.TestCase):
             self.assertEqual(debug["VKD3D_DEBUG"], "info")
             self.assertIn("+relay", debug["WINEDEBUG"].split(","))
             self.assertTrue(debug["WINEDEBUG"].endswith("+loaddll,+mscoree"))
-            for key in ("CUSTOM", "DXVK_CONFIG", "BL_DEBUG_DIR"):
+            for key in ("CUSTOM", "DXVK_CONFIG", "DD_DEBUG_DIR"):
                 self.assertEqual(debug[key], normal[key])
             self.assertEqual(normal["PROTON_LOG"], "0")
             self.assertEqual(inherited["PROTON_LOG_DIR"], "/old")
@@ -659,9 +747,9 @@ class GameDebugLoggingTest(unittest.TestCase):
             literal = "$(touch " + str(home / "never-created") + "); 'literal'=value"
             config = {"version": 1, "gameDebugLogs": True,
                       "shared": {"PROTON_LOG": "0", "WINEDEBUG": "-all,+relay", "CUSTOM": literal,
-                                 "BL_DEBUG_DIR": "/profile-must-not-redirect"}}
+                                 "DD_DEBUG_DIR": "/profile-must-not-redirect"}}
             env = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/42"),
-                   "BL_DEBUG_DIR": str(debug_dir), "PROTON_LOG": "0", "WINEDEBUG": "-all"}
+                   "DD_DEBUG_DIR": str(debug_dir), "PROTON_LOG": "0", "WINEDEBUG": "-all"}
             command = [str(probe), "waitforexitandrun", "game 'with quotes'.exe", "argument with spaces", "$(literal)", "%command%"]
 
             def launch(arguments, environment):
@@ -708,6 +796,118 @@ class ReadConfigMappingTest(unittest.TestCase):
 
 
 class GameEnvironmentTest(unittest.TestCase):
+    def test_component_filter_and_prefix_repair_use_per_game_proton_architecture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "shared": {"PROTON_USE_ARM64": "1"},
+                                          "games": {"42": {"PROTON_USE_ARM64": "0"}}}))
+            seen_components, seen_repair, seen_start, seen_mark = [], [], [], []
+            globals = MODULE["main"].__globals__
+            stubs = {
+                "game_gpu": lambda env: env,
+                "mark_install_scripts": lambda command, env: seen_mark.append(env.copy()) or [],
+                "install_scripts_done": lambda scripts, env: False,
+                "scripts_digest": lambda scripts: None,
+                "win_components": lambda *args: seen_components.append(args[3]) or "",
+                "restore_compatible_system_dlls": lambda *args: [],
+                "repair_foreign_system_dlls": lambda *args: seen_repair.append(args[2]) or [],
+                "gl_vsync": lambda env: False,
+                "game_images": lambda env: None,
+                "skip_red_launcher": lambda command: command,
+                "ubisoft_overlay_off": lambda env: None,
+                "project_zomboid_jvm": lambda command: None,
+                "engine_fixes": lambda *args: ({}, [], []),
+                "dirt_ws2_wanted": lambda *args: None,
+                "apply_game_debug_logs": lambda env, config, debug_dir: env,
+                "offline_without_anticheat": lambda command, env: command,
+                "game_logs": lambda command, env, app_id: env,
+                "directaudio_settings": lambda env: env,
+                "render_path_defaults": lambda *args: None,
+                "bridge_feature_level": lambda env: None,
+                "force_ssbs": lambda command, env: env,
+                "game_cores": lambda env: None,
+                "cpu_topology": lambda env, command: None,
+                "ego_core_plan": lambda *args: None,
+                "runpy": mock.Mock(run_path=lambda *args: {"launch": lambda command, env: None}),
+                "load_sync": lambda: {},
+                "select_sync": lambda command, env, sync: (command, env),
+                "start": lambda command, env, *args: seen_start.append(env) or 7,
+            }
+            environment = {"HOME": tmp, "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "PROTON_USE_ARM64": "1"}
+            command = ["/stock/proton", "waitforexitandrun", "/game/game.exe"]
+            with patch.dict(os.environ, environment, clear=True), patch.object(sys, "argv", ["game-env", *command]), \
+                    patch.dict(globals, stubs):
+                self.assertEqual(MODULE["main"](), 7)
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_components])
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_repair])
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_start])
+            self.assertEqual(["0"], [env["PROTON_USE_ARM64"] for env in seen_mark])
+            seen_mark.clear()
+            seen_start.clear()
+            command[1] = "run"
+            with patch.dict(os.environ, environment, clear=True), patch.object(sys, "argv", ["game-env", *command]), \
+                    patch.dict(globals, stubs):
+                self.assertEqual(MODULE["main"](), 7)
+            self.assertEqual(["1"], [env["PROTON_USE_ARM64"] for env in seen_mark])
+            self.assertEqual(["1"], [env["PROTON_USE_ARM64"] for env in seen_start])
+
+    def test_keyboard_helper_is_off_unless_steam_keyboard_or_the_user_wants_it(self):
+        cases = (
+            ({}, "tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtipx=d"}, "tabtipx=d;tabtip.exe=d"),
+            ({"SteamDeck": "0"}, "tabtip.exe=d"),
+            ({"SteamDeck": "1"}, None),
+            ({"SteamDeck": "1", "WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n"),
+            ({"WINEDLLOVERRIDES": "tabtip.exe=b"}, "tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "dxgi=n; TabTip.EXE=n,b"}, "dxgi=n; TabTip.EXE=n,b"),
+            ({"WINEDLLOVERRIDES": "dxgi=n; TabTip=n,b"}, "dxgi=n; TabTip=n,b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11 tabtip.exe"}, "d3d11 tabtip.exe;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtip.exe;dxgi=n"}, "tabtip.exe;dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11,tabtip.exe=b"}, "d3d11,tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11 tabtip.exe=b"}, "d3d11 tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11\ttabtip.exe=b"}, "d3d11\ttabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "d3d11\ttabtip=b"}, "d3d11\ttabtip=b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "d3d11 dxgi=n"}, "d3d11 dxgi=n;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "*tabtip.exe=b"}, "*tabtip.exe=b"),
+            ({"WINEDLLOVERRIDES": "TabTip.exe.DLL=b"}, "TabTip.exe.DLL=b"),
+            ({"WINEDLLOVERRIDES": "d3d11,*tabtip.exe.dll=n"}, "d3d11,*tabtip.exe.dll=n"),
+            ({"WINEDLLOVERRIDES": "*tabtip=b"}, "*tabtip=b;tabtip.exe=d"),
+            ({"WINEDLLOVERRIDES": "tabtip.dll=b"}, "tabtip.dll=b;tabtip.exe=d"),
+        )
+        for before, overrides in cases:
+            with self.subTest(env=before):
+                env = dict(before)
+                note = MODULE["keyboard_helper_off"](env)
+                self.assertEqual(env.get("WINEDLLOVERRIDES"), overrides)
+                self.assertEqual(note is not None, overrides != before.get("WINEDLLOVERRIDES"))
+
+    def test_game_launch_turns_the_keyboard_helper_off_and_keeps_user_choices(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            probe = home / "probe"
+            probe.write_text("#!" + sys.executable + "\nimport os\nprint(os.environ.get('WINEDLLOVERRIDES', 'unset'))\n")
+            probe.chmod(0o755)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            cases = (
+                ("waitforexitandrun", {}, "tabtip.exe=d"),
+                ("waitforexitandrun", {"WINEDLLOVERRIDES": "dxgi=n"}, "dxgi=n;tabtip.exe=d"),
+                ("waitforexitandrun", {"SteamDeck": "1"}, "unset"),
+                ("waitforexitandrun", {"WINEDLLOVERRIDES": "tabtip.exe=b"}, "tabtip.exe=b"),
+                ("run", {}, "unset"),
+            )
+            for verb, profile, expected in cases:
+                with self.subTest(verb=verb, profile=profile):
+                    config.write_text(json.dumps({"version": 1, "games": {"42": profile}}))
+                    env = {k: v for k, v in os.environ.items() if k not in ("SteamDeck", "WINEDLLOVERRIDES")}
+                    env.update(HOME=tmp, STEAM_COMPAT_DATA_PATH="/compatdata/42")
+                    result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), verb],
+                                            env=env, text=True, capture_output=True, check=True)
+                    self.assertEqual(result.stdout.strip().splitlines()[-1], expected)
+
     def test_optional_xbox_loader_failure_keeps_stock_launch(self):
         from unittest.mock import patch
         for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
@@ -730,10 +930,10 @@ class GameEnvironmentTest(unittest.TestCase):
             for enabled, override, expected in (("1", None, "1"), ("0", "1", "0"), ("1", "0", "0")):
                 with self.subTest(enabled=enabled, override=override):
                     profile = {} if override is None else {
-                        "AUDIO_DIRECT_MIC": override, "BL_MIC_ENABLED": override,
+                        "AUDIO_DIRECT_MIC": override, "DD_MIC_ENABLED": override,
                     }
                     config.write_text(json.dumps({"version": 1, "games": {"42": profile}}))
-                    env = dict(os.environ, HOME=tmp, BL_MIC_ENABLED=enabled,
+                    env = dict(os.environ, HOME=tmp, DD_MIC_ENABLED=enabled,
                                AUDIO_DIRECT_MIC="1", STEAM_COMPAT_DATA_PATH="/compatdata/42")
                     result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"),
                                              str(probe), "waitforexitandrun"],
@@ -750,7 +950,7 @@ class GameEnvironmentTest(unittest.TestCase):
             config.parent.mkdir(parents=True)
             config.write_text(json.dumps({"version": 1, "games": {"42": {"AUDIO_DIRECT_MS": "80"}}}))
             base = {key: value for key, value in os.environ.items() if "AUDIO_DIRECT_" not in key}
-            base.update(HOME=tmp, BL_MIC_ENABLED="0", STEAM_COMPAT_DATA_PATH="/compatdata/42",
+            base.update(HOME=tmp, DD_MIC_ENABLED="0", STEAM_COMPAT_DATA_PATH="/compatdata/42",
                         AUDIO_DIRECT_MS="60", AUDIO_DIRECT_PERIOD_MS="20", AUDIO_DIRECT_MIC="1",
                         BANNER_AUDIO_DIRECT_MS="60", BANNER_AUDIO_DIRECT_MIC="1")
             for driver, expected in (("directaudio,pulse", "BANNER_AUDIO_DIRECT_MIC=0 BANNER_AUDIO_DIRECT_MS=80 BANNER_AUDIO_DIRECT_PERIOD_MS=20"),
@@ -764,22 +964,22 @@ class GameEnvironmentTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             gpu = home / "gpu"
-            gpu.write_text("#!/bin/bash\necho \"gpu LD_PRELOAD=${LD_PRELOAD-unset}\"\nexport BL_DESKTOP_GPU_CHILD=1\nexec \"$@\"\n")
+            gpu.write_text("#!/bin/bash\necho \"gpu LD_PRELOAD=${LD_PRELOAD-unset}\"\nexport DD_DESKTOP_GPU_CHILD=1\nexec \"$@\"\n")
             gpu.chmod(0o755)
             launcher = home / "launcher"
-            setup = COMPAT["BL_DESKTOP_GPU_SETUP"].replace("/usr/local/bin/droiddeck-gpu", str(gpu))
-            launcher.write_text("#!/bin/bash\nverb=$1; shift\n" + setup + "echo \"game $verb $* LD_PRELOAD=${LD_PRELOAD-unset} saved=${BL_GPU_SAVED_LD_PRELOAD-unset}\"\n")
+            setup = COMPAT["DD_DESKTOP_GPU_SETUP"].replace("/usr/local/bin/droiddeck-gpu", str(gpu))
+            launcher.write_text("#!/bin/bash\nverb=$1; shift\n" + setup + "echo \"game $verb $* LD_PRELOAD=${LD_PRELOAD-unset} saved=${DD_GPU_SAVED_LD_PRELOAD-unset}\"\n")
             launcher.chmod(0o755)
-            base = {key: value for key, value in os.environ.items() if not key.startswith("BL_")}
+            base = {key: value for key, value in os.environ.items() if not key.startswith("DD_")}
             base["LD_PRELOAD"] = "overlay.so"
             for extra, args, expected in (
-                ({"BL_DESKTOP": "1"}, ["waitforexitandrun", "game.exe"],
+                ({"DD_DESKTOP": "1"}, ["waitforexitandrun", "game.exe"],
                  ["gpu LD_PRELOAD=unset", "game waitforexitandrun game.exe LD_PRELOAD=overlay.so saved=unset"]),
-                ({"BL_DESKTOP": "1", "BL_DESKTOP_GPU": "Off"}, ["waitforexitandrun", "game.exe"],
+                ({"DD_DESKTOP": "1", "DD_DESKTOP_GPU": "Off"}, ["waitforexitandrun", "game.exe"],
                  ["game waitforexitandrun game.exe LD_PRELOAD=overlay.so saved=unset"]),
-                ({"BL_DESKTOP": "1"}, ["run", "setup.exe"],
+                ({"DD_DESKTOP": "1"}, ["run", "setup.exe"],
                  ["game run setup.exe LD_PRELOAD=overlay.so saved=unset"]),
-                ({"BL_DESKTOP": "1"}, ["waitforexitandrun", "iscriptevaluator.exe"],
+                ({"DD_DESKTOP": "1"}, ["waitforexitandrun", "iscriptevaluator.exe"],
                  ["game waitforexitandrun iscriptevaluator.exe LD_PRELOAD=overlay.so saved=unset"]),
                 ({}, ["waitforexitandrun", "game.exe"],
                  ["game waitforexitandrun game.exe LD_PRELOAD=overlay.so saved=unset"]),
@@ -792,6 +992,9 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_the_install_script_evaluator_gets_its_scripts_marked_first(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            (root / "files/bin-arm64").mkdir(parents=True)
+            (root / "files/bin-arm64/wineserver").write_text("")
+            (root / "files/bin-arm64/wineserver").chmod(0o755)
             script = root / "legacycompat/evaluatorscript_409710.vdf"
             script.parent.mkdir(parents=True)
             script.write_text("{}")
@@ -799,14 +1002,140 @@ class GameEnvironmentTest(unittest.TestCase):
             run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
             MODULE["mark_install_scripts"].__globals__["subprocess"].run = lambda args, **kw: calls.append((args, kw["env"]))
             try:
-                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)}
-                MODULE["mark_install_scripts"](["/proton", "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"], env)
+                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root), "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+                evaluator = [str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
+                MODULE["mark_install_scripts"](evaluator, env)
                 MODULE["mark_install_scripts"](["/proton", "waitforexitandrun", "/game/Game.exe"], env)
+                self.assertEqual(len(calls), 3)
+                self.assertEqual(calls[0][0], [str(root / "proton"), "run", "cmd.exe", "/c", "exit", "0"])
+                self.assertEqual(calls[0][1], env)
+                self.assertEqual(calls[1][0], [str(root / "files/bin-arm64/wineserver"), "-w"])
+                self.assertEqual(calls[1][1]["WINEPREFIX"], str(root / "compatdata/409710/pfx"))
+                self.assertEqual(calls[1][1].get("DROIDDECK_SEED_SCRIPTS"), None)
+                self.assertEqual(calls[2][0][1], str(root))
+                self.assertEqual(calls[2][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
+                (root / "compatdata/409710/pfx").mkdir(parents=True)
+                (root / "compatdata/409710/pfx/system.reg").write_text("")
+                calls.clear()
+                MODULE["mark_install_scripts"](evaluator, env)
+                self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
             finally:
                 MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
-            self.assertEqual(len(calls), 1)
-            self.assertEqual(calls[0][0][1], str(root))
-            self.assertEqual(calls[0][1]["DROIDDECK_SEED_SCRIPTS"], str(script))
+
+    def test_the_install_script_seeder_runs_when_prefix_probe_times_out(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "files/bin-arm64").mkdir(parents=True)
+            (root / "files/bin-arm64/wineserver").write_text("")
+            (root / "files/bin-arm64/wineserver").chmod(0o755)
+            script = root / "legacycompat/evaluatorscript_409710.vdf"
+            script.parent.mkdir(parents=True)
+            script.write_text("{}")
+            calls = []
+            run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
+
+            def fake_run(args, **kwargs):
+                calls.append((args, kwargs["env"]))
+                if len(calls) == 1:
+                    raise subprocess.TimeoutExpired(args, 120)
+
+            MODULE["mark_install_scripts"].__globals__["subprocess"].run = fake_run
+            try:
+                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root), "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+                MODULE["mark_install_scripts"]([str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"], env)
+                self.assertEqual(calls[1][0], [str(root / "files/bin-arm64/wineserver"), "-w"])
+                self.assertEqual(calls[2][0][0], MODULE["SEED_REDISTS"])
+            finally:
+                MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
+
+    def test_the_install_script_seeder_skips_failed_wineserver_waits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = root / "legacycompat/evaluatorscript_409710.vdf"
+            script.parent.mkdir(parents=True)
+            script.write_text("{}")
+            env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root), "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+            evaluator = [str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
+            wineserver = str(root / "files/bin-arm64/wineserver")
+            run = MODULE["mark_install_scripts"].__globals__["subprocess"].run
+            for failure in (subprocess.TimeoutExpired([wineserver, "-w"], 120), OSError("cannot start"),
+                            subprocess.CalledProcessError(1, [wineserver, "-w"])):
+                with self.subTest(failure=type(failure).__name__):
+                    calls = []
+
+                    def fake_run(args, **kwargs):
+                        calls.append((args, kwargs))
+                        if len(calls) == 2:
+                            self.assertTrue(kwargs["check"])
+                            raise failure
+
+                    MODULE["mark_install_scripts"].__globals__["subprocess"].run = fake_run
+                    try:
+                        self.assertEqual(MODULE["mark_install_scripts"](evaluator, env), [str(script)])
+                        self.assertEqual(len(calls), 2)
+                        self.assertEqual(calls[1][0], [wineserver, "-w"])
+                        self.assertEqual(calls[1][1]["env"]["WINEPREFIX"], str(root / "compatdata/409710/pfx"))
+                    finally:
+                        MODULE["mark_install_scripts"].__globals__["subprocess"].run = run
+
+    def run_install_marker(self, root, env):
+        script = root / "legacycompat/evaluatorscript_409710.vdf"
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text("{}")
+        calls = []
+        module = MODULE["mark_install_scripts"].__globals__["subprocess"]
+        run = module.run
+        module.run = lambda args, **kw: calls.append((args, kw["env"]))
+        try:
+            evaluator = [str(root / "proton"), "run", str(root / "legacycompat/iscriptevaluator.exe"), "legacycompat\\evaluatorscript_409710.vdf"]
+            self.assertEqual(MODULE["mark_install_scripts"](evaluator, env), [str(script)])
+        finally:
+            module.run = run
+        return calls
+
+    def test_the_install_script_wait_finds_wineserver_in_files_bin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "files/bin").mkdir(parents=True)
+            (root / "files/bin/wineserver").write_text("")
+            (root / "files/bin/wineserver").chmod(0o755)
+            calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root),
+                                                   "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")})
+            self.assertEqual(calls[1][0], [str(root / "files/bin/wineserver"), "-w"])
+            self.assertEqual(calls[2][0][0], MODULE["SEED_REDISTS"])
+
+    def test_the_install_script_seeder_skips_the_probe_without_compat_data(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            calls = self.run_install_marker(root, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)})
+            self.assertEqual([args[0] for args, _ in calls], [MODULE["SEED_REDISTS"]])
+
+    def test_the_install_script_seeder_checks_only_the_selected_template(self):
+        for machine in ("aarch64", "x86_64"):
+            for setting in (None, "1", "0", ""):
+                for arm64_bin in (False, True):
+                    for template in ("default_pfx", "default_pfx_arm64"):
+                        with self.subTest(machine=machine, setting=setting, arm64_bin=arm64_bin, template=template):
+                            with tempfile.TemporaryDirectory() as tmp:
+                                root = Path(tmp)
+                                if arm64_bin:
+                                    (root / "files/bin-arm64").mkdir(parents=True)
+                                reg = root / "files/share" / template / "system.reg"
+                                reg.parent.mkdir(parents=True)
+                                reg.write_text("")
+                                env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root),
+                                       "STEAM_COMPAT_DATA_PATH": str(root / "compatdata/409710")}
+                                if setting is not None:
+                                    env["PROTON_USE_ARM64"] = setting
+                                before = dict(env)
+                                with patch("platform.machine", return_value=machine):
+                                    calls = self.run_install_marker(root, env)
+                                selected = "default_pfx_arm64" if machine == "aarch64" and arm64_bin and setting in (None, "1") else "default_pfx"
+                                expected = [MODULE["SEED_REDISTS"]]
+                                if template != selected:
+                                    expected = [str(root / "proton"), str(root / ("files/bin-arm64/wineserver")), *expected]
+                                self.assertEqual([args[0] for args, _ in calls], expected)
+                                self.assertEqual(env, before)
 
     SCRIPT = ('"evaluatorscript" { "0" { "appid" "228980" "compat_installscript" { "run process" { '
               '"x64 14.28.29334.0" { "hasrunkey" "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\CommonRedist\\\\vcredist\\\\2019" '
@@ -876,10 +1205,10 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(evaluate("changed"), (0, 3))
 
     def test_the_mali_bridge_caps_the_vkd3d_feature_level(self):
-        bridge = {"BL_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "12_2"}
+        bridge = {"DD_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "12_2"}
         self.assertIn("capped", MODULE["bridge_feature_level"](bridge))
         self.assertEqual(bridge["VKD3D_FEATURE_LEVEL"], "12_0")
-        for env in ({"BL_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "11_1"}, {"VKD3D_FEATURE_LEVEL": "12_2"}, {"BL_VKBRIDGE": "1"}):
+        for env in ({"DD_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "11_1"}, {"VKD3D_FEATURE_LEVEL": "12_2"}, {"DD_VKBRIDGE": "1"}):
             before = dict(env)
             self.assertIsNone(MODULE["bridge_feature_level"](env))
             self.assertEqual(env, before)
@@ -901,26 +1230,84 @@ class GameEnvironmentTest(unittest.TestCase):
         env = gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": ""})
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
+        def applied(config, app_id="42", env=None):
+            return MODULE["apply_config"](env or {"TU_DEBUG": "sysmem"}, config, app_id)
+        prefixed = "DROIDDECK_GAME_TU_DEBUG"
+        config = {"version": 1, "games": {"42": {prefixed: "gmem"}, "43": {prefixed: ""}}}
+        self.assertEqual(applied(config)["TU_DEBUG"], "gmem")
+        self.assertNotIn("TU_DEBUG", applied(config, "43"))
+        self.assertNotIn(prefixed, applied(config))
+        shared = {"version": 1, "shared": {prefixed: "gmem"}, "games": {"42": {"TU_DEBUG": "nolrz"}, "43": {"TU_DEBUG": None}}}
+        self.assertEqual(applied(shared)["TU_DEBUG"], "nolrz")
+        self.assertNotIn("TU_DEBUG", applied(shared, "43"))
+        self.assertEqual(applied(shared, "44")["TU_DEBUG"], "gmem")
+        self.assertNotIn(prefixed, applied(shared, "44"))
+        both = {"version": 1, "games": {"42": {"TU_DEBUG": "sysmem", prefixed: ""}, "43": {"TU_DEBUG": None, prefixed: "gmem"}}}
+        self.assertEqual(applied(both)["TU_DEBUG"], "sysmem")
+        self.assertNotIn("TU_DEBUG", applied(both, "43", {"TU_DEBUG": "nolrz"}))
+        self.assertNotIn(prefixed, applied(both))
 
-    def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
-        cap = MODULE["vram_cap"]
-        self.assertEqual(cap({"BL_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096")
-        self.assertEqual(cap({"BL_VRAM_MB": "2048", "DXVK_CONFIG": "dxvk.maxFrameRate = 60;"})["DXVK_CONFIG"],
-                         "dxgi.maxDeviceMemory = 2048; dxvk.maxFrameRate = 60")
-        for off in ({}, {"BL_VRAM_MB": "0"}, {"BL_VRAM_MB": "lots"}, {"BL_VRAM_MB": "²"}, {"BL_VRAM_MB": "-1"}):
-            self.assertNotIn("DXVK_CONFIG", cap(off))
-            self.assertNotIn("DROIDDECK_VRAM_CAP", cap(off))
-            self.assertNotIn("DROIDDECK_VRAM_CAP_MB", cap(off))
+    def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
+        gpu = MODULE["game_gpu"]
+        session = {"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "", "KEEP": "1"}
+        self.assertEqual(gpu(session), {"KEEP": "1"})
+        self.assertEqual(gpu(session, True), {"MESA_NO_ERROR": "1", "KEEP": "1"})
+        self.assertEqual(gpu({"MESA_NO_ERROR": "1"}), {"MESA_NO_ERROR": "1"})
+        self.assertEqual(gpu({"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "1"}), {"MESA_NO_ERROR": "1"})
+        both = gpu({"MESA_NO_ERROR": "1", "DROIDDECK_GAME_MESA_NO_ERROR": "", "TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"})
+        self.assertEqual(both, {"TU_DEBUG": "nolrz"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "MESA_NO_ERROR": "1"}),
+                         {"MESA_NO_ERROR": "1"})
+        config = {"version": 1, "games": {"42": {"MESA_NO_ERROR": "1"}}}
+        env = gpu(session)
+        self.assertEqual(MODULE["apply_config"](env, config, "42")["MESA_NO_ERROR"], "1")
+        self.assertNotIn("MESA_NO_ERROR", MODULE["apply_config"](env, config, "43"))
 
-    def test_the_vram_cap_also_turns_on_the_vulkan_layer_that_holds_the_game_to_it(self):
-        env = MODULE["vram_cap"]({"BL_VRAM_MB": "3072", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 16384"})
-        self.assertEqual((env["DROIDDECK_VRAM_CAP"], env["DROIDDECK_VRAM_CAP_MB"]), ("1", "3072"))
+    def test_a_chromium_app_keeps_the_sessions_turnip_debug(self):
+        gpu = MODULE["game_gpu"]
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "KEEP": "1"}, True),
+                         {"TU_DEBUG": "sysmem", "KEEP": "1"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "nolrz"}, True), {"TU_DEBUG": "sysmem"})
+        self.assertEqual(gpu({"TU_DEBUG": "sysmem"}, True), {"TU_DEBUG": "sysmem"})
+
+    def test_chromium_files_are_found_four_levels_deep_and_no_further(self):
+        chromium = MODULE["chromium_app"]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "app"
+            (root / "usr/lib/tool").mkdir(parents=True)
+            (root / "usr/lib/tool/libtool.so").write_bytes(b"")
+            self.assertFalse(chromium(str(root)))
+            for name in ("chrome-sandbox", "chrome_100_percent.pak", "v8_context_snapshot.bin"):
+                found = root / "a/b/c" / name
+                found.parent.mkdir(parents=True, exist_ok=True)
+                found.write_bytes(b"")
+                self.assertTrue(chromium(str(root)), name)
+                found.unlink()
+            deep = root / "a/b/c/d/chrome-sandbox"
+            deep.parent.mkdir(parents=True)
+            deep.write_bytes(b"")
+            self.assertFalse(chromium(str(root)))
+            self.assertFalse(chromium(str(Path(tmp) / "missing")))
+
+    def test_chromium_detection_does_not_follow_links_inside_the_app(self):
+        chromium = MODULE["chromium_app"]
+        with tempfile.TemporaryDirectory() as tmp:
+            other = Path(tmp) / "other"
+            other.mkdir()
+            (other / "chrome-sandbox").write_bytes(b"")
+            root = Path(tmp) / "app"
+            root.mkdir()
+            (root / "linked").symlink_to(other, target_is_directory=True)
+            self.assertFalse(chromium(str(root)))
+            link = Path(tmp) / "app-link"
+            link.symlink_to(other, target_is_directory=True)
+            self.assertTrue(chromium(str(link)))
 
     def test_a_games_wine_sync_choice_also_reaches_its_setup_runs(self):
-        env = {"BL_SYNC": "1", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "0", "OTHER": "kept"}
-        config = {"version": 1, "games": {"42": {"BL_SYNC": "0", "BL_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "FEX_TSOENABLED": "1"}}}
+        env = {"DD_SYNC": "1", "DD_SYNC_FALLBACK": "1", "DD_FSYNC_FIRST": "0", "OTHER": "kept"}
+        config = {"version": 1, "games": {"42": {"DD_SYNC": "0", "DD_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "FEX_TSOENABLED": "1"}}}
         chosen = MODULE["apply_config"](env, MODULE["sync_config"](config, "42"), "42")
-        self.assertEqual(chosen, {"BL_SYNC": "0", "BL_SYNC_FALLBACK": "1", "BL_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "OTHER": "kept"})
+        self.assertEqual(chosen, {"DD_SYNC": "0", "DD_SYNC_FALLBACK": "1", "DD_FSYNC_FIRST": "1", "PROTON_NO_ESYNC": "1", "OTHER": "kept"})
 
     def test_component_profiles_override_general_and_restore_it_for_the_next_game(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -946,7 +1333,7 @@ class GameEnvironmentTest(unittest.TestCase):
                 "42\tproton\tbuild-1\tdxvk\tfiles/lib/wine/dxvk/aarch64-windows/d3d8.dll\t-\t-\n"
                 % (digest(general), general, digest(game), game)
             )
-            script = COMPAT["BL_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; bl_components "$1"\n'
+            script = COMPAT["DD_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; dd_components "$1"\n'
             env = dict(os.environ, HOME=str(home), STEAM_COMPAT_DATA_PATH="/steam/compatdata/42")
             subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True)
             self.assertEqual(target.read_text(), "game")
@@ -986,7 +1373,7 @@ class GameEnvironmentTest(unittest.TestCase):
             selection = component_dir / "desired.tsv"
             selection.write_text("".join(rows))
             saved = selection.read_bytes()
-            script = COMPAT["BL_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; bl_components "$1"\n'
+            script = COMPAT["DD_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; dd_components "$1"\n'
             env = dict(os.environ, HOME=str(home), STEAM_COMPAT_DATA_PATH="/steam/compatdata/42",
                        DROIDDECK_POWERVR_RUNTIME="/system_vulkan/runtime")
 
@@ -1023,7 +1410,7 @@ class GameEnvironmentTest(unittest.TestCase):
                     hashlib.sha256(source.read_bytes()).hexdigest(), source,
                 ))
             (component_dir / "desired.tsv").write_text("".join(rows))
-            script = COMPAT["BL_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; bl_components "$1"\n'
+            script = COMPAT["DD_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; dd_components "$1"\n'
             for value in (
                 "42", "00042", "43", "-1", "-0001", "4294967295", "-2147483648",
                 "2147483648", "-1///", "0", "-0", "000", "-2147483649", "4294967296",
@@ -1035,6 +1422,23 @@ class GameEnvironmentTest(unittest.TestCase):
                     subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
                     scope = MODULE["game_id"](env)
                     expected = "untouched" if scope is None else scope if scope in {"42", "4294967295", "2147483648"} else "*"
+                    self.assertEqual(target.read_text(), expected)
+            for app, expected in (("42", "42"), ("4294967295", "4294967295"), ("43", "*"), ("", "*"), ("x", "*")):
+                with self.subTest(shared=app):
+                    env = dict(os.environ, HOME=str(root), STEAM_COMPAT_DATA_PATH="/steam/compatdata/2929927072", SteamAppId=app)
+                    target.write_text("untouched")
+                    subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
+                    self.assertEqual(MODULE["game_id"](env), app if app in {"42", "4294967295", "43"} else "2929927072")
+                    self.assertEqual(target.read_text(), expected)
+            for game, expected in (
+                (str(42 << 32 | 0x02000000), "42"), (str(4294967295 << 32 | 0x02000000), "4294967295"),
+                (str(42 << 32 | 0x02000001), "*"), (str(42 << 32 | 0x02000000 | 1 << 64), "*"), ("33554432", "*"), ("x", "*"),
+            ):
+                with self.subTest(direct=game):
+                    env = dict(os.environ, HOME=str(root), STEAM_COMPAT_DATA_PATH="/steam/compatdata/2929927072", SteamAppId="0", SteamGameId=game)
+                    target.write_text("untouched")
+                    subprocess.run(["bash", "-c", script, "test", str(base)], env=env, check=True, capture_output=True)
+                    self.assertEqual(MODULE["game_id"](env), expected if expected != "*" else "2929927072")
                     self.assertEqual(target.read_text(), expected)
 
     def test_engine_fixes_follow_the_games_files(self):
@@ -1049,6 +1453,8 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(env["WINEDLLOVERRIDES"], "libsentry.windows.release.x86_64=d")
             self.assertEqual(extra, ["--rendering-driver", "vulkan"])
             self.assertEqual(MODULE["engine_fixes"](str(game / "Game.exe"), ["--rendering-driver", "opengl3"])[1], [])
+            (game / "data_game_windows_x86_64/Sentry.Godot.dll").touch()
+            self.assertNotIn("WINEDLLOVERRIDES", MODULE["engine_fixes"](str(game / "Game.exe"), [])[0])
             script = Path(tmp) / "GDScript Game"
             script.mkdir()
             for name in ("Game.exe", "Game.pck", "libsentry.windows.release.x86_64.dll"):
@@ -1209,6 +1615,14 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertTrue(notes)
         self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
 
+    def test_black_ops_ii_starts_with_steam_exec_handling(self):
+        for exe in ("/game/Call of Duty Black Ops II/t6zm.exe", "/game/Call of Duty Black Ops II/t6mp.exe", "/game/Call of Duty Black Ops II/t6sp.exe"):
+            env, extra, notes = MODULE["engine_fixes"](exe, [])
+            self.assertEqual((env, extra), ({"WINESTEAMNOEXEC": "0"}, []))
+            self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/Other.exe", [], "202990")[0], {"WINESTEAMNOEXEC": "0"})
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/Other.exe", []), ({}, [], []))
+
     def test_little_nightmares_keeps_its_render_thread(self):
         env, extra, notes = MODULE["engine_fixes"]("/game/Little Nightmares/Atlas/Binaries/Win64/LittleNightmares.exe", [])
         self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))
@@ -1238,15 +1652,15 @@ class GameEnvironmentTest(unittest.TestCase):
         os_mod = MODULE["os"]
         online = {"online_cores": lambda: {0, 1, 2, 3, 4, 5, 6, 7}}
         cases = [
-            ({"BL_GAME_CPUS": "6,7"}, {6, 7}, "2:6,7", "2:6,7"),
+            ({"DD_GAME_CPUS": "6,7"}, {6, 7}, "2:6,7", "2:6,7"),
             ({"DROIDDECK_GAME_CORES": "0-2"}, {0, 1, 2}, "3:0,1,2", "3:0,1,2"),
-            ({"BL_GAME_CPUS": "0-7"}, set(range(8)), None, None),
+            ({"DD_GAME_CPUS": "0-7"}, set(range(8)), None, None),
             ({}, {6, 7}, None, None),
-            ({"BL_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": "4:0,1,2,3"}, {6, 7}, "4:0,1,2,3", "4:0,1,2,3"),
+            ({"DD_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": "4:0,1,2,3"}, {6, 7}, "4:0,1,2,3", "4:0,1,2,3"),
             ({"WINE_CPU_TOPOLOGY": "2:0,1"}, set(range(8)), "2:0,1", "2:0,1"),
-            ({"BL_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": ""}, {6, 7}, "", None),
-            ({"BL_GAME_CPUS": "6,7", "PROTON_CPU_TOPOLOGY": "1:7"}, {6, 7}, None, "1:7"),
-            ({"BL_GAME_CPUS": "9"}, {9}, None, None),
+            ({"DD_GAME_CPUS": "6,7", "WINE_CPU_TOPOLOGY": ""}, {6, 7}, "", None),
+            ({"DD_GAME_CPUS": "6,7", "PROTON_CPU_TOPOLOGY": "1:7"}, {6, 7}, None, "1:7"),
+            ({"DD_GAME_CPUS": "9"}, {9}, None, None),
         ]
         for env, affinity, expected, proton in cases:
             env["DROIDDECK_FASTEST_CORES"] = "0"
@@ -1335,9 +1749,9 @@ class GameEnvironmentTest(unittest.TestCase):
             command = [str(proton), "waitforexitandrun", "/game/game.exe"]
             cases = [
                 ({}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
-                ({"BL_GAME_CPUS": "6,7"}, {6, 7}, pocket_fit, "2:7,6", "2:7,6"),
+                ({"DD_GAME_CPUS": "6,7"}, {6, 7}, pocket_fit, "2:7,6", "2:7,6"),
                 ({"DROIDDECK_GAME_CORES": "0-2"}, {0, 1, 2}, pocket_fit, "3:2,0,1", "3:2,0,1"),
-                ({"BL_GAME_CPUS": "0-7"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
+                ({"DD_GAME_CPUS": "0-7"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
                 ({"WINE_CPU_TOPOLOGY": "2:0,1"}, every, pocket_fit, "2:0,1", "2:0,1"),
                 ({"WINE_CPU_TOPOLOGY": ""}, every, pocket_fit, "", None),
                 ({"PROTON_CPU_TOPOLOGY": "1:0"}, every, pocket_fit, None, "1:0"),
@@ -1348,18 +1762,18 @@ class GameEnvironmentTest(unittest.TestCase):
                 ({"SteamGameId": "1038250"}, every, pocket_fit, None, None),
                 ({"SteamGameId": "618970"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
                 ({"SteamGameId": "620"}, every, pocket_fit, "8:7,2,3,4,5,6,0,1", "8:7,2,3,4,5,6,0,1"),
-                ({"SteamGameId": "2229830", "BL_GAME_CPUS": "0,1"}, {0, 1}, pocket_fit, "2:0,1", "2:0,1"),
+                ({"SteamGameId": "2229830", "DD_GAME_CPUS": "0,1"}, {0, 1}, pocket_fit, "2:0,1", "2:0,1"),
                 ({"SteamGameId": "2229830", "DROIDDECK_GAME_CORES": "12-13"}, every, pocket_fit, "1:7", "1:7"),
-                ({"SteamGameId": "11440", "BL_GAME_CPUS": "0-7"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
+                ({"SteamGameId": "11440", "DD_GAME_CPUS": "0-7"}, every, pocket_fit, "4:7,2,3,4", "4:7,2,3,4"),
                 ({}, every, {core: 100 for core in every}, None, None),
                 ({}, every, None, None, None),
                 ({"SteamGameId": "11440"}, every, None, "4:0,1,2,3", "4:0,1,2,3"),
-                ({"BL_GAME_CPUS": "9"}, {9}, pocket_fit, None, None),
+                ({"DD_GAME_CPUS": "9"}, {9}, pocket_fit, None, None),
             ]
             cases += [
                 ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0"}, every, pocket_fit, None, None),
                 ({"STEAM_COMPAT_DATA_PATH": ""}, every, pocket_fit, None, None),
-                ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0", "BL_GAME_CPUS": "6,7"}, {6, 7}, pocket_fit, "2:6,7", "2:6,7"),
+                ({"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/0", "DD_GAME_CPUS": "6,7"}, {6, 7}, pocket_fit, "2:6,7", "2:6,7"),
             ]
             for env, affinity, speeds, expected, proton_topology in cases:
                 env.setdefault("STEAM_COMPAT_DATA_PATH", "/steam/compatdata/3608888694")
@@ -1415,6 +1829,31 @@ class GameEnvironmentTest(unittest.TestCase):
                     config = {"version": 1, "shared": {}, "games": {"42": values}}
                     self.assertEqual(MODULE["apply_config"]({}, config, "42", env), values, name)
 
+    def test_ff7_rebirth_runs_at_feature_level_12_2_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "FINAL FANTASY VII REBIRTH"
+            game = root / "End/Binaries/Win64/ff7rebirth_.exe"
+            game.parent.mkdir(parents=True)
+            for exe in (root / "ff7rebirth.exe", game):
+                exe.touch()
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2"}, exe.name)
+                self.assertTrue(notes)
+                config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+                self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+
+    def test_kcd2_runs_at_feature_level_12_2_by_app_id_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Bin/Win64MasterMasterSteamPGO/KingdomCome.exe"
+            exe.parent.mkdir(parents=True)
+            exe.touch()
+            env, extra, notes = MODULE["engine_fixes"](str(exe), [], "1771300")
+            self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"})
+            self.assertTrue(notes)
+            config = {"version": 1, "shared": {}, "games": {"1771300": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "1771300", env), {"VKD3D_FEATURE_LEVEL": "12_1", "VKD3D_SHADER_MODEL": "6_9"})
+            self.assertEqual(MODULE["engine_fixes"](str(exe), [], "42")[0], {})
+
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             def game(*names):
@@ -1456,6 +1895,35 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(result["FEX_TSOENABLED"], "0")
         self.assertEqual(result["WINEDLLOVERRIDES"], "dxgi=n;libsentry=d")
 
+    def test_game_dll_overrides_follow_droiddecks_own(self):
+        fixes = {"WINEDLLOVERRIDES": "msvcp100=n,b"}
+        config = {"version": 1, "shared": {}, "games": {"42": {"WINEDLLOVERRIDES": "windowscodecs,windowscodecsext=n"}}}
+        result = MODULE["apply_config"]({}, config, "42", fixes)
+        self.assertEqual(result["WINEDLLOVERRIDES"], "msvcp100=n,b;windowscodecs,windowscodecsext=n")
+
+    def test_game_dll_overrides_edge_cases(self):
+        fixes = {"WINEDLLOVERRIDES": "msvcp100=n,b"}
+        env = {"WINEDLLOVERRIDES": "dxgi=n"}
+        for game, shared, expected in (
+            ({"WINEDLLOVERRIDES": "msvcp100=b"}, {}, "msvcp100=n,b;msvcp100=b"),
+            ({"WINEDLLOVERRIDES": ""}, {}, "msvcp100=n,b"),
+            ({"WINEDLLOVERRIDES": None}, {}, None),
+            ({"WINEDLLOVERRIDES": "d3d9=n"}, {"WINEDLLOVERRIDES": "xinput1_3=n"}, "msvcp100=n,b;d3d9=n"),
+            ({}, {}, "dxgi=n;msvcp100=n,b"),
+            ({"WINEDLLOVERRIDES": "x" * 8179}, {}, "msvcp100=n,b;" + "x" * 8179),
+        ):
+            with self.subTest(game=game, shared=shared):
+                config = {"version": 1, "shared": shared, "games": {"42": game, "43": {"WINEDLLOVERRIDES": "d3d11=n"}}}
+                result = MODULE["apply_config"](env, config, "42", fixes)
+                self.assertEqual(result.get("WINEDLLOVERRIDES"), expected)
+                self.assertEqual(MODULE["apply_config"](env, config, "43")["WINEDLLOVERRIDES"], "d3d11=n")
+        stderr = io.StringIO()
+        config = {"version": 1, "shared": {}, "games": {"42": {"WINEDLLOVERRIDES": "x" * 8192}}}
+        with mock.patch("sys.stderr", stderr):
+            result = MODULE["apply_config"](env, config, "42", fixes)
+        self.assertEqual(result["WINEDLLOVERRIDES"], "x" * 8192)
+        self.assertIn("too long", stderr.getvalue())
+
     def test_invalid_configuration_is_atomic(self):
         env = {"ORIGINAL": "unchanged"}
         for entries in ({"A": "ok", "BAD=KEY": "x"}, {"A": "bad\0value"}, {"A": 1}):
@@ -1496,9 +1964,9 @@ class GameEnvironmentTest(unittest.TestCase):
         game_logs = MODULE["game_logs"]
         with tempfile.TemporaryDirectory() as tmp:
             command = ["/proton", "waitforexitandrun", "/games/Hades/Hades.exe"]
-            env = {"BL_DEBUG_DIR": tmp, "VK_DRIVER_FILES": "/icd.json"}
+            env = {"DD_DEBUG_DIR": tmp, "VK_DRIVER_FILES": "/icd.json"}
             self.assertEqual(game_logs(command, env, "1145360", now=0), env)
-            on = dict(env, BL_GAME_LOGS="1")
+            on = dict(env, DD_GAME_LOGS="1")
             self.assertEqual(game_logs(["/proton", "run", "x.exe"], on, "1145360", now=0), on)
             result = game_logs(command, on, "1145360", now=0)
             folder = Path(result["PROTON_LOG_DIR"])
@@ -1514,7 +1982,7 @@ class GameEnvironmentTest(unittest.TestCase):
 
     def test_rapid_game_launches_keep_separate_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
-            env = {"BL_GAME_LOGS": "1", "BL_DEBUG_DIR": tmp}
+            env = {"DD_GAME_LOGS": "1", "DD_DEBUG_DIR": tmp}
             first = MODULE["game_logs"](["/proton", "waitforexitandrun", "first.exe"], env, "42", now=0)
             second = MODULE["game_logs"](["/proton", "waitforexitandrun", "second.exe"], env, "42", now=0)
             self.assertNotEqual(first["PROTON_LOG_DIR"], second["PROTON_LOG_DIR"])
@@ -1527,11 +1995,11 @@ class GameEnvironmentTest(unittest.TestCase):
                   "games": {"42": {"VKD3D_SHADER_MODEL": "6_6"}}}
         adreno = apply({}, config, "1")
         self.assertEqual(adreno["VKD3D_FEATURE_LEVEL"], "12_2")
-        pair = apply({"BL_OPEN_DRIVER": "1"}, config, "1")
+        pair = apply({"DD_OPEN_DRIVER": "1"}, config, "1")
         self.assertNotIn("VKD3D_FEATURE_LEVEL", pair)
         self.assertNotIn("VKD3D_SHADER_MODEL", pair)
         self.assertEqual(pair["DROIDDECK_VKD3D_CAPS"], "driver")
-        own = apply({"BL_OPEN_DRIVER": "1"}, config, "42")
+        own = apply({"DD_OPEN_DRIVER": "1"}, config, "42")
         self.assertEqual(own["VKD3D_SHADER_MODEL"], "6_6")
         self.assertNotIn("VKD3D_FEATURE_LEVEL", own)
 
@@ -1540,6 +2008,10 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertIsNone(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": prefix}))
         self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/42/"}), "42")
         self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/-1"}), "4294967295")
+        shared = {"STEAM_COMPAT_DATA_PATH": "/a/compatdata/2929927072", "SteamAppId": "2424921676"}
+        self.assertEqual(MODULE["game_id"](shared), "2424921676")
+        self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/2929927072"}), "2929927072")
+        self.assertEqual(MODULE["game_id"]({"STEAM_COMPAT_DATA_PATH": "/a/compatdata/42", "SteamAppId": "7"}), "42")
 
     def test_launch_reads_updates_preserves_argv_and_does_not_execute_values(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1715,11 +2187,11 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(changes, {"42": COMPAT["TOOL"]})
 
     def test_both_proton_wrappers_call_environment_launcher(self):
-        self.assertIn('bl_directaudio "$depot" "$@"', COMPAT["LAUNCHER_SH"])
-        self.assertIn('bl_directaudio "$here" "$@"', COMPAT["EXTRA_WRAPPER_SH"] % "proton")
+        self.assertIn('dd_directaudio "$depot" "$@"', COMPAT["LAUNCHER_SH"])
+        self.assertIn('dd_directaudio "$here" "$@"', COMPAT["EXTRA_WRAPPER_SH"] % "proton")
         for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
-            self.assertIn('bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
+            self.assertIn('dd_run ${DD_TASKSET:-} /usr/local/bin/droiddeck-game-env', script)
 
     def test_both_proton_wrappers_answer_steams_driver_query_without_wine(self):
         scripts = (COMPAT["launcher_sh"](), COMPAT["extra_wrapper_sh"]("proton"))
@@ -1727,7 +2199,7 @@ class GameEnvironmentTest(unittest.TestCase):
         probe = "/root/.local/share/Steam/steamapps/compatdata/0"
         for script in scripts:
             subprocess.run(["bash", "-n"], input=script, text=True, check=True)
-            self.assertLess(script.index('case "$verb:${1##*/}:'), script.index("bl_components "))
+            self.assertLess(script.index('case "$verb:${1##*/}:'), script.index("dd_components "))
             for args, prefix in (([query, "-d3d12"], probe), ([query], probe + "/"),
                                  ([query.replace("64.exe", ".exe")], probe)):
                 result = subprocess.run(["bash", "-s", "run"] + args, input=script, text=True, capture_output=True,
@@ -1736,7 +2208,7 @@ class GameEnvironmentTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertEqual(result.stdout, "")
                 self.assertIn("D3D driver query is not run", result.stderr)
-        skip = COMPAT["BL_DRIVER_QUERY_SKIP"]
+        skip = COMPAT["DD_DRIVER_QUERY_SKIP"]
         for verb, args, prefix in (
                 ("getcompatpath", [query], probe),
                 ("run", [query], "/root/.local/share/Steam/steamapps/compatdata/2276548447"),
@@ -1754,16 +2226,16 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_wrappers_preload_the_session_library_before_the_input_shim(self):
         overlay = "/root/.local/share/Steam/ubuntu12_64/gameoverlayrenderer.so"
         with tempfile.TemporaryDirectory() as tmp:
-            for name in ("libblsession.so", "libfakeinput.so"):
+            for name in ("libddsession.so", "libfakeinput.so"):
                 (Path(tmp) / name).write_bytes(b"")
             for script in (COMPAT["LAUNCHER_SH"], COMPAT["EXTRA_WRAPPER_SH"] % "proton"):
                 start = script.index("for fake in ")
                 block = script[start:script.index("\ndone\n", start) + 6].replace("/usr/local/lib/", tmp + "/")
                 for inherited, expected in (
-                        (None, ["libblsession.so", "libfakeinput.so"]),
-                        (overlay, ["libblsession.so", "libfakeinput.so", overlay]),
-                        (tmp + "/libfakeinput.so:" + overlay, ["libblsession.so", "libfakeinput.so", overlay]),
-                        (tmp + "/libblsession.so:" + tmp + "/libfakeinput.so", ["libblsession.so", "libfakeinput.so"])):
+                        (None, ["libddsession.so", "libfakeinput.so"]),
+                        (overlay, ["libddsession.so", "libfakeinput.so", overlay]),
+                        (tmp + "/libfakeinput.so:" + overlay, ["libddsession.so", "libfakeinput.so", overlay]),
+                        (tmp + "/libddsession.so:" + tmp + "/libfakeinput.so", ["libddsession.so", "libfakeinput.so"])):
                     env = {"PATH": os.defpath}
                     if inherited is not None:
                         env["LD_PRELOAD"] = inherited
@@ -1789,6 +2261,87 @@ class ProtonDefaultTest(unittest.TestCase):
                                   ["10", "11", "12", "13", "14"], "GE-Proton11-7", {})
         self.assertEqual(changes, {"0": "GE-Proton11-7", "10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
         self.assertEqual(auto, {"10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
+
+    def test_games_on_a_removed_custom_proton_go_back_to_the_default(self):
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL, "311210": "bo3fix-proton", "42": "GE-Proton11-7"}, ["311210", "42"], self.NAMES, self.TOOL, {},
+            removed={"bo3fix-proton"})
+        self.assertEqual(changes, {"311210": self.TOOL})
+        self.assertEqual(auto, {"311210": self.TOOL})
+
+    def test_removed_tools_are_custom_builds_missing_from_the_catalog(self):
+        state = {"tools": [
+            {"name": self.TOOL, "valve": True},
+            {"name": "bo3fix-proton", "valve": False},
+            {"name": "GE-Proton11-7", "valve": False},
+        ]}
+        self.assertEqual(COMPAT["removed_tools"](state, self.CATALOG), {"bo3fix-proton"})
+        self.assertEqual(COMPAT["removed_tools"]({}, self.CATALOG), set())
+
+    def test_a_failed_extra_adoption_is_not_classified_as_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tools = Path(tmp) / "compatibilitytools.d"
+            tools.mkdir()
+            state = {"tools": [{"name": "GE-Proton11-7", "dir": "GE-Proton11-7", "valve": False}]}
+            (tools / "GE-Proton11-7").mkdir()
+            catalog = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), set())
+            (tools / "GE-Proton11-7").rmdir()
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), {"GE-Proton11-7"})
+
+    def test_a_build_being_replaced_is_not_classified_as_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tools = Path(tmp) / "compatibilitytools.d"
+            state = {"tools": [{"name": "GE-Proton11-7", "dir": "GE-Proton11-7", "valve": False}]}
+            catalog = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            aside = tools / COMPAT["REPLACING"] / "GE-Proton11-7"
+            aside.mkdir(parents=True)
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), set())
+            aside.rmdir()
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), {"GE-Proton11-7"})
+
+    def test_a_request_for_a_removed_tool_is_dropped_and_others_are_kept(self):
+        state = {"tools": self.CATALOG, "games_applied": {}}
+        requests = {"10": {"valve": False, "dir": "GE-Proton11-7"}, "11": {"valve": False, "dir": "Never-Installed"},
+                    "12": {"valve": True, "dir": "GE-Proton11-7"}}
+        catalog = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+        settled, moved = COMPAT["settle_game_requests"](requests, state, {}, catalog, removed={"GE-Proton11-7"})
+        self.assertTrue(moved)
+        self.assertEqual(settled, {"11": requests["11"], "12": requests["12"]})
+        self.assertEqual(COMPAT["settle_game_requests"](requests, state, {}, catalog), (requests, False))
+        malformed = {"10": {"valve": False, "dir": []}}
+        self.assertEqual(COMPAT["settle_game_requests"](malformed, state, {}, catalog, removed={"GE-Proton11-7"}), (malformed, False))
+
+    def test_a_game_on_a_removed_tool_follows_the_default_across_registrations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([("0", self.TOOL), ("10", "GE-Proton11-7"), ("11", "GE-Proton11-7")]))
+            request = {"valve": False, "dir": "GE-Proton11-7"}
+            available = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            (Path(tmp) / "games.json").write_text(json.dumps({"version": 1, "games": {"10": request}}))
+            (Path(tmp) / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "tools": self.CATALOG,
+            }))
+            for default in (self.TOOL, self.TOOL, COMPAT["TOOL_11"]):
+                COMPAT["register_default"](
+                    str(config), ["10", "11"], default=default, catalog=available,
+                    directory=tmp,
+                )
+            self.assertEqual(mapping_of(config.read_text()),
+                             {"0": COMPAT["TOOL_11"], "10": COMPAT["TOOL_11"], "11": COMPAT["TOOL_11"]})
+            self.assertEqual(json.loads((Path(tmp) / "games.json").read_text())["games"], {})
+
+    def test_a_steam_pick_survives_the_removal_of_another_tool(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([("0", self.TOOL), ("10", COMPAT["TOOL_11"])]))
+            available = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            (Path(tmp) / "games.json").write_text(json.dumps(
+                {"version": 1, "games": {"10": {"valve": False, "dir": "GE-Proton11-7"}}}))
+            (Path(tmp) / "state.json").write_text(json.dumps({"default": self.TOOL, "tools": self.CATALOG, "auto": {}}))
+            COMPAT["register_default"](str(config), ["10"], default=self.TOOL, catalog=available, directory=tmp)
+            self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "10": COMPAT["TOOL_11"]})
 
     def test_windows_only_titles_still_follow_the_default(self):
         changes, auto = COMPAT["plan_mapping"](
@@ -2024,7 +2577,7 @@ class ProtonDefaultTest(unittest.TestCase):
                 self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "427520": self.TOOL})
                 saved = json.loads((Path(tmp) / "state.json").read_text())
                 self.assertEqual(saved["native_choices"], [])
-                self.assertEqual(saved["auto"], {"427520": self.TOOL})
+                self.assertEqual(saved["auto"], {})
             finally:
                 globals_["appinfo_platforms"] = original_platforms
 
@@ -2133,6 +2686,41 @@ class ProtonDefaultTest(unittest.TestCase):
                 "11": COMPAT["TOOL_11"],
             })
 
+    def test_per_game_proton_that_was_removed_goes_back_to_the_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([
+                ("0", self.TOOL),
+                ("10", "Experimental-DroidDeck-Proton-11-12.8-pr34-build"),
+                ("12", "GE-Proton9-1"),
+            ]))
+            (Path(tmp) / "games.json").write_text(json.dumps({
+                "version": 1,
+                "games": {
+                    "10": {"valve": False, "dir": "Experimental-DroidDeck-Proton-11-12.8-pr34-build"},
+                    "12": {"valve": False, "dir": "GE-Proton9-1"},
+                },
+            }))
+            (Path(tmp) / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "tools": self.CATALOG + [{
+                    "name": "Experimental-DroidDeck-Proton-11-12.8-pr34-build",
+                    "display": "Experimental-DroidDeck-Proton-11-12.8-pr34-build",
+                    "dir": "Experimental-DroidDeck-Proton-11-12.8-pr34-build", "valve": False,
+                }],
+            }))
+
+            COMPAT["register_default"](
+                str(config), ["10", "12"], default=self.TOOL,
+                catalog=self.CATALOG, directory=tmp,
+            )
+
+            self.assertEqual(mapping_of(config.read_text()), {
+                "0": self.TOOL,
+                "10": self.TOOL,
+                "12": "GE-Proton9-1",
+            })
+
     def test_the_last_side_to_change_wins(self):
         state = {"default": self.TOOL, "applied": 5}
         default, state = COMPAT["choose_default"]("GE-Proton11-7", state, {"seq": 5, "dir": "Proton 11.0 (ARM64)", "valve": True}, self.CATALOG, now=100)
@@ -2227,9 +2815,9 @@ class DirectAudioPrefixTest(unittest.TestCase):
         self.reg = self.compat / "pfx/user.reg"
 
     def run_setup(self, verb="waitforexitandrun", target="game.exe", cwd=None, extra=None):
-        script = COMPAT["BL_DIRECTAUDIO_SETUP"] + '\nverb=$2\nbl_directaudio "$1" "$3"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\nenv | grep "^BANNER_AUDIO_DIRECT_" | sort\n'
+        script = COMPAT["DD_DIRECTAUDIO_SETUP"] + '\nverb=$2\ndd_directaudio "$1" "$3"\necho "WINEDLLPATH=$WINEDLLPATH"\necho "WINE_AUDIO_DRIVER=${WINE_AUDIO_DRIVER:-}"\nenv | grep "^BANNER_AUDIO_DIRECT_" | sort\n'
         steam = self.compat.parent / "Steam"
-        env = dict(os.environ, BL_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat),
+        env = dict(os.environ, DD_DIRECTAUDIO=str(self.sets), STEAM_COMPAT_DATA_PATH=str(self.compat),
                    STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam), **(extra or {}))
         env.pop("WINEDLLPATH", None)
         env.pop("WINE_AUDIO_DRIVER", None)
@@ -2545,6 +3133,344 @@ class UbisoftCompositionTest(unittest.TestCase):
             self.assertEqual(list(prefix.glob(".ubisoft-*.reg")), [])
 
 
+
+def pe_image(machine):
+    head = bytearray(64)
+    head[:2] = b"MZ"
+    head[60:64] = (64).to_bytes(4, "little")
+    return bytes(head) + b"PE\0\0" + machine.to_bytes(2, "little") + b"\0" * 32
+
+
+def arm64ec_pe_image():
+    image = bytearray(0x400)
+    image[:2] = b"MZ"
+    image[60:64] = (64).to_bytes(4, "little")
+    image[64:68] = b"PE\0\0"
+    coff = 68
+    image[coff:coff + 2] = (0x8664).to_bytes(2, "little")
+    image[coff + 2:coff + 4] = (1).to_bytes(2, "little")
+    image[coff + 16:coff + 18] = (240).to_bytes(2, "little")
+    optional = coff + 20
+    image[optional:optional + 2] = (0x20B).to_bytes(2, "little")
+    image[optional + 108:optional + 112] = (16).to_bytes(4, "little")
+    directory = optional + 112 + 10 * 8
+    image[directory:directory + 4] = (0x1000).to_bytes(4, "little")
+    image[directory + 4:directory + 8] = (0xD0).to_bytes(4, "little")
+    section = optional + 240
+    image[section + 8:section + 12] = (0x200).to_bytes(4, "little")
+    image[section + 12:section + 16] = (0x1000).to_bytes(4, "little")
+    image[section + 16:section + 20] = (0x200).to_bytes(4, "little")
+    image[section + 20:section + 24] = (0x200).to_bytes(4, "little")
+    image[0x200:0x204] = (0xD0).to_bytes(4, "little")
+    image[0x2C8:0x2D0] = (0x10000000).to_bytes(8, "little")
+    return bytes(image)
+
+
+def program_image(machine, imports):
+    image = bytearray(0x400)
+    image[:2] = b"MZ"
+    image[60:64] = (64).to_bytes(4, "little")
+    image[64:68] = b"PE\0\0"
+    coff = 68
+    image[coff:coff + 2] = machine.to_bytes(2, "little")
+    image[coff + 2:coff + 4] = (1).to_bytes(2, "little")
+    image[coff + 16:coff + 18] = (240).to_bytes(2, "little")
+    optional = coff + 20
+    image[optional:optional + 2] = (0x20B).to_bytes(2, "little")
+    image[optional + 108:optional + 112] = (16).to_bytes(4, "little")
+    image[optional + 120:optional + 124] = (0x1000).to_bytes(4, "little")
+    image[optional + 124:optional + 128] = (20 * (len(imports) + 1)).to_bytes(4, "little")
+    section = optional + 240
+    image[section + 8:section + 12] = (0x200).to_bytes(4, "little")
+    image[section + 12:section + 16] = (0x1000).to_bytes(4, "little")
+    image[section + 16:section + 20] = (0x200).to_bytes(4, "little")
+    image[section + 20:section + 24] = (0x200).to_bytes(4, "little")
+    name = 20 * (len(imports) + 1)
+    for index, dll in enumerate(imports):
+        image[0x200 + index * 20 + 12:0x200 + index * 20 + 16] = (0x1000 + name).to_bytes(4, "little")
+        image[0x200 + name:0x200 + name + len(dll)] = dll.encode()
+        name += len(dll) + 1
+    return bytes(image)
+
+
+def bytes_path(folder, data):
+    path = folder / "image.exe"
+    path.write_bytes(data)
+    return path
+
+
+class ForeignSystemDllTest(unittest.TestCase):
+    def prefix(self, tmp, arm=True):
+        proton = Path(tmp) / "Proton"
+        dist = proton / "files/lib/wine"
+        if arm:
+            (dist / "aarch64-unix").mkdir(parents=True)
+        else:
+            (dist / "x86_64-unix").mkdir(parents=True)
+        for libdir, machine in (("aarch64-windows", 0xAA64), ("i386-windows", 0x14C)):
+            (dist / libdir).mkdir(parents=True)
+            for name in ("ucrtbase.dll", "rpcrt4.dll"):
+                (dist / libdir / name).write_bytes(program_image(machine, []))
+        (dist / "aarch64-windows/wineboot.exe").write_bytes(program_image(0xAA64, ["UCRTBASE.dll", "rpcrt4.dll"]))
+        windows = Path(tmp) / "compat/pfx/drive_c/windows"
+        for folder in ("system32", "syswow64"):
+            (windows / folder).mkdir(parents=True)
+        return proton / "proton", Path(tmp) / "compat", windows
+
+    def run_repair(self, compat, proton):
+        return MODULE["repair_foreign_system_dlls"](str(compat), str(proton))
+
+    def test_x64_dll_in_arm64_system32_is_replaced_by_the_builtin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            (windows / "system32/UCRTBASE.DLL").write_bytes(pe_image(0x8664))
+            (windows / "system32/rpcrt4.dll").write_bytes(pe_image(0xAA64))
+            fixed = self.run_repair(compat, proton)
+            self.assertEqual(["system32/UCRTBASE.DLL (machine 0x8664)"], fixed)
+            self.assertTrue((windows / "system32/UCRTBASE.DLL").is_symlink())
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/UCRTBASE.DLL"))
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/UCRTBASE.DLL.foreign-arch"))
+            self.assertFalse((windows / "system32/rpcrt4.dll").is_symlink())
+            self.assertEqual([], self.run_repair(compat, proton))
+
+    def test_64_bit_dll_in_syswow64_is_replaced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            (windows / "syswow64/ucrtbase.dll").write_bytes(pe_image(0xAA64))
+            self.assertEqual(["syswow64/ucrtbase.dll (machine 0xaa64)"], self.run_repair(compat, proton))
+            self.assertEqual(0x14C, MODULE["pe_machine"](windows / "syswow64/ucrtbase.dll"))
+
+    def test_matching_ec_symlinked_unknown_and_non_pe_files_are_left_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            system32 = windows / "system32"
+            (system32 / "ucrtbase.dll").write_bytes(pe_image(0xA641))
+            (system32 / "userlib.dll").write_bytes(pe_image(0x8664))
+            (system32 / "rpcrt4.dll").write_bytes(b"not a pe file")
+            self.assertEqual([], self.run_repair(compat, proton))
+            self.assertFalse((system32 / "ucrtbase.dll").is_symlink())
+            self.assertEqual(0x8664, MODULE["pe_machine"](system32 / "userlib.dll"))
+
+    def test_x64_dlls_proton_programs_do_not_import_are_kept_in_arm64_system32(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "explorer.exe").write_bytes(program_image(0xAA64, ["shell32.dll"]))
+            (builtins / "shell32.dll").write_bytes(program_image(0xAA64, ["msvcp_win.dll"]))
+            names = ("vulkan-1.dll", "msvcp140.dll", "VCRUNTIME140.dll", "concrt140.dll", "d3dcompiler_43.dll",
+                     "winhttp.dll", "msvcp_win.dll")
+            for name in names:
+                (builtins / name.lower()).write_bytes(program_image(0xAA64, []))
+                (windows / "system32" / name).write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/msvcp_win.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            for name in names[:-1]:
+                self.assertFalse((windows / "system32" / name).is_symlink())
+                self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32" / name))
+
+    def test_repaired_dll_proton_programs_do_not_import_gets_its_native_copy_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "vulkan-1.dll").write_bytes(pe_image(0xAA64))
+            system32 = windows / "system32"
+            for name in ("vulkan-1.dll", "ucrtbase.dll"):
+                (system32 / name).symlink_to(os.path.relpath(builtins / name, system32))
+                (system32 / (name + ".foreign-arch")).write_bytes(pe_image(0x8664))
+            (system32 / "vulkan-1.dll.foreign-arch.1").write_bytes(pe_image(0x8664) + b"newest")
+            restore = MODULE["restore_compatible_system_dlls"]
+            self.assertEqual(["system32/vulkan-1.dll (machine 0x8664)"], restore(str(compat), str(proton)))
+            self.assertFalse((system32 / "vulkan-1.dll").is_symlink())
+            self.assertTrue((system32 / "vulkan-1.dll").read_bytes().endswith(b"newest"))
+            self.assertFalse((system32 / "vulkan-1.dll.foreign-arch.1").exists())
+            self.assertTrue((system32 / "ucrtbase.dll").is_symlink())
+            self.assertEqual([], restore(str(compat), str(proton)))
+            self.assertEqual([], self.run_repair(compat, proton))
+
+    def test_prefix_backup_directory_is_listed_once_per_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            system32 = windows / "system32"
+            for index in range(12):
+                name = "native_%02d.dll" % index
+                (builtins / name).write_bytes(pe_image(0xAA64))
+                (system32 / name).symlink_to(os.path.relpath(builtins / name, system32))
+                (system32 / (name + ".foreign-arch")).write_bytes(pe_image(0x8664))
+            (system32 / "ucrtbase.dll").write_bytes(pe_image(0x8664))
+            original_listdir = os.listdir
+            visited = []
+
+            def counted_listdir(folder):
+                if Path(folder) == system32:
+                    visited.append(folder)
+                return original_listdir(folder)
+
+            with mock.patch("os.listdir", side_effect=counted_listdir):
+                restored = MODULE["restore_compatible_system_dlls"](str(compat), str(proton))
+                fixed = self.run_repair(compat, proton)
+            self.assertEqual(12, len(restored))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], fixed)
+            # One system32 listing for restore and one for repair, regardless
+            # of the number of DLLs and backup files in the prefix.
+            self.assertEqual(2, len(visited))
+
+    def test_restore_takes_the_highest_backup_serial_across_gaps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "vulkan-1.dll").write_bytes(pe_image(0xAA64))
+            system32 = windows / "system32"
+            (system32 / "vulkan-1.dll").symlink_to(os.path.relpath(builtins / "vulkan-1.dll", system32))
+            (system32 / "vulkan-1.dll.foreign-arch.2").write_bytes(pe_image(0x8664) + b"two")
+            (system32 / "vulkan-1.dll.foreign-arch.10").write_bytes(pe_image(0x8664) + b"ten")
+            self.assertEqual(["system32/vulkan-1.dll (machine 0x8664)"],
+                             MODULE["restore_compatible_system_dlls"](str(compat), str(proton)))
+            self.assertTrue((system32 / "vulkan-1.dll").read_bytes().endswith(b"ten"))
+
+    def test_unreadable_proton_program_keeps_the_conservative_rule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "broken.exe").mkdir()
+            (builtins / "vulkan-1.dll").write_bytes(pe_image(0xAA64))
+            system32 = windows / "system32"
+            (system32 / "concrt140.dll").write_bytes(pe_image(0x8664))
+            (builtins / "concrt140.dll").write_bytes(pe_image(0xAA64))
+            (system32 / "vulkan-1.dll").symlink_to(os.path.relpath(builtins / "vulkan-1.dll", system32))
+            (system32 / "vulkan-1.dll.foreign-arch").write_bytes(pe_image(0x8664))
+            self.assertEqual([], MODULE["restore_compatible_system_dlls"](str(compat), str(proton)))
+            self.assertTrue((system32 / "vulkan-1.dll").is_symlink())
+            self.assertEqual(["system32/concrt140.dll (machine 0x8664)"], self.run_repair(compat, proton))
+
+    def test_new_backup_goes_above_the_highest_existing_serial(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            system32 = windows / "system32"
+            (system32 / "ucrtbase.dll").write_bytes(pe_image(0x8664) + b"newest")
+            (system32 / "ucrtbase.dll.foreign-arch").write_bytes(pe_image(0x8664))
+            (system32 / "ucrtbase.dll.foreign-arch.2").write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertTrue((system32 / "ucrtbase.dll.foreign-arch.3").read_bytes().endswith(b"newest"))
+            self.assertFalse((system32 / "ucrtbase.dll.foreign-arch.1").exists())
+
+    def test_truncated_import_table_keeps_the_conservative_rule(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "cut.exe").write_bytes(program_image(0xAA64, ["concrt140.dll"])[:0x20A])
+            self.assertIsNone(MODULE["PE"]["pe_imports"](builtins / "cut.exe"))
+            self.assertIsNone(MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), program_image(0xAA64, ["a.dll"])[:200])))
+            self.assertEqual(set(), MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), program_image(0xAA64, []))))
+            moved = bytearray(program_image(0xAA64, ["concrt140.dll"]))
+            moved[208:212] = (0x3000).to_bytes(4, "little")
+            self.assertIsNone(MODULE["PE"]["pe_imports"](bytes_path(Path(tmp), moved)))
+            (builtins / "concrt140.dll").write_bytes(pe_image(0xAA64))
+            (windows / "system32/concrt140.dll").write_bytes(pe_image(0x8664))
+            self.assertEqual(["system32/concrt140.dll (machine 0x8664)"], self.run_repair(compat, proton))
+
+    def test_restore_leaves_other_links_and_x64_proton_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            builtins = proton.parent / "files/lib/wine/aarch64-windows"
+            (builtins / "vulkan-1.dll").write_bytes(pe_image(0xAA64))
+            other = Path(tmp) / "other-vulkan-1.dll"
+            other.write_bytes(pe_image(0xAA64))
+            system32 = windows / "system32"
+            (system32 / "vulkan-1.dll").symlink_to(other)
+            (system32 / "vulkan-1.dll.foreign-arch").write_bytes(pe_image(0x8664))
+            (system32 / "rpcrt4.dll").symlink_to(os.path.relpath(builtins / "rpcrt4.dll", system32))
+            (system32 / "rpcrt4.dll.foreign-arch").write_bytes(pe_image(0x14C))
+            self.assertEqual([], MODULE["restore_compatible_system_dlls"](str(compat), str(proton)))
+            self.assertTrue((system32 / "vulkan-1.dll").is_symlink())
+            self.assertTrue((system32 / "rpcrt4.dll").is_symlink())
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp, arm=False)
+            dist = proton.parent / "files/lib/wine/x86_64-windows"
+            dist.mkdir(parents=True)
+            (dist / "vulkan-1.dll").write_bytes(pe_image(0x8664))
+            system32 = windows / "system32"
+            (system32 / "vulkan-1.dll").symlink_to(os.path.relpath(dist / "vulkan-1.dll", system32))
+            (system32 / "vulkan-1.dll.foreign-arch").write_bytes(pe_image(0xAA64))
+            self.assertEqual([], MODULE["restore_compatible_system_dlls"](str(compat), str(proton)))
+            self.assertTrue((system32 / "vulkan-1.dll").is_symlink())
+
+    def test_final_arm64ec_image_is_not_repaired_as_a_foreign_x64_dll(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(arm64ec_pe_image())
+            self.assertEqual(0x8664, MODULE["pe_machine"](dll))
+            self.assertTrue(MODULE["PE"]["machine_compatible"](dll, frozenset((0xAA64, 0xA641))))
+            self.assertFalse(MODULE["PE"]["machine_compatible"](dll, frozenset((0x8664,))))
+            self.assertEqual([], self.run_repair(compat, proton))
+            self.assertFalse(dll.is_symlink())
+
+    def test_component_owned_and_native_first_foreign_dlls_are_still_replaced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
+            (windows / "system32/rpcrt4.dll").write_bytes(pe_image(0x8664))
+            state = {"files": {"drive_c/windows/system32/ucrtbase.dll": {}}}
+            (compat / ".droiddeck-wincomponents.json").write_text(json.dumps(state))
+            reg = 'WINE REGISTRY Version 2\n\n[Software\\\\Wine\\\\DllOverrides] 1\n"RPCRT4.DLL"="native,builtin"\n'
+            (compat / "pfx/user.reg").write_text(reg)
+            env = {"WINEDLLOVERRIDES": "ucrtbase=n,b"}
+            self.assertEqual(["system32/rpcrt4.dll (machine 0x8664)", "system32/ucrtbase.dll (machine 0x8664)"],
+                             sorted(MODULE["repair_foreign_system_dlls"](str(compat), str(proton), env)))
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
+            self.assertEqual(0xAA64, MODULE["pe_machine"](windows / "system32/rpcrt4.dll"))
+
+    def test_newest_foreign_copy_is_the_only_backup_and_failed_final_replace_restores_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(pe_image(0x8664))
+            backup = windows / "system32/ucrtbase.dll.foreign-arch"
+            backup.write_bytes(pe_image(0x1234))
+            self.assertEqual(["system32/ucrtbase.dll (machine 0x8664)"], self.run_repair(compat, proton))
+            self.assertEqual(0x1234, MODULE["pe_machine"](backup))
+            self.assertEqual(0x8664, MODULE["pe_machine"](backup.with_name(backup.name + ".1")))
+            self.assertEqual(0xAA64, MODULE["pe_machine"](dll))
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(pe_image(0x8664))
+            backup = windows / "system32/ucrtbase.dll.foreign-arch"
+            backup.write_bytes(pe_image(0x1234))
+            real = os.replace
+            def flaky_with_backup(src, dst):
+                if str(src).endswith(".dd-new"):
+                    raise OSError("boom")
+                return real(src, dst)
+            with mock.patch("os.replace", side_effect=flaky_with_backup):
+                self.assertEqual([], self.run_repair(compat, proton))
+            self.assertEqual(0x8664, MODULE["pe_machine"](dll))
+            self.assertFalse((windows / "system32/ucrtbase.dll.foreign-arch.1").exists())
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp)
+            dll = windows / "system32/ucrtbase.dll"
+            dll.write_bytes(pe_image(0x8664))
+            real = os.replace
+            def flaky(src, dst):
+                if str(src).endswith(".dd-new"):
+                    raise OSError("boom")
+                return real(src, dst)
+            with mock.patch("os.replace", side_effect=flaky):
+                self.assertEqual([], self.run_repair(compat, proton))
+            self.assertEqual(0x8664, MODULE["pe_machine"](dll))
+            self.assertFalse(dll.is_symlink())
+            self.assertFalse((windows / "system32/ucrtbase.dll.foreign-arch").exists())
+            self.assertFalse((windows / "system32/ucrtbase.dll.dd-new").is_symlink())
+
+    def test_non_arm64_proton_and_missing_prefix_are_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton, compat, windows = self.prefix(tmp, arm=False)
+            (windows / "system32/ucrtbase.dll").write_bytes(pe_image(0x8664))
+            self.assertEqual([], self.run_repair(compat, proton))
+            self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
+            self.assertEqual([], self.run_repair(Path(tmp) / "missing", proton))
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -2562,11 +3488,11 @@ class ForceSsbsTest(unittest.TestCase):
             old = g["SSBS_LIB"]
             g["SSBS_LIB"] = str(lib)
             try:
-                env = {"LD_PRELOAD": "/usr/local/lib/libblsession.so"}
+                env = {"LD_PRELOAD": "/usr/local/lib/libddsession.so"}
                 self.assertEqual(MODULE["force_ssbs"]([str(arm / "proton"), "waitforexitandrun"], env), env)
                 on = dict(env, DROIDDECK_FORCE_SSBS="1")
                 got = MODULE["force_ssbs"]([str(arm / "proton"), "waitforexitandrun"], on)
-                self.assertEqual(got["LD_PRELOAD"], "/usr/local/lib/libblsession.so:" + str(lib))
+                self.assertEqual(got["LD_PRELOAD"], "/usr/local/lib/libddsession.so:" + str(lib))
                 self.assertEqual(MODULE["force_ssbs"]([str(arm / "proton")], got)["LD_PRELOAD"], got["LD_PRELOAD"])
                 self.assertEqual(MODULE["force_ssbs"]([str(x86 / "proton")], on), on)
             finally:

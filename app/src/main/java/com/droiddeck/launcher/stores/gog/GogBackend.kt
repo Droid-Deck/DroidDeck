@@ -64,6 +64,8 @@ object GogBackend : StoreBackend {
         }, "gog-sync").start()
     }
 
+    override fun search(context: Context, query: String): List<CatalogItem> = GogStoreCatalog.search(query)
+
     override fun loadShelves(context: Context, force: Boolean) {
         val app = context.applicationContext
         GogStoreCatalog.cachedFeatured(app)?.let { StoresState.post { StoresState.shelves[store] = it } }
