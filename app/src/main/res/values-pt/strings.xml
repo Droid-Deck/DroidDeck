@@ -22,7 +22,6 @@
         <item>Adicione bibliotecas da Steam de um cartão SD, pen drive USB ou SSD, e o DroidDeck mantém os jogos juntos na sua Biblioteca.</item>
         <item>Lojas permite entrar no Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io e Game Jolt, e depois instalar e atualizar os jogos deles pelo DroidDeck.</item>
         <item>Componentes como FEX, DXVK e VKD3D-Proton se atualizam sozinhos, e o Proton Experimental ARM64 é o padrão, ou o Proton 11.0 ARM64 quando essa versão estiver instalada.</item>
-        <item>Comprimir a Steam durante o jogo libera RAM em dispositivos com pouca memória.</item>
         <item>Deslize da borda direita para abrir o menu da sessão: modo touchpad, Teclado de PC, Modo de baixa latência, perfil do jogo e mais.</item>
         <item>Jogo rodando devagar? Limite a taxa de quadros no Acesso rápido e depois teste outra versão do Proton ou outra predefinição do FEX nos componentes do jogo.</item>
         <item>Áudio do jogo com chiado ou sem som? Experimente a opção DirectAudio para jogos nas configurações da Steam, em Áudio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Este programa é feito para PCs %1$s e roda pelo FEX, que ainda não está configurado. Abra a Steam uma vez com a sessão iniciada: o DroidDeck faz com que ela baixe o FEX e o Steam Linux Runtime necessários, e então isto abre.</string>
     <string name="session_proot_missing">Não foi possível baixar o proot do DroidDeck. Verifique a conexão e tente novamente. A sessão não foi iniciada, porque o proot alternativo é lento demais para jogar.</string>
     <string name="session_powervr_missing">Não foi possível baixar o ambiente gráfico PowerVR. Verifique a conexão e tente novamente.</string>
+    <string name="session_graphics_runtime_failed">Não foi possível preparar o ambiente gráfico, então a sessão não foi iniciada.</string>
+    <string name="session_game_environment_failed">Não foi possível configurar o ambiente do jogo, então a sessão não foi iniciada.</string>
     <string name="session_directaudio_missing">Não foi possível baixar o DirectAudio, então o áudio dos jogos usa o caminho mais lento nesta sessão.</string>
     <string name="session_end_program">Este programa</string>
     <string name="session_end_present_fault">A sessão não conseguiu desenhar na tela: %1$s. Esta tela mostra o motivo no lugar de uma tela preta; os logs da sessão trazem os detalhes.</string>
@@ -626,20 +627,8 @@
     <string name="perf_gsrealtime">gamescope: fila de GPU em tempo real</string>
     <string name="perf_gsrealtime_hint">Prioriza o trabalho de GPU do compositor. Pode suavizar o ritmo dos quadros, com algum custo para os jogos.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memória</string>
     <string name="perf_cap_off">Desativado</string>
-    <string name="perf_cap_auto">Padrão do driver</string>
-    <string name="perf_zram_client">Comprimir a Steam durante o jogo</string>
-    <string name="perf_zram_idle">Comprimir memória inativa do jogo</string>
-    <string name="perf_zram_idle_hint">Comprime a memória inativa do jogo quando há pouca RAM. Desative se os jogos travarem por alguns segundos a cada meio minuto, aproximadamente. Vale a partir do próximo início da sessão.</string>
-    <string name="perf_zram_client_hint">20 s após o início de um jogo, o cliente Steam é comprimido na zRAM para deixar mais memória ao jogo, e é lido de volta quando o jogo fecha. Desative se a sessão fechar logo após os jogos iniciarem. Um limite de RAM acima ainda comprime a Steam quando a sessão o ultrapassa.</string>
-    <string name="perf_ram_cap">Limite de RAM</string>
-    <string name="perf_ram_cap_hint">Vale enquanto o cliente Steam está em execução, no modo Steam ou pela área de trabalho. Quando a sessão usa mais que isso, a Steam e depois os outros processos compatíveis da sessão são comprimidos na zRAM. Um limite flexível: nada é fechado, mas os jogos podem travar enquanto as páginas voltam.</string>
-    <string name="perf_ram_cap_unavailable">Requer swap em zRAM, que este dispositivo não tem.</string>
-    <string name="perf_vram_cap">Limite de VRAM</string>
-    <string name="perf_vram_cap_hint">Informa este orçamento de memória de vídeo aos jogos Direct3D 9 a 12 para reduzir o uso de memória. Os jogos podem excedê-lo; isso não adiciona paginação de GPU nem garante proteção contra falhas por falta de memória. Entra em vigor na próxima sessão.</string>
     <string name="perf_gpuclock">Manter a GPU no clock máximo</string>
-    <string name="perf_gpuclock_hint">Só em Adreno. Menos engasgos, mais gasto de bateria e mais calor.</string>
     <string name="perf_fixes">Correções da sessão</string>
     <string name="perf_sysmem">Turnip: renderização sysmem</string>
     <string name="perf_sysmem_hint">Aplica-se ao cliente Steam e aos jogos. Obrigatório nas Adreno 710/720/722.</string>
@@ -1324,6 +1313,7 @@
     <string name="gate_enter_manually">Digitar endereço manualmente</string>
     <string name="gate_from_computer">De um computador com ADB:</string>
     <string name="gate_copy_command">Copiar comando</string>
+    <string name="gate_sidequest_steps">Conecte o headset a um computador e abra o SideQuest. Escolha “Run ADB Command”, depois “Custom Command”, digite o comando mostrado abaixo e selecione “Run Command”.</string>
     <string name="gate_choose_display">Escolha em qual tela abrir as Configurações do Android.</string>
     <string name="gate_main_screen">Tela principal</string>
     <string name="wadb_finding_port">Pareado. Procurando a porta da Depuração por Wi-Fi…</string>
@@ -1579,6 +1569,8 @@
     <string name="pip_unavailable">O Android não conseguiu abrir o picture-in-picture.</string>
     <string name="game_more">Mais</string>
     <string name="game_edit_art">Editar artes</string>
+    <string name="game_unhide">Remover dos ocultos</string>
+    <string name="game_hide_failed">Não foi possível sincronizar com o Steam. Feche o Steam e tente novamente.</string>
     <string name="stores_in_steam_label">Na Steam</string>
     <string name="game_shortcut">Atalho</string>
     <string name="game_shortcut_add">Adicionar à tela inicial</string>
@@ -1857,6 +1849,20 @@
     <string name="theme_color_saturation">Saturação</string>
     <string name="theme_color_brightness">Brilho</string>
     <string name="theme_color_hex">Cor hexadecimal</string>
+    <string name="theme_custom">Personalizado</string>
+    <string name="theme_custom_detail">Escolha individualmente cada cor da interface.</string>
+    <string name="theme_custom_background">Fundo</string>
+    <string name="theme_custom_surface">Painéis</string>
+    <string name="theme_custom_surface_variant">Painéis elevados</string>
+    <string name="theme_custom_line">Divisórias</string>
+    <string name="theme_custom_line2">Bordas</string>
+    <string name="theme_custom_on_background">Texto principal</string>
+    <string name="theme_custom_on_surface_variant">Texto secundário</string>
+    <string name="theme_custom_primary">Botões e destaque principal</string>
+    <string name="theme_custom_on_primary">Texto dos botões</string>
+    <string name="theme_custom_signal">Destaques e indicadores</string>
+    <string name="theme_custom_good">Sucesso</string>
+    <string name="theme_custom_error">Erro</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2333,6 +2339,17 @@
     <string name="pextra_checksum_mismatch">A soma de verificação não confere; o download foi excluído</string>
     <string name="pextra_session_started">Uma sessão foi iniciada durante o download; pare-a antes de instalar ferramentas de compatibilidade</string>
     <string name="pextra_installing">Instalando %1$s</string>
+    <string name="xproton_title">Builds experimentais</string>
+    <string name="xproton_install_file">Instalar do arquivo</string>
+    <string name="xproton_archive_unsafe">O arquivo contém um link ou caminho inseguro</string>
+    <string name="xproton_archive_invalid">Arquivo sem suporte ou inválido</string>
+    <string name="xproton_no_space">Não há espaço livre suficiente para este build do Proton</string>
+    <string name="xproton_unpacking">Desempacotando o Proton (alguns minutos)</string>
+    <string name="xproton_untar_failed">Falha ao desempacotar (tar %1$d)</string>
+    <string name="xproton_no_tree">O arquivo não contém nenhum build do Proton</string>
+    <string name="xproton_place_failed">Não foi possível colocar o build do Proton</string>
+    <string name="xproton_remove_failed">Não foi possível remover totalmente o %1$s</string>
+    <string name="xproton_installed">Proton experimental instalado. Escolha-o em Steam → Propriedades → Compatibilidade.</string>
     <string name="pextra_install_failed">Falha na instalação do %1$s (código de saída %2$d)</string>
     <string name="pextra_could_not_install">Não foi possível instalar o %1$s</string>
     <string name="esync_fetching">Buscando o pacote droiddeck-esync</string>
@@ -3384,10 +3401,19 @@
     <string name="storage_shared_prefix">Prefixo compartilhado da Steam</string>
     <string name="storage_shared_prefix_detail">A Steam executa aqui seus próprios auxiliares do Windows</string>
     <string name="storage_reset_shared_confirm">Apaga o prefixo (%1$s). A Steam cria um novo na próxima vez que precisar.</string>
+    <string name="storage_remove_launcher_confirm">Apaga o prefixo do Wine e o cache de shaders deste app de loja (%1$s), com o login e os saves guardados só ali. Os jogos que rodam nele recebem um prefixo novo, e talvez seja preciso configurar o app de novo. Os saves na nuvem continuam na sua conta.</string>
+    <string name="storage_system_clearable">Dá para liberar %1$s</string>
+    <string name="storage_item_system_caches">Caches do Linux e da Steam</string>
+    <string name="storage_item_system_caches_detail">Arquivos temporários antigos, pacotes baixados e o cache web da Steam</string>
+    <string name="storage_cache_temp">Arquivos temporários antigos</string>
+    <string name="storage_cache_packages">Pacotes baixados</string>
+    <string name="storage_cache_steam_web">Cache web da Steam</string>
+    <string name="storage_cache_steam_corrupt">Downloads danificados da Steam</string>
+    <string name="storage_cache_detail">Recriados quando necessário</string>
+    <string name="storage_clear">Limpar</string>
     <string name="storage_launcher_prefix">Um app de loja e os jogos que rodam com ele</string>
     <string name="storage_launcher_used_by">Usado por %1$s</string>
     <string name="storage_shortcut_app">Jogo não Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Não corresponde a nenhum jogo, então é mantido</string>
     <string name="storage_remove_selected">Remover seleção · %1$s</string>
     <string name="storage_uninstall_selected">Desinstalar seleção · %1$s</string>
     <string name="storage_bulk_prefixes">Prefixos do Wine</string>

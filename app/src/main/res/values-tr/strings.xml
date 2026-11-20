@@ -22,7 +22,6 @@
         <item>SD karttan, USB sürücüden veya SSD\'den Steam kütüphaneleri ekle; DroidDeck oyunları Kütüphane\'nde bir arada tutar.</item>
         <item>Mağazalar, Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ve Game Jolt\'ta oturum açmanı, ardından oyunlarını DroidDeck\'ten yüklemeni ve güncellemeni sağlar.</item>
         <item>FEX, DXVK ve VKD3D-Proton gibi bileşenler kendini günceller; varsayılan Proton Experimental ARM64\'tür, Proton 11.0 ARM64 kurulduktan sonra ise o olur.</item>
-        <item>Oyun çalışırken Steam\'i sıkıştır, belleği az olan cihazlarda RAM boşaltır.</item>
         <item>Oturum menüsünü açmak için sağ kenardan içeri kaydır: dokunmatik yüzey modu, PC klavyesi, düşük gecikme, oyun profili ve daha fazlası.</item>
         <item>Oyun yavaş mı çalışıyor? Hızlı erişim\'de kare hızını sınırla, sonra oyunun bileşenlerinde başka bir Proton sürümü veya FEX ön ayarı dene.</item>
         <item>Oyun sesinde cızırtı var ya da ses yok mu? Steam ayarlarında Ses altındaki Oyunlar için DirectAudio düğmesini dene.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Bu program %1$s PC\'ler için derlenmiş ve FEX ile çalışır, ancak FEX henüz kurulmadı. Oturum açmışken Steam\'i bir kez açın: DroidDeck, FEX\'i ve gereken Steam Linux Runtime\'ı indirtir, ardından bu program açılır.</string>
     <string name="session_proot_missing">DroidDeck\'in proot\'u indirilemedi. Bağlantıyı kontrol edip tekrar deneyin. Yedek proot oynamak için fazla yavaş olduğundan oturum başlatılmadı.</string>
     <string name="session_powervr_missing">PowerVR grafik ortamı indirilemedi. Bağlantıyı kontrol edip tekrar deneyin.</string>
+    <string name="session_graphics_runtime_failed">Grafik ortamı hazırlanamadı, bu yüzden oturum başlatılmadı.</string>
+    <string name="session_game_environment_failed">Oyun ortamı ayarlanamadı, bu yüzden oturum başlatılmadı.</string>
     <string name="session_directaudio_missing">DirectAudio indirilemedi, bu yüzden oyun sesi bu oturumda daha yavaş yolu kullanıyor.</string>
     <string name="session_end_program">Bu program</string>
     <string name="session_end_present_fault">Oturum ekrana görüntü çizemedi: %1$s. Bu ekran, siyah bir ekran yerine nedenini gösteriyor; ayrıntılar oturum günlüklerinde.</string>
@@ -624,20 +625,8 @@
     <string name="perf_gsrealtime">gamescope: gerçek zamanlı GPU kuyruğu</string>
     <string name="perf_gsrealtime_hint">Bileştiricinin GPU işine öncelik verir. Oyunlardan biraz feda ederek kare zamanlamasını yumuşatabilir.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Bellek</string>
     <string name="perf_cap_off">Kapalı</string>
-    <string name="perf_cap_auto">Sürücü varsayılanı</string>
-    <string name="perf_zram_client">Oyun çalışırken Steam\'i sıkıştır</string>
-    <string name="perf_zram_idle">Oyunun boşta belleğini sıkıştır</string>
-    <string name="perf_zram_idle_hint">RAM azaldığında oyunun boşta belleğini sıkıştırır. Oyunlar yaklaşık her yarım dakikada birkaç saniye donuyorsa kapatın. Oturum bir sonraki başlatıldığında geçerli olur.</string>
-    <string name="perf_zram_client_hint">Oyun başladıktan 20 sn sonra oyuna daha fazla bellek kalması için Steam istemcisi zRAM\'e sıkıştırılır ve oyun kapanınca geri okunur. Oyunlar başladıktan kısa süre sonra oturum kapanıyorsa bunu kapatın. Yukarıdaki RAM sınırı, oturum onu aştığında Steam\'i yine sıkıştırır.</string>
-    <string name="perf_ram_cap">RAM sınırı</string>
-    <string name="perf_ram_cap_hint">Steam istemcisi Steam oturumunda veya masaüstünden çalışırken uygulanır. Oturum bundan fazlasını kullandığında önce Steam, ardından oturumun desteklenen diğer işlemleri zRAM\'e sıkıştırılır. Yumuşak bir sınırdır: hiçbir şey kapatılmaz, ancak sayfalar geri yüklenirken oyunlar takılabilir.</string>
-    <string name="perf_ram_cap_unavailable">Bu cihazda olmayan zRAM takası gerekir.</string>
-    <string name="perf_vram_cap">VRAM sınırı</string>
-    <string name="perf_vram_cap_hint">Bellek kullanımını azaltmak için Direct3D 9–12 oyunlarına bu video belleği bütçesini bildirir. Oyunlar bütçeyi aşabilir; GPU sayfalaması eklemez veya bellek yetersizliğinden kaynaklanan çökmeleri önlemeyi garanti etmez. Sonraki oturumda geçerli olur.</string>
     <string name="perf_gpuclock">GPU\'yu en yüksek saat hızında tut</string>
-    <string name="perf_gpuclock_hint">Yalnızca Adreno. Daha az takılma, daha fazla pil tüketimi ve ısınma.</string>
     <string name="perf_fixes">Oturum düzeltmeleri</string>
     <string name="perf_sysmem">Turnip: sysmem işleme</string>
     <string name="perf_sysmem_hint">Steam istemcisi ve oyunlar için geçerlidir. Adreno 710/720/722\'de gereklidir.</string>
@@ -1310,6 +1299,7 @@
     <string name="gate_enter_manually">Adresi elle girin</string>
     <string name="gate_from_computer">ADB\'li bir bilgisayardan:</string>
     <string name="gate_copy_command">Komutu kopyala</string>
+    <string name="gate_sidequest_steps">Başlığı bir bilgisayara bağlayın ve SideQuest’i açın. “Run ADB Command”, ardından “Custom Command” seçin, aşağıda gösterilen komutu yazın ve “Run Command” seçin.</string>
     <string name="gate_choose_display">Android Ayarları\'nın hangi ekranda açılacağını seçin.</string>
     <string name="gate_main_screen">Ana ekran</string>
     <string name="wadb_finding_port">Eşleşti. Kablosuz hata ayıklama bağlantı noktası bulunuyor…</string>
@@ -1564,6 +1554,8 @@
     <string name="pip_unavailable">Android, pencere içinde pencereyi açamadı.</string>
     <string name="game_more">Diğer</string>
     <string name="game_edit_art">Görseli düzenle</string>
+    <string name="game_unhide">Gizlilikten çıkar</string>
+    <string name="game_hide_failed">Steam ile senkronize edilemedi. Steam\'i kapatıp tekrar deneyin.</string>
     <string name="stores_in_steam_label">Steam\'de</string>
     <string name="game_shortcut">Kısayol</string>
     <string name="game_shortcut_add">Ana ekrana ekle</string>
@@ -2300,6 +2292,17 @@
     <string name="pextra_checksum_mismatch">Sağlama toplamı uyuşmuyor; indirme silindi</string>
     <string name="pextra_session_started">İndirme sırasında bir oturum başladı; uyumluluk araçlarını yüklemeden önce durdurun</string>
     <string name="pextra_installing">%1$s yükleniyor</string>
+    <string name="xproton_title">Deneysel sürümler</string>
+    <string name="xproton_install_file">Dosyadan yükle</string>
+    <string name="xproton_archive_unsafe">Arşiv güvenli olmayan bir bağlantı veya yol içeriyor</string>
+    <string name="xproton_archive_invalid">Desteklenmeyen veya geçersiz arşiv</string>
+    <string name="xproton_no_space">Bu Proton sürümü için yeterli boş alan yok</string>
+    <string name="xproton_unpacking">Proton paketten çıkarılıyor (birkaç dakika)</string>
+    <string name="xproton_untar_failed">Paketten çıkarma başarısız oldu (tar %1$d)</string>
+    <string name="xproton_no_tree">Arşivde Proton sürümü yok</string>
+    <string name="xproton_place_failed">Proton sürümü yerleştirilemedi</string>
+    <string name="xproton_remove_failed">%1$s tamamen kaldırılamadı</string>
+    <string name="xproton_installed">Deneysel Proton yüklendi. Steam → Özellikler → Uyumluluk bölümünden seçin.</string>
     <string name="pextra_install_failed">%1$s yüklemesi başarısız oldu (çıkış %2$d)</string>
     <string name="pextra_could_not_install">%1$s yüklenemedi</string>
     <string name="esync_fetching">droiddeck-esync paketi getiriliyor</string>
@@ -3340,10 +3343,19 @@
     <string name="storage_shared_prefix">Steam\'in ortak öneki</string>
     <string name="storage_shared_prefix_detail">Steam kendi Windows yardımcılarını burada çalıştırır</string>
     <string name="storage_reset_shared_confirm">Siler (%1$s). Steam bir dahaki ihtiyacında yenisini oluşturur.</string>
+    <string name="storage_remove_launcher_confirm">Bu mağaza uygulamasının Wine önekini ve gölgelendirici önbelleğini (%1$s), oturum açma bilgisi ve yalnızca orada duran kayıtlarla birlikte siler. İçinde çalışan oyunlar yeni bir önek alır ve uygulamayı yeniden kurmanız gerekebilir. Bulut kayıtları hesabınızda kalır.</string>
+    <string name="storage_system_clearable">%1$s temizlenebilir</string>
+    <string name="storage_item_system_caches">Linux ve Steam önbellekleri</string>
+    <string name="storage_item_system_caches_detail">Eski geçici dosyalar, indirilen paketler ve Steam’in web önbelleği</string>
+    <string name="storage_cache_temp">Eski geçici dosyalar</string>
+    <string name="storage_cache_packages">İndirilen paketler</string>
+    <string name="storage_cache_steam_web">Steam web önbelleği</string>
+    <string name="storage_cache_steam_corrupt">Hasarlı Steam indirmeleri</string>
+    <string name="storage_cache_detail">Gerektiğinde yeniden oluşturulur</string>
+    <string name="storage_clear">Temizle</string>
     <string name="storage_launcher_prefix">Bir mağaza uygulaması ve onunla çalışan oyunlar</string>
     <string name="storage_launcher_used_by">Kullanan: %1$s</string>
     <string name="storage_shortcut_app">Steam dışı oyun %1$s</string>
-    <string name="storage_unknown_prefix_detail">Bir oyunla eşleşmedi, bu yüzden korunuyor</string>
     <string name="storage_remove_selected">Seçilenleri kaldır · %1$s</string>
     <string name="storage_uninstall_selected">Seçilenlerin yüklemesini kaldır · %1$s</string>
     <string name="storage_bulk_prefixes">Wine önekleri</string>
@@ -4088,4 +4100,18 @@
     <string name="display_scaling_integer">Tam sayı</string>
     <string name="display_scaling_fit">Sığdır</string>
     <string name="drawer_antialiasing">Kenar yumuşatma</string>
+    <string name="theme_custom">Özel</string>
+    <string name="theme_custom_detail">Arayüzdeki her rengi ayrı ayrı seçin.</string>
+    <string name="theme_custom_background">Arka plan</string>
+    <string name="theme_custom_surface">Paneller</string>
+    <string name="theme_custom_surface_variant">Yükseltilmiş paneller</string>
+    <string name="theme_custom_line">Ayırıcılar</string>
+    <string name="theme_custom_line2">Kenarlıklar</string>
+    <string name="theme_custom_on_background">Ana metin</string>
+    <string name="theme_custom_on_surface_variant">İkincil metin</string>
+    <string name="theme_custom_primary">Düğmeler ve ana vurgu</string>
+    <string name="theme_custom_on_primary">Düğme metni</string>
+    <string name="theme_custom_signal">Vurgular</string>
+    <string name="theme_custom_good">Başarılı</string>
+    <string name="theme_custom_error">Hata</string>
 </resources>

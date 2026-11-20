@@ -411,19 +411,19 @@ static int is_link_query(unsigned long request) {
         || request == SIOCGIFBRDADDR;
 }
 
-void bl_kgsl_chip_id_fixup(unsigned long request, void *arg, int rc);
+void dd_kgsl_chip_id_fixup(unsigned long request, void *arg, int rc);
 #include "../../quest/kgsl_compat.h"
-int bl_kgsl_poll(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
+int dd_kgsl_poll(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                  void *arg, int *rc) __attribute__((visibility("hidden")));
-void bl_kgsl_track(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
+void dd_kgsl_track(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                    void *arg, int *rc) __attribute__((visibility("hidden")));
-int bl_ntsync_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
-int bl_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
-int bl_venc_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
-int bl_vdec_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
-int bl_winebus_rumble_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
+int dd_ntsync_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
+int dd_drm_gem_close(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
+int dd_venc_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
+int dd_vdec_ioctl(int fd, unsigned long request, void *arg, int *rc) __attribute__((visibility("hidden")));
+int dd_winebus_rumble_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                             void *arg, void *caller, int *rc) __attribute__((visibility("hidden")));
-int bl_writewatch_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request, void *arg,
+int dd_writewatch_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request, void *arg,
                         int *rc) __attribute__((visibility("hidden")));
 
 int ioctl(int fd, unsigned long request, ...) {
@@ -435,16 +435,16 @@ int ioctl(int fd, unsigned long request, ...) {
     va_end(ap);
 
     int rc;
-    if (bl_ntsync_ioctl(fd, request, arg, &rc)) return rc;
-    if (bl_venc_ioctl(fd, request, arg, &rc)) return rc;
-    if (bl_vdec_ioctl(fd, request, arg, &rc)) return rc;
-    if (bl_drm_gem_close(fd, request, arg, &rc)) return rc;
+    if (dd_ntsync_ioctl(fd, request, arg, &rc)) return rc;
+    if (dd_venc_ioctl(fd, request, arg, &rc)) return rc;
+    if (dd_vdec_ioctl(fd, request, arg, &rc)) return rc;
+    if (dd_drm_gem_close(fd, request, arg, &rc)) return rc;
     if (real == NULL) real = (ioctl_fn) dlsym(RTLD_NEXT, "ioctl");
-    if (bl_winebus_rumble_ioctl(real, fd, request, arg, __builtin_return_address(0), &rc)) return rc;
-    if (bl_writewatch_ioctl(real, fd, request, arg, &rc)) return rc;
-    if (!bl_kgsl_poll(real, fd, request, arg, &rc)) rc = quest_kgsl_ioctl(real, fd, request, arg);
-    bl_kgsl_track(real, fd, request, arg, &rc);
-    bl_kgsl_chip_id_fixup(request, arg, rc);
+    if (dd_winebus_rumble_ioctl(real, fd, request, arg, __builtin_return_address(0), &rc)) return rc;
+    if (dd_writewatch_ioctl(real, fd, request, arg, &rc)) return rc;
+    if (!dd_kgsl_poll(real, fd, request, arg, &rc)) rc = quest_kgsl_ioctl(real, fd, request, arg);
+    dd_kgsl_track(real, fd, request, arg, &rc);
+    dd_kgsl_chip_id_fixup(request, arg, rc);
     if (arg == NULL || !is_link_query(request)) return rc;
     int saved = errno;
     if (answer_ifreq(request, (struct ifreq *) arg, rc)) return 0;
@@ -595,19 +595,19 @@ static FILE *synthesize(const char *table) {
     return out;
 }
 
-int bl_status_without_tracer(const char *path, int flags, const void *caller) __attribute__((visibility("hidden")));
+int dd_status_without_tracer(const char *path, int flags, const void *caller) __attribute__((visibility("hidden")));
 
-const char *bl_oom_adj_redirect(const char *path, int writing) __attribute__((visibility("hidden")));
+const char *dd_oom_adj_redirect(const char *path, int writing) __attribute__((visibility("hidden")));
 
 static FILE *open_stream(fopen_fn real, const char *path, const char *mode, const void *caller) {
     int status = mode && mode[0] == 'r' && !strchr(mode, '+')
-            ? bl_status_without_tracer(path, O_RDONLY | O_CLOEXEC, caller) : -1;
+            ? dd_status_without_tracer(path, O_RDONLY | O_CLOEXEC, caller) : -1;
     if (status >= 0) {
         FILE *copy = fdopen(status, "r");
         if (copy == NULL) close(status);
         return copy;
     }
-    path = bl_oom_adj_redirect(path, mode && (mode[0] == 'w' || mode[0] == 'a' || strchr(mode, '+')));
+    path = dd_oom_adj_redirect(path, mode && (mode[0] == 'w' || mode[0] == 'a' || strchr(mode, '+')));
     int table = path && mode && mode[0] == 'r' ? denied_table(path) : -1;
     FILE *f;
     if (table >= 0 && denied_recently(table, path) && (f = synthesize(net_tables[table])) != NULL) return f;
@@ -705,9 +705,9 @@ struct nl_reply {
     int overflow;
 };
 
-static const char nl_client_magic[12] = "bl-nl-c-v1";
-static const char nl_peer_magic[12] = "bl-nl-p-v1";
-static const char nl_reservation_magic[12] = "bl-nl-r-v1";
+static const char nl_client_magic[12] = "dd-nl-c-v1";
+static const char nl_peer_magic[12] = "dd-nl-p-v1";
+static const char nl_reservation_magic[12] = "dd-nl-r-v1";
 static struct nl_socket *nl_sockets;
 static struct nl_fd *nl_fds;
 static struct nl_fd_page *nl_fd_pages[NL_FD_BUCKETS];
@@ -1206,36 +1206,36 @@ static unsigned nl_port_of(int fd) {
     return port;
 }
 
-__attribute__((visibility("hidden"))) int bl_nl_socket(int type, int *fd);
-__attribute__((visibility("hidden"))) int bl_nl_bind(int fd, const struct sockaddr *addr,
+__attribute__((visibility("hidden"))) int dd_nl_socket(int type, int *fd);
+__attribute__((visibility("hidden"))) int dd_nl_bind(int fd, const struct sockaddr *addr,
                                                      socklen_t len, int *rc);
-__attribute__((visibility("hidden"))) int bl_nl_getsockname(int fd, struct sockaddr *addr,
+__attribute__((visibility("hidden"))) int dd_nl_getsockname(int fd, struct sockaddr *addr,
                                                             socklen_t *len, int *rc);
-__attribute__((visibility("hidden"))) int bl_nl_owns(int fd);
-__attribute__((visibility("hidden"))) void bl_nl_closed(int fd);
-__attribute__((visibility("hidden"))) void bl_nl_range_closed(unsigned int first, unsigned int last);
-__attribute__((visibility("hidden"))) int bl_nl_before_dup(int fd, void **state);
-__attribute__((visibility("hidden"))) void bl_nl_after_dup(void *state, int fd);
-__attribute__((visibility("hidden"))) int bl_nl_connect(int fd, const struct sockaddr *addr,
+__attribute__((visibility("hidden"))) int dd_nl_owns(int fd);
+__attribute__((visibility("hidden"))) void dd_nl_closed(int fd);
+__attribute__((visibility("hidden"))) void dd_nl_range_closed(unsigned int first, unsigned int last);
+__attribute__((visibility("hidden"))) int dd_nl_before_dup(int fd, void **state);
+__attribute__((visibility("hidden"))) void dd_nl_after_dup(void *state, int fd);
+__attribute__((visibility("hidden"))) int dd_nl_connect(int fd, const struct sockaddr *addr,
                                                         socklen_t len, int *rc);
-__attribute__((visibility("hidden"))) int bl_nl_getpeername(int fd, struct sockaddr *addr,
+__attribute__((visibility("hidden"))) int dd_nl_getpeername(int fd, struct sockaddr *addr,
                                                             socklen_t *len, int *rc);
-__attribute__((visibility("hidden"))) int bl_nl_setsockopt(int fd, int level, int option,
+__attribute__((visibility("hidden"))) int dd_nl_setsockopt(int fd, int level, int option,
                                                           const void *value, socklen_t len,
                                                           int (*real)(int, int, int, const void *, socklen_t),
                                                           int *rc);
-__attribute__((visibility("hidden"))) int bl_nl_getsockopt(int fd, int level, int option,
+__attribute__((visibility("hidden"))) int dd_nl_getsockopt(int fd, int level, int option,
                                                           void *value, socklen_t *len,
                                                           int (*real)(int, int, int, void *, socklen_t *),
                                                           int *rc);
-__attribute__((visibility("hidden"))) void bl_nl_received(struct msghdr *msg);
-__attribute__((visibility("hidden"))) int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags,
+__attribute__((visibility("hidden"))) void dd_nl_received(struct msghdr *msg);
+__attribute__((visibility("hidden"))) int dd_nl_recvmsg(int fd, struct msghdr *msg, int flags,
                                                         ssize_t (*real)(int, struct msghdr *, int),
                                                         ssize_t *rc);
 
-int bl_nl_owns(int fd) { return nl_peer_of(fd) >= 0; }
+int dd_nl_owns(int fd) { return nl_peer_of(fd) >= 0; }
 
-int bl_nl_socket(int type, int *fd) {
+int dd_nl_socket(int type, int *fd) {
     int kind = type & 0xf;
     *fd = -1;
     if (type & ~(0xf | SOCK_CLOEXEC | SOCK_NONBLOCK)) {
@@ -1342,10 +1342,10 @@ static int nl_autobind(int fd) {
     return nl_bind_port(fd, 0, 1);
 }
 
-int bl_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
+int dd_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
     const struct sockaddr_nl *nl;
     if (addr && len >= sizeof(sa_family_t) && addr->sa_family == AF_NETLINK) nl_discover(fd);
-    if (!bl_nl_owns(fd)) return 0;
+    if (!dd_nl_owns(fd)) return 0;
     if (addr == NULL || len < sizeof(struct sockaddr_nl) || addr->sa_family != AF_NETLINK) {
         errno = EINVAL;
         *rc = -1;
@@ -1361,10 +1361,10 @@ int bl_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
     return 1;
 }
 
-int bl_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
+int dd_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
     struct sockaddr_nl nl;
     socklen_t size;
-    if (!bl_nl_owns(fd)) return 0;
+    if (!dd_nl_owns(fd)) return 0;
     if (addr == NULL || len == NULL) {
         errno = EFAULT;
         *rc = -1;
@@ -1380,13 +1380,13 @@ int bl_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
     return 1;
 }
 
-void bl_nl_closed(int fd) {
+void dd_nl_closed(int fd) {
     if (!nl_tracked(fd)) return;
     if (nl_foreign()) return;
-    bl_nl_range_closed((unsigned int) fd, (unsigned int) fd);
+    dd_nl_range_closed((unsigned int) fd, (unsigned int) fd);
 }
 
-void bl_nl_range_closed(unsigned int first, unsigned int last) {
+void dd_nl_range_closed(unsigned int first, unsigned int last) {
     if (__atomic_load_n(&nl_fd_count, __ATOMIC_ACQUIRE) == 0) return;
     if (nl_foreign()) return;
     pthread_mutex_lock(&nl_sockets_lock);
@@ -1400,7 +1400,7 @@ void bl_nl_range_closed(unsigned int first, unsigned int last) {
     pthread_mutex_unlock(&nl_sockets_lock);
 }
 
-int bl_nl_before_dup(int fd, void **state) {
+int dd_nl_before_dup(int fd, void **state) {
     *state = NULL;
     if (!nl_tracked(fd)) return 0;
     if (nl_foreign()) return 0;
@@ -1421,7 +1421,7 @@ int bl_nl_before_dup(int fd, void **state) {
     return 0;
 }
 
-void bl_nl_after_dup(void *state, int fd) {
+void dd_nl_after_dup(void *state, int fd) {
     int saved = errno;
     struct nl_fd *reserved = state;
     if (reserved == NULL && !nl_tracked(fd)) {
@@ -1456,9 +1456,9 @@ int dup(int fd) {
     static int (*real)(int);
     void *state;
     if (real == NULL) real = (int (*)(int)) dlsym(RTLD_NEXT, "dup");
-    if (bl_nl_before_dup(fd, &state) != 0) return -1;
+    if (dd_nl_before_dup(fd, &state) != 0) return -1;
     int result = real(fd);
-    bl_nl_after_dup(state, result);
+    dd_nl_after_dup(state, result);
     return result;
 }
 
@@ -1470,9 +1470,9 @@ static int nl_destination(const struct sockaddr *addr, socklen_t len) {
     return destination->nl_pid == 0 ? 0 : -ECONNREFUSED;
 }
 
-int bl_nl_connect(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
+int dd_nl_connect(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
     if (addr && len >= sizeof(sa_family_t) && addr->sa_family == AF_NETLINK) nl_discover(fd);
-    if (!bl_nl_owns(fd)) return 0;
+    if (!dd_nl_owns(fd)) return 0;
     int disconnect = addr && len >= sizeof(sa_family_t) && addr->sa_family == AF_UNSPEC;
     int error = disconnect ? 0 : nl_destination(addr, len);
     if (error) {
@@ -1493,8 +1493,8 @@ static void nl_source_name(struct sockaddr *addr, socklen_t *len) {
     *len = sizeof(source);
 }
 
-int bl_nl_getpeername(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
-    if (!bl_nl_owns(fd)) return 0;
+int dd_nl_getpeername(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
+    if (!dd_nl_owns(fd)) return 0;
     if (addr == NULL || len == NULL) {
         errno = EFAULT;
         *rc = -1;
@@ -1505,7 +1505,7 @@ int bl_nl_getpeername(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
     return 1;
 }
 
-int bl_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t len,
+int dd_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t len,
                      int (*real)(int, int, int, const void *, socklen_t), int *rc) {
     if (level == SOL_NETLINK) nl_discover(fd);
     int peer = nl_peer_of(fd);
@@ -1542,7 +1542,7 @@ int bl_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t
     return 1;
 }
 
-int bl_nl_getsockopt(int fd, int level, int option, void *value, socklen_t *len,
+int dd_nl_getsockopt(int fd, int level, int option, void *value, socklen_t *len,
                      int (*real)(int, int, int, void *, socklen_t *), int *rc) {
     if (level != SOL_SOCKET || (option != SO_TYPE && option != SO_DOMAIN && option != SO_PROTOCOL))
         return 0;
@@ -1580,7 +1580,7 @@ int bl_nl_getsockopt(int fd, int level, int option, void *value, socklen_t *len,
     return 1;
 }
 
-void bl_nl_received(struct msghdr *msg) {
+void dd_nl_received(struct msghdr *msg) {
     for (struct cmsghdr *control = CMSG_FIRSTHDR(msg); control; control = CMSG_NXTHDR(msg, control)) {
         if (control->cmsg_len < CMSG_LEN(0)) break;
         if (control->cmsg_level != SOL_SOCKET || control->cmsg_type != SCM_RIGHTS) continue;
@@ -1593,11 +1593,11 @@ void bl_nl_received(struct msghdr *msg) {
     }
 }
 
-int bl_nl_recvmsg(int fd, struct msghdr *msg, int flags,
+int dd_nl_recvmsg(int fd, struct msghdr *msg, int flags,
                   ssize_t (*real)(int, struct msghdr *, int), ssize_t *rc) {
     ssize_t result;
     socklen_t capacity = 0;
-    if (!bl_nl_owns(fd)) return 0;
+    if (!dd_nl_owns(fd)) return 0;
     if (msg && msg->msg_name) capacity = msg->msg_namelen;
     result = real(fd, msg, flags);
     if (result >= 0 && msg && msg->msg_name) {
@@ -1614,7 +1614,7 @@ ssize_t recvfrom(int fd, void *buffer, size_t length, int flags,
     if (real == NULL)
         real = (ssize_t (*)(int, void *, size_t, int, struct sockaddr *, socklen_t *))
                 dlsym(RTLD_NEXT, "recvfrom");
-    int owned = bl_nl_owns(fd);
+    int owned = dd_nl_owns(fd);
     socklen_t capacity = owned && addr && addrlen ? *addrlen : 0;
     ssize_t result = real(fd, buffer, length, flags, addr, addrlen);
     if (result >= 0 && owned && addr && addrlen) {
@@ -2108,7 +2108,7 @@ static ssize_t sendmsg_request(int fd, const struct msghdr *msg, int flags) {
 
 ssize_t sendmsg(int fd, const struct msghdr *msg, int flags) {
     static ssize_t (*real)(int, const struct msghdr *, int);
-    if (bl_nl_owns(fd)) {
+    if (dd_nl_owns(fd)) {
         int error = msg && msg->msg_name ? nl_destination(msg->msg_name, msg->msg_namelen) : 0;
         if (error) {
             errno = -error;
@@ -2128,7 +2128,7 @@ ssize_t sendto(int fd, const void *buffer, size_t length, int flags,
                const struct sockaddr *addr, socklen_t addrlen) {
     static ssize_t (*real)(int, const void *, size_t, int, const struct sockaddr *, socklen_t);
     ssize_t rc;
-    if (bl_nl_owns(fd)) {
+    if (dd_nl_owns(fd)) {
         int error = addr ? nl_destination(addr, addrlen) : 0;
         if (error) {
             errno = -error;
@@ -2149,7 +2149,7 @@ ssize_t sendto(int fd, const void *buffer, size_t length, int flags,
 ssize_t send(int fd, const void *buffer, size_t length, int flags) {
     static ssize_t (*real)(int, const void *, size_t, int);
     ssize_t rc;
-    if (bl_nl_owns(fd) && deliver(fd, buffer, length, flags, &rc)) return rc;
+    if (dd_nl_owns(fd) && deliver(fd, buffer, length, flags, &rc)) return rc;
     if (real == NULL) real = (ssize_t (*)(int, const void *, size_t, int)) dlsym(RTLD_NEXT, "send");
     if (real == NULL) {
         errno = ENOSYS;
@@ -2161,7 +2161,7 @@ ssize_t send(int fd, const void *buffer, size_t length, int flags) {
 ssize_t write(int fd, const void *buffer, size_t length) {
     static ssize_t (*real)(int, const void *, size_t);
     ssize_t rc;
-    if (bl_nl_owns(fd) && deliver(fd, buffer, length, 0, &rc)) return rc;
+    if (dd_nl_owns(fd) && deliver(fd, buffer, length, 0, &rc)) return rc;
     if (real == NULL) real = (ssize_t (*)(int, const void *, size_t)) dlsym(RTLD_NEXT, "write");
     if (real == NULL) {
         errno = ENOSYS;
@@ -2172,7 +2172,7 @@ ssize_t write(int fd, const void *buffer, size_t length) {
 
 ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
     static ssize_t (*real)(int, const struct iovec *, int);
-    if (iovcnt >= 0 && bl_nl_owns(fd)) {
+    if (iovcnt >= 0 && dd_nl_owns(fd)) {
         struct msghdr msg = { .msg_iov = (struct iovec *) iov, .msg_iovlen = (size_t) iovcnt };
         return sendmsg_request(fd, &msg, 0);
     }

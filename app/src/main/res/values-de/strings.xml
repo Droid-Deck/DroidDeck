@@ -22,7 +22,6 @@
         <item>Füge Steam-Bibliotheken von einer SD-Karte, einem USB-Laufwerk oder einer SSD hinzu, und DroidDeck hält die Spiele in deiner Bibliothek zusammen.</item>
         <item>Mit Stores meldest du dich bei Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io und Game Jolt an und installierst und aktualisierst deren Spiele direkt in DroidDeck.</item>
         <item>Komponenten wie FEX, DXVK und VKD3D-Proton aktualisieren sich selbst, und Proton Experimental ARM64 ist der Standard, oder Proton 11.0 ARM64, sobald diese Version installiert ist.</item>
-        <item>Steam komprimieren, während ein Spiel läuft gibt auf Geräten mit knappem Arbeitsspeicher RAM frei.</item>
         <item>Wische vom rechten Rand nach innen, um das Sitzungsmenü zu öffnen: Touchpad-Modus, PC-Tastatur, Modus mit geringer Latenz, Spielprofil und mehr.</item>
         <item>Das Spiel läuft langsam? Begrenze die Bildrate im Schnellzugriff und probiere dann eine andere Proton-Version oder ein anderes FEX-Preset in den Komponenten des Spiels.</item>
         <item>Knacken oder fehlender Spielton? Probiere den Schalter DirectAudio für Spiele in den Steam-Einstellungen unter Audio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Dieses Programm ist für %1$s-PCs gebaut und läuft über FEX, das noch nicht eingerichtet ist. Öffne Steam einmal, während du angemeldet bist: DroidDeck lässt es FEX und die nötige Steam Linux Runtime herunterladen, danach lässt sich das Programm öffnen.</string>
     <string name="session_proot_missing">DroidDecks proot konnte nicht heruntergeladen werden. Prüfe die Verbindung und versuch es erneut. Die Sitzung wurde nicht gestartet, da das Ersatz-proot zum Spielen zu langsam ist.</string>
     <string name="session_powervr_missing">Die PowerVR-Grafikumgebung konnte nicht heruntergeladen werden. Prüfe die Verbindung und versuch es erneut.</string>
+    <string name="session_graphics_runtime_failed">Die Grafikumgebung konnte nicht vorbereitet werden, daher wurde die Sitzung nicht gestartet.</string>
+    <string name="session_game_environment_failed">Die Spielumgebung konnte nicht eingerichtet werden, daher wurde die Sitzung nicht gestartet.</string>
     <string name="session_directaudio_missing">DirectAudio konnte nicht heruntergeladen werden, daher nutzt der Spielton in dieser Sitzung den langsameren Weg.</string>
     <string name="session_end_program">Dieses Programm</string>
     <string name="session_end_present_fault">Die Sitzung konnte nicht auf den Bildschirm zeichnen: %1$s. Auf diesem Bildschirm sehen Sie den Grund statt eines schwarzen Bildschirms; die Details finden Sie in den Sitzungsprotokollen.</string>
@@ -624,20 +625,8 @@
     <string name="perf_gsrealtime">gamescope: Echtzeit-GPU-Warteschlange</string>
     <string name="perf_gsrealtime_hint">Priorisiert die GPU-Arbeit des Compositors. Kann das Frame-Pacing glätten, kostet Spiele aber etwas Leistung.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Arbeitsspeicher</string>
     <string name="perf_cap_off">Aus</string>
-    <string name="perf_cap_auto">Treiberstandard</string>
-    <string name="perf_zram_client">Steam komprimieren, während ein Spiel läuft</string>
-    <string name="perf_zram_idle">Inaktiven Spielspeicher komprimieren</string>
-    <string name="perf_zram_idle_hint">Lagert inaktiven Spielspeicher bei knappem RAM aus. Schalte dies aus, wenn Spiele etwa jede halbe Minute für einige Sekunden einfrieren. Gilt ab dem nächsten Start der Sitzung.</string>
-    <string name="perf_zram_client_hint">20 s nach dem Spielstart wird der Steam-Client in zRAM komprimiert, um dem Spiel mehr Speicher zu lassen, und beim Beenden des Spiels zurückgelesen. Schalte dies aus, wenn sich die Sitzung kurz nach dem Spielstart schließt. Ein RAM-Limit oben komprimiert Steam weiterhin, wenn die Sitzung es überschreitet.</string>
-    <string name="perf_ram_cap">RAM-Limit</string>
-    <string name="perf_ram_cap_hint">Gilt, solange der Steam-Client läuft, im Steam-Modus oder vom Desktop aus. Verbraucht die Sitzung mehr als diesen Wert, werden Steam und danach die übrigen unterstützten Prozesse der Sitzung in zRAM komprimiert. Ein weiches Limit: Nichts wird geschlossen, aber Spiele können ruckeln, während Seiten zurückgeladen werden.</string>
-    <string name="perf_ram_cap_unavailable">Benötigt zRAM-Swap, den dieses Gerät nicht hat.</string>
-    <string name="perf_vram_cap">VRAM-Limit</string>
-    <string name="perf_vram_cap_hint">Meldet Direct3D-9-bis-12-Spielen dieses Videospeicherbudget, um den Speicherverbrauch zu senken. Spiele können es überschreiten; dies fügt kein GPU-Paging hinzu und garantiert keinen Schutz vor Abstürzen durch Speichermangel. Gilt ab der nächsten Sitzung.</string>
     <string name="perf_gpuclock">GPU auf höchstem Takt halten</string>
-    <string name="perf_gpuclock_hint">Nur Adreno. Weniger Ruckler, mehr Akkuverbrauch und Wärme.</string>
     <string name="perf_fixes">Sitzungskorrekturen</string>
     <string name="perf_sysmem">Turnip: Sysmem-Rendering</string>
     <string name="perf_sysmem_hint">Gilt für den Steam-Client und Spiele. Erforderlich bei Adreno 710/720/722.</string>
@@ -1310,6 +1299,7 @@
     <string name="gate_enter_manually">Adresse manuell eingeben</string>
     <string name="gate_from_computer">Von einem Computer mit ADB:</string>
     <string name="gate_copy_command">Befehl kopieren</string>
+    <string name="gate_sidequest_steps">Verbinde das Headset mit einem Computer und öffne SideQuest. Wähle „Run ADB Command“, dann „Custom Command“, tippe den unten gezeigten Befehl ein und wähle „Run Command“.</string>
     <string name="gate_choose_display">Wähle, auf welchem Display die Android-Einstellungen geöffnet werden.</string>
     <string name="gate_main_screen">Hauptbildschirm</string>
     <string name="wadb_finding_port">Gekoppelt. Suche den Port für Debugging über WLAN…</string>
@@ -1564,6 +1554,8 @@
     <string name="pip_unavailable">Android konnte Bild im Bild nicht öffnen.</string>
     <string name="game_more">Mehr</string>
     <string name="game_edit_art">Grafiken bearbeiten</string>
+    <string name="game_unhide">Nicht mehr ausblenden</string>
+    <string name="game_hide_failed">Synchronisierung mit Steam fehlgeschlagen. Schließe Steam und versuche es erneut.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Verknüpfung</string>
     <string name="game_shortcut_add">Zum Startbildschirm hinzufügen</string>
@@ -2300,6 +2292,17 @@
     <string name="pextra_checksum_mismatch">Prüfsumme stimmt nicht überein; der Download wurde gelöscht</string>
     <string name="pextra_session_started">Während des Downloads wurde eine Sitzung gestartet; beende sie, bevor du Kompatibilitätstools installierst</string>
     <string name="pextra_installing">%1$s wird installiert</string>
+    <string name="xproton_title">Experimentelle Builds</string>
+    <string name="xproton_install_file">Aus Datei installieren</string>
+    <string name="xproton_archive_unsafe">Das Archiv enthält einen unsicheren Link oder Pfad</string>
+    <string name="xproton_archive_invalid">Nicht unterstütztes oder ungültiges Archiv</string>
+    <string name="xproton_no_space">Nicht genug freier Speicher für diesen Proton-Build</string>
+    <string name="xproton_unpacking">Proton wird entpackt (einige Minuten)</string>
+    <string name="xproton_untar_failed">Entpacken fehlgeschlagen (tar %1$d)</string>
+    <string name="xproton_no_tree">Das Archiv enthält keinen Proton-Build</string>
+    <string name="xproton_place_failed">Der Proton-Build konnte nicht abgelegt werden</string>
+    <string name="xproton_remove_failed">%1$s konnte nicht vollständig entfernt werden</string>
+    <string name="xproton_installed">Experimentelles Proton installiert. Wähle es unter Steam → Eigenschaften → Kompatibilität aus.</string>
     <string name="pextra_install_failed">Installation von %1$s fehlgeschlagen (Exit-Code %2$d)</string>
     <string name="pextra_could_not_install">%1$s konnte nicht installiert werden</string>
     <string name="esync_fetching">droiddeck-esync-Paket wird abgerufen</string>
@@ -3340,10 +3343,19 @@
     <string name="storage_shared_prefix">Gemeinsames Präfix von Steam</string>
     <string name="storage_shared_prefix_detail">Steam führt hier eigene Windows-Hilfsprogramme aus</string>
     <string name="storage_reset_shared_confirm">Löscht es (%1$s). Steam erstellt ein neues, sobald es wieder eines braucht.</string>
+    <string name="storage_remove_launcher_confirm">Löscht Wine-Präfix und Shader-Cache dieser Store-App (%1$s), samt Anmeldung und Speicherständen, die nur dort liegen. Spiele, die darin laufen, bekommen ein neues Präfix, und die App muss eventuell neu eingerichtet werden. Cloud-Speicherstände bleiben im Konto.</string>
+    <string name="storage_system_clearable">%1$s können geleert werden</string>
+    <string name="storage_item_system_caches">Linux- und Steam-Caches</string>
+    <string name="storage_item_system_caches_detail">Alte temporäre Dateien, heruntergeladene Pakete und Steams Web-Cache</string>
+    <string name="storage_cache_temp">Alte temporäre Dateien</string>
+    <string name="storage_cache_packages">Heruntergeladene Pakete</string>
+    <string name="storage_cache_steam_web">Steam-Web-Cache</string>
+    <string name="storage_cache_steam_corrupt">Beschädigte Steam-Downloads</string>
+    <string name="storage_cache_detail">Wird bei Bedarf neu erstellt</string>
+    <string name="storage_clear">Leeren</string>
     <string name="storage_launcher_prefix">Eine Store-App und die Spiele, die damit laufen</string>
     <string name="storage_launcher_used_by">Verwendet von %1$s</string>
     <string name="storage_shortcut_app">Nicht-Steam-Spiel %1$s</string>
-    <string name="storage_unknown_prefix_detail">Keinem Spiel zugeordnet, daher bleibt es erhalten</string>
     <string name="storage_remove_selected">Auswahl entfernen · %1$s</string>
     <string name="storage_uninstall_selected">Auswahl deinstallieren · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-Präfixe</string>
@@ -4088,4 +4100,18 @@
     <string name="display_scaling_integer">Ganzzahlig</string>
     <string name="display_scaling_fit">Anpassen</string>
     <string name="drawer_antialiasing">Kantenglättung</string>
+    <string name="theme_custom">Benutzerdefiniert</string>
+    <string name="theme_custom_detail">Wähle jede Farbe der Oberfläche einzeln aus.</string>
+    <string name="theme_custom_background">Hintergrund</string>
+    <string name="theme_custom_surface">Flächen</string>
+    <string name="theme_custom_surface_variant">Erhöhte Flächen</string>
+    <string name="theme_custom_line">Trennlinien</string>
+    <string name="theme_custom_line2">Rahmen</string>
+    <string name="theme_custom_on_background">Haupttext</string>
+    <string name="theme_custom_on_surface_variant">Sekundärtext</string>
+    <string name="theme_custom_primary">Schaltflächen und Hauptakzent</string>
+    <string name="theme_custom_on_primary">Schaltflächentext</string>
+    <string name="theme_custom_signal">Hervorhebungen</string>
+    <string name="theme_custom_good">Erfolg</string>
+    <string name="theme_custom_error">Fehler</string>
 </resources>

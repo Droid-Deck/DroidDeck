@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -54,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.focus.focusProperties
@@ -112,7 +114,8 @@ internal fun Actions(content: @Composable () -> Unit) = FlowRow(
 ) { content() }
 
 @Composable
-internal fun ActionChip(t: String, ok: Boolean) = Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok) }
+internal fun ActionChip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null, minWidth: androidx.compose.ui.unit.Dp = 0.dp) =
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.heightIn(min = 44.dp)) { Chip(t, ok, fraction, key, minWidth) }
 
 internal val Shape16 = RoundedCornerShape(16.dp)
 
@@ -139,13 +142,33 @@ internal fun BackLink(label: String, compact: Boolean = false, onClick: () -> Un
 }
 
 @Composable
-internal fun Chip(t: String, ok: Boolean) {
+internal fun Chip(t: String, ok: Boolean, fraction: Float? = null, key: Any? = null, minWidth: androidx.compose.ui.unit.Dp = 0.dp) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Text(
-        t, fontSize = 12.sp, color = if (ok) pal.good else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(colors.surfaceVariant).border(1.dp, if (ok) pal.good.copy(alpha = 0.3f) else pal.line, RoundedCornerShape(99.dp)).padding(horizontal = 9.dp, vertical = 4.dp),
-    )
+    val shape = RoundedCornerShape(99.dp)
+    val ink = if (ok) pal.good else colors.onSurfaceVariant
+    Box(Modifier.widthIn(min = minWidth).clip(shape).background(colors.surfaceVariant).border(1.dp, if (ok) pal.good.copy(alpha = 0.3f) else pal.line, shape), contentAlignment = Alignment.CenterStart) {
+        if (fraction != null) ChipFill(fraction, key, pal.signal.copy(alpha = 0.3f))
+        Text(
+            t, fontSize = 12.sp, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+        )
+    }
+}
+
+@Composable
+internal fun androidx.compose.foundation.layout.BoxScope.ChipFill(fraction: Float, key: Any?, color: Color) {
+    androidx.compose.runtime.key(key) {
+        val target = fraction.coerceIn(0f, 1f)
+        val shown = remember { Animatable(target) }
+        LaunchedEffect(target) { shown.animateTo(target, androidx.compose.animation.core.tween(250, easing = androidx.compose.animation.core.LinearEasing)) }
+        Box(
+            Modifier.matchParentSize().drawBehind {
+                drawRect(color, size = androidx.compose.ui.geometry.Size(size.width * shown.value, size.height))
+            },
+        )
+    }
 }
 
 @Composable

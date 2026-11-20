@@ -1,9 +1,11 @@
 #!/usr/bin/python3
+import contextlib
 import json
 import os
 import re
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -47,7 +49,7 @@ def load_config():
 
 
 def session_debug_dir(env):
-    return env.get("BL_DEBUG_DIR", "")
+    return env.get("DD_DEBUG_DIR", "")
 
 
 def proton_log_free(folder, game_id):
@@ -98,3 +100,74 @@ def apply_game_debug_logs(env, config=None, debug_dir=None):
         "WINEDEBUG": game_debug_channels(env.get("WINEDEBUG"), env.get("PROTON_LOG")),
     })
     return result
+
+
+def capped_log(path, limit, mirror=False):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    handle = open(path, "wb")
+    try:
+        read, write = os.pipe()
+    except OSError:
+        handle.close()
+        raise
+
+    def pump():
+        remaining = limit
+        mirror_ok = mirror
+        with os.fdopen(read, "rb") as source, handle:
+            while True:
+                chunk = source.read1(65536)
+                if not chunk:
+                    break
+                saved = chunk[:remaining]
+                remaining -= len(saved)
+                if saved:
+                    try:
+                        handle.write(saved)
+                        handle.flush()
+                    except (OSError, ValueError):
+                        remaining = 0
+                if mirror_ok:
+                    try:
+                        sys.stderr.write(chunk.decode("utf-8", "replace"))
+                        sys.stderr.flush()
+                    except (OSError, ValueError):
+                        mirror_ok = False
+
+    thread = threading.Thread(target=pump, daemon=True)
+    thread.start()
+    return write, thread
+
+
+@contextlib.contextmanager
+def desktop_program_logs(env):
+    program = env.get("DROIDDECK_DESKTOP_PROGRAM")
+    if program:
+        env = dict(env)
+        env.pop("DROIDDECK_DESKTOP_PROGRAM", None)
+    if not program or env.get("PROTON_LOG", "0") not in ("", "0"):
+        yield env, None
+        return
+    folder = session_debug_dir(env)
+    try:
+        if not os.path.isabs(folder) or not os.path.isdir(folder):
+            raise OSError("session log directory unavailable")
+        fd, path = tempfile.mkstemp(prefix="desktop-program-", suffix=".log", dir=folder)
+        os.close(fd)
+        output, thread = capped_log(path, 1024 * 1024, mirror=True)
+    except OSError as error:
+        print("droiddeck-game-env: desktop diagnostics unavailable (%s)" % error, file=sys.stderr)
+        yield env, None
+        return
+    try:
+        if env.get("WINEDEBUG", "-all") in ("", "-all"):
+            env["WINEDEBUG"] = "-all,err+all,+mscoree,+loaddll"
+        try:
+            print("droiddeck-game-env: desktop program %s; first 1048576 diagnostic bytes: %s" % (program, path),
+                  file=sys.stderr, flush=True)
+        except OSError:
+            pass
+        yield env, output
+    finally:
+        os.close(output)
+        thread.join(timeout=1)

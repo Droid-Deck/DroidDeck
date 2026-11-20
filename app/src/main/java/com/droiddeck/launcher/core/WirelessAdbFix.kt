@@ -235,6 +235,17 @@ object WirelessAdbFix {
 
     fun hasSavedPairing(context: Context): Boolean = savedConnection(context.applicationContext) != null
 
+    fun savedPairingIsLocal(context: Context): Boolean = savedConnection(context.applicationContext)?.host
+        ?.let { host ->
+            // Unlike isLocalAddress, an address that cannot be matched to this device's own counts as remote.
+            runCatching {
+                val address = InetAddress.getByName(host)
+                address.isLoopbackAddress || NetworkInterface.getNetworkInterfaces().toList().any { network ->
+                    network.inetAddresses.toList().any { it.address.contentEquals(address.address) }
+                }
+            }.getOrDefault(false)
+        } == true
+
     fun clearCachedApps(context: Context) {
         shell(context, "am kill-all")
     }

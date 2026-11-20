@@ -323,7 +323,7 @@ def load_netmanager():
 
 
 def main():
-    directory = os.environ.get("BL_LAUNCH_DIR")
+    directory = os.environ.get("DD_LAUNCH_DIR")
     if not directory or not Path(directory).is_dir():
         sys.exit("droiddeck-login1: no DroidDeck session directory")
     ready = Path(directory) / "steam-sleep-ready"

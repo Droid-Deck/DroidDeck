@@ -128,15 +128,15 @@ docker run --rm --platform "${docker_platform}" \
             -o "$d/libfakeinput.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libfakeinput.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-            -o "$d/libblsession.so" tools/linuxfs/preload/*.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libblsession.so"
+            -o "$d/libddsession.so" tools/linuxfs/preload/*.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libddsession.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-            -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
+            -o "$d/libddfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libddfastpath.so"
         bash tools/nativeguest/build.sh "$d/libddnatv-hook.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
-          -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libblaudit.so" tools/proot/fastpath/audit.c
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libblaudit.so"
+          -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libddaudit.so" tools/proot/fastpath/audit.c
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libddaudit.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
