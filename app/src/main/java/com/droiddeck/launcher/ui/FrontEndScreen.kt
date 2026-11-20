@@ -761,7 +761,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }, a)
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
         val swipeContext = androidx.compose.ui.platform.LocalContext.current
-        remember { PageSwipe.on = com.droiddeck.launcher.core.AppUiPrefs.pageSwipe(swipeContext) }
+        remember { com.droiddeck.launcher.core.AppUiPrefs.pageSwipe(swipeContext).also { PageSwipe.on = it } }
         val agentKeyboardOpen = openTab == "agent" && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         LauncherLayout(
             bottomNavigation && !s.dualScreen, pal.line,
