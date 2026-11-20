@@ -438,12 +438,17 @@ object SteamTouchConfig {
 
     private fun selectAutosave(dir: File, key: String) {
         val file = File(dir, CONFIGSET)
-        val text = file.takeIf { it.isFile }?.readText()?.takeIf { it.contains('}') } ?: "\"controller_config\"\n{\n}\n"
+        val text = file.takeIf { it.isFile }?.readText()?.takeIf { it.contains('{') }?.let(::closeBraces) ?: "\"controller_config\"\n{\n}\n"
         val entry = "\t\"$key\"\n\t{\n\t\t\"autosave\"\t\t\"1\"\n\t}"
         val block = Regex("""\n\s*"${Regex.escape(key)}"\s*\{[^}]*\}""", RegexOption.IGNORE_CASE)
         val next = if (block.containsMatchIn(text)) text.replace(block) { "\n$entry" }
         else text.substring(0, text.lastIndexOf('}')).trimEnd() + "\n$entry\n}\n"
         File(file.path + ".tmp").apply { writeText(next) }.renameTo(file)
+    }
+
+    private fun closeBraces(text: String): String {
+        val open = text.count { it == '{' } - text.count { it == '}' }
+        return if (open <= 0) text else text.trimEnd() + "\n}".repeat(open) + "\n"
     }
 
 

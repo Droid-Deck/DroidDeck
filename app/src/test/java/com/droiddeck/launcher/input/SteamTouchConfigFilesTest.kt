@@ -116,6 +116,17 @@ class SteamTouchConfigFilesTest {
         assertTrue(text.contains("\"413150\""))
     }
 
+    @Test fun aConfigsetMissingItsRootBraceGetsTheEntryAtTheRoot() {
+        File(dir, "configset_controller_mobile_touch.vdf")
+            .writeText("\"controller_config\"\n{\n\t\"8400\"\n\t{\n\t\t\"workshop\"\t\t\"7\"\n\t}\n")
+        val saved = saveDefault(413150)
+        val root = KeyValues.parse(File(dir, "configset_controller_mobile_touch.vdf").readText()).child("controller_config")
+        assertEquals("1", root?.child("413150")?.string("autosave"))
+        assertEquals("7", root?.child("8400")?.string("workshop"))
+        assertEquals(null, root?.child("8400")?.child("413150"))
+        assertSavedA(413150, saved)
+    }
+
     private fun shortcut(name: String): Int {
         val shortcut = 2702387189L.toInt()
         template.apply { parentFile!!.mkdirs(); writeText(touch("Gamepad with Joystick")) }
