@@ -34,6 +34,7 @@ extern int  droiddeck_cursor_input_pos(int *x, int *y);
 extern void droiddeck_wayland_send_scene_input(int type, int a, int b);
 extern void droiddeck_wayland_set_cursor_composite(int on);
 extern void droiddeck_wayland_vsync(int64_t frame_time_ns);
+extern void sc_layer_frame_timeline(int64_t present_ns, int64_t deadline_ns, int64_t period_ns);
 extern void droiddeck_stream_set(int on);
 extern void droiddeck_stream_frame(AHardwareBuffer *ahb);
 extern unsigned droiddeck_stream_frames(void);
@@ -365,6 +366,12 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendSceneInput(
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeVsync(JNIEnv *env, jclass clazz, jlong frameTimeNanos) {
     droiddeck_wayland_vsync((int64_t)frameTimeNanos);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeFrameTimeline(JNIEnv *env, jclass clazz, jlong presentNanos,
+                                                                          jlong deadlineNanos, jlong periodNanos) {
+    sc_layer_frame_timeline((int64_t)presentNanos, (int64_t)deadlineNanos, (int64_t)periodNanos);
 }
 
 JNIEXPORT void JNICALL

@@ -2500,9 +2500,9 @@ int vkp_update_map(int scene_w, int scene_h) {
     return g_map.valid ? 0 : -1;
 }
 
-int vkp_map_rect(int img_w, int img_h, int scene_w, int scene_h, int out[8]) {
+int vkp_map_rect(int img_w, int img_h, const int dst[4], int out[8]) {
     struct vkp_image tmp = {.w = img_w, .h = img_h};
-    struct vkp_draw d = {&tmp, 0, 0, (float)img_w, (float)img_h, 0, 0, scene_w, scene_h};
+    struct vkp_draw d = {&tmp, 0, 0, (float)img_w, (float)img_h, dst[0], dst[1], dst[2], dst[3]};
     return vkp_map_draw(&d, out);
 }
 

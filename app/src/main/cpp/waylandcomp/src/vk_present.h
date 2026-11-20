@@ -106,7 +106,7 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd);
 int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px);
 int vkp_update_map(int scene_w, int scene_h);
 int vkp_map_draw(const struct vkp_draw *d, int out[8]);
-int vkp_map_rect(int img_w, int img_h, int scene_w, int scene_h, int out[8]);
+int vkp_map_rect(int img_w, int img_h, const int dst[4], int out[8]);
 int vkp_surface_rotation_degrees(void);
 
 ANativeWindow *vkp_window(void);

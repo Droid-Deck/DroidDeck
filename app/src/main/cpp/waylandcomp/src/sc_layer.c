@@ -65,6 +65,7 @@ static struct {
     const void *(*getNativeHandle)(const AHardwareBuffer *);
     void (*setDesiredHdrHeadroom)(ASurfaceTransaction *, ASurfaceControl *, float);
     void (*setEnableBackPressure)(ASurfaceTransaction *, ASurfaceControl *, bool);
+    void (*setDesiredPresentTime)(ASurfaceTransaction *, int64_t);
     int state;
 } api;
 
@@ -107,6 +108,7 @@ static int load_api(void) {
     SYM(setHdrMetadata_cta861_3, "ASurfaceTransaction_setHdrMetadata_cta861_3");
     SYM(setDesiredHdrHeadroom, "ASurfaceTransaction_setDesiredHdrHeadroom");
     SYM(setEnableBackPressure, "ASurfaceTransaction_setEnableBackPressure");
+    SYM(setDesiredPresentTime, "ASurfaceTransaction_setDesiredPresentTime");
 #undef SYM
     if (!api.createFromWindow || !api.release || !api.txCreate || !api.txDelete || !api.txApply ||
         !api.setBuffer || !api.setZOrder || !api.setVisibility || !api.setGeometry ||
@@ -185,6 +187,11 @@ static int g_layers_ready;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_pending_cb;
 static unsigned g_stat_layer_frames;
+static pthread_mutex_t g_timeline_lock = PTHREAD_MUTEX_INITIALIZER;
+static int64_t g_timeline_present_ns, g_timeline_deadline_ns, g_timeline_period_ns;
+static int g_timeline_late;
+static int64_t g_cadence_seen_ns, g_cadence_gap_ns, g_cadence_target_ns;
+static unsigned g_stat_aimed_next, g_stat_aimed_later, g_stat_aimed_even;
 static int g_two_logged;
 static AHardwareBuffer *g_blank;
 static ASurfaceControl *g_base_sc;
@@ -219,6 +226,51 @@ struct complete_ctx {
 static int64_t now_ns(void) {
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
     return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+void sc_layer_frame_timeline(int64_t present_ns, int64_t deadline_ns, int64_t period_ns) {
+    pthread_mutex_lock(&g_timeline_lock);
+    g_timeline_present_ns = present_ns;
+    g_timeline_deadline_ns = deadline_ns;
+    g_timeline_period_ns = period_ns;
+    pthread_mutex_unlock(&g_timeline_lock);
+}
+
+static int64_t cadence_target(int64_t now, int64_t earliest, int64_t period) {
+    const int64_t gap = now - g_cadence_seen_ns;
+    g_cadence_seen_ns = now;
+    if (gap <= 0 || gap > 8 * period) {
+        g_cadence_gap_ns = 0;
+        g_cadence_target_ns = earliest;
+        return earliest;
+    }
+    g_cadence_gap_ns = g_cadence_gap_ns ? (g_cadence_gap_ns * 15 + gap) / 16 : gap;
+    const int64_t steps = (g_cadence_gap_ns + period / 2) / period;
+    const int64_t even = g_cadence_target_ns + steps * period;
+    int64_t target = earliest;
+    if (steps >= 1 && llabs(g_cadence_gap_ns - steps * period) < period / 8 &&
+        even > earliest + period / 2 && even < earliest + steps * period + period / 2) {
+        target = even;
+        g_stat_aimed_even++;
+    }
+    g_cadence_target_ns = target;
+    return target;
+}
+
+static void apply_present_time(ASurfaceTransaction *tx, int game) {
+    if (!api.setDesiredPresentTime) return;
+    pthread_mutex_lock(&g_timeline_lock);
+    const int64_t present = g_timeline_present_ns, deadline = g_timeline_deadline_ns, period = g_timeline_period_ns;
+    pthread_mutex_unlock(&g_timeline_lock);
+    const int64_t now = now_ns();
+    if (period <= 0 || now - deadline > 4 * period) return;
+    int64_t ahead = now > deadline ? (now - deadline + period - 1) / period : -((deadline - now) / period);
+    const int64_t slack = deadline + ahead * period - now;
+    g_timeline_late = slack < (g_timeline_late ? period * 5 / 8 : period / 8);
+    if (g_timeline_late) { ahead++; g_stat_aimed_later++; } else g_stat_aimed_next++;
+    int64_t target = present + ahead * period;
+    if (game) target = cadence_target(now, target, period);
+    api.setDesiredPresentTime(tx, target - period / 2);
 }
 
 static void on_complete(void *context, ASurfaceTransactionStats *stats) {
@@ -606,9 +658,10 @@ static int ensure_sc(struct layer *l) {
     return 0;
 }
 
-static int layer_geometry(int w, int h, int scene_w, int scene_h, int r[8]) {
+static int layer_geometry(int w, int h, int scene_w, int scene_h, const struct vkp_draw *draw, int r[8]) {
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
-    return vkp_map_rect(w, h, scene_w, scene_h, r) ? 1 : 0;
+    if (draw) return vkp_map_draw(draw, r) ? 1 : 0;
+    return vkp_map_rect(w, h, (const int[4]){0, 0, scene_w, scene_h}, r) ? 1 : 0;
 }
 
 static ARect g_game_src, g_game_dst;
@@ -781,6 +834,7 @@ static int present_slot(struct layer *l, int idx, const int r[8], const struct d
     pthread_mutex_lock(&g_lock);
     s->busy = 1;
     pthread_mutex_unlock(&g_lock);
+    apply_present_time(tx, l == &g_layers[SC_LAYER_GAME]);
     api.txApply(tx);
     api.txDelete(tx);
     l->cur_slot = idx;
@@ -811,11 +865,12 @@ unsigned sc_layer_drops_take(void) {
 }
 
 int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, void *token, int scene_w, int scene_h,
+                         const struct vkp_draw *draw,
                          const struct droiddeck_color *color, uint32_t ahb_format) {
     struct layer *l = layer_of(SC_LAYER_GAME);
     int r[8];
     if (!ahb || !token || ensure_sc(l) != 0) goto unavailable;
-    int g = layer_geometry(w, h, scene_w, scene_h, r);
+    int g = layer_geometry(w, h, scene_w, scene_h, draw, r);
     if (g < 0) goto unavailable;
     if (g == 0) { if (acquire_fd >= 0) close(acquire_fd); sc_layer_hide(); return 1; }
     if (token == l->cur_token && l->shown && !l->recreate_pending) {
@@ -847,6 +902,7 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
         l->ds_applied = -1; l->md_applied = 0; l->hr_applied = -1.0f;
         return -1;
     }
+    apply_present_time(tx, 1);
     api.txApply(tx);
     api.txDelete(tx);
     l->cur_slot = -1;
@@ -861,12 +917,13 @@ unavailable:
     return -1;
 }
 
-int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const struct droiddeck_color *color) {
+int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const struct vkp_draw *draw,
+                     const struct droiddeck_color *color) {
     struct layer *l = layer_of(SC_LAYER_GAME);
     if (!src || ensure_sc(l) != 0) return -1;
     int sw = vkp_image_width(src), sh = vkp_image_height(src);
     int r[8];
-    int g = layer_geometry(sw, sh, scene_w, scene_h, r);
+    int g = layer_geometry(sw, sh, scene_w, scene_h, draw, r);
     if (g < 0) return -1;
     if (g == 0) { sc_layer_hide(); return 0; }
 
@@ -892,7 +949,7 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
     if (!draws || n <= 0 || ensure_sc(l) != 0) return -1;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
     if (vkp_pass_begin(scene_w, scene_h, draws, n, &rw, &rh) != 0) return -1;
-    if (!vkp_map_rect(rw, rh, scene_w, scene_h, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
+    if (!vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
     int wait_fd;
     int idx = take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
@@ -917,7 +974,7 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
     if (!draws || n <= 0 || !hf || ensure_sc(l) != 0) return -1;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
     if (vkp_pass_begin_hdr(scene_w, scene_h, draws, n, hf, &rw, &rh) != 0) return -1;
-    if (!vkp_map_rect(rw, rh, scene_w, scene_h, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
+    if (!vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
     const int tm = hf->tonemap;
     const uint32_t fmt = tm ? AHB_RGBA8 : g_hdr_pool_fmt;
     g_alloc_failed = 0;
@@ -1044,6 +1101,13 @@ void sc_layer_window_gone(void) {
     layers_init();
     for (int i = SC_LAYER_COUNT - 1; i >= 0; i--) retire_sc(&g_layers[i]);
     drain_and_free_pools();
+}
+
+void sc_layer_aim_take(unsigned *next, unsigned *later, unsigned *even) {
+    *next = g_stat_aimed_next;
+    *later = g_stat_aimed_later;
+    *even = g_stat_aimed_even;
+    g_stat_aimed_next = g_stat_aimed_later = g_stat_aimed_even = 0;
 }
 
 unsigned sc_layer_frames_take(void) {

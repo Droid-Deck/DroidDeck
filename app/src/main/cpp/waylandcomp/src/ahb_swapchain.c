@@ -188,7 +188,7 @@ int ahb_swapchain_has_ahb(const struct dmabuf_buffer *b) {
     return b && *droiddeck_dmabuf_ahb_slot((struct dmabuf_buffer *)b) != NULL;
 }
 
-int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_w, int scene_h) {
+int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_w, int scene_h, const struct vkp_draw *draw) {
     struct ahb_buf *ab = b ? *droiddeck_dmabuf_ahb_slot(b) : NULL;
     if (!ab) return -1;
     int dmabuf_fd = droiddeck_dmabuf_fd(b);
@@ -206,7 +206,7 @@ int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_
         int r;
         do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
     }
-    int r = sc_layer_present_ahb(ab->ahb, ab->w, ab->h, acquire, (void *)(uintptr_t)ab->id, scene_w, scene_h,
+    int r = sc_layer_present_ahb(ab->ahb, ab->w, ab->h, acquire, (void *)(uintptr_t)ab->id, scene_w, scene_h, draw,
                                  s ? droiddeck_surface_color(s) : NULL, ab->format);
     if (r < 0) return -1;
     if (r == 1) return 0;

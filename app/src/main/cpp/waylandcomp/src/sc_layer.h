@@ -20,7 +20,8 @@ int sc_layer_can_tag_hdr(void);
 void sc_layer_hdr_symbols(char *out, size_t size);
 
 
-int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const struct droiddeck_color *color);
+int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const struct vkp_draw *draw,
+                     const struct droiddeck_color *color);
 
 int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int scene_h);
 
@@ -29,7 +30,7 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
                                int scene_w, int scene_h, const struct droiddeck_color *color);
 
 int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, void *token,
-                         int scene_w, int scene_h, const struct droiddeck_color *color, uint32_t ahb_format);
+                         int scene_w, int scene_h, const struct vkp_draw *draw, const struct droiddeck_color *color, uint32_t ahb_format);
 
 void sc_layer_set_frame_rate(float fps);
 
@@ -46,6 +47,8 @@ void sc_layer_hide_overlay(void);
 
 void sc_layer_window_gone(void);
 
+void sc_layer_frame_timeline(int64_t present_ns, int64_t deadline_ns, int64_t period_ns);
+void sc_layer_aim_take(unsigned *next, unsigned *later, unsigned *even);
 unsigned sc_layer_frames_take(void);
 unsigned sc_layer_drops_take(void);
 
