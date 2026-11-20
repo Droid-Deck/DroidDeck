@@ -804,7 +804,6 @@
     <string name="drawer_pc_keyboard">पीसी कीबोर्ड</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">दूसरी स्क्रीन</string>
-    <string name="drawer_second_screen_mode">मोड</string>
     <string name="drawer_second_screen_shows">दिखाता है</string>
     <string name="drawer_android_apps">Android ऐप</string>
     <string name="drawer_launch_app">ऐप लॉन्च करें</string>

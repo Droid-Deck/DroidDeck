@@ -804,7 +804,6 @@
     <string name="drawer_pc_keyboard">PC klavyesi</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">İkinci ekran</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Gösterilen</string>
     <string name="drawer_android_apps">Android uygulamaları</string>
     <string name="drawer_launch_app">Uygulama başlat</string>

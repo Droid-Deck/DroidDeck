@@ -802,7 +802,6 @@
     <string name="drawer_pc_keyboard">Papan kekunci PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Skrin kedua</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Memaparkan</string>
     <string name="drawer_android_apps">Apl Android</string>
     <string name="drawer_launch_app">Lancarkan apl</string>
