@@ -173,7 +173,6 @@ public class FakeInputWriter {
     private final AxisPacing axisPacing = new AxisPacing(AXIS_REPORT_INTERVAL_MS);
     private final PadState pacedPad = new PadState();
     private final Runnable pacedWrite = this::writePacedPad;
-    private boolean pacedPending = false;
 
     public FakeInputWriter(String fakeInputPath, int slot) {
         this.slot = slot;
@@ -846,28 +845,22 @@ public class FakeInputWriter {
         long due = axisPacing.dueAt(now, !pendingFullResend && onlyAxesMove(state));
         if (due > now) {
             pacedPad.copyFrom(state);
-            if (!pacedPending) {
-                pacedPending = true;
+            if (axisPacing.hold(due))
                 Pacing.HANDLER.postAtTime(pacedWrite, due);
-            }
             return;
         }
         cancelPacedWrite();
-        writePadNow(state, now);
+        writePadNow(state);
     }
 
     private synchronized void writePacedPad() {
-        if (!pacedPending)
-            return;
-        pacedPending = false;
-        writePadNow(pacedPad, SystemClock.uptimeMillis());
+        if (axisPacing.release(SystemClock.uptimeMillis()))
+            writePadNow(pacedPad);
     }
 
     private void cancelPacedWrite() {
-        if (!pacedPending)
-            return;
-        pacedPending = false;
-        Pacing.HANDLER.removeCallbacks(pacedWrite);
+        if (axisPacing.cancel())
+            Pacing.HANDLER.removeCallbacks(pacedWrite);
     }
 
     private boolean onlyAxesMove(PadState state) {
@@ -894,7 +887,7 @@ public class FakeInputWriter {
         return (int) (value * 255);
     }
 
-    private void writePadNow(PadState state, long now) {
+    private void writePadNow(PadState state) {
         if (!isOpen && !open())
             return;
 
@@ -969,7 +962,7 @@ public class FakeInputWriter {
                 Log.e(TAG, "Gamepad write error: fake input mmap ring unavailable");
                 pendingFullResend = true;
             } else {
-                axisPacing.wrote(now);
+                axisPacing.wrote(SystemClock.uptimeMillis());
             }
         }
         forceResend = false;

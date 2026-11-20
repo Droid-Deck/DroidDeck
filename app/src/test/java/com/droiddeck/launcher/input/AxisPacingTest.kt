@@ -33,6 +33,40 @@ class AxisPacingTest {
         assertFalse(AxisPacing.keepsMoving(900, 0))
     }
 
+    @Test fun theIntervalRunsFromTheFlushNotFromTheRequest() {
+        val pacing = AxisPacing(4)
+        assertEquals(100L, pacing.dueAt(100, true))
+        pacing.wrote(110)
+        assertEquals(114L, pacing.dueAt(111, true))
+    }
+
+    @Test fun aHeldReportIsReleasedOnlyAtItsDeadline() {
+        val pacing = AxisPacing(4)
+        assertTrue(pacing.hold(104))
+        assertFalse(pacing.hold(104))
+        assertFalse(pacing.release(103))
+        assertTrue(pacing.release(104))
+        assertFalse(pacing.release(105))
+    }
+
+    @Test fun aCallbackFromACancelledHoldCannotPublishTheNextHoldEarly() {
+        val pacing = AxisPacing(4)
+        assertTrue(pacing.hold(104))
+        assertTrue(pacing.cancel())
+        pacing.wrote(104)
+        assertTrue(pacing.hold(pacing.dueAt(105, true)))
+        assertFalse(pacing.release(105))
+        assertTrue(pacing.release(108))
+    }
+
+    @Test fun cancellingWithNothingHeldRemovesNoCallback() {
+        val pacing = AxisPacing(4)
+        assertFalse(pacing.cancel())
+        assertTrue(pacing.hold(104))
+        assertTrue(pacing.release(104))
+        assertFalse(pacing.cancel())
+    }
+
     @Test fun aThousandHertzPadReachesTheGuestAtTheIntervalRate() {
         val writes = feed(AxisPacing(4), sampleMs = 1, durationMs = 1000)
         assertTrue("$writes writes", writes in 249..251)
