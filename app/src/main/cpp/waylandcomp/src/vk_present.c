@@ -2703,24 +2703,32 @@ static struct {
     int active;
     VkImage result;
     int rw, rh;
+    int ngen;
+    VkImage gens[VKP_FG_MAX_GENERATIONS];
 } g_pass;
 
 static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
-                           const struct vkp_hdr_frame *hf, int *rw, int *rh);
+                           const struct vkp_hdr_frame *hf, int generate, int *rw, int *rh);
 
 int vkp_pass_begin(int scene_w, int scene_h, const struct vkp_draw *draws, int n, int *rw, int *rh) {
-    return pass_begin_impl(scene_w, scene_h, draws, n, NULL, rw, rh);
+    return pass_begin_impl(scene_w, scene_h, draws, n, NULL, 0, rw, rh);
+}
+
+int vkp_pass_begin_generate(int scene_w, int scene_h, const struct vkp_draw *draws, int n, int *rw, int *rh) {
+    if (pass_begin_impl(scene_w, scene_h, draws, n, NULL, 1, rw, rh) != 0) return -1;
+    return g_pass.ngen;
 }
 
 int vkp_pass_begin_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *rw, int *rh) {
     if (!hf) return -1;
-    return pass_begin_impl(scene_w, scene_h, draws, n, hf, rw, rh);
+    return pass_begin_impl(scene_w, scene_h, draws, n, hf, 0, rw, rh);
 }
 
 static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
-                           const struct vkp_hdr_frame *hf, int *rw, int *rh) {
+                           const struct vkp_hdr_frame *hf, int generate, int *rw, int *rh) {
     if (g_pass.active) vkp_pass_abort();
+    g_pass.ngen = 0;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
     int input_w = scene_w, input_h = scene_h;
     int pass_n = n, overlay_start = n;
@@ -2815,24 +2823,42 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
     }
 
     int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
+    if (generate && !vkp_effects_sharpening()) { mapped_w = scene_w; mapped_h = scene_h; }
     g_pass.rw = input_w; g_pass.rh = input_h;
     g_pass.result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h,
                                     &g_pass.rw, &g_pass.rh);
     effects_overlay_draws(cmd, g_pass.result, g_pass.rw, g_pass.rh, scene_w, scene_h,
                           draws ? draws + overlay_start : NULL, n - overlay_start);
     release_external_client_draws(cmd, draws, n);
+    if (generate) {
+        VkImageMemoryBarrier b = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = g_pass.result, .subresourceRange = range,
+            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT};
+        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                0, 0, NULL, 0, NULL, 1, &b);
+        int ngen = vkp_framegen_run(cmd, g_pass.result, VK_NULL_HANDLE, g_pass.rw, g_pass.rh, SCENE_FMT, g_pass.gens);
+        if (ngen < 0) ngen = 0;
+        g_pass.ngen = ngen > VKP_FG_MAX_GENERATIONS ? VKP_FG_MAX_GENERATIONS : ngen;
+    }
     g_pass.active = 1;
     if (rw) *rw = g_pass.rw;
     if (rh) *rh = g_pass.rh;
     return 0;
 }
 
-int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
+static int pass_finish(const VkImage *srcs, VkImageLayout src_layout, struct vkp_image *const *dsts, int n,
+                       int wait_fd) {
     if (!g_pass.active) { if (wait_fd >= 0) close(wait_fd); return -1; }
     g_pass.active = 0;
     if (g_dev_state != 1) { if (wait_fd >= 0) close(wait_fd); return -1; }
     VkCommandBuffer cmd = g_cmds[0];
-    if (!dst || !dst->blit_dst) {
+    for (int i = 0; i < n; i++) {
+        if (dsts[i] && dsts[i]->blit_dst) continue;
         if (wait_fd >= 0) close(wait_fd);
         g_vk.EndCommandBuffer(cmd);
         return -1;
@@ -2841,27 +2867,30 @@ int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
     if (gpu_wait < 0) { g_vk.EndCommandBuffer(cmd); return -1; }
     VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-    VkImageMemoryBarrier acq = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
-        .dstQueueFamilyIndex = g_qfam, .image = dst->image, .subresourceRange = range,
-        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
-    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                            0, 0, NULL, 0, NULL, 1, &acq);
-    VkImageBlit blit = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                        .srcOffsets = {{0, 0, 0}, {g_pass.rw, g_pass.rh, 1}},
-                        .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                        .dstOffsets = {{0, 0, 0}, {dst->w, dst->h, 1}}};
-    g_vk.CmdBlitImage(cmd, g_pass.result, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->image,
-                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
-                      (g_pass.rw == dst->w && g_pass.rh == dst->h) ? VK_FILTER_NEAREST : VK_FILTER_LINEAR);
-    VkImageMemoryBarrier rel = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_GENERAL, .srcQueueFamilyIndex = g_qfam,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT, .image = dst->image, .subresourceRange = range,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
-    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                            0, 0, NULL, 0, NULL, 1, &rel);
+    for (int i = 0; i < n; i++) {
+        struct vkp_image *dst = dsts[i];
+        VkImageMemoryBarrier acq = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
+            .dstQueueFamilyIndex = g_qfam, .image = dst->image, .subresourceRange = range,
+            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
+        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                0, 0, NULL, 0, NULL, 1, &acq);
+        VkImageBlit blit = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                            .srcOffsets = {{0, 0, 0}, {g_pass.rw, g_pass.rh, 1}},
+                            .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                            .dstOffsets = {{0, 0, 0}, {dst->w, dst->h, 1}}};
+        g_vk.CmdBlitImage(cmd, srcs[i], src_layout, dst->image,
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
+                          (g_pass.rw == dst->w && g_pass.rh == dst->h) ? VK_FILTER_NEAREST : VK_FILTER_LINEAR);
+        VkImageMemoryBarrier rel = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL, .srcQueueFamilyIndex = g_qfam,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT, .image = dst->image, .subresourceRange = range,
+            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
+        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                0, 0, NULL, 0, NULL, 1, &rel);
+    }
     g_vk.EndCommandBuffer(cmd);
 
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -2879,6 +2908,15 @@ int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
     if (fr == VK_ERROR_DEVICE_LOST) { device_lost("layer pass"); return -1; }
     if (fr != VK_SUCCESS) { LOGE("layer: effects pass fence wait -> %s", vk_result_name(fr)); return -1; }
     return 0;
+}
+
+int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
+    return pass_finish(&g_pass.result, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, &dst, 1, wait_fd);
+}
+
+int vkp_pass_copy_generated(struct vkp_image *const *dsts, int n, int wait_fd) {
+    if (n > g_pass.ngen) n = g_pass.ngen;
+    return pass_finish(g_pass.gens, VK_IMAGE_LAYOUT_GENERAL, dsts, n, wait_fd);
 }
 
 void vkp_pass_abort(void) {

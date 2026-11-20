@@ -897,6 +897,9 @@ extern void droiddeck_on_game_frame(void);
 extern void droiddeck_on_content_rate(int fps);
 static int64_t g_cadence_ns;
 static int64_t g_cadence_frames;
+static int g_content_fps;
+static int g_framegen_layer_said;
+static int g_framegen_layer;
 extern void droiddeck_on_game_program(int pid, const char *program);
 
 static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_resource *buffer) {
@@ -1063,7 +1066,8 @@ static void note_game_frame_gap(void) {
     if (!g_cadence_ns) g_cadence_ns = now;
     g_cadence_frames++;
     if (now - g_cadence_ns >= 1000000000LL) {
-        droiddeck_on_content_rate((int)((g_cadence_frames * 1000000000LL + (now - g_cadence_ns) / 2) / (now - g_cadence_ns)));
+        g_content_fps = (int)((g_cadence_frames * 1000000000LL + (now - g_cadence_ns) / 2) / (now - g_cadence_ns));
+        droiddeck_on_content_rate(g_content_fps);
         g_cadence_ns = now;
         g_cadence_frames = 0;
     }
@@ -2530,13 +2534,17 @@ static void render_scene(void) {
     } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
     tell_overlay_planes();
-    int li = (g_zero_copy && !framegen && !bfi && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
+    const int64_t fg_rate = (int64_t)g_content_fps * (1 + vkp_framegen_extra_images()) * 1000;
+    const int fg_layer = framegen && !fx_on && hdr_route == 0 && g_content_fps > 0 &&
+                         fg_rate * 100 <= (int64_t)atomic_load(&g_output_refresh_mhz) * (g_framegen_layer ? 108 : 104);
+    g_framegen_layer = fg_layer;
+    int li = (g_zero_copy && (!framegen || fg_layer) && !bfi && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0;
     const int fx_blocks = (li >= 0 && fx_on && over > 0);
     if (fx_blocks) { li = -1; over = 0; }
     const int ov_blocks = (li >= 0 && over > 0 && !fx_blocks && !sc_layer_overlay_affordable());
     if (ov_blocks) { li = -1; over = 0; }
-    const int blocked = framegen ? 1 : bfi ? 4 : (fx_blocks ? 2 : (ov_blocks ? 3 : 0));
+    const int blocked = (framegen && !fg_layer) ? 1 : bfi ? 4 : (fx_blocks ? 2 : (ov_blocks ? 3 : 0));
     if (g_zero_copy && !cursor_on && blocked != g_zero_copy_paused) {
         g_zero_copy_paused = blocked;
         if (blocked == 1)
@@ -2572,9 +2580,15 @@ static void render_scene(void) {
     if (li >= 0 || ls) {
         vkp_apply_window_request();
         int r = -1;
-        if (!(fx_on && li >= 0) && ls && ls->dmabuf_buf && ahb_swapchain_has_ahb(ls->dmabuf_buf))
+        const int generated = (framegen && li >= 0)
+                                  ? sc_layer_present_generated(&dl.d[li], w, h, ls ? droiddeck_surface_color(ls) : NULL) : 0;
+        if (generated > 0 && !g_framegen_layer_said) {
+            g_framegen_layer_said = 1;
+            droiddeck_log("framegen", "generated frames go on the game's display layer between the game's own frames");
+        }
+        if (generated >= 0 && !(fx_on && li >= 0) && ls && ls->dmabuf_buf && ahb_swapchain_has_ahb(ls->dmabuf_buf))
             r = ahb_swapchain_present(ls->dmabuf_buf, ls, w, h, ld);
-        if (r != 0 && li >= 0)
+        if (generated >= 0 && r != 0 && li >= 0)
             r = fx_on ? sc_layer_present_pass(&dl.d[li], 1, w, h)
                       : sc_layer_present(dl.d[li].img, w, h, ld, ls ? droiddeck_surface_color(ls) : NULL);
         if (r == 0) {

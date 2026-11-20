@@ -114,6 +114,8 @@ void vkp_signal_first_frame(void);
 
 int vkp_pass_begin(int scene_w, int scene_h, const struct vkp_draw *draws, int n, int *rw, int *rh);
 int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd);
+int vkp_pass_begin_generate(int scene_w, int scene_h, const struct vkp_draw *draws, int n, int *rw, int *rh);
+int vkp_pass_copy_generated(struct vkp_image *const *dsts, int n, int wait_fd);
 void vkp_pass_abort(void);
 
 void droiddeck_log(const char *tag, const char *fmt, ...) __attribute__((format(printf, 2, 3)));

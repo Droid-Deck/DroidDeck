@@ -3,6 +3,7 @@
 #include "ahb_swapchain.h"
 #include "droiddeck_color.h"
 #include "vk_present.h"
+#include "framegen_bridge.h"
 #include <android/hardware_buffer.h>
 #include <android/native_window.h>
 #include <android/rect.h>
@@ -138,7 +139,7 @@ void sc_layer_set_frame_rate(float fps) {
 }
 
 
-#define POOL_MAX 5
+#define POOL_MAX 8
 
 struct slot {
     AHardwareBuffer *ahb;
@@ -191,6 +192,7 @@ static pthread_mutex_t g_timeline_lock = PTHREAD_MUTEX_INITIALIZER;
 static int64_t g_timeline_present_ns, g_timeline_deadline_ns, g_timeline_period_ns;
 static int g_timeline_late;
 static int64_t g_cadence_seen_ns, g_cadence_gap_ns, g_cadence_target_ns;
+static int g_group_frames = 1, g_group_index;
 static unsigned g_stat_aimed_next, g_stat_aimed_later, g_stat_aimed_even;
 static int g_two_logged;
 static AHardwareBuffer *g_blank;
@@ -269,7 +271,14 @@ static void apply_present_time(ASurfaceTransaction *tx, int game) {
     g_timeline_late = slack < (g_timeline_late ? period * 5 / 8 : period / 8);
     if (g_timeline_late) { ahead++; g_stat_aimed_later++; } else g_stat_aimed_next++;
     int64_t target = present + ahead * period;
-    if (game) target = cadence_target(now, target, period);
+    if (game && g_group_index > 0) {
+        int64_t steps = (g_group_index * g_cadence_gap_ns / g_group_frames + period / 2) / period;
+        if (steps < g_group_index) steps = g_group_index;
+        if (target < g_cadence_target_ns + steps * period) target = g_cadence_target_ns + steps * period;
+    } else if (game) {
+        target = cadence_target(now, target, period);
+    }
+    if (game && g_group_frames > 1 && ++g_group_index >= g_group_frames) { g_group_index = 0; g_group_frames = 1; }
     api.setDesiredPresentTime(tx, target - period / 2);
 }
 
@@ -567,11 +576,15 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
     return -1;
 }
 
-static int fence_signalled(int fd) {
+static int fence_wait(int fd, int timeout_ms) {
     struct pollfd p = {.fd = fd, .events = POLLIN};
     int r;
-    do { r = poll(&p, 1, 0); } while (r < 0 && errno == EINTR);
-    return r > 0;
+    do { r = poll(&p, 1, timeout_ms); } while (r < 0 && errno == EINTR);
+    return r;
+}
+
+static int fence_signalled(int fd) {
+    return fence_wait(fd, 0) > 0;
 }
 
 static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait_fd) {
@@ -596,10 +609,7 @@ static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait
         memset(s, 0, sizeof(*s)); s->release_fd = -1;
     }
     if (fd >= 0 && !vkp_can_wait_sync_fd()) {
-        struct pollfd p = {.fd = fd, .events = POLLIN};
-        int r;
-        do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
-        if (r == 0) {
+        if (fence_wait(fd, 100) == 0) {
             pthread_mutex_lock(&g_lock);
             if (s->release_fd < 0) s->release_fd = fd; else close(fd);
             pthread_mutex_unlock(&g_lock);
@@ -963,6 +973,48 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
     }
     vkp_signal_first_frame();
     return 0;
+}
+
+static void slots_idle(struct layer *l, const int *idx, int from, int to) {
+    pthread_mutex_lock(&g_lock);
+    for (int i = from; i < to; i++) l->slots[idx[i]].busy = 0;
+    pthread_mutex_unlock(&g_lock);
+}
+
+int sc_layer_present_generated(const struct vkp_draw *draw, int scene_w, int scene_h,
+                               const struct droiddeck_color *color) {
+    struct layer *l = layer_of(SC_LAYER_GAME);
+    int rw = 0, rh = 0, r[8], idx[VKP_FG_MAX_GENERATIONS], m = 0, first_fd = -1;
+    struct vkp_image *dst[VKP_FG_MAX_GENERATIONS];
+    g_group_index = 0;
+    g_group_frames = 1;
+    if (!draw || ensure_sc(l) != 0) return -1;
+    if (vkp_update_map(scene_w, scene_h) != 0) return -1;
+    int n = vkp_pass_begin_generate(scene_w, scene_h, draw, 1, &rw, &rh);
+    if (n < 0) return -1;
+    if (n > 0 && !vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r)) n = 0;
+    for (; m < n; m++) {
+        int fd;
+        idx[m] = take_free_slot(l, rw, rh, AHB_RGBA8, &fd);
+        if (idx[m] < 0) { log_drop(l); break; }
+        pthread_mutex_lock(&g_lock);
+        l->slots[idx[m]].busy = 1;
+        pthread_mutex_unlock(&g_lock);
+        dst[m] = l->slots[idx[m]].img;
+        if (m == 0) first_fd = fd;
+        else if (fd >= 0) { fence_wait(fd, 100); close(fd); }
+    }
+    if (vkp_pass_copy_generated(dst, m, first_fd) != 0) { slots_idle(l, idx, 0, m); return -1; }
+    g_group_frames = m + 1;
+    for (int k = 0; k < m; k++) {
+        if (present_slot(l, idx[k], r, color, 0) == 0) continue;
+        slots_idle(l, idx, k, m);
+        g_group_index = 0;
+        g_group_frames = 1;
+        return -1;
+    }
+    vkp_framegen_presented(m);
+    return m;
 }
 
 static uint32_t g_hdr_pool_fmt = AHB_RGB10A2;
