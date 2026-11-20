@@ -135,6 +135,23 @@ class SteamTouchConfigFilesTest {
         assertSavedA(413150, saved)
     }
 
+    @Test fun aConfigsetCutOffAfterAKeyGetsTheEntryAtTheRoot() {
+        File(dir, "configset_controller_mobile_touch.vdf").writeText("\"controller_config\"\n{\n\t\"8400\"\n\t{\n\t\t\"workshop\"")
+        val saved = saveDefault(413150)
+        val root = KeyValues.parse(File(dir, "configset_controller_mobile_touch.vdf").readText()).child("controller_config")
+        assertEquals("1", root?.child("413150")?.string("autosave"))
+        assertEquals(null, root?.child("8400")?.child("413150"))
+        assertSavedA(413150, saved)
+    }
+
+    @Test fun aConfigsetWhoseRootIsAQuotedValueIsRebuilt() {
+        File(dir, "configset_controller_mobile_touch.vdf").writeText("\"controller_config\" \"{}\"\n")
+        val saved = saveDefault(413150)
+        val root = KeyValues.parse(File(dir, "configset_controller_mobile_touch.vdf").readText()).child("controller_config")
+        assertEquals("1", root?.child("413150")?.string("autosave"))
+        assertSavedA(413150, saved)
+    }
+
     private fun shortcut(name: String): Int {
         val shortcut = 2702387189L.toInt()
         template.apply { parentFile!!.mkdirs(); writeText(touch("Gamepad with Joystick")) }

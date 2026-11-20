@@ -438,17 +438,13 @@ object SteamTouchConfig {
 
     private fun selectAutosave(dir: File, key: String) {
         val file = File(dir, CONFIGSET)
-        val text = file.takeIf { it.isFile }?.readText()?.takeIf { it.contains('{') }?.let(::closeBraces)?.takeIf { it.contains('}') } ?: "\"controller_config\"\n{\n}\n"
-        val entry = "\t\"$key\"\n\t{\n\t\t\"autosave\"\t\t\"1\"\n\t}"
-        val block = Regex("""\n\s*"${Regex.escape(key)}"\s*\{[^}]*\}""", RegexOption.IGNORE_CASE)
-        val next = if (block.containsMatchIn(text)) text.replace(block) { "\n$entry" }
-        else text.substring(0, text.lastIndexOf('}')).trimEnd() + "\n$entry\n}\n"
-        File(file.path + ".tmp").apply { writeText(next) }.renameTo(file)
-    }
-
-    private fun closeBraces(text: String): String {
-        val open = KeyValues.unclosedBraces(text)
-        return if (open <= 0) text else text.trimEnd() + "\n}".repeat(open) + "\n"
+        val root = file.takeIf { it.isFile }?.readText()?.let(KeyValues::parse)?.takeIf { it.child("controller_config") != null }
+            ?: KeyValues.Node(mutableListOf("controller_config" to KeyValues.Node()))
+        val config = root.child("controller_config") ?: return
+        val entry = key to KeyValues.Node(mutableListOf("autosave" to "1"))
+        val at = config.entries.indexOfFirst { it.first.equals(key, true) && it.second is KeyValues.Node }
+        if (at >= 0) config.entries[at] = entry else config.entries += entry
+        File(file.path + ".tmp").apply { writeText(KeyValues.write(root)) }.renameTo(file)
     }
 
 
@@ -612,7 +608,14 @@ class KeyValues private constructor() {
     }
 
     companion object {
-        fun unclosedBraces(text: String): Int = tokenize(text).let { tokens -> tokens.count { it.opens } - tokens.count { it.closes } }
+        fun write(node: Node): String = write(node, "")
+
+        private fun write(node: Node, indent: String): String = node.entries.joinToString("") { (key, value) ->
+            if (value is Node) "$indent\"${escape(key)}\"\n$indent{\n${write(value, "$indent\t")}$indent}\n"
+            else "$indent\"${escape(key)}\"\t\t\"${escape(value.toString())}\"\n"
+        }
+
+        private fun escape(text: String) = text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\t", "\\t")
 
         fun parse(text: String): Node {
             val tokens = tokenize(text)
