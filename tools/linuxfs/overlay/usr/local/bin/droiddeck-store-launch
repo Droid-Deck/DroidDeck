@@ -507,7 +507,10 @@ def rockstar_runtime(folder, exe, compat_data, arch, installer=None):
     return "installed"
 
 
-def epic_parent_switch(env=None):
+def epic_parent_switch(sidecar, env=None):
+    own = sidecar.get("env") if isinstance(sidecar.get("env"), dict) else {}
+    if EPIC_PARENT_SWITCH in own:
+        return str(own[EPIC_PARENT_SWITCH]).replace('"', "")
     env = os.environ if env is None else env
     try:
         game_env = runpy.run_path(str(Path(__file__).resolve().with_name("droiddeck-game-env")))
@@ -1713,7 +1716,7 @@ def main(argv):
             log("ubisoft %s: not prepared (%s), starting directly" % (game, e))
     if store == "epic":
         try:
-            if launch_dir and not EPIC_PARENT.is_file() and wants_epic_parent(folder, epic_parent_switch()):
+            if launch_dir and not EPIC_PARENT.is_file() and wants_epic_parent(folder, epic_parent_switch(sidecar)):
                 got = fetch_service(EPIC_PARENT, "epic", launch_dir, timeout=EPIC_SERVICE_WAIT)
                 log("epic parent stand-in: " + ("staged" if got else "unavailable"))
             sdk = epic_rockstar_sdk(folder, sidecar, compat_data, os.environ.get("DD_STORE_PROTON", ""))
