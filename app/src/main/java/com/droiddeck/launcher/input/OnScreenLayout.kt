@@ -44,6 +44,43 @@ object OnScreenLayout {
         return fit(elements, aspect(context, layout), 1f, width, height, safe)
     }
 
+    internal const val STEAM_SHORTCUT_ID = "shortcut:steam"
+    internal const val QAM_SHORTCUT_ID = "shortcut:qam"
+
+    internal fun steamShortcuts(width: Int, height: Int, safe: Rect, density: Float,
+        pinned: List<InputSurfaceElement> = emptyList()): List<InputSurfaceElement> {
+        if (width <= 0 || height <= 0) return emptyList()
+        val size = min(48f * density, (width - safe.left - safe.right - 64f * density) / 2f)
+        if (size <= 0f || height - safe.bottom - safe.top < size) return emptyList()
+        val gap = 4f * density
+        val left = safe.left + 56f * density
+        val right = width - safe.right - size - gap
+        val middle = (left + right) / 2f
+        val pinnedFromBottom = pinned.sortedByDescending { it.y }
+        fun button(control: InputControl, id: String, leftSide: Boolean): InputSurfaceElement? {
+            val edge = if (leftSide) left else right
+            val range = if (leftSide) left..(middle - size / 2f) else (middle + size / 2f)..right
+            val candidates = listOf(edge) + pinned.map {
+                if (leftSide) (it.x + it.width) * width + gap else it.x * width - size - gap
+            }.filter { it in range }.sortedBy { kotlin.math.abs(it - edge) }
+            for (x in candidates) {
+                var y = max(safe.top.toFloat(), height - safe.bottom - size - gap)
+                for (element in pinnedFromBottom) {
+                    if (x >= (element.x + element.width) * width || x + size <= element.x * width) continue
+                    if (y >= (element.y + element.height) * height || y + size <= element.y * height) continue
+                    y = element.y * height - size - gap
+                }
+                if (y >= safe.top) return InputSurfaceElement(control, x / width, y / height, size / width, size / height,
+                    id, buttonShape = InputButtonShape.PILL).bounded()
+            }
+            return null
+        }
+        return listOfNotNull(
+            button(InputControl.GUIDE, STEAM_SHORTCUT_ID, leftSide = true),
+            button(InputControl.QAM, QAM_SHORTCUT_ID, leftSide = false),
+        )
+    }
+
     fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false): List<InputSurfaceElement> =
         elements(context, if (edited && width > 0 && height > 0) layout.copy(aspect = width.toFloat() / height) else layout, width, height, Rect())
 

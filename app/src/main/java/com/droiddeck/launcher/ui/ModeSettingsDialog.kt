@@ -298,11 +298,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             )
             if (steam && s.oscMode != null) ChoiceRow(
                 host, "osc", stringResource(R.string.mode_osc), null,
-                listOf(
-                    SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto),
-                    SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
-                    SessionPrefs.OSC_NEVER to stringResource(R.string.common_never),
-                ), s.oscMode,
+                controlsVisibilityOptions(steam = true), s.oscMode,
                 note = stringResource(R.string.mode_osc_note), onPick = a.onOsc,
             )
             if (steam && s.steamController != null) ChoiceRow(

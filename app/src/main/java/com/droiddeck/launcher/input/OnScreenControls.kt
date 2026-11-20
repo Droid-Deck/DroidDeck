@@ -32,6 +32,8 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     private val corner = CornerButton(context)
     var hidden: Hidden? = null
         private set
+    var shortcutsOnly = false
+        private set
     /** Holding the corner button opens DroidDeck's controller menu. */
     var onCornerHold: (() -> Unit)? = null
     /** The player tapped the corner button. */
@@ -56,18 +58,24 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         render()
     }
 
-    fun setHidden(value: Hidden?) {
-        if (hidden == value) return
+    fun setPresentation(value: Hidden?, shortcuts: Boolean = false) {
+        if (hidden == value && shortcutsOnly == shortcuts) return
         releaseAll()
         hidden = value
+        shortcutsOnly = shortcuts
         render()
     }
 
     private fun render() {
         val placed = OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, dock, cutouts,
             rearButtons = SessionPrefs.oscRearButtons(context), trackpads = SessionPrefs.oscTrackpads(context))
-        surface.updateCustomLayout(if (hidden != null) placed.filter { it.alwaysShown } else placed)
-        surface.updateStyle(layout?.style ?: InputSurfaceStyle())
+        val style = layout?.style ?: InputSurfaceStyle()
+        val visible = if (hidden == null && !shortcutsOnly) placed else {
+            val pinned = placed.filter { it.alwaysShown && !style.hides(it) }
+            if (hidden != null) pinned else pinned + OnScreenLayout.steamShortcuts(viewWidth, viewHeight, safe, resources.displayMetrics.density, pinned)
+        }
+        surface.updateCustomLayout(visible)
+        surface.updateStyle(style)
         corner.visibility = if (layout == null || dock != null) GONE else VISIBLE
         corner.alpha = (layout?.style?.opacity ?: 100) / 100f
         val density = resources.displayMetrics.density
@@ -148,7 +156,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
                     else if (armed && event.x in 0f..width.toFloat() && event.y in 0f..height.toFloat()) {
                         performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         val next = if (hidden == null) Hidden.BY_TAP else null
-                        setHidden(next)
+                        setPresentation(next, shortcutsOnly)
                         onCornerTap?.invoke(next)
                     }
                     armed = false

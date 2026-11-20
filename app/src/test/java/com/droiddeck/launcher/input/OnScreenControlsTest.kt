@@ -231,7 +231,7 @@ class OnScreenControlsTest {
 
     @Test fun aControllerHideReleasesHeldControlsAndATapBringsThemBack() {
         touch(MotionEvent.ACTION_DOWN, 4 to (800f to 250f))
-        view.setHidden(OnScreenControls.Hidden.BY_CONTROLLER)
+        view.setPresentation(OnScreenControls.Hidden.BY_CONTROLLER)
         measure(view)
         assertFalse(state().isDown(PadState.A))
         assertFalse(view.takesTouchAt(800f, 250f))
@@ -239,6 +239,18 @@ class OnScreenControlsTest {
         tapCorner()
         assertNull(view.hidden)
         assertTrue(view.takesTouchAt(800f, 250f))
+    }
+
+    @Test fun tappingTheCornerKeepsTheShortcutsMode() {
+        fun shownIds() = view.inputSurface.shownElements.map { it.id }
+        view.setPresentation(null, shortcuts = true)
+        measure(view)
+        val shortcuts = listOf(OnScreenLayout.STEAM_SHORTCUT_ID, OnScreenLayout.QAM_SHORTCUT_ID)
+        assertEquals(shortcuts, shownIds())
+        tapCorner()
+        assertTrue(shownIds().isEmpty())
+        tapCorner()
+        assertEquals(shortcuts, shownIds())
     }
 
     @Test fun theCornerIsGoneWithoutALayoutAndOnTheDockedStrip() {

@@ -147,7 +147,7 @@ class InputSurfaceTouchTest {
         touch(MotionEvent.ACTION_UP, 1 to (600f to 510f))
         assertTrue(events.isEmpty())
         show(a, b, stick)
-        view.setHidden(OnScreenControls.Hidden.BY_TAP)
+        view.setPresentation(OnScreenControls.Hidden.BY_TAP)
         measure(view)
         assertFalse(view.takesTouchAt(450f, 510f))
         assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (450f to 510f)))
@@ -155,11 +155,11 @@ class InputSurfaceTouchTest {
     }
 
     @Test fun hiddenControlsHideTheKeyboardShortcutUntilShownAgain() {
-        view.setHidden(OnScreenControls.Hidden.BY_CONTROLLER)
+        view.setPresentation(OnScreenControls.Hidden.BY_CONTROLLER)
         measure(view)
         assertFalse(view.takesTouchAt(800f, 240f))
         assertFalse(view.takesTouchAt(450f, 510f))
-        view.setHidden(null)
+        view.setPresentation(null)
         measure(view)
         touch(MotionEvent.ACTION_DOWN, 1 to (450f to 510f))
         touch(MotionEvent.ACTION_UP, 1 to (450f to 510f))

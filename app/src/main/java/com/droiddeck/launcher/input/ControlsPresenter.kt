@@ -17,7 +17,7 @@ object ControlsPresenter {
         val bottomScreen: Boolean,
     )
 
-    data class Plan(val place: Place, val hidden: OnScreenControls.Hidden? = null) {
+    data class Plan(val place: Place, val hidden: OnScreenControls.Hidden? = null, val shortcutsOnly: Boolean = false) {
         val shown get() = place != Place.NONE && hidden == null
     }
 
@@ -27,7 +27,7 @@ object ControlsPresenter {
         else -> Plan(
             when {
                 state.bottomScreen -> Place.BOTTOM
-                state.steamLayout -> Place.STEAM
+                state.steamLayout && state.mode != SessionPrefs.OSC_STEAM_QAM -> Place.STEAM
                 else -> Place.MAIN
             },
             when {
@@ -35,6 +35,7 @@ object ControlsPresenter {
                 state.mode == SessionPrefs.OSC_AUTO && state.controllerInUse -> OnScreenControls.Hidden.BY_CONTROLLER
                 else -> null
             },
+            shortcutsOnly = state.mode == SessionPrefs.OSC_STEAM_QAM,
         )
     }
 }

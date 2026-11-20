@@ -322,6 +322,8 @@ class InputSurfaceView(
                 (element.name == c.label || element.name == kit.name(c)) && (c !in FACE || element.buttonShape == InputButtonShape.CIRCLE)
             when {
                 element.id == KitLayout.KEYBOARD_ID && element.icon == InputButtonIcons.KEYBOARD -> art.system(canvas, w, h, PadArt.Shape.ROUND, PadArt.Icon.KEYBOARD, lit)
+                element.id == OnScreenLayout.STEAM_SHORTCUT_ID -> art.system(canvas, w, h, PadArt.Shape.PILL, PadArt.Icon.STEAM, lit)
+                element.id == OnScreenLayout.QAM_SHORTCUT_ID -> art.system(canvas, w, h, PadArt.Shape.PILL, PadArt.Icon.QAM, lit)
                 native && c in FACE -> art.face(canvas, w / 2f, h / 2f, min(w, h) / 2f - art.dp(2f), c, kit, lit)
                 native && c in SHOULDERS -> art.shoulder(canvas, w, h, c, kit, lit)
                 native && c in GRIPS -> art.grip(canvas, w, h, c.label, lit)

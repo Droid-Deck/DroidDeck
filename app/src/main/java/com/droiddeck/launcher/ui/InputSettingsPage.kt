@@ -206,10 +206,10 @@ private fun DefaultControlsGroup(host: MenuHost, revision: Int, onEdit: (Triple<
             host.open = null
             ControlsChoice.editTarget(context, null, desktop = false)?.let(onEdit)
         }, modifier = Modifier.testTag("osc-edit"))
-        SettingsRow(stringResource(R.string.osc_show), null) {
-            SegmentedTabs(listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
-                SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)), oscMode,
-                tabModifier = { Modifier.testTag("osc-$it") }) { SessionPrefs.setOscMode(context, it); oscMode = it; onChanged() }
+        ControlsVisibilityRow(host, oscMode, steam = true) {
+            SessionPrefs.setOscMode(context, it)
+            oscMode = it
+            onChanged()
         }
         ChoiceRow(host, "touch", stringResource(R.string.input_touches), null,
             listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.common_auto), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_mouse),
@@ -238,6 +238,19 @@ private fun InputControlGrid(preset: SavedInputBindings, available: List<InputCo
             }
         }
     }
+}
+
+@Composable
+internal fun ControlsVisibilityRow(host: MenuHost, mode: String, steam: Boolean, modifier: Modifier = Modifier, onPick: (String) -> Unit) {
+    ChoiceRow(host, "osc-show", stringResource(R.string.osc_show), null, controlsVisibilityOptions(steam), mode, chipModifier = modifier, onPick = onPick)
+}
+
+@Composable
+internal fun controlsVisibilityOptions(steam: Boolean): List<Pair<String, String>> = buildList {
+    add(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto))
+    add(SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always))
+    if (steam) add(SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.osc_steam_shortcuts_only))
+    add(SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))
 }
 
 @Composable

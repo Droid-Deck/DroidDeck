@@ -1751,7 +1751,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onLayout = ::chooseLayout,
             onDeleteLayout = ::deleteLayout,
             oscRearButtons = oscRearButtons.takeIf {
-                unfoldedPanel == null && !usesSteamTouchLayout() && com.droiddeck.launcher.input.PadKit.current(this).steam &&
+                unfoldedPanel == null && oscMode != SessionPrefs.OSC_STEAM_QAM &&
+                    !usesSteamTouchLayout() && com.droiddeck.launcher.input.PadKit.current(this).steam &&
                     primaryInputLayout?.let(com.droiddeck.launcher.input.OnScreenLayout::hasBuiltInKit) == true
             },
             oscTrackpads = oscTrackpads,
@@ -4542,7 +4543,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun controlsBelowWanted(): Boolean {
         if (!::sessionRoot.isInitialized || glassesScreen != null || bottomGame != null || cardboard.enabled) return false
-        if (sessionOscMode() == SessionPrefs.OSC_NEVER || usesSteamTouchLayout()) return false
+        val mode = sessionOscMode()
+        if (mode == SessionPrefs.OSC_NEVER || mode == SessionPrefs.OSC_STEAM_QAM || usesSteamTouchLayout()) return false
         return SessionPrefs.controlsBelowWanted(this, SessionState.mode, sessionRoot.width, sessionRoot.height,
             pipUi || isInPictureInPictureMode)
     }
@@ -5407,6 +5409,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val c = onScreenControls
         glassesSlot = when {
             c == null || c.visibility != View.VISIBLE || c.hidden != null -> 0
+            c.shortcutsOnly -> -1
             c.inputSurface.shownElements.any { it.id == com.droiddeck.launcher.input.KitLayout.KEYBOARD_ID } -> 2
             else -> 1
         }
@@ -5439,7 +5442,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         fun hideBottomControls() { bottomInputControls?.takeIf { it.visibility == View.VISIBLE }?.let { it.releaseAll(); it.visibility = View.GONE } }
         fun hideSteam() {
             steamTouchControls?.let { it.cancelEditing(); it.releaseAll(); it.visibility = View.GONE }
-            val keyboardOver = controlsCovered() && usesSteamTouchLayout()
+            val keyboardOver = controlsCovered() && usesSteamTouchLayout() && sessionOscMode() != SessionPrefs.OSC_STEAM_QAM
             if (!keyboardOver) com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
         }
         val plan = controlsPlan()
@@ -5479,13 +5482,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     bottomInputControls = bottom
                 }
                 bottom.updateLayout(primaryInputLayout)
-                bottom.setHidden(plan.hidden)
+                bottom.setPresentation(plan.hidden, plan.shortcutsOnly)
                 bottom.visibility = View.VISIBLE
             }
             com.droiddeck.launcher.input.ControlsPresenter.Place.MAIN,
             com.droiddeck.launcher.input.ControlsPresenter.Place.STEAM -> {
                 hideBottomControls()
-                controls.setHidden(plan.hidden)
+                controls.setPresentation(plan.hidden, plan.shortcutsOnly)
                 controls.visibility = View.VISIBLE
             }
             else -> {
