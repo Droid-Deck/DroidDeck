@@ -124,6 +124,25 @@ class SteamTouchConfigFilesTest {
         assertTrue(text.contains("\"413150\""))
     }
 
+    private fun withBom(name: String) = File(dir, name).apply { writeText("\uFEFF" + readText()) }
+
+    @Test fun aConfigsetWithAByteOrderMarkKeepsItsOtherEntries() {
+        configset("configset_controller_mobile_touch.vdf", "8400" to "\"workshop\"\t\t\"7\"")
+        withBom("configset_controller_mobile_touch.vdf")
+        val saved = saveDefault(413150)
+        val root = KeyValues.parse(File(dir, "configset_controller_mobile_touch.vdf").readText()).child("controller_config")
+        assertEquals("1", root?.child("413150")?.string("autosave"))
+        assertEquals("7", root?.child("8400")?.string("workshop"))
+        assertSavedA(413150, saved)
+    }
+
+    @Test fun aWorkshopPickInAConfigsetWithAByteOrderMarkIsRead() {
+        val picked = workshop("42", "community")
+        configset("configset_controller_mobile_touch.vdf", "413150" to "\"workshop\"\t\t\"42\"")
+        withBom("configset_controller_mobile_touch.vdf")
+        assertEquals(picked, SteamTouchConfig.load(context, 413150).file)
+    }
+
     @Test fun aConfigsetMissingItsRootBraceGetsTheEntryAtTheRoot() {
         File(dir, "configset_controller_mobile_touch.vdf")
             .writeText("\"controller_config\"\n{\n\t\"8400\"\n\t{\n\t\t\"workshop\"\t\t\"7\"\n\t}\n")

@@ -204,7 +204,7 @@ object SteamTouchConfig {
         }
         return try {
             val text = file.readText()
-            val kv = KeyValues.parse(text.removePrefix("﻿"))
+            val kv = KeyValues.parse(text)
             val mappings = kv.child("controller_mappings") ?: kv
             val layouts = mappings.string("touch_layout")?.let { hex -> decodeLayouts(hexToBytes(hex)) }
             Log.i(TAG, "steam touch: app $appId uses ${file.path} (${layouts?.layouts?.size ?: 0} layouts)")
@@ -618,7 +618,7 @@ class KeyValues private constructor() {
         private fun escape(text: String) = text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\t", "\\t")
 
         fun parse(text: String): Node {
-            val tokens = tokenize(text)
+            val tokens = tokenize(text.removePrefix("\uFEFF"))
             var i = 0
             fun node(): Node {
                 val n = Node()
