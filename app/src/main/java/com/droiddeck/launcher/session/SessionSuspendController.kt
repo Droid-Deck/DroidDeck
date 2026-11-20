@@ -339,9 +339,12 @@ internal class SessionSuspendController(
             return
         }
         val hold = holdFile(control)
+        val requests = chosen.map { File(control.parentFile, "${hold.name}.${it.pid}") }
         try {
-            hold.writeText(READ_BACK_REQUEST)
+            hold.writeText(NO_REQUEST)
+            requests.forEach { it.writeText(READ_BACK_REQUEST) }
         } catch (_: IOException) {
+            requests.forEach { it.delete() }
             hold.delete()
             return
         }
@@ -360,6 +363,7 @@ internal class SessionSuspendController(
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         } finally {
+            requests.forEach { it.delete() }
             hold.delete()
         }
         pagedIn(chosen.size, memoryKb(targets).second, before, available, nowMillis() - start)
@@ -489,6 +493,7 @@ internal class SessionSuspendController(
         const val PAGE_OUT_ACK = "1"
         const val PAGE_OUT_REQUEST = "1"
         const val READ_BACK_REQUEST = "0"
+        const val NO_REQUEST = "2 0"
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L

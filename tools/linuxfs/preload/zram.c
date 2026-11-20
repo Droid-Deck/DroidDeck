@@ -32,6 +32,7 @@
 #define ZR_FAILED (~0UL)
 #define ZR_FUTEX_WAIT 0
 #define ZR_FUTEX_WAKE 1
+#define ZR_PATH (sizeof(ZR_CTL) + sizeof(".hold.") + 20)
 
 static long (*zr_sys)(long, ...);
 static unsigned long zr_page;
@@ -58,20 +59,32 @@ static int zr_open(const char *path) {
   return (int)zr_sys(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC, 0);
 }
 
+static void zr_path(char *path, const char *suffix) {
+  char digits[20];
+  size_t n = 0, d = 0;
+  for (const char *p = ZR_CTL; *p; p++) path[n++] = *p;
+  for (const char *p = suffix; *p; p++) path[n++] = *p;
+  long pid = zr_sys(SYS_getpid);
+  do digits[d++] = (char)('0' + pid % 10); while ((pid /= 10) > 0);
+  while (d > 0) path[n++] = digits[--d];
+  path[n] = 0;
+}
+
+static long zr_read_text(const char *path, char *text, size_t size) {
+  int fd = zr_open(path);
+  if (fd < 0) return 0;
+  long n = zr_sys(SYS_read, fd, text, size);
+  zr_sys(SYS_close, fd);
+  return n;
+}
+
 static int zr_mode(unsigned long *want) {
   char text[24];
-  long n = 0;
-  int fd = zr_open(ZR_CTL ".hold");
-  if (fd >= 0) {
-    n = zr_sys(SYS_read, fd, text, sizeof(text));
-    zr_sys(SYS_close, fd);
-  }
-  if (n < 1) {
-    fd = zr_open(ZR_CTL);
-    if (fd < 0) return -1;
-    n = zr_sys(SYS_read, fd, text, sizeof(text));
-    zr_sys(SYS_close, fd);
-  }
+  char own[ZR_PATH];
+  zr_path(own, ".hold.");
+  long n = zr_read_text(own, text, sizeof(text));
+  if (n < 1) n = zr_read_text(ZR_CTL ".hold", text, sizeof(text));
+  if (n < 1) n = zr_read_text(ZR_CTL, text, sizeof(text));
   if (n < 1 || text[0] < '0' || text[0] > '3') return -1;
   unsigned long kb = 0;
   for (long i = 2; i < n && text[i] >= '0' && text[i] <= '9'; i++)
@@ -254,16 +267,10 @@ static unsigned long zr_walk(int mode, unsigned long want, unsigned long lo, uns
 }
 
 static void zr_ack(long value, int trim) {
-  const char *suffix = trim ? ".trim." : ".ack.";
-  char path[sizeof(ZR_CTL) + sizeof(".trim.") + 20];
+  char path[ZR_PATH];
   char digits[20];
-  size_t n = 0, d = 0;
-  for (const char *p = ZR_CTL; *p; p++) path[n++] = *p;
-  for (const char *p = suffix; *p; p++) path[n++] = *p;
-  long pid = zr_sys(SYS_getpid);
-  do digits[d++] = (char)('0' + pid % 10); while ((pid /= 10) > 0);
-  while (d > 0) path[n++] = digits[--d];
-  path[n] = 0;
+  size_t n, d;
+  zr_path(path, trim ? ".trim." : ".ack.");
   int fd = (int)zr_sys(SYS_openat, AT_FDCWD, path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
   if (fd < 0) return;
   for (d = 0; value >= 0 && (d == 0 || value > 0); value /= 10) digits[d++] = (char)('0' + value % 10);

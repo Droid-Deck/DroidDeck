@@ -72,10 +72,13 @@ has waited five seconds in total or six seconds have gone by since it began, is 
 minute, and a late answer from it is discarded. A process is known by its number and start time, so a new process that got the
 number of a skipped one is asked. Processes with less
 than 8 MiB of anonymous memory are skipped. While the app pages the session out for suspend, or
-reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold` and writes its own
-request (`1` to page out, `0` to read back) into that file. A signalled process reads the hold
-file first and the control file only when the hold file is missing or empty, so a trim request
-the monitor wrote at the same moment cannot replace the app's. The suspend page-out answers `1`
+reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold`. A page-out writes
+`1` into that file. A read-back writes `2 0`, which asks for nothing, and puts `0` into
+`/tmp/.dd-zram.hold.<pid>` for each process it chose. A signalled process reads its own hold file
+first, then the shared one, and the control file only when both are missing or empty. A trim
+request the monitor wrote at the same moment cannot replace the app's, and a process that was
+not chosen does not read back, even if it only now starts the page-out request it was sent
+before the suspend. The suspend page-out answers `1`
 in `/tmp/.dd-zram.ack.<pid>` and a trim answers its kB in `/tmp/.dd-zram.trim.<pid>`, so the
 monitor never removes or reads an answer the app is waiting for, and the app never takes a
 trim's answer for its own. A trim budget smaller than a chunk covers the stretch of the chunk
@@ -155,8 +158,9 @@ process through the preload, and GPU memory itself cannot be compressed from use
 A hidden or screen-off suspend pages the session out before it stops it. After the resume, the
 processes that were paged out are read back largest first, as long as their swap fits the
 budget: half of `MemAvailable`, while leaving the larger of 1 GiB and a tenth of RAM available.
-Processes that do not fit keep their memory in zram and fault it back on demand, so one large
-process no longer stops the read-back of every other one.
+Only the chosen processes get a read-back request. Processes that do not fit keep their memory
+in zram and fault it back on demand, so one large process no longer stops the read-back of every
+other one.
 
 ## CRAM and the bounded pager experiment
 

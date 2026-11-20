@@ -8,6 +8,7 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -132,7 +133,9 @@ class SessionSuspendControllerTest {
         assertFalse(hold.exists())
         fixture.controller.resume { assertTrue(it) }
         assertFalse(hold.exists())
+        assertFalse(File(fixture.control.parentFile, ".dd-zram.hold.$GAME").exists())
         assertEquals(listOf<String?>("1", "0"), fixture.held)
+        assertEquals(listOf<String?>("1", "2 0"), fixture.shared)
     }
 
     @Test fun noReadBackAfterAFreezeWithoutPageOut() {
@@ -219,6 +222,20 @@ class SessionSuspendControllerTest {
         assertEquals(listOf(Triple(1, 3_000_000L, 4_000_000L)), fixture.pagedIn)
         assertEquals(3_000_000L, fixture.swapKb(GAME))
         assertEquals(0L, fixture.swapKb(SERVICE))
+    }
+
+    @Test fun aPendingPageOutRequestOfAProcessLeftOutDoesNotReadItBack() {
+        val fixture = fixture(17)
+        fixture.addService(2_000_000L)
+        fixture.control.writeText("0")
+        fixture.availableKb = 5_000_000L
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        fixture.lateRequest = GAME
+        fixture.controller.resume { assertTrue(it) }
+        assertNull(fixture.lateRequest)
+        assertEquals(3_000_000L, fixture.swapKb(GAME))
+        assertEquals(0L, fixture.swapKb(SERVICE))
+        assertEquals(listOf(Triple(1, 3_000_000L, 4_000_000L)), fixture.pagedIn)
     }
 
     @Test fun everyPagedOutProcessIsReadBackWhenMemoryAllows() {
@@ -538,6 +555,8 @@ class SessionSuspendControllerTest {
         val helpers = mutableListOf<Int>()
         val signals = mutableListOf<SentSignal>()
         val held = mutableListOf<String?>()
+        val shared = mutableListOf<String?>()
+        var lateRequest: Int? = null
         var rootPid = ROOT
         var now = 0L
         var audioSuspends = 0
@@ -588,8 +607,11 @@ class SessionSuspendControllerTest {
 
         private fun signal(pid: Int, signal: Int) {
             signals += SentSignal(pid, signal)
-            val request = if (signal == URG) File(control.parentFile, "${control.name}.hold").takeIf { it.isFile }?.readText() else null
-            if (signal == URG) held += request
+            val request = if (signal == URG) request(pid) else null
+            if (signal == URG) {
+                held += request
+                shared += sharedHold().takeIf { it.isFile }?.readText()
+            }
             val group = groups.first { it.pid == pid }
             if (signal == STOP) {
                 continuing = false
@@ -598,8 +620,7 @@ class SessionSuspendControllerTest {
                     it.state !in listOf('T', 't', 'Z', 'X') && !(neverStop && it == game.threads.last())
                 }?.state = 't'
             } else if (signal == URG) {
-                val memory = paging.getValue(pid)
-                if (request == "0") { memory.out = false; memory.into = true } else memory.out = true
+                take(pid, request)
             } else if (signal == CONT) {
                 if (clockAtContinue == null && clock.isFile) {
                     clockAtContinue = ByteBuffer.wrap(clock.readBytes()).order(ByteOrder.LITTLE_ENDIAN).long
@@ -608,6 +629,20 @@ class SessionSuspendControllerTest {
                 if (!(pid == GAME && blockGameContinue)) group.threads.forEach { if (it.state != 'Z') it.state = 'S' }
             }
             sync()
+        }
+
+        private fun sharedHold() = File(control.parentFile, "${control.name}.hold")
+
+        private fun request(pid: Int): String? =
+            File(control.parentFile, "${control.name}.hold.$pid").takeIf { it.isFile }?.readText()
+                ?: sharedHold().takeIf { it.isFile }?.readText()
+
+        private fun take(pid: Int, request: String?) {
+            val memory = paging.getValue(pid)
+            when (request) {
+                "0" -> { memory.out = false; memory.into = true }
+                "1", null -> memory.out = true
+            }
         }
 
         private fun threadSignal(pid: Int, tid: Int, signal: Int) {
@@ -621,6 +656,10 @@ class SessionSuspendControllerTest {
 
         private fun sleep(millis: Long) {
             now += millis
+            lateRequest?.takeIf { sharedHold().isFile }?.let { pid ->
+                lateRequest = null
+                take(pid, request(pid))
+            }
             for ((pid, memory) in paging) {
                 if (memory.out && !handlerReplaced) {
                     File(control.parentFile, "${control.name}.ack.$pid").apply { if (!exists()) writeText("") }
