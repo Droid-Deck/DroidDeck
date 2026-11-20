@@ -125,7 +125,7 @@ object ControlsChoice {
             val preferred = listOfNotNull(own(context, library, game), library.activePart(desktop, InputRole.PRIMARY).bindings,
                 library.profile(library.activeId(desktop)).binding(InputRole.PRIMARY))
             preferred.firstNotNullOfOrNull { id -> relatedPreset(library, available, id, layout.id) }
-                ?: available.firstOrNull()?.id ?: newInputId().also { newId ->
+                ?: available.firstOrNull { it.id != InputLibraries.primaryOf(library, !desktop) }?.id ?: newInputId().also { newId ->
                 InputLibraries.update(context) { it.withPreset(SavedInputBindings(newId, layout.name, false, layout.id)) }
             }
         }

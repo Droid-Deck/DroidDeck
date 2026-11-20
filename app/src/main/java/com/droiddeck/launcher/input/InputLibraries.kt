@@ -10,7 +10,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 object InputLibraries {
-    private const val VERSION = 15
+    private const val VERSION = 16
     private const val KEY = "library"
     private const val RECOVERY = "library-recovery."
     const val OVERLAY = "builtin.overlay"
@@ -33,6 +33,7 @@ object InputLibraries {
         if (version < 13) library = LegacyScreenKeyMigration.pin(library)
         if (version < 14) library = deckGamepadSurfaces(context, library)
         if (version < 15) library = kitGamepads(context, library, version)
+        if (version < 16) library = ownModeSelections(library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -310,6 +311,18 @@ object InputLibraries {
             }
         }
     }
+
+    internal fun primaryOf(library: InputLibrary, desktop: Boolean) =
+        library.profiles.firstOrNull { it.id == library.activeId(desktop) }?.parts?.get(InputRole.PRIMARY)?.bindings
+
+    /** Choosing a layout used to take the first actions saved for it, which could be the other mode's mouse and keys. */
+    private fun ownModeSelections(library: InputLibrary): InputLibrary = library.copy(selections = library.selections.mapValues { (mode, selection) ->
+        val desktop = mode == InputProfile.DESKTOP
+        val chosen = selection.parts[InputRole.PRIMARY]
+        if (chosen != null && chosen == primaryOf(library, !desktop) && chosen != primaryOf(library, desktop))
+            selection.copy(parts = selection.parts - InputRole.PRIMARY)
+        else selection
+    })
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {
         val seed = JSONArray(listOf(binding, layout)).toString().toByteArray(Charsets.UTF_8)
