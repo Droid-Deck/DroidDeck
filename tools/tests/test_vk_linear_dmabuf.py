@@ -33,6 +33,7 @@ static const uint32_t g_qfam = 2;
 %(is_dmabuf)s
 %(width)s
 %(height)s
+static int black_fill_below(const struct draw_list *dl, int n) { (void)dl; (void)n; return 0; }
 %(candidate)s
 
 static int candidate(struct vkp_image *img) {
