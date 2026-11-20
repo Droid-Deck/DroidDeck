@@ -132,10 +132,10 @@ static void handle_released(uint64_t id, int fd) {
     if (fd >= 0) {
         struct droiddeck_dma_buf_sync_file imp = {.flags = DROIDDECK_DMA_BUF_SYNC_READ, .fd = fd};
         int dmabuf_fd = droiddeck_dmabuf_fd(ab->b);
-        if (dmabuf_fd >= 0 && ioctl(dmabuf_fd, DROIDDECK_DMA_BUF_IOCTL_IMPORT_SYNC_FILE, &imp) == 0) {
+        if (!ab->display && dmabuf_fd >= 0 && ioctl(dmabuf_fd, DROIDDECK_DMA_BUF_IOCTL_IMPORT_SYNC_FILE, &imp) == 0) {
             close(fd);
         } else {
-            if (!g_import_failed_logged) {
+            if (!ab->display && !g_import_failed_logged) {
                 g_import_failed_logged = 1;
                 droiddeck_log("layer", "zero-copy: DMA_BUF_IOCTL_IMPORT_SYNC_FILE failed (%s): releases wait for the display's fence here instead",
                            strerror(errno));
