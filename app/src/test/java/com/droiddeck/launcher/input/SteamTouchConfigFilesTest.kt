@@ -108,6 +108,14 @@ class SteamTouchConfigFilesTest {
         assertSavedA(413150, saved)
     }
 
+    @Test fun aConfigsetWithOnlyAQuotedBraceIsRebuilt() {
+        File(dir, "configset_controller_mobile_touch.vdf").writeText("\"controller_config\" \"{\"\n")
+        val saved = saveDefault(413150)
+        val root = KeyValues.parse(File(dir, "configset_controller_mobile_touch.vdf").readText()).child("controller_config")
+        assertEquals("1", root?.child("413150")?.string("autosave"))
+        assertSavedA(413150, saved)
+    }
+
     @Test fun anExistingConfigsetKeepsItsOtherEntries() {
         configset("configset_controller_mobile_touch.vdf", "8400" to "\"workshop\"\t\t\"7\"")
         saveDefault(413150)
@@ -153,6 +161,16 @@ class SteamTouchConfigFilesTest {
         assertEquals(File(dir, "epic games launcher/controller_mobile_touch.vdf"), saved)
         assertTrue(File(dir, "configset_controller_mobile_touch.vdf").readText().contains("\"epic games launcher\""))
         assertEquals(saved, SteamTouchConfig.load(context, shortcut).file)
+    }
+
+    @Test fun aSavedShortcutNameWithBracesDoesNotHideTheNextAppsEntry() {
+        val shortcut = shortcut("Game {")
+        SteamTouchConfig.saveLayouts(context, shortcut, SteamTouchConfig.load(context, shortcut), mapOf(1 to emptyList()))
+        val saved = saveDefault(413150)
+        val root = KeyValues.parse(File(dir, "configset_controller_mobile_touch.vdf").readText()).child("controller_config")
+        assertEquals("1", root?.child("game {")?.string("autosave"))
+        assertEquals("1", root?.child("413150")?.string("autosave"))
+        assertSavedA(413150, saved)
     }
 
     @Test fun aShortcutNameThatIsNoPlainFolderNameUsesTheAppId() {

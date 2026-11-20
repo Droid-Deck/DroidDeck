@@ -438,7 +438,7 @@ object SteamTouchConfig {
 
     private fun selectAutosave(dir: File, key: String) {
         val file = File(dir, CONFIGSET)
-        val text = file.takeIf { it.isFile }?.readText()?.takeIf { it.contains('{') }?.let(::closeBraces) ?: "\"controller_config\"\n{\n}\n"
+        val text = file.takeIf { it.isFile }?.readText()?.takeIf { it.contains('{') }?.let(::closeBraces)?.takeIf { it.contains('}') } ?: "\"controller_config\"\n{\n}\n"
         val entry = "\t\"$key\"\n\t{\n\t\t\"autosave\"\t\t\"1\"\n\t}"
         val block = Regex("""\n\s*"${Regex.escape(key)}"\s*\{[^}]*\}""", RegexOption.IGNORE_CASE)
         val next = if (block.containsMatchIn(text)) text.replace(block) { "\n$entry" }
@@ -447,7 +447,7 @@ object SteamTouchConfig {
     }
 
     private fun closeBraces(text: String): String {
-        val open = text.count { it == '{' } - text.count { it == '}' }
+        val open = KeyValues.unclosedBraces(text)
         return if (open <= 0) text else text.trimEnd() + "\n}".repeat(open) + "\n"
     }
 
@@ -606,7 +606,14 @@ class KeyValues private constructor() {
         fun string(key: String): String? = entries.firstOrNull { it.first.equals(key, true) && it.second is String }?.second as String?
     }
 
+    private class Token(val text: String, val quoted: Boolean) {
+        val opens get() = !quoted && text == "{"
+        val closes get() = !quoted && text == "}"
+    }
+
     companion object {
+        fun unclosedBraces(text: String): Int = tokenize(text).let { tokens -> tokens.count { it.opens } - tokens.count { it.closes } }
+
         fun parse(text: String): Node {
             val tokens = tokenize(text)
             var i = 0
@@ -614,26 +621,26 @@ class KeyValues private constructor() {
                 val n = Node()
                 while (i < tokens.size) {
                     val t = tokens[i++]
-                    if (t == "}" ) return n
-                    if (t == "{") continue
+                    if (t.closes) return n
+                    if (t.opens) continue
                     if (i >= tokens.size) break
                     val next = tokens[i]
-                    if (next == "{") { i++; n.entries += t to node() } else { i++; n.entries += t to next }
+                    if (next.opens) { i++; n.entries += t.text to node() } else { i++; n.entries += t.text to next.text }
                 }
                 return n
             }
             return node()
         }
 
-        private fun tokenize(text: String): List<String> {
-            val out = mutableListOf<String>()
+        private fun tokenize(text: String): List<Token> {
+            val out = mutableListOf<Token>()
             var i = 0
             while (i < text.length) {
                 val c = text[i]
                 when {
                     c.isWhitespace() -> i++
                     c == '/' && i + 1 < text.length && text[i + 1] == '/' -> while (i < text.length && text[i] != '\n') i++
-                    c == '{' || c == '}' -> { out += c.toString(); i++ }
+                    c == '{' || c == '}' -> { out += Token(c.toString(), false); i++ }
                     c == '"' -> {
                         val sb = StringBuilder()
                         i++
@@ -645,13 +652,13 @@ class KeyValues private constructor() {
                             i++
                         }
                         i++
-                        out += sb.toString()
+                        out += Token(sb.toString(), true)
                     }
                     c == '[' -> { while (i < text.length && text[i] != ']') i++; i++ }
                     else -> {
                         val start = i
                         while (i < text.length && !text[i].isWhitespace() && text[i] != '{' && text[i] != '}' && text[i] != '"') i++
-                        out += text.substring(start, i)
+                        out += Token(text.substring(start, i), false)
                     }
                 }
             }
