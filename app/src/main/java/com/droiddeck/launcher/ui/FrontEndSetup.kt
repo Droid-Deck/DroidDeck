@@ -630,6 +630,7 @@ internal fun SetupPanel(
                                 )
                             }
                             if (DeveloperTools.on) ToggleRow(host, "graphics-logs", stringResource(R.string.setup_graphics_logs), stringResource(R.string.setup_graphics_logs_hint), s.graphicsLogs) { a.onGraphicsLogs() }
+                            if (DeveloperTools.on) ToggleRow(host, "bridge-diag", stringResource(R.string.setup_bridge_diag), stringResource(R.string.setup_bridge_diag_hint), s.bridgeDiagnostics) { a.onBridgeDiagnostics() }
                             if (DeveloperTools.on && !s.adreno && com.droiddeck.launcher.session.SessionPrefs.steamGpuCompositingAllowed()) ToggleRow(host, "steam-gpu-drawing", stringResource(R.string.setup_steam_gpu_drawing), stringResource(R.string.setup_steam_gpu_drawing_hint), s.steamGpuDrawing) { a.onSteamGpuDrawing() }
                             ActionRow(stringResource(R.string.setup_latest_logs), stringResource(R.string.drawer_logs_hint), stringResource(R.string.drawer_share_logs), a.onShareLogs,
                                 progress = com.droiddeck.launcher.session.SessionLogShare.progress)
