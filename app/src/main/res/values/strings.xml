@@ -865,7 +865,6 @@
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
-    <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Shows</string>
     <string name="drawer_android_apps">Android apps</string>
     <string name="drawer_launch_app">Launch an app</string>
@@ -2260,6 +2259,8 @@
     <string name="second_mode_deck_controls">Deck grips + trackpads</string>
     <string name="second_mode_dashboard">Dashboard</string>
     <string name="second_mode_desktop">Desktop</string>
+    <string name="screen_picker_description">Second screen: %1$s</string>
+    <string name="screen_picker_last_used">Last used</string>
     <string name="bottom_desktop_start">Start the desktop</string>
     <string name="bottom_desktop_title">Desktop · %1$s</string>
     <string name="bottom_desktop_mode_trackpad">Trackpad</string>

@@ -1759,10 +1759,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onFexPreset = { v -> SessionPrefs.setFexPreset(this@SessionActivity, v); readPrefs() },
             onSecondScreenMode = { mode ->
                 if (docked) drawerOpen = false
-                typingReturnMode = null
-                automaticPanel = false
-                if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this@SessionActivity, desktopSession, mode.id)
-                selectSecondScreenMode(mode)
+                pickSecondScreenMode(mode)
             },
             onSecondScreenDisplay = ::selectSecondScreenDisplay,
             onLaunchAndroidApp = { app, displayId ->
@@ -3497,7 +3494,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (drawerOpen) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    drawerPage = sessionDrawerPages(secondScreenDisplays.isNotEmpty(), glasses.present)
+                    drawerPage = sessionDrawerPages(glasses.present)
                         .step(drawerPage, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
                     releaseDrawerDirection()
                 }
@@ -4232,6 +4229,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
+    private fun pickSecondScreenMode(mode: SecondScreenMode) {
+        typingReturnMode = null
+        automaticPanel = false
+        if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this, desktopSession, mode.id)
+        selectSecondScreenMode(mode)
+    }
+
+    private fun bottomScreenPicker(mode: SecondScreenMode) = com.droiddeck.launcher.ui.ScreenPicker(
+        com.droiddeck.launcher.ui.secondScreenModes(false, SessionState.deckPad, bottomPages().isNotEmpty(),
+            com.droiddeck.launcher.session.BottomDesktop.available()),
+        mode, ::pickSecondScreenMode, onMenu = { drawerOpen = true },
+    )
+
     private fun secondScreenPresentation(target: Display) = SecondScreenPresentation(
         this, target,
         onSteamMenu = ::tapSteamButton,
@@ -4240,6 +4250,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         pad = padBridge,
         onKeyboardClosed = ::bottomKeyboardClosed,
         onMenu = { drawerOpen = true },
+        picker = ::bottomScreenPicker,
         onMenuTouched = {
             if (drawerPinned) {
                 drawerPinned = false

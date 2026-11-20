@@ -804,7 +804,6 @@
     <string name="drawer_pc_keyboard">PC-tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Anden skærm</string>
-    <string name="drawer_second_screen_mode">Tilstand</string>
     <string name="drawer_second_screen_shows">Viser</string>
     <string name="drawer_android_apps">Android-apps</string>
     <string name="drawer_launch_app">Start en app</string>

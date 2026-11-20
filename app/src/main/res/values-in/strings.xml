@@ -802,7 +802,6 @@
     <string name="drawer_pc_keyboard">Keyboard PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Layar kedua</string>
-    <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Menampilkan</string>
     <string name="drawer_android_apps">Aplikasi Android</string>
     <string name="drawer_launch_app">Luncurkan aplikasi</string>

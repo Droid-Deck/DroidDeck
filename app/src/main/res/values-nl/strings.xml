@@ -804,7 +804,6 @@
     <string name="drawer_pc_keyboard">Pc-toetsenbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Tweede scherm</string>
-    <string name="drawer_second_screen_mode">Modus</string>
     <string name="drawer_second_screen_shows">Toont</string>
     <string name="drawer_android_apps">Android-apps</string>
     <string name="drawer_launch_app">Een app starten</string>
