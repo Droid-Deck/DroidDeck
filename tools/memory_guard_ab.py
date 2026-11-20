@@ -38,7 +38,7 @@ cleanup() {{ kill $(jobs -p) 2>/dev/null; rm -f {HOG_MOUNT}/f*; umount {HOG_MOUN
 trap 'cleanup; exit 1' HUP INT TERM
 mkdir -p {HOG_MOUNT}
 grep -q ' {HOG_MOUNT} ' /proc/mounts || mount -t tmpfs -o size=16g tmpfs {HOG_MOUNT}
-i=0
+i=0; failed=0
 if [ "$mode" = burst ]; then
   [ "$(stat -c %s {SEED_PATH} 2>/dev/null)" = 268435456 ] ||
     {{ head -c 268435456 /dev/urandom > {SEED_PATH}.tmp && mv {SEED_PATH}.tmp {SEED_PATH}; }} ||
@@ -46,10 +46,13 @@ if [ "$mode" = burst ]; then
   cat {SEED_PATH} > /dev/null
   avail=$(awk '/MemAvailable/ {{print int($2/1024)}}' /proc/meminfo)
   echo "avail=$avail"
-  n=$(( (avail - stop_mb) / 256 ))
-  echo "burst_mb=$((n * 256)) start=$(date +%s%N)"
-  while [ $i -lt $n ]; do cat {SEED_PATH} > {HOG_MOUNT}/f$i & i=$((i+1)); done
-  wait
+  take=$((avail - stop_mb))
+  [ "$take" -gt 0 ] || {{ echo "nothing to take"; cleanup; exit 2; }}
+  n=$((take / 256)); rest=$((take % 256)); pids=""
+  echo "burst_mb=$take start=$(date +%s%N)"
+  while [ $i -lt $n ]; do cat {SEED_PATH} > {HOG_MOUNT}/f$i & pids="$pids $!"; i=$((i+1)); done
+  [ "$rest" -gt 0 ] && {{ head -c $((rest * 1048576)) {SEED_PATH} > {HOG_MOUNT}/f$i & pids="$pids $!"; }}
+  for pid in $pids; do wait "$pid" || failed=1; done
   echo "burst_done=$(date +%s%N)"
   echo "avail=$(awk '/MemAvailable/ {{print int($2/1024)}}' /proc/meminfo)"
   i=512
@@ -58,9 +61,10 @@ while [ $i -lt 512 ]; do
   avail=$(awk '/MemAvailable/ {{print int($2/1024)}}' /proc/meminfo)
   echo "avail=$avail"
   [ "$avail" -le "$stop_mb" ] && break
-  head -c 33554432 /dev/urandom > {HOG_MOUNT}/f$i || break
+  head -c 33554432 /dev/urandom > {HOG_MOUNT}/f$i || {{ failed=1; break; }}
   i=$((i+1))
 done
+[ "$failed" = 0 ] || {{ echo "write failed"; cleanup; exit 1; }}
 sleep "$hold"
 cleanup
 echo released
@@ -324,7 +328,7 @@ class Bench:
         self.probe("using_bottom_now")
         self.game_front()
 
-    def pressure(self, run: str, stop_mb: int, hold: int, burst: bool = False):
+    def pressure(self, run: str, stop_mb: int, hold: int, burst: bool = False) -> bool:
         with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as script:
             script.write(HOG)
         try:
@@ -353,14 +357,19 @@ class Bench:
         time.sleep(3)
         events = self.d.run("logcat", "-b", "events", "-d")
         (self.out / f"{self.label}-{run}-events.txt").write_text(events)
+        workload_ok = hog.returncode == 0 and "released" in output.splitlines()
+        if not workload_ok:
+            print(f"memory-guard-ab: {run}: the memory hog failed (exit {hog.returncode}): "
+                  f"{output.strip().splitlines()[-1] if output.strip() else 'no output'}", file=sys.stderr)
         available = [int(value) for value in re.findall(r"avail=(\d+)", output)]
         took = re.search(r"start=(\d+).*?burst_done=(\d+)", output, re.S)
         self.write("pressure", {
-            "run": run, "mode": "burst" if burst else "fill", "stop_mb": stop_mb, "hold_s": hold,
+            "run": run, "workload_ok": workload_ok, "mode": "burst" if burst else "fill", "stop_mb": stop_mb, "hold_s": hold,
             "burst_ms": (int(took.group(2)) - int(took.group(1))) // 1_000_000 if took else None, **{k: v for k, v in before.items() if k != "pid"},
             "min_available_mb": min(available) if available else None, "adj_max": max_adj(samples),
             "droiddeck_alive": self.d.pid() == before["pid"], "phase": self.d.phase(), **summarize_events(events),
         })
+        return workload_ok
 
 
 def fraction_pair(text: str) -> tuple[float, float]:
@@ -416,9 +425,9 @@ def main() -> int:
                 except RuntimeError as exc:
                     print(f"memory-guard-ab: run {run + 1} skipped: {exc}", file=sys.stderr)
                     continue
-                bench.pressure(f"{'burst' if args.burst else 'stop'}{args.stop_mb}-{run + 1}", args.stop_mb, args.hold,
-                               args.burst)
-                completed += 1
+                if bench.pressure(f"{'burst' if args.burst else 'stop'}{args.stop_mb}-{run + 1}", args.stop_mb,
+                                  args.hold, args.burst):
+                    completed += 1
             if completed == 0:
                 print("memory-guard-ab: no pressure run completed", file=sys.stderr)
                 return 1

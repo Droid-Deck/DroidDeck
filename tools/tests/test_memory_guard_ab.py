@@ -92,9 +92,20 @@ class DumpParsingTest(unittest.TestCase):
 class HogScriptTest(unittest.TestCase):
     def test_both_modes_start_the_fill_counter(self):
         script = ab.HOG.splitlines()
-        counter = script.index("i=0")
+        counter = next(n for n, line in enumerate(script) if line.startswith("i=0"))
         self.assertLess(counter, script.index('if [ "$mode" = burst ]; then'))
         self.assertLess(counter, next(n for n, line in enumerate(script) if line.startswith("while [ $i -lt 512 ]")))
+
+
+    def test_a_failed_write_never_reports_released(self):
+        script = ab.HOG.splitlines()
+        check = script.index('[ "$failed" = 0 ] || { echo "write failed"; cleanup; exit 1; }')
+        self.assertLess(check, script.index("echo released"))
+        self.assertIn("failed=1", ab.HOG.split("echo released")[0])
+
+    def test_a_burst_takes_the_remainder_below_one_chunk(self):
+        self.assertIn("rest=$((take % 256))", ab.HOG)
+        self.assertIn('echo "nothing to take"', ab.HOG)
 
 
 class SummaryTest(unittest.TestCase):
