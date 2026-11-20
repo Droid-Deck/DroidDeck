@@ -195,6 +195,12 @@ def protonfixes_off(game):
 
 
 @fix
+def black_ops_ii_steam_exec(game):
+    if game.app_id in ("202970", "202990", "212910") or game.stem in ("t6sp", "t6mp", "t6zm"):
+        return {"WINESTEAMNOEXEC": "0"}, [], "Black Ops II: Steam exec handling on (the game does not start without it)"
+
+
+@fix
 def little_nightmares_threads(game):
     if game.stem == "littlenightmares":
         return {"PROTONFIXES_DISABLE": "1"}, [], "Little Nightmares: umu-protonfixes off (its -onethread puts the game and renderer on one thread)"
