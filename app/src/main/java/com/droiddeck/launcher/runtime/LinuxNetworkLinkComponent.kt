@@ -35,14 +35,13 @@ class LinuxNetworkLinkComponent(
     private val appContext = context.applicationContext
     private val connectivity =
         appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    private val lock = Any()
     private var callback: ConnectivityManager.NetworkCallback? = null
     private var currentNetwork: Network? = null
     private var currentProperties: LinkProperties? = null
     private var currentCapabilities: NetworkCapabilities? = null
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
     private var scanThread: HandlerThread? = null
-    private var stopped = false
+    @Volatile private var stopped = false
     @Volatile private var scanHandler: Handler? = null
     private var wifiReceiver: BroadcastReceiver? = null
     private var scanRequestStamp = 0L
@@ -50,8 +49,9 @@ class LinuxNetworkLinkComponent(
     @Volatile private var lastNamesAllowed = false
     private val scanRequests = object : Runnable {
         override fun run() {
+            if (stopped) return
             if (canReadWifiNames() != lastNamesAllowed) {
-                synchronized(lock) { writeNetworkState(currentProperties, currentCapabilities) }
+                synchronized(networkWriteLock) { writeNetworkState(currentProperties, currentCapabilities) }
                 requestWifiScan()
             }
             val stamp = File(rootDir, "etc/droiddeck-wifi-scan-request").lastModified()
@@ -63,7 +63,8 @@ class LinuxNetworkLinkComponent(
         }
     }
 
-    fun publish() = synchronized(lock) {
+    fun publish() = synchronized(networkWriteLock) {
+        if (stopped) return@synchronized
         currentNetwork = connectivity.activeNetwork
         currentProperties = currentNetwork?.let(connectivity::getLinkProperties)
         currentCapabilities = currentNetwork?.let(connectivity::getNetworkCapabilities)
@@ -78,27 +79,27 @@ class LinuxNetworkLinkComponent(
         scanThread = worker
         scanHandler = handler
         val registered = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) = synchronized(lock) {
+            override fun onAvailable(network: Network) = synchronized(networkWriteLock) {
                 currentNetwork = network
                 currentProperties = null
                 currentCapabilities = null
             }
 
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) = synchronized(lock) {
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) = synchronized(networkWriteLock) {
                 if (network == currentNetwork) {
                     currentCapabilities = capabilities
                     if (currentProperties != null) write(currentProperties, capabilities)
                 }
             }
 
-            override fun onLinkPropertiesChanged(network: Network, properties: LinkProperties) = synchronized(lock) {
+            override fun onLinkPropertiesChanged(network: Network, properties: LinkProperties) = synchronized(networkWriteLock) {
                 if (network == currentNetwork) {
                     currentProperties = properties
                     write(properties, currentCapabilities)
                 }
             }
 
-            override fun onLost(network: Network) = synchronized(lock) {
+            override fun onLost(network: Network) = synchronized(networkWriteLock) {
                 if (network == currentNetwork) {
                     currentNetwork = null
                     currentProperties = null
@@ -107,11 +108,11 @@ class LinuxNetworkLinkComponent(
                 }
             }
         }
-        synchronized(lock) { callback = registered }
+        callback = registered
         connectivity.registerDefaultNetworkCallback(registered, handler)
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                synchronized(lock) { writeNetworkState(currentProperties, currentCapabilities) }
+                synchronized(networkWriteLock) { writeNetworkState(currentProperties, currentCapabilities) }
             }
         }
         val wifiFilter = IntentFilter().apply {
@@ -149,7 +150,7 @@ class LinuxNetworkLinkComponent(
             }
         }
         wifiReceiver = null
-        val registered = synchronized(lock) { callback.also { callback = null } } ?: return
+        val registered = callback.also { callback = null } ?: return
         try {
             connectivity.unregisterNetworkCallback(registered)
         } catch (e: IllegalArgumentException) {
@@ -161,6 +162,7 @@ class LinuxNetworkLinkComponent(
 
     @Suppress("DEPRECATION")
     private fun requestWifiScan() {
+        if (stopped) return
         val now = SystemClock.elapsedRealtime()
         if (!canReadWifiNames() || wifiManager?.isWifiEnabled != true || now - lastScanRequest < SCAN_INTERVAL_MS) return
         lastScanRequest = now
@@ -169,12 +171,13 @@ class LinuxNetworkLinkComponent(
         } catch (e: SecurityException) {
             Log.w(TAG, "Wi-Fi scan permission unavailable")
         }
-        synchronized(lock) { writeNetworkState(currentProperties, currentCapabilities) }
+        synchronized(networkWriteLock) { writeNetworkState(currentProperties, currentCapabilities) }
     }
 
     private fun write(properties: LinkProperties?, capabilities: NetworkCapabilities?) {
-        val file = File(rootDir, LINK_FILE)
-        synchronized(lock) {
+        synchronized(networkWriteLock) {
+            if (stopped) return
+            val file = File(rootDir, LINK_FILE)
             try {
                 file.parentFile?.mkdirs()
                 replace(file, describe(properties, capabilities))
@@ -182,12 +185,13 @@ class LinuxNetworkLinkComponent(
                 Log.w(TAG, "Could not publish the network link", e)
             }
             writeNetworkState(properties, capabilities)
-            writeResolver(properties)
+            if (!stopped) writeResolver(properties)
         }
     }
 
     @Suppress("DEPRECATION")
     private fun writeNetworkState(properties: LinkProperties?, capabilities: NetworkCapabilities?) {
+        if (stopped) return
         val namesAllowed = canReadWifiNames()
         lastNamesAllowed = namesAllowed
         val scans = if (namesAllowed && wifiManager?.isWifiEnabled == true) {
@@ -293,7 +297,12 @@ class LinuxNetworkLinkComponent(
      * crash or power cut can keep the rename and lose the data, leaving a file of NUL bytes.
      */
     private fun replace(file: File, text: String) {
-        if (file.isFile && file.readText() == text) return
+        val unchanged = try {
+            file.isFile && file.readText() == text
+        } catch (_: IOException) {
+            false
+        }
+        if (unchanged) return
         val staged = File(file.path + ".staged")
         java.io.FileOutputStream(staged).use { out ->
             out.write(text.toByteArray())
@@ -352,6 +361,9 @@ class LinuxNetworkLinkComponent(
         seededMac { Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID) }
 
     companion object {
+        // A stopped session's in-flight write must finish before another session publishes.
+        private val networkWriteLock = Any()
+
         internal fun gateways(properties: LinkProperties?, capabilities: NetworkCapabilities?): List<InetAddress> =
             listOf(Inet4Address::class.java, Inet6Address::class.java).mapNotNull { family ->
                 properties?.routes.orEmpty()

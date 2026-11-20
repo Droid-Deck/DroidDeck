@@ -7,7 +7,10 @@ import android.net.LinkProperties
 import android.net.NetworkCapabilities
 import android.net.RouteInfo
 import androidx.test.core.app.ApplicationProvider
+import java.io.File
 import java.net.InetAddress
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -51,6 +54,33 @@ class LinuxNetworkLinkComponentTest {
 
     private fun gateways(properties: LinkProperties?, capabilities: NetworkCapabilities?) =
         LinuxNetworkLinkComponent.gateways(properties, capabilities).map { it.hostAddress }
+
+    @Test fun stopDoesNotWaitForTheNetworkWriteLock() {
+        val component = LinuxNetworkLinkComponent(ApplicationProvider.getApplicationContext<Context>(), temporary.root)
+        val writeLock = ReflectionHelpers.getStaticField<Any>(LinuxNetworkLinkComponent::class.java, "networkWriteLock")
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            synchronized(writeLock) {
+                executor.submit { component.stop() }.get(5, TimeUnit.SECONDS)
+            }
+        } finally {
+            executor.shutdownNow()
+        }
+
+        component.publish()
+        assertFalse(temporary.root.resolve("etc/droiddeck-net").exists())
+    }
+
+    @Test fun failureReadingTheOldFileStillAllowsReplacement() {
+        val path = temporary.root.resolve("network-state")
+        val unreadable = object : File(path.path) {
+            override fun isFile(): Boolean = true
+        }
+        val component = LinuxNetworkLinkComponent(ApplicationProvider.getApplicationContext<Context>(), temporary.root)
+        ReflectionHelpers.callInstanceMethod<Unit>(component, "replace",
+            from(File::class.java, unreadable), from(String::class.java, "new state"))
+        assertEquals("new state", path.readText())
+    }
 
     @Test fun vpnWithOnLinkDefaultRouteHasNonzeroCompatibilityGateway() {
         val link = properties("10.0.0.1/24").route("0.0.0.0", 0)
