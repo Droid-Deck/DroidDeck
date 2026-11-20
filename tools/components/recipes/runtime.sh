@@ -32,6 +32,7 @@ echo "${LSE_EMU_SHA256}  liblse_emu.so" | sha256sum -c -
 install -Dm644 liblse_emu.so "$D/usr/local/lib/droiddeck-tegra/liblse_emu.so"
 install -Dm644 tools/linuxfs/licenses/lse-emu-NOTICE "$D/usr/local/share/licenses/droiddeck-tegra/NOTICE"
 rm liblse_emu.so
+bash tools/tegra/prepare-virgl.sh app/src/main/jniLibs/arm64-v8a "$D/usr/local/share/licenses/droiddeck-tegra"
 M="$D/usr/local/lib/mangoapp"
 mkdir -p "$M" mango-pkgs
 grep -v '^#' tools/mangoapp/packages.txt | while read -r sum url; do

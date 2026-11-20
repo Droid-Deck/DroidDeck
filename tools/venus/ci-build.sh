@@ -78,7 +78,6 @@ git clone -q --depth 1 -b 1.5.10 https://github.com/anholt/libepoxy.git
 git clone -q --depth 1 -b v1.4.365 https://github.com/KhronosGroup/Vulkan-Headers.git
 git clone -q --depth 1 -b virglrenderer-1.3.0 https://gitlab.freedesktop.org/virgl/virglrenderer.git
 git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-android.patch"
-git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-android-egl.patch"
 git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-destroy-unknown-pipeline.patch"
 git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-destroy-mutex-after-objects.patch"
 cat > compat/log/log.h <<'EOC'
@@ -132,7 +131,7 @@ meson setup epoxy-build libepoxy --cross-file cross/android.ini --prefix="$AOUT"
   --buildtype=release -Degl=yes -Dglx=no -Dx11=false -Dtests=false >/dev/null
 ninja -C epoxy-build install >/dev/null
 meson setup virgl-build virglrenderer --cross-file cross/android.ini --prefix="$AOUT" --libdir=lib \
-  --buildtype=release -Dvenus=true -Dplatforms=egl -Drender-server-worker=thread \
+  --buildtype=release -Dvenus=true -Dplatforms=auto -Drender-server-worker=thread \
   -Dvulkan-dload=true -Dcheck-gl-errors=false -Dtests=false >/dev/null
 ninja -C virgl-build install >/dev/null
 J=$OUT/jniLibs/arm64-v8a

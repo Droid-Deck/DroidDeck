@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import errno
+import fcntl
 import os
 from pathlib import Path
 import secrets
 import select
 import signal
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -13,18 +15,55 @@ import tempfile
 import time
 
 
-def reserve_display(listener):
+def socket_identity(path):
+    try:
+        status = path.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISSOCK(status.st_mode):
+        return f'{status.st_dev}:{status.st_ino}'
+    return None
+
+
+def remove_stale_socket(path, marker):
+    identity = socket_identity(path)
+    if identity is None or not marker.is_file() or marker.read_text() != identity:
+        return
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        probe.settimeout(.1)
+        try:
+            probe.connect(str(path))
+        except OSError as error:
+            if error.errno == errno.ECONNREFUSED and socket_identity(path) == identity:
+                path.unlink()
+
+
+def reserve_display(listener, state, lock):
     directory = Path('/tmp/.X11-unix')
     directory.mkdir(mode=0o700, exist_ok=True)
-    for number in range(90, 120):
-        path = directory / f'X{number}'
-        try:
-            listener.bind(str(path))
-        except OSError as error:
-            if error.errno != errno.EADDRINUSE:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        for number in range(90, 120):
+            path = directory / f'X{number}'
+            marker = state / path.name
+            remove_stale_socket(path, marker)
+            try:
+                listener.bind(str(path))
+            except OSError as error:
+                if error.errno != errno.EADDRINUSE:
+                    raise
+                continue
+            try:
+                identity = socket_identity(path)
+                path.chmod(0o600)
+                listener.listen()
+                marker.write_text(identity)
+            except Exception:
+                path.unlink(missing_ok=True)
                 raise
-            continue
-        return f':{number}', path
+            return f':{number}', path, marker, identity
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
     raise RuntimeError('no free X11 display')
 
 
@@ -52,8 +91,7 @@ def select_renderer(env, display_server):
     socket_path = env.get('DD_TEGRA_VIRGL_SOCKET')
     if not socket_path or display_server.poll() is not None:
         return env
-    env['VTEST_SOCKET_NAME'] = socket_path
-    if env.get('DD_TEGRA_VIRGL') != '1':
+    if env.get('DD_TEGRA_VIRGL') == '0':
         return env
     socket_file = Path(socket_path)
     until = time.monotonic() + 2
@@ -62,14 +100,16 @@ def select_renderer(env, display_server):
     if not socket_file.is_socket():
         return env
 
-    candidate = dict(env, GALLIUM_DRIVER='virpipe', LIBGL_DRI3_DISABLE='1')
+    candidate = dict(env, GALLIUM_DRIVER='virpipe', LIBGL_DRI3_DISABLE='1',
+                     VTEST_SOCKET_NAME=socket_path)
     try:
         result = subprocess.run([sys.executable, __file__, '--probe-egl'],
                                 env=dict(candidate, EGL_PLATFORM='x11'), text=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=8)
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=12)
     except (OSError, subprocess.TimeoutExpired):
         return env
     if result.returncode == 0:
+        candidate.setdefault('SDL_VIDEO_X11_FORCE_EGL', '1')
         return candidate
     print(f'== Tegra: EGL probe failed: {result.stdout.strip()}', flush=True)
     return env
@@ -117,19 +157,19 @@ def run(session, arguments):
     icd = '/usr/share/vulkan/icd.d/lvp_icd.json'
     if not Path(icd).is_file():
         raise RuntimeError('the Linux runtime does not contain the Lavapipe driver')
-    if not Path('/usr/local/lib/droiddeck-tegra/liblse_emu.so').is_file():
+    if arguments[0] == 'steam' and not Path('/usr/local/lib/droiddeck-tegra/liblse_emu.so').is_file():
         raise RuntimeError('the Linux runtime does not contain the Tegra LSE emulator')
 
     runtime = os.environ['XDG_RUNTIME_DIR']
+    sockets = Path(runtime) / 'tegra-x11-sockets'
+    sockets.mkdir(mode=0o700, exist_ok=True)
     geometry = f"{os.environ.get('DD_WIDTH', '1280')}x{os.environ.get('DD_HEIGHT', '720')}"
     with tempfile.TemporaryDirectory(prefix='tegra-x11.', dir=runtime) as state:
         authority = Path(state) / 'authority'
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
-            display, path = reserve_display(listener)
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener, (sockets / 'lock').open('a') as lock:
+            display, path, marker, identity = reserve_display(listener, sockets, lock)
             server = client = None
             try:
-                path.chmod(0o600)
-                listener.listen()
                 write_authority(authority, display)
 
                 # A pre-bound socket lets Xwayland start under proot without making an X lock hardlink.
@@ -149,11 +189,12 @@ def run(session, arguments):
                 finally:
                     os.close(ready)
 
-                env = dict(os.environ, DISPLAY=display, XAUTHORITY=str(authority),
-                           WAYLAND_DISPLAY='', XDG_SESSION_TYPE='x11',
+                env = dict(os.environ, DISPLAY=display, XAUTHORITY=str(authority), XDG_SESSION_TYPE='x11',
                            LIBGL_ALWAYS_SOFTWARE='1', GALLIUM_DRIVER='llvmpipe',
                            VK_DRIVER_FILES=icd, VK_ICD_FILENAMES=icd, MESA_VK_WSI_DEBUG='sw',
                            DD_INSIDE='1', DD_STEAM_UI='desktop')
+                if arguments[0] == 'steam':
+                    env['WAYLAND_DISPLAY'] = ''
                 env.pop('MESA_LOADER_DRIVER_OVERRIDE', None)
                 env = select_renderer(env, server)
                 print(f'== Tegra: Xwayland display is ready ({env["GALLIUM_DRIVER"]})', flush=True)
@@ -163,7 +204,11 @@ def run(session, arguments):
             finally:
                 stop(client)
                 stop(server)
-                path.unlink(missing_ok=True)
+                listener.close()
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                if socket_identity(path) == identity:
+                    path.unlink(missing_ok=True)
+                    marker.unlink(missing_ok=True)
 
 
 def exit_on_signal(number, _frame):
@@ -179,4 +224,4 @@ if __name__ == '__main__':
             sys.exit(0)
         sys.exit(run(sys.argv[1], sys.argv[2:]))
     except (OSError, RuntimeError) as error:
-        sys.exit(f'Tegra software session could not start: {error}')
+        sys.exit(f'Tegra Xwayland session could not start: {error}')

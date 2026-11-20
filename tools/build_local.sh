@@ -246,11 +246,23 @@ install -m644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/urunt
 install -m644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
 
 . "${repo_root}/tools/linuxfs/lse-emu.env"
-lse_emu=$(cached "${LSE_EMU_SHA256}" liblse_emu.so \
+lse_emu=$(set -e; cached "${LSE_EMU_SHA256}" liblse_emu.so \
     bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${LSE_EMU_URL}")
 mkdir -p "${linuxfs_dir}/usr/local/lib/droiddeck-tegra" "${linuxfs_dir}/usr/local/share/licenses/droiddeck-tegra"
 install -m644 "$lse_emu" "${linuxfs_dir}/usr/local/lib/droiddeck-tegra/liblse_emu.so"
 install -m644 "${repo_root}/tools/linuxfs/licenses/lse-emu-NOTICE" "${linuxfs_dir}/usr/local/share/licenses/droiddeck-tegra/NOTICE"
+docker run --rm --platform "${docker_platform}" \
+    --user 0:0 -v "${repo_root}:/src" -w /src "${image_name}" bash -c '
+        set -euo pipefail
+        apt-get update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends patchelf >/dev/null
+        bash tools/tegra/prepare-virgl.sh /tmp/tegra-jni /tmp/tegra-licenses
+        jni=app/src/main/jniLibs/arm64-v8a
+        licenses=app/src/main/assets/linuxfs/usr/local/share/licenses/droiddeck-tegra
+        install -d -o "$1" -g "$2" "$jni"
+        install -o "$1" -g "$2" -m755 /tmp/tegra-jni/*.so "$jni/"
+        install -o "$1" -g "$2" -m644 /tmp/tegra-licenses/* "$licenses/"
+    ' tegra "$(id -u)" "$(id -g)"
 
 sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
 if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
