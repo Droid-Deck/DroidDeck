@@ -384,3 +384,15 @@ between and returns it as the connector's dynamic refresh rates, so the rates re
 display state and are sent again when the list changes. On every present it tells the host the refresh rate the
 frame limit resolves to and the limit itself; the host switches its display and the new rate comes back through
 `wl_output`, which the nested refresh already follows. A host without the global leaves all of this as it was.
+
+## 0138 Frame limiter: a limit the refresh rate does not divide is spread evenly
+
+The limiter held a window for a whole number of refreshes, the refresh rate divided by the limit and rounded down. A
+limit of 45 or 40 on a 60 Hz display rounded to one refresh per frame, so the limit did nothing, and each frame was
+timed from the moment the previous one was shown, so a late frame pushed every frame after it. The limited cycle is
+now the exact time between frames at the limit, and each window keeps the time its next frame is due on that line.
+A frame is released on the refresh nearest its due time: 45 on 60 Hz shows frames for one, one and two refreshes in
+turn, 40 for one and two, and a limit that divides the refresh rate is paced as before. A frame that arrives most of a
+refresh late, or more than a refresh early, starts the line again from that frame, so a stall is not followed by a
+burst. `tools/tests/test_gamescope_limiter_cadence.py` compiles the two rules from this patch and runs them across
+refresh rates and limits.
