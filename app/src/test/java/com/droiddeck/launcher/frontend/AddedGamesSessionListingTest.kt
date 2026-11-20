@@ -1,7 +1,11 @@
 package com.droiddeck.launcher.frontend
 
+import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.stores.SteamLiveShortcuts
 import java.io.File
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.After
@@ -22,15 +26,38 @@ class AddedGamesSessionListingTest {
     private val app get() = RuntimeEnvironment.getApplication()
     @get:Rule val tmp = TemporaryFolder()
 
-    @After fun restore() { AddedGamesPublisher.now = false }
+    @After fun restore() {
+        AddedGamesPublisher.now = false
+        AddedGamesPublisher.live = SteamLiveShortcuts::sync
+        SessionState.running = false
+        SessionState.stopRequested = false
+        SessionState.sessionId = null
+        SessionState.phase = SessionPhase.IDLE
+    }
 
     private val stale = """[{"name":"Old","exe":"/root/Games/Old/Old.exe","folder":"/root/Games/Old","dir":"/root/Games/Old","appid":2147483649,"seen":0}]"""
 
-    private fun gamesFolder(vararg names: String) {
+    private fun gamesFolder(vararg names: String): File {
         val games = tmp.newFolder("PC")
         for (n in names) File(games, "$n/$n.exe").apply { parentFile!!.mkdirs() }.writeText("game")
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         SessionPrefs.setAddedGamesDirs(app, listOf(games.path))
+        return games
+    }
+
+    private fun session(phase: SessionPhase) {
+        SessionState.sessionId = "session-test"
+        SessionState.stopRequested = false
+        SessionState.phase = phase
+        SessionState.running = true
+    }
+
+    private fun until(what: String, check: () -> Boolean) {
+        val end = System.currentTimeMillis() + 30_000
+        while (!check()) {
+            assertTrue(what, System.currentTimeMillis() < end)
+            Thread.sleep(20)
+        }
     }
 
     private fun scanLock(): Any =
@@ -80,5 +107,65 @@ class AddedGamesSessionListingTest {
         AddedGamesPublisher.sessionListing(app)
         assertTrue(listing.readText().contains("\"Alpha\""))
         assertTrue(refreshes().isEmpty())
+    }
+
+    @Test fun aGameRemovedWhileTheClientStartsIsNotAddedToIt() {
+        val games = gamesFolder("Alpha", "Beta")
+        val listing = AddedGames.listingFile(app).apply { parentFile!!.mkdirs(); writeText(stale) }
+        val delivered = Collections.synchronizedList(ArrayList<String>())
+        AddedGamesPublisher.live = { _, found, include -> delivered.addAll(found.filter(include).map { it.name }); true }
+        session(SessionPhase.STARTING_STEAM)
+        AddedGamesPublisher.sessionListing(app)
+        until("the refresh did not write the listing") { listing.readText().contains("\"Beta\"") }
+        SessionPrefs.setAddedGameRemoved(app, File(games, "Beta").path, true)
+        SessionState.phase = SessionPhase.READY
+        refreshes().forEach { it.join(30_000) }
+        assertTrue(refreshes().isEmpty())
+        assertEquals(listOf("Alpha"), delivered.toList())
+    }
+
+    @Test fun aDeliveryTheClientRefusesIsRetriedUntilItIsTaken() {
+        gamesFolder("Alpha")
+        AddedGames.listingFile(app).apply { parentFile!!.mkdirs(); writeText(stale) }
+        val attempts = Collections.synchronizedList(ArrayList<List<String>>())
+        AddedGamesPublisher.live = { _, found, include -> attempts.add(found.filter(include).map { it.name }); attempts.size > 1 }
+        session(SessionPhase.READY)
+        AddedGamesPublisher.sessionListing(app)
+        refreshes().forEach { it.join(30_000) }
+        assertTrue(refreshes().isEmpty())
+        assertEquals(listOf(listOf("Alpha"), listOf("Alpha")), attempts.toList())
+    }
+
+    @Test fun anEndedSessionStopsTheRetries() {
+        gamesFolder("Alpha")
+        AddedGames.listingFile(app).apply { parentFile!!.mkdirs(); writeText(stale) }
+        val attempts = Collections.synchronizedList(ArrayList<String>())
+        AddedGamesPublisher.live = { _, found, _ -> attempts.addAll(found.map { it.name }); SessionState.running = false; false }
+        session(SessionPhase.READY)
+        AddedGamesPublisher.sessionListing(app)
+        refreshes().forEach { it.join(30_000) }
+        assertTrue(refreshes().isEmpty())
+        assertEquals(listOf("Alpha"), attempts.toList())
+    }
+
+    @Test fun theRefreshWaitsForEarlierPublicationsBeforeWriting() {
+        gamesFolder("Alpha")
+        val listing = AddedGames.listingFile(app).apply { parentFile!!.mkdirs(); writeText(stale) }
+        val hold = CountDownLatch(1)
+        val holding = CountDownLatch(1)
+        AddedGamesPublisher.later(app) { holding.countDown(); hold.await() }
+        try {
+            assertTrue(holding.await(30, TimeUnit.SECONDS))
+            AddedGamesPublisher.sessionListing(app)
+            val refresh = refreshes().single()
+            until("the refresh neither finished nor waited") { refresh.state == Thread.State.WAITING || !refresh.isAlive }
+            assertTrue("the refresh wrote while an earlier publication was running", refresh.isAlive)
+            assertEquals(stale, listing.readText())
+        } finally {
+            hold.countDown()
+        }
+        refreshes().forEach { it.join(30_000) }
+        assertTrue(refreshes().isEmpty())
+        assertTrue(listing.readText().contains("\"Alpha\""))
     }
 }

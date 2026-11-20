@@ -5,18 +5,26 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import com.droiddeck.launcher.session.SessionPhase
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.stores.SteamLiveShortcuts
 import java.io.File
+import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 
 object AddedGamesPublisher {
     private const val TAG = "AddedGamesPublisher"
     private const val CLIENT_WAIT_MS = 600_000L
     private const val POLL_MS = 1_000L
+    private const val RETRY_MS = 5_000L
 
     @VisibleForTesting
     @Volatile
     internal var now = false
+
+    @VisibleForTesting
+    @Volatile
+    internal var live: (Context, List<AddedGames.Game>, (AddedGames.Game) -> Boolean) -> Boolean = SteamLiveShortcuts::sync
 
     private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "added-games-publish") }
 
@@ -32,7 +40,7 @@ object AddedGamesPublisher {
     fun republish(context: Context): List<AddedGames.Game> {
         val games = AddedGames.scan(context)
         AddedGames.writeListing(context, games)
-        val arch = com.droiddeck.launcher.session.SessionPrefs.activeSteamClientArch(context)
+        val arch = SessionPrefs.activeSteamClientArch(context)
         LibraryCache.save(context, Library.launchableGames(context, added = games, arch = arch), arch == "x86_64")
         return games
     }
@@ -45,11 +53,11 @@ object AddedGamesPublisher {
         val work = Runnable {
             try {
                 val began = SystemClock.elapsedRealtime()
-                val games = republish(app)
+                val games = serial { republish(app) }
                 Log.i(TAG, "session refresh: ${games.size} game(s) in ${SystemClock.elapsedRealtime() - began} ms")
                 log(games)
                 val fresh = games.filter { (it.appId and 0xFFFFFFFFL) !in started }
-                if (fresh.isNotEmpty() && clientReady(session)) com.droiddeck.launcher.stores.SteamLiveShortcuts.sync(app, fresh) { true }
+                if (fresh.isNotEmpty()) deliver(app, session, fresh)
             } catch (e: Exception) {
                 Log.w(TAG, "session refresh: ${e.message}")
             }
@@ -62,10 +70,20 @@ object AddedGamesPublisher {
         if (games.isNotEmpty()) Log.i(TAG, "added games: " + games.joinToString { "${it.name} (${it.exe.name})" })
     }
 
-    private fun clientReady(session: String?): Boolean {
+    private fun deliver(app: Context, session: String?, games: List<AddedGames.Game>) {
         val until = SystemClock.uptimeMillis() + CLIENT_WAIT_MS
-        fun same() = SessionState.running && !SessionState.stopRequested && SessionState.sessionId == session
-        while (!now && same() && SessionState.phase != SessionPhase.READY && SystemClock.uptimeMillis() < until) Thread.sleep(POLL_MS)
-        return same() && SessionState.phase == SessionPhase.READY
+        while (SessionState.running && !SessionState.stopRequested && SessionState.sessionId == session) {
+            val ready = SessionState.phase == SessionPhase.READY
+            if (ready && serial { syncUnremoved(app, games) }) return
+            if (now || SystemClock.uptimeMillis() >= until) return
+            Thread.sleep(if (ready) RETRY_MS else POLL_MS)
+        }
     }
+
+    private fun syncUnremoved(app: Context, games: List<AddedGames.Game>): Boolean {
+        val removed = SessionPrefs.removedAddedGames(app).toSet()
+        return live(app, games) { it.folder.path !in removed }
+    }
+
+    private fun <T> serial(block: () -> T): T = if (now) block() else worker.submit(Callable { block() }).get()
 }
