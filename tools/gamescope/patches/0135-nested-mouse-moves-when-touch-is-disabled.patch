@@ -1,0 +1,16 @@
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+index df352b0..9740875 100644
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -3326,7 +3326,10 @@ void wlserver_touchmotion( double x, double y, int touch_id, uint32_t time, bool
+ 		}
+ 		else if ( eMode == gamescope::TouchClickModes::Disabled )
+ 		{
+-			return;
++			if ( !bAlwaysWarpCursor )
++				return;
++
++			wlserver_mousewarp( tx, ty, time, false );
+ 		}
+ 		else if ( eMode == gamescope::TouchClickModes::Trackpad )
+ 		{

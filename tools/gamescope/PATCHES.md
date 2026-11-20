@@ -358,3 +358,12 @@ and clears the held flag. wlroots counts repeated presses of one button and send
 reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
 game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
 earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.
+
+## 0135 wlserver: the nested mouse moves the pointer while touch is Disabled
+
+The nested Wayland pointer reaches wlserver as touch 0 (`bAlwaysWarpCursor`, see 0111), and in the Disabled touch click
+mode `wlserver_touchmotion` returned before anything moved. Buttons take `wlserver_mousebutton`, so they still arrived,
+at a pointer that never left the top-left corner. Steam picks Disabled for some games (Don't Starve Together): the drawn
+cursor followed the mouse while every click landed at (0,0). In Disabled the nested pointer now warps the X pointer as
+in the other modes; real fingers are still ignored. `tools/tests/test_gamescope_disabled_touch_mouse.py` compiles the
+branch from this patch.
