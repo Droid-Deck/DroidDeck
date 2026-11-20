@@ -89,6 +89,14 @@ class DumpParsingTest(unittest.TestCase):
         self.assertIsNone(ab.logical_size(DISPLAYS, 5))
 
 
+class HogScriptTest(unittest.TestCase):
+    def test_both_modes_start_the_fill_counter(self):
+        script = ab.HOG.splitlines()
+        counter = script.index("i=0")
+        self.assertLess(counter, script.index('if [ "$mode" = burst ]; then'))
+        self.assertLess(counter, next(n for n, line in enumerate(script) if line.startswith("while [ $i -lt 512 ]")))
+
+
 class SummaryTest(unittest.TestCase):
     def test_max_adj_skips_samples_after_death(self):
         self.assertEqual(50, ab.max_adj(["0", "50", "DEAD", ""]))

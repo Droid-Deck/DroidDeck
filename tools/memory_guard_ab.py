@@ -38,12 +38,13 @@ cleanup() {{ kill $(jobs -p) 2>/dev/null; rm -f {HOG_MOUNT}/f*; umount {HOG_MOUN
 trap 'cleanup; exit 1' HUP INT TERM
 mkdir -p {HOG_MOUNT}
 grep -q ' {HOG_MOUNT} ' /proc/mounts || mount -t tmpfs -o size=16g tmpfs {HOG_MOUNT}
+i=0
 if [ "$mode" = burst ]; then
   [ -s {SEED_PATH} ] || head -c 268435456 /dev/urandom > {SEED_PATH}
   cat {SEED_PATH} > /dev/null
   avail=$(awk '/MemAvailable/ {{print int($2/1024)}}' /proc/meminfo)
   echo "avail=$avail"
-  n=$(( (avail - stop_mb) / 256 )); i=0
+  n=$(( (avail - stop_mb) / 256 ))
   echo "burst_mb=$((n * 256)) start=$(date +%s%N)"
   while [ $i -lt $n ]; do cat {SEED_PATH} > {HOG_MOUNT}/f$i & i=$((i+1)); done
   wait
@@ -406,6 +407,7 @@ def main() -> int:
             bench.prepare(args.apk)
             bench.states()
         else:
+            completed = 0
             for run in range(args.runs):
                 try:
                     bench.prepare(args.apk if run == 0 else None)
@@ -414,6 +416,10 @@ def main() -> int:
                     continue
                 bench.pressure(f"{'burst' if args.burst else 'stop'}{args.stop_mb}-{run + 1}", args.stop_mb, args.hold,
                                args.burst)
+                completed += 1
+            if completed == 0:
+                print("memory-guard-ab: no pressure run completed", file=sys.stderr)
+                return 1
     except RuntimeError as exc:
         print(f"memory-guard-ab: {exc}", file=sys.stderr)
         return 1
