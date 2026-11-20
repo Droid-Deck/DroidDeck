@@ -97,6 +97,14 @@ class VkLinearDmabufTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="droiddeck-vk-linear-") as tmp:
             compile_and_run(self, TESTS / "vk_linear_dmabuf_test.c", tmp, "vk-linear-dmabuf")
 
+    def test_readback_orders_general_transition_after_staging_copy(self):
+        body = function((SRC / "vk_present.c").read_text(), "vkp_image_readback")
+        stage = body.index("stage_linear_dmabuf(cmd, src);")
+        barrier = body.index("vkp_linear_dmabuf_readback_stage(src->in_general)")
+        self.assertLess(stage, barrier)
+        self.assertIn(".srcAccessMask = vkp_linear_dmabuf_readback_access(src->in_general)", body[stage:barrier])
+        self.assertNotIn("CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT", body)
+
     def test_staged_client_image_stays_layer_candidate(self):
         vk = (SRC / "vk_present.c").read_text()
         comp = (SRC / "compositor.c").read_text()

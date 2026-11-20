@@ -12,6 +12,14 @@ static inline int vkp_linear_dmabuf_foreign_image(int dmabuf, int staged) {
     return dmabuf && !staged;
 }
 
+static inline VkPipelineStageFlags vkp_linear_dmabuf_readback_stage(int in_general) {
+    return in_general ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+}
+
+static inline VkAccessFlags vkp_linear_dmabuf_readback_access(int in_general) {
+    return in_general ? VK_ACCESS_TRANSFER_WRITE_BIT : 0;
+}
+
 static inline uint32_t vkp_linear_dmabuf_texel_bytes(VkFormat fmt) {
     return fmt == VK_FORMAT_R16G16B16A16_SFLOAT ? 8u : 4u;
 }

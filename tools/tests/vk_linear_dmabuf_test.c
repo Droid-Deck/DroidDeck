@@ -63,6 +63,13 @@ static void check_foreign_image(void) {
     assert(!vkp_linear_dmabuf_foreign_image(0, 1));
 }
 
+static void check_readback_order(void) {
+    assert(vkp_linear_dmabuf_readback_stage(1) & VK_PIPELINE_STAGE_TRANSFER_BIT);
+    assert(vkp_linear_dmabuf_readback_access(1) & VK_ACCESS_TRANSFER_WRITE_BIT);
+    assert(vkp_linear_dmabuf_readback_stage(0) == VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+    assert(vkp_linear_dmabuf_readback_access(0) == 0);
+}
+
 static void check_ownership(void) {
     const VkBuffer buffer = (VkBuffer)(uintptr_t)0x4321;
     const uint32_t queue_family = 3;
@@ -93,6 +100,7 @@ int main(void) {
     check_rejected_layouts();
     check_path_choice();
     check_foreign_image();
+    check_readback_order();
     check_ownership();
     return 0;
 }
