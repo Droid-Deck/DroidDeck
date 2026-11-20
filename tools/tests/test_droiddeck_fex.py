@@ -1181,7 +1181,6 @@ class LaunchTest(FexTestCase):
         self.assertEqual(started(unity, "10")[:2], ("1", None))
         self.assertEqual(started(other, "10")[:2], (None, None))
 
-
     def test_native_project_zomboid_drops_zgc_and_other_games_keep_their_files(self):
         args = ["-Xmx3072m", "-XX:+UseZGC"]
         game = self.tmp / "ProjectZomboid"
@@ -1202,6 +1201,7 @@ class LaunchTest(FexTestCase):
                          ["-Xmx3072m", "-XX:+UseG1GC", "-XX:TieredStopAtLevel=1"])
         start(other)
         self.assertEqual(json.loads(untouched.read_text())["vmArgs"], args)
+
 
 class AppInfoTest(unittest.TestCase):
     COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
