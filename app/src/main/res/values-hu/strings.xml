@@ -960,6 +960,8 @@
     <string name="setup_fullscreen">Teljes képernyő</string>
     <string name="setup_fullscreen_on">Elrejti az Android állapot- és navigációs sávokat</string>
     <string name="setup_fullscreen_off">Megjeleníti az Android állapot- és navigációs sávokat</string>
+    <string name="setup_page_swipe">Lapozás csúsztatással</string>
+    <string name="setup_page_swipe_hint">Csúsztasson végig egy oldalon a lapváltáshoz.</string>
     <string name="setup_dual_screen_launcher">Kétképernyős indító</string>
     <string name="setup_dual_screen_launcher_hint">Az Automatikus mód a beépített második képernyővel rendelkező kézi eszközökön a második képernyőre helyezi az indító szakaszait (Steam, Könyvtár, Áruházak és a többi). A Be mód bármely második kijelzőt használ. A Ki mód egy képernyőn tartja az indítót.</string>
     <string name="setup_dual_screen_sessions">Kétképernyős munkamenetek</string>

@@ -516,6 +516,13 @@ internal fun SetupPanel(
                                     if (s.launcherFullscreen) stringResource(R.string.setup_fullscreen_on) else stringResource(R.string.setup_fullscreen_off),
                                     s.launcherFullscreen,
                                 ) { a.onLauncherFullscreen(it) }
+                                ToggleRow(
+                                    host, "page-swipe", stringResource(R.string.setup_page_swipe),
+                                    stringResource(R.string.setup_page_swipe_hint), PageSwipe.on,
+                                ) { on ->
+                                    PageSwipe.on = on
+                                    com.droiddeck.launcher.core.AppUiPrefs.setPageSwipe(ctx, on)
+                                }
                                 if (s.dualScreenDevice) {
                                     val dualModes = listOf(
                                         com.droiddeck.launcher.input.DualScreen.MODE_AUTO to stringResource(R.string.setup_dual_screen_auto),

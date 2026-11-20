@@ -957,6 +957,8 @@
     <string name="setup_fullscreen">เต็มจอ</string>
     <string name="setup_fullscreen_on">ซ่อนแถบสถานะและแถบนำทางของ Android</string>
     <string name="setup_fullscreen_off">แสดงแถบสถานะและแถบนำทางของ Android</string>
+    <string name="setup_page_swipe">ปัดเพื่อเปลี่ยนหน้า</string>
+    <string name="setup_page_swipe_hint">ปัดผ่านหน้าเพื่อเปลี่ยนแท็บ</string>
     <string name="setup_dual_screen_launcher">ลอนเชอร์แบบสองจอ</string>
     <string name="setup_dual_screen_launcher_hint">โหมดอัตโนมัติจะแสดงส่วนต่างๆ ของลอนเชอร์ (Steam, คลังเกม, ร้านค้า และส่วนอื่นๆ) บนจอที่สองของเครื่องเล่นพกพาที่มีจอที่สองในตัว โหมดเปิดใช้จอที่สองใดก็ได้ โหมดปิดจะแสดงลอนเชอร์บนจอเดียว</string>
     <string name="setup_dual_screen_sessions">เซสชันแบบสองจอ</string>

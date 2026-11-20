@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -19,20 +20,25 @@ import kotlin.math.abs
 internal object PageSwipe {
     var locks by mutableIntStateOf(0)
     var direction by mutableIntStateOf(0)
+    var on by mutableStateOf(true)
 }
 
 @Composable
-internal fun Modifier.pageSwipe(enabled: () -> Boolean, onSwipe: (Int) -> Unit): Modifier {
+internal fun Modifier.pageSwipe(enabled: () -> Boolean, edgeGuard: () -> Boolean = { false }, onSwipe: (Int) -> Unit): Modifier {
     val enabledNow by rememberUpdatedState(enabled)
+    val edgeGuardNow by rememberUpdatedState(edgeGuard)
     val onSwipeNow by rememberUpdatedState(onSwipe)
     return pointerInput(Unit) {
     val distance = 72.dp.toPx()
     val flingDistance = 32.dp.toPx()
     val flingVelocity = 900.dp.toPx()
     val slop = viewConfiguration.touchSlop
+    val edge = 32.dp.toPx()
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Final)
-        if (!enabledNow() || PageSwipe.locks > 0) return@awaitEachGesture
+        if (!PageSwipe.on || !enabledNow() || PageSwipe.locks > 0) return@awaitEachGesture
+        // A swipe in from the screen's edge brings back hidden system bars; it should not also turn the page.
+        if (edgeGuardNow() && (down.position.x < edge || down.position.x > size.width - edge)) return@awaitEachGesture
         val tracker = VelocityTracker()
         tracker.addPointerInputChange(down)
         var total = Offset.Zero

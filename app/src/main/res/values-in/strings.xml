@@ -957,6 +957,8 @@
     <string name="setup_fullscreen">Layar penuh</string>
     <string name="setup_fullscreen_on">Menyembunyikan bilah status dan navigasi Android</string>
     <string name="setup_fullscreen_off">Menampilkan bilah status dan navigasi Android</string>
+    <string name="setup_page_swipe">Geser antarhalaman</string>
+    <string name="setup_page_swipe_hint">Geser melintasi halaman untuk berganti tab.</string>
     <string name="setup_dual_screen_launcher">Peluncur layar ganda</string>
     <string name="setup_dual_screen_launcher_hint">Otomatis menempatkan bagian peluncur (Steam, Pustaka, Toko, dan bagian lainnya) pada layar kedua bawaan perangkat genggam. Aktif memakai layar kedua mana pun. Nonaktif membuat peluncur tetap di satu layar saja.</string>
     <string name="setup_dual_screen_sessions">Sesi layar ganda</string>

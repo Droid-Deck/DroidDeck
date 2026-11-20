@@ -963,6 +963,8 @@
     <string name="setup_fullscreen">Pantalla completa</string>
     <string name="setup_fullscreen_on">Oculta las barras de estado y navegación de Android</string>
     <string name="setup_fullscreen_off">Muestra las barras de estado y navegación de Android</string>
+    <string name="setup_page_swipe">Deslizar entre páginas</string>
+    <string name="setup_page_swipe_hint">Desliza sobre una página para cambiar de pestaña.</string>
     <string name="setup_dual_screen_launcher">Lanzador de doble pantalla</string>
     <string name="setup_dual_screen_launcher_hint">Automático coloca las secciones del lanzador (Steam, Biblioteca, Tiendas y el resto) en la segunda pantalla de las consolas portátiles que la llevan integrada. Activado usa cualquier segunda pantalla. Desactivado mantiene el lanzador en una sola pantalla.</string>
     <string name="setup_dual_screen_sessions">Sesiones de doble pantalla</string>

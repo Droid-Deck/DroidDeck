@@ -952,6 +952,8 @@
     <string name="setup_fullscreen">Tam ekran</string>
     <string name="setup_fullscreen_on">Android durum ve gezinme çubuklarını gizler</string>
     <string name="setup_fullscreen_off">Android durum ve gezinme çubuklarını gösterir</string>
+    <string name="setup_page_swipe">Sayfalar arasında kaydır</string>
+    <string name="setup_page_swipe_hint">Sekme değiştirmek için sayfa boyunca kaydırın.</string>
     <string name="setup_dual_screen_launcher">Çift ekranlı başlatıcı</string>
     <string name="setup_dual_screen_launcher_hint">Otomatik, yerleşik ikinci ekranı olan el konsollarında başlatıcı bölümlerini (Steam, Kitaplık, Mağazalar ve diğerleri) ikinci ekrana yerleştirir. Açık, herhangi bir ikinci ekranı kullanır. Kapalı, başlatıcıyı tek ekranda tutar.</string>
     <string name="setup_dual_screen_sessions">Çift ekranlı oturumlar</string>

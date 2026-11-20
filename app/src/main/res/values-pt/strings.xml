@@ -962,6 +962,8 @@
     <string name="setup_fullscreen">Tela cheia</string>
     <string name="setup_fullscreen_on">Oculta as barras de status e de navegação do Android</string>
     <string name="setup_fullscreen_off">Mostra as barras de status e de navegação do Android</string>
+    <string name="setup_page_swipe">Deslizar entre páginas</string>
+    <string name="setup_page_swipe_hint">Deslize sobre uma página para mudar de aba.</string>
     <string name="setup_dual_screen_launcher">Iniciador em duas telas</string>
     <string name="setup_dual_screen_launcher_hint">O modo automático coloca as seções do iniciador (Steam, Biblioteca, Lojas e as demais) na segunda tela de consoles portáteis com uma tela secundária integrada. Ativado usa qualquer tela secundária. Desativado mantém o iniciador em uma única tela.</string>
     <string name="setup_dual_screen_sessions">Sessões em duas telas</string>
