@@ -51,6 +51,7 @@ class FexTestCase(unittest.TestCase):
             "FONT_RULES": str(self.tmp / "66-droiddeck-device-fonts.conf"),
             "OWN_FEX": str(self.tmp / "own"),
             "OWN_FEX_TAG": str(self.tmp / "own/share/fex-emu/.droiddeck-tag"),
+            "CPUINFO": str(self.tmp / "cpuinfo"),
         }
         patcher = mock.patch.dict(G, patches)
         patcher.start()
@@ -374,6 +375,34 @@ class PrepareTest(FexTestCase):
         self.assertTrue((self.home / ".config/droiddeck/fex-wanted").is_file())
         status = json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())
         self.assertFalse(status["ready"])
+
+    def test_a_kernel_without_cpuid_stops_before_fex_is_installed(self):
+        self.write(self.tmp / "cpuinfo", "processor : 0\nFeatures : fp asimd evtstrm aes pmull sha1 sha2 crc32\n")
+        installs = []
+        with mock.patch.dict(G, {"fex_install": lambda: installs.append(1), "update_own_fex": lambda: installs.append(1)}):
+            fex, said = self.quiet(FEX["prepare"])
+        self.assertIsNone(fex)
+        self.assertEqual(installs, [])
+        self.assertTrue(said.startswith("droiddeck-fex: x86 Linux programs need Linux 4.11 or newer to run FEX"))
+        self.assertIn("no cpuid", said)
+
+    def test_every_core_must_report_the_exact_cpuid_flag(self):
+        for features in ("Features : fp asimd cpuid\nFeatures : fp asimd\n", "Features : fp nocpuid cpuid_x\n",
+                         "Features :\n"):
+            self.write(self.tmp / "cpuinfo", features)
+            self.assertTrue(FEX["kernel_hides_cpu_features"](), features)
+
+    def test_cpuid_or_no_feature_data_prepares_as_before(self):
+        tool = self.fex_tool()
+        self.runtime()
+        for cpuinfo in ("Features : fp asimd evtstrm aes pmull sha1 sha2 crc32 cpuid\n", "processor : 0\n", None):
+            with contextlib.suppress(FileNotFoundError):
+                (self.tmp / "cpuinfo").unlink()
+            if cpuinfo is not None:
+                self.write(self.tmp / "cpuinfo", cpuinfo)
+            fex, said = self.quiet(FEX["prepare"])
+            self.assertEqual(fex["bin"], str(tool / "usr/bin/FEX"), cpuinfo)
+            self.assertNotIn("4.11", said)
 
     def test_a_missing_steam_runtime_4_is_named(self):
         self.fex_tool()

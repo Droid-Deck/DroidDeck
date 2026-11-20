@@ -48,7 +48,8 @@ crash in `FEX::FetchHostFeatures()` on a 4.9 L4T kernel
 Linux 5.15.
 
 When any core's `Features` line lacks `cpuid`, `droiddeck-steam-x64 --prepare`
-now stops before downloading FEX, its rootfs and the client. The session end
+now stops before downloading FEX, its rootfs and the client, and
+`droiddeck-fex prepare` stops before installing FEX for x86 Linux programs. The session end
 screen says FEX can't run on this kernel and stops suggesting x86-64 after an
 arm64 client SIGILL. Absent or unreadable feature data keeps the previous
 behavior.
