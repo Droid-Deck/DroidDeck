@@ -157,7 +157,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
                     else if (armed && event.x in 0f..width.toFloat() && event.y in 0f..height.toFloat()) {
                         performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         val next = if (hidden == null) Hidden.BY_TAP else null
-                        setHidden(next)
+                        setPresentation(next, shortcutsOnly)
                         onCornerTap?.invoke(next)
                     }
                     armed = false

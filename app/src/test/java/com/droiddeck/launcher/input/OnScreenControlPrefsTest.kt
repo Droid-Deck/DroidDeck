@@ -22,7 +22,7 @@ class OnScreenControlPrefsTest {
         for (name in listOf("session", "game-controls", "input-profiles", "input-surfaces", "controller")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    @Test fun oldShowModesMapOntoAutoAlwaysAndNever() {
+    @Test fun oldShowModesKeepTheirMeaning() {
         assertEquals(SessionPrefs.OSC_AUTO, SessionPrefs.oscMode(context))
         for ((saved, mode) in listOf(SessionPrefs.OSC_AUTO to SessionPrefs.OSC_AUTO, SessionPrefs.OSC_ALWAYS to SessionPrefs.OSC_ALWAYS,
             SessionPrefs.OSC_NEVER to SessionPrefs.OSC_NEVER, SessionPrefs.OSC_STEAM_QAM to SessionPrefs.OSC_STEAM_QAM,
@@ -30,6 +30,9 @@ class OnScreenControlPrefsTest {
             session.edit().putString("osc", saved).commit()
             assertEquals(saved, mode, SessionPrefs.oscMode(context))
         }
+        session.edit().putString("osc", SessionPrefs.OSC_STEAM_QAM).commit()
+        assertEquals(SessionPrefs.OSC_STEAM_QAM, SessionPrefs.oscMode(context, steamSession = true))
+        assertEquals(SessionPrefs.OSC_AUTO, SessionPrefs.oscMode(context, steamSession = false))
         session.edit().putString("osc", SessionPrefs.OSC_STEAM_TOUCH).commit()
         assertEquals(SessionPrefs.OSC_ALWAYS, SessionPrefs.oscMode(context, steamSession = true))
         SessionPrefs.setOscMode(context, SessionPrefs.OSC_AUTO)

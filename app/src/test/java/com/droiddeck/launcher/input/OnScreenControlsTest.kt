@@ -241,6 +241,18 @@ class OnScreenControlsTest {
         assertTrue(view.takesTouchAt(800f, 250f))
     }
 
+    @Test fun tappingTheCornerKeepsTheShortcutsMode() {
+        fun shownIds() = view.inputSurface.shownElements.map { it.id }
+        view.setPresentation(null, shortcuts = true)
+        measure(view)
+        val shortcuts = listOf(OnScreenLayout.STEAM_SHORTCUT_ID, OnScreenLayout.QAM_SHORTCUT_ID)
+        assertEquals(shortcuts, shownIds())
+        tapCorner()
+        assertTrue(shownIds().isEmpty())
+        tapCorner()
+        assertEquals(shortcuts, shownIds())
+    }
+
     @Test fun theCornerIsGoneWithoutALayoutAndOnTheDockedStrip() {
         val (x, y) = corner
         view.updateLayout(null)
