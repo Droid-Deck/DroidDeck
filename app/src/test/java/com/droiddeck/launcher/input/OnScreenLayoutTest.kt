@@ -128,6 +128,24 @@ class OnScreenLayoutTest {
 
     private fun round(v: Float) = Math.round(v * 10000f) / 10000f
 
+    @Test fun aNarrowLandscapeLayoutOnAWideLandscapeScreenKeepsItsEdgeAnchoring() {
+        val right = InputSurfaceElement(InputControl.A, .9f, .4f, .06f, .08f, "a")
+        val layout = SavedInputLayout("edited", "Edited", listOf(right), aspect = 4f / 3f)
+        val (x, _, w, _) = px(OnScreenLayout.elements(context, layout, 2400, 1029, Rect()).single(), 2400, 1029).toList()
+        assertEquals(2400f - .04f * 1029f * 4f / 3f, x + w, 1f)
+    }
+
+    @Test fun aLandscapeLayoutShownInPortraitKeepsItsClustersTogetherAtTheBottom() {
+        val y = InputSurfaceElement(InputControl.Y, .8f, .25f, .08f, .16f, "y")
+        val a = InputSurfaceElement(InputControl.A, .8f, .6f, .08f, .16f, "a")
+        val layout = SavedInputLayout("edited", "Edited", listOf(y, a), aspect = 2f)
+        val (_, yTop, _, yHeight) = px(OnScreenLayout.elements(context, layout, 1000, 2000, Rect(0, 0, 0, 40)).single { it.id == "y" }, 1000, 2000).toList()
+        val (_, aTop, _, _) = px(OnScreenLayout.elements(context, layout, 1000, 2000, Rect(0, 0, 0, 40)).single { it.id == "a" }, 1000, 2000).toList()
+        assertEquals(.35f * 500f, aTop - yTop, 1f)
+        assertEquals(2000f - 40f - .75f * 500f, yTop, 1f)
+        assertEquals(.16f * 500f, yHeight, 1f)
+    }
+
     @Test fun controlsStayOutOfTheDisplayCutout() {
         val safe = Rect(120, 0, 0, 40)
         val generated = OnScreenLayout.elements(context, gamepad(), 2400, 1080, safe)

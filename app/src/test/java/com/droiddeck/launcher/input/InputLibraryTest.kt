@@ -398,6 +398,64 @@ class InputLibraryTest {
         assertEquals(InputLibraries.read(context), InputLibraries.read(context))
     }
 
+    @Test fun anOldEditorGamepadFollowsTheKitAndIsAlsoKeptAsItWas() {
+        val fresh = InputLibraries.read(context)
+        val a = InputSurfaceElement(InputControl.A, .7f, .6f, .1f, .2f)
+        val key = InputSurfaceElement(InputControl.A, .4f, .1f, .08f, .15f, "jump", name = "Jump")
+        val gamepad = fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = listOf(a, key), aspect = 2f)
+        val actions = SavedInputBindings("old.actions", "Old", false, InputLibraries.OVERLAY, elements = mapOf("jump" to InputAction.Keys(listOf(57))))
+        val old = JSONObject(InputLibraries.encode(fresh.withLayout(gamepad).withPreset(actions))).put("version", 14)
+        prefs.edit().putString("library", old.toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        assertEquals(listOf(key), upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.elements)
+        val kept = upgraded.layouts.single { it.name == "Gamepad (old layout)" }
+        assertEquals(listOf(a, key), kept.elements)
+        assertTrue(kept.kitless)
+        assertEquals(2f, kept.aspect)
+        assertTrue(upgraded.bindings.any { it.layoutId == kept.id && it.elements["jump"] == InputAction.Keys(listOf(57)) })
+        assertEquals(upgraded.bindings.count { it.layoutId == InputLibraries.OVERLAY }, upgraded.bindings.count { it.layoutId == kept.id })
+        assertTrue(kept.supports(InputRole.PRIMARY) && kept.editable)
+        assertEquals(upgraded, InputLibraries.read(context))
+    }
+
+    @Test fun anActionForAKitButtonTheOldGamepadDidNotPlaceStillLoads() {
+        val fresh = InputLibraries.read(context)
+        val a = InputSurfaceElement(InputControl.A, .7f, .6f, .1f, .2f)
+        val gamepad = fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = listOf(a), aspect = 2f)
+        val actions = SavedInputBindings("old.actions", "Old", false, InputLibraries.OVERLAY,
+            elements = mapOf("legacy:a" to InputAction.Keys(listOf(30)), "legacy:b" to InputAction.Keys(listOf(48))))
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(fresh.withLayout(gamepad).withPreset(actions))).put("version", 14).toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        val kept = upgraded.layouts.single { it.name == "Gamepad (old layout)" }
+        val copy = upgraded.bindings.single { it.layoutId == kept.id && it.name == kept.name && it.elements.containsKey("legacy:a") }
+        assertEquals(setOf("legacy:a"), copy.elements.keys)
+        assertEquals(actions.elements, upgraded.preset("old.actions").elements)
+    }
+
+    @Test fun anOldGamepadKeepsItsPositionsInPlaceWhenTheLibraryIsFull() {
+        val fresh = InputLibraries.read(context)
+        val a = InputSurfaceElement(InputControl.A, .7f, .6f, .1f, .2f)
+        val gamepad = fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = listOf(a), aspect = 2f)
+        val filler = (fresh.layouts.size until 256).map { SavedInputLayout("filler.$it", "Filler $it", listOf(InputSurfaceElement(InputControl.B, .1f, .1f, .1f, .1f))) }
+        val full = filler.fold(fresh.withLayout(gamepad)) { library, layout -> library.withLayout(layout) }
+        assertEquals(256, full.layouts.size)
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(full)).put("version", 14).toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        val overlay = upgraded.layouts.single { it.id == InputLibraries.OVERLAY }
+        assertEquals(listOf(a), overlay.elements)
+        assertTrue(overlay.kitless)
+        assertEquals(256, upgraded.layouts.size)
+    }
+
+    @Test fun aGamepadWithOnlyAddedKeysIsNotKeptTwice() {
+        val fresh = InputLibraries.read(context)
+        val key = InputSurfaceElement(InputControl.A, .4f, .1f, .08f, .15f, "jump", name = "Jump")
+        val old = JSONObject(InputLibraries.encode(fresh.withLayout(fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = listOf(key), aspect = 2f))))
+            .put("version", 14)
+        prefs.edit().putString("library", old.toString()).commit()
+        assertTrue(InputLibraries.read(context).layouts.none { it.name.endsWith("(old layout)") })
+    }
+
     @Test fun versionTenStockPanelsReturnToGrayOnce() {
         val fresh = InputLibraries.read(context)
         val blue = fresh.layouts.filter { it.id == InputLibraries.DECK || it.id == InputLibraries.TRACKPAD }
