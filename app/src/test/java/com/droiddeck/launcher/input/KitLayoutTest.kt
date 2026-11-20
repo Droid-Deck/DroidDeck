@@ -113,6 +113,43 @@ class KitLayoutTest {
         }
     }
 
+    @Test fun aSideCutoutOnlyMovesTheOverlappingCluster() {
+        val w = 2400
+        val h = 1080
+        val plain = KitLayout.elements(context, PadKit.STEAM_DECK, w, h, rearButtons = false, trackpads = false)
+        val left = Rect(10, 380, 120, 480)
+        val right = Rect(w - 120, 380, w, 480)
+        val adjusted = KitLayout.elements(context, PadKit.STEAM_DECK, w, h, Rect(120, 0, 120, 0),
+            cutouts = listOf(left, right), rearButtons = false, trackpads = false)
+        val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")
+        val xOffsets = plain.zip(adjusted).associate { (before, after) ->
+            assertEquals(before.id, after.id)
+            assertEquals(before.y, after.y, .00001f)
+            assertEquals(before.width, after.width, .00001f)
+            assertEquals(before.height, after.height, .00001f)
+            assertTrue(after.x * w >= left.right || (after.x + after.width) * w <= left.left ||
+                after.y * h >= left.bottom || (after.y + after.height) * h <= left.top)
+            assertTrue(after.x * w >= right.right || (after.x + after.width) * w <= right.left ||
+                after.y * h >= right.bottom || (after.y + after.height) * h <= right.top)
+            before.id to (after.x - before.x) * w
+        }
+        assertTrue(xOffsets.getValue(KitLayout.DPAD_ID) in 1f..100f)
+        assertTrue(xOffsets.getValue("legacy:b") in -100f..-1f)
+        for ((id, offset) in xOffsets) if (id in face) assertEquals(xOffsets.getValue("legacy:b"), offset, .01f)
+            else if (id != KitLayout.DPAD_ID) assertEquals(id, 0f, offset, .01f)
+        assertTrue(overlapping(adjusted, w, h).isEmpty())
+    }
+
+    @Test fun startAndSelectAreOnTheFloatingOverlayBottomRow() {
+        for (kit in PadKit.entries) for ((w, h) in sizes) {
+            val buttons = KitLayout.elements(context, kit, w, h)
+            val keyboard = buttons.single { it.id == KitLayout.KEYBOARD_ID }
+            for (button in buttons.filter { it.control == InputControl.SELECT || it.control == InputControl.START }) {
+                assertTrue("$kit $w x $h ${button.id}", button.y + button.height / 2 in keyboard.y..(keyboard.y + keyboard.height))
+            }
+        }
+    }
+
     @Test fun widerScreensSpreadTheControlsInsteadOfStretchingThem() {
         for (kit in PadKit.entries) {
             val narrow = KitLayout.elements(context, kit, 1920, 1080).associateBy { it.id }

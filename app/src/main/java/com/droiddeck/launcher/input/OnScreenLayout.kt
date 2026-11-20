@@ -23,19 +23,25 @@ object OnScreenLayout {
      * The built-in gamepad keeps no kit positions until its kit is edited; until then the kit follows the virtual controller and
      * the layout stores only the keys and controls the player added on top.
      */
-    fun generated(layout: SavedInputLayout) = (layout.id == InputLibraries.OVERLAY || layout.origin == InputLibraries.OVERLAY) &&
-        !layout.kitless && layout.elements.none { KitLayout.isKit(it.id) }
+    fun generated(layout: SavedInputLayout) = hasBuiltInKit(layout) && layout.elements.none { KitLayout.isKit(it.id) }
 
-    fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect, dock: Dock? = null): List<InputSurfaceElement> {
+    fun hasBuiltInKit(layout: SavedInputLayout) =
+        !layout.kitless && (layout.id == InputLibraries.OVERLAY || layout.origin == InputLibraries.OVERLAY)
+
+    fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect, dock: Dock? = null,
+        cutouts: List<Rect> = emptyList(), rearButtons: Boolean = true, trackpads: Boolean = true): List<InputSurfaceElement> {
         layout ?: return emptyList()
         if (width <= 0 || height <= 0) return layout.elements
         if (generated(layout)) {
             val kit = PadKit.current(context)
             val extras = if (layout.elements.isEmpty()) emptyList() else fit(layout.elements, aspect(context, layout), 1f, width, height, safe)
             return (if (dock != null) KitLayout.dock(context, kit, width, height, dock.portrait, dock.left, dock.right)
-                else KitLayout.elements(context, kit, width, height, safe, layout.scale)) + extras
+                else KitLayout.elements(context, kit, width, height, safe, layout.scale, cutouts, rearButtons, trackpads)) + extras
         }
-        return fit(layout.elements, aspect(context, layout), 1f, width, height, safe)
+        val elements = if (dock == null && hasBuiltInKit(layout)) layout.elements.filter { element ->
+            !KitLayout.isKit(element.id) || KitLayout.visibleOnOverlay(element.control, rearButtons, trackpads)
+        } else layout.elements
+        return fit(elements, aspect(context, layout), 1f, width, height, safe)
     }
 
     fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false): List<InputSurfaceElement> =

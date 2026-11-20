@@ -15,6 +15,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.widget.FrameLayout
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.ui.InputSurfaceView
 import com.droiddeck.launcher.ui.PadArt
 
@@ -25,6 +26,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY, haptics = dock != null)
     private var layout: SavedInputLayout? = null
     private val safe = Rect()
+    private var cutouts = emptyList<Rect>()
     private var viewWidth = 0
     private var viewHeight = 0
     private val corner = CornerButton(context)
@@ -62,11 +64,22 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     }
 
     private fun render() {
-        val placed = OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, dock)
+        val placed = OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, dock, cutouts,
+            rearButtons = SessionPrefs.oscRearButtons(context), trackpads = SessionPrefs.oscTrackpads(context))
         surface.updateCustomLayout(if (hidden != null) placed.filter { it.alwaysShown } else placed)
         surface.updateStyle(layout?.style ?: InputSurfaceStyle())
         corner.visibility = if (layout == null || dock != null) GONE else VISIBLE
         corner.alpha = (layout?.style?.opacity ?: 100) / 100f
+        val density = resources.displayMetrics.density
+        val margin = (CORNER_MARGIN_DP * density).toInt()
+        val params = corner.layoutParams as LayoutParams
+        val leftInset = if (dock == null && viewWidth >= viewHeight && layout?.let(OnScreenLayout::generated) == true)
+            KitLayout.cornerInset(safe, cutouts, viewHeight, density) else safe.left
+        if (params.leftMargin != leftInset + margin || params.bottomMargin != safe.bottom + margin) {
+            params.leftMargin = leftInset + margin
+            params.bottomMargin = safe.bottom + margin
+            corner.layoutParams = params
+        }
         corner.invalidate()
     }
 
@@ -91,18 +104,11 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-        val margin = (CORNER_MARGIN_DP * resources.displayMetrics.density).toInt()
-        val params = corner.layoutParams as LayoutParams
-        val left = (cutout?.safeInsetLeft ?: 0) + margin
-        val bottom = (cutout?.safeInsetBottom ?: 0) + margin
-        if (params.leftMargin != left || params.bottomMargin != bottom) {
-            params.leftMargin = left
-            params.bottomMargin = bottom
-            corner.layoutParams = params
-        }
         val fresh = Rect(cutout?.safeInsetLeft ?: 0, if (dock == null) cutout?.safeInsetTop ?: 0 else 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
-        if (fresh != safe) {
+        val bounds = cutout?.boundingRects.orEmpty()
+        if (fresh != safe || bounds != cutouts) {
             safe.set(fresh)
+            cutouts = bounds
             render()
         }
         return super.onApplyWindowInsets(insets)

@@ -32,6 +32,36 @@ class ShowLayoutTest {
         view.releaseInputs()
     }
 
+    @Test fun overlayExtrasAreIndependentAndKeepTheirPreferencesWhenRecreated() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val kit = SavedInputLayout(InputLibraries.OVERLAY, "Gamepad")
+        val grips = setOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)
+        val trackpads = setOf(InputControl.LEFT_PAD, InputControl.RIGHT_PAD)
+        fun controls(dock: OnScreenLayout.Dock? = null, layout: SavedInputLayout = kit): OnScreenControls =
+            OnScreenControls(context, null, dock).also { it.updateLayout(layout); sized(it, 1920, 1080) }
+        fun shown(view: OnScreenControls) = view.inputSurface.shownElements.map { it.control }.toSet()
+        val overlay = controls()
+        assertTrue(shown(overlay).intersect(grips + trackpads).isEmpty())
+        SessionPrefs.setOscRearButtons(context, true)
+        overlay.reload()
+        assertTrue(shown(overlay).containsAll(grips))
+        assertTrue(shown(overlay).intersect(trackpads).isEmpty())
+        SessionPrefs.setOscTrackpads(context, true)
+        SessionPrefs.setOscRearButtons(context, false)
+        assertTrue(shown(controls()).containsAll(trackpads))
+        assertTrue(shown(controls()).intersect(grips).isEmpty())
+
+        SessionPrefs.setOscTrackpads(context, false)
+        val customPad = InputSurfaceElement(InputControl.LEFT_PAD, .4f, .4f, .15f, .15f, id = "custom-pad")
+        val edited = kit.copy(elements = listOf(customPad,
+            InputSurfaceElement(InputControl.RIGHT_PAD, .6f, .4f, .15f, .15f, id = "legacy:right-pad")))
+        assertEquals(listOf(customPad.id), controls(layout = edited).inputSurface.shownElements.map { it.id })
+
+        val dock = OnScreenLayout.Dock(portrait = true, grips = true)
+        val panel = OnScreenControls(context, null, dock).also { it.updateLayout(kit); sized(it, 1080, 1300) }
+        assertTrue(shown(panel).containsAll(grips + trackpads))
+    }
+
     @Test fun aSavedLayoutIsDrawnAsSaved() {
         val saved = listOf(InputSurfaceElement(InputControl.A, .4f, .4f, .1f, .1f))
         val view = InputSurfaceView(context)
