@@ -39,6 +39,18 @@ class OnScreenLayoutTest {
         }
     }
 
+    @Test fun steamShortcutsClearPinnedControlsAndStayInsideTheSafeArea() {
+        val safe = Rect(20, 10, 30, 25)
+        val pin = InputSurfaceElement(InputControl.A, .05f, .8f, .2f, .15f, "pin")
+        val shortcuts = OnScreenLayout.steamShortcuts(1000, 600, safe, 2f, listOf(pin))
+        val (steam, qam) = shortcuts
+        assertEquals(OnScreenLayout.STEAM_SHORTCUT_ID, steam.id)
+        assertEquals(OnScreenLayout.QAM_SHORTCUT_ID, qam.id)
+        assertTrue(steam.y + steam.height < pin.y)
+        assertEquals(OnScreenLayout.steamShortcuts(1000, 600, safe, 2f).last().y, qam.y)
+        assertInside(shortcuts, 1000, 600, safe)
+    }
+
     @Test fun savingTheEditorFrameKeepsEveryControlWhereTheEditorShowsIt() {
         val w = 2608
         val h = 1200

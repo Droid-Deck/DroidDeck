@@ -69,14 +69,13 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     private fun render() {
         val placed = OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, dock, cutouts,
             rearButtons = SessionPrefs.oscRearButtons(context), trackpads = SessionPrefs.oscTrackpads(context))
-        val visible = when {
-            hidden != null -> placed.filter { it.alwaysShown }
-            shortcutsOnly -> OnScreenLayout.steamShortcuts(viewWidth, viewHeight, safe, resources.displayMetrics.density) +
-                placed.filter { it.alwaysShown }
-            else -> placed
+        val style = layout?.style ?: InputSurfaceStyle()
+        val visible = if (hidden == null && !shortcutsOnly) placed else {
+            val pinned = placed.filter { it.alwaysShown && !style.hides(it) }
+            if (hidden != null) pinned else pinned + OnScreenLayout.steamShortcuts(viewWidth, viewHeight, safe, resources.displayMetrics.density, pinned)
         }
         surface.updateCustomLayout(visible)
-        surface.updateStyle(layout?.style ?: InputSurfaceStyle())
+        surface.updateStyle(style)
         corner.visibility = if (layout == null || dock != null) GONE else VISIBLE
         corner.alpha = (layout?.style?.opacity ?: 100) / 100f
         val density = resources.displayMetrics.density

@@ -47,13 +47,23 @@ object OnScreenLayout {
     internal const val STEAM_SHORTCUT_ID = "shortcut:steam"
     internal const val QAM_SHORTCUT_ID = "shortcut:qam"
 
-    internal fun steamShortcuts(width: Int, height: Int, safe: Rect, density: Float): List<InputSurfaceElement> {
+    internal fun steamShortcuts(width: Int, height: Int, safe: Rect, density: Float,
+        pinned: List<InputSurfaceElement> = emptyList()): List<InputSurfaceElement> {
         if (width <= 0 || height <= 0) return emptyList()
         val size = min(48f * density, (width - safe.left - safe.right - 64f * density) / 2f)
         if (size <= 0f || height - safe.bottom - safe.top < size) return emptyList()
-        val y = max(safe.top.toFloat(), height - safe.bottom - size - 4f * density) / height
-        fun button(control: InputControl, id: String, x: Float) =
-            InputSurfaceElement(control, x / width, y, size / width, size / height, id).bounded()
+        val gap = 4f * density
+        val pinnedFromBottom = pinned.sortedByDescending { it.y }
+        fun button(control: InputControl, id: String, x: Float): InputSurfaceElement {
+            var y = height - safe.bottom - size - gap
+            for (element in pinnedFromBottom) {
+                if (x >= (element.x + element.width) * width || x + size <= element.x * width) continue
+                if (y >= (element.y + element.height) * height || y + size <= element.y * height) continue
+                y = element.y * height - size - gap
+            }
+            return InputSurfaceElement(control, x / width, max(safe.top.toFloat(), y) / height, size / width, size / height,
+                id, buttonShape = InputButtonShape.PILL).bounded()
+        }
         return listOf(
             button(InputControl.GUIDE, STEAM_SHORTCUT_ID, safe.left + 56f * density),
             button(InputControl.QAM, QAM_SHORTCUT_ID, width - safe.right - size - 4f * density),
