@@ -234,9 +234,9 @@ class RockstarLaunch(unittest.TestCase):
             self.assertEqual('ready', result)
             self.assertEqual([False], stale)
 
-    def sdk_launch(self, root, runtimes, sdk_answer=None, ships_runtime=False):
+    def sdk_launch(self, root, runtimes, sdk_answer=None, ships_runtime=False, ident='gta5'):
         folder, sidecar, prefix, service, answer = self.setup_game(root)
-        sidecar['id'] = 'gta5'
+        sidecar['id'] = ident
         (folder / 'title.rgl').write_bytes(b'RGLM' + bytes(108))
         if ships_runtime:
             (folder / 'socialclub.dll').write_bytes(b'game-runtime')
@@ -261,6 +261,15 @@ class RockstarLaunch(unittest.TestCase):
             self.assertIn('rockstar runtime: installed', lines)
             self.assertEqual([], states)
 
+    def test_classic_sdk_titles_without_a_social_club_installer_also_get_one_from_the_app(self):
+        for ident in ('gta4', 'lanoire'):
+            with self.subTest(ident=ident), tempfile.TemporaryDirectory() as root:
+                result, requests, lines, states = self.sdk_launch(root, ['game-runtime', 'installed'], {'ok': True}, ident=ident)
+                self.assertEqual('ready', result)
+                self.assertEqual(['rockstar-sdk', 'rockstar-launch'], requests)
+                self.assertIn('rockstar runtime: installed', lines)
+                self.assertEqual([], states)
+
     def test_an_unavailable_social_club_installer_is_logged_and_the_launch_continues(self):
         for sdk_answer, reason in (({'ok': False, 'reason': 'no-launcher-build'}, 'sdk-no-launcher-build'), (None, 'sdk-timeout')):
             with self.subTest(reason=reason), tempfile.TemporaryDirectory() as root:
@@ -277,7 +286,7 @@ class RockstarLaunch(unittest.TestCase):
                 self.assertEqual(['rockstar-launch'], requests)
                 self.assertIn('rockstar runtime: ' + runtimes[0], lines)
 
-    def test_classic_titles_never_ask_for_the_social_club_installer(self):
+    def test_classic_titles_without_the_sdk_never_ask_for_the_social_club_installer(self):
         with tempfile.TemporaryDirectory() as root:
             with patch.object(store, 'rockstar_runtime') as runtime:
                 result, _, requests = self.prepare(root)
