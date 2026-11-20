@@ -1774,6 +1774,7 @@
     <string name="game_shortcut_unsupported">This launcher cannot add shortcuts. Use Copy launch link instead.</string>
     <string name="game_link_invalid">Invalid game launch link.</string>
     <string name="game_link_missing">This game is no longer in your DroidDeck library.</string>
+    <string name="game_link_program_unknown">Add this game to DroidDeck first, then start it from your frontend.</string>
     <string name="game_link_session_busy">Stop the current session before launching a Steam game.</string>
     <string name="game_link_failed">Could not send the game to Steam. Try launching it again.</string>
     <string name="game_needs_app_model">%1$s is a UWP app. This runtime has no Windows app-model host to start it.</string>
