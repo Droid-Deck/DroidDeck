@@ -32,7 +32,7 @@ object InputLibraries {
         if (version < 12) library = barStockLayouts(library)
         if (version < 13) library = LegacyScreenKeyMigration.pin(library)
         if (version < 14) library = deckGamepadSurfaces(context, library)
-        if (version < 15) library = kitGamepads(library)
+        if (version < 15) library = kitGamepads(context, library)
         if (version < 6 || !p.contains(LegacyScreenKeyMigration.BACKUP)) {
             val legacy = LegacyScreenKeyMigration.snapshot(context)
             if (legacy != null) {
@@ -239,36 +239,72 @@ object InputLibraries {
         return library.withLayout(saved.copy(elements = InputStockLayouts.gamepad(leftPad, rightStick))).validate()
     }
 
-    /**
-     * Gamepads saved by the old editor follow the virtual controller's kit again; their positions don't map onto the new controls.
-     * One that kept positions for the kit's controls is also kept as it was, under its own name, with its actions. Where the copy
-     * doesn't fit the library's limits, the gamepad itself keeps its positions instead.
-     */
-    private fun kitGamepads(library: InputLibrary): InputLibrary {
+    private fun kitGamepads(context: Context, library: InputLibrary): InputLibrary {
         fun old(layout: SavedInputLayout) = (layout.origin ?: layout.id).let { it == OVERLAY || it.startsWith("migrated.layout.") }
         fun follow(layout: SavedInputLayout): SavedInputLayout {
             val extras = layout.elements.filterNot { KitLayout.isKit(it.id) }
             return layout.copy(elements = extras, origin = if (layout.id == OVERLAY) null else OVERLAY, aspect = if (extras.isEmpty()) 0f else layout.aspect, scale = 1f)
         }
-        val positioned = library.layouts.filter { old(it) && it.elements.any { e -> KitLayout.isKit(e.id) } }
+        val positioned = library.layouts.filter { layout ->
+            old(layout) && layout.elements.any { KitLayout.isKit(it.id) } && !stockLegacyGeometry(context, layout)
+        }
         val inPlace = positioned.fold(library.copy(layouts = library.layouts.map { if (old(it) && it !in positioned) follow(it) else it })) { acc, layout ->
             acc.withLayout(layout.copy(kitless = true))
         }
         var result = library.copy(layouts = library.layouts.map { if (old(it)) follow(it) else it })
+        val replacements = mutableMapOf<String, InputPart>()
         for (layout in positioned) {
-            val id = "kept." + UUID.nameUUIDFromBytes(layout.id.toByteArray(Charsets.UTF_8))
+            val id = previousLayoutId(layout.id)
             val presets = library.bindings.filter { it.layoutId == layout.id }
             if (result.layouts.any { it.id == id } || result.layouts.size >= 256 || result.bindings.size + presets.size > 512) {
                 result = result.copy(layouts = result.layouts.map { if (it.id == layout.id) layout else it }).withLayout(layout.copy(kitless = true))
                 continue
             }
             val name = "${layout.name} (old layout)".take(80)
-            result = result.copy(bindings = result.bindings + presets.map { b ->
-                b.copy(id = "kept." + UUID.nameUUIDFromBytes((b.id + "\u0000" + id).toByteArray(Charsets.UTF_8)), name = name, layoutId = id)
-            }).withLayout(layout.copy(id = id, name = name, origin = null, kitless = true))
+            val saved = layout.copy(id = id, name = name, origin = null, kitless = true)
+            val savedPresets = presets.map { preset ->
+                val binding = previousBindingsId(preset.id, id)
+                replacements[preset.id] = InputPart(binding, id)
+                preset.copy(id = binding, name = name, layoutId = id,
+                    elements = preset.elements.filterKeys { saved.element(it) != null },
+                    clicks = preset.clicks.filterKeys { saved.element(it)?.hasClick == true })
+            }
+            result = result.copy(bindings = result.bindings + savedPresets).withLayout(saved)
         }
-        val expanded = runCatching { result.validate() }.getOrNull()
+        val migrated = result.copy(
+            profiles = result.profiles.map { profile ->
+                profile.copy(parts = profile.parts.mapValues { (_, part) -> replacements[part.bindings] ?: part })
+            },
+            selections = result.selections.mapValues { (_, selection) ->
+                selection.copy(parts = selection.parts.mapValues { (_, bindings) -> replacements[bindings]?.bindings ?: bindings })
+            },
+        )
+        val expanded = runCatching { migrated.validate() }.getOrNull()
         return if (expanded != null && encode(expanded).length <= 2_000_000) expanded else inPlace.validate()
+    }
+
+    internal fun previousLayoutId(layout: String) =
+        "kept." + UUID.nameUUIDFromBytes(layout.toByteArray(Charsets.UTF_8))
+
+    internal fun previousBindingsId(binding: String, previousLayout: String) =
+        "kept." + UUID.nameUUIDFromBytes((binding + "\u0000" + previousLayout).toByteArray(Charsets.UTF_8))
+
+    private fun stockLegacyGeometry(context: Context, layout: SavedInputLayout): Boolean {
+        if (layout.scale != 1f) return false
+        val (display, metrics) = primaryDisplay(context)
+        val width = metrics.widthPixels.coerceAtLeast(1)
+        val height = metrics.heightPixels.coerceAtLeast(1)
+        val named = (layout.origin ?: layout.id).removePrefix("migrated.layout.").split("x")
+            .mapNotNull(String::toIntOrNull).takeIf { it.size == 2 && it.all { side -> side > 0 } }
+            ?.let { it[0] to it[1] }
+        val sizes = listOfNotNull(named, width to height, height to width).distinct()
+        val positions = layout.elements.filter { KitLayout.isKit(it.id) }.associateBy { it.id }
+        return sizes.any { (w, h) ->
+            val stock = LegacyLayoutGeometry(display, w, h)
+            listOf(stock.elements(), stock.elements(previousStickGeometry = true)).any { elements ->
+                elements.size == positions.size && elements.all { element -> positions[element.id] == element }
+            }
+        }
     }
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {
