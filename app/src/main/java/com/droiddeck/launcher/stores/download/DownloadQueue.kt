@@ -435,11 +435,20 @@ object DownloadQueue {
                 cancelled = item.cancelled.get()
                 paused = item.pauseRequested
             }
-            if (cancelled) job.cancel(deleteFiles = !paused)
             StoresState.logLine("${item.entry.store.label}: fetching manifest for \"${item.entry.name}\"")
             val deleting = ArrayList<Thread>()
             try {
-                StoreInstalls.collectingDiscards(deleting) { result = job.run(handle) }
+                StoreInstalls.collectingDiscards(deleting) {
+                    if (cancelled) {
+                        try {
+                            job.cancel(deleteFiles = !paused)
+                        } catch (t: Throwable) {
+                            synchronized(lock) { cleanupFinished(item.entry.cleanupKey) }
+                            throw t
+                        }
+                    }
+                    result = job.run(handle)
+                }
             } finally {
                 if (deleting.isNotEmpty()) {
                     holdCleanup(item.entry.key)

@@ -1466,14 +1466,18 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         },
                         onStoreGame = { store, id ->
                             val key = "${store.id}:$id"
-                            if (key !in preparingGames) {
+                            if (pkgStage != null) {
+                                android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
+                            } else if (key !in preparingGames) {
                                 preparingGames = preparingGames + key
+                                val ticket = beginUiLaunch()
                                 val app = applicationContext
                                 Thread({
                                     val g = runCatching { com.droiddeck.launcher.stores.StoreLaunch.installedGame(app, store, id) }.getOrNull()
                                     runOnUiThread {
-                                        if (g != null && !isFinishing && !isDestroyed) prepareAndLaunch(g, key)
-                                        else {
+                                        if (g != null && launchCoordinator.isCurrent(ticket) && !isFinishing && !isDestroyed) {
+                                            prepareAndLaunch(g, key, ticket)
+                                        } else {
                                             preparingGames = preparingGames - key
                                             if (g == null && !isFinishing && !isDestroyed) android.widget.Toast.makeText(this, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
                                         }
@@ -2241,13 +2245,17 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (Build.VERSION.SDK_INT >= 33) state.getParcelable(key, Intent::class.java)
         else @Suppress("DEPRECATION") state.getParcelable(key)
 
-    private fun prepareAndLaunch(g: Library.SteamGame, key: String) {
+    private fun prepareAndLaunch(g: Library.SteamGame, key: String, ticket: LaunchTicket? = null) {
         if (pkgStage != null) {
             preparingGames = preparingGames - key
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return
         }
-        val request = beginUiLaunch()
+        val request = ticket ?: beginUiLaunch()
+        if (!launchCoordinator.isCurrent(request)) {
+            preparingGames = preparingGames - key
+            return
+        }
         val done = { preparingGames = preparingGames - key }
         com.droiddeck.launcher.frontend.AutoComponents.beforeLaunch(this, g, onBlocked = done) {
             if (!launchCoordinator.isCurrent(request) || isFinishing || isDestroyed) { done(); return@beforeLaunch }
