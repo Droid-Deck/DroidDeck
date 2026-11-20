@@ -398,13 +398,14 @@ class InputLibraryTest {
         assertEquals(InputLibraries.read(context), InputLibraries.read(context))
     }
 
-    @Test fun anOldEditorGamepadFollowsTheKitAndIsAlsoKeptAsItWas() {
+    @Test fun anOldEditorGamepadStaysActiveAndCanSwitchToTheNewKit() {
         val fresh = InputLibraries.read(context)
         val a = InputSurfaceElement(InputControl.A, .7f, .6f, .1f, .2f)
         val key = InputSurfaceElement(InputControl.A, .4f, .1f, .08f, .15f, "jump", name = "Jump")
         val gamepad = fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = listOf(a, key), aspect = 2f)
         val actions = SavedInputBindings("old.actions", "Old", false, InputLibraries.OVERLAY, elements = mapOf("jump" to InputAction.Keys(listOf(57))))
-        val old = JSONObject(InputLibraries.encode(fresh.withLayout(gamepad).withPreset(actions))).put("version", 14)
+        val old = JSONObject(InputLibraries.encode(fresh.withLayout(gamepad).withPreset(actions)
+            .selectPart(false, InputRole.PRIMARY, actions.id))).put("version", 14)
         prefs.edit().putString("library", old.toString()).commit()
         val upgraded = InputLibraries.read(context)
         assertEquals(listOf(key), upgraded.layouts.single { it.id == InputLibraries.OVERLAY }.elements)
@@ -415,7 +416,63 @@ class InputLibraryTest {
         assertTrue(upgraded.bindings.any { it.layoutId == kept.id && it.elements["jump"] == InputAction.Keys(listOf(57)) })
         assertEquals(upgraded.bindings.count { it.layoutId == InputLibraries.OVERLAY }, upgraded.bindings.count { it.layoutId == kept.id })
         assertTrue(kept.supports(InputRole.PRIMARY) && kept.editable)
+        assertEquals(kept.id, upgraded.activeLayout(false, InputRole.PRIMARY)?.id)
+        assertEquals(kept.id, upgraded.activeLayout(true, InputRole.PRIMARY)?.id)
+        assertEquals(actions.elements, upgraded.preset(upgraded.activePart(false, InputRole.PRIMARY).bindings).elements)
         assertEquals(upgraded, InputLibraries.read(context))
+        ControlsChoice.choose(context, null, InputLibraries.OVERLAY, desktop = false)
+        assertEquals(actions.id, InputLibraries.read(context).activePart(false, InputRole.PRIMARY).bindings)
+        ControlsChoice.choose(context, null, kept.id, desktop = false)
+        val restored = InputLibraries.read(context)
+        assertEquals(upgraded.activePart(false, InputRole.PRIMARY), restored.activePart(false, InputRole.PRIMARY))
+        assertEquals(actions.elements, restored.preset(restored.activePart(false, InputRole.PRIMARY).bindings).elements)
+    }
+
+    @Test fun aPreviewLibraryRestoresItsPreviousLayoutOnlyWhenChosen() {
+        val fresh = InputLibraries.read(context)
+        val oldLayout = fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(
+            elements = listOf(InputSurfaceElement(InputControl.A, .7f, .6f, .1f, .2f)), aspect = 2f)
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(fresh.withLayout(oldLayout))).put("version", 14).toString()).commit()
+        InputLibraries.read(context)
+        ControlsChoice.choose(context, null, InputLibraries.OVERLAY, desktop = false)
+
+        val previous = InputLibraries.previousLayoutId(InputLibraries.OVERLAY)
+        val option = ControlsChoice.options(context, null, steamMode = true).single { it.id == previous }
+        assertEquals(context.getString(com.droiddeck.launcher.R.string.osc_restore_previous_layout), option.detail)
+        assertEquals(InputLibraries.OVERLAY, ControlsChoice.current(context, null, steamMode = true))
+        ControlsChoice.choose(context, null, option.id, desktop = false)
+        assertEquals(previous, ControlsChoice.current(context, null, steamMode = true))
+        assertEquals(oldLayout.elements, InputLibraries.read(context).activeLayout(false, InputRole.PRIMARY)?.elements)
+    }
+
+    @Test
+    @Config(qualifiers = "w640dp-h360dp-land-mdpi")
+    fun uneditedOldStockGeometryFollowsTheNewKit() {
+        // Captured with InputLibraries.read and encode at 56986b599 on the same display configuration.
+        val old = requireNotNull(javaClass.getResource("/input/schema14-stock.json")).readText()
+        assertEquals(14, JSONObject(old).getInt("version"))
+        prefs.edit().putString("library", old).commit()
+
+        val upgraded = InputLibraries.read(context)
+        assertEquals(InputLibraries.OVERLAY, upgraded.activeLayout(false, InputRole.PRIMARY)?.id)
+        assertTrue(OnScreenLayout.generated(upgraded.activeLayout(false, InputRole.PRIMARY)!!))
+        assertTrue(upgraded.layouts.none { it.id == InputLibraries.previousLayoutId(InputLibraries.OVERLAY) })
+    }
+
+    @Test
+    @Config(qualifiers = "w640dp-h360dp-land-mdpi")
+    fun anOldStockLayoutWithACustomFrameStaysActive() {
+        val old = JSONObject(requireNotNull(javaClass.getResource("/input/schema14-stock.json")).readText())
+        val layouts = old.getJSONArray("layouts")
+        val overlay = (0 until layouts.length()).map(layouts::getJSONObject)
+            .single { it.getString("id") == InputLibraries.OVERLAY }
+        overlay.put("aspect", 4.0 / 3.0)
+        prefs.edit().putString("library", old.toString()).commit()
+
+        val active = requireNotNull(InputLibraries.read(context).activeLayout(false, InputRole.PRIMARY))
+        assertEquals(InputLibraries.previousLayoutId(InputLibraries.OVERLAY), active.id)
+        assertEquals(4f / 3f, active.aspect)
+        assertTrue(active.kitless)
     }
 
     @Test fun anActionForAKitButtonTheOldGamepadDidNotPlaceStillLoads() {
@@ -447,13 +504,17 @@ class InputLibraryTest {
         assertEquals(256, upgraded.layouts.size)
     }
 
-    @Test fun aGamepadWithOnlyAddedKeysIsNotKeptTwice() {
+    @Test fun aLayoutWithAllKitControlsRemovedStaysKeyOnly() {
         val fresh = InputLibraries.read(context)
         val key = InputSurfaceElement(InputControl.A, .4f, .1f, .08f, .15f, "jump", name = "Jump")
         val old = JSONObject(InputLibraries.encode(fresh.withLayout(fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = listOf(key), aspect = 2f))))
             .put("version", 14)
         prefs.edit().putString("library", old.toString()).commit()
-        assertTrue(InputLibraries.read(context).layouts.none { it.name.endsWith("(old layout)") })
+        val upgraded = InputLibraries.read(context)
+        val active = requireNotNull(upgraded.activeLayout(false, InputRole.PRIMARY))
+        assertEquals(listOf(key), active.elements)
+        assertTrue(active.kitless)
+        assertTrue(OnScreenLayout.generated(upgraded.layouts.single { it.id == InputLibraries.OVERLAY }))
     }
 
     @Test fun versionTenStockPanelsReturnToGrayOnce() {

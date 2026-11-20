@@ -1,0 +1,350 @@
+{
+  "selections": {},
+  "version": 14,
+  "selected": "auto",
+  "steam": "game",
+  "desktop": "desktop",
+  "profiles": [
+    {
+      "id": "game",
+      "name": "Game",
+      "base": "game",
+      "parts": {
+        "PHYSICAL": {"bindings": "game.physical"},
+        "PRIMARY": {"bindings": "migrated.bindings.a2661227-4fb9-3bb6-912c-32cec93ecda2", "layout": "builtin.overlay"},
+        "SECONDARY": {"bindings": "preset.deck", "layout": "builtin.deck"}
+      }
+    },
+    {
+      "id": "desktop",
+      "name": "Desktop",
+      "base": "desktop",
+      "parts": {
+        "PHYSICAL": {"bindings": "desktop.physical"},
+        "PRIMARY": {"bindings": "migrated.bindings.981daeb0-ccc6-3d40-88b7-c34b1fc35491", "layout": "builtin.overlay"},
+        "SECONDARY": {"bindings": "preset.trackpad", "layout": "builtin.trackpad"}
+      }
+    }
+  ],
+  "layouts": [
+    {
+      "id": "builtin.overlay",
+      "name": "Gamepad",
+      "template": "CUSTOM",
+      "elements": [
+        {"id": "legacy:up", "kind": "BUTTON", "control": "up", "name": "D-pad up", "x": 0.3682279586791992, "y": 0.46923303604125977, "width": 0.0935039296746254, "height": 0.16622920334339142, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:right", "kind": "BUTTON", "control": "right", "name": "D-pad right", "x": 0.4461479187011719, "y": 0.6077573895454407, "width": 0.0935039296746254, "height": 0.16622920334339142, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:down", "kind": "BUTTON", "control": "down", "name": "D-pad down", "x": 0.3682279586791992, "y": 0.7462816834449768, "width": 0.0935039296746254, "height": 0.16622920334339142, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:left", "kind": "BUTTON", "control": "left", "name": "D-pad left", "x": 0.29030805826187134, "y": 0.6077573895454407, "width": 0.0935039296746254, "height": 0.16622920334339142, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:ls", "kind": "STICK", "control": "ls", "name": "Left stick", "x": 0.12401574850082397, "y": 0.3353663980960846, "width": 0.1870078593492508, "height": 0.2659667432308197, "floating": true, "hideWhenIdle": true, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:rs", "kind": "STICK", "control": "rs", "name": "Right stick", "x": 0.5102168917655945, "y": 0.5578886270523071, "width": 0.1870078593492508, "height": 0.2659667432308197, "floating": true, "hideWhenIdle": true, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:a", "kind": "BUTTON", "control": "a", "name": "A", "x": 0.7170275449752808, "y": 0.5237594842910767, "width": 0.0935039296746254, "height": 0.16622920334339142, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:b", "kind": "BUTTON", "control": "b", "name": "B", "x": 0.7949475049972534, "y": 0.38523516058921814, "width": 0.0935039296746254, "height": 0.16622920334339142, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:x", "kind": "BUTTON", "control": "x", "name": "X", "x": 0.6391075849533081, "y": 0.38523516058921814, "width": 0.0935039296746254, "height": 0.16622920334339142, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:y", "kind": "BUTTON", "control": "y", "name": "Y", "x": 0.7170275449752808, "y": 0.24671082198619843, "width": 0.0935039296746254, "height": 0.16622920334339142, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:lb", "kind": "BUTTON", "control": "lb", "name": "L1", "x": 0.24559545516967773, "y": 0.0874890610575676, "width": 0.1084645614027977, "height": 0.1063866913318634, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:rb", "kind": "BUTTON", "control": "rb", "name": "R1", "x": 0.6459400057792664, "y": 0.0874890610575676, "width": 0.1084645614027977, "height": 0.1063866913318634, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:lt", "kind": "TRIGGER", "control": "lt", "name": "L2", "x": 0.11838088184595108, "y": 0.0874890610575676, "width": 0.1084645614027977, "height": 0.1063866913318634, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:rt", "kind": "TRIGGER", "control": "rt", "name": "R2", "x": 0.773154616355896, "y": 0.0874890610575676, "width": 0.1084645614027977, "height": 0.1063866913318634, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:select", "kind": "BUTTON", "control": "select", "name": "View / Select", "x": 0.40093502402305603, "y": 0.08527266979217529, "width": 0.06233595684170723, "height": 0.11081947386264801, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:start", "kind": "BUTTON", "control": "start", "name": "Menu / Start", "x": 0.5367289781570435, "y": 0.08527266979217529, "width": 0.06233595684170723, "height": 0.11081947386264801, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:guide", "kind": "BUTTON", "control": "guide", "name": "Steam / Guide", "x": 0.4220554232597351, "y": 0.02222222276031971, "width": 0.06856954842805862, "height": 0.12190141528844833, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:qam", "kind": "BUTTON", "control": "qam", "name": "Quick access", "x": 0.5093749761581421, "y": 0.02222222276031971, "width": 0.06856954842805862, "height": 0.12190141528844833, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "builtin:keyboard", "kind": "BUTTON", "control": "a", "name": "Keyboard", "x": 0.11249999701976776, "y": 0.855555534362793, "width": 0.05624999850988388, "height": 0.10000000149011612, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 1002, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false}
+      ],
+      "tint": -15032321,
+      "opacity": 100,
+      "screen": "MAIN",
+      "aspect": 1.7777777910232544,
+      "scale": 1,
+      "hidden": [],
+      "origin": null
+    },
+    {
+      "id": "builtin.deck",
+      "name": "Deck grips + trackpads",
+      "template": "CUSTOM",
+      "elements": [
+        {"id": "legacy:left-pad", "kind": "TRACKPAD", "control": "left-pad", "name": "Left trackpad", "x": 0.019999999552965164, "y": 0.019999999552965164, "width": 0.4699999988079071, "height": 0.7400000095367432, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:right-pad", "kind": "TRACKPAD", "control": "right-pad", "name": "Right trackpad", "x": 0.5099999904632568, "y": 0.019999999552965164, "width": 0.4699999988079071, "height": 0.7400000095367432, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:l4", "kind": "BUTTON", "control": "l4", "name": "L4", "x": 0.019999999552965164, "y": 0.7799999713897705, "width": 0.22499999403953552, "height": 0.20000000298023224, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:l5", "kind": "BUTTON", "control": "l5", "name": "L5", "x": 0.26500001549720764, "y": 0.7799999713897705, "width": 0.22499999403953552, "height": 0.20000000298023224, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:r5", "kind": "BUTTON", "control": "r5", "name": "R5", "x": 0.5099999904632568, "y": 0.7799999713897705, "width": 0.22499999403953552, "height": 0.20000000298023224, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:r4", "kind": "BUTTON", "control": "r4", "name": "R4", "x": 0.7549999952316284, "y": 0.7799999713897705, "width": 0.22499999403953552, "height": 0.20000000298023224, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false}
+      ],
+      "tint": null,
+      "opacity": 100,
+      "screen": "SECONDARY",
+      "aspect": 0,
+      "scale": 1,
+      "hidden": [],
+      "origin": null
+    },
+    {
+      "id": "builtin.trackpad",
+      "name": "Trackpad + keyboard",
+      "template": "CUSTOM",
+      "elements": [
+        {"id": "legacy:right-pad", "kind": "TRACKPAD", "control": "right-pad", "name": "Right trackpad", "x": 0.019999999552965164, "y": 0.019999999552965164, "width": 0.9599999785423279, "height": 0.9599999785423279, "floating": true, "hideWhenIdle": false, "mouseGestures": true, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false}
+      ],
+      "tint": null,
+      "opacity": 100,
+      "screen": "SECONDARY",
+      "aspect": 0,
+      "scale": 1,
+      "hidden": [],
+      "origin": null
+    },
+    {
+      "id": "builtin.deck.gamepad",
+      "name": "Deck gamepad",
+      "template": "CUSTOM",
+      "elements": [
+        {"id": "legacy:lt", "kind": "TRIGGER", "control": "lt", "name": "L2", "x": 0.019999999552965164, "y": 0.019999999552965164, "width": 0.20000000298023224, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:lb", "kind": "BUTTON", "control": "lb", "name": "L1", "x": 0.23999999463558197, "y": 0.019999999552965164, "width": 0.20000000298023224, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:rb", "kind": "BUTTON", "control": "rb", "name": "R1", "x": 0.5600000023841858, "y": 0.019999999552965164, "width": 0.20000000298023224, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:rt", "kind": "TRIGGER", "control": "rt", "name": "R2", "x": 0.7799999713897705, "y": 0.019999999552965164, "width": 0.20000000298023224, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:ls", "kind": "STICK", "control": "ls", "name": "Left stick", "x": 0.019999999552965164, "y": 0.17000000178813934, "width": 0.4000000059604645, "height": 0.4000000059604645, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:right-pad", "kind": "TRACKPAD", "control": "right-pad", "name": "Right trackpad", "x": 0.5799999833106995, "y": 0.5899999737739563, "width": 0.4000000059604645, "height": 0.38999998569488525, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:up", "kind": "BUTTON", "control": "up", "name": "D-pad up", "x": 0.14000000059604645, "y": 0.6000000238418579, "width": 0.11999999731779099, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:left", "kind": "BUTTON", "control": "left", "name": "D-pad left", "x": 0.029999999329447746, "y": 0.7300000190734863, "width": 0.11999999731779099, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:right", "kind": "BUTTON", "control": "right", "name": "D-pad right", "x": 0.25, "y": 0.7300000190734863, "width": 0.11999999731779099, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:down", "kind": "BUTTON", "control": "down", "name": "D-pad down", "x": 0.14000000059604645, "y": 0.8600000143051147, "width": 0.11999999731779099, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:y", "kind": "BUTTON", "control": "y", "name": "Y", "x": 0.7200000286102295, "y": 0.17000000178813934, "width": 0.11999999731779099, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:x", "kind": "BUTTON", "control": "x", "name": "X", "x": 0.6100000143051147, "y": 0.30000001192092896, "width": 0.11999999731779099, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:b", "kind": "BUTTON", "control": "b", "name": "B", "x": 0.8299999833106995, "y": 0.30000001192092896, "width": 0.11999999731779099, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:a", "kind": "BUTTON", "control": "a", "name": "A", "x": 0.7200000286102295, "y": 0.4300000071525574, "width": 0.11999999731779099, "height": 0.11999999731779099, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "CIRCLE", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:select", "kind": "BUTTON", "control": "select", "name": "View / Select", "x": 0.41999998688697815, "y": 0.30000001192092896, "width": 0.07000000029802322, "height": 0.10000000149011612, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:start", "kind": "BUTTON", "control": "start", "name": "Menu / Start", "x": 0.5099999904632568, "y": 0.30000001192092896, "width": 0.07000000029802322, "height": 0.10000000149011612, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "PILL", "showLabel": true, "alwaysShown": false}
+      ],
+      "tint": null,
+      "opacity": 100,
+      "screen": "SECONDARY",
+      "aspect": 0,
+      "scale": 1,
+      "hidden": [],
+      "origin": null
+    },
+    {
+      "id": "builtin.deck.grips",
+      "name": "Deck grips",
+      "template": "CUSTOM",
+      "elements": [
+        {"id": "legacy:l4", "kind": "BUTTON", "control": "l4", "name": "L4", "x": 0.019999999552965164, "y": 0.019999999552965164, "width": 0.4699999988079071, "height": 0.4699999988079071, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:l5", "kind": "BUTTON", "control": "l5", "name": "L5", "x": 0.019999999552965164, "y": 0.5099999904632568, "width": 0.4699999988079071, "height": 0.4699999988079071, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:r4", "kind": "BUTTON", "control": "r4", "name": "R4", "x": 0.5099999904632568, "y": 0.019999999552965164, "width": 0.4699999988079071, "height": 0.4699999988079071, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:r5", "kind": "BUTTON", "control": "r5", "name": "R5", "x": 0.5099999904632568, "y": 0.5099999904632568, "width": 0.4699999988079071, "height": 0.4699999988079071, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false}
+      ],
+      "tint": null,
+      "opacity": 100,
+      "screen": "SECONDARY",
+      "aspect": 0,
+      "scale": 1,
+      "hidden": [],
+      "origin": null
+    },
+    {
+      "id": "builtin.deck.left",
+      "name": "Deck left trackpad",
+      "template": "CUSTOM",
+      "elements": [
+        {"id": "legacy:left-pad", "kind": "TRACKPAD", "control": "left-pad", "name": "Left trackpad", "x": 0.019999999552965164, "y": 0.019999999552965164, "width": 0.9599999785423279, "height": 0.7400000095367432, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:left-click", "kind": "BUTTON", "control": "left-click", "name": "Left trackpad click", "x": 0.019999999552965164, "y": 0.7799999713897705, "width": 0.9599999785423279, "height": 0.20000000298023224, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false}
+      ],
+      "tint": null,
+      "opacity": 100,
+      "screen": "SECONDARY",
+      "aspect": 0,
+      "scale": 1,
+      "hidden": [],
+      "origin": null
+    },
+    {
+      "id": "builtin.deck.right",
+      "name": "Deck right trackpad",
+      "template": "CUSTOM",
+      "elements": [
+        {"id": "legacy:right-pad", "kind": "TRACKPAD", "control": "right-pad", "name": "Right trackpad", "x": 0.019999999552965164, "y": 0.019999999552965164, "width": 0.9599999785423279, "height": 0.7400000095367432, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false},
+        {"id": "legacy:right-click", "kind": "BUTTON", "control": "right-click", "name": "Right trackpad click", "x": 0.019999999552965164, "y": 0.7799999713897705, "width": 0.9599999785423279, "height": 0.20000000298023224, "floating": true, "hideWhenIdle": false, "mouseGestures": false, "toggle": false, "icon": 0, "image": "", "elementOpacity": 1, "buttonShape": "ROUNDED", "showLabel": true, "alwaysShown": false}
+      ],
+      "tint": null,
+      "opacity": 100,
+      "screen": "SECONDARY",
+      "aspect": 0,
+      "scale": 1,
+      "hidden": [],
+      "origin": null
+    }
+  ],
+  "bindings": [
+    {
+      "id": "preset.deck",
+      "name": "Deck grips + trackpads",
+      "physical": false,
+      "layout": "builtin.deck",
+      "controls": {},
+      "elements": {},
+      "keys": [],
+      "clicks": {}
+    },
+    {
+      "id": "preset.trackpad",
+      "name": "Trackpad + keyboard",
+      "physical": false,
+      "layout": "builtin.trackpad",
+      "controls": {
+        "ls": {"type": "pointer", "speed": 900},
+        "rs": {"type": "scroll", "speed": 10, "horizontal": false},
+        "a": {"type": "button", "code": 272},
+        "b": {"type": "button", "code": 273},
+        "x": {"type": "keys", "codes": [28]},
+        "y": {"type": "keys", "codes": [1]},
+        "up": {"type": "keys", "codes": [103]},
+        "right": {"type": "keys", "codes": [106]},
+        "down": {"type": "keys", "codes": [108]},
+        "left": {"type": "keys", "codes": [105]},
+        "lt": {"type": "button", "code": 273},
+        "rt": {"type": "button", "code": 272},
+        "lb": {"type": "keys", "codes": [29]},
+        "rb": {"type": "keys", "codes": [56]},
+        "select": {"type": "command", "command": "KEYBOARD"},
+        "start": {"type": "command", "command": "MENU"},
+        "left-pad": {"type": "scroll", "speed": 10, "horizontal": false},
+        "right-pad": {"type": "pointer", "speed": 900},
+        "left-click": {"type": "button", "code": 273},
+        "right-click": {"type": "button", "code": 272}
+      },
+      "elements": {
+        "legacy:right-pad": {"type": "pointer", "speed": 900}
+      },
+      "keys": [],
+      "clicks": {
+        "legacy:right-pad": {"type": "button", "code": 272}
+      }
+    },
+    {
+      "id": "preset.deck.gamepad",
+      "name": "Deck gamepad",
+      "physical": false,
+      "layout": "builtin.deck.gamepad",
+      "controls": {},
+      "elements": {},
+      "keys": [],
+      "clicks": {}
+    },
+    {
+      "id": "preset.deck.grips",
+      "name": "Deck grips",
+      "physical": false,
+      "layout": "builtin.deck.grips",
+      "controls": {},
+      "elements": {},
+      "keys": [],
+      "clicks": {}
+    },
+    {
+      "id": "preset.deck.left",
+      "name": "Deck left trackpad",
+      "physical": false,
+      "layout": "builtin.deck.left",
+      "controls": {},
+      "elements": {},
+      "keys": [],
+      "clicks": {}
+    },
+    {
+      "id": "preset.deck.right",
+      "name": "Deck right trackpad",
+      "physical": false,
+      "layout": "builtin.deck.right",
+      "controls": {},
+      "elements": {},
+      "keys": [],
+      "clicks": {}
+    },
+    {
+      "id": "game.physical",
+      "name": "Game / physical",
+      "physical": true,
+      "controls": {},
+      "elements": {},
+      "keys": [],
+      "clicks": {}
+    },
+    {
+      "id": "desktop.physical",
+      "name": "Desktop / physical",
+      "physical": true,
+      "controls": {
+        "ls": {"type": "pointer", "speed": 900},
+        "rs": {"type": "scroll", "speed": 10, "horizontal": false},
+        "a": {"type": "button", "code": 272},
+        "b": {"type": "button", "code": 273},
+        "x": {"type": "keys", "codes": [28]},
+        "y": {"type": "keys", "codes": [1]},
+        "up": {"type": "keys", "codes": [103]},
+        "right": {"type": "keys", "codes": [106]},
+        "down": {"type": "keys", "codes": [108]},
+        "left": {"type": "keys", "codes": [105]},
+        "lt": {"type": "button", "code": 273},
+        "rt": {"type": "button", "code": 272},
+        "lb": {"type": "keys", "codes": [29]},
+        "rb": {"type": "keys", "codes": [56]},
+        "select": {"type": "command", "command": "KEYBOARD"},
+        "start": {"type": "command", "command": "MENU"},
+        "left-pad": {"type": "scroll", "speed": 10, "horizontal": false},
+        "right-pad": {"type": "pointer", "speed": 900},
+        "left-click": {"type": "button", "code": 273},
+        "right-click": {"type": "button", "code": 272}
+      },
+      "elements": {},
+      "keys": [],
+      "clicks": {}
+    },
+    {
+      "id": "migrated.bindings.a2661227-4fb9-3bb6-912c-32cec93ecda2",
+      "name": "Game / primary",
+      "physical": false,
+      "layout": "builtin.overlay",
+      "controls": {},
+      "elements": {
+        "builtin:keyboard": {"type": "command", "command": "KEYBOARD"}
+      },
+      "keys": [],
+      "clicks": {}
+    },
+    {
+      "id": "migrated.bindings.981daeb0-ccc6-3d40-88b7-c34b1fc35491",
+      "name": "Desktop / primary",
+      "physical": false,
+      "layout": "builtin.overlay",
+      "controls": {
+        "ls": {"type": "pointer", "speed": 900},
+        "rs": {"type": "scroll", "speed": 10, "horizontal": false},
+        "a": {"type": "button", "code": 272},
+        "b": {"type": "button", "code": 273},
+        "x": {"type": "keys", "codes": [28]},
+        "y": {"type": "keys", "codes": [1]},
+        "up": {"type": "keys", "codes": [103]},
+        "right": {"type": "keys", "codes": [106]},
+        "down": {"type": "keys", "codes": [108]},
+        "left": {"type": "keys", "codes": [105]},
+        "lt": {"type": "button", "code": 273},
+        "rt": {"type": "button", "code": 272},
+        "lb": {"type": "keys", "codes": [29]},
+        "rb": {"type": "keys", "codes": [56]},
+        "select": {"type": "command", "command": "KEYBOARD"},
+        "start": {"type": "command", "command": "MENU"},
+        "left-pad": {"type": "scroll", "speed": 10, "horizontal": false},
+        "right-pad": {"type": "pointer", "speed": 900},
+        "left-click": {"type": "button", "code": 273},
+        "right-click": {"type": "button", "code": 272}
+      },
+      "elements": {
+        "builtin:keyboard": {"type": "command", "command": "KEYBOARD"}
+      },
+      "keys": [],
+      "clicks": {}
+    }
+  ]
+}

@@ -60,15 +60,21 @@ object ControlsChoice {
         val owners = owners(context, library)
         val defaults = defaults(library)
         val forGame = gameName?.takeIf { game != null && it.isNotBlank() }
+        val newKitDetail = context.getString(R.string.osc_try_new_layout)
+        fun detail(layout: SavedInputLayout): String? = when {
+            OnScreenLayout.generated(layout) && current == InputLibraries.previousLayoutId(layout.id) -> newKitDetail
+            layout.kitless && layout.id.startsWith("kept.") && layout.id != current -> context.getString(R.string.osc_restore_previous_layout)
+            game != null && game in owners[layout.id].orEmpty() && layout.id !in defaults && forGame != null ->
+                context.getString(R.string.osc_layout_detail_game, forGame)
+            else -> null
+        }
         val saved = library.layouts.filter { it.editable && it.supports(InputRole.PRIMARY) && it.id != InputLibraries.OVERLAY }
             .filter { l -> l.id == current || l.id in defaults || owners[l.id].isNullOrEmpty() || game in owners[l.id].orEmpty() }
-            .map { l ->
-                val mine = game != null && game in owners[l.id].orEmpty() && l.id !in defaults
-                Option(l.id, l.name, if (mine && forGame != null) context.getString(R.string.osc_layout_detail_game, forGame) else null,
-                    l.id != current && deletable(context, library, l))
-            }
+            .map { l -> Option(l.id, l.name, detail(l), l.id != current && deletable(context, library, l)) }
+        val stock = library.layouts.firstOrNull { it.id == InputLibraries.OVERLAY }
         return (if (own) listOf(Option(DEFAULT, context.getString(R.string.osc_default))) else emptyList()) +
-            Option(InputLibraries.OVERLAY, context.getString(R.string.osc_layout_gamepad), context.getString(R.string.osc_layout_gamepad_detail)) +
+            Option(InputLibraries.OVERLAY, context.getString(R.string.osc_layout_gamepad),
+                stock?.let(::detail) ?: context.getString(R.string.osc_layout_gamepad_detail)) +
             (if (steamMode) listOf(Option(GameControls.STEAM, context.getString(R.string.osc_layout_steam), context.getString(R.string.osc_layout_steam_detail))) else emptyList()) +
             saved +
             (if (forGame != null) listOf(Option(NEW, context.getString(R.string.osc_layout_new_for, forGame))) else emptyList())
@@ -115,7 +121,11 @@ object ControlsChoice {
         val bindings = if (steam) null else {
             val library = InputLibraries.read(context)
             val layout = library.layouts.first { it.id == id }
-            library.bindings.firstOrNull { !it.physical && it.layoutId == layout.id && it.compatible(layout) }?.id ?: newInputId().also { newId ->
+            val available = library.bindings.filter { !it.physical && it.layoutId == layout.id && it.compatible(layout) }
+            val preferred = listOfNotNull(own(context, library, game), library.activePart(desktop, InputRole.PRIMARY).bindings,
+                library.profile(library.activeId(desktop)).binding(InputRole.PRIMARY))
+            preferred.firstNotNullOfOrNull { id -> relatedPreset(library, available, id, layout.id) }
+                ?: available.firstOrNull()?.id ?: newInputId().also { newId ->
                 InputLibraries.update(context) { it.withPreset(SavedInputBindings(newId, layout.name, false, layout.id)) }
             }
         }
@@ -124,6 +134,15 @@ object ControlsChoice {
             if (bindings != null) InputLibraries.update(context) { it.selectPart(desktop, InputRole.PRIMARY, bindings) }
             SessionPrefs.setSteamTouchLayout(context, steam)
         }
+    }
+
+    private fun relatedPreset(library: InputLibrary, available: List<SavedInputBindings>, id: String, target: String): String? {
+        val from = library.preset(id).layoutId ?: return null
+        return available.firstOrNull { candidate ->
+            candidate.id == id ||
+                target == InputLibraries.previousLayoutId(from) && candidate.id == InputLibraries.previousBindingsId(id, target) ||
+                from == InputLibraries.previousLayoutId(target) && id == InputLibraries.previousBindingsId(candidate.id, from)
+        }?.id
     }
 
     /** Copies the layout [game] draws now, actions included, into a layout of its own and chooses it for that game only. */
