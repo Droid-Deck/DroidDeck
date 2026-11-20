@@ -128,6 +128,13 @@ class OnScreenLayoutTest {
 
     private fun round(v: Float) = Math.round(v * 10000f) / 10000f
 
+    @Test fun aNarrowLandscapeLayoutOnAWideLandscapeScreenKeepsItsEdgeAnchoring() {
+        val right = InputSurfaceElement(InputControl.A, .9f, .4f, .06f, .08f, "a")
+        val layout = SavedInputLayout("edited", "Edited", listOf(right), aspect = 4f / 3f)
+        val (x, _, w, _) = px(OnScreenLayout.elements(context, layout, 2400, 1029, Rect()).single(), 2400, 1029).toList()
+        assertEquals(2400f - .04f * 1029f * 4f / 3f, x + w, 1f)
+    }
+
     @Test fun aLandscapeLayoutShownInPortraitKeepsItsClustersTogetherAtTheBottom() {
         val y = InputSurfaceElement(InputControl.Y, .8f, .25f, .08f, .16f, "y")
         val a = InputSurfaceElement(InputControl.A, .8f, .6f, .08f, .16f, "a")

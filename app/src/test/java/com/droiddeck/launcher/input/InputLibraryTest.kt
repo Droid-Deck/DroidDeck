@@ -418,6 +418,35 @@ class InputLibraryTest {
         assertEquals(upgraded, InputLibraries.read(context))
     }
 
+    @Test fun anActionForAKitButtonTheOldGamepadDidNotPlaceStillLoads() {
+        val fresh = InputLibraries.read(context)
+        val a = InputSurfaceElement(InputControl.A, .7f, .6f, .1f, .2f)
+        val gamepad = fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = listOf(a), aspect = 2f)
+        val actions = SavedInputBindings("old.actions", "Old", false, InputLibraries.OVERLAY,
+            elements = mapOf("legacy:a" to InputAction.Keys(listOf(30)), "legacy:b" to InputAction.Keys(listOf(48))))
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(fresh.withLayout(gamepad).withPreset(actions))).put("version", 14).toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        val kept = upgraded.layouts.single { it.name == "Gamepad (old layout)" }
+        val copy = upgraded.bindings.single { it.layoutId == kept.id && it.name == kept.name && it.elements.containsKey("legacy:a") }
+        assertEquals(setOf("legacy:a"), copy.elements.keys)
+        assertEquals(actions.elements, upgraded.preset("old.actions").elements)
+    }
+
+    @Test fun anOldGamepadKeepsItsPositionsInPlaceWhenTheLibraryIsFull() {
+        val fresh = InputLibraries.read(context)
+        val a = InputSurfaceElement(InputControl.A, .7f, .6f, .1f, .2f)
+        val gamepad = fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = listOf(a), aspect = 2f)
+        val filler = (fresh.layouts.size until 256).map { SavedInputLayout("filler.$it", "Filler $it", listOf(InputSurfaceElement(InputControl.B, .1f, .1f, .1f, .1f))) }
+        val full = filler.fold(fresh.withLayout(gamepad)) { library, layout -> library.withLayout(layout) }
+        assertEquals(256, full.layouts.size)
+        prefs.edit().putString("library", JSONObject(InputLibraries.encode(full)).put("version", 14).toString()).commit()
+        val upgraded = InputLibraries.read(context)
+        val overlay = upgraded.layouts.single { it.id == InputLibraries.OVERLAY }
+        assertEquals(listOf(a), overlay.elements)
+        assertTrue(overlay.kitless)
+        assertEquals(256, upgraded.layouts.size)
+    }
+
     @Test fun aGamepadWithOnlyAddedKeysIsNotKeptTwice() {
         val fresh = InputLibraries.read(context)
         val key = InputSurfaceElement(InputControl.A, .4f, .1f, .08f, .15f, "jump", name = "Jump")

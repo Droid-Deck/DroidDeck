@@ -57,8 +57,9 @@ object OnScreenLayout {
         val h = height.toFloat()
         val scale = min(w / referenceWidth, h / referenceHeight)
         // A layout shown on a screen of the other orientation keeps its shape: spread by thirds, its clusters would come apart.
-        val blockX = w > referenceWidth * scale * BLOCK_STRETCH
-        val blockY = h > referenceHeight * scale * BLOCK_STRETCH
+        val turned = (w > h) != (referenceWidth > referenceHeight)
+        val blockX = turned && w > referenceWidth * scale * BLOCK_STRETCH
+        val blockY = turned && h > referenceHeight * scale * BLOCK_STRETCH
         return elements.map { e ->
             val ew = e.width * referenceWidth * scale
             val eh = e.height * referenceHeight * scale

@@ -241,27 +241,34 @@ object InputLibraries {
 
     /**
      * Gamepads saved by the old editor follow the virtual controller's kit again; their positions don't map onto the new controls.
-     * One that kept positions for the kit's controls is also kept as it was, under its own name, with its actions.
+     * One that kept positions for the kit's controls is also kept as it was, under its own name, with its actions. Where the copy
+     * doesn't fit the library's limits, the gamepad itself keeps its positions instead.
      */
     private fun kitGamepads(library: InputLibrary): InputLibrary {
-        val kept = mutableListOf<SavedInputLayout>()
-        val keptBindings = mutableListOf<SavedInputBindings>()
-        val layouts = library.layouts.map { layout ->
-            val origin = layout.origin ?: layout.id
-            if (origin != OVERLAY && !origin.startsWith("migrated.layout.")) return@map layout
+        fun old(layout: SavedInputLayout) = (layout.origin ?: layout.id).let { it == OVERLAY || it.startsWith("migrated.layout.") }
+        fun follow(layout: SavedInputLayout): SavedInputLayout {
             val extras = layout.elements.filterNot { KitLayout.isKit(it.id) }
-            if (extras.size < layout.elements.size && library.layouts.size + kept.size < 256) {
-                val id = "kept." + UUID.nameUUIDFromBytes(layout.id.toByteArray(Charsets.UTF_8))
-                if (library.layouts.none { it.id == id }) {
-                    val name = "${layout.name} (old layout)".take(80)
-                    kept += layout.copy(id = id, name = name, origin = null, kitless = true)
-                    for (b in library.bindings.filter { it.layoutId == layout.id }) if (library.bindings.size + keptBindings.size < 512)
-                        keptBindings += b.copy(id = "kept." + UUID.nameUUIDFromBytes((b.id + "\u0000" + id).toByteArray(Charsets.UTF_8)), name = name, layoutId = id)
-                }
-            }
-            layout.copy(elements = extras, origin = if (layout.id == OVERLAY) null else OVERLAY, aspect = if (extras.isEmpty()) 0f else layout.aspect, scale = 1f)
+            return layout.copy(elements = extras, origin = if (layout.id == OVERLAY) null else OVERLAY, aspect = if (extras.isEmpty()) 0f else layout.aspect, scale = 1f)
         }
-        return library.copy(layouts = layouts + kept, bindings = library.bindings + keptBindings).validate()
+        val positioned = library.layouts.filter { old(it) && it.elements.any { e -> KitLayout.isKit(e.id) } }
+        val inPlace = positioned.fold(library.copy(layouts = library.layouts.map { if (old(it) && it !in positioned) follow(it) else it })) { acc, layout ->
+            acc.withLayout(layout.copy(kitless = true))
+        }
+        var result = library.copy(layouts = library.layouts.map { if (old(it)) follow(it) else it })
+        for (layout in positioned) {
+            val id = "kept." + UUID.nameUUIDFromBytes(layout.id.toByteArray(Charsets.UTF_8))
+            val presets = library.bindings.filter { it.layoutId == layout.id }
+            if (result.layouts.any { it.id == id } || result.layouts.size >= 256 || result.bindings.size + presets.size > 512) {
+                result = result.copy(layouts = result.layouts.map { if (it.id == layout.id) layout else it }).withLayout(layout.copy(kitless = true))
+                continue
+            }
+            val name = "${layout.name} (old layout)".take(80)
+            result = result.copy(bindings = result.bindings + presets.map { b ->
+                b.copy(id = "kept." + UUID.nameUUIDFromBytes((b.id + "\u0000" + id).toByteArray(Charsets.UTF_8)), name = name, layoutId = id)
+            }).withLayout(layout.copy(id = id, name = name, origin = null, kitless = true))
+        }
+        val expanded = runCatching { result.validate() }.getOrNull()
+        return if (expanded != null && encode(expanded).length <= 2_000_000) expanded else inPlace.validate()
     }
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {
