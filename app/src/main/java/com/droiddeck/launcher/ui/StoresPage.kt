@@ -571,7 +571,8 @@ internal fun CountPill(count: Int) {
 
 
 @Composable
-internal fun SignInCard(store: Store, height: Dp) {
+/** [inert]: shown in a Library preview, where signing in would act on the real account; the button only says so. */
+internal fun SignInCard(store: Store, height: Dp, inert: Boolean = false) {
     val ctx = LocalContext.current
     LaunchedEffect(store) { StoresState.preview(ctx, store) }
     val art = remember(StoresState.shelves[store]) {
@@ -581,7 +582,7 @@ internal fun SignInCard(store: Store, height: Dp) {
                 ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl },
         )
     }
-    HeroWallCard(store.label, art, sourceColours(store.id), height) { SignInButton(store, large = true) }
+    HeroWallCard(store.label, art, sourceColours(store.id), height) { SignInButton(store, large = true, inert = inert) }
 }
 
 /** Repeats a short cover list so the wall has enough tiles to drift; too few covers leave it to the blank capsules. */
@@ -629,7 +630,7 @@ internal fun HeroWallCard(title: String, art: List<Any>, c: SourceColours, heigh
 }
 
 @Composable
-private fun SignInButton(store: Store, large: Boolean = false) {
+private fun SignInButton(store: Store, large: Boolean = false, inert: Boolean = false) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
@@ -637,7 +638,8 @@ private fun SignInButton(store: Store, large: Boolean = false) {
     if (askKey) ItchKeyDialog { askKey = false }
     Box(Modifier.onGloballyPositioned { placed[0] = it }) {
         PrimaryButton(stringResource(R.string.stores_signin), main = true, large = large, icon = if (large) Icons.AutoMirrored.Filled.Login else null) {
-            startStoreSignIn(ctx, store, placed[0]?.takeIf { it.isAttached }?.boundsInRoot(), colors.primary) { askKey = true }
+            if (inert) android.widget.Toast.makeText(ctx, R.string.dev_preview_read_only, android.widget.Toast.LENGTH_SHORT).show()
+            else startStoreSignIn(ctx, store, placed[0]?.takeIf { it.isAttached }?.boundsInRoot(), colors.primary) { askKey = true }
         }
     }
 }
