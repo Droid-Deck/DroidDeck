@@ -268,15 +268,19 @@ static void target_destroy(struct fx_target *t) {
     memset(t, 0, sizeof(*t));
 }
 
-static int target_ensure(struct fx_target *t, int w, int h, const char *what) {
+#define FX_TARGET_USAGE (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | \
+                            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+#define FX_SCRATCH_USAGE (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
+
+static int target_ensure(struct fx_target *t, int w, int h,
+                         VkImageUsageFlags usage, const char *what) {
     if (t->img && t->w == w && t->h == h) return 0;
     target_destroy(t);
     VkImageCreateInfo ii = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                             .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT, .imageType = VK_IMAGE_TYPE_2D,
                             .format = g_fx_fmt, .extent = {(uint32_t)w, (uint32_t)h, 1}, .mipLevels = 1,
                             .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
-                            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                            .usage = usage,
                             .sharingMode = VK_SHARING_MODE_EXCLUSIVE, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
     VkResult r = g_vk.CreateImage(g_dev, &ii, NULL, &t->img);
     if (r != VK_SUCCESS) { droiddeck_log("error", "effects: %s image %dx%d: vkCreateImage %d", what, w, h, (int)r); return -1; }
@@ -543,10 +547,10 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     const int npasses = ((spatial || resize) ? 1 : 0) + effect_pass_count(s);
 
     if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
-        target_ensure(&g_t[0], cw, ch, "chain") == 0 && (npasses < 2 || target_ensure(&g_t[1], cw, ch, "chain") == 0) &&
-        (s->aa_mode != 2 || (target_ensure(&g_mid, cw, ch, "SMAA edges") == 0 &&
-                             target_ensure(&g_smaa_weights, cw, ch, "SMAA weights") == 0)) &&
-        (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, "EASU") == 0)) {
+        target_ensure(&g_t[0], cw, ch, FX_TARGET_USAGE, "chain") == 0 && (npasses < 2 || target_ensure(&g_t[1], cw, ch, FX_TARGET_USAGE, "chain") == 0) &&
+        (s->aa_mode != 2 || (target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "SMAA edges") == 0 &&
+                             target_ensure(&g_smaa_weights, cw, ch, FX_SCRATCH_USAGE, "SMAA weights") == 0)) &&
+        (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "EASU") == 0)) {
         VkDescriptorSet cur_ds;
         struct fx_target *cur = NULL;
 #define FREE_TARGET() ((cur == &g_t[0]) ? &g_t[1] : &g_t[0])
