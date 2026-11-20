@@ -99,6 +99,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         this, ui,
         idle = { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null },
         onInstalled = { if (!OfflineMode.enabled(this)) components.checkComponentUpdates(force = false) },
+        onRemoved = { components.refreshComponents() },
     )
 
     private var installed by mutableStateOf<String?>(null)
@@ -875,7 +876,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             runCatching { com.droiddeck.launcher.frontend.AutoComponents.restoreMissing(this) }.onFailure { Log.w(TAG, "components: restore failed", it) }
         }, "components-restore").start()
     }
-    private var pendingGameLink: String? = null
+    private var pendingGameLink: com.droiddeck.launcher.frontend.GameRequest? = null
     private var gameLinkReading = false
     private var gameLinkTried = false
     private var gameSyncFolder by mutableStateOf<String?>(null)
@@ -947,12 +948,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
             val copy = Intent(request)
             Thread({
-                val id = GameLaunchIntent.read(this, copy)
+                val game = GameLaunchIntent.read(this, copy)
                 ui.post {
                     if (intent === request && !isDestroyed) {
                         gameLinkReading = false
-                        pendingGameLink = id
-                        if (id == null) {
+                        pendingGameLink = game
+                        if (game == null) {
                             syncDualPanel()
                             android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
                         } else {
@@ -1202,16 +1203,16 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun handleGameLink(games: List<Library.SteamGame>, scanned: Boolean = true) {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
-        val id = pendingGameLink ?: return
-        if (!scanned && games.none { it.gameIdString == id }) return
+        val request = pendingGameLink ?: return
+        val game = request.find(games, byTitle = scanned)
+        if (!scanned && game == null) return
         gameLinkTried = true
         ui.postDelayed({
             if (!isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) syncDualPanel()
         }, LINK_PANEL_MS)
-        val game = games.firstOrNull { it.gameIdString == id }
         val link = intent
         fun consume() {
-            if (intent !== link || pendingGameLink != id) return
+            if (intent !== link || pendingGameLink !== request) return
             pendingGameLink = null
             link.data = null
             link.action = Intent.ACTION_MAIN
@@ -1220,7 +1221,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (game == null) {
             consume()
             syncDualPanel()
-            android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(this,
+                if (request.program != null) R.string.game_link_program_unknown else R.string.game_link_missing,
+                android.widget.Toast.LENGTH_LONG).show()
         } else launchGame(game, returnHome = true, onSettled = ::consume)
     }
 
@@ -2430,17 +2433,18 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             protons = com.droiddeck.launcher.ui.ProtonsState(
                 rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,
                 runtimeReady = ready && !busy, sessionRunning = SessionState.running, experimental = protons.experimentalDirs,
+                experimentalReleases = protons.experimentalReleases,
             ),
             protonActions = com.droiddeck.launcher.ui.ProtonsActions(
                 onInstall = { id -> protons.installProton(id) },
-                onInstallTest = { id -> protons.installProton(id, test = true) },
                 onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
                 onRemove = { id, dir -> protons.removeProton(id, dir) },
                 onRemoveOlder = { id -> protons.removeProton(id, older = true) },
                 onExperimentalFile = {
-                    pickExperimentalProton.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.xproton_pick),
+                    pickExperimentalProton.launch(InAppFilePicker.buildIntent(this, EXPERIMENTAL_PROTON_EXT, getString(R.string.xproton_install_file),
                         android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).path))
                 },
+                onExperimentalRelease = { release -> protons.installExperimentalRelease(release) },
                 onRemoveExperimental = { dir -> protons.removeExperimental(dir) },
             ),
             protonOptions = {
@@ -3412,6 +3416,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
         private val SESSION_ENDED = setOf(SessionPhase.IDLE, SessionPhase.FAILED)
         private val ZIP_EXT = listOf("zip")
+        private val EXPERIMENTAL_PROTON_EXT = listOf("zip", "7z", "tar", "gz", "xz", "zst", "bz2", "tgz", "txz", "tbz2", "tzst")
         private val WCP_EXT = listOf("wcp")
     }
 }

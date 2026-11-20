@@ -76,6 +76,7 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Frame generation | In-game menu › Display | lsfg, lossless, fps |
 | Scaling filter | In-game menu › Display | upscale, fsr, sharpness |
 | Performance HUD | In-game menu › Performance HUD | fps, counter, overlay, performance |
+| Hold the GPU at its top clock | In-game menu › Performance HUD | gpu, clock, max |
 | Touchscreen | In-game menu › Controller | touch, mouse, direct, touchpad, click |
 | On-screen controls | In-game menu › Controller | on-screen, controls, touch controls, buttons |
 | Steam touch layout | In-game menu › Controller | touch layout, edit layout, on-screen |

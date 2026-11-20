@@ -20,6 +20,7 @@ internal class ProtonMenu(
     private val activity: android.app.Activity,
     private val ui: Handler,
     private val onInstalled: () -> Unit = {},
+    private val onRemoved: () -> Unit = {},
     private val idle: () -> Boolean = { true },
 ) {
     private object Operation {
@@ -29,6 +30,9 @@ internal class ProtonMenu(
         val percent = mutableIntStateOf(-1)
         val problem = mutableStateOf<String?>(null)
         val experimental = mutableStateOf<List<String>>(emptyList())
+        val experimentalReleases = mutableStateOf<List<ExperimentalProtons.Release>>(emptyList())
+        var fetchedReleases = emptyList<ExperimentalProtons.Release>()
+        val checking = java.util.concurrent.atomic.AtomicBoolean(false)
     }
     var protonRows by Operation.rows
     var protonBusyId by Operation.busyId
@@ -36,14 +40,16 @@ internal class ProtonMenu(
     var protonPercent by Operation.percent
     var protonProblem by Operation.problem
     var experimentalDirs by Operation.experimental
+    var experimentalReleases by Operation.experimentalReleases
     companion object {
         const val EXPERIMENTAL = "experimental"
     }
-    private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
-    @VisibleForTesting internal var installer: (ProtonExtras.Tool, Boolean, (String, Int) -> Unit) -> String? =
-        { tool, test, progress -> ProtonExtras.install(activity, tool, test, progress) }
+    @VisibleForTesting internal var latestCheck: (Boolean) -> Boolean = { force -> ProtonExtras.checkLatest(activity, force) }
+    @VisibleForTesting internal var experimentalRefresh: () -> List<ExperimentalProtons.Release>? = { ExperimentalProtons.refresh(activity) }
+    @VisibleForTesting internal var installer: (ProtonExtras.Tool, (String, Int) -> Unit) -> String? =
+        { tool, progress -> ProtonExtras.install(activity, tool, progress) }
 
-    fun installProton(id: String, automatic: Boolean = false, test: Boolean = false) {
+    fun installProton(id: String, automatic: Boolean = false) {
         val tool = ProtonExtras.tools.firstOrNull { it.id == id } ?: return
         if (protonBusyId != null || ProtonExtras.installInProgress || SessionState.running) return
         ProtonExtras.unqueue(activity, tool)
@@ -53,7 +59,7 @@ internal class ProtonMenu(
         protonPercent = -1
         Thread({
             val problem = runCatching {
-                installer(tool, test) { label, value ->
+                installer(tool) { label, value ->
                     ui.post { protonStage = label; protonPercent = value }
                 }
             }.getOrElse { it.message ?: it.javaClass.simpleName }
@@ -114,6 +120,10 @@ internal class ProtonMenu(
         }, "install-proton-experimental").start()
     }
 
+    fun installExperimentalRelease(release: ExperimentalProtons.Release) {
+        installExperimental { progress -> ExperimentalProtons.installRelease(activity, release, progress) }
+    }
+
     fun removeExperimental(dir: String) {
         if (protonBusyId != null || SessionState.running) return
         protonBusyId = EXPERIMENTAL
@@ -131,22 +141,37 @@ internal class ProtonMenu(
         }, "remove-proton-experimental").start()
     }
 
+    private fun refreshExperimental() {
+        val installed = ExperimentalProtons.installed(activity)
+        experimentalDirs = installed.map { it.dir }
+        experimentalReleases = ExperimentalProtons.available(Operation.fetchedReleases, installed)
+    }
+
     fun refreshProtons() {
-        experimentalDirs = ExperimentalProtons.installed(activity).map { it.dir }
+        refreshExperimental()
         protonRows = ProtonExtras.tools.map {
             val all = ProtonExtras.installedAll(activity, it)
-            ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it), ProtonExtras.testBuild(activity, it))
+            ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it))
         }
     }
 
     fun checkUpdates(force: Boolean = false) {
-        if (!checking.compareAndSet(false, true)) return
+        if (!Operation.checking.compareAndSet(false, true)) return
         Thread({
-            val asked = try { ProtonExtras.checkLatest(activity, force) } catch (_: Throwable) { false } finally { checking.set(false) }
-            ui.post {
-                if (asked) refreshProtons()
+            val asked = runCatching { latestCheck(force) }.getOrDefault(false)
+            val experimental = runCatching { experimentalRefresh() }.getOrNull()
+            val published = ui.post {
+                try {
+                    val before = experimentalDirs
+                    Operation.fetchedReleases = experimental ?: emptyList()
+                    if (asked) refreshProtons() else refreshExperimental()
+                    if (!experimentalDirs.containsAll(before)) onRemoved()
+                } finally {
+                    Operation.checking.set(false)
+                }
                 ensureAutoUpdates()
             }
+            if (!published) Operation.checking.set(false)
         }, "proton-updates").start()
     }
 
