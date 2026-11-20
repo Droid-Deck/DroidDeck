@@ -15,18 +15,18 @@ MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
 PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
           'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft', 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/': 'rockstar',
-          'assets/linuxfs/usr/local/lib/droiddeck-dirt/': 'dirt',
+          'assets/linuxfs/usr/local/lib/droiddeck-dirt/': 'dirt', 'assets/linuxfs/usr/local/lib/droiddeck-epic/': 'epic',
           'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
 # DrWeb flags proot itself as Tool.Linux.Proot; the app runs the pack's copy through Android's linker.
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so')}
 # The loader is execve'd, which targetSdk 29+ allows only from the APK's native library directory.
 PROOT_LOADER = {'lib/arm64-v8a/libproot-loader.so': 'libproot-loader.so'}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
-PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt']
+PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt', 'epic']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
-                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/ubisoft-launcher', 'tools/rockstar-launcher', 'tools/components', 'tools/ci', 'tools/build_local.sh',
+                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/ubisoft-launcher', 'tools/rockstar-launcher', 'tools/epic-launcher', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
@@ -227,7 +227,7 @@ def windows_binaries(package):
 def check_apk(apk, root=ROOT):
     data = verify(root)
     packs = {name: pack_digests(root, name) for name in PACK_NAMES
-             if name not in ('ubisoft', 'rockstar', 'dirt') or (root / PACKS / (name + '.tar.zst')).is_file()}
+             if name not in ('ubisoft', 'rockstar', 'dirt', 'epic') or (root / PACKS / (name + '.tar.zst')).is_file()}
     for name, rel in PROOT_LOADER.items():
         if packs['proot'].get(rel) != data['outputs'][name]['sha256']:
             raise ValueError('Add-on pack proot is missing or has a stale ' + rel)

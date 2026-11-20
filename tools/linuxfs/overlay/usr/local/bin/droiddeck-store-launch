@@ -337,6 +337,12 @@ UBISOFT_INSTALLER_URL = "https://static3.cdn.ubi.com/orbit/launcher_installer/Ub
 ROCKSTAR_SERVICE = Path("/usr/local/lib/droiddeck-rockstar")
 SERVICE_WAIT = 300.0
 ROCKSTAR_FOLDER = "drive_c/Program Files/Rockstar Games/Launcher"
+EPIC_SDK_SETUP = ROCKSTAR_FOLDER + "/Redistributables/SocialClub/Social-Club-Setup.exe"
+SDK_SOURCE = ".droiddeck-sdk-source"
+SDK_SETUP_LIMIT = 256 * 1024 * 1024
+EPIC_PARENT = Path("/usr/local/lib/droiddeck-epic/EpicGamesLauncher.exe")
+EPIC_PARENT_ON = 'set "DD_P=1"'
+EPIC_SERVICE_WAIT = 60.0
 ROCKSTAR_TITLES = {"gta3": "Grand Theft Auto III", "gtavc": "Grand Theft Auto: Vice City", "gtasa": "GTA: San Andreas",
                    "gta4": "Grand Theft Auto IV", "lanoire": "LANoireMTL"}
 
@@ -394,10 +400,9 @@ def rockstar_sdk(folder, sidecar):
     return False
 
 
-def rockstar_registry(folder, title, compat_data, proton, sdk_arch=None):
+def rockstar_registry(folder, title, compat_data, proton, sdk_arch=None, launcher=True):
     pfx = Path(compat_data) / "pfx"
-    launcher = r"C:\Program Files\Rockstar Games\Launcher"
-    values = [(r"Rockstar Games\Launcher", launcher)]
+    values = [(r"Rockstar Games\Launcher", r"C:\Program Files\Rockstar Games\Launcher")] if launcher else []
     if title:
         values.append(("Rockstar Games\\" + title, windows_path(str(folder))))
     entries = [("Software\\" + view + key, value) for view in ("", "Wow6432Node\\") for key, value in values]
@@ -420,23 +425,29 @@ def rockstar_registry(folder, title, compat_data, proton, sdk_arch=None):
         return result.returncode == 0
 
 
-def rockstar_runtime(folder, exe, compat_data, arch):
+def rockstar_runtime(folder, exe, compat_data, arch, installer=None):
     if arch == "x86":
-        rockstar_runtime(folder, exe, compat_data, "x64")
+        rockstar_runtime(folder, exe, compat_data, "x64", installer)
     pfx = Path(compat_data) / "pfx"
     target = pfx / "drive_c" / ("Program Files (x86)" if arch == "x86" else "Program Files") / "Rockstar Games/Social Club"
     if not target.resolve().is_relative_to(pfx.resolve()):
         raise ValueError("invalid Social Club destination")
     required = ("socialclub.dll", "socialclub.pak") + (("SocialClubHelper.exe",) if arch == "x64" else ())
     marker = target / ".droiddeck-installing"
-    if all((target / name).is_file() for name in required) and not marker.exists():
+    source_file, stamp = target / SDK_SOURCE, None
+    if installer is not None:
+        info = installer.stat()
+        stamp = "%d %d %s" % (info.st_size, info.st_mtime_ns, installer)
+    current = stamp is None or source_file.is_file() and not source_file.is_symlink() and source_file.read_text(errors="replace") == stamp
+    if all((target / name).is_file() for name in required) and not marker.exists() and current:
         return "present"
-    root = folder.resolve()
-    installers = [base / sub / "Social-Club-Setup.exe" for base in (root, exe.parent)
-                  for sub in ("Redistributables", "Installers")]
-    installer = next((p for p in installers if p.is_file() and p.resolve().is_relative_to(root) and p.stat().st_size <= 256 * 1024 * 1024), None)
     if installer is None:
-        return "game-runtime"
+        root = folder.resolve()
+        installers = [base / sub / "Social-Club-Setup.exe" for base in (root, exe.parent)
+                      for sub in ("Redistributables", "Installers")]
+        installer = next((p for p in installers if p.is_file() and p.resolve().is_relative_to(root) and p.stat().st_size <= SDK_SETUP_LIMIT), None)
+        if installer is None:
+            return "game-runtime"
     tool = shutil.which("7z")
     if not tool:
         return "no-unpacker"
@@ -488,15 +499,48 @@ def rockstar_runtime(folder, exe, compat_data, arch):
                     raise
             os.replace(stage_path, output)
         marker.unlink()
+        if stamp is not None:
+            source_file.unlink(missing_ok=True)
+            source_file.write_text(stamp)
     return "installed"
 
 
-def fetch_service(service, store, launch_dir, ask_app=None):
+def wants_epic_parent(folder):
+    try:
+        return EPIC_PARENT_ON in (folder / LAUNCHER).read_text(errors="replace").splitlines()
+    except OSError:
+        return False
+
+
+def epic_rockstar_sdk(folder, sidecar, compat_data, proton):
+    if not compat_data:
+        return None
+    pfx = Path(compat_data) / "pfx"
+    root = folder.resolve()
+    exe = (folder / str(sidecar.get("exe") or "").replace("\\", "/")).resolve()
+    if not exe.is_relative_to(root):
+        return None
+    setups = [(pfx / EPIC_SDK_SETUP, pfx)] + [(base / sub / "Social-Club-Setup.exe", root) for base in (root, exe.parent)
+                                               for sub in ("Redistributables", "Installers")]
+    setup = next((path for path, inside in setups if path.is_file() and path.resolve().is_relative_to(inside.resolve())
+                  and path.stat().st_size <= SDK_SETUP_LIMIT), None)
+    if setup is None:
+        return None
+    made = "present" if (pfx / "user.reg").is_file() else create_prefix(compat_data, proton)
+    if made not in ("created", "present"):
+        return "prefix-" + made
+    state = rockstar_runtime(folder, exe, compat_data, "x64", setup)
+    if state in ("present", "installed") and not rockstar_registry(folder, None, compat_data, proton, sdk_arch="x64", launcher=False):
+        return state + " registry-unavailable"
+    return state
+
+
+def fetch_service(service, store, launch_dir, ask_app=None, timeout=SERVICE_WAIT):
     if service.is_file():
         return True
     if not launch_dir:
         return False
-    answer = (ask_app or ask)(Path(launch_dir) / "stores", {"op": "store-service", "store": store}, timeout=SERVICE_WAIT)
+    answer = (ask_app or ask)(Path(launch_dir) / "stores", {"op": "store-service", "store": store}, timeout=timeout)
     return isinstance(answer, dict) and bool(answer.get("ok")) and service.is_file()
 
 
@@ -1650,6 +1694,15 @@ def main(argv):
                 pass
             log("ubisoft %s: not prepared (%s), starting directly" % (game, e))
     if store == "epic":
+        try:
+            if launch_dir and not EPIC_PARENT.is_file() and wants_epic_parent(folder):
+                got = fetch_service(EPIC_PARENT, "epic", launch_dir, timeout=EPIC_SERVICE_WAIT)
+                log("epic parent stand-in: " + ("staged" if got else "unavailable"))
+            sdk = epic_rockstar_sdk(folder, sidecar, compat_data, os.environ.get("DD_STORE_PROTON", ""))
+        except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+            sdk = "failed (%s)" % type(error).__name__
+        if sdk:
+            log("epic rockstar sdk: " + sdk)
         handled = os.environ.get(EPIC_HANDLED) == "1" and (folder / EPIC_ARGS).is_file()
         if not handled:
             drop_stale(folder)

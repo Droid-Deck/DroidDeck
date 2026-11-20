@@ -248,6 +248,21 @@ class RuntimeInputsTest(unittest.TestCase):
             runtime.check_apk(apk, self.root)
         runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
 
+    def test_an_apk_still_carrying_the_epic_parent_stand_in_is_rejected(self):
+        epic = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-epic'
+        epic.mkdir(parents=True)
+        (epic / 'EpicGamesLauncher.exe').write_bytes(b'MZ parent')
+        self.packs()
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-epic/EpicGamesLauncher.exe'
+        self.assertIn(name, runtime.outputs(self.root))
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ parent'})
+        with self.assertRaisesRegex(ValueError, 'epic pack provides'):
+            runtime.check_apk(apk, self.root)
+        runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
+        self.pack('epic', {'EpicGamesLauncher.exe': b'MZ older parent'})
+        with self.assertRaisesRegex(ValueError, 'epic is missing or has a stale'):
+            runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
+
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})
         with self.assertRaisesRegex(ValueError, 'powervr pack provides'):
