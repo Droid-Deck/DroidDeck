@@ -1,20 +1,24 @@
 # Keep-top guard A/B on dual screens
 
-`KeepTopActivity` (#2763) covers every other display while a session is on top, so that
-display's home is not its top activity. On the Thor, lmkd kills the bottom home under memory
-pressure, Android relaunches it to the front (`wm_task_to_front`), the session loses the top
-spot, drops to adj 50 and is killed in lmkd's next pass.
+`KeepTopActivity` (#2763, removed in the change that added this section) covered every other
+display while a session was on top, so that display's home was not its top activity. The
+reasoning: on the Thor, lmkd kills the bottom home under memory pressure, Android relaunches it
+to the front, the session loses the top spot, drops to adj 50 and is killed next.
 
-Android gives a translucent activity that is alone in its task an `ActivityRecordInputSink`
-that consumes every touch inside the task bounds, whatever the window's flags say
-(`ENABLE_TOUCH_OPAQUE_ACTIVITIES`, on for DroidDeck's target SDK; see
-`services/core/java/com/android/server/wm/ActivityRecordInputSink.java`). The guard's
-`FLAG_NOT_TOUCHABLE` therefore did nothing: with the dual-screen panel closed, the bottom
-screen took no touch until the session ended, and the guard also stayed over it after Home.
+It had three side effects:
 
-The guard now takes touches itself. A touch removes it from that display. It comes back when
-the session is top-resumed again, or after 5 s if the session kept the top spot (one touch on
-the bottom screen, then back to the game). Stopping or entering PiP removes the guards.
+- Android gives a translucent activity alone in its task an `ActivityRecordInputSink` that
+  consumes every touch in the task bounds whatever the window's flags say
+  (`ENABLE_TOUCH_OPAQUE_ACTIVITIES`), so the bottom screen took no touch (#2910 worked around it).
+- Cocoon tracks the top activity of each display; with a DroidDeck activity on the bottom it
+  could not suspend or resume DroidDeck properly.
+- The Thor's `com.odin.gameassistant` gives every app with an activity on top of the bottom
+  display that display's volume (`secondary_screen_volume_level`). With the guard up, all of
+  DroidDeck's audio played at the bottom screen's volume (AudioFlinger track gain -37, -13 and
+  -2.6 dB at levels 3, 8 and 13; -7.4 dB, the top level, once the guard was removed).
+
+The A/B below found no case on either device where the guard kept the session alive, so it was
+removed.
 
 ## Tool
 
@@ -25,6 +29,7 @@ build that has the debugging tools:
 python3 tools/memory_guard_ab.py --label main --apk main.apk states
 python3 tools/memory_guard_ab.py --label fix --apk fix.apk states
 python3 tools/memory_guard_ab.py --label fix pressure --stop-mb 650 --hold 30 --runs 3
+python3 tools/memory_guard_ab.py --label fix pressure --burst --stop-mb 1500 --hold 20 --runs 3
 python3 tools/memory_guard_ab.py --label fix summarize ~/.cache/droiddeck-memory-guard-ab/fix-stop650-1-events.txt
 ```
 
@@ -39,6 +44,13 @@ event log of every probe.
   `--stop-mb`, holds it, and releases it. zram cannot compress that data and no app owns it,
   so lmkd keeps killing by adj. It records lmkd's `killinfo`, process deaths, focus loss and
   whether DroidDeck survived.
+- `pressure --burst` takes everything above `--stop-mb` at once instead: it copies a 256 MiB
+  random file into the tmpfs with all copies running in parallel (about 5 GiB in 2 to 3 s on a
+  Thor), the way a game's GPU allocation burst lands on lmkd.
+- `oom_score_adj` is read without `su`. Under pressure lmkd keeps killing the root manager app,
+  and a `su` call can then open its request screen on top of the game.
+- If the bottom display has no home (a killed home is not always restarted), the visible app on
+  top of it stands in.
 - `--bottom-tap` must point at an inert spot of the bottom home; `--panel-close` at the
   panel's close button. Both are fractions of the bottom display.
 - `am start` of `SessionActivity` needs `--display 0`; without it, it creates a second
@@ -88,3 +100,24 @@ moves it to the front, even with no guard. The Thor's focus steal does not happe
 Duo shows that the guard covers the same states as before, not that it saves the session. That
 needs a Thor: run `states` and `pressure --stop-mb` near its adj-50 level on `main` and on the
 fix, and look for `task_to_front` and `session_top_lost` before `droiddeck_died_at_adj` 50.
+
+## Results: AYN Thor (12 GB), Android 13
+
+Builds: `main` (56986b5, guard with the #2910 touch yield) and `no-guard` (`main` with
+`guardOtherDisplays` returning at once). The game was focused on the top screen in every run.
+
+| Pressure | Bottom app | no-guard | main |
+| --- | --- | --- | --- |
+| Fill to 650 MB free, hold 30 s | stock launcher | survived 1/1 usable run (launcher not reached) | survived 3/3 (launcher killed 80, 25, 0 times) |
+| Fill to 550 MB free, hold 30 s | Cocoon as home | survived 3/3, Cocoon killed 387, 400, 84 times | survived 3/3, Cocoon killed 384, 127, 338 times |
+| Burst to 400 MB free (about 5 GB in 2.5 to 3.4 s) | stock launcher | killed at adj 0 in 3/3 | killed at adj 0 in 3/3 |
+| Burst to 1500 MB free (2.0 to 2.4 s) | stock launcher | survived 1/2, killed at adj 0 in 1/2 | killed at adj 0 in 2/2 |
+
+No run on either build lost the top spot (`wm_on_top_resumed_lost_called` for
+`SessionActivity`), moved a task to the front, or killed DroidDeck at adj 50. A killed bottom
+home is either restarted in place or its task disappears and the next app shows on the bottom
+screen, without taking focus. A burst big enough to matter makes lmkd kill the foreground
+session at adj 0, which no activity on another display can prevent.
+
+`kill -9` of the bottom app (`states`) is noisy on a Thor with many recent apps: each kill
+surfaces the next app on the bottom screen, and every tap the tool sends there moves focus.
