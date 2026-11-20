@@ -31,6 +31,8 @@ HOG_MOUNT = "/dev/dd-memory-hog"
 # killing by oom_score_adj while it is held.
 HOG = f"""#!/system/bin/sh
 stop_mb=$1; hold=$2
+cleanup() {{ rm -f {HOG_MOUNT}/f*; umount {HOG_MOUNT} 2>/dev/null; }}
+trap 'cleanup; exit 1' HUP INT TERM
 mkdir -p {HOG_MOUNT}
 grep -q ' {HOG_MOUNT} ' /proc/mounts || mount -t tmpfs -o size=16g tmpfs {HOG_MOUNT}
 i=0
@@ -42,10 +44,13 @@ while [ $i -lt 512 ]; do
   i=$((i+1))
 done
 sleep "$hold"
-rm -f {HOG_MOUNT}/f*
-umount {HOG_MOUNT}
+cleanup
 echo released
 """
+# Stops a writer left by an interrupted run before its files go, so the unmount does not fail. The
+# bracketed patterns keep pkill from matching the shell that runs this line.
+HOG_CLEANUP = (f"pkill -f '[d]d-memory-hog.sh'; pkill -f '[h]ead -c 33554432'; sleep 1; rm -f {HOG_MOUNT}/f*; "
+               f"umount {HOG_MOUNT} 2>/dev/null; true")
 
 def focused_display(input_dump: str) -> int | None:
     match = re.search(r"FocusedDisplayId: (-?\d+)", input_dump)
@@ -145,16 +150,22 @@ class Device:
     def su(self, command: str, timeout: int = 120) -> str:
         return self.sh(f"su -c {shlex.quote(command)}", timeout=timeout)
 
-    def ctl(self, *args: str, timeout: int = 300) -> str:
+    def ctl(self, *args: str, timeout: int = 300) -> subprocess.CompletedProcess[str]:
         return subprocess.run([str(TOOLS / "droiddeckctl"), "--adb", self.adb, "--serial", self.serial, *args],
-                              capture_output=True, text=True, timeout=timeout).stdout
+                              capture_output=True, text=True, timeout=timeout)
 
     def phase(self) -> str | None:
-        match = re.search(r'"phase":\s*"(\w+)"', self.ctl("state"))
+        match = re.search(r'"phase":\s*"(\w+)"', self.ctl("state").stdout)
         return match.group(1) if match else None
 
     def pid(self) -> str:
         return self.sh(f"pidof {PACKAGE}").strip()
+
+    def running_pid(self) -> str:
+        pid = self.pid()
+        if not re.fullmatch(r"\d+", pid):
+            raise RuntimeError(f"{PACKAGE} is not running")
+        return pid
 
     def size(self, display: int) -> tuple[int, int]:
         size = logical_size(self.sh("dumpsys window displays"), display)
@@ -203,10 +214,13 @@ class Bench:
             subprocess.run([str(TOOLS / "deploy_local.sh"), apk], env=env, check=True, capture_output=True)
         self.d.sh(f"monkey -p {PACKAGE} -c android.intent.category.LAUNCHER 1")
         time.sleep(6)
-        for _ in range(2):
-            self.d.ctl("start", "steam", "--wait", "--timeout", "240")
+        for attempt in range(2):
+            started = self.d.ctl("start", "steam", "--wait", "--timeout", "240")
             if self.d.phase() == "READY":
                 break
+            if attempt == 1:
+                raise RuntimeError("the Steam session did not reach READY: "
+                                   + (started.stderr.strip() or started.stdout.strip() or f"exit {started.returncode}"))
             time.sleep(5)
         time.sleep(15)
         self.game_front()
@@ -214,7 +228,7 @@ class Bench:
     def snapshot(self) -> dict:
         activities = self.d.sh("dumpsys activity activities")
         display = self.bottom()[0]
-        pid = self.d.pid()
+        pid = self.d.running_pid()
         return {
             "focused_display": focused_display(self.d.sh("dumpsys input")),
             "guards": guard_count(activities),
@@ -295,13 +309,18 @@ class Bench:
         self.close_panel()
         before = self.snapshot()
         self.d.run("logcat", "-b", "events", "-c")
-        hog = subprocess.Popen([self.d.adb, "-s", self.d.serial, "shell", f"su -c '{HOG_PATH} {stop_mb} {hold}'"],
+        hog = subprocess.Popen([self.d.adb, "-s", self.d.serial, "shell", f"su -c '{HOG_PATH} {int(stop_mb)} {int(hold)}'"],
                                stdout=subprocess.PIPE, text=True)
         samples = []
-        while hog.poll() is None:
-            samples.append(self.d.su(f"cat /proc/{before['pid']}/oom_score_adj 2>/dev/null || echo DEAD").strip())
-            time.sleep(0.5)
-        output = hog.stdout.read() if hog.stdout else ""
+        try:
+            while hog.poll() is None:
+                samples.append(self.d.su(f"cat /proc/{before['pid']}/oom_score_adj 2>/dev/null || echo DEAD").strip())
+                time.sleep(0.5)
+            output = hog.stdout.read() if hog.stdout else ""
+        finally:
+            if hog.poll() is None:
+                hog.terminate()
+            self.d.su(HOG_CLEANUP)
         time.sleep(3)
         events = self.d.run("logcat", "-b", "events", "-d")
         (self.out / f"{self.label}-{run}-events.txt").write_text(events)
@@ -352,13 +371,17 @@ def main() -> int:
         print("memory-guard-ab: needs a rooted device (su)", file=sys.stderr)
         return 2
     bench = Bench(device, args.out, args.label, args.session_display, args.bottom_tap, args.panel_close)
-    if args.command == "states":
-        bench.prepare(args.apk)
-        bench.states()
-    else:
-        for run in range(args.runs):
-            bench.prepare(args.apk if run == 0 else None)
-            bench.pressure(f"stop{args.stop_mb}-{run + 1}", args.stop_mb, args.hold)
+    try:
+        if args.command == "states":
+            bench.prepare(args.apk)
+            bench.states()
+        else:
+            for run in range(args.runs):
+                bench.prepare(args.apk if run == 0 else None)
+                bench.pressure(f"stop{args.stop_mb}-{run + 1}", args.stop_mb, args.hold)
+    except RuntimeError as exc:
+        print(f"memory-guard-ab: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
