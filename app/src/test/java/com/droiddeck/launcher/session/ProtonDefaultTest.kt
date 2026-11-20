@@ -152,6 +152,52 @@ class ProtonDefaultTest {
     }
 
     @Test
+    fun aBionicDefaultOnAnotherBuildMovesToTheInstalledOne() {
+        val r37 = "DroidDeck-Bionic-12.8-r37"
+        val applied = ProtonDefault.parseState("""{"default": "DroidDeck-Bionic-12.8-r30-Proton", "applied": 7,
+            "tools": [{"name": "DroidDeck-Bionic-12.8-r30-Proton", "display": "r30", "dir": "DroidDeck-Bionic-12.8-r30", "valve": false},
+                      {"name": "droiddeck-proton-arm64", "display": "Proton ARM64", "dir": "Proton Experimental (ARM64)", "valve": true}]}""")
+        // the applied default is an older build
+        assertEquals(ProtonDefault.Request(100, false, r37), ProtonDefault.bionicDefault(applied, null, "DroidDeck-Bionic", r37, 100))
+        // the guest fell back to its own tool because the requested build was gone: the request still names it
+        val fallback = ProtonDefault.parseState("""{"default": "droiddeck-proton-arm64", "applied": 50, "source": "fallback",
+            "tools": [{"name": "droiddeck-proton-arm64", "display": "Proton ARM64", "dir": "Proton Experimental (ARM64)", "valve": true}]}""")
+        assertEquals(ProtonDefault.Request(51, false, r37),
+            ProtonDefault.bionicDefault(fallback, ProtonDefault.Request(50, false, "DroidDeck-Bionic-12.8-r24"), "DroidDeck-Bionic", r37, 3))
+        // already the installed build, another tool, or a fallback the request did not cause: left as it is
+        assertNull(ProtonDefault.bionicDefault(fallback, ProtonDefault.Request(50, false, r37), "DroidDeck-Bionic", r37, 3))
+        assertNull(ProtonDefault.bionicDefault(fallback, ProtonDefault.Request(50, false, "DroidDeck-Proton 11-12.8"), "DroidDeck-Bionic", r37, 3))
+        assertNull(ProtonDefault.bionicDefault(ProtonDefault.parseState(state), null, "DroidDeck-Bionic", r37, 100))
+        val steam = ProtonDefault.parseState("""{"default": "droiddeck-proton-arm64", "applied": 50, "source": "steam",
+            "tools": [{"name": "droiddeck-proton-arm64", "display": "Proton ARM64", "dir": "Proton Experimental (ARM64)", "valve": true}]}""")
+        assertNull(ProtonDefault.bionicDefault(steam, ProtonDefault.Request(50, false, "DroidDeck-Bionic-12.8-r24"), "DroidDeck-Bionic", r37, 3))
+    }
+
+    @Test
+    fun keepingBionicCurrentRewritesTheDefaultAndThePicks() {
+        val context = RuntimeEnvironment.getApplication()
+        val d = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-compat").apply { deleteRecursively(); mkdirs() }
+        File(d, "state.json").writeText("""{"default": "droiddeck-proton-arm64", "applied": 9, "source": "fallback",
+            "tools": [{"name": "droiddeck-proton-arm64", "display": "Proton ARM64", "dir": "Proton Experimental (ARM64)", "valve": true}]}""")
+        File(d, "request.json").writeText("""{"seq": 9, "valve": false, "dir": "DroidDeck-Bionic-12.8-r24"}""")
+        ProtonDefault.requestGame(context, "42", proton("DroidDeck-Bionic-12.8-r29", false))
+        ProtonDefault.requestGame(context, "43", proton("DroidDeck-Proton 11-12.8", false))
+        ProtonDefault.requestGame(context, "44", null)
+        ProtonDefault.keepBionicCurrent(context, "DroidDeck-Bionic", "DroidDeck-Bionic-12.8-r37")
+        val request = ProtonDefault.parseRequest(File(d, "request.json").readText())
+        assertEquals("DroidDeck-Bionic-12.8-r37", request?.dir)
+        assertTrue(request!!.seq > 9)
+        val games = ProtonDefault.parseGames(File(d, "games.json").readText())
+        assertEquals(ProtonDefault.GameChoice(false, "DroidDeck-Bionic-12.8-r37"), games["42"])
+        assertEquals(ProtonDefault.GameChoice(false, "DroidDeck-Proton 11-12.8"), games["43"])
+        assertTrue(games.containsKey("44"))
+        assertNull(games["44"])
+        val before = File(d, "request.json").readText() + File(d, "games.json").readText()
+        ProtonDefault.keepBionicCurrent(context, "DroidDeck-Bionic", "DroidDeck-Bionic-12.8-r37")
+        assertEquals(before, File(d, "request.json").readText() + File(d, "games.json").readText())
+    }
+
+    @Test
     fun moveDefaultRewritesTheRequestFile() {
         val context = RuntimeEnvironment.getApplication()
         val d = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-compat").apply { mkdirs() }

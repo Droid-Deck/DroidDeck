@@ -123,6 +123,7 @@ object ProtonExtras {
     private var lastAttempt = 0L
 
     fun checkLatest(context: Context, force: Boolean = false, now: Long = System.currentTimeMillis()): Boolean {
+        keepBionicCurrent(context)
         synchronized(checkLock) {
             val file = latestFile(context)
             val cache = readJson(file)
@@ -191,6 +192,15 @@ object ProtonExtras {
         installedAll(context, tool).dropLast(1).forEach {
             if (deleteTool(context, it)) ComponentsManager.forgetProton(context, it)
         }
+    }
+
+    // DroidDeck-Bionic: the default and the game picks name the installed build, also when they were left on one an
+    // older app deleted without moving them.
+    private fun keepBionicCurrent(context: Context) {
+        if (SessionState.running) return
+        val tool = tools.firstOrNull { it.id == BIONIC } ?: return
+        val newest = installedAll(context, tool).lastOrNull() ?: return
+        runCatching { ProtonDefault.keepBionicCurrent(context, tool.prefix, newest) }.onFailure { Log.w(TAG, "bionic default and picks", it) }
     }
 
     private fun replaceOlder(context: Context, tool: Tool) {
