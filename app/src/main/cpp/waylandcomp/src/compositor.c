@@ -298,6 +298,7 @@ struct window_target {
     uint64_t waiting_state;
     struct wl_list submitted_frames;
     int frame_pending;
+    uint64_t presented_state;
     int status, error;
     double pointer_x, pointer_y;
     int pointer_known;
@@ -2185,7 +2186,9 @@ static int render_independent_windows(void) {
         target->source_w = primary ? primary->buf_w : 0;
         target->source_h = primary ? primary->buf_h : 0;
         if (primary) {
-            if (target->frames && wl_list_empty(&root->frames) && wl_list_empty(&primary->frames)) continue;
+            const uint64_t state = root->revision ^ (primary->revision * 0x9E3779B97F4A7C15ULL);
+            if (target->frames && target->presented_state == state &&
+                wl_list_empty(&root->frames) && wl_list_empty(&primary->frames)) continue;
             if (!batch) {
                 if (sc_target_batch_begin() != 0) { window_failed(target, 4); continue; }
                 batch = 1;
@@ -2195,13 +2198,26 @@ static int render_independent_windows(void) {
             const int translucent = primary->buf_alpha && !(opaque[0] <= 0 && opaque[1] <= 0 &&
                 (int64_t)opaque[0] + opaque[2] >= primary->buf_w &&
                 (int64_t)opaque[1] + opaque[3] >= primary->buf_h);
-            const int geometry[8] = {0, 0, primary->buf_w, primary->buf_h,
-                                    0, 0, target->width, target->height};
+            int geometry[8] = {0, 0, primary->buf_w, primary->buf_h,
+                               0, 0, target->width, target->height};
+            if (primary->src_set) {
+                geometry[0] = (int)primary->src[0]; geometry[1] = (int)primary->src[1];
+                geometry[2] = (int)(primary->src[0] + primary->src[2]);
+                geometry[3] = (int)(primary->src[1] + primary->src[3]);
+            }
+            if (primary->dst_set) {
+                geometry[4] = 0; geometry[5] = 0;
+                geometry[6] = primary->dst[0]; geometry[7] = primary->dst[1];
+            }
             int r = direct ? ahb_swapchain_present_target(primary->dmabuf_buf, primary,
                                       target->layer, geometry, translucent, 1)
+                : primary->src_set || primary->dst_set
+                ? sc_target_present_geometry(target->layer, surface_image(primary), geometry, translucent, 0,
+                                      droiddeck_surface_color(primary))
                 : sc_target_present(target->layer, surface_image(primary),
                                       target->width, target->height, droiddeck_surface_color(primary), translucent);
             if (r > 0) {
+                target->presented_state = state;
                 primary->drawn = root->drawn = 1;
                 ++target->frames;
                 if (direct) ++target->direct_frames;
@@ -2214,6 +2230,7 @@ static int render_independent_windows(void) {
                         target->key, target->width, target->height, primary->buf_w, primary->buf_h,
                         (unsigned long long)target->generation, !translucent);
             } else if (r < 0) window_failed(target, 3);
+            else queue_render();
         }
         }
         publish_window_stats(target);
@@ -2325,7 +2342,8 @@ static void pace_without_output(void) {
 static int on_frame_timer(void *data) {
     pace_without_output();
     if (vkp_has_window()) queue_render();
-    else if (g_frame_timer) wl_event_source_timer_update(g_frame_timer, 16);
+    else if (g_frame_timer && (g_scene_dirty || vkp_effects_active() || vkp_framegen_active()))
+        wl_event_source_timer_update(g_frame_timer, 16);
     return 0;
 }
 
@@ -3591,7 +3609,13 @@ static void pointer_input_at(double x, double y, int relative, uint32_t button, 
     } else {
         if (relative) {
             int w, h;
-            scene_size(&w, &h);
+            struct window_target *window = !k && g_independent_pointer
+                ? window_target_of(independent_key(g_independent_pointer)) : NULL;
+            if (window && window->width > 0 && window->height > 0) {
+                w = window->width; h = window->height;
+            } else {
+                scene_size(&w, &h);
+            }
             x = g_ptr_x + dx; y = g_ptr_y + dy;
             if (x < 0) x = 0;
             if (y < 0) y = 0;
@@ -4010,7 +4034,9 @@ static float input_float(int value) {
 }
 
 static void axis_event(int vertical120, int horizontal120, int finger) {
-    struct surface *target = g_active_constraint ? g_active_constraint->surface
+    struct constraint *k = g_active_constraint;
+    if (k && g_independent_pointer && k->surface != g_independent_pointer) k = NULL;
+    struct surface *target = k ? k->surface
                            : g_independent_pointer ? g_independent_pointer
                            : g_desktop ? g_desktop : (g_grab ? g_grab : toplevel_at(g_ptr_x, g_ptr_y));
     if (!target || (!finger && !vertical120 && !horizontal120)) return;
@@ -4181,6 +4207,7 @@ static void apply_window_requests(void) {
                     target->waiting_state = 0;
                     target->detached = 0;
                     target->client_ready = 0;
+                    target->presented_state = 0;
                     snprintf(target->key, sizeof(target->key), "%s", request->key);
                     target->layer = sc_target_create(target->window, target->key);
                     target->status = target->layer ? 1 : -1;
@@ -4208,6 +4235,7 @@ static void apply_window_requests(void) {
             } else if (request->type == 7 && request->generation == target->generation) {
                 changed = target->client_ready != (request->a != 0);
                 target->client_ready = request->a != 0;
+                if (changed) target->presented_state = 0;
                 if (!target->client_ready) {
                     if (root) {
                         finger_cancel_surface(root);
