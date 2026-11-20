@@ -480,6 +480,16 @@ class BattleNetTest {
         assertFalse("a registration whose folder was missing is still pre-existing", uninstalled.get())
     }
 
+    @Test fun aPathOnlyAgentRegistrationMakesTheFolderUnknown() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III")
+        val db = message(field(1, message(field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III"))))))
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(db)
+        assertEquals("", BattleNet.productDbRegistrations(db)!!.single().uid)
+        assertNull(BattleNet.registrationsAt(context, "diablo3", folder))
+    }
+
     @Test fun aPreexistingRegistrationIsNotUninstalled() {
         val folder = File(LinuxRuntime.rootDir(context), "root/Games/Diablo II Resurrected").apply { mkdirs() }
         val item = CatalogItem(

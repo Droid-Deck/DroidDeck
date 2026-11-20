@@ -248,6 +248,7 @@ object BattleNet {
             add(folder.absolutePath)
             if (flavor != null && folder.name == flavor) folder.parentFile?.let { add(it.absolutePath) }
         }
+        if (agent.any { it.uid.isEmpty() && hostFolder(context, it.path)?.absolutePath in folders }) return null
         return (registry + agent.map { it.uid to it.path }).mapNotNull { (uid, path) ->
             if (hostFolder(context, path)?.absolutePath !in folders) return@mapNotNull null
             val title = title(uid) ?: products[uid.lowercase()]?.let(::titleForProduct)
@@ -375,7 +376,7 @@ object BattleNet {
                 val product = install.firstOrNull { it.first == 2 }?.let { String(bytes, it.second, it.third - it.second) }.orEmpty()
                 val path = install.firstOrNull { it.first == 3 }?.let { s -> fields(bytes, s.second, s.third).firstOrNull { it.first == 1 } }
                     ?.let { String(bytes, it.second, it.third - it.second) }
-                if (uid.isNullOrEmpty() || path.isNullOrEmpty()) null else AgentInstall(uid, path, product)
+                if (path.isNullOrEmpty()) null else AgentInstall(uid.orEmpty(), path, product)
             }.getOrElse { return null }
         }
     }
