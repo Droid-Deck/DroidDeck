@@ -62,7 +62,7 @@ object ControlsChoice {
         val forGame = gameName?.takeIf { game != null && it.isNotBlank() }
         val newKitDetail = context.getString(R.string.osc_try_new_layout)
         fun detail(layout: SavedInputLayout): String? = when {
-            current == InputLibraries.previousLayoutId(layout.id) -> newKitDetail
+            OnScreenLayout.generated(layout) && current == InputLibraries.previousLayoutId(layout.id) -> newKitDetail
             layout.kitless && layout.id.startsWith("kept.") && layout.id != current -> context.getString(R.string.osc_restore_previous_layout)
             game != null && game in owners[layout.id].orEmpty() && layout.id !in defaults && forGame != null ->
                 context.getString(R.string.osc_layout_detail_game, forGame)
@@ -71,9 +71,10 @@ object ControlsChoice {
         val saved = library.layouts.filter { it.editable && it.supports(InputRole.PRIMARY) && it.id != InputLibraries.OVERLAY }
             .filter { l -> l.id == current || l.id in defaults || owners[l.id].isNullOrEmpty() || game in owners[l.id].orEmpty() }
             .map { l -> Option(l.id, l.name, detail(l), l.id != current && deletable(context, library, l)) }
+        val stock = library.layouts.firstOrNull { it.id == InputLibraries.OVERLAY }
         return (if (own) listOf(Option(DEFAULT, context.getString(R.string.osc_default))) else emptyList()) +
             Option(InputLibraries.OVERLAY, context.getString(R.string.osc_layout_gamepad),
-                if (current == InputLibraries.previousLayoutId(InputLibraries.OVERLAY)) newKitDetail else context.getString(R.string.osc_layout_gamepad_detail)) +
+                stock?.let(::detail) ?: context.getString(R.string.osc_layout_gamepad_detail)) +
             (if (steamMode) listOf(Option(GameControls.STEAM, context.getString(R.string.osc_layout_steam), context.getString(R.string.osc_layout_steam_detail))) else emptyList()) +
             saved +
             (if (forGame != null) listOf(Option(NEW, context.getString(R.string.osc_layout_new_for, forGame))) else emptyList())
