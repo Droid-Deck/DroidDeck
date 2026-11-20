@@ -34,11 +34,9 @@ void main() {
 
     vec3 color = mix(center, vec3(0.0), edge);
 
-    // Imita a quantização do alvo intermediário RGBA8.
-    color = roundEven(clamp(color, 0.0, 1.0) * 255.0) / 255.0;
+        color = roundEven(clamp(color, 0.0, 1.0) * 255.0) / 255.0;
 
-    // Mesma sequência do shader Color original.
-    color = clamp(color + pc.brightness, 0.0, 1.0);
+        color = clamp(color + pc.brightness, 0.0, 1.0);
     color = (color - 0.5) *
             clamp(pc.contrast + 1.0, 0.5, 2.0) + 0.5;
 
