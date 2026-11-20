@@ -101,6 +101,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         this, ui,
         idle = { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null },
         onInstalled = { if (!OfflineMode.enabled(this)) components.checkComponentUpdates(force = false) },
+        onRemoved = { components.refreshComponents() },
     )
 
     private var installed by mutableStateOf<String?>(null)
@@ -182,10 +183,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var fsyncFirst by mutableStateOf(false)
     private var gamescopeRealtime by mutableStateOf(false)
     private var paceCores by mutableStateOf(true)
-    private var ramCapMb by mutableStateOf(0)
-    private var zramClient by mutableStateOf(true)
-    private var zramIdle by mutableStateOf(true)
-    private var vramCapMb by mutableStateOf(0)
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
@@ -280,6 +277,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
     private val pickAnyDriver = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedUri(r.data)?.let { drivers.importDriver(it, linux = null) }
+    }
+    private val pickExperimentalProton = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { zip ->
+            protons.installExperimental { progress -> com.droiddeck.launcher.session.ExperimentalProtons.installFromFile(this, zip, progress) }
+        }
     }
     private val pickLossless = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { importLossless(it) }
@@ -2501,13 +2503,20 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             ),
             protons = com.droiddeck.launcher.ui.ProtonsState(
                 rows = protons.protonRows, busyId = protons.protonBusyId, stage = protons.protonStage, percent = protons.protonPercent,
-                runtimeReady = ready && !busy, sessionRunning = SessionState.running,
+                runtimeReady = ready && !busy, sessionRunning = SessionState.running, experimental = protons.experimentalDirs,
+                experimentalReleases = protons.experimentalReleases,
             ),
             protonActions = com.droiddeck.launcher.ui.ProtonsActions(
                 onInstall = { id -> protons.installProton(id) },
                 onCancel = { id -> ProtonExtras.tools.firstOrNull { it.id == id }?.let { ProtonExtras.unqueue(this, it) }; protons.refreshProtons() },
                 onRemove = { id, dir -> protons.removeProton(id, dir) },
                 onRemoveOlder = { id -> protons.removeProton(id, older = true) },
+                onExperimentalFile = {
+                    pickExperimentalProton.launch(InAppFilePicker.buildIntent(this, EXPERIMENTAL_PROTON_EXT, getString(R.string.xproton_install_file),
+                        android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).path))
+                },
+                onExperimentalRelease = { release -> protons.installExperimentalRelease(release) },
+                onRemoveExperimental = { dir -> protons.removeExperimental(dir) },
             ),
             protonOptions = {
                 com.droiddeck.launcher.ui.ProtonOptions(
@@ -2815,10 +2824,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
-            ramCapMb = ramCapMb, vramCapMb = vramCapMb, zramClient = zramClient, zramIdle = zramIdle,
-            deviceRamMb = (android.app.ActivityManager.MemoryInfo()
-                .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
-            ramCapAvailable = com.droiddeck.launcher.core.ZramSupport.supported(),
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, nativeUserland = nativeUserland, cursorComposite = cursorComposite,
             guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
@@ -2833,10 +2838,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             onFsyncFirst = { on -> SessionPrefs.setFsyncFirst(this, on); fsyncFirst = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
-            onRamCapMb = { mb -> SessionPrefs.setRamCapMb(this, mb); ramCapMb = mb },
-            onZramClient = { on -> SessionPrefs.setZramClient(this, on); zramClient = on },
-            onZramIdle = { on -> SessionPrefs.setZramIdle(this, on); zramIdle = on },
-            onVramCapMb = { mb -> SessionPrefs.setVramCapMb(this, mb); vramCapMb = mb },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
             onNativeUserland = { on -> SessionPrefs.setNativeUserland(this, on); nativeUserland = on },
@@ -3135,10 +3136,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         paceCores = SessionPrefs.paceCores(this)
-        ramCapMb = SessionPrefs.ramCapMb(this)
-        zramClient = SessionPrefs.zramClient(this)
-        zramIdle = SessionPrefs.zramIdle(this)
-        vramCapMb = SessionPrefs.vramCapMb(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
@@ -3488,6 +3485,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
         private val SESSION_ENDED = setOf(SessionPhase.IDLE, SessionPhase.FAILED)
         private val ZIP_EXT = listOf("zip")
+        private val EXPERIMENTAL_PROTON_EXT = listOf("zip", "7z", "tar", "gz", "xz", "zst", "bz2", "tgz", "txz", "tbz2", "tzst")
         private val WCP_EXT = listOf("wcp")
     }
 }

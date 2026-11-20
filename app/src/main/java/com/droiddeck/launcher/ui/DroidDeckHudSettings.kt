@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudSize
+import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.StripMetric
 
@@ -47,6 +48,7 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
         ToggleRow(host, "hud-snap", stringResource(R.string.hud_snap), stringResource(R.string.hud_snap_hint), on("hudSnap"),
             chipModifier = track("hud-snap")) { a.onHudSetting("hudSnap", flag(it)) }
     }
+    if (GpuClockPin.supported) GpuClockGroup(host, a.gpuClockPin, track("gpuclock"), a.onGpuClockPin)
     if (a.dashboardAvailable && a.secondScreenDisplays.isNotEmpty()) BottomStripSettings(host, track)
     if (!a.hudOn) return
 

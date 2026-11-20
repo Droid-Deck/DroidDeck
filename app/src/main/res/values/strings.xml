@@ -49,7 +49,6 @@
         <item>Add Steam libraries from an SD card, USB drive or SSD, and DroidDeck keeps the games together in your Library.</item>
         <item>Stores lets you sign in to Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io and Game Jolt, then install and update their games from DroidDeck.</item>
         <item>Components like FEX, DXVK and VKD3D-Proton update themselves, and Proton Experimental ARM64 is the default, or Proton 11.0 ARM64 once that build is installed.</item>
-        <item>Compress Steam while a game runs frees RAM on devices that run low.</item>
         <item>Swipe in from the right edge to open the session menu: touchpad mode, PC keyboard, low latency, game profile and more.</item>
         <item>Game running slow? Cap the frame rate in Quick Access, then try another Proton version or FEX preset in the game\'s components.</item>
         <item>Crackling or missing game audio? Try the DirectAudio for games toggle in Steam settings under Audio.</item>
@@ -654,20 +653,8 @@
     <string name="perf_gsrealtime">gamescope: realtime GPU queue</string>
     <string name="perf_gsrealtime_hint">Prioritizes the compositor\'s GPU work. Can smooth frame pacing at some cost to games.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memory</string>
     <string name="perf_cap_off">Off</string>
-    <string name="perf_cap_auto">Driver default</string>
-    <string name="perf_zram_client">Compress Steam while a game runs</string>
-    <string name="perf_zram_idle">Compress idle game memory</string>
-    <string name="perf_zram_idle_hint">Pages out idle game memory when RAM is low. Turn this off if games freeze for a few seconds about every half minute. Applies the next time the session starts.</string>
-    <string name="perf_zram_client_hint">Compresses Steam while a game runs, starting sooner when memory is tight. Steam is read back after the game closes once enough RAM is available. Turn this off if the session closes shortly after games start. A RAM cap above still compresses Steam when the session goes over it.</string>
-    <string name="perf_ram_cap">RAM cap</string>
-    <string name="perf_ram_cap_hint">Applies while the Steam client runs, in Steam mode or from the desktop. When the session uses more than this, Steam and then the session\'s other supported processes are compressed into zRAM. A soft cap: nothing is closed, but games may stutter while pages come back.</string>
-    <string name="perf_ram_cap_unavailable">Needs zRAM swap, which this device does not have.</string>
-    <string name="perf_vram_cap">VRAM cap</string>
-    <string name="perf_vram_cap_hint">Reports this video memory budget to Direct3D 9 to 12 games to encourage lower memory use. Games may exceed it; this does not add GPU paging or guarantee protection from out-of-memory crashes. Takes effect at the next session.</string>
     <string name="perf_gpuclock">Hold the GPU at its top clock</string>
-    <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Applies to the Steam client and games. Required on Adreno 710/720/722.</string>
@@ -2052,6 +2039,20 @@
     <string name="theme_color_saturation">Saturation</string>
     <string name="theme_color_brightness">Brightness</string>
     <string name="theme_color_hex">Hex color</string>
+    <string name="theme_custom">Custom</string>
+    <string name="theme_custom_detail">Choose each interface color independently.</string>
+    <string name="theme_custom_background">Background</string>
+    <string name="theme_custom_surface">Panels</string>
+    <string name="theme_custom_surface_variant">Raised panels</string>
+    <string name="theme_custom_line">Dividers</string>
+    <string name="theme_custom_line2">Borders</string>
+    <string name="theme_custom_on_background">Main text</string>
+    <string name="theme_custom_on_surface_variant">Secondary text</string>
+    <string name="theme_custom_primary">Buttons and main accent</string>
+    <string name="theme_custom_on_primary">Button text</string>
+    <string name="theme_custom_signal">Highlights</string>
+    <string name="theme_custom_good">Success</string>
+    <string name="theme_custom_error">Error</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2542,6 +2543,17 @@
     <string name="pextra_checksum_mismatch">Checksum mismatch; the download was deleted</string>
     <string name="pextra_session_started">A session started during the download; stop it before installing compatibility tools</string>
     <string name="pextra_installing">Installing %1$s</string>
+    <string name="xproton_title">Experimental builds</string>
+    <string name="xproton_install_file">Install from file</string>
+    <string name="xproton_archive_unsafe">Archive contains an unsafe link or path</string>
+    <string name="xproton_archive_invalid">Unsupported or invalid archive</string>
+    <string name="xproton_no_space">Not enough free space for this Proton build</string>
+    <string name="xproton_unpacking">Unpacking Proton (a few minutes)</string>
+    <string name="xproton_untar_failed">Unpacking failed (tar %1$d)</string>
+    <string name="xproton_no_tree">The archive holds no Proton build</string>
+    <string name="xproton_place_failed">Could not place the Proton build</string>
+    <string name="xproton_remove_failed">Could not fully remove %1$s</string>
+    <string name="xproton_installed">Experimental Proton installed. Pick it in Steam → Properties → Compatibility.</string>
     <string name="pextra_install_failed">%1$s installation failed (exit %2$d)</string>
     <string name="pextra_could_not_install">Could not install %1$s</string>
     <string name="esync_fetching">Fetching droiddeck-esync pack</string>
@@ -3623,10 +3635,19 @@
     <string name="storage_shared_prefix">Steam’s shared prefix</string>
     <string name="storage_shared_prefix_detail">Steam runs its own Windows helpers here</string>
     <string name="storage_reset_shared_confirm">Deletes it (%1$s). Steam makes a new one the next time it needs it.</string>
+    <string name="storage_remove_launcher_confirm">Deletes this store app’s Wine prefix and shader cache (%1$s), with its sign-in and any saves kept only there. Games that run in it get a fresh prefix, and you may need to set the app up again. Cloud saves stay in your account.</string>
+    <string name="storage_system_clearable">%1$s can be cleared</string>
+    <string name="storage_item_system_caches">Linux and Steam caches</string>
+    <string name="storage_item_system_caches_detail">Old temporary files, downloaded packages and Steam’s web cache</string>
+    <string name="storage_cache_temp">Old temporary files</string>
+    <string name="storage_cache_packages">Downloaded packages</string>
+    <string name="storage_cache_steam_web">Steam web cache</string>
+    <string name="storage_cache_steam_corrupt">Damaged Steam downloads</string>
+    <string name="storage_cache_detail">Made again when needed</string>
+    <string name="storage_clear">Clear</string>
     <string name="storage_launcher_prefix">A store app and the games that run with it</string>
     <string name="storage_launcher_used_by">Used by %1$s</string>
     <string name="storage_shortcut_app">Non-Steam game %1$s</string>
-    <string name="storage_unknown_prefix_detail">Not matched to a game, so it is kept</string>
     <string name="storage_remove_selected">Remove selected · %1$s</string>
     <string name="storage_uninstall_selected">Uninstall selected · %1$s</string>
     <string name="storage_bulk_prefixes">Wine prefixes</string>
@@ -4296,6 +4317,12 @@
     <string name="library_accounts">Store accounts</string>
     <string name="library_account_sign_in">Sign in</string>
     <string name="library_account_sign_out">Sign out</string>
+    <string name="library_manage_stores">Manage stores</string>
+    <string name="library_all_games">All games</string>
+    <string name="library_custom_games">Custom games</string>
+    <string name="store_account_signed_out">Not signed in</string>
+    <string name="store_account_expired">Login expired</string>
+    <string name="store_account_api_key">Uses an API key</string>
     <string name="tabs_reset">Reset</string>
     <string name="tabs_reset_title">Reset tabs</string>
     <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>

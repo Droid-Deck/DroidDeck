@@ -46,21 +46,20 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.SdStorage
-import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material.icons.outlined.Terminal
-import androidx.compose.material.icons.outlined.DesktopWindows
-import androidx.compose.material.icons.outlined.Layers
-import androidx.compose.material.icons.outlined.LocalMall
-import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SdStorage
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.SportsEsports
-import androidx.compose.material.icons.outlined.Storefront
-import androidx.compose.material.icons.outlined.SystemUpdate
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -194,21 +193,22 @@ internal fun SideRail(
     }
 }
 
+// Solid icons in the Steam Deck menu's style; where Steam has the same place (Library, Store, Downloads, Settings) its glyph is used.
 internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
-    "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
-    "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
+    "steam" -> R.string.rail_steam to Icons.Filled.SportsEsports
+    "games" -> R.string.rail_games to Icons.Filled.GridView
     "soundtracks" -> R.string.rail_music to SoundtrackIcon
-    "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
-    "downloads" -> R.string.stores_tab_downloads to Icons.Outlined.Download
-    "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
-    "components" -> R.string.rail_components to Icons.Outlined.Layers
-    "agent" -> R.string.rail_agent to Icons.Outlined.Terminal
-    "android-apps" -> R.string.rail_apps to Icons.Outlined.Apps
-    "setup" -> R.string.rail_setup to Icons.Outlined.Tune
-    "storage" -> R.string.rail_storage to Icons.Outlined.SdStorage
-    "sync" -> R.string.rail_sync to Icons.Outlined.Sync
-    NavTabs.MORE -> R.string.rail_more to Icons.Outlined.MoreHoriz
-    else -> R.string.rail_updates to Icons.Outlined.SystemUpdate
+    "stores" -> R.string.rail_stores to Icons.Filled.LocalOffer
+    "downloads" -> R.string.stores_tab_downloads to Icons.Filled.Download
+    "desktop" -> R.string.rail_desktop to Icons.Filled.DesktopWindows
+    "components" -> R.string.rail_components to Icons.Filled.Layers
+    "agent" -> R.string.rail_agent to Icons.Filled.Terminal
+    "android-apps" -> R.string.rail_apps to Icons.Filled.Apps
+    "setup" -> R.string.rail_setup to Icons.Filled.Settings
+    "storage" -> R.string.rail_storage to Icons.Filled.SdStorage
+    "sync" -> R.string.rail_sync to Icons.Filled.Sync
+    NavTabs.MORE -> R.string.rail_more to Icons.Filled.MoreHoriz
+    else -> R.string.rail_updates to Icons.Filled.SystemUpdate
 }
 
 internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||

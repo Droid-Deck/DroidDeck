@@ -22,7 +22,6 @@
         <item>Přidejte knihovny Steamu z SD karty, USB disku nebo SSD a DroidDeck udrží hry pohromadě v Knihovně.</item>
         <item>Obchody vám umožní přihlásit se do Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io a Game Jolt a pak instalovat a aktualizovat jejich hry přímo z DroidDeck.</item>
         <item>Komponenty jako FEX, DXVK a VKD3D-Proton se aktualizují samy a výchozí je Proton Experimental ARM64, případně Proton 11.0 ARM64, jakmile je tato verze nainstalovaná.</item>
-        <item>Komprimovat Steam během hry uvolní RAM na zařízeních s nedostatkem paměti.</item>
         <item>Přejetím od pravého okraje otevřete nabídku relace: režim touchpadu, Klávesnice PC, Režim nízkého zpoždění, profil hry a další.</item>
         <item>Hra běží pomalu? Omezte snímkovou frekvenci v Quick Access a zkuste jinou verzi Proton nebo jinou předvolbu FEX v komponentách hry.</item>
         <item>Praskání nebo chybějící zvuk ve hře? Zkuste přepínač DirectAudio pro hry v nastavení Steamu v části Zvuk.</item>
@@ -630,20 +629,8 @@
     <string name="perf_gsrealtime">gamescope: fronta GPU v reálném čase</string>
     <string name="perf_gsrealtime_hint">Dává prioritu práci GPU kompozitoru. Může vyhladit tempo snímků na úkor her.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Paměť</string>
     <string name="perf_cap_off">Vypnuto</string>
-    <string name="perf_cap_auto">Výchozí ovladače</string>
-    <string name="perf_zram_client">Komprimovat Steam během hry</string>
-    <string name="perf_zram_idle">Komprimovat neaktivní paměť hry</string>
-    <string name="perf_zram_idle_hint">Při nedostatku RAM stránkuje neaktivní paměť hry. Vypněte to, pokud hry zhruba každou půlminutu na několik sekund zamrznou. Projeví se při příštím spuštění relace.</string>
-    <string name="perf_zram_client_hint">20 s po spuštění hry se klient Steam zkomprimuje do zRAM, aby hře zbylo více paměti, a po zavření hry se načte zpět. Vypněte, pokud se relace krátce po spuštění her zavírá. Limit RAM výše stále komprimuje Steam, když ho relace překročí.</string>
-    <string name="perf_ram_cap">Limit RAM</string>
-    <string name="perf_ram_cap_hint">Platí, když běží klient Steam, v režimu Steam nebo z Plochy. Když relace použije víc, zkomprimuje se do zRAM Steam a poté další podporované procesy relace. Měkký limit: nic se nezavře, ale hry mohou trhat, než se stránky načtou zpět.</string>
-    <string name="perf_ram_cap_unavailable">Vyžaduje swap zRAM, který toto zařízení nemá.</string>
-    <string name="perf_vram_cap">Limit VRAM</string>
-    <string name="perf_vram_cap_hint">Hlásí hrám s Direct3D 9 až 12 tento rozpočet videopaměti, aby snížily její využití. Hry jej mohou překročit; nepřidává stránkování GPU ani nezaručuje ochranu před pády kvůli nedostatku paměti. Platí od příští relace.</string>
     <string name="perf_gpuclock">Udržet GPU na nejvyšších taktech</string>
-    <string name="perf_gpuclock_hint">Jen Adreno. Méně zadrhávání, více spotřeby baterie a tepla.</string>
     <string name="perf_fixes">Opravy relace</string>
     <string name="perf_sysmem">Turnip: vykreslování sysmem</string>
     <string name="perf_sysmem_hint">Platí pro klienta Steam i hry. Vyžadováno na Adreno 710/720/722.</string>
@@ -2365,6 +2352,17 @@
     <string name="pextra_checksum_mismatch">Neshoda kontrolního součtu; stahování bylo odstraněno</string>
     <string name="pextra_session_started">Během stahování se spustila relace; před instalací nástrojů kompatibility ji zastavte</string>
     <string name="pextra_installing">Instalování %1$s</string>
+    <string name="xproton_title">Experimentální sestavení</string>
+    <string name="xproton_install_file">Instalovat ze souboru</string>
+    <string name="xproton_archive_unsafe">Archiv obsahuje nebezpečný odkaz nebo cestu</string>
+    <string name="xproton_archive_invalid">Nepodporovaný nebo neplatný archiv</string>
+    <string name="xproton_no_space">Pro toto sestavení Proton není dost volného místa</string>
+    <string name="xproton_unpacking">Rozbalování Proton (několik minut)</string>
+    <string name="xproton_untar_failed">Rozbalení se nezdařilo (tar %1$d)</string>
+    <string name="xproton_no_tree">Archiv neobsahuje sestavení Proton</string>
+    <string name="xproton_place_failed">Sestavení Proton se nepodařilo umístit</string>
+    <string name="xproton_remove_failed">Nepodařilo se úplně odebrat %1$s</string>
+    <string name="xproton_installed">Experimentální Proton je nainstalován. Vyberte ho ve Steam → Vlastnosti → Kompatibilita.</string>
     <string name="pextra_install_failed">Instalace %1$s se nezdařila (návratový kód %2$d)</string>
     <string name="pextra_could_not_install">Nepodařilo se nainstalovat %1$s</string>
     <string name="esync_fetching">Stahování balíčku droiddeck-esync</string>
@@ -3419,10 +3417,19 @@
     <string name="storage_shared_prefix">Sdílený prefix Steamu</string>
     <string name="storage_shared_prefix_detail">Steam zde spouští své pomocné programy pro Windows</string>
     <string name="storage_reset_shared_confirm">Smaže ho (%1$s). Steam si vytvoří nový, až ho bude příště potřebovat.</string>
+    <string name="storage_remove_launcher_confirm">Smaže Wine prefix a mezipaměť shaderů této aplikace obchodu (%1$s) včetně přihlášení a uložených pozic, které jsou jen tam. Hry, které v něm běží, dostanou nový prefix a aplikaci možná bude třeba znovu nastavit. Cloudové uložené pozice zůstanou ve vašem účtu.</string>
+    <string name="storage_system_clearable">Lze uvolnit %1$s</string>
+    <string name="storage_item_system_caches">Mezipaměti Linuxu a Steamu</string>
+    <string name="storage_item_system_caches_detail">Staré dočasné soubory, stažené balíčky a webová mezipaměť Steamu</string>
+    <string name="storage_cache_temp">Staré dočasné soubory</string>
+    <string name="storage_cache_packages">Stažené balíčky</string>
+    <string name="storage_cache_steam_web">Webová mezipaměť Steamu</string>
+    <string name="storage_cache_steam_corrupt">Poškozená stahování Steamu</string>
+    <string name="storage_cache_detail">V případě potřeby se vytvoří znovu</string>
+    <string name="storage_clear">Vymazat</string>
     <string name="storage_launcher_prefix">Aplikace obchodu a hry, které s ní běží</string>
     <string name="storage_launcher_used_by">Používá: %1$s</string>
     <string name="storage_shortcut_app">Hra mimo Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Nepatří k žádné hře, proto zůstává</string>
     <string name="storage_remove_selected">Odebrat vybrané · %1$s</string>
     <string name="storage_uninstall_selected">Odinstalovat vybrané · %1$s</string>
     <string name="storage_bulk_prefixes">Prefixy Wine</string>
@@ -4173,4 +4180,18 @@
     <string name="display_scaling_integer">Celé číslo</string>
     <string name="display_scaling_fit">Přizpůsobit</string>
     <string name="drawer_antialiasing">Vyhlazování hran</string>
+    <string name="theme_custom">Vlastní</string>
+    <string name="theme_custom_detail">Vyberte samostatně každou barvu rozhraní.</string>
+    <string name="theme_custom_background">Pozadí</string>
+    <string name="theme_custom_surface">Panely</string>
+    <string name="theme_custom_surface_variant">Vyvýšené panely</string>
+    <string name="theme_custom_line">Oddělovače</string>
+    <string name="theme_custom_line2">Ohraničení</string>
+    <string name="theme_custom_on_background">Hlavní text</string>
+    <string name="theme_custom_on_surface_variant">Vedlejší text</string>
+    <string name="theme_custom_primary">Tlačítka a hlavní zvýraznění</string>
+    <string name="theme_custom_on_primary">Text tlačítek</string>
+    <string name="theme_custom_signal">Zvýraznění</string>
+    <string name="theme_custom_good">Úspěch</string>
+    <string name="theme_custom_error">Chyba</string>
 </resources>

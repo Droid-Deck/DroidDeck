@@ -437,6 +437,7 @@ internal fun SetupPanel(
                                 }
                                 if (s.theme == Themes.INNER_GAMER) RgbSpeedRow()
                                 if (s.theme == Themes.GRADIENT) GradientColorRows()
+                                if (s.theme == Themes.CUSTOM) CustomColorRows()
                                 if (s.theme == Themes.TRUE_BLACK) HighlightColorRow()
                                 ChoiceRow(
                                     host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
@@ -1210,5 +1211,44 @@ private fun GradientColorRows() {
         onDismiss = { picking = 0 },
     ) { argb ->
         if (picking == 1) Themes.setGradient(ctx, argb, secondary) else Themes.setGradient(ctx, primary, argb)
+    }
+}
+
+@Composable
+private fun CustomColorRows() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val colors = Themes.customColors
+    var picking by remember { mutableStateOf<String?>(null) }
+
+    val rows = listOf(
+        Triple("background", stringResource(R.string.theme_custom_background), colors.background),
+        Triple("surface", stringResource(R.string.theme_custom_surface), colors.surface),
+        Triple("surfaceVariant", stringResource(R.string.theme_custom_surface_variant), colors.surfaceVariant),
+        Triple("line", stringResource(R.string.theme_custom_line), colors.line),
+        Triple("line2", stringResource(R.string.theme_custom_line2), colors.line2),
+        Triple("onBackground", stringResource(R.string.theme_custom_on_background), colors.onBackground),
+        Triple("onSurfaceVariant", stringResource(R.string.theme_custom_on_surface_variant), colors.onSurfaceVariant),
+        Triple("primary", stringResource(R.string.theme_custom_primary), colors.primary),
+        Triple("onPrimary", stringResource(R.string.theme_custom_on_primary), colors.onPrimary),
+        Triple("signal", stringResource(R.string.theme_custom_signal), colors.signal),
+        Triple("good", stringResource(R.string.theme_custom_good), colors.good),
+        Triple("error", stringResource(R.string.theme_custom_error), colors.error),
+    )
+
+    rows.forEach { (key, label, argb) ->
+        SettingsRow(label, null) {
+            ColorCube(Color(argb), label) { picking = key }
+        }
+    }
+
+    val selected = rows.firstOrNull { it.first == picking }
+    if (selected != null) {
+        ColorPickerDialog(
+            selected.second,
+            selected.third,
+            onDismiss = { picking = null },
+        ) { argb ->
+            Themes.setCustomColor(ctx, selected.first, argb)
+        }
     }
 }

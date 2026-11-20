@@ -22,7 +22,6 @@
         <item>เพิ่มคลังเกม Steam จากการ์ด SD ไดรฟ์ USB หรือ SSD แล้ว DroidDeck จะรวมเกมไว้ด้วยกันใน ไลบรารี ของคุณ</item>
         <item>สโตร์ ให้คุณลงชื่อเข้าใช้ Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io และ Game Jolt แล้วติดตั้งและอัปเดตเกมของสโตร์เหล่านั้นจาก DroidDeck ได้</item>
         <item>คอมโพเนนต์อย่าง FEX, DXVK และ VKD3D-Proton อัปเดตตัวเอง และค่าเริ่มต้นคือ Proton Experimental ARM64 หรือ Proton 11.0 ARM64 เมื่อติดตั้งบิลด์นั้นแล้ว</item>
-        <item>บีบอัด Steam ขณะเล่นเกม ช่วยเพิ่ม RAM ว่างบนอุปกรณ์ที่หน่วยความจำเหลือน้อย</item>
         <item>ปัดเข้าจากขอบขวาเพื่อเปิดเมนูเซสชัน: โหมดทัชแพด แป้นพิมพ์พีซี โหมดหน่วงเวลาต่ำ โปรไฟล์เกม และอื่น ๆ</item>
         <item>เกมช้าใช่ไหม ลองจำกัดเฟรมเรตใน Quick Access แล้วลองใช้ Proton เวอร์ชันอื่นหรือพรีเซ็ต FEX อื่นในคอมโพเนนต์ของเกม</item>
         <item>เสียงเกมแตกพร่าหรือไม่มีเสียง ลองเปิดสวิตช์ DirectAudio สำหรับเกม ในการตั้งค่า Steam ภายใต้ เสียง</item>
@@ -624,20 +623,8 @@
     <string name="perf_gsrealtime">gamescope: คิว GPU แบบเรียลไทม์</string>
     <string name="perf_gsrealtime_hint">ให้ความสำคัญกับงาน GPU ของตัวประกอบภาพก่อน อาจทำให้การเรียงเฟรมราบรื่นขึ้นโดยแลกกับประสิทธิภาพของเกมบางส่วน</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">หน่วยความจำ</string>
     <string name="perf_cap_off">ปิด</string>
-    <string name="perf_cap_auto">ค่าเริ่มต้นของไดรเวอร์</string>
-    <string name="perf_zram_client">บีบอัด Steam ขณะเล่นเกม</string>
-    <string name="perf_zram_idle">บีบอัดหน่วยความจำเกมที่ไม่ได้ใช้งาน</string>
-    <string name="perf_zram_idle_hint">บีบอัดหน่วยความจำเกมที่ไม่ได้ใช้งานเมื่อ RAM เหลือน้อย ปิดไว้หากเกมค้างไม่กี่วินาทีทุกประมาณครึ่งนาที มีผลเมื่อเริ่มเซสชันครั้งถัดไป</string>
-    <string name="perf_zram_client_hint">20 วินาทีหลังเกมเริ่ม ไคลเอนต์ Steam จะถูกบีบอัดลงใน zRAM เพื่อเหลือหน่วยความจำให้เกมมากขึ้น และอ่านกลับเมื่อปิดเกม ปิดตัวเลือกนี้หากเซสชันปิดไปไม่นานหลังเริ่มเกม ขีดจำกัด RAM ด้านบนยังคงบีบอัด Steam เมื่อเซสชันใช้เกินขีดจำกัด</string>
-    <string name="perf_ram_cap">ขีดจำกัด RAM</string>
-    <string name="perf_ram_cap_hint">มีผลขณะไคลเอนต์ Steam ทำงาน ทั้งในโหมด Steam หรือจากเดสก์ท็อป เมื่อเซสชันใช้เกินค่านี้ Steam และโปรเซสอื่นที่รองรับของเซสชันจะถูกบีบอัดลงใน zRAM ตามลำดับ เป็นขีดจำกัดแบบอ่อน: ไม่มีอะไรถูกปิด แต่เกมอาจกระตุกขณะดึงหน้าหน่วยความจำกลับมา</string>
-    <string name="perf_ram_cap_unavailable">ต้องใช้ zRAM swap ซึ่งอุปกรณ์นี้ไม่มี</string>
-    <string name="perf_vram_cap">ขีดจำกัด VRAM</string>
-    <string name="perf_vram_cap_hint">แจ้งงบประมาณหน่วยความจำวิดีโอนี้ให้เกม Direct3D 9 ถึง 12 เพื่อลดการใช้หน่วยความจำ เกมอาจใช้เกินงบได้ ฟีเจอร์นี้ไม่ได้เพิ่มการสลับหน้าหน่วยความจำ GPU และไม่รับประกันว่าจะป้องกันการแครชเมื่อหน่วยความจำหมด มีผลในเซสชันถัดไป</string>
     <string name="perf_gpuclock">ตรึง GPU ไว้ที่ความเร็วสัญญาณนาฬิกาสูงสุด</string>
-    <string name="perf_gpuclock_hint">สำหรับ Adreno เท่านั้น สะดุดน้อยลง แต่ใช้แบตเตอรี่และเกิดความร้อนมากขึ้น</string>
     <string name="perf_fixes">การแก้ไขเซสชัน</string>
     <string name="perf_sysmem">Turnip: การเรนเดอร์ sysmem</string>
     <string name="perf_sysmem_hint">ใช้กับไคลเอนต์ Steam และเกม จำเป็นสำหรับ Adreno 710/720/722</string>
@@ -2288,6 +2275,17 @@
     <string name="pextra_checksum_mismatch">ค่าตรวจสอบไม่ตรงกัน การดาวน์โหลดถูกลบแล้ว</string>
     <string name="pextra_session_started">มีเซสชันเริ่มขึ้นระหว่างการดาวน์โหลด หยุดเซสชันก่อนติดตั้งเครื่องมือความเข้ากันได้</string>
     <string name="pextra_installing">กำลังติดตั้ง %1$s</string>
+    <string name="xproton_title">บิลด์ทดลอง</string>
+    <string name="xproton_install_file">ติดตั้งจากไฟล์</string>
+    <string name="xproton_archive_unsafe">ไฟล์เก็บถาวรมีลิงก์หรือเส้นทางที่ไม่ปลอดภัย</string>
+    <string name="xproton_archive_invalid">ไฟล์เก็บถาวรไม่รองรับหรือไม่ถูกต้อง</string>
+    <string name="xproton_no_space">พื้นที่ว่างไม่เพียงพอสำหรับบิลด์ Proton นี้</string>
+    <string name="xproton_unpacking">กำลังแตกไฟล์ Proton (ใช้เวลาไม่กี่นาที)</string>
+    <string name="xproton_untar_failed">แตกไฟล์ไม่สำเร็จ (tar %1$d)</string>
+    <string name="xproton_no_tree">ไฟล์เก็บถาวรไม่มีบิลด์ Proton</string>
+    <string name="xproton_place_failed">ไม่สามารถวางบิลด์ Proton ได้</string>
+    <string name="xproton_remove_failed">ไม่สามารถลบ %1$s ออกให้หมดได้</string>
+    <string name="xproton_installed">ติดตั้ง Proton รุ่นทดลองแล้ว เลือกได้ที่ Steam → คุณสมบัติ → ความเข้ากันได้</string>
     <string name="pextra_install_failed">การติดตั้ง %1$s ล้มเหลว (ออกด้วยสถานะ %2$d)</string>
     <string name="pextra_could_not_install">ไม่สามารถติดตั้ง %1$s ได้</string>
     <string name="esync_fetching">กำลังดึงแพ็ก droiddeck-esync</string>
@@ -3316,10 +3314,19 @@
     <string name="storage_shared_prefix">Prefix Steam ที่ใช้ร่วมกัน</string>
     <string name="storage_shared_prefix_detail">Steam รันตัวช่วย Windows ของตัวเองที่นี่</string>
     <string name="storage_reset_shared_confirm">ลบ prefix นี้ (%1$s) Steam จะสร้างใหม่เมื่อต้องใช้ครั้งถัดไป</string>
+    <string name="storage_remove_launcher_confirm">ลบ Wine prefix และแคชเชเดอร์ของแอปร้านค้านี้ (%1$s) พร้อมการลงชื่อเข้าใช้และเซฟที่อยู่ในนั้นเท่านั้น เกมที่รันในนั้นจะได้ prefix ใหม่ และคุณอาจต้องตั้งค่าแอปอีกครั้ง เซฟบนคลาวด์ยังอยู่ในบัญชีของคุณ</string>
+    <string name="storage_system_clearable">ล้างได้ %1$s</string>
+    <string name="storage_item_system_caches">แคชของ Linux และ Steam</string>
+    <string name="storage_item_system_caches_detail">ไฟล์ชั่วคราวเก่า แพ็กเกจที่ดาวน์โหลด และแคชเว็บของ Steam</string>
+    <string name="storage_cache_temp">ไฟล์ชั่วคราวเก่า</string>
+    <string name="storage_cache_packages">แพ็กเกจที่ดาวน์โหลด</string>
+    <string name="storage_cache_steam_web">แคชเว็บของ Steam</string>
+    <string name="storage_cache_steam_corrupt">ไฟล์ดาวน์โหลด Steam ที่เสียหาย</string>
+    <string name="storage_cache_detail">สร้างใหม่เมื่อจำเป็น</string>
+    <string name="storage_clear">ล้าง</string>
     <string name="storage_launcher_prefix">แอปสโตร์และเกมที่ทำงานกับแอปนั้น</string>
     <string name="storage_launcher_used_by">ใช้โดย %1$s</string>
     <string name="storage_shortcut_app">เกมนอก Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">ไม่ตรงกับเกมใด จึงเก็บไว้</string>
     <string name="storage_remove_selected">นำรายการที่เลือกออก · %1$s</string>
     <string name="storage_uninstall_selected">ถอนการติดตั้งรายการที่เลือก · %1$s</string>
     <string name="storage_bulk_prefixes">Wine prefix</string>
@@ -4063,4 +4070,18 @@
     <string name="display_scaling_integer">จำนวนเต็ม</string>
     <string name="display_scaling_fit">พอดีหน้าจอ</string>
     <string name="drawer_antialiasing">การลบรอยหยัก</string>
+    <string name="theme_custom">กำหนดเอง</string>
+    <string name="theme_custom_detail">เลือกสีแต่ละสีของอินเทอร์เฟซแยกกัน</string>
+    <string name="theme_custom_background">พื้นหลัง</string>
+    <string name="theme_custom_surface">แผง</string>
+    <string name="theme_custom_surface_variant">แผงยกสูง</string>
+    <string name="theme_custom_line">ตัวแบ่ง</string>
+    <string name="theme_custom_line2">เส้นขอบ</string>
+    <string name="theme_custom_on_background">ข้อความหลัก</string>
+    <string name="theme_custom_on_surface_variant">ข้อความรอง</string>
+    <string name="theme_custom_primary">ปุ่มและสีเน้นหลัก</string>
+    <string name="theme_custom_on_primary">ข้อความบนปุ่ม</string>
+    <string name="theme_custom_signal">จุดเน้น</string>
+    <string name="theme_custom_good">สำเร็จ</string>
+    <string name="theme_custom_error">ข้อผิดพลาด</string>
 </resources>
