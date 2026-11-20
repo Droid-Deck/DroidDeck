@@ -85,6 +85,7 @@ static _Atomic int g_gate = -1;
 static char g_gate_why[320];
 static _Atomic int g_output_on = 1;
 static _Atomic int g_output_wanted = 1;
+static pthread_mutex_t g_output_mu = PTHREAD_MUTEX_INITIALIZER;
 
 void droiddeck_color_set_request(int mode, const char *source, int dxvk_hdr, int zero_copy_forced) {
     pthread_mutex_lock(&g_mu);
@@ -612,20 +613,23 @@ int droiddeck_color_tonemapped_on_screen(void) {
 
 void droiddeck_color_set_output(int on) {
     on = on ? 1 : 0;
+    pthread_mutex_lock(&g_mu);
+    const int tonemap_only = g_req.mode == 3;
+    pthread_mutex_unlock(&g_mu);
+    pthread_mutex_lock(&g_output_mu);
     atomic_store(&g_output_wanted, on);
     const int gate = atomic_load(&g_gate);
+    const int changed = gate == 1 && !(on && tonemap_only) && atomic_exchange(&g_output_on, on) != on;
+    pthread_mutex_unlock(&g_output_mu);
     if (gate != 1) {
         if (gate == 0) droiddeck_log(TAG, "HDR output switch (%s) ignored: HDR is not open in this session", on ? "on" : "off");
         return;
     }
-    pthread_mutex_lock(&g_mu);
-    const int tonemap_only = g_req.mode == 3;
-    pthread_mutex_unlock(&g_mu);
     if (on && tonemap_only) {
         droiddeck_log(TAG, "HDR output switch (on) ignored: this display cannot show HDR10, HDR frames stay tone-mapped");
         return;
     }
-    if (atomic_exchange(&g_output_on, on) == on) return;
+    if (!changed) return;
     char who[160];
     int age = droiddeck_color_last_frame_age_ms(), tm = droiddeck_color_tonemapped_on_screen();
     pthread_mutex_lock(&g_mu);
@@ -1332,16 +1336,17 @@ void droiddeck_color_init(struct wl_display *display) {
         log_verdict(1);
         return;
     }
+    pthread_mutex_lock(&g_output_mu);
     atomic_store(&g_gate, 1);
+    if (mode == 3 || !atomic_load(&g_output_wanted)) atomic_store(&g_output_on, 0);
+    pthread_mutex_unlock(&g_output_mu);
     char syms[160];
     sc_layer_hdr_symbols(syms, sizeof(syms));
     droiddeck_log(TAG, "HDR gate %s: %s and %s. Offering games HDR10: wp_color_manager_v1 version 1 (BT.2020 primaries "
                "+ ST 2084 PQ, parametric descriptions with mastering metadata) and 10-bit AB30/XB30 dma-buf formats; HDR "
                "frames go on the game's own display layer as BT2020_PQ (%s)",
                mode == 2 ? "FORCED OPEN (testing)" : "OPEN", asked, disp, syms);
-    if (!atomic_load(&g_output_wanted)) atomic_store(&g_output_on, 0);
     if (mode == 3) {
-        atomic_store(&g_output_on, 0);
         droiddeck_log(TAG, "this display cannot show HDR10: games still render HDR and every HDR frame is tone-mapped to "
                    "SDR on the game's display layer");
     }

@@ -63,9 +63,13 @@ class HdrLiveSwitchTest(unittest.TestCase):
     def test_a_saved_opt_out_applies_before_the_gate_opens(self):
         native = (ROOT / "app/src/main/cpp/waylandcomp/src/wl_color_mgmt.c").read_text()
         switch = native[native.index("void droiddeck_color_set_output(int on)"):]
-        self.assertLess(switch.index("atomic_store(&g_output_wanted, on)"), switch.index("gate != 1"))
-        opened = native[native.index("atomic_store(&g_gate, 1);"):]
-        self.assertIn("if (!atomic_load(&g_output_wanted)) atomic_store(&g_output_on, 0);", opened[:opened.index("if (mode == 3)")])
+        switch = switch[:switch.index("if (gate != 1)")]
+        self.assertLess(switch.index("pthread_mutex_lock(&g_output_mu)"), switch.index("atomic_store(&g_output_wanted, on)"))
+        self.assertLess(switch.index("atomic_exchange(&g_output_on, on)"), switch.index("pthread_mutex_unlock(&g_output_mu)"))
+        opened = native[native.index("atomic_store(&g_gate, 1);") - 40:]
+        opened = opened[:opened.index("pthread_mutex_unlock(&g_output_mu)")]
+        self.assertIn("pthread_mutex_lock(&g_output_mu)", opened)
+        self.assertIn("if (mode == 3 || !atomic_load(&g_output_wanted)) atomic_store(&g_output_on, 0);", opened)
         text = (APP / "SessionActivity.kt").read_text()
         self.assertNotIn("if (attached) WaylandCompositor.nativeSetHdrOutput", text)
 
