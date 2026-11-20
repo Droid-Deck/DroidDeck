@@ -4,6 +4,7 @@ import android.net.LocalServerSocket
 import android.net.LocalSocket
 import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
+import com.droiddeck.launcher.input.HeldInput
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.BufferedInputStream
 import java.io.DataInputStream
@@ -14,8 +15,9 @@ import java.nio.ByteOrder
 
 class UinputDesktopComponent : SessionPart() {
     @Volatile private var server: LocalServerSocket? = null
-    private val clients = HashSet<LocalSocket>()
-    private val sink = DesktopUinputDevice.SharedSink(CompositorSink)
+    private val clients = HashMap<LocalSocket, Int>()
+    private val keys = HeldInput(CompositorSink::key)
+    private val buttons = HeldInput(CompositorSink::button)
 
     override fun start() {
         val s = try { LocalServerSocket(NAME) } catch (e: Exception) { Log.w(TAG, "uinput: no listener ($e)"); return }
@@ -27,11 +29,15 @@ class UinputDesktopComponent : SessionPart() {
                     runCatching { client.close() }
                     continue
                 }
-                if (!synchronized(clients) { server === s && clients.add(client) }) {
+                val source = synchronized(clients) {
+                    if (server !== s) 0
+                    else Integer.lowestOneBit(clients.values.fold(0, Int::or).inv()).also { if (it != 0) clients[client] = it }
+                }
+                if (source == 0) {
                     runCatching { client.close() }
                     continue
                 }
-                Thread({ serve(client) }, "uinput-device").apply { isDaemon = true; start() }
+                Thread({ serve(client, source) }, "uinput-device").apply { isDaemon = true; start() }
             }
         }, "uinput-desktop").apply { isDaemon = true; start() }
         Log.i(TAG, "uinput: listening on @$NAME")
@@ -42,14 +48,14 @@ class UinputDesktopComponent : SessionPart() {
         server = null
         runCatching { s?.close() }
         synchronized(clients) {
-            clients.forEach { runCatching { it.close() } }
+            clients.keys.forEach { runCatching { it.close() } }
             clients.clear()
         }
     }
 
-    private fun serve(client: LocalSocket) {
+    private fun serve(client: LocalSocket, source: Int) {
         try {
-            read(client.inputStream, sink)
+            read(client.inputStream, CompositorSink, keys, buttons, source)
         } catch (e: Exception) {
             Log.w(TAG, "uinput: device stream ended ($e)")
         } finally {
@@ -76,7 +82,7 @@ class UinputDesktopComponent : SessionPart() {
         const val HEADER_BYTES = 20
         const val EVENT_BYTES = 8
 
-        internal fun read(stream: InputStream, sink: DesktopUinputDevice.Sink) {
+        internal fun read(stream: InputStream, sink: DesktopUinputDevice.Sink, keys: HeldInput, buttons: HeldInput, source: Int) {
             val input = DataInputStream(BufferedInputStream(stream))
             val header = ByteArray(HEADER_BYTES)
             input.readFully(header)
@@ -90,6 +96,9 @@ class UinputDesktopComponent : SessionPart() {
                 if (xMax > xMin) xMin..xMax else null,
                 if (yMax > yMin) yMin..yMax else null,
                 sink,
+                keys,
+                buttons,
+                source,
             )
             val event = ByteArray(EVENT_BYTES)
             val e = ByteBuffer.wrap(event).order(ByteOrder.LITTLE_ENDIAN)

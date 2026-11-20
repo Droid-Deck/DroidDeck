@@ -7,6 +7,9 @@ class DesktopUinputDevice(
     private val absX: IntRange?,
     private val absY: IntRange?,
     private val sink: Sink,
+    private val keys: HeldInput,
+    private val buttons: HeldInput,
+    private val source: Int,
 ) {
     interface Sink {
         fun key(code: Int, down: Boolean)
@@ -16,27 +19,6 @@ class DesktopUinputDevice(
         fun wheel(vertical120: Int, horizontal120: Int)
     }
 
-    class SharedSink(private val out: Sink) : Sink by out {
-        private val keys = IntArray(KEY_MAX + 1)
-        private val buttons = IntArray(KEY_MAX + 1)
-
-        @Synchronized
-        override fun key(code: Int, down: Boolean) { if (hold(keys, code, down)) out.key(code, down) }
-
-        @Synchronized
-        override fun button(code: Int, down: Boolean) { if (hold(buttons, code, down)) out.button(code, down) }
-
-        private fun hold(holds: IntArray, code: Int, down: Boolean): Boolean {
-            if (code !in holds.indices) return false
-            val before = holds[code]
-            if (!down && before == 0) return false
-            holds[code] = before + if (down) 1 else -1
-            return if (down) before == 0 else before == 1
-        }
-    }
-
-    private val heldKeys = HeldInput(sink::key)
-    private val heldButtons = HeldInput(sink::button)
     private var dx = 0
     private var dy = 0
     private var x = -1
@@ -60,8 +42,8 @@ class DesktopUinputDevice(
 
     fun release() {
         flushMotion()
-        heldKeys.release(SOURCE)
-        heldButtons.release(SOURCE)
+        keys.release(source)
+        buttons.release(source)
     }
 
     private fun key(code: Int, down: Boolean) {
@@ -72,12 +54,12 @@ class DesktopUinputDevice(
         }
         if (button != null) {
             flushMotion()
-            heldButtons.set(SOURCE, button, down)
+            buttons.set(source, button, down)
             return
         }
         if (code !in KEY_ESC until BTN_MISC && code !in KEY_OK..KEY_MAX) return
         flushMotion()
-        heldKeys.set(SOURCE, code, down)
+        keys.set(source, code, down)
     }
 
     private fun relative(code: Int, value: Int) {
@@ -140,7 +122,6 @@ class DesktopUinputDevice(
         const val ABS_X = 0x00
         const val ABS_Y = 0x01
         const val WHEEL_UNITS = 120
-        private const val SOURCE = 1
 
         private fun scale(value: Int, range: IntRange, size: Int): Int =
             ((value.toLong() - range.first) * (size - 1) / (range.last.toLong() - range.first))
