@@ -300,6 +300,7 @@ def ubisoft_composition_off(proton, env):
 
 
 PZ_JVM_FLAGS = ("-XX:+UseG1GC", "-XX:TieredStopAtLevel=1")
+PZ_LINUX_SETTINGS = "ProjectZomboid64.json"
 
 
 def zomboid_vm_args(args):
@@ -325,12 +326,15 @@ def zomboid_rewrite(node):
 
 
 def project_zomboid_jvm(command):
-    if len(command) <= 2:
+    if len(command) > 2:
+        zomboid_launcher_jvm(command[2])
+
+
+def zomboid_launcher_jvm(program):
+    launcher = Path(program)
+    if not launcher.stem.lower().startswith("projectzomboid"):
         return
-    exe = Path(command[2])
-    if not exe.stem.lower().startswith("projectzomboid"):
-        return
-    settings = exe.with_suffix(".json")
+    settings = launcher.parent / PZ_LINUX_SETTINGS if launcher.suffix == ".sh" else launcher.with_suffix(".json")
     try:
         with settings.open(encoding="utf-8-sig") as source:
             data = json.load(source)
@@ -346,7 +350,7 @@ def project_zomboid_jvm(command):
         except BaseException:
             os.unlink(staged)
             raise
-        print("droiddeck-game-env: Project Zomboid: G1 garbage collector and C1 JIT only (ZGC overheats and stalls here)",
+        print("droiddeck-game-env: Project Zomboid: G1 garbage collector and C1 JIT only (ZGC overheats, and under FEX cannot reserve its heap)",
               file=sys.stderr)
     except (OSError, ValueError, AttributeError) as error:
         print("droiddeck-game-env: Project Zomboid JVM settings left as is (%s)" % error, file=sys.stderr)
