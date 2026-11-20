@@ -250,6 +250,7 @@ class DrawerActions(
     val cardboard: Cardboard = Cardboard.OFF,
     val cardboardSensor: Boolean = false,
     val steamVr: SteamVr.Status? = null,
+    val steamVrPercent: Int? = null,
     val glassesPresent: Boolean = false,
     val glassesOutput: Boolean = false,
     val immersiveSteamVr: Boolean = false,
@@ -1251,7 +1252,7 @@ private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
         }
         when (a.steamVr) {
             SteamVr.Status.NOT_INSTALLED -> button(vrLabel, stringResource(R.string.cardboard_steamvr_install), "install")
-            SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
+            SteamVr.Status.INSTALLING -> SteamVrInstalling(vrLabel, a.steamVrPercent)
             SteamVr.Status.READY -> button(vrLabel, enterLabel, "start")
             SteamVr.Status.RUNNING -> {
                 if (a.immersiveSteamVr) button(vrLabel, enterLabel, "start")
@@ -1267,11 +1268,18 @@ private fun SteamVrGroup(a: DrawerActions, track: (String) -> Modifier) {
 }
 
 @Composable
+private fun SteamVrInstalling(label: String, percent: Int?) {
+    SettingsRow(label, stringResource(R.string.cardboard_steamvr_installing)) {
+        if (percent != null) Text(stringResource(R.string.ctrl_percent, percent), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
 private fun SteamVrRow(a: DrawerActions) {
     val vrLabel = stringResource(R.string.cardboard_steamvr)
     when (a.steamVr) {
         SteamVr.Status.NOT_INSTALLED -> ActionRow(vrLabel, null, stringResource(R.string.cardboard_steamvr_install), { a.onSteamVr("install") })
-        SteamVr.Status.INSTALLING -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_installing)) {}
+        SteamVr.Status.INSTALLING -> SteamVrInstalling(vrLabel, a.steamVrPercent)
         SteamVr.Status.READY -> ActionRow(vrLabel, null, stringResource(R.string.cardboard_steamvr_start), { a.onSteamVr("start") })
         SteamVr.Status.RUNNING -> ActionRow(vrLabel, null, stringResource(R.string.cardboard_steamvr_stop), { a.onSteamVr("stop") })
         SteamVr.Status.UNAVAILABLE -> SettingsRow(vrLabel, stringResource(R.string.cardboard_steamvr_unavailable)) {}

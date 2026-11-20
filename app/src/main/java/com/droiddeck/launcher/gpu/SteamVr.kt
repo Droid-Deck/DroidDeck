@@ -32,9 +32,21 @@ object SteamVr {
         }
     }
 
-    fun status(context: Context): Status = runCatching {
-        parse(AgentGuest.call(context, JSONObject().put("kind", "vr").put("action", "status"), STATUS_TIMEOUT_MS))
-    }.getOrDefault(Status.UNAVAILABLE)
+    data class Report(val status: Status, val percent: Int? = null)
+
+    fun status(context: Context): Status = report(context).status
+
+    fun report(context: Context): Report = runCatching {
+        report(AgentGuest.call(context, JSONObject().put("kind", "vr").put("action", "status"), STATUS_TIMEOUT_MS))
+    }.getOrDefault(Report(Status.UNAVAILABLE))
+
+    fun report(answer: JSONObject): Report {
+        val status = parse(answer)
+        val size = answer.optLong("size", 0L)
+        val done = answer.optLong("downloaded", -1L)
+        val percent = if (status == Status.INSTALLING && size > 0 && done in 0 until size) (done * 100 / size).toInt() else null
+        return Report(status, percent)
+    }
 
     fun run(context: Context, action: String): Boolean = runCatching {
         require(action in setOf("install", "start", "stop"))

@@ -1,9 +1,12 @@
+import hashlib
+import io
 import os
 import json
 import shutil
 import socket
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import unittest
@@ -248,6 +251,103 @@ class SteamVrHelperTest(unittest.TestCase):
         self.assertTrue(vrpath.is_file())
         self.assertTrue(xr.is_symlink())
 
+
+    def package(self):
+        payload = io.BytesIO()
+        with tarfile.open(fileobj=payload, mode='w') as archive:
+            body = b'#!/bin/sh\n' + os.urandom(6000).hex().encode() + b'\n'
+            entry = tarfile.TarInfo('opt/steamvr/bin/linuxarm64/vrstartup')
+            entry.size = len(body)
+            entry.mode = 0o755
+            archive.addfile(entry, io.BytesIO(body))
+        data = payload.getvalue()
+        source = self.root / 'package'
+        source.write_bytes(data)
+        text = self.helper.read_text()
+        for old, new in (('PKG_SIZE=571309057', 'PKG_SIZE=%d' % len(data)),
+                         ('PKG_SHA256=90a600775eb3e8856dc475f83166a93a290a0b1f3b4e82a69c8e2a8f06b9ddc9',
+                          'PKG_SHA256=' + hashlib.sha256(data).hexdigest())):
+            self.assertIn(old, text)
+            text = text.replace(old, new)
+        self.helper.write_text(text, encoding='utf-8')
+        self.executable(self.commands / 'zstd', 'exec cat "$2"')
+        self.environment['STEAMVR'] = str(self.root / 'fresh/steamvr')
+        return source, len(data)
+
+    def fake_curl(self, source, chunk, exit_code):
+        self.executable(self.commands / 'curl', '\n'.join((
+            'out=; previous=',
+            'for argument in "$@"; do [ "$previous" = -o ] && out=$argument; previous=$argument; done',
+            'echo "$*" >> %s' % (self.root / 'curl-calls'),
+            'have=$(stat -c %s "$out" 2>/dev/null || echo 0)',
+            'tail -c +$((have + 1)) %s | head -c %d >> "$out"' % (source, chunk),
+            '[ "$(stat -c %%s "$out")" -lt "$(stat -c %%s %s)" ] || exit 0' % source,
+            'echo "curl: (28) Operation too slow" >&2',
+            'exit %d' % exit_code,
+        )))
+
+    def install(self):
+        return subprocess.run(['sh', str(self.helper), 'install'], env=self.environment,
+                              capture_output=True, text=True, timeout=30)
+
+    def install_log(self):
+        return (self.home / '.local/share/Steam/logs/droiddeck-steamvr-install.log').read_text()
+
+    def test_install_resumes_a_stalled_download_and_logs_each_step(self):
+        source, size = self.package()
+        self.fake_curl(source, size // 8 + 1, 28)
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.root / 'fresh/steamvr/bin/linuxarm64/vrstartup').is_file())
+        calls = (self.root / 'curl-calls').read_text().splitlines()
+        self.assertEqual(len(calls), 8)
+        for call in calls:
+            self.assertIn('--speed-limit 1024 --speed-time 60', call)
+            self.assertIn('--connect-timeout 30', call)
+            self.assertIn('-C -', call)
+        log = self.install_log()
+        self.assertIn('curl exited 28', log)
+        self.assertIn('curl: (28) Operation too slow', log)
+        self.assertIn('curl exited 0 with %d of %d bytes' % (size, size), log)
+        self.assertIn('checking sha256', log)
+        self.assertIn('unpacking SteamVR', log)
+        self.assertIn('SteamVR installed in', log)
+        self.assertFalse((self.runtime / 'droiddeck-steamvr/installing').exists())
+        self.assertFalse((self.home / '.cache/droiddeck-vr/steamvr.pkg.tar.zst').exists())
+
+    def test_install_gives_up_when_the_download_makes_no_progress(self):
+        source, size = self.package()
+        self.fake_curl(source, 0, 28)
+        result = self.install()
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(len((self.root / 'curl-calls').read_text().splitlines()), 5)
+        self.assertIn('download failed', self.install_log())
+        self.assertFalse((self.runtime / 'droiddeck-steamvr/installing').exists())
+        self.assertFalse((self.root / 'fresh/steamvr').exists())
+
+    def test_install_removes_a_corrupt_download(self):
+        source, size = self.package()
+        self.fake_curl(source, size, 0)
+        corrupt = self.home / '.cache/droiddeck-vr/steamvr.pkg.tar.zst'
+        corrupt.parent.mkdir(parents=True)
+        corrupt.write_bytes(b'x' * size)
+        result = self.install()
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse((self.root / 'curl-calls').exists())
+        self.assertIn('checksum mismatch', self.install_log())
+        self.assertFalse(corrupt.exists())
+
+    def test_status_reports_download_progress(self):
+        partial = self.home / '.cache/droiddeck-vr/steamvr.pkg.tar.zst'
+        partial.parent.mkdir(parents=True)
+        partial.write_bytes(b'x' * 1234)
+        result = subprocess.run(['sh', str(self.helper), 'status'], env=self.environment,
+                                capture_output=True, text=True, timeout=5, check=True)
+        self.assertIn('downloaded=1234 size=571309057', result.stdout)
+        partial.unlink()
+        result = subprocess.run(['sh', str(self.helper), 'status'], env=self.environment,
+                                capture_output=True, text=True, timeout=5, check=True)
+        self.assertIn('downloaded=0 size=571309057', result.stdout)
 
 if __name__ == '__main__':
     unittest.main()

@@ -179,6 +179,11 @@ class AgentTest(unittest.TestCase):
         self.assertEqual((True, False, False, True),
                          (answer["installed"], answer["running"], answer["installing"], answer["driver"]))
 
+    def test_vr_status_reports_download_progress(self):
+        self.vr_helper('echo "installed=0 running=0 installing=1 driver=1 downloaded=1234 size=571309057"\n')
+        answer = self.ask({"kind": "vr", "action": "status"})
+        self.assertEqual((True, 1234, 571309057), (answer["installing"], answer["downloaded"], answer["size"]))
+
     def test_vr_runs_only_its_own_actions(self):
         log = self.dir / "args"
         self.vr_helper('echo "$@" > %s\n' % log)

@@ -566,6 +566,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var cardboard by mutableStateOf(Cardboard.OFF)
     private var headTracker: HeadTracker? = null
     private var steamVrStatus by mutableStateOf<SteamVr.Status?>(null)
+    private var steamVrPercent by mutableStateOf<Int?>(null)
     private var steamVrSwitchedPicture by mutableStateOf(false)
     private var steamVrSeenRunning = false
     private val steamVrRecovery by lazy { com.droiddeck.launcher.gpu.SteamVrRecovery(this) {
@@ -1315,9 +1316,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         val request = steamVrRequestGeneration
                         val session = SessionState.sessionId
                         val now = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            SteamVr.status(this@SessionActivity)
+                            SteamVr.report(this@SessionActivity)
                         }
-                        if (request == steamVrRequestGeneration && session == SessionState.sessionId) onSteamVrStatus(now)
+                        if (request == steamVrRequestGeneration && session == SessionState.sessionId) {
+                            steamVrPercent = now.percent
+                            onSteamVrStatus(now.status)
+                        }
                         kotlinx.coroutines.delay(3000)
                     }
                 }
@@ -1430,6 +1434,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 com.droiddeck.launcher.glasses.GlassesMenuMirror.recenter()
             },
             steamVr = steamVrStatus,
+            steamVrPercent = steamVrPercent,
             immersiveSteamVr = com.droiddeck.launcher.session.QuestExperimental.isSupported(),
             onSteamVr = { action -> steamVrAction(action) },
             textureAnisotropy = if (drawerGameProfileId == null) textureAnisotropy else drawerTextureAnisotropy,
