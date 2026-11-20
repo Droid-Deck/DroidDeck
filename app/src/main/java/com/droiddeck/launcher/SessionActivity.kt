@@ -1028,7 +1028,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 kotlinx.coroutines.delay(2000)
             }
         }
-        pip = com.droiddeck.launcher.session.SessionPipController(this, ::pipBounds, ::showPipUi)
+        pip = com.droiddeck.launcher.session.SessionPipController(this, ::pipBounds, ::showPipUi) {
+            intent.getBooleanExtra(EXTRA_RETURN_HOME, false)
+        }
         surfaceView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> pip.refresh() }
         pip.refresh()
         handleHomeGuideIntent(intent)
@@ -5705,6 +5707,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (this.intent.getBooleanExtra(EXTRA_RETURN_HOME, false)) intent.putExtra(EXTRA_RETURN_HOME, true)
         if (!intent.hasExtra(EXTRA_LINK_TASK)) intent.putExtra(EXTRA_LINK_TASK, this.intent.getIntExtra(EXTRA_LINK_TASK, -1))
         setIntent(intent)
+        if (::pip.isInitialized) pip.refresh(true)
         if (intent.getBooleanExtra(EXTRA_STEAMVR, false) && SessionState.mode == SessionService.MODE_STEAM) {
             SessionState.steamVr = true
             steamVrAutoTried = false
