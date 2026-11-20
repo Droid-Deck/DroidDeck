@@ -43,6 +43,7 @@ struct vkp_image {
     VkFormat fmt;
     int sampled;
     AHardwareBuffer *android_buffer;
+    int staged;
     VkBuffer linear_buf;
     VkDeviceMemory linear_mem;
     VkBufferImageCopy linear_copy;
@@ -1094,6 +1095,10 @@ struct vkp_image *vkp_image_from_dmabuf(int fd, uint32_t drm_format, uint64_t mo
     return vkp_image_import_dmabuf(fd, drm_format, modifier, w, h, stride, offset, 0);
 }
 
+static int foreign_image(const struct vkp_image *img) {
+    return vkp_linear_dmabuf_foreign_image(img->dmabuf, img->staged);
+}
+
 /* Return client sources to FOREIGN after their final read. The consuming paths
  * wait for our fence before Wayland can release an ordinary dma-buf or an
  * android_wlegl AHardwareBuffer. Producer-fence synchronization is separate from
@@ -1101,7 +1106,7 @@ struct vkp_image *vkp_image_from_dmabuf(int fd, uint32_t drm_format, uint64_t mo
 static void release_external_client_image(VkCommandBuffer cmd, struct vkp_image *img) {
     struct vkp_external_client_barrier_pair pair;
     if (!img || !vkp_external_client_barrier_pair(
-                    img->image, g_qfam, img->dmabuf, img->blit_dst, &pair))
+                    img->image, g_qfam, foreign_image(img), img->blit_dst, &pair))
         return;
     g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                             VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &pair.release);
@@ -1234,7 +1239,7 @@ static void destroy_image_objects(struct vkp_image *img) {
     if (img->linear_mem) g_vk.FreeMemory(g_dev, img->linear_mem, NULL);
     img->image = VK_NULL_HANDLE; img->mem = VK_NULL_HANDLE;
     img->linear_buf = VK_NULL_HANDLE; img->linear_mem = VK_NULL_HANDLE;
-    img->in_general = 0;
+    img->staged = 0; img->in_general = 0;
 }
 
 static int import_linear_dmabuf(struct vkp_image *img, int fd, const VkBufferImageCopy *copy, VkDeviceSize need) {
@@ -1303,7 +1308,7 @@ static int import_linear_dmabuf(struct vkp_image *img, int fd, const VkBufferIma
     r = g_vk.BindImageMemory(g_dev, img->image, img->mem, 0);
     if (r != VK_SUCCESS) goto fail;
     img->linear_copy = *copy;
-    img->dmabuf = 0;
+    img->staged = 1;
     img->in_general = 1;
     return 0;
 fail:
@@ -1342,7 +1347,7 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
                           drm_format & 0xff, (drm_format >> 8) & 0xff, (drm_format >> 16) & 0xff, (drm_format >> 24) & 0xff,
                           vkp_modifier_name(modifier), w, h, stride, offset, (int)img->fmt,
                           img->sampled ? "sampled" : "copied", as_blit_dst ? ", blit target" : "",
-                          through_buffer ? ", read at its row pitch (no VK_EXT_image_drm_format_modifier)" : "");
+                          through_buffer ? ", trying a copy at its row pitch (no VK_EXT_image_drm_format_modifier)" : "");
         }
     }
 
@@ -1741,7 +1746,7 @@ static void effects_source_note(int scene_w, int scene_h, const struct vkp_draw 
 static void record_draw(VkCommandBuffer cmd, const struct vkp_draw *d, const VkImageBlit *blit, VkImage target,
                         VkFormat target_fmt, int target_w, int target_h, VkFilter filter) {
     const struct vkp_image *im = d->img;
-    const int external_client = vkp_image_is_dmabuf(im);
+    const int external_client = vkp_is_external_client_image(foreign_image(im), im->blit_dst);
     if (d->blend && im->sampled &&
         blendp_draw(cmd, im->image, im->fmt, im->w, im->h, !external_client,
                     target, target_fmt, target_w, target_h,
@@ -2243,7 +2248,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         if (seen || !im) continue;
         struct vkp_external_client_barrier_pair pair;
         if (vkp_external_client_barrier_pair(
-                im->image, g_qfam, im->dmabuf, im->blit_dst, &pair)) {
+                im->image, g_qfam, foreign_image(im), im->blit_dst, &pair)) {
             bars[nb++] = pair.acquire;
         } else if (!im->blit_dst && !im->in_general) {
             bars[nb++] = (VkImageMemoryBarrier){
@@ -2528,7 +2533,7 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
     stage_linear_dmabuf(g_cmd, src);
     struct vkp_external_client_barrier_pair src_pair;
     const int src_external = vkp_external_client_barrier_pair(
-        src->image, g_qfam, src->dmabuf, src->blit_dst, &src_pair);
+        src->image, g_qfam, foreign_image(src), src->blit_dst, &src_pair);
     VkImageMemoryBarrier acq[2] = {
         src_external ? src_pair.acquire : (VkImageMemoryBarrier){
          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -2635,7 +2640,7 @@ int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px) {
     stage_linear_dmabuf(cmd, src);
     struct vkp_external_client_barrier_pair src_pair;
     const int src_external = vkp_external_client_barrier_pair(
-        src->image, g_qfam, src->dmabuf, src->blit_dst, &src_pair);
+        src->image, g_qfam, foreign_image(src), src->blit_dst, &src_pair);
     VkImageMemoryBarrier acq[2] = {
         src_external ? src_pair.acquire : (VkImageMemoryBarrier){
          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -2766,7 +2771,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
         if (seen || !im) continue;
         struct vkp_external_client_barrier_pair pair;
         if (vkp_external_client_barrier_pair(
-                im->image, g_qfam, im->dmabuf, im->blit_dst, &pair)) {
+                im->image, g_qfam, foreign_image(im), im->blit_dst, &pair)) {
             bars[nb++] = pair.acquire;
         } else if (!im->blit_dst && !im->in_general) {
             bars[nb++] = (VkImageMemoryBarrier){

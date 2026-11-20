@@ -56,6 +56,13 @@ static void check_path_choice(void) {
     assert(!vkp_linear_dmabuf_through_buffer(1, linear, 1));
 }
 
+static void check_foreign_image(void) {
+    assert(vkp_linear_dmabuf_foreign_image(1, 0));
+    assert(!vkp_linear_dmabuf_foreign_image(1, 1));
+    assert(!vkp_linear_dmabuf_foreign_image(0, 0));
+    assert(!vkp_linear_dmabuf_foreign_image(0, 1));
+}
+
 static void check_ownership(void) {
     const VkBuffer buffer = (VkBuffer)(uintptr_t)0x4321;
     const uint32_t queue_family = 3;
@@ -85,6 +92,7 @@ int main(void) {
     check_offset_and_wide_texels();
     check_rejected_layouts();
     check_path_choice();
+    check_foreign_image();
     check_ownership();
     return 0;
 }
