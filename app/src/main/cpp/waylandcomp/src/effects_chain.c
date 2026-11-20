@@ -21,6 +21,7 @@
 #include "smaa_weights_frag.h"
 #include "smaa_blend_frag.h"
 #include "toon_frag.h"
+#include "toon_color_frag.h"
 #include "hdr_frag.h"
 #include "ntsc_frag.h"
 #include "crt_frag.h"
@@ -184,6 +185,11 @@ struct pc_easu  { float ndc[4]; uint32_t con0[4], con1[4], con2[4], con3[4]; flo
 struct pc_rcas  { float ndc[4]; uint32_t con[4]; float outW, outH; };
 struct pc_res   { float ndc[4]; float res[2]; float extra; float pad; };
 struct pc_color { float ndc[4]; float b, c, g, s; };
+struct pc_toon_color {
+    float ndc[4]; float res[2]; float b, c, g, s;
+};
+_Static_assert(sizeof(struct pc_toon_color) == 40,
+               "toon_color push constants layout mismatch");
 #define PC_MAX_SIZE sizeof(struct pc_easu)
 
 static uint32_t packf(float f) { uint32_t u; memcpy(&u, &f, 4); return u; }
@@ -217,7 +223,7 @@ static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
 static VkDescriptorPool g_dpool;
 static VkSampler g_sampler;
-enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_SMAA_EDGE, P_SMAA_WEIGHTS, P_SMAA_BLEND, P_TOON, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
+enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_SMAA_EDGE, P_SMAA_WEIGHTS, P_SMAA_BLEND, P_TOON, P_TOON_COLOR, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
 static VkPipeline g_pipe[P_COUNT];
 static struct fx_target g_t[2], g_mid, g_smaa_weights;
 
@@ -463,6 +469,7 @@ static int objects_ensure(void) {
     MK(P_SMAA_WEIGHTS, smaa_weights_code, "smaa_weights");
     MK(P_SMAA_BLEND, smaa_blend_code, "smaa_blend");
     MK(P_TOON, toon_code, "toon");
+    MK(P_TOON_COLOR, toon_color_code, "toon_color");
     MK(P_HDR, hdr_code, "hdr");
     MK(P_NTSC, ntsc_code, "ntsc");
     MK(P_CRT, crt_code, "crt");
@@ -536,7 +543,9 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     if (spatial_mode(s->scaling) && (s->scaling == 6 || upscaling)) spatial = s->scaling;
     const int nfx = effect_count(s);
     const int resize = cw != scene_w || ch != scene_h;
-    const int npasses = ((spatial || resize) ? 1 : 0) + effect_pass_count(s);
+    const int fuse_toon_color = s->toon && s->color_on && g_fx_fmt == FX_FORMAT;
+    const int npasses = ((spatial || resize) ? 1 : 0) +
+        effect_pass_count(s) - (fuse_toon_color ? 1 : 0);
 
     if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
         target_ensure(&g_t[0], cw, ch, FX_TARGET_USAGE, "chain") == 0 && (npasses < 2 || target_ensure(&g_t[1], cw, ch, FX_TARGET_USAGE, "chain") == 0) &&
@@ -608,12 +617,16 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             cur = NULL; cur_ds = g_scene.ds;
         }
 
-        enum { FX_FXAA, FX_SMAA, FX_TOON, FX_COLOR, FX_CAS, FX_HDR, FX_NTSC, FX_CRT, FX_DEBAND };
+        enum { FX_FXAA, FX_SMAA, FX_TOON, FX_COLOR, FX_TOON_COLOR, FX_CAS, FX_HDR, FX_NTSC, FX_CRT, FX_DEBAND };
         int order[8], n = 0;
         if (s->aa_mode == 1) order[n++] = FX_FXAA;
         else if (s->aa_mode == 2) order[n++] = FX_SMAA;
-        if (s->toon) order[n++] = FX_TOON;
-        if (s->color_on) order[n++] = FX_COLOR;
+        if (s->toon && s->color_on && g_fx_fmt == FX_FORMAT) {
+            order[n++] = FX_TOON_COLOR;
+        } else {
+            if (s->toon) order[n++] = FX_TOON;
+            if (s->color_on) order[n++] = FX_COLOR;
+        }
         if (cas_active(s)) order[n++] = FX_CAS;
         if (s->hdr_on) order[n++] = FX_HDR;
         if (s->ntsc) order[n++] = FX_NTSC;
@@ -632,6 +645,19 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
                 pass_dual(cmd, g_pipe[P_SMAA_BLEND], dst, cur_ds, g_smaa_weights.ds, &pr, sizeof(pr));
                 break;
             case FX_TOON: pass(cmd, g_pipe[P_TOON], dst, cur_ds, &pr, sizeof(pr)); break;
+            case FX_TOON_COLOR: {
+                struct pc_toon_color pc = {0};
+                SET_NDC(pc);
+                pc.res[0] = (float)cw;
+                pc.res[1] = (float)ch;
+                pc.b = s->brightness;
+                pc.c = s->contrast;
+                pc.g = s->gamma;
+                pc.s = s->saturation;
+                pass(cmd, g_pipe[P_TOON_COLOR], dst, cur_ds,
+                     &pc, sizeof(pc));
+                break;
+            }
             case FX_COLOR: {
                 struct pc_color pc = {0};
                 SET_NDC(pc);
