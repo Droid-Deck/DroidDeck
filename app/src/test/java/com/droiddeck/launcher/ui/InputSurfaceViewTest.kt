@@ -18,12 +18,35 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import org.robolectric.util.ReflectionHelpers
 import java.nio.file.Files
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE, instrumentedPackages = ["com.droiddeck.launcher.input.FakeInputWriter"],
     shadows = [JoyConPadTest.RecordingWriter::class, SessionInputPointerTest.CompositorShadow::class])
 class InputSurfaceViewTest {
+    @Test @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun longToolbarLabelsFitAndAreRemeasuredWhenTheButtonIsResized() {
+        val context = RuntimeEnvironment.getApplication()
+        val panel = InputSurfaceView(context, null, listOf(InputSurfaceElement(
+            InputControl.A, 0f, 0f, 1f, 1f, "toolbar", name = "A long custom toolbar button label",
+            buttonShape = InputButtonShape.TOOLBAR,
+        )))
+        for (width in listOf(120, 600, 80)) {
+            panel.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(44, View.MeasureSpec.EXACTLY))
+            panel.layout(0, 0, width, 44)
+            val bitmap = android.graphics.Bitmap.createBitmap(width, 44, android.graphics.Bitmap.Config.ARGB_8888)
+            try { panel.draw(android.graphics.Canvas(bitmap)) } finally { bitmap.recycle() }
+            val button = panel.findViewWithTag<View>(panel.shownElements.single())
+            val label = ReflectionHelpers.callInstanceMethod<androidx.compose.ui.text.Paragraph>(button, "getToolbarLabel")
+            assertTrue("label fits at width $width", label.width <= button.width)
+            assertEquals(1, label.lineCount)
+            assertEquals("ellipsis follows the current button width", width < 600, label.isLineEllipsized(0))
+        }
+    }
+
     @Test fun customControlsReleaseOnDetachAndWorkWhenTheSameViewReturns() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
         val activity = controller.get()

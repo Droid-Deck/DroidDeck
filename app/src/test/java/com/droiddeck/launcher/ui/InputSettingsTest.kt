@@ -96,6 +96,31 @@ class InputSettingsTest {
         }
     }
 
+    @Test fun gameQuickMenuOffersEveryStockSecondScreenLayoutWithoutRebindingOtherControls() {
+        val original = InputLibraries.read(context)
+        val changedRoles = mutableListOf<InputRole?>()
+        compose.setContent { DroidDeckTheme {
+            androidx.compose.foundation.layout.Column {
+                InputQuickSettings(rememberMenuHost(), desktop = false, onChanged = changedRoles::add)
+            }
+        } }
+        compose.onNodeWithTag("input-profile-expand").performClick()
+        for (bindings in DeckPanel.entries.map { it.bindings } + InputStockLayouts.TRACKPAD) {
+            compose.onNodeWithTag("setting-input-part-SECONDARY").performClick()
+            compose.onNodeWithText(original.preset(bindings).name).performScrollTo().performClick()
+            compose.runOnIdle {
+                val saved = InputLibraries.read(context)
+                assertEquals(bindings, saved.activePart(false, InputRole.SECONDARY).bindings)
+                assertEquals(original.preset(bindings).layoutId, saved.activeLayout(false, InputRole.SECONDARY)!!.id)
+                assertEquals(original.activePart(false, InputRole.PHYSICAL), saved.activePart(false, InputRole.PHYSICAL))
+                assertEquals(original.activePart(false, InputRole.PRIMARY), saved.activePart(false, InputRole.PRIMARY))
+                assertEquals(original.compileActive(true), saved.compileActive(true))
+                assertEquals(original.profiles, saved.profiles)
+                assertEquals(InputRole.SECONDARY, changedRoles.last())
+            }
+        }
+    }
+
     @Test fun actionDraftSurvivesRouteAndTypeChanges() {
         var saved: InputAction? = null
         compose.setContent { DroidDeckTheme { InputActionEditor(InputControl.RS, InputAction.Scroll(27f, true), "Right stick", {}, { saved = it }) } }

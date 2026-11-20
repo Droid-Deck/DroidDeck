@@ -256,11 +256,14 @@ class DrawerActions(
     val textureAnisotropy: Int? = 0,
     val textureLodBias: String? = TextureFiltering.LOD_BIAS_OFF,
     val secondScreenMode: SecondScreenMode,
-    val secondScreenNone: Boolean = true,
+    val secondScreenEnabled: Boolean = true,
+    val onSecondScreenEnabled: (Boolean) -> Unit = {},
     val gameOnBottom: Boolean = false,
     val gameSwapAvailable: Boolean = false,
     val gameSwapBuiltIn: Boolean = true,
     val onGameOnBottom: (Boolean) -> Unit = {},
+    val menuScreen: com.droiddeck.launcher.session.SessionMenuScreen = com.droiddeck.launcher.session.SessionMenuScreen.COMPANION,
+    val onMenuScreen: (com.droiddeck.launcher.session.SessionMenuScreen) -> Unit = {},
     val dashboardAvailable: Boolean = false,
     val desktopAvailable: Boolean = false,
     val secondScreenDisplays: List<SecondScreenDisplay>,
@@ -349,7 +352,6 @@ class DrawerActions(
     val onStop: () -> Unit,
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
     val onClose: () -> Unit,
-    val onDismissScreen: (() -> Unit)? = null,
     val components: ComponentsManager.Snapshot? = null,
     val systemPowerVr: Boolean = false,
     val onComponentsRefresh: () -> Unit = {},
@@ -515,15 +517,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 ) {
                     SteamActionPill(
                         stringResource(R.string.common_close), Icons.Outlined.Close, focus.track(page, "close"),
-                    ) { host.open = null; (a.onDismissScreen ?: a.onClose)() }
+                    ) { host.open = null; a.onClose() }
                     if (showPicker) Box(if (roomyHeader) Modifier.weight(1f) else Modifier) {
                         ScreenPickerChip(
                             ScreenPicker(
-                                secondScreenModes(a.secondScreenNone, com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable, a.desktopAvailable),
+                                secondScreenModes(a.dashboardAvailable, a.desktopAvailable),
                                 a.secondScreenMode, onPick = { host.open = null; a.onSecondScreenMode(it) },
                                 onMenu = if (docked) ({ host.open = null }) else null, menuShown = docked,
                             ),
-                            focus.track(page, "screen").testTag("drawer-screen-picker"),
+                            focus.track(page, "screen").testTag("drawer-screen-picker"), enabled = a.secondScreenEnabled,
                         )
                     } else if (roomyHeader) Spacer(Modifier.weight(1f))
                     SteamActionPill(
@@ -1279,9 +1281,8 @@ private fun SteamVrRow(a: DrawerActions) {
     }
 }
 
-internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boolean, desktop: Boolean): List<SecondScreenMode> =
-    (if (none) listOf(SecondScreenMode.NONE) else emptyList()) + listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
-        (if (deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) + listOf(SecondScreenMode.CUSTOM_CONTROLS) +
+internal fun secondScreenModes(dashboard: Boolean, desktop: Boolean): List<SecondScreenMode> =
+    listOf(SecondScreenMode.TERMINAL, SecondScreenMode.CUSTOM_CONTROLS) +
         (if (dashboard) listOf(SecondScreenMode.DASHBOARD) else emptyList()) +
         (if (desktop) listOf(SecondScreenMode.DESKTOP) else emptyList())
 
@@ -1289,12 +1290,20 @@ internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boole
 private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val choosesDisplay = a.secondScreenDisplays.size > 1
     val swapsGame = a.gameSwapAvailable || a.gameOnBottom
-    if (!choosesDisplay && !swapsGame) return
+    if (a.secondScreenDisplays.isEmpty() && !swapsGame) return
     SettingsGroup(stringResource(R.string.drawer_second_screen)) {
+        ToggleRow(host, "second-screen-enabled", stringResource(R.string.second_screen_enabled), null,
+            a.secondScreenEnabled, chipModifier = track("second-screen-enabled"), onChange = a.onSecondScreenEnabled)
+        Text(stringResource(R.string.input_second_mode_hint), Modifier.padding(14.dp),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (swapsGame) ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
             if (a.gameSwapBuiltIn) listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom))
             else listOf(false to stringResource(R.string.main_primary), true to stringResource(R.string.main_secondary)),
             a.gameOnBottom, chipModifier = track("game-screen"), onPick = a.onGameOnBottom)
+        ChoiceRow(host, "menu-screen", stringResource(R.string.session_menu_screen), null,
+            listOf(com.droiddeck.launcher.session.SessionMenuScreen.GAME to stringResource(R.string.session_menu_screen_game),
+                com.droiddeck.launcher.session.SessionMenuScreen.COMPANION to stringResource(R.string.session_menu_screen_companion)),
+            a.menuScreen, chipModifier = track("menu-screen"), onPick = a.onMenuScreen)
         if (choosesDisplay) ChoiceRow(host, "second-screen-display", stringResource(R.string.drawer_page_display), null,
             a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
             chipModifier = track("second-screen-display"), onPick = a.onSecondScreenDisplay)

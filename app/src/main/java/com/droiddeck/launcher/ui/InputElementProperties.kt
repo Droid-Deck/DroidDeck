@@ -40,7 +40,7 @@ internal fun InputElementProperties(element: InputSurfaceElement, action: InputA
         }
         ToggleRow(host, "element-toggle", stringResource(R.string.input_toggle_button), stringResource(R.string.input_toggle_button_hint), element.toggle) { onChange(element.copy(toggle = it)) }
         ChoiceRow(host, "element-shape", stringResource(R.string.input_button_shape), null,
-            InputButtonShape.entries.map { it to stringResource(when (it) { InputButtonShape.ROUNDED -> R.string.input_shape_rounded; InputButtonShape.PILL -> R.string.input_shape_pill; InputButtonShape.CIRCLE -> R.string.input_shape_circle; InputButtonShape.RECTANGLE -> R.string.input_shape_rectangle }) },
+            InputButtonShape.entries.map { it to stringResource(when (it) { InputButtonShape.ROUNDED -> R.string.input_shape_rounded; InputButtonShape.PILL -> R.string.input_shape_pill; InputButtonShape.CIRCLE -> R.string.input_shape_circle; InputButtonShape.RECTANGLE -> R.string.input_shape_rectangle; InputButtonShape.TOOLBAR -> R.string.input_shape_toolbar }) },
             element.buttonShape) { onChange(element.copy(buttonShape = it)) }
         val open = host.open == "element-icon"
         SettingsRow(stringResource(R.string.input_button_symbol), null, highlighted = open) {

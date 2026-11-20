@@ -70,6 +70,12 @@ class InputProfilesTest {
         assertEquals(InputProfile.defaults(InputProfile.GAME).bindings, profile.bindings)
         assertEquals(mapOf(
             InputRole.PRIMARY to mapOf("builtin:keyboard" to InputAction.Command(InputCommand.KEYBOARD)),
+            InputRole.SECONDARY to mapOf(
+                "command:menu" to InputAction.Command(InputCommand.MENU),
+                "command:steam" to InputAction.Command(InputCommand.STEAM),
+                "command:quick_access" to InputAction.Command(InputCommand.QUICK_ACCESS),
+                "command:swap_screens" to InputAction.Command(InputCommand.SWAP_SCREENS),
+            ),
         ), profile.elements)
     }
 

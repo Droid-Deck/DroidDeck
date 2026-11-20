@@ -13,17 +13,19 @@ object InputButtonIcons {
     const val KEYBOARD = 1002
     const val STEAM = 1003
     const val QUICK_ACCESS = 1004
+    const val SWAP_SCREENS = 1005
 
     fun has(code: Int): Boolean = code in codes
 
     private val keyCodes = listOf(28, 14, 15, 57, 42, 54, 29, 97, 125, 103, 108, 105, 106)
-    val codes = listOf(MENU, KEYBOARD, STEAM, QUICK_ACCESS) + keyCodes
+    val codes = listOf(MENU, KEYBOARD, STEAM, QUICK_ACCESS, SWAP_SCREENS) + keyCodes
 
     fun label(context: Context, code: Int): String = when (code) {
         MENU -> context.getString(R.string.touch_droiddeck_menu)
         KEYBOARD -> context.getString(R.string.drawer_keyboard)
         STEAM -> context.getString(R.string.drawer_steam_menu)
         QUICK_ACCESS -> context.getString(R.string.drawer_open_qam)
+        SWAP_SCREENS -> context.getString(R.string.swap_screens)
         else -> pcKeyLabel(context, code)
     }
 
@@ -32,6 +34,7 @@ object InputButtonIcons {
         KEYBOARD -> R.drawable.ic_bottom_keyboard
         STEAM -> R.drawable.ic_input_steam
         QUICK_ACCESS -> R.drawable.ic_input_quick_access
+        SWAP_SCREENS -> R.drawable.ic_bottom_swap
         else -> null
     }?.let { context.getDrawable(it)?.mutate() }
 

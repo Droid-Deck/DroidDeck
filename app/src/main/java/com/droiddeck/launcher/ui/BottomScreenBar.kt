@@ -9,6 +9,9 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -47,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.testTag
@@ -61,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.DeckPanel
+import com.droiddeck.launcher.input.InputToolbarStyle
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -125,7 +130,7 @@ private fun BarRow(model: BottomBarModel, modifier: Modifier = Modifier) {
         val fits = maxWidth >= needed
         Row(
             Modifier.fillMaxSize().then(if (fits) Modifier else Modifier.horizontalScroll(rememberScrollState()))
-                .padding(horizontal = BAR_PAD, vertical = 10.dp),
+                .padding(horizontal = BAR_PAD, vertical = InputToolbarStyle.TOP.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(BAR_GAP),
         ) {
@@ -192,8 +197,10 @@ internal fun BarButton(
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val hot = interactionSource.collectIsFocusedAsState().value || interactionSource.collectIsHoveredAsState().value
-    val shape = RoundedCornerShape(22.dp)
+    val pressed = interactionSource.collectIsPressedAsState().value
+    val hot = interactionSource.collectIsFocusedAsState().value || interactionSource.collectIsHoveredAsState().value || pressed
+    val scale = animateFloatAsState(if (pressed) 0.955f else 1f, Motion.sp(0.5f, Spring.StiffnessMedium), label = "barButtonScale").value
+    val shape = RoundedCornerShape((InputToolbarStyle.BUTTON / 2).dp)
     val accent = if (danger) colors.error else pal.signal
     val tint = when {
         active -> pal.onSignal
@@ -205,10 +212,11 @@ internal fun BarButton(
         hot -> accent.copy(alpha = 0.14f)
         else -> Color.Transparent
     }
-    val sized = if (label != null) Modifier.height(44.dp).widthIn(min = 44.dp) else Modifier.size(44.dp)
+    val sized = if (label != null) Modifier.height(InputToolbarStyle.BUTTON.dp).widthIn(min = InputToolbarStyle.BUTTON.dp) else Modifier.size(InputToolbarStyle.BUTTON.dp)
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier.then(sized).semantics { contentDescription = description }
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape).background(fill)
             .glideBorder(hot, shape, accent, if (active) pal.signal else if (danger) colors.error.copy(alpha = 0.6f) else pal.line)
             .hoverable(interactionSource)
@@ -216,10 +224,10 @@ internal fun BarButton(
             .controllerConfirm(onClick = onConfirm ?: onClick),
     ) {
         when {
-            label != null -> Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = tint,
-                maxLines = 1, modifier = Modifier.padding(horizontal = 14.dp))
-            icon != null -> Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-            vector != null -> Icon(vector, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            label != null -> Text(label, style = InputToolbarStyle.textStyle, color = tint,
+                maxLines = 1, modifier = Modifier.padding(horizontal = InputToolbarStyle.TEXT_PADDING.dp))
+            icon != null -> Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(InputToolbarStyle.ICON.dp))
+            vector != null -> Icon(vector, contentDescription = null, tint = tint, modifier = Modifier.size(InputToolbarStyle.ICON.dp))
         }
         if (shortcut != null) Text(
             shortcut, fontSize = 8.sp, lineHeight = 9.sp, color = colors.onSurfaceVariant,
@@ -239,7 +247,7 @@ internal val SecondScreenMode.icon: ImageVector get() = when (this) {
 }
 
 @Composable
-internal fun ScreenPickerChip(picker: ScreenPicker, modifier: Modifier = Modifier) {
+internal fun ScreenPickerChip(picker: ScreenPicker, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     var open by remember { mutableStateOf(false) }
@@ -254,12 +262,13 @@ internal fun ScreenPickerChip(picker: ScreenPicker, modifier: Modifier = Modifie
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.height(44.dp).widthIn(max = PICKER_MAX_WIDTH)
+                .graphicsLayer { alpha = if (enabled) 1f else 0.5f }
                 .semantics { contentDescription = description }
                 .clip(shape).background(if (hot || open) pal.signal.copy(alpha = 0.14f) else colors.surfaceVariant)
                 .glideBorder(hot || open, shape, pal.signal, pal.line2)
                 .hoverable(source)
-                .clickable(role = Role.Button, interactionSource = source, indication = LocalIndication.current, onClick = toggle)
-                .controllerConfirm(onClick = toggle)
+                .clickable(enabled = enabled, role = Role.Button, interactionSource = source, indication = LocalIndication.current, onClick = toggle)
+                .controllerConfirm(enabled, onClick = toggle)
                 .padding(start = 14.dp, end = 10.dp),
         ) {
             if (picker.menuShown) Icon(painterResource(R.drawable.ic_stat_session), contentDescription = null, tint = colors.onBackground,
@@ -270,7 +279,7 @@ internal fun ScreenPickerChip(picker: ScreenPicker, modifier: Modifier = Modifie
             Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, contentDescription = null,
                 tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
         }
-        ScreenPickerMenu(picker, open) { open = false }
+        ScreenPickerMenu(picker, open && enabled) { open = false }
     }
 }
 
@@ -308,10 +317,10 @@ private fun ScreenPickerMenu(picker: ScreenPicker, open: Boolean, dismiss: () ->
     }
 }
 
-internal val BAR_HEIGHT = 64.dp
-private val BAR_PAD = 12.dp
-private val BAR_GAP = 8.dp
-private val BUTTON = 44.dp
+internal val BAR_HEIGHT = InputToolbarStyle.HEIGHT.dp
+private val BAR_PAD = InputToolbarStyle.PADDING.dp
+private val BAR_GAP = InputToolbarStyle.GAP.dp
+private val BUTTON = InputToolbarStyle.BUTTON.dp
 private val STEAM_WIDTH = 80.dp
 private val MIN_TITLE = 72.dp
 private val PICKER_WIDTH = 180.dp

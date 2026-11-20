@@ -78,7 +78,7 @@ internal fun sampleDrawerActions(
     backActionsInverted = false, onBackActionsInverted = {},
     touchMode = SessionPrefs.TOUCH_AUTO, onTouch = {}, touchAuto = "Auto (direct)",
     fexPreset = "", onFexPreset = {},
-    secondScreenMode = secondScreen ?: SecondScreenMode.NONE, onSecondScreenMode = {}, secondScreenNone = secondScreen == null,
+    secondScreenMode = secondScreen ?: SecondScreenMode.NONE, onSecondScreenMode = {},
     secondScreenDisplays = listOfNotNull(secondScreen?.let { SecondScreenDisplay(2, "Built-in · 1240×1080") }),
     selectedSecondScreenDisplay = if (secondScreen != null) 2 else -1, onSecondScreenDisplay = {},
     gameSwapAvailable = secondScreen != null, dashboardAvailable = secondScreen != null,

@@ -4,6 +4,7 @@ import android.app.Presentation
 import android.hardware.display.DisplayManager
 import android.os.Looper
 import android.view.Display
+import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.compose.material3.Text
@@ -166,6 +167,40 @@ class PresentationWindowTest {
         compose.onNodeWithText("Panel").assertIsDisplayed()
             .assert(hasAnyAncestor(isDialog()))
         compose.onNode(isPopup()).assertDoesNotExist()
+    }
+
+    @Test
+    @Config(sdk = [33])
+    fun sessionMenuHostUsesPresentationDialogsAndDisposesThemOnClose() {
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+        val activity = controller.get()
+        val displays = activity.getSystemService(DisplayManager::class.java)
+        val displayId = ShadowDisplayManager.addDisplay("w640dp-h480dp-land")
+        val display = displays.getDisplay(displayId)
+        shadowOf(display).setFlags(Display.FLAG_PRESENTATION)
+        val presentation = Presentation(activity, display)
+        val frame = FrameLayout(presentation.context)
+        presentation.setContentView(frame)
+        val host = SessionMenuHost(activity, presentation.window!!, frame) {
+            DroidDeckTheme {
+                GlideDialog(onDismissRequest = {}) { Text("Menu dialog") }
+            }
+        }
+        try {
+            presentation.show()
+            host.show(true)
+            shadowOf(Looper.getMainLooper()).idle()
+            compose.onNodeWithText("Menu dialog").assertIsDisplayed()
+                .assert(hasAnyAncestor(isPopup()))
+            compose.onNode(isDialog()).assertDoesNotExist()
+            host.show(false)
+            shadowOf(Looper.getMainLooper()).idle()
+            compose.onNodeWithText("Menu dialog").assertDoesNotExist()
+        } finally {
+            host.show(false)
+            presentation.dismiss()
+            controller.pause().stop().destroy()
+        }
     }
 
     @Test fun alertOutsidePresentationKeepsThePlatformDialog() {

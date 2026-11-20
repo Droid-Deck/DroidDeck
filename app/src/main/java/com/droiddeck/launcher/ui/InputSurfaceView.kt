@@ -35,6 +35,10 @@ import com.droiddeck.launcher.input.InputElementKind
 import com.droiddeck.launcher.input.InputAction
 import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
+import com.droiddeck.launcher.input.InputToolbarStyle
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.Paragraph
+import androidx.compose.ui.unit.Constraints
 import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.pcKeyLabel
@@ -343,9 +347,56 @@ class InputSurfaceView(
             if (file.isFile) BitmapFactory.decodeFile(file.path, options) else null
         }
         private val imageRect = RectF()
+        private val toolbarPalette = Themes.current(context)
+        private val toolbarPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val toolbarLabelIntrinsics by lazy { InputToolbarStyle.label(context, element.name) }
+        private var fittedToolbarLabel: Paragraph? = null
+        private val toolbarLabel: Paragraph get() = fittedToolbarLabel ?: run {
+            val available = (width - 2 * InputToolbarStyle.TEXT_PADDING * density).toInt().coerceAtLeast(1)
+            val fittedWidth = min(available, kotlin.math.ceil(toolbarLabelIntrinsics.maxIntrinsicWidth).toInt().coerceAtLeast(1))
+            Paragraph(toolbarLabelIntrinsics, constraints = Constraints(maxWidth = fittedWidth), maxLines = 1,
+                ellipsis = true).also { fittedToolbarLabel = it }
+        }
+
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            fittedToolbarLabel = null
+        }
+
+        private fun drawToolbarButton(canvas: Canvas, lit: Boolean) {
+            val palette = toolbarPalette
+            val stroke = density
+            val radius = (min(width, height) - stroke) / 2f
+            imageRect.set(stroke / 2, stroke / 2, width - stroke / 2, height - stroke / 2)
+            toolbarPaint.style = Paint.Style.STROKE
+            toolbarPaint.strokeWidth = stroke
+            toolbarPaint.color = (if (lit) palette.signal else palette.line).toArgb()
+            canvas.drawRoundRect(imageRect, radius, radius, toolbarPaint)
+            toolbarPaint.style = Paint.Style.FILL
+            toolbarPaint.color = tint ?: (if (lit) palette.signal else palette.onBackground).toArgb()
+            val cx = width / 2f
+            if (bitmap != null) {
+                val scale = min(width * .84f / bitmap.width, height * .84f / bitmap.height)
+                imageRect.set(cx - bitmap.width * scale / 2, (height - bitmap.height * scale) / 2,
+                    cx + bitmap.width * scale / 2, (height + bitmap.height * scale) / 2)
+                canvas.drawBitmap(bitmap, null, imageRect, toolbarPaint)
+            } else if (element.icon != 0) {
+                InputButtonIcons.draw(canvas, element.icon, cx, height / 2f,
+                    min(InputToolbarStyle.ICON * density, min(width, height) * .68f), toolbarPaint, symbol)
+            } else if (element.showLabel) {
+                val label = toolbarLabel
+                val scale = min(1f, height * .84f / label.height.coerceAtLeast(1f))
+                canvas.save()
+                canvas.translate(cx - label.width * scale / 2, (height - label.height * scale) / 2)
+                canvas.scale(scale, scale)
+                label.paint(androidx.compose.ui.graphics.Canvas(canvas), color = androidx.compose.ui.graphics.Color(toolbarPaint.color))
+                canvas.restore()
+            }
+        }
 
         override fun onDraw(canvas: Canvas) {
             val lit = if (element.toggle) source?.latched == true else down
+            if (element.buttonShape == InputButtonShape.TOOLBAR) { drawToolbarButton(canvas, lit); return }
             val classic = classic(element)
             drawSurface(canvas, lit, element.buttonShape, classic)
             val cx = width / 2f

@@ -1,6 +1,11 @@
 package com.droiddeck.launcher.input
 
+import android.content.Context
+import android.hardware.display.DisplayManager
+import android.util.DisplayMetrics
+import android.view.Display
 import androidx.annotation.StringRes
+import kotlin.math.roundToInt
 import com.droiddeck.launcher.R
 
 enum class DeckPanel(val id: String, val layout: String, val bindings: String, @StringRes val label: Int) {
@@ -63,9 +68,58 @@ internal object InputStockLayouts {
         SavedInputLayout(DeckPanel.RIGHT.layout, "Deck right trackpad", pad(right = true), style = NEUTRAL, screen = InputLayoutScreen.SECONDARY),
     )
 
+    @Suppress("DEPRECATION")
+    fun withToolbar(context: Context, layout: SavedInputLayout): SavedInputLayout {
+        val manager = context.getSystemService(DisplayManager::class.java)
+        val display = manager?.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)?.firstOrNull { DualScreen.builtIn(it) }
+        val metrics = DisplayMetrics().also { if (display != null) display.getRealMetrics(it) else it.setTo(context.resources.displayMetrics) }
+        val displayContext = display?.let(context::createDisplayContext) ?: context
+        return withToolbar(layout, metrics.widthPixels, metrics.heightPixels, metrics.density,
+            InputToolbarStyle.labelWidth(displayContext, "STEAM"))
+    }
+
+    internal fun withToolbar(layout: SavedInputLayout, width: Int, height: Int, density: Float, steamWidth: Int): SavedInputLayout {
+        val bar = (InputToolbarStyle.HEIGHT * density).roundToInt().coerceAtMost(height / 3)
+        val size = (InputToolbarStyle.BUTTON * density).roundToInt()
+        val gap = (InputToolbarStyle.GAP * density).roundToInt()
+        val top = ((bar - size) / 2f).roundToInt()
+        // The former LinearLayout also reserved one pixel below the controls for KeyboardHost.
+        val previousContentHeight = height - bar - 1
+        val commands = if (layout.id == InputLibraries.TRACKPAD) listOf(InputCommand.KEYBOARD, InputCommand.SWAP_SCREENS, InputCommand.MENU)
+            else listOf(InputCommand.SWAP_SCREENS, InputCommand.MENU, InputCommand.STEAM, InputCommand.QUICK_ACCESS)
+        var right = width - (InputToolbarStyle.PADDING * density).roundToInt()
+        val buttons = commands.reversed().map { command ->
+            val w = if (command == InputCommand.STEAM) steamWidth else size
+            right -= w
+            val icon = when (command) {
+                InputCommand.MENU -> InputButtonIcons.MENU
+                InputCommand.KEYBOARD -> InputButtonIcons.KEYBOARD
+                InputCommand.SWAP_SCREENS -> InputButtonIcons.SWAP_SCREENS
+                InputCommand.QUICK_ACCESS -> InputButtonIcons.QUICK_ACCESS
+                InputCommand.STEAM -> 0
+            }
+            val name = when (command) {
+                InputCommand.MENU -> "DroidDeck menu"
+                InputCommand.KEYBOARD -> "Keyboard"
+                InputCommand.SWAP_SCREENS -> "Swap screens"
+                InputCommand.QUICK_ACCESS -> "Quick access"
+                InputCommand.STEAM -> "STEAM"
+            }
+            InputSurfaceElement(InputControl.A, (right + .001f) / width, (top + .001f) / height, (w + .001f) / width, (size + .001f) / height,
+                id = "command:${command.name.lowercase()}", name = name,
+                icon = icon, buttonShape = InputButtonShape.TOOLBAR).bounded().also { right -= gap }
+        }.reversed()
+        return layout.copy(elements = layout.elements.map { element ->
+            element.copy(y = (bar + (element.y * previousContentHeight).toInt() + .001f) / height,
+                height = ((element.height * previousContentHeight).toInt() + .001f) / height).bounded()
+        } + buttons)
+    }
+
     fun actions(layout: SavedInputLayout): Map<String, InputAction> = (if (layout.id == InputLibraries.TRACKPAD) mapOf(
         "legacy:right-pad" to InputAction.Pointer(), "legacy:a" to InputAction.MouseButton(272), "legacy:b" to InputAction.MouseButton(273),
-    ) else emptyMap()).filterKeys { id -> layout.elements.any { it.id == id } }
+    ) else emptyMap()).filterKeys { id -> layout.elements.any { it.id == id } } + layout.elements.mapNotNull { element ->
+        InputCommand.entries.firstOrNull { element.id == "command:${it.name.lowercase()}" }?.let { element.id to InputAction.Command(it) }
+    }.toMap()
 
     fun clicks(layout: SavedInputLayout): Map<String, InputAction> = if (layout.id == InputLibraries.TRACKPAD)
         mapOf("legacy:right-pad" to InputAction.MouseButton(272)) else emptyMap()

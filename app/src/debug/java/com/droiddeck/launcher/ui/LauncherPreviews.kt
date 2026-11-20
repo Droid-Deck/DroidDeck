@@ -38,17 +38,17 @@ private fun SessionMenu(page: SessionDrawerPage, steam: Boolean = true, desktop:
 @Composable
 private fun DockedMenu(page: SessionDrawerPage) = PreviewHost {
     SessionDrawer(true, page, controllerActive = false, onPageChange = {},
-        a = sampleDrawerActions(secondScreen = SecondScreenMode.KEYBOARD_TRACKPAD), docked = true)
+        a = sampleDrawerActions(secondScreen = SecondScreenMode.CUSTOM_CONTROLS), docked = true)
 }
 
 /** The bottom screen's bar on a panel: the panel's name is the screen picker. */
 @Composable
 private fun BottomPanelBar() = PreviewHost {
-    val modes = secondScreenModes(false, deckPad = false, dashboard = true, desktop = false)
+    val modes = secondScreenModes(dashboard = true, desktop = false)
     Column(Modifier.fillMaxSize().background(Color.Black)) {
-        BottomScreenBar(BottomBarModel("Keyboard + trackpad", {}, {}, {}, {},
+        BottomScreenBar(BottomBarModel("Terminal", null, {}, {}, {},
             listOf(BarExtra("Keyboard", icon = R.drawable.ic_bottom_keyboard) {}),
-            picker = ScreenPicker(modes, SecondScreenMode.KEYBOARD_TRACKPAD, {}, onMenu = {})))
+            picker = ScreenPicker(modes, SecondScreenMode.TERMINAL, {}, onMenu = {})))
     }
 }
 
