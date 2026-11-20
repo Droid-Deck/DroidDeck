@@ -646,8 +646,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var oscRearButtons by mutableStateOf(false)
     private var oscTrackpads by mutableStateOf(false)
     private var onScreenButtonsVisible by mutableStateOf(false)
-    private var layoutOptions by mutableStateOf<List<Pair<String, String>>>(emptyList())
+    private var layoutOptions by mutableStateOf<List<com.droiddeck.launcher.input.ControlsChoice.Option>>(emptyList())
     private var layoutChoice by mutableStateOf("")
+    private var layoutHint by mutableStateOf<String?>(null)
     private var layoutEditor by mutableStateOf<Triple<String, String, String>?>(null)
     private var layoutEditorScope: String? = null
     private var layoutEditorSplit: com.droiddeck.launcher.ui.InputEditorSplit? = null
@@ -1746,7 +1747,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             layoutGame = controlsGameName(),
             layoutOptions = layoutOptions,
             layoutChoice = layoutChoice,
+            layoutHint = layoutHint,
             onLayout = ::chooseLayout,
+            onDeleteLayout = ::deleteLayout,
             oscRearButtons = oscRearButtons.takeIf {
                 unfoldedPanel == null && !usesSteamTouchLayout() && com.droiddeck.launcher.input.PadKit.current(this).steam &&
                     primaryInputLayout?.let(com.droiddeck.launcher.input.OnScreenLayout::hasBuiltInKit) == true
@@ -4434,8 +4437,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun refreshLayoutOptions() {
         val steam = SessionState.mode == SessionService.MODE_STEAM
         val game = controlsGameId()
-        layoutOptions = com.droiddeck.launcher.input.ControlsChoice.options(this, game, steam, controlsGameName())
-        layoutChoice = com.droiddeck.launcher.input.ControlsChoice.current(this, game, steam, loadingMode() == SessionService.MODE_DESKTOP)
+        val desktop = loadingMode() == SessionService.MODE_DESKTOP
+        layoutOptions = com.droiddeck.launcher.input.ControlsChoice.options(this, game, steam, controlsGameName(), desktop)
+        layoutChoice = com.droiddeck.launcher.input.ControlsChoice.current(this, game, steam, desktop)
+        layoutHint = if (com.droiddeck.launcher.input.ControlsChoice.steamUnavailable(this, game, steam)) getString(R.string.osc_layout_steam_unavailable) else null
+    }
+
+    private fun deleteLayout(id: String) {
+        runCatching { com.droiddeck.launcher.input.ControlsChoice.delete(this, id) }.onFailure { Log.w(TAG, "could not delete layout $id", it) }
+        refreshLayoutOptions()
     }
 
     private fun chooseLayout(id: String) {

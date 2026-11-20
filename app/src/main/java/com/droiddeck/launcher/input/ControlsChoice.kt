@@ -24,14 +24,68 @@ object ControlsChoice {
         return if (chosen == null) library else library.selectPart(desktop, InputRole.PRIMARY, chosen)
     }
 
-    fun options(context: Context, game: Long?, steamMode: Boolean, gameName: String? = null): List<Pair<String, String>> {
+    data class Option(val id: String, val name: String, val detail: String? = null, val deletable: Boolean = false)
+
+    /** Layouts made for one game, so they're listed only for that game. Layouts made before that was recorded are recognised by carrying the name of the game that draws them. */
+    private fun owners(context: Context, library: InputLibrary): Map<String, Set<Long>> {
+        val named = GameControls.games(context).mapNotNull { game ->
+            val layout = own(library, GameControls.bindings(context, game))?.let { library.preset(it).layoutId } ?: return@mapNotNull null
+            val name = GameControls.name(context, game) ?: return@mapNotNull null
+            (layout to game).takeIf { library.layouts.any { it.id == layout && it.name == name } }
+        }
+        return (named + GameControls.madeFor(context).toList()).groupBy({ it.first }, { it.second }).mapValues { it.value.toSet() }
+    }
+
+    private fun defaults(library: InputLibrary) =
+        listOf(false, true).mapNotNull { library.activeLayout(it, InputRole.PRIMARY)?.id }.toSet()
+
+    private fun deletable(context: Context, library: InputLibrary, layout: SavedInputLayout): Boolean {
+        if (!layout.editable || layout.id == InputLibraries.OVERLAY || layout.id in defaults(library)) return false
+        if (GameControls.games(context).any { game -> own(library, GameControls.bindings(context, game))?.let { library.preset(it).layoutId } == layout.id }) return false
+        val reachable = setOf(InputProfile.GAME, InputProfile.DESKTOP, library.activeId(false), library.activeId(true))
+        return library.usersOfLayout(layout.id).none { it.id in reachable } &&
+            library.bindings.none { it.layoutId == layout.id && library.selectedBindings(it.id) }
+    }
+
+    fun options(context: Context, game: Long?, steamMode: Boolean, gameName: String? = null, desktop: Boolean = false): List<Option> {
         val library = InputLibraries.read(context)
         val own = game != null && game in GameControls.games(context)
-        return (if (own) listOf(DEFAULT to context.getString(R.string.osc_default)) else emptyList()) +
-            listOf(InputLibraries.OVERLAY to context.getString(R.string.osc_layout_gamepad)) +
-            (if (steamMode) listOf(GameControls.STEAM to context.getString(R.string.osc_layout_steam)) else emptyList()) +
-            library.layouts.filter { it.editable && it.supports(InputRole.PRIMARY) && it.id != InputLibraries.OVERLAY }.map { it.id to it.name } +
-            (if (game != null && !gameName.isNullOrBlank()) listOf(NEW to context.getString(R.string.osc_layout_new_for, gameName)) else emptyList())
+        val current = current(context, game, steamMode, desktop)
+        val owners = owners(context, library)
+        val defaults = defaults(library)
+        val forGame = gameName?.takeIf { game != null && it.isNotBlank() }
+        val saved = library.layouts.filter { it.editable && it.supports(InputRole.PRIMARY) && it.id != InputLibraries.OVERLAY }
+            .filter { l -> l.id == current || l.id in defaults || owners[l.id].isNullOrEmpty() || game in owners[l.id].orEmpty() }
+            .map { l ->
+                val mine = game != null && game in owners[l.id].orEmpty() && l.id !in defaults
+                Option(l.id, l.name, if (mine && forGame != null) context.getString(R.string.osc_layout_detail_game, forGame) else null,
+                    l.id != current && deletable(context, library, l))
+            }
+        return (if (own) listOf(Option(DEFAULT, context.getString(R.string.osc_default))) else emptyList()) +
+            Option(InputLibraries.OVERLAY, context.getString(R.string.osc_layout_gamepad), context.getString(R.string.osc_layout_gamepad_detail)) +
+            (if (steamMode) listOf(Option(GameControls.STEAM, context.getString(R.string.osc_layout_steam), context.getString(R.string.osc_layout_steam_detail))) else emptyList()) +
+            saved +
+            (if (forGame != null) listOf(Option(NEW, context.getString(R.string.osc_layout_new_for, forGame))) else emptyList())
+    }
+
+    /** Whether [game] chose Steam's touch controls but runs where they can't be shown. */
+    fun steamUnavailable(context: Context, game: Long?, steamMode: Boolean) = !steamMode && GameControls.steamLayout(context, game)
+
+    /** Deletes the saved layout [id] and its actions, with any profile that still uses it but can no longer be chosen. */
+    fun delete(context: Context, id: String) {
+        val games = GameControls.games(context).mapNotNull { GameControls.bindings(context, it) }.toSet()
+        InputLibraries.update(context) { library ->
+            val layout = library.layouts.first { it.id == id }
+            require(deletable(context, library, layout))
+            val orphans = library.usersOfLayout(id)
+            var result = orphans.fold(library) { acc, p -> acc.removeProfile(p.id) }
+            val loose = orphans.flatMap { p -> p.parts.values.map { it.bindings } }.toSet()
+                .filter { b -> b !in games && result.usersOfBindings(b).isEmpty() && !result.selectedBindings(b) && result.bindings.any { it.id == b } }
+                .filterNot { b -> InputStockLayouts.presets(InputStockLayouts.layouts()).any { it.id == b } }
+            result = loose.fold(result) { acc, b -> acc.removeBindings(b) }
+            result.removeLayout(id)
+        }
+        GameControls.forgetLayout(context, id)
     }
 
     fun current(context: Context, game: Long?, steamMode: Boolean, desktop: Boolean = false): String =
@@ -61,6 +115,7 @@ object ControlsChoice {
         val layoutId = newInputId()
         val bindingsId = newInputId()
         InputLibraries.update(context) { latest -> copyForGame(context, latest, game, name, desktop, layoutId, bindingsId) }
+        GameControls.markMadeFor(context, layoutId, game)
         GameControls.choose(context, game, bindingsId, steam = false, name = name)
         return layoutId to bindingsId
     }
@@ -80,7 +135,10 @@ object ControlsChoice {
     }
 
     /** Uses [bindingsId], made by [copyForGame], for [game] only. */
-    fun useForGame(context: Context, game: Long, name: String, bindingsId: String) = GameControls.choose(context, game, bindingsId, steam = false, name = name)
+    fun useForGame(context: Context, game: Long, name: String, bindingsId: String) {
+        InputLibraries.read(context).bindings.firstOrNull { it.id == bindingsId }?.layoutId?.let { GameControls.markMadeFor(context, it, game) }
+        GameControls.choose(context, game, bindingsId, steam = false, name = name)
+    }
 
     /** The profile, layout and actions the editor opens for [game], or null when its layout can't be edited here. */
     fun editTarget(context: Context, game: Long?, desktop: Boolean): Triple<String, String, String>? {

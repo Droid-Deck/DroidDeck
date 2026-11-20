@@ -326,8 +326,13 @@
     <string name="mode_osc_note">Auto shows the controls when no controller is connected.</string>
     <string name="osc_group_for">On-screen controls · %1$s</string>
     <string name="osc_layout">Layout</string>
-    <string name="osc_layout_gamepad">Gamepad</string>
-    <string name="osc_layout_steam">Steam layout</string>
+    <string name="osc_layout_gamepad">DroidDeck controls</string>
+    <string name="osc_layout_gamepad_detail">Works in every game. Edit them here.</string>
+    <string name="osc_layout_steam">Steam touch controls</string>
+    <string name="osc_layout_steam_detail">Each game\'s touch controls from Steam. Steam games only; edit them in Steam.</string>
+    <string name="osc_layout_steam_unavailable">Steam touch controls only work in games launched through Steam, so these are shown instead.</string>
+    <string name="osc_layout_detail_game">Just for %1$s</string>
+    <string name="osc_delete_layout">Delete layout</string>
     <string name="osc_edit_layout">Edit layout</string>
     <string name="osc_show">Show</string>
     <string name="osc_rear_buttons">Rear buttons</string>

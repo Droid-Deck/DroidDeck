@@ -89,10 +89,10 @@ class ControlsChoiceTest {
     }
 
     @Test fun newIsOfferedOnlyForAGame() {
-        assertTrue(ControlsChoice.options(context, null, steamMode = true).none { it.first == ControlsChoice.NEW })
-        assertEquals(ControlsChoice.NEW to context.getString(R.string.osc_layout_new_for, "Castle Crashers"),
-            ControlsChoice.options(context, 7, steamMode = true, gameName = "Castle Crashers").last())
-        assertEquals(listOf(InputLibraries.OVERLAY, GameControls.STEAM), ControlsChoice.options(context, null, steamMode = true).map { it.first }.take(2))
+        assertTrue(ControlsChoice.options(context, null, steamMode = true).none { it.id == ControlsChoice.NEW })
+        val last = ControlsChoice.options(context, 7, steamMode = true, gameName = "Castle Crashers").last()
+        assertEquals(ControlsChoice.NEW to context.getString(R.string.osc_layout_new_for, "Castle Crashers"), last.id to last.name)
+        assertEquals(listOf(InputLibraries.OVERLAY, GameControls.STEAM), ControlsChoice.options(context, null, steamMode = true).map { it.id })
     }
 
     @Test fun newForTheGameInTheControllerPageCopiesTheLayoutAndOpensTheEditorOnIt() {
@@ -101,8 +101,8 @@ class ControlsChoiceTest {
         ReflectionHelpers.getField<MutableState<Long?>>(activity, "frameGenActiveGameId\$delegate").value = 77L
         ReflectionHelpers.getField<MutableState<String?>>(activity, "frameGenActiveGameName\$delegate").value = "Castle Crashers"
         ReflectionHelpers.callInstanceMethod<Any?>(activity, "refreshInputProfile")
-        val options = ReflectionHelpers.getField<MutableState<List<Pair<String, String>>>>(activity, "layoutOptions\$delegate").value
-        assertEquals(ControlsChoice.NEW to "+ New for Castle Crashers", options.last())
+        val options = ReflectionHelpers.getField<MutableState<List<ControlsChoice.Option>>>(activity, "layoutOptions\$delegate").value
+        assertEquals(ControlsChoice.NEW to "+ New for Castle Crashers", options.last().let { it.id to it.name })
         ReflectionHelpers.callInstanceMethod<Any?>(activity, "chooseLayout", ReflectionHelpers.ClassParameter.from(String::class.java, ControlsChoice.NEW))
         val editor = ReflectionHelpers.getField<MutableState<Triple<String, String, String>?>>(activity, "layoutEditor\$delegate").value!!
         assertEquals(GameControls.bindings(activity, 77), editor.third)
@@ -115,11 +115,73 @@ class ControlsChoiceTest {
     }
 
     @Test fun aGameWithItsOwnLayoutCanGoBackToTheDefault() {
-        assertTrue(ControlsChoice.options(context, 42L, steamMode = true, gameName = "Game").none { it.first == ControlsChoice.DEFAULT })
+        assertTrue(ControlsChoice.options(context, 42L, steamMode = true, gameName = "Game").none { it.id == ControlsChoice.DEFAULT })
         ControlsChoice.newForGame(context, 42L, "Game", desktop = false)
-        assertTrue(ControlsChoice.options(context, 42L, steamMode = true, gameName = "Game").first().first == ControlsChoice.DEFAULT)
+        assertTrue(ControlsChoice.options(context, 42L, steamMode = true, gameName = "Game").first().id == ControlsChoice.DEFAULT)
         ControlsChoice.choose(context, 42L, ControlsChoice.DEFAULT, desktop = false)
         assertFalse(ControlsChoice.hasOwn(context, 42L))
-        assertTrue(ControlsChoice.options(context, 42L, steamMode = true, gameName = "Game").none { it.first == ControlsChoice.DEFAULT })
+        assertTrue(ControlsChoice.options(context, 42L, steamMode = true, gameName = "Game").none { it.id == ControlsChoice.DEFAULT })
+    }
+
+    @Test fun aLayoutMadeForOneGameIsListedOnlyForThatGame() {
+        val (layoutId, _) = ControlsChoice.newForGame(context, 7, "Castle Crashers", desktop = false)
+        val mine = ControlsChoice.options(context, 7, steamMode = true, gameName = "Castle Crashers").first { it.id == layoutId }
+        assertEquals(context.getString(R.string.osc_layout_detail_game, "Castle Crashers"), mine.detail)
+        assertFalse(mine.deletable)
+        assertTrue(ControlsChoice.options(context, 8, steamMode = true, gameName = "Portal").none { it.id == layoutId })
+        assertTrue(ControlsChoice.options(context, null, steamMode = true).none { it.id == layoutId })
+        ControlsChoice.useDefault(context, 7)
+        assertTrue(ControlsChoice.options(context, 8, steamMode = true, gameName = "Portal").none { it.id == layoutId })
+        assertTrue(ControlsChoice.options(context, 7, steamMode = true, gameName = "Castle Crashers").first { it.id == layoutId }.deletable)
+    }
+
+    @Test fun anUnusedLayoutCanBeDeletedButNotOneInUse() {
+        val source = bigSticks()
+        assertTrue(ControlsChoice.options(context, null, steamMode = true).first { it.id == source }.deletable)
+        ControlsChoice.choose(context, null, source, desktop = false)
+        assertFalse(ControlsChoice.options(context, null, steamMode = true).first { it.id == source }.deletable)
+        ControlsChoice.choose(context, null, InputLibraries.OVERLAY, desktop = false)
+        ControlsChoice.choose(context, 7, source, desktop = false, gameName = "Castle Crashers")
+        assertFalse(ControlsChoice.options(context, null, steamMode = true).first { it.id == source }.deletable)
+        assertNull(ControlsChoice.options(context, 8, steamMode = true, gameName = "Portal").first { it.id == source }.detail)
+        ControlsChoice.useDefault(context, 7)
+        ControlsChoice.delete(context, source)
+        val library = InputLibraries.read(context)
+        assertTrue(library.layouts.none { it.id == source })
+        assertTrue(library.bindings.none { it.layoutId == source })
+        assertTrue(ControlsChoice.options(context, null, steamMode = true).none { it.id == source })
+    }
+
+    @Test fun deletingALayoutAlsoRemovesAProfileThatCanNoLongerBeChosen() {
+        InputLibraries.update(context) { it.duplicateProfile(InputProfile.GAME, "Game2") }
+        val profile = InputLibraries.read(context).profiles.first { it.name == "Game2" }
+        val layout = InputLibraries.read(context).layout(profile.id, InputRole.PRIMARY)!!
+        assertEquals("Game2 / primary", layout.name)
+        assertTrue(ControlsChoice.options(context, null, steamMode = true).first { it.id == layout.id }.deletable)
+        ControlsChoice.delete(context, layout.id)
+        val library = InputLibraries.read(context)
+        assertTrue(library.profiles.none { it.id == profile.id })
+        assertTrue(library.layouts.none { it.id == layout.id })
+        assertTrue(profile.parts.values.none { part -> library.bindings.any { it.id == part.bindings } })
+        assertEquals(InputLibraries.OVERLAY, ControlsChoice.current(context, null, steamMode = true))
+    }
+
+    @Test fun steamTouchSavedForAGameFallsBackOutsideSteamWithANote() {
+        ControlsChoice.choose(context, 7, GameControls.STEAM, desktop = false, gameName = "Portal")
+        assertEquals(GameControls.STEAM, ControlsChoice.current(context, 7, steamMode = true))
+        assertFalse(ControlsChoice.steamUnavailable(context, 7, steamMode = true))
+        assertEquals(InputLibraries.OVERLAY, ControlsChoice.current(context, 7, steamMode = false))
+        assertTrue(ControlsChoice.steamUnavailable(context, 7, steamMode = false))
+        assertFalse(ControlsChoice.steamUnavailable(context, 8, steamMode = false))
+        assertTrue(ControlsChoice.options(context, 7, steamMode = false, gameName = "Portal").none { it.id == GameControls.STEAM })
+    }
+
+    @Test fun aLayoutNamedAfterTheGameThatDrawsItCountsAsThatGamesOwn() {
+        val source = bigSticks()
+        InputLibraries.update(context) { it.withLayout(it.layouts.first { l -> l.id == source }.copy(name = "ARMSX1")) }
+        ControlsChoice.choose(context, 7, source, desktop = false, gameName = "ARMSX1")
+        assertTrue(ControlsChoice.options(context, 8, steamMode = true, gameName = "Portal").none { it.id == source })
+        assertEquals(context.getString(R.string.osc_layout_detail_game, "ARMSX1"),
+            ControlsChoice.options(context, 7, steamMode = true, gameName = "ARMSX1").first { it.id == source }.detail)
     }
 }
