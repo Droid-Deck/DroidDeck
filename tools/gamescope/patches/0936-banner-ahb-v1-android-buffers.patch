@@ -1,0 +1,409 @@
+diff --git a/protocol/banner-ahb-v1.xml b/protocol/banner-ahb-v1.xml
+new file mode 100644
+index 0000000..1560c8f
+--- /dev/null
++++ b/protocol/banner-ahb-v1.xml
+@@ -0,0 +1,105 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="banner_ahb_v1">
++  <copyright>
++    Copyright 2026 The412Banner
++
++    Permission is hereby granted, free of charge, to any person obtaining a
++    copy of this software and associated documentation files (the "Software"),
++    to deal in the Software without restriction, including without limitation
++    the rights to use, copy, modify, merge, publish, distribute, sublicense,
++    and/or sell copies of the Software, and to permit persons to whom the
++    Software is furnished to do so, subject to the following conditions:
++
++    The above copyright notice and this permission notice (including the next
++    paragraph) shall be included in all copies or substantial portions of the
++    Software.
++
++    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++    DEALINGS IN THE SOFTWARE.
++  </copyright>
++
++  <interface name="banner_ahb_v1" version="2">
++    <description summary="Android gralloc buffers behind dma-buf wl_buffers">
++      Zero-copy window layers on Android. A Vulkan swapchain image that the
++      client allocated as an Android AHardwareBuffer (gralloc) is still shared
++      as a dma-buf through zwp_linux_dmabuf_v1, so the compositor can import
++      and draw it the usual way. This interface additionally hands the
++      compositor the AHardwareBuffer itself, once per wl_buffer, so the
++      compositor can put the buffer straight on an Android SurfaceControl
++      layer (SurfaceFlinger / the display hardware composite it) without
++      copying it.
++
++      The AHardwareBuffer travels over a Unix socket: the client creates a
++      socketpair, writes the buffer's handle into one end with
++      AHardwareBuffer_sendHandleToUnixSocket, then sends the other end in the
++      attach request. The compositor reads it with
++      AHardwareBuffer_recvHandleFromUnixSocket and closes the socket. Its
++      reference to the AHardwareBuffer lives as long as the wl_buffer (plus
++      whatever the display still holds).
++
++      The compositor advertises this global whenever it can put buffers on a
++      display layer at all; whether it WANTS gralloc buffers right now is the
++      mode event (version 2), sent on bind and every time the user switches
++      zero-copy on or off during the session. A client decides per swapchain,
++      when it creates the swapchain, from the last mode it received, and a
++      client whose live swapchain was built for the other mode retires it
++      (VK_ERROR_OUT_OF_DATE_KHR on its next acquire or present) so the program
++      rebuilds it for the new mode. Buffers of the old swapchain stay fully
++      presentable until then: an attached AHardwareBuffer keeps its association
++      for the wl_buffer's lifetime whatever the mode is now. A version 1
++      client (no mode event) keeps deciding from its own environment. A
++      client that does not see the global (or does not want it) allocates
++      swapchain images the standard way; nothing else changes.
++
++      Synchronisation stays implicit: the dma-buf carries the client's render
++      fence (DMA_BUF_IOCTL_IMPORT_SYNC_FILE by the client's driver), the
++      compositor exports it as the layer's acquire fence, and the compositor
++      imports the display's release fence into the dma-buf before it sends
++      wl_buffer.release, so the client's next acquire waits on it.
++    </description>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the object">
++        Buffers already attached keep their AHardwareBuffer association.
++      </description>
++    </request>
++
++    <request name="attach">
++      <description summary="hand the compositor a buffer's AHardwareBuffer">
++        Associates the AHardwareBuffer readable from socket with the
++        (already created) dma-buf wl_buffer. width, height and stride
++        (pixels) describe the gralloc allocation; modifier_hi/lo is the DRM
++        format modifier the dma-buf was shared with (the same value passed to
++        zwp_linux_buffer_params_v1.add); image_count is the number of images
++        in the swapchain this buffer belongs to (for the compositor's log).
++        Sent once per wl_buffer, before the buffer is first attached to a
++        surface.
++      </description>
++      <arg name="buffer" type="object" interface="wl_buffer" summary="the dma-buf wl_buffer"/>
++      <arg name="socket" type="fd" summary="socket the AHardwareBuffer handle was written to"/>
++      <arg name="width" type="uint" summary="buffer width in pixels"/>
++      <arg name="height" type="uint" summary="buffer height in pixels"/>
++      <arg name="stride" type="uint" summary="gralloc row stride in pixels"/>
++      <arg name="modifier_hi" type="uint" summary="high 32 bits of the DRM format modifier"/>
++      <arg name="modifier_lo" type="uint" summary="low 32 bits of the DRM format modifier"/>
++      <arg name="image_count" type="uint" summary="images in the client's swapchain"/>
++    </request>
++
++    <event name="mode" since="2">
++      <description summary="whether the compositor wants gralloc swapchain images now">
++        Sent once right after bind and again whenever the compositor's
++        zero-copy state flips (the in-game switch). enabled = 1: swapchains
++        created from now on should use gralloc AHardwareBuffers and attach
++        them; 0: standard buffers. A live swapchain built for the other value
++        should be retired by the client (out of date) so the program rebuilds
++        it; until it is, its buffers are shown as before.
++      </description>
++      <arg name="enabled" type="uint" summary="1 = gralloc swapchain images wanted, 0 = not"/>
++    </event>
++  </interface>
++</protocol>
+diff --git a/protocol/meson.build b/protocol/meson.build
+index cf8fbd1..a6ad1f8 100644
+--- a/protocol/meson.build
++++ b/protocol/meson.build
+@@ -45,6 +45,9 @@ protocols = [
+ 
+ 	# wlroots protocols
+ 	'wlr-layer-shell-unstable-v1.xml',
++
++	# Android buffers behind dma-buf wl_buffers (DroidDeck / Bannerlator zero-copy layers)
++	'banner-ahb-v1.xml',
+ ]
+ 
+ protocols_client_src = []
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index 372fc08..cfb5175 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -38,6 +38,7 @@
+ #include <primary-selection-unstable-v1-client-protocol.h>
+ #include <fractional-scale-v1-client-protocol.h>
+ #include <xdg-toplevel-icon-v1-client-protocol.h>
++#include <banner-ahb-v1-client-protocol.h>
+ #include "wlr_end.hpp"
+ 
+ #include "drm_include.h"
+@@ -818,6 +819,7 @@ namespace gamescope
+         wp_single_pixel_buffer_manager_v1 *m_pSinglePixelBufferManager = nullptr;
+         wl_subcompositor *m_pSubcompositor = nullptr;
+         zwp_linux_dmabuf_v1 *m_pLinuxDmabuf = nullptr;
++        banner_ahb_v1 *m_pBannerAhb = nullptr;
+         xdg_wm_base *m_pXdgWmBase = nullptr;
+         wp_viewporter *m_pViewporter = nullptr;
+ 		wl_region *m_pEmptyRegion = nullptr;
+@@ -2340,6 +2342,15 @@ namespace gamescope
+ 
+         zwp_linux_buffer_params_v1_destroy( pBufferParams );
+ 
++        // A client's Android buffer behind this dma-buf goes to the host with the host's wl_buffer for it.
++        wlserver_banner_ahb_attach ahb;
++        if ( m_pBannerAhb && pDmaBuf->n_planes > 0 && wlserver_banner_ahb_take( pDmaBuf->fd[0], &ahb ) )
++        {
++            banner_ahb_v1_attach( m_pBannerAhb, pImportedBuffer, ahb.sock, ahb.width, ahb.height, ahb.stride,
++                ahb.mod_hi, ahb.mod_lo, ahb.image_count );
++            close( ahb.sock );
++        }
++
+         return new CWaylandFb{ this, pImportedBuffer };
+     }
+ 
+@@ -2598,6 +2609,20 @@ namespace gamescope
+         {
+             m_pSinglePixelBufferManager = (wp_single_pixel_buffer_manager_v1 *)wl_registry_bind( pRegistry, uName, &wp_single_pixel_buffer_manager_v1_interface, 1u );
+         }
++        else if ( !strcmp( pInterface, banner_ahb_v1_interface.name ) )
++        {
++            // The host shows Android buffers on a display layer (banner_ahb_v1): its mode says whether clients
++            // should allocate their swapchain images as such buffers; gamescope's own global relays it.
++            static constexpr banner_ahb_v1_listener s_Listener =
++            {
++                .mode = []( void *pData, banner_ahb_v1 *pBannerAhb, uint32_t uEnabled )
++                {
++                    wlserver_banner_ahb_set_mode( uEnabled != 0 );
++                },
++            };
++            m_pBannerAhb = (banner_ahb_v1 *)wl_registry_bind( pRegistry, uName, &banner_ahb_v1_interface, std::min( uVersion, 2u ) );
++            banner_ahb_v1_add_listener( m_pBannerAhb, &s_Listener, this );
++        }
+         else if ( !strcmp( pInterface, wl_subcompositor_interface.name ) )
+         {
+             m_pSubcompositor = (wl_subcompositor *)wl_registry_bind( pRegistry, uName, &wl_subcompositor_interface, 1u );
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+index df352b0..a84f2af 100644
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -11,6 +11,11 @@
+ #include <fcntl.h>
+ #include <xf86drm.h>
+ #include <sys/eventfd.h>
++#include <sys/stat.h>
++#include <atomic>
++#include <mutex>
++#include <unordered_map>
++#include <vector>
+ 
+ #include <linux/input-event-codes.h>
+ 
+@@ -48,6 +53,7 @@
+ #include <wlr/types/wlr_pointer_constraints_v1.h>
+ #include <wlr/types/wlr_layer_shell_v1.h>
+ #include <wlr/types/wlr_data_device.h>
++#include <wlr/types/wlr_linux_dmabuf_v1.h>
+ #include <wlr/util/region.h>
+ #include "wlr_end.hpp"
+ 
+@@ -57,6 +63,7 @@
+ #include "gamescope-private-protocol.h"
+ #include "gamescope-swapchain-protocol.h"
+ #include "presentation-time-protocol.h"
++#include "banner-ahb-v1-protocol.h"
+ 
+ #include "wlserver.hpp"
+ #include "hdmi.h"
+@@ -1157,6 +1164,165 @@ static void gamescope_swapchain_factory_v2_bind( struct wl_client *client, void
+ 	wl_resource_set_implementation( resource, &gamescope_swapchain_factory_v2_impl, NULL, NULL );
+ }
+ 
++// DroidDeck: banner_ahb_v1, Android buffers behind dma-buf wl_buffers. A bionic game can allocate its swapchain
++// images as AHardwareBuffers and hand each one over once per wl_buffer (a socket the handle was written to).
++// gamescope never reads it: when it creates the host wl_buffer for the same dma-buf it passes the socket on to the
++// host compositor (CWaylandBackend::ImportDmabufToBackend), which can then show the buffer on a display layer
++// without a copy. Whether clients should allocate such buffers is the host's mode, relayed here.
++// GAMESCOPE_BANNER_AHB=0 leaves the global out.
++struct banner_ahb_pending
++{
++	int sock = -1;
++	uint32_t width = 0, height = 0, stride = 0, mod_hi = 0, mod_lo = 0, image_count = 0;
++	ino_t ino = 0;
++	bool queued = false;
++	wl_listener destroy;
++};
++
++static std::mutex g_BannerAhbMutex;
++static std::unordered_map<ino_t, banner_ahb_pending *> g_BannerAhbPending;
++static std::vector<wl_resource *> g_BannerAhbResources;
++static std::atomic<int> g_nBannerAhbMode{ 0 };
++
++static void banner_ahb_buffer_destroyed( wl_listener *pListener, void * )
++{
++	banner_ahb_pending *pPending = wl_container_of( pListener, pPending, destroy );
++	{
++		std::scoped_lock lock( g_BannerAhbMutex );
++		if ( pPending->queued )
++		{
++			auto iter = g_BannerAhbPending.find( pPending->ino );
++			if ( iter != g_BannerAhbPending.end() && iter->second == pPending )
++				g_BannerAhbPending.erase( iter );
++		}
++		if ( pPending->sock >= 0 )
++			close( pPending->sock );
++	}
++	wl_list_remove( &pPending->destroy.link );
++	delete pPending;
++}
++
++static void banner_ahb_handle_destroy( wl_client *, wl_resource *pResource )
++{
++	wl_resource_destroy( pResource );
++}
++
++static void banner_ahb_handle_attach( wl_client *, wl_resource *, wl_resource *pBuffer, int32_t nSocket,
++	uint32_t uWidth, uint32_t uHeight, uint32_t uStride, uint32_t uModHi, uint32_t uModLo, uint32_t uImageCount )
++{
++	wlr_dmabuf_v1_buffer *pDmabuf = wlr_dmabuf_v1_buffer_try_from_buffer_resource( pBuffer );
++	struct stat st;
++	if ( !pDmabuf || pDmabuf->attributes.n_planes < 1 || fstat( pDmabuf->attributes.fd[0], &st ) != 0 )
++	{
++		wl_log.errorf( "banner_ahb_v1: attach to a wl_buffer that is not a dma-buf, ignored" );
++		close( nSocket );
++		return;
++	}
++
++	banner_ahb_pending *pPending = new banner_ahb_pending;
++	pPending->sock = nSocket;
++	pPending->width = uWidth;
++	pPending->height = uHeight;
++	pPending->stride = uStride;
++	pPending->mod_hi = uModHi;
++	pPending->mod_lo = uModLo;
++	pPending->image_count = uImageCount;
++	pPending->ino = st.st_ino;
++	pPending->queued = true;
++	pPending->destroy.notify = banner_ahb_buffer_destroyed;
++	wl_resource_add_destroy_listener( pBuffer, &pPending->destroy );
++
++	std::scoped_lock lock( g_BannerAhbMutex );
++	auto iter = g_BannerAhbPending.find( st.st_ino );
++	if ( iter != g_BannerAhbPending.end() )
++	{
++		iter->second->queued = false;
++		if ( iter->second->sock >= 0 )
++		{
++			close( iter->second->sock );
++			iter->second->sock = -1;
++		}
++	}
++	g_BannerAhbPending[ st.st_ino ] = pPending;
++}
++
++static const struct banner_ahb_v1_interface banner_ahb_impl =
++{
++	.destroy = banner_ahb_handle_destroy,
++	.attach = banner_ahb_handle_attach,
++};
++
++static void banner_ahb_resource_destroyed( wl_resource *pResource )
++{
++	std::erase( g_BannerAhbResources, pResource );
++}
++
++static void banner_ahb_bind( wl_client *pClient, void *, uint32_t uVersion, uint32_t uId )
++{
++	wl_resource *pResource = wl_resource_create( pClient, &banner_ahb_v1_interface, std::min( uVersion, 2u ), uId );
++	if ( !pResource )
++	{
++		wl_client_post_no_memory( pClient );
++		return;
++	}
++	wl_resource_set_implementation( pResource, &banner_ahb_impl, nullptr, banner_ahb_resource_destroyed );
++	g_BannerAhbResources.push_back( pResource );
++	if ( wl_resource_get_version( pResource ) >= BANNER_AHB_V1_MODE_SINCE_VERSION )
++		banner_ahb_v1_send_mode( pResource, g_nBannerAhbMode.load() ? 1u : 0u );
++}
++
++static void create_banner_ahb( void )
++{
++	const char *pszEnv = getenv( "GAMESCOPE_BANNER_AHB" );
++	if ( pszEnv && pszEnv[0] == '0' )
++		return;
++	wl_global_create( wlserver.display, &banner_ahb_v1_interface, 2, nullptr, banner_ahb_bind );
++}
++
++void wlserver_banner_ahb_set_mode( bool bEnabled )
++{
++	if ( g_nBannerAhbMode.exchange( bEnabled ? 1 : 0 ) == ( bEnabled ? 1 : 0 ) )
++		return;
++	wl_log.infof( "banner_ahb_v1: host compositor %s Android swapchain buffers", bEnabled ? "wants" : "does not want" );
++	if ( !wlserver.display )
++		return;
++	wlserver_lock();
++	for ( wl_resource *pResource : g_BannerAhbResources )
++	{
++		if ( wl_resource_get_version( pResource ) >= BANNER_AHB_V1_MODE_SINCE_VERSION )
++			banner_ahb_v1_send_mode( pResource, bEnabled ? 1u : 0u );
++	}
++	wlserver_unlock();
++}
++
++bool wlserver_banner_ahb_take( int nDmabufFd, wlserver_banner_ahb_attach *pOut )
++{
++	struct stat st;
++	if ( fstat( nDmabufFd, &st ) != 0 )
++		return false;
++	std::scoped_lock lock( g_BannerAhbMutex );
++	auto iter = g_BannerAhbPending.find( st.st_ino );
++	if ( iter == g_BannerAhbPending.end() )
++		return false;
++	banner_ahb_pending *pPending = iter->second;
++	g_BannerAhbPending.erase( iter );
++	pPending->queued = false;
++	if ( pPending->sock < 0 )
++		return false;
++	*pOut = wlserver_banner_ahb_attach
++	{
++		.sock = pPending->sock,
++		.width = pPending->width,
++		.height = pPending->height,
++		.stride = pPending->stride,
++		.mod_hi = pPending->mod_hi,
++		.mod_lo = pPending->mod_lo,
++		.image_count = pPending->image_count,
++	};
++	pPending->sock = -1;
++	return true;
++}
++
+ static void create_gamescope_swapchain_factory_v2( void )
+ {
+ 	uint32_t version = 1;
+@@ -2255,6 +2421,7 @@ bool wlserver_init( void ) {
+ 	create_gamescope_xwayland();
+ 
+ 	create_gamescope_swapchain_factory_v2();
++	create_banner_ahb();
+ 
+ 	new gamescope::WaylandServer::CGamescopeLimiterProtocol( wlserver.display );
+ 
+diff --git a/src/wlserver.hpp b/src/wlserver.hpp
+index b35faca..6d92c23 100644
+--- a/src/wlserver.hpp
++++ b/src/wlserver.hpp
+@@ -263,6 +263,16 @@ bool wlserver_init( void );
+ 
+ void wlserver_run(void);
+ 
++struct wlserver_banner_ahb_attach
++{
++	int sock;
++	uint32_t width, height, stride, mod_hi, mod_lo, image_count;
++};
++// banner_ahb_v1: the host compositor's mode, relayed to clients; and the Android buffer a client attached to the
++// dma-buf behind nDmabufFd, taken once (the caller owns pOut->sock).
++void wlserver_banner_ahb_set_mode( bool bEnabled );
++bool wlserver_banner_ahb_take( int nDmabufFd, wlserver_banner_ahb_attach *pOut );
++
+ void wlserver_lock(void);
+ void wlserver_unlock(bool flush = true);
+ bool wlserver_is_lock_held(void);

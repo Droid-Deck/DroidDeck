@@ -358,3 +358,13 @@ and clears the held flag. wlroots counts repeated presses of one button and send
 reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
 game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
 earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.
+
+## 0936 Android buffers pass through to the host (banner_ahb_v1)
+
+A bionic game can allocate its swapchain images as Android buffers (AHardwareBuffer) and still share them as dma-bufs;
+`banner_ahb_v1` hands the Android buffer itself to the compositor once per wl_buffer, so the compositor can put it on a
+display layer without a copy. gamescope now advertises `banner_ahb_v1` version 2: it binds the host compositor's
+global, relays the host's mode (whether clients should allocate such buffers) to its clients, and keeps each attached
+socket with the client's dma-buf. When it creates the host wl_buffer for that dma-buf (`ImportDmabufToBackend`), it
+sends the socket on with it, unread. Clients that do not bind the global, and hosts that do not advertise it, see no
+change. `GAMESCOPE_BANNER_AHB=0` leaves the global out.

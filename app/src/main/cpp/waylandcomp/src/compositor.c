@@ -317,6 +317,7 @@ static struct { unsigned lit, dark, failed; } g_bfi_stats;
 volatile int g_hide_shell;
 
 volatile int g_zero_copy;
+volatile int g_zero_copy_ahb;
 static int g_zero_copy_paused;
 static int g_zero_copy_fx_skip_said;
 
@@ -2404,7 +2405,13 @@ static void render_scene(void) {
         rendered = vkp_render(w, h, dl.d, dl.n) == 0;
     } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
-    int li = (g_zero_copy && !framegen && !bfi && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
+    int li = ((g_zero_copy || g_zero_copy_ahb) && !framegen && !bfi && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
+    if (li >= 0 && !g_zero_copy) {
+        /* Android buffers only: the fullscreen frame goes on the display layer only when it is a gralloc buffer
+         * its program handed over and no screen effect needs the pass; everything else keeps the copy. */
+        const struct surface *cs = surface_for_image(dl.d[li].img);
+        if (fx_on || !cs || !cs->dmabuf_buf || !ahb_swapchain_has_ahb(cs->dmabuf_buf)) li = -1;
+    }
     int over = li >= 0 ? dl.n - 1 - li : 0;
     const int fx_blocks = (li >= 0 && fx_on && over > 0);
     if (fx_blocks) { li = -1; over = 0; }

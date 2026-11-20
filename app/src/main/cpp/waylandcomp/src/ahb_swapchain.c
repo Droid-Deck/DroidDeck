@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/system_properties.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -25,6 +26,7 @@ struct droiddeck_dma_buf_sync_file { uint32_t flags; int32_t fd; };
 #define DROIDDECK_DMA_BUF_IOCTL_IMPORT_SYNC_FILE _IOW('b', 3, struct droiddeck_dma_buf_sync_file)
 
 extern volatile int g_zero_copy;
+extern volatile int g_zero_copy_ahb;
 
 struct ahb_buf {
     uint64_t id;
@@ -340,7 +342,7 @@ static void bind_ahb(struct wl_client *c, void *data, uint32_t ver, uint32_t id)
     if (!r) { wl_client_post_no_memory(c); return; }
     wl_resource_set_implementation(r, &ahb_impl, NULL, on_client_resource_destroyed);
     wl_list_insert(&g_clients, wl_resource_get_link(r));
-    if (ver >= BANNER_AHB_V1_MODE_SINCE_VERSION) banner_ahb_v1_send_mode(r, g_zero_copy ? 1u : 0u);
+    if (ver >= BANNER_AHB_V1_MODE_SINCE_VERSION) banner_ahb_v1_send_mode(r, (g_zero_copy || g_zero_copy_ahb) ? 1u : 0u);
     if (last_named != c) {
         last_named = c;
         droiddeck_log("layer", "zero-copy: %s bound banner_ahb_v1 version %u (%s)", droiddeck_client_name(c), ver,
@@ -356,13 +358,14 @@ void ahb_swapchain_set_mode(int on, int live) {
                              on ? "on" : "off");
         return;
     }
-    if (g_mode_sent == on) return;
-    g_mode_sent = on;
+    const int want = on || g_zero_copy_ahb;
+    if (g_mode_sent == want) return;
+    g_mode_sent = want;
     int told = 0;
     struct wl_resource *r;
     wl_resource_for_each(r, &g_clients) {
         if (wl_resource_get_version(r) >= BANNER_AHB_V1_MODE_SINCE_VERSION) {
-            banner_ahb_v1_send_mode(r, (uint32_t)on);
+            banner_ahb_v1_send_mode(r, (uint32_t)want);
             told++;
         }
     }
@@ -401,5 +404,13 @@ void ahb_swapchain_init(struct wl_display *display) {
     }
     g_advertised = 1;
     droiddeck_log("layer", "zero-copy: banner_ahb_v1 version 2 advertised (games built for it present their own gralloc buffers while the switch is on)");
+    // Android buffers only: programs that hand over their own gralloc buffers (bionic games, also through gamescope)
+    // are asked for them and shown on the display layer; every other frame keeps the copy path.
+    char prop[PROP_VALUE_MAX] = {0};
+    __system_property_get("persist.droiddeck.zero_copy_ahb", prop);
+    if (prop[0] == '1') {
+        g_zero_copy_ahb = 1;
+        droiddeck_log("layer", "zero-copy: Android buffers only (persist.droiddeck.zero_copy_ahb=1): programs that send their own gralloc buffers go on the display layer, other frames keep the copy");
+    }
     ahb_swapchain_set_mode(g_zero_copy, 0);
 }
