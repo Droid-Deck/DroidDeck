@@ -150,7 +150,11 @@ object KitLayout {
             max(x(s.cx), edge + hw).also { edge = it + hw + GAP_DP * density }
         }
         return controls.map { s ->
-            val cx = row[s] ?: (x(s.ax) + (s.cx - s.ax) * unit); val cy = y(s.ay) + (s.cy - s.ay) * unit; val hw = s.hw * unit; val hh = s.hh * unit
+            val cx = when (s.control) {
+                InputControl.START, InputControl.SELECT -> (w + safe.left - safe.right) / 2f + (s.cx - REF_W / 2f) * unit
+                else -> row[s] ?: (x(s.ax) + (s.cx - s.ax) * unit)
+            }
+            val cy = y(s.ay) + (s.cy - s.ay) * unit; val hw = s.hw * unit; val hh = s.hh * unit
             InputSurfaceElement(s.control, (cx - hw) / w, (cy - hh) / h, 2 * hw / w, 2 * hh / h, s.id, s.kind, if (s.name == s.control.label) kit.name(s.control) else s.name,
                 floating = s.kind == InputElementKind.STICK, buttonShape = s.shape, icon = s.icon).bounded()
         }
