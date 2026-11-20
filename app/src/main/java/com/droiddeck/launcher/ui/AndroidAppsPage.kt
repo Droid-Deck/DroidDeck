@@ -441,6 +441,24 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
     // Putting a tile down or leaving arranging rebuilds the tiles, which drops focus: give it back to the tile that had it.
     val tileFocus = LocalFrontFocus.current
     val carried = remember { booleanArrayOf(false, false) }
+    // A tile picked up by touch or from its menu does not take focus, so the D-pad started from wherever focus was and never
+    // reached the move. Hand focus to the carried tile, for long enough to outlast the closing menu. In touch mode focus cannot
+    // move until the first D-pad press, which gives it to the side rail; carrying a tile has no use for the rail, so it goes on
+    // to the tile.
+    LaunchedEffect(moving) {
+        val key = moving ?: return@LaunchedEffect
+        val f = tileFocus ?: return@LaunchedEffect
+        val id = entriesNow.value.firstOrNull { it.key == key }?.let(::tileId) ?: return@LaunchedEffect
+        // Focus that wakes up from touch goes back to the remembered tile, which a touch pick-up never set.
+        f.last = id
+        repeat(20) {
+            androidx.compose.runtime.withFrameNanos { }
+            runCatching { f.items[id]?.requestFocus() }
+        }
+        androidx.compose.runtime.snapshotFlow { f.focusedRail }.collect { rail ->
+            if (rail != null) focusSoon { f.items.getValue(id) }
+        }
+    }
     LaunchedEffect(arranging, moving) {
         val was = carried[0] || carried[1]
         carried[0] = moving != null
@@ -556,7 +574,12 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                             KeyEvent.KEYCODE_DPAD_DOWN -> if (from + columns <= entriesNow.value.lastIndex) from + columns else from
                             else -> return@onPreviewKeyEvent false
                         }
-                        if (k.action == KeyEvent.ACTION_DOWN) moveTo(moving, to)
+                        if (k.action == KeyEvent.ACTION_DOWN) {
+                            val id = tileId(entriesNow.value[from])
+                            moveTo(moving, to)
+                            // A tile picked up by touch never took focus, so the highlight stayed where it was: it goes with the tile.
+                            if (front != null && front.last != id) steer.launch { focusSoon { front.items.getValue(id) } }
+                        }
                         true
                     }.pointerInput(leadItems) {
                         awaitEachGesture {
