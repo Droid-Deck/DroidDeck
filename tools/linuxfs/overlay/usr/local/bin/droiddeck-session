@@ -473,6 +473,22 @@ if [ -z "${DD_INSIDE:-}" ]; then
     sleep 0.1
   done
   if [[ "$mode" = steam || "$mode" = run ]] && [ "${DD_TEGRA_XWAYLAND:-0}" = 1 ]; then
+    _dd_vtest=${DD_TEGRA_VIRGL_SOCKET:-}
+    if [ -n "$_dd_vtest" ] && [ "${DD_TEGRA_VIRGL:-1}" != 0 ]; then
+      for _ in $(seq 1 20); do
+        [ ! -S "$_dd_vtest" ] || break
+        sleep 0.1
+      done
+      # Run the EGL check before Xwayland owns child processes under PRoot.
+      if [ -S "$_dd_vtest" ] && env -u MESA_LOADER_DRIVER_OVERRIDE EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 \
+          LIBGL_DRI3_DISABLE=1 GALLIUM_DRIVER=virpipe VTEST_SOCKET_NAME="$_dd_vtest" \
+          timeout --foreground --kill-after=2s 10s /usr/local/bin/droiddeck-tegra-xwayland --probe-egl; then
+        export DD_TEGRA_VIRGL=1
+      else
+        echo "== Tegra: VirGL is unavailable, using llvmpipe"
+        export DD_TEGRA_VIRGL=0
+      fi
+    fi
     exec /usr/local/bin/droiddeck-tegra-xwayland "$0" "$mode" "$@"
   fi
   if [ "$mode" = lxqt ]; then

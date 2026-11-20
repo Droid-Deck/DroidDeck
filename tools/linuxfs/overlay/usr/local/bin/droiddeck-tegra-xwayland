@@ -12,7 +12,6 @@ import struct
 import subprocess
 import sys
 import tempfile
-import time
 
 
 def socket_identity(path):
@@ -85,34 +84,6 @@ def write_authority(path, display):
         for field in fields:
             output.write(struct.pack('!H', len(field)))
             output.write(field)
-
-
-def select_renderer(env, display_server):
-    socket_path = env.get('DD_TEGRA_VIRGL_SOCKET')
-    if not socket_path or display_server.poll() is not None:
-        return env
-    if env.get('DD_TEGRA_VIRGL') == '0':
-        return env
-    socket_file = Path(socket_path)
-    until = time.monotonic() + 2
-    while not socket_file.is_socket() and time.monotonic() < until:
-        time.sleep(.05)
-    if not socket_file.is_socket():
-        return env
-
-    candidate = dict(env, GALLIUM_DRIVER='virpipe', LIBGL_DRI3_DISABLE='1',
-                     VTEST_SOCKET_NAME=socket_path)
-    try:
-        result = subprocess.run([sys.executable, __file__, '--probe-egl'],
-                                env=dict(candidate, EGL_PLATFORM='x11'), text=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=12)
-    except (OSError, subprocess.TimeoutExpired):
-        return env
-    if result.returncode == 0:
-        candidate.setdefault('SDL_VIDEO_X11_FORCE_EGL', '1')
-        return candidate
-    print(f'== Tegra: EGL probe failed: {result.stdout.strip()}', flush=True)
-    return env
 
 
 def probe_egl():
@@ -196,7 +167,10 @@ def run(session, arguments):
                 if arguments[0] == 'steam':
                     env['WAYLAND_DISPLAY'] = ''
                 env.pop('MESA_LOADER_DRIVER_OVERRIDE', None)
-                env = select_renderer(env, server)
+                socket_path = env.get('DD_TEGRA_VIRGL_SOCKET')
+                if env.get('DD_TEGRA_VIRGL') == '1' and socket_path and Path(socket_path).is_socket():
+                    env.update(GALLIUM_DRIVER='virpipe', LIBGL_DRI3_DISABLE='1', VTEST_SOCKET_NAME=socket_path)
+                    env.setdefault('SDL_VIDEO_X11_FORCE_EGL', '1')
                 print(f'== Tegra: Xwayland display is ready ({env["GALLIUM_DRIVER"]})', flush=True)
                 client = subprocess.Popen(['dbus-run-session', '--', session, *arguments], env=env)
                 status = client.wait()
