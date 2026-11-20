@@ -64,6 +64,8 @@ object SteamGameProcess {
 
     // A front end that resumes a player by launching the same game again would otherwise have Steam
     // start it a second time, which Steam answers with "Game already running".
-    fun alreadyRunning(requested: String, current: String?, proc: File = File("/proc")): Boolean =
-        requested == current && running(requested, proc)
+    fun alreadyRunning(requested: String, current: String?, proc: File = File("/proc")): Boolean {
+        val appId = steamAppIdForGameId(requested) ?: return false
+        return appId == steamAppIdForGameId(current.orEmpty()) && running(requested, proc)
+    }
 }

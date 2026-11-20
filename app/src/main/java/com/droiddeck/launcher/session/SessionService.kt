@@ -1615,7 +1615,7 @@ class SessionService : Service() {
         val accepted = gameId!!
         if (pendingSteamGameId == null && SteamGameProcess.alreadyRunning(accepted, SessionState.gameId)) {
             Log.i(TAG, "game $accepted is already running; resuming it instead of launching it again")
-            if (SessionState.suspended) resumeSession()
+            if (SessionState.suspended || SessionState.suspending) resumeSession()
             return
         }
         if (!pendingSteamPreviousGamePending) {

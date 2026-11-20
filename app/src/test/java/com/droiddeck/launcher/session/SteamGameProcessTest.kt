@@ -97,5 +97,8 @@ class SteamGameProcessTest {
         assertFalse(SteamGameProcess.alreadyRunning("584400", "311340", proc))
         assertFalse(SteamGameProcess.alreadyRunning("311340", "311340", proc))
         assertFalse(SteamGameProcess.alreadyRunning("584400", null, proc))
+        val shortcutId = ((584400uL shl 32) or 0x02000000uL).toString()
+        assertTrue(SteamGameProcess.alreadyRunning(shortcutId, "584400", proc))
+        assertTrue(SteamGameProcess.alreadyRunning("584400", shortcutId, proc))
     }
 }
