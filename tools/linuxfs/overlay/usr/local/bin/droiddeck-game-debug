@@ -74,7 +74,7 @@ def proton_log_dir(env, debug_dir):
         os.makedirs(runs, exist_ok=True)
         return tempfile.mkdtemp(prefix=time.strftime("%H%M%S-"), dir=runs)
     except OSError:
-        return debug_dir
+        return None
 
 
 def apply_game_debug_logs(env, config=None, debug_dir=None):
@@ -93,12 +93,15 @@ def apply_game_debug_logs(env, config=None, debug_dir=None):
     result.update({
         "PROTON_LOG": "1",
         "PROTON_LOG_DIR": log_dir,
-        "PROTON_CRASH_REPORT_DIR": log_dir,
-        "DXVK_LOG_PATH": log_dir,
+        "PROTON_CRASH_REPORT_DIR": log_dir or debug_dir,
+        "DXVK_LOG_PATH": log_dir or debug_dir,
         "DXVK_LOG_LEVEL": "debug",
         "VKD3D_DEBUG": "info",
         "WINEDEBUG": game_debug_channels(env.get("WINEDEBUG"), env.get("PROTON_LOG")),
     })
+    if log_dir is None:
+        print("droiddeck-game-env: Proton log skipped; no free log directory", file=sys.stderr)
+        del result["PROTON_LOG"], result["PROTON_LOG_DIR"]
     return result
 
 

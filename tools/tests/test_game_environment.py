@@ -754,6 +754,25 @@ class GameDebugLoggingTest(unittest.TestCase):
             self.assertEqual(os.path.dirname(outside["PROTON_LOG_DIR"]), os.path.join(debug_dir, "proton-runs"))
             self.assertEqual(Path(debug_dir, "steam-42.log").read_text(), "other game\n")
 
+    def test_proton_log_is_skipped_when_no_free_log_folder_can_be_made(self):
+        config = {"version": 1, "gameDebugLogs": True}
+        with tempfile.TemporaryDirectory() as debug_dir:
+            Path(debug_dir, "steam-42.log").write_text("first run\n")
+            Path(debug_dir, "proton-runs").write_text("not a folder\n")
+            inherited = {"SteamGameId": "42", "PROTON_LOG": "1", "PROTON_LOG_DIR": debug_dir, "WINEDEBUG": "+relay"}
+            with patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                env = MODULE["apply_game_debug_logs"](inherited, config, debug_dir)
+            self.assertNotIn("PROTON_LOG", env)
+            self.assertNotIn("PROTON_LOG_DIR", env)
+            self.assertEqual(env["DXVK_LOG_PATH"], debug_dir)
+            self.assertEqual(env["PROTON_CRASH_REPORT_DIR"], debug_dir)
+            self.assertIn("+relay", env["WINEDEBUG"])
+            self.assertIn("+seh", env["WINEDEBUG"])
+            self.assertIn("Proton log skipped", stderr.getvalue())
+            self.assertEqual(Path(debug_dir, "steam-42.log").read_text(), "first run\n")
+            other = MODULE["apply_game_debug_logs"]({"SteamGameId": "7"}, config, debug_dir)
+            self.assertEqual(other["PROTON_LOG_DIR"], debug_dir)
+
     def test_wine_debug_channels_are_formatted_deduplicated_and_diagnostics_win(self):
         formatted = MODULE["game_debug_channels"](
             " +relay, trace-vulkan, -all, -seh, +relay, trace+vulkan, garbage, $(touch never) ",
