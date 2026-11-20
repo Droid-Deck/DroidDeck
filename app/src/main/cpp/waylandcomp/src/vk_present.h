@@ -7,6 +7,7 @@
 
 void vk_present_set_driver(const char *driver_path, const char *library_name,
                            const char *native_lib_dir);
+void vk_present_set_driver_fallback(int allow);
 
 void vk_present_set_window(ANativeWindow *window);
 int vkp_apply_window_request(void);

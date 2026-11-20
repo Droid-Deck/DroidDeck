@@ -42,4 +42,20 @@ class StoreCacheTest {
         val fresh = listOf(a)
         assertSame(fresh, mergeItems(null, fresh))
     }
+
+    @Test fun aSavedStoreLibraryRoundTripsWithItsStoreAndExtras() {
+        val games = listOf(
+            CatalogItem(
+                Store.UBISOFT, "4553", "Far Cry 3 Blood Dragon", "https://img/wide.jpg", tallImageUrl = "https://img/tall.jpg",
+                logoUrl = "https://img/logo.png", owned = true, sizeBytes = 2_000_000L, extra = mapOf("productId" to "205", "spaceId" to "abc"),
+                subscription = true, includedWith = "Ubisoft+",
+            ),
+            CatalogItem(Store.UBISOFT, "1", "No art", null),
+        )
+        assertEquals(games, StoreLibraryCache.decode(Store.UBISOFT, StoreLibraryCache.encode(games)))
+    }
+
+    @Test fun aSavedEmptyStoreLibraryStaysEmptyRatherThanUnknown() {
+        assertEquals(emptyList<CatalogItem>(), StoreLibraryCache.decode(Store.ROCKSTAR, StoreLibraryCache.encode(emptyList())))
+    }
 }

@@ -28,7 +28,7 @@ add_library(droiddeckwayland SHARED
         generated/linux-dmabuf-v1-protocol.c
         generated/wayland-android-protocol.c
         generated/viewporter-protocol.c
-        generated/banner-desktop-v1-protocol.c
+        generated/droiddeck-desktop-v1-protocol.c
         generated/presentation-time-protocol.c
         generated/pointer-constraints-unstable-v1-protocol.c
         generated/relative-pointer-unstable-v1-protocol.c

@@ -82,6 +82,7 @@ def buildBranch = providers.environmentVariable('GITHUB_HEAD_REF').getOrNull()?.
     ?: gitValue(['branch', '--show-current']) ?: ''
 def escapeJava = { String value -> value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', ' ') }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
+def xrModelTesting = !ciBuild && project.findProperty('xrModelTesting')?.toString() == 'true'
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 def commitTime = (gitValue(['show', '-s', '--format=%ct', '--end-of-options', sourceCommit]) ?: '0').with { it.isLong() ? it : '0' }
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
@@ -93,7 +94,7 @@ def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLine
 def prootPackPin = rootProject.file('tools/packs/proot/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
-def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft'].collectEntries { name ->
+def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt', 'pico-neo3', 'pico-4', 'pico-4u'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
@@ -130,7 +131,7 @@ android {
     defaultConfig {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
-        targetSdkVersion 28
+        targetSdkVersion 34
         versionCode 19
         versionName "0.7.1"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
@@ -139,8 +140,10 @@ android {
         buildConfigField "String", "PR_TITLE", "\"${escapeJava(prTitle)}\""
         buildConfigField "String", "BUILD_BRANCH", "\"${escapeJava(buildBranch)}\""
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
+        buildConfigField "boolean", "XR_MODEL_TESTING", "${xrModelTesting}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
+        buildConfigField "String", "UPDATE_CATALOG_BRANCH", "\"${(System.getenv("DROIDDECK_UPDATE_CATALOG_BRANCH") ?: "main").with { it ==~ /[A-Za-z0-9._-]+/ ? it : "main" }}\""
         buildConfigField "String", "VARIANT_SUFFIXES", "\"${variantSuffixes}\""
         buildConfigField "String", "SGDB_API_KEY", "\"${System.getenv("SGDB_API_KEY") ?: project.findProperty("sgdbApiKey") ?: ""}\""
         buildConfigField "String", "DESKTOP_KDE_TAG", "\"${desktopKde.DESKTOP_KDE_TAG}\""
@@ -148,8 +151,8 @@ android {
         buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${desktopKde.DESKTOP_KDE_SHA256}\""
         buildConfigField "long", "DESKTOP_KDE_SIZE", "${desktopKde.DESKTOP_KDE_SIZE}L"
         addonPacks.each { name, pack ->
-            buildConfigField "String", "PACK_${name.toUpperCase()}_SHA256", "\"${pack.sha256}\""
-            buildConfigField "long", "PACK_${name.toUpperCase()}_SIZE", "${pack.size}L"
+            buildConfigField "String", "PACK_${name.toUpperCase().replace('-', '_')}_SHA256", "\"${pack.sha256}\""
+            buildConfigField "long", "PACK_${name.toUpperCase().replace('-', '_')}_SIZE", "${pack.size}L"
         }
 
         ndk {
@@ -200,12 +203,8 @@ android {
         }
     }
 
-    lint {
-        disable 'ExpiredTargetSdkVersion'
-    }
-
     androidResources {
-        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>droiddeck-ubisoft:<dir>directaudio:<dir>hybris'
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>droiddeck-ubisoft:<dir>droiddeck-rockstar:<dir>droiddeck-dirt:<dir>directaudio:<dir>hybris'
     }
 
     packagingOptions {
@@ -215,7 +214,7 @@ android {
         jniLibs {
             useLegacyPackaging = true
             pickFirsts += ['**/libtermux.so']
-            excludes += ['**/libproot.so', '**/libproot-loader.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
+            excludes += ['**/libproot.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
         }
     }
 
@@ -277,12 +276,15 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
     from(layout.projectDirectory.dir('src/main/assets')) {
         exclude 'pulseaudio.tzst', 'linuxfs/usr/local/bin/droiddeck-innoextract',
-            'linuxfs/usr/local/lib/droiddeck-inno/**', 'linuxfs/usr/local/share/licenses/droiddeck-inno/**'
+            'linuxfs/usr/local/lib/droiddeck-inno/**', 'linuxfs/usr/local/share/licenses/droiddeck-inno/**',
+            '**/rendermodels/droiddeck_pico_*/**'
     }
     from(rootProject.file('tools/linuxfs/innoextract'))
-    from(rootProject.file('tools')) { include 'droiddeckctl', 'adb_device.py', 'proot_profile.py'; into('agent/ctl') }
+    from(rootProject.file('tools')) { include 'droiddeckctl', 'droiddeck-scenario', 'adb_device.py', 'proot_profile.py'; into('agent/ctl') }
+    from(rootProject.file('tools/agent/AGENTS.md')) { into('agent/ctl') }
     from(rootProject.file('docs/agent-control.md')) { into('agent/ctl') }
-    from(layout.buildDirectory.dir('prepared-assets'))
+    from(rootProject.file('tools/agent/skills')) { into('agent/skills') }
+    from(layout.buildDirectory.dir('prepared-assets')) { exclude '**/rendermodels/droiddeck_pico_*/**' }
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
@@ -297,6 +299,16 @@ if (uvcDir) {
 }
 tasks.named('preBuild').configure { dependsOn(stageRuntimeAssets) }
 
+android.sourceSets.main.java.srcDir(rootProject.file('shortcuts/src/protocol/java'))
+def stageShortcuts = tasks.register('stageShortcuts', Copy) {
+    dependsOn(':shortcuts:assembleRelease')
+    from(project(':shortcuts').layout.buildDirectory.file('outputs/apk/release/shortcuts-release.apk'))
+    into(layout.buildDirectory.dir('shortcutsAssets'))
+    rename { 'shortcuts.apk' }
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('shortcutsAssets'))
+tasks.named('preBuild').configure { dependsOn(stageShortcuts) }
+
 def stageGogNotices = tasks.register('stageGogNotices', Copy) {
     from(layout.projectDirectory.dir('src/main/rust/stores/vendor/xdelta3')) { include 'LICENSE', 'README.droiddeck.md' }
     into(layout.buildDirectory.dir('gogNotices/licenses/xdelta3'))
@@ -306,7 +318,7 @@ tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
 
 if (!ciBuild) {
     def stageLocalPacks = tasks.register('stageLocalPacks', Sync) {
-        from(layout.buildDirectory.dir('packs')) { include '*.tar.zst' }
+        from(layout.buildDirectory.dir('packs')) { include '*.tar.zst'; exclude 'pico-*.tar.zst' }
         into(layout.buildDirectory.dir('localPackAssets/packs'))
     }
     android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('localPackAssets'))
@@ -382,6 +394,8 @@ dependencies {
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.compose.ui:ui-tooling-preview'
     debugImplementation 'androidx.compose.ui:ui-tooling'
+    // Declares the ComponentActivity that createComposeRule launches, for PreviewRenderTest.
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
     implementation 'androidx.activity:activity-compose:1.8.2'
     implementation 'androidx.compose.material:material-icons-extended'
     implementation 'io.coil-kt:coil-compose:2.6.0'

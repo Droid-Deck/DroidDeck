@@ -5,16 +5,59 @@ import io
 import json
 from pathlib import Path
 import struct
+import subprocess
+import tarfile
+import tempfile
+import urllib.request
 
 import numpy as np
 from PIL import Image
 
 HERE = Path(__file__).resolve().parent
-SOURCE = HERE / 'third_party/webxr-input-profiles'
-OUTPUT = HERE / 'driver_droiddeck/resources/rendermodels'
+SOURCE = HERE.parents[1] / 'build/webxr-input-profiles'
+OUTPUT = HERE.parents[1] / 'build/pico-models/rendermodels'
 REVISION = 'f4992299601614adbfefd398dc8e281556bb7444'
 MODELS = {'pico-neo3': 'neo3', 'pico-4': '4', 'pico-4u': '4u'}
-ANIMATION = HERE / 'src/xr_profile_animation_data.h'
+ANIMATION = HERE.parents[1] / 'build/pico-models/include/xr_profile_animation_data.h'
+SOURCE_HASHES = {
+    'pico-neo3/left.glb': '68443598d99f3b7273d4f5c4eeeaa7fa47491d7406b8cb3a98ffb1db9b254022',
+    'pico-neo3/right.glb': '42191f7075c61d7b338b4c9c4618c3e765519798fee12c29b8e79db4b6bab0a7',
+    'pico-4/left.glb': '0a0cc5101dcc192e30007db6fdcf7bd1a04b2c08bd7c05add8608138f30adb53',
+    'pico-4/right.glb': '5b5e334bd9b4ea764e88ddf9ed37183e7d56d01d8493bd50273d9dfae8cc5460',
+    'pico-4u/left.glb': 'febc63d7de3acb58dbbdc54759ab87a1c687ab6e1f23a76b8868af3edf97cf91',
+    'pico-4u/right.glb': 'fb3f09849cb1b9d3f4fa434240a57fb475d754fda386ea1b1d36db874f015f8c',
+}
+
+
+def fetch_sources():
+    for relative, expected in SOURCE_HASHES.items():
+        path = SOURCE / relative
+        if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == expected:
+            continue
+        url = f'https://raw.githubusercontent.com/immersive-web/webxr-input-profiles/{REVISION}/packages/assets/profiles/{relative}'
+        with urllib.request.urlopen(url, timeout=60) as response:
+            data = response.read()
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise ValueError('WebXR model checksum mismatch: ' + relative)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+
+def pack_models(directory, destination):
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as temp:
+        archive = Path(temp) / 'models.tar'
+        with tarfile.open(archive, 'w', format=tarfile.USTAR_FORMAT) as tar:
+            for path in sorted(directory.rglob('*')):
+                if not path.is_file():
+                    continue
+                if path.is_symlink():
+                    raise ValueError('Model pack contains a symlink')
+                info = tar.gettarinfo(str(path), arcname=path.relative_to(directory).as_posix())
+                info.mtime, info.uid, info.gid, info.uname, info.gname, info.mode = 0, 0, 0, '', '', 0o644
+                with path.open('rb') as stream:
+                    tar.addfile(info, stream)
+        subprocess.run(['zstd', '-q', '-19', '-f', str(archive), '-o', str(destination)], check=True)
 
 
 def cpp_array(values):
@@ -200,7 +243,7 @@ def convert(path, name):
         components[pose] = {'motion': {'type': 'pose_component', 'pose_path': '/pose/' + pose},
                             'component_local': {'origin': [0, 0, 0], 'rotate_xyz': [0, 0, 0]}}
     files[name + '.json'] = (json.dumps({'components': components}, indent=2) + '\n').encode()
-    files['LICENSE.txt'] = (SOURCE / 'LICENSE.md').read_bytes().replace(b'\r\n', b'\n')
+    files['LICENSE.txt'] = (HERE / 'third_party/webxr-input-profiles/LICENSE.md').read_bytes().replace(b'\r\n', b'\n')
     vertices = np.concatenate(bounds)
     extent = vertices.max(axis=0) - vertices.min(axis=0)
     assert .05 < extent.max() < .4, (path, extent)
@@ -211,9 +254,15 @@ def convert(path, name):
 
 
 def main():
+    global SOURCE, OUTPUT, ANIMATION
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--check', action='store_true', help='Verify checked-in resources without writing')
+    parser.add_argument('--check', action='store_true', help='Verify generated resources without writing')
+    parser.add_argument('--source', type=Path, default=SOURCE, help='Checksum-verified download cache')
+    parser.add_argument('--out', type=Path, default=OUTPUT.parent, help='Generated model and animation directory')
+    parser.add_argument('--packs', type=Path, help='Write the three independent model packs here')
     args = parser.parse_args()
+    SOURCE, OUTPUT, ANIMATION = args.source, args.out / 'rendermodels', args.out / 'include/xr_profile_animation_data.h'
+    fetch_sources()
     provenance = {'repository': 'https://github.com/immersive-web/webxr-input-profiles',
                   'revision': REVISION, 'license': 'MIT, Copyright (c) 2019 Amazon', 'models': {}}
     animation = ['#pragma once', 'namespace droiddeck {']
@@ -242,13 +291,33 @@ def main():
     if args.check:
         assert ANIMATION.read_bytes() == data
     else:
+        ANIMATION.parent.mkdir(parents=True, exist_ok=True)
         ANIMATION.write_bytes(data)
     data = (json.dumps(provenance, indent=2, sort_keys=True) + '\n').encode()
-    path = SOURCE / 'provenance.json'
+    path = args.out / 'provenance.json'
     if args.check:
         assert path.read_bytes() == data
     else:
         path.write_bytes(data)
+    if args.packs:
+        for profile, family in MODELS.items():
+            with tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                files = {}
+                for side in ('left', 'right'):
+                    directory = OUTPUT / f'droiddeck_pico_{family}_{side}'
+                    for source in directory.iterdir():
+                        relative = 'rendermodels/' + directory.name + '/' + source.name
+                        target = root / relative
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        payload = source.read_bytes()
+                        target.write_bytes(payload)
+                        files[relative] = hashlib.sha256(payload).hexdigest()
+                (root / 'LICENSE.txt').write_bytes((HERE / 'third_party/webxr-input-profiles/LICENSE.md').read_bytes().replace(b'\r\n', b'\n'))
+                metadata = dict(provenance, models={n: m for n, m in provenance['models'].items()
+                                                   if n.startswith(f'droiddeck_pico_{family}_')}, files=files)
+                (root / 'provenance.json').write_text(json.dumps(metadata, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+                pack_models(root, args.packs / f'{profile}.tar.zst')
 
 
 if __name__ == '__main__':

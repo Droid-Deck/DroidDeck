@@ -13,7 +13,7 @@ SOURCE = ROOT / 'app/src/main/cpp/waylandcomp/src/compositor.c'
 
 
 def extract_function(source, name):
-    match = re.search(r'^(?:static )?(?:void|int|uint32_t) ' + re.escape(name) + r'\([^;]*?\) \{',
+    match = re.search(r'^(?:static )?(?:void |int |uint32_t |const char \*)' + re.escape(name) + r'\([^;]*?\) \{',
                       source, re.MULTILINE)
     if match is None:
         raise AssertionError(f'Missing compositor function: {name}')
@@ -77,6 +77,7 @@ static void apply_window_requests(void) { window_requests++; }
 #define pointer_input_at(...) ((void)0)
 #define keyboard_focus(...) ((void)0)
 #define deliver_touch(m) ((void)0)
+#define deliver_pen(m) ((void)0)
 #define deliver_pointer(m) (pointers++)
 static void on_vsync(int64_t ns) { assert(ns > 0); ticks++; }
 static void vk_present_set_scale_mode(int mode, int alignment) {

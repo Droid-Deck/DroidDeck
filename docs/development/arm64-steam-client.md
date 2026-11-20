@@ -10,7 +10,7 @@ publishes it on the Steam Deck client channels. `droiddeck-steam-install` instal
   Valve also publishes `steam_client_steamdeck_stable_linuxarm64`.
 - `droiddeck-steam-install --channel` prints the channel in use. The session passes that value as
   `-clientbeta` and writes it to `package/beta`. The two must match, or the client loops on rc 42.
-- Setting: `BL_STEAM_CHANNEL`, otherwise `~/.config/droiddeck/steam-channel`, set to `beta` or
+- Setting: `DD_STEAM_CHANNEL`, otherwise `~/.config/droiddeck/steam-channel`, set to `beta` or
   `stable`. A set channel never changes on its own.
 - With no setting, the client falls back to `steamdeck_stable` automatically. It stays on stable
   (`package/droiddeck-channel`) until a setting says otherwise. The fallback happens:

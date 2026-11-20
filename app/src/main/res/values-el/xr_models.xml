@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s μοντέλα χειριστηρίων SteamVR</string>
+    <string name="load_xr_preparing_steamvr">Προετοιμασία του SteamVR</string>
+    <string name="load_xr_steam_ready">Το Steam είναι έτοιμο</string>
+    <string name="load_xr_models_downloading">Λήψη</string>
+    <string name="load_xr_models_checking">Επαλήθευση</string>
+    <string name="load_xr_models_installing">Εγκατάσταση</string>
+    <string name="load_xr_models_ready">Έτοιμο</string>
+    <string name="load_xr_models_native">Χρήση εγγενών μοντέλων</string>
+    <string name="load_xr_models_failed_fallback">Η προετοιμασία απέτυχε· χρήση προεπιλεγμένων μοντέλων</string>
+</resources>

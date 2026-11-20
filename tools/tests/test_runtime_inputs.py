@@ -36,6 +36,10 @@ class RuntimeInputsTest(unittest.TestCase):
         service = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe'
         service.parent.mkdir(parents=True)
         service.write_bytes(b'MZ service')
+        rockstar = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-rockstar'
+        rockstar.mkdir(parents=True)
+        (rockstar / 'Launcher32.exe').write_bytes(b'MZ launcher 32')
+        (rockstar / 'Launcher64.exe').write_bytes(b'MZ launcher 64')
         self.audio(['pactl', 'modules/arm64/module-aaudio-sink.so', 'modules/arm64/module-directaudio-native-sink.so'])
         self.packs()
 
@@ -55,8 +59,12 @@ class RuntimeInputsTest(unittest.TestCase):
         proot = {}
         for name, (pack, rel) in runtime.PACKED_FILES.items():
             proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
+        for name, rel in runtime.PROOT_LOADER.items():
+            proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
         self.pack('proot', proot)
         self.pack('butler', {'butler': b'butler', '7z.so': b'7z', 'libc7zip.so': b'c7zip', 'version': b'15.32.0'})
+        for name in ('pico-neo3', 'pico-4', 'pico-4u'):
+            self.pack(name, {'LICENSE.txt': b'MIT'})
         for prefix, name in runtime.PACKED.items():
             base = self.root / 'app/src/main' / prefix
             self.pack(name, {path.relative_to(base).as_posix(): path.read_bytes() for path in base.rglob('*') if path.is_file()})
@@ -79,6 +87,19 @@ class RuntimeInputsTest(unittest.TestCase):
         apk = self.current_apk(self.root / 'bundled.apk', {'lib/arm64-v8a/libproot.so': b'prepared runtime'})
         with self.assertRaisesRegex(ValueError, 'proot pack provides'):
             runtime.check_apk(apk, self.root)
+
+    def test_a_stale_proot_loader_in_the_pack_is_rejected(self):
+        apk = self.current_apk(self.root / 'current.apk')
+        loader = (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot-loader.so').read_bytes()
+        self.pack('proot', {'libproot.so': (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').read_bytes(),
+                            'libproot-loader.so': loader + b'older'})
+        with self.assertRaisesRegex(ValueError, 'proot is missing or has a stale libproot-loader.so'):
+            runtime.check_apk(apk, self.root)
+
+    def test_only_the_proot_loader_ships_in_the_apk(self):
+        self.assertFalse(self.in_apk('lib/arm64-v8a/libproot.so'))
+        self.assertTrue(self.in_apk('lib/arm64-v8a/libproot-loader.so'))
+        runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
 
     def test_missing_proot_cannot_be_attested(self):
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').unlink()
@@ -271,6 +292,60 @@ class RuntimeInputsTest(unittest.TestCase):
                                {'assets/linuxfs/usr/local/lib/droiddeck-mesa/libvulkan.so.1': b'withdrawn Mesa'})
         with self.assertRaisesRegex(ValueError, 'withdrawn desktop Mesa replacement'):
             runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_the_rockstar_service_is_rejected(self):
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/Launcher32.exe'
+        self.assertIn(name, runtime.outputs(self.root))
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ launcher 32'})
+        with self.assertRaisesRegex(ValueError, 'rockstar pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_a_packed_file_the_manifest_does_not_list_is_rejected(self):
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/Unlisted.bin'
+        self.assertNotIn(name, runtime.outputs(self.root))
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'helper data'})
+        with self.assertRaisesRegex(ValueError, 'Unlisted.bin, which the rockstar pack provides'):
+            runtime.check_apk(apk, self.root)
+
+    def test_a_stale_rockstar_pack_is_rejected(self):
+        apk = self.current_apk(self.root / 'current.apk')
+        self.pack('rockstar', {'Launcher32.exe': b'MZ older launcher', 'Launcher64.exe': b'MZ launcher 64'})
+        with self.assertRaisesRegex(ValueError, 'rockstar is missing or has a stale'):
+            runtime.check_apk(apk, self.root)
+
+    def test_an_apk_carrying_any_windows_executable_is_rejected(self):
+        for name in ('assets/linuxfs/usr/local/lib/new-helper/helper.exe', 'assets/anything/renamed.bin', 'res/raw/x.dll'):
+            with self.subTest(name=name):
+                apk = self.current_apk(self.root / 'windows.apk', {name: b'MZ helper'})
+                with self.assertRaisesRegex(ValueError, 'Windows executables.*' + name):
+                    runtime.check_apk(apk, self.root)
+
+    def test_an_apk_still_carrying_the_dirt_stand_in_is_rejected(self):
+        dirt = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-dirt'
+        dirt.mkdir(parents=True)
+        (dirt / 'ws2_32.dll').write_bytes(b'MZ droiddeck-dirt-ws2_32')
+        self.packs()
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-dirt/ws2_32.dll'
+        self.assertIn(name, runtime.outputs(self.root))
+        self.assertEqual('dirt', runtime.PACKED['assets/linuxfs/usr/local/lib/droiddeck-dirt/'])
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ droiddeck-dirt-ws2_32'})
+        with self.assertRaisesRegex(ValueError, 'dirt pack provides'):
+            runtime.check_apk(apk, self.root)
+        runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
+
+    def test_pico_geometry_and_local_model_packs_are_excluded_from_the_apk(self):
+        for name in ('assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_pico_4_left/body.obj',
+                     'assets/packs/pico-4.tar.zst'):
+            with self.subTest(name=name):
+                apk = self.current_apk(self.root / 'bundled.apk', {name: b'controller'})
+                with self.assertRaisesRegex(ValueError, 'PICO controller model assets'):
+                    runtime.check_apk(apk, self.root)
+
+    def test_old_staged_pico_geometry_is_not_a_runtime_input(self):
+        source = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_pico_4_left/body.obj'
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(b'old controller')
+        self.assertFalse(any('droiddeck_pico_' in name for name in runtime.outputs(self.root)))
 
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})

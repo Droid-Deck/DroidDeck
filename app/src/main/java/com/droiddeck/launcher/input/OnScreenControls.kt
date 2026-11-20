@@ -32,6 +32,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     var isPinnedOnly = false
         private set
     val hasPinned get() = layout?.elements?.any { it.alwaysShown } == true
+    val inputSurface: com.droiddeck.launcher.ui.InputSurfaceView get() = surface
     var onTouchMiss: ((MotionEvent) -> Unit)?
         get() = surface.onTouchMiss
         set(value) { surface.onTouchMiss = value }

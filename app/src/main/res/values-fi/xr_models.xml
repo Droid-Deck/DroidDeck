@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s SteamVR-ohjainmallit</string>
+    <string name="load_xr_preparing_steamvr">Valmistellaan SteamVR:ää</string>
+    <string name="load_xr_steam_ready">Steam on valmis</string>
+    <string name="load_xr_models_downloading">Ladataan</string>
+    <string name="load_xr_models_checking">Tarkistetaan</string>
+    <string name="load_xr_models_installing">Asennetaan</string>
+    <string name="load_xr_models_ready">Valmis</string>
+    <string name="load_xr_models_native">Käytetään natiivimalleja</string>
+    <string name="load_xr_models_failed_fallback">Valmistelu epäonnistui; käytetään oletusmalleja</string>
+</resources>

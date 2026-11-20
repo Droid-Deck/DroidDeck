@@ -201,6 +201,42 @@ class SessionInputPointerTest {
         assertEquals(29 to 0, CompositorShadow.keys.last())
     }
 
+    @Test fun losingPointerCaptureReleasesMouseButtonsButKeepsKeyboardKeysHeld() {
+        ReflectionHelpers.getField<androidx.compose.runtime.MutableState<Boolean>>(activity, "resumed\$delegate").value = true
+        val keys = ReflectionHelpers.getField<HeldInput>(activity, "heldKeys")
+        val buttons = ReflectionHelpers.getField<HeldInput>(activity, "heldButtons")
+        output.key(17, true)
+        keys.set(8, 30, true)
+        buttons.set(2, 272, true)
+        CompositorShadow.keys.clear()
+        CompositorShadow.events.clear()
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "releaseHeldInputOnCaptureLoss")
+        assertTrue(CompositorShadow.keys.none { it.second == 0 })
+        assertTrue(CompositorShadow.events.contains(Triple(3, 272, 0)))
+        output.key(17, false)
+        assertEquals(17 to 0, CompositorShadow.keys.last())
+    }
+
+    @Test fun losingPointerCaptureToAnotherInputSurfaceReleasesKeyboardKeys() {
+        ReflectionHelpers.getField<androidx.compose.runtime.MutableState<Boolean>>(activity, "resumed\$delegate").value = true
+        for (state in listOf("drawerOpenState", "wowChatOnTop")) {
+            val open: androidx.compose.runtime.MutableState<Boolean> = ReflectionHelpers.getField(activity, state + "\$delegate")
+            open.value = true
+            ReflectionHelpers.getField<HeldInput>(activity, "heldKeys").set(16, 17, true)
+            CompositorShadow.keys.clear()
+            ReflectionHelpers.callInstanceMethod<Unit>(activity, "releaseHeldInputOnCaptureLoss")
+            assertEquals(state, 17 to 0, CompositorShadow.keys.last())
+            open.value = false
+        }
+    }
+
+    @Test fun openingTheSessionMenuReleasesHeldKeyboardKeys() {
+        ReflectionHelpers.getField<HeldInput>(activity, "heldKeys").set(16, 17, true)
+        CompositorShadow.keys.clear()
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "setDrawerOpen", ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+        assertEquals(17 to 0, CompositorShadow.keys.last())
+    }
+
     @Test fun horizontalWheelUsesTheSameDirectionInBothMouseBackends() {
         output.scrollHorizontal(2)
         assertEquals(listOf(Triple(11, 0, 240)), CompositorShadow.events)

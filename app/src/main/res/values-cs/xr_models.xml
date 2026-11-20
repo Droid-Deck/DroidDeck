@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s modely ovladačů pro SteamVR</string>
+    <string name="load_xr_preparing_steamvr">Příprava SteamVR</string>
+    <string name="load_xr_steam_ready">Steam je připraven</string>
+    <string name="load_xr_models_downloading">Stahování</string>
+    <string name="load_xr_models_checking">Ověřování</string>
+    <string name="load_xr_models_installing">Instalace</string>
+    <string name="load_xr_models_ready">Připraveno</string>
+    <string name="load_xr_models_native">Používají se nativní modely</string>
+    <string name="load_xr_models_failed_fallback">Příprava selhala; používají se výchozí modely</string>
+</resources>

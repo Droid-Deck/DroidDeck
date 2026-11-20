@@ -29,7 +29,7 @@ class DesktopImeTest(unittest.TestCase):
         self.session = Path(self.temp.name)
         self.server, client = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
         self.addCleanup(self.server.close)
-        env = dict(os.environ, BL_LAUNCH_DIR=str(self.session), WAYLAND_SOCKET=str(client.fileno()))
+        env = dict(os.environ, DD_LAUNCH_DIR=str(self.session), WAYLAND_SOCKET=str(client.fileno()))
         self.proc = subprocess.Popen(['python3', str(IME)], env=env, pass_fds=[client.fileno()],
                                      stderr=subprocess.PIPE, text=True)
         client.close()

@@ -465,7 +465,7 @@ internal fun BoxWithConstraintsScope.DropSheet(
         var handleSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
         val lipH = 32.dp + state.pull.value.dp
         val drop = { if (!state.open && enabled) state.open = true }
-        val settingsLabel = stringResource(R.string.drawer_page_settings)
+        val settingsLabel = stringResource(R.string.sheet_lip)
         Box(
             contentAlignment = Alignment.BottomCenter,
             modifier = Modifier

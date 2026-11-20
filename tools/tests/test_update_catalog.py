@@ -1,7 +1,13 @@
+import base64
 import unittest
 
 from tools.release.update_catalog import (
+    Cache,
     asset_for_suffix,
+    build_catalog,
+    complete_apks,
+    newest_complete,
+    merged_pr,
     ci_description,
     parse_gradle,
     parse_variants,
@@ -10,6 +16,7 @@ from tools.release.update_catalog import (
     recent_previews,
     release_body_value,
     stable_app_release,
+    unique_previews,
 )
 
 
@@ -55,6 +62,64 @@ pubg com.tencent.ig -pubg
         pubg = asset_for_suffix(assets, "-pubg", ["", "-pubg"])
         self.assertEqual("DroidDeck-main-deadbee.apk", standard["name"])
         self.assertEqual("DroidDeck-main-deadbee-pubg.apk", pubg["name"])
+
+    def test_the_apk_named_for_the_build_commit_wins_over_a_previous_push(self):
+        def apk(name, digit):
+            return {"name": name, "size": 1, "digest": "sha256:" + digit * 64, "browser_download_url": "https://example/" + name}
+        assets = [apk("DroidDeck-PR.7-1111111.apk", "a"), apk("DroidDeck-PR.7-2222222.apk", "b"),
+                  apk("DroidDeck-PR.7-1111111-pubg.apk", "c"), apk("DroidDeck-PR.7-2222222-pubg.apk", "d")]
+        suffixes = ["", "-pubg"]
+        self.assertEqual("DroidDeck-PR.7-2222222.apk", asset_for_suffix(assets, "", suffixes, "2222222abc")["name"])
+        self.assertEqual("DroidDeck-PR.7-2222222-pubg.apk", asset_for_suffix(assets, "-pubg", suffixes, "2222222abc")["name"])
+        self.assertEqual("DroidDeck-PR.7-1111111.apk", asset_for_suffix(assets, "", suffixes)["name"])
+
+    def test_a_preview_counts_only_with_every_package_and_digest(self):
+        variants = [("com.droiddeck.launcher", ""), ("com.tencent.ig", "-pubg")]
+        good = {"sha256": "a" * 64, "signerSha256": "b" * 64}
+        self.assertTrue(complete_apks({"apks": {"com.droiddeck.launcher": good, "com.tencent.ig": good}}, variants))
+        self.assertFalse(complete_apks({"apks": {"com.droiddeck.launcher": good}}, variants))
+        self.assertFalse(complete_apks({"apks": {}}, variants))
+        self.assertFalse(complete_apks({"apks": {"com.droiddeck.launcher": good, "com.tencent.ig": {"sha256": "x"}}}, variants))
+
+    def test_no_preview_is_offered_until_one_has_every_apk(self):
+        variants = [("com.droiddeck.launcher", "")]
+        good = {"com.droiddeck.launcher": {"sha256": "a" * 64, "signerSha256": "b" * 64}}
+        uploading = {"commit": "2" * 40, "apks": {}}
+        done = {"commit": "1" * 40, "apks": good}
+        self.assertIsNone(newest_complete([uploading], variants))
+        self.assertIsNone(newest_complete([], variants))
+        self.assertIs(done, newest_complete([uploading, done], variants))
+
+    def test_the_catalog_publishes_no_preview_while_its_apks_are_uploading(self):
+        commit = "c" * 40
+        files = {
+            "app/build.gradle": "        versionCode 19\n        versionName \"0.7.1\"\n",
+            "tools/release/variants.txt": "standard com.droiddeck.launcher -\n",
+            "keystore/release-signer.sha256": "b" * 64 + "\n",
+        }
+
+        class FakeGitHub:
+            def get_all(self, path, limit=1000):
+                if "DroidDeck-CI/releases" in path:
+                    return [{
+                        "tag_name": f"main-{commit[:7]}", "prerelease": True, "assets": [],
+                        "published_at": "2026-11-14T10:00:00Z",
+                        "body": f"**Merged to main** - [PR #5](u): fix: x\n\nCommit: {commit}\nVersionCode: 19\n",
+                    }]
+                return []
+
+            def get(self, path):
+                for name, text in files.items():
+                    if f"/contents/{name.replace('/', '%2F')}?" in path:
+                        return {"encoding": "base64", "content": base64.b64encode(text.encode()).decode()}
+                if "/commits/" in path:
+                    return {"author": {"login": "dev"}, "commit": {"committer": {"date": "2026-11-14T09:59:00Z"}}}
+                raise AssertionError(path)
+
+        gh = FakeGitHub()
+        catalog = build_catalog(gh, gh, "Droid-Deck/DroidDeck", "Droid-Deck/DroidDeck-CI")
+        self.assertIsNone(catalog["preview"])
+        self.assertEqual([commit], [p["commit"] for p in catalog["previews"]])
 
     def test_ci_description(self):
         title, summary = ci_description(
@@ -148,6 +213,25 @@ pubg com.tencent.ig -pubg
         ]
         self.assertEqual("0.2.0", stable_app_release(releases)["tag_name"])
         self.assertIsNone(stable_app_release(releases[:1]))
+
+    def test_merged_pr_comes_from_the_first_paragraph(self):
+        body = "**Merged to main** - [PR #2602](https://github.com/Droid-Deck/DroidDeck/pull/2602): fix: x\n\nSee [PR #9](u)."
+        self.assertEqual(2602, merged_pr({"body": body}))
+        self.assertEqual(0, merged_pr({"body": "**Pushed to main** without a PR - fix: x"}))
+
+    def test_previews_follow_commit_order_not_publish_order(self):
+        older = {"commit": "a" * 40, "committedAt": 100, "publishedAt": 900}
+        newer = {"commit": "b" * 40, "committedAt": 200, "publishedAt": 300}
+        again = {**newer, "publishedAt": 50}
+        self.assertEqual([newer, older], unique_previews([older, again, newer]))
+
+    def test_cache_reuses_commit_facts_from_the_last_catalog(self):
+        class NoNetwork:
+            def get(self, path):
+                raise AssertionError(path)
+
+        cache = Cache({"previews": [{"commit": "A" * 40, "author": "dev", "committedAt": 5}]})
+        self.assertEqual({"author": "dev", "committedAt": 5}, cache.commit(NoNetwork(), "o/r", "a" * 40))
 
 
 if __name__ == "__main__":

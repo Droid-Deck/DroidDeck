@@ -15,6 +15,10 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
     private val paused = CountDownLatch(1)
     @Volatile private var child: Xodus.Child? = null
     @Volatile private var delete = false
+    /** A legacy container has no pause protocol: the downloader is killed instead. */
+    private val legacy = item.extra["format"]?.lowercase() in setOf("eappx", "eappxbundle")
+    /** Release builds hide logcat from adb, so the tail is reported in the failure itself. */
+    private val errors = java.util.concurrent.ConcurrentLinkedQueue<String>()
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
         if (cancelled.get()) return null
@@ -41,13 +45,21 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
             val source = if (content) selected else item.id
             val guestFolder = StoreInstallRoot.guestPathForXodus(app, folder)
             val selection = if (content) emptyList() else listOf("--selected-content-id", selected)
-            Xodus.start(app, listOf("streaming", source, guestFolder, "--market", market,
-                "--progress-json", "--control-stdin") + selection).use { process ->
+            // Streaming rejects a legacy container outright, so dispatch on the
+            // format the catalogue recorded rather than fail after a download.
+            val command = if (legacy) "legacy-install" else "streaming"
+            Xodus.start(app, if (legacy) {
+                listOf(command, source, guestFolder, "--market", market, "--progress-json", "--store-id", item.id) + selection
+            } else {
+                listOf(command, source, guestFolder, "--market", market, "--progress-json", "--control-stdin") + selection
+            }).use { process ->
                 child = process
                 val rejected = AtomicBoolean(false)
                 val rejectedLine = Regex(Xodus.SIGN_IN_REJECTED)
                 val diagnostics = Xodus.diagnostics(process) { line ->
                     StoresState.logLine("Xbox: $line")
+                    errors.add(line)
+                    while (errors.size > MAX_ERROR_LINES) errors.poll()
                     if (line.matches(rejectedLine)) rejected.set(true)
                 }
                 if (cancelled.get()) process.process.destroy()
@@ -60,7 +72,16 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
                         when (progress.getString("phase")) {
                             "complete" -> complete = true
                             "downloading", "download", "transfer" -> handle.progress(progress.getLong("completedBytes"), progress.optLong("totalBytes"))
-                            "finalizing", "installing" -> handle.stage(DownloadStage.INSTALL)
+                            // Unpacking reports files, not bytes: the frontend hands
+                            // over one container and the backend counts what it has
+                            // written, which is the only measure that moves while a
+                            // single multi-gigabyte member is decrypted.
+                            "installing" -> {
+                                handle.stage(DownloadStage.INSTALL)
+                                val total = progress.optLong("totalBytes")
+                                if (total > 0L) handle.stageProgress(progress.getLong("completedBytes"), total)
+                            }
+                            "finalizing" -> handle.stage(DownloadStage.INSTALL)
                             else -> handle.stage(DownloadStage.MANIFEST)
                         }
                     }
@@ -69,7 +90,14 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
                 diagnostics.join(2000)
                 if (cancelled.get()) return null
                 check(!rejected.get()) { app.getString(com.droiddeck.launcher.R.string.stores_xbox_sign_in_again) }
-                check(process.process.exitValue() == 0 && complete) { "Xbox download did not complete. Resume to retry with fresh licenses." }
+                val exit = process.process.exitValue()
+                if (exit != 0 || !complete) {
+                    val tail = errors.toList().takeLast(MAX_ERROR_LINES)
+                    report(command, source, market, exit, tail)
+                    licenseRefusal(tail)?.let { error(app.getString(it)) }
+                    error("Xbox download did not complete. Resume to retry with fresh licenses." +
+                        tail.takeLast(3).joinToString("") { "\n$it" })
+                }
             }
             if (content) {
                 XboxContent.complete(app, item, folder)
@@ -87,6 +115,21 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
         }
     }
 
+    /** Writes the backend's words beside the app, where adb can read them. */
+    private fun report(command: String, source: String, market: String, exit: Int, tail: List<String>) {
+        val text = buildString {
+            appendLine("command: $command $source --market $market")
+            appendLine("legacy: $legacy")
+            appendLine("exit: $exit")
+            appendLine("--- stderr (last ${tail.size} lines) ---")
+            tail.forEach { appendLine(it) }
+        }
+        runCatching {
+            app.getExternalFilesDir(null)?.let { File(it, "xbox-install.log").writeText(text) }
+        }
+        StoresState.logLine("Xbox install failed (exit $exit): ${tail.lastOrNull().orEmpty()}")
+    }
+
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
         delete = deleteFiles
@@ -98,14 +141,25 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
         }
         Thread({
             runCatching {
-                process.send(JSONObject().put("schema", 1).put("command", "pause"))
-                paused.await(3, TimeUnit.SECONDS)
+                if (!legacy) {
+                    process.send(JSONObject().put("schema", 1).put("command", "pause"))
+                    paused.await(3, TimeUnit.SECONDS)
+                }
+                process.close()
             }
-            process.close()
         }, "xbox-download-stop").start()
     }
 
     companion object {
+        private const val MAX_ERROR_LINES = 40
+        const val DEVICES_URL = "https://account.microsoft.com/devices/content"
+        private const val LICENSE_DIAGNOSTIC = "NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 "
+        internal fun licenseRefusal(tail: List<String>): Int? = when (tail.lastOrNull { it.startsWith(LICENSE_DIAGNOSTIC) }
+            ?.removePrefix(LICENSE_DIAGNOSTIC)?.substringBefore(' ')) {
+            "content-device-limit" -> com.droiddeck.launcher.R.string.stores_xbox_device_group_full
+            "content-device-name" -> com.droiddeck.launcher.R.string.stores_xbox_license_refused
+            else -> null
+        }
         internal fun executable(folder: File): String = XboxManifest.executable(folder)
     }
 }

@@ -92,7 +92,7 @@ class X64RepointTest(unittest.TestCase):
 
     def test_live_notes_pending_restart(self):
         COMPAT["x64_repoint"](str(self.root), "GE-Proton11-7-a64", live=True)
-        self.assertEqual((Path(self.home.name) / ".bl-compat-pending").read_text(), "550\n880\n")
+        self.assertEqual((Path(self.home.name) / ".dd-compat-pending").read_text(), "550\n880\n")
 
     def test_no_tool_changes_nothing(self):
         before = (self.root / "config" / "config.vdf").read_text()

@@ -25,7 +25,7 @@ class SteamExitStatusTest(unittest.TestCase):
             compositor.chmod(0o755)
             child = root / 'steam'
             report_arg = '"$1"' if report_value is None else '"$2"'
-            report_line = ('printf "%s\\n" ' + report_arg + ' > "$BL_STEAM_EXIT_FILE"\n'
+            report_line = ('printf "%s\\n" ' + report_arg + ' > "$DD_STEAM_EXIT_FILE"\n'
                            if report else '')
             child.write_text('#!/bin/bash\n' + report_line + 'exit "$1"\n')
             child.chmod(0o755)

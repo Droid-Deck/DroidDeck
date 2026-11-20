@@ -19,6 +19,9 @@ for arg in "$@"; do
     --no-restart) mode=no-restart ;;
     --prepare) mode=prepare ;;
     --explain) explain=(--info -Pkotlin.build.report.output=file) ;;
+    # Anything else used to start a full build and restart the app, --help included.
+    -h|--help) sed -n '2,6s/^# \{0,1\}//p' "$0"; exit 0 ;;
+    *) echo "dd-lab-build: unknown option $arg (see --help)" >&2; exit 2 ;;
   esac
 done
 started=$(date +%s)
@@ -113,11 +116,11 @@ if [ ! -d "$ANDROID_HOME/platforms/android-34" ]; then
   "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-34" "build-tools;35.0.0" >/dev/null
 fi
 
-# A full Kotlin compile of the app needs about 2.5 GB of heap and Gradle about 1 GB; smaller devices get
-# what they can spare. Both daemons end with this script's process when the build is done.
-total_mb=$(awk '/^MemTotal:/ {print int($2 / 1024)}' /proc/meminfo)
-heap=$(( total_mb / 2 )); [ $heap -gt 4096 ] && heap=4096; [ $heap -lt 2048 ] && heap=2048
-heap=${DD_LAB_HEAP_MB:-$heap}
+# A full Kotlin compile of the app runs out of memory with 2.7 GB of heap, and Gradle needs about 1 GB,
+# so devices with less memory to spare swap rather than fail. This script does not stop either daemon:
+# when the app runs it, proot's --kill-on-exit ends both with it; run by hand, they outlive it, and the
+# Kotlin daemon stays warm for the next incremental compile.
+heap=${DD_LAB_HEAP_MB:-6144}
 kotlin_heap=$(( heap * 2 / 3 )); gradle_heap=$(( heap - kotlin_heap ))
 
 # Only the Kotlin daemon compiles incrementally; in-process compiles always redo the whole app, and the

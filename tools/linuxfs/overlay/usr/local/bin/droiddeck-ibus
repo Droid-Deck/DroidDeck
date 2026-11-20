@@ -241,7 +241,7 @@ def create(directory):
 if __name__ == "__main__":
     from gi.repository import GLib
     try:
-        bridge = create(Path(os.environ["BL_LAUNCH_DIR"]) / "agent")
+        bridge = create(Path(os.environ["DD_LAUNCH_DIR"]) / "agent")
         GLib.MainLoop().run()
     except Exception as error:
         sys.exit(f"droiddeck-ibus: {error}")

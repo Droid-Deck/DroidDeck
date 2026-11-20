@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s نماذج وحدات تحكم SteamVR</string>
+    <string name="load_xr_preparing_steamvr">جارٍ تجهيز SteamVR</string>
+    <string name="load_xr_steam_ready">Steam جاهز</string>
+    <string name="load_xr_models_downloading">جارٍ التنزيل</string>
+    <string name="load_xr_models_checking">جارٍ التحقق</string>
+    <string name="load_xr_models_installing">جارٍ التثبيت</string>
+    <string name="load_xr_models_ready">جاهز</string>
+    <string name="load_xr_models_native">استخدام النماذج الأصلية</string>
+    <string name="load_xr_models_failed_fallback">فشل التجهيز؛ استخدام النماذج الافتراضية</string>
+</resources>

@@ -2,6 +2,7 @@
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <android/log.h>
+#include <android/bitmap.h>
 #include <android_native_app_glue.h>
 #include <time.h>
 #include <openxr/openxr.h>
@@ -217,7 +218,10 @@ private:
     GLuint cpuTexture_ = 0;
     jmethodID frameCallback_ = nullptr;
     jmethodID activeCallback_ = nullptr;
+    jmethodID controllersCallback_ = nullptr;
+    std::string reportedControllers_;
     jmethodID statusCallback_ = nullptr;
+    jmethodID preparationCallback_ = nullptr;
     jmethodID failureCallback_ = nullptr;
     DroidDeckXrTracking *tracking_ = nullptr;
     DroidDeckXrHaptics *haptics_ = nullptr;
@@ -230,6 +234,9 @@ private:
     EGLSurface surface_ = EGL_NO_SURFACE;
     std::array<Eye, 2> eyes_;
     std::array<Eye, 2> referenceEyes_;
+    Eye preparation_;
+    bool preparationVisible_ = false;
+    int64_t preparationUpdated_ = 0;
     XrControllerReferenceRenderer referenceRenderer_;
     int referenceMode_ = 0;
     std::string referenceRequestedMode_;
@@ -505,8 +512,10 @@ private:
         verifyPixels_ = env_->CallBooleanMethod(intent, getBoolean, extra, JNI_FALSE);
         env_->DeleteLocalRef(extra);
         activeCallback_ = env_->GetMethodID(activityClass, "onXrActive", "(Z)V");
+        controllersCallback_ = env_->GetMethodID(activityClass, "onXrControllers", "(IILjava/lang/String;Ljava/lang/String;)V");
         frameCallback_ = env_->GetMethodID(activityClass, "onXrFrame", "(J)V");
         statusCallback_ = env_->GetMethodID(activityClass, "onXrStatus", "()I");
+        preparationCallback_ = env_->GetMethodID(activityClass, "onXrPreparation", "()Landroid/graphics/Bitmap;");
         failureCallback_ = env_->GetMethodID(activityClass, "onXrFailure", "(Ljava/lang/String;)V");
         if (env_->ExceptionCheck()) { env_->ExceptionClear(); throw std::runtime_error("XR activity bridge methods unavailable"); }
         env_->DeleteLocalRef(intentClass); env_->DeleteLocalRef(intent); env_->DeleteLocalRef(activityClass);
@@ -741,9 +750,9 @@ private:
         }
     }
 
-    void createEye(Eye &target, int64_t format) {
+    void createEye(Eye &target, int64_t format, XrSwapchainUsageFlags usage = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT) {
         XrSwapchainCreateInfo create{XR_TYPE_SWAPCHAIN_CREATE_INFO};
-        create.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+        create.usageFlags = usage;
         create.format = format; create.sampleCount = 1;
         create.width = target.width; create.height = target.height;
         create.faceCount = 1; create.arraySize = 1; create.mipCount = 1;
@@ -753,6 +762,50 @@ private:
         target.images.resize(count, {XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR});
         check(xrEnumerateSwapchainImages(target.swapchain, count, &count,
             reinterpret_cast<XrSwapchainImageBaseHeader *>(target.images.data())), "images");
+    }
+
+    bool updatePreparation() {
+        const auto now = xr_frame_now();
+        if (now - preparationUpdated_ < 250000000LL) return preparationVisible_;
+        preparationUpdated_ = now;
+        jobject bitmap = env_->CallObjectMethod(app_->activity->clazz, preparationCallback_);
+        if (env_->ExceptionCheck()) {
+            env_->ExceptionClear();
+            throw std::runtime_error("XR preparation callback failed");
+        }
+        preparationVisible_ = bitmap != nullptr;
+        if (!bitmap) return false;
+        AndroidBitmapInfo info{};
+        void *pixels = nullptr;
+        if (AndroidBitmap_getInfo(env_, bitmap, &info) != ANDROID_BITMAP_RESULT_SUCCESS ||
+            info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 ||
+            AndroidBitmap_lockPixels(env_, bitmap, &pixels) != ANDROID_BITMAP_RESULT_SUCCESS) {
+            env_->DeleteLocalRef(bitmap);
+            throw std::runtime_error("XR preparation bitmap unavailable");
+        }
+        std::vector<uint8_t> data(info.width * info.height * 4);
+        for (uint32_t row = 0; row < info.height; ++row)
+            std::memcpy(data.data() + row * info.width * 4,
+                static_cast<uint8_t *>(pixels) + (info.height - row - 1) * info.stride, info.width * 4);
+        AndroidBitmap_unlockPixels(env_, bitmap);
+        env_->DeleteLocalRef(bitmap);
+        if (!preparation_.swapchain) {
+            preparation_.width = info.width;
+            preparation_.height = info.height;
+            createEye(preparation_, GL_SRGB8_ALPHA8,
+                XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT);
+        }
+        uint32_t image = 0;
+        XrSwapchainImageAcquireInfo acquire{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+        check(xrAcquireSwapchainImage(preparation_.swapchain, &acquire, &image), "acquire preparation");
+        XrSwapchainImageWaitInfo wait{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+        wait.timeout = XR_INFINITE_DURATION;
+        check(xrWaitSwapchainImage(preparation_.swapchain, &wait), "wait preparation");
+        glBindTexture(GL_TEXTURE_2D, preparation_.images[image].image);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, info.width, info.height, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
+        XrSwapchainImageReleaseInfo release{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+        check(xrReleaseSwapchainImage(preparation_.swapchain, &release), "release preparation");
+        return true;
     }
 
     void initializeTracking() {
@@ -1086,6 +1139,18 @@ private:
         inputFocus_.accept(state_ == XR_SESSION_STATE_FOCUSED, inputs_);
         if (renderModels_.enabled())
             renderModels_.update(view_, poseTime_, &head_, world_);
+        const std::string leftModel = renderModels_.ready(0) ? renderModels_.name(0) : "";
+        const std::string rightModel = renderModels_.ready(1) ? renderModels_.name(1) : "";
+        const auto controllers = controllerProfiles_[0] + "\n" + controllerProfiles_[1] + "\n" + leftModel + "\n" + rightModel;
+        if ((state_ == XR_SESSION_STATE_FOCUSED || !leftModel.empty() || !rightModel.empty()) &&
+            controllers != reportedControllers_) {
+            reportedControllers_ = controllers;
+            auto left = env_->NewStringUTF(leftModel.c_str()), right = env_->NewStringUTF(rightModel.c_str());
+            env_->CallVoidMethod(app_->activity->clazz, controllersCallback_,
+                (jint)xr_controller_profile_id(controllerProfiles_[0]), (jint)xr_controller_profile_id(controllerProfiles_[1]), left, right);
+            env_->DeleteLocalRef(left); env_->DeleteLocalRef(right);
+            if (env_->ExceptionCheck()) { env_->ExceptionClear(); throw std::runtime_error("Controller model callback failed"); }
+        }
         referenceControls(frameState.predictedDisplayTime);
         updateReference(frameState.predictedDisplayTime);
         pollHaptics();
@@ -1168,10 +1233,22 @@ private:
             referenceProjection[eye].subImage.swapchain = target.swapchain;
             referenceProjection[eye].subImage.imageRect.extent = {target.width, target.height};
         }
-        const XrCompositionLayerBaseHeader *layers[2]{};
+        XrCompositionLayerQuad preparation{XR_TYPE_COMPOSITION_LAYER_QUAD};
+        const bool preparing = updatePreparation() && frameState.shouldRender;
+        if (preparing) {
+            preparation.space = view_;
+            preparation.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
+            preparation.pose.orientation.w = 1.f;
+            preparation.pose.position.z = -1.5f;
+            preparation.size = {1.6f, 1.6f * preparation_.height / preparation_.width};
+            preparation.subImage.swapchain = preparation_.swapchain;
+            preparation.subImage.imageRect.extent = {preparation_.width, preparation_.height};
+        }
+        const XrCompositionLayerBaseHeader *layers[3]{};
         uint32_t layerCount = 0;
         if (valid) layers[layerCount++] = reinterpret_cast<XrCompositionLayerBaseHeader *>(&layer);
         if (overlay) layers[layerCount++] = reinterpret_cast<XrCompositionLayerBaseHeader *>(&referenceLayer);
+        if (preparing) layers[layerCount++] = reinterpret_cast<XrCompositionLayerBaseHeader *>(&preparation);
         XrFrameEndInfo end{XR_TYPE_FRAME_END_INFO}; end.displayTime = frameState.predictedDisplayTime;
         end.environmentBlendMode = XR_ENVIRONMENT_BLEND_MODE_OPAQUE; end.layerCount = layerCount; end.layers = layers;
         check(xrEndFrame(session_, &end), "xrEndFrame");
@@ -1206,6 +1283,7 @@ private:
         }
         for (auto &eye : eyes_) if (eye.swapchain) xrDestroySwapchain(eye.swapchain);
         for (auto &eye : referenceEyes_) if (eye.swapchain) xrDestroySwapchain(eye.swapchain);
+        if (preparation_.swapchain) xrDestroySwapchain(preparation_.swapchain);
         for (auto space : handSpaces_) if (space) xrDestroySpace(space);
         for (auto space : aimSpaces_) if (space) xrDestroySpace(space);
         renderModels_.cleanup();

@@ -250,7 +250,7 @@ class SteamDownloadMonitorTest {
             File(steam, "package").mkdirs()
             File(steam, "package/bannerlator-installed").writeText("1\n")
             assertFalse(SteamDownloadMonitor.clientInstallPending(root))
-            File(root, "root/.bl-steam-repair").writeText("1\n")
+            File(root, "root/.dd-steam-repair").writeText("1\n")
             assertTrue(SteamDownloadMonitor.clientInstallPending(root))
         } finally {
             root.deleteRecursively()

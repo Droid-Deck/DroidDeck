@@ -28,7 +28,7 @@ static int find_ntdll(struct dl_phdr_info *info, size_t size, void *data) {
   return 0;
 }
 
-__attribute__((visibility("hidden"))) int bl_from_ntdll(const void *caller) {
+__attribute__((visibility("hidden"))) int dd_from_ntdll(const void *caller) {
   uintptr_t pc = (uintptr_t)caller, lo = __atomic_load_n(&ntdll_lo, __ATOMIC_ACQUIRE);
   if (!lo) {
     dl_iterate_phdr(find_ntdll, NULL);
@@ -42,53 +42,53 @@ __attribute__((visibility("hidden"))) int bl_from_ntdll(const void *caller) {
 #include <asm/hwcap.h>
 #include <asm/sigcontext.h>
 
-#define BL_STR2(x) #x
-#define BL_STR(x) BL_STR2(x)
+#define DD_STR2(x) #x
+#define DD_STR(x) DD_STR2(x)
 
-#define BL_HWCAP_GCS (1UL << 32)
-#define BL_FRAME_SIZE 4688
-#define BL_REGS 312
-#define BL_SP 560
-#define BL_PC 568
-#define BL_PSTATE 576
-#define BL_FPSIMD 592
+#define DD_HWCAP_GCS (1UL << 32)
+#define DD_FRAME_SIZE 4688
+#define DD_REGS 312
+#define DD_SP 560
+#define DD_PC 568
+#define DD_PSTATE 576
+#define DD_FPSIMD 592
 
-struct bl_sigframe {
+struct dd_sigframe {
   siginfo_t info;
   ucontext_t uc;
 };
 
-struct bl_kernel_sigaction {
+struct dd_kernel_sigaction {
   void (*handler)(int, siginfo_t *, void *);
   unsigned long flags;
   void *restorer;
   uint64_t mask;
 };
 
-struct bl_usr2_call {
+struct dd_usr2_call {
   void (*handler)(int, siginfo_t *, void *);
   uint64_t old_mask;
 };
 
-_Static_assert(sizeof(struct bl_sigframe) == BL_FRAME_SIZE, "rt_sigframe size");
-_Static_assert(offsetof(struct bl_sigframe, uc.uc_mcontext.regs) == BL_REGS, "regs offset");
-_Static_assert(offsetof(struct bl_sigframe, uc.uc_mcontext.sp) == BL_SP, "sp offset");
-_Static_assert(offsetof(struct bl_sigframe, uc.uc_mcontext.pc) == BL_PC, "pc offset");
-_Static_assert(offsetof(struct bl_sigframe, uc.uc_mcontext.pstate) == BL_PSTATE, "pstate offset");
-_Static_assert(offsetof(struct bl_sigframe, uc.uc_mcontext.__reserved) == BL_FPSIMD, "reserved offset");
+_Static_assert(sizeof(struct dd_sigframe) == DD_FRAME_SIZE, "rt_sigframe size");
+_Static_assert(offsetof(struct dd_sigframe, uc.uc_mcontext.regs) == DD_REGS, "regs offset");
+_Static_assert(offsetof(struct dd_sigframe, uc.uc_mcontext.sp) == DD_SP, "sp offset");
+_Static_assert(offsetof(struct dd_sigframe, uc.uc_mcontext.pc) == DD_PC, "pc offset");
+_Static_assert(offsetof(struct dd_sigframe, uc.uc_mcontext.pstate) == DD_PSTATE, "pstate offset");
+_Static_assert(offsetof(struct dd_sigframe, uc.uc_mcontext.__reserved) == DD_FPSIMD, "reserved offset");
 _Static_assert(sizeof(struct fpsimd_context) + sizeof(struct _aarch64_ctx) <=
                    sizeof(((mcontext_t *)0)->__reserved), "reserved space");
 
-__attribute__((visibility("hidden"))) void bl_usr2_frame(struct bl_usr2_call *call);
-__attribute__((visibility("hidden"), used)) void bl_usr2_run(struct bl_usr2_call *call, struct bl_sigframe *frame);
+__attribute__((visibility("hidden"))) void dd_usr2_frame(struct dd_usr2_call *call);
+__attribute__((visibility("hidden"), used)) void dd_usr2_run(struct dd_usr2_call *call, struct dd_sigframe *frame);
 
 __asm__(".text\n"
         ".p2align 2\n"
-        ".type bl_usr2_frame, %function\n"
-        "bl_usr2_frame:\n"
-        "  mov x16, #" BL_STR(BL_FRAME_SIZE) "\n"
+        ".type dd_usr2_frame, %function\n"
+        "dd_usr2_frame:\n"
+        "  mov x16, #" DD_STR(DD_FRAME_SIZE) "\n"
         "  sub sp, sp, x16\n"
-        "  add x17, sp, #" BL_STR(BL_REGS) "\n"
+        "  add x17, sp, #" DD_STR(DD_REGS) "\n"
         "  stp x0, x1, [x17, #0]\n"
         "  stp x2, x3, [x17, #16]\n"
         "  stp x4, x5, [x17, #32]\n"
@@ -107,12 +107,12 @@ __asm__(".text\n"
         "  str x30, [x17, #240]\n"
         "  str xzr, [x17, #0]\n"
         "  add x16, sp, x16\n"
-        "  str x16, [sp, #" BL_STR(BL_SP) "]\n"
+        "  str x16, [sp, #" DD_STR(DD_SP) "]\n"
         "  adr x16, 1f\n"
-        "  str x16, [sp, #" BL_STR(BL_PC) "]\n"
+        "  str x16, [sp, #" DD_STR(DD_PC) "]\n"
         "  mrs x16, nzcv\n"
-        "  str x16, [sp, #" BL_STR(BL_PSTATE) "]\n"
-        "  add x17, sp, #" BL_STR(BL_FPSIMD) "\n"
+        "  str x16, [sp, #" DD_STR(DD_PSTATE) "]\n"
+        "  add x17, sp, #" DD_STR(DD_FPSIMD) "\n"
         "  mrs x16, fpsr\n"
         "  str w16, [x17, #8]\n"
         "  mrs x16, fpcr\n"
@@ -134,13 +134,13 @@ __asm__(".text\n"
         "  stp q28, q29, [x17, #464]\n"
         "  stp q30, q31, [x17, #496]\n"
         "  mov x1, sp\n"
-        "  bl bl_usr2_run\n"
-        "  mov x8, #" BL_STR(__NR_rt_sigreturn) "\n"
+        "  bl dd_usr2_run\n"
+        "  mov x8, #" DD_STR(__NR_rt_sigreturn) "\n"
         "  svc #0\n"
         "  brk #0\n"
         "1:\n"
         "  ret\n"
-        ".size bl_usr2_frame, .-bl_usr2_frame\n");
+        ".size dd_usr2_frame, .-dd_usr2_frame\n");
 
 static int (*usr2_real_raise)(int);
 
@@ -160,7 +160,7 @@ static uint64_t usr2_ssbs(void) {
   return value & (1UL << 12);
 }
 
-void bl_usr2_run(struct bl_usr2_call *call, struct bl_sigframe *frame) {
+void dd_usr2_run(struct dd_usr2_call *call, struct dd_sigframe *frame) {
   struct fpsimd_context *fp = (struct fpsimd_context *)frame->uc.uc_mcontext.__reserved;
   struct _aarch64_ctx *end = (struct _aarch64_ctx *)(fp + 1);
 
@@ -192,11 +192,11 @@ int raise(int sig) {
     real = (int (*)(int))dlsym(RTLD_NEXT, "raise");
     __atomic_store_n(&usr2_real_raise, real, __ATOMIC_RELEASE);
   }
-  if (sig != SIGUSR2 || (getauxval(AT_HWCAP) & BL_HWCAP_GCS) || !bl_from_ntdll(__builtin_return_address(0))) {
+  if (sig != SIGUSR2 || (getauxval(AT_HWCAP) & DD_HWCAP_GCS) || !dd_from_ntdll(__builtin_return_address(0))) {
     return real(sig);
   }
 
-  struct bl_kernel_sigaction action;
+  struct dd_kernel_sigaction action;
   if (usr2_sys(__NR_rt_sigaction, SIGUSR2, 0, (long)&action, sizeof(action.mask)) != 0) return real(sig);
   if (!(action.flags & SA_SIGINFO) || (action.flags & SA_RESETHAND) || (uintptr_t)action.handler <= 1) {
     return real(sig);
@@ -204,7 +204,7 @@ int raise(int sig) {
 
   uint64_t bit = 1ULL << (SIGUSR2 - 1);
   uint64_t block = action.mask | ((action.flags & SA_NODEFER) ? 0 : bit);
-  struct bl_usr2_call call = {action.handler, 0};
+  struct dd_usr2_call call = {action.handler, 0};
   if (usr2_sys(__NR_rt_sigprocmask, SIG_BLOCK, (long)&block, (long)&call.old_mask, sizeof(block)) != 0) {
     return real(sig);
   }
@@ -212,7 +212,7 @@ int raise(int sig) {
     usr2_sys(__NR_rt_sigprocmask, SIG_SETMASK, (long)&call.old_mask, 0, sizeof(call.old_mask));
     return real(sig);
   }
-  bl_usr2_frame(&call);
+  dd_usr2_frame(&call);
   return 0;
 }
 #endif

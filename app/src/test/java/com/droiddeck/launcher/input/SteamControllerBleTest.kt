@@ -21,7 +21,6 @@ import org.robolectric.annotation.Implements
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.shadows.ShadowBluetoothGatt
-import org.robolectric.shadows.ShadowPausedMessageQueue
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
@@ -50,6 +49,12 @@ class SteamControllerBleTest {
         handler = ReflectionHelpers.getField(controller, "handler")
         shadowOf(handler.looper).pause()
         controller.start()
+    }
+
+    /** Runs what stop() posted unless stop() already quit the looper, then quits it. */
+    private fun drain(looper: android.os.Looper) {
+        runCatching { shadowOf(looper).idle() }
+        looper.quit()
     }
 
     @After fun close() {
@@ -150,12 +155,7 @@ class SteamControllerBleTest {
     private fun close(target: SteamControllerBle, targetHandler: Handler) {
         target.stop()
         val thread = targetHandler.looper.thread
-        val looper = shadowOf(targetHandler.looper)
-        val quitting = ReflectionHelpers.callInstanceMethod<Boolean>(
-            Shadow.extract<ShadowPausedMessageQueue>(targetHandler.looper.queue), "isQuitting")
-        if (looper.isPaused && !quitting) {
-            looper.idle()
-        }
+        drain(targetHandler.looper)
         thread.join(5000)
         assertFalse("BLE cleanup must finish before the Robolectric sandbox closes", thread.isAlive)
     }

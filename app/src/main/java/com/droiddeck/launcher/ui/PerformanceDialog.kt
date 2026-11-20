@@ -24,11 +24,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.SessionPrefs
 
 class CoreRow(val core: Int, val label: String)
-
-private const val MEMORY_CAP_STEP_MB = 256
 
 @Composable
 fun PerformancePage(
@@ -47,11 +46,6 @@ fun PerformancePage(
     fsyncFirst: Boolean,
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
-    ramCapMb: Int,
-    zramClient: Boolean,
-    vramCapMb: Int,
-    deviceRamMb: Int,
-    ramCapAvailable: Boolean,
     prootNoSeccomp: Boolean,
     prootFastPath: Boolean,
     nativeUserland: Boolean,
@@ -70,9 +64,6 @@ fun PerformancePage(
     onFsyncFirst: (Boolean) -> Unit,
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
-    onRamCapMb: (Int) -> Unit,
-    onZramClient: (Boolean) -> Unit,
-    onVramCapMb: (Int) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
     onNativeUserland: (Boolean) -> Unit,
@@ -81,15 +72,12 @@ fun PerformancePage(
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
     onDismiss: () -> Unit,
+    embedded: Boolean = false,
 ) {
     val host = rememberMenuHost()
     val colors = MaterialTheme.colorScheme
     val coreItems = cores.map { it.core to it.label }
-    SettingsPage(
-        host, title = stringResource(R.string.perf_title),
-        lede = stringResource(R.string.perf_lede),
-        onBack = onDismiss,
-    ) {
+    val body: @Composable () -> Unit = {
         SettingsGroup(stringResource(R.string.perf_client_cores_group)) {
             ToggleRow(
                 host, "override", stringResource(R.string.perf_override),
@@ -135,34 +123,7 @@ fun PerformancePage(
                 gamescopeRealtime, onChange = onGamescopeRealtime,
             )
         }
-        SettingsGroup(stringResource(R.string.perf_gpu)) {
-            ToggleRow(
-                host, "gpuclock", stringResource(R.string.perf_gpuclock),
-                stringResource(R.string.perf_gpuclock_hint),
-                gpuClockPin, onChange = onGpuClockPin,
-            )
-        }
-        SettingsGroup(stringResource(R.string.perf_memory)) {
-            val top = (deviceRamMb / MEMORY_CAP_STEP_MB * MEMORY_CAP_STEP_MB).coerceAtLeast(MEMORY_CAP_STEP_MB)
-            val off = stringResource(R.string.perf_cap_off)
-            val auto = stringResource(R.string.perf_cap_auto)
-            ToggleRow(
-                host, "zramclient", stringResource(R.string.perf_zram_client),
-                if (ramCapAvailable) stringResource(R.string.perf_zram_client_hint) else stringResource(R.string.perf_ram_cap_unavailable),
-                zramClient && ramCapAvailable, enabled = ramCapAvailable, onChange = onZramClient,
-            )
-            SliderRow(
-                stringResource(R.string.perf_ram_cap),
-                if (ramCapAvailable) stringResource(R.string.perf_ram_cap_hint) else stringResource(R.string.perf_ram_cap_unavailable),
-                ramCapMb.coerceAtMost(top), 0..top, step = MEMORY_CAP_STEP_MB, enabled = ramCapAvailable,
-                format = { if (it == 0) off else "$it MB" }, onChange = onRamCapMb,
-            )
-            SliderRow(
-                stringResource(R.string.perf_vram_cap), stringResource(R.string.perf_vram_cap_hint),
-                vramCapMb.coerceAtMost(top), 0..top, step = MEMORY_CAP_STEP_MB,
-                format = { if (it == 0) auto else "$it MB" }, onChange = onVramCapMb,
-            )
-        }
+        if (GpuClockPin.supported) GpuClockGroup(host, gpuClockPin, onChange = onGpuClockPin)
         SettingsGroup(stringResource(R.string.perf_fixes)) {
             ToggleRow(
                 host, "sysmem", stringResource(R.string.perf_sysmem),
@@ -244,5 +205,24 @@ fun PerformancePage(
                 Text(phantomWarning, fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
             }
         }
+    }
+    if (embedded) Column {
+        Text(stringResource(R.string.perf_lede), fontSize = 13.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
+        body()
+    } else SettingsPage(
+        host, title = stringResource(R.string.perf_title),
+        lede = stringResource(R.string.perf_lede),
+        onBack = onDismiss,
+    ) { body() }
+}
+
+@Composable
+internal fun GpuClockGroup(host: MenuHost, on: Boolean, chipModifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+    SettingsGroup(stringResource(R.string.perf_gpu)) {
+        ToggleRow(
+            host, "gpuclock", stringResource(R.string.perf_gpuclock),
+            null,
+            on, chipModifier = chipModifier, onChange = onChange,
+        )
     }
 }

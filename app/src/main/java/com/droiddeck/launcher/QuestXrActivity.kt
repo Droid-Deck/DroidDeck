@@ -19,10 +19,16 @@ open class QuestXrActivity : NativeActivity() {
     private var sessionId: String? = null
     private var xrOwner = 0L
     private var runtimeAttempt = 0L
+    private val preparation by lazy { com.droiddeck.launcher.session.XrPreparation(this) }
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(newBase)
+        com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         sessionId = SessionState.sessionId
         xrOwner = SessionService.registerXrActivity()
         runtimeAttempt = com.droiddeck.launcher.session.OpenXrRuntime.sessionStarting()
+        com.droiddeck.launcher.session.XrControllerModels.begin(this, runtimeAttempt)
         reportVisible(true)
         super.onCreate(savedInstanceState)
     }
@@ -52,6 +58,10 @@ open class QuestXrActivity : NativeActivity() {
             steamVrStarted = true
             Thread({
                 try {
+                    if (!com.droiddeck.launcher.session.SteamVrSession.prepare(this) { !closing && sessionAlive() }) {
+                        if (!closing && sessionAlive()) leaveXr("SteamVR preparation failed", true)
+                        return@Thread
+                    }
                     val started = synchronized(steamVrLock) {
                         if (closing || !sessionAlive()) false else {
                             steamVrOwner = this
@@ -108,8 +118,13 @@ open class QuestXrActivity : NativeActivity() {
         CompositorHost.xrVsync(frameTimeNanos, keepDesktopPanel)
     }
 
+    fun onXrControllers(left: Int, right: Int, leftNative: String, rightNative: String) =
+        com.droiddeck.launcher.session.XrControllerModels.controllers(this, runtimeAttempt, left, right, leftNative, rightNative)
+
     open fun onXrStatus(): Int = steamVrStatus.ordinal
 
+    fun onXrPreparation(): android.graphics.Bitmap? =
+        if (closing || !sessionAlive() || onXrStatus() == SteamVr.Status.RUNNING.ordinal) null else preparation.bitmap()
 
     fun onXrFailure(error: String) =
         com.droiddeck.launcher.session.OpenXrRuntime.sessionFailed(runtimeAttempt, error)
@@ -121,6 +136,7 @@ open class QuestXrActivity : NativeActivity() {
 
     override fun onDestroy() {
         closing = true
+        com.droiddeck.launcher.session.XrControllerModels.end(runtimeAttempt)
         com.droiddeck.launcher.session.OpenXrRuntime.sessionEnded(runtimeAttempt)
         reportVisible(false)
         super.onDestroy()

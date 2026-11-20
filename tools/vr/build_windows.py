@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-IMAGE = 'droiddeck-local-cross:24.04-v3'
+IMAGE = 'droiddeck-local-cross:24.04-v4'
 MANIFEST = 'vr-build.json'
 SOURCE_TREES = ('tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
                 'tools/vr/driver_droiddeck', 'tools/vr/layer')
@@ -37,11 +37,8 @@ HAND_MODELS = {
                  'hand_fist.obj', 'thumb_index_open.obj', 'thumb_index_pinch.obj')
 }
 PROFILE_MODELS = {
-    'droiddeck/resources/rendermodels/' + path.relative_to(
-        ROOT / 'tools/vr/driver_droiddeck/resources/rendermodels').as_posix():
-    path.relative_to(ROOT).as_posix()
-    for path in (ROOT / 'tools/vr/driver_droiddeck/resources/rendermodels').glob('droiddeck_pico_*/*')
-    if path.is_file()
+    'droiddeck/resources/licenses/webxr-input-profiles.txt':
+    'tools/vr/third_party/webxr-input-profiles/LICENSE.md',
 }
 OUTPUTS = LIBRARIES | CONFIGS.keys() | EXECUTABLES | HAND_MODELS | PROFILE_MODELS.keys()
 

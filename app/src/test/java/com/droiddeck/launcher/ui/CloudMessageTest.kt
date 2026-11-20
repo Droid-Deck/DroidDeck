@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CloudSaves
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -23,6 +24,15 @@ class CloudMessageTest {
             assertEquals(reason, ctx.getString(R.string.cloud_not_synced), msg("skipped", 0, 0, reason))
         }
         assertEquals(ctx.getString(R.string.cloud_not_synced), msg("failed", 0, 0, "SocketTimeoutException"))
+    }
+
+    @Test fun aPartialSyncNamesTheSlotsItLeft() {
+        fun partial(conflicts: Int, detail: String) = cloudMessage(ctx, CloudSaves.Result("partial", 0, 0L, "blocked-path", conflicts, detail))
+        assertEquals(ctx.getString(R.string.cloud_partial, "outside the save folder: ../x.save"), partial(0, "outside the save folder: ../x.save"))
+        assertEquals(ctx.getString(R.string.cloud_conflict_files_detail, 2, "changed locally: 1.save, 2.save"), partial(2, "changed locally: 1.save, 2.save"))
+        assertTrue(partial(1, "changed locally: 1.save").contains("1.save"))
+        assertEquals(ctx.getString(R.string.cloud_conflict_files, 1), partial(1, ""))
+        assertEquals(ctx.getString(R.string.cloud_not_synced), partial(0, ""))
     }
 
     @Test fun okResultsSayWhatHappened() {

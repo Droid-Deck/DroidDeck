@@ -77,6 +77,7 @@ import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.testTag
 
 
 @Composable
@@ -143,7 +144,7 @@ private fun stageOf(topic: LoadingState.Topic, steam: Boolean): Int = when (topi
 }
 
 @Composable
-fun LoadingOverlay(
+internal fun LoadingOverlay(
     step: String, percent: Int, elapsed: String, hint: String, ended: Boolean,
     topic: LoadingState.Topic, readable: Boolean,
     title: String = stringResource(R.string.load_starting_steam), steam: Boolean = true, onCancel: (() -> Unit)? = null,
@@ -152,6 +153,8 @@ fun LoadingOverlay(
     onRepair: (() -> Unit)? = null,
     onShareLogs: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
+    readyDetail: String? = null,
+    modelStatus: com.droiddeck.launcher.session.XrControllerModels.Status? = null,
     flood: Color? = null,
     onFlooded: () -> Unit = {},
 ) {
@@ -205,11 +208,12 @@ fun LoadingOverlay(
                 color = colors.onBackground, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
             Text(
-                if (ended) step else detail, fontSize = 14.sp, lineHeight = 20.sp, color = colors.onSurfaceVariant, textAlign = TextAlign.Center,
+                if (ended) step else readyDetail ?: detail, fontSize = 14.sp, lineHeight = 20.sp, color = colors.onSurfaceVariant, textAlign = TextAlign.Center,
                 maxLines = if (ended) 12 else 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 6.dp).widthIn(max = 520.dp),
             )
-            if (!ended) LoadSegments(stages.size, active, percent, Modifier.padding(top = 18.dp))
+            if (!ended && readyDetail == null) LoadSegments(stages.size, active, percent, Modifier.padding(top = 18.dp))
+            if (!ended && modelStatus != null) XrModelStatus(modelStatus, Modifier.padding(top = 12.dp).widthIn(max = 520.dp), centered = true)
             if (ended && endedDetail != null) Text(
                 endedDetail, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis,
@@ -223,6 +227,9 @@ fun LoadingOverlay(
             modifier = Modifier.align(Alignment.BottomCenter).padding(start = 120.dp, end = 120.dp, bottom = 28.dp),
         )
         if (!ended && onCancel != null) CancelHint(onCancel, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp))
+        if (!ended && onShareLogs != null) androidx.compose.material3.TextButton(
+            onClick = onShareLogs, modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 12.dp).testTag("loading-report"),
+        ) { Text(stringResource(R.string.report_problem), fontSize = 13.sp, color = colors.onSurfaceVariant) }
         if (flood != null) FloodGather(flood, ball, onFlooded)
     }
 }
@@ -242,7 +249,7 @@ private fun EndedActions(onRetry: (() -> Unit)?, onRepair: (() -> Unit)?, onShar
             if (onRepair != null) SecondaryButton(stringResource(R.string.store_try_again), modifier = claim(), onClick = onRetry)
             else PrimaryButton(stringResource(R.string.store_try_again), modifier = claim(), onClick = onRetry)
         }
-        if (onShareLogs != null) SecondaryButton(stringResource(R.string.drawer_share_logs), modifier = claim(),
+        if (onShareLogs != null) SecondaryButton(stringResource(R.string.report_problem), modifier = claim(),
             progress = com.droiddeck.launcher.session.SessionLogShare.progress, onClick = onShareLogs)
         if (onClose != null) SecondaryButton(stringResource(R.string.mode_back), modifier = claim(), onClick = onClose)
     }

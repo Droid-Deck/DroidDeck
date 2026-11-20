@@ -153,7 +153,7 @@ public final class WaylandCompositor {
 
     public static native void nativeStartWithSurface(Surface surface, String xdgRuntimeDir,
                                                      String driverPath, String libraryName,
-                                                     String nativeLibDir);
+                                                     String nativeLibDir, boolean allowDriverFallback);
 
     public static native void nativeSetSurface(Surface surface);
     public static native void nativeAttachWindow(String key, long generation, Surface surface, int width, int height);
@@ -166,6 +166,8 @@ public final class WaylandCompositor {
     public static native void nativeSendPointer(int action, int x, int y);
 
     public static native void nativeSendTouch(int action, int pointerId, int x, int y);
+
+    public static native void nativeSendPen(int flags, int x, int y);
 
     public static native int nativeCursorSnapshot(int[] out);
 
@@ -243,6 +245,8 @@ public final class WaylandCompositor {
 
     public static native boolean nativeGamePictureRect(float[] out);
 
+    public static native boolean nativeOutputSize(int[] out);
+
     public static native void nativeResizeOutput(int width, int height);
 
     public static native void nativeResetFirstFrame();
@@ -305,7 +309,7 @@ public final class WaylandCompositor {
     public static native void nativeSetDeband(boolean enabled, int strength);
 
     public static native void nativeSetScreenEffects(float brightness, float contrast, float gamma, float saturation,
-                                                     boolean fxaa, boolean toon, boolean crt, boolean ntsc);
+                                                     int aaMode, boolean toon, boolean crt, boolean ntsc);
 
     public static native void nativeSetLookName(String name);
 
@@ -323,6 +327,10 @@ public final class WaylandCompositor {
 
     public static native void nativeSetFpsLimit(int fps);
 
+    public static native void nativeSetBlackFrameInsertion(boolean on);
+
+    public static native void nativeSetPictureHold(boolean on);
+
     public static native void nativeSetRenderOnCommit(boolean on);
 
     public static native void nativeSetGpuTurbo(boolean on);
@@ -336,6 +344,9 @@ public final class WaylandCompositor {
     }
     public static native void nativePointerGesture(String key, long generation, int type,
                                                   float a, float b, float c, float d, long eventTime);
+
+    public static final int SCENE_BUTTON = 3, SCENE_WHEEL = 4, SCENE_POINTER_DELTA = 6, SCENE_AXIS = 11, SCENE_AXIS_FINGER = 12;
+    public static final int WHEEL_STEP_UNITS = 120, POINTER_DELTA_SCALE = 256;
 
     public static final int FG_ENGINE_LSFG = 0, FG_ENGINE_DDFG = 1;
 
@@ -365,19 +376,19 @@ public final class WaylandCompositor {
 
     public static void sendPointerDelta(int dx, int dy) {
         if (dx == 0 && dy == 0) return;
-        nativeSendSceneInput(6, dx * 256, dy * 256);
+        nativeSendSceneInput(SCENE_POINTER_DELTA, dx * POINTER_DELTA_SCALE, dy * POINTER_DELTA_SCALE);
     }
 
     private static float pendingDeltaX, pendingDeltaY;
 
     public static void sendPointerDelta(float dx, float dy) {
-        pendingDeltaX += dx * 256f;
-        pendingDeltaY += dy * 256f;
+        pendingDeltaX += dx * POINTER_DELTA_SCALE;
+        pendingDeltaY += dy * POINTER_DELTA_SCALE;
         int x = (int) Math.floor(pendingDeltaX);
         int y = (int) Math.floor(pendingDeltaY);
         if (x == 0 && y == 0) return;
         pendingDeltaX -= x;
         pendingDeltaY -= y;
-        nativeSendSceneInput(6, x, y);
+        nativeSendSceneInput(SCENE_POINTER_DELTA, x, y);
     }
 }

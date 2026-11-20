@@ -40,4 +40,14 @@ class InputSpaceTest {
         assertEquals(InputSpace.HEIGHT - 1, InputSpace.y(5000f, 1504))
         assertEquals(0, InputSpace.y(10f, 0))
     }
+
+    @Test fun fixedPositionsKeepTheFractionOfAnInputUnit() {
+        assertEquals(960 * 256, InputSpace.fixedX(1200f, 2400))
+        assertEquals(1700, InputSpace.fixedX(5.534f, 1600))
+        assertEquals(InputSpace.x(5.534f, 1600), InputSpace.fixedX(5.534f, 1600) / InputSpace.FIXED_ONE)
+        assertEquals(InputSpace.WIDTH * InputSpace.FIXED_ONE - 1, InputSpace.fixedX(2400f, 2400))
+        assertEquals(InputSpace.HEIGHT * InputSpace.FIXED_ONE - 1, InputSpace.fixedY(5000f, 1504))
+        assertEquals(0, InputSpace.fixedY(-1f, 1504))
+        assertEquals(0, InputSpace.fixedY(10f, 0))
+    }
 }

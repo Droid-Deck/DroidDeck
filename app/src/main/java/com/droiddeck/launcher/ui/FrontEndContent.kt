@@ -212,6 +212,8 @@ internal fun inPane(o: Origin): Origin =
 private fun Backdrop(art: File?) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    // True black keeps the page unlit: no art wash and no corner glow.
+    if (pal.id == Themes.TRUE_BLACK) return
     Crossfade(targetState = art, animationSpec = Motion.tw(700), label = "backdrop") { a ->
         if (a != null && Build.VERSION.SDK_INT >= 31) {
             Box(modifier = Modifier.fillMaxSize().alpha(0.26f).blur(70.dp)) {
@@ -249,6 +251,18 @@ private fun Content(
         }
         return
     }
+    if (selected == "downloads") {
+        DownloadsPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
+    if (selected == "storage") {
+        StorageTabPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
+    if (selected == "sync") {
+        SyncTabPage(s, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
     if (selected == "updates") {
         UpdatesPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
         return
@@ -262,11 +276,18 @@ private fun Content(
         return
     }
     if (selected == "stores") {
-        StoresPage(s, a, modifier)
+        Box(modifier) {
+            StoresPage(s, a, Modifier.fillMaxSize())
+            ManageStoresSheet()
+        }
         return
     }
     if (selected == "games" || selected.startsWith("app:") || selected == "soundtracks" || selected.startsWith("sound:")) {
-        LibraryPage(s, a, selected, onSelect, modifier)
+        Box(modifier) {
+            LibraryPage(s, a, selected, onSelect, Modifier.fillMaxSize())
+            if (selected == "games") LibraryPreviewPill(Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 20.dp))
+            ManageStoresSheet()
+        }
         return
     }
     if (selected == "desktop") {
@@ -274,14 +295,17 @@ private fun Content(
         return
     }
     if (selected == NavTabs.MORE) {
-        MorePage(s, a, onSelect, modifier.padding(horizontal = padH).padding(top = padV))
+        Box(modifier) {
+            MorePage(s, a, onSelect, Modifier.padding(horizontal = padH).padding(top = padV))
+            EditTabsSheet(s, a)
+        }
         return
     }
     if (selected == "agent") {
         AgentPage(modifier.padding(horizontal = padH).padding(top = padV))
         return
     }
-    if (selected == "android-apps" && s.isHomeApp) {
+    if (selected == "android-apps") {
         AndroidAppsPage(s, a, modifier, onAndroidAppClick)
         return
     }
