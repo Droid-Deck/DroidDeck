@@ -5615,6 +5615,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(inPip, newConfig)
+        if (inPip) {
+            uiHandler.removeCallbacks(guardWhenRunning)
+            uiHandler.removeCallbacks(rearmAfterYield)
+            com.droiddeck.launcher.session.KeepTopActivity.stepAside()
+        }
         if (::pip.isInitialized) pip.changed(inPip)
         if (!inPip && surfaceW > 0) resizeOutputForWindow(surfaceW, surfaceH)
         applyUnfoldedControls()
@@ -5657,6 +5662,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onStop() {
         if (lightPause.stopped()) departureCleanup()
+        uiHandler.removeCallbacks(guardWhenRunning)
+        uiHandler.removeCallbacks(rearmAfterYield)
+        com.droiddeck.launcher.session.KeepTopActivity.stepAside()
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
         if (::hud.isInitialized) hud.setBackgrounded(true)
@@ -5700,6 +5708,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onResume() {
         super.onResume()
+        com.droiddeck.launcher.session.KeepTopActivity.onYield = onGuardYield
         uiHandler.removeCallbacks(lightPauseCheck)
         when (lightPause.resumed(com.droiddeck.launcher.session.KeepTopActivity.bounces)) {
             com.droiddeck.launcher.session.LightPause.Resume.LIGHT -> return
@@ -5783,6 +5792,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
+    // A touch that removed a guard while the session kept the top spot did not move focus to that
+    // display, so the guard comes back unless the user carries on there.
+    private val rearmAfterYield = Runnable {
+        if (topResumed && !isFinishing) {
+            com.droiddeck.launcher.session.KeepTopActivity.rearm()
+            guardOtherDisplays()
+        }
+    }
+    private val onGuardYield: () -> Unit = {
+        uiHandler.removeCallbacks(rearmAfterYield)
+        uiHandler.postDelayed(rearmAfterYield, com.droiddeck.launcher.session.KeepTopActivity.YIELD_GRACE_MS)
+    }
+
     // RUNNING_LOW and RUNNING_CRITICAL are not delivered from API 34, so the guard also goes up
     // as soon as a running session is on top.
     override fun onTrimMemory(level: Int) {
@@ -5796,13 +5818,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         super.onTopResumedActivityChanged(isTopResumedActivity)
         topResumed = isTopResumedActivity
         uiHandler.removeCallbacks(guardWhenRunning)
-        if (isTopResumedActivity) uiHandler.post(guardWhenRunning)
+        uiHandler.removeCallbacks(rearmAfterYield)
+        if (isTopResumedActivity) {
+            com.droiddeck.launcher.session.KeepTopActivity.rearm()
+            uiHandler.post(guardWhenRunning)
+        }
         else if (com.droiddeck.launcher.session.TopUnderPressure.shouldReclaim(
                 android.os.SystemClock.elapsedRealtime(), memoryPressureAt, SessionState.running, isFinishing)) guardOtherDisplays()
     }
 
     private fun guardOtherDisplays() {
-        if (!SessionState.running || isFinishing) return
+        if (!SessionState.running || isFinishing || isInPictureInPictureMode) return
         val wasResumed = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
         val bounced = com.droiddeck.launcher.session.KeepTopActivity.guardOtherDisplays(this, display?.displayId ?: android.view.Display.DEFAULT_DISPLAY)
         if (com.droiddeck.launcher.session.KeepTopActivity.hasPendingStarts()) {
@@ -6483,6 +6509,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onDestroy() {
         uiHandler.removeCallbacks(guardWhenRunning)
+        uiHandler.removeCallbacks(rearmAfterYield)
+        if (com.droiddeck.launcher.session.KeepTopActivity.onYield === onGuardYield) com.droiddeck.launcher.session.KeepTopActivity.onYield = null
         com.droiddeck.launcher.session.KeepTopActivity.release()
         synchronized(frameGenGlobalLock) {
             frameGenActivityActive = false
