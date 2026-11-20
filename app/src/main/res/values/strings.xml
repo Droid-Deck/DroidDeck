@@ -4343,6 +4343,12 @@
     <string name="library_accounts">Store accounts</string>
     <string name="library_account_sign_in">Sign in</string>
     <string name="library_account_sign_out">Sign out</string>
+    <string name="library_manage_stores">Manage stores</string>
+    <string name="library_all_games">All games</string>
+    <string name="library_custom_games">Custom games</string>
+    <string name="store_account_signed_out">Not signed in</string>
+    <string name="store_account_expired">Login expired</string>
+    <string name="store_account_api_key">Uses an API key</string>
     <string name="tabs_reset">Reset</string>
     <string name="tabs_reset_title">Reset tabs</string>
     <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>

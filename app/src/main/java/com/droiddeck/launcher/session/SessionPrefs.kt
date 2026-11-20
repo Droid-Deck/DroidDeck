@@ -352,6 +352,25 @@ object SessionPrefs {
         prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
     }
 
+    /**
+     * Where the Library's own tabs (Favorites, Steam, Custom games) sit among the store tabs, as "tab=the tab it follows" pairs in
+     * strip order ("" follows nothing, i.e. first). Null until arranged.
+     */
+    fun libraryTabPlaces(context: Context): List<Pair<String, String>>? =
+        prefs(context).getString("libraryTabPlaces", null)?.split(',')?.mapNotNull { pair ->
+            pair.split('=', limit = 2).takeIf { it.size == 2 && it[0].isNotEmpty() }?.let { it[0] to it[1] }
+        }
+
+    fun setLibraryTabPlaces(context: Context, places: List<Pair<String, String>>) {
+        prefs(context).edit().putString("libraryTabPlaces", places.joinToString(",") { "${it.first}=${it.second}" }).apply()
+    }
+
+    fun libraryTabsHidden(context: Context): Set<String> = idList(prefs(context).getString("libraryTabsHidden", null)).toSet()
+
+    fun setLibraryTabsHidden(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("libraryTabsHidden", hidden.joinToString(",")).apply()
+    }
+
     fun storesTabHidden(context: Context): Set<String> = idList(prefs(context).getString("storesTabHidden", null)).toSet()
 
     fun setStoresTabHidden(context: Context, hidden: Set<String>) {

@@ -186,19 +186,19 @@ internal fun Modifier.overhang(by: androidx.compose.ui.unit.Dp = 4.dp): Modifier
 }
 
 @Composable
-internal fun WallFade() {
+internal fun WallFade(modifier: Modifier = Modifier.fillMaxSize().overhang()) {
     val colors = MaterialTheme.colorScheme
     Box(
-        Modifier.fillMaxSize().overhang().background(
+        modifier.background(
             Brush.horizontalGradient(
-                0f to colors.background.copy(alpha = 0.97f),
-                0.34f to colors.background.copy(alpha = 0.86f),
-                0.68f to colors.background.copy(alpha = 0.25f),
-                1f to colors.background.copy(alpha = 0.1f),
+                0f to colors.background.copy(alpha = 0.86f),
+                0.34f to colors.background.copy(alpha = 0.6f),
+                0.68f to colors.background.copy(alpha = 0.14f),
+                1f to colors.background.copy(alpha = 0.04f),
             ),
         ),
     )
-    Box(Modifier.fillMaxSize().overhang().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
+    Box(modifier.background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
 }
 
 @Composable
