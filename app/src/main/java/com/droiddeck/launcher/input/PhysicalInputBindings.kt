@@ -25,7 +25,10 @@ data class PhysicalInputKey(val device: String, val name: String, val keyCode: I
 
 data class PhysicalInputBinding(val key: PhysicalInputKey, val action: InputAction)
 
-class PhysicalInputBindings(private val router: InputRouter) {
+class PhysicalInputBindings(
+    private val router: InputRouter,
+    private val onPress: (KeyEvent) -> Unit = {},
+) {
     private class Entry(val binding: PhysicalInputBinding, val channel: InputRouter.Channel) {
         var heldDevice = -1
         var suppressed = false
@@ -66,7 +69,10 @@ class PhysicalInputBindings(private val router: InputRouter) {
             if (identity != key.device) continue
             entry.heldDevice = event.deviceId
             entry.suppressed = event.repeatCount != 0
-            if (!entry.suppressed) entry.channel.update(1f)
+            if (!entry.suppressed) {
+                entry.channel.update(1f)
+                onPress(event)
+            }
             return true
         }
         return false

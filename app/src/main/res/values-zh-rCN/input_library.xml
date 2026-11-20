@@ -75,14 +75,9 @@
     <string name="input_independent_copy">独立副本</string>
     <string name="input_floating_stick">从按下位置开始</string>
     <string name="input_hide_idle">不使用时隐藏摇杆</string>
-    <string name="input_tools">工具</string>
-    <string name="input_quick_auto">自动 (%1$s)</string>
-    <string name="input_quick_mixed">自定义 (%1$s)</string>
     <string name="input_save_combination">另存为新配置</string>
     <string name="input_profile_controls_mode">配置控制</string>
-    <string name="input_profile">配置</string>
     <string name="input_mouse_gestures">鼠标触控板手势</string>
-    <string name="input_mouse_gestures_hint">绑定到鼠标指针时：轻点点击、按住拖动、双指滚动。</string>
     <string name="input_quick_override_hint">%1$s 有快捷菜单覆盖。在那里选「自动」会使用它的默认配置和全部三个已保存部分。</string>
     <string name="input_route_local">DroidDeck 输入</string>
     <string name="input_axis_action_hint" formatted="false">摇杆朝任意方向推动期间保持：超过 55% 时按下，低于 35% 时松开。用「方向键」逐方向指定。DroidDeck 动作每次推动只执行一次。摇杆点击单独设置。</string>
@@ -104,17 +99,11 @@
     <string name="input_shortcut_hold_hint">Steam 模式下。按住返回也会打开快捷菜单。</string>
     <string name="input_restore_shortcut">恢复默认</string>
     <string name="input_virtual_controller">虚拟手柄</string>
-    <string name="input_virtual_controller_hint">Steam 或游戏看到的手柄类型。</string>
     <string name="input_touchscreen">触摸屏</string>
-    <string name="input_touchscreen_hint">游戏画面上的触摸如何处理。配置里的按键保持各自指定的动作。</string>
     <string name="input_touch_cursor">触摸光标</string>
-    <string name="input_touch_cursor_hint">在游戏画面上直接触摸时显示指针。</string>
     <string name="input_touch_hold">触摸并按住</string>
-    <string name="input_touch_hold_hint">手指按住游戏画面时的鼠标动作。</string>
     <string name="input_back_taps">返回键点击</string>
-    <string name="input_back_taps_hint">第一个动作：单击。第二个动作：双击。</string>
     <string name="input_toggle_button">开关按键</string>
-    <string name="input_toggle_button_hint">点一下按住，再点一下松开。打开菜单或切换配置会松开按键。</string>
     <string name="input_button_shape">形状</string>
     <string name="input_shape_rounded">圆角</string>
     <string name="input_shape_pill">胶囊</string>

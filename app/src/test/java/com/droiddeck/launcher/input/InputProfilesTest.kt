@@ -20,9 +20,9 @@ class InputProfilesTest {
     }
 
     @Test fun migrationKeepsLegacyTouchMappingSeparateFromPhysicalControls() {
-        ControllerPrefs.setTarget(context, "a", "b")
-        ControllerPrefs.setTarget(context, "x", "off")
-        ControllerPrefs.setSelectSteam(context, true)
+        LegacyControllerPrefs.setTarget(context, "a", "b")
+        LegacyControllerPrefs.setTarget(context, "x", "off")
+        LegacyControllerPrefs.setSelectSteam(context, true)
         val game = InputProfiles.read(context, InputProfile.GAME)
         assertEquals(InputAction.Native(InputControl.B), game.action(InputRole.PRIMARY, InputControl.A))
         assertEquals(InputAction.Disabled, game.action(InputRole.PRIMARY, InputControl.X))
@@ -35,7 +35,7 @@ class InputProfilesTest {
     }
 
     @Test fun migrationPreservesSavedDesktopSelectBinding() {
-        ControllerPrefs.setSelectSteam(context, true)
+        LegacyControllerPrefs.setSelectSteam(context, true)
         context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE).edit().putString("profile.desktop",
             """{"version":1,"bindings":[{"role":"PHYSICAL","control":"select","action":{"type":"disabled"}}]}""").commit()
         assertEquals(InputAction.Disabled, InputProfiles.read(context, InputProfile.DESKTOP)
@@ -68,9 +68,8 @@ class InputProfilesTest {
             .putString("profile.game", """{"version":999,"bindings":[]} """).commit()
         val profile = InputProfiles.read(context, InputProfile.GAME)
         assertEquals(InputProfile.defaults(InputProfile.GAME).bindings, profile.bindings)
-        assertEquals(mapOf(
-            InputRole.PRIMARY to mapOf("builtin:keyboard" to InputAction.Command(InputCommand.KEYBOARD)),
-        ), profile.elements)
+        assertEquals(InputProfile.defaults(InputProfile.GAME).elements, profile.elements)
+        assertEquals(InputAction.Command(InputCommand.KEYBOARD), profile.elementAction(InputRole.PRIMARY, KitLayout.KEYBOARD_ID, InputControl.A))
     }
 
     @Test fun layoutsPersistIndependentOfBindingsAndStayInsideScreen() {

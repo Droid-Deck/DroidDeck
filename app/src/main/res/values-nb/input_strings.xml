@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">Inndataprofiler</string>
     <string name="input_profiles">Profiler</string>
     <string name="input_physical">Fysisk kontroller</string>
     <string name="input_primary">Hovedskjerm</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Åpne Steam-menyen</string>
     <string name="input_command_qam">Åpne Steams hurtigtilgang</string>
     <string name="input_remove_element">Fjern kontroll</string>
-    <string name="input_add_element">Legg til kontroll</string>
     <string name="input_extra_keys">Enhetsspesifikke knapper</string>
     <string name="input_capture">Tildel en fysisk knapp</string>
     <string name="input_capture_confirm">Slipp knappen, og velg Rediger, Prøv igjen eller Avbryt. B eller Tilbake avbryter etter slipp.</string>

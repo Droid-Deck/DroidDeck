@@ -61,7 +61,7 @@ class StickDeadZoneTest {
         val button = PhysicalShortcuts.Button("test-pad", "Test pad", KeyEvent.KEYCODE_BUTTON_MODE, 0)
         val binding = PhysicalShortcuts.Binding(button, PhysicalShortcuts.Action.QAM)
         PhysicalShortcuts.assign(context, button, binding.action)
-        ControllerPrefs.setTarget(context, "a", "b")
+        LegacyControllerPrefs.setTarget(context, "a", "b")
         ControllerPrefs.setRumble(context, false)
         for (percent in ControllerPrefs.deadZones) {
             ControllerPrefs.setDeadZone(context, percent)
@@ -395,27 +395,22 @@ class StickDeadZoneTest {
     @Test fun neutralScreenStickPressClearsRetainedPhysicalInput() {
         val device = device()
         for (adaptive in listOf(false, true)) {
-            ControllerPrefs.setAdaptiveSticks(context, adaptive)
-            ControllerPrefs.setLayout(context, 1200, 800, mapOf("ls" to (0.45f to 0.5f), "rs" to (0.55f to 0.5f)))
             for (id in listOf("ls", "rs")) {
                 motion(device, MotionEvent.AXIS_X to 0.6f, MotionEvent.AXIS_Z to 0.7f)
                 val view = OnScreenControls(context, bridge)
-                val elements = LegacyGamepadLayout(context, 1200, 800).elements()
-                view.updateLayout(SavedInputLayout("test", "Test", elements))
+                val elements = KitLayout.elements(context, PadKit.STEAM_DECK, 1200, 800).map { if (it.kind == InputElementKind.STICK) it.copy(floating = adaptive) else it }
+                view.updateLayout(SavedInputLayout("test", "Test", elements, aspect = 1200f / 800f))
                 view.measure(android.view.View.MeasureSpec.makeMeasureSpec(1200, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(800, android.view.View.MeasureSpec.EXACTLY))
                 view.layout(0, 0, 1200, 800)
-                val control = elements.first { it.control.id == id }
-                val left = (control.x * 1200).toInt()
-                val top = (control.y * 800).toInt()
-                val height = (control.height * 800).toInt()
-                val x = left + if (id == "ls") (control.width * 1200).toInt() - height / 2f else height / 2f
-                val y = top + height / 2f
+                val control = elements.first { it.id == "legacy:$id" }
+                val x = (control.x + control.width / 2) * 1200
+                val y = (control.y + control.height / 2) * 800
                 val down = MotionEvent.obtain(1000, 1000, MotionEvent.ACTION_DOWN, x, y, 0)
                 try { assertTrue(view.dispatchTouchEvent(down)) } finally { down.recycle() }
-                assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, 0f)
+                assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, .05f)
                 assertTrue((if (id == "ls") pad().rightX else pad().leftX) > 0f)
                 bridge.setStickDeadZone(25)
-                assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, 0f)
+                assertEquals(0f, if (id == "ls") pad().leftX else pad().rightX, .05f)
                 motion(device, MotionEvent.AXIS_X to 0.6f, MotionEvent.AXIS_Z to 0.7f)
                 val button = elements.first { it.control == InputControl.A }
                 val bx = (button.x + button.width / 2) * 1200

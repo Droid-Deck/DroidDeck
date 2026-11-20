@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">Profile wejścia</string>
     <string name="input_profiles">Profile</string>
     <string name="input_physical">Fizyczny kontroler</string>
     <string name="input_primary">Główny ekran</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Otwórz menu Steam</string>
     <string name="input_command_qam">Otwórz szybki dostęp Steam</string>
     <string name="input_remove_element">Usuń element sterujący</string>
-    <string name="input_add_element">Dodaj element sterujący</string>
     <string name="input_extra_keys">Przyciski specyficzne dla urządzenia</string>
     <string name="input_capture">Przypisz przycisk fizyczny</string>
     <string name="input_capture_confirm">Zwolnij przycisk, a następnie wybierz Edytuj, Ponów lub Anuluj. B lub Wstecz anuluje po zwolnieniu.</string>
