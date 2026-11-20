@@ -330,6 +330,8 @@
     <string name="osc_layout_steam">Steam layout</string>
     <string name="osc_edit_layout">Edit layout</string>
     <string name="osc_show">Show</string>
+    <string name="osc_rear_buttons">Rear buttons</string>
+    <string name="osc_trackpads">Trackpads</string>
     <string name="osc_more">More controller settings</string>
     <string name="osc_more_detail">Shortcuts, latency and the PC keyboard</string>
     <string name="input_touches">Touches elsewhere</string>

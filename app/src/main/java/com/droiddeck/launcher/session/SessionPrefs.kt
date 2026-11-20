@@ -678,6 +678,18 @@ object SessionPrefs {
         editor.putString("osc", mode).apply()
     }
 
+    fun oscRearButtons(context: Context): Boolean = prefs(context).getBoolean("oscRearButtons", false)
+
+    fun setOscRearButtons(context: Context, shown: Boolean) {
+        prefs(context).edit().putBoolean("oscRearButtons", shown).apply()
+    }
+
+    fun oscTrackpads(context: Context): Boolean = prefs(context).getBoolean("oscTrackpads", false)
+
+    fun setOscTrackpads(context: Context, shown: Boolean) {
+        prefs(context).edit().putBoolean("oscTrackpads", shown).apply()
+    }
+
     /** Draw Steam's touch layout for the game instead of DroidDeck's own. */
     fun steamTouchLayout(context: Context): Boolean =
         prefs(context).getBoolean("steamTouchLayout", prefs(context).getString("osc", null) == OSC_STEAM_TOUCH)

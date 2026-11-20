@@ -260,7 +260,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var steamController: SteamControllerBle? = null
     private var onScreenControls: OnScreenControls? = null
     private var bottomInputControls: OnScreenControls? = null
-    private var primaryInputLayout: com.droiddeck.launcher.input.SavedInputLayout? = null
+    private var primaryInputLayout by mutableStateOf<com.droiddeck.launcher.input.SavedInputLayout?>(null)
     private var secondaryInputLayout by mutableStateOf<com.droiddeck.launcher.input.SavedInputLayout?>(null)
     private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null
     private var steamTouchAvailable by mutableStateOf(false)
@@ -643,6 +643,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
+    private var oscRearButtons by mutableStateOf(false)
+    private var oscTrackpads by mutableStateOf(false)
     private var onScreenButtonsVisible by mutableStateOf(false)
     private var layoutOptions by mutableStateOf<List<Pair<String, String>>>(emptyList())
     private var layoutChoice by mutableStateOf("")
@@ -1745,6 +1747,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             layoutOptions = layoutOptions,
             layoutChoice = layoutChoice,
             onLayout = ::chooseLayout,
+            oscRearButtons = oscRearButtons.takeIf {
+                unfoldedPanel == null && !usesSteamTouchLayout() && com.droiddeck.launcher.input.PadKit.current(this).steam &&
+                    primaryInputLayout?.let(com.droiddeck.launcher.input.OnScreenLayout::hasBuiltInKit) == true
+            },
+            oscTrackpads = oscTrackpads,
+            onOscRearButtons = { shown ->
+                SessionPrefs.setOscRearButtons(this, shown)
+                oscRearButtons = shown
+                onScreenControls?.reload()
+                bottomInputControls?.reload()
+            },
+            onOscTrackpads = { shown ->
+                SessionPrefs.setOscTrackpads(this, shown)
+                oscTrackpads = shown
+                onScreenControls?.reload()
+                bottomInputControls?.reload()
+            },
             onEditLayout = when {
                 layoutChoice == com.droiddeck.launcher.input.GameControls.STEAM -> steamTouchControls?.takeIf { steamTouchAvailable && onScreenButtonsVisible && it.visibility == View.VISIBLE }?.let { view -> {
                     drawerOpen = false
@@ -2556,6 +2575,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = sessionOscMode()
+        oscRearButtons = SessionPrefs.oscRearButtons(this)
+        oscTrackpads = SessionPrefs.oscTrackpads(this)
         backHold = SessionPrefs.backHold(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         physicalShortcuts.bindings = PhysicalShortcuts.read(this)
