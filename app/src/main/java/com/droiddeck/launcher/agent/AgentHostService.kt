@@ -42,17 +42,35 @@ class AgentHostService : Service() {
         /** Setup steps that keep the app alive while they run, besides the agent's turn. */
         private var setupSteps = 0
 
-        fun start(context: Context) {
+        fun start(context: Context): Throwable? {
+            if (started) { update(context); return null }
             lastText = null
-            started = true
-            runCatching { context.startForegroundService(Intent(context, AgentHostService::class.java)) }
-                .onSuccess { awaiting++ }
+            return runCatching { context.startForegroundService(Intent(context, AgentHostService::class.java)) }
+                .onSuccess { started = true; awaiting++ }
+                .exceptionOrNull()
         }
 
         fun stop(context: Context) {
-            if (setupSteps > 0) return
+            if (setupSteps > 0 || waiting) return
             started = false
             if (awaiting == 0) context.stopService(Intent(context, AgentHostService::class.java))
+        }
+
+        /**
+         * The turn has ended but its CLI process stays open with background work that can wake it; the app must stay
+         * alive to read that answer, so the service keeps running until the process is dropped.
+         */
+        @Volatile private var waiting = false
+
+        fun waitForBackground(context: Context): Throwable? {
+            waiting = true
+            return if (started) { update(context); null } else start(context)
+        }
+
+        fun backgroundDone(context: Context) {
+            if (!waiting) return
+            waiting = false
+            if (AgentHost.state != AgentHost.State.WORKING) stop(context)
         }
 
         fun setupStarted(context: Context) {
@@ -77,7 +95,11 @@ class AgentHostService : Service() {
         private fun describe(context: Context): String {
             val lab = AgentHost.lab?.takeIf { it.running }
             if (lab != null) return context.getString(R.string.agent_lab_progress, lab.permille / 10, minutes(lab.etaSeconds.toLong().coerceAtLeast(0)))
-            if (AgentHost.state != AgentHost.State.WORKING) return context.getString(R.string.agent_setting_up)
+            AgentSetup.detail[AgentSetup.Step.GITHUB]?.takeIf {
+                AgentSetup.status[AgentSetup.Step.GITHUB] == AgentSetup.Status.WORKING && it.startsWith("GitHub device code:")
+            }?.let { return it }
+            if (AgentHost.state != AgentHost.State.WORKING)
+                return context.getString(if (waiting && setupSteps == 0) R.string.agent_waiting_background else R.string.agent_setting_up)
             val tool = AgentHost.running()
             val elapsed = minutes((SystemClock.elapsedRealtime() - AgentHost.turnStarted) / 1000)
             return if (tool != null) "${tool.tool} · ${tool.detail}".take(120) + " · $elapsed" else context.getString(R.string.agent_thinking_for, elapsed)

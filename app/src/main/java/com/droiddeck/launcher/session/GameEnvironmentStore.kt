@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.util.AtomicFile
+import android.util.Log
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -9,6 +10,7 @@ import org.json.JSONObject
 import java.io.File
 
 object GameEnvironmentStore {
+    private const val TAG = "GameEnvironmentStore"
     private const val SETTINGS = "game-environment.json"
     private const val GUEST_FILE = "root/.config/droiddeck/game-environment.json"
     const val DXVK_CONFIG = "dxvkConfig"
@@ -19,7 +21,16 @@ object GameEnvironmentStore {
     fun read(context: Context): GameEnvironment.Config {
         val file = AtomicFile(File(context.filesDir, SETTINGS))
         val bytes = try { file.readFully() } catch (_: java.io.FileNotFoundException) { return GameEnvironment.Config() }
-        return decode(JSONObject(bytes.toString(Charsets.UTF_8)))
+        return try {
+            decode(JSONObject(bytes.toString(Charsets.UTF_8)))
+        } catch (error: Exception) {
+            if (error !is org.json.JSONException && error !is IllegalArgumentException) throw error
+            val aside = File(context.filesDir, "$SETTINGS.unreadable")
+            Log.w(TAG, "game environment settings are unreadable, set aside as ${aside.name}", error)
+            aside.delete()
+            file.baseFile.renameTo(aside)
+            GameEnvironment.Config()
+        }
     }
 
     fun decode(json: JSONObject): GameEnvironment.Config {
@@ -29,7 +40,8 @@ object GameEnvironmentStore {
                 require(GameEnvironment.validName(name))
                 val entry = value.get(name)
                 require(entry == JSONObject.NULL || entry is String && GameEnvironment.validValue(entry))
-                put(name, if (entry == JSONObject.NULL) null else entry as String)
+                val current = GameEnvironment.currentName(name)
+                if (current == name || !value.has(current)) put(current, if (entry == JSONObject.NULL) null else entry as String)
             }
         }
         val games = json.optJSONObject("games")
@@ -52,10 +64,9 @@ object GameEnvironmentStore {
 
     @Synchronized
     fun save(context: Context, config: GameEnvironment.Config) {
-        val json = encode(config)
-        decode(json)
-        write(File(context.filesDir, SETTINGS), json.toString())
-        publish(context, config)
+        val normalized = decode(encode(config))
+        write(File(context.filesDir, SETTINGS), encode(normalized).toString())
+        publish(context, normalized)
     }
 
     @Synchronized
@@ -75,6 +86,13 @@ object GameEnvironmentStore {
     @Synchronized
     fun setGameNoSteam(context: Context, scope: String, on: Boolean): GameEnvironment.Config {
         val config = GameEnvironment.withGameNoSteam(read(context), scope, on)
+        save(context, config)
+        return config
+    }
+
+    @Synchronized
+    fun setGameResolution(context: Context, scope: String, choice: com.droiddeck.launcher.core.GameResolution.Choice?): GameEnvironment.Config {
+        val config = GameEnvironment.withGameResolution(read(context), scope, choice)
         save(context, config)
         return config
     }

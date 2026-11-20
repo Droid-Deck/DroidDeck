@@ -49,7 +49,7 @@ class WritablePreloadTest(unittest.TestCase):
         build = cls.dir / "build"
         build.mkdir()
         (build / "program.c").write_text(PROGRAM)
-        cls.preload = build / "libblsession.so"
+        cls.preload = build / "libddsession.so"
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(cls.preload),
                         *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
         cls.editor = build / "kate"

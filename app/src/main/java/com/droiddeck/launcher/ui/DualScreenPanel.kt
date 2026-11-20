@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.Icons
 import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
@@ -59,6 +61,8 @@ class DualPanelModel(
     val appScale: Int,
     val onSelect: (String) -> Unit,
     val onResume: () -> Unit,
+    val title: String = selected,
+    val moreDownloads: Int = 0,
 )
 
 object DualScreenPanel {
@@ -322,7 +326,7 @@ internal fun DualPanelContent(model: DualPanelModel) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.app_name), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = pal.signal)
             Spacer(Modifier.size(12.dp))
-            val (label, _) = railLabelIcon(model.selected)
+            val (label, _) = railLabelIcon(model.title)
             Text(stringResource(label), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
                 modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             PanelClock()
@@ -336,7 +340,7 @@ internal fun DualPanelContent(model: DualPanelModel) {
                 for (row in model.keys.chunked(columns)) {
                     Row(Modifier.fillMaxWidth().height(tileHeight), horizontalArrangement = Arrangement.spacedBy(gap)) {
                         for (key in row) PanelTile(key, key == model.selected, key in model.badges,
-                            if (key == "stores") model.storeDownloads else 0, Modifier.weight(1f)) { model.onSelect(key) }
+                            if (key == "stores") model.storeDownloads else if (key == NavTabs.MORE) model.moreDownloads else 0, Modifier.weight(1f)) { model.onSelect(key) }
                         repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
@@ -361,7 +365,8 @@ internal fun DualPanelContent(model: DualPanelModel) {
 private fun PanelTile(key: String, current: Boolean, badge: Boolean, count: Int, modifier: Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val (label, icon) = railLabelIcon(key)
+    val (label, base) = railLabelIcon(key)
+    val icon = if (key == NavTabs.MORE && MoreTabs.inside) Icons.AutoMirrored.Outlined.ArrowBack else base
     val shape = RoundedCornerShape(18.dp)
     Box(
         modifier.fillMaxSize().clip(shape)
@@ -371,7 +376,7 @@ private fun PanelTile(key: String, current: Boolean, badge: Boolean, count: Int,
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, contentDescription = null, tint = if (current) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(34.dp))
+            androidx.compose.animation.Crossfade(icon, animationSpec = Motion.tw(220), label = "panelIcon") { Icon(it, contentDescription = null, tint = if (current) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(34.dp)) }
             Text(stringResource(label), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                 color = if (current) pal.signal else colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 6.dp))
@@ -400,12 +405,10 @@ private fun PanelClock() {
 }
 
 @Composable
-internal fun DualPanelPublisher(s: FrontEndState, selected: String, onSelect: (String) -> Unit, a: FrontEndActions) {
-    val badges = buildSet {
-        if (setupNeedsAttention(s)) add("setup")
-        if (s.updates.hasUpdate) add("updates")
-    }
-    val model = DualPanelModel(navigationKeys(s), selected, badges, s.storeDownloadsActive, s.running, s.theme, s.appScale, onSelect, a.onResume)
+internal fun DualPanelPublisher(s: FrontEndState, selected: String, title: String, onSelect: (String) -> Unit, a: FrontEndActions) {
+    val keys = navigationKeys(s)
+    val badges = keys.filter { railBadge(s, it) }.toSet()
+    val model = DualPanelModel(keys, selected, badges, s.storeDownloadsActive, s.running, s.theme, s.appScale, onSelect, a.onResume, title, railCount(s, NavTabs.MORE))
     androidx.compose.runtime.SideEffect { DualScreenPanel.model = model }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { DualScreenPanel.model = null } }
 }

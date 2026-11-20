@@ -7,7 +7,7 @@
 #include <sys/statvfs.h>
 
 static const char *content_of(const char *path, char *buf, size_t len) {
-  const char *roots = getenv("BL_LIBRARY_SPACE");
+  const char *roots = getenv("DD_LIBRARY_SPACE");
   if (!path || !roots || !*roots)
     return NULL;
 

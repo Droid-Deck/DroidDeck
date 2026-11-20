@@ -116,6 +116,10 @@ internal object AgentPet {
     fun set(context: Context, on: Boolean) {
         enabled = on
         AgentHost.prefs(context).edit().putBoolean(KEY, on).apply()
+        if (on) {
+            allowed = PetWindows.allowed(context)
+            if (!allowed) requestFloating(context)
+        }
     }
 
     /** Opens the system page where the user lets DroidDeck draw over other apps. */

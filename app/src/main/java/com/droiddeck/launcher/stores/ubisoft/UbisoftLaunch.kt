@@ -58,7 +58,7 @@ object UbisoftLaunch {
                     }
                 } ?: cached
         setup?.let { StoresState.logLine("Ubisoft: setup for $product: ${it.toString().take(1500)}") }
-        UbisoftActivation.watch(app, product)
+        UbisoftActivation.watch(app, product, s.userId)
         return JSONObject().put("ok", true)
             .put("productId", product)
             .put("ticket", native.optString("ticket"))

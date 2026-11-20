@@ -37,6 +37,21 @@ object AgentChats {
         }
         .sortedByDescending { it.updated }
 
+    /** The chats among [chats] where the user or the agent wrote [query], ignoring case. */
+    fun search(context: Context, chats: List<Chat>, query: String): List<Chat> {
+        val q = query.trim()
+        if (q.isEmpty()) return chats
+        return chats.filter { chat ->
+            chat.title.contains(q, ignoreCase = true) || read(file(context, chat.id)).entries.any { matches(it, q) }
+        }
+    }
+
+    internal fun matches(entry: Entry, query: String) = when (entry) {
+        is Entry.Asked -> entry.text.contains(query, ignoreCase = true)
+        is Entry.Said -> entry.text.contains(query, ignoreCase = true)
+        else -> false
+    }
+
     fun delete(context: Context, id: String) {
         file(context, id).delete()
         File(AgentAttachments.hostDir(context), id).deleteRecursively()
@@ -69,9 +84,11 @@ object AgentChats {
     internal fun encode(entry: Entry): String = when (entry) {
         is Entry.Asked -> JSONObject().put("asked", entry.text).apply { if (entry.files.isNotEmpty()) put("files", JSONArray(entry.files)) }
         is Entry.Said -> JSONObject().put("said", entry.text)
+        is Entry.Notice -> JSONObject().put("notice", entry.text)
         is Entry.Thought -> JSONObject().put("thought", entry.text)
         is Entry.Result -> JSONObject().put("result", entry.id).put("output", entry.output).put("failed", entry.failed)
         is Entry.Used -> JSONObject().put("used", entry.tool).put("detail", entry.detail).put("id", entry.id).put("input", entry.input)
+            .apply { if (entry.parent.isNotEmpty()) put("parent", entry.parent) }
             .apply { entry.output?.let { put("output", it).put("failed", entry.failed) } }
         is Entry.Finished -> JSONObject().put("finished", true).put("error", entry.error ?: JSONObject.NULL).put("stopped", entry.stopped).apply {
             if (entry.planned) put("planned", true)
@@ -103,9 +120,10 @@ object AgentChats {
     private fun decode(o: JSONObject): Entry? = when {
         o.has("asked") -> Entry.Asked(o.getString("asked"), o.optJSONArray("files")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty())
         o.has("said") -> Entry.Said(o.getString("said"))
+        o.has("notice") -> Entry.Notice(o.getString("notice"))
         o.has("thought") -> Entry.Thought(o.getString("thought"))
         o.has("used") -> Entry.Used(o.optString("id"), o.getString("used"), o.optString("detail"), o.optString("input"),
-            if (o.has("output")) o.optString("output") else null, o.optBoolean("failed"))
+            if (o.has("output")) o.optString("output") else null, o.optBoolean("failed"), o.optString("parent"))
         o.has("result") -> Entry.Result(o.getString("result"), o.optString("output"), o.optBoolean("failed"))
         o.has("finished") -> Entry.Finished(
             if (o.isNull("error")) null else o.optString("error"), o.optBoolean("stopped"),

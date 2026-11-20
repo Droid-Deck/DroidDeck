@@ -51,6 +51,19 @@ static int vkp_cardboard_pose_changed(void) { return pose_changes; }
 static void render_scene(void) { renders++; g_dirty = 0; g_dirty_since_ns = 0; g_rendered_tick_ns = g_tick_vsync_ns; g_tick_held = 0; }
 static int on_fallback_timer(void *data) { return 0; }
 static void on_commit_idle(void *data);
+volatile int g_bfi;
+volatile int g_bfi_picture_hold;
+static int g_bfi_running, g_scene_layer_only, cardboard, quest, blacks;
+static unsigned g_bfi_phase;
+static const char *g_bfi_blocked;
+static struct { unsigned lit, dark, failed; } g_bfi_stats;
+static int g_scene_w, g_scene_h;
+#define BFI_MIN_REFRESH_MHZ 99000
+static atomic_int g_output_refresh_mhz = 144000;
+static int vkp_cardboard_active(void) { return cardboard; }
+static int vkp_quest_layer_presentation(void) { return quest; }
+static int vkp_render_plain(int w, int h) { blacks++; return 0; }
+static void droiddeck_log(const char *tag, const char *fmt, ...) {}
 '''
 
 CHECKS = r'''
@@ -186,6 +199,57 @@ int main(void) {
         assert(renders - r0 == c + 1);
     }
 
+    /* black frame insertion alternates the scene and black on every tick, and arrivals draw nothing */
+    {
+        const int idles_before = idles_added;
+        const int b0 = blacks;
+        g_bfi = 1;
+        r0 = renders;
+        for (int i = 0; i < 10; i++) {
+            arrive(1 * ms);
+            tick(t += refresh);
+        }
+        assert(g_bfi_running == 1 && idles_added == idles_before);
+        assert(renders - r0 == 5 && blacks - b0 == 5 && g_bfi_stats.lit == 5 && g_bfi_stats.dark == 5);
+
+        /* a capture's picture hold presents only pictures and keeps BFI composing the scene */
+        g_bfi_picture_hold = 1;
+        r0 = renders;
+        const int hb = blacks;
+        for (int i = 0; i < 4; i++) tick(t += refresh);
+        assert(g_bfi_running == 1 && renders - r0 == 4 && blacks == hb);
+        g_bfi_picture_hold = 0;
+        r0 = renders;
+        for (int i = 0; i < 4; i++) tick(t += refresh);
+        assert(renders - r0 == 2 && blacks - hb == 2);
+
+        /* frame generation, a slow screen or a layer-only game make it wait and the tick draws as before */
+        framegen = 1;
+        tick(t += refresh);
+        assert(g_bfi_running == 0 && g_bfi_blocked != NULL);
+        framegen = 0;
+        tick(t += refresh);
+        assert(g_bfi_running == 1);
+        g_output_refresh_mhz = 60000;
+        tick(t += refresh);
+        assert(g_bfi_running == 0);
+        g_output_refresh_mhz = 144000;
+        tick(t += refresh);
+        assert(g_bfi_running == 1);
+        /* late ticks under load do not switch it off while the panel runs fast */
+        g_refresh_ns = 16666667;
+        tick(t += refresh);
+        assert(g_bfi_running == 1);
+        g_refresh_ns = refresh;
+        g_scene_layer_only = 1;
+        tick(t += refresh);
+        assert(g_bfi_running == 0);
+        g_scene_layer_only = 0;
+        g_bfi = 0;
+        tick(t += refresh);
+        assert(g_bfi_running == 0 && g_bfi_blocked == NULL);
+    }
+
     /* without screen ticks the fallback timer still draws */
     clock_ns += 200000000LL;
     schedule_render();
@@ -206,7 +270,8 @@ class RenderOnCommitTest(unittest.TestCase):
         render = extract_function(source, 'render_scene')
         self.assertIn('g_rendered_tick_ns = g_tick_vsync_ns;', render)
         self.assertIn('g_tick_held = 0;', render)
-        functions = ('scene_held_for_limit', 'commit_renders_on', 'render_on_commit', 'schedule_render', 'scene_waits_for_game', 'on_commit_idle', 'on_vsync')
+        functions = ('scene_held_for_limit', 'commit_renders_on', 'render_on_commit', 'schedule_render', 'scene_waits_for_game', 'on_commit_idle',
+                     'bfi_blocked', 'bfi_update', 'bfi_tick', 'on_vsync')
         harness = PREAMBLE + '\n'.join(extract_function(source, name) for name in functions) + CHECKS
         with tempfile.TemporaryDirectory(prefix='droiddeck-render-on-commit-') as folder:
             path = Path(folder)

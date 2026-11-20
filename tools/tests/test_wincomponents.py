@@ -41,7 +41,36 @@ class WinComponentsTest(unittest.TestCase):
     def proton(self, arm=True):
         root = Path(self.tmp.name) / ("arm-proton" if arm else "x64-proton")
         (root / "files/lib/wine" / ("aarch64-unix" if arm else "x86_64-unix")).mkdir(parents=True)
+        builtins = root / "files/lib/wine/aarch64-windows"
+        builtins.mkdir(parents=True)
+        (builtins / "wineboot.exe").write_bytes(self.program_image(0xAA64, ["ucrtbase.dll"]))
+        (builtins / "steam.exe").write_bytes(self.program_image(0x8664, ["vulkan-1.dll"]))
+        (builtins / "d3dx9_43.dll").write_bytes(self.program_image(0xAA64, ["d3dcompiler_43.dll"]))
         return root / "proton"
+
+    def program_image(self, machine, imports):
+        image = bytearray(0x400)
+        image[:2] = b"MZ"
+        image[60:64] = (64).to_bytes(4, "little")
+        image[64:68] = b"PE\0\0"
+        image[68:70] = machine.to_bytes(2, "little")
+        image[70:72] = (1).to_bytes(2, "little")
+        image[84:86] = (240).to_bytes(2, "little")
+        image[88:90] = (0x20B).to_bytes(2, "little")
+        image[196:200] = (16).to_bytes(4, "little")
+        image[208:212] = (0x1000).to_bytes(4, "little")
+        image[212:216] = (20 * (len(imports) + 1)).to_bytes(4, "little")
+        section = 88 + 240
+        image[section + 8:section + 12] = (0x200).to_bytes(4, "little")
+        image[section + 12:section + 16] = (0x1000).to_bytes(4, "little")
+        image[section + 16:section + 20] = (0x200).to_bytes(4, "little")
+        image[section + 20:section + 24] = (0x200).to_bytes(4, "little")
+        name = 20 * (len(imports) + 1)
+        for index, dll in enumerate(imports):
+            image[0x200 + index * 20 + 12:0x200 + index * 20 + 16] = (0x1000 + name).to_bytes(4, "little")
+            image[0x200 + name:0x200 + name + len(dll)] = dll.encode()
+            name += len(dll) + 1
+        return bytes(image)
 
     def pe_image(self, machine):
         head = bytearray(64)
@@ -92,17 +121,65 @@ class WinComponentsTest(unittest.TestCase):
         self.assertEqual(names, ["ucrtbase"])
         self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/ucrtbase.dll"), 0x8664)
 
-    def test_x64_visual_cpp_runtime_is_placed_in_arm64_system32(self):
+    def test_x64_dlls_proton_programs_do_not_import_are_placed_in_arm64_system32(self):
         proton = self.proton()
-        self.component("vc", ["msvcp140", "vcruntime140_1"], {
-            "system32/msvcp140.dll": self.pe_image(0x8664),
-            "system32/vcruntime140_1.dll": self.pe_image(0x8664),
-        })
+        names = ["concrt140", "d3dcompiler_43", "msvcp140", "vcruntime140_1", "vulkan-1"]
+        self.component("vc", names, {"system32/%s.dll" % name: self.pe_image(0x8664) for name in names})
         self.pick("vc")
-        names, _ = self.apply(proton)
-        self.assertEqual(names, ["msvcp140", "vcruntime140_1"])
+        placed, _ = self.apply(proton)
+        self.assertEqual(placed, names)
+        for name in names:
+            self.assertEqual(MODULE["pe_machine"](self.pfx / ("system32/%s.dll" % name)), 0x8664)
+
+    def test_x64_d3dx9_and_its_compiler_stay_placed_on_every_launch(self):
+        proton = self.proton()
+        self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.pe_image(0x8664)})
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dx9", "d3dcompiler")
+        for _ in range(2):
+            placed, _ = self.apply(proton)
+            self.assertEqual(placed, ["d3dx9_43", "d3dcompiler_43"])
+            self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0x8664)
+            self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+
+    def test_x64_compiler_alone_is_placed_although_a_builtin_dll_imports_it(self):
+        proton = self.proton()
+        self.component("d3dcompiler", ["d3dcompiler_43"], {"system32/d3dcompiler_43.dll": self.pe_image(0x8664)})
+        self.pick("d3dcompiler")
+        placed, _ = self.apply(proton)
+        self.assertEqual(placed, ["d3dcompiler_43"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dcompiler_43.dll"), 0x8664)
+
+    def test_x64_proton_program_imports_do_not_make_a_dll_foreign(self):
+        proton = self.proton()
+        self.component("vk", ["vulkan-1"], {"system32/vulkan-1.dll": self.pe_image(0x8664)})
+        self.pick("vk")
+        placed, _ = self.apply(proton)
+        self.assertEqual(placed, ["vulkan-1"])
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/vulkan-1.dll"), 0x8664)
+
+    def test_partly_installed_x64_visual_cpp_runtime_stays_x64(self):
+        proton = self.proton()
+        self.pfx.joinpath("system32").mkdir(parents=True)
+        self.pfx.joinpath("system32/vcruntime140.dll").write_bytes(self.pe_image(0x8664))
+        self.component("vc", ["msvcp140"], {"system32/msvcp140.dll": self.pe_image(0x8664)})
+        self.pick("vc")
+        placed, _ = self.apply(proton)
+        self.assertEqual(placed, ["msvcp140"])
         self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/msvcp140.dll"), 0x8664)
-        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/vcruntime140_1.dll"), 0x8664)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/vcruntime140.dll"), 0x8664)
+
+    def test_deselected_component_restores_the_saved_x64_dll(self):
+        proton = self.proton()
+        self.pfx.joinpath("system32").mkdir(parents=True)
+        self.pfx.joinpath("system32/d3dx9_43.dll").write_bytes(self.pe_image(0x8664))
+        self.component("d3dx9", ["d3dx9_43"], {"system32/d3dx9_43.dll": self.program_image(0xAA64, [])})
+        self.pick("d3dx9")
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0xAA64)
+        self.pick()
+        self.apply(proton)
+        self.assertEqual(MODULE["pe_machine"](self.pfx / "system32/d3dx9_43.dll"), 0x8664)
 
     def test_compatible_copy_keeps_override_when_other_architecture_copy_is_skipped(self):
         proton = self.proton()

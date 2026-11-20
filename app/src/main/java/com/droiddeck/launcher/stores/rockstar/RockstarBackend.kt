@@ -14,6 +14,7 @@ import com.droiddeck.launcher.stores.StoreFront
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoreShelves
+import com.droiddeck.launcher.stores.StoreLibraryCache
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.WebCookies
 import com.droiddeck.launcher.stores.download.DownloadEntry
@@ -147,6 +148,9 @@ object RockstarLibrary {
     internal fun owned(account: RockstarAccountApps): List<RockstarTitle> =
         account.packages.filter { !it.featured }.flatMap { RockstarTitles.forName(it.title) }.distinct()
 
+    internal fun owns(account: RockstarAccountApps, rosId: Int, id: String): Boolean =
+        owned(account).any { it.rosTitleId == rosId } || account.packages.any { !it.featured && it.title == id }
+
     internal fun games(account: RockstarAccountApps): List<CatalogItem> = owned(account).mapNotNull { t ->
         RockstarApps.deliverer(account.apps, t)?.let { RockstarTitles.item(t, owned = true, extra = mapOf("app" to it.name, "appId" to it.id)) }
     }.sortedBy { it.title.lowercase() }
@@ -160,7 +164,16 @@ object RockstarLibrary {
                 post(gen) { StoresState.status.remove(Store.ROCKSTAR); StoresState.problems[Store.ROCKSTAR] = app.getString(R.string.stores_sync_sign_in) }
                 return
             }
-            if (StoresState.library[Store.ROCKSTAR].isNullOrEmpty()) post(gen) { StoresState.status[Store.ROCKSTAR] = app.getString(R.string.stores_sync_game_list) }
+            val cached = StoreLibraryCache.load(app, Store.ROCKSTAR)
+            post(gen) {
+                if (StoresState.library[Store.ROCKSTAR] == null) {
+                    if (cached != null) {
+                        StoresState.library[Store.ROCKSTAR] = cached
+                        StoresState.shelves[Store.ROCKSTAR]?.let { StoresState.shelves[Store.ROCKSTAR] = StoreFront.markOwned(it, cached, RockstarCatalog::sameGame) }
+                    }
+                    else StoresState.status[Store.ROCKSTAR] = app.getString(R.string.stores_sync_game_list)
+                }
+            }
             val account = RockstarApps.fetch(t.ticket) { StoresState.logLine(it) }
             val games = games(account)
             owned(account).filter { o -> games.none { it.id == o.id } }.takeIf { it.isNotEmpty() }?.let { elsewhere ->
@@ -172,6 +185,7 @@ object RockstarLibrary {
                 StoresState.library[Store.ROCKSTAR] = games
                 StoresState.shelves[Store.ROCKSTAR]?.let { StoresState.shelves[Store.ROCKSTAR] = StoreFront.markOwned(it, games, RockstarCatalog::sameGame) }
             }
+            StoreLibraryCache.save(app, Store.ROCKSTAR, games) { generation.get() == gen }
             StoresState.logLine("Rockstar: ${games.size} owned games")
         } catch (e: Exception) {
             StoresState.logLine("Rockstar: library sync failed: ${e.javaClass.simpleName} ${e.message.orEmpty().take(300)}")

@@ -127,6 +127,7 @@ jobs:
           name: xbox-arm64
           path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
           retention-days: 14
+          overwrite: true
       - uses: actions/upload-artifact@v4
         with:
           name: xbox-corresponding-source
@@ -135,6 +136,7 @@ jobs:
             app/build/xbox/runtime/*-source.tar.xz
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
 
   components-runner:
     needs: source
@@ -150,6 +152,9 @@ jobs:
     runs-on: ${{ fromJSON(needs.components-runner.outputs.labels) }}
     timeout-minutes: 40
     steps:
+      - name: Reclaim files a cancelled container build left owned by root
+        if: runner.environment == 'self-hosted'
+        run: sudo -n chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" || echo "::warning::could not reclaim $GITHUB_WORKSPACE"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -190,17 +195,17 @@ jobs:
             app/src/main/assets/linuxfs
             !app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet
             !app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
-            !app/src/main/assets/linuxfs/i386/libblsession.so
+            !app/src/main/assets/linuxfs/i386/libddsession.so
             !app/src/main/assets/linuxfs/i386/libfakeinput.so
             !app/src/main/assets/linuxfs/i386/libfaultreport.so
-            !app/src/main/assets/linuxfs/libblaudit.so
-            !app/src/main/assets/linuxfs/libblfastpath.so
+            !app/src/main/assets/linuxfs/libddaudit.so
+            !app/src/main/assets/linuxfs/libddfastpath.so
             !app/src/main/assets/linuxfs/libddnatv-hook.so
-            !app/src/main/assets/linuxfs/libblsession.so
+            !app/src/main/assets/linuxfs/libddsession.so
             !app/src/main/assets/linuxfs/libfakeinput.so
             !app/src/main/assets/linuxfs/libssbs.so
             !app/src/main/assets/linuxfs/usr/local/bin/droiddeck-clipboard
-            !app/src/main/assets/linuxfs/x86_64/libblsession.so
+            !app/src/main/assets/linuxfs/x86_64/libddsession.so
             !app/src/main/assets/linuxfs/x86_64/libfakeinput.so
             !app/src/main/assets/linuxfs/x86_64/libfaultreport.so
             !app/src/main/assets/linuxfs/x86_64/libvulkan-thunk.so
@@ -286,7 +291,7 @@ jobs:
       - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse layer)
         run: |
           set -euo pipefail
-          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libc6-dev-arm64-cross libvulkan-dev
           D=app/src/main/assets/linuxfs
           mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
@@ -330,6 +335,7 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+          overwrite: true
 
   build-runner:
     needs: [components]
@@ -347,6 +353,9 @@ jobs:
     outputs:
       variants: ${{ steps.variants.outputs.list }}
     steps:
+      - name: Reclaim files a cancelled container build left owned by root
+        if: runner.environment == 'self-hosted'
+        run: sudo -n chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" || echo "::warning::could not reclaim $GITHUB_WORKSPACE"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -664,6 +673,7 @@ jobs:
           name: stores-cargo-lock
           path: app/src/main/rust/stores/Cargo.lock
           if-no-files-found: ignore
+          overwrite: true
 
       - name: Unit tests
         id: unit-tests
@@ -687,6 +697,7 @@ jobs:
             app/build/reports/tests/testReleaseUnitTest/
           if-no-files-found: ignore
           retention-days: 14
+          overwrite: true
 
       - name: Sign with the testkey (v1 + v2 + v3)
         run: |
@@ -724,6 +735,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -732,6 +744,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           compression-level: 0
+          overwrite: true
 
       - name: Report on the pull request
         if: always() && github.event_name == 'pull_request'
@@ -752,7 +765,6 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    continue-on-error: true
     permissions:
       contents: read
       actions: read
@@ -798,7 +810,6 @@ jobs:
             stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-
       - name: Store engines host unit tests
         timeout-minutes: 10
-        continue-on-error: true
         run: |
           set -o pipefail
           cd app/src/main/rust/stores
@@ -842,7 +853,7 @@ jobs:
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
       - name: Install Python test dependencies
         timeout-minutes: 7
-        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers
+        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers spirv-tools
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
 
@@ -872,12 +883,22 @@ jobs:
             -ldl -o /tmp/test-presenter-shutdown
           timeout 10 /tmp/test-presenter-shutdown
 
+      - name: Fetch the Mali compatibility layer's headers
+        run: |
+          set -euo pipefail
+          sdk=$(sed -n 's/^SDK=//p' tools/venus/ci-build.sh)
+          bcdec=$(grep -o 'https://raw.githubusercontent.com/iOrange/bcdec/[^ ]*' tools/venus/ci-build.sh)
+          mkdir -p build/layer-deps/bcdec
+          git -c advice.detachedHead=false clone -q --depth 1 -b "$sdk" https://github.com/KhronosGroup/Vulkan-Headers.git build/layer-deps/vulkan
+          git -c advice.detachedHead=false clone -q --depth 1 -b "$sdk" https://github.com/KhronosGroup/SPIRV-Headers.git build/layer-deps/spirv
+          curl -sSfL -o build/layer-deps/bcdec/bcdec.h "$bcdec"
+
       - name: Steam import and game environment tests
         run: bash tools/ci/run-python-tests.sh
 
   checks:
     name: Compile and test APK
-    needs: [build, python-tests]
+    needs: [build, python-tests, store-tests]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -886,7 +907,8 @@ jobs:
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           PYTHON_RESULT: ${{ needs.python-tests.result }}
-        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success
+          STORE_RESULT: ${{ needs.store-tests.result }}
+        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success && test "$STORE_RESULT" = success
 
   sign:
     needs: [build, checks]
@@ -930,7 +952,7 @@ jobs:
       pull-requests: read
     env:
       CI_REPO: Droid-Deck/DroidDeck-CI
-      KEEP: 10
+      KEEP_DAYS: 14
     steps:
       - uses: actions/checkout@v4
         with:
@@ -973,5 +995,37 @@ jobs:
   catalog:
     needs: announce
     if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.announce.result != 'skipped' }}
+    uses: ./.github/workflows/update-catalog.yml
+    secrets: inherit
+
+  retire-tests:
+    needs: catalog
+    if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.catalog.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/create-github-app-token@v2
+        id: ci-token
+        with:
+          app-id: ${{ vars.DROIDDECK_CI_APP_ID }}
+          private-key: ${{ secrets.DROIDDECK_CI_APP_KEY }}
+          owner: Droid-Deck
+          repositories: DroidDeck-CI
+      - name: Delete the test builds this Preview build replaces
+        env:
+          SOURCE_GITHUB_TOKEN: ${{ github.token }}
+          CI_GITHUB_TOKEN: ${{ steps.ci-token.outputs.token }}
+        run: python3 tools/release/retire_test_builds.py
+
+  catalog-after-retire:
+    needs: retire-tests
+    if: ${{ always() && needs.retire-tests.result == 'success' }}
     uses: ./.github/workflows/update-catalog.yml
     secrets: inherit

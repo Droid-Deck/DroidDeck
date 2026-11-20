@@ -50,4 +50,15 @@ class XboxLaunchViewsTest {
             assertEquals("preserve", evidence.readText())
         } finally { root.deleteRecursively() }
     }
+
+    @Test fun viewsKeepTheFilesPathTheGuestBinds() {
+        val root = Files.createTempDirectory("xbox-view-alias").toFile()
+        try {
+            val real = root.resolve("data/data/app/files").apply { mkdirs() }
+            val alias = root.resolve("user0").also { Files.createSymbolicLink(it.toPath(), real.parentFile!!.toPath()) }.resolve("files")
+            val view = XboxLaunchViews().create(alias)
+            assertEquals(alias.resolve("xbox-runtime/views").path, view.parentFile!!.path)
+            assertTrue(real.resolve("xbox-runtime/views").resolve(view.name).isDirectory)
+        } finally { root.deleteRecursively() }
+    }
 }

@@ -1,0 +1,67 @@
+diff --git a/crates/xodus-cli/src/license.rs b/crates/xodus-cli/src/license.rs
+index d1a5600..661fd38 100644
+--- a/crates/xodus-cli/src/license.rs
++++ b/crates/xodus-cli/src/license.rs
+@@ -358,11 +358,7 @@ async fn fetch_online(
+         )
+     })?;
+ 
+-    let ms_device_token =
+-        Token::try_from(ms_device_token).map_err(|error| other(error.to_string()))?;
+-    let Token::Compact(ms_device_token) = ms_device_token else {
+-        return Err(other("Unsupported token".to_string()));
+-    };
++    let ms_device_token = content_device_ticket(ms_device_token).map_err(other)?;
+ 
+     let user_token: Token = match user_token {
+         ExchangeUserTokenOutcome::Fault(_) => {
+@@ -415,6 +411,18 @@ async fn fetch_online(
+     Ok(OnlineLicense { key, leases, lease_documents })
+ }
+ 
++// Content licensing rejects a delegation-compact device ticket in the d= form
++// (HTTP 401); it takes the same licensing form as the user ticket, as
++// xodus-service store_license does for Store license tokens. Plain compact
++// device tickets are sent unchanged.
++fn content_device_ticket(response: soap::RequestSecurityTokenResponse) -> Result<String, String> {
++    let delegation = response.token_type == "urn:passport:delegationcompact";
++    let Token::Compact(ticket) = Token::try_from(response).map_err(|error| error.to_string())? else {
++        return Err("Unsupported token".to_string());
++    };
++    Ok(if delegation { xodus::models::secrets::licensing_ticket(ticket) } else { ticket })
++}
++
+ fn license_material(tokens: &TokenManager, block: &str) -> Result<(DeviceKey, SPLicense), String> {
+     let game_splicense = SPLicense::parse_base64(block).map_err(|_| {
+         eprintln!("NEXUS_CONTENT_LICENSE_DIAGNOSTIC_V1 content-license-blob 0");
+@@ -438,6 +446,30 @@ fn license_material(tokens: &TokenManager, block: &str) -> Result<(DeviceKey, SP
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++
++    fn device_response(kind: &str, value: &str) -> soap::RequestSecurityTokenResponse {
++        serde_json::from_value(serde_json::json!({
++            "TokenType": kind,
++            "AppliesTo": {"EndpointReference": {"Address": "www.microsoft.com"}},
++            "Lifetime": {"Created": "2026-10-22T00:00:00Z", "Expires": "2026-10-23T00:00:00Z"},
++            "RequestedSecurityToken": {"BinarySecurityToken": {"@Id": "fixture", "$value": value}}
++        })).unwrap()
++    }
++
++    #[test]
++    fn content_device_ticket_delegation_forms_use_the_licensing_wire_form() {
++        let raw = "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..c3ludGhldGljLWl2.c3ludGhldGljLWNpcGhlcnRleHQ.c3ludGhldGljLXRhZw";
++        assert_eq!(content_device_ticket(device_response("urn:passport:delegationcompact", raw)).unwrap(), raw);
++        assert_eq!(content_device_ticket(device_response("urn:passport:delegationcompact", "opaque-device")).unwrap(),
++            "t=opaque-device");
++    }
++
++    #[test]
++    fn content_device_ticket_plain_compact_forms_stay_byte_exact() {
++        for value in ["t=opaque-device&p=", "opaque-device"] {
++            assert_eq!(content_device_ticket(device_response("urn:passport:compact", value)).unwrap(), value);
++        }
++    }
+     use base64::{Engine, prelude::BASE64_STANDARD};
+     use xodus::models::secrets::Device;
+     #[test]

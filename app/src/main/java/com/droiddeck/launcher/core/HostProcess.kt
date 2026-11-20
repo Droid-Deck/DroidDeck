@@ -6,6 +6,12 @@ import java.util.function.Consumer
 
 object HostProcess {
     private const val TAG = "HostProcess"
+    private const val LINKER = "/system/bin/linker64"
+
+    /** Android 10+ refuses to execute app data files for targetSdk 29+; its linker still loads them. */
+    @JvmStatic
+    fun dataExecutable(path: String): List<String> =
+        if (android.os.Build.VERSION.SDK_INT >= 29) listOf(LINKER, path) else listOf(path)
 
     @JvmStatic
     fun start(command: String, env: Array<String>?, dir: File?, onExit: Consumer<Int>?, onLine: Consumer<String>?): Int =

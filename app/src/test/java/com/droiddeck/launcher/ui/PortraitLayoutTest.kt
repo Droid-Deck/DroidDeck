@@ -75,6 +75,11 @@ class PortraitLayoutTest {
     }
 
     @Test fun narrowBottomBarScrollsToEveryDestinationWithAppsAndResumeVisible() {
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        NavTabs.reset(ctx)
+        NavTabs.setHidden(ctx, "android-apps", false)
+        val all = NavTabs.listed(stateWithAppsAndSession).filter { NavTabs.place(stateWithAppsAndSession, it) != TabPlace.HIDDEN }
+        NavTabs.rearrange(ctx, stateWithAppsAndSession, all, emptyList())
         val selected = mutableStateOf("steam")
         compose.setContent {
             DroidDeckTheme {
@@ -82,7 +87,7 @@ class PortraitLayoutTest {
             }
         }
         compose.mainClock.advanceTimeBy(1_000)
-        for (key in listOf("games", "stores", "desktop", "components", "android-apps", "setup", "updates", "steam")) {
+        for (key in all.drop(1) + all.first()) {
             compose.onNodeWithTag("rail-$key").performScrollTo()
             compose.mainClock.advanceTimeBy(1_000)
             compose.onNodeWithTag("rail-$key").assertIsDisplayed().performClick()
@@ -91,6 +96,22 @@ class PortraitLayoutTest {
             compose.onNodeWithTag("rail-$key").assertIsSelected().assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
         }
         compose.onNodeWithContentDescription("Resume Steam").assertIsDisplayed()
+        NavTabs.reset(ctx)
+    }
+
+    @Test fun bottomBarFollowsSidebarLabelsSetting() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        RailLabels.set(context, false)
+        compose.setContent {
+            DroidDeckTheme { BottomBar(state, "steam", {}, {}, actions, Modifier.size(480.dp, 64.dp)) }
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Library").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Library").assertIsDisplayed()
+        compose.runOnIdle { RailLabels.set(context, true) }
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("Library").assertIsDisplayed()
     }
 
     @Test fun compactHeaderKeepsAllActionsReachable() {

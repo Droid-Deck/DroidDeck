@@ -46,6 +46,13 @@ object AppUiPrefs {
         context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().putString("home-page", value).apply()
     }
 
+    fun hideHomeFromRecents(context: Context): Boolean =
+        context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).getBoolean("hide-home-from-recents", false)
+
+    fun setHideHomeFromRecents(context: Context, hidden: Boolean) {
+        context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().putBoolean("hide-home-from-recents", hidden).apply()
+    }
+
     internal fun normalizeScale(percent: Int): Int = percent.takeIf { it in scales } ?: DEFAULT_SCALE
 
     fun scale(context: Context): Int = normalizeScale(

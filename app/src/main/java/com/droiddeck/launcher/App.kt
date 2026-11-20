@@ -20,6 +20,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.droiddeck.launcher.runtime.NativeGuest.init(this)
         Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()
         com.droiddeck.launcher.ui.Themes.loadGradient(this)
         com.droiddeck.launcher.ui.BuildWatermark.install(this)
@@ -42,19 +43,23 @@ class App : Application() {
         if (process == "$packageName:vr_recovery" || process == "$packageName:rgb_diagnostic" ||
             process == "$packageName:shortcuts_sync" || process == "$packageName:bottom_desktop") return
         CrashHandler.install(this)
+        com.droiddeck.launcher.input.ShortcutsRelay.Holder.install(this)
         com.droiddeck.launcher.agent.AgentHost.refresh(this)
-        com.droiddeck.launcher.agent.AgentTab.load(this)
+        com.droiddeck.launcher.ui.NavTabs.load(this)
+        com.droiddeck.launcher.ui.DeveloperTools.load(this)
         com.droiddeck.launcher.ui.AgentPet.install(this)
         if (com.droiddeck.launcher.agent.AgentTab.visible) com.droiddeck.launcher.lab.LabNotice.openOnInstall = "agent"
         com.droiddeck.launcher.lab.LabNotice.started(this)
-        com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
+        com.droiddeck.launcher.session.SessionPrefs.settleStoresTabOrder(this, com.droiddeck.launcher.stores.Store.entries.map { it.id })
         com.droiddeck.launcher.update.AppUpdates.init(this)
+        com.droiddeck.launcher.update.UpdateWatch.sync(this, com.droiddeck.launcher.update.AppUpdates.follow(this, null))
         com.droiddeck.launcher.core.DownloadSource.init(this)
         prefetchAddonPacks()
         GpuClockPin.clearLeftover(this)
+        com.droiddeck.launcher.input.UsbMouse.returnLeftover(this)
         com.droiddeck.launcher.glasses.Glasses.init(this)
         com.droiddeck.launcher.glasses.GlassesMenuMirror.initialize(this)
         BwrapSpawner.start(this)
@@ -80,14 +85,17 @@ class App : Application() {
         Thread({
             runCatching {
                 if (com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).isDirectory) {
-                    com.droiddeck.launcher.core.AddonPack.PROOT.ensure(app)
+                    if (!com.droiddeck.launcher.runtime.LinuxRuntime.patchedProot(app)) com.droiddeck.launcher.core.AddonPack.PROOT.ensure(app)
                     com.droiddeck.launcher.core.AddonPack.DIRECTAUDIO.ensure(app)
+                    com.droiddeck.launcher.session.SessionFiles.ensureDirtStandIn(app)
                 }
                 if (com.droiddeck.launcher.stores.gog.GogComet.enabled(app)) com.droiddeck.launcher.core.AddonPack.COMET.ensure(app)
                 if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.XBOX) != null)
                     com.droiddeck.launcher.core.AddonPack.XBOX.ensure(app)
                 if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.UBISOFT) != null)
                     com.droiddeck.launcher.session.SessionFiles.ensureUbisoftService(app)
+                if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.ROCKSTAR) != null)
+                    com.droiddeck.launcher.session.SessionFiles.ensureRockstarService(app)
                 com.droiddeck.launcher.handtracking.HandTracking.load(app)
             }.onFailure { android.util.Log.w("App", "add-on pack prefetch failed", it) }
         }, "addon-packs").start()

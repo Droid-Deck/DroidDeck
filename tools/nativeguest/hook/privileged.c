@@ -609,7 +609,7 @@ long syscall(long number, ...) {
 
 #ifdef __NR_close_range
     if (number == __NR_close_range) {
-        // libblsession's close_range() calls syscall() again: the nested call goes straight to the kernel
+        // libddsession's close_range() calls syscall() again: the nested call goes straight to the kernel
         if (t_syscall_redirect) return call_orig_syscall(number, arg1, arg2, arg3, 0, 0, 0);
         t_syscall_redirect++;
         long ret = (long)close_range((unsigned int)arg1, (unsigned int)arg2, (int)arg3);
@@ -620,7 +620,7 @@ long syscall(long number, ...) {
 
 #ifdef __NR_openat2
     if (number == __NR_openat2) {
-        // libblsession's openat2() calls syscall() again (an endless loop until the stack ran out): the nested
+        // libddsession's openat2() calls syscall() again (an endless loop until the stack ran out): the nested
         // call maps the path and goes straight to the kernel
         if (t_syscall_redirect) {
             char nested_buf[PATH_MAX];

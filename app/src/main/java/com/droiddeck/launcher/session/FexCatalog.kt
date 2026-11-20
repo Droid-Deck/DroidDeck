@@ -57,8 +57,8 @@ object FexCatalog {
     }
 
     fun environment(build: Build, sources: List<String> = DownloadSource.candidates(build.url)): List<String> = listOf(
-        "BL_FEX_TAG=${build.tag}",
-        "BL_FEX_SHA256=${build.sha256}",
-        "BL_FEX_URLS=" + sources.joinToString(" "),
+        "DD_FEX_TAG=${build.tag}",
+        "DD_FEX_SHA256=${build.sha256}",
+        "DD_FEX_URLS=" + sources.joinToString(" "),
     )
 }

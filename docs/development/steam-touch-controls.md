@@ -38,7 +38,7 @@ SteamTouchConfig (Steam's configs)  ←───  output reports  ←──  Ste
 - **Plugging.** The device is plugged in only while Steam's controls are shown: always in a Steam
   session with that choice, since a handheld's built-in pad would keep Auto off for good. Unplugging
   ends the device's report stream (the client lets the controller go); either way libfakeinput
-  sends a udev event through `udevmon.c`'s stand-in monitor (`bl_udevmon_inject`), since the
+  sends a udev event through `udevmon.c`'s stand-in monitor (`dd_udevmon_inject`), since the
   sandbox gives the client no kernel uevents and its HID discovery would never look again.
 
 ## Layouts

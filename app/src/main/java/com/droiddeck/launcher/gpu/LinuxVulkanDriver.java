@@ -12,7 +12,7 @@ import java.util.function.Supplier;
 
 public final class LinuxVulkanDriver {
     private static final String TAG = "LinuxVulkanDriver";
-    public static final String ENV = "BL_VK_DRIVER";
+    public static final String ENV = "DD_VK_DRIVER";
 
     public static final String HELP_TEXT =
             "The driver the Steam client, the games it launches and the desktop's programs render on, "

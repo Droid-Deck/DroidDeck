@@ -19,9 +19,10 @@ object Library {
         val storeId: String? = null,
         val logo: File? = null,
         val installedAt: Long = 0L,
+        val soundtrack: Boolean = false,
     ) {
         fun withArt(art: File?, hero: File?, icon: File?, logo: File? = this.logo) =
-            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo, installedAt)
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo, installedAt, soundtrack)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val launchKey: String get() = if (storeId != null) "$source:$storeId" else gameIdString
@@ -38,6 +39,7 @@ object Library {
     const val BATTLENET_LAUNCHER = "battlenet-launcher"
     const val XBOX_CLOUD = "xbox-cloud"
     const val SOURCE_STEAM = "steam"
+    const val SOURCE_COLLECTION = "collection"
 
     class Rom(val name: String, val hostPath: File, val guestPath: String, val emulatorId: String, val art: File? = null)
     class Emulator(val id: String, val name: String, val system: String, val program: String, val installed: Boolean, val games: List<Rom>) {
@@ -123,9 +125,12 @@ object Library {
             .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
     }
 
+    fun soundtracks(context: Context, arch: String = SessionPrefs.activeSteamClientArch(context)): List<SteamGame> =
+        steamGames(context, arch = arch, withShared = false, soundtracks = true, soundtracksOnly = true)
+
     fun steamGames(
         context: Context, strictRead: Boolean = false, arch: String = SessionPrefs.activeSteamClientArch(context),
-        withShared: Boolean = true,
+        withShared: Boolean = true, soundtracks: Boolean = false, soundtracksOnly: Boolean = false,
         onlyAppIds: Set<Int>? = null,
     ): List<SteamGame> {
         val root = SessionPrefs.steamRoot(context, arch)
@@ -146,16 +151,19 @@ object Library {
                     val name = NAME.find(text)?.groupValues?.get(1)?.trim().orEmpty()
                     val flags = STATE.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                     if (name.isEmpty() || flags and 4 == 0) return@forEach
+                    val installDir = INSTALL_DIR.find(text)?.groupValues?.get(1)?.trim()
+                        ?.takeIf { it.isNotEmpty() && it != "." && it != ".." && '/' !in it && '\\' !in it }
+                    val gameFiles = installDir?.let { File(steamapps, "common/$it").takeIf(File::isDirectory) }
+                    val musicFiles = if (gameFiles == null) installDir?.let { File(steamapps, "music/$it").takeIf(File::isDirectory) } else null
+                    if (musicFiles != null && !soundtracks) return@forEach
+                    if (soundtracksOnly && musicFiles == null) return@forEach
                     val images = SteamCacheImages(File(cache, appId.toString()))
                     val art = images.find(STEAM_CAPSULES)
                     val hero = images.find(STEAM_HEROES)
                     val lastPlayed = LAST_PLAYED.find(text)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-                    val installDir = INSTALL_DIR.find(text)?.groupValues?.get(1)?.trim()
-                        ?.takeIf { it.isNotEmpty() && it != "." && it != ".." && '/' !in it && '\\' !in it }
-                    val gameFiles = installDir?.let { File(steamapps, "common/$it").takeIf(File::isDirectory) }
                     out[appId] = SteamGameArt.withOverrides(context, SteamGame(
-                        appId, name, art, label, hero = hero, lastPlayed = lastPlayed,
-                        gameFiles = gameFiles,
+                        appId, name, art ?: musicFiles?.let { Soundtrack.firstCover(context, it) }, label, hero = hero, lastPlayed = lastPlayed,
+                        gameFiles = gameFiles ?: musicFiles, soundtrack = musicFiles != null,
                         protonPrefix = protonPrefix(context, appId.toLong(), library, roots),
                         icon = images.icon(),
                         logo = images.find(STEAM_LOGOS),
@@ -177,6 +185,7 @@ object Library {
                         strictRead = strictRead,
                         arch = other,
                         withShared = false,
+                        soundtracks = soundtracks,
                         onlyAppIds = shared,
                     )
                 } catch (e: Exception) {
@@ -213,16 +222,7 @@ object Library {
 
     internal fun concealedSteamApps(root: File): Set<Long> {
         val config = AddedGames.accountConfig(root) ?: return emptySet()
-        val hidden = runCatching {
-            val entries = org.json.JSONArray(File(config, "cloudstorage/cloud-storage-namespace-1.json").readText())
-            val entry = (0 until entries.length()).map { entries.getJSONArray(it) }
-                .firstOrNull { it.optString(0) == "user-collections.hidden" }?.optJSONObject(1)
-            if (entry == null || entry.optBoolean("is_deleted")) emptySet() else {
-                val collection = org.json.JSONObject(entry.optString("value"))
-                fun ids(key: String) = collection.optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optLong(it) } }.orEmpty()
-                ids("added").toSet() - ids("removed").toSet()
-            }
-        }.getOrDefault(emptySet())
+        val hidden = SteamHidden.read(root)
         val private = runCatching {
             PRIVATE_APPS.find(File(config, "localconfig.vdf").readText())?.groupValues?.get(1)
                 ?.split(',')?.mapNotNull { it.trim().toLongOrNull() }?.toSet()
@@ -293,6 +293,7 @@ object Library {
                 g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
                 hero = art.hero ?: art.header, lastPlayed = maxOf(lastPlayed, recordedPlay(context, g.gameId)), gameFiles = g.folder,
                 protonPrefix = if (g.source == com.droiddeck.launcher.stores.Store.BATTLENET.id) File(com.droiddeck.launcher.runtime.BattleNet.prefix(context), "pfx").takeIf { it.isDirectory }
+                    else if (g.source == com.droiddeck.launcher.stores.Store.UBISOFT.id) File(com.droiddeck.launcher.stores.ubisoft.UbisoftConnect.prefix(context), "pfx").takeIf { it.isDirectory }
                     else protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 source = g.source, storeId = g.storeId,

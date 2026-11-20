@@ -128,15 +128,15 @@ docker run --rm --platform "${docker_platform}" \
             -o "$d/libfakeinput.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libfakeinput.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-            -o "$d/libblsession.so" tools/linuxfs/preload/*.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libblsession.so"
+            -o "$d/libddsession.so" tools/linuxfs/preload/*.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libddsession.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-            -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
+            -o "$d/libddfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libddfastpath.so"
         bash tools/nativeguest/build.sh "$d/libddnatv-hook.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
-          -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libblaudit.so" tools/proot/fastpath/audit.c
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libblaudit.so"
+          -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libddaudit.so" tools/proot/fastpath/audit.c
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libddaudit.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
@@ -433,7 +433,7 @@ if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
         CARGO_TARGET_DIR="${cache_dir}/ubisoft-target" bash tools/ubisoft-launcher/build.sh "${upc_out}"
         save_step ubisoft "${upc_key}" "${upc_out}"
     fi
-    rockstar_out="${repo_root}/app/src/main/resources/rockstar/helpers"
+    rockstar_out="${linuxfs_dir}/usr/local/lib/droiddeck-rockstar"
     rockstar_key=$(inputs_hash "windows-gnu" tools/rockstar-launcher/src tools/rockstar-launcher/Cargo.toml tools/rockstar-launcher/Cargo.lock tools/rockstar-launcher/build.sh)
     if ! restore_step rockstar "${rockstar_key}" "${rockstar_out}"; then
         command -v i686-w64-mingw32-gcc >/dev/null 2>&1 || { echo "i686-w64-mingw32-gcc is required for the Rockstar launcher service." >&2; exit 1; }

@@ -16,6 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 public class PulseAudioComponent extends SessionPart {
     private static final String TAG = "PulseAudio";
@@ -29,7 +33,72 @@ public class PulseAudioComponent extends SessionPart {
     private final File deviceControls;
     private File logFile;
     private final String micFifoPath;
-    private volatile int pid = -1;
+    private final HostLifecycle host = new HostLifecycle(Process::killProcess);
+
+    static final class HostLifecycle {
+        volatile int pid = -1;
+        private long generation;
+        private long launches;
+        private final IntConsumer terminate;
+        final ReentrantReadWriteLock commands = new ReentrantReadWriteLock();
+
+        HostLifecycle(IntConsumer terminate) {
+            this.terminate = terminate;
+        }
+
+        synchronized long begin() {
+            stop();
+            return generation;
+        }
+
+        synchronized void stop() {
+            generation++;
+            if (pid > 1) terminate.accept(pid);
+            pid = -1;
+        }
+
+        boolean launch(long expected, IntSupplier launch) {
+            commands.writeLock().lock();
+            try {
+                synchronized (this) {
+                    if (expected != generation) return false;
+                    launches++;
+                    pid = launch.getAsInt();
+                    return true;
+                }
+            } finally {
+                commands.writeLock().unlock();
+            }
+        }
+
+        <T> T command(long token, Supplier<T> command) {
+            commands.readLock().lock();
+            try {
+                return live(token) ? command.get() : null;
+            } finally {
+                commands.readLock().unlock();
+            }
+        }
+
+        synchronized boolean current(long expected) {
+            return expected == generation;
+        }
+
+        /** The latest launch; a sink guard holds it so it never reconfigures a host started after its own. */
+        synchronized long token() {
+            return launches;
+        }
+
+        synchronized boolean live(long token) {
+            return token == launches && pid > 1;
+        }
+
+        synchronized boolean exited(long expected) {
+            if (expected != generation || pid <= 1) return false;
+            pid = -1;
+            return true;
+        }
+    }
 
     public PulseAudioComponent(Context context) {
         this(context, null);
@@ -64,7 +133,12 @@ public class PulseAudioComponent extends SessionPart {
 
     @Override
     public void start() {
-        stop();
+        start(host.begin());
+    }
+
+    private synchronized void start(long generation) {
+        // An exit callback's restart can be overtaken by a newer start; it must not touch the newer host's socket.
+        if (!host.current(generation)) return;
         if (!workingDir.isDirectory()) {
             workingDir.mkdirs();
             FileUtils.chmod(workingDir, 0771);
@@ -113,22 +187,28 @@ public class PulseAudioComponent extends SessionPart {
         env.add("HOME=" + workingDir);
         env.add("TMPDIR=" + workingDir);
 
-        String command = workingDir.getAbsolutePath() + "/libpulseaudio.so"
+        String command = String.join(" ", HostProcess.dataExecutable(workingDir.getAbsolutePath() + "/libpulseaudio.so"))
                 + " --system=false --disable-shm=true --fail=false"
                 + " -n --file=default.pa --daemonize=false --use-pid-file=false --exit-idle-time=-1"
                 + " --log-level=info";
         final java.io.PrintWriter out = openLog();
-        pid = HostProcess.start(command, env.toArray(new String[0]), workingDir, null,
+        if (!host.launch(generation, () -> HostProcess.start(command, env.toArray(new String[0]), workingDir, status -> {
+                    if (host.exited(generation)) {
+                        Log.w(TAG, "audio host exited with status " + status + "; restarting");
+                        start(generation);
+                    }
+                },
                 line -> {
                     Log.i(TAG, line);
                     if (out != null) synchronized (out) { out.println(line); out.flush(); }
-                });
-        Thread guard = new Thread(() -> ensureClientSink(out), "pulse-sink-guard");
+                }))) return;
+        long token = host.token();
+        Thread guard = new Thread(() -> ensureClientSink(out, token), "pulse-sink-guard");
         guard.setDaemon(true);
         guard.start();
     }
 
-    private void ensureClientSink(java.io.PrintWriter out) {
+    private void ensureClientSink(java.io.PrintWriter out, long token) {
         try {
             // Nothing that may block (a sink whose AAudio open hangs: a Galaxy S24 FE (US) hung the
             // daemon's start-up loading one from default.pa) is loaded by the daemon itself; the
@@ -137,14 +217,14 @@ public class PulseAudioComponent extends SessionPart {
             long deadline = started + 30000L;
             String sinks = null;
             boolean socketSeen = false;
-            while (System.currentTimeMillis() < deadline && pid > 1) {
+            while (System.currentTimeMillis() < deadline && host.live(token)) {
                 socketSeen |= socket().exists();
-                if (socketSeen && (sinks = pactl("list", "short", "sinks")) != null) break;
+                if (socketSeen && (sinks = pactlFor(token, "list", "short", "sinks")) != null) break;
                 try { Thread.sleep(250L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
             }
             note(out, "client sink: daemon " + (sinks != null ? "answered" : "did not answer") + " after "
                     + (System.currentTimeMillis() - started) + " ms (socket " + (socketSeen ? "present" : "never appeared") + ", pactl "
-                    + (new File(workingDir, "pactl").isFile() ? "present" : "MISSING") + ", daemon pid " + pid + ")");
+                    + (new File(workingDir, "pactl").isFile() ? "present" : "MISSING") + ", daemon pid " + host.pid + ")");
             String line;
             if (sinks == null) {
                 line = "== client sink: the daemon did not answer in 30 s; no fallback attempted";
@@ -155,15 +235,15 @@ public class PulseAudioComponent extends SessionPart {
                 // still switching the output route as the session starts (seen on a Galaxy S24 FE):
                 // try DirectAudio again, then the plain sink, a few times over ten seconds.
                 String loadedAs = null;
-                for (int attempt = 1; attempt <= 5 && loadedAs == null && pid > 1; attempt++) {
+                for (int attempt = 1; attempt <= 5 && loadedAs == null && host.live(token); attempt++) {
                     try { Thread.sleep(2000L); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
-                    if (pactl("load-module", "module-directaudio-native-sink", "sink_name=DirectAudio", "performance_mode=1",
-                            "adaptive=1", "decay=0", "limiter=1", "watchdog=1", "volume=1.0", "control_dir=" + deviceControls) != null
-                            && pactl("set-default-sink", "DirectAudio") != null) {
+                    if (pactlOk(token, "load-module", "module-directaudio-native-sink", "sink_name=DirectAudio", "performance_mode=1",
+                            "adaptive=1", "decay=0", "limiter=1", "watchdog=1", "volume=1.0", "control_dir=" + deviceControls)
+                            && pactlOk(token, "set-default-sink", "DirectAudio")) {
                         loadedAs = "DirectAudio on attempt " + attempt;
-                    } else if (pactl("load-module", "module-aaudio-sink", "sink_name=AAudioSink",
-                            "performance_mode=" + (attempt == 1 ? "1" : "0"), "adaptive=1", "volume=1.0", "control_dir=" + deviceControls) != null
-                            && pactl("set-default-sink", "AAudioSink") != null) {
+                    } else if (pactlOk(token, "load-module", "module-aaudio-sink", "sink_name=AAudioSink",
+                            "performance_mode=" + (attempt == 1 ? "1" : "0"), "adaptive=1", "volume=1.0", "control_dir=" + deviceControls)
+                            && pactlOk(token, "set-default-sink", "AAudioSink")) {
                         loadedAs = "the plain AAudio sink (AAudioSink) on attempt " + attempt;
                     }
                 }
@@ -186,15 +266,29 @@ public class PulseAudioComponent extends SessionPart {
         if (out != null) synchronized (out) { out.println(line); out.flush(); }
     }
 
-    /** Runs pactl against this daemon; its stdout, or null when it failed or timed out. */
-    private String pactl(String... args) {
+    private String pactlFor(long token, String... args) {
+        return host.command(token, () -> pactl(true, args));
+    }
+
+    private boolean pactlOk(long token, String... args) {
+        return host.command(token, () -> pactl(false, args)) != null;
+    }
+
+    private static void reap(java.lang.Process process) throws InterruptedException {
+        process.destroyForcibly();
+        process.waitFor(2, TimeUnit.SECONDS);
+    }
+
+    /** Runs pactl against this daemon; its stdout when captured (empty otherwise), or null when it failed or timed out. */
+    private String pactl(boolean capture, String... args) {
         File pactl = new File(workingDir, "pactl");
-        if (!pactl.isFile() || pid <= 1) return null;
+        if (!pactl.isFile() || host.pid <= 1) return null;
         java.lang.Process process = null;
+        File output = null;
         try {
             File modules = new File(workingDir, "modules/arm64");
             ArrayList<String> cmd = new ArrayList<>();
-            cmd.add(pactl.getAbsolutePath());
+            cmd.addAll(HostProcess.dataExecutable(pactl.getAbsolutePath()));
             java.util.Collections.addAll(cmd, args);
             ProcessBuilder builder = new ProcessBuilder(cmd);
             builder.directory(workingDir);
@@ -203,38 +297,39 @@ public class PulseAudioComponent extends SessionPart {
             builder.environment().put("HOME", workingDir.getAbsolutePath());
             builder.environment().put("TMPDIR", workingDir.getAbsolutePath());
             builder.environment().put("PULSE_SERVER", "unix:" + socket().getAbsolutePath());
-            process = builder.start();
-            String output;
-            try (InputStream in = process.getInputStream();
-                 java.io.ByteArrayOutputStream outStream = new java.io.ByteArrayOutputStream()) {
-                byte[] buf = new byte[4096];
-                int n;
-                while ((n = in.read(buf)) != -1) {
-                    outStream.write(buf, 0, n);
-                }
-                output = outStream.toString(java.nio.charset.StandardCharsets.UTF_8.name());
+            if (capture) {
+                output = File.createTempFile("pactl", ".out", workingDir);
+                builder.redirectOutput(output);
+            } else {
+                builder.redirectOutput(new File("/dev/null"));
             }
+            process = builder.start();
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
+                reap(process);
                 return null;
             }
-            return process.exitValue() == 0 ? output : null;
+            if (process.exitValue() != 0) return null;
+            return capture ? new String(Files.readAllBytes(output.toPath()), java.nio.charset.StandardCharsets.UTF_8) : "";
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;
         } catch (Throwable t) {
             return null;
         } finally {
-            if (process != null && process.isAlive()) process.destroyForcibly();
+            if (process != null && process.isAlive()) {
+                try {
+                    reap(process);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            if (output != null) output.delete();
         }
     }
 
     @Override
     public void stop() {
-        if (pid != -1) {
-            Process.killProcess(pid);
-            pid = -1;
-        }
+        host.stop();
     }
 
     public boolean setSinkSuspended(boolean suspended) {
@@ -247,15 +342,16 @@ public class PulseAudioComponent extends SessionPart {
 
     private boolean suspend(String kind, String name, boolean suspended) {
         File pactl = new File(workingDir, "pactl");
-        if (!pactl.isFile() || pid <= 1) {
+        if (!pactl.isFile() || host.pid <= 1) {
             Log.w(TAG, "cannot change " + kind + " state: PulseAudio control client or server unavailable");
             return false;
         }
         java.lang.Process process = null;
         try {
             File modules = new File(workingDir, "modules/arm64");
-            ProcessBuilder builder = new ProcessBuilder(
-                    pactl.getAbsolutePath(), "suspend-" + kind, name, Boolean.toString(suspended));
+            ArrayList<String> argv = new ArrayList<>(HostProcess.dataExecutable(pactl.getAbsolutePath()));
+            argv.addAll(java.util.Arrays.asList("suspend-" + kind, name, Boolean.toString(suspended)));
+            ProcessBuilder builder = new ProcessBuilder(argv);
             builder.directory(workingDir);
             builder.redirectErrorStream(true);
             builder.redirectOutput(new File("/dev/null"));

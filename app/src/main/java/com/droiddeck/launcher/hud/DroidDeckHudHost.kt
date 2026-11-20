@@ -22,7 +22,7 @@ import kotlin.math.roundToInt
 class DroidDeckHudHost(context: Context) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
-    private val feed = GameFrameFeed(File(LinuxRuntime.rootDir(this.context), HudFrames.PATH))
+    private val feed = GameFrameFeed.forRoot(LinuxRuntime.rootDir(this.context))
     private val readings = MangoReadings(File(this.context.filesDir, "session"), LinuxRuntime.rootDir(this.context))
     private var view: DroidDeckHudView? = null
     private var parent: ViewGroup? = null
@@ -119,6 +119,7 @@ class DroidDeckHudHost(context: Context) {
         }
         hud.setOnSizeCycledListener { size -> DroidDeckHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
         hud.setOnDockChangedListener { token -> setDock(hud, DroidDeckHudDock.from(token)) }
+        hud.setOnHoldListener { rawX, rawY -> collapseAt(hud, rawX, rawY) }
         hud.setOnScaledListener { percent ->
             DroidDeckHudConfig.set(context, "hudScale", percent.toString())
             onConfigChanged?.invoke()
@@ -291,7 +292,7 @@ class DroidDeckHudHost(context: Context) {
             DroidDeckHudDock.RIGHT -> (maxX - hud.x) / hud.width
             DroidDeckHudDock.TOP -> hud.y / hud.height
             DroidDeckHudDock.BOTTOM -> (maxY - hud.y) / hud.height
-            DroidDeckHudDock.NONE -> 0f
+            DroidDeckHudDock.NONE, DroidDeckHudDock.FLOAT -> 0f
         }
         if (pulled >= 1f) { setDock(hud, DroidDeckHudDock.NONE); return }
         wantX = hud.x; wantY = hud.y
@@ -375,12 +376,30 @@ class DroidDeckHudHost(context: Context) {
         hud.scaleX = s; hud.scaleY = s
     }
 
-    private fun setDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
+    private fun setDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, center: Pair<Float, Float>? = null) {
         if (edge == hud.dock) return
-        animateDock(hud, edge) { commitDock(hud, edge) }
+        animateDock(hud, edge, center) { commitDock(hud, edge) }
     }
 
+    private fun collapseAt(hud: DroidDeckHudView, rawX: Float, rawY: Float) {
+        if (hud.dock != DroidDeckHudDock.NONE) return
+        val p = hud.parent as? View ?: return
+        val at = IntArray(2).also { p.getLocationOnScreen(it) }
+        val x = rawX - at[0]
+        val y = rawY - at[1]
+        val edge = if (snaps) nearestEdge(x, y, p.width.toFloat(), p.height.toFloat()) else DroidDeckHudDock.FLOAT
+        setDock(hud, edge, Pair(x, y))
+    }
+
+    private fun nearestEdge(x: Float, y: Float, width: Float, height: Float): DroidDeckHudDock = mapOf(
+        DroidDeckHudDock.LEFT to x,
+        DroidDeckHudDock.RIGHT to width - x,
+        DroidDeckHudDock.TOP to y,
+        DroidDeckHudDock.BOTTOM to height - y,
+    ).minByOrNull { it.value }!!.key
+
     private fun commitDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
+        snapping = false
         val tabX = hud.x; val tabY = hud.y
         if (edge != DroidDeckHudDock.NONE) {
             val p = hud.parent as? View
@@ -407,12 +426,17 @@ class DroidDeckHudHost(context: Context) {
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
     }
 
-    private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, commit: () -> Unit) {
+    private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, center: Pair<Float, Float>?, commit: () -> Unit) {
         stopMotion(hud)
         previewFade?.cancel(); previewFade = null
         snapping = false
         hud.alpha = 1f
         val p = hud.parent as? View
+        if (edge != DroidDeckHudDock.NONE && center != null) {
+            val (tabW, tabH) = hud.dockTabSize()
+            wantX = center.first - tabW / 2f
+            wantY = center.second - tabH / 2f
+        }
         if (Motion.scale == 0f || p == null || !hud.isLaidOut || hud.width <= 0) {
             hud.scaleX = 1f; hud.scaleY = 1f
             hud.setDockPreview(DroidDeckHudDock.NONE, 0f)
@@ -424,11 +448,14 @@ class DroidDeckHudHost(context: Context) {
             hud.pivotX = 0f; hud.pivotY = 0f
             hud.x = left; hud.y = top
             val (tabW, tabH) = hud.dockTabSize()
-            wantX = left + (shownW - tabW) / 2f
-            wantY = top + (shownH - tabH) / 2f
+            if (center == null) {
+                wantX = left + (shownW - tabW) / 2f
+                wantY = top + (shownH - tabH) / 2f
+            }
             val (tabX, tabY) = settled(p, edge, tabW, tabH)
             val sx = tabW / hud.width; val sy = tabH / hud.height
             val from = hud.dockPreviewBlend
+            snapping = true
             hud.animate().x(tabX).y(tabY).scaleX(sx).scaleY(sy).setDuration(Motion.ms(220).toLong()).setInterpolator(EASE)
                 .setUpdateListener { hud.setDockPreview(edge, from + (1f - from) * it.animatedFraction) }
                 .withEndAction {
@@ -473,7 +500,7 @@ class DroidDeckHudHost(context: Context) {
             DroidDeckHudDock.RIGHT -> x = maxX
             DroidDeckHudDock.TOP -> y = 0f
             DroidDeckHudDock.BOTTOM -> y = maxY
-            DroidDeckHudDock.NONE -> {}
+            DroidDeckHudDock.NONE, DroidDeckHudDock.FLOAT -> {}
         }
         return Pair(x, y)
     }
