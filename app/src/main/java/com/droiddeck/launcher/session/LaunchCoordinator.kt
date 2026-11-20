@@ -8,16 +8,16 @@ package com.droiddeck.launcher.session
  */
 internal class LaunchTicket internal constructor(val serial: Long)
 
-internal class LaunchCoordinator<T : Any> {
-    internal class Link<T : Any> internal constructor(
+internal class LaunchCoordinator<O : Any, R : Any> {
+    internal class Link<O : Any, R : Any> internal constructor(
         val ticket: LaunchTicket,
-        val owner: T,
-        val id: String?,
+        val owner: O,
+        val request: R?,
     )
 
     private var next = 0L
     private var current: LaunchTicket? = null
-    private var pending: Link<T>? = null
+    private var pending: Link<O, R>? = null
     private var handling: LaunchTicket? = null
 
     /** A launch that is allowed to proceed; it supersedes any pending link. */
@@ -30,7 +30,7 @@ internal class LaunchCoordinator<T : Any> {
     }
 
     /** A game-link intent; it supersedes any earlier launch or link. */
-    fun beginLink(owner: T): LaunchTicket {
+    fun beginLink(owner: O): LaunchTicket {
         val ticket = LaunchTicket(++next)
         current = ticket
         pending = Link(ticket, owner, null)
@@ -39,16 +39,16 @@ internal class LaunchCoordinator<T : Any> {
     }
 
     /** The asynchronous link read returned; false means a newer request won. */
-    fun resolve(ticket: LaunchTicket, id: String?): Boolean {
+    fun resolve(ticket: LaunchTicket, request: R?): Boolean {
         val link = pending ?: return false
         if (link.ticket !== ticket) return false
-        pending = Link(ticket, link.owner, id)
+        pending = Link(ticket, link.owner, request)
         return true
     }
 
     fun beginHandling(ticket: LaunchTicket): Boolean {
         val link = pending ?: return false
-        if (link.ticket !== ticket || link.id == null) return false
+        if (link.ticket !== ticket || link.request == null) return false
         handling = ticket
         return true
     }
@@ -60,7 +60,7 @@ internal class LaunchCoordinator<T : Any> {
     fun isHandling(ticket: LaunchTicket): Boolean = handling === ticket
     fun isCurrent(ticket: LaunchTicket): Boolean = current === ticket
     fun hasPending(): Boolean = pending != null
-    fun pendingLink(): Link<T>? = pending
+    fun pendingLink(): Link<O, R>? = pending
 
     fun consume(ticket: LaunchTicket): Boolean {
         val link = pending ?: return false

@@ -326,20 +326,33 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val favorites = if (soundMode) emptySet() else LibraryFavorites.keys
     val concealed: (LibraryEntry) -> Boolean = { !soundMode && LibraryHidden.isHidden(it) }
     val stores = !s.shortcutPicker && !soundMode
-    val signedIn = Store.entries.filter { StoresState.isSignedIn(it) }
-    LaunchedEffect(stores, signedIn) { if (stores) signedIn.forEach { StoresState.loadLibrary(ctx, it) } }
-    val owned = if (stores) signedIn.associateWith { StoresState.library[it].orEmpty() } else emptyMap()
-    val installedStore = StoresState.installed.map { it.key }.toSet()
-    val syncing = if (stores) signedIn.mapNotNull { st -> StoresState.status[st]?.let { st to it } } else emptyList()
+    val preview = if (stores) DevPreview.library else LibraryPreview.OFF
+    val signedIn = when (preview) {
+        LibraryPreview.SAMPLE -> Store.entries.filter { StoresState.backend(it) != null }
+        LibraryPreview.SIGNED_OUT -> emptyList()
+        else -> Store.entries.filter { StoresState.isSignedIn(it) }
+    }
+    LaunchedEffect(stores, signedIn, preview) {
+        if (stores) signedIn.forEach { if (preview == LibraryPreview.SAMPLE) StoresState.preview(ctx, it) else StoresState.loadLibrary(ctx, it) }
+    }
+    val owned = when {
+        !stores -> emptyMap()
+        preview == LibraryPreview.SAMPLE -> signedIn.associateWith { sampleOwned(it) }
+        else -> signedIn.associateWith { StoresState.library[it].orEmpty() }
+    }
+    val reallyInstalled = StoresState.installed.map { it.key }.toSet()
+    val installedStore = reallyInstalled + if (preview == LibraryPreview.SAMPLE) sampleInstalled(owned) else emptySet()
+    val syncing = if (stores && preview == LibraryPreview.OFF) signedIn.mapNotNull { st -> StoresState.status[st]?.let { st to it } } else emptyList()
     val cloudRows = rememberXboxCloudRows(s)
     remember { SoundtrackCollections.load(ctx) }
     val savedSnapshot = SoundtrackCollections.snapshot
     val favoritesLabel = stringResource(R.string.soundtracks_favorites)
-    val all = remember(soundMode, s.steamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel) {
+    val all = remember(soundMode, s.steamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel, preview) {
         if (soundMode) s.soundtracks.map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) } +
             (if (s.soundtracks.isEmpty() && savedSnapshot.favorites.isEmpty() && savedSnapshot.collections.isEmpty()) emptyList() else SoundtrackCollections.games(ctx, favoritesLabel, skipEmptyFavorites = true))
                 .map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) }
         else libraryEntries(s.steamGames + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore)
+            .let { rows -> if (preview == LibraryPreview.NOTHING_INSTALLED) rows.map { LibraryEntry(it.key, it.source, it.title, it.game, it.item, false) } else rows }
     }
     var addingSoundtrack by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { XboxLibraryFilter.load(ctx) }
@@ -361,8 +374,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val gameJoltSignedIn = owned.containsKey(Store.GAMEJOLT)
     remember { StoreTabsState.load(ctx) }
     val storeTabs = StoreTabsState.tabs
-    val signInChips = if (!stores || !StoresState.accountsLoaded) emptySet() else storeTabs
-        .filter { it.shown && StoresState.backend(it.store) != null && storeAccount(it.store) != StoreAccount.SIGNED_IN }
+    val signInChips = if (!stores || !StoresState.accountsLoaded || preview == LibraryPreview.SAMPLE) emptySet() else storeTabs
+        .filter { it.shown && StoresState.backend(it.store) != null && (preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
         .map { it.store.id }.toSet()
     val sources = librarySources(
         all, storeTabs.map { it.store.id },
@@ -429,7 +442,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     fun sizeOf(e: LibraryEntry): Long? {
         val key = e.storeKey
         return when {
-            key != null && key in installedStore -> StoreSizes.onDisk[key]
+            key != null && e.installed && key in installedStore -> StoreSizes.onDisk[key]
             e.game?.gameFiles != null -> FolderSizes.known[e.game.gameFiles.path]
             e.item != null -> StoreSizes.size(e.item).takeIf { it > 0 }
             else -> 0L
@@ -450,7 +463,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     var sizesWaited by remember(sizeSort) { mutableStateOf(false) }
     LaunchedEffect(sizeSort) { if (sizeSort) { kotlinx.coroutines.delay(8_000); sizesWaited = true } }
     fun sizeComing(e: LibraryEntry): Boolean = when {
-        e.storeKey != null && e.storeKey in installedStore -> true
+        e.storeKey != null && e.storeKey in installedStore -> e.storeKey in reallyInstalled // a sample install has no size to wait for
         e.game?.gameFiles != null -> true
         e.item != null -> StoreSizes.coming(e.item)
         else -> false
@@ -545,7 +558,11 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                     LibraryView.source = ids[(ids.indexOf(source).coerceAtLeast(0) + step + ids.size) % ids.size]
                     cycled++
                 },
-                onOpen = { focusManager.clearFocus(force = true); onSelect(it) },
+                onOpen = {
+                    // A preview is read-only: a game's page would act on the real install behind the pretend one.
+                    if (preview != LibraryPreview.OFF) android.widget.Toast.makeText(ctx, R.string.dev_preview_read_only, android.widget.Toast.LENGTH_SHORT).show()
+                    else { focusManager.clearFocus(force = true); onSelect(it) }
+                },
                 searchCleared = open != null,
                 onFocus = { gridFocused = it },
                 soundMode = soundMode,
@@ -560,7 +577,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 onCollections = { savedDialog = true },
                 trackHits = shownHits, onPlayHit = playHit,
                 // An expired account keeps showing its cached games; with none cached it asks to sign in again, like a signed-out store.
-                signInStore = Store.byId(source)?.takeIf { st -> st.id in signInChips && (storeAccount(st) != StoreAccount.EXPIRED || all.none { it.source == st.id }) },
+                signInStore = Store.byId(source)?.takeIf { st -> st.id in signInChips && (preview == LibraryPreview.SIGNED_OUT || storeAccount(st) != StoreAccount.EXPIRED || all.none { it.source == st.id }) },
             ) }
         },
     ) { key ->
@@ -774,7 +791,7 @@ private fun LibraryGrid(
             Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { CustomGamesCard(splashHeight, art) }
         }
         else if (signInStore != null) item(key = "sign-in:${signInStore.id}", span = { GridItemSpan(maxLineSpan) }) {
-            StoreTheme(signInStore) { Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { SignInCard(signInStore, splashHeight) } }
+            StoreTheme(signInStore) { Box(Modifier.padding(top = 4.dp, bottom = 16.dp)) { SignInCard(signInStore, splashHeight, inert = DevPreview.library != LibraryPreview.OFF) } }
         }
         else if (split == 0) {
             if (toggleAt == ToggleAt.TOP) item(key = NOT_INSTALLED_ROW, span = { GridItemSpan(maxLineSpan) }) { toggleRow() }
@@ -871,13 +888,15 @@ private fun LibraryHeader(
         lead = soundLead,
     ) {
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
+        if (!soundMode && DeveloperTools.on && DevPreview.shortcuts) LibraryPreviewButton()
         DisplayButton()
         if (!soundMode && xbox) LibraryFilterButton(null, onShowUninstalled, xbox)
         if (collections != null) CollectionsButton(collections)
         SortButton(s, a)
         ViewButton(s, a)
         if (!soundMode) GameFileFolderActions(s, a)
-        Store.byId(source)?.takeIf { !soundMode && StoresState.isSignedIn(it) }?.let { StoreAccountButton(it) }
+        // No sign-out in a preview: it would sign the real account out.
+        Store.byId(source)?.takeIf { !soundMode && DevPreview.library == LibraryPreview.OFF && StoresState.isSignedIn(it) }?.let { StoreAccountButton(it) }
         if (!s.shortcutPicker && (soundMode || (source == Library.ADDED && total > 0))) AddGameButton { if (soundMode) onAddSoundtrack() else GamesDialogState.adding = true }
     }
     if (s.steamGamesX64 && narrow) Box(Modifier.padding(top = 4.dp)) { ClientTag() }
@@ -988,7 +1007,9 @@ private fun CustomGamesCard(height: androidx.compose.ui.unit.Dp, art: List<Any>)
 private fun sourceDot(src: String): Color? {
     val store = Store.byId(src)
     return when {
-        store != null -> sourceColours(src).dot.copy(alpha = if (StoresState.isSignedIn(store) && StoresState.expired[store] != true) 1f else 0.35f)
+        store != null -> sourceColours(src).dot.copy(
+            alpha = if (DevPreview.library == LibraryPreview.SAMPLE || (DevPreview.library != LibraryPreview.SIGNED_OUT && StoresState.isSignedIn(store) && StoresState.expired[store] != true)) 1f else 0.35f,
+        )
         src == LIBRARY_FAVORITES -> FavoritesColours.dot
         src == LIBRARY_HIDDEN -> Color(0xFF9AA0A6)
         src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot

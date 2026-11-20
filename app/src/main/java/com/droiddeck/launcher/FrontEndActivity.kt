@@ -212,7 +212,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var soundtracksLoaded by mutableStateOf(false)
     private var gameStoresSpeedTier by mutableStateOf("fast")
     private var navRequest by mutableStateOf<String?>(null)
-    private val launchCoordinator = LaunchCoordinator<Intent>()
+    private val launchCoordinator = LaunchCoordinator<Intent, com.droiddeck.launcher.frontend.GameRequest>()
     private var preparingGames by mutableStateOf(emptySet<String>())
     private var storesShowMature by mutableStateOf(false)
     private var storesSort by mutableStateOf(SessionPrefs.STORES_SORTS.first())
@@ -948,16 +948,16 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
             val copy = Intent(request)
             Thread({
-                val id = GameLaunchIntent.read(this, copy)
+                val game = GameLaunchIntent.read(this, copy)
                 ui.post {
                     if (intent === request && !isDestroyed) {
                         gameLinkReading = false
-                        if (!launchCoordinator.resolve(ticket, id)) {
+                        if (!launchCoordinator.resolve(ticket, game)) {
                             clearGameLinkIntent(request)
                             syncDualPanel()
                             return@post
                         }
-                        if (id == null) {
+                        if (game == null) {
                             launchCoordinator.consume(ticket)
                             syncDualPanel()
                             android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
@@ -973,7 +973,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun dropUnresolvedLink() {
         val link = launchCoordinator.pendingLink() ?: return
-        if (link.id == null) launchCoordinator.consume(link.ticket)
+        if (link.request == null) launchCoordinator.consume(link.ticket)
     }
 
     private fun beginUiLaunch(): LaunchTicket {
@@ -1267,14 +1267,14 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
         val link = launchCoordinator.pendingLink() ?: return
         if (ticket != null && link.ticket !== ticket) return
-        val id = link.id ?: return
+        val request = link.request ?: return
         if (launchCoordinator.isHandling(link.ticket)) return
-        if (!scanned && games.none { it.gameIdString == id }) return
+        val game = request.find(games, byTitle = scanned)
+        if (!scanned && game == null) return
         gameLinkTried = true
         ui.postDelayed({
             if (!isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) syncDualPanel()
         }, LINK_PANEL_MS)
-        val game = games.firstOrNull { it.gameIdString == id }
         val linkIntent = link.owner
         fun consume() {
             if (!launchCoordinator.consume(link.ticket)) return
@@ -1283,7 +1283,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (game == null) {
             consume()
             syncDualPanel()
-            android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
+            android.widget.Toast.makeText(this,
+                if (request.program != null) R.string.game_link_program_unknown else R.string.game_link_missing,
+                android.widget.Toast.LENGTH_LONG).show()
         } else {
             if (!launchCoordinator.beginHandling(link.ticket)) return
             launchGame(game, returnHome = true, onSettled = ::consume, ticket = link.ticket)
