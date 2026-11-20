@@ -206,7 +206,11 @@ class InputSurfaceView(
                     val e = layout[i]
                     val child = getChildAt(i)
                     val x = (width * e.x).toInt(); val y = (height * e.y).toInt()
-                    child.layout(x, y, x + child.measuredWidth, y + child.measuredHeight)
+                    // A dialog resized after its first pass can lay this out at a size it was never measured at.
+                    val w = (width * e.width).toInt(); val h = (height * e.height).toInt()
+                    if (child.measuredWidth != w || child.measuredHeight != h)
+                        child.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
+                    child.layout(x, y, x + w, y + h)
                 }
             }
         }
