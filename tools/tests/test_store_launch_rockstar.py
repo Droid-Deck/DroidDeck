@@ -234,6 +234,57 @@ class RockstarLaunch(unittest.TestCase):
             self.assertEqual('ready', result)
             self.assertEqual([False], stale)
 
+    def sdk_launch(self, root, runtimes, sdk_answer=None, ships_runtime=False):
+        folder, sidecar, prefix, service, answer = self.setup_game(root)
+        sidecar['id'] = 'gta5'
+        (folder / 'title.rgl').write_bytes(b'RGLM' + bytes(108))
+        if ships_runtime:
+            (folder / 'socialclub.dll').write_bytes(b'game-runtime')
+        answer['session'] = {'accountId': '123', 'identity': 'player@example.invalid', 'ticket': 'game-session'}
+        requests, lines, states = [], [], list(runtimes)
+
+        def ask(channel, request, timeout):
+            requests.append(request['op'])
+            return sdk_answer if request['op'] == 'rockstar-sdk' else answer
+
+        with patch.object(store, 'ROCKSTAR_SERVICE', service), patch.object(store, 'rockstar_registry', return_value=True), \
+                patch.object(store, 'rockstar_runtime', side_effect=lambda *args: states.pop(0)), \
+                patch.object(store, 'log', lines.append):
+            result = store.prepare_rockstar(folder, sidecar, str(prefix), str(Path(root) / 'channel'), ask_app=ask)
+        return result, requests, lines, states
+
+    def test_a_title_without_a_social_club_installer_gets_one_from_the_app_before_its_session(self):
+        with tempfile.TemporaryDirectory() as root:
+            result, requests, lines, states = self.sdk_launch(root, ['game-runtime', 'installed'], {'ok': True})
+            self.assertEqual('ready', result)
+            self.assertEqual(['rockstar-sdk', 'rockstar-launch'], requests)
+            self.assertIn('rockstar runtime: installed', lines)
+            self.assertEqual([], states)
+
+    def test_an_unavailable_social_club_installer_is_logged_and_the_launch_continues(self):
+        for sdk_answer, reason in (({'ok': False, 'reason': 'no-launcher-build'}, 'sdk-no-launcher-build'), (None, 'sdk-timeout')):
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as root:
+                result, requests, lines, _ = self.sdk_launch(root, ['game-runtime'], sdk_answer)
+                self.assertEqual('ready', result)
+                self.assertEqual(['rockstar-sdk', 'rockstar-launch'], requests)
+                self.assertIn('rockstar runtime: ' + reason, lines)
+
+    def test_an_installed_or_bundled_social_club_does_not_ask_the_app(self):
+        for runtimes, ships in ((['present'], False), (['installed'], False), (['game-runtime'], True)):
+            with self.subTest(runtimes=runtimes, ships=ships), tempfile.TemporaryDirectory() as root:
+                result, requests, lines, _ = self.sdk_launch(root, runtimes, ships_runtime=ships)
+                self.assertEqual('ready', result)
+                self.assertEqual(['rockstar-launch'], requests)
+                self.assertIn('rockstar runtime: ' + runtimes[0], lines)
+
+    def test_classic_titles_never_ask_for_the_social_club_installer(self):
+        with tempfile.TemporaryDirectory() as root:
+            with patch.object(store, 'rockstar_runtime') as runtime:
+                result, _, requests = self.prepare(root)
+            self.assertEqual('ready', result)
+            self.assertEqual(['rockstar-launch'], [request['op'] for request in requests])
+            runtime.assert_not_called()
+
     def exit_game(self, root, store_id, log_text=None, link=None):
         folder = game(root, store_id=store_id, ident='gta5')
         prefix = Path(root) / 'prefix'

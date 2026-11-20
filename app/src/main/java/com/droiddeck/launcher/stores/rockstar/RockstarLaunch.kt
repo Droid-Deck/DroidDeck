@@ -10,6 +10,10 @@ import java.security.MessageDigest
 import java.util.Base64
 
 object RockstarLaunch {
+    internal const val SDK_INSTALLER = "Redistributables/Social-Club-Setup.exe"
+    private const val LAUNCHER_APP = "launcher"
+    private val sdkLock = Any()
+
     internal val pipes = mapOf("gta3" to "GTA3_Pipe", "gtavc" to "GTA-VC_Pipe", "gtasa" to "GTA_SA_Pipe", "gta4" to "GTAIV_Pipe", "lanoire" to "LANOIRE_Pipe")
 
     fun usesClassicLauncher(id: String) = id in pipes
@@ -22,10 +26,47 @@ object RockstarLaunch {
         }
     }
 
+    private fun installedFolder(app: Context, id: String) = StoreInstallRoot.gameFolders(app).firstOrNull { folder ->
+        StoreGameSidecar.read(folder)?.let { it.store == Store.ROCKSTAR && it.id == id && it.isInstalled } == true
+    }
+
+    fun sdkInstaller(app: Context, id: String): JSONObject = synchronized(sdkLock) { downloadSdkInstaller(app, id) }
+
+    private fun downloadSdkInstaller(app: Context, id: String): JSONObject {
+        val folder = installedFolder(app, id) ?: return failure("not-installed")
+        val target = RockstarManifest.inside(folder, SDK_INSTALLER)
+        if (target.isFile) return JSONObject().put("ok", true)
+        val ticket = RockstarAuth.ticket(app) ?: RockstarAuth.ticket(app, fresh = true) ?: return failure("signed-out")
+        val branch = RockstarApps.fetch(ticket.ticket) {}.apps.firstOrNull { it.name == LAUNCHER_APP }?.let(RockstarApps::branch)
+            ?: return failure("no-launcher-build")
+        val build = RockstarManifest.parse(RockstarRos.result("app.asmx/GetBuildManifestFull",
+            listOf("ticket" to ticket.ticket, "branchAccessToken" to branch.accessToken)))
+        val file = RockstarManifest.sdkInstaller(build) ?: return failure("no-sdk-installer")
+        if (file.chunks.sumOf { it.size } != file.size) return failure("invalid-sdk-installer")
+        val part = RockstarManifest.inside(folder, "$SDK_INSTALLER.part")
+        part.parentFile?.mkdirs()
+        try {
+            java.io.RandomAccessFile(part, "rw").use { it.setLength(file.size) }
+            for (batch in RockstarManifest.batches(file.chunks)) {
+                val urls = RockstarInstaller.chunkUrls(ticket.ticket, branch.accessToken, batch)
+                for (chunk in batch) {
+                    RockstarInstaller.fetch({ false }, { retry ->
+                        (if (retry) null else urls[chunk.chunkId]) ?: RockstarInstaller.chunkUrls(ticket.ticket, branch.accessToken, listOf(chunk)).getValue(chunk.chunkId)
+                    }, part, chunk, java.util.concurrent.atomic.AtomicLong()) {}
+                }
+            }
+            if (file.sha256.isNotEmpty() && !RockstarManifest.verified(part, RockstarChunk(file.entryId, "", file.sha256, 0, file.size))) {
+                return failure("invalid-sdk-installer")
+            }
+            if (!part.renameTo(target)) return failure("sdk-installer-unwritable")
+        } finally {
+            part.delete()
+        }
+        return JSONObject().put("ok", true)
+    }
+
     fun prepare(app: Context, id: String): JSONObject {
-        val folder = StoreInstallRoot.gameFolders(app).firstOrNull { folder ->
-            StoreGameSidecar.read(folder)?.let { it.store == Store.ROCKSTAR && it.id == id && it.isInstalled } == true
-        } ?: return failure("not-installed")
+        val folder = installedFolder(app, id) ?: return failure("not-installed")
         val installed = StoreGameSidecar.read(folder) ?: return failure("not-installed")
         val exe = installed.exeFile(folder).canonicalFile
         if (!exe.path.startsWith(folder.canonicalPath + java.io.File.separator) || !exe.isFile) return failure("missing-game-files")

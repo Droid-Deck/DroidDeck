@@ -90,6 +90,8 @@ object StoreLaunchRequests {
                 lastLaunched = Store.ROCKSTAR to request.optString("id")
                 com.droiddeck.launcher.stores.rockstar.RockstarLaunch.prepare(app, request.optString("id"))
             }.getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
+            "rockstar-sdk" -> runCatching { com.droiddeck.launcher.stores.rockstar.RockstarLaunch.sdkInstaller(app, request.optString("id")) }
+                .getOrElse { JSONObject().put("ok", false).put("reason", "error-" + it.javaClass.simpleName) }
             "store-service" -> runCatching {
                 val root = com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app)
                 if (com.droiddeck.launcher.session.SessionFiles.awaitStoreService(app, request.optString("store"), root)) JSONObject().put("ok", true)
