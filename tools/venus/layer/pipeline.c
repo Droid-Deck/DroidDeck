@@ -29,6 +29,12 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(VkDevice device, const VkShade
     const uint32_t *code = have_capped ? capped.words : info->pCode;
     size_t words = have_capped ? capped.count : count;
 
+    struct spirv_code fixed = {0};
+    if (spirv_fix_spec_constant_composites(code, words, &fixed)) {
+        code = fixed.words;
+        words = fixed.count;
+    }
+
     struct spirv_code single = {0};
     if ((dev->emulated & GAP_DUAL_SRC_BLEND) && spirv_uses_dual_source(code, words)) {
         if (spirv_strip_dual_source(code, words, &single)) {
@@ -57,6 +63,7 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(VkDevice device, const VkShade
         free(capped.words);
         free(single.words);
         free(stripped.words);
+        free(fixed.words);
         return result;
     }
 
@@ -70,6 +77,7 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateShaderModule(VkDevice device, const VkShade
     free(capped.words);
     free(single.words);
     free(stripped.words);
+    free(fixed.words);
     return VK_SUCCESS;
 }
 
@@ -105,7 +113,15 @@ static void find_stage_code(struct device *dev, const VkPipelineShaderStageCreat
             code->inline_info = (const VkShaderModuleCreateInfo *)s;
             code->words = code->inline_info->pCode;
             code->count = code->inline_info->codeSize / sizeof(uint32_t);
+            struct spirv_code fixed = {0};
+            if (spirv_fix_spec_constant_composites(code->words, code->count, &fixed)) {
+                code->capped = fixed;
+                code->words = fixed.words;
+                code->count = fixed.count;
+            }
+            struct spirv_code previous = code->capped;
             if (spirv_cap_version(code->words, code->count, &code->capped)) {
+                free(previous.words);
                 log_spirv_version("lowered to 1.3", code->words, code->count);
                 code->words = code->capped.words;
                 code->count = code->capped.count;
@@ -124,6 +140,12 @@ static void find_stage_code(struct device *dev, const VkPipelineShaderStageCreat
         code->words = original->words;
         code->count = original->count;
         code->stripped_module = true;
+        struct spirv_code fixed = {0};
+        if (spirv_fix_spec_constant_composites(code->words, code->count, &fixed)) {
+            code->capped = fixed;
+            code->words = fixed.words;
+            code->count = fixed.count;
+        }
     }
 }
 

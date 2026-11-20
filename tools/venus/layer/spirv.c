@@ -1144,6 +1144,46 @@ static void trim_entry_interfaces(struct module *m)
         }
     }
 }
+bool spirv_fix_spec_constant_composites(const uint32_t *words, size_t count, struct spirv_code *out)
+{
+    if (count < 5 || words[0] != SpvMagicNumber)
+        return false;
+    struct module m;
+    if (!load(&m, words, count))
+        return false;
+    bool changed = false;
+    for (size_t i = 5; i < m.count; i += LENGTH(m.w[i])) {
+        if (OPCODE(m.w[i]) != SpvOpConstantComposite)
+            continue;
+        uint32_t length = LENGTH(m.w[i]);
+        for (uint32_t k = 2; k < length; k++) {
+            size_t d = definition(&m, m.w[i + k]);
+            if (!d)
+                continue;
+            uint32_t op = OPCODE(m.w[d]);
+            if (op == SpvOpSpecConstantTrue || op == SpvOpSpecConstantFalse ||
+                op == SpvOpSpecConstant || op == SpvOpSpecConstantComposite) {
+                m.w[i] = (LENGTH(m.w[i]) << 16) | SpvOpSpecConstantComposite;
+                changed = true;
+                break;
+            }
+        }
+    }
+    if (!changed) {
+        unload(&m);
+        return false;
+    }
+    out->words = malloc(m.count * sizeof(uint32_t));
+    if (!out->words) {
+        unload(&m);
+        return false;
+    }
+    memcpy(out->words, m.w, m.count * sizeof(uint32_t));
+    out->count = m.count;
+    unload(&m);
+    return true;
+}
+
 uint32_t spirv_version(const uint32_t *words, size_t count)
 {
     if (count < 5 || words[0] != SpvMagicNumber)

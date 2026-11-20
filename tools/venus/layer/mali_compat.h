@@ -189,6 +189,7 @@ bool spirv_uses_distances(const uint32_t *words, size_t count);
 bool spirv_strip_distances(const uint32_t *words, size_t count, struct spirv_code *out);
 uint32_t spirv_version(const uint32_t *words, size_t count);
 bool spirv_cap_version(const uint32_t *words, size_t count, struct spirv_code *out);
+bool spirv_fix_spec_constant_composites(const uint32_t *words, size_t count, struct spirv_code *out);
 bool spirv_uses_dual_source(const uint32_t *words, size_t count);
 bool spirv_strip_dual_source(const uint32_t *words, size_t count, struct spirv_code *out);
 

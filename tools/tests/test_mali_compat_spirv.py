@@ -40,6 +40,7 @@ class MaliCompatSpirvTest(unittest.TestCase):
             private_readonly = Path(tmp) / "private-readonly.spv"
             parameter = Path(tmp) / "parameter.spv"
             converted = Path(tmp) / "converted.spv"
+            fixed = Path(tmp) / "fixed.spv"
             built = subprocess.run(
                 [compiler, "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-UNDEBUG",
                  "-pthread", "-Dcalloc=test_calloc", "-I", str(LAYER), "-I", str(vulkan), "-I", str(spirv),
@@ -47,7 +48,7 @@ class MaliCompatSpirvTest(unittest.TestCase):
                 capture_output=True, text=True)
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
             ran = subprocess.run([str(program), str(module), str(guest), str(extension), str(scalar), str(debug),
-                                  str(private_readonly), str(converted), str(parameter)],
+                                  str(private_readonly), str(converted), str(parameter), str(fixed)],
                                  capture_output=True, text=True, timeout=30)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
             self.assertIn("mali compat spirv ok", ran.stdout)
@@ -56,6 +57,7 @@ class MaliCompatSpirvTest(unittest.TestCase):
             self.assertTrue(extension.is_file())
             self.assertTrue(scalar.is_file())
             self.assertTrue(debug.is_file())
+            self.assertTrue(fixed.is_file())
             validator = shutil.which("spirv-val")
             if not validator:
                 return
@@ -80,7 +82,7 @@ class MaliCompatSpirvTest(unittest.TestCase):
                 self.assertNotEqual(checked.returncode, 0, "the 1.3 form must be rejected")
                 expected = "NonWritable" if original == private_readonly else "UConvert"
                 self.assertIn(expected, checked.stdout + checked.stderr)
-            for lowered in (module, guest, extension, scalar, debug, parameter):
+            for lowered in (module, guest, extension, scalar, debug, parameter, fixed):
                 checked = subprocess.run([validator, "--target-env", "vulkan1.1", str(lowered)],
                                          capture_output=True, text=True)
                 self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)

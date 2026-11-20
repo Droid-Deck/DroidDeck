@@ -181,6 +181,26 @@ static const uint32_t nonsemantic_extension[] = {
 };
 static const size_t nonsemantic_extension_count = sizeof(nonsemantic_extension) / sizeof(uint32_t);
 
+static const uint32_t spec_constant_composite[] = {
+    SpvMagicNumber, 0x00010300, 0, 10, 0,
+    (2u << 16) | SpvOpCapability, SpvCapabilityShader,
+    (3u << 16) | SpvOpMemoryModel, SpvAddressingModelLogical, SpvMemoryModelGLSL450,
+    (5u << 16) | SpvOpEntryPoint, SpvExecutionModelFragment, 8, 0x6e69616d, 0,
+    (3u << 16) | SpvOpExecutionMode, 8, SpvExecutionModeOriginUpperLeft,
+    (2u << 16) | SpvOpTypeVoid, 1,
+    (2u << 16) | SpvOpTypeBool, 2,
+    (4u << 16) | SpvOpTypeVector, 3, 2, 2,
+    (3u << 16) | SpvOpTypeFunction, 4, 1,
+    (3u << 16) | SpvOpSpecConstantTrue, 2, 5,
+    (3u << 16) | SpvOpSpecConstantFalse, 2, 6,
+    (5u << 16) | SpvOpConstantComposite, 3, 7, 5, 6,
+    (5u << 16) | SpvOpFunction, 1, 8, 0, 4,
+    (2u << 16) | SpvOpLabel, 9,
+    (1u << 16) | SpvOpReturn,
+    (1u << 16) | SpvOpFunctionEnd,
+};
+static const size_t spec_constant_composite_count = sizeof(spec_constant_composite) / sizeof(uint32_t);
+
 static int failures;
 
 static void check(int condition, const char *what)
@@ -537,6 +557,25 @@ int main(int argc, char **argv)
                   "a NonWritable Function parameter is left alone");
         }
     }
+
+    struct spirv_code fixed = {0};
+    check(!spirv_cap_version(spec_constant_composite, spec_constant_composite_count, &kept),
+          "a SPIR-V 1.3 module with spec-constant composites is left alone by the cap");
+    check(kept.words == NULL, "the cap does not hand back a module");
+    check(spirv_fix_spec_constant_composites(spec_constant_composite, spec_constant_composite_count, &fixed),
+          "OpConstantComposite of spec constants is rewritten to OpSpecConstantComposite");
+    if (fixed.words) {
+        if (argc > 9)
+            write_module(argv[9], &fixed);
+        check(count_opcodes(fixed.words, fixed.count, SpvOpConstantComposite) == 0,
+              "no OpConstantComposite is left");
+        check(count_opcodes(fixed.words, fixed.count, SpvOpSpecConstantComposite) == 1,
+              "the composite is now an OpSpecConstantComposite");
+        free(fixed.words);
+    }
+    check(!spirv_fix_spec_constant_composites(older, older_count, &kept),
+          "a module without spec constants is left alone by the fix");
+    check(kept.words == NULL, "nothing is handed back by the fix");
 
     check_pipelines();
 
