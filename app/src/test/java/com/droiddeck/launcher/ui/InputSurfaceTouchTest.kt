@@ -63,6 +63,19 @@ class InputSurfaceTouchTest {
 
     private fun state() = JoyConPadTest.RecordingWriter.pads[0] ?: PadState()
 
+    @Test fun controlsTakeTheSizeTheyAreLaidOutAtEvenIfMeasuredAtAnother() {
+        val element = InputSurfaceElement(InputControl.LT, .1f, .1f, .2f, .05f, kind = InputElementKind.TRIGGER, buttonShape = InputButtonShape.PILL)
+        val surface = InputSurfaceView(context).apply { updateCustomLayout(listOf(element)) }
+        surface.measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(3000, View.MeasureSpec.EXACTLY))
+        surface.layout(0, 0, 1000, 3000)
+        val canvas = descendants(surface).first { it.tag == element }.parent as View
+        canvas.layout(0, 0, 1000, 1000)
+        val control = descendants(surface).first { it.tag == element }
+        assertEquals(100, control.top)
+        assertEquals(200, control.width)
+        assertEquals(50, control.height)
+    }
+
     @Test fun aFingerSlidingBetweenButtonsMovesThePress() {
         touch(MotionEvent.ACTION_DOWN, 1 to (800f to 240f))
         assertTrue(state().isDown(PadState.A))
