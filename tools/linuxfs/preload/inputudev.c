@@ -572,6 +572,15 @@ const char *udev_device_get_devtype(void *device) {
   return real_get(device);
 }
 
+const char *udev_device_get_driver(void *device) {
+  static const char *(*real_get)(void *);
+
+  if (device_pad(device) != NULL) return NULL;
+  if (real_get == NULL) real_get = next_symbol("udev_device_get_driver");
+  if (real_get == NULL) return NULL;
+  return real_get(device);
+}
+
 const char *udev_device_get_action(void *device) {
   static const char *(*real_get)(void *);
   struct pad *pad = device_pad(device);
@@ -1010,6 +1019,7 @@ static const struct udev_symbol udev_symbols[] = {
     {"udev_device_get_sysnum", (void *)udev_device_get_sysnum},
     {"udev_device_get_subsystem", (void *)udev_device_get_subsystem},
     {"udev_device_get_devtype", (void *)udev_device_get_devtype},
+    {"udev_device_get_driver", (void *)udev_device_get_driver},
     {"udev_device_get_action", (void *)udev_device_get_action},
     {"udev_device_get_devnum", (void *)udev_device_get_devnum},
     {"udev_device_get_sysattr_value", (void *)udev_device_get_sysattr_value},
@@ -1073,7 +1083,7 @@ static int steam_runtime_path(const char *path) {
   const char *name = strrchr(path, '/');
   size_t i;
 
-  if (name == NULL || strcmp(name + 1, "steam") != 0) return 0;
+  if (name == NULL || (strcmp(name + 1, "steam") != 0 && strcmp(name + 1, "streaming_client") != 0)) return 0;
   for (i = 0; i < sizeof(runtimes) / sizeof(runtimes[0]); i++) {
     size_t length = strlen(runtimes[i]);
 
@@ -1084,8 +1094,8 @@ static int steam_runtime_path(const char *path) {
   return 0;
 }
 
-/* The Steam client reads the pads straight from /dev/input and hands whatever the udev enumeration
- * gives it back to the real libudev, which cannot read these synthetic devices. */
+/* The Steam client and its Remote Play client (streaming_client) read the pads straight from /dev/input
+ * and hidraw themselves, so they keep the real libudev. */
 static int steam_client_process(void) {
   static _Atomic int cached = -1;
   char path[PATH_MAX];
