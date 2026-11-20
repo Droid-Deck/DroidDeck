@@ -198,4 +198,35 @@ class ControlsChoiceTest {
         assertEquals(InputLibraries.OVERLAY, library.profile(InputProfile.GAME).parts.getValue(InputRole.PRIMARY).layout)
         assertEquals(InputLibraries.OVERLAY, ControlsChoice.current(context, null, steamMode = true))
     }
+
+    private fun desktopMouseFirst(): String {
+        val mouse = SavedInputBindings("desktop.mouse", "Desktop / primary", false, InputLibraries.OVERLAY,
+            controls = mapOf(InputControl.A to InputAction.MouseButton(272), InputControl.LS to InputAction.Pointer()))
+        InputLibraries.update(context) { it.copy(bindings = listOf(mouse) + it.bindings).chooseBindings(InputProfile.DESKTOP, InputRole.PRIMARY, mouse.id) }
+        return mouse.id
+    }
+
+    @Test fun choosingTheGamepadKeepsEachModesOwnActions() {
+        val mouse = desktopMouseFirst()
+        val game = InputLibraries.read(context).profile(InputProfile.GAME).parts.getValue(InputRole.PRIMARY).bindings
+        ControlsChoice.choose(context, null, InputLibraries.OVERLAY, desktop = false)
+        ControlsChoice.choose(context, null, InputLibraries.OVERLAY, desktop = true)
+        val library = InputLibraries.read(context)
+        assertNotEquals(mouse, library.activePart(false, InputRole.PRIMARY).bindings)
+        assertEquals(game, library.activePart(false, InputRole.PRIMARY).bindings)
+        assertEquals(mouse, library.activePart(true, InputRole.PRIMARY).bindings)
+        ControlsChoice.choose(context, 7, InputLibraries.OVERLAY, desktop = false)
+        assertNotEquals(mouse, GameControls.bindings(context, 7))
+    }
+
+    @Test fun aGameSelectionHoldingDesktopActionsIsDroppedOnUpgrade() {
+        val mouse = desktopMouseFirst()
+        val broken = InputLibraries.read(context).selectPart(false, InputRole.PRIMARY, mouse)
+        val raw = org.json.JSONObject(InputLibraries.encode(broken)).put("version", 15).toString()
+        context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE).edit().putString("library", raw).commit()
+        val library = InputLibraries.read(context)
+        assertNull(library.selection(false).parts[InputRole.PRIMARY])
+        assertEquals(mouse, library.activePart(true, InputRole.PRIMARY).bindings)
+        assertEquals(InputLibraries.OVERLAY, ControlsChoice.current(context, null, steamMode = true))
+    }
 }
