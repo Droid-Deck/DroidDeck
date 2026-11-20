@@ -306,7 +306,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)
     private var relativeMouseMode by mutableIntStateOf(0)
     @Volatile private var appliedRelativeMouseMode: Int? = null
-    private val agentReadyListener: () -> Unit = { relativeMouseRetries = 0; requestRelativeMouse() }
+    private val agentReadyListener: () -> Unit = {
+        relativeMouseRetries = 0
+        requestRelativeMouse()
+        appliedOverlayPlanes = null
+        overlayPlanesRetries = 0
+        requestOverlayPlanes()
+    }
     private val appTextFocus get() = wowChat.request != null
     private val wowChat by lazy { com.droiddeck.launcher.ui.WowChat(this, ::sendWowChat, ::cancelWowChat, ::readGameField) }
     private var wowChatBottom: SecondScreenPresentation? = null
@@ -1038,6 +1044,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         updateOnScreenControls()
         WaylandCompositor.setFirstFrameListener(firstFrameListener)
         WaylandCompositor.setPointerLockListener(pointerLockListener)
+        WaylandCompositor.setOverlayPlanesListener(overlayPlanesListener)
         SessionEvents.markReadyIfPossible()
         SessionState.endListener = endListener
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -3751,8 +3758,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
 
-    private val relativeMouseRequests = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "relative-mouse").apply { isDaemon = true }
+    private val gamescopeConvarRequests = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "gamescope-convar").apply { isDaemon = true }
     }
     @Volatile private var desiredRelativeMouseMode = 0
 
@@ -3765,7 +3772,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun requestRelativeMouse() {
-        runCatching { relativeMouseRequests.execute { applyRelativeMouse() } }
+        runCatching { gamescopeConvarRequests.execute { applyRelativeMouse() } }
     }
 
     private fun applyRelativeMouse() {
@@ -3779,21 +3786,44 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         )) == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
         val mode = com.droiddeck.launcher.input.TouchGestureConfig.gamescopeRelativeMouse(wanted, mouseAttached(), touchpadRoute)
         if (appliedRelativeMouseMode == mode) return
+        if (setGamescopeConvar("relative_mouse", mode)) appliedRelativeMouseMode = mode
+        else if (relativeMouseRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestRelativeMouse() }, 2_000)
+        if (desiredRelativeMouseMode != wanted) requestRelativeMouse()
+    }
+
+    private fun setGamescopeConvar(name: String, value: Int): Boolean {
         val request = org.json.JSONObject()
             .put("kind", "exec")
-            .put("argv", org.json.JSONArray(listOf("gamescopectl", "relative_mouse", mode.toString())))
+            .put("argv", org.json.JSONArray(listOf("gamescopectl", name, value.toString())))
             .put("timeout", 5.0)
         val result = runCatching { AgentGuest.call(this, request, 8_000, trusted = true) }
         val answer = result.getOrNull()
         val applied = answer?.optBoolean("ok") == true
             && answer.optInt("exitCode", -1) == 0
             && !answer.optBoolean("timedOut")
-        if (applied) appliedRelativeMouseMode = mode
-        else {
-            Log.w(TAG, "gamescope did not take relative mouse $mode: ${result.exceptionOrNull() ?: answer}")
-            if (relativeMouseRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestRelativeMouse() }, 2_000)
-        }
-        if (desiredRelativeMouseMode != wanted) requestRelativeMouse()
+        if (!applied) Log.w(TAG, "gamescope did not take $name $value: ${result.exceptionOrNull() ?: answer}")
+        return applied
+    }
+
+    @Volatile private var desiredOverlayPlanes = -1
+    @Volatile private var appliedOverlayPlanes: Int? = -1
+    @Volatile private var overlayPlanesRetries = 0
+    private val overlayPlanesListener = WaylandCompositor.OverlayPlanesListener { planes ->
+        desiredOverlayPlanes = planes
+        overlayPlanesRetries = 0
+        requestOverlayPlanes()
+    }
+
+    private fun requestOverlayPlanes() {
+        runCatching { gamescopeConvarRequests.execute { applyOverlayPlanes() } }
+    }
+
+    private fun applyOverlayPlanes() {
+        val wanted = desiredOverlayPlanes
+        if (appliedOverlayPlanes == wanted) return
+        if (setGamescopeConvar("wayland_overlay_planes", wanted)) appliedOverlayPlanes = wanted
+        else if (overlayPlanesRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestOverlayPlanes() }, 2_000)
+        if (desiredOverlayPlanes != wanted) requestOverlayPlanes()
     }
 
     private fun refreshGestureConfig() {
@@ -6447,7 +6477,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (AgentGuest.readyListener === agentReadyListener) AgentGuest.readyListener = null
         if (com.droiddeck.launcher.agent.AgentAttachments.gameFrame === gameFrame) com.droiddeck.launcher.agent.AgentAttachments.gameFrame = null
         com.droiddeck.launcher.input.HomeButtonShortcuts.detach(this)
-        relativeMouseRequests.shutdownNow()
+        gamescopeConvarRequests.shutdownNow()
         backQamInput.cancel()
         steamVrRecovery.close()
         uiHandler.removeCallbacks(steamTouchRetry)
@@ -6490,6 +6520,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (SessionState.endListener === endListener) SessionState.endListener = null
         WaylandCompositor.clearFirstFrameListener(firstFrameListener)
         WaylandCompositor.clearPointerLockListener(pointerLockListener)
+        WaylandCompositor.clearOverlayPlanesListener(overlayPlanesListener)
         super.onDestroy()
     }
 

@@ -94,6 +94,29 @@ public final class WaylandCompositor {
         if (l != null) l.onPointerLock(locked, x, y);
     }
 
+    public interface OverlayPlanesListener {
+        void onOverlayPlanes(int planes);
+    }
+
+    private static volatile OverlayPlanesListener overlayPlanesListener;
+    private static volatile int overlayPlanes = -1;
+
+    public static void setOverlayPlanesListener(OverlayPlanesListener l) {
+        overlayPlanesListener = l;
+        if (l != null) l.onOverlayPlanes(overlayPlanes);
+    }
+
+    public static void clearOverlayPlanesListener(OverlayPlanesListener l) {
+        if (overlayPlanesListener == l) overlayPlanesListener = null;
+    }
+
+    @SuppressWarnings("unused")
+    static void onOverlayPlanes(int planes) {
+        overlayPlanes = planes;
+        OverlayPlanesListener l = overlayPlanesListener;
+        if (l != null) l.onOverlayPlanes(planes);
+    }
+
     public interface ClipboardListener {
         void onGuestClipboardText(String text);
     }

@@ -66,6 +66,7 @@ static jmethodID g_on_game_program;
 static jmethodID g_on_pointer_lock;
 static jmethodID g_on_clipboard;
 static jmethodID g_on_text_input;
+static jmethodID g_on_overlay_planes;
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     (void)reserved;
@@ -87,6 +88,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
             g_on_clipboard = (*env)->GetStaticMethodID(env, g_compositor_cls, "onClipboardText", "([B)V");
             g_on_text_input = (*env)->GetStaticMethodID(env, g_compositor_cls, "onTextInput",
                                                         "(ZLjava/lang/String;IIII)V");
+            g_on_overlay_planes = (*env)->GetStaticMethodID(env, g_compositor_cls, "onOverlayPlanes", "(I)V");
         }
     }
     return JNI_VERSION_1_6;
@@ -144,6 +146,13 @@ void droiddeck_on_game_frame(void) {
     JNIEnv *env;
     if (!g_compositor_cls || !g_on_game_frame || !(env = thread_env())) return;
     (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_game_frame);
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+}
+
+void droiddeck_on_overlay_planes(int planes) {
+    JNIEnv *env;
+    if (!g_compositor_cls || !g_on_overlay_planes || !(env = thread_env())) return;
+    (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_overlay_planes, (jint)planes);
     if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
 }
 

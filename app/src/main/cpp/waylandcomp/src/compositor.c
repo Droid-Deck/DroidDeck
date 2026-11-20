@@ -326,6 +326,16 @@ volatile int g_hide_shell;
 
 volatile int g_zero_copy;
 static int g_zero_copy_paused;
+extern volatile int g_display_buffer_driver;
+extern void droiddeck_on_overlay_planes(int planes);
+static int g_overlay_planes_told = -1;
+
+static void tell_overlay_planes(void) {
+    const int planes = (g_zero_copy && g_display_buffer_driver) ? (sc_layer_overlay_affordable() ? 1 : 0) : -1;
+    if (planes == g_overlay_planes_told) return;
+    g_overlay_planes_told = planes;
+    droiddeck_on_overlay_planes(planes);
+}
 static int g_zero_copy_fx_skip_said;
 
 volatile int g_ubwc = 1;
@@ -2458,6 +2468,7 @@ static void render_scene(void) {
         rendered = vkp_render(w, h, dl.d, dl.n) == 0;
     } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
+    tell_overlay_planes();
     int li = (g_zero_copy && !framegen && !bfi && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0;
     const int fx_blocks = (li >= 0 && fx_on && over > 0);

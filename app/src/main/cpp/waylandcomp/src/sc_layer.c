@@ -1037,8 +1037,9 @@ int sc_layer_overlay_affordable(void) {
         if (want)
             droiddeck_log("layer", "overlay layer declined: this display rotates every layer %d° and the game "
                        "layer is scaled %dx%d -> %dx%d, and on that combination a second layer drops the "
-                       "whole frame to GPU composition for the rest of the session (measured). The window "
-                       "above the game goes on the copy path instead - same picture, one blit.",
+                       "whole frame to GPU composition for the rest of the session (measured). A nested "
+                       "compositor is asked to compose its own overlays into the game picture; any other "
+                       "window above the game goes on the copy path instead.",
                        deg, sr[0], sr[1], ds[0], ds[1]);
         else if (!first)
             droiddeck_log("layer", "overlay layer allowed again: the game layer is no longer both rotated and "

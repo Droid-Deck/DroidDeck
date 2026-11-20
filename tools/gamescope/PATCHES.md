@@ -358,3 +358,20 @@ and clears the held flag. wlroots counts repeated presses of one button and send
 reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
 game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
 earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.
+
+## 0135 Wayland backend: a limit on the planes handed to the host
+
+`wayland_overlay_planes` says how many planes above the base one the host compositor shows without composing them
+itself. With more layers than that, gamescope composites them into one picture, as it already does for a scaler or
+`composite_force`. -1, the default, keeps every layer on its own plane. The app sets it while a host that shows the
+game picture directly cannot give an overlay a display layer of its own, so the overlay is drawn into the game
+picture here and the frame still reaches the display without a copy.
+
+## 0136 rendervulkan, Wayland backend: composite only into output images the host has released
+
+The composite output images were used in a fixed rotation of three, with no check that the host compositor had
+released the one about to be written. A host that puts the buffer on the display itself, without copying it, was
+still reading that image when the next composite wrote into it. A backend framebuffer now says whether the host
+holds it, the Wayland backend answers from the buffer's release event, and the composite takes the next image the
+host does not hold. Backends that are not a session get five images instead of three, so one is free while the
+host holds two and the last and deferred pictures stay intact. Session backends keep three images and their order.
