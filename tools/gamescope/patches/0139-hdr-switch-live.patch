@@ -40,3 +40,15 @@ index 9862641..e9d2923 100644
          }
  
          WritePatchedEdid( GetCurrentConnector()->GetRawEDID(), GetCurrentConnector()->GetHDRInfo(), false );
+diff --git a/src/rendervulkan.cpp b/src/rendervulkan.cpp
+index 42cc9c4..d0d21f0 100644
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -3735,6 +3735,7 @@ bool vulkan_remake_output_images()
+ 
+ 	if ( vulkan_defer_output_images() )
+ 	{
++		GetBackend()->GetPreferredOutputFormat( &pOutput->uOutputFormat, &pOutput->uOutputFormatOverlay );
+ 		pOutput->outputImages.clear();
+ 		pOutput->outputImagesPartialOverlay.clear();
+ 		pOutput->temporaryHackyBlankImage = vulkan_create_debug_blank_texture();

@@ -404,5 +404,5 @@ session started with HDR off told its clients the display had no HDR for as long
 carried `DXVK_HDR=0`. Whether the display can show HDR now comes from the host's output description alone, and
 `hdr_enabled` decides only whether HDR is used, so setting it during a session takes effect on the next frame in
 either direction. The 10-bit output format is chosen only while HDR is enabled, so an SDR session keeps the 8-bit
-output it had. On a display that can show HDR, a session that starts with HDR off leaves `DXVK_HDR` unset instead of
+output it had, and the output images are made again in the other format when the setting changes. On a display that can show HDR, a session that starts with HDR off leaves `DXVK_HDR` unset instead of
 forcing it to 0, so a game started after HDR is switched on finds it.

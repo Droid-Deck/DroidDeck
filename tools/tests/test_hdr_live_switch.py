@@ -26,6 +26,14 @@ class HdrLiveSwitchTest(unittest.TestCase):
         self.assertEqual(len(added), 1)
         self.assertRegex(added[0], r"cv_hdr_enabled && u10BitFormat != DRM_FORMAT_INVALID \) \? u10BitFormat : u8BitFormat")
 
+    def test_remade_output_images_pick_the_format_again(self):
+        text = PATCH.read_text()
+        hunk = text[text.index("src/rendervulkan.cpp"):]
+        added = [line[1:] for line in hunk.splitlines() if line.startswith("+") and not line.startswith("+++")]
+        self.assertEqual([line.strip() for line in added],
+                         ["GetBackend()->GetPreferredOutputFormat( &pOutput->uOutputFormat, &pOutput->uOutputFormatOverlay );"])
+        self.assertIn("if ( vulkan_defer_output_images() )", hunk[:hunk.index(added[0])])
+
     def test_capable_display_does_not_force_dxvk_hdr_off(self):
         added = "\n".join(lines("+"))
         self.assertIn('unsetenv( "DXVK_HDR" )', added)
