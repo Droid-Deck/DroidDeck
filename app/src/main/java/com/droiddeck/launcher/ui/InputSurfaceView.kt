@@ -493,8 +493,8 @@ class InputSurfaceView(
 
         override fun onDraw(canvas: Canvas) {
             if (hideWhenIdle && !touching) return
-            val cx = if (touching) originX else centreX()
-            val cy = if (touching) originY else height / 2f
+            val cx = if (touching) inParent(originX, left, (parent as? View)?.width ?: width) else centreX()
+            val cy = if (touching) inParent(originY, top, (parent as? View)?.height ?: height) else height / 2f
             val r = radius()
             val travel = r * KNOB_TRAVEL / reach().coerceAtLeast(1f)
             art.stick(canvas, cx, cy, r, kit, knobX * travel, knobY * travel, touching || clicking)
@@ -530,6 +530,13 @@ class InputSurfaceView(
                 }
             }
             return true
+        }
+
+        /** Where the base is drawn for a stick centred at [at], so it stays whole inside the overlay; input still centres on the touch. */
+        private fun inParent(at: Float, offset: Int, span: Int): Float {
+            val r = radius()
+            val low = r - offset; val high = span - offset - r
+            return if (low > high) at else at.coerceIn(low, high)
         }
 
         private fun follow(x: Float, y: Float, r: Float, force: Boolean = false) {

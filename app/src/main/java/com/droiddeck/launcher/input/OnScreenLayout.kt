@@ -56,14 +56,21 @@ object OnScreenLayout {
         val w = width.toFloat()
         val h = height.toFloat()
         val scale = min(w / referenceWidth, h / referenceHeight)
+        // A layout shown on a screen of the other orientation keeps its shape: spread by thirds, its clusters would come apart.
+        val blockX = w > referenceWidth * scale * BLOCK_STRETCH
+        val blockY = h > referenceHeight * scale * BLOCK_STRETCH
         return elements.map { e ->
             val ew = e.width * referenceWidth * scale
             val eh = e.height * referenceHeight * scale
-            val left = anchor(e.x, e.width, referenceWidth, w, scale).coerceIn(safe.left.toFloat(), max(safe.left.toFloat(), w - safe.right - ew))
-            val top = anchor(e.y, e.height, referenceHeight, h, scale).coerceIn(safe.top.toFloat(), max(safe.top.toFloat(), h - safe.bottom - eh))
+            val x = if (blockX) (w + safe.left - safe.right) / 2f + (e.x - .5f) * referenceWidth * scale else anchor(e.x, e.width, referenceWidth, w, scale)
+            val y = if (blockY) h - safe.bottom - (1f - e.y) * referenceHeight * scale else anchor(e.y, e.height, referenceHeight, h, scale)
+            val left = x.coerceIn(safe.left.toFloat(), max(safe.left.toFloat(), w - safe.right - ew))
+            val top = y.coerceIn(safe.top.toFloat(), max(safe.top.toFloat(), h - safe.bottom - eh))
             e.copy(x = left / w, y = top / h, width = ew / w, height = eh / h).bounded()
         }
     }
+
+    private const val BLOCK_STRETCH = 1.5f
 
     private fun anchor(start: Float, size: Float, reference: Float, actual: Float, scale: Float): Float {
         val centre = start + size / 2f

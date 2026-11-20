@@ -239,14 +239,29 @@ object InputLibraries {
         return library.withLayout(saved.copy(elements = InputStockLayouts.gamepad(leftPad, rightStick))).validate()
     }
 
-    /** Gamepads saved by the old editor follow the virtual controller's kit again; their positions don't map onto the new controls. */
+    /**
+     * Gamepads saved by the old editor follow the virtual controller's kit again; their positions don't map onto the new controls.
+     * One that kept positions for the kit's controls is also kept as it was, under its own name, with its actions.
+     */
     private fun kitGamepads(library: InputLibrary): InputLibrary {
-        return library.copy(layouts = library.layouts.map { layout ->
+        val kept = mutableListOf<SavedInputLayout>()
+        val keptBindings = mutableListOf<SavedInputBindings>()
+        val layouts = library.layouts.map { layout ->
             val origin = layout.origin ?: layout.id
             if (origin != OVERLAY && !origin.startsWith("migrated.layout.")) return@map layout
             val extras = layout.elements.filterNot { KitLayout.isKit(it.id) }
+            if (extras.size < layout.elements.size && library.layouts.size + kept.size < 256) {
+                val id = "kept." + UUID.nameUUIDFromBytes(layout.id.toByteArray(Charsets.UTF_8))
+                if (library.layouts.none { it.id == id }) {
+                    val name = "${layout.name} (old layout)".take(80)
+                    kept += layout.copy(id = id, name = name, origin = null, kitless = true)
+                    for (b in library.bindings.filter { it.layoutId == layout.id }) if (library.bindings.size + keptBindings.size < 512)
+                        keptBindings += b.copy(id = "kept." + UUID.nameUUIDFromBytes((b.id + "\u0000" + id).toByteArray(Charsets.UTF_8)), name = name, layoutId = id)
+                }
+            }
             layout.copy(elements = extras, origin = if (layout.id == OVERLAY) null else OVERLAY, aspect = if (extras.isEmpty()) 0f else layout.aspect, scale = 1f)
-        }).validate()
+        }
+        return library.copy(layouts = layouts + kept, bindings = library.bindings + keptBindings).validate()
     }
 
     private fun migrationBindingId(library: InputLibrary, binding: String, layout: String): String {
