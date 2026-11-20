@@ -445,12 +445,13 @@ class InputLibraryTest {
         assertEquals(oldLayout.elements, InputLibraries.read(context).activeLayout(false, InputRole.PRIMARY)?.elements)
     }
 
-    @Test fun uneditedOldStockGeometryFollowsTheNewKit() {
-        val fresh = InputLibraries.read(context)
-        val (display, metrics) = InputLibraries.primaryDisplay(context)
-        val stock = LegacyLayoutGeometry(display, metrics.widthPixels, metrics.heightPixels).elements()
-        val oldLayout = fresh.layouts.single { it.id == InputLibraries.OVERLAY }.copy(elements = stock)
-        prefs.edit().putString("library", JSONObject(InputLibraries.encode(fresh.withLayout(oldLayout))).put("version", 14).toString()).commit()
+    @Test
+    @Config(qualifiers = "w640dp-h360dp-land-mdpi")
+    fun uneditedOldStockGeometryFollowsTheNewKit() {
+        // Captured with InputLibraries.read and encode at 56986b599 on the same display configuration.
+        val old = requireNotNull(javaClass.getResource("/input/schema14-stock.json")).readText()
+        assertEquals(14, JSONObject(old).getInt("version"))
+        prefs.edit().putString("library", old).commit()
 
         val upgraded = InputLibraries.read(context)
         assertEquals(InputLibraries.OVERLAY, upgraded.activeLayout(false, InputRole.PRIMARY)?.id)
