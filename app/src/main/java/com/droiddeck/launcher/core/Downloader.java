@@ -42,7 +42,25 @@ public final class Downloader {
                 return thread;
             });
 
+    private static final ThreadLocal<String> LAST_FAILURE = new ThreadLocal<>();
+
     private Downloader() {}
+
+    public static String lastFailure() {
+        return LAST_FAILURE.get();
+    }
+
+    private static void failed(String url, String reason) {
+        String host;
+        try { host = new java.net.URI(url).getHost(); } catch (java.net.URISyntaxException e) { host = null; }
+        String entry = (host == null ? url : host) + ": " + reason;
+        String earlier = LAST_FAILURE.get();
+        LAST_FAILURE.set(earlier == null ? entry : earlier + "; " + entry);
+    }
+
+    private static String describe(Exception e) {
+        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getClass().getSimpleName() + ": " + e.getMessage();
+    }
 
     public static final class Cancellation implements java.util.function.BooleanSupplier {
         private final AtomicBoolean cancelled = new AtomicBoolean();
@@ -161,6 +179,7 @@ public final class Downloader {
                                       String expectedSha256, java.util.function.BooleanSupplier cancelled,
                                       java.util.function.Consumer<Float> progress) {
         Identity identity = loadIdentity(destination, resume, expectedSha256);
+        LAST_FAILURE.remove();
         boolean speedChecked = sources.size() < 2;
         for (int i = 0; i < sources.size(); i++) {
             String source = sources.get(i);
@@ -183,12 +202,14 @@ public final class Downloader {
                     if (isCancelled(cancelled)) return false;
                     if (!expectedSha256.equalsIgnoreCase(actualSha256)) {
                         Log.w(TAG, "checksum mismatch from " + source + "; trying another source");
+                        failed(source, "checksum mismatch");
                         if (!discardPartial(destination, identity)) return false;
                         continue;
                     }
                 }
                 if (isCancelled(cancelled)) return false;
                 resumeFile(destination).delete();
+                LAST_FAILURE.remove();
                 DownloadSource.INSTANCE.succeeded(source);
                 if (progress != null) progress.accept(1f);
                 return true;
@@ -296,6 +317,7 @@ public final class Downloader {
             }
             if (code / 100 != 2) {
                 Log.w(TAG, url + " -> HTTP " + code);
+                failed(url, "HTTP " + code);
                 return code == HttpURLConnection.HTTP_NOT_FOUND || code == HttpURLConnection.HTTP_GONE
                         ? Outcome.FATAL : Outcome.RETRY;
             }
@@ -352,11 +374,15 @@ public final class Downloader {
                 if (cancelled instanceof Cancellation) ((Cancellation) cancelled).detach(input);
             }
             if (isCancelled(cancelled)) return Outcome.CANCELLED;
-            if (total > 0 && written < total) return Outcome.RETRY;
+            if (total > 0 && written < total) {
+                failed(url, "connection closed after " + written + " of " + total + " bytes");
+                return Outcome.RETRY;
+            }
             return Outcome.DONE;
         } catch (Exception e) {
             if (isCancelled(cancelled)) return Outcome.CANCELLED;
             Log.w(TAG, "download " + url, e);
+            failed(url, describe(e));
             return Outcome.RETRY;
         } finally {
             if (connection != null) {
@@ -452,6 +478,7 @@ public final class Downloader {
             int code = connection.getResponseCode();
             if (code / 100 != 2) {
                 Log.w(TAG, url + " -> HTTP " + code);
+                failed(url, "HTTP " + code);
                 return new Fetch(null, code == HttpURLConnection.HTTP_NOT_FOUND || code == HttpURLConnection.HTTP_GONE);
             }
             try (InputStream in = connection.getInputStream();
@@ -462,6 +489,7 @@ public final class Downloader {
         } catch (Exception e) {
             if (isCancelled(cancelled)) return new Fetch(null, false);
             Log.w(TAG, "GET " + url, e);
+            failed(url, describe(e));
             return new Fetch(null, false);
         } finally {
             if (connection != null) {
