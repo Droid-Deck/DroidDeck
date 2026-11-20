@@ -2194,7 +2194,18 @@ static struct surface *hdr_unimported_fullscreen(const struct draw_list *dl, int
 
 static int is_hdr_surface(struct surface *s) {
     const struct droiddeck_color *c = s ? droiddeck_color_of(s->resource) : NULL;
+    return c && (c->dataspace || c->convert);
+}
+
+static int is_raw_hdr_surface(struct surface *s) {
+    const struct droiddeck_color *c = s ? droiddeck_color_of(s->resource) : NULL;
     return c && c->dataspace;
+}
+
+static int framegen_fits_layer(void) {
+    const int64_t rate = (int64_t)g_content_fps * (1 + vkp_framegen_extra_images()) * 1000;
+    return g_content_fps > 0 &&
+           rate * 100 <= (int64_t)atomic_load(&g_output_refresh_mhz) * (g_framegen_layer ? 108 : 104);
 }
 
 static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int framegen, struct hdr_scene *hs) {
@@ -2203,7 +2214,7 @@ static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int fra
     struct surface *un = hdr_unimported_fullscreen(dl, w, h);
     if (!un) {
         struct surface *lo = ahb_layer_only_candidate(w, h);
-        if (lo && is_hdr_surface(lo)) un = lo;
+        if (lo && is_raw_hdr_surface(lo)) un = lo;
     }
     if (un && g_zero_copy) { hs->color = droiddeck_color_of(un->resource); hs->who = un; return 3; }
     hs->hf.tonemap = !droiddeck_color_output();
@@ -2211,24 +2222,47 @@ static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int fra
     for (int i = 0; i < dl->n; i++) {
         struct surface *s = surface_for_image(dl->d[i].img);
         if (!is_hdr_surface(s)) continue;
-        hs->is_hdr[i] = 1;
+        const struct droiddeck_color *c = droiddeck_color_of(s->resource);
+        if (c->convert && hs->hf.convert && hs->hf.convert->identity != c->identity) {
+            static int said;
+            if (!said) {
+                said = 1;
+                droiddeck_log("color", "two windows need different colour conversions in one frame: the upper one is "
+                           "shown as SDR");
+            }
+            continue;
+        }
+        hs->is_hdr[i] = c->convert ? 2 : 1;
+        if (c->convert) hs->hf.convert = c;
         hs->n_hdr++;
-        hs->color = droiddeck_color_of(s->resource);
+        hs->color = c;
         hs->who = s;
     }
     if (!hs->n_hdr) { free(hs->is_hdr); hs->is_hdr = NULL; return 0; }
+    if (hs->color->convert) {
+        static struct droiddeck_color composed;
+        composed = *hs->color;
+        composed.dataspace = DROIDDECK_ADATASPACE_BT2020_PQ;
+        composed.convert = 0;
+        hs->color = &composed;
+    }
     hs->hf.is_hdr = hs->is_hdr;
     hs->hf.color = hs->color;
     hs->hf.peak_nits = hs->color->max_cll > 0.0f ? hs->color->max_cll
                      : hs->color->has_st2086 ? hs->color->max_lum : 1000.0f;
-    if (framegen) return 2;
+    if (framegen) {
+        if (!g_zero_copy || !framegen_fits_layer()) return 2;
+        hs->why = "frame generation is on";
+        return 1;
+    }
     int li = g_zero_copy ? layer_candidate(dl, w, h) : -1;
     int over = li >= 0 ? dl->n - 1 - li : 0;
-    if (!hs->hf.tonemap && !fx_on && li >= 0 && hs->is_hdr[li] &&
+    if (!hs->hf.tonemap && !hs->hf.convert && !fx_on && li >= 0 && hs->is_hdr[li] &&
         (over == 0 || (over == 1 && sc_layer_overlay_affordable())))
         return 0;
     hs->why = hs->hf.tonemap ? "HDR output is switched off in the drawer"
             : fx_on ? "screen effects are on"
+            : hs->hf.convert ? "its colours are converted to BT.2020 PQ"
             : !g_zero_copy ? "zero-copy presentation is off"
             : (li >= 0 && hs->is_hdr[li]) ? "a window is above the game and this display cannot compose a second layer"
             : "the HDR game is not one fullscreen window";
@@ -2301,8 +2335,7 @@ static void hdr_note_precedence(struct surface *hs, int fx_on, int framegen) {
 static void hdr_count_copied(const struct draw_list *dl, const char *reason) {
     for (int i = 0; i < dl->n; i++) {
         struct surface *s = surface_for_image(dl->d[i].img);
-        const struct droiddeck_color *c = s ? droiddeck_color_of(s->resource) : NULL;
-        if (!c || !c->dataspace) continue;
+        if (!is_hdr_surface(s)) continue;
         char name[160];
         describe(s, name, sizeof(name));
         droiddeck_color_frame_copied(name, reason);
@@ -2507,7 +2540,13 @@ static void render_scene(void) {
         static int fell_back;
         vkp_apply_window_request();
         sc_layer_hide_overlay();
-        if (sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color) == 0) {
+        const int generated = framegen ? sc_layer_present_generated(dl.d, dl.n, &hs.hf, w, h, 1, hs.color) : 0;
+        if (framegen) g_framegen_layer = generated >= 0;
+        if (generated > 0 && g_framegen_layer_said != 3) {
+            g_framegen_layer_said = 3;
+            droiddeck_log("framegen", "generated frames and the composed HDR picture go on the game's display layer");
+        }
+        if (framegen ? generated >= 0 : sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color) == 0) {
             rendered = vkp_base_black(w, h) == 0;
             if (fell_back) { fell_back = 0; droiddeck_log("color", "the composed picture is on the game's display layer again"); }
         } else {
@@ -2534,9 +2573,7 @@ static void render_scene(void) {
     } else if (hdr_route == 0 || hdr_route == 3) {
     const int pass_on = fx_on || framegen;
     tell_overlay_planes();
-    const int64_t fg_rate = (int64_t)g_content_fps * (1 + vkp_framegen_extra_images()) * 1000;
-    const int fg_layer = framegen && !fx_on && hdr_route == 0 && g_content_fps > 0 &&
-                         fg_rate * 100 <= (int64_t)atomic_load(&g_output_refresh_mhz) * (g_framegen_layer ? 108 : 104);
+    const int fg_layer = framegen && hdr_route == 0 && framegen_fits_layer();
     g_framegen_layer = fg_layer;
     int li = (g_zero_copy && (!framegen || fg_layer) && !bfi && !cardboard && !cursor_on) ? layer_candidate(&dl, w, h) : -1;
     int over = li >= 0 ? dl.n - 1 - li : 0;
@@ -2580,15 +2617,21 @@ static void render_scene(void) {
     if (li >= 0 || ls) {
         vkp_apply_window_request();
         int r = -1;
+        const int fg_pass = framegen && fx_on && li >= 0;
         const int generated = (framegen && li >= 0)
-                                  ? sc_layer_present_generated(&dl.d[li], w, h, ls ? droiddeck_surface_color(ls) : NULL) : 0;
-        if (generated > 0 && !g_framegen_layer_said) {
-            g_framegen_layer_said = 1;
-            droiddeck_log("framegen", "generated frames go on the game's display layer between the game's own frames");
+                                  ? sc_layer_present_generated(&dl.d[li], 1, NULL, w, h, fg_pass,
+                                                               ls ? droiddeck_surface_color(ls) : NULL) : 0;
+        if (generated > 0 && g_framegen_layer_said != 1 + fg_pass) {
+            g_framegen_layer_said = 1 + fg_pass;
+            droiddeck_log("framegen", fg_pass
+                       ? "generated frames and the game's frames go on the game's display layer straight from the screen effects pass"
+                       : "generated frames go on the game's display layer between the game's own frames");
         }
-        if (generated >= 0 && !(fx_on && li >= 0) && ls && ls->dmabuf_buf && ahb_swapchain_has_ahb(ls->dmabuf_buf))
+        if (fg_pass)
+            r = generated >= 0 ? 0 : -1;
+        else if (generated >= 0 && !(fx_on && li >= 0) && ls && ls->dmabuf_buf && ahb_swapchain_has_ahb(ls->dmabuf_buf))
             r = ahb_swapchain_present(ls->dmabuf_buf, ls, w, h, ld);
-        if (generated >= 0 && r != 0 && li >= 0)
+        if (!fg_pass && generated >= 0 && r != 0 && li >= 0)
             r = fx_on ? sc_layer_present_pass(&dl.d[li], 1, w, h)
                       : sc_layer_present(dl.d[li].img, w, h, ld, ls ? droiddeck_surface_color(ls) : NULL);
         if (r == 0) {

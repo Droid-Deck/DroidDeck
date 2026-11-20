@@ -1880,6 +1880,11 @@ static int compose_hdr(VkCommandBuffer cmd, const struct vkp_draw *draws, int n,
 
     struct hdrc_params p = {.mode = mode, .sdr_white_nits = droiddeck_color_sdr_white(),
                             .peak_nits = hf->peak_nits > 0.0f ? hf->peak_nits : 1000.0f};
+    if (hf->convert) {
+        p.conv_linear = hf->convert->convert == 2;
+        p.conv_gain = hf->convert->gain;
+        memcpy(p.conv, hf->convert->to2020, sizeof(p.conv));
+    }
     int lowest_hdr = -1;
     for (int i = 0; i < n; i++) {
         VkImageBlit blit;
@@ -1896,6 +1901,7 @@ static int compose_hdr(VkCommandBuffer cmd, const struct vkp_draw *draws, int n,
             p.rects[p.count][0] = (float)blit.dstOffsets[0].x; p.rects[p.count][1] = (float)blit.dstOffsets[0].y;
             p.rects[p.count][2] = (float)blit.dstOffsets[1].x; p.rects[p.count][3] = (float)blit.dstOffsets[1].y;
             if (hf->is_hdr[i]) p.hdr_mask |= 1u << p.count;
+            if (hf->is_hdr[i] == 2 && hf->convert) p.conv_mask |= 1u << p.count;
             p.count++;
         }
         if (i >= lowest_hdr && !truncated_said) {
@@ -2714,8 +2720,9 @@ int vkp_pass_begin(int scene_w, int scene_h, const struct vkp_draw *draws, int n
     return pass_begin_impl(scene_w, scene_h, draws, n, NULL, 0, rw, rh);
 }
 
-int vkp_pass_begin_generate(int scene_w, int scene_h, const struct vkp_draw *draws, int n, int *rw, int *rh) {
-    if (pass_begin_impl(scene_w, scene_h, draws, n, NULL, 1, rw, rh) != 0) return -1;
+int vkp_pass_begin_generate(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
+                            const struct vkp_hdr_frame *hf, int *rw, int *rh) {
+    if (pass_begin_impl(scene_w, scene_h, draws, n, hf, 1, rw, rh) != 0) return -1;
     return g_pass.ngen;
 }
 
@@ -2748,13 +2755,31 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
         effects_source_note(scene_w, scene_h, draws, n, input_w, input_h,
                             (int)(scene_w * g_map.kx + 0.5f), (int)(scene_h * g_map.ky + 0.5f));
     }
-    if (hf) {
+    const int deep = hf && generate && !hf->tonemap && vkp_framegen_format_ok(FG_HDR_FMT) &&
+                     ensure_img(&g_fgscene, scene_w, scene_h, FG_HDR_FMT,
+                                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                "HDR frame generation (scene)") == 0;
+    const int narrow = hf && generate && !deep;
+    if (hf && !deep && !narrow) {
         if (ensure_img(&g_hdrscene, scene_w, scene_h, HDR_FMT,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                        "HDR composition (picture)") != 0)
             return -1;
-    } else if (ensure_scene_image(input_w, input_h) != 0) return -1;
+    } else if (!deep && ensure_scene_image(input_w, input_h) != 0) return -1;
+    const VkFormat scene_fmt = deep ? FG_HDR_FMT : narrow || !hf ? SCENE_FMT : HDR_FMT;
+    if (hf && generate) {
+        static int said = -1;
+        if (said != deep + 2 * hf->tonemap) {
+            said = deep + 2 * hf->tonemap;
+            droiddeck_log("color", hf->tonemap
+                ? "frame generation runs on the tone-mapped picture in 8 bits, onto the game's display layer"
+                : deep ? "frame generation runs on the HDR picture in FP16 (RGBA16F), onto the game's display layer"
+                       : "frame generation runs on the HDR picture in 8 bits (the engine cannot take FP16 here), onto "
+                         "the game's display layer: banding possible in smooth gradients");
+        }
+    }
 
     VkCommandBuffer cmd = g_cmds[0];
     g_vk.ResetCommandBuffer(cmd, 0);
@@ -2768,7 +2793,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
     VkImageMemoryBarrier *bars = calloc((size_t)n + 1, sizeof(*bars));
     if (!bars) { g_vk.EndCommandBuffer(cmd); return -1; }
     int nb = 0;
-    VkImage scene_img = hf ? g_hdrscene.img : g_scene.img;
+    VkImage scene_img = deep ? g_fgscene.img : narrow || !hf ? g_scene.img : g_hdrscene.img;
     bars[nb++] = (VkImageMemoryBarrier){
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -2799,12 +2824,12 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
     free(bars);
 
     if (hf) {
-        if (compose_hdr(cmd, draws, n, hf, scene_w, scene_h, g_hdrscene.img, HDR_FMT,
+        if (compose_hdr(cmd, draws, n, hf, scene_w, scene_h, scene_img, scene_fmt,
                         hf->tonemap ? HDRC_OUT_SDR : HDRC_OUT_PQ) != 0) {
             g_vk.EndCommandBuffer(cmd);
             return -1;
         }
-        if (vkp_effects_active()) vkp_effects_set_formats(HDR_FMT, HDR_FMT);
+        if (vkp_effects_active()) vkp_effects_set_formats(scene_fmt, scene_fmt);
     } else {
         VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
         g_vk.CmdClearColorImage(cmd, g_scene.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
@@ -2841,7 +2866,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
         g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                                 VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                 0, 0, NULL, 0, NULL, 1, &b);
-        int ngen = vkp_framegen_run(cmd, g_pass.result, VK_NULL_HANDLE, g_pass.rw, g_pass.rh, SCENE_FMT, g_pass.gens);
+        int ngen = vkp_framegen_run(cmd, g_pass.result, VK_NULL_HANDLE, g_pass.rw, g_pass.rh, scene_fmt, g_pass.gens);
         if (ngen < 0) ngen = 0;
         g_pass.ngen = ngen > VKP_FG_MAX_GENERATIONS ? VKP_FG_MAX_GENERATIONS : ngen;
     }
@@ -2914,9 +2939,13 @@ int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
     return pass_finish(&g_pass.result, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, &dst, 1, wait_fd);
 }
 
-int vkp_pass_copy_generated(struct vkp_image *const *dsts, int n, int wait_fd) {
+int vkp_pass_copy_generated(struct vkp_image *const *dsts, int n, struct vkp_image *real, int wait_fd) {
+    VkImage srcs[VKP_FG_MAX_GENERATIONS + 1];
+    struct vkp_image *all[VKP_FG_MAX_GENERATIONS + 1];
     if (n > g_pass.ngen) n = g_pass.ngen;
-    return pass_finish(g_pass.gens, VK_IMAGE_LAYOUT_GENERAL, dsts, n, wait_fd);
+    for (int i = 0; i < n; i++) { srcs[i] = g_pass.gens[i]; all[i] = dsts[i]; }
+    if (real) { srcs[n] = g_pass.result; all[n] = real; }
+    return pass_finish(srcs, VK_IMAGE_LAYOUT_GENERAL, all, n + (real ? 1 : 0), wait_fd);
 }
 
 void vkp_pass_abort(void) {

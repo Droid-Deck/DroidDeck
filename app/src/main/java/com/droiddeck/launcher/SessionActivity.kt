@@ -517,6 +517,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun fpsLimitKey(): String? = if (SessionState.running) SessionPrefs.fpsLimitKey(SessionState.mode, SessionState.gameId)
         else SessionPrefs.fpsLimitKey(intent.getStringExtra(SessionService.EXTRA_MODE), intent.getStringExtra(SessionService.EXTRA_GAME_ID))
     private var blackFrameInsertion by mutableStateOf(false)
+    private var hdrWanted by mutableStateOf(false)
+    private var hdrAvailable by mutableStateOf(false)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
         SessionState.program in setOf(
@@ -1655,6 +1657,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 blackFrameInsertion = on
                 CompositorHost.setBlackFrameInsertion(on, refreshHz(), outputFpsLimit())
             },
+            hdr = hdrWanted,
+            hdrAvailable = hdrAvailable,
+            onHdr = { on -> SessionPrefs.setHdr(this@SessionActivity, hdrPrefMode(), on); hdrWanted = on },
             onFrameGenPick = { mode ->
                 val appId = frameGenTargetGameId()
 
@@ -2502,6 +2507,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         hudOn = SessionPrefs.hudEnabled(this)
         gpuClockPin = gpuClockHeld()
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(this)
+        hdrWanted = SessionPrefs.hdr(this, hdrPrefMode())
+        hdrAvailable = HdrSupport.probe(this, glassesScreen?.display).reason == null
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
@@ -2776,27 +2783,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 Log.w(TAG, "could not point the compositor's log at $waylandLog", e)
             }
         }
-        val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+        val mode = hdrPrefMode()
         if (!CompositorHost.isStarted) {
             val probe = HdrSupport.probe(this, glassesScreen?.display)
+            SessionState.hdrDisplay = probe.reason == null
             WaylandCompositor.nativeSetHdrDisplay(
                 probe.displayId, probe.name, probe.formats, probe.hdr10,
                 probe.maxLuminance, probe.maxAverageLuminance, probe.minLuminance,
                 probe.ratioAvailable, probe.ratio, Build.VERSION.SDK_INT,
             )
             val wanted = SessionPrefs.hdr(this, mode)
-            val on = wanted && probe.reason == null
+            val tonemap = wanted && probe.reason != null && HdrSupport.blocked(this) == null
+            val on = wanted && (probe.reason == null || tonemap)
             SessionState.hdr = on
             if (on) {
                 try { android.system.Os.setenv("DROIDDECK_WAYLAND_HDR", "1", true) } catch (e: Exception) { Log.w(TAG, "DROIDDECK_WAYLAND_HDR", e) }
             }
             if (on || SessionPrefs.zeroCopy(this, mode)) WaylandCompositor.nativeSetZeroCopy(true)
             WaylandCompositor.nativeSetHdrRequest(
-                if (on) WaylandCompositor.HDR_MODE_ON else WaylandCompositor.HDR_MODE_OFF,
+                if (tonemap) WaylandCompositor.HDR_MODE_TONEMAP else if (on) WaylandCompositor.HDR_MODE_ON else WaylandCompositor.HDR_MODE_OFF,
                 "$mode session settings" + (if (wanted && !on) " (refused: ${probe.reason})" else ""),
                 on, on,
             )
-            Log.i(TAG, "hdr: " + (if (on) "on" else if (wanted) "wanted but ${probe.reason}" else "off") + " · display ${probe.formats.ifEmpty { "SDR" }}")
+            Log.i(TAG, "hdr: " + (if (tonemap) "tone-mapped (${probe.reason})" else if (on) "on" else if (wanted) "wanted but ${probe.reason}" else "off") + " · display ${probe.formats.ifEmpty { "SDR" }}")
         } else if (!SessionState.running && !SessionState.hdr) {
             WaylandCompositor.nativeSetZeroCopy(SessionPrefs.zeroCopy(this, mode))
         }
@@ -2973,6 +2982,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val capped = minOf(hz, PerfMode.peakRefreshCap(this), mirrorCap)
         return if (capped > 1f) capped else 60f
     }
+
+    private fun hdrPrefMode(): String =
+        SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
 
     private fun blackFrameInsertionAvailable(): Boolean {
         // Glasses that present the game run at their own rate, uncapped, as refreshHz() reads them.

@@ -96,6 +96,7 @@ struct vkp_hdr_frame {
     float peak_nits;
     int tonemap;
     const struct droiddeck_color *color;
+    const struct droiddeck_color *convert;
 };
 int vkp_render_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                    const struct vkp_hdr_frame *hf, int *how);
@@ -114,8 +115,9 @@ void vkp_signal_first_frame(void);
 
 int vkp_pass_begin(int scene_w, int scene_h, const struct vkp_draw *draws, int n, int *rw, int *rh);
 int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd);
-int vkp_pass_begin_generate(int scene_w, int scene_h, const struct vkp_draw *draws, int n, int *rw, int *rh);
-int vkp_pass_copy_generated(struct vkp_image *const *dsts, int n, int wait_fd);
+int vkp_pass_begin_generate(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
+                            const struct vkp_hdr_frame *hf, int *rw, int *rh);
+int vkp_pass_copy_generated(struct vkp_image *const *dsts, int n, struct vkp_image *real, int wait_fd);
 void vkp_pass_abort(void);
 
 void droiddeck_log(const char *tag, const char *fmt, ...) __attribute__((format(printf, 2, 3)));

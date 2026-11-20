@@ -59,6 +59,7 @@ class ModeSettings(
     val panelSize: Pair<Int, Int> = 1280 to 720,
     val hdr: Boolean,
     val hdrReason: String?,
+    val hdrDisplay: Boolean = true,
     val zeroCopy: Boolean = true,
     val gpuDrivers: String? = null,
     val upscaler: Int = 0,
@@ -279,7 +280,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         }
         SettingsGroup(stringResource(R.string.mode_hdr)) {
             ToggleRow(
-                host, "hdr", stringResource(R.string.mode_hdr10),
+                host, "hdr", stringResource(if (s.hdrDisplay) R.string.mode_hdr10 else R.string.drawer_fake_hdr),
                 s.hdrReason?.let { stringResource(R.string.mode_hdr_unavailable, it) }
                     ?: stringResource(R.string.mode_hdr_restart),
                 checked = s.hdr && s.hdrReason == null, enabled = s.hdrReason == null, onChange = a.onHdr,

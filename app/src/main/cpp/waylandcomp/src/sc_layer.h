@@ -7,6 +7,7 @@
 struct vkp_image;
 struct vkp_draw;
 struct droiddeck_color;
+struct vkp_hdr_frame;
 
 enum sc_layer_id { SC_LAYER_GAME = 0, SC_LAYER_OVERLAY = 1, SC_LAYER_COUNT = 2 };
 
@@ -24,10 +25,9 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
                      const struct droiddeck_color *color);
 
 int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int scene_h);
-int sc_layer_present_generated(const struct vkp_draw *draw, int scene_w, int scene_h,
-                               const struct droiddeck_color *color);
+int sc_layer_present_generated(const struct vkp_draw *draws, int n_draws, const struct vkp_hdr_frame *hf,
+                               int scene_w, int scene_h, int composed, const struct droiddeck_color *color);
 
-struct vkp_hdr_frame;
 int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct vkp_hdr_frame *hf,
                                int scene_w, int scene_h, const struct droiddeck_color *color);
 

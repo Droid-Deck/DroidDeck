@@ -320,7 +320,7 @@ public final class WaylandCompositor {
     public static native void nativeResetFirstFrame();
 
 
-    public static final int HDR_MODE_OFF = 0, HDR_MODE_ON = 1, HDR_MODE_FORCE = 2;
+    public static final int HDR_MODE_OFF = 0, HDR_MODE_ON = 1, HDR_MODE_FORCE = 2, HDR_MODE_TONEMAP = 3;
 
     public static native void nativeSetHdrRequest(int mode, String source, boolean dxvkHdr, boolean zeroCopyForced);
 

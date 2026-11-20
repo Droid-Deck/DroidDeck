@@ -981,43 +981,88 @@ static void slots_idle(struct layer *l, const int *idx, int from, int to) {
     pthread_mutex_unlock(&g_lock);
 }
 
-int sc_layer_present_generated(const struct vkp_draw *draw, int scene_w, int scene_h,
-                               const struct droiddeck_color *color) {
+static uint32_t g_hdr_pool_fmt = AHB_RGB10A2;
+
+static int take_hdr_slot(struct layer *l, int w, int h, int *wait_fd) {
+    g_alloc_failed = 0;
+    int idx = take_free_slot(l, w, h, g_hdr_pool_fmt, wait_fd);
+    if (idx < 0 && g_alloc_failed && g_hdr_pool_fmt == AHB_RGB10A2) {
+        g_hdr_pool_fmt = AHB_RGBA8;
+        droiddeck_log("color", "%s: this device will not make a 10-bit layer buffer (RGBA1010102): the HDR picture goes "
+                   "on 8-bit buffers instead (still tagged BT2020_PQ; less precision)", l->name);
+        idx = take_free_slot(l, w, h, g_hdr_pool_fmt, wait_fd);
+    }
+    return idx;
+}
+
+int sc_layer_present_generated(const struct vkp_draw *draws, int n_draws, const struct vkp_hdr_frame *hf,
+                               int scene_w, int scene_h, int composed, const struct droiddeck_color *color) {
     struct layer *l = layer_of(SC_LAYER_GAME);
-    int rw = 0, rh = 0, r[8], idx[VKP_FG_MAX_GENERATIONS], m = 0, first_fd = -1;
-    struct vkp_image *dst[VKP_FG_MAX_GENERATIONS];
+    int rw = 0, rh = 0, r[8], idx[VKP_FG_MAX_GENERATIONS + 1], m = 0, first_fd = -1, have_fd = 0;
+    struct vkp_image *dst[VKP_FG_MAX_GENERATIONS], *real = NULL;
     g_group_index = 0;
     g_group_frames = 1;
-    if (!draw || ensure_sc(l) != 0) return -1;
+    if (!draws || n_draws <= 0 || ensure_sc(l) != 0) return -1;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
-    int n = vkp_pass_begin_generate(scene_w, scene_h, draw, 1, &rw, &rh);
+    const int deep = hf && !hf->tonemap;
+    if (hf) composed = 1;
+    if (hf && hf->tonemap) color = NULL;
+    int n = vkp_pass_begin_generate(scene_w, scene_h, draws, n_draws, hf, &rw, &rh);
     if (n < 0) return -1;
-    if (n > 0 && !vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r)) n = 0;
+    const int mapped = vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r);
+    if (!mapped) n = 0;
+    if (composed) {
+        if (!mapped) { vkp_pass_abort(); sc_layer_hide(); return 0; }
+        idx[VKP_FG_MAX_GENERATIONS] = deep ? take_hdr_slot(l, rw, rh, &first_fd)
+                                           : take_free_slot(l, rw, rh, AHB_RGBA8, &first_fd);
+        if (idx[VKP_FG_MAX_GENERATIONS] < 0) { vkp_pass_abort(); log_drop(l); return 0; }
+        pthread_mutex_lock(&g_lock);
+        l->slots[idx[VKP_FG_MAX_GENERATIONS]].busy = 1;
+        pthread_mutex_unlock(&g_lock);
+        real = l->slots[idx[VKP_FG_MAX_GENERATIONS]].img;
+        have_fd = 1;
+    }
     for (; m < n; m++) {
         int fd;
-        idx[m] = take_free_slot(l, rw, rh, AHB_RGBA8, &fd);
+        idx[m] = take_free_slot(l, rw, rh, deep ? g_hdr_pool_fmt : AHB_RGBA8, &fd);
         if (idx[m] < 0) { log_drop(l); break; }
         pthread_mutex_lock(&g_lock);
         l->slots[idx[m]].busy = 1;
         pthread_mutex_unlock(&g_lock);
         dst[m] = l->slots[idx[m]].img;
-        if (m == 0) first_fd = fd;
+        if (!have_fd) { first_fd = fd; have_fd = 1; }
         else if (fd >= 0) { fence_wait(fd, 100); close(fd); }
     }
-    if (vkp_pass_copy_generated(dst, m, first_fd) != 0) { slots_idle(l, idx, 0, m); return -1; }
+    if (vkp_pass_copy_generated(dst, m, real, first_fd) != 0) {
+        slots_idle(l, idx, 0, m);
+        if (real) slots_idle(l, idx, VKP_FG_MAX_GENERATIONS, VKP_FG_MAX_GENERATIONS + 1);
+        return -1;
+    }
     g_group_frames = m + 1;
     for (int k = 0; k < m; k++) {
         if (present_slot(l, idx[k], r, color, 0) == 0) continue;
         slots_idle(l, idx, k, m);
+        if (real) slots_idle(l, idx, VKP_FG_MAX_GENERATIONS, VKP_FG_MAX_GENERATIONS + 1);
         g_group_index = 0;
         g_group_frames = 1;
         return -1;
     }
     vkp_framegen_presented(m);
+    if (real) {
+        if (present_slot(l, idx[VKP_FG_MAX_GENERATIONS], r, color, 0) != 0) {
+            slots_idle(l, idx, VKP_FG_MAX_GENERATIONS, VKP_FG_MAX_GENERATIONS + 1);
+            g_group_index = 0;
+            g_group_frames = 1;
+            return -1;
+        }
+        l->first_logged = 1;
+        vkp_signal_first_frame();
+    }
+    if (hf && hf->color && hf->color->dataspace)
+        droiddeck_color_frame_shown(hf->color, deep ? DROIDDECK_HDR_COMPOSED : DROIDDECK_HDR_TONEMAPPED,
+                                    deep ? g_hdr_pool_fmt : AHB_RGBA8);
     return m;
 }
-
-static uint32_t g_hdr_pool_fmt = AHB_RGB10A2;
 
 int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct vkp_hdr_frame *hf,
                                int scene_w, int scene_h, const struct droiddeck_color *color) {
@@ -1028,16 +1073,8 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
     if (vkp_pass_begin_hdr(scene_w, scene_h, draws, n, hf, &rw, &rh) != 0) return -1;
     if (!vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
     const int tm = hf->tonemap;
-    const uint32_t fmt = tm ? AHB_RGBA8 : g_hdr_pool_fmt;
-    g_alloc_failed = 0;
     int wait_fd;
-    int idx = take_free_slot(l, rw, rh, fmt, &wait_fd);
-    if (idx < 0 && g_alloc_failed && fmt == AHB_RGB10A2) {
-        g_hdr_pool_fmt = AHB_RGBA8;
-        droiddeck_log("color", "%s: this device will not make a 10-bit layer buffer (RGBA1010102): the HDR picture goes "
-                   "on 8-bit buffers instead (still tagged BT2020_PQ; less precision)", l->name);
-        idx = take_free_slot(l, rw, rh, g_hdr_pool_fmt, &wait_fd);
-    }
+    int idx = tm ? take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd) : take_hdr_slot(l, rw, rh, &wait_fd);
     if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, r, tm ? NULL : color, 0) != 0) return -1;
