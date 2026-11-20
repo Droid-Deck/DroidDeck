@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">Προφίλ εισόδου</string>
     <string name="input_profiles">Προφίλ</string>
     <string name="input_physical">Φυσικό χειριστήριο</string>
     <string name="input_primary">Κύρια οθόνη</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Άνοιγμα μενού Steam</string>
     <string name="input_command_qam">Άνοιγμα γρήγορης πρόσβασης Steam</string>
     <string name="input_remove_element">Αφαίρεση στοιχείου</string>
+    <string name="input_add_element">Προσθήκη στοιχείου</string>
     <string name="input_extra_keys">Κουμπιά ειδικά για τη συσκευή</string>
     <string name="input_capture">Αντιστοίχιση φυσικού κουμπιού</string>
     <string name="input_capture_confirm">Αφήστε το κουμπί και επιλέξτε Επεξεργασία, Επανάληψη ή Ακύρωση. Το B ή το Πίσω ακυρώνει αφού αφήσετε το κουμπί.</string>

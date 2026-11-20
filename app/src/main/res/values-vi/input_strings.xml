@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">Hồ sơ đầu vào</string>
     <string name="input_profiles">Hồ sơ</string>
     <string name="input_physical">Tay cầm vật lý</string>
     <string name="input_primary">Màn hình chính</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Mở menu Steam</string>
     <string name="input_command_qam">Mở truy cập nhanh Steam</string>
     <string name="input_remove_element">Xóa điều khiển</string>
+    <string name="input_add_element">Thêm điều khiển</string>
     <string name="input_extra_keys">Nút riêng cho thiết bị</string>
     <string name="input_capture">Gán một nút vật lý</string>
     <string name="input_capture_confirm">Nhả nút, sau đó chọn Sửa, Thử lại hoặc Hủy. B hoặc Quay lại sẽ hủy sau khi nhả.</string>

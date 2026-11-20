@@ -111,9 +111,6 @@ typedef int (*accept4_fn)(int, struct sockaddr *, socklen_t *, int);
 static unsigned guarded_port(void);
 
 __attribute__((visibility("hidden"))) int dd_udevmon_stand_in(int fd);
-__attribute__((visibility("hidden"))) int dd_udevmon_bind(int fd, const struct sockaddr *addr, socklen_t len,
-                                                          int (*real_bind)(int, const struct sockaddr *, socklen_t),
-                                                          int *rc);
 __attribute__((visibility("hidden"))) int dd_nl_bind(int fd, const struct sockaddr *addr,
                                                      socklen_t len, int *rc);
 __attribute__((visibility("hidden"))) int dd_nl_connect(int fd, const struct sockaddr *addr,
@@ -124,7 +121,6 @@ int bind(int fd, const struct sockaddr *addr, socklen_t len) {
   int nl_rc;
   if (!real) real = (bind_fn)dlsym(RTLD_NEXT, "bind");
   if (dd_nl_bind(fd, addr, len, &nl_rc)) return nl_rc;
-  if (dd_udevmon_bind(fd, addr, len, real, &nl_rc)) return nl_rc;
   if (dd_udevmon_stand_in(fd)) {
     if (addr == NULL || len < sizeof(struct sockaddr_nl) || addr->sa_family != AF_NETLINK) {
       errno = EINVAL;

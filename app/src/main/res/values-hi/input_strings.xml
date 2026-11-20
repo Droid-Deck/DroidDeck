@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">इनपुट प्रोफ़ाइल</string>
     <string name="input_profiles">प्रोफ़ाइल</string>
     <string name="input_physical">भौतिक कंट्रोलर</string>
     <string name="input_primary">मुख्य स्क्रीन</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Steam मेन्यू खोलें</string>
     <string name="input_command_qam">Steam त्वरित पहुँच खोलें</string>
     <string name="input_remove_element">नियंत्रण हटाएँ</string>
+    <string name="input_add_element">नियंत्रण जोड़ें</string>
     <string name="input_extra_keys">डिवाइस-विशिष्ट बटन</string>
     <string name="input_capture">भौतिक बटन असाइन करें</string>
     <string name="input_capture_confirm">बटन छोड़ें, फिर संपादित करें, पुनः प्रयास करें या रद्द करें चुनें। छोड़ने के बाद B या वापस रद्द करता है।</string>
