@@ -338,6 +338,8 @@ pub fn announced(body: &[u8]) -> Option<(Option<u32>, Option<u32>)> {
 pub enum AuxReq<'a> {
     Init(u64),
     Activate(u64, &'a [u8]),
+    Invalidate(u64),
+    BurnTicket(u64),
     Other(u64),
 }
 
@@ -348,8 +350,14 @@ pub fn aux_request(body: &[u8]) -> AuxReq<'_> {
     let Some(activate) = pb::sub(&f, 3) else {
         return if pb::has(&f, 2) { AuxReq::Init(rid) } else { AuxReq::Other(rid) };
     };
-    let token = pb::fields(activate)
-        .and_then(|a| pb::sub(&a, 2).and_then(pb::fields))
+    let Some(a) = pb::fields(activate) else { return AuxReq::Other(rid) };
+    if pb::has(&a, 1) && !pb::has(&a, 2) {
+        return AuxReq::Invalidate(rid);
+    }
+    if pb::has(&a, 3) && !pb::has(&a, 2) {
+        return AuxReq::BurnTicket(rid);
+    }
+    let token = pb::sub(&a, 2).and_then(pb::fields)
         .and_then(|t| t.iter().find_map(|(n, v)| match v { Value::Bytes(b) if *n == 2 => Some(*b), _ => None }));
     match token {
         Some(t) => AuxReq::Activate(rid, t),
@@ -363,6 +371,15 @@ pub fn aux_init(rid: u64, pid: u32) -> Vec<u8> {
         init = init.uint(3, a);
     }
     Msg::new().uint(1, rid).msg(2, init).0
+}
+
+pub fn aux_invalidated(rid: u64) -> Vec<u8> {
+    Msg::new().uint(1, rid).msg(3, Msg::new()).0
+}
+
+pub fn aux_no_burn_ticket(rid: u64) -> Vec<u8> {
+    let answer = Msg::new().uint(2, 3).uint(3, 3);
+    Msg::new().uint(1, rid).msg(3, Msg::new().msg(3, answer)).0
 }
 
 pub fn aux_token(rid: u64, game_token: &[u8]) -> Vec<u8> {
@@ -474,6 +491,30 @@ mod tests {
         let activate = Msg::new().uint(1, 2).msg(3, Msg::new().msg(2, Msg::new().bytes(2, b"challenge").uint(3, 0)));
         assert!(matches!(aux_request(&activate.0), AuxReq::Activate(2, b"challenge")));
         assert!(matches!(aux_request(&Msg::new().uint(1, 1).msg(2, Msg::new().uint(1, 109)).0), AuxReq::Init(1)));
+    }
+
+    #[test]
+    fn an_invalidation_is_recognised_and_acknowledged_with_an_empty_activation() {
+        let req = Msg::new().uint(1, 5).msg(3, Msg::new().msg(1, Msg::new()));
+        assert!(matches!(aux_request(&req.0), AuxReq::Invalidate(5)));
+        let rsp = pb::fields(&aux_invalidated(5)).unwrap().into_iter().map(|(n, _)| n).collect::<Vec<_>>();
+        assert_eq!(rsp, vec![1, 3]);
+        assert_eq!(pb::sub(&pb::fields(&aux_invalidated(5)).unwrap(), 3), Some(&b""[..]));
+        let burn = Msg::new().uint(1, 6).msg(3, Msg::new().msg(3, Msg::new().bytes(2, b"t")));
+        assert!(matches!(aux_request(&burn.0), AuxReq::BurnTicket(6)));
+    }
+
+    #[test]
+    fn a_burn_ticket_request_is_answered_with_a_connection_error() {
+        let rsp = aux_no_burn_ticket(6);
+        let top = pb::fields(&rsp).unwrap();
+        assert_eq!(pb::num(&top, 1), Some(6));
+        let activate = pb::fields(pb::sub(&top, 3).unwrap()).unwrap();
+        assert!(!pb::has(&activate, 2));
+        let burn = pb::fields(pb::sub(&activate, 3).unwrap()).unwrap();
+        assert_eq!(pb::num(&burn, 2), Some(3));
+        assert_eq!(pb::num(&burn, 3), Some(3));
+        assert!(!pb::has(&burn, 4));
     }
 
     #[test]

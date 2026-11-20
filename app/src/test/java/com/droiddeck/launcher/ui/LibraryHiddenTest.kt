@@ -30,10 +30,16 @@ class LibraryHiddenTest {
         assertFalse(inLibrarySource(LIBRARY_HIDDEN, cs, emptySet(), hidden))
     }
 
-    @Test fun theHiddenTabIsLastAndOnlyWhenEnabled() {
+    @Test fun theHiddenTabIsLastAndOnlyWhenTurnedOn() {
         val entries = listOf(tf2, cs)
         assertEquals(listOf(Library.SOURCE_STEAM), librarySources(entries, emptyList(), hidden = hidden))
-        assertEquals(listOf(Library.SOURCE_STEAM, LIBRARY_HIDDEN), librarySources(entries, emptyList(), hidden = hidden, showHidden = true))
+        assertEquals(listOf(Library.SOURCE_STEAM, LIBRARY_HIDDEN), librarySources(entries, emptyList(), hidden = hidden, offTabs = emptySet()))
+    }
+
+    @Test fun theHiddenTabSortsLastUnlessMoved() {
+        assertEquals(listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM, "epic", Library.ADDED, LIBRARY_HIDDEN), placeLibraryTabs(listOf("epic"), DEFAULT_LIBRARY_PLACES))
+        val moved = placeLibraryTabs(listOf("epic"), listOf(LIBRARY_HIDDEN to "epic"))
+        assertEquals(listOf("epic", LIBRARY_HIDDEN), moved.filter { it == "epic" || it == LIBRARY_HIDDEN })
     }
 
     @Test fun aStoreTabWithOnlyHiddenGamesDisappears() {

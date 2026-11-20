@@ -22,7 +22,6 @@
         <item>SD 카드, USB 드라이브, SSD에서 Steam 라이브러리를 추가할 수 있으며, DroidDeck이 게임을 라이브러리에 함께 모아 줍니다.</item>
         <item>스토어에서는 Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io, Game Jolt에 로그인하고 DroidDeck에서 해당 게임을 설치하고 업데이트할 수 있습니다.</item>
         <item>FEX, DXVK, VKD3D-Proton 같은 구성 요소는 스스로 업데이트되며, 기본값은 Proton Experimental ARM64이고 Proton 11.0 ARM64 빌드가 설치되면 그쪽이 기본값이 됩니다.</item>
-        <item>게임 실행 중 Steam 압축은 메모리가 부족한 기기에서 RAM을 확보해 줍니다.</item>
         <item>오른쪽 가장자리에서 안쪽으로 스와이프하면 세션 메뉴가 열립니다. 터치패드 모드, PC 키보드, 저지연 모드, 게임 프로필 등이 있습니다.</item>
         <item>게임이 느린가요? 빠른 액세스에서 프레임 레이트를 제한한 다음, 게임의 구성 요소에서 다른 Proton 버전이나 FEX 프리셋을 시도해 보세요.</item>
         <item>게임 소리가 지직거리거나 나오지 않나요? Steam 설정의 오디오에서 게임에서 DirectAudio 사용 토글을 시도해 보세요.</item>
@@ -619,20 +618,8 @@
     <string name="perf_gsrealtime">gamescope: 실시간 GPU 큐</string>
     <string name="perf_gsrealtime_hint">컴포지터 GPU 작업의 우선순위를 높입니다. 프레임 타임 안정성을 개선할 수 있지만 게임 성능의 일부를 소모합니다.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">메모리</string>
     <string name="perf_cap_off">끄기</string>
-    <string name="perf_cap_auto">드라이버 기본값</string>
-    <string name="perf_zram_client">게임 실행 중 Steam 압축</string>
-    <string name="perf_zram_idle">유휴 게임 메모리 압축</string>
-    <string name="perf_zram_idle_hint">RAM이 부족할 때 유휴 게임 메모리를 압축합니다. 게임이 약 30초마다 몇 초씩 멈추면 끄세요. 다음 세션을 시작할 때 적용됩니다.</string>
-    <string name="perf_zram_client_hint">게임이 시작되고 20초 후 Steam 클라이언트를 zRAM으로 압축해 게임에 더 많은 메모리를 남기고, 게임이 종료되면 다시 읽어 들입니다. 게임 시작 직후 세션이 종료되면 이 옵션을 끄세요. 위의 RAM 제한을 설정하면 세션이 이를 초과할 때 여전히 Steam을 압축합니다.</string>
-    <string name="perf_ram_cap">RAM 제한</string>
-    <string name="perf_ram_cap_hint">Steam 모드나 데스크톱에서 Steam 클라이언트가 실행되는 동안 적용됩니다. 세션이 이 값보다 많이 사용하면 Steam과 세션의 다른 지원 프로세스를 차례로 zRAM으로 압축합니다. 소프트 제한이므로 종료되는 것은 없지만, 페이지를 다시 읽어 들이는 동안 게임이 끊길 수 있습니다.</string>
-    <string name="perf_ram_cap_unavailable">zRAM 스왑이 필요하지만 이 기기에는 없습니다.</string>
-    <string name="perf_vram_cap">VRAM 제한</string>
-    <string name="perf_vram_cap_hint">메모리 사용량을 줄이도록 Direct3D 9~12 게임에 이 비디오 메모리 예산을 알립니다. 게임은 예산을 초과할 수 있으며, GPU 페이징을 추가하거나 메모리 부족으로 인한 충돌 방지를 보장하지 않습니다. 다음 세션부터 적용됩니다.</string>
     <string name="perf_gpuclock">GPU를 최고 클럭으로 유지</string>
-    <string name="perf_gpuclock_hint">Adreno에만 해당됩니다. 끊김이 줄어들지만 전력 소모와 발열이 증가합니다.</string>
     <string name="perf_fixes">세션 수정</string>
     <string name="perf_sysmem">Turnip: sysmem 렌더링</string>
     <string name="perf_sysmem_hint">Steam 클라이언트와 게임에 적용됩니다. Adreno 710/720/722에 필수입니다.</string>
@@ -809,7 +796,6 @@
     <string name="drawer_pc_keyboard">PC 키보드</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">보조 화면</string>
-    <string name="drawer_second_screen_mode">모드</string>
     <string name="drawer_second_screen_shows">표시</string>
     <string name="drawer_android_apps">Android 앱</string>
     <string name="drawer_launch_app">앱 실행</string>
@@ -2262,6 +2248,17 @@
     <string name="pextra_checksum_mismatch">체크섬이 일치하지 않아 다운로드를 삭제했습니다</string>
     <string name="pextra_session_started">다운로드 중에 세션이 시작되었습니다. 호환성 도구를 설치하기 전에 세션을 중지하세요</string>
     <string name="pextra_installing">%1$s 설치 중</string>
+    <string name="xproton_title">실험용 빌드</string>
+    <string name="xproton_install_file">파일에서 설치</string>
+    <string name="xproton_archive_unsafe">압축 파일에 안전하지 않은 링크 또는 경로가 포함되어 있습니다</string>
+    <string name="xproton_archive_invalid">지원되지 않거나 잘못된 압축 파일</string>
+    <string name="xproton_no_space">이 Proton 빌드를 설치할 여유 공간이 부족합니다</string>
+    <string name="xproton_unpacking">Proton 풀는 중 (몇 분 소요)</string>
+    <string name="xproton_untar_failed">압축 풀기 실패 (tar %1$d)</string>
+    <string name="xproton_no_tree">아카이브에 Proton 빌드가 없습니다</string>
+    <string name="xproton_place_failed">Proton 빌드를 배치할 수 없습니다</string>
+    <string name="xproton_remove_failed">%1$s을(를) 완전히 제거할 수 없습니다</string>
+    <string name="xproton_installed">실험용 Proton이 설치되었습니다. Steam → 속성 → 호환성에서 선택하세요.</string>
     <string name="pextra_install_failed">%1$s 설치 실패(종료 코드 %2$d)</string>
     <string name="pextra_could_not_install">%1$s을(를) 설치할 수 없습니다</string>
     <string name="esync_fetching">droiddeck-esync 팩 받는 중</string>
@@ -3288,10 +3285,19 @@
     <string name="storage_shared_prefix">Steam의 공유 프리픽스</string>
     <string name="storage_shared_prefix_detail">Steam이 자체 Windows 도우미를 여기서 실행합니다</string>
     <string name="storage_reset_shared_confirm">삭제합니다(%1$s). 다음에 필요할 때 Steam이 새로 만듭니다.</string>
+    <string name="storage_remove_launcher_confirm">이 스토어 앱의 Wine 접두사와 셰이더 캐시(%1$s)를 로그인 정보 및 그곳에만 있는 저장 데이터와 함께 삭제합니다. 그 안에서 실행되는 게임은 새 접두사를 받으며, 앱을 다시 설정해야 할 수 있습니다. 클라우드 저장 데이터는 계정에 남습니다.</string>
+    <string name="storage_system_clearable">%1$s 정리 가능</string>
+    <string name="storage_item_system_caches">Linux 및 Steam 캐시</string>
+    <string name="storage_item_system_caches_detail">오래된 임시 파일, 다운로드한 패키지, Steam 웹 캐시</string>
+    <string name="storage_cache_temp">오래된 임시 파일</string>
+    <string name="storage_cache_packages">다운로드한 패키지</string>
+    <string name="storage_cache_steam_web">Steam 웹 캐시</string>
+    <string name="storage_cache_steam_corrupt">손상된 Steam 다운로드</string>
+    <string name="storage_cache_detail">필요할 때 다시 만들어집니다</string>
+    <string name="storage_clear">지우기</string>
     <string name="storage_launcher_prefix">스토어 앱과 이 앱으로 실행되는 게임</string>
     <string name="storage_launcher_used_by">사용 중: %1$s</string>
     <string name="storage_shortcut_app">Steam이 아닌 게임 %1$s</string>
-    <string name="storage_unknown_prefix_detail">일치하는 게임이 없어 유지됩니다</string>
     <string name="storage_remove_selected">선택 항목 제거 · %1$s</string>
     <string name="storage_uninstall_selected">선택 항목 제거 · %1$s</string>
     <string name="storage_bulk_prefixes">Wine 프리픽스</string>
@@ -4035,4 +4041,18 @@
     <string name="display_scaling_integer">정수</string>
     <string name="display_scaling_fit">화면에 맞춤</string>
     <string name="drawer_antialiasing">안티앨리어싱</string>
+    <string name="theme_custom">사용자 지정</string>
+    <string name="theme_custom_detail">인터페이스의 각 색상을 개별적으로 선택하세요.</string>
+    <string name="theme_custom_background">배경</string>
+    <string name="theme_custom_surface">패널</string>
+    <string name="theme_custom_surface_variant">돌출 패널</string>
+    <string name="theme_custom_line">구분선</string>
+    <string name="theme_custom_line2">테두리</string>
+    <string name="theme_custom_on_background">기본 텍스트</string>
+    <string name="theme_custom_on_surface_variant">보조 텍스트</string>
+    <string name="theme_custom_primary">버튼 및 기본 강조색</string>
+    <string name="theme_custom_on_primary">버튼 텍스트</string>
+    <string name="theme_custom_signal">강조 표시</string>
+    <string name="theme_custom_good">성공</string>
+    <string name="theme_custom_error">오류</string>
 </resources>

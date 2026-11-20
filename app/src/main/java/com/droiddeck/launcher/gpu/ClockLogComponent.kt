@@ -37,22 +37,22 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
             ?.sortedBy { it.name.removePrefix("policy").toIntOrNull() ?: 0 } ?: emptyList()
         val gpuCandidates = gpuSources()
         val gpu = gpuCandidates.firstOrNull { !it.startsWith("/proc/") && firstNumber(it) != null }
+        val stepSources = GpuLimits.stepSources()
+        val maxSources = GpuLimits.maxSources()
+        val minSources = GpuLimits.minSources()
+        val steps = GpuLimits.first(stepSources)
+        var ceiling = ceilingSource(maxSources)
         val power = app().getSystemService(Context.POWER_SERVICE) as? PowerManager
         val time = SimpleDateFormat("HH:mm:ss", Locale.US)
         try {
             FileWriter(logFile, true).use { w ->
                 w.write("== clocks: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.HARDWARE}), every ${PERIOD_MS / 1000}s\n")
                 w.write("cpu policies: ${policies.joinToString { p -> p.name + " " + (File(p, "related_cpus").readTextOrNull()?.trim() ?: "?") }}\n")
-                for (source in gpuCandidates) {
-                    val f = File(source)
-                    val state = when {
-                        !f.exists() -> continue
-                        firstNumber(source) != null -> "readable"
-                        else -> "refused"
-                    }
-                    w.write("gpu source $source: $state\n")
-                }
+                probeLines("gpu source", gpuCandidates).forEach { w.write(it + "\n") }
                 w.write("gpu clock from: ${gpu ?: "nothing readable"}\n")
+                (probeLines("gpu limit", stepSources, ::firstStep) + probeLines("gpu limit", maxSources, ::limit) +
+                    probeLines("gpu limit", minSources, ::firstStep)).distinct().forEach { w.write(it + "\n") }
+                limitLines(steps, ceiling, GpuLimits.first(minSources)).forEach { w.write(it + "\n") }
                 w.flush()
                 while (running && logFile.length() < MAX_BYTES) {
                     val line = StringBuilder(time.format(Date()))
@@ -63,7 +63,8 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
                         line.append(" ${p.name.removePrefix("policy").let { "p$it" }} ${mhz(cur)}/${mhz(max)}")
                         if (hw != null && max != null && max < hw) line.append("(of ${mhz(hw)})")
                     }
-                    gpu?.let { line.append(" | gpu ${mhz(firstNumber(it))} MHz") }
+                    if (ceiling == null) ceiling = ceilingSource(maxSources)?.also { w.write("gpu ceiling from: $it\n") }
+                    line.append(gpuField(gpu, ceiling, steps?.mhz?.last()))
                     if (power != null && Build.VERSION.SDK_INT >= 29) {
                         line.append(" | thermal ${power.currentThermalStatus}")
                         if (Build.VERSION.SDK_INT >= 30) {
@@ -109,16 +110,41 @@ class ClockLogComponent(private val logFile: File) : SessionPart() {
             return list.distinct()
         }
 
+        internal fun probeLines(label: String, sources: List<String>, read: (String) -> Long? = ::firstNumber): List<String> = sources.mapNotNull { source ->
+            when {
+                !File(source).exists() -> null
+                read(source) != null -> "$label $source: readable"
+                else -> "$label $source: refused"
+            }
+        }
+
+        internal fun limitLines(steps: GpuLimits.Found?, ceiling: String?, floor: GpuLimits.Found?): List<String> = listOf(
+            "gpu steps: " + (steps?.let { "${it.mhz.joinToString(" ")} MHz from ${it.path}" } ?: "nothing readable"),
+            "gpu ceiling from: " + (ceiling ?: "nothing readable"),
+            "gpu floor: " + (floor?.let { "${it.mhz.first()} MHz from ${it.path}" } ?: "nothing readable"),
+        )
+
+        internal fun gpuField(clock: String?, ceiling: String?, top: Long?): String {
+            if (clock == null && ceiling == null) return ""
+            val field = StringBuilder(" | gpu ").append(mhz(clock?.let(::firstNumber)))
+            ceiling?.let(::limit)?.let { max ->
+                field.append('/').append(mhz(max))
+                if (top != null && GpuLimits.mhz(max) < top) field.append("(of $top)")
+            }
+            return field.append(" MHz").toString()
+        }
+
         private fun File.readTextOrNull(): String? = runCatching { readText() }.getOrNull()
 
         private fun firstNumber(path: String): Long? =
             runCatching { Regex("\\d+").find(File(path).readText())?.value?.toLong() }.getOrNull()
 
-        private fun mhz(raw: Long?): String = when {
-            raw == null -> "?"
-            raw > 10_000_000 -> (raw / 1_000_000).toString()
-            raw > 10_000 -> (raw / 1_000).toString()
-            else -> raw.toString()
-        }
+        internal fun limit(path: String): Long? = firstNumber(path)?.takeIf { it > 0 }
+
+        internal fun firstStep(path: String): Long? = GpuLimits.read(path).firstOrNull()
+
+        internal fun ceilingSource(sources: List<String>): String? = sources.firstOrNull { limit(it) != null }
+
+        private fun mhz(raw: Long?): String = raw?.let { GpuLimits.mhz(it).toString() } ?: "?"
     }
 }

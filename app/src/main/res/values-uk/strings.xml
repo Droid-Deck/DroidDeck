@@ -22,7 +22,6 @@
         <item>Додавайте бібліотеки Steam із SD-картки, USB-накопичувача чи SSD, і DroidDeck збере ігри разом у вашій «Бібліотеці».</item>
         <item>«Магазини» дають змогу увійти в Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io і Game Jolt, а потім установлювати й оновлювати їхні ігри з DroidDeck.</item>
         <item>Компоненти, як-от FEX, DXVK і VKD3D-Proton, оновлюються самі, а типовою є Proton Experimental ARM64 або Proton 11.0 ARM64, щойно цю збірку встановлено.</item>
-        <item>«Стискати Steam під час гри» звільняє оперативну пам\'ять на пристроях, яким її бракує.</item>
         <item>Проведіть від правого краю, щоб відкрити меню сеансу: режим сенсорної панелі, «Клавіатура ПК», низька затримка, профіль гри та інше.</item>
         <item>Гра гальмує? Обмежте частоту кадрів у меню «Швидкий доступ», потім спробуйте іншу версію Proton або набір налаштувань FEX у компонентах гри.</item>
         <item>Тріск або зникає звук у грі? Спробуйте перемикач «DirectAudio для ігор» у налаштуваннях Steam у розділі «Звук».</item>
@@ -625,20 +624,8 @@
     <string name="perf_gsrealtime">gamescope: черга GPU реального часу</string>
     <string name="perf_gsrealtime_hint">Надає пріоритет роботі композитора на GPU. Може вирівняти темп кадрів ціною частини продуктивності ігор.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Памʼять</string>
     <string name="perf_cap_off">Вимк.</string>
-    <string name="perf_cap_auto">Типово для драйвера</string>
-    <string name="perf_zram_client">Стискати Steam під час гри</string>
-    <string name="perf_zram_idle">Стискати неактивну пам’ять гри</string>
-    <string name="perf_zram_idle_hint">Стискає неактивну пам’ять гри, коли мало RAM. Вимкніть, якщо ігри зависають на кілька секунд приблизно кожні пів хвилини. Застосовується під час наступного запуску сеансу.</string>
-    <string name="perf_zram_client_hint">Через 20 с після запуску гри клієнт Steam стискається в zRAM, щоб залишити грі більше памʼяті, і зчитується назад, коли гра закривається. Вимкніть, якщо сеанс закривається невдовзі після запуску ігор. Ліміт RAM вище все одно стискає Steam, коли сеанс його перевищує.</string>
-    <string name="perf_ram_cap">Ліміт RAM</string>
-    <string name="perf_ram_cap_hint">Діє, поки працює клієнт Steam, у режимі Steam або з робочого столу. Коли сеанс використовує більше цього значення, Steam, а потім інші підтримувані процеси сеансу стискаються в zRAM. Мʼякий ліміт: нічого не закривається, але ігри можуть підвисати, поки сторінки повертаються.</string>
-    <string name="perf_ram_cap_unavailable">Потрібен своп zRAM, якого на цьому пристрої немає.</string>
-    <string name="perf_vram_cap">Ліміт VRAM</string>
-    <string name="perf_vram_cap_hint">Повідомляє іграм Direct3D 9–12 цей бюджет відеопам’яті для зменшення її використання. Ігри можуть його перевищити; це не додає підкачку пам’яті GPU й не гарантує захисту від збоїв через нестачу пам’яті. Діє з наступного сеансу.</string>
     <string name="perf_gpuclock">Тримати GPU на максимальній частоті</string>
-    <string name="perf_gpuclock_hint">Лише Adreno. Менше запинок, вища витрата заряду та нагрів.</string>
     <string name="perf_fixes">Виправлення сеансу</string>
     <string name="perf_sysmem">Turnip: рендеринг через sysmem</string>
     <string name="perf_sysmem_hint">Застосовується до клієнта Steam та ігор. Потрібно для Adreno 710/720/722.</string>
@@ -815,7 +802,6 @@
     <string name="drawer_pc_keyboard">Клавіатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Другий екран</string>
-    <string name="drawer_second_screen_mode">Режим</string>
     <string name="drawer_second_screen_shows">Показує</string>
     <string name="drawer_android_apps">Додатки Android</string>
     <string name="drawer_launch_app">Запустити додаток</string>
@@ -2339,6 +2325,17 @@
     <string name="pextra_checksum_mismatch">Контрольна сума не збіглася; завантаження видалено</string>
     <string name="pextra_session_started">Під час завантаження розпочався сеанс; зупиніть його, перш ніж встановлювати інструменти сумісності</string>
     <string name="pextra_installing">Встановлення %1$s</string>
+    <string name="xproton_title">Експериментальні збірки</string>
+    <string name="xproton_install_file">Встановити з файлу</string>
+    <string name="xproton_archive_unsafe">Архів містить небезпечне посилання або шлях</string>
+    <string name="xproton_archive_invalid">Непідтримуваний або недійсний архів</string>
+    <string name="xproton_no_space">Недостатньо вільного місця для цієї збірки Proton</string>
+    <string name="xproton_unpacking">Розпакування Proton (кілька хвилин)</string>
+    <string name="xproton_untar_failed">Не вдалося розпакувати (tar %1$d)</string>
+    <string name="xproton_no_tree">В архіві немає збірки Proton</string>
+    <string name="xproton_place_failed">Не вдалося розмістити збірку Proton</string>
+    <string name="xproton_remove_failed">Не вдалося повністю видалити %1$s</string>
+    <string name="xproton_installed">Експериментальну збірку Proton встановлено. Виберіть її в Steam → Властивості → Сумісність.</string>
     <string name="pextra_install_failed">Встановлення %1$s не вдалося (код виходу %2$d)</string>
     <string name="pextra_could_not_install">Не вдалося встановити %1$s</string>
     <string name="esync_fetching">Отримання пакета droiddeck-esync</string>
@@ -3391,10 +3388,19 @@
     <string name="storage_shared_prefix">Спільний префікс Steam</string>
     <string name="storage_shared_prefix_detail">Steam запускає тут власні допоміжні програми Windows</string>
     <string name="storage_reset_shared_confirm">Видаляє його (%1$s). Steam створить новий, коли він знову знадобиться.</string>
+    <string name="storage_remove_launcher_confirm">Видаляє префікс Wine і кеш шейдерів цього застосунку крамниці (%1$s) разом із входом в обліковий запис і збереженнями, що є лише там. Ігри, які в ньому працюють, отримають новий префікс, а застосунок, можливо, доведеться налаштувати знову. Хмарні збереження лишаються в обліковому записі.</string>
+    <string name="storage_system_clearable">Можна очистити %1$s</string>
+    <string name="storage_item_system_caches">Кеші Linux і Steam</string>
+    <string name="storage_item_system_caches_detail">Старі тимчасові файли, завантажені пакети й вебкеш Steam</string>
+    <string name="storage_cache_temp">Старі тимчасові файли</string>
+    <string name="storage_cache_packages">Завантажені пакети</string>
+    <string name="storage_cache_steam_web">Вебкеш Steam</string>
+    <string name="storage_cache_steam_corrupt">Пошкоджені завантаження Steam</string>
+    <string name="storage_cache_detail">Створюються знову за потреби</string>
+    <string name="storage_clear">Очистити</string>
     <string name="storage_launcher_prefix">Застосунок магазину та ігри, які з ним працюють</string>
     <string name="storage_launcher_used_by">Використовується: %1$s</string>
     <string name="storage_shortcut_app">Не-Steam гра %1$s</string>
-    <string name="storage_unknown_prefix_detail">Не зіставлено з грою, тому зберігається</string>
     <string name="storage_remove_selected">Видалити вибрані · %1$s</string>
     <string name="storage_uninstall_selected">Видалити вибрані · %1$s</string>
     <string name="storage_bulk_prefixes">Префікси Wine</string>
@@ -4145,4 +4151,18 @@
     <string name="display_scaling_integer">Ціле число</string>
     <string name="display_scaling_fit">За розміром</string>
     <string name="drawer_antialiasing">Згладжування</string>
+    <string name="theme_custom">Власна тема</string>
+    <string name="theme_custom_detail">Виберіть окремо кожен колір інтерфейсу.</string>
+    <string name="theme_custom_background">Тло</string>
+    <string name="theme_custom_surface">Панелі</string>
+    <string name="theme_custom_surface_variant">Підняті панелі</string>
+    <string name="theme_custom_line">Роздільники</string>
+    <string name="theme_custom_line2">Межі</string>
+    <string name="theme_custom_on_background">Основний текст</string>
+    <string name="theme_custom_on_surface_variant">Вторинний текст</string>
+    <string name="theme_custom_primary">Кнопки й основний акцент</string>
+    <string name="theme_custom_on_primary">Текст кнопок</string>
+    <string name="theme_custom_signal">Виділення</string>
+    <string name="theme_custom_good">Успіх</string>
+    <string name="theme_custom_error">Помилка</string>
 </resources>

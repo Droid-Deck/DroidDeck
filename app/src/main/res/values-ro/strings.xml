@@ -22,7 +22,6 @@
         <item>Adaugă biblioteci Steam de pe un card SD, o unitate USB sau un SSD, iar DroidDeck păstrează jocurile împreună în Biblioteca ta.</item>
         <item>Magazine îți permite să te conectezi la Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io și Game Jolt, apoi să instalezi și să actualizezi jocurile lor din DroidDeck.</item>
         <item>Componente precum FEX, DXVK și VKD3D-Proton se actualizează singure, iar Proton Experimental ARM64 este implicit, sau Proton 11.0 ARM64 odată ce acea versiune este instalată.</item>
-        <item>Comprimă Steam cât rulează un joc eliberează RAM pe dispozitivele cu memorie puțină.</item>
         <item>Glisează dinspre marginea dreaptă ca să deschizi meniul sesiunii: mod touchpad, Tastatură de PC, Mod latență redusă, profilul jocului și altele.</item>
         <item>Jocul rulează greu? Limitează rata de cadre în Acces rapid, apoi încearcă altă versiune de Proton sau alt preset FEX în componentele jocului.</item>
         <item>Sunet de joc cu pârâituri sau lipsă? Încearcă opțiunea DirectAudio pentru jocuri din setările Steam, la Sunet.</item>
@@ -623,20 +622,8 @@
     <string name="perf_gsrealtime">gamescope: coadă GPU în timp real</string>
     <string name="perf_gsrealtime_hint">Prioritizează lucrul GPU al compositorului. Poate netezi ritmul cadrelor, cu un cost pentru jocuri.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memorie</string>
     <string name="perf_cap_off">Dezactivat</string>
-    <string name="perf_cap_auto">Implicit driver</string>
-    <string name="perf_zram_client">Comprimă Steam cât rulează un joc</string>
-    <string name="perf_zram_idle">Comprimă memoria inactivă a jocului</string>
-    <string name="perf_zram_idle_hint">Comprimă memoria inactivă a jocului când memoria RAM este redusă. Dezactivează dacă jocurile îngheață câteva secunde aproximativ la fiecare jumătate de minut. Se aplică la următoarea pornire a sesiunii.</string>
-    <string name="perf_zram_client_hint">La 20 s după pornirea unui joc, clientul Steam este comprimat în zRAM pentru a lăsa jocului mai multă memorie și este citit înapoi când jocul se închide. Dezactivează dacă sesiunea se închide la scurt timp după pornirea jocurilor. O limită RAM de mai sus tot comprimă Steam când sesiunea o depășește.</string>
-    <string name="perf_ram_cap">Limită RAM</string>
-    <string name="perf_ram_cap_hint">Se aplică cât rulează clientul Steam, în modul Steam sau de pe desktop. Când sesiunea folosește mai mult de atât, Steam și apoi celelalte procese acceptate ale sesiunii sunt comprimate în zRAM. O limită flexibilă: nimic nu se închide, dar jocurile pot sacada cât paginile revin.</string>
-    <string name="perf_ram_cap_unavailable">Necesită swap zRAM, pe care acest dispozitiv nu îl are.</string>
-    <string name="perf_vram_cap">Limită VRAM</string>
-    <string name="perf_vram_cap_hint">Raportează acest buget de memorie video jocurilor Direct3D 9 până la 12 pentru a reduce utilizarea memoriei. Jocurile îl pot depăși; nu adaugă paginare GPU și nu garantează protecție împotriva blocărilor cauzate de lipsa memoriei. Se aplică din sesiunea următoare.</string>
     <string name="perf_gpuclock">Fixează GPU-ul la frecvența maximă</string>
-    <string name="perf_gpuclock_hint">Doar Adreno. Mai puține întreruperi, consum mai mare de baterie și căldură.</string>
     <string name="perf_fixes">Remedieri de sesiune</string>
     <string name="perf_sysmem">Turnip: randare sysmem</string>
     <string name="perf_sysmem_hint">Se aplică clientului Steam și jocurilor. Necesară pe Adreno 710/720/722.</string>
@@ -813,7 +800,6 @@
     <string name="drawer_pc_keyboard">Tastatură de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Al doilea ecran</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Arată</string>
     <string name="drawer_android_apps">Aplicații Android</string>
     <string name="drawer_launch_app">Lansează o aplicație</string>
@@ -2313,6 +2299,17 @@
     <string name="pextra_checksum_mismatch">Sumă de control incorectă; descărcarea a fost ștearsă</string>
     <string name="pextra_session_started">O sesiune a pornit în timpul descărcării; oprește-o înainte de a instala instrumente de compatibilitate</string>
     <string name="pextra_installing">Se instalează %1$s</string>
+    <string name="xproton_title">Versiuni experimentale</string>
+    <string name="xproton_install_file">Instalează din fișier</string>
+    <string name="xproton_archive_unsafe">Arhiva conține o legătură sau o cale nesigură</string>
+    <string name="xproton_archive_invalid">Arhivă neacceptată sau nevalidă</string>
+    <string name="xproton_no_space">Nu există suficient spațiu liber pentru această versiune Proton</string>
+    <string name="xproton_unpacking">Se despachetează Proton (câteva minute)</string>
+    <string name="xproton_untar_failed">Despachetarea a eșuat (tar %1$d)</string>
+    <string name="xproton_no_tree">Arhiva nu conține nicio versiune Proton</string>
+    <string name="xproton_place_failed">Versiunea Proton nu a putut fi plasată</string>
+    <string name="xproton_remove_failed">%1$s nu a putut fi eliminat complet</string>
+    <string name="xproton_installed">Proton experimental a fost instalat. Selectează-l în Steam → Proprietăți → Compatibilitate.</string>
     <string name="pextra_install_failed">Instalarea %1$s a eșuat (cod de ieșire %2$d)</string>
     <string name="pextra_could_not_install">%1$s nu a putut fi instalat</string>
     <string name="esync_fetching">Se obține pachetul droiddeck-esync</string>
@@ -3354,10 +3351,19 @@
     <string name="storage_shared_prefix">Prefixul Steam partajat</string>
     <string name="storage_shared_prefix_detail">Steam rulează aici propriile utilitare Windows</string>
     <string name="storage_reset_shared_confirm">Îl șterge (%1$s). Steam creează unul nou data viitoare când are nevoie.</string>
+    <string name="storage_remove_launcher_confirm">Șterge prefixul Wine și memoria cache de shadere ale acestei aplicații de magazin (%1$s), cu autentificarea și salvările păstrate doar acolo. Jocurile care rulează în el primesc un prefix nou și poate fi nevoie să configurezi din nou aplicația. Salvările din cloud rămân în cont.</string>
+    <string name="storage_system_clearable">Se pot elibera %1$s</string>
+    <string name="storage_item_system_caches">Cache-uri Linux și Steam</string>
+    <string name="storage_item_system_caches_detail">Fișiere temporare vechi, pachete descărcate și cache-ul web Steam</string>
+    <string name="storage_cache_temp">Fișiere temporare vechi</string>
+    <string name="storage_cache_packages">Pachete descărcate</string>
+    <string name="storage_cache_steam_web">Cache web Steam</string>
+    <string name="storage_cache_steam_corrupt">Descărcări Steam deteriorate</string>
+    <string name="storage_cache_detail">Se recreează când e nevoie</string>
+    <string name="storage_clear">Golește</string>
     <string name="storage_launcher_prefix">O aplicație de magazin și jocurile care rulează cu ea</string>
     <string name="storage_launcher_used_by">Folosit de %1$s</string>
     <string name="storage_shortcut_app">Joc non-Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Nu corespunde niciunui joc, deci este păstrat</string>
     <string name="storage_remove_selected">Elimină selecția · %1$s</string>
     <string name="storage_uninstall_selected">Dezinstalează selecția · %1$s</string>
     <string name="storage_bulk_prefixes">Prefixuri Wine</string>
@@ -4105,4 +4111,18 @@
     <string name="display_scaling_integer">Număr întreg</string>
     <string name="display_scaling_fit">Potrivire</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+    <string name="theme_custom">Personalizat</string>
+    <string name="theme_custom_detail">Alege separat fiecare culoare a interfeței.</string>
+    <string name="theme_custom_background">Fundal</string>
+    <string name="theme_custom_surface">Panouri</string>
+    <string name="theme_custom_surface_variant">Panouri ridicate</string>
+    <string name="theme_custom_line">Separatoare</string>
+    <string name="theme_custom_line2">Margini</string>
+    <string name="theme_custom_on_background">Text principal</string>
+    <string name="theme_custom_on_surface_variant">Text secundar</string>
+    <string name="theme_custom_primary">Butoane și accent principal</string>
+    <string name="theme_custom_on_primary">Textul butoanelor</string>
+    <string name="theme_custom_signal">Evidențieri</string>
+    <string name="theme_custom_good">Succes</string>
+    <string name="theme_custom_error">Eroare</string>
 </resources>

@@ -23,10 +23,11 @@
 #define MAX_ENTRIES 100000
 #define MAX_HANDLES 64
 #define MAX_UP 32
+#define MAX_ALIASES 4
 #define FUSE_MAGIC 0x65735546
-#define WATCHED (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR)
-#define ABOVE (IN_DELETE_SELF | IN_MOVE_SELF | IN_ONLYDIR | IN_MASK_ADD)
-#define GONE (IN_DELETE_SELF | IN_MOVE_SELF | IN_IGNORED)
+#define WATCHED (IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ATTRIB | IN_ONLYDIR)
+#define ABOVE (IN_DELETE_SELF | IN_MOVE_SELF | IN_ATTRIB | IN_ONLYDIR | IN_MASK_ADD)
+#define GONE (IN_DELETE_SELF | IN_MOVE_SELF | IN_ATTRIB | IN_IGNORED)
 #define LINKED (IN_DELETE_SELF | IN_MOVE_SELF | IN_DONT_FOLLOW | IN_MASK_ADD)
 
 #if __SIZEOF_POINTER__ == 8
@@ -54,6 +55,9 @@ struct listing {
   size_t len;
   char *where;
   int folds;
+  int loose;
+  char *alias[MAX_ALIASES];
+  int aliases;
 };
 
 struct handle {
@@ -78,6 +82,7 @@ static struct listing *table[MAX_LISTINGS];
 static struct handle *handles[MAX_HANDLES];
 static int high_water;
 static int cached_listings;
+static int blind_listings;
 static int changing;
 static int notify = -1;
 static int forked;
@@ -171,6 +176,7 @@ static void destroy(struct listing *l) {
   free(l->e);
   free(l->recs);
   free(l->where);
+  for (int i = 0; i < MAX_ALIASES; i++) free(l->alias[i]);
   free(l);
 }
 
@@ -201,6 +207,7 @@ static void let_go(int wd, const int *up, int nup) {
 
 static void detach(struct listing *l) {
   __atomic_sub_fetch(&cached_listings, 1, __ATOMIC_RELEASE);
+  if (l->blind || l->where == NULL) blind_listings--;
   l->detached = 1;
   if (l->refs == 0) destroy(l);
 }
@@ -255,6 +262,7 @@ static void pump(struct expect *x, int nx) {
         changed(-1, 0);
         continue;
       }
+      if ((ev->mask & IN_ATTRIB) && ev->len) continue;
       int k = 0;
       while (k < nx && !(x[k].wd == ev->wd && (ev->mask & x[k].mask) && ev->len && strcmp(ev->name, x[k].name) == 0)) k++;
       if (k < nx) {
@@ -304,6 +312,7 @@ static int push(struct listing *l, ino_t ino, unsigned char type, const char *na
 static void install(struct listing *l) {
   l->detached = 0;
   __atomic_add_fetch(&cached_listings, 1, __ATOMIC_RELEASE);
+  if (l->blind || l->where == NULL) blind_listings++;
   int slot = find(l->dev, l->ino);
   if (slot >= 0) {
     struct listing *old = table[slot];
@@ -416,10 +425,104 @@ __attribute__((constructor)) static void resolve(void) {
 }
 #pragma GCC diagnostic pop
 
+static int named(const struct listing *l, const char *name) {
+  for (size_t i = 0; i < l->n; i++)
+    if (strcasecmp(l->e[i].name, name) == 0) return 1;
+  return 0;
+}
+
+static int folded_match(const char *where, const char *dir) {
+  const char *at = strstr(where, "/steamapps");
+  if (at == NULL) return 0;
+  size_t n = (size_t)(at - where);
+  return strncmp(where, dir, n) == 0 && strcasecmp(where + n, dir + n) == 0;
+}
+
+static int same_dir(const struct listing *l, const char *dir) {
+  struct stat st;
+  int saved = errno;
+  int same = stat(dir, &st) == 0 && st.st_dev == l->dev && st.st_ino == l->ino;
+  errno = saved;
+  return same;
+}
+
+static int plain(const char *where, char *dir) {
+  const char *at = strstr(where, "/steamapps");
+  int saved = errno, fine = at != NULL;
+  for (size_t from = fine ? (size_t)(at - where) + 1 : 0; fine && dir[from];) {
+    size_t to = from + strcspn(dir + from, "/");
+    char kept = dir[to];
+    struct stat st;
+    dir[to] = 0;
+    fine = strcmp(dir + from, ".") != 0 && strcmp(dir + from, "..") != 0 && lstat(dir, &st) == 0 && !S_ISLNK(st.st_mode);
+    dir[to] = kept;
+    from = kept ? to + 1 : to;
+  }
+  errno = saved;
+  return fine;
+}
+
+static int aliased(struct listing *l, const char *dir) {
+  for (int i = 0; i < MAX_ALIASES; i++)
+    if (l->alias[i] && strcmp(l->alias[i], dir) == 0) return 1;
+  if (!same_dir(l, dir)) return 0;
+  char *copy = strdup(dir);
+  if (copy && !plain(l->where, copy)) {
+    free(copy);
+    copy = NULL;
+  }
+  if (copy) {
+    int at = l->aliases++ % MAX_ALIASES;
+    free(l->alias[at]);
+    l->alias[at] = copy;
+  }
+  return 1;
+}
+
+static struct listing *listed(const char *dir, long long now) {
+  for (int i = 0; i < MAX_LISTINGS; i++) {
+    struct listing *l = table[i];
+    if (l == NULL || l->where == NULL || l->blind || now - l->filled >= DIR_TTL_NS) continue;
+    if (strcmp(l->where, dir) == 0) return l;
+    if (l->folds && folded_match(l->where, dir)) return aliased(l, dir) ? l : NULL;
+  }
+  return NULL;
+}
+
+static int watching(const char *path) {
+  return eligible(path) && __atomic_load_n(&cached_listings, __ATOMIC_ACQUIRE) > 0;
+}
+
+static DIR *listed_open(struct handle *h, long long now) {
+  DIR *d = NULL;
+  if (__atomic_load_n(&cached_listings, __ATOMIC_ACQUIRE) == 0) return NULL;
+  take(&lock);
+  if (!changing) {
+    pump(NULL, 0);
+    struct listing *l = listed(h->path, now);
+    if (l && records(l) == 0) {
+      h->snap = l;
+      l->refs++;
+      l->used = now;
+      d = wrap(h);
+      if (d == NULL) {
+        unref(l);
+        h->snap = NULL;
+      }
+    }
+  }
+  give(&lock);
+  return d;
+}
+
 static DIR *hit(const struct stat *st, struct handle *h, long long now) {
   take(&lock);
   if (!changing) pump(NULL, 0);
   int slot = find(st->st_dev, st->st_ino);
+  if (slot >= 0 && table[slot]->loose && now - table[slot]->filled < DIR_TTL_NS) {
+    stamp(table[slot], st);
+    table[slot]->loose = 0;
+  }
   if (slot >= 0 && same(table[slot], st) && now - table[slot]->filled < DIR_TTL_NS && records(table[slot]) == 0) {
     h->snap = table[slot];
     h->snap->refs++;
@@ -509,8 +612,7 @@ static void untrack(struct handle *h) {
 DIR *opendir(const char *path) {
   NEXT(opendir);
   struct stat st;
-  if (!eligible(path) || stat(path, &st) != 0 || !S_ISDIR(st.st_mode) || !on_fuse(st.st_dev, path))
-    return next_opendir(path);
+  if (!eligible(path)) return next_opendir(path);
   struct handle *h = calloc(1, sizeof(*h));
   char *copy = strdup(path);
   if (h == NULL || copy == NULL) {
@@ -522,7 +624,14 @@ DIR *opendir(const char *path) {
   h->wd = -1;
   h->path = copy;
   long long now = now_ns();
-  DIR *d = hit(&st, h, now);
+  DIR *d = listed_open(h, now);
+  if (d) return d;
+  if (stat(path, &st) != 0 || !S_ISDIR(st.st_mode) || !on_fuse(st.st_dev, path)) {
+    free(h->path);
+    free(h);
+    return next_opendir(path);
+  }
+  d = hit(&st, h, now);
   if (d) return d;
   if (!track(h, path)) {
     free(h->path);
@@ -699,7 +808,9 @@ void seekdir(DIR *d, long pos) {
   }
 }
 
-struct side { char dir[PATH_MAX]; const char *name; struct stat before; int known; };
+struct side { char dir[PATH_MAX]; const char *name; struct stat before; int known; int trusted; };
+
+struct made { int known; ino_t ino; unsigned char type; };
 
 static int split(const char *path, struct side *s) {
   size_t n = strlen(path);
@@ -713,10 +824,6 @@ static int split(const char *path, struct side *s) {
   return strchr(s->name, '/') == NULL && strcmp(s->name, ".") != 0 && strcmp(s->name, "..") != 0;
 }
 
-static int watching(const char *path) {
-  return eligible(path) && __atomic_load_n(&cached_listings, __ATOMIC_ACQUIRE) > 0;
-}
-
 static void begin(void) {
   take(&lock);
   pump(NULL, 0);
@@ -725,13 +832,42 @@ static void begin(void) {
 }
 
 static void before(struct side *s) {
-  s->known = stat(s->dir, &s->before) == 0;
+  take(&lock);
+  struct listing *l = listed(s->dir, now_ns());
+  int unlisted = l == NULL && blind_listings == 0;
+  s->trusted = l != NULL;
+  if (l) {
+    memset(&s->before, 0, sizeof(s->before));
+    s->before.st_dev = l->dev;
+    s->before.st_ino = l->ino;
+    s->before.st_size = l->size;
+    s->before.st_nlink = l->nlink;
+    s->before.st_mtim = l->mtime;
+    s->before.st_ctim = l->ctime;
+  }
+  give(&lock);
+  s->known = s->trusted || (!unlisted && stat(s->dir, &s->before) == 0);
+}
+
+static unsigned char type_of(mode_t mode) {
+  return S_ISDIR(mode) ? DT_DIR : S_ISLNK(mode) ? DT_LNK : S_ISREG(mode) ? DT_REG : DT_UNKNOWN;
+}
+
+static int made_at(const struct side *s, const char *target, struct made *m) {
+  struct stat t;
+  if (s->trusted && m && m->known) return 1;
+  if (lstat(target, &t) != 0) return 0;
+  *m = (struct made){1, t.st_ino, type_of(t.st_mode)};
+  return 1;
 }
 
 enum { ADDED, REMOVED };
 
-static int patch(struct side *s, int what, uint32_t event, int ok, int error, const char *target, struct expect *x) {
+static int patch(struct side *s, int what, uint32_t event, int ok, int error, const char *target, struct made *m,
+                 struct expect *x) {
   struct stat now;
+  struct made local = {0};
+  if (m == NULL) m = &local;
   if (!s->known) return 0;
   int slot = find(s->before.st_dev, s->before.st_ino);
   if (slot < 0) return 0;
@@ -750,7 +886,7 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
       drop(slot);
     return 0;
   }
-  if (stat(s->dir, &now) != 0 || now.st_ino != l->ino) {
+  if (!s->trusted && (stat(s->dir, &now) != 0 || now.st_ino != l->ino)) {
     drop(slot);
     return 0;
   }
@@ -771,6 +907,7 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
     copy->blind = l->blind;
     copy->where = l->where ? strdup(l->where) : NULL;
     copy->folds = l->folds;
+    copy->loose = l->loose;
     copy->detached = 0;
     stamp(copy, &s->before);
     table[slot] = copy;
@@ -781,18 +918,17 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
   l->recs = NULL;
   l->len = 0;
   int fine = 1, expected = 1;
-  struct stat t;
   if (what == ADDED) {
     if (exact < l->n) {
-      if (lstat(target, &t) == 0) l->e[exact].ino = t.st_ino;
+      if (event == IN_MOVED_TO && made_at(s, target, m)) l->e[exact].ino = m->ino;
       expected = event == IN_MOVED_TO;
-    } else if (folded < l->n || lstat(target, &t) != 0) {
+    } else if (folded < l->n || !made_at(s, target, m)) {
       fine = 0;
     } else {
-      unsigned char type = S_ISDIR(t.st_mode) ? DT_DIR : S_ISLNK(t.st_mode) ? DT_LNK : S_ISREG(t.st_mode) ? DT_REG : DT_UNKNOWN;
-      fine = l->n < MAX_ENTRIES && push(l, t.st_ino, type, s->name) == 0;
+      fine = l->n < MAX_ENTRIES && push(l, m->ino, m->type, s->name) == 0;
     }
   } else if (exact < l->n) {
+    *m = (struct made){1, l->e[exact].ino, l->e[exact].type};
     free(l->e[exact].name);
     memmove(&l->e[exact], &l->e[exact + 1], (l->n - exact - 1) * sizeof(l->e[0]));
     l->n--;
@@ -803,7 +939,8 @@ static int patch(struct side *s, int what, uint32_t event, int ok, int error, co
     drop(slot);
     return 0;
   }
-  stamp(l, &now);
+  if (s->trusted) l->loose = 1;
+  else stamp(l, &now);
   if (!expected) return 0;
   *x = (struct expect){l->wd, event, s->name};
   return 1;
@@ -829,8 +966,11 @@ int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
   int fd = real(dirfd, path, flags, mode);
   int saved = errno;
   struct expect x;
+  struct stat opened;
+  struct made m = {0};
+  if (fd >= 0 && s.trusted && fstat(fd, &opened) == 0) m = (struct made){1, opened.st_ino, type_of(opened.st_mode)};
   take(&lock);
-  int nx = patch(&s, ADDED, IN_CREATE, fd >= 0, saved, path, &x);
+  int nx = patch(&s, ADDED, IN_CREATE, fd >= 0, saved, path, &m, &x);
   give(&lock);
   end(&x, nx);
   give(&oplock);
@@ -850,7 +990,7 @@ int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
     int saved = errno; \
     struct expect x; \
     take(&lock); \
-    int nx = patch(&s, what, event, r == 0, saved, what == ADDED ? path : NULL, &x); \
+    int nx = patch(&s, what, event, r == 0, saved, what == ADDED ? path : NULL, NULL, &x); \
     if (r == 0 && what == REMOVED) forget_below(path); \
     give(&lock); \
     end(&x, nx); \
@@ -885,12 +1025,13 @@ ONE_PATH(remove, REMOVED, IN_DELETE, dd_descriptor_remove(path, next_remove))
     int r = call(from, to); \
     int saved = errno; \
     struct expect x[2]; \
+    struct made m = {0}; \
     int nx = 0; \
     take(&lock); \
-    if (track_a) nx += patch(&a, REMOVED, IN_MOVED_FROM, r == 0, saved, NULL, &x[nx]); \
+    if (track_a) nx += patch(&a, REMOVED, IN_MOVED_FROM, r == 0, saved, NULL, &m, &x[nx]); \
     if (track_b) { \
-      if (track_a && strcmp(a.dir, b.dir) == 0) b.known = stat(b.dir, &b.before) == 0; \
-      nx += patch(&b, ADDED, event, r == 0, saved, to, &x[nx]); \
+      if (track_a && !b.trusted && strcmp(a.dir, b.dir) == 0) b.known = stat(b.dir, &b.before) == 0; \
+      nx += patch(&b, ADDED, event, r == 0, saved, to, &m, &x[nx]); \
     } \
     if (r == 0 && gone) { forget_below(from); forget_below(to); } \
     give(&lock); \
@@ -907,37 +1048,6 @@ TWO_PATHS(rename, 1, IN_MOVED_TO, moved)
 TWO_PATHS(link, 0, IN_CREATE, link_or_lock)
 TWO_PATHS(symlink, 0, IN_CREATE, next_symlink)
 
-static int named(const struct listing *l, const char *name) {
-  for (size_t i = 0; i < l->n; i++)
-    if (strcasecmp(l->e[i].name, name) == 0) return 1;
-  return 0;
-}
-
-static int folded_match(const char *where, const char *dir) {
-  const char *at = strstr(where, "/steamapps");
-  if (at == NULL) return 0;
-  size_t n = (size_t)(at - where);
-  return strncmp(where, dir, n) == 0 && strcasecmp(where + n, dir + n) == 0;
-}
-
-static int same_dir(const struct listing *l, const char *dir) {
-  struct stat st;
-  int saved = errno;
-  int same = stat(dir, &st) == 0 && st.st_dev == l->dev && st.st_ino == l->ino;
-  errno = saved;
-  return same;
-}
-
-static int listed_absent(const char *dir, const char *name, long long now) {
-  for (int i = 0; i < MAX_LISTINGS; i++) {
-    struct listing *l = table[i];
-    if (l == NULL || l->where == NULL || l->blind || now - l->filled >= DIR_TTL_NS) continue;
-    if (strcmp(l->where, dir) == 0) return !named(l, name);
-    if (l->folds && folded_match(l->where, dir)) return same_dir(l, dir) && !named(l, name);
-  }
-  return 0;
-}
-
 int dd_dircache_absent(const char *path) __attribute__((visibility("hidden")));
 int dd_dircache_absent(const char *path) {
   struct side s;
@@ -949,7 +1059,8 @@ int dd_dircache_absent(const char *path) {
   int absent = 0;
   if (!changing) {
     pump(NULL, 0);
-    absent = listed_absent(s.dir, s.name, now);
+    struct listing *l = listed(s.dir, now);
+    absent = l != NULL && !named(l, s.name);
   }
   give(&lock);
   return absent;

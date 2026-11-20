@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.LocalIndication
@@ -79,6 +81,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -258,7 +261,7 @@ internal fun GameDetail(
                                 stringResource(R.string.game_tab_achievements_count, stringResource(R.string.achievements_title), achievementState.done, list.size)
                             } ?: stringResource(R.string.achievements_title)
                             GameTab.LAUNCH -> stringResource(R.string.game_tab_launch)
-                            GameTab.SAVES -> stringResource(if (Store.byId(source).let { it == Store.GOG || it == Store.EPIC }) R.string.game_tab_saves_cloud else R.string.games_saves)
+                            GameTab.SAVES -> stringResource(if (CloudSaves.supports(Store.byId(source))) R.string.game_tab_saves_cloud else R.string.games_saves)
                             GameTab.ADDONS -> stringResource(R.string.game_tab_addons)
                             GameTab.INSTALL -> stringResource(R.string.game_tab_install)
                         }
@@ -359,7 +362,7 @@ private fun GameTabBar(
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Row(modifier.fillMaxWidth().glass(CircleShape).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (bumpers) BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
+        if (bumpers) TabBarBumper("LB", stringResource(R.string.widgets_prev_tab), leading = true) { onSelect((selected + tabs.size - 1) % tabs.size) }
         tabs.forEachIndexed { i, label ->
             val on = i == selected
             val src = remember { MutableInteractionSource() }
@@ -383,7 +386,30 @@ private fun GameTabBar(
                 )
             }
         }
-        if (bumpers) BumperKey("RB", stringResource(R.string.widgets_next_tab)) { onSelect((selected + 1) % tabs.size) }
+        if (bumpers) TabBarBumper("RB", stringResource(R.string.widgets_next_tab), leading = false) { onSelect((selected + 1) % tabs.size) }
+    }
+}
+
+@Composable
+private fun TabBarBumper(label: String, description: String, leading: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val round = 22.dp
+    val flat = 7.dp
+    val cap = if (leading) RoundedCornerShape(round, flat, flat, round) else RoundedCornerShape(flat, round, round, flat)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.padding(start = if (leading) 0.dp else 3.dp, end = if (leading) 3.dp else 0.dp)
+            .size(width = 46.dp, height = 44.dp)
+            .clip(cap).background(colors.surfaceVariant).border(1.dp, pal.line2, cap)
+            .focusProperties { canFocus = false }
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+    ) {
+        Text(
+            label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(start = if (leading) 4.dp else 0.dp, end = if (leading) 0.dp else 4.dp),
+        )
     }
 }
 
@@ -458,7 +484,7 @@ internal fun GameActions(
                     if (installed != null && id != null) {
                         LaunchedEffect(id) { BattleNetInstall.checkUpdate(ctx, installed) }
                         if (download != null) {
-                            ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
+                            SteadyDownloadChip(download)
                             if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause)) { DownloadQueue.pause(download.key) }
                             else SecondaryButton(stringResource(R.string.stores_dl_resume)) { DownloadQueue.resume(ctx, download.key) }
                         } else if (BattleNetInstall.updates[id] == true) {
@@ -473,7 +499,7 @@ internal fun GameActions(
                 }
             }
             download != null -> {
-                ActionChip(downloadLabel(download), ok = false, fraction = download.stageFraction.takeIf { it >= 0f }, key = download.stage)
+                SteadyDownloadChip(download)
                 if (download.state != DownloadState.PAUSED) SecondaryButton(stringResource(R.string.stores_dl_pause), modifier = leadOn) { DownloadQueue.pause(download.key) }
                 else PrimaryButton(stringResource(R.string.stores_dl_resume), main = true, modifier = leadOn) { DownloadQueue.resume(ctx, download.key) }
                 ConfirmButton(stringResource(R.string.stores_dl_cancel), stringResource(R.string.stores_dl_cancel_confirm)) { DownloadQueue.cancel(ctx, download.key) }
@@ -892,8 +918,10 @@ private fun ShortcutFields(game: Library.SteamGame, folder: File) {
 
 @Composable
 private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
-    val saves by produceState<List<GameSaves.SaveDir>?>(null, g.gameId) {
-        value = withContext(Dispatchers.IO) { runCatching { GameSaves.locate(prefix, g) }.getOrDefault(emptyList()) }
+    val context = LocalContext.current.applicationContext
+    var synced by remember(g.gameId) { mutableStateOf(0) }
+    val saves by produceState<List<GameSaves.SaveDir>?>(null, g.gameId, synced) {
+        value = withContext(Dispatchers.IO) { runCatching { GameSaves.saves(context, prefix, g) }.getOrDefault(emptyList()) }
     }
     val found = saves
     val summary = when {
@@ -911,9 +939,9 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
     }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(summary, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp).readable().padding(4.dp))
-        if (Store.byId(g.source).let { it == Store.GOG || it == Store.EPIC }) {
+        if (CloudSaves.supports(Store.byId(g.source))) {
             SectionLabel(stringResource(R.string.store_cloud_saves))
-            CloudRows(g)
+            CloudRows(g) { synced++ }
             SectionLabel(stringResource(R.string.games_saves))
         }
         MenuItem(stringResource(R.string.games_import_saves), checked = false) { a.onSaveImport(g) }
@@ -969,14 +997,16 @@ private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions)
 }
 
 @Composable
-private fun CloudRows(g: Library.SteamGame) {
-    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON && it != Store.EA } ?: return
+private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
+    val store = Store.byId(g.source)?.takeIf { it != Store.AMAZON } ?: return
     val id = g.storeId ?: return
     val context = LocalContext.current.applicationContext
     var busy by remember(g.gameId) { mutableStateOf<String?>(null) }
     var tick by remember(g.gameId) { mutableStateOf(0) }
+    var refreshing by remember(g.gameId) { mutableStateOf(false) }
     val status by produceState<CloudSaves.Status?>(null, g.gameId, tick) {
         value = withContext(Dispatchers.IO) { runCatching { CloudSaves.status(context, store, id) }.getOrNull() }
+        refreshing = false
     }
     val folder = g.gameFiles
     var enabled by remember(g.gameId) { mutableStateOf(folder?.let { StoreGameSidecar.read(it)?.cloud } ?: true) }
@@ -988,7 +1018,7 @@ private fun CloudRows(g: Library.SteamGame) {
         busy = if (up) "up" else "down"
         Thread({
             val r = if (up) CloudSaves.upload(context, store, id, force) else CloudSaves.download(context, store, id, force)
-            StoresState.post { busy = null; tick++; android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
+            StoresState.post { refreshing = true; busy = null; tick++; onSynced(); android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
         }, "cloud-manual").start()
     }
     MenuItem(stringResource(R.string.store_cloud_saves), checked = enabled && supported, enabled = supported,
@@ -1000,11 +1030,13 @@ private fun CloudRows(g: Library.SteamGame) {
             StoresState.post { enabled = written?.cloud ?: enabled }
         }, "cloud-switch").start()
     }
-    val ready = st != null && supported && enabled && busy == null
+    val ready = st != null && supported && enabled && busy == null && !refreshing && st.folder != null && st.signedIn
     val pending = stringResource(R.string.cloud_pending)
     val summary = when {
         st == null || busy != null -> pending
         !supported -> stringResource(R.string.cloud_none)
+        !st.signedIn || st.reason == "not-signed-in" -> stringResource(R.string.cloud_signed_out)
+        st.folder == null -> stringResource(R.string.cloud_not_synced)
         conflict -> stringResource(R.string.cloud_conflict_files, st.conflicts.size)
         st.lastSync > 0 -> stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString())
         else -> stringResource(R.string.cloud_never)
@@ -1114,5 +1146,49 @@ internal object FolderSizes {
                 StoresState.post { known[folder.path] = total }
             } else asked.remove(folder.path)
         }, "folder-size").start()
+    }
+}
+
+@Composable
+private fun SteadyDownloadChip(download: com.droiddeck.launcher.stores.download.DownloadEntry) {
+    val progress = steadyProgress(download)
+    val label = steadyLabel(download, progress)
+    val show = LocalShowSection.current
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val shape = if (LocalPillButtons.current) androidx.compose.foundation.shape.CircleShape else Shape12
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val pressed by src.collectIsPressedAsState()
+    val scale by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.955f else if (hot) 1.02f else 1f, Motion.sp(0.5f, androidx.compose.animation.core.Spring.StiffnessMedium), label = "dlScale")
+    val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val description = stringResource(R.string.stores_tab_downloads)
+    val open = {
+        placed[0]?.takeIf { it.isAttached }?.boundsInRoot()?.let { StoresMotion.fly(it) }
+        show("downloads")
+    }
+    Box(
+        contentAlignment = Alignment.CenterStart,
+        modifier = Modifier.paneItem("detail-download").testTag("detail-download")
+            .onGloballyPositioned { placed[0] = it }
+            .widthIn(min = 200.dp).heightIn(min = 48.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }.clip(shape)
+            .background(Color.White.copy(alpha = 0.04f))
+            .glideBorder(hot, shape, pal.signal, pal.line2)
+            .hoverable(src)
+            .clickable(interactionSource = src, indication = androidx.compose.foundation.LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClickLabel = description, onClick = open)
+            .controllerConfirm(onClick = open),
+    ) {
+        ChipFill(progress, download.key, pal.signal.copy(alpha = 0.42f))
+        Row(
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.widthIn(min = 200.dp).padding(start = 16.dp, end = 10.dp),
+        ) {
+            Text(
+                label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp, color = colors.onBackground, maxLines = 1,
+                style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"), modifier = Modifier.padding(end = 8.dp),
+            )
+            Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight, description, tint = if (hot) colors.onBackground else colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
     }
 }

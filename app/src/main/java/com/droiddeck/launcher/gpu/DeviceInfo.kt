@@ -87,20 +87,10 @@ object DeviceInfo {
     private fun ghz(khz: Long) = String.format(Locale.US, "%.2f GHz", khz / 1e6)
 
     private fun gpuRange(): String? {
-        fun mhz(hz: Long) = "${hz / 1_000_000} MHz"
-        val kgsl = read("/sys/class/kgsl/kgsl-3d0/gpu_available_frequencies")
-            ?.split(Regex("\\s+"))?.mapNotNull { it.toLongOrNull() }?.filter { it > 0 }.orEmpty()
-        if (kgsl.isNotEmpty()) return "${mhz(kgsl.min())}–${mhz(kgsl.max())} (${kgsl.size} steps)"
-        read("/sys/class/kgsl/kgsl-3d0/max_gpuclk")?.toLongOrNull()?.let { return "up to ${mhz(it)}" }
-        val node = File("/sys/class/devfreq").listFiles()?.firstOrNull { f ->
-            val n = f.name.lowercase()
-            (n.contains("gpu") || n.contains("mali") || n.contains("kgsl-3d")) && listOf("bus", "bw", "memlat").none { n.contains(it) }
-        } ?: return null
-        val steps = read("${node.path}/available_frequencies")?.split(Regex("\\s+"))?.mapNotNull { it.toLongOrNull() }?.filter { it > 0 }.orEmpty()
-        if (steps.isNotEmpty()) return "${mhz(steps.min())}–${mhz(steps.max())} (${steps.size} steps)"
-        val min = read("${node.path}/min_freq")?.toLongOrNull()
-        val max = read("${node.path}/max_freq")?.toLongOrNull() ?: return null
-        return (if (min != null) "${mhz(min)}–" else "up to ") + mhz(max)
+        GpuLimits.first(GpuLimits.stepSources())?.mhz?.let { return "${it.first()} MHz–${it.last()} MHz (${it.size} steps)" }
+        val max = GpuLimits.first(GpuLimits.maxSources())?.mhz?.last() ?: return null
+        val min = GpuLimits.first(GpuLimits.minSources())?.mhz?.first()
+        return (if (min != null) "$min MHz–" else "up to ") + "$max MHz"
     }
 
     private fun memory(context: Context) = Section("Memory", buildList<Pair<String, String>> {
