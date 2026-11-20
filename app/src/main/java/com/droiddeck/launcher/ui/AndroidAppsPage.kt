@@ -435,7 +435,19 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
     if (arranging && (!appMove.allowed || sort != AppsView.CUSTOM)) { arranging = false; moving = null }
     if (moving != null && entries.none { it.key == moving }) { moving = null; dragKey = null }
     if (!arranging && dragKey != null) dragKey = null
-    BackHandler(arranging) { moving = null; arranging = false }
+    // B or Back first puts down a tile being carried, so another can be picked; with none carried it ends arranging.
+    val stepBack = { if (moving != null) moving = null else arranging = false }
+    BackHandler(arranging) { stepBack() }
+    // Putting a tile down or leaving arranging rebuilds the tiles, which drops focus: give it back to the tile that had it.
+    val tileFocus = LocalFrontFocus.current
+    val carried = remember { booleanArrayOf(false, false) }
+    LaunchedEffect(arranging, moving) {
+        val was = carried[0] || carried[1]
+        carried[0] = moving != null
+        carried[1] = arranging
+        val id = tileFocus?.last?.takeIf { it.startsWith("tile:") } ?: return@LaunchedEffect
+        if (was && (moving == null || !arranging)) focusSoon { tileFocus.items.getValue(id) }
+    }
     // A quick sideways drag that does not pick up a tile must not turn the page while arranging.
     if (arranging) SwipeLock()
     LaunchedEffect(dragKey) {
@@ -530,7 +542,7 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                     modifier = Modifier.fillMaxSize().then(if (!arranging) Modifier else Modifier.onPreviewKeyEvent { event ->
                         val k = event.nativeKeyEvent
                         if (k.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
-                            if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) { moving = null; arranging = false }
+                            if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) stepBack()
                             return@onPreviewKeyEvent true
                         }
                         // With a tile picked up the D-pad carries it; otherwise it moves the cursor as usual.
