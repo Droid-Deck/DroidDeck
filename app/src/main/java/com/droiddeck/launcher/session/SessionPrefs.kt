@@ -665,9 +665,10 @@ object SessionPrefs {
             ?: if (context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")) SHAPE_WIDE else SHAPE_AUTO
 
     /** Auto, Always or Never. Older builds also stored the Steam layout and a buttons-only mode here. */
-    fun oscMode(context: Context): String = when (val mode = prefs(context).getString("osc", OSC_AUTO)) {
+    fun oscMode(context: Context, steamSession: Boolean = false): String = when (val mode = prefs(context).getString("osc", OSC_AUTO)) {
         OSC_ALWAYS, OSC_NEVER -> mode
         OSC_STEAM_QAM -> OSC_ALWAYS
+        OSC_STEAM_TOUCH -> if (steamSession) OSC_ALWAYS else OSC_AUTO
         else -> OSC_AUTO
     }
 

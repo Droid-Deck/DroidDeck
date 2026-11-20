@@ -854,7 +854,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         bridge.setStickDeadZone(ControllerPrefs.deadZone(this))
         bridge.setBuiltinPad(SessionState.mode != SessionService.MODE_STEAM || SessionPrefs.builtinPad(this))
         padBridge = bridge
-        inputRouter = InputRouter(inputOutput).also { bridge.setInputRouter(it); DeckControls.setRouter(it); physicalInputBindings = com.droiddeck.launcher.input.PhysicalInputBindings(it) }
+        inputRouter = InputRouter(inputOutput).also { bridge.setInputRouter(it); DeckControls.setRouter(it); physicalInputBindings = com.droiddeck.launcher.input.PhysicalInputBindings(it, ::noteRemappedControllerUse) }
         refreshInputProfile()
         bridge.setOnChordInput(backQamInput::onChordInput)
         SessionState.padBridge = bridge
@@ -868,8 +868,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             bridge.setExcluded(vr::owns)
             joyConVr = vr
         }
-        SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); refreshControls() } }
-        steamController = SteamControllerBle(this, inputRouter).also { it.start() }
+        SteamControllerBle.listener = {
+            uiHandler.post {
+                if (isDestroyed) return@post
+                if (SteamControllerBle.connected) controllerInUse = true
+                updatePadMotion()
+                refreshControls()
+            }
+        }
+        steamController = SteamControllerBle(this, inputRouter, ::noteSteamControllerUse).also { it.start() }
         if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
             !SessionPrefs.bluetoothAsked(this)) {
             SessionPrefs.setBluetoothAsked(this)
@@ -1271,7 +1278,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     onBack = { inputSettingsOpen = false; secondScreenPresentation?.refreshControls() },
                     onChanged = {
                         controllerSettings = ControllerPrefs.read(this@SessionActivity)
-                        oscMode = SessionPrefs.oscMode(this@SessionActivity)
+                        oscMode = sessionOscMode()
                         padBridge?.setStickDeadZone(ControllerPrefs.deadZone(this@SessionActivity))
                         joyConVr?.refresh()
                         onScreenControls?.reload()
@@ -1460,7 +1467,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             micAvailable = SessionState.micAvailable && !SessionState.suspended,
             micEnabled = SessionState.micEnabled,
             onMicEnabled = { SessionService.setMicEnabled(this@SessionActivity, it) },
-            touchAuto = getString(if (usingTouchpad()) R.string.mode_touch_touchpad else R.string.mode_touch_mouse),
+            touchAuto = getString(if (usingTouchpad(SessionPrefs.TOUCH_AUTO)) R.string.mode_touch_touchpad else R.string.mode_touch_mouse),
             pen = penSettings.takeIf { penSeen },
             onPen = { key, value -> SessionPrefs.setPenSetting(this@SessionActivity, key, value); readPrefs() },
             fexPreset = fexPreset,
@@ -2548,7 +2555,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
-        oscMode = SessionPrefs.oscMode(this)
+        oscMode = sessionOscMode()
         backHold = SessionPrefs.backHold(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         physicalShortcuts.bindings = PhysicalShortcuts.read(this)
@@ -4471,7 +4478,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         onScreenControls?.updateLayout(primaryInputLayout)
         bottomInputControls?.updateLayout(primaryInputLayout)
         unfoldedPanel?.updateLayout(primaryInputLayout)
-        if (unfoldedPanel != null) applyUnfoldedControls()
+        if (onScreenControls != null) applyUnfoldedControls()
         updateOnScreenPad()
         secondScreenPresentation?.refreshControls()
     }
@@ -4506,7 +4513,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun controlsBelowWanted(): Boolean {
         if (!::sessionRoot.isInitialized || glassesScreen != null || bottomGame != null || cardboard.enabled) return false
-        if (SessionPrefs.oscMode(this) == SessionPrefs.OSC_NEVER) return false
+        if (sessionOscMode() == SessionPrefs.OSC_NEVER || usesSteamTouchLayout()) return false
         return SessionPrefs.controlsBelowWanted(this, SessionState.mode, sessionRoot.width, sessionRoot.height,
             pipUi || isInPictureInPictureMode)
     }
@@ -4772,7 +4779,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun deliversTouches(mode: String) =
         mode == SessionPrefs.TOUCH_DIRECT || mode == SessionPrefs.TOUCH_AUTO
 
-    private fun usingTouchpad(): Boolean = when (routedTouchMode) {
+    private fun usingTouchpad(mode: String = routedTouchMode): Boolean = when (mode) {
         SessionPrefs.TOUCH_PAD -> true
         SessionPrefs.TOUCH_DIRECT -> false
         else -> SessionState.mode != SessionService.MODE_STEAM || SessionState.steamUi == "desktop"
@@ -5376,17 +5383,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
+    private fun sessionOscMode() = SessionPrefs.oscMode(this, steamSession = SessionState.mode == SessionService.MODE_STEAM)
+
+    private fun usesSteamTouchLayout() = SessionState.mode == SessionService.MODE_STEAM &&
+        com.droiddeck.launcher.input.GameControls.steamLayout(this, controlsGameId())
+
     private fun controlsPlan(): com.droiddeck.launcher.input.ControlsPresenter.Plan {
         val steam = SessionState.mode == SessionService.MODE_STEAM
         if (!PadBridge.anyControllerConnected() && !SteamControllerBle.connected) controllerInUse = false
         return com.droiddeck.launcher.input.ControlsPresenter.plan(com.droiddeck.launcher.input.ControlsPresenter.State(
-            mode = SessionPrefs.oscMode(this),
+            mode = sessionOscMode(),
             desktop = SessionState.mode == SessionService.MODE_DESKTOP,
             virtualPad = !steam || SessionPrefs.builtinPad(this),
             covered = controlsCovered(),
             controllerInUse = controllerInUse,
             hiddenByTap = controlsHiddenByTap,
-            steamLayout = steam && com.droiddeck.launcher.input.GameControls.steamLayout(this, controlsGameId()),
+            steamLayout = usesSteamTouchLayout(),
             bottomScreen = bottomGame?.surfaceView?.parent is android.view.ViewGroup,
         ))
     }
@@ -5398,8 +5410,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         fun hideBottomControls() { bottomInputControls?.takeIf { it.visibility == View.VISIBLE }?.let { it.releaseAll(); it.visibility = View.GONE } }
         fun hideSteam() {
             steamTouchControls?.let { it.cancelEditing(); it.releaseAll(); it.visibility = View.GONE }
-            val keyboardOver = SessionState.mode == SessionService.MODE_STEAM && controlsCovered() &&
-                com.droiddeck.launcher.input.GameControls.steamLayout(this, controlsGameId())
+            val keyboardOver = controlsCovered() && usesSteamTouchLayout()
             if (!keyboardOver) com.droiddeck.launcher.input.SteamTouchDevice.current?.plugged = false
         }
         val plan = controlsPlan()
@@ -5407,8 +5418,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val wantsSteam = plan.place == com.droiddeck.launcher.input.ControlsPresenter.Place.STEAM
         val steam = if (wantsSteam) steamTouch() else null
         steamTouchInUse = steam != null
+        uiHandler.removeCallbacks(steamTouchRetry)
         if (wantsSteam && steam == null && !isFinishing && !isDestroyed) {
-            uiHandler.removeCallbacks(steamTouchRetry)
             uiHandler.postDelayed(steamTouchRetry, 1000)
         }
         if (steam != null) {
@@ -5442,7 +5453,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 bottom.setHidden(plan.hidden)
                 bottom.visibility = View.VISIBLE
             }
-            com.droiddeck.launcher.input.ControlsPresenter.Place.MAIN -> {
+            com.droiddeck.launcher.input.ControlsPresenter.Place.MAIN,
+            com.droiddeck.launcher.input.ControlsPresenter.Place.STEAM -> {
                 hideBottomControls()
                 controls.setHidden(plan.hidden)
                 controls.visibility = View.VISIBLE
@@ -5464,6 +5476,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun openControllerMenu() {
         drawerPage = SessionDrawerPage.CONTROLLER
         drawerOpen = true
+    }
+
+    private fun noteRemappedControllerUse(event: KeyEvent) {
+        if (PadBridge.isControllerKeyEvent(event) ||
+            (event.isFromSource(InputDevice.SOURCE_GAMEPAD) && PadBridge.isFromController(event.device))) {
+            noteControllerUse()
+        }
+    }
+
+    private fun noteSteamControllerUse() {
+        uiHandler.post {
+            if (!isDestroyed && SteamControllerBle.connected) noteControllerUse()
+        }
     }
 
     private fun noteControllerUse() {
@@ -6706,7 +6731,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != REQUEST_BLUETOOTH || grantResults.firstOrNull() != android.content.pm.PackageManager.PERMISSION_GRANTED) return
         steamController?.stop()
-        steamController = SteamControllerBle(this, inputRouter).also { it.start() }
+        steamController = SteamControllerBle(this, inputRouter, ::noteSteamControllerUse).also { it.start() }
     }
 
     companion object {

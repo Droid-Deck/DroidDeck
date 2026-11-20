@@ -30,6 +30,11 @@ class OnScreenControlPrefsTest {
             session.edit().putString("osc", saved).commit()
             assertEquals(saved, mode, SessionPrefs.oscMode(context))
         }
+        session.edit().putString("osc", SessionPrefs.OSC_STEAM_TOUCH).commit()
+        assertEquals(SessionPrefs.OSC_ALWAYS, SessionPrefs.oscMode(context, steamSession = true))
+        SessionPrefs.setOscMode(context, SessionPrefs.OSC_AUTO)
+        assertEquals(SessionPrefs.OSC_AUTO, SessionPrefs.oscMode(context, steamSession = true))
+        assertTrue(SessionPrefs.steamTouchLayout(context))
     }
 
     @Test fun theOldSteamTouchModeBecomesTheSteamLayoutUntilChanged() {
