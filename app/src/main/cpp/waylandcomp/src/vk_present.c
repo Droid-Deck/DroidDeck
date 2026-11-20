@@ -2,6 +2,7 @@
 #include "vk_present.h"
 #include "vk_loader.h"
 #include "vk_external_image_sync.h"
+#include "vk_linear_dmabuf.h"
 #include "sc_layer.h"
 #include "effects_chain.h"
 #include "cardboard.h"
@@ -42,10 +43,14 @@ struct vkp_image {
     VkFormat fmt;
     int sampled;
     AHardwareBuffer *android_buffer;
+    VkBuffer linear_buf;
+    VkDeviceMemory linear_mem;
+    VkBufferImageCopy linear_copy;
 };
 
 static ANativeWindow *g_window;
 static int g_ahb_import;
+static int g_drm_modifiers;
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
 static int g_allow_driver_fallback;
 static int g_dev_state;
@@ -628,6 +633,7 @@ static int dev_init(void) {
         if (has_ext(exts, ne, import_exts[i])) dev_exts[n_dev_exts++] = import_exts[i];
         else LOGE("present: driver MISSING %s (dmabuf import will fail)", import_exts[i]);
     }
+    g_drm_modifiers = has_ext(exts, ne, "VK_EXT_image_drm_format_modifier");
     int want_hdr_md = 0;
     if (droiddeck_color_requested()) {
         want_hdr_md = has_ext(exts, ne, VK_EXT_HDR_METADATA_EXTENSION_NAME);
@@ -1109,6 +1115,37 @@ static void release_external_client_draws(VkCommandBuffer cmd, const struct vkp_
     }
 }
 
+static void stage_linear_dmabuf(VkCommandBuffer cmd, const struct vkp_image *img) {
+    if (!img || !img->linear_buf) return;
+    const VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    VkBufferMemoryBarrier acquire = vkp_linear_dmabuf_ownership(img->linear_buf, g_qfam, 1);
+    VkImageMemoryBarrier write = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = img->image, .subresourceRange = range, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+                            0, NULL, 1, &acquire, 1, &write);
+    g_vk.CmdCopyBufferToImage(cmd, img->linear_buf, img->image, VK_IMAGE_LAYOUT_GENERAL, 1, &img->linear_copy);
+    VkBufferMemoryBarrier release = vkp_linear_dmabuf_ownership(img->linear_buf, g_qfam, 0);
+    VkImageMemoryBarrier read = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = img->image, .subresourceRange = range, .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT};
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
+                            0, NULL, 1, &release, 1, &read);
+}
+
+static void stage_linear_dmabufs(VkCommandBuffer cmd, const struct vkp_draw *draws, int count) {
+    for (int i = 0; i < count; i++) {
+        int seen = 0;
+        for (int j = 0; j < i; j++) if (draws[j].img == draws[i].img) { seen = 1; break; }
+        if (!seen) stage_linear_dmabuf(cmd, draws[i].img);
+    }
+}
+
 int vkp_image_is_dmabuf(const struct vkp_image *img) {
     return img && vkp_is_external_client_image(img->dmabuf, img->blit_dst);
 }
@@ -1181,6 +1218,102 @@ fail:
     return NULL;
 }
 
+static int optimal_sampled(VkFormat fmt) {
+    if (!g_vk.GetPhysicalDeviceFormatProperties2) return 0;
+    VkFormatProperties2 fp = {.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
+    g_vk.GetPhysicalDeviceFormatProperties2(g_pd, fmt, &fp);
+    const VkFormatFeatureFlags need = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                                      VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+    return (fp.formatProperties.optimalTilingFeatures & need) == need;
+}
+
+static void destroy_image_objects(struct vkp_image *img) {
+    if (img->image) g_vk.DestroyImage(g_dev, img->image, NULL);
+    if (img->mem) g_vk.FreeMemory(g_dev, img->mem, NULL);
+    if (img->linear_buf) g_vk.DestroyBuffer(g_dev, img->linear_buf, NULL);
+    if (img->linear_mem) g_vk.FreeMemory(g_dev, img->linear_mem, NULL);
+    img->image = VK_NULL_HANDLE; img->mem = VK_NULL_HANDLE;
+    img->linear_buf = VK_NULL_HANDLE; img->linear_mem = VK_NULL_HANDLE;
+    img->in_general = 0;
+}
+
+static int import_linear_dmabuf(struct vkp_image *img, int fd, const VkBufferImageCopy *copy, VkDeviceSize need) {
+    int dupfd = dup(fd);
+    if (dupfd < 0) return -1;
+    VkDeviceSize size = need;
+    off_t end = lseek(dupfd, 0, SEEK_END);
+    if (end > 0 && (VkDeviceSize)end >= need) size = (VkDeviceSize)end;
+    lseek(dupfd, 0, SEEK_SET);
+    if (end > 0 && (VkDeviceSize)end < need) {
+        LOGE("dmabuf: the linear %dx%d buffer holds %lld bytes, its row pitch needs %llu", img->w, img->h,
+             (long long)end, (unsigned long long)need);
+        close(dupfd);
+        return -1;
+    }
+    VkExternalMemoryBufferCreateInfo ext = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT};
+    VkBufferCreateInfo bci = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .pNext = &ext, .size = size,
+                              .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
+    VkResult r = g_vk.CreateBuffer(g_dev, &bci, NULL, &img->linear_buf);
+    if (r != VK_SUCCESS) goto fail;
+    uint32_t allowed = 0xffffffff;
+    if (g_vk.GetMemoryFdPropertiesKHR) {
+        VkMemoryFdPropertiesKHR fp = {.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR};
+        if (g_vk.GetMemoryFdPropertiesKHR(g_dev, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+                                          dupfd, &fp) == VK_SUCCESS)
+            allowed = fp.memoryTypeBits;
+    }
+    VkMemoryRequirements breq;
+    g_vk.GetBufferMemoryRequirements(g_dev, img->linear_buf, &breq);
+    int bidx = memory_type(breq.memoryTypeBits & allowed, 0);
+    r = VK_ERROR_FORMAT_NOT_SUPPORTED;
+    if (bidx < 0) goto fail;
+    VkImportMemoryFdInfoKHR imp = {.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+                                   .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, .fd = dupfd};
+    VkMemoryDedicatedAllocateInfo ded = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+                                         .pNext = &imp, .buffer = img->linear_buf};
+    VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &ded,
+                                .allocationSize = breq.size, .memoryTypeIndex = (uint32_t)bidx};
+    r = g_vk.AllocateMemory(g_dev, &mai, NULL, &img->linear_mem);
+    if (r != VK_SUCCESS) goto fail;
+    dupfd = -1;
+    r = g_vk.BindBufferMemory(g_dev, img->linear_buf, img->linear_mem, 0);
+    if (r != VK_SUCCESS) goto fail;
+
+    VkImageCreateInfo ici = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .imageType = VK_IMAGE_TYPE_2D, .format = img->fmt,
+        .extent = {(uint32_t)img->w, (uint32_t)img->h, 1}, .mipLevels = 1, .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                 (img->sampled ? VK_IMAGE_USAGE_SAMPLED_BIT : 0),
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+    r = g_vk.CreateImage(g_dev, &ici, NULL, &img->image);
+    if (r != VK_SUCCESS) goto fail;
+    VkMemoryRequirements ireq;
+    g_vk.GetImageMemoryRequirements(g_dev, img->image, &ireq);
+    int iidx = memory_type(ireq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (iidx < 0) iidx = memory_type(ireq.memoryTypeBits, 0);
+    r = VK_ERROR_FORMAT_NOT_SUPPORTED;
+    if (iidx < 0) goto fail;
+    VkMemoryAllocateInfo iai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                                .allocationSize = ireq.size, .memoryTypeIndex = (uint32_t)iidx};
+    r = g_vk.AllocateMemory(g_dev, &iai, NULL, &img->mem);
+    if (r != VK_SUCCESS) goto fail;
+    r = g_vk.BindImageMemory(g_dev, img->image, img->mem, 0);
+    if (r != VK_SUCCESS) goto fail;
+    img->linear_copy = *copy;
+    img->dmabuf = 0;
+    img->in_general = 1;
+    return 0;
+fail:
+    LOGE("dmabuf: reading the linear %dx%d buffer at its row pitch failed (%s); importing it as an image",
+         img->w, img->h, vk_result_name(r));
+    if (dupfd >= 0) close(dupfd);
+    destroy_image_objects(img);
+    return -1;
+}
+
 struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t modifier, int w, int h,
                                           uint32_t stride, uint32_t offset, int as_blit_dst) {
     if (modifier == MOD_INVALID || w <= 0 || h <= 0) return NULL;
@@ -1190,9 +1323,11 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
     if (!img) return NULL;
     img->w = w; img->h = h; img->dmabuf = 1; img->blit_dst = as_blit_dst ? 1 : 0;
     img->fmt = drm_to_vk(drm_format);
+    const int through_buffer = vkp_linear_dmabuf_through_buffer(g_drm_modifiers, modifier, as_blit_dst);
     const VkImageUsageFlags sampled_usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    img->sampled = !as_blit_dst && g_vk.GetPhysicalDeviceImageFormatProperties2 &&
-                   modifier_importable(img->fmt, modifier, sampled_usage);
+    const int modifier_sampled = !as_blit_dst && g_vk.GetPhysicalDeviceImageFormatProperties2 &&
+                                 modifier_importable(img->fmt, modifier, sampled_usage);
+    img->sampled = through_buffer ? optimal_sampled(img->fmt) : modifier_sampled;
     /* Each new format/modifier/size a client hands over, once, for the graphics report: a colour
      * or swizzle mismatch on a non-Adreno driver shows up as the pair it arrived as. */
     {
@@ -1203,10 +1338,11 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
             if (seen[i].fmt == drm_format && seen[i].mod == modifier && seen[i].w == w && seen[i].h == h) known = 1;
         if (!known && nseen < 32) {
             seen[nseen].fmt = drm_format; seen[nseen].mod = modifier; seen[nseen].w = w; seen[nseen].h = h; nseen++;
-            droiddeck_log("gpu", "dmabuf import: %c%c%c%c %s %dx%d stride %u offset %u -> vk format %d, %s%s",
+            droiddeck_log("gpu", "dmabuf import: %c%c%c%c %s %dx%d stride %u offset %u -> vk format %d, %s%s%s",
                           drm_format & 0xff, (drm_format >> 8) & 0xff, (drm_format >> 16) & 0xff, (drm_format >> 24) & 0xff,
                           vkp_modifier_name(modifier), w, h, stride, offset, (int)img->fmt,
-                          img->sampled ? "sampled" : "copied", as_blit_dst ? ", blit target" : "");
+                          img->sampled ? "sampled" : "copied", as_blit_dst ? ", blit target" : "",
+                          through_buffer ? ", read at its row pitch (no VK_EXT_image_drm_format_modifier)" : "");
         }
     }
 
@@ -1214,6 +1350,12 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
      * vkCreateImage, which left the whole window unshown (David Cimo). One packed, 64-byte aligned
      * row is what a linear buffer that small holds. */
     if (stride == 0 && modifier == 0) stride = ((uint32_t)w * 4 + 63) & ~63u;
+    if (through_buffer) {
+        VkBufferImageCopy linear_copy;
+        const VkDeviceSize linear_size = vkp_linear_dmabuf_copy(img->fmt, w, h, stride, offset, &linear_copy);
+        if (linear_size && import_linear_dmabuf(img, fd, &linear_copy, linear_size) == 0) return img;
+        img->sampled = modifier_sampled;
+    }
     VkSubresourceLayout plane = {.offset = offset, .rowPitch = stride};
     VkImageDrmFormatModifierExplicitCreateInfoEXT modInfo = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT,
@@ -1501,8 +1643,7 @@ void vkp_image_destroy(struct vkp_image *img) {
     if (g_dev) {
         blendp_forget_image(img->image);
         if (img->map) g_vk.UnmapMemory(g_dev, img->mem);
-        if (img->image) g_vk.DestroyImage(g_dev, img->image, NULL);
-        if (img->mem) g_vk.FreeMemory(g_dev, img->mem, NULL);
+        destroy_image_objects(img);
     }
     if (img->android_buffer) AHardwareBuffer_release(img->android_buffer);
     free(img);
@@ -2084,6 +2225,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
                                    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
     g_vk.BeginCommandBuffer(cmd, &bi);
     blendp_begin_frame();
+    stage_linear_dmabufs(cmd, draws, n);
     VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
     VkImageMemoryBarrier *bars = calloc((size_t)n + 1, sizeof(*bars));
@@ -2383,6 +2525,7 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
     VkCommandBufferBeginInfo bi = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
     g_vk.BeginCommandBuffer(g_cmd, &bi);
+    stage_linear_dmabuf(g_cmd, src);
     struct vkp_external_client_barrier_pair src_pair;
     const int src_external = vkp_external_client_barrier_pair(
         src->image, g_qfam, src->dmabuf, src->blit_dst, &src_pair);
@@ -2489,12 +2632,14 @@ int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px) {
     VkCommandBufferBeginInfo bi = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                                    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
     g_vk.BeginCommandBuffer(cmd, &bi);
+    stage_linear_dmabuf(cmd, src);
     struct vkp_external_client_barrier_pair src_pair;
     const int src_external = vkp_external_client_barrier_pair(
         src->image, g_qfam, src->dmabuf, src->blit_dst, &src_pair);
     VkImageMemoryBarrier acq[2] = {
         src_external ? src_pair.acquire : (VkImageMemoryBarrier){
-         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+         .oldLayout = src->in_general ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED,
          .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
@@ -2602,6 +2747,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
                                    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
     g_vk.BeginCommandBuffer(cmd, &bi);
     blendp_begin_frame();
+    stage_linear_dmabufs(cmd, draws, n);
     VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
     VkImageMemoryBarrier *bars = calloc((size_t)n + 1, sizeof(*bars));
