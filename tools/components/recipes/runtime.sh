@@ -26,6 +26,12 @@ echo "${URUNTIME_SHA256}  uruntime" | sha256sum -c -
 install -Dm644 uruntime "$D/usr/local/lib/droiddeck/uruntime"
 install -Dm644 tools/linuxfs/licenses/uruntime-LICENSE "$D/usr/local/share/licenses/uruntime/LICENSE"
 rm uruntime
+. tools/linuxfs/lse-emu.env
+curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o liblse_emu.so "$LSE_EMU_URL"
+echo "${LSE_EMU_SHA256}  liblse_emu.so" | sha256sum -c -
+install -Dm644 liblse_emu.so "$D/usr/local/lib/droiddeck-tegra/liblse_emu.so"
+install -Dm644 tools/linuxfs/licenses/lse-emu-NOTICE "$D/usr/local/share/licenses/droiddeck-tegra/NOTICE"
+rm liblse_emu.so
 M="$D/usr/local/lib/mangoapp"
 mkdir -p "$M" mango-pkgs
 grep -v '^#' tools/mangoapp/packages.txt | while read -r sum url; do

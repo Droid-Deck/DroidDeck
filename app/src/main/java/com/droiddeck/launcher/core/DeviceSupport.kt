@@ -13,6 +13,9 @@ object DeviceSupport {
 
     fun adreno(): Boolean = adrenoGpu
 
+    fun switchTegra(): Boolean = Build.DEVICE == "nx" && Build.HARDWARE == "nx" &&
+        File("/vendor/lib64/hw/vulkan.tegra.so").isFile
+
     fun graphicsAvailable(): Boolean = graphicsAvailable(adreno(), SystemVulkanDriver.isAvailable())
 
     internal fun graphicsAvailable(adreno: Boolean, powerVrReady: Boolean): Boolean = adreno || powerVrReady

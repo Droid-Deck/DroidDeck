@@ -472,6 +472,9 @@ if [ -z "${DD_INSIDE:-}" ]; then
     wayland-info >/dev/null 2>&1 && break
     sleep 0.1
   done
+  if [ "$mode" = steam ] && [ "${DD_TEGRA_XWAYLAND:-0}" = 1 ]; then
+    exec /usr/local/bin/droiddeck-tegra-xwayland "$0" "$mode" "$@"
+  fi
   if [ "$mode" = lxqt ]; then
     step "starting the desktop"
     start_agent --no-focus
@@ -617,7 +620,11 @@ if [ "${DD_DESKTOP:-}" != 1 ] && [ -n "${DD_ANDROID_CLIPBOARD:-}" ] && [ -x /usr
   /usr/local/bin/droiddeck-clipboard "$DD_ANDROID_CLIPBOARD" &
 fi
 
-[ "${DD_DESKTOP:-}" = 1 ] || start_agent
+if [ "${DD_TEGRA_XWAYLAND:-0}" = 1 ]; then
+  start_agent --no-focus
+elif [ "${DD_DESKTOP:-}" != 1 ]; then
+  start_agent
+fi
 
 case $mode in
   desktop)
@@ -710,6 +717,10 @@ case $mode in
         droiddeck-steam-x64 --share || true
       fi
       steam_client=("$steam_root/steamrtarm64/steam")
+      if [ "${DD_TEGRA_XWAYLAND:-0}" = 1 ]; then
+        steam_client=(env LSE_EMU=1 LSE_EMU_PATCH=1
+          "LD_PRELOAD=/usr/local/lib/droiddeck-tegra/liblse_emu.so${LD_PRELOAD:+:$LD_PRELOAD}" "${steam_client[@]}")
+      fi
       _dd_srt_shim=$HOME/.droiddeck-steamrt-shim
       if droiddeck-steamrt-shim "$steam_root/steamrtarm64" "$_dd_srt_shim"; then
         echo "== steam: Valve containerized the arm64 Steam client (it carries a Steam Runtime container); starting it through $_dd_srt_shim"
@@ -1486,6 +1497,7 @@ case $mode in
     # none); only the system-PowerVR path (DD_STEAM_GL_PRESENT=1) changes them.
     _dd_cef=(-cef-force-gpu "${dd_steam_presentation[@]}" -cef-use-gl=angle "-cef-use-angle=${dd_steam_angle:-vulkan}")
     [ "${steam_cef_gpu:-1}" = 1 ] || _dd_cef=(-cef-disable-gpu)
+    [ "${DD_TEGRA_XWAYLAND:-0}" != 1 ] || _dd_cef=(-cef-disable-gpu)
     if [ "${DD_DESKTOP:-}" = 1 ] && [ "${DD_STEAM_UI:-}" = desktop ]; then
       _dd_cef=(-cef-disable-gpu)
       _dd_ui=(-nobigpicture)

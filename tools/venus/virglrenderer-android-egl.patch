@@ -1,0 +1,46 @@
+Enable the EGL winsys on Android without requiring a GBM/DRM device.
+Based on Termux's virglrenderer-android 0001-do-not-use-gbm patch.
+
+diff --git a/meson.build b/meson.build
+--- a/meson.build
++++ b/meson.build
+@@ -173,2 +173,3 @@
+ with_host_windows = host_machine.system() == 'windows'
++with_host_android = host_machine.system() == 'android'
+ with_host_darwin = host_machine.system() == 'darwin'
+@@ -289,6 +290,6 @@
+ if with_egl
+    if cc.has_header('epoxy/egl.h', dependencies: epoxy_dep) and epoxy_dep.get_variable(pkgconfig: 'epoxy_has_egl') == '1'
+-      if with_host_windows or with_host_darwin
++      if with_host_windows or with_host_darwin or with_host_android
+          have_egl = true
+       else
+          if libdrm_dep.found()
+diff --git a/src/vrend/vrend_winsys.c b/src/vrend/vrend_winsys.c
+--- a/src/vrend/vrend_winsys.c
++++ b/src/vrend/vrend_winsys.c
+@@ -78,4 +78,11 @@
+       use_context = CONTEXT_EGL;
++#elif defined(__ANDROID__) && defined(HAVE_EPOXY_EGL_H)
++      (void)preferred_fd;
++      egl = virgl_egl_init(EGL_DEFAULT_DISPLAY, flags & VIRGL_RENDERER_USE_SURFACELESS,
++                           flags & VIRGL_RENDERER_USE_GLES);
++      if (!egl)
++         return -1;
++      use_context = CONTEXT_EGL;
+ #else
+       (void)preferred_fd;
+       virgl_error("EGL is not supported on this platform\n");
+@@ -116,6 +123,12 @@
+       egl = NULL;
+       use_context = CONTEXT_NONE;
+    }
++#elif defined(__ANDROID__) && defined(HAVE_EPOXY_EGL_H)
++   if (use_context == CONTEXT_EGL) {
++      virgl_egl_destroy(egl);
++      egl = NULL;
++      use_context = CONTEXT_NONE;
++   }
+ #endif
+ #ifdef HAVE_EPOXY_GLX_H
+    if (use_context == CONTEXT_GLX) {
