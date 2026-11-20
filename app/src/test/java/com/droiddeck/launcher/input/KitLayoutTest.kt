@@ -153,13 +153,21 @@ class KitLayoutTest {
         assertTrue(overlapping(placed, w, h).isEmpty())
     }
 
-    @Test fun startAndSelectAreOnTheFloatingOverlayBottomRow() {
+    @Test fun startSelectAndHomeAreOnTheFloatingOverlayBottomRow() {
         for (kit in PadKit.entries) for ((w, h) in sizes) {
             val buttons = KitLayout.elements(context, kit, w, h)
             val keyboard = buttons.single { it.id == KitLayout.KEYBOARD_ID }
-            for (button in buttons.filter { it.control == InputControl.SELECT || it.control == InputControl.START }) {
+            for (button in buttons.filter { it.control == InputControl.SELECT || it.control == InputControl.START || it.control == InputControl.GUIDE }) {
                 assertTrue("$kit $w x $h ${button.id}", button.y + button.height / 2 in keyboard.y..(keyboard.y + keyboard.height))
             }
+        }
+    }
+
+    @Test fun theXboxAndPlayStationHomeButtonSitsBetweenSelectAndStart() {
+        for (kit in PadKit.entries.filterNot { it.steam }) for ((w, h) in sizes.filter { it.first > it.second }) {
+            val buttons = KitLayout.elements(context, kit, w, h).associateBy { it.control }
+            val select = buttons.getValue(InputControl.SELECT); val start = buttons.getValue(InputControl.START); val home = buttons.getValue(InputControl.GUIDE)
+            assertTrue("$kit $w x $h", select.x + select.width < home.x && home.x + home.width < start.x)
         }
     }
 
