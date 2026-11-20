@@ -152,7 +152,11 @@ class InputSettingsTest {
         for (removed in listOf(R.string.input_default_profiles, R.string.input_profiles, R.string.input_new_profile))
             compose.onNodeWithText(context.getString(removed)).assertDoesNotExist()
         compose.onNodeWithTag("input-profile-game").assertDoesNotExist()
-        compose.onNodeWithTag("osc-${SessionPrefs.OSC_NEVER}").performScrollTo().performClick()
+        compose.onNodeWithTag("setting-osc-show").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.osc_steam_shortcuts_only)).performClick()
+        compose.runOnIdle { assertEquals(SessionPrefs.OSC_STEAM_QAM, SessionPrefs.oscMode(context)) }
+        compose.onNodeWithTag("setting-osc-show").performClick()
+        compose.onNodeWithText(context.getString(R.string.common_never)).performClick()
         compose.runOnIdle { assertEquals(SessionPrefs.OSC_NEVER, SessionPrefs.oscMode(context)) }
     }
 
