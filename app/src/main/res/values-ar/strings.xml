@@ -295,14 +295,10 @@
     <string name="mode_pen_touch">اللمس</string>
     <string name="mode_pen_button">الزر الجانبي</string>
     <string name="mode_osc">عناصر التحكم على الشاشة</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">يعرض الخيار «تلقائي» عناصر التحكم عند عدم توصيل وحدة تحكم.</string>
-    <string name="osc_steam_touch">لمس Steam (تجريبي)</string>
-    <string name="osc_style_next_session">تبدأ عناصر التحكم باللمس من Steam مع جلسة Steam التالية</string>
     <string name="osc_steam_layout">تخطيط لمس Steam</string>
     <string name="screen_key_layout_export">تصدير</string>
     <string name="screen_key_image">صورة</string>
-    <string name="osc_steam_layout_hint">انقل عناصر التحكم باللمس لهذه اللعبة أو غيّر حجمها أو أخفها؛ ويتم الحفظ في Steam</string>
     <string name="mode_controller">وحدة التحكم</string>
     <string name="mode_controller_hint">كيف يرى Steam وحدة التحكم لديك. يُطبَّق في الجلسة التالية.</string>
     <string name="mode_controller_deck">وحدة تحكم Steam Deck</string>
@@ -433,7 +429,6 @@
     <string name="mode_directaudio_hint">يتجاوز PulseAudio لتقليل زمن الاستجابة.</string>
     <string name="mode_mic">الميكروفون</string>
     <string name="mode_mic_hint">للدردشة الصوتية.</string>
-    <string name="drawer_mic_hint">شغّل التقاط الميكروفون أو أوقفه لهذه الجلسة.</string>
     <string name="drawer_mic_failed">تعذّر تغيير الميكروفون. يُرجى المحاولة مرة أخرى.</string>
     <string name="mode_network">الشبكة</string>
     <string name="mode_wifi_discovery">اكتشاف Wi-Fi</string>
@@ -799,7 +794,6 @@
     <string name="drawer_keyboard">لوحة المفاتيح</string>
     <string name="drawer_latency">زمن الاستجابة</string>
     <string name="drawer_low_latency">وضع زمن الاستجابة المنخفض</string>
-    <string name="drawer_low_latency_hint">يزيد استهلاك CPU والبطارية</string>
     <string name="drawer_low_latency_controller">وحدة تحكم بزمن استجابة منخفض</string>
     <string name="drawer_low_latency_controller_hint">تبلغ وحدة التحكم بمعدل 1000 هرتز بدلًا من 250 هرتز. استهلاك معالج أعلى قليلًا.</string>
     <string name="drawer_low_latency_touch">لمس بزمن استجابة منخفض</string>
@@ -1373,12 +1367,8 @@
     <string name="ctrl_opacity">العتامة</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">حجم الأزرار</string>
-    <string name="ctrl_adaptive">عصي تكيّفية</string>
     <string name="ctrl_rumble">اهتزاز اللعبة</string>
     <string name="ctrl_dead_zone">المنطقة الميتة لعصا التحكم</string>
-    <string name="ctrl_steam_button">زر Steam</string>
-    <string name="ctrl_qam_button">زر QAM</string>
-    <string name="ctrl_keyboard_button">زر لوحة المفاتيح</string>
     <string name="ctrl_joycon_vr">أجهزة Joy-Con كوحدات تحكم VR</string>
     <string name="ctrl_joycon_vr_hint">أثناء تشغيل SteamVR، يصبح كل Joy-Con يدًا. وجّهه إلى الأمام واضغط مطولًا على Home أو Capture لإعادة توسيطه.</string>
     <string name="setup_animations">الرسوم المتحركة</string>
@@ -1511,8 +1501,6 @@
     <string name="deck_surface_trackpad">لوحة اللمس</string>
     <string name="deck_close">إغلاق عناصر التحكّم على الشاشة الثانية</string>
     <string name="deck_open_steam_menu">فتح قائمة Steam</string>
-    <string name="deck_right_trackpad">لوحة اللمس اليمنى</string>
-    <string name="deck_left_trackpad">لوحة اللمس اليسرى</string>
     <string name="second_trackpad">لوحة اللمس</string>
     <string name="second_show_keyboard">إظهار لوحة المفاتيح</string>
     <string name="second_hide_keyboard">إخفاء لوحة المفاتيح</string>
@@ -1551,11 +1539,8 @@
     <string name="pckb_android">لوحة مفاتيح Android</string>
     <string name="pckb_hide">إخفاء  ✕</string>
     <string name="pckb_size">الحجم على الشاشة</string>
-    <string name="pckb_size_hint">نسبة الشاشة التي تشغلها لوحة المفاتيح، بما في ذلك الشريط العلوي.</string>
     <string name="pckb_opacity">العتامة</string>
-    <string name="pckb_opacity_hint">قلّلها لرؤية اللعبة خلف لوحة المفاتيح.</string>
     <string name="pckb_hidden_keys">المفاتيح المخفية</string>
-    <string name="pckb_hidden_keys_hint">المفاتيح التي نادرًا ما تستخدمها لا تظهر على لوحة المفاتيح.</string>
     <string name="pckb_group_function">صف Esc ومفاتيح الوظائف</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">مفاتيح الأسهم</string>
@@ -1800,8 +1785,6 @@
     <string name="drivers_installed_pick">تم تثبيت %1$s - اختره من القائمة</string>
     <string name="session_wait_removal">انتظر حتى تنتهي إزالة بيئة التشغيل</string>
     <string name="session_title_game">لعبة</string>
-    <string name="session_touch_auto_touchpad">لوحة اللمس</string>
-    <string name="session_touch_auto_direct">مباشر</string>
     <string name="session_swap_failed">فشل التبديل: %1$s</string>
     <string name="session_profile_save_failed">فشل حفظ ملف التعريف: %1$s</string>
     <string name="session_desktop_paused">تم إيقاف سطح المكتب مؤقتًا</string>
@@ -2093,15 +2076,6 @@
     <string name="fm_up_one_level">الانتقال لمستوى أعلى</string>
     <string name="fm_choose_folder">اختر مجلدًا</string>
     <string name="fm_choose_file">اختر ملفًا</string>
-    <string name="ctrl_tint_steam_blue">أزرق Steam</string>
-    <string name="ctrl_tint_sky">سماوي</string>
-    <string name="ctrl_tint_white">أبيض</string>
-    <string name="ctrl_tint_violet">بنفسجي</string>
-    <string name="ctrl_tint_green">أخضر</string>
-    <string name="ctrl_tint_amber">كهرماني</string>
-    <string name="ctrl_tint_red">أحمر</string>
-    <string name="ctrl_tint_pink">وردي</string>
-    <string name="ctrl_tint_gray">رمادي</string>
     <string name="ctrl_button_a">الزر A</string>
     <string name="ctrl_button_b">الزر B</string>
     <string name="ctrl_button_x">الزر X</string>
@@ -3259,7 +3233,6 @@
     <string name="glasses_pro2_experimental">تتبّع تجريبي لحركة الرأس لنظارة Pro 2. لا يُدعم بعد ضبط السطوع ومستوى الصوت أو تبديل وضع العرض.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">وضع Cardboard</string>
-    <string name="cardboard_mode_hint">عرض للعين اليسرى وآخر لليمنى لنظارة واقع افتراضي للهاتف.</string>
     <string name="cardboard_source">الصورة</string>
     <string name="cardboard_source_screen">شاشة افتراضية</string>
     <string name="cardboard_source_sbs">ثلاثي الأبعاد جنبًا إلى جنب</string>
@@ -3282,7 +3255,6 @@
     <string name="cardboard_steamvr_unavailable">غير متوفر في هذه الجلسة.</string>
     <string name="cardboard_steamvr_failed">لم يستجب SteamVR؛ تحقّق من سجل الجلسة.</string>
     <string name="drawer_component_downloads">تنزيل المكوّنات</string>
-    <string name="drawer_component_downloads_hint">التنزيلات مشتركة مع صفحة «المكوّنات». اختر نسخة منزّلة أعلاه لاستخدامها عند التشغيل التالي للعبة.</string>
     <string name="drawer_component_choose_download">اختر نسخة لتنزيلها</string>
     <string name="stores_fact_developer">المطوّر</string>
     <string name="stores_fact_publisher">الناشر</string>

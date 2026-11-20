@@ -295,14 +295,10 @@
     <string name="mode_pen_touch">触摸</string>
     <string name="mode_pen_button">侧键</string>
     <string name="mode_osc">屏幕控制</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自动模式会在未连接手柄时显示屏幕控制。</string>
-    <string name="osc_steam_touch">Steam 触控（测试版）</string>
-    <string name="osc_style_next_session">Steam 的触控按键将从下次 Steam 会话开始生效</string>
     <string name="osc_steam_layout">Steam 触控布局</string>
     <string name="screen_key_layout_export">导出</string>
     <string name="screen_key_image">图片</string>
-    <string name="osc_steam_layout_hint">移动、调整大小或隐藏此游戏的触控按键；保存到 Steam</string>
     <string name="mode_controller">手柄</string>
     <string name="mode_controller_hint">决定 Steam 把你的手柄识别为哪种类型，将在下次会话生效。</string>
     <string name="mode_controller_deck">Steam Deck 手柄</string>
@@ -428,7 +424,6 @@
     <string name="mode_directaudio_hint">绕过 PulseAudio 以降低延迟。</string>
     <string name="mode_mic">麦克风</string>
     <string name="mode_mic_hint">用于语音聊天。</string>
-    <string name="drawer_mic_hint">为此会话开启或关闭麦克风采集。</string>
     <string name="drawer_mic_failed">无法更改麦克风设置。请重试。</string>
     <string name="mode_network">网络</string>
     <string name="mode_wifi_discovery">Wi-Fi 网络发现</string>
@@ -789,7 +784,6 @@
     <string name="drawer_keyboard">键盘</string>
     <string name="drawer_latency">延迟</string>
     <string name="drawer_low_latency">低延迟模式</string>
-    <string name="drawer_low_latency_hint">会增加 CPU 和电池消耗</string>
     <string name="drawer_low_latency_controller">低延迟手柄</string>
     <string name="drawer_low_latency_controller_hint">手柄以 1000 Hz 而非 250 Hz 上报。CPU 占用略高。</string>
     <string name="drawer_low_latency_touch">低延迟触控</string>
@@ -1422,12 +1416,8 @@
     <string name="ctrl_opacity">不透明度</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">按钮大小</string>
-    <string name="ctrl_adaptive">自适应摇杆</string>
     <string name="ctrl_rumble">游戏震动</string>
     <string name="ctrl_dead_zone">摇杆死区</string>
-    <string name="ctrl_steam_button">Steam 按钮</string>
-    <string name="ctrl_qam_button">QAM 按钮</string>
-    <string name="ctrl_keyboard_button">键盘按钮</string>
     <string name="ctrl_joycon_vr">将 Joy-Con 用作 VR 手柄</string>
     <string name="ctrl_joycon_vr_hint">SteamVR 运行时，每个 Joy-Con 都会成为一只手。将其指向前方并按住 HOME 键或截图键即可重新居中。</string>
     <string name="setup_animations">动画</string>
@@ -1555,8 +1545,6 @@
     <string name="deck_surface_trackpad">触控板</string>
     <string name="deck_close">关闭副屏控制</string>
     <string name="deck_open_steam_menu">打开 Steam 菜单</string>
-    <string name="deck_right_trackpad">右触控板</string>
-    <string name="deck_left_trackpad">左触控板</string>
     <string name="second_trackpad">触控板</string>
     <string name="second_show_keyboard">显示键盘</string>
     <string name="second_hide_keyboard">隐藏键盘</string>
@@ -1595,11 +1583,8 @@
     <string name="pckb_android">Android 键盘</string>
     <string name="pckb_hide">隐藏  ✕</string>
     <string name="pckb_size">屏幕占比</string>
-    <string name="pckb_size_hint">键盘占屏幕的比例，含标题栏</string>
     <string name="pckb_opacity">不透明度</string>
-    <string name="pckb_opacity_hint">调低即可看见键盘后的游戏</string>
     <string name="pckb_hidden_keys">隐藏按键</string>
-    <string name="pckb_hidden_keys_hint">很少用的按键不显示在键盘上</string>
     <string name="pckb_group_function">Esc 和功能键行</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">方向键</string>
@@ -1798,8 +1783,6 @@
     <string name="drivers_installed_pick">已安装 %1$s — 请在菜单中选择它</string>
     <string name="session_wait_removal">请等待运行时移除完成</string>
     <string name="session_title_game">游戏</string>
-    <string name="session_touch_auto_touchpad">触控板</string>
-    <string name="session_touch_auto_direct">直接</string>
     <string name="session_swap_failed">替换失败：%1$s</string>
     <string name="session_profile_save_failed">配置档案保存失败：%1$s</string>
     <string name="session_desktop_paused">桌面已暂停</string>
@@ -2046,15 +2029,6 @@
     <string name="fm_up_one_level">返回上一级</string>
     <string name="fm_choose_folder">选择文件夹</string>
     <string name="fm_choose_file">选择文件</string>
-    <string name="ctrl_tint_steam_blue">Steam 蓝</string>
-    <string name="ctrl_tint_sky">天蓝</string>
-    <string name="ctrl_tint_white">白色</string>
-    <string name="ctrl_tint_violet">紫罗兰</string>
-    <string name="ctrl_tint_green">绿色</string>
-    <string name="ctrl_tint_amber">琥珀</string>
-    <string name="ctrl_tint_red">红色</string>
-    <string name="ctrl_tint_pink">粉色</string>
-    <string name="ctrl_tint_gray">灰色</string>
     <string name="ctrl_button_a">A 键</string>
     <string name="ctrl_button_b">B 键</string>
     <string name="ctrl_button_x">X 键</string>
@@ -3118,7 +3092,6 @@
     <string name="stores_hltb_minutes">%1$d 分钟</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard 模式</string>
-    <string name="cardboard_mode_hint">为手机 VR 眼镜提供左右眼画面。</string>
     <string name="cardboard_source">画面</string>
     <string name="cardboard_source_screen">虚拟屏幕</string>
     <string name="cardboard_source_sbs">左右并排 3D</string>
@@ -3141,7 +3114,6 @@
     <string name="cardboard_steamvr_unavailable">此会话中不可用。</string>
     <string name="cardboard_steamvr_failed">SteamVR 未响应；请查看会话日志。</string>
     <string name="drawer_component_downloads">下载组件</string>
-    <string name="drawer_component_downloads_hint">下载内容与“组件”页面共享。在上方选择已下载的版本，即可在下次启动游戏时使用。</string>
     <string name="drawer_component_choose_download">选择要下载的版本</string>
     <string name="display_picture_position">画面位置</string>
     <string name="display_position_top">置顶</string>

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">輸入設定檔</string>
     <string name="input_profiles">設定檔</string>
     <string name="input_physical">實體控制器</string>
     <string name="input_primary">主螢幕</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">開啟 Steam 選單</string>
     <string name="input_command_qam">開啟 Steam 快速選單</string>
     <string name="input_remove_element">移除控制項</string>
-    <string name="input_add_element">新增控制項</string>
     <string name="input_extra_keys">此裝置專用按鍵</string>
     <string name="input_capture">指定實體按鍵</string>
     <string name="input_capture_confirm">放開按鍵，然後選擇編輯、重試或取消。放開後按 B 或返回可取消。</string>

@@ -295,14 +295,10 @@
     <string name="mode_pen_touch">タッチ</string>
     <string name="mode_pen_button">サイドボタン</string>
     <string name="mode_osc">画面コントローラー</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自動では、コントローラーが接続されていないときに画面コントローラーを表示します。</string>
-    <string name="osc_steam_touch">Steamタッチ（ベータ版）</string>
-    <string name="osc_style_next_session">Steamのタッチコントロールは次回のSteamセッションから有効になります</string>
     <string name="osc_steam_layout">Steamタッチのレイアウト</string>
     <string name="screen_key_layout_export">エクスポート</string>
     <string name="screen_key_image">画像</string>
-    <string name="osc_steam_layout_hint">このゲームのタッチコントロールを移動、サイズ変更、非表示にします。Steamに保存されます</string>
     <string name="mode_controller">コントローラー</string>
     <string name="mode_controller_hint">Steamがコントローラーを認識する方法。次回のセッションで有効になります。</string>
     <string name="mode_controller_deck">Steam Deckコントローラー</string>
@@ -428,7 +424,6 @@
     <string name="mode_directaudio_hint">PulseAudioをバイパスして遅延を減らします。</string>
     <string name="mode_mic">マイク</string>
     <string name="mode_mic_hint">ボイスチャットに使用します。</string>
-    <string name="drawer_mic_hint">このセッションのマイク入力をオンまたはオフにします。</string>
     <string name="drawer_mic_failed">マイクを変更できませんでした。もう一度お試しください。</string>
     <string name="mode_network">ネットワーク</string>
     <string name="mode_wifi_discovery">Wi-Fi検出</string>
@@ -789,7 +784,6 @@
     <string name="drawer_keyboard">キーボード</string>
     <string name="drawer_latency">遅延</string>
     <string name="drawer_low_latency">低遅延モード</string>
-    <string name="drawer_low_latency_hint">CPUとバッテリーの使用量が増えます</string>
     <string name="drawer_low_latency_controller">低遅延コントローラー</string>
     <string name="drawer_low_latency_controller_hint">コントローラーが 250 Hz ではなく 1000 Hz で報告されます。CPU 使用率がわずかに上がります。</string>
     <string name="drawer_low_latency_touch">低遅延タッチ</string>
@@ -1339,12 +1333,8 @@
     <string name="ctrl_opacity">不透明度</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">ボタンのサイズ</string>
-    <string name="ctrl_adaptive">アダプティブスティック</string>
     <string name="ctrl_rumble">ゲームの振動</string>
     <string name="ctrl_dead_zone">スティックのデッドゾーン</string>
-    <string name="ctrl_steam_button">Steamボタン</string>
-    <string name="ctrl_qam_button">QAMボタン</string>
-    <string name="ctrl_keyboard_button">キーボードボタン</string>
     <string name="ctrl_joycon_vr">Joy-ConをVRコントローラーとして使う</string>
     <string name="ctrl_joycon_vr_hint">SteamVRの実行中は各Joy-Conが手になります。前に向けてHOMEボタンかキャプチャーボタンを長押しすると、向きを合わせ直します。</string>
     <string name="setup_animations">アニメーション</string>
@@ -1472,8 +1462,6 @@
     <string name="deck_surface_trackpad">トラックパッド</string>
     <string name="deck_close">セカンドスクリーンコントロールを閉じる</string>
     <string name="deck_open_steam_menu">Steamメニューを開く</string>
-    <string name="deck_right_trackpad">右トラックパッド</string>
-    <string name="deck_left_trackpad">左トラックパッド</string>
     <string name="second_trackpad">トラックパッド</string>
     <string name="second_show_keyboard">キーボードを表示</string>
     <string name="second_hide_keyboard">キーボードを隠す</string>
@@ -1512,11 +1500,8 @@
     <string name="pckb_android">Androidキーボード</string>
     <string name="pckb_hide">隠す ✕</string>
     <string name="pckb_size">画面上のサイズ</string>
-    <string name="pckb_size_hint">ヘッダーを含め、キーボードが画面に占める割合。</string>
     <string name="pckb_opacity">不透明度</string>
-    <string name="pckb_opacity_hint">下げると、キーボードの背後にあるゲームが見えます。</string>
     <string name="pckb_hidden_keys">非表示のキー</string>
-    <string name="pckb_hidden_keys_hint">ほとんど使わないキーはキーボードに表示されません。</string>
     <string name="pckb_group_function">Esc とファンクションキー列</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">矢印キー</string>
@@ -1721,8 +1706,6 @@
     <string name="drivers_installed_pick">%1$sをインストールしました - メニューで選択してください</string>
     <string name="session_wait_removal">実行環境の削除が完了するまでお待ちください</string>
     <string name="session_title_game">ゲーム</string>
-    <string name="session_touch_auto_touchpad">トラックパッド</string>
-    <string name="session_touch_auto_direct">ダイレクト</string>
     <string name="session_swap_failed">置き換えに失敗しました：%1$s</string>
     <string name="session_profile_save_failed">プロファイルの保存に失敗しました：%1$s</string>
     <string name="session_desktop_paused">デスクトップは一時停止中です</string>
@@ -1969,15 +1952,6 @@
     <string name="fm_up_one_level">1つ上の階層へ</string>
     <string name="fm_choose_folder">フォルダを選択</string>
     <string name="fm_choose_file">ファイルを選択</string>
-    <string name="ctrl_tint_steam_blue">Steamブルー</string>
-    <string name="ctrl_tint_sky">スカイ</string>
-    <string name="ctrl_tint_white">ホワイト</string>
-    <string name="ctrl_tint_violet">バイオレット</string>
-    <string name="ctrl_tint_green">グリーン</string>
-    <string name="ctrl_tint_amber">アンバー</string>
-    <string name="ctrl_tint_red">レッド</string>
-    <string name="ctrl_tint_pink">ピンク</string>
-    <string name="ctrl_tint_gray">グレー</string>
     <string name="ctrl_button_a">Aボタン</string>
     <string name="ctrl_button_b">Bボタン</string>
     <string name="ctrl_button_x">Xボタン</string>
@@ -3118,7 +3092,6 @@
     <string name="stores_hltb_minutes">%1$d分</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboardモード</string>
-    <string name="cardboard_mode_hint">スマホ用VRビューアー向けの左右の目の映像です。</string>
     <string name="cardboard_source">映像</string>
     <string name="cardboard_source_screen">仮想スクリーン</string>
     <string name="cardboard_source_sbs">サイドバイサイド3D</string>
@@ -3141,7 +3114,6 @@
     <string name="cardboard_steamvr_unavailable">このセッションでは利用できません。</string>
     <string name="cardboard_steamvr_failed">SteamVRが応答しませんでした。セッションログを確認してください。</string>
     <string name="drawer_component_downloads">コンポーネントをダウンロード</string>
-    <string name="drawer_component_downloads_hint">ダウンロードは「コンポーネント」ページと共有されます。上でダウンロード済みのバージョンを選ぶと、次回のゲーム起動時に使用されます。</string>
     <string name="drawer_component_choose_download">ダウンロードするバージョンを選択</string>
     <string name="display_picture_position">画面の位置</string>
     <string name="display_position_top">上</string>

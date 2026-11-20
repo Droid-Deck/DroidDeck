@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">Perfiles de entrada</string>
     <string name="input_profiles">Perfiles</string>
     <string name="input_physical">Mando físico</string>
     <string name="input_primary">Pantalla principal</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Abrir el menú de Steam</string>
     <string name="input_command_qam">Abrir el acceso rápido de Steam</string>
     <string name="input_remove_element">Quitar control</string>
-    <string name="input_add_element">Añadir control</string>
     <string name="input_extra_keys">Botones específicos del dispositivo</string>
     <string name="input_capture">Asignar un botón físico</string>
     <string name="input_capture_confirm">Suelta el botón y elige Editar, Reintentar o Cancelar. B o Atrás cancela tras soltarlo.</string>

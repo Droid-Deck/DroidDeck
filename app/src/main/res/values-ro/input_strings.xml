@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">Profiluri de intrare</string>
     <string name="input_profiles">Profiluri</string>
     <string name="input_physical">Controller fizic</string>
     <string name="input_primary">Ecran principal</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Deschide meniul Steam</string>
     <string name="input_command_qam">Deschide accesul rapid Steam</string>
     <string name="input_remove_element">Elimină controlul</string>
-    <string name="input_add_element">Adaugă control</string>
     <string name="input_extra_keys">Butoane specifice dispozitivului</string>
     <string name="input_capture">Atribuie un buton fizic</string>
     <string name="input_capture_confirm">Eliberează butonul, apoi alege Editează, Reîncearcă sau Anulează. B sau Înapoi anulează după eliberare.</string>

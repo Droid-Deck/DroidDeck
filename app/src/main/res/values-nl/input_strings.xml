@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">Invoerprofielen</string>
     <string name="input_profiles">Profielen</string>
     <string name="input_physical">Fysieke controller</string>
     <string name="input_primary">Hoofdscherm</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Steam-menu openen</string>
     <string name="input_command_qam">Steam-sneltoegang openen</string>
     <string name="input_remove_element">Besturing verwijderen</string>
-    <string name="input_add_element">Besturing toevoegen</string>
     <string name="input_extra_keys">Apparaatspecifieke knoppen</string>
     <string name="input_capture">Een fysieke knop toewijzen</string>
     <string name="input_capture_confirm">Laat de knop los en kies Bewerken, Opnieuw of Annuleren. B of Terug annuleert na loslaten.</string>

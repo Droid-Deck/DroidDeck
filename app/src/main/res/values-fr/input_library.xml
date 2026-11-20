@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Copie indépendante</string>
     <string name="input_floating_stick">Démarrer le stick au point de contact</string>
     <string name="input_hide_idle">Masquer le stick lorsqu\'il n\'est pas utilisé</string>
-    <string name="input_tools">Outils</string>
-    <string name="input_quick_auto">Auto (%1$s)</string>
-    <string name="input_quick_mixed">Personnalisé (%1$s)</string>
     <string name="input_save_combination">Enregistrer comme nouveau profil</string>
     <string name="input_profile_controls_mode">Contrôles du profil</string>
-    <string name="input_profile">Profil</string>
     <string name="input_mouse_gestures">Gestes du pavé tactile de la souris</string>
-    <string name="input_mouse_gestures_hint">Si assigné au pointeur de la souris : toucher pour cliquer, maintenir pour faire glisser, défiler avec deux doigts.</string>
     <string name="input_quick_override_hint">%1$s a une dérogation de menu rapide. Sélectionnez Auto pour utiliser son profil par défaut et ses trois parties enregistrées.</string>
     <string name="input_route_local">Entrée DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Maintenu lorsque le stick est déplacé dans n\'importe quelle direction : appui au-dessus de 55 %, relâchement sous 35 %. Utilisez Touches de direction pour assigner chaque direction séparément. Les commandes DroidDeck s\'exécutent une fois par déflexion. Le clic du stick se configure séparément.</string>
@@ -104,17 +99,11 @@
     <string name="input_shortcut_hold_hint">En mode Steam. Maintenir Retour ouvre aussi l\'accès rapide.</string>
     <string name="input_restore_shortcut">Rétablir par défaut</string>
     <string name="input_virtual_controller">Manette virtuelle</string>
-    <string name="input_virtual_controller_hint">Le type de manette vu par Steam ou le jeu.</string>
     <string name="input_touchscreen">Écran tactile</string>
-    <string name="input_touchscreen_hint">Comment les touchers sur l\'écran du jeu sont gérés. Les boutons du profil gardent leurs actions assignées.</string>
     <string name="input_touch_cursor">Curseur tactile</string>
-    <string name="input_touch_cursor_hint">Affiche un pointeur pour les touchers directs sur l\'écran du jeu.</string>
     <string name="input_touch_hold">Toucher et maintenir</string>
-    <string name="input_touch_hold_hint">Action de la souris en maintenant un doigt sur l\'écran du jeu.</string>
     <string name="input_back_taps">Appuis du bouton Retour</string>
-    <string name="input_back_taps_hint">Première action : appui simple. Deuxième action : appui double.</string>
     <string name="input_toggle_button">Bouton à bascule</string>
-    <string name="input_toggle_button_hint">Touchez pour maintenir, touchez encore pour relâcher. Ouvrir un menu ou changer de profil relâche le bouton.</string>
     <string name="input_button_shape">Forme</string>
     <string name="input_shape_rounded">Arrondie</string>
     <string name="input_shape_pill">Pilule</string>

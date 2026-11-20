@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Independent copy</string>
     <string name="input_floating_stick">Start stick at touch position</string>
     <string name="input_hide_idle">Hide stick when not in use</string>
-    <string name="input_tools">Tools</string>
-    <string name="input_quick_auto">Auto (%1$s)</string>
-    <string name="input_quick_mixed">Custom (%1$s)</string>
     <string name="input_save_combination">Save as new profile</string>
     <string name="input_profile_controls_mode">Profile controls</string>
-    <string name="input_profile">Profile</string>
     <string name="input_mouse_gestures">Mouse touchpad gestures</string>
-    <string name="input_mouse_gestures_hint">When assigned to the mouse pointer: tap to click, hold to drag, and scroll with two fingers.</string>
     <string name="input_quick_override_hint">%1$s has a quick-menu override. Select Auto there to use its default profile and all three saved parts.</string>
     <string name="input_route_local">DroidDeck Input</string>
     <string name="input_axis_action_hint" formatted="false">Held while the stick is moved in any direction: press above 55%, release below 35%. Use Direction keys to assign each direction separately. DroidDeck commands run once per deflection. The stick click is configured separately.</string>
@@ -100,21 +95,15 @@
     <string name="input_shortcut_guide">Home / Guide</string>
     <string name="input_shortcut_back_once">Back · single tap</string>
     <string name="input_shortcut_back_twice">Back · double tap</string>
-    <string name="input_shortcut_back_modes">Back · twice in Steam, once in Desktop</string>
+    <string name="input_shortcut_back_modes">Back · 2× Steam, 1× Desktop</string>
     <string name="input_shortcut_hold_hint">In Steam mode. Holding Back also opens quick access.</string>
     <string name="input_restore_shortcut">Restore to default</string>
     <string name="input_virtual_controller">Virtual controller</string>
-    <string name="input_virtual_controller_hint">The controller type seen by Steam or the game.</string>
     <string name="input_touchscreen">Touchscreen</string>
-    <string name="input_touchscreen_hint">How touches on the game screen are handled. Profile buttons keep their assigned actions.</string>
     <string name="input_touch_cursor">Touch cursor</string>
-    <string name="input_touch_cursor_hint">Show a pointer for direct touches on the game screen.</string>
     <string name="input_touch_hold">Touch and hold</string>
-    <string name="input_touch_hold_hint">Mouse action when holding a finger on the game screen.</string>
     <string name="input_back_taps">Back button taps</string>
-    <string name="input_back_taps_hint">First action: single tap. Second action: double tap.</string>
     <string name="input_toggle_button">Toggle button</string>
-    <string name="input_toggle_button_hint">Tap to hold, tap again to release. Opening a menu or switching profiles releases the button.</string>
     <string name="input_button_shape">Shape</string>
     <string name="input_shape_rounded">Rounded</string>
     <string name="input_shape_pill">Pill</string>
