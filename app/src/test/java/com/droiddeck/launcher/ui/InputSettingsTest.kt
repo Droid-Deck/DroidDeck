@@ -156,6 +156,20 @@ class InputSettingsTest {
         compose.runOnIdle { assertEquals(SessionPrefs.OSC_NEVER, SessionPrefs.oscMode(context)) }
     }
 
+    @Test fun theLayoutMenuDescribesEachChoiceAndDeletesAnUnusedLayout() {
+        InputLibraries.update(context) { it.copyLayout(InputLibraries.OVERLAY, "Big sticks", "big-sticks") }
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("setting-osc-layout").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.osc_layout_gamepad_detail)).assertExists()
+        compose.onNodeWithText(context.getString(R.string.osc_layout_steam_detail)).assertExists()
+        compose.onNodeWithTag("osc-delete-${InputLibraries.OVERLAY}").assertDoesNotExist()
+        compose.onNodeWithTag("osc-delete-big-sticks").performClick()
+        compose.onNodeWithTag("osc-delete-confirm").performClick()
+        compose.runOnIdle { assertTrue(InputLibraries.read(context).layouts.none { it.id == "big-sticks" }) }
+        compose.onNodeWithTag("setting-osc-layout").performScrollTo().performClick()
+        compose.onNodeWithText("Big sticks").assertDoesNotExist()
+    }
+
     @Test fun choosingTheDefaultLayoutAppliesToGamesWithoutTheirOwn() {
         InputLibraries.update(context) { it.copyLayout(InputLibraries.OVERLAY, "Big sticks", "big-sticks") }
         ControlsChoice.newForGame(context, 7, "Castle Crashers", desktop = false)

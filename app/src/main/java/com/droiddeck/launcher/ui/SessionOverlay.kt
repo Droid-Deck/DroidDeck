@@ -291,9 +291,11 @@ class DrawerActions(
     val achievementsProgress: Pair<Int, Int>? = null,
     val onOsc: (String) -> Unit,
     val layoutGame: String? = null,
-    val layoutOptions: List<Pair<String, String>> = emptyList(),
+    val layoutOptions: List<com.droiddeck.launcher.input.ControlsChoice.Option> = emptyList(),
     val layoutChoice: String = "",
+    val layoutHint: String? = null,
     val onLayout: (String) -> Unit = {},
+    val onDeleteLayout: (String) -> Unit = {},
     val onEditLayout: (() -> Unit)? = null,
     val oscRearButtons: Boolean? = null,
     val oscTrackpads: Boolean = false,
@@ -669,8 +671,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(a.layoutGame?.let { stringResource(R.string.osc_group_for, it) } ?: stringResource(R.string.mode_osc)) {
-                                if (a.layoutOptions.isNotEmpty()) ChoiceRow(host, "osc-layout", stringResource(R.string.osc_layout), null,
-                                    a.layoutOptions, a.layoutChoice, chipModifier = focus.track(page, "osc-layout"), onPick = a.onLayout)
+                                if (a.layoutOptions.isNotEmpty()) LayoutChoiceRow(host, "osc-layout", a.layoutOptions, a.layoutChoice, a.layoutHint,
+                                    chipModifier = focus.track(page, "osc-layout"), onPick = a.onLayout, onDelete = a.onDeleteLayout)
                                 a.onEditLayout?.let { edit ->
                                     ActionRow(stringResource(R.string.osc_edit_layout), null, stringResource(R.string.ctrl_edit), { host.open = null; edit() },
                                         modifier = focus.track(page, "osc-edit"))
