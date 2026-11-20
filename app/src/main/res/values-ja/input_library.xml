@@ -75,14 +75,9 @@
     <string name="input_independent_copy">独立したコピー</string>
     <string name="input_floating_stick">タッチ位置からスティックを開始</string>
     <string name="input_hide_idle">未使用時はスティックを隠す</string>
-    <string name="input_tools">ツール</string>
-    <string name="input_quick_auto">自動 (%1$s)</string>
-    <string name="input_quick_mixed">カスタム (%1$s)</string>
     <string name="input_save_combination">新しいプロファイルとして保存</string>
     <string name="input_profile_controls_mode">プロファイルコントロール</string>
-    <string name="input_profile">プロファイル</string>
     <string name="input_mouse_gestures">マウスタッチパッドのジェスチャー</string>
-    <string name="input_mouse_gestures_hint">マウスポインターに割り当てた場合: タップでクリック、長押しでドラッグ、2 本指でスクロールします。</string>
     <string name="input_quick_override_hint">%1$s にはクイックメニューの上書きがあります。[自動] を選ぶと既定のプロファイルと保存済みの 3 つのパーツを使用します。</string>
     <string name="input_route_local">DroidDeck 入力</string>
     <string name="input_axis_action_hint" formatted="false">スティックをどの方向に動かしている間も保持されます: 55% を超えると押下、35% を下回ると解放。方向キーで各方向を個別に割り当てます。DroidDeck コマンドは 1 回の傾きにつき 1 回実行されます。スティックのクリックは別に設定します。</string>
@@ -104,17 +99,11 @@
     <string name="input_shortcut_hold_hint">Steam モード時。戻るを長押しするとクイックアクセスも開きます。</string>
     <string name="input_restore_shortcut">既定に戻す</string>
     <string name="input_virtual_controller">仮想コントローラー</string>
-    <string name="input_virtual_controller_hint">Steam またはゲームが認識するコントローラーの種類。</string>
     <string name="input_touchscreen">タッチスクリーン</string>
-    <string name="input_touchscreen_hint">ゲーム画面のタッチの扱い方。プロファイルのボタンは割り当て済みのアクションを保ちます。</string>
     <string name="input_touch_cursor">タッチカーソル</string>
-    <string name="input_touch_cursor_hint">ゲーム画面への直接タッチにポインターを表示します。</string>
     <string name="input_touch_hold">タッチして長押し</string>
-    <string name="input_touch_hold_hint">ゲーム画面で指を押し続けたときのマウス動作。</string>
     <string name="input_back_taps">戻るボタンのタップ</string>
-    <string name="input_back_taps_hint">1 つ目のアクション: シングルタップ。2 つ目のアクション: ダブルタップ。</string>
     <string name="input_toggle_button">トグルボタン</string>
-    <string name="input_toggle_button_hint">タップで保持、もう一度タップで解放。メニューを開くかプロファイルを切り替えるとボタンは解放されます。</string>
     <string name="input_button_shape">形</string>
     <string name="input_shape_rounded">角丸</string>
     <string name="input_shape_pill">ピル</string>

@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Unabhängige Kopie</string>
     <string name="input_floating_stick">Stick an der Berührungsstelle starten</string>
     <string name="input_hide_idle">Stick ausblenden, wenn nicht benutzt</string>
-    <string name="input_tools">Werkzeuge</string>
-    <string name="input_quick_auto">Auto (%1$s)</string>
-    <string name="input_quick_mixed">Benutzerdefiniert (%1$s)</string>
     <string name="input_save_combination">Als neues Profil speichern</string>
     <string name="input_profile_controls_mode">Profilsteuerung</string>
-    <string name="input_profile">Profil</string>
     <string name="input_mouse_gestures">Maus-Touchpad-Gesten</string>
-    <string name="input_mouse_gestures_hint">Wenn dem Mauszeiger zugewiesen: Tippen zum Klicken, Halten zum Ziehen, mit zwei Fingern scrollen.</string>
     <string name="input_quick_override_hint">%1$s hat eine Schnellmenü-Überschreibung. Wähle dort Auto, um sein Standardprofil und alle drei gespeicherten Teile zu verwenden.</string>
     <string name="input_route_local">DroidDeck Input</string>
     <string name="input_axis_action_hint" formatted="false">Gehalten, während der Stick in eine beliebige Richtung bewegt wird: drücken über 55 %, loslassen unter 35 %. Mit Richtungstasten jede Richtung einzeln zuweisen. DroidDeck-Aktionen laufen einmal pro Ausschlag. Der Stick-Klick wird separat konfiguriert.</string>
@@ -104,17 +99,11 @@
     <string name="input_shortcut_hold_hint">Im Steam-Modus. Halten von Zurück öffnet auch den Schnellzugriff.</string>
     <string name="input_restore_shortcut">Auf Standard zurücksetzen</string>
     <string name="input_virtual_controller">Virtueller Controller</string>
-    <string name="input_virtual_controller_hint">Der von Steam oder dem Spiel erkannte Controller-Typ.</string>
     <string name="input_touchscreen">Touchscreen</string>
-    <string name="input_touchscreen_hint">Wie Berührungen auf dem Spielbildschirm behandelt werden. Profiltasten behalten ihre zugewiesenen Aktionen.</string>
     <string name="input_touch_cursor">Touch-Cursor</string>
-    <string name="input_touch_cursor_hint">Zeigt einen Zeiger für direkte Berührungen auf dem Spielbildschirm.</string>
     <string name="input_touch_hold">Berühren und halten</string>
-    <string name="input_touch_hold_hint">Mausaktion beim Halten eines Fingers auf dem Spielbildschirm.</string>
     <string name="input_back_taps">Zurück-Taste tippen</string>
-    <string name="input_back_taps_hint">Erste Aktion: einmal tippen. Zweite Aktion: zweimal tippen.</string>
     <string name="input_toggle_button">Umschalttaste</string>
-    <string name="input_toggle_button_hint">Tippen zum Halten, erneut tippen zum Loslassen. Das Öffnen eines Menüs oder ein Profilwechsel lässt die Taste los.</string>
     <string name="input_button_shape">Form</string>
     <string name="input_shape_rounded">Abgerundet</string>
     <string name="input_shape_pill">Pille</string>

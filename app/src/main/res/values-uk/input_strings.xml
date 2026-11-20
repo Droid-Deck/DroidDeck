@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">Профілі введення</string>
     <string name="input_profiles">Профілі</string>
     <string name="input_physical">Фізичний контролер</string>
     <string name="input_primary">Головний екран</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Відкрити меню Steam</string>
     <string name="input_command_qam">Відкрити швидкий доступ Steam</string>
     <string name="input_remove_element">Видалити елемент</string>
-    <string name="input_add_element">Додати елемент</string>
     <string name="input_extra_keys">Кнопки конкретного пристрою</string>
     <string name="input_capture">Призначити фізичну кнопку</string>
     <string name="input_capture_confirm">Відпустіть кнопку, потім виберіть «Редагувати», «Повторити» або «Скасувати». B або «Назад» скасовує після відпускання.</string>

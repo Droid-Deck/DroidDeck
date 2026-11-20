@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Независимая копия</string>
     <string name="input_floating_stick">Запускать стик от точки касания</string>
     <string name="input_hide_idle">Скрывать стик, когда он не используется</string>
-    <string name="input_tools">Инструменты</string>
-    <string name="input_quick_auto">Авто (%1$s)</string>
-    <string name="input_quick_mixed">Пользовательский (%1$s)</string>
     <string name="input_save_combination">Сохранить как новый профиль</string>
     <string name="input_profile_controls_mode">Управление профиля</string>
-    <string name="input_profile">Профиль</string>
     <string name="input_mouse_gestures">Жесты тачпада мыши</string>
-    <string name="input_mouse_gestures_hint">Если назначено указателю мыши: касание — клик, удержание — перетаскивание, прокрутка двумя пальцами.</string>
     <string name="input_quick_override_hint">Для %1$s задано переопределение быстрого меню. Выберите «Авто», чтобы использовать профиль по умолчанию и все три сохранённые части.</string>
     <string name="input_route_local">Ввод DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Удерживается, пока стик отклонён в любом направлении: нажатие выше 55%, отпускание ниже 35%. Используйте «Клавиши направлений», чтобы назначить каждое направление отдельно. Команды DroidDeck срабатывают один раз за отклонение. Нажатие стика настраивается отдельно.</string>
@@ -104,17 +99,11 @@
     <string name="input_shortcut_hold_hint">В режиме Steam. Удержание «Назад» также открывает быстрый доступ.</string>
     <string name="input_restore_shortcut">Вернуть по умолчанию</string>
     <string name="input_virtual_controller">Виртуальный контроллер</string>
-    <string name="input_virtual_controller_hint">Тип контроллера, который видят Steam или игра.</string>
     <string name="input_touchscreen">Сенсорный экран</string>
-    <string name="input_touchscreen_hint">Как обрабатываются касания на экране игры. Кнопки профиля сохраняют назначенные действия.</string>
     <string name="input_touch_cursor">Касание-курсор</string>
-    <string name="input_touch_cursor_hint">Показывать указатель для прямых касаний на экране игры.</string>
     <string name="input_touch_hold">Коснуться и удерживать</string>
-    <string name="input_touch_hold_hint">Действие мыши при удержании пальца на экране игры.</string>
     <string name="input_back_taps">Нажатия кнопки «Назад»</string>
-    <string name="input_back_taps_hint">Первое действие: одно нажатие. Второе действие: двойное нажатие.</string>
     <string name="input_toggle_button">Кнопка-переключатель</string>
-    <string name="input_toggle_button_hint">Коснитесь, чтобы удерживать, коснитесь снова, чтобы отпустить. Открытие меню или смена профиля отпускает кнопку.</string>
     <string name="input_button_shape">Форма</string>
     <string name="input_shape_rounded">Скруглённая</string>
     <string name="input_shape_pill">Капсула</string>

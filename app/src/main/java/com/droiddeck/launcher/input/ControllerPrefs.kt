@@ -7,21 +7,6 @@ object ControllerPrefs {
     const val STEAM_BLUE = 0xFF1A9FFF.toInt()
     const val OFF = "off"
 
-    val tints = listOf(
-        STEAM_BLUE to R.string.ctrl_tint_steam_blue,
-        0xFF66C0F4.toInt() to R.string.ctrl_tint_sky,
-        0xFFE8EEF4.toInt() to R.string.ctrl_tint_white,
-        0xFFC77DFF.toInt() to R.string.ctrl_tint_violet,
-        0xFF3DDC84.toInt() to R.string.ctrl_tint_green,
-        0xFFFFA726.toInt() to R.string.ctrl_tint_amber,
-        0xFFFF5252.toInt() to R.string.ctrl_tint_red,
-        0xFFFF6FB5.toInt() to R.string.ctrl_tint_pink,
-    )
-
-    val opacities = listOf(40, 60, 80, 100)
-
-    val sizes = listOf(80, 90, 100, 110, 125)
-
     val deadZones = listOf(0, 5, 8, 12, 15, 20, 25)
     const val DEFAULT_DEAD_ZONE_PERCENT = 12
 
@@ -39,20 +24,15 @@ object ControllerPrefs {
         OFF to R.string.ctrl_target_hidden,
     )
 
+    /** Settings still read: the rest only seed the one-time library and layout migrations. */
     class Settings(
         val tint: Int,
         val opacity: Int,
-        val size: Int,
         val stickClick: Boolean,
-        val adaptiveSticks: Boolean,
         val rumble: Boolean,
-        val steamButton: Boolean,
-        val qamButton: Boolean,
-        val keyboardButton: Boolean,
         val selectSteam: Boolean,
         val joyConVr: Boolean,
         val snap: Boolean,
-        val customLayout: Boolean,
         val mapping: Map<String, String>,
         val deadZone: Int,
     )
@@ -63,48 +43,15 @@ object ControllerPrefs {
         val p = prefs(context)
         return Settings(
             tint = p.getInt("tint", STEAM_BLUE),
-            opacity = p.getInt("opacity", 100).takeIf { it in opacities } ?: 100,
-            size = p.getInt("size", 100).takeIf { it in sizes } ?: 100,
+            opacity = p.getInt("opacity", 100).coerceIn(1, 100),
             stickClick = p.getBoolean("stickClick", true),
-            adaptiveSticks = p.getBoolean("adaptiveSticks", true),
             rumble = rumbleEnabled(context),
-            steamButton = p.getBoolean("steamButton", true),
-            qamButton = p.getBoolean("qamButton", true),
-            keyboardButton = p.getBoolean("keyboardButton", true),
             selectSteam = p.getBoolean("selectSteam", false),
             joyConVr = joyConVr(context),
             snap = snap(context),
-            customLayout = p.all.keys.any { it.startsWith("layout.") },
-            mapping = mappable.associate { (id, _) -> id to target(context, id) },
+            mapping = mappable.associate { (id, _) -> id to (p.getString("map.$id", id)?.takeIf { t -> targets.any { it.first == t } } ?: id) },
             deadZone = deadZone(context),
         )
-    }
-
-    fun target(context: Context, id: String): String =
-        prefs(context).getString("map.$id", id)?.takeIf { t -> targets.any { it.first == t } } ?: id
-
-    fun setTarget(context: Context, id: String, target: String) {
-        prefs(context).edit().putString("map.$id", target).apply()
-    }
-
-    fun setTint(context: Context, tint: Int) {
-        prefs(context).edit().putInt("tint", tint).apply()
-    }
-
-    fun setOpacity(context: Context, percent: Int) {
-        prefs(context).edit().putInt("opacity", percent).apply()
-    }
-
-    fun setSize(context: Context, percent: Int) {
-        prefs(context).edit().putInt("size", percent).apply()
-    }
-
-    fun setStickClick(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("stickClick", on).apply()
-    }
-
-    fun setAdaptiveSticks(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("adaptiveSticks", on).apply()
     }
 
     fun rumbleEnabled(context: Context): Boolean = prefs(context).getBoolean("rumble", true)
@@ -120,18 +67,6 @@ object ControllerPrefs {
         prefs(context).edit().putBoolean("rumble", on).apply()
     }
 
-    fun setSteamButton(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("steamButton", on).apply()
-    }
-
-    fun setKeyboardButton(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("keyboardButton", on).apply()
-    }
-
-    fun setSelectSteam(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("selectSteam", on).apply()
-    }
-
     fun joyConVr(context: Context): Boolean = prefs(context).getBoolean("joyConVr", true)
 
     fun setJoyConVr(context: Context, on: Boolean) {
@@ -142,24 +77,6 @@ object ControllerPrefs {
 
     fun setSnap(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("snap", on).apply()
-    }
-
-    fun layout(context: Context, width: Int, height: Int): Map<String, Pair<Float, Float>> {
-        val raw = prefs(context).getString("layout.${width}x$height", null) ?: return emptyMap()
-        return raw.split(';').mapNotNull { entry ->
-            val (group, pos) = entry.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
-            val (x, y) = pos.split(',').mapNotNull { it.toFloatOrNull() }.takeIf { it.size == 2 } ?: return@mapNotNull null
-            group to (x to y)
-        }.toMap()
-    }
-
-    fun setLayout(context: Context, width: Int, height: Int, positions: Map<String, Pair<Float, Float>>) {
-        val raw = positions.entries.joinToString(";") { (group, pos) -> "$group:${pos.first},${pos.second}" }
-        prefs(context).edit().putString("layout.${width}x$height", raw).apply()
-    }
-
-    fun resetLayout(context: Context, width: Int, height: Int) {
-        prefs(context).edit().remove("layout.${width}x$height").apply()
     }
 
     fun resetAll(context: Context) {

@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Bağımsız kopya</string>
     <string name="input_floating_stick">Çubuğu dokunma noktasında başlat</string>
     <string name="input_hide_idle">Kullanılmadığında çubuğu gizle</string>
-    <string name="input_tools">Araçlar</string>
-    <string name="input_quick_auto">Otomatik (%1$s)</string>
-    <string name="input_quick_mixed">Özel (%1$s)</string>
     <string name="input_save_combination">Yeni profil olarak kaydet</string>
     <string name="input_profile_controls_mode">Profil kontrolleri</string>
-    <string name="input_profile">Profil</string>
     <string name="input_mouse_gestures">Fare dokunmatik yüzey hareketleri</string>
-    <string name="input_mouse_gestures_hint">Fare işaretçisine atandığında: tıklamak için dokunun, sürüklemek için basılı tutun ve iki parmakla kaydırın.</string>
     <string name="input_quick_override_hint">%1$s için hızlı menü geçersiz kılması var. Varsayılan profilini ve üç kayıtlı bölümünü kullanmak için orada Otomatik seçin.</string>
     <string name="input_route_local">DroidDeck girişi</string>
     <string name="input_axis_action_hint" formatted="false">Çubuk herhangi bir yöne hareket ettirildiğinde basılı tutulur: %55 üzerinde basılır, %35 altında bırakılır. Her yönü ayrı atamak için Yön tuşlarını kullanın. DroidDeck komutları her sapma için bir kez çalışır. Çubuk tıklaması ayrıca yapılandırılır.</string>
@@ -104,17 +99,11 @@
     <string name="input_shortcut_hold_hint">Steam modunda. Geri tuşunu basılı tutmak hızlı erişimi de açar.</string>
     <string name="input_restore_shortcut">Varsayılana sıfırla</string>
     <string name="input_virtual_controller">Sanal denetleyici</string>
-    <string name="input_virtual_controller_hint">Steam veya oyunun gördüğü denetleyici türü.</string>
     <string name="input_touchscreen">Dokunmatik ekran</string>
-    <string name="input_touchscreen_hint">Oyun ekranındaki dokunuşların nasıl işlendiği. Profil düğmeleri atanmış eylemlerini korur.</string>
     <string name="input_touch_cursor">Dokunma imleci</string>
-    <string name="input_touch_cursor_hint">Oyun ekranındaki doğrudan dokunuşlar için işaretçi göster.</string>
     <string name="input_touch_hold">Dokun ve tut</string>
-    <string name="input_touch_hold_hint">Oyun ekranında parmağınızı tutarken fare eylemi.</string>
     <string name="input_back_taps">Geri düğmesi dokunuşları</string>
-    <string name="input_back_taps_hint">İlk eylem: tek dokunuş. İkinci eylem: çift dokunuş.</string>
     <string name="input_toggle_button">Aç/kapa düğmesi</string>
-    <string name="input_toggle_button_hint">Basılı tutmak için dokunun, bırakmak için tekrar dokunun. Menü açmak veya profil değiştirmek düğmeyi bırakır.</string>
     <string name="input_button_shape">Şekil</string>
     <string name="input_shape_rounded">Yuvarlatılmış</string>
     <string name="input_shape_pill">Kapsül</string>

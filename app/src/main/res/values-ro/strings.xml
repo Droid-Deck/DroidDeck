@@ -295,14 +295,10 @@
     <string name="mode_pen_touch">Atingere</string>
     <string name="mode_pen_button">Buton lateral</string>
     <string name="mode_osc">Comenzi pe ecran</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automat afișează comenzile când niciun controller nu este conectat.</string>
-    <string name="osc_steam_touch">Atingere Steam (beta)</string>
-    <string name="osc_style_next_session">Comenzile tactile Steam pornesc odată cu următoarea sesiune Steam</string>
     <string name="osc_steam_layout">Aranjament tactil Steam</string>
     <string name="screen_key_layout_export">Exportă</string>
     <string name="screen_key_image">Imagine</string>
-    <string name="osc_steam_layout_hint">Mută, redimensionează sau ascunde comenzile tactile ale acestui joc; salvate în Steam</string>
     <string name="mode_controller">Controller</string>
     <string name="mode_controller_hint">Cum vede Steam controllerul tău. Se aplică la sesiunea următoare.</string>
     <string name="mode_controller_deck">Controller Steam Deck</string>
@@ -430,7 +426,6 @@
     <string name="mode_directaudio_hint">Evită PulseAudio pentru o latență mai mică.</string>
     <string name="mode_mic">Microfon</string>
     <string name="mode_mic_hint">Pentru chat vocal.</string>
-    <string name="drawer_mic_hint">Activează sau dezactivează captarea microfonului pentru această sesiune.</string>
     <string name="drawer_mic_failed">Microfonul nu a putut fi schimbat. Încearcă din nou.</string>
     <string name="mode_network">Rețea</string>
     <string name="mode_wifi_discovery">Descoperire Wi-Fi</string>
@@ -793,7 +788,6 @@
     <string name="drawer_keyboard">Tastatură</string>
     <string name="drawer_latency">Latență</string>
     <string name="drawer_low_latency">Mod latență redusă</string>
-    <string name="drawer_low_latency_hint">Crește consumul de CPU și baterie</string>
     <string name="drawer_low_latency_controller">Controller cu latență mică</string>
     <string name="drawer_low_latency_controller_hint">Controllerul raportează la 1000 Hz în loc de 250 Hz. Consum CPU puțin mai mare.</string>
     <string name="drawer_low_latency_touch">Atingere cu latență mică</string>
@@ -1352,12 +1346,8 @@
     <string name="ctrl_opacity">Opacitate</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Dimensiunea butoanelor</string>
-    <string name="ctrl_adaptive">Manșe adaptive</string>
     <string name="ctrl_rumble">Vibrații de joc</string>
     <string name="ctrl_dead_zone">Zonă moartă a manetei</string>
-    <string name="ctrl_steam_button">Butonul Steam</string>
-    <string name="ctrl_qam_button">Butonul QAM</string>
-    <string name="ctrl_keyboard_button">Butonul tastaturii</string>
     <string name="ctrl_joycon_vr">Joy-Con ca controllere VR</string>
     <string name="ctrl_joycon_vr_hint">Cât timp rulează SteamVR, fiecare Joy-Con devine o mână. Îndreaptă-l înainte și ține apăsat Home sau Capture pentru a-l recentra.</string>
     <string name="setup_animations">Animații</string>
@@ -1487,8 +1477,6 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Închide comenzile celui de-al doilea ecran</string>
     <string name="deck_open_steam_menu">Deschide meniul Steam</string>
-    <string name="deck_right_trackpad">Trackpad-ul drept</string>
-    <string name="deck_left_trackpad">Trackpad-ul stâng</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Arată tastatura</string>
     <string name="second_hide_keyboard">Ascunde tastatura</string>
@@ -1527,11 +1515,8 @@
     <string name="pckb_android">Tastatura Android</string>
     <string name="pckb_hide">Ascunde  ✕</string>
     <string name="pckb_size">Dimensiune pe ecran</string>
-    <string name="pckb_size_hint">Partea din ecran ocupată de tastatură, inclusiv antetul.</string>
     <string name="pckb_opacity">Opacitate</string>
-    <string name="pckb_opacity_hint">Reduceți-o pentru a vedea jocul din spatele tastaturii.</string>
     <string name="pckb_hidden_keys">Taste ascunse</string>
-    <string name="pckb_hidden_keys_hint">Tastele pe care le folosiți rar nu apar pe tastatură.</string>
     <string name="pckb_group_function">Esc și rândul tastelor funcționale</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Tastele cu săgeți</string>
@@ -1752,8 +1737,6 @@
     <string name="drivers_installed_pick">Instalat %1$s - alege-l în meniu</string>
     <string name="session_wait_removal">Așteaptă să se termine eliminarea mediului de execuție</string>
     <string name="session_title_game">Joc</string>
-    <string name="session_touch_auto_touchpad">touchpad</string>
-    <string name="session_touch_auto_direct">direct</string>
     <string name="session_swap_failed">Comutarea a eșuat: %1$s</string>
     <string name="session_profile_save_failed">Salvarea profilului a eșuat: %1$s</string>
     <string name="session_desktop_paused">Desktopul este pus pe pauză</string>
@@ -2018,15 +2001,6 @@
     <string name="fm_up_one_level">Un nivel mai sus</string>
     <string name="fm_choose_folder">Alege un folder</string>
     <string name="fm_choose_file">Alege un fișier</string>
-    <string name="ctrl_tint_steam_blue">Albastru Steam</string>
-    <string name="ctrl_tint_sky">Cer</string>
-    <string name="ctrl_tint_white">Alb</string>
-    <string name="ctrl_tint_violet">Violet</string>
-    <string name="ctrl_tint_green">Verde</string>
-    <string name="ctrl_tint_amber">Chihlimbariu</string>
-    <string name="ctrl_tint_red">Roșu</string>
-    <string name="ctrl_tint_pink">Roz</string>
-    <string name="ctrl_tint_gray">Gri</string>
     <string name="ctrl_button_a">Butonul A</string>
     <string name="ctrl_button_b">Butonul B</string>
     <string name="ctrl_button_x">Butonul X</string>
@@ -3169,7 +3143,6 @@
     <string name="glasses_pro2_experimental">Urmărire experimentală a mișcărilor capului pentru Pro 2. Reglarea luminozității și a volumului și schimbarea modului de afișare nu sunt încă acceptate.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mod Cardboard</string>
-    <string name="cardboard_mode_hint">Imagini pentru ochiul stâng și cel drept, pentru un vizor VR pentru telefon.</string>
     <string name="cardboard_source">Imagine</string>
     <string name="cardboard_source_screen">Ecran virtual</string>
     <string name="cardboard_source_sbs">3D alăturat</string>
@@ -3192,7 +3165,6 @@
     <string name="cardboard_steamvr_unavailable">Indisponibil în această sesiune.</string>
     <string name="cardboard_steamvr_failed">SteamVR nu a răspuns; verifică jurnalul sesiunii.</string>
     <string name="drawer_component_downloads">Descarcă componente</string>
-    <string name="drawer_component_downloads_hint">Descărcările sunt comune cu pagina Componente. Alege mai sus o versiune descărcată pentru a o folosi la următoarea lansare a jocului.</string>
     <string name="drawer_component_choose_download">Alege o versiune de descărcat</string>
     <string name="stores_fact_developer">Dezvoltator</string>
     <string name="stores_fact_publisher">Editor</string>

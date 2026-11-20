@@ -36,7 +36,7 @@ class SelectProfileRoutingTest {
     @Before fun setUp() {
         context.getSharedPreferences("input-profiles", 0).edit().clear().commit()
         context.getSharedPreferences("controller", 0).edit().clear().commit()
-        ControllerPrefs.setSelectSteam(context, true)
+        LegacyControllerPrefs.setSelectSteam(context, true)
         shadowOf(context.getSystemService(InputManager::class.java)).addInputDevice(device)
         bridge.setInputRouter(InputRouter(output))
         bridge.setInputProfile(InputProfiles.active(context, desktop = false))

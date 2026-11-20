@@ -3,103 +3,78 @@ package com.droiddeck.launcher.input
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
-import android.graphics.Typeface
+import android.graphics.RectF
 import android.os.Build
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.widget.FrameLayout
 import com.droiddeck.launcher.ui.InputSurfaceView
+import com.droiddeck.launcher.ui.PadArt
 
 class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayout.Dock? = null) : FrameLayout(context) {
+    /** Why the controls are hidden while the corner button stays. */
+    enum class Hidden { BY_TAP, BY_CONTROLLER }
+
     private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY, haptics = dock != null)
     private var layout: SavedInputLayout? = null
     private val safe = Rect()
     private var viewWidth = 0
     private var viewHeight = 0
-    private val placements = object : LinkedHashMap<Placement, List<InputSurfaceElement>>(4, .75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Placement, List<InputSurfaceElement>>) = size > PLACEMENT_CACHE
-    }
-    private val quickToggle = QuickToggle(context)
-    var isButtonsOnly = false
+    private val corner = CornerButton(context)
+    var hidden: Hidden? = null
         private set
-    var isQuickHidden = false
-        private set
-    var isPinnedOnly = false
-        private set
-    val hasPinned get() = layout?.elements?.any { it.alwaysShown } == true
-    val inputSurface: com.droiddeck.launcher.ui.InputSurfaceView get() = surface
+    /** Holding the corner button opens DroidDeck's controller menu. */
+    var onCornerHold: (() -> Unit)? = null
+    /** The player tapped the corner button. */
+    var onCornerTap: ((Hidden?) -> Unit)? = null
+    val inputSurface: InputSurfaceView get() = surface
     var onTouchMiss: ((MotionEvent) -> Unit)?
         get() = surface.onTouchMiss
         set(value) { surface.onTouchMiss = value }
 
     init {
         addView(surface, LayoutParams(-1, -1))
-        val size = (QUICK_HIT_DP * 2 * resources.displayMetrics.density).toInt()
-        addView(quickToggle, LayoutParams(size, size, Gravity.START or Gravity.BOTTOM))
+        val size = (CORNER_HIT_DP * resources.displayMetrics.density).toInt()
+        addView(corner, LayoutParams(size, size, Gravity.START or Gravity.BOTTOM))
     }
 
     fun updateLayout(value: SavedInputLayout?) {
-        if (layout == value) return
+        val kit = PadKit.current(context)
+        if (layout == value && surface.kit == kit) return
         releaseAll()
         layout = value
+        surface.kit = kit
         render()
     }
 
-    fun setButtonsOnly(enabled: Boolean) {
-        if (isButtonsOnly == enabled) return
+    fun setHidden(value: Hidden?) {
+        if (hidden == value) return
         releaseAll()
-        isButtonsOnly = enabled
-        isQuickHidden = false
+        hidden = value
         render()
-    }
-
-    fun setQuickHidden(hidden: Boolean) {
-        if (isButtonsOnly || isQuickHidden == hidden) return
-        releaseAll()
-        isQuickHidden = hidden
-        render()
-    }
-
-    fun setPinnedOnly(enabled: Boolean) {
-        if (isPinnedOnly == enabled) return
-        releaseAll()
-        isPinnedOnly = enabled
-        render()
-    }
-
-    private data class Placement(val layout: SavedInputLayout?, val width: Int, val height: Int, val safe: Rect, val buttonsOnly: Boolean)
-
-    private fun placed(): List<InputSurfaceElement> {
-        val key = Placement(layout, viewWidth, viewHeight, Rect(safe), isButtonsOnly)
-        return placements.getOrPut(key) {
-            OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, isButtonsOnly, dock)
-        }
     }
 
     private fun render() {
-        val elements = placed()
-        surface.updateCustomLayout(when {
-            isPinnedOnly -> elements.filter { it.alwaysShown }
-            isQuickHidden -> elements.filter { it.id == "builtin:keyboard" || it.alwaysShown }
-            else -> elements
-        })
-        val style = layout?.style ?: InputSurfaceStyle()
-        surface.updateStyle(style)
-        quickToggle.tint = style.tint
-        quickToggle.alpha = style.opacity / 100f
-        quickToggle.visibility = if (isButtonsOnly || isPinnedOnly || layout == null || dock != null) GONE else VISIBLE
-        quickToggle.invalidate()
+        val placed = OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, dock)
+        surface.updateCustomLayout(if (hidden != null) placed.filter { it.alwaysShown } else placed)
+        surface.updateStyle(layout?.style ?: InputSurfaceStyle())
+        corner.visibility = if (layout == null || dock != null) GONE else VISIBLE
+        corner.alpha = (layout?.style?.opacity ?: 100) / 100f
+        corner.invalidate()
     }
 
     fun takesTouchAt(x: Float, y: Float) = surface.takesTouchAt(x, y) ||
-        quickToggle.visibility == VISIBLE && x >= quickToggle.left && x < quickToggle.right && y >= quickToggle.top && y < quickToggle.bottom
+        corner.visibility == VISIBLE && x >= corner.left && x < corner.right && y >= corner.top && y < corner.bottom
+    fun cornerTakes(x: Float, y: Float) = corner.visibility == VISIBLE && x >= corner.left && x < corner.right && y >= corner.top && y < corner.bottom
     fun releaseAll() = surface.releaseInputs()
-    fun reload() { releaseAll(); placements.clear(); render() }
+    fun reload() { releaseAll(); surface.kit = PadKit.current(context); render() }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
@@ -116,14 +91,14 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-        val offset = ((QUICK_CENTER_DP - QUICK_HIT_DP) * resources.displayMetrics.density).toInt()
-        val params = quickToggle.layoutParams as LayoutParams
-        val left = (cutout?.safeInsetLeft ?: 0) + offset
-        val bottom = (cutout?.safeInsetBottom ?: 0) + offset
+        val margin = (CORNER_MARGIN_DP * resources.displayMetrics.density).toInt()
+        val params = corner.layoutParams as LayoutParams
+        val left = (cutout?.safeInsetLeft ?: 0) + margin
+        val bottom = (cutout?.safeInsetBottom ?: 0) + margin
         if (params.leftMargin != left || params.bottomMargin != bottom) {
             params.leftMargin = left
             params.bottomMargin = bottom
-            quickToggle.layoutParams = params
+            corner.layoutParams = params
         }
         val fresh = Rect(cutout?.safeInsetLeft ?: 0, if (dock == null) cutout?.safeInsetTop ?: 0 else 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
         if (fresh != safe) {
@@ -133,42 +108,45 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         return super.onApplyWindowInsets(insets)
     }
 
-    private inner class QuickToggle(context: Context) : View(context) {
-        var tint: Int? = ControllerPrefs.STEAM_BLUE
-        private val density = resources.displayMetrics.density
+    private inner class CornerButton(context: Context) : View(context) {
+        private val art = PadArt(context)
+        private val badge = Paint(Paint.ANTI_ALIAS_FLAG)
         private var armed = false
-        private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1.5f * density }
-        private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = 22 * density
-        }
+        private var held = false
+        private val hold = Runnable { if (armed) { held = true; performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) } }
 
         override fun onDraw(canvas: Canvas) {
-            val x = width / 2f
-            val y = height / 2f
-            val radius = QUICK_RADIUS_DP * density
-            val color = tint
-            fill.color = if (color != null) InputSurfaceView.shade(color, 190, 0.12f) else (InputSurfaceView.SURFACE and 0x00ffffff) or (190 shl 24)
-            canvas.drawCircle(x, y, radius, fill)
-            stroke.color = if (color != null) InputSurfaceView.light(color, 150, 0.25f) else InputSurfaceView.LINE
-            canvas.drawCircle(x, y, radius, stroke)
-            text.color = if (color != null) InputSurfaceView.light(color, 210, 0.75f) else InputSurfaceView.TEXT
-            canvas.drawText(if (isQuickHidden) "+" else "−", x, y + text.textSize * 0.35f, text)
+            val w = width.toFloat(); val h = height.toFloat()
+            val dimmed = hidden != null && !armed
+            if (dimmed) canvas.saveLayerAlpha(0f, 0f, w, h, 170)
+            art.system(canvas, w, h, PadArt.Shape.ROUND, PadArt.Icon.MARK, armed)
+            if (dimmed) canvas.restore()
+            if (hidden == Hidden.BY_CONTROLLER) {
+                val d = art.density
+                val r = RectF(w - 15 * d, 3 * d, w - 2 * d, 12 * d)
+                badge.style = Paint.Style.FILL; badge.color = Color.rgb(0x16, 0x19, 0x1E)
+                canvas.drawRoundRect(r, 2.5f * d, 2.5f * d, badge)
+                badge.style = Paint.Style.STROKE; badge.strokeWidth = 1.3f * d; badge.color = Color.rgb(0xFF, 0xB3, 0x47)
+                canvas.drawRoundRect(r, 2.5f * d, 2.5f * d, badge)
+            }
         }
 
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> armed = true
-                MotionEvent.ACTION_CANCEL -> armed = false
+                MotionEvent.ACTION_DOWN -> { armed = true; held = false; postDelayed(hold, ViewConfiguration.getLongPressTimeout().toLong()); invalidate() }
+                MotionEvent.ACTION_CANCEL -> { armed = false; removeCallbacks(hold); invalidate() }
                 MotionEvent.ACTION_UP -> {
-                    if (armed && event.x in 0f..width.toFloat() && event.y in 0f..height.toFloat()) {
+                    removeCallbacks(hold)
+                    if (armed && held) post { onCornerHold?.invoke() }
+                    else if (armed && event.x in 0f..width.toFloat() && event.y in 0f..height.toFloat()) {
                         performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        setQuickHidden(!isQuickHidden)
+                        val next = if (hidden == null) Hidden.BY_TAP else null
+                        setHidden(next)
+                        onCornerTap?.invoke(next)
                     }
                     armed = false
+                    invalidate()
                 }
             }
             return true
@@ -176,9 +154,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     }
 
     private companion object {
-        const val QUICK_CENTER_DP = 34f
-        const val QUICK_HIT_DP = 26f
-        const val QUICK_RADIUS_DP = 18f
-        const val PLACEMENT_CACHE = 4
+        const val CORNER_HIT_DP = 48f
+        const val CORNER_MARGIN_DP = 4f
     }
 }

@@ -3,6 +3,10 @@ package com.droiddeck.launcher.input
 class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole, val element: InputSurfaceElement) {
     private val router = pad.inputRouter
     private val route = router?.channel(role, element.control, element = element)
+    /** The kit's D-pad keeps each direction's own binding, as the separate direction buttons it replaced did. */
+    private val arms = if (element.id == KitLayout.DPAD_ID && router != null)
+        listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT).map { router.channel(role, it, element = KitLayout.element("legacy:${it.id}")) }
+    else emptyList()
     private val deck = DeckControls.source(role, routed = true)
     private val clickDeck = DeckControls.source(role, routed = true)
     private val clickOwner = Any()
@@ -55,6 +59,15 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
             fingerDown = down
             if (latched) 1f else 0f
         } else value
+        if (arms.isNotEmpty() && route?.action is InputAction.Native) {
+            val ready = route.update(x, y, touching) != null
+            val values = listOf(y < -.5f, x > .5f, y > .5f, x < -.5f).map { if (it && ready) 1f else 0f }
+            val toPad = arms.mapIndexed { i, arm -> arm.update(values[i])?.takeIf { it.isPad }?.let { it to values[i] } }.filterNotNull()
+            if (toPad.isNotEmpty() || nativePad) writePad(this, null) { state -> state.clear(); for ((t, v) in toPad) state.add(t, v) }
+            nativePad = toPad.isNotEmpty()
+            InputTiming.end(timing)
+            return
+        }
         val target = if (router == null) element.control else route?.update(x, y, touching)
         val toPad = target?.isPad == true
         val toDeck = target != null && !target.isPad
@@ -75,6 +88,7 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
     fun cancel() {
         if (closed) return
         route?.takeIf { it.action is InputAction.Command }?.release()
+        arms.filter { it.action is InputAction.Command }.forEach { it.release() }
         update(0f)
     }
 
@@ -112,13 +126,13 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
         closed = true
         router?.removeSnapshot(snapshot)
         releaseNative(); resetLatch()
-        route?.close(); clickRoute?.close(); gestureWheel?.close(); gestureRight?.close(); gestureMiddle?.close(); deck.close(); clickDeck.close()
+        route?.close(); arms.forEach { it.close() }; clickRoute?.close(); gestureWheel?.close(); gestureRight?.close(); gestureMiddle?.close(); deck.close(); clickDeck.close()
     }
 
     fun release() {
         if (closed) return
         releaseNative(); resetLatch()
-        route?.release(); clickRoute?.release(); gestureWheel?.release(); gestureRight?.release(); gestureMiddle?.release()
+        route?.release(); arms.forEach { it.release() }; clickRoute?.release(); gestureWheel?.release(); gestureRight?.release(); gestureMiddle?.release()
     }
 
 }

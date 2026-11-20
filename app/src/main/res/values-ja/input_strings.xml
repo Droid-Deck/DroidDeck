@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">入力プロファイル</string>
     <string name="input_profiles">プロファイル</string>
     <string name="input_physical">物理コントローラー</string>
     <string name="input_primary">メイン画面</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Steam メニューを開く</string>
     <string name="input_command_qam">Steam クイックアクセスを開く</string>
     <string name="input_remove_element">コントロールを削除</string>
-    <string name="input_add_element">コントロールを追加</string>
     <string name="input_extra_keys">デバイス固有のボタン</string>
     <string name="input_capture">物理ボタンを割り当て</string>
     <string name="input_capture_confirm">ボタンを離してから、編集・再試行・キャンセルのいずれかを選択します。B または戻るは離した後にキャンセルします。</string>

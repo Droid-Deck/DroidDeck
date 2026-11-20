@@ -75,14 +75,9 @@
     <string name="input_independent_copy">Cópia independente</string>
     <string name="input_floating_stick">Iniciar o analógico no ponto de toque</string>
     <string name="input_hide_idle">Ocultar o analógico quando não estiver em uso</string>
-    <string name="input_tools">Ferramentas</string>
-    <string name="input_quick_auto">Auto (%1$s)</string>
-    <string name="input_quick_mixed">Personalizado (%1$s)</string>
     <string name="input_save_combination">Salvar como novo perfil</string>
     <string name="input_profile_controls_mode">Controles do perfil</string>
-    <string name="input_profile">Perfil</string>
     <string name="input_mouse_gestures">Gestos do touchpad do mouse</string>
-    <string name="input_mouse_gestures_hint">Quando atribuído ao ponteiro do mouse: toque para clicar, segure para arrastar e role com dois dedos.</string>
     <string name="input_quick_override_hint">%1$s tem uma substituição do menu rápido. Selecione Auto lá para usar o perfil padrão e as três partes salvas.</string>
     <string name="input_route_local">Entrada do DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Mantido enquanto o analógico é movido em qualquer direção: pressiona acima de 55%, solta abaixo de 35%. Use Teclas de direção para atribuir cada direção separadamente. Os comandos do DroidDeck rodam uma vez por deflexão. O clique do analógico é configurado à parte.</string>
@@ -104,17 +99,11 @@
     <string name="input_shortcut_hold_hint">No modo Steam. Manter Voltar também abre o acesso rápido.</string>
     <string name="input_restore_shortcut">Restaurar o padrão</string>
     <string name="input_virtual_controller">Controle virtual</string>
-    <string name="input_virtual_controller_hint">O tipo de controle visto pelo Steam ou pelo jogo.</string>
     <string name="input_touchscreen">Tela sensível ao toque</string>
-    <string name="input_touchscreen_hint">Como os toques na tela do jogo são tratados. Os botões do perfil mantêm as ações atribuídas.</string>
     <string name="input_touch_cursor">Cursor de toque</string>
-    <string name="input_touch_cursor_hint">Mostra um ponteiro para toques diretos na tela do jogo.</string>
     <string name="input_touch_hold">Tocar e segurar</string>
-    <string name="input_touch_hold_hint">Ação do mouse ao segurar um dedo na tela do jogo.</string>
     <string name="input_back_taps">Toques do botão Voltar</string>
-    <string name="input_back_taps_hint">Primeira ação: toque único. Segunda ação: toque duplo.</string>
     <string name="input_toggle_button">Botão de alternância</string>
-    <string name="input_toggle_button_hint">Toque para manter, toque de novo para soltar. Abrir um menu ou trocar de perfil solta o botão.</string>
     <string name="input_button_shape">Forma</string>
     <string name="input_shape_rounded">Arredondada</string>
     <string name="input_shape_pill">Pílula</string>

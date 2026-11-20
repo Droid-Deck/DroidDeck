@@ -1,7 +1,7 @@
 package com.droiddeck.launcher.ui
 
 internal enum class SessionDrawerPage(val firstControl: String) {
-    CONTROLLER("input-profile"),
+    CONTROLLER("touch"),
     GLASSES("glasses-game"),
     DISPLAY("fg"),
     HUD("hud"),

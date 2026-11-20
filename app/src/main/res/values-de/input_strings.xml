@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="input_settings">Eingabeprofile</string>
     <string name="input_profiles">Profile</string>
     <string name="input_physical">Physischer Controller</string>
     <string name="input_primary">Hauptbildschirm</string>
@@ -23,7 +22,6 @@
     <string name="input_command_steam">Steam-Menü öffnen</string>
     <string name="input_command_qam">Steam-Schnellzugriff öffnen</string>
     <string name="input_remove_element">Steuerung entfernen</string>
-    <string name="input_add_element">Steuerung hinzufügen</string>
     <string name="input_extra_keys">Gerätespezifische Tasten</string>
     <string name="input_capture">Physische Taste zuweisen</string>
     <string name="input_capture_confirm">Taste loslassen, dann Bearbeiten, Wiederholen oder Abbrechen wählen. B oder Zurück bricht nach dem Loslassen ab.</string>

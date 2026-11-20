@@ -9,6 +9,7 @@ import com.droiddeck.launcher.input.InputControl
 import com.droiddeck.launcher.input.InputProfile
 import com.droiddeck.launcher.input.InputProfiles
 import com.droiddeck.launcher.input.InputRole
+import com.droiddeck.launcher.input.LegacyControllerPrefs
 import com.droiddeck.launcher.input.InputSurfaceLayout
 import org.junit.Assert.*
 import org.junit.Before
@@ -52,7 +53,7 @@ class SettingsResetTest {
         SessionPrefs.setHudOpacity(app, 40)
         SessionPrefs.setDroidDeckHudConfig(app, "hudSize=mega,showFPSGraph=0")
         SessionPrefs.setDroidDeckHudPosition(app, 120f, 40f)
-        ControllerPrefs.setOpacity(app, 40)
+        LegacyControllerPrefs.setOpacity(app, 40)
         AppUiPrefs.setScale(app, 150)
         FrameGen.set(app, FrameGen.Mode(FrameGen.ENGINE_DDFG, 3))
         prefs("steam_touch").edit().putBoolean("gyro", false).commit()
@@ -154,7 +155,7 @@ class SettingsResetTest {
         val defaultGame = InputProfiles.read(app, InputProfile.GAME)
         val defaultDesktop = InputProfiles.read(app, InputProfile.DESKTOP)
         val defaultSurface = InputSurfaceLayout.read(app, InputProfile.DESKTOP)
-        ControllerPrefs.setTarget(app, "a", "b")
+        LegacyControllerPrefs.setTarget(app, "a", "b")
         InputProfiles.select(app, InputProfile.DESKTOP)
         InputProfiles.save(app, InputProfile.defaults(InputProfile.GAME)
             .withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.Disabled))

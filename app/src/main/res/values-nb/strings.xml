@@ -295,14 +295,10 @@
     <string name="mode_pen_touch">Berøring</string>
     <string name="mode_pen_button">Sideknapp</string>
     <string name="mode_osc">Skjermkontroller</string>
-    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto viser kontrollene når ingen kontroller er tilkoblet.</string>
-    <string name="osc_steam_touch">Steam-berøring (beta)</string>
-    <string name="osc_style_next_session">Steams berøringskontroller starter med neste Steam-sesjon</string>
     <string name="osc_steam_layout">Steam-berøringslayout</string>
     <string name="screen_key_layout_export">Eksporter</string>
     <string name="screen_key_image">Bilde</string>
-    <string name="osc_steam_layout_hint">Flytt, endre størrelse på eller skjul dette spillets berøringskontroller; lagres til Steam</string>
     <string name="mode_controller">Kontroller</string>
     <string name="mode_controller_hint">Hvordan Steam ser kontrolleren din. Gjelder fra neste sesjon.</string>
     <string name="mode_controller_deck">Steam Deck-kontroller</string>
@@ -429,7 +425,6 @@
     <string name="mode_directaudio_hint">Går forbi PulseAudio for lavere ventetid.</string>
     <string name="mode_mic">Mikrofon</string>
     <string name="mode_mic_hint">For talechat.</string>
-    <string name="drawer_mic_hint">Slå mikrofonopptak av eller på for denne sesjonen.</string>
     <string name="drawer_mic_failed">Kunne ikke endre mikrofonen. Prøv igjen.</string>
     <string name="mode_network">Nettverk</string>
     <string name="mode_wifi_discovery">Wi-Fi-oppdagelse</string>
@@ -791,7 +786,6 @@
     <string name="drawer_keyboard">Tastatur</string>
     <string name="drawer_latency">Forsinkelse</string>
     <string name="drawer_low_latency">Modus for lav forsinkelse</string>
-    <string name="drawer_low_latency_hint">Øker CPU- og batteribruk</string>
     <string name="drawer_low_latency_controller">Kontroller med lav forsinkelse</string>
     <string name="drawer_low_latency_controller_hint">Kontrolleren rapporterer ved 1000 Hz i stedet for 250 Hz. Litt mer CPU.</string>
     <string name="drawer_low_latency_touch">Berøring med lav forsinkelse</string>
@@ -1345,12 +1339,8 @@
     <string name="ctrl_opacity">Opasitet</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Knappestørrelse</string>
-    <string name="ctrl_adaptive">Adaptive stikker</string>
     <string name="ctrl_rumble">Spillvibrasjon</string>
     <string name="ctrl_dead_zone">Dødsone for styrespak</string>
-    <string name="ctrl_steam_button">Steam-knapp</string>
-    <string name="ctrl_qam_button">QAM-knapp</string>
-    <string name="ctrl_keyboard_button">Tastatur-knapp</string>
     <string name="ctrl_joycon_vr">Joy-Con som VR-kontrollere</string>
     <string name="ctrl_joycon_vr_hint">Mens SteamVR kjører, blir hver Joy-Con en hånd. Pek den fremover og hold inne Home eller Capture for å sentrere den på nytt.</string>
     <string name="setup_animations">Animasjoner</string>
@@ -1479,8 +1469,6 @@
     <string name="deck_surface_trackpad">Styreflate</string>
     <string name="deck_close">Lukk kontroller for andre skjerm</string>
     <string name="deck_open_steam_menu">Åpne Steam-menyen</string>
-    <string name="deck_right_trackpad">Høyre styreflate</string>
-    <string name="deck_left_trackpad">Venstre styreflate</string>
     <string name="second_trackpad">Styreflate</string>
     <string name="second_show_keyboard">Vis tastatur</string>
     <string name="second_hide_keyboard">Skjul tastatur</string>
@@ -1519,11 +1507,8 @@
     <string name="pckb_android">Android-tastatur</string>
     <string name="pckb_hide">Skjul  ✕</string>
     <string name="pckb_size">Størrelse på skjermen</string>
-    <string name="pckb_size_hint">Andelen av skjermen tastaturet tar, inkludert toppfeltet.</string>
     <string name="pckb_opacity">Ugjennomsiktighet</string>
-    <string name="pckb_opacity_hint">Senk den for å se spillet bak tastaturet.</string>
     <string name="pckb_hidden_keys">Skjulte taster</string>
-    <string name="pckb_hidden_keys_hint">Taster du sjelden bruker vises ikke på tastaturet.</string>
     <string name="pckb_group_function">Esc og funksjonsrad</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Piltaster</string>
@@ -1736,8 +1721,6 @@
     <string name="drivers_installed_pick">Installert %1$s – velg den i menyen</string>
     <string name="session_wait_removal">Vent til fjerning av kjøretiden er ferdig</string>
     <string name="session_title_game">Spill</string>
-    <string name="session_touch_auto_touchpad">styreflate</string>
-    <string name="session_touch_auto_direct">direkte</string>
     <string name="session_swap_failed">Bytting mislyktes: %1$s</string>
     <string name="session_profile_save_failed">Lagring av profil mislyktes: %1$s</string>
     <string name="session_desktop_paused">Skrivebordet er pauset</string>
@@ -1993,15 +1976,6 @@
     <string name="fm_up_one_level">Opp ett nivå</string>
     <string name="fm_choose_folder">Velg en mappe</string>
     <string name="fm_choose_file">Velg en fil</string>
-    <string name="ctrl_tint_steam_blue">Steam-blå</string>
-    <string name="ctrl_tint_sky">Himmel</string>
-    <string name="ctrl_tint_white">Hvit</string>
-    <string name="ctrl_tint_violet">Fiolett</string>
-    <string name="ctrl_tint_green">Grønn</string>
-    <string name="ctrl_tint_amber">Amber</string>
-    <string name="ctrl_tint_red">Rød</string>
-    <string name="ctrl_tint_pink">Rosa</string>
-    <string name="ctrl_tint_gray">Grå</string>
     <string name="ctrl_button_a">A-knapp</string>
     <string name="ctrl_button_b">B-knapp</string>
     <string name="ctrl_button_x">X-knapp</string>
@@ -3139,7 +3113,6 @@
     <string name="glasses_pro2_experimental">Eksperimentell hodesporing for Pro 2. Justering av lysstyrke og volum samt bytte av visningsmodus støttes ikke ennå.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-modus</string>
-    <string name="cardboard_mode_hint">Bilder for venstre og høyre øye til en VR-brille for mobil.</string>
     <string name="cardboard_source">Bilde</string>
     <string name="cardboard_source_screen">Virtuell skjerm</string>
     <string name="cardboard_source_sbs">Side-ved-side-3D</string>
@@ -3162,7 +3135,6 @@
     <string name="cardboard_steamvr_unavailable">Ikke tilgjengelig i denne økten.</string>
     <string name="cardboard_steamvr_failed">SteamVR svarte ikke; sjekk sesjonsloggen.</string>
     <string name="drawer_component_downloads">Last ned komponenter</string>
-    <string name="drawer_component_downloads_hint">Nedlastinger deles med Komponenter-siden. Velg en nedlastet versjon ovenfor for å bruke den fra neste spilløkt.</string>
     <string name="drawer_component_choose_download">Velg en versjon å laste ned</string>
     <string name="stores_fact_developer">Utvikler</string>
     <string name="stores_fact_publisher">Utgiver</string>
