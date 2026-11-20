@@ -1168,7 +1168,7 @@ void droiddeck_color_init(struct wl_display *display) {
         snprintf(why, sizeof(why), "this Android has no display layers with dataspace control "
                  "(ASurfaceControl + ASurfaceTransaction_setBufferDataSpace, Android 10+)");
     else if (!ahb_ok)
-        snprintf(why, sizeof(why), "zero-copy presentation is unavailable here (banner_ahb_v1 not advertised), and an "
+        snprintf(why, sizeof(why), "zero-copy presentation is unavailable here (droiddeck_ahb_v1 not advertised), and an "
                  "HDR frame is only honest on the game's own display layer");
 
     if (why[0]) {

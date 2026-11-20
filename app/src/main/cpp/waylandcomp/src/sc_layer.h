@@ -11,6 +11,8 @@ struct droiddeck_color;
 enum sc_layer_id { SC_LAYER_GAME = 0, SC_LAYER_OVERLAY = 1, SC_LAYER_COUNT = 2 };
 
 int sc_layer_available(void);
+#define SC_LAYER_AHB_USAGE_VENDOR_UBWC (1ULL << 28)
+int sc_layer_ahb_fd(AHardwareBuffer *ahb, uint64_t need);
 
 void sc_layer_probe_dmabuf_fd(int fd);
 

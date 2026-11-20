@@ -401,10 +401,22 @@ static void describe_handle(const struct droiddeck_native_handle *h, char *out, 
         o += (size_t)snprintf(out + o, n - o, " %#x", (unsigned)h->data[h->numFds + i]);
 }
 
+static int handle_fd(const struct droiddeck_native_handle *h, off_t need, int *which) {
+    for (int i = 0; h && i < h->numFds; i++) {
+        off_t sz = lseek(h->data[i], 0, SEEK_END);
+        if (sz >= 0) lseek(h->data[i], 0, SEEK_SET);
+        if (sz >= need) { if (which) *which = i; return h->data[i]; }
+    }
+    return -1;
+}
+
+int sc_layer_ahb_fd(AHardwareBuffer *ahb, uint64_t need) {
+    return load_api() == 0 ? handle_fd(api.getNativeHandle(ahb), (off_t)need, NULL) : -1;
+}
+
 static int g_alloc_failed;
 
 enum { TIER_UBWC, TIER_PLAIN, TIER_LINEAR };
-#define DROIDDECK_AHB_USAGE_VENDOR_UBWC (1ULL << 28)
 
 static const char *tier_name(int tier) {
     return tier == TIER_UBWC ? "asked for UBWC" : tier == TIER_PLAIN ? "no UBWC request" : "linear by request (CPU bit)";
@@ -419,7 +431,7 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             .format = fmt,
             .usage = AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
                      AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY |
-                     (tier == TIER_UBWC ? DROIDDECK_AHB_USAGE_VENDOR_UBWC : 0) |
+                     (tier == TIER_UBWC ? SC_LAYER_AHB_USAGE_VENDOR_UBWC : 0) |
                      (tier == TIER_LINEAR ? AHARDWAREBUFFER_USAGE_CPU_READ_RARELY : 0)};
         AHardwareBuffer *ahb = NULL;
         if (AHardwareBuffer_allocate(&d, &ahb) != 0 || !ahb) {
@@ -459,13 +471,8 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             path = "AHardwareBuffer";
             img = vkp_image_import_ahb(ahb, info, sizeof(info));
             if (!img && tier == TIER_LINEAR) {
-                const off_t need = (off_t)got.stride * 4 * h;
-                int fd = -1, which = -1;
-                for (int i = 0; nh && i < nh->numFds; i++) {
-                    off_t sz = lseek(nh->data[i], 0, SEEK_END);
-                    if (sz >= 0) lseek(nh->data[i], 0, SEEK_SET);
-                    if (sz >= need) { fd = nh->data[i]; which = i; break; }
-                }
+                int which = -1;
+                int fd = handle_fd(nh, (off_t)got.stride * 4 * h, &which);
                 if (fd < 0 && nh && nh->numFds > 0) { fd = nh->data[0]; which = 0; }
                 mod = MOD_LINEAR;
                 path = "linear dma-buf";

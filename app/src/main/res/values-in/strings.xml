@@ -2436,6 +2436,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Tampilan sesi</string>
+    <string name="display_zero_copy">Presentasi tanpa salin</string>
     <string name="display_resolution">Resolusi</string>
     <string name="display_game_fit">Penyesuaian gim 16:9</string>
     <string name="display_game_fit_hint">Cara gim 16:9 disesuaikan dengan tampilan ini. Berlaku pada sesi berikutnya.</string>

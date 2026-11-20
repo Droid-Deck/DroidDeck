@@ -2436,6 +2436,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Hiển thị phiên</string>
+    <string name="display_zero_copy">Hiển thị không sao chép</string>
     <string name="display_resolution">Độ phân giải</string>
     <string name="display_game_fit">Khớp game 16:9</string>
     <string name="display_game_fit_hint">Cách game 16:9 khớp với màn hình này. Từ phiên sau.</string>

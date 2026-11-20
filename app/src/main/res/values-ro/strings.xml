@@ -2487,6 +2487,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Afișajul sesiunii</string>
+    <string name="display_zero_copy">Prezentare fără copiere</string>
     <string name="display_resolution">Rezoluție</string>
     <string name="display_game_fit">Potrivire joc 16:9</string>
     <string name="display_game_fit_hint">Cum se potrivesc jocurile 16:9 cu acest afișaj. Sesiunea următoare.</string>

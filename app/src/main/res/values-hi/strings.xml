@@ -2461,6 +2461,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s। %2$s\n\n%3$s</string>
     <string name="display_session">सेशन डिस्प्ले</string>
+    <string name="display_zero_copy">बिना कॉपी प्रस्तुति</string>
     <string name="display_resolution">रिज़ॉल्यूशन</string>
     <string name="display_game_fit">16:9 गेम फ़िट</string>
     <string name="display_game_fit_hint">16:9 गेम इस डिस्प्ले में कैसे फ़िट होते हैं। अगले सेशन से।</string>

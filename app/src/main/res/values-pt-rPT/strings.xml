@@ -2492,6 +2492,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Ecrã da sessão</string>
+    <string name="display_zero_copy">Apresentação sem cópia</string>
     <string name="display_resolution">Resolução</string>
     <string name="display_game_fit">Ajuste de jogos 16:9</string>
     <string name="display_game_fit_hint">Como os jogos 16:9 se ajustam a este ecrã. Próxima sessão.</string>

@@ -596,6 +596,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var theme by mutableStateOf("graphite")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
+    private var zeroCopyOn by mutableStateOf(true)
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var hdrReason by mutableStateOf<String?>(null)
@@ -2586,7 +2587,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             ModeSettings(
                 mode = mode, resolution = resolution,
                 panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
-                hdr = hdrOn, hdrReason = hdrReason,
+                hdr = hdrOn, hdrReason = hdrReason, zeroCopy = zeroCopyOn,
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                 gpuDrivers = drivers.summary(),
                 touchMode = touchMode,
@@ -2640,6 +2641,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onIntegrationLocation = ::openWifiDiscoverySettings,
                 onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); resolution = value },
                 onHdr = { on -> SessionPrefs.setHdr(this, mode, on); hdrOn = on },
+                onZeroCopy = { on ->
+                    SessionPrefs.setZeroCopy(this, mode, on); zeroCopyOn = on
+                    if (com.droiddeck.launcher.wayland.CompositorHost.isStarted && !SessionState.hdr)
+                        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetZeroCopy(on)
+                },
                 onGpuDrivers = { openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.GPU_TAB) },
                 onUpscaler = { m -> SessionPrefs.setUpscaler(this, m); upscaler = m },
                 onUpscaleSharpness = { pct -> SessionPrefs.setUpscaleSharpness(this, pct); upscaleSharpness = pct },
@@ -2983,6 +2989,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         startupSession = SessionPrefs.startupSession(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
+        zeroCopyOn = SessionPrefs.zeroCopy(this, mode)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
         hdrReason = com.droiddeck.launcher.wayland.HdrSupport.probe(this).reason

@@ -2461,6 +2461,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Munkamenet kijelzője</string>
+    <string name="display_zero_copy">Másolásmentes megjelenítés</string>
     <string name="display_resolution">Felbontás</string>
     <string name="display_game_fit">16:9 játék illesztése</string>
     <string name="display_game_fit_hint">Hogyan illeszkednek a 16:9 játékok ehhez a kijelzőhöz. A következő munkamenettől.</string>

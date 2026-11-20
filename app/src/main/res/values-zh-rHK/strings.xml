@@ -2433,6 +2433,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
     <string name="display_session">會話顯示</string>
+    <string name="display_zero_copy">零複製呈現</string>
     <string name="display_resolution">解像度</string>
     <string name="display_game_fit">16:9 遊戲顯示方式</string>
     <string name="display_game_fit_hint">16:9 遊戲如何配合此螢幕。下次會話生效。</string>

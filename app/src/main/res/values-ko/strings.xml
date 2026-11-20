@@ -2436,6 +2436,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">세션 디스플레이</string>
+    <string name="display_zero_copy">제로카피 표시</string>
     <string name="display_resolution">해상도</string>
     <string name="display_game_fit">16:9 게임 맞춤</string>
     <string name="display_game_fit_hint">16:9 게임을 이 디스플레이에 맞추는 방식입니다. 다음 세션부터 적용됩니다.</string>

@@ -48,6 +48,8 @@ extern volatile int g_hide_shell;
 extern volatile int g_zero_copy;
 extern volatile unsigned g_zero_copy_last;
 extern volatile int g_ubwc;
+extern volatile int g_display_buffer_driver;
+void droiddeck_dmabuf_formats_stale(void);
 extern volatile int g_no_render_node;
 extern volatile int g_output_w, g_output_h;
 
@@ -380,9 +382,16 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetHideShell(JNIEnv 
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetZeroCopy(JNIEnv *env, jclass clazz, jboolean on) {
     int live = droiddeck_get_display() != NULL;
-    if (!live) g_zero_copy = on ? 1 : 0;
+    if (!live) { g_zero_copy = on ? 1 : 0; droiddeck_dmabuf_formats_stale(); }
     droiddeck_host_zero_copy(on ? 1 : 0, live);
     __android_log_print(ANDROID_LOG_INFO, TAG, "zero-copy layer mode %s%s", on ? "on" : "off", live ? " (live)" : "");
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetDisplayBufferDriver(JNIEnv *env, jclass clazz, jboolean on) {
+    g_display_buffer_driver = on ? 1 : 0;
+    droiddeck_dmabuf_formats_stale();
+    __android_log_print(ANDROID_LOG_INFO, TAG, "session driver %s for display buffers", on ? "asks" : "does not ask");
 }
 
 JNIEXPORT jint JNICALL

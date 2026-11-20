@@ -2766,8 +2766,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 Log.w(TAG, "could not point the compositor's log at $waylandLog", e)
             }
         }
+        val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
         if (!CompositorHost.isStarted) {
-            val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
             val probe = HdrSupport.probe(this, glassesScreen?.display)
             WaylandCompositor.nativeSetHdrDisplay(
                 probe.displayId, probe.name, probe.formats, probe.hdr10,
@@ -2779,14 +2779,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             SessionState.hdr = on
             if (on) {
                 try { android.system.Os.setenv("DROIDDECK_WAYLAND_HDR", "1", true) } catch (e: Exception) { Log.w(TAG, "DROIDDECK_WAYLAND_HDR", e) }
-                WaylandCompositor.nativeSetZeroCopy(true)
             }
+            if (on || SessionPrefs.zeroCopy(this, mode)) WaylandCompositor.nativeSetZeroCopy(true)
             WaylandCompositor.nativeSetHdrRequest(
                 if (on) WaylandCompositor.HDR_MODE_ON else WaylandCompositor.HDR_MODE_OFF,
                 "$mode session settings" + (if (wanted && !on) " (refused: ${probe.reason})" else ""),
                 on, on,
             )
             Log.i(TAG, "hdr: " + (if (on) "on" else if (wanted) "wanted but ${probe.reason}" else "off") + " · display ${probe.formats.ifEmpty { "SDR" }}")
+        } else if (!SessionState.running && !SessionState.hdr) {
+            WaylandCompositor.nativeSetZeroCopy(SessionPrefs.zeroCopy(this, mode))
         }
         com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "compositor.start driver=$driverId")
         CompositorHost.startOrAttach(

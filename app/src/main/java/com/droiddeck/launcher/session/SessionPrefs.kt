@@ -1626,6 +1626,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("hdr.$mode", on).apply()
     }
 
+    fun zeroCopy(context: Context, mode: String): Boolean = prefs(context).getBoolean("zeroCopy.$mode", true)
+
+    fun setZeroCopy(context: Context, mode: String, on: Boolean) {
+        prefs(context).edit().putBoolean("zeroCopy.$mode", on).apply()
+    }
+
     const val FPS_UNPACED = -1
 
     const val FPS_LIMIT_OFF = 15

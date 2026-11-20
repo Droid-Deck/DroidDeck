@@ -23,6 +23,7 @@
 #include "linux-dmabuf-v1-server-protocol.h"
 #include "sc_layer.h"
 #include "ahb_swapchain.h"
+#include "display_buffers.h"
 #include "viewporter-server-protocol.h"
 #include "droiddeck-desktop-v1-server-protocol.h"
 #include "presentation-time-server-protocol.h"
@@ -689,6 +690,13 @@ const struct wl_buffer_interface dbuf_buffer_impl = {
     .destroy = dbuf_buffer_destroy_req,
 };
 
+static struct vkp_image *import_dmabuf(struct dmabuf_buffer *b) {
+    AHardwareBuffer *ahb = ahb_swapchain_display_buffer(b);
+    struct vkp_image *img = ahb ? vkp_image_from_ahb(ahb) : NULL;
+    return img ? img : vkp_image_from_dmabuf(b->fd[0], b->format, b->modifier, b->width, b->height, b->stride[0],
+                                             b->offset[0]);
+}
+
 static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer) {
     if (buffer && wl_resource_instance_of(buffer, &wl_buffer_interface, &dbuf_buffer_impl))
         return wl_resource_get_user_data(buffer);
@@ -950,8 +958,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
         wl_resource_add_destroy_listener(buffer, &s->dmabuf_destroy);
     }
     if (!b->img && !b->import_failed && b->n_planes >= 1) {
-        b->img = vkp_image_from_dmabuf(b->fd[0], b->format, b->modifier, b->width, b->height,
-                                       b->stride[0], b->offset[0]);
+        b->img = import_dmabuf(b);
         if (b->img && g_zero_copy) sc_layer_probe_dmabuf_fd(b->fd[0]);
         if (!b->img) {
             b->import_failed = 1;
@@ -1204,8 +1211,7 @@ static void cursor_publish_buffer(struct surface *s, struct wl_resource *buffer)
     } else if (db && db->n_planes >= 1 && db->width > 0 && db->height > 0 &&
                (int64_t)db->width * db->height <= CURSOR_MAX_PX) {
         if (!db->img && !db->import_failed) {
-            db->img = vkp_image_from_dmabuf(db->fd[0], db->format, db->modifier, db->width, db->height,
-                                            db->stride[0], db->offset[0]);
+            db->img = import_dmabuf(db);
             if (!db->img) db->import_failed = 1;
         }
         if (!db->img) return;
@@ -2419,9 +2425,14 @@ static void render_scene(void) {
             droiddeck_log("effects", "zero-copy paused: a window above the game needs the compositor pass for the whole scene");
         else if (blocked == 4)
             droiddeck_log("bfi", "zero-copy paused: black frame insertion needs the compositor pass");
-        else if (blocked == 3)
-            droiddeck_log("layer", "zero-copy paused: a window above the game would need a second display layer, "
-                                "which this display cannot compose in hardware - whole scene on the copy path");
+        else if (blocked == 3) {
+            const struct vkp_draw *top = &dl.d[dl.n - 1];
+            struct surface *ts = surface_for_image(top->img);
+            droiddeck_log("layer", "zero-copy paused: a window above the game (%dx%d at %d,%d%s, %s) would need a second "
+                                "display layer, which this display cannot compose in hardware - whole scene on the copy path",
+                       top->dw, top->dh, top->dx, top->dy, top->blend ? ", translucent" : "",
+                       ts ? client_name(wl_resource_get_client(ts->resource)) : "no client surface");
+        }
         else
             droiddeck_log("effects", "zero-copy resumed: the game is back on its own display layer");
     }
@@ -4153,6 +4164,7 @@ int droiddeck_wayland_run(void) {
     wl_global_create(display, &zwp_relative_pointer_manager_v1_interface, 1, NULL, bind_relative_pointer_manager);
     droiddeck_ext_init(display);
     ahb_swapchain_init(display);
+    display_buffers_init(display);
 
 
     droiddeck_color_init(display);

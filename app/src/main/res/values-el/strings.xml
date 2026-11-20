@@ -2461,6 +2461,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Οθόνη συνεδρίας</string>
+    <string name="display_zero_copy">Παρουσίαση χωρίς αντιγραφή</string>
     <string name="display_resolution">Ανάλυση</string>
     <string name="display_game_fit">Προσαρμογή παιχνιδιού 16:9</string>
     <string name="display_game_fit_hint">Πώς προσαρμόζονται τα παιχνίδια 16:9 σε αυτή την οθόνη. Από την επόμενη συνεδρία.</string>

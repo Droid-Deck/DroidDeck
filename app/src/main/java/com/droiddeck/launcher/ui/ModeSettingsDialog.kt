@@ -59,6 +59,7 @@ class ModeSettings(
     val panelSize: Pair<Int, Int> = 1280 to 720,
     val hdr: Boolean,
     val hdrReason: String?,
+    val zeroCopy: Boolean = true,
     val gpuDrivers: String? = null,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
@@ -114,6 +115,7 @@ class ModeSettings(
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
     val onHdr: (Boolean) -> Unit,
+    val onZeroCopy: (Boolean) -> Unit = {},
     val onGpuDrivers: () -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
@@ -250,6 +252,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
                     s.stretch16x9 && canStretch, enabled = canStretch, onPick = a.onStretch16x9)
             }
+            ToggleRow(host, "zero-copy", stringResource(R.string.display_zero_copy), null, checked = s.zeroCopy, onChange = a.onZeroCopy)
         }
         SettingsGroup(stringResource(R.string.display_image_scaling)) {
             s.integerScaling?.let { enabled ->

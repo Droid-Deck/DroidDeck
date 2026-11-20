@@ -2513,6 +2513,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Дисплей сеансу</string>
+    <string name="display_zero_copy">Показ без копіювання</string>
     <string name="display_resolution">Роздільна здатність</string>
     <string name="display_game_fit">Вписування гри 16:9</string>
     <string name="display_game_fit_hint">Як ігри 16:9 вписуються в цей дисплей. З наступного сеансу.</string>
