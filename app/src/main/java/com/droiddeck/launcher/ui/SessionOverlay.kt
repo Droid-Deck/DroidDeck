@@ -295,6 +295,10 @@ class DrawerActions(
     val layoutChoice: String = "",
     val onLayout: (String) -> Unit = {},
     val onEditLayout: (() -> Unit)? = null,
+    val oscRearButtons: Boolean? = null,
+    val oscTrackpads: Boolean = false,
+    val onOscRearButtons: (Boolean) -> Unit = {},
+    val onOscTrackpads: (Boolean) -> Unit = {},
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
     val onRumble: (Boolean) -> Unit = {},
     val onSuspendPolicy: (String) -> Unit,
@@ -675,6 +679,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     SegmentedTabs(listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
                                         SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)), a.oscMode,
                                         tabModifier = { focus.track(page, "osc-$it") }, onPick = a.onOsc)
+                                }
+                                a.oscRearButtons?.let { rearButtons ->
+                                    ToggleRow(host, "osc-rear-buttons", stringResource(R.string.osc_rear_buttons), null, rearButtons,
+                                        chipModifier = focus.track(page, "osc-rear-buttons"), onChange = a.onOscRearButtons)
+                                    ToggleRow(host, "osc-trackpads", stringResource(R.string.osc_trackpads), null, a.oscTrackpads,
+                                        chipModifier = focus.track(page, "osc-trackpads"), onChange = a.onOscTrackpads)
                                 }
                                 ChoiceRow(host, "touch", stringResource(R.string.input_touches), null,
                                     listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.drawer_touch_auto, a.touchAuto), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_mouse),
