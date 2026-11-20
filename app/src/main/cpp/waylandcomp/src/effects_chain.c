@@ -33,6 +33,7 @@
 
 
 static VkFormat g_fx_fmt = FX_FORMAT, g_scene_fmt = FX_FORMAT;
+static int g_scene_is_pq;
 #define FX_MAX_DIM 4096
 
 
@@ -390,7 +391,8 @@ static void objects_destroy(void) {
 
 void vkp_effects_destroy(void) { objects_destroy(); g_dev = VK_NULL_HANDLE; }
 
-void vkp_effects_set_formats(VkFormat scene_fmt, VkFormat target_fmt) {
+void vkp_effects_set_formats(VkFormat scene_fmt, VkFormat target_fmt, int scene_is_pq) {
+    g_scene_is_pq = scene_is_pq != 0;
     if (target_fmt != g_fx_fmt) {
         if (g_ready) objects_destroy();
         g_fx_fmt = target_fmt;
@@ -528,9 +530,13 @@ static const float FULL_NDC[4] = {-1.0f, -1.0f, 1.0f, 1.0f};
 
 VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int scene_h,
                         int out_w, int out_h, int *res_w, int *res_h) {
+    struct fx_settings snapshot;
     const struct fx_settings *s;
     vkp_effects_sync();
-    s = &g_cur;
+    pthread_mutex_lock(&g_lock);
+    snapshot = g_cur;
+    pthread_mutex_unlock(&g_lock);
+    s = &snapshot;
     *res_w = scene_w; *res_h = scene_h;
 
     int cw = out_w > 0 ? out_w : scene_w, ch = out_h > 0 ? out_h : scene_h;
@@ -541,6 +547,12 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     const int upscaling = cw > scene_w || ch > scene_h;
     int spatial = 0;
     if (spatial_mode(s->scaling) && (s->scaling == 6 || upscaling)) spatial = s->scaling;
+    /* NIS here is the SDR implementation and is documented for <=2x upscales. */
+    if (spatial == 7 &&
+        (g_scene_is_pq || cw < scene_w || ch < scene_h ||
+         (double)cw > (double)scene_w * 2.0 ||
+         (double)ch > (double)scene_h * 2.0))
+        spatial = 0;
     const int nfx = effect_count(s);
     const int resize = cw != scene_w || ch != scene_h;
     const int fuse_toon_color = s->toon && s->color_on && g_fx_fmt == FX_FORMAT;
@@ -605,7 +617,7 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             VkImageBlit bl = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .srcOffsets = {{0, 0, 0}, {scene_w, scene_h, 1}},
                               .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .dstOffsets = {{0, 0, 0}, {cw, ch, 1}}};
             g_vk.CmdBlitImage(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                              1, &bl, vkp_effects_blit_filter());
+                              1, &bl, s->scaling == 2 ? VK_FILTER_NEAREST : VK_FILTER_LINEAR);
             barrier(cmd, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);

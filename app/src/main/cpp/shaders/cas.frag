@@ -54,12 +54,11 @@ void main() {
     vec3 mxRGB2 = max(max(max(mxRGB, a), max(g, c)), i);
     mxRGB += mxRGB2;
 
-    vec3 rcpMxRGB = vec3(1.0) / mxRGB;
-    vec3 ampRGB = clamp((min(mnRGB, 2.0 - mxRGB) * rcpMxRGB), 0.0, 1.0);
+    vec3 rcpMxRGB = vec3(1.0) / max(mxRGB, vec3(1e-6));
+    vec3 ampRGB = clamp(min(mnRGB, 2.0 - mxRGB) * rcpMxRGB, 0.0, 1.0);
 
-    ampRGB = inversesqrt(ampRGB);
     float peak = 8.0 - 3.0 * SHARPNESS;
-    vec3 wRGB = -vec3(1.0) / (ampRGB * peak);
+    vec3 wRGB = -sqrt(ampRGB) / peak;
     vec3 rcpWeightRGB = vec3(1.0) / (1.0 + 4.0 * wRGB);
 
     vec3 window = (b + d) + (f + h);

@@ -54,10 +54,10 @@ vec3 applyNTSC(vec2 uv) {
 
     vec3 rgb = yiq * yiq2rgb_mat;
 
-    vec3 finalColor;
-    finalColor.r = texture(InputTexture, uv + vec2(CHROMA_OFFSET, 0.0)).r;
-    finalColor.g = texture(InputTexture, uv + vec2(0.0, BLUR_RADIUS)).g;
-    finalColor.b = texture(InputTexture, uv - vec2(CHROMA_OFFSET, 0.0)).b;
+    vec3 finalColor = rgb;
+    finalColor.r += texture(InputTexture, uv + vec2(CHROMA_OFFSET, 0.0)).r - col.r;
+    finalColor.g += texture(InputTexture, uv + vec2(0.0, BLUR_RADIUS)).g - col.g;
+    finalColor.b += texture(InputTexture, uv - vec2(CHROMA_OFFSET, 0.0)).b - col.b;
     return finalColor;
 }
 

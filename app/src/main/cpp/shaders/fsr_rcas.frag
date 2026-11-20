@@ -9,10 +9,8 @@
 //  Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved.
 //  SPDX-License-Identifier: MIT
 //
-//  Permission is hereby granted, free of charge, to any person obtaining a copy
-//  of this software and associated documentation files (the "Software"), to deal
-//  in the Software without restriction ... THE SOFTWARE IS PROVIDED "AS IS".
-//  (Full MIT text retained from the source header.)
+//  Full license text is included in THIRD_PARTY_NOTICES.txt and packaged
+//  in the APK at assets/licenses/graphics/THIRD_PARTY_NOTICES.txt.
 //
 //  Adapted for the Winlator native Vulkan compositor:
 //   - fp32-only path (the AF1/AU1 portability macros below replace ffx_a.h)
@@ -103,12 +101,21 @@ void FsrRcasF(
   AF1 mx4G=max(AMax3F1(bG,dG,fG),hG);
   AF1 mx4B=max(AMax3F1(bB,dB,fB),hB);
   AF2 peakC=AF2(1.0,-1.0*4.0);
-  AF1 hitMinR=min(mn4R,eR)*ARcpF1(AF1_(4.0)*mx4R);
-  AF1 hitMinG=min(mn4G,eG)*ARcpF1(AF1_(4.0)*mx4G);
-  AF1 hitMinB=min(mn4B,eB)*ARcpF1(AF1_(4.0)*mx4B);
-  AF1 hitMaxR=(peakC.x-max(mx4R,eR))*ARcpF1(AF1_(4.0)*mn4R+peakC.y);
-  AF1 hitMaxG=(peakC.x-max(mx4G,eG))*ARcpF1(AF1_(4.0)*mn4G+peakC.y);
-  AF1 hitMaxB=(peakC.x-max(mx4B,eB))*ARcpF1(AF1_(4.0)*mn4B+peakC.y);
+  AF1 denMinR=AF1_(4.0)*mx4R;
+  AF1 denMinG=AF1_(4.0)*mx4G;
+  AF1 denMinB=AF1_(4.0)*mx4B;
+  AF1 denMaxR=AF1_(4.0)*mn4R+peakC.y;
+  AF1 denMaxG=AF1_(4.0)*mn4G+peakC.y;
+  AF1 denMaxB=AF1_(4.0)*mn4B+peakC.y;
+  AF1 hitMinR=denMinR>0.0?min(mn4R,eR)/denMinR:AF1_(0.0);
+  AF1 hitMinG=denMinG>0.0?min(mn4G,eG)/denMinG:AF1_(0.0);
+  AF1 hitMinB=denMinB>0.0?min(mn4B,eB)/denMinB:AF1_(0.0);
+  AF1 numMaxR=peakC.x-max(mx4R,eR);
+  AF1 numMaxG=peakC.x-max(mx4G,eG);
+  AF1 numMaxB=peakC.x-max(mx4B,eB);
+  AF1 hitMaxR=abs(denMaxR)>1e-6?numMaxR/denMaxR:AF1_(0.0);
+  AF1 hitMaxG=abs(denMaxG)>1e-6?numMaxG/denMaxG:AF1_(0.0);
+  AF1 hitMaxB=abs(denMaxB)>1e-6?numMaxB/denMaxB:AF1_(0.0);
   AF1 lobeR=max(-hitMinR,hitMaxR);
   AF1 lobeG=max(-hitMinG,hitMaxG);
   AF1 lobeB=max(-hitMinB,hitMaxB);

@@ -27,6 +27,9 @@ gen() {
     local base="${src%.*}"  # nis
     local ext="${src##*.}"  # frag | vert
     local vn="${base}_code"
+    if [ "$ext" = "vert" ]; then
+        vn="${base}_vert_code"
+    fi
     local out="${base}_${ext}.h"
     echo "  ${src} -> ${out}  (--vn ${vn})"
     glslangValidator -V "${src}" --vn "${vn}" -o "${out}"

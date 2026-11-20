@@ -44,6 +44,7 @@ void main() {
         dot(color, vec3(0.2126, 0.7152, 0.0722)));
 
     color = mix(grey, color, clamp(pc.saturation, 0.0, 2.0));
+    color = max(color, vec3(0.0));
     color = pow(color, vec3(1.0 / pc.gamma));
 
     outColor = vec4(color, 1.0);

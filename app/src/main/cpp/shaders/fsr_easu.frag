@@ -9,10 +9,8 @@
 //  Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved.
 //  SPDX-License-Identifier: MIT
 //
-//  Permission is hereby granted, free of charge, to any person obtaining a copy
-//  of this software and associated documentation files (the "Software"), to deal
-//  in the Software without restriction ... THE SOFTWARE IS PROVIDED "AS IS".
-//  (Full MIT text retained from the source header.)
+//  Full license text is included in THIRD_PARTY_NOTICES.txt and packaged
+//  in the APK at assets/licenses/graphics/THIRD_PARTY_NOTICES.txt.
 //
 //  Adapted for the Winlator native Vulkan compositor:
 //   - fp32-only path (the AF1/AU1 portability macros below replace ffx_a.h)
@@ -101,7 +99,7 @@ void FsrEasuSetF(
   AF1 dc=lD-lC;
   AF1 cb=lC-lB;
   AF1 lenX=max(abs(dc),abs(cb));
-  lenX=APrxLoRcpF1(lenX);
+  lenX=lenX>0.0?APrxLoRcpF1(lenX):AF1_(0.0);
   AF1 dirX=lD-lB;
   dir.x+=dirX*w;
   lenX=ASatF1(abs(dirX)*lenX);
@@ -110,7 +108,7 @@ void FsrEasuSetF(
   AF1 ec=lE-lC;
   AF1 ca=lC-lA;
   AF1 lenY=max(abs(ec),abs(ca));
-  lenY=APrxLoRcpF1(lenY);
+  lenY=lenY>0.0?APrxLoRcpF1(lenY):AF1_(0.0);
   AF1 dirY=lE-lA;
   dir.y+=dirY*w;
   lenY=ASatF1(abs(dirY)*lenY);
