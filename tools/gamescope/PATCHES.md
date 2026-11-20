@@ -375,3 +375,12 @@ still reading that image when the next composite wrote into it. A backend frameb
 holds it, the Wayland backend answers from the buffer's release event, and the composite takes the next image the
 host does not hold. Backends that are not a session get five images instead of three, so one is free while the
 host holds two and the last and deferred pictures stay intact. Session backends keep three images and their order.
+
+## 0137 Wayland backend: the host's refresh rates and the app's target
+
+A nested session had one refresh rate, the host's, so Steam offered no refresh control and a frame limit never moved
+the display. The backend binds the host's `droiddeck_refresh_v1`, takes the list of rates the host display can switch
+between and returns it as the connector's dynamic refresh rates, so the rates reach Steam with the rest of the
+display state and are sent again when the list changes. On every present it tells the host the refresh rate the
+frame limit resolves to and the limit itself; the host switches its display and the new rate comes back through
+`wl_output`, which the nested refresh already follows. A host without the global leaves all of this as it was.

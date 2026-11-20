@@ -1045,6 +1045,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         WaylandCompositor.setFirstFrameListener(firstFrameListener)
         WaylandCompositor.setPointerLockListener(pointerLockListener)
         WaylandCompositor.setOverlayPlanesListener(overlayPlanesListener)
+        WaylandCompositor.setRefreshTargetListener(refreshTargetListener)
         SessionEvents.markReadyIfPossible()
         SessionState.endListener = endListener
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -2990,9 +2991,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun outputFpsLimit(pip: Boolean): Int =
         SessionPrefs.compositorFpsLimit(mirrorRefreshLimit(), if (noSteamSession()) SessionState.fpsLimit else 0, pip)
 
+    private var panelHeld = false
+    private val panelHeldCheck = Runnable {
+        if (!panelHeld && hasWindowFocus() && PerfMode.panelHeld(this)) {
+            panelHeld = true
+            applyOutputPacing()
+        }
+    }
+
     private fun applyOutputPacing() {
-        Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(false), mirrorRefreshLimit()))
+        val frameGen = appliedFrameGenMode
+        pacedFrameGenMode = frameGen
+        val ownLimit = outputFpsLimit(false)
+        val content = PerfMode.contentRate(
+            if (ownLimit > 0) ownLimit else guestFrameRate, frameGen?.outputFactor ?: 1, frameGen?.target ?: 0,
+        )
+        Log.i(TAG, "perf: " + PerfMode.apply(this, content, mirrorRefreshLimit(), if (ownLimit > 0) 0 else guestRefresh, panelHeld))
+        uiHandler.removeCallbacks(panelHeldCheck)
+        if (!panelHeld) uiHandler.postDelayed(panelHeldCheck, PANEL_HELD_CHECK_MS)
         if (CompositorHost.isStarted) {
+            WaylandCompositor.nativeSetPanelRates(
+                if (glassesScreen == null && !bottomOutputActive) PerfMode.panelRates(this, mirrorRefreshLimit(), panelHeld)
+                else IntArray(0),
+            )
             val hz = refreshHz()
             val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
             CompositorHost.updatePacing(hz, outputFpsLimit())
@@ -3158,6 +3179,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 if (frameGenActivityGeneration != frameGenGlobalGeneration.get()) return@runOnUiThread
                 lossless = state
                 if (problem != null) Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
+                if (appliedFrameGenMode != pacedFrameGenMode) applyOutputPacing()
             }
         }, "frame-gen").start()
     }
@@ -3808,6 +3830,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     @Volatile private var desiredOverlayPlanes = -1
     @Volatile private var appliedOverlayPlanes: Int? = -1
     @Volatile private var overlayPlanesRetries = 0
+    @Volatile private var guestRefresh = 0
+    @Volatile private var guestFrameRate = 0
+    private var pacedFrameGenMode: FrameGen.Mode? = null
+    private val refreshTargetListener = WaylandCompositor.RefreshTargetListener { refresh, frameRate ->
+        runOnUiThread {
+            if (guestRefresh != refresh || guestFrameRate != frameRate) {
+                guestRefresh = refresh
+                guestFrameRate = frameRate
+                applyOutputPacing()
+            }
+        }
+    }
+
     private val overlayPlanesListener = WaylandCompositor.OverlayPlanesListener { planes ->
         desiredOverlayPlanes = planes
         overlayPlanesRetries = 0
@@ -6470,6 +6505,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun onDestroy() {
+        uiHandler.removeCallbacks(panelHeldCheck)
         synchronized(frameGenGlobalLock) {
             frameGenActivityActive = false
             frameGenRequests.incrementAndGet()
@@ -6521,6 +6557,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         WaylandCompositor.clearFirstFrameListener(firstFrameListener)
         WaylandCompositor.clearPointerLockListener(pointerLockListener)
         WaylandCompositor.clearOverlayPlanesListener(overlayPlanesListener)
+        WaylandCompositor.clearRefreshTargetListener(refreshTargetListener)
         super.onDestroy()
     }
 
@@ -6595,6 +6632,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         const val EXTRA_STEAMVR = "steamVr"
         const val EXTRA_PLAYED_GAME = "com.droiddeck.launcher.PLAYED_GAME"
         const val EXTRA_REPAIR_RUNTIME = "repairRuntime"
+        private const val PANEL_HELD_CHECK_MS = 2_500L
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TEXT_FIELD_TAP_MS = 1_000L
         private const val PAUSED_FRAME_MAX_EDGE = 1920f

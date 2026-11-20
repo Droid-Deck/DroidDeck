@@ -26,6 +26,7 @@
 #include "display_buffers.h"
 #include "viewporter-server-protocol.h"
 #include "droiddeck-desktop-v1-server-protocol.h"
+#include "droiddeck-refresh-v1-server-protocol.h"
 #include "presentation-time-server-protocol.h"
 #include "pointer-constraints-unstable-v1-server-protocol.h"
 #include "relative-pointer-unstable-v1-server-protocol.h"
@@ -1916,6 +1917,56 @@ static void output_send_mode(struct wl_resource *r, int mhz) {
     wl_output_send_mode(r, WL_OUTPUT_MODE_CURRENT | WL_OUTPUT_MODE_PREFERRED,
                         g_output_w > 0 ? g_output_w : 1920, g_output_h > 0 ? g_output_h : 1080,
                         mhz);
+}
+
+#define PANEL_RATES_MAX 16
+extern void droiddeck_on_refresh_target(int refresh, int frame_rate);
+static pthread_mutex_t g_panel_rates_lock = PTHREAD_MUTEX_INITIALIZER;
+static int g_panel_rates[PANEL_RATES_MAX], g_panel_rate_count;
+static atomic_int g_panel_rates_pending;
+static struct wl_list g_refresh_clients;
+static struct wl_resource *g_refresh_target_owner;
+
+static void refresh_send_rates(struct wl_resource *r) {
+    int rates[PANEL_RATES_MAX];
+    pthread_mutex_lock(&g_panel_rates_lock);
+    const int count = g_panel_rate_count;
+    memcpy(rates, g_panel_rates, sizeof(rates));
+    pthread_mutex_unlock(&g_panel_rates_lock);
+    for (int i = 0; i < count; i++) droiddeck_refresh_v1_send_rate(r, (uint32_t)rates[i]);
+    droiddeck_refresh_v1_send_done(r);
+}
+
+static void refresh_notify_rates(void) {
+    struct wl_resource *r;
+    wl_resource_for_each(r, &g_refresh_clients) refresh_send_rates(r);
+}
+
+static void refresh_resource_destroy(struct wl_resource *r) {
+    wl_list_remove(wl_resource_get_link(r));
+    if (g_refresh_target_owner != r) return;
+    g_refresh_target_owner = NULL;
+    droiddeck_on_refresh_target(0, 0);
+}
+
+static void refresh_destroy_req(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
+
+static void refresh_set_target(struct wl_client *c, struct wl_resource *r, uint32_t refresh, uint32_t frame_rate) {
+    g_refresh_target_owner = refresh || frame_rate ? r : NULL;
+    droiddeck_on_refresh_target((int)refresh, (int)frame_rate);
+}
+
+static const struct droiddeck_refresh_v1_interface refresh_impl = {
+    .destroy = refresh_destroy_req,
+    .set_target = refresh_set_target,
+};
+
+static void bind_refresh(struct wl_client *c, void *data, uint32_t ver, uint32_t id) {
+    struct wl_resource *r = wl_resource_create(c, &droiddeck_refresh_v1_interface, ver, id);
+    if (!r) { wl_client_post_no_memory(c); return; }
+    wl_resource_set_implementation(r, &refresh_impl, NULL, refresh_resource_destroy);
+    wl_list_insert(&g_refresh_clients, wl_resource_get_link(r));
+    refresh_send_rates(r);
 }
 
 static void bind_output(struct wl_client *c, void *data, uint32_t ver, uint32_t id) {
@@ -3921,6 +3972,10 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         output_notify_mode();
         wl_display_flush_clients(g_display);
     }
+    if (atomic_exchange(&g_panel_rates_pending, 0)) {
+        refresh_notify_rates();
+        wl_display_flush_clients(g_display);
+    }
     if (vsync) on_vsync(vsync_ns);
     return 0;
 }
@@ -3967,6 +4022,23 @@ void droiddeck_wayland_output_resized(void) {
     if (g_input_pipe[1] < 0) return;
     struct input_msg m = { 8, 0, 0, 0, 0 };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+void droiddeck_wayland_set_panel_rates(const int *rates, int count) {
+    if (count > PANEL_RATES_MAX) count = PANEL_RATES_MAX;
+    pthread_mutex_lock(&g_panel_rates_lock);
+    const int same = count == g_panel_rate_count && !memcmp(rates, g_panel_rates, (size_t)count * sizeof(int));
+    if (!same) {
+        memcpy(g_panel_rates, rates, (size_t)count * sizeof(int));
+        g_panel_rate_count = count;
+    }
+    pthread_mutex_unlock(&g_panel_rates_lock);
+    if (same || g_input_pipe[1] < 0) return;
+    atomic_store(&g_panel_rates_pending, 1);
+    struct input_msg m = { 10, 0, 0, 0, 0 };
+    ssize_t n;
+    do { n = write(g_input_pipe[1], &m, sizeof(m)); } while (n < 0 && errno == EINTR);
     (void)n;
 }
 
@@ -4187,6 +4259,7 @@ int droiddeck_wayland_run(void) {
     wl_list_init(&g_surfaces);
     wl_list_init(&g_toplevels);
     wl_list_init(&g_outputs);
+    wl_list_init(&g_refresh_clients);
     wl_list_init(&g_constraints);
     wl_list_init(&g_relative_pointers);
     open_session_log();
@@ -4224,6 +4297,7 @@ int droiddeck_wayland_run(void) {
     wl_display_init_shm(display);
 
     wl_global_create(display, &wl_output_interface, 4, NULL, bind_output);
+    wl_global_create(display, &droiddeck_refresh_v1_interface, 1, NULL, bind_refresh);
     wl_global_create(display, &xdg_wm_base_interface, 1, NULL, bind_xdg_wm_base);
     wl_global_create(display, &zwp_linux_dmabuf_v1_interface, 4, NULL, bind_dmabuf);
     droiddeck_android_wlegl_init(display);

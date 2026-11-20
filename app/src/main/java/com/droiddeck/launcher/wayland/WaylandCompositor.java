@@ -117,6 +117,30 @@ public final class WaylandCompositor {
         if (l != null) l.onOverlayPlanes(planes);
     }
 
+    public interface RefreshTargetListener {
+        void onRefreshTarget(int refresh, int frameRate);
+    }
+
+    private static volatile RefreshTargetListener refreshTargetListener;
+    private static volatile long refreshTarget;
+
+    public static void setRefreshTargetListener(RefreshTargetListener l) {
+        refreshTargetListener = l;
+        long target = refreshTarget;
+        if (l != null) l.onRefreshTarget((int) (target >> 32), (int) target);
+    }
+
+    public static void clearRefreshTargetListener(RefreshTargetListener l) {
+        if (refreshTargetListener == l) refreshTargetListener = null;
+    }
+
+    @SuppressWarnings("unused")
+    static void onRefreshTarget(int refresh, int frameRate) {
+        refreshTarget = ((long) refresh << 32) | (frameRate & 0xffffffffL);
+        RefreshTargetListener l = refreshTargetListener;
+        if (l != null) l.onRefreshTarget(refresh, frameRate);
+    }
+
     public interface ClipboardListener {
         void onGuestClipboardText(String text);
     }
@@ -234,6 +258,8 @@ public final class WaylandCompositor {
     public static native void nativeSetHideShell(boolean hide);
 
     public static native void nativeSetOutputRefreshRate(float hz);
+
+    public static native void nativeSetPanelRates(int[] rates);
 
     public static native void nativeSetZeroCopy(boolean on);
 

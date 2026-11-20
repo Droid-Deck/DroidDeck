@@ -36,6 +36,7 @@ add_library(droiddeckwayland SHARED
         generated/xdg-toplevel-icon-v1-protocol.c
         generated/single-pixel-buffer-v1-protocol.c
         generated/droiddeck-ahb-v1-protocol.c
+        generated/droiddeck-refresh-v1-protocol.c
         src/framegen_bridge.c
         src/framegen_jni.c
         src/hudframes.c
