@@ -4011,6 +4011,15 @@ EXPORT ssize_t read(int fd, void *buf, size_t count) {
   return read_input(fd, buf, count);
 }
 
+extern "C" [[noreturn]] void __chk_fail(void);
+
+/* Programs built with _FORTIFY_SOURCE (Flatpak runtimes among them) call these instead of read, poll
+ * and ppoll, and glibc's versions go straight to the kernel. */
+EXPORT ssize_t __read_chk(int fd, void *buf, size_t count, size_t buflen) {
+  if (count > buflen) __chk_fail();
+  return read_input(fd, buf, count);
+}
+
 EXPORT ssize_t readv(int fd, const struct iovec *iov, int iovcnt) {
   if (!is_fake_input_fd(fd)) return syscall(SYS_readv, fd, iov, iovcnt);
   if (iovcnt < 0 || iovcnt > IOV_MAX) {
@@ -4257,6 +4266,17 @@ EXPORT int ppoll(struct pollfd *fds, nfds_t nfds,
     return result;
   }
   return my_ppoll(fds, nfds, timeout, sigmask);
+}
+
+EXPORT int __poll_chk(struct pollfd *fds, nfds_t nfds, int timeout, size_t fdslen) {
+  if (fdslen / sizeof(*fds) < nfds) __chk_fail();
+  return poll(fds, nfds, timeout);
+}
+
+EXPORT int __ppoll_chk(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
+                       const sigset_t *sigmask, size_t fdslen) {
+  if (fdslen / sizeof(*fds) < nfds) __chk_fail();
+  return ppoll(fds, nfds, timeout, sigmask);
 }
 
 EXPORT int select(int nfds, fd_set *readfds, fd_set *writefds,
