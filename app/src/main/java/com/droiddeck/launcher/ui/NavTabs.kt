@@ -15,6 +15,7 @@ internal object DeveloperTools {
 
     fun load(context: Context) {
         on = SessionPrefs.developerTools(context)
+        DevPreview.shortcuts = SessionPrefs.previewShortcuts(context)
     }
 
     fun set(context: Context, enabled: Boolean) {

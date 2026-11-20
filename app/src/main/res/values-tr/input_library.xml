@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">Geri · Steam\'de iki kez, masaüstünde bir kez</string>
     <string name="input_shortcut_hold_hint">Steam modunda. Geri tuşunu basılı tutmak hızlı erişimi de açar.</string>
     <string name="input_restore_shortcut">Varsayılana sıfırla</string>
-    <string name="input_second_mode_hint">Panel seçiminiz hatırlanır. Masaüstü ikinci bir çalışma alanı açar; oturumu veya giriş profilini değiştirmez.</string>
     <string name="input_virtual_controller">Sanal denetleyici</string>
     <string name="input_virtual_controller_hint">Steam veya oyunun gördüğü denetleyici türü.</string>
     <string name="input_touchscreen">Dokunmatik ekran</string>

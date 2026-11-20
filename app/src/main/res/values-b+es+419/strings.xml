@@ -22,7 +22,6 @@
         <item>Añade bibliotecas de Steam desde una tarjeta SD, una unidad USB o un SSD, y DroidDeck mantiene los juegos juntos en tu Biblioteca.</item>
         <item>Tiendas te permite iniciar sesión en Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io y Game Jolt, y luego instalar y actualizar sus juegos desde DroidDeck.</item>
         <item>Componentes como FEX, DXVK y VKD3D-Proton se actualizan solos, y Proton Experimental ARM64 es el predeterminado, o Proton 11.0 ARM64 una vez instalada esa versión.</item>
-        <item>Comprimir Steam mientras se ejecuta un juego libera RAM en dispositivos con poca memoria.</item>
         <item>Desliza desde el borde derecho para abrir el menú de sesión: modo touchpad, Teclado de PC, Modo de baja latencia, perfil del juego y más.</item>
         <item>¿El juego va lento? Limita la tasa de fotogramas en Quick Access y prueba otra versión de Proton o un ajuste preestablecido de FEX en los componentes del juego.</item>
         <item>¿Audio del juego entrecortado o ausente? Prueba el interruptor DirectAudio para juegos en los ajustes de Steam, en Audio.</item>
@@ -628,20 +627,8 @@
     <string name="perf_gsrealtime">gamescope: cola de GPU en tiempo real</string>
     <string name="perf_gsrealtime_hint">Da prioridad al trabajo de GPU del compositor. Puede suavizar el ritmo de fotogramas a costa de algo de rendimiento en los juegos.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memoria</string>
     <string name="perf_cap_off">Desactivado</string>
-    <string name="perf_cap_auto">Predeterminado del controlador</string>
-    <string name="perf_zram_client">Comprimir Steam mientras se ejecuta un juego</string>
-    <string name="perf_zram_idle">Comprimir memoria inactiva del juego</string>
-    <string name="perf_zram_idle_hint">Comprime la memoria inactiva del juego cuando queda poca RAM. Desactívalo si los juegos se congelan unos segundos cada medio minuto aproximadamente. Se aplica la próxima vez que se inicie la sesión.</string>
-    <string name="perf_zram_client_hint">20 s después de que empiece un juego, el cliente de Steam se comprime en zRAM para dejarle más memoria al juego, y se vuelve a leer cuando el juego se cierra. Desactívalo si la sesión se cierra poco después de iniciar los juegos. Un límite de RAM definido arriba sigue comprimiendo Steam cuando la sesión lo supera.</string>
-    <string name="perf_ram_cap">Límite de RAM</string>
-    <string name="perf_ram_cap_hint">Se aplica mientras se ejecuta el cliente de Steam, en modo Steam o desde el escritorio. Cuando la sesión usa más de esto, Steam y luego los demás procesos compatibles de la sesión se comprimen en zRAM. Es un límite flexible: no se cierra nada, pero los juegos pueden tener microcortes mientras se recuperan las páginas.</string>
-    <string name="perf_ram_cap_unavailable">Requiere swap de zRAM, y este dispositivo no lo tiene.</string>
-    <string name="perf_vram_cap">Límite de VRAM</string>
-    <string name="perf_vram_cap_hint">Informa a los juegos Direct3D 9 a 12 de este presupuesto de memoria de video para reducir su uso. Los juegos pueden superarlo; no agrega paginación de GPU ni garantiza evitar fallos por falta de memoria. Se aplica en la próxima sesión.</string>
     <string name="perf_gpuclock">Mantener la GPU a su reloj máximo</string>
-    <string name="perf_gpuclock_hint">Solo Adreno. Menos microcortes, más consumo de batería y calor.</string>
     <string name="perf_fixes">Correcciones de sesión</string>
     <string name="perf_sysmem">Turnip: renderizado sysmem</string>
     <string name="perf_sysmem_hint">Se aplica al cliente de Steam y a los juegos. Obligatorio en Adreno 710/720/722.</string>
@@ -843,7 +830,6 @@
     <string name="drawer_pc_keyboard">Teclado de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Segunda pantalla</string>
-    <string name="drawer_second_screen_mode">Modo</string>
     <string name="drawer_second_screen_shows">Muestra</string>
     <string name="drawer_android_apps">Apps de Android</string>
     <string name="drawer_launch_app">Abrir una app</string>
@@ -2409,6 +2395,17 @@
     <string name="pextra_checksum_mismatch">La suma de verificación no coincide; se eliminó la descarga</string>
     <string name="pextra_session_started">Se inició una sesión durante la descarga; detenla antes de instalar herramientas de compatibilidad</string>
     <string name="pextra_installing">Instalando %1$s</string>
+    <string name="xproton_title">Versiones experimentales</string>
+    <string name="xproton_install_file">Instalar desde archivo</string>
+    <string name="xproton_archive_unsafe">El archivo contiene un enlace o una ruta no segura</string>
+    <string name="xproton_archive_invalid">Archivo no compatible o no válido</string>
+    <string name="xproton_no_space">No hay espacio libre suficiente para esta versión de Proton</string>
+    <string name="xproton_unpacking">Desempaquetando Proton (unos minutos)</string>
+    <string name="xproton_untar_failed">Error al desempaquetar (tar %1$d)</string>
+    <string name="xproton_no_tree">El archivo no contiene ninguna versión de Proton</string>
+    <string name="xproton_place_failed">No se pudo colocar la versión de Proton</string>
+    <string name="xproton_remove_failed">No se pudo quitar %1$s por completo</string>
+    <string name="xproton_installed">Proton experimental instalado. Elígelo en Steam → Propiedades → Compatibilidad.</string>
     <string name="pextra_install_failed">Falló la instalación de %1$s (salida %2$d)</string>
     <string name="pextra_could_not_install">No se pudo instalar %1$s</string>
     <string name="esync_fetching">Descargando el paquete droiddeck-esync</string>
@@ -3348,10 +3345,19 @@
     <string name="storage_shared_prefix">Prefijo compartido de Steam</string>
     <string name="storage_shared_prefix_detail">Steam ejecuta aquí sus propias herramientas de Windows</string>
     <string name="storage_reset_shared_confirm">Lo borra (%1$s). Steam crea uno nuevo la próxima vez que lo necesite.</string>
+    <string name="storage_remove_launcher_confirm">Borra el prefijo de Wine y la caché de shaders de esta app de tienda (%1$s), junto con su inicio de sesión y cualquier partida guardada solo ahí. Los juegos que se ejecutan en él reciben un prefijo nuevo y quizá debas configurar la app otra vez. Las partidas en la nube se quedan en tu cuenta.</string>
+    <string name="storage_system_clearable">Se pueden liberar %1$s</string>
+    <string name="storage_item_system_caches">Cachés de Linux y Steam</string>
+    <string name="storage_item_system_caches_detail">Archivos temporales viejos, paquetes descargados y la caché web de Steam</string>
+    <string name="storage_cache_temp">Archivos temporales viejos</string>
+    <string name="storage_cache_packages">Paquetes descargados</string>
+    <string name="storage_cache_steam_web">Caché web de Steam</string>
+    <string name="storage_cache_steam_corrupt">Descargas dañadas de Steam</string>
+    <string name="storage_cache_detail">Se vuelven a crear cuando hacen falta</string>
+    <string name="storage_clear">Borrar</string>
     <string name="storage_launcher_prefix">Una app de tienda y los juegos que se ejecutan con ella</string>
     <string name="storage_launcher_used_by">Usado por %1$s</string>
     <string name="storage_shortcut_app">Juego que no es de Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">No coincide con ningún juego, así que se conserva</string>
     <string name="storage_remove_selected">Quitar selección · %1$s</string>
     <string name="storage_uninstall_selected">Desinstalar selección · %1$s</string>
     <string name="storage_bulk_prefixes">Prefijos de Wine</string>
@@ -4133,4 +4139,18 @@
     <string name="display_scaling_integer">Entero</string>
     <string name="display_scaling_fit">Ajustar</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+    <string name="theme_custom">Personalizado</string>
+    <string name="theme_custom_detail">Elige cada color de la interfaz por separado.</string>
+    <string name="theme_custom_background">Fondo</string>
+    <string name="theme_custom_surface">Paneles</string>
+    <string name="theme_custom_surface_variant">Paneles elevados</string>
+    <string name="theme_custom_line">Separadores</string>
+    <string name="theme_custom_line2">Bordes</string>
+    <string name="theme_custom_on_background">Texto principal</string>
+    <string name="theme_custom_on_surface_variant">Texto secundario</string>
+    <string name="theme_custom_primary">Botones y color principal</string>
+    <string name="theme_custom_on_primary">Texto de los botones</string>
+    <string name="theme_custom_signal">Destacados</string>
+    <string name="theme_custom_good">Éxito</string>
+    <string name="theme_custom_error">Error</string>
 </resources>

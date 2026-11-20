@@ -22,7 +22,6 @@
         <item>Adj hozzá Steam-könyvtárakat SD-kártyáról, USB-meghajtóról vagy SSD-ről, és a DroidDeck egy helyen tartja a játékokat a Könyvtárban.</item>
         <item>Az Áruházak lehetővé teszi, hogy bejelentkezz a Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io és Game Jolt szolgáltatásokba, majd telepítsd és frissítsd a játékaikat a DroidDeckből.</item>
         <item>Az olyan összetevők, mint a FEX, a DXVK és a VKD3D-Proton, maguktól frissülnek, az alapértelmezett pedig a Proton Experimental ARM64, vagy a Proton 11.0 ARM64, ha az a build telepítve van.</item>
-        <item>A Steam tömörítése játék közben RAM-ot szabadít fel a kevés memóriával rendelkező eszközökön.</item>
         <item>Húzd be az ujjad a jobb szélről a munkamenet menü megnyitásához: érintőpad mód, PC-billentyűzet, alacsony késleltetésű mód, játékprofil és más.</item>
         <item>Lassan fut a játék? Korlátozd a képkockasebességet a Gyors hozzáférésben, majd próbálj ki másik Proton-verziót vagy FEX-előbeállítást a játék összetevőiben.</item>
         <item>Ropog vagy hiányzik a játék hangja? Próbáld ki a DirectAudio a játékokhoz kapcsolót a Steam beállításaiban a Hang alatt.</item>
@@ -626,20 +625,8 @@
     <string name="perf_gsrealtime">gamescope: valós idejű GPU-sor</string>
     <string name="perf_gsrealtime_hint">Előnyben részesíti a kompozitor GPU-munkáját. Egyenletesebbé teheti a képkocka-ütemezést, kisebb költséggel a játékoknak.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memória</string>
     <string name="perf_cap_off">Ki</string>
-    <string name="perf_cap_auto">Illesztőprogram alapértéke</string>
-    <string name="perf_zram_client">A Steam tömörítése játék közben</string>
-    <string name="perf_zram_idle">Játék inaktív memóriájának tömörítése</string>
-    <string name="perf_zram_idle_hint">Kevés RAM esetén tömöríti a játék inaktív memóriáját. Kapcsold ki, ha a játékok nagyjából félpercenként néhány másodpercre lefagynak. A munkamenet következő indításakor lép érvénybe.</string>
-    <string name="perf_zram_client_hint">20 mp-cel a játék indulása után a Steam-kliens a zRAM-ba tömörül, hogy több memória maradjon a játéknak, és a játék bezárásakor visszaolvasódik. Kapcsolja ki, ha a munkamenet röviddel a játékok indulása után bezárul. A fenti RAM-korlát akkor is tömöríti a Steamet, ha a munkamenet túllépi.</string>
-    <string name="perf_ram_cap">RAM-korlát</string>
-    <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>
-    <string name="perf_ram_cap_unavailable">zRAM swap szükséges, amely ezen az eszközön nincs.</string>
-    <string name="perf_vram_cap">VRAM-korlát</string>
-    <string name="perf_vram_cap_hint">Ezt a videomemória-keretet jelzi a Direct3D 9–12 játékoknak a memóriahasználat csökkentésére. A játékok túlléphetik; nem biztosít GPU-lapozást, és nem garantál védelmet a memóriahiány miatti összeomlás ellen. A következő munkamenettől érvényes.</string>
     <string name="perf_gpuclock">A GPU legmagasabb órajelen tartása</string>
-    <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>
     <string name="perf_sysmem">Turnip: sysmem renderelés</string>
     <string name="perf_sysmem_hint">A Steam kliensre és a játékokra vonatkozik. Adreno 710/720/722-n szükséges.</string>
@@ -817,7 +804,6 @@
     <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Második képernyő</string>
-    <string name="drawer_second_screen_mode">Mód</string>
     <string name="drawer_second_screen_shows">Megjelenít</string>
     <string name="drawer_android_apps">Android-alkalmazások</string>
     <string name="drawer_launch_app">Alkalmazás indítása</string>
@@ -2313,6 +2299,17 @@
     <string name="pextra_checksum_mismatch">Az ellenőrzőösszeg nem egyezik; a letöltés törlésre került</string>
     <string name="pextra_session_started">Egy munkamenet elindult a letöltés közben; állítsa le a kompatibilitási eszközök telepítése előtt</string>
     <string name="pextra_installing">%1$s telepítése</string>
+    <string name="xproton_title">Kísérleti buildek</string>
+    <string name="xproton_install_file">Telepítés fájlból</string>
+    <string name="xproton_archive_unsafe">Az archívum nem biztonságos hivatkozást vagy útvonalat tartalmaz</string>
+    <string name="xproton_archive_invalid">Nem támogatott vagy érvénytelen archívum</string>
+    <string name="xproton_no_space">Nincs elég szabad hely ehhez a Proton-buildhez</string>
+    <string name="xproton_unpacking">A Proton kibontása (néhány perc)</string>
+    <string name="xproton_untar_failed">A kibontás nem sikerült (tar %1$d)</string>
+    <string name="xproton_no_tree">Az archívum nem tartalmaz Proton-buildet</string>
+    <string name="xproton_place_failed">Nem sikerült elhelyezni a Proton-buildet</string>
+    <string name="xproton_remove_failed">Nem sikerült teljesen eltávolítani: %1$s</string>
+    <string name="xproton_installed">A kísérleti Proton telepítve. Válaszd ki a Steam → Tulajdonságok → Kompatibilitás menüben.</string>
     <string name="pextra_install_failed">A %1$s telepítése sikertelen (kilépési kód: %2$d)</string>
     <string name="pextra_could_not_install">Nem sikerült telepíteni a %1$s-t</string>
     <string name="esync_fetching">droiddeck-esync csomag letöltése</string>
@@ -3345,10 +3342,19 @@
     <string name="storage_shared_prefix">A Steam megosztott prefixe</string>
     <string name="storage_shared_prefix_detail">A Steam itt futtatja saját Windows-segédprogramjait</string>
     <string name="storage_reset_shared_confirm">Törli (%1$s). A Steam újat hoz létre, amikor legközelebb szüksége lesz rá.</string>
+    <string name="storage_remove_launcher_confirm">Törli ennek az áruházalkalmazásnak a Wine-prefixét és shadergyorsítótárát (%1$s), a bejelentkezéssel és a csak ott tárolt mentésekkel együtt. A benne futó játékok új prefixet kapnak, és lehet, hogy az alkalmazást újra be kell állítani. A felhőmentések a fiókodban maradnak.</string>
+    <string name="storage_system_clearable">%1$s üríthető</string>
+    <string name="storage_item_system_caches">Linux- és Steam-gyorsítótárak</string>
+    <string name="storage_item_system_caches_detail">Régi ideiglenes fájlok, letöltött csomagok és a Steam webes gyorsítótára</string>
+    <string name="storage_cache_temp">Régi ideiglenes fájlok</string>
+    <string name="storage_cache_packages">Letöltött csomagok</string>
+    <string name="storage_cache_steam_web">Steam webes gyorsítótár</string>
+    <string name="storage_cache_steam_corrupt">Sérült Steam-letöltések</string>
+    <string name="storage_cache_detail">Szükség esetén újra létrejön</string>
+    <string name="storage_clear">Ürítés</string>
     <string name="storage_launcher_prefix">Egy áruházalkalmazás és a vele futó játékok</string>
     <string name="storage_launcher_used_by">Használja: %1$s</string>
     <string name="storage_shortcut_app">Nem Steam-es játék: %1$s</string>
-    <string name="storage_unknown_prefix_detail">Nem tartozik játékhoz, ezért megmarad</string>
     <string name="storage_remove_selected">Kijelöltek eltávolítása · %1$s</string>
     <string name="storage_uninstall_selected">Kijelöltek eltávolítása · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefixek</string>
@@ -4093,4 +4099,18 @@
     <string name="display_scaling_integer">Egész szám</string>
     <string name="display_scaling_fit">Igazítás</string>
     <string name="drawer_antialiasing">Élsimítás</string>
+    <string name="theme_custom">Egyéni</string>
+    <string name="theme_custom_detail">Válaszd ki külön a felület minden színét.</string>
+    <string name="theme_custom_background">Háttér</string>
+    <string name="theme_custom_surface">Panelek</string>
+    <string name="theme_custom_surface_variant">Kiemelt panelek</string>
+    <string name="theme_custom_line">Elválasztók</string>
+    <string name="theme_custom_line2">Szegélyek</string>
+    <string name="theme_custom_on_background">Fő szöveg</string>
+    <string name="theme_custom_on_surface_variant">Másodlagos szöveg</string>
+    <string name="theme_custom_primary">Gombok és fő kiemelés</string>
+    <string name="theme_custom_on_primary">Gombok szövege</string>
+    <string name="theme_custom_signal">Kiemelések</string>
+    <string name="theme_custom_good">Siker</string>
+    <string name="theme_custom_error">Hiba</string>
 </resources>

@@ -115,6 +115,7 @@ import com.droiddeck.launcher.hud.DroidDeckHudHost
 import com.droiddeck.launcher.session.PerfMode
 import com.droiddeck.launcher.session.SteamRepair
 import com.droiddeck.launcher.session.GameEnvironmentStore
+import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.GameProfileFollowState
 import com.droiddeck.launcher.session.GameProfileInventoryCache
 import com.droiddeck.launcher.session.GameProfileRefreshState
@@ -555,6 +556,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var achievementsInFront by mutableStateOf<AchievementsInFront?>(null)
     private var achievementsOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
+    private var gpuClockPin by mutableStateOf(false)
     private var hudConfig by mutableStateOf<Map<String, String>>(emptyMap())
     private var hudColor by mutableStateOf(SessionPrefs.HUD_COLOR_MINT)
     private var hudOpacity by mutableStateOf(SessionPrefs.HUD_OPACITY_DEFAULT)
@@ -1029,7 +1031,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 kotlinx.coroutines.delay(2000)
             }
         }
-        pip = com.droiddeck.launcher.session.SessionPipController(this, ::pipBounds, ::showPipUi)
+        pip = com.droiddeck.launcher.session.SessionPipController(this, ::pipBounds, ::showPipUi) {
+            intent.getBooleanExtra(EXTRA_RETURN_HOME, false)
+        }
         surfaceView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> pip.refresh() }
         pip.refresh()
         handleHomeGuideIntent(intent)
@@ -1434,6 +1438,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             androidApps = androidApps,
             hudOn = hudOn,
             hudConfig = hudConfig,
+            gpuClockPin = gpuClockPin,
             upscaler = upscaler, upscaleSharpness = upscaleSharpness,
             effects = effects,
             screenEffectsTarget = screenEffectsTarget,
@@ -1494,6 +1499,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
+            onGpuClockPin = { on ->
+                SessionPrefs.setGpuClockPin(this@SessionActivity, on)
+                gpuClockPin = on
+                Thread {
+                    synchronized(GpuClockPin) { GpuClockPin.sync(applicationContext)?.let { Log.i(TAG, it) } }
+                    runOnUiThread { gpuClockPin = gpuClockHeld() }
+                }.start()
+            },
             onHudSetting = { key, value -> hudConfig = DroidDeckHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
             onHudOrder = { switches, order -> hudConfig = DroidDeckHudConfig.choose(this@SessionActivity, switches, order); hud.applyConfig() },
             onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
@@ -1778,10 +1791,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onFexPreset = { v -> SessionPrefs.setFexPreset(this@SessionActivity, v); readPrefs() },
             onSecondScreenMode = { mode ->
                 if (docked) drawerOpen = false
-                typingReturnMode = null
-                automaticPanel = false
-                if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this@SessionActivity, desktopSession, mode.id)
-                if (SessionPrefs.secondScreenEnabled(this@SessionActivity, desktopSession)) selectSecondScreenMode(mode)
+                pickSecondScreenMode(mode)
             },
             onSecondScreenDisplay = ::selectSecondScreenDisplay,
             onLaunchAndroidApp = { app, displayId ->
@@ -2500,6 +2510,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             .show()
     }
 
+    private fun gpuClockHeld() = SessionPrefs.gpuClockPin(this) && !GpuClockPin.failed
+
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
@@ -2507,6 +2519,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         picturePosition = SessionPrefs.picturePosition(this)
         integerScaling = SessionPrefs.integerScaling(this)
         hudOn = SessionPrefs.hudEnabled(this)
+        gpuClockPin = gpuClockHeld()
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(this)
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
@@ -3512,7 +3525,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (drawerOpen) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    drawerPage = sessionDrawerPages(secondScreenDisplays.isNotEmpty(), glasses.present)
+                    drawerPage = sessionDrawerPages(glasses.present)
                         .step(drawerPage, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
                     releaseDrawerDirection()
                 }
@@ -4285,6 +4298,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
+    private fun pickSecondScreenMode(mode: SecondScreenMode) {
+        typingReturnMode = null
+        automaticPanel = false
+        if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this, desktopSession, mode.id)
+        if (SessionPrefs.secondScreenEnabled(this, desktopSession)) selectSecondScreenMode(mode)
+    }
+
+    private fun bottomScreenPicker(mode: SecondScreenMode) = com.droiddeck.launcher.ui.ScreenPicker(
+        com.droiddeck.launcher.ui.secondScreenModes(bottomPages().isNotEmpty(),
+            com.droiddeck.launcher.session.BottomDesktop.available()),
+        mode, ::pickSecondScreenMode, onMenu = ::toggleDrawer,
+    )
+
     private fun secondScreenPresentation(target: Display) = SecondScreenPresentation(
         this, target,
         onSteamMenu = ::tapSteamButton,
@@ -4292,6 +4318,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         pad = padBridge,
         onKeyboardClosed = ::bottomKeyboardClosed,
         onMenu = ::toggleDrawer,
+        picker = ::bottomScreenPicker,
         onMenuTouched = {
             if (drawerPinned) {
                 drawerPinned = false
@@ -5652,6 +5679,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onPictureInPictureModeChanged(inPip: Boolean, newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(inPip, newConfig)
+        if (inPip) {
+            uiHandler.removeCallbacks(guardWhenRunning)
+            uiHandler.removeCallbacks(rearmAfterYield)
+            com.droiddeck.launcher.session.KeepTopActivity.stepAside()
+        }
         if (::pip.isInitialized) pip.changed(inPip)
         if (!inPip && surfaceW > 0) resizeOutputForWindow(surfaceW, surfaceH)
         applyUnfoldedControls()
@@ -5694,6 +5726,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onStop() {
         if (lightPause.stopped()) departureCleanup()
+        uiHandler.removeCallbacks(guardWhenRunning)
+        uiHandler.removeCallbacks(rearmAfterYield)
+        com.droiddeck.launcher.session.KeepTopActivity.stepAside()
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
         if (::hud.isInitialized) hud.setBackgrounded(true)
@@ -5723,6 +5758,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (this.intent.getBooleanExtra(EXTRA_RETURN_HOME, false)) intent.putExtra(EXTRA_RETURN_HOME, true)
         if (!intent.hasExtra(EXTRA_LINK_TASK)) intent.putExtra(EXTRA_LINK_TASK, this.intent.getIntExtra(EXTRA_LINK_TASK, -1))
         setIntent(intent)
+        if (::pip.isInitialized) pip.refresh(true)
         if (intent.getBooleanExtra(EXTRA_STEAMVR, false) && SessionState.mode == SessionService.MODE_STEAM) {
             SessionState.steamVr = true
             steamVrAutoTried = false
@@ -5737,6 +5773,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onResume() {
         super.onResume()
+        com.droiddeck.launcher.session.KeepTopActivity.onYield = onGuardYield
         uiHandler.removeCallbacks(lightPauseCheck)
         when (lightPause.resumed(com.droiddeck.launcher.session.KeepTopActivity.bounces)) {
             com.droiddeck.launcher.session.LightPause.Resume.LIGHT -> return
@@ -5820,6 +5857,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
+    // A touch that removed a guard while the session kept the top spot did not move focus to that
+    // display, so the guard comes back unless the user carries on there.
+    private val rearmAfterYield = Runnable {
+        if (topResumed && !isFinishing) {
+            com.droiddeck.launcher.session.KeepTopActivity.rearm()
+            guardOtherDisplays()
+        }
+    }
+    private val onGuardYield: () -> Unit = {
+        uiHandler.removeCallbacks(rearmAfterYield)
+        uiHandler.postDelayed(rearmAfterYield, com.droiddeck.launcher.session.KeepTopActivity.YIELD_GRACE_MS)
+    }
+
     // RUNNING_LOW and RUNNING_CRITICAL are not delivered from API 34, so the guard also goes up
     // as soon as a running session is on top.
     override fun onTrimMemory(level: Int) {
@@ -5833,13 +5883,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         super.onTopResumedActivityChanged(isTopResumedActivity)
         topResumed = isTopResumedActivity
         uiHandler.removeCallbacks(guardWhenRunning)
-        if (isTopResumedActivity) uiHandler.post(guardWhenRunning)
+        uiHandler.removeCallbacks(rearmAfterYield)
+        if (isTopResumedActivity) {
+            com.droiddeck.launcher.session.KeepTopActivity.rearm()
+            uiHandler.post(guardWhenRunning)
+        }
         else if (com.droiddeck.launcher.session.TopUnderPressure.shouldReclaim(
                 android.os.SystemClock.elapsedRealtime(), memoryPressureAt, SessionState.running, isFinishing)) guardOtherDisplays()
     }
 
     private fun guardOtherDisplays() {
-        if (!SessionState.running || isFinishing) return
+        if (!SessionState.running || isFinishing || isInPictureInPictureMode) return
         val wasResumed = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
         val bounced = com.droiddeck.launcher.session.KeepTopActivity.guardOtherDisplays(this, display?.displayId ?: android.view.Display.DEFAULT_DISPLAY)
         if (com.droiddeck.launcher.session.KeepTopActivity.hasPendingStarts()) {
@@ -6159,9 +6213,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             android.widget.Toast.makeText(this, R.string.swap_screens_unavailable, android.widget.Toast.LENGTH_SHORT).show()
             return
         }
+        val restorePanel = on && !SessionPrefs.secondScreenEnabled(this, desktopSession)
         if (on) SessionPrefs.setSecondScreenEnabled(this, desktopSession, true)
         SessionState.gameOnBottom = on
         gameOnBottom = on
+        if (restorePanel) panelMode(openingPanel())
         Log.i(TAG, "game screen: " + if (on) "bottom" else "top")
         updateBottomGame()
     }
@@ -6528,6 +6584,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onDestroy() {
         uiHandler.removeCallbacks(guardWhenRunning)
+        uiHandler.removeCallbacks(rearmAfterYield)
+        if (com.droiddeck.launcher.session.KeepTopActivity.onYield === onGuardYield) com.droiddeck.launcher.session.KeepTopActivity.onYield = null
         com.droiddeck.launcher.session.KeepTopActivity.release()
         synchronized(frameGenGlobalLock) {
             frameGenActivityActive = false

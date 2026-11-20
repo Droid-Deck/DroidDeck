@@ -22,7 +22,6 @@
         <item>Thêm thư viện Steam từ thẻ SD, ổ USB hoặc SSD, và DroidDeck sẽ gom các game lại trong Thư viện của bạn.</item>
         <item>Cửa hàng cho phép bạn đăng nhập Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io và Game Jolt, rồi cài đặt và cập nhật game của họ ngay từ DroidDeck.</item>
         <item>Các thành phần như FEX, DXVK và VKD3D-Proton tự cập nhật, và mặc định là Proton Experimental ARM64, hoặc Proton 11.0 ARM64 khi bản dựng đó đã được cài.</item>
-        <item>Nén Steam khi game đang chạy giúp giải phóng RAM trên các thiết bị thiếu bộ nhớ.</item>
         <item>Vuốt vào từ mép phải để mở menu phiên: chế độ bàn di chuột, Bàn phím PC, độ trễ thấp, hồ sơ game và nhiều hơn nữa.</item>
         <item>Game chạy chậm? Hãy giới hạn tốc độ khung hình trong Truy cập nhanh, rồi thử phiên bản Proton khác hoặc bộ cài đặt sẵn FEX khác trong các thành phần của game.</item>
         <item>Âm thanh game bị rè hoặc mất tiếng? Hãy thử bật DirectAudio cho game trong cài đặt Steam, mục Âm thanh.</item>
@@ -624,20 +623,8 @@
     <string name="perf_gsrealtime">gamescope: hàng đợi GPU thời gian thực</string>
     <string name="perf_gsrealtime_hint">Ưu tiên công việc GPU của compositor. Có thể làm nhịp khung hình mượt hơn với một phần chi phí cho game.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Bộ nhớ</string>
     <string name="perf_cap_off">Tắt</string>
-    <string name="perf_cap_auto">Mặc định của driver</string>
-    <string name="perf_zram_client">Nén Steam khi game đang chạy</string>
-    <string name="perf_zram_idle">Nén bộ nhớ game không hoạt động</string>
-    <string name="perf_zram_idle_hint">Nén bộ nhớ game không hoạt động khi RAM thấp. Tắt nếu game bị đứng vài giây khoảng mỗi nửa phút. Áp dụng từ lần khởi động phiên tiếp theo.</string>
-    <string name="perf_zram_client_hint">20 giây sau khi game bắt đầu, client Steam được nén vào zRAM để game có thêm bộ nhớ, và được đọc lại khi game đóng. Tắt nếu phiên bị đóng ngay sau khi game bắt đầu. Giới hạn RAM ở trên vẫn nén Steam khi phiên vượt quá mức đó.</string>
-    <string name="perf_ram_cap">Giới hạn RAM</string>
-    <string name="perf_ram_cap_hint">Áp dụng khi client Steam đang chạy, ở chế độ Steam hoặc từ desktop. Khi phiên dùng nhiều hơn mức này, Steam rồi đến các tiến trình được hỗ trợ khác của phiên sẽ bị nén vào zRAM. Giới hạn mềm: không có gì bị đóng, nhưng game có thể giật khi các trang được nạp lại.</string>
-    <string name="perf_ram_cap_unavailable">Cần swap zRAM, thiết bị này không có.</string>
-    <string name="perf_vram_cap">Giới hạn VRAM</string>
-    <string name="perf_vram_cap_hint">Báo ngân sách bộ nhớ video này cho các trò chơi Direct3D 9 đến 12 để giảm mức dùng bộ nhớ. Trò chơi có thể vượt ngân sách; tính năng này không bổ sung phân trang GPU hay bảo đảm tránh lỗi do hết bộ nhớ. Có hiệu lực ở phiên tiếp theo.</string>
     <string name="perf_gpuclock">Giữ GPU ở xung nhịp cao nhất</string>
-    <string name="perf_gpuclock_hint">Chỉ dành cho Adreno. Ít giật hơn, dùng nhiều pin và nhiệt hơn.</string>
     <string name="perf_fixes">Các bản sửa phiên</string>
     <string name="perf_sysmem">Turnip: render sysmem</string>
     <string name="perf_sysmem_hint">Áp dụng cho ứng dụng Steam và trò chơi. Bắt buộc trên Adreno 710/720/722.</string>
@@ -815,7 +802,6 @@
     <string name="drawer_pc_keyboard">Bàn phím PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Màn hình thứ hai</string>
-    <string name="drawer_second_screen_mode">Chế độ</string>
     <string name="drawer_second_screen_shows">Hiển thị</string>
     <string name="drawer_android_apps">Ứng dụng Android</string>
     <string name="drawer_launch_app">Khởi chạy một ứng dụng</string>
@@ -2288,6 +2274,17 @@
     <string name="pextra_checksum_mismatch">Checksum không khớp; tệp tải xuống đã bị xóa</string>
     <string name="pextra_session_started">Một phiên đã bắt đầu trong khi tải; hãy dừng nó trước khi cài công cụ tương thích</string>
     <string name="pextra_installing">Đang cài %1$s</string>
+    <string name="xproton_title">Bản dựng thử nghiệm</string>
+    <string name="xproton_install_file">Cài đặt từ tệp</string>
+    <string name="xproton_archive_unsafe">Tệp lưu trữ chứa liên kết hoặc đường dẫn không an toàn</string>
+    <string name="xproton_archive_invalid">Tệp lưu trữ không được hỗ trợ hoặc không hợp lệ</string>
+    <string name="xproton_no_space">Không đủ dung lượng trống cho bản dựng Proton này</string>
+    <string name="xproton_unpacking">Đang giải nén Proton (vài phút)</string>
+    <string name="xproton_untar_failed">Giải nén thất bại (tar %1$d)</string>
+    <string name="xproton_no_tree">Tệp lưu trữ không chứa bản dựng Proton</string>
+    <string name="xproton_place_failed">Không thể đặt bản dựng Proton</string>
+    <string name="xproton_remove_failed">Không thể gỡ hoàn toàn %1$s</string>
+    <string name="xproton_installed">Đã cài Proton thử nghiệm. Hãy chọn nó trong Steam → Thuộc tính → Tương thích.</string>
     <string name="pextra_install_failed">Cài %1$s thất bại (mã thoát %2$d)</string>
     <string name="pextra_could_not_install">Không thể cài %1$s</string>
     <string name="esync_fetching">Đang lấy pack droiddeck-esync</string>
@@ -3316,10 +3313,19 @@
     <string name="storage_shared_prefix">Prefix Steam dùng chung</string>
     <string name="storage_shared_prefix_detail">Steam chạy các trình hỗ trợ Windows riêng tại đây</string>
     <string name="storage_reset_shared_confirm">Xóa prefix này (%1$s). Steam sẽ tạo prefix mới vào lần tới khi cần.</string>
+    <string name="storage_remove_launcher_confirm">Xóa prefix Wine và bộ nhớ đệm shader của ứng dụng cửa hàng này (%1$s), cùng thông tin đăng nhập và các bản lưu chỉ có ở đó. Trò chơi chạy trong đó sẽ nhận prefix mới, và bạn có thể phải thiết lập lại ứng dụng. Bản lưu trên đám mây vẫn còn trong tài khoản của bạn.</string>
+    <string name="storage_system_clearable">Có thể dọn %1$s</string>
+    <string name="storage_item_system_caches">Bộ nhớ đệm của Linux và Steam</string>
+    <string name="storage_item_system_caches_detail">Tệp tạm cũ, gói đã tải xuống và bộ nhớ đệm web của Steam</string>
+    <string name="storage_cache_temp">Tệp tạm cũ</string>
+    <string name="storage_cache_packages">Gói đã tải xuống</string>
+    <string name="storage_cache_steam_web">Bộ nhớ đệm web của Steam</string>
+    <string name="storage_cache_steam_corrupt">Tệp tải xuống Steam bị hỏng</string>
+    <string name="storage_cache_detail">Được tạo lại khi cần</string>
+    <string name="storage_clear">Dọn</string>
     <string name="storage_launcher_prefix">Một ứng dụng cửa hàng và các game chạy cùng nó</string>
     <string name="storage_launcher_used_by">Được dùng bởi %1$s</string>
     <string name="storage_shortcut_app">Game ngoài Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Không khớp với game nào nên được giữ lại</string>
     <string name="storage_remove_selected">Gỡ mục đã chọn · %1$s</string>
     <string name="storage_uninstall_selected">Gỡ cài đặt mục đã chọn · %1$s</string>
     <string name="storage_bulk_prefixes">Prefix Wine</string>
@@ -4063,4 +4069,18 @@
     <string name="display_scaling_integer">Số nguyên</string>
     <string name="display_scaling_fit">Vừa màn hình</string>
     <string name="drawer_antialiasing">Khử răng cưa</string>
+    <string name="theme_custom">Tùy chỉnh</string>
+    <string name="theme_custom_detail">Chọn riêng từng màu của giao diện.</string>
+    <string name="theme_custom_background">Nền</string>
+    <string name="theme_custom_surface">Bảng</string>
+    <string name="theme_custom_surface_variant">Bảng nổi</string>
+    <string name="theme_custom_line">Đường phân cách</string>
+    <string name="theme_custom_line2">Đường viền</string>
+    <string name="theme_custom_on_background">Văn bản chính</string>
+    <string name="theme_custom_on_surface_variant">Văn bản phụ</string>
+    <string name="theme_custom_primary">Nút và màu nhấn chính</string>
+    <string name="theme_custom_on_primary">Văn bản trên nút</string>
+    <string name="theme_custom_signal">Điểm nhấn</string>
+    <string name="theme_custom_good">Thành công</string>
+    <string name="theme_custom_error">Lỗi</string>
 </resources>

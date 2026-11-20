@@ -234,8 +234,6 @@ object SessionFiles {
         val gpuLoad = listOf(
             "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
             "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_gpu_load.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_gpu_load.json",
-            "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so",
-            "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_vram_cap.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json",
         )
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
             listOf("libddsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
@@ -282,6 +280,8 @@ object SessionFiles {
             if (installed) ledger.staged(relative, target) else Log.e(TAG, "$relative NOT staged")
         }
         File(root, "usr/local/bin/bannerlator-steam-compat").delete()
+        File(root, "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so").delete()
+        File(root, "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json").delete()
         LegacyNames.migrateRootfs(root)
         ComponentsManager.migrateLaunchDir(context)
         EsyncPacks.stageBundled(context, root)

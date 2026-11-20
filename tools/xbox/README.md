@@ -125,6 +125,15 @@ download plus two copies of the largest container, and each container is deleted
 The download has no control channel: cancelling kills it and the next attempt starts that
 container from zero.
 
+`droiddeck-msixvc2.patch` installs MSIXVC2 packages, the format Xbox 360 backward-compatible
+titles ship in. The package Windows Update serves is only an index (`XboxPackage.cbor`, chunk and
+file tables); the files are encrypted, Brotli-compressed segments inside `.box` blobs on the Xbox
+content hosts. `streaming` unpacks the index, licenses its content id, derives the package key from
+the content key (SP800-108 HMAC-SHA256, label `MSIXVC2:PackageData:AES_256_CBC`), unwraps each
+segment key with AES-256-CBC, fetches adjacent segments in one ranged request, and checks the
+SHA-384 of every stored segment, decompressed segment and finished file before it is renamed into
+place. Files already complete are skipped on a retry.
+
 Cloud saves and in-game identity use the reused XGameRuntime/service interfaces;
 those are game-dependent. Entitlements distinguish purchases from Game Pass
 access, and the backend performs a fresh license check for downloads and launch.

@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -55,12 +56,16 @@ static unsigned hash_of(const char *s, int kind, int mode, int flags) {
   return h;
 }
 
+static struct entry *slot(unsigned h) {
+  return &table[(h ^ (h >> 16)) % PATH_CACHE_SLOTS];
+}
+
 static int cacheable(const char *path) {
   return path != NULL && path[0] == '/' && strlen(path) < PATH_CACHE_KEY_MAX && enabled();
 }
 
 static struct entry *find(const char *path, int kind, int mode, int flags, unsigned h) {
-  struct entry *e = &table[h % PATH_CACHE_SLOTS];
+  struct entry *e = slot(h);
 
   if (e->stamp == 0 || e->hash != h || e->kind != kind || e->mode != mode || e->flags != flags) return NULL;
   if (now_ns() - e->stamp > PATH_CACHE_TTL_NS || strcmp(e->key, path) != 0) return NULL;
@@ -68,7 +73,7 @@ static struct entry *find(const char *path, int kind, int mode, int flags, unsig
 }
 
 static void store(const char *path, int kind, int mode, int flags, unsigned h, const char *value) {
-  struct entry *e = &table[h % PATH_CACHE_SLOTS];
+  struct entry *e = slot(h);
   char *copy = value != NULL ? strdup(value) : NULL;
 
   if (value != NULL && copy == NULL) return;
@@ -172,6 +177,10 @@ static int check_cwd(const char *path, int mode, int flags) {
   return result;
 }
 
+static int absolute(const char *path) {
+  return path != NULL && path[0] == '/';
+}
+
 int access(const char *path, int mode) {
   return cached_access(path, mode, 0, check_cwd);
 }
@@ -188,7 +197,7 @@ int faccessat(int dirfd, const char *path, int mode, int flags) {
   int (*real)(int, const char *, int, int);
   int err;
 
-  if (dirfd == AT_FDCWD) {
+  if (dirfd == AT_FDCWD || absolute(path)) {
     return cached_access(path, mode, flags, check_cwd);
   }
   real = next_faccessat();
@@ -201,4 +210,16 @@ int faccessat(int dirfd, const char *path, int mode, int flags) {
   if (writable_as_owner(real, dirfd, path, mode, flags) == 0) return 0;
   errno = err;
   return -1;
+}
+
+int __xstat64(int version, const char *path, struct stat64 *out) {
+  static int (*real)(int, const char *, struct stat64 *);
+
+  if (dd_dircache_absent && dd_dircache_absent(path)) {
+    errno = ENOENT;
+    return -1;
+  }
+  if (real == NULL) real = (int (*)(int, const char *, struct stat64 *))dlsym(RTLD_NEXT, "__xstat64");
+  if (real != NULL) return real(version, path, out);
+  return stat64(path, out);
 }

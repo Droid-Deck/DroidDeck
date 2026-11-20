@@ -147,7 +147,7 @@ class EaHook(unittest.TestCase):
             folder.mkdir()
             asked = {}
 
-            def fake_ask(channel, request, timeout=5.0):
+            def fake_ask(channel, request, timeout=5.0, claim=False):
                 asked.update(request)
                 return {'ok': True, 'lsx': True, 'license': 'ok v4', 'licenses': [{'path': 'ProgramData/L/x.dlf', 'data': base64.b64encode(b'z').decode()}]}
 

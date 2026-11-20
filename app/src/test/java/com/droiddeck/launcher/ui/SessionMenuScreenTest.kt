@@ -12,6 +12,7 @@ import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.session.SessionMenuScreen
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.SessionService
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,6 +26,46 @@ import androidx.compose.runtime.MutableState
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class SessionMenuScreenTest {
+    @Test fun swappingOntoADisabledScreenRestoresItsRememberedPanel() = checkSwapPanel(enabled = false)
+
+    @Test fun swappingOntoAnEnabledScreenKeepsItsCurrentPanel() = checkSwapPanel(enabled = true)
+
+    private fun checkSwapPanel(enabled: Boolean) {
+        val previousRequest = SessionState.gameOnBottom
+        val previousMode = SessionState.secondScreenMode
+        val previousSession = SessionState.mode
+        val previousAutoOpened = SessionState.secondScreenAutoOpened
+        SessionState.mode = SessionService.MODE_STEAM
+        SessionState.secondScreenMode = if (enabled) SecondScreenMode.CUSTOM_CONTROLS else SecondScreenMode.NONE
+        SessionState.secondScreenAutoOpened = true
+        val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
+        val display = activity.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY)
+        val game = BottomGameScreen(activity, display, activity, { true }, { false })
+        try {
+            SessionPrefs.setSecondScreenPanel(activity, false, SecondScreenMode.TERMINAL.id)
+            SessionPrefs.setSecondScreenEnabled(activity, false, enabled)
+            ReflectionHelpers.setField(activity, "bottomGame", game)
+
+            ReflectionHelpers.callInstanceMethod<Unit>(activity, "putGameOnBottom",
+                ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, true))
+
+            val expected = if (enabled) SecondScreenMode.CUSTOM_CONTROLS else SecondScreenMode.TERMINAL
+            assertEquals(expected, ReflectionHelpers.getField<MutableState<SecondScreenMode>>(activity, "secondScreenMode\$delegate").value)
+            assertEquals(expected, SessionState.secondScreenMode)
+            assertTrue(SessionPrefs.secondScreenEnabled(activity, false))
+            assertTrue(SessionState.gameOnBottom)
+            assertSame(game, ReflectionHelpers.getField<BottomGameScreen>(activity, "bottomGame"))
+            assertNull(ReflectionHelpers.getField<SecondScreenPresentation?>(activity, "secondScreenPresentation"))
+            assertEquals(SecondScreenMode.TERMINAL.id, SessionPrefs.secondScreenPanel(activity, false))
+        } finally {
+            ReflectionHelpers.setField(activity, "bottomGame", null)
+            SessionState.gameOnBottom = previousRequest
+            SessionState.secondScreenMode = previousMode
+            SessionState.mode = previousSession
+            SessionState.secondScreenAutoOpened = previousAutoOpened
+        }
+    }
+
     @Test fun repeatingTheMenuActionClosesAndReopensTheDrawer() {
         val activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         val open: MutableState<Boolean> = ReflectionHelpers.getField(activity, "drawerOpenState\$delegate")

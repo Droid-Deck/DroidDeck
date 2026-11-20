@@ -98,9 +98,10 @@ class SecondScreenBarTest {
         }
     }
 
-    @Test fun trackpadPanelHasTheBarWithTheKeyboardToggleState() {
+    @Test fun trackpadPanelHasTheBarWithTheKeyboardToggleStateAndSwap() {
         SessionState.mode = SessionService.MODE_STEAM
-        val panel = presentation()
+        var swaps = 0
+        val panel = presentation { swaps++ }
         try {
             panel.show()
             panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
@@ -111,11 +112,15 @@ class SecondScreenBarTest {
             assertEquals(context.getString(R.string.second_mode_keyboard_trackpad), bar.title)
             assertNull(bar.onClose); assertNotNull(bar.onMenu); assertNotNull(bar.onSteam); assertNotNull(bar.onQam)
             assertNull(bar.tabs)
-            val keyboard = bar.extras.single()
+            assertEquals(listOf("bottom-keyboard", "bottom-swap"), bar.extras.map { it.tag })
+            val keyboard = bar.extras.first()
             assertEquals(context.getString(R.string.second_show_keyboard), keyboard.description)
             assertFalse(keyboard.active)
+            bar.extras.last().onClick()
+            assertEquals(1, swaps)
+            assertEquals(listOf("bottom-keyboard", "bottom-swap"), panel.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
             ReflectionHelpers.getField<MutableState<Boolean>>(panel, "keyboardShown").value = true
-            val shown = panel.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!.extras.single()
+            val shown = panel.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!.extras.first()
             assertEquals(context.getString(R.string.second_hide_keyboard), shown.description)
             assertTrue(shown.active)
         } finally { panel.closeControls() }
@@ -149,6 +154,8 @@ class SecondScreenBarTest {
             noSwap.show()
             noSwap.showMode(SecondScreenMode.DECK_CONTROLS)
             assertTrue(noSwap.barModel(SecondScreenMode.DECK_CONTROLS)!!.extras.isEmpty())
+            assertEquals(listOf("bottom-keyboard"), noSwap.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
+            assertEquals(listOf("bottom-keyboard"), noSwap.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!.extras.map { it.tag })
         } finally { noSwap.closeControls() }
     }
 

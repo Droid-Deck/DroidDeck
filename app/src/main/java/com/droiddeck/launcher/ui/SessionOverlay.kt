@@ -43,7 +43,6 @@ import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
-import androidx.compose.material.icons.outlined.ScreenShare
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
@@ -166,7 +165,6 @@ import java.util.Locale
 private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.CONTROLLER -> R.string.drawer_page_controller
     SessionDrawerPage.GLASSES -> R.string.drawer_page_glasses
-    SessionDrawerPage.SECOND_SCREEN -> R.string.drawer_second_screen
     SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
     SessionDrawerPage.HUD -> R.string.drawer_hud
     SessionDrawerPage.VR -> R.string.vr_title
@@ -179,7 +177,6 @@ private val SessionDrawerPage.title: Int get() = when (this) {
 private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.CONTROLLER -> Icons.Outlined.SportsEsports
     SessionDrawerPage.GLASSES -> GlassesIcon
-    SessionDrawerPage.SECOND_SCREEN -> Icons.Outlined.ScreenShare
     SessionDrawerPage.DISPLAY -> Icons.Outlined.DesktopWindows
     SessionDrawerPage.HUD -> Icons.Outlined.Speed
     SessionDrawerPage.VR -> VrHeadsetIcon
@@ -218,6 +215,7 @@ class DrawerActions(
     val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
+    val gpuClockPin: Boolean = false,
     val frameGen: FrameGen.Mode,
     val frameGenTargetGameId: String? = null,
     val frameGenTargetGameName: String? = null,
@@ -272,6 +270,7 @@ class DrawerActions(
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
     val onHudSetting: (String, String) -> Unit = { _, _ -> },
+    val onGpuClockPin: (Boolean) -> Unit = {},
     val onHudOrder: (Map<String, Boolean>, List<String>) -> Unit = { _, _ -> },
     val onHudOrderReset: () -> Unit = {},
     val onHudReset: () -> Unit = {},
@@ -386,7 +385,7 @@ class DrawerActions(
 @Composable
 internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions, docked: Boolean = false,
     backRequest: Int = 0, onLayerChange: (Boolean) -> Unit = {}) {
-    val pages = sessionDrawerPages(a.secondScreenDisplays.isNotEmpty(), a.glassesPresent)
+    val pages = sessionDrawerPages(a.glassesPresent)
     val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
     val colors = MaterialTheme.colorScheme
@@ -460,7 +459,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             val first = when {
                 page == SessionDrawerPage.GLASSES -> "glasses-tab-$glassesTab"
                 page == SessionDrawerPage.SESSION && a.isHomeApp -> "apps"
-                page == SessionDrawerPage.SECOND_SCREEN -> if (a.secondScreenEnabled) "second-screen:${a.secondScreenMode.id}" else "second-screen-enabled"
                 else -> page.firstControl
             }
             if (turned) focus.forget(page)
@@ -509,7 +507,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     }
                     .padding(12.dp),
             ) {
-                val roomyHeader = sheetWidth >= 408.dp
+                val showPicker = a.secondScreenDisplays.isNotEmpty()
+                val roomyHeader = sheetWidth >= if (showPicker) 560.dp else 408.dp
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -519,7 +518,16 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     SteamActionPill(
                         stringResource(R.string.common_close), Icons.Outlined.Close, focus.track(page, "close"),
                     ) { host.open = null; a.onClose() }
-                    if (roomyHeader) Spacer(Modifier.weight(1f))
+                    if (showPicker) Box(if (roomyHeader) Modifier.weight(1f) else Modifier) {
+                        ScreenPickerChip(
+                            ScreenPicker(
+                                secondScreenModes(a.dashboardAvailable, a.desktopAvailable),
+                                a.secondScreenMode, onPick = { host.open = null; a.onSecondScreenMode(it) },
+                                onMenu = if (docked) ({ host.open = null }) else null, menuShown = docked,
+                            ),
+                            focus.track(page, "screen").testTag("drawer-screen-picker"), enabled = a.secondScreenEnabled,
+                        )
+                    } else if (roomyHeader) Spacer(Modifier.weight(1f))
                     SteamActionPill(
                         stringResource(R.string.stores_dl_pause), Icons.Outlined.Pause, focus.track(page, "pause"),
                     ) { host.open = null; a.onPause() }
@@ -542,7 +550,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                     }
                     BarActions(
-                        onMenu = if (docked) ({ host.open = null; a.onClose() }) else null, menuActive = true,
+                        onMenu = null, menuActive = false,
                         onSteam = if (steamActions) ({ host.open = null; a.onSteamMenu?.invoke() }) else null,
                         onQam = if (steamActions) ({
                             host.open = null
@@ -649,6 +657,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     stringResource(R.string.display_sharpness), null, a.upscaleSharpness, 0..100, step = 5,
                                     format = { "$it%" }, modifier = focus.track(page, "upscale-sharpness"), onChange = a.onUpscaleSharpness)
                             }
+                            SecondScreenGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.EFFECTS -> {
                             ScreenEffectsGroup(host, a, advancedEffectsExpanded,
@@ -794,9 +803,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     PC_KEY_GROUP_IDS.filterValues { it in PcKeyboardPrefs.hiddenKeys }.keys,
                                     onToggle = { id, on -> PcKeyboardPrefs.toggleHiddenKey(keyboardContext, PC_KEY_GROUP_IDS.getValue(id), on) })
                             }
-                        }
-                        SessionDrawerPage.SECOND_SCREEN -> {
-                            SecondScreenGroup(host, a) { key -> focus.track(page, key) }
                         }
                         SessionDrawerPage.GLASSES -> if (glassesTab == GlassesTab.CONTROLLERS) {
                             VrControllerGroups(host) { key -> focus.track(page, key) }
@@ -1282,42 +1288,15 @@ internal fun secondScreenModes(dashboard: Boolean, desktop: Boolean): List<Secon
 
 @Composable
 private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val modes = secondScreenModes(a.dashboardAvailable, a.desktopAvailable)
-    SettingsGroup(stringResource(R.string.drawer_second_screen_mode)) {
+    val choosesDisplay = a.secondScreenDisplays.size > 1
+    val swapsGame = a.gameSwapAvailable || a.gameOnBottom
+    if (a.secondScreenDisplays.isEmpty() && !swapsGame) return
+    SettingsGroup(stringResource(R.string.drawer_second_screen)) {
         ToggleRow(host, "second-screen-enabled", stringResource(R.string.second_screen_enabled), null,
             a.secondScreenEnabled, chipModifier = track("second-screen-enabled"), onChange = a.onSecondScreenEnabled)
         Text(stringResource(R.string.input_second_mode_hint), Modifier.padding(14.dp),
-            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-        Column(Modifier.fillMaxWidth().selectableGroup()) {
-            modes.forEach { mode ->
-                val selected = a.secondScreenMode == mode
-                val source = remember { MutableInteractionSource() }
-                val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
-                val pick = { host.open = null; a.onSecondScreenMode(mode) }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = track("second-screen:${mode.id}").fillMaxWidth().heightIn(min = 56.dp)
-                        .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
-                        .glideBorder(hot, RoundedCornerShape(8.dp), pal.signal)
-                        .hoverable(source)
-                        .selectable(selected, enabled = a.secondScreenEnabled, interactionSource = source, indication = null, role = Role.RadioButton, onClick = pick)
-                        .controllerConfirm(a.secondScreenEnabled, onClick = pick)
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                ) {
-                    Text(stringResource(mode.label), fontSize = 15.sp, color = colors.onBackground, modifier = Modifier.weight(1f))
-                    RadioButton(selected, onClick = null,
-                        colors = RadioButtonDefaults.colors(selectedColor = pal.signal, unselectedColor = colors.onSurfaceVariant))
-                }
-            }
-        }
-        if (a.secondScreenDisplays.size > 1) ChoiceRow(host, "second-screen-display", stringResource(R.string.drawer_page_display), null,
-            a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
-            chipModifier = track("second-screen-display"), onPick = a.onSecondScreenDisplay)
-    }
-    if (a.secondScreenDisplays.isNotEmpty() || a.gameSwapAvailable || a.gameOnBottom) SettingsGroup(stringResource(R.string.swap_game_screen_group)) {
-        if (a.gameSwapAvailable || a.gameOnBottom) ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (swapsGame) ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
             if (a.gameSwapBuiltIn) listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom))
             else listOf(false to stringResource(R.string.main_primary), true to stringResource(R.string.main_secondary)),
             a.gameOnBottom, chipModifier = track("game-screen"), onPick = a.onGameOnBottom)
@@ -1325,6 +1304,9 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
             listOf(com.droiddeck.launcher.session.SessionMenuScreen.GAME to stringResource(R.string.session_menu_screen_game),
                 com.droiddeck.launcher.session.SessionMenuScreen.COMPANION to stringResource(R.string.session_menu_screen_companion)),
             a.menuScreen, chipModifier = track("menu-screen"), onPick = a.onMenuScreen)
+        if (choosesDisplay) ChoiceRow(host, "second-screen-display", stringResource(R.string.drawer_page_display), null,
+            a.secondScreenDisplays.map { it.id to it.label }, a.selectedSecondScreenDisplay,
+            chipModifier = track("second-screen-display"), onPick = a.onSecondScreenDisplay)
     }
 }
 

@@ -43,6 +43,8 @@ object SessionState {
     @Volatile
     var stopRequested = false
 
+    val startLock = Any()
+
     @Volatile
     var running = false
     @Volatile

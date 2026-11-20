@@ -349,9 +349,18 @@ class InputSurfaceView(
         private val imageRect = RectF()
         private val toolbarPalette = Themes.current(context)
         private val toolbarPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val toolbarLabel by lazy {
-            val label = InputToolbarStyle.label(context, element.name)
-            Paragraph(label, constraints = Constraints(maxWidth = kotlin.math.ceil(label.maxIntrinsicWidth).toInt()), maxLines = 1)
+        private val toolbarLabelIntrinsics by lazy { InputToolbarStyle.label(context, element.name) }
+        private var fittedToolbarLabel: Paragraph? = null
+        private val toolbarLabel: Paragraph get() = fittedToolbarLabel ?: run {
+            val available = (width - 2 * InputToolbarStyle.TEXT_PADDING * density).toInt().coerceAtLeast(1)
+            val fittedWidth = min(available, kotlin.math.ceil(toolbarLabelIntrinsics.maxIntrinsicWidth).toInt().coerceAtLeast(1))
+            Paragraph(toolbarLabelIntrinsics, constraints = Constraints(maxWidth = fittedWidth), maxLines = 1,
+                ellipsis = true).also { fittedToolbarLabel = it }
+        }
+
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            fittedToolbarLabel = null
         }
 
         private fun drawToolbarButton(canvas: Canvas, lit: Boolean) {
@@ -375,9 +384,12 @@ class InputSurfaceView(
                 InputButtonIcons.draw(canvas, element.icon, cx, height / 2f,
                     min(InputToolbarStyle.ICON * density, min(width, height) * .68f), toolbarPaint, symbol)
             } else if (element.showLabel) {
+                val label = toolbarLabel
+                val scale = min(1f, height * .84f / label.height.coerceAtLeast(1f))
                 canvas.save()
-                canvas.translate(cx - toolbarLabel.width / 2, (height - toolbarLabel.height) / 2)
-                toolbarLabel.paint(androidx.compose.ui.graphics.Canvas(canvas), color = androidx.compose.ui.graphics.Color(toolbarPaint.color))
+                canvas.translate(cx - label.width * scale / 2, (height - label.height * scale) / 2)
+                canvas.scale(scale, scale)
+                label.paint(androidx.compose.ui.graphics.Canvas(canvas), color = androidx.compose.ui.graphics.Color(toolbarPaint.color))
                 canvas.restore()
             }
         }
