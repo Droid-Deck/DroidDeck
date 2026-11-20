@@ -32,8 +32,12 @@ object InputLibraries {
         var library = decoded ?: scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, migrate(context))))
         val version = raw?.let { JSONObject(it).getInt("version") } ?: 0
         if (version in redesignVersions && raw != null) {
-            if (encode(library).length > 2_000_000) return library
-            writeRestoredLibrary(context, raw, library)
+            val encoded = encode(library)
+            if (encoded.length > 2_000_000) return library
+            if (!commitWithBackup(p, raw, REDESIGN_BACKUP, encoded)) {
+                android.util.Log.e("InputLibraries", "Could not save the restored input library")
+                return library
+            }
         }
         if (version < 5) library = scopeLayouts(upgradeStockLayouts(upgradeOverlay(context, library)))
         if (version < 11) library = neutralStockLayouts(library)
@@ -88,26 +92,28 @@ object InputLibraries {
             "The saved input library cannot be edited by this version."
         }
         val updated = change(read(context)).validate()
-        if (invalid) {
+        val backupKey = when {
+            invalid -> RECOVERY + UUID.nameUUIDFromBytes(stored!!.toByteArray(Charsets.UTF_8))
+            stored != null && p.getString(KEY, null) == stored &&
+                JSONObject(stored).getInt("version") in redesignVersions -> REDESIGN_BACKUP
+            else -> null
+        }
+        if (backupKey != null) {
             val encoded = encode(updated)
             require(encoded.length <= 2_000_000) { "The input library is too large to save." }
-            check(p.edit().putString(RECOVERY + UUID.nameUUIDFromBytes(stored!!.toByteArray(Charsets.UTF_8)), stored)
-                .putString(KEY, encoded).commit()) { "Could not save the input library and its recovery copy." }
-        } else if (stored != null && prefs(context).getString(KEY, null) == stored &&
-            JSONObject(stored).getInt("version") in redesignVersions) {
-            writeRestoredLibrary(context, stored, updated)
+            check(commitWithBackup(p, requireNotNull(stored), backupKey, encoded)) {
+                "Could not save the input library and its recovery copy."
+            }
         } else write(context, updated)
         return updated
     }
 
-    private fun writeRestoredLibrary(context: Context, raw: String, library: InputLibrary) {
-        val p = prefs(context)
-        val encoded = encode(library)
-        require(encoded.length <= 2_000_000) { "The input library is too large to save." }
-        if (!p.edit().putString(REDESIGN_BACKUP, raw).putString(KEY, encoded).commit()) {
-            p.edit().putString(KEY, raw).apply()
-            error("Could not save the restored input library.")
-        }
+    private fun commitWithBackup(prefs: android.content.SharedPreferences, raw: String, backupKey: String, encoded: String): Boolean {
+        val previousBackup = prefs.getString(backupKey, null)
+        if (prefs.edit().putString(backupKey, raw).putString(KEY, encoded).commit()) return true
+        // SharedPreferences updates its in-memory values even when the disk write fails.
+        prefs.edit().putString(KEY, raw).putString(backupKey, previousBackup).apply()
+        return false
     }
 
     private fun write(context: Context, library: InputLibrary) {

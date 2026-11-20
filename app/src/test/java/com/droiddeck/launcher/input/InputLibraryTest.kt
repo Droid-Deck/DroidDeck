@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.input
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Before
@@ -73,6 +75,60 @@ class InputLibraryTest {
             assertEquals(raw, prefs.getString("library-before-controller-revert", null))
             assertEquals(restored, InputLibraries.read(context))
             assertEquals(restored, InputLibraries.update(context) { it })
+        }
+    }
+
+    @Test fun failedRollbackBackupLeavesTheLayoutUsableAndRetriesLater() {
+        val original = InputLibraries.read(context)
+        val raw = JSONObject(InputLibraries.encode(original)).put("version", 16).toString()
+        val backup = "library-before-controller-revert"
+        prefs.edit().putString("library", raw).putString(backup, "previous backup").commit()
+
+        assertEquals(original, InputLibraries.read(contextWithFailedCommits()))
+        assertEquals(raw, prefs.getString("library", null))
+        assertEquals("previous backup", prefs.getString(backup, null))
+
+        assertEquals(original, InputLibraries.read(context))
+        assertEquals(14, JSONObject(prefs.getString("library", null)!!).getInt("version"))
+        assertEquals(raw, prefs.getString(backup, null))
+    }
+
+    @Test fun failedRecoveryRestoresBothValuesAndTheNextEditRetriesRecovery() {
+        val raw = "unreadable library"
+        val backup = "library-recovery." + java.util.UUID.nameUUIDFromBytes(raw.toByteArray(Charsets.UTF_8))
+        prefs.edit().putString("library", raw).putString(backup, "previous backup").commit()
+        val failing = contextWithFailedCommits()
+
+        repeat(2) {
+            assertThrows(IllegalStateException::class.java) { InputLibraries.update(failing) { it } }
+            assertEquals(raw, prefs.getString("library", null))
+            assertEquals("previous backup", prefs.getString(backup, null))
+        }
+        InputLibraries.update(context) { it }
+        assertEquals(raw, prefs.getString(backup, null))
+        assertNotNull(InputLibraries.decode(prefs.getString("library", null)!!))
+    }
+
+    private fun contextWithFailedCommits(): Context = object : ContextWrapper(context) {
+        override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
+            val original = super.getSharedPreferences(name, mode)
+            if (name != "input-profiles") return original
+            return object : SharedPreferences by original {
+                override fun edit(): SharedPreferences.Editor {
+                    val editor = original.edit()
+                    return object : SharedPreferences.Editor by editor {
+                        override fun putString(key: String, value: String?): SharedPreferences.Editor {
+                            editor.putString(key, value)
+                            return this
+                        }
+
+                        override fun commit(): Boolean {
+                            editor.apply()
+                            return false
+                        }
+                    }
+                }
+            }
         }
     }
 

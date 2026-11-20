@@ -1255,7 +1255,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     onBack = { inputSettingsOpen = false; secondScreenPresentation?.refreshControls() },
                     onChanged = {
                         controllerSettings = ControllerPrefs.read(this@SessionActivity)
-                        oscMode = SessionPrefs.oscMode(this@SessionActivity)
+                        oscMode = SessionPrefs.oscMode(this@SessionActivity, SessionState.mode == SessionService.MODE_STEAM)
                         padBridge?.setStickDeadZone(ControllerPrefs.deadZone(this@SessionActivity))
                         joyConVr?.refresh()
                         onScreenControls?.reload()
@@ -2534,7 +2534,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         fexPreset = SessionPrefs.fexPreset(this)
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
-        oscMode = SessionPrefs.oscMode(this)
+        oscMode = SessionPrefs.oscMode(this, SessionState.mode == SessionService.MODE_STEAM)
         backHold = SessionPrefs.backHold(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         physicalShortcuts.bindings = PhysicalShortcuts.read(this)
@@ -5338,7 +5338,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val forced = File(Environment.getExternalStorageDirectory(), "Download/droiddeck-osc")
             .takeIf { it.isFile }
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
-            ?: SessionPrefs.oscMode(this)
+            ?: SessionPrefs.oscMode(this, SessionState.mode == SessionService.MODE_STEAM)
         val controls = onScreenControls ?: return
         fun showPinned() {
             controls.setPinnedOnly(true)
