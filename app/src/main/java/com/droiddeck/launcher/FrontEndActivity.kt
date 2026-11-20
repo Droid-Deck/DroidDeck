@@ -1087,6 +1087,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         ticket: LaunchTicket? = null,
     ): Boolean {
         if (pkgStage != null) {
+            onHandled()
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
