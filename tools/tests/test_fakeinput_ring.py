@@ -70,6 +70,9 @@ int main(int argc, char **argv)
     }
     while (controller_read(fd, events, sizeof(events)) > 0)
         ;
+    struct pollfd idle = {fd, POLLIN, 0};
+    if (fortified && __poll_chk(&idle, 1, 0, sizeof(idle)) != 0)
+        return 3;
     puts("ready");
     fflush(stdout);
     char go;

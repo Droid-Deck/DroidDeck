@@ -4016,7 +4016,9 @@ extern "C" [[noreturn]] void __chk_fail(void);
 /* Programs built with _FORTIFY_SOURCE (Flatpak runtimes among them) call these instead of read, poll
  * and ppoll, and glibc's versions go straight to the kernel. */
 EXPORT ssize_t __read_chk(int fd, void *buf, size_t count, size_t buflen) {
+  static auto next_read_chk = reinterpret_cast<ssize_t (*)(int, void *, size_t, size_t)>(dlsym(RTLD_NEXT, "__read_chk"));
   if (count > buflen) __chk_fail();
+  if (next_read_chk && !is_fake_input_fd(fd)) return next_read_chk(fd, buf, count, buflen);
   return read_input(fd, buf, count);
 }
 
