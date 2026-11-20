@@ -14,7 +14,7 @@ import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
@@ -41,7 +41,8 @@ class LinuxNetworkLinkComponent(
     private var currentProperties: LinkProperties? = null
     private var currentCapabilities: NetworkCapabilities? = null
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-    private val scanHandler = Handler(Looper.getMainLooper())
+    private var scanThread: HandlerThread? = null
+    @Volatile private var scanHandler: Handler? = null
     private var wifiReceiver: BroadcastReceiver? = null
     private var scanRequestStamp = 0L
     private var lastScanRequest = -SCAN_INTERVAL_MS
@@ -57,7 +58,7 @@ class LinuxNetworkLinkComponent(
                 scanRequestStamp = stamp
                 requestWifiScan()
             }
-            if (wifiReceiver != null) scanHandler.postDelayed(this, 1000)
+            scanHandler?.postDelayed(this, 1000)
         }
     }
 
@@ -69,6 +70,10 @@ class LinuxNetworkLinkComponent(
     }
 
     override fun start() {
+        val worker = HandlerThread("droiddeck-network").apply { start() }
+        val handler = Handler(worker.looper)
+        scanThread = worker
+        scanHandler = handler
         val registered = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) = synchronized(lock) {
                 currentNetwork = network
@@ -100,7 +105,7 @@ class LinuxNetworkLinkComponent(
             }
         }
         synchronized(lock) { callback = registered }
-        connectivity.registerDefaultNetworkCallback(registered)
+        connectivity.registerDefaultNetworkCallback(registered, handler)
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 synchronized(lock) { writeNetworkState(currentProperties, currentCapabilities) }
@@ -113,16 +118,24 @@ class LinuxNetworkLinkComponent(
             addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION)
             addAction(LocationManager.MODE_CHANGED_ACTION)
         }
-        if (android.os.Build.VERSION.SDK_INT >= 33) appContext.registerReceiver(receiver, wifiFilter, Context.RECEIVER_NOT_EXPORTED)
-        else appContext.registerReceiver(receiver, wifiFilter)
+        if (Build.VERSION.SDK_INT >= 33) {
+            appContext.registerReceiver(receiver, wifiFilter, null, handler, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            appContext.registerReceiver(receiver, wifiFilter, null, handler)
+        }
         wifiReceiver = receiver
-        scanRequestStamp = File(rootDir, "etc/droiddeck-wifi-scan-request").lastModified()
-        scanHandler.post(scanRequests)
-        requestWifiScan()
+        handler.post {
+            scanRequestStamp = File(rootDir, "etc/droiddeck-wifi-scan-request").lastModified()
+            requestWifiScan()
+            handler.post(scanRequests)
+        }
     }
 
     override fun stop() {
-        scanHandler.removeCallbacks(scanRequests)
+        scanHandler?.removeCallbacksAndMessages(null)
+        scanHandler = null
+        scanThread?.quit()
+        scanThread = null
         wifiReceiver?.let { receiver ->
             try {
                 appContext.unregisterReceiver(receiver)
@@ -275,6 +288,7 @@ class LinuxNetworkLinkComponent(
      * crash or power cut can keep the rename and lose the data, leaving a file of NUL bytes.
      */
     private fun replace(file: File, text: String) {
+        if (file.isFile && file.readText() == text) return
         val staged = File(file.path + ".staged")
         java.io.FileOutputStream(staged).use { out ->
             out.write(text.toByteArray())
