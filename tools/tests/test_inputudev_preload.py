@@ -78,6 +78,7 @@ char *realpath(const char *path, char *resolved) {
 """
 
 UDEV = r"""
+#include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -127,6 +128,16 @@ void *udev_device_get_parent(void *device) { (void)device; return NULL; }
 void *udev_device_get_udev(void *device) { (void)device; return NULL; }
 const char *udev_device_get_syspath(void *device) { (void)device; return "real"; }
 const char *udev_device_get_sysnum(void *device) { (void)device; return "real"; }
+
+/* libudev reads the driver through the sd_device pointer it keeps after the udev context. */
+struct device { void *udev; const char *const *driver; };
+static const char *const driver_name = "real-driver";
+static struct device real_device = { NULL, &driver_name };
+void *udev_device_new_from_devnum(void *udev, char type, dev_t devnum) {
+  (void)udev; (void)type; (void)devnum;
+  return &real_device;
+}
+const char *udev_device_get_driver(void *device) { return ((struct device *)device)->driver[0]; }
 """
 
 PROGRAM = r"""
@@ -135,6 +146,7 @@ PROGRAM = r"""
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 
 #define PAD "/sys/devices/virtual/input/droiddeck0"
@@ -346,6 +358,19 @@ static void run_probe(void) {
   printf("pad %d\n", new_device(&udev, PAD) != NULL);
 }
 
+static void run_driver(void) {
+  int udev;
+  void *(*from_devnum)(void *, char, dev_t) = sym("udev_device_new_from_devnum");
+  const char *(*driver)(void *) = sym("udev_device_get_driver");
+  void *pad = from_devnum(&udev, 'c', makedev(13, 64));
+  const char *name = driver(pad);
+
+  printf("pad %s driver %s\n", syspath(pad), name != NULL ? name : "none");
+  unref(pad);
+  name = driver(from_devnum(&udev, 'c', makedev(13, 0)));
+  printf("other driver %s\n", name != NULL ? name : "none");
+}
+
 int main(int argc, char **argv) {
   char link[4096];
 
@@ -387,6 +412,7 @@ int main(int argc, char **argv) {
   name = sym("udev_list_entry_get_name");
   value = sym("udev_list_entry_get_value");
   if (strcmp(argv[1], "probe") == 0) run_probe();
+  else if (strcmp(argv[1], "driver") == 0) run_driver();
   else if (strcmp(argv[1], "stable") == 0) run_stable();
   else if (strcmp(argv[1], "enumerate") == 0) run_enumerate();
   else run_udev();
@@ -515,9 +541,15 @@ class InputUdevPreloadTest(unittest.TestCase):
             "nothing added scan -1",
         ])
 
-    def test_only_the_steam_client_runtime_path_gets_the_real_libudev(self):
-        for path, pad in (("steamrt64/steam", 0), ("steamrtarm64/steam", 0), ("steamrt64/steam-probe", 1),
-                          ("xsteamrt64/steam", 1), ("steamrt64/xsteam", 1), ("steamrt/steam", 1)):
+    def test_a_pad_has_no_driver_and_other_devices_ask_libudev(self):
+        pad = "/sys/devices/droiddeck0/droiddeck-input0/event0"
+        self.assertEqual(self.run_program("driver"), [f"pad {pad} driver none", "other driver real-driver"])
+
+    def test_only_the_steam_client_and_its_remote_play_client_get_the_real_libudev(self):
+        for path, pad in (("steamrt64/steam", 0), ("steamrtarm64/steam", 0), ("steamrt64/streaming_client", 0),
+                          ("steamrtarm64/streaming_client", 0), ("steamrt64/steam-probe", 1),
+                          ("steamrt64/streaming_client2", 1), ("xsteamrt64/steam", 1), ("steamrt64/xsteam", 1),
+                          ("steamrt/steam", 1), ("steamrt/streaming_client", 1)):
             with self.subTest(path=path):
                 client = self.dir / "clients" / path
                 client.parent.mkdir(parents=True, exist_ok=True)
