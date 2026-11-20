@@ -5,13 +5,13 @@ import com.droiddeck.launcher.core.SessionPart
 import java.io.File
 import java.io.IOException
 
-internal class TegraVirglComponent(private val runtimeDir: File, private val log: File) : SessionPart() {
+internal class TegraVirglComponent(private val socket: File, private val log: File) : SessionPart() {
     private var process: Process? = null
-    private val socket get() = File(runtimeDir, SOCKET_NAME)
+    private var stopped = false
 
     @Synchronized
     override fun start() {
-        if (process?.isAlive == true) return
+        if (stopped || process?.isAlive == true) return
         val libraries = app().applicationInfo.nativeLibraryDir
         val server = File(libraries, "libdroiddeck_tegra_vtest.so")
         if (!server.isFile) return
@@ -30,13 +30,13 @@ internal class TegraVirglComponent(private val runtimeDir: File, private val log
 
     @Synchronized
     override fun stop() {
+        stopped = true
         process?.destroyForcibly()
         process = null
         socket.delete()
     }
 
-    companion object {
-        const val SOCKET_NAME = "tegra-vtest.sock"
-        private const val TAG = "TegraVirgl"
+    private companion object {
+        const val TAG = "TegraVirgl"
     }
 }

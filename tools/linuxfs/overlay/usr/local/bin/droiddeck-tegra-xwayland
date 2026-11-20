@@ -134,7 +134,12 @@ def run(session, arguments):
     runtime = os.environ['XDG_RUNTIME_DIR']
     sockets = Path(runtime) / 'tegra-x11-sockets'
     sockets.mkdir(mode=0o700, exist_ok=True)
-    geometry = f"{os.environ.get('DD_WIDTH', '1280')}x{os.environ.get('DD_HEIGHT', '720')}"
+    width, height = os.environ.get('DD_WIDTH', '1280'), os.environ.get('DD_HEIGHT', '720')
+    game_width, game_height = os.environ.get('DD_GAME_WIDTH', '0'), os.environ.get('DD_GAME_HEIGHT', '0')
+    if (arguments[0] == 'run' and game_width.isdecimal() and game_height.isdecimal()
+            and int(game_width) > 0 and int(game_height) > 0):
+        width, height = game_width, game_height
+    geometry = f'{width}x{height}'
     with tempfile.TemporaryDirectory(prefix='tegra-x11.', dir=runtime) as state:
         authority = Path(state) / 'authority'
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener, (sockets / 'lock').open('a') as lock:

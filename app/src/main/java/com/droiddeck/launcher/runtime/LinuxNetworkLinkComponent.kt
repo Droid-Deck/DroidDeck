@@ -42,6 +42,7 @@ class LinuxNetworkLinkComponent(
     private var currentCapabilities: NetworkCapabilities? = null
     private val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
     private var scanThread: HandlerThread? = null
+    private var stopped = false
     @Volatile private var scanHandler: Handler? = null
     private var wifiReceiver: BroadcastReceiver? = null
     private var scanRequestStamp = 0L
@@ -69,7 +70,9 @@ class LinuxNetworkLinkComponent(
         write(currentProperties, currentCapabilities)
     }
 
+    @Synchronized
     override fun start() {
+        if (stopped || scanThread != null) return
         val worker = HandlerThread("droiddeck-network").apply { start() }
         val handler = Handler(worker.looper)
         scanThread = worker
@@ -131,7 +134,9 @@ class LinuxNetworkLinkComponent(
         }
     }
 
+    @Synchronized
     override fun stop() {
+        stopped = true
         scanHandler?.removeCallbacksAndMessages(null)
         scanHandler = null
         scanThread?.quit()
