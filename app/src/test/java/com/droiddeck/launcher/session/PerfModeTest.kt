@@ -105,4 +105,15 @@ class PerfModeTest {
         assertEquals(listOf(120), PerfMode.panelRates(modes, modes[1], Float.POSITIVE_INFINITY, true).toList())
         assertEquals(listOf(60, 120, 185), PerfMode.panelRates(modes, modes[1], Float.POSITIVE_INFINITY, false).toList())
     }
+
+    @Test
+    fun aSteadyRateBelowAnUnconstrainingLimiterSetsThePace() {
+        assertEquals(30, PerfMode.pacedRate(30, 120, 120, 45))
+        assertEquals(45, PerfMode.pacedRate(0, 0, 0, 45))
+        assertEquals(40, PerfMode.pacedRate(0, 40, 120, 45))
+        assertEquals(45, PerfMode.pacedRate(0, 120, 120, 45))
+        assertEquals(120, PerfMode.pacedRate(0, 120, 120, 60))
+        assertEquals(120, PerfMode.pacedRate(0, 120, 120, 0))
+        assertEquals(60, PerfMode.pacedRate(0, 60, 0, 45))
+    }
 }

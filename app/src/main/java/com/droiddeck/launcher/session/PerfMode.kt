@@ -82,6 +82,14 @@ object PerfMode {
     internal fun panelHeld(requestedHz: Float, activeHz: Float): Boolean =
         requestedHz > 1f && activeHz > 1f && Math.abs(requestedHz - activeHz) > 0.5f
 
+    fun pacedRate(ownLimit: Int, limiterRate: Int, limiterRefresh: Int, steadyRate: Int): Int = when {
+        ownLimit > 0 -> ownLimit
+        limiterRate <= 0 -> steadyRate
+        steadyRate <= 0 || limiterRate < limiterRefresh || limiterRefresh <= 0 -> limiterRate
+        cadenceFits(limiterRate.toFloat(), steadyRate) -> limiterRate
+        else -> steadyRate
+    }
+
     fun contentRate(fps: Int, frameGenFactor: Int, frameGenTarget: Int): Int = when {
         frameGenFactor <= 1 -> fps
         frameGenTarget > 0 -> frameGenTarget

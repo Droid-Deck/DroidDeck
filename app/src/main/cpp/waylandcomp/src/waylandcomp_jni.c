@@ -69,6 +69,7 @@ static jmethodID g_on_clipboard;
 static jmethodID g_on_text_input;
 static jmethodID g_on_overlay_planes;
 static jmethodID g_on_refresh_target;
+static jmethodID g_on_content_rate;
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     (void)reserved;
@@ -92,6 +93,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
                                                         "(ZLjava/lang/String;IIII)V");
             g_on_overlay_planes = (*env)->GetStaticMethodID(env, g_compositor_cls, "onOverlayPlanes", "(I)V");
             g_on_refresh_target = (*env)->GetStaticMethodID(env, g_compositor_cls, "onRefreshTarget", "(II)V");
+            g_on_content_rate = (*env)->GetStaticMethodID(env, g_compositor_cls, "onContentRate", "(I)V");
         }
     }
     return JNI_VERSION_1_6;
@@ -156,6 +158,13 @@ void droiddeck_on_refresh_target(int refresh, int frame_rate) {
     JNIEnv *env;
     if (!g_compositor_cls || !g_on_refresh_target || !(env = thread_env())) return;
     (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_refresh_target, (jint)refresh, (jint)frame_rate);
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+}
+
+void droiddeck_on_content_rate(int fps) {
+    JNIEnv *env;
+    if (!g_compositor_cls || !g_on_content_rate || !(env = thread_env())) return;
+    (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_content_rate, (jint)fps);
     if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
 }
 

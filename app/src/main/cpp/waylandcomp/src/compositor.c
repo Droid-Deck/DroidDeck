@@ -894,6 +894,9 @@ int droiddeck_hud_frame_times(float *out, int len, int64_t *total) {
 static uint64_t g_game_frames;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
+extern void droiddeck_on_content_rate(int fps);
+static int64_t g_cadence_ns;
+static int64_t g_cadence_frames;
 extern void droiddeck_on_game_program(int pid, const char *program);
 
 static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_resource *buffer) {
@@ -1057,6 +1060,13 @@ static void note_game_frame_gap(void) {
         g_pace.gaps[gap < 1 ? 0 : gap > 4 ? 3 : gap - 1]++;
     }
     g_game_frame_ns = now;
+    if (!g_cadence_ns) g_cadence_ns = now;
+    g_cadence_frames++;
+    if (now - g_cadence_ns >= 1000000000LL) {
+        droiddeck_on_content_rate((int)((g_cadence_frames * 1000000000LL + (now - g_cadence_ns) / 2) / (now - g_cadence_ns)));
+        g_cadence_ns = now;
+        g_cadence_frames = 0;
+    }
 }
 
 uint64_t droiddeck_game_frames(void) { return g_game_frames; }

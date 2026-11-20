@@ -134,6 +134,26 @@ public final class WaylandCompositor {
         if (refreshTargetListener == l) refreshTargetListener = null;
     }
 
+    public interface ContentRateListener {
+        void onContentRate(int fps);
+    }
+
+    private static volatile ContentRateListener contentRateListener;
+
+    public static void setContentRateListener(ContentRateListener l) {
+        contentRateListener = l;
+    }
+
+    public static void clearContentRateListener(ContentRateListener l) {
+        if (contentRateListener == l) contentRateListener = null;
+    }
+
+    @SuppressWarnings("unused")
+    static void onContentRate(int fps) {
+        ContentRateListener l = contentRateListener;
+        if (l != null) l.onContentRate(fps);
+    }
+
     @SuppressWarnings("unused")
     static void onRefreshTarget(int refresh, int frameRate) {
         refreshTarget = ((long) refresh << 32) | (frameRate & 0xffffffffL);

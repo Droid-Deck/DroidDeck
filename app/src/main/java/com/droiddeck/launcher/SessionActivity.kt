@@ -109,6 +109,7 @@ import com.droiddeck.launcher.input.TouchpadGestures
 import com.droiddeck.launcher.input.TouchscreenGestures
 import com.droiddeck.launcher.input.ScrollTouchGestures
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.ContentCadence
 import com.droiddeck.launcher.session.LoadingState
 import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudHost
@@ -1046,6 +1047,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         WaylandCompositor.setPointerLockListener(pointerLockListener)
         WaylandCompositor.setOverlayPlanesListener(overlayPlanesListener)
         WaylandCompositor.setRefreshTargetListener(refreshTargetListener)
+        WaylandCompositor.setContentRateListener(contentRateListener)
         SessionEvents.markReadyIfPossible()
         SessionState.endListener = endListener
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -3004,7 +3006,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         pacedFrameGenMode = frameGen
         val ownLimit = outputFpsLimit(false)
         val content = PerfMode.contentRate(
-            if (ownLimit > 0) ownLimit else guestFrameRate, frameGen?.outputFactor ?: 1, frameGen?.target ?: 0,
+            PerfMode.pacedRate(ownLimit, guestFrameRate, guestRefresh, contentCadence.rate),
+            frameGen?.outputFactor ?: 1, frameGen?.target ?: 0,
         )
         Log.i(TAG, "perf: " + PerfMode.apply(this, content, mirrorRefreshLimit(), if (ownLimit > 0) 0 else guestRefresh, panelHeld))
         uiHandler.removeCallbacks(panelHeldCheck)
@@ -3833,6 +3836,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     @Volatile private var guestRefresh = 0
     @Volatile private var guestFrameRate = 0
     private var pacedFrameGenMode: FrameGen.Mode? = null
+    private val contentCadence = ContentCadence()
+    private val contentRateListener = WaylandCompositor.ContentRateListener { fps ->
+        runOnUiThread {
+            if (contentCadence.note(fps, PerfMode.panelRates(this, mirrorRefreshLimit(), panelHeld))) {
+                Log.i(TAG, "perf: steady content rate " + contentCadence.rate + " fps")
+                applyOutputPacing()
+            }
+        }
+    }
     private val refreshTargetListener = WaylandCompositor.RefreshTargetListener { refresh, frameRate ->
         runOnUiThread {
             if (guestRefresh != refresh || guestFrameRate != frameRate) {
@@ -6558,6 +6570,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         WaylandCompositor.clearPointerLockListener(pointerLockListener)
         WaylandCompositor.clearOverlayPlanesListener(overlayPlanesListener)
         WaylandCompositor.clearRefreshTargetListener(refreshTargetListener)
+        WaylandCompositor.clearContentRateListener(contentRateListener)
         super.onDestroy()
     }
 
