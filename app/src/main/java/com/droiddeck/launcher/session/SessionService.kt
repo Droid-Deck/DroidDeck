@@ -202,7 +202,7 @@ class SessionService : Service() {
         when (intent?.action) {
             ACTION_LINUX_WINDOWS_VISIBLE -> {
                 screenOn = readScreenOn()
-                if (LinuxWindows.hasVisibleWindows && hasVisibleSurface && !manualHold) {
+                if ((LinuxWindows.hasVisibleWindows || LinuxWindows.hasPendingClose) && hasVisibleSurface && !manualHold) {
                     resumeSession(panelVisible = false)
                 } else {
                     updateSuspendPolicy()
@@ -2420,7 +2420,8 @@ class SessionService : Service() {
                 com.droiddeck.launcher.QuestXrActivity::class.java.name,
                 com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
                 com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
-        if (pipTask || xrActivityVisible || SteamVrSession.active) {
+        if (pipTask || xrActivityVisible || SteamVrSession.active ||
+            LinuxWindows.hasVisibleWindows || LinuxWindows.hasPendingClose) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false
             updateSuspendPolicy()

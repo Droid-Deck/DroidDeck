@@ -334,7 +334,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var scrollRestY = 0f
     private var fingerScrolling = false
     private var physicalEventTime = 0L
-    private val observedTouchpads = mutableSetOf<Int>()
     private val mouseWheel = MouseWheelInput { v, h ->
         val writer = if (evdevMouseActive) mouseWriter else null
         if (writer != null) writer.writeMouseWheel120(-v, h)
@@ -385,6 +384,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var clientHidesCursor = false
     private var mouseOwnsCursor = false
     private var pointerLocked = false
+    @Volatile private var panelInputGeneration = 0
     private var desktopGrabTapAt = 0L
     private var desktopGrabTaps = 0
     private var desktopMousePlaced = false
@@ -810,7 +810,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             refreshSecondScreenDisplays()
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
-            observedTouchpads.remove(deviceId)
             physicalTouchpad.deviceRemoved(deviceId)
             physicalShortcuts.onDeviceRemoved(deviceId)
             penStream.deviceRemoved(deviceId)
@@ -5057,7 +5056,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun sendSceneButton(code: Int, down: Boolean,
                                 owner: PointerButtonState.Owner = PointerButtonState.Owner.SIMULATED) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            uiHandler.post { sendSceneButton(code, down, owner) }
+            val generation = panelInputGeneration
+            uiHandler.post { if (generation == panelInputGeneration) sendSceneButton(code, down, owner) }
             return
         }
         if (down && com.droiddeck.launcher.session.LinuxWindows.owner != null) {
@@ -5389,7 +5389,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun onPhysicalTouchpad(event: MotionEvent): Boolean {
-        if (observedTouchpads.add(event.deviceId)) updatePointerCapture()
         if (touchpadUiOwnsPointer() || !::surfaceView.isInitialized || !surfaceView.isShown ||
             !surfaceView.holder.surface.isValid) {
             physicalTouchpad.cancel(event.eventTime)
@@ -5452,10 +5451,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val want = (pointerLocked || relativeMouseAttached()) && sessionOwnsInput() && hasWindowFocus() && mouseAttached()
         releaseDesktopMouseGrab()
         updateUsbMouse(want)
-        val touchpadAttached = observedTouchpads.isNotEmpty() || InputDevice.getDeviceIds().any {
-            InputDevice.getDevice(it)?.supportsSource(InputDevice.SOURCE_TOUCHPAD) == true
-        }
-        val capture = want && !touchpadAttached
+        val capture = want
         if (capture == view.hasPointerCapture()) return
         if (capture) view.requestPointerCapture() else view.releasePointerCapture()
     }
@@ -6190,6 +6186,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun releasePanelInput() {
+        panelInputGeneration++
         physicalTouchpad.cancel()
         mouseWheel.reset()
         releasePads()

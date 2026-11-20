@@ -20,6 +20,9 @@ struct wl_client { int id; };
 struct wl_resource { struct wl_client *client; };
 struct wl_display { int unused; };
 struct surface { struct wl_resource *resource; int placed, x, y; };
+struct window_target { int width, height; };
+static const char *independent_key(struct surface *s) { (void)s; return NULL; }
+static struct window_target *window_target_of(const char *key) { (void)key; return NULL; }
 struct seat_pointer { struct wl_resource *ptr, *focus; };
 struct constraint { int is_lock; struct surface *surface; };
 
