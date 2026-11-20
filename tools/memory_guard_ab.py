@@ -40,7 +40,9 @@ mkdir -p {HOG_MOUNT}
 grep -q ' {HOG_MOUNT} ' /proc/mounts || mount -t tmpfs -o size=16g tmpfs {HOG_MOUNT}
 i=0
 if [ "$mode" = burst ]; then
-  [ -s {SEED_PATH} ] || head -c 268435456 /dev/urandom > {SEED_PATH}
+  [ "$(stat -c %s {SEED_PATH} 2>/dev/null)" = 268435456 ] ||
+    {{ head -c 268435456 /dev/urandom > {SEED_PATH}.tmp && mv {SEED_PATH}.tmp {SEED_PATH}; }} ||
+    {{ rm -f {SEED_PATH}.tmp; cleanup; exit 1; }}
   cat {SEED_PATH} > /dev/null
   avail=$(awk '/MemAvailable/ {{print int($2/1024)}}' /proc/meminfo)
   echo "avail=$avail"
