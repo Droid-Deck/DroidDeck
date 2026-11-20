@@ -27,7 +27,7 @@ object GameThreadHints {
     private const val PACE_TOLERANCE = 0.08
 
     private val NOT_GAMES = setOf("steam", "steamwebhelper")
-    private val SOCS = setOf("CQ8725S", "SM8750")
+    private val SOCS = setOf("CQ8725S", "SM8750", "SM8750P")
 
     private var worker: Thread? = null
 

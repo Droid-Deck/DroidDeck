@@ -26,6 +26,7 @@ class SocNamesTest {
         assertEquals("Snapdragon 8 Elite Extreme Gen 6", SocNames.name("QTI SM8975", ""))
         assertEquals("Snapdragon 8 Elite Extreme Gen 6", SocNames.name(" qti sm8975 ", ""))
         assertEquals("Snapdragon 8 Elite Extreme Gen 6 (QTI SM8975)", SocNames.label("QTI SM8975", ""))
+        assertEquals("Snapdragon 8 Elite", SocNames.name("QTI SM8750P", ""))
         assertNull(SocNames.name("SM89750", ""))
         assertNull(SocNames.name("SM8975-PRO", ""))
         assertNull(SocNames.name("Qualcomm SM8975", ""))
