@@ -280,6 +280,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("developerTools", on).apply()
     }
 
+    fun previewShortcuts(context: Context): Boolean = prefs(context).getBoolean("previewShortcuts", false)
+
+    fun setPreviewShortcuts(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("previewShortcuts", on).apply()
+    }
+
     fun fpsLimitKey(mode: String?, game: String?): String? = when (mode) {
         SessionService.MODE_RUN -> game?.trim()?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)?.let { "fpsLimit.game.$it" }
         SessionService.MODE_DESKTOP -> "fpsLimit.desktop"

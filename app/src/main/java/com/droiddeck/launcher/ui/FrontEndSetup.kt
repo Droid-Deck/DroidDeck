@@ -59,6 +59,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -595,6 +596,14 @@ internal fun SetupPanel(
                             ToggleRow(host, "developer-tools", stringResource(R.string.dev_tools_title), stringResource(R.string.dev_tools_hint), DeveloperTools.on) {
                                 DeveloperTools.set(devContext, it)
                             }
+                            if (DeveloperTools.on) ActionRow(
+                                stringResource(R.string.dev_ui_zoo), stringResource(R.string.dev_ui_zoo_hint), stringResource(R.string.dev_ui_zoo_open),
+                                onClick = { DevPreview.zoo = true }, modifier = Modifier.testTag("dev-ui-zoo"),
+                            )
+                            if (DeveloperTools.on) ToggleRow(
+                                host, "preview-shortcuts", stringResource(R.string.dev_preview_shortcuts), stringResource(R.string.dev_preview_shortcuts_hint),
+                                DevPreview.shortcuts,
+                            ) { DevPreview.setShortcuts(devContext, it) }
                         }
                         SettingsGroup(stringResource(R.string.dev_group_logs)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
