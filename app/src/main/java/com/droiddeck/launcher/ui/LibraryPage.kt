@@ -913,7 +913,6 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
         ) {
-            if (manage) ManageStoresChip()
             Box(Modifier.weight(1f).edgeFade(scroll).horizontalScroll(scroll)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.focusGroup()) {
                     for (id in keys) {
@@ -945,6 +944,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
                 }
                 if (highlighted in keys) ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
             }
+            if (manage) ManageStoresChip()
         }
     }
 }
