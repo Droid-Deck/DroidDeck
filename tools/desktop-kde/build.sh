@@ -49,10 +49,15 @@ if [ -n "${KDE_KWIN_OVERRIDE:-}" ]; then
   kwin_package=$(awk '$1 ~ /^extra\/kwin-.*-aarch64\.pkg\.tar\./ {print $1}' "$work/pkglist.txt")
   case $kwin_package in
     "extra/kwin-$DESKTOP_KWIN_VERSION"-[0-9]*-aarch64.pkg.tar.*) ;;
+    "extra/kwin-6.8."*-aarch64.pkg.tar.*)
+      echo "warning: Arch package $kwin_package supplies dependencies for pinned KWin $DESKTOP_KWIN_VERSION" >&2 ;;
     *) echo "KWin package $kwin_package does not match the built KWin $DESKTOP_KWIN_VERSION" >&2; exit 1 ;;
   esac
   install -m 755 "$KDE_KWIN_OVERRIDE/kwin_wayland" "$work/root/usr/bin/kwin_wayland"
   install -m 755 "$KDE_KWIN_OVERRIDE/libkwin.so.$DESKTOP_KWIN_VERSION" "$work/root/usr/lib/libkwin.so.$DESKTOP_KWIN_VERSION"
+  ln -sfn "libkwin.so.$DESKTOP_KWIN_VERSION" "$work/root/usr/lib/libkwin.so.6"
+  mkdir -p "$work/root/usr/share/droiddeck"
+  touch "$work/root/usr/share/droiddeck/kwin-independent"
 fi
 
 if [ -d "$work/root/usr/share/locale" ]; then

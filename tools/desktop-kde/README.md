@@ -76,11 +76,15 @@ repository metadata. Mesa 26.2.5 crashes in Zink shader compilation on Thor with
 Turnip driver. `mesa.env` points at immutable copies of the original 26.2.4 package and signature;
 both build jobs verify the Arch Linux ARM signature and pinned SHA-256 as for every other package.
 
-The desktop workflow replaces the same-version `kwin_wayland` executable and `libkwin.so`; the rest
-comes from the signature-checked Arch packages. `desktop-kde.kwin.txt` records the source, patch,
-executable, library and build package hashes. Corresponding source is
-https://download.kde.org/stable/plasma/6.8.3/kwin-6.8.3.tar.xz plus the patch and the extension
+The desktop workflow replaces the Arch package's `kwin_wayland` and `libkwin.so` with the pinned
+source build; the rest comes from the signature-checked Arch packages. `desktop-kde.kwin.txt`
+records the source, patch, executable, library and build package hashes. Corresponding source is
+https://download.kde.org/stable/plasma/6.8.2/kwin-6.8.2.tar.xz plus the patch and the extension
 sources in this repository.
+
+The pack writes `usr/share/droiddeck/kwin-independent` when the extension is installed. The desktop
+launcher uses the pack's `kwin_wayland` when that marker is present; the APK's bundled runtime is
+only a fallback for a rootfs that matches its pinned version.
 
 The inventories use `.gzip` rather than `.gz`: Android's asset packer expands `.gz` and strips
 its suffix. The shared local/CI runtime payload check verifies the exact APK names and bytes.
