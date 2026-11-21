@@ -2513,7 +2513,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Дисплей сеансу</string>
     <string name="display_zero_copy">Показ без копіювання</string>
-    <string name="display_resolution">Роздільна здатність</string>
+    <string name="display_resolution_landscape">Роздільна здатність в альбомній орієнтації</string>
+    <string name="display_resolution_portrait">Роздільна здатність у портретній орієнтації</string>
+    <string name="display_follow_landscape">Як в альбомній (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Як у портретній (%1$d×%2$d)</string>
     <string name="display_game_fit">Вписування гри 16:9</string>
     <string name="display_game_fit_hint">Як ігри 16:9 вписуються в цей дисплей. З наступного сеансу.</string>
     <string name="display_game_fit_unavailable">Виберіть «Під екран» або власний розмір, вужчий за 16:9.</string>

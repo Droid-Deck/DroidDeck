@@ -2486,7 +2486,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Affichage de la session</string>
     <string name="display_zero_copy">Affichage sans copie</string>
-    <string name="display_resolution">Résolution</string>
+    <string name="display_resolution_landscape">Résolution en paysage</string>
+    <string name="display_resolution_portrait">Résolution en portrait</string>
+    <string name="display_follow_landscape">Comme le paysage (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Comme le portrait (%1$d×%2$d)</string>
     <string name="display_game_fit">Ajustement des jeux 16:9</string>
     <string name="display_game_fit_hint">Comment les jeux 16:9 s\'adaptent à cet écran. À la prochaine session.</string>
     <string name="display_game_fit_unavailable">Choisissez « Adapter à l\'écran » ou une taille personnalisée plus étroite que 16:9.</string>

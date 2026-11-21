@@ -2513,7 +2513,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Экран сессии</string>
     <string name="display_zero_copy">Вывод без копирования</string>
-    <string name="display_resolution">Разрешение</string>
+    <string name="display_resolution_landscape">Разрешение в альбомной ориентации</string>
+    <string name="display_resolution_portrait">Разрешение в портретной ориентации</string>
+    <string name="display_follow_landscape">Как в альбомной (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Как в портретной (%1$d×%2$d)</string>
     <string name="display_game_fit">Игры 16:9</string>
     <string name="display_game_fit_hint">Как игры 16:9 вписываются в этот экран. Вступит в силу в следующей сессии.</string>
     <string name="display_game_fit_unavailable">Выберите «По размеру экрана» или свой размер уже 16:9.</string>

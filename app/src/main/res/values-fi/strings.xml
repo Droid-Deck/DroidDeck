@@ -2461,7 +2461,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Istunnon näyttö</string>
     <string name="display_zero_copy">Kopioimaton esitys</string>
-    <string name="display_resolution">Tarkkuus</string>
+    <string name="display_resolution_landscape">Vaakatilan resoluutio</string>
+    <string name="display_resolution_portrait">Pystytilan resoluutio</string>
+    <string name="display_follow_landscape">Seuraa vaakaa (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Seuraa pystyä (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9-pelin sovitus</string>
     <string name="display_game_fit_hint">Miten 16:9-pelit sovitetaan tähän näyttöön. Seuraava istunto.</string>
     <string name="display_game_fit_unavailable">Valitse Sovita näyttöön tai mukautettu koko, joka on 16:9:ää kapeampi.</string>

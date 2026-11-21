@@ -2436,7 +2436,10 @@
     <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
     <string name="display_session">セッションの表示</string>
     <string name="display_zero_copy">ゼロコピー表示</string>
-    <string name="display_resolution">解像度</string>
+    <string name="display_resolution_landscape">横向きの解像度</string>
+    <string name="display_resolution_portrait">縦向きの解像度</string>
+    <string name="display_follow_landscape">横向きに合わせる (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">縦向きに合わせる (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9ゲームの表示</string>
     <string name="display_game_fit_hint">16:9のゲームをこのディスプレイにどう合わせるか。次回のセッションから。</string>
     <string name="display_game_fit_unavailable">「画面に合わせる」か、16:9より縦長のカスタムサイズを選んでください。</string>

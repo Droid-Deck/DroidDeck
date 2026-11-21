@@ -2433,7 +2433,10 @@
     <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
     <string name="display_session">工作階段顯示</string>
     <string name="display_zero_copy">零複製呈現</string>
-    <string name="display_resolution">解析度</string>
+    <string name="display_resolution_landscape">橫向解析度</string>
+    <string name="display_resolution_portrait">直向解析度</string>
+    <string name="display_follow_landscape">跟隨橫向 (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">跟隨直向 (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 遊戲顯示方式</string>
     <string name="display_game_fit_hint">16:9 遊戲如何配合此螢幕。下次工作階段生效。</string>
     <string name="display_game_fit_unavailable">請選擇「符合螢幕」或比 16:9 更窄的自訂尺寸。</string>

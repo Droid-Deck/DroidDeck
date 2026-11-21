@@ -2436,7 +2436,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Tampilan sesi</string>
     <string name="display_zero_copy">Presentasi tanpa salin</string>
-    <string name="display_resolution">Resolusi</string>
+    <string name="display_resolution_landscape">Resolusi lanskap</string>
+    <string name="display_resolution_portrait">Resolusi potret</string>
+    <string name="display_follow_landscape">Ikuti lanskap (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Ikuti potret (%1$d×%2$d)</string>
     <string name="display_game_fit">Penyesuaian gim 16:9</string>
     <string name="display_game_fit_hint">Cara gim 16:9 disesuaikan dengan tampilan ini. Berlaku pada sesi berikutnya.</string>
     <string name="display_game_fit_unavailable">Pilih Sesuaikan layar atau ukuran khusus yang lebih sempit dari 16:9.</string>

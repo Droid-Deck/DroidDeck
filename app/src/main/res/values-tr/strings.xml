@@ -2453,7 +2453,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Oturum ekranı</string>
     <string name="display_zero_copy">Kopyasız sunum</string>
-    <string name="display_resolution">Çözünürlük</string>
+    <string name="display_resolution_landscape">Yatay çözünürlük</string>
+    <string name="display_resolution_portrait">Dikey çözünürlük</string>
+    <string name="display_follow_landscape">Yatayı izle (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Dikeyi izle (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 oyun sığdırma</string>
     <string name="display_game_fit_hint">16:9 oyunların bu ekrana nasıl sığacağı. Sonraki oturumda.</string>
     <string name="display_game_fit_unavailable">Ekrana Uydur\'u veya 16:9\'dan daha dar özel bir boyutu seçin.</string>

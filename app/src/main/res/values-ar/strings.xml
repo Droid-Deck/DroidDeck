@@ -2565,7 +2565,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">شاشة الجلسة</string>
     <string name="display_zero_copy">العرض بدون نسخ</string>
-    <string name="display_resolution">الدقة</string>
+    <string name="display_resolution_landscape">دقة الوضع الأفقي</string>
+    <string name="display_resolution_portrait">دقة الوضع العمودي</string>
+    <string name="display_follow_landscape">اتباع الأفقي (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">اتباع العمودي (%1$d×%2$d)</string>
     <string name="display_game_fit">ملاءمة اللعبة لنسبة 16:9</string>
     <string name="display_game_fit_hint">كيفية ملاءمة ألعاب 16:9 لهذه الشاشة. يُطبَّق في الجلسة التالية.</string>
     <string name="display_game_fit_unavailable">اختر «مطابقة الشاشة» أو حجمًا مخصَّصًا أضيق من 16:9.</string>
