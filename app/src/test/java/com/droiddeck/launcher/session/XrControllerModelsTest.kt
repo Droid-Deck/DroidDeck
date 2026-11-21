@@ -62,7 +62,7 @@ class XrControllerModelsTest {
         XrControllerModels.controllers(context, attempt, 3, 3, "", "")
         assertFalse(await())
         assertTrue(XrControllerModels.status.value.names.isEmpty())
-        assertFalse(File(context.filesDir, "addons/pico-4").exists())
+        assertFalse(File(context.filesDir, "addons/pico-4-controllers").exists())
     }
 
     @Test fun completeNativeModelsAvoidTheProfilePackDownload() {
@@ -75,7 +75,7 @@ class XrControllerModelsTest {
         assertTrue(await())
         assertEquals(XrControllerModels.Phase.NATIVE, XrControllerModels.status.value.phase)
         assertEquals(listOf("PICO 4"), XrControllerModels.status.value.names)
-        assertFalse(File(context.filesDir, "addons/pico-4").exists())
+        assertFalse(File(context.filesDir, "addons/pico-4-controllers").exists())
     }
 
     @Test fun unknownProfilesNeedAVisibleFallbackAndDoNotGuessAPicoModel() {
@@ -85,7 +85,7 @@ class XrControllerModelsTest {
         XrControllerModels.controllers(context, attempt, 0, 0, "", "")
         assertTrue(await())
         assertTrue(XrControllerModels.status.value.names.isEmpty())
-        assertFalse(File(context.filesDir, "addons/pico-4").exists())
+        assertFalse(File(context.filesDir, "addons/pico-4-controllers").exists())
     }
 
     @Test fun missingFallbackPreventsEnteringWithInvisibleControllers() {
@@ -104,6 +104,6 @@ class XrControllerModelsTest {
         XrControllerModels.end(attempt)
         XrControllerModels.controllers(context, attempt, 4, 4, "", "")
         assertNull(XrControllerModels.status.value.session)
-        assertFalse(File(context.filesDir, "addons/pico-4u").exists())
+        assertFalse(File(context.filesDir, "addons/pico-4u-controllers").exists())
     }
 }

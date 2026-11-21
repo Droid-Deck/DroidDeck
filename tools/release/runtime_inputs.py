@@ -22,7 +22,7 @@ PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so')}
 # The loader is execve'd, which targetSdk 29+ allows only from the APK's native library directory.
 PROOT_LOADER = {'lib/arm64-v8a/libproot-loader.so': 'libproot-loader.so'}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
-PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt', 'epic', 'pico-neo3', 'pico-4', 'pico-4u']
+PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt', 'epic', 'pico-neo3-controllers', 'pico-4-controllers', 'pico-4u-controllers']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/ubuntu/kwin-independent.cpp', 'tools/ubuntu/kwin-independent.py',
                 'tools/ubuntu/kwin-output-layout.h',

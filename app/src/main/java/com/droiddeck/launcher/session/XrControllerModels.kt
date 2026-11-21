@@ -41,9 +41,9 @@ internal object XrControllerModels {
                 storageName = test?.let { "xr-model-tests/${it.request}/$packName" } ?: packName)
     }
     private val families = listOf(
-        Family(2, "PICO Neo3", "pico-neo3", "droiddeck_pico_neo3", BuildConfig.PACK_PICO_NEO3_SHA256, BuildConfig.PACK_PICO_NEO3_SIZE),
-        Family(3, "PICO 4", "pico-4", "droiddeck_pico_4", BuildConfig.PACK_PICO_4_SHA256, BuildConfig.PACK_PICO_4_SIZE),
-        Family(4, "PICO 4 Ultra", "pico-4u", "droiddeck_pico_4u", BuildConfig.PACK_PICO_4U_SHA256, BuildConfig.PACK_PICO_4U_SIZE),
+        Family(2, "PICO Neo3", "pico-neo3-controllers", "droiddeck_pico_neo3", BuildConfig.PACK_PICO_NEO3_CONTROLLERS_SHA256, BuildConfig.PACK_PICO_NEO3_CONTROLLERS_SIZE),
+        Family(3, "PICO 4", "pico-4-controllers", "droiddeck_pico_4", BuildConfig.PACK_PICO_4_CONTROLLERS_SHA256, BuildConfig.PACK_PICO_4_CONTROLLERS_SIZE),
+        Family(4, "PICO 4 Ultra", "pico-4u-controllers", "droiddeck_pico_4u", BuildConfig.PACK_PICO_4U_CONTROLLERS_SHA256, BuildConfig.PACK_PICO_4U_CONTROLLERS_SIZE),
     )
     internal fun family(profile: Int): Family? = families.find { it.profile == profile }
     private data class Hand(val profile: Int, val native: String)

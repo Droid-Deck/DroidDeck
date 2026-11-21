@@ -63,7 +63,7 @@ class RuntimeInputsTest(unittest.TestCase):
             proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
         self.pack('proot', proot)
         self.pack('butler', {'butler': b'butler', '7z.so': b'7z', 'libc7zip.so': b'c7zip', 'version': b'15.32.0'})
-        for name in ('pico-neo3', 'pico-4', 'pico-4u'):
+        for name in ('pico-neo3-controllers', 'pico-4-controllers', 'pico-4u-controllers'):
             self.pack(name, {'LICENSE.txt': b'MIT'})
         for prefix, name in runtime.PACKED.items():
             base = self.root / 'app/src/main' / prefix
@@ -348,7 +348,7 @@ class RuntimeInputsTest(unittest.TestCase):
 
     def test_pico_geometry_and_local_model_packs_are_excluded_from_the_apk(self):
         for name in ('assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_pico_4_left/body.obj',
-                     'assets/packs/pico-4.tar.zst'):
+                     'assets/packs/pico-4-controllers.tar.zst'):
             with self.subTest(name=name):
                 apk = self.current_apk(self.root / 'bundled.apk', {name: b'controller'})
                 with self.assertRaisesRegex(ValueError, 'PICO controller model assets'):

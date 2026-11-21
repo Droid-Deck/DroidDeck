@@ -18,6 +18,7 @@ SOURCE = HERE.parents[1] / 'build/webxr-input-profiles'
 OUTPUT = HERE.parents[1] / 'build/pico-models/rendermodels'
 REVISION = 'f4992299601614adbfefd398dc8e281556bb7444'
 MODELS = {'pico-neo3': 'neo3', 'pico-4': '4', 'pico-4u': '4u'}
+PACKS = {'pico-neo3': 'pico-neo3-controllers', 'pico-4': 'pico-4-controllers', 'pico-4u': 'pico-4u-controllers'}
 ANIMATION = HERE.parents[1] / 'build/pico-models/include/xr_profile_animation_data.h'
 SOURCE_HASHES = {
     'pico-neo3/left.glb': '68443598d99f3b7273d4f5c4eeeaa7fa47491d7406b8cb3a98ffb1db9b254022',
@@ -318,7 +319,7 @@ def main():
                 metadata = dict(provenance, models={n: m for n, m in provenance['models'].items()
                                                    if n.startswith(f'droiddeck_pico_{family}_')}, files=files)
                 (root / 'provenance.json').write_text(json.dumps(metadata, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-                pack_models(root, args.packs / f'{profile}.tar.zst', args.zstd)
+                pack_models(root, args.packs / f'{PACKS[profile]}.tar.zst', args.zstd)
 
 
 if __name__ == '__main__':
