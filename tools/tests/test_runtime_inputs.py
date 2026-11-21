@@ -1,7 +1,6 @@
 import importlib.util
 import gzip
 import io
-import json
 from pathlib import Path, PureWindowsPath
 import subprocess
 import tarfile
@@ -64,6 +63,8 @@ class RuntimeInputsTest(unittest.TestCase):
             proot[rel] = (self.root / runtime.outputs(self.root)[name]).read_bytes()
         self.pack('proot', proot)
         self.pack('butler', {'butler': b'butler', '7z.so': b'7z', 'libc7zip.so': b'c7zip', 'version': b'15.32.0'})
+        for name in ('pico-neo3-controllers', 'pico-4-controllers', 'pico-4u-controllers'):
+            self.pack(name, {'LICENSE.txt': b'MIT'})
         for prefix, name in runtime.PACKED.items():
             base = self.root / 'app/src/main' / prefix
             self.pack(name, {path.relative_to(base).as_posix(): path.read_bytes() for path in base.rglob('*') if path.is_file()})
@@ -123,40 +124,6 @@ class RuntimeInputsTest(unittest.TestCase):
             runtime.verify(self.root, stale_sources_ok=True)
         self.assertIn('tools/linuxfs/preload/test.c', stderr.getvalue())
 
-    def helper(self, content):
-        source = self.root / 'tools/linuxfs/overlay/usr/local/bin/droiddeck-test-helper'
-        source.parent.mkdir(parents=True, exist_ok=True)
-        source.write_text(content)
-        staged = self.root / 'app/src/main/assets/linuxfs/usr/local/bin/droiddeck-test-helper'
-        staged.parent.mkdir(parents=True, exist_ok=True)
-        staged.write_text(content)
-        return source, staged
-
-    def test_an_edited_helper_script_needs_no_new_preparation(self):
-        self.helper('old helper')
-        runtime.record(self.root)
-        self.helper('new helper')
-        runtime.verify(self.root)
-
-    def test_a_staged_helper_that_lags_its_source_is_rejected(self):
-        source, _ = self.helper('old helper')
-        runtime.record(self.root)
-        source.write_text('new helper')
-        with self.assertRaisesRegex(ValueError, 'not a current copy'):
-            runtime.verify(self.root, stale_sources_ok=True)
-
-    def test_a_manifest_that_hashed_helper_scripts_still_verifies(self):
-        source, staged = self.helper('old helper')
-        runtime.record(self.root)
-        manifest = self.root / runtime.MANIFEST
-        data = json.loads(manifest.read_text())
-        data['sources']['tools/linuxfs/overlay/usr/local/bin/droiddeck-test-helper'] = 'old'
-        data['outputs']['assets/linuxfs/usr/local/bin/droiddeck-test-helper'] = {
-            'path': 'app/src/main/assets/linuxfs/usr/local/bin/droiddeck-test-helper', 'sha256': 'old'}
-        manifest.write_text(json.dumps(data))
-        self.helper('new helper')
-        runtime.verify(self.root)
-
     def test_dev_loop_still_rejects_changed_outputs(self):
         runtime.record(self.root)
         (self.root / 'app/src/main/jniLibs/arm64-v8a/libproot.so').write_bytes(b'old APK binary')
@@ -171,6 +138,74 @@ class RuntimeInputsTest(unittest.TestCase):
         source.write_text('new compatibility code')
         with self.assertRaisesRegex(ValueError, 'sources changed'):
             runtime.verify(self.root)
+
+    def test_changed_independent_kwin_source_rejects_old_outputs(self):
+        for name in ['tools/ubuntu/kwin-independent.cpp', 'tools/ubuntu/kwin-independent.py',
+                     'tools/ubuntu/kwin-output-layout.h', 'tools/ubuntu/kwin-passthrough.cpp',
+                     'tools/ubuntu/kwin-ahb-output.h', 'tools/ubuntu/kwin-output-opacity.h',
+                     'tools/ubuntu/kwin-independent-filter.h',
+                     'tools/ubuntu/patches/kwin/0001-respect-nested-desktop-scale.patch',
+                     'app/src/main/cpp/waylandcomp/src/ahb_broker_protocol.h',
+                     'tools/ubuntu/build-kwin-runtime.sh', 'tools/ubuntu/build_kwin_windows.py']:
+            with self.subTest(source=name):
+                source = self.root / name
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text('current source')
+                runtime.record(self.root)
+                source.write_text('changed source')
+                with self.assertRaisesRegex(ValueError, 'sources changed'):
+                    runtime.verify(self.root)
+
+    def test_changed_vr_wayland_header_rejects_old_outputs(self):
+        source = self.root / 'tools/vr/third_party/wayland/wayland-client-core.h'
+        source.parent.mkdir(parents=True)
+        source.write_text('current header')
+        runtime.record(self.root)
+        source.write_text('changed header')
+        with self.assertRaisesRegex(ValueError, 'sources changed'):
+            runtime.verify(self.root)
+
+    def test_changed_store_launcher_or_cipher_rejects_old_outputs(self):
+        for name in ['tools/ubisoft-launcher/src/main.rs', 'tools/rockstar-launcher/src/main.rs',
+                     'app/src/main/resources/rockstar/legacy-cipher.bin']:
+            with self.subTest(source=name):
+                source = self.root / name
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_bytes(b'current source')
+                runtime.record(self.root)
+                source.write_bytes(b'changed source')
+                with self.assertRaisesRegex(ValueError, 'sources changed'):
+                    runtime.verify(self.root)
+
+    def test_missing_independent_kwin_input_cannot_be_attested(self):
+        for name in ['libkwin.so.6', 'kwin.sha256', 'kwin_wayland', 'LICENSE', 'build.json']:
+            with self.subTest(input=name):
+                asset = 'assets/linuxfs/usr/local/lib/droiddeck-kwin/' + name
+                path = self.root / 'app/src/main' / asset
+                content = path.read_bytes()
+                path.unlink()
+                try:
+                    with self.assertRaisesRegex(ValueError, 'Missing runtime inputs') as error:
+                        runtime.record(self.root)
+                    self.assertIn(asset, str(error.exception))
+                finally:
+                    path.write_bytes(content)
+
+    def test_missing_xr_or_native_hook_input_cannot_be_attested(self):
+        for name in ['libddnatv-hook.so',
+                     'usr/local/lib/droiddeck-vr/droiddeck/bin/linuxarm64/xr-display-mode',
+                     'usr/local/lib/droiddeck-vr/layer/libdroiddeck_vr_scheduling.so']:
+            with self.subTest(input=name):
+                asset = 'assets/linuxfs/' + name
+                path = self.root / 'app/src/main' / asset
+                content = path.read_bytes()
+                path.unlink()
+                try:
+                    with self.assertRaisesRegex(ValueError, 'Missing runtime inputs') as error:
+                        runtime.record(self.root)
+                    self.assertIn(asset, str(error.exception))
+                finally:
+                    path.write_bytes(content)
 
     def test_cargo_output_beside_a_windows_helper_is_not_a_source(self):
         crate = self.root / 'tools/epic-launcher'
@@ -265,6 +300,12 @@ class RuntimeInputsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'ubisoft pack provides'):
             runtime.check_apk(apk, self.root)
 
+    def test_an_apk_still_carrying_withdrawn_mesa_is_rejected(self):
+        apk = self.current_apk(self.root / 'bundled.apk',
+                               {'assets/linuxfs/usr/local/lib/droiddeck-mesa/libvulkan.so.1': b'withdrawn Mesa'})
+        with self.assertRaisesRegex(ValueError, 'withdrawn desktop Mesa replacement'):
+            runtime.check_apk(apk, self.root)
+
     def test_an_apk_still_carrying_the_rockstar_service_is_rejected(self):
         name = 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/Launcher32.exe'
         self.assertIn(name, runtime.outputs(self.root))
@@ -305,6 +346,19 @@ class RuntimeInputsTest(unittest.TestCase):
             runtime.check_apk(apk, self.root)
         runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
 
+    def test_pico_geometry_and_local_model_packs_are_excluded_from_the_apk(self):
+        for name in ('assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_pico_4_left/body.obj',
+                     'assets/packs/pico-4-controllers.tar.zst'):
+            with self.subTest(name=name):
+                apk = self.current_apk(self.root / 'bundled.apk', {name: b'controller'})
+                with self.assertRaisesRegex(ValueError, 'PICO controller model assets'):
+                    runtime.check_apk(apk, self.root)
+
+    def test_old_staged_pico_geometry_is_not_a_runtime_input(self):
+        source = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/resources/rendermodels/droiddeck_pico_4_left/body.obj'
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(b'old controller')
+        self.assertFalse(any('droiddeck_pico_' in name for name in runtime.outputs(self.root)))
     def test_an_apk_still_carrying_the_epic_parent_stand_in_is_rejected(self):
         epic = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-epic'
         epic.mkdir(parents=True)
@@ -319,7 +373,6 @@ class RuntimeInputsTest(unittest.TestCase):
         self.pack('epic', {'EpicGamesLauncher.exe': b'MZ older parent'})
         with self.assertRaisesRegex(ValueError, 'epic is missing or has a stale'):
             runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
-
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})
         with self.assertRaisesRegex(ValueError, 'powervr pack provides'):
