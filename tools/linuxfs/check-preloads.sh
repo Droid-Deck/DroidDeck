@@ -31,5 +31,9 @@ for sym in vkNegotiateLoaderLayerInterfaceVersion vkGetInstanceProcAddr vkGetDev
   grep -qx "$sym" <<<"$XCLIPSE" || { echo "::error::the Xclipse layer does not export $sym"; exit 1; }
 done
 test -f "$D/usr/local/lib/droiddeck-xclipse/VkLayer_droiddeck_xclipse.json"
+LSE=$(syms "$D/usr/local/lib/droiddeck-lse/liblse_emu.so")
+for sym in sigaction signal sigprocmask pthread_sigmask prctl syscall; do
+  grep -qx "$sym" <<<"$LSE" || { echo "::error::liblse_emu.so does not export $sym"; exit 1; }
+done
 test -f "$D/usr/local/bin/droiddeck-session"
 test -f "$D/usr/local/bin/droiddeck-proton-extra"
