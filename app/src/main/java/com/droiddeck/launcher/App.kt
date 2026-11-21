@@ -96,6 +96,8 @@ class App : Application() {
                     com.droiddeck.launcher.session.SessionFiles.ensureUbisoftService(app)
                 if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.ROCKSTAR) != null)
                     com.droiddeck.launcher.session.SessionFiles.ensureRockstarService(app)
+                if (com.droiddeck.launcher.stores.StoreAccounts.signedInAs(app, com.droiddeck.launcher.stores.Store.EPIC) != null)
+                    com.droiddeck.launcher.session.SessionFiles.ensureEpicParent(app)
                 com.droiddeck.launcher.handtracking.HandTracking.load(app)
             }.onFailure { android.util.Log.w("App", "add-on pack prefetch failed", it) }
         }, "addon-packs").start()

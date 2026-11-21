@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Ieșire HDR10</string>
     <string name="mode_hdr_unavailable">Indisponibil: %1$s.</string>
-    <string name="mode_hdr_restart">Repornește aplicația pentru a aplica.</string>
     <string name="mode_drivers">Drivere</string>
     <string name="mode_gpu_drivers">Drivere GPU</string>
     <string name="mode_gpu_drivers_hint">Partajate de Steam și Desktop. Se stabilesc pe pagina Componente.</string>
@@ -2489,6 +2488,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Afișajul sesiunii</string>
+    <string name="display_zero_copy">Prezentare fără copiere</string>
     <string name="display_resolution">Rezoluție</string>
     <string name="display_game_fit">Potrivire joc 16:9</string>
     <string name="display_game_fit_hint">Cum se potrivesc jocurile 16:9 cu acest afișaj. Sesiunea următoare.</string>

@@ -664,7 +664,10 @@ object SessionPrefs {
         prefs(context).getString("shape", null)
             ?: if (context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")) SHAPE_WIDE else SHAPE_AUTO
 
-    fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
+    fun oscMode(context: Context, steamSession: Boolean = true): String {
+        val saved = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
+        return if (!steamSession && saved == OSC_STEAM_QAM) OSC_AUTO else saved
+    }
 
     fun setOscMode(context: Context, mode: String) {
         prefs(context).edit().putString("osc", mode).apply()
@@ -1617,10 +1620,18 @@ object SessionPrefs {
         return Pair(w and 1.inv(), h and 1.inv())
     }
 
-    fun hdr(context: Context, mode: String): Boolean = prefs(context).getBoolean("hdr.$mode", false)
+    fun hdrKey(mode: String): String = "hdr.$mode"
+
+    fun hdr(context: Context, mode: String): Boolean = prefs(context).getBoolean(hdrKey(mode), false)
 
     fun setHdr(context: Context, mode: String, on: Boolean) {
-        prefs(context).edit().putBoolean("hdr.$mode", on).apply()
+        prefs(context).edit().putBoolean(hdrKey(mode), on).apply()
+    }
+
+    fun zeroCopy(context: Context, mode: String): Boolean = prefs(context).getBoolean("zeroCopy.$mode", true)
+
+    fun setZeroCopy(context: Context, mode: String, on: Boolean) {
+        prefs(context).edit().putBoolean("zeroCopy.$mode", on).apply()
     }
 
     const val FPS_UNPACED = -1

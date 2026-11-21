@@ -1,0 +1,293 @@
+diff --git a/protocol/droiddeck-refresh-v1.xml b/protocol/droiddeck-refresh-v1.xml
+new file mode 100644
+index 0000000..c4464a0
+--- /dev/null
++++ b/protocol/droiddeck-refresh-v1.xml
+@@ -0,0 +1,81 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="droiddeck_refresh_v1">
++  <copyright>
++    Copyright 2026 DroidDeck contributors
++
++    Permission is hereby granted, free of charge, to any person obtaining a
++    copy of this software and associated documentation files (the "Software"),
++    to deal in the Software without restriction, including without limitation
++    the rights to use, copy, modify, merge, publish, distribute, sublicense,
++    and/or sell copies of the Software, and to permit persons to whom the
++    Software is furnished to do so, subject to the following conditions:
++
++    The above copyright notice and this permission notice (including the next
++    paragraph) shall be included in all copies or substantial portions of the
++    Software.
++
++    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++    DEALINGS IN THE SOFTWARE.
++  </copyright>
++
++  <interface name="droiddeck_refresh_v1" version="1">
++    <description summary="panel refresh rates a nested compositor may ask for">
++      A nested compositor paces its clients against the refresh rate of the
++      panel it is shown on. When its clients are held to a frame rate the
++      panel's current rate does not divide evenly, frames are shown for an
++      uneven number of refreshes. This interface lets the nested compositor
++      see every refresh rate the panel can run at its current size and ask
++      for the one that suits the frame rate it is pacing to.
++
++      On bind the compositor sends one rate event per refresh rate, lowest
++      first, followed by done. The list is sent again, in full, whenever it
++      changes (a different panel, or a limit the user placed on the panel's
++      rate). The rate the panel is running at is still reported the standard
++      way, through wl_output.mode.
++
++      A request is a preference, not a guarantee: the user, the platform or
++      another output mirroring the panel may hold the panel at another rate.
++      The client reads the result from wl_output.mode.
++    </description>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the object">
++        The preference set through this object is dropped.
++      </description>
++    </request>
++
++    <request name="set_target">
++      <description summary="ask for a refresh rate">
++        refresh is the panel rate the client would like, in Hz, taken from
++        the advertised list; 0 withdraws the preference. frame_rate is the
++        frame rate the client holds its content to, in frames per second, or
++        0 when the content is not held to a rate. The compositor may multiply
++        the content's frame rate itself (generated frames); when it does, it
++        picks the advertised rate that the multiplied frame rate divides
++        evenly instead of the requested one.
++      </description>
++      <arg name="refresh" type="uint" summary="wanted panel refresh rate in Hz, 0 for none"/>
++      <arg name="frame_rate" type="uint" summary="content frame rate in frames per second, 0 for unpaced"/>
++    </request>
++
++    <event name="rate">
++      <description summary="a refresh rate the panel can run">
++        Sent once per rate, lowest first, in Hz rounded to the nearest whole
++        number.
++      </description>
++      <arg name="refresh" type="uint" summary="panel refresh rate in Hz"/>
++    </event>
++
++    <event name="done">
++      <description summary="the list of rates is complete">
++        Ends a list of rate events. The rates received since the previous
++        done replace the earlier list.
++      </description>
++    </event>
++  </interface>
++</protocol>
+diff --git a/protocol/meson.build b/protocol/meson.build
+index cf8fbd1..71fe31b 100644
+--- a/protocol/meson.build
++++ b/protocol/meson.build
+@@ -43,6 +43,8 @@ protocols = [
+ 	'gamescope-private.xml',
+ 	'gamescope-action-binding.xml',
+ 
++	'droiddeck-refresh-v1.xml',
++
+ 	# wlroots protocols
+ 	'wlr-layer-shell-unstable-v1.xml',
+ ]
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index be99e6d..9862641 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -38,6 +38,7 @@
+ #include <primary-selection-unstable-v1-client-protocol.h>
+ #include <fractional-scale-v1-client-protocol.h>
+ #include <xdg-toplevel-icon-v1-client-protocol.h>
++#include <droiddeck-refresh-v1-client-protocol.h>
+ #include "wlr_end.hpp"
+ 
+ #include "drm_include.h"
+@@ -705,6 +706,10 @@ namespace gamescope
+         virtual bool UsesVulkanSwapchain() const override;
+ 
+         virtual bool IsSessionBased() const override;
++        virtual bool HackTemporarySetDynamicRefresh( int nRefresh ) override;
++
++        std::span<const uint32_t> GetHostRefreshRates() const;
++        void SyncHostRefreshTarget();
+         virtual bool SupportsExplicitSync() const override;
+ 
+         virtual bool IsPaused() const override;
+@@ -778,6 +783,10 @@ namespace gamescope
+         void Wayland_Output_Geometry( wl_output *pOutput, int32_t nX, int32_t nY, int32_t nPhysicalWidth, int32_t nPhysicalHeight, int32_t nSubpixel, const char *pMake, const char *pModel, int32_t nTransform );
+         void Wayland_Output_Mode( wl_output *pOutput, uint32_t uFlags, int32_t nWidth, int32_t nHeight, int32_t nRefresh );
+         void Wayland_Output_Done( wl_output *pOutput );
++
++        void Wayland_Refresh_Rate( droiddeck_refresh_v1 *pRefresh, uint32_t uRefresh );
++        void Wayland_Refresh_Done( droiddeck_refresh_v1 *pRefresh );
++        static const droiddeck_refresh_v1_listener s_RefreshListener;
+         void Wayland_Output_Scale( wl_output *pOutput, int32_t nFactor );
+         void Wayland_Output_Name( wl_output *pOutput, const char *pName );
+         void Wayland_Output_Description( wl_output *pOutput, const char *pDescription );
+@@ -829,6 +838,12 @@ namespace gamescope
+         OwningRc<CWaylandFb> m_pOwnedBlackFb;
+         OwningRc<CVulkanTexture> m_pBlackTexture;
+         wp_presentation *m_pPresentation = nullptr;
++        droiddeck_refresh_v1 *m_pHostRefresh = nullptr;
++        std::array<uint32_t, 16> m_HostRefreshRates{};
++        std::atomic<uint32_t> m_uHostRefreshRateCount = { 0 };
++        std::vector<uint32_t> m_PendingHostRefreshRates;
++        int m_nSentHostRefresh = 0;
++        int m_nSentHostFrameRate = 0;
+         frog_color_management_factory_v1 *m_pFrogColorMgmtFactory = nullptr;
+         wp_color_manager_v1 *m_pWPColorManager = nullptr;
+         wp_image_description_v1 *m_pWPImageDescriptions[ GamescopeAppTextureColorspace_Count ]{};
+@@ -890,6 +905,11 @@ namespace gamescope
+         .global        = WAYLAND_USERDATA_TO_THIS( CWaylandBackend, Wayland_Registry_Global ),
+         .global_remove = WAYLAND_NULL(),
+     };
++    const droiddeck_refresh_v1_listener CWaylandBackend::s_RefreshListener =
++    {
++        .rate = WAYLAND_USERDATA_TO_THIS( CWaylandBackend, Wayland_Refresh_Rate ),
++        .done = WAYLAND_USERDATA_TO_THIS( CWaylandBackend, Wayland_Refresh_Done ),
++    };
+     const wl_output_listener CWaylandBackend::s_OutputListener =
+     {
+         .geometry    = WAYLAND_USERDATA_TO_THIS( CWaylandBackend, Wayland_Output_Geometry ),
+@@ -1087,6 +1107,7 @@ namespace gamescope
+     {
+         droiddeck::frame_trace::Record( droiddeck::frame_trace::Event::OutputPresent );
+         UpdateFullscreenState();
++        m_pBackend->SyncHostRefreshTarget();
+ 
+         bool bNeedsFullComposite = false;
+ 
+@@ -1244,7 +1265,7 @@ namespace gamescope
+     }
+     std::span<const uint32_t> CWaylandConnector::GetValidDynamicRefreshRates() const
+     {
+-        return std::span<const uint32_t>{};
++        return m_pBackend->GetHostRefreshRates();
+     }
+ 
+     void CWaylandConnector::GetNativeColorimetry(
+@@ -2396,6 +2417,52 @@ namespace gamescope
+         return false;
+     }
+ 
++    std::span<const uint32_t> CWaylandBackend::GetHostRefreshRates() const
++    {
++        const uint32_t uCount = m_uHostRefreshRateCount;
++        if ( uCount < 2 )
++            return std::span<const uint32_t>{};
++        return std::span<const uint32_t>{ m_HostRefreshRates.data(), uCount };
++    }
++
++    bool CWaylandBackend::HackTemporarySetDynamicRefresh( int nRefresh )
++    {
++        if ( !m_pHostRefresh )
++            return false;
++        SyncHostRefreshTarget();
++        return true;
++    }
++
++    void CWaylandBackend::SyncHostRefreshTarget()
++    {
++        if ( !m_pHostRefresh )
++            return;
++        const int nFrameRate = steamcompmgr_get_app_target_fps();
++        const int nRefresh = steamcompmgr_get_app_dynamic_refresh();
++        if ( nRefresh == m_nSentHostRefresh && nFrameRate == m_nSentHostFrameRate )
++            return;
++        xdg_log.infof( "Asking the host for %dhz at %dfps", nRefresh, nFrameRate );
++        droiddeck_refresh_v1_set_target( m_pHostRefresh, nRefresh, nFrameRate );
++        m_nSentHostRefresh = nRefresh;
++        m_nSentHostFrameRate = nFrameRate;
++    }
++
++    void CWaylandBackend::Wayland_Refresh_Rate( droiddeck_refresh_v1 *pRefresh, uint32_t uRefresh )
++    {
++        m_PendingHostRefreshRates.push_back( uRefresh );
++    }
++    void CWaylandBackend::Wayland_Refresh_Done( droiddeck_refresh_v1 *pRefresh )
++    {
++        std::sort( m_PendingHostRefreshRates.begin(), m_PendingHostRefreshRates.end() );
++        const uint32_t uCount = std::min<size_t>( m_PendingHostRefreshRates.size(), m_HostRefreshRates.size() );
++        m_uHostRefreshRateCount = 0;
++        std::copy_n( m_PendingHostRefreshRates.begin(), uCount, m_HostRefreshRates.begin() );
++        m_uHostRefreshRateCount = uCount;
++        m_PendingHostRefreshRates.clear();
++        steamcompmgr_display_rates_changed();
++        force_repaint();
++    }
++
+     bool CWaylandBackend::SupportsExplicitSync() const
+     {
+         // GAMESCOPE_DISABLE_EXPLICIT_SYNC=1: a kernel without DRM_IOCTL_SYNCOBJ_EVENTFD (before
+@@ -2647,6 +2714,11 @@ namespace gamescope
+             wl_output_add_listener( pOutput , &s_OutputListener, this );
+             m_pOutputs.emplace( std::make_pair<struct wl_output *, WaylandOutputInfo>( std::move( pOutput ), WaylandOutputInfo{} ) );
+         }
++        else if ( !strcmp( pInterface, droiddeck_refresh_v1_interface.name ) )
++        {
++            m_pHostRefresh = (droiddeck_refresh_v1 *)wl_registry_bind( pRegistry, uName, &droiddeck_refresh_v1_interface, 1u );
++            droiddeck_refresh_v1_add_listener( m_pHostRefresh, &s_RefreshListener, this );
++        }
+         else if ( !strcmp( pInterface, frog_color_management_factory_v1_interface.name ) )
+         {
+             m_pFrogColorMgmtFactory = (frog_color_management_factory_v1 *)wl_registry_bind( pRegistry, uName, &frog_color_management_factory_v1_interface, 1u );
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index 38b304b..d7d11b3 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -1229,6 +1229,25 @@ static int g_nCombinedAppRefreshCycleOverride[gamescope::GAMESCOPE_SCREEN_TYPE_C
+ bool g_nCombinedAppRefreshCycleChangeRefresh[gamescope::GAMESCOPE_SCREEN_TYPE_COUNT] = { true, true };
+ bool g_nCombinedAppRefreshCycleChangeFPS[gamescope::GAMESCOPE_SCREEN_TYPE_COUNT] = { true, true };
+ 
++int steamcompmgr_get_app_target_fps()
++{
++	return g_nSteamCompMgrTargetFPS;
++}
++
++int steamcompmgr_get_app_dynamic_refresh()
++{
++	if ( !GetBackend()->GetCurrentConnector() )
++		return 0;
++	return g_nDynamicRefreshRate[ GetBackend()->GetCurrentConnector()->GetScreenType() ];
++}
++
++static std::atomic<bool> g_bDisplayRatesChanged = { false };
++
++void steamcompmgr_display_rates_changed()
++{
++	g_bDisplayRatesChanged = true;
++}
++
+ static void _update_app_target_refresh_cycle()
+ {
+ 	if ( !GetBackend()->GetCurrentConnector() )
+@@ -9703,7 +9722,8 @@ void update_vrr_atoms(xwayland_ctx_t *root_ctx, bool force, bool* needs_flush =
+ 			*needs_flush = true;
+ 	}
+ 
+-	if ( g_nOutputRefresh != g_nCurrentRefreshRate_CachedValue || force )
++	const bool bDisplayRatesChanged = g_bDisplayRatesChanged.exchange( false );
++	if ( g_nOutputRefresh != g_nCurrentRefreshRate_CachedValue || bDisplayRatesChanged || force )
+ 	{
+ 		int32_t nRefresh = gamescope::ConvertmHzToHz( g_nOutputRefresh );
+ 		XChangeProperty(root_ctx->dpy, root_ctx->root, root_ctx->atoms.gamescopeDisplayRefreshRateFeedback, XA_CARDINAL, 32, PropModeReplace,
+diff --git a/src/steamcompmgr.hpp b/src/steamcompmgr.hpp
+index ff54d8e..9e0bb79 100644
+--- a/src/steamcompmgr.hpp
++++ b/src/steamcompmgr.hpp
+@@ -202,4 +202,7 @@ MouseCursor *steamcompmgr_get_server_cursor(uint32_t serverId);
+ 
+ extern gamescope::ConVar<bool> cv_tearing_enabled;
+ 
++extern int steamcompmgr_get_app_target_fps();
++extern int steamcompmgr_get_app_dynamic_refresh();
++extern void steamcompmgr_display_rates_changed();
+ extern void steamcompmgr_set_app_refresh_cycle_override( gamescope::GamescopeScreenType type, int override_fps, bool change_refresh, bool change_fps_cap );

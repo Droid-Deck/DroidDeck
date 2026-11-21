@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 çıkışı</string>
     <string name="mode_hdr_unavailable">Kullanılamıyor: %1$s.</string>
-    <string name="mode_hdr_restart">Uygulamak için uygulamayı yeniden başlatın.</string>
     <string name="mode_drivers">Sürücüler</string>
     <string name="mode_gpu_drivers">GPU sürücüleri</string>
     <string name="mode_gpu_drivers_hint">Steam ve Masaüstü tarafından paylaşılır. Bileşenler sayfasından ayarlanır.</string>
@@ -2455,6 +2454,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Oturum ekranı</string>
+    <string name="display_zero_copy">Kopyasız sunum</string>
     <string name="display_resolution">Çözünürlük</string>
     <string name="display_game_fit">16:9 oyun sığdırma</string>
     <string name="display_game_fit_hint">16:9 oyunların bu ekrana nasıl sığacağı. Sonraki oturumda.</string>

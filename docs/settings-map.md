@@ -95,7 +95,7 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 
 | Setting | Where | Also matches |
 | --- | --- | --- |
-| Session display | Steam or Desktop options (swipe up) › Display | resolution, scaling, hdr, refresh |
+| Session display | Steam or Desktop options (swipe up) › Display | resolution, scaling, hdr, refresh, zero-copy |
 | Graphics drivers | Steam or Desktop options (swipe up) › Display | turnip, driver, gpu, adreno, mali |
 | Offline mode | Steam or Desktop options (swipe up) › Steam | offline, steam |
 | Microphone | Steam or Desktop options (swipe up) › Audio | microphone, voice |

@@ -1025,6 +1025,9 @@ class SessionService : Service() {
         if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
             SystemVulkanDriver.addEnvironment(this, guest)
         }
+        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetDisplayBufferDriver(
+            !bridge && !venus && LinuxVulkanDriverManager(this).rendersToDisplayBuffers(linuxDriverId),
+        )
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
@@ -1613,6 +1616,11 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
+        if (pendingSteamGameId == null && SteamGameProcess.alreadyRunning(accepted, SessionState.gameId)) {
+            Log.i(TAG, "game $accepted is already running; resuming it instead of launching it again")
+            if (SessionState.suspended || SessionState.suspending) resumeSession()
+            return
+        }
         if (!pendingSteamPreviousGamePending) {
             pendingSteamPreviousGameId = SessionState.gameId
             pendingSteamPreviousGamePending = true
@@ -2394,8 +2402,7 @@ class SessionService : Service() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (rootIntent?.component?.className in setOf(
                 com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
-                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name,
-                KeepTopActivity::class.java.name)) return
+                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
         if (pipTask || xrActivityVisible) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false
