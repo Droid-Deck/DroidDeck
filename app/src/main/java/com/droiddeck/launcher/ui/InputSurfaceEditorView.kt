@@ -22,9 +22,14 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     var aspect = 1f
         set(value) { field = value; refreshElements(); invalidate() }
     var sourceLayout: SavedInputLayout? = null
-        set(value) { field = value; refreshElements(); invalidate() }
+        set(value) {
+            field = value
+            updatePreviewStyle()
+            refreshElements()
+            invalidate()
+        }
     var style = InputSurfaceStyle()
-        set(value) { field = value; preview.updateStyle(value) }
+        set(value) { field = value; updatePreviewStyle() }
     var snap = true
         set(value) { field = value; if (!value) clearGuides() }
     private var guideX: Float? = null
@@ -48,6 +53,10 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     init {
         setBackgroundColor(Color.rgb(10, 11, 13))
         addView(preview, LayoutParams(-1, -1))
+    }
+
+    private fun updatePreviewStyle() {
+        preview.updateStyle(style, steamDeckButtons = OnScreenLayout.usesSteamDeckButtons(context, sourceLayout))
     }
 
     private fun refreshElements() {
