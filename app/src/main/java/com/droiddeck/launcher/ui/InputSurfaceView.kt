@@ -241,8 +241,13 @@ class InputSurfaceView(
             }
             canvas.getChildAt(index) as? HoldButton
         }
-        artworkDpad = emptyList()
-        if (buttons.size != DIRECTIONS.size) return
+        val previous = artworkDpad
+        artworkDpad = if (crossed(buttons)) buttons else emptyList()
+        if (artworkDpad != previous) (previous + artworkDpad).forEach { it.invalidate() }
+    }
+
+    private fun crossed(buttons: List<HoldButton>): Boolean {
+        if (buttons.size != DIRECTIONS.size) return false
         val (up, right, down, left) = buttons
         val centerX = (left.left + right.right) / 2f
         val centerY = (up.top + down.bottom) / 2f
@@ -250,9 +255,9 @@ class InputSurfaceView(
             kotlin.math.abs((down.left + down.right) / 2f - centerX) > 2f ||
             kotlin.math.abs((left.top + left.bottom) / 2f - centerY) > 2f ||
             kotlin.math.abs((right.top + right.bottom) / 2f - centerY) > 2f ||
-            up.bottom >= down.top || left.right >= right.left) return
+            up.bottom >= down.top || left.right >= right.left) return false
         artworkDpadBounds.set(left.left.toFloat(), up.top.toFloat(), right.right.toFloat(), down.bottom.toFloat())
-        artworkDpad = buttons
+        return true
     }
 
     override fun onAttachedToWindow() {

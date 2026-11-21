@@ -65,10 +65,12 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     }
 
     private var safe = Rect()
+    private var frameWidth = 0
+    private var frameHeight = 0
 
     private fun refreshElements() {
         visibleElements = sourceLayout?.let { layout ->
-            OnScreenLayout.editorElements(context, layout.copy(elements = elements, aspect = aspect), width, height, safe = safe)
+            OnScreenLayout.editorElements(context, layout.copy(elements = elements, aspect = aspect), frameWidth, frameHeight, safe = safe)
         } ?: elements
         preview.updateCustomLayout(visibleElements)
         onDisplayed(visibleElements)
@@ -80,9 +82,16 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
         return super.onApplyWindowInsets(insets)
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        if (measuredWidth == frameWidth && measuredHeight == frameHeight) return
+        frameWidth = measuredWidth; frameHeight = measuredHeight
+        refreshElements()
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        refreshElements()
         onResize(w, h)
     }
 
