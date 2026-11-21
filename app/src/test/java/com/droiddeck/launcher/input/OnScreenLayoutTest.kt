@@ -213,12 +213,14 @@ class OnScreenLayoutTest {
     fun theDeckShortcutRowStaysApartOnSmallDenseSurfaces() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
         val row = listOf("builtin:keyboard", "legacy:guide", "legacy:select", "legacy:start", "legacy:qam")
-        for ((w, h) in listOf(800 to 450, 600 to 450, 1600 to 900)) {
-            val placed = OnScreenLayout.elements(context, gamepad(), w, h, Rect())
+        for ((size, safe) in listOf(800 to 450 to Rect(), 600 to 450 to Rect(), 600 to 450 to Rect(0, 0, 120, 0),
+            600 to 450 to Rect(120, 0, 0, 0), 1600 to 900 to Rect())) {
+            val (w, h) = size
+            val placed = OnScreenLayout.elements(context, gamepad(), w, h, safe)
             for ((left, right) in row.map { id -> placed.single { it.id == id } }.zipWithNext()) {
-                assertTrue("${left.id} reaches ${right.id} at ${w}x$h", (left.x + left.width) * w <= right.x * w + .5f)
+                assertTrue("${left.id} reaches ${right.id} at ${w}x$h $safe", (left.x + left.width) * w <= right.x * w + .5f)
             }
-            assertInside(placed, w, h)
+            assertInside(placed, w, h, safe)
         }
     }
 

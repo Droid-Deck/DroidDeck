@@ -33,13 +33,14 @@ internal class SteamDeckOverlayGeometry(
         val x = { ref: Float -> anchor(ref, 1600f, w, safe.left, safe.right) }
         val y = { ref: Float -> anchor(ref, 900f, h, safe.top, safe.bottom) }
         val leftEdge = safe.left + 52f * density
-        val keyboardX = max(x(136f), leftEdge + 46f * unit)
-        val hasKeyboard = elements.any { it.id == KEYBOARD }
-        val guideEdge = if (hasKeyboard) keyboardX + 46f * unit + 8f * density else leftEdge
         val middle = (w + safe.left - safe.right) / 2f
-        val guide = Box(max(x(370f), guideEdge + 66f * unit), y(852f), 66f, 30f)
-        val select = guide.then(middle - 140f * unit, y(850f), 46f, 26f)
-        val start = select.then(middle + 140f * unit, y(850f), 46f, 26f)
+        val keyboard = Box(max(x(136f), leftEdge + 46f * unit), y(848f), 46f).takeIf { elements.any { it.id == KEYBOARD } }
+        val row = fitRow(listOfNotNull(keyboard,
+            Box(max(x(370f), leftEdge + 66f * unit), y(852f), 66f, 30f),
+            Box(middle - 140f * unit, y(850f), 46f, 26f),
+            Box(middle + 140f * unit, y(850f), 46f, 26f),
+            Box(x(1230f), y(852f), 66f, 30f)), leftEdge)
+        val (guide, select, start, qam) = row.takeLast(4)
         val positions = mapOf(
             InputControl.LT to Box(x(140f), y(66f), 88f, 34f),
             InputControl.LB to Box(x(140f), y(148f), 88f, 30f),
@@ -58,7 +59,7 @@ internal class SteamDeckOverlayGeometry(
             InputControl.SELECT to select,
             InputControl.START to start,
             InputControl.GUIDE to guide,
-            InputControl.QAM to start.then(x(1230f), y(852f), 66f, 30f),
+            InputControl.QAM to qam,
         )
         val rear = mapOf(
             InputControl.L4 to Box(x(30f), y(470f), 30f, 58f),
@@ -73,7 +74,7 @@ internal class SteamDeckOverlayGeometry(
         val optional = rear.filterKeys { rearButtons } + pads.filterKeys { trackpads }
         val placed = elements.mapNotNull { element ->
             when {
-                element.id == KEYBOARD -> Box(keyboardX, y(848f), 46f).place(element)
+                element.id == KEYBOARD -> row.first().place(element)
                 element.id != "legacy:${element.control.id}" -> element
                 element.control in rear || element.control in pads -> optional[element.control]?.place(element)
                 else -> positions[element.control]?.place(element) ?: element
@@ -85,13 +86,19 @@ internal class SteamDeckOverlayGeometry(
         }
     }
 
+    private fun fitRow(row: List<Box>, start: Float): List<Box> {
+        val end = w - safe.right
+        val gap = ((end - start - row.fold(0f) { sum, box -> sum + box.width }) / (row.size - 1)).coerceIn(0f, 8f * density)
+        var edge = start - gap
+        val pushed = row.map { box -> box.at(max(box.cx, edge + gap + box.width / 2f)).also { edge = it.cx + it.width / 2f } }
+        edge = end + gap
+        return pushed.asReversed().map { box -> box.at(min(box.cx, edge - gap - box.width / 2f)).also { edge = it.cx - it.width / 2f } }.asReversed()
+    }
+
     private inner class Box(val cx: Float, val cy: Float, val hw: Float, val hh: Float = hw) {
         val width get() = max(hw * 2f * unit, w * .03f)
 
-        fun then(cx: Float, cy: Float, hw: Float, hh: Float): Box {
-            val next = Box(cx, cy, hw, hh)
-            return Box(max(cx, this.cx + (width + next.width) / 2f + 8f * density), cy, hw, hh)
-        }
+        fun at(cx: Float) = Box(cx, cy, hw, hh)
 
         fun place(element: InputSurfaceElement): InputSurfaceElement {
             val height = max(hh * 2f * unit, h * .03f)
