@@ -32,6 +32,9 @@ object DesktopLanguage {
 
     internal fun baseUrl(desktopUrl: String) = desktopUrl.substringBeforeLast('/') + "/"
 
+    /** The index carries every pack's sha256, so it never goes through a download mirror. */
+    internal fun fetchIndex(base: String): Map<String, Pack>? = Downloader.downloadDirect(base + INDEX)?.let(::parseIndex)
+
     private fun marker(root: File, tag: String, name: String) = File(root, ".droiddeck-i18n-$tag-$name")
 
     /** Installs the desktop's translations for [locale]; false when a download failed and is worth retrying. */
@@ -44,7 +47,7 @@ object DesktopLanguage {
         val pending = candidates(locale).filterNot { marker(root, tag, it).isFile }
         if (pending.isEmpty()) return true
         val base = baseUrl(BuildConfig.DESKTOP_KDE_URL)
-        val index = parseIndex(Downloader.downloadString(base + INDEX) ?: return false)
+        val index = fetchIndex(base) ?: return false
         var complete = true
         for (name in pending) {
             val pack = index[name]
