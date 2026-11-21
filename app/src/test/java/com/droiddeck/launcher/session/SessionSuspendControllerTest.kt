@@ -138,6 +138,79 @@ class SessionSuspendControllerTest {
         assertEquals(listOf<String?>("1", "2 0"), fixture.shared)
     }
 
+    @Test fun aSuspendWithMemoryToSpareKeepsTheSessionResident() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.availableWhileSuspendedKb = 8_000_000L
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+        assertTrue(fixture.pagedOut.isEmpty())
+        assertTrue(fixture.game.threads.all { it.state == 't' })
+        assertEquals(listOf(10_000L), fixture.scheduled.map { it.first })
+        fixture.runScheduled()
+        assertFalse(fixture.signals.any { it.signal == URG || it.signal == CONT })
+        assertEquals(1, fixture.scheduled.size)
+        fixture.controller.resume { assertTrue(it) }
+        assertFalse(fixture.signals.any { it.signal == URG })
+        assertTrue(fixture.pagedIn.isEmpty())
+        fixture.runScheduled()
+        assertTrue(fixture.scheduled.isEmpty())
+        assertTrue(fixture.game.threads.all { it.state == 'S' })
+    }
+
+    @Test fun aSuspendedSessionIsPagedOutOnceMemoryRunsShort() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.clock.writeBytes(shift(0L))
+        fixture.availableWhileSuspendedKb = 8_000_000L
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        fixture.now += 60_000L
+        fixture.availableWhileSuspendedKb = 3_000_000L
+        fixture.sync()
+        val before = fixture.signals.size
+        fixture.runScheduled()
+        val relieved = fixture.signals.drop(before)
+        assertEquals(listOf(GAME), relieved.filter { it.signal == URG }.map { it.pid })
+        assertTrue(relieved.indexOfFirst { it.signal == CONT } < relieved.indexOfFirst { it.signal == URG })
+        assertTrue(relieved.indexOfFirst { it.signal == URG } < relieved.indexOfLast { it.signal == STOP })
+        assertEquals(60_000L * 1_000_000L, fixture.clockAtContinue)
+        assertEquals(listOf(Triple(1, 1_000_000L, 3_000_000L)), fixture.pagedOut)
+        assertTrue(fixture.game.threads.all { it.state == 't' })
+        assertEquals(1, fixture.audioSuspends)
+        assertEquals(0, fixture.audioResumes)
+        assertTrue(fixture.scheduled.isEmpty())
+        fixture.controller.resume { assertTrue(it) }
+        assertEquals(listOf(Triple(1, 0L, 3_000_000L)), fixture.pagedIn)
+        assertTrue(fixture.game.threads.all { it.state == 'S' })
+    }
+
+    @Test fun aResumeEndsThePageOutChecks() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.availableWhileSuspendedKb = 8_000_000L
+        val executor = QueueExecutor()
+        val queued = fixture(17, executor).apply {
+            control.writeText("0")
+            availableWhileSuspendedKb = 8_000_000L
+        }
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        fixture.controller.resume { assertTrue(it) }
+        fixture.availableWhileSuspendedKb = 1_000_000L
+        fixture.availableKb = 1_000_000L
+        fixture.sync()
+        fixture.runScheduled()
+        assertFalse(fixture.signals.any { it.signal == URG })
+        queued.controller.freeze(pageOut = true) { assertTrue(it) }
+        executor.drain()
+        queued.availableWhileSuspendedKb = 1_000_000L
+        queued.sync()
+        queued.runScheduled()
+        queued.controller.resume { assertTrue(it) }
+        executor.drain()
+        assertFalse(queued.signals.any { it.signal == URG })
+        assertTrue(queued.game.threads.all { it.state == 'S' })
+    }
+
     @Test fun noReadBackAfterAFreezeWithoutPageOut() {
         val fixture = fixture(17)
         fixture.control.writeText("0")
@@ -575,14 +648,16 @@ class SessionSuspendControllerTest {
         val pagedOut = mutableListOf<Triple<Int, Long, Long>>()
         val pagedIn = mutableListOf<Triple<Int, Long, Long>>()
         var availableKb = 8_000_000L
+        var availableWhileSuspendedKb = 2_000_000L
         var totalKb = 16_000_000L
+        val scheduled = mutableListOf<Pair<Long, () -> Unit>>()
         private val paging = linkedMapOf(GAME to Paging(4_000_000L))
         var unacknowledged = -1
         var handlerStalls = false
         var handlerReplaced = false
         private var continuing = false
         val controller = SessionSuspendController(
-            { rootPid }, { helpers }, { audioSuspends++ }, { audioResumes++ },
+            { rootPid }, { helpers }, { audioSuspends++; meminfo() }, { audioResumes++; meminfo() },
             proc, ::signal, ::threadSignal, ::sleep, { now }, executor,
             zramControl = control,
             clockControl = clock,
@@ -593,6 +668,7 @@ class SessionSuspendControllerTest {
                 this.unacknowledged = unacknowledged
             },
             pagedIn = { processes, swap, swapBefore, _, _ -> pagedIn += Triple(processes, swap, swapBefore) },
+            schedule = { delay, task -> scheduled += delay to task },
         )
 
         init { sync() }
@@ -604,6 +680,12 @@ class SessionSuspendControllerTest {
         }
 
         fun swapKb(pid: Int) = paging.getValue(pid).swap
+
+        fun runScheduled() {
+            val tasks = scheduled.toList()
+            scheduled.clear()
+            tasks.forEach { it.second() }
+        }
 
         private fun signal(pid: Int, signal: Int) {
             signals += SentSignal(pid, signal)
@@ -687,8 +769,13 @@ class SessionSuspendControllerTest {
             sync()
         }
 
+        private fun meminfo() {
+            val available = if (audioSuspends > audioResumes) availableWhileSuspendedKb else availableKb
+            File(proc, "meminfo").writeText("MemTotal:\t$totalKb kB\nMemFree:\t1000 kB\nMemAvailable:\t$available kB\n")
+        }
+
         fun sync() {
-            File(proc, "meminfo").writeText("MemTotal:\t$totalKb kB\nMemFree:\t1000 kB\nMemAvailable:\t$availableKb kB\n")
+            meminfo()
             for (group in groups) {
                 val dir = File(proc, group.pid.toString())
                 if (group == root && rootGone) { dir.deleteRecursively(); continue }

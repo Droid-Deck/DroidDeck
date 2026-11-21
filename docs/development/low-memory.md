@@ -153,11 +153,20 @@ Without root an app cannot write its memory cgroup's `memory.reclaim` (owned by 
 and KGSL's per-process GPU reclaim `state` is root-only. Page-out therefore runs inside each
 process through the preload, and GPU memory itself cannot be compressed from userspace.
 
-## Read-back after a suspend
+## Page-out and read-back around a suspend
 
-A hidden or screen-off suspend pages the session out before it stops it. After the resume, the
-processes that were paged out are read back largest first, as long as their swap fits the
-budget: half of `MemAvailable`, while leaving the larger of 1 GiB and a tenth of RAM available.
+A hidden or screen-off suspend stops the session at once. It pages the session out first only
+when `MemAvailable` is below twice the reserve, the larger of 1 GiB and a tenth of RAM. Otherwise
+the session stays resident while it is stopped, and every ten seconds of uptime the app reads
+`MemAvailable` again. Once it falls below that level, the app moves the guest clock forward by
+the stopped time, continues the session with audio still suspended, pages it out and stops it
+again. A resume ends the checks and cuts a running page-out short. A short screen-off with memory
+to spare therefore moves nothing into zram, and nothing has to come back when the screen turns on.
+Getting it back costs much more on some phones than on others: after a 12 s screen-off a Poco F7
+read 690 MB back in 6.7 s while the phone was waking up.
+
+After the resume, the processes that were paged out are read back largest first, as long as
+their swap fits the budget: half of `MemAvailable`, while leaving the reserve available.
 Only the chosen processes get a read-back request. Processes that do not fit keep their memory
 in zram and fault it back on demand, so one large process no longer stops the read-back of every
 other one.

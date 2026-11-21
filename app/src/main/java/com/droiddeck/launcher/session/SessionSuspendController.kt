@@ -29,6 +29,7 @@ internal class SessionSuspendController(
         { _, _, _, _, _, _ -> },
     private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _ -> },
+    private val schedule: (Long, () -> Unit) -> Unit = { _, _ -> },
 ) {
     private enum class Role { SESSION_ROOT, SESSION_CHILD, HELPER_ROOT, HELPER_CHILD }
 
@@ -53,6 +54,7 @@ internal class SessionSuspendController(
     private var frozen = emptyList<ProcessRecord>()
     private var frozenSince: Long? = null
     private var pagedOutTargets = emptyList<ProcessRecord>()
+    private var pageOutChecks = 0
 
     fun freeze(pageOut: Boolean = false, completion: (Boolean) -> Unit) {
         cancelled = false
@@ -60,6 +62,7 @@ internal class SessionSuspendController(
             val records = frozen.associateByTo(LinkedHashMap()) { it.pid to it.started }
             var complete = false
             var interrupted = false
+            var deferred = false
             try {
                 val root = records.values.firstOrNull { it.role == Role.SESSION_ROOT }
                     ?: readProcess(sessionRoot())?.takeIf { it.pid > 1 }?.let {
@@ -74,29 +77,10 @@ internal class SessionSuspendController(
                         records[it.pid to it.started] = ProcessRecord(it.pid, it.started, Role.HELPER_ROOT)
                     }
                 }
-                if (pageOut) pageOut(records, root.pid, helpers)
-                val deadline = nowMillis() + FREEZE_TIMEOUT_MS
-                var previous: Map<TaskIdentity, Long>? = null
-                for (pass in 0 until FREEZE_MAX_PASSES) {
-                    if (closing || cancelled || nowMillis() >= deadline) break
-                    try {
-                        if (readProcess(root.pid)?.started != root.started) break
-                        addSnapshot(records, root.pid, helpers)
-                        if (readProcess(root.pid)?.started != root.started) break
-                        stop(records.values.toList())
-                        sleep(if (pass == 0) 70L else 35L)
-                        if (closing || cancelled || nowMillis() >= deadline) break
-                        val current = stoppedSnapshot(records.values.toList(), root)
-                        if (current != null && current == previous) {
-                            complete = true
-                            break
-                        }
-                        previous = current
-                    } catch (_: IOException) {
-                        previous = null
-                        sleep(35L)
-                    }
-                }
+                val pageOutNow = pageOut && memoryShort()
+                if (pageOutNow) pageOut(records, root.pid, helpers)
+                deferred = pageOut && !pageOutNow && zramControl?.isFile == true
+                complete = stopUntilStable(records, root, helpers)
             } catch (_: InterruptedException) {
                 interrupted = true
                 Thread.interrupted()
@@ -111,16 +95,79 @@ internal class SessionSuspendController(
                 if (interrupted) Thread.currentThread().interrupt()
             }
             completion(complete)
+            if (complete && deferred) checkPageOut(++pageOutChecks)
             if (!complete && frozen.isEmpty() && !interrupted) readBack()
         }, { completion(false) })
     }
+
+    private fun stopUntilStable(
+        records: MutableMap<Pair<Int, Long>, ProcessRecord>,
+        root: ProcessRecord,
+        helpers: List<Int>,
+    ): Boolean {
+        val deadline = nowMillis() + FREEZE_TIMEOUT_MS
+        var previous: Map<TaskIdentity, Long>? = null
+        for (pass in 0 until FREEZE_MAX_PASSES) {
+            if (closing || cancelled || nowMillis() >= deadline) return false
+            try {
+                if (readProcess(root.pid)?.started != root.started) return false
+                addSnapshot(records, root.pid, helpers)
+                if (readProcess(root.pid)?.started != root.started) return false
+                stop(records.values.toList())
+                sleep(if (pass == 0) 70L else 35L)
+                if (closing || cancelled || nowMillis() >= deadline) return false
+                val current = stoppedSnapshot(records.values.toList(), root)
+                if (current != null && current == previous) return true
+                previous = current
+            } catch (_: IOException) {
+                previous = null
+                sleep(35L)
+            }
+        }
+        return false
+    }
+
+    private fun checkPageOut(check: Int) {
+        schedule(PAGE_OUT_CHECK_MS) { submit({ pageOutIfShort(check) }, {}) }
+    }
+
+    private fun pageOutIfShort(check: Int) {
+        if (check != pageOutChecks || closing || cancelled || frozen.isEmpty()) return
+        if (!memoryShort()) return checkPageOut(check)
+        pageOutChecks++
+        val records = frozen.associateByTo(LinkedHashMap()) { it.pid to it.started }
+        val root = records.values.firstOrNull { it.role == Role.SESSION_ROOT } ?: return
+        val helpers = records.values.filter { it.role == Role.HELPER_ROOT }.map { it.pid }
+        advanceClock()
+        try {
+            restore(records.values.toList())
+            pageOut(records, root.pid, helpers)
+            stopUntilStable(records, root, helpers)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } catch (_: Exception) {
+        } finally {
+            stop(records.values.toList())
+            frozen = records.values.toList()
+            frozenSince = nowNanos()
+        }
+    }
+
+    private fun memoryShort(): Boolean {
+        val (total, available) = meminfoKb()
+        return available < reserveKb(total) * PAGE_OUT_RESERVES
+    }
+
+    private fun reserveKb(totalKb: Long) = maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE)
 
     fun cancelFreeze() {
         cancelled = true
     }
 
     fun resume(completion: (Boolean) -> Unit) {
+        cancelled = true
         submit({
+            pageOutChecks++
             val records = frozen
             advanceClock()
             runAudio(resumeAudio)
@@ -372,7 +419,7 @@ internal class SessionSuspendController(
     private fun readBackTargets(swapKb: Map<ProcessRecord, Long>, totalKb: Long, availableKb: Long): List<ProcessRecord> {
         var budget = minOf(
             availableKb / READ_BACK_AVAILABLE_FACTOR,
-            availableKb - maxOf(READ_BACK_HEADROOM_KB, totalKb / READ_BACK_TOTAL_SHARE),
+            availableKb - reserveKb(totalKb),
         )
         val chosen = ArrayList<ProcessRecord>()
         for ((record, swap) in swapKb.entries.sortedByDescending { it.value }) {
@@ -497,6 +544,8 @@ internal class SessionSuspendController(
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L
+        const val PAGE_OUT_CHECK_MS = 10_000L
+        const val PAGE_OUT_RESERVES = 2L
         const val READ_BACK_POLL_MS = 100L
         const val READ_BACK_STABLE_POLLS = 5
         const val READ_BACK_TIMEOUT_MS = 5_000L
