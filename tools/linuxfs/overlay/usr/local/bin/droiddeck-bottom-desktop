@@ -2,16 +2,16 @@
 # KDE Plasma on a dual-screen handheld's bottom screen, next to the session on the top one.
 set -u
 export HOME=${HOME:-/root}
-if [ -n "${BL_DEBUG_DIR:-}" ]; then
-  mkdir -p "$BL_DEBUG_DIR" 2>/dev/null || true
-  exec >>"$BL_DEBUG_DIR/bottom-desktop.log" 2>&1
+if [ -n "${DD_DEBUG_DIR:-}" ]; then
+  mkdir -p "$DD_DEBUG_DIR" 2>/dev/null || true
+  exec >>"$DD_DEBUG_DIR/bottom-desktop.log" 2>&1
 fi
-echo "== droiddeck-bottom-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') ${BL_WIDTH:-?}x${BL_HEIGHT:-?} beside a ${BL_TOP_SESSION:-?} session"
+echo "== droiddeck-bottom-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') ${DD_WIDTH:-?}x${DD_HEIGHT:-?} beside a ${DD_TOP_SESSION:-?} session"
 [ -x /usr/local/bin/droiddeck-desktop ] || { echo "== the desktop package is not installed"; exit 66; }
 
 # Launch requests would reach the top session's watcher and could replace it.
-unset BL_LAUNCH_DIR BL_LOG
-export BL_BOTTOM_DESKTOP=1
+unset DD_LAUNCH_DIR BL_LAUNCH_DIR DD_LOG
+export DD_BOTTOM_DESKTOP=1
 
 for _ in $(seq 1 100); do
   wayland-info >/dev/null 2>&1 && break

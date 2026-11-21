@@ -331,13 +331,13 @@ class FsyncPreloadTest(unittest.TestCase):
                               capture_output=True, text=True, timeout=120)
 
     def test_emulated_waits_wake_time_out_and_survive_dead_waiters(self):
-        result = self.run_program(BL_FSYNC="1")
+        result = self.run_program(DD_FSYNC="1")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("fsync emulation ok", result.stdout)
         self.assertIn("droiddeck-fsync: up and running.", result.stderr)
 
     def test_off_without_the_switch(self):
-        result = self.run_program(BL_FSYNC="0")
+        result = self.run_program(DD_FSYNC="0")
         self.assertNotIn("droiddeck-fsync", result.stderr)
         self.assertNotIn("fsync emulation ok", result.stdout)
 

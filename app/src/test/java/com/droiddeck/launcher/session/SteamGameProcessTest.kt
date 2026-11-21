@@ -30,6 +30,22 @@ class SteamGameProcessTest {
         assertFalse(SteamGameProcess.matches(cmdline("python3", "/proton", "waitforexitandrun", "game.exe"), "976310"))
     }
 
+    @Test fun steamsInstallScriptStepIsNotTheGame() {
+        val wrapper = arrayOf("/root/.local/share/Steam/linuxarm64/steam-launch-wrapper", "--oom-score-adjust", "900", "--")
+        val reaper = "/root/.local/share/Steam/steamrtarm64/reaper"
+        val proton = "/root/.local/share/Steam/compatibilitytools.d/DroidDeck-Proton 11-12.8/droiddeck-proton-wrap"
+        val evaluator = arrayOf(reaper, "SteamLaunch", "AppId=351710", "Install=1", "--",
+            proton, "run", "/root/.local/share/Steam/legacycompat/iscriptevaluator.exe", "legacycompat\\evaluatorscript_351710.vdf")
+        val game = arrayOf(reaper, "SteamLaunch", "AppId=351710", "--",
+            proton, "waitforexitandrun", "/root/.local/share/Steam/steamapps/common/Neptunia Rebirth2/NeptuniaReBirth2.exe")
+
+        assertFalse(SteamGameProcess.matches(cmdline(*evaluator), "351710"))
+        assertFalse(SteamGameProcess.matches(cmdline(*wrapper, *evaluator), "351710"))
+        assertTrue(SteamGameProcess.matches(cmdline(*game), "351710"))
+        assertTrue(SteamGameProcess.matches(cmdline(*wrapper, *game), "351710"))
+        assertTrue(SteamGameProcess.matches(cmdline(reaper, "SteamLaunch", "AppId=351710", "--", "game", "Install=1"), "351710"))
+    }
+
     @Test fun shortcutCGameIdsMatchTheir32BitSteamAppId() {
         val cgameId = ((976310L shl 32) or 0x02000000L).toString()
 
@@ -67,5 +83,22 @@ class SteamGameProcessTest {
         process("200", "reaper", "SteamLaunch", "AppId=976310", "--", "proton", "waitforexitandrun", "MK11.exe")
         assertTrue(SteamGameProcess.running("976310", proc))
         assertFalse(SteamGameProcess.running("123", proc))
+        process("300", "reaper", "SteamLaunch", "AppId=351710", "Install=1", "--", "proton", "run", "iscriptevaluator.exe")
+        assertFalse(SteamGameProcess.running("351710", proc))
+        process("301", "reaper", "SteamLaunch", "AppId=351710", "--", "proton", "waitforexitandrun", "game.exe")
+        assertTrue(SteamGameProcess.running("351710", proc))
+    }
+
+    @Test fun onlyTheRunningCurrentGameCountsAsAlreadyRunning() {
+        val proc = tmp.newFolder("proc-relaunch")
+        File(proc, "200").apply { mkdirs() }.resolve("cmdline")
+            .writeBytes(cmdline("reaper", "SteamLaunch", "AppId=584400", "--", "proton", "waitforexitandrun", "SonicMania.exe"))
+        assertTrue(SteamGameProcess.alreadyRunning("584400", "584400", proc))
+        assertFalse(SteamGameProcess.alreadyRunning("584400", "311340", proc))
+        assertFalse(SteamGameProcess.alreadyRunning("311340", "311340", proc))
+        assertFalse(SteamGameProcess.alreadyRunning("584400", null, proc))
+        val shortcutId = ((584400uL shl 32) or 0x02000000uL).toString()
+        assertTrue(SteamGameProcess.alreadyRunning(shortcutId, "584400", proc))
+        assertTrue(SteamGameProcess.alreadyRunning("584400", shortcutId, proc))
     }
 }

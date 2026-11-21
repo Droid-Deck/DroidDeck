@@ -71,7 +71,8 @@ public class ShortcutsService extends AccessibilityService {
         filter.addAction(Intent.ACTION_PACKAGE_ADDED);
         filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
         filter.addDataScheme("package");
-        registerReceiver(packages, filter);
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(packages, filter, Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(packages, filter);
         receiving = true;
         bindAll();
     }
@@ -88,7 +89,8 @@ public class ShortcutsService extends AccessibilityService {
             if (linked) continue;
             Link link = new Link(component);
             try {
-                if (bindService(new Intent(Relay.ACTION).setComponent(component), link, Context.BIND_AUTO_CREATE)) links.add(link);
+                // No BIND_AUTO_CREATE: frontends read a running player as an open game, so the relay app decides when it runs.
+                if (bindService(new Intent(Relay.ACTION).setComponent(component), link, 0)) links.add(link);
                 else unbindService(link);
             } catch (RuntimeException ignored) {
             }

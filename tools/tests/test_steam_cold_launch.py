@@ -8,7 +8,7 @@ import unittest
 SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-session"
 SOURCE = SESSION.read_text()
 START = SOURCE.index("    steam_hold_launch() {")
-END = SOURCE.index('    if [ -s "$HOME/.bl-autolaunch" ]; then', START)
+END = SOURCE.index('    if [ -s "$HOME/.dd-autolaunch" ]; then', START)
 assert START >= 0
 LAUNCH_BLOCK = textwrap.dedent(SOURCE[START:END])
 SHORTCUT = str((3551182975 << 32) | 0x02000000)
@@ -57,7 +57,7 @@ class SteamColdLaunchTest(unittest.TestCase):
         self.block = LAUNCH_BLOCK.replace("/usr/local/bin/droiddeck-agent", str(agent))
 
     def run_launch(self, target, focus="769", helper_status=0, running_after=999, ready_status=0):
-        env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch_dir),
+        env = dict(os.environ, HOME=str(self.root), DD_LAUNCH_DIR=str(self.launch_dir),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    AGENT_ARGS=str(self.agent_args), SLEEP_ARGS=str(self.sleep_args),
                    AGENT_COUNT=str(self.agent_count), AGENT_STATUS=str(helper_status),
@@ -133,11 +133,11 @@ class SteamColdLaunchTest(unittest.TestCase):
         self.assertIn("--steam-ready", self.agent_args.read_text())
 
     def test_a_restart_for_a_game_uses_the_same_hand_off(self):
-        loop = SOURCE[SOURCE.index('      if [ -s "$HOME/.bl-restart-game" ]; then'):SOURCE.index('      if [ -f "$HOME/.bl-restart-once" ]; then')]
-        self.assertIn('steam_hold_launch "$_bl_again" &', loop)
+        loop = SOURCE[SOURCE.index('      if [ -s "$HOME/.dd-restart-game" ]; then'):SOURCE.index('      if [ -f "$HOME/.dd-restart-once" ]; then')]
+        self.assertIn('steam_hold_launch "$_dd_again" &', loop)
         self.assertNotIn("set -- \"steam://rungameid/", loop)
         script = self.block + '\nsteam_hold_launch "%s"\n' % SHORTCUT
-        env = dict(os.environ, HOME=str(self.root), BL_LAUNCH_DIR=str(self.launch_dir),
+        env = dict(os.environ, HOME=str(self.root), DD_LAUNCH_DIR=str(self.launch_dir),
                    PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                    AGENT_ARGS=str(self.agent_args), SLEEP_ARGS=str(self.sleep_args),
                    AGENT_COUNT=str(self.agent_count), AGENT_STATUS="1",

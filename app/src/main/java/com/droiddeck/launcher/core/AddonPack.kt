@@ -172,5 +172,9 @@ internal class AddonPack(
             listOf("runtime.tzst", "version.txt"))
         val UBISOFT = AddonPack("ubisoft", BuildConfig.PACK_UBISOFT_SHA256, BuildConfig.PACK_UBISOFT_SIZE,
             listOf("droiddeck-upc.exe"))
+        val ROCKSTAR = AddonPack("rockstar", BuildConfig.PACK_ROCKSTAR_SHA256, BuildConfig.PACK_ROCKSTAR_SIZE,
+            listOf("Launcher32.exe", "Launcher64.exe"))
+        val DIRT = AddonPack("dirt", BuildConfig.PACK_DIRT_SHA256, BuildConfig.PACK_DIRT_SIZE, listOf("ws2_32.dll"))
+        val EPIC = AddonPack("epic", BuildConfig.PACK_EPIC_SHA256, BuildConfig.PACK_EPIC_SIZE, listOf("EpicGamesLauncher.exe"))
     }
 }

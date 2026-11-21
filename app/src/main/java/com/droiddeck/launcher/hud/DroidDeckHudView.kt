@@ -191,6 +191,8 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var onMovedListener: BiConsumer<Float, Float>? = null
     private var onSizeCycledListener: Consumer<String>? = null
     private var onLockChangedListener: Consumer<Boolean>? = null
+    private var onHoldListener: BiConsumer<Float, Float>? = null
+    fun setOnHoldListener(l: BiConsumer<Float, Float>?) { onHoldListener = l }
     fun setOnMovedListener(l: BiConsumer<Float, Float>?) { onMovedListener = l }
     fun setOnSizeCycledListener(l: Consumer<String>?) { onSizeCycledListener = l }
     fun setOnLockChangedListener(l: Consumer<Boolean>?) { onLockChangedListener = l }
@@ -209,6 +211,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         override fun onDragged(rawX: Float, rawY: Float) { onDraggedListener?.accept(rawX, rawY) }
         override fun onFlung(velocityX: Float, velocityY: Float) { onFlungListener?.accept(velocityX, velocityY) }
         override fun onLockChanged(locked: Boolean) { onLockChangedListener?.accept(locked) }
+        override fun onHold(rawX: Float, rawY: Float) { onHoldListener?.accept(rawX, rawY) }
         override fun onPinch(factor: Float) {
             val next = (scale * factor).coerceIn(MIN_SCALE, MAX_SCALE)
             if (next == scale) return
@@ -224,6 +227,7 @@ class DroidDeckHudView(context: Context) : View(context) {
     private var tabStartX = 0f
     private var tabStartY = 0f
     private var tabDragging = false
+    private var tabPressed = false
     private var onTabDraggedListener: BiConsumer<Float, Float>? = null
     private var onTabDroppedListener: Runnable? = null
     private var onTabDragCancelledListener: Runnable? = null
@@ -237,19 +241,24 @@ class DroidDeckHudView(context: Context) : View(context) {
                 tabDownRawX = event.rawX; tabDownRawY = event.rawY
                 tabStartX = x; tabStartY = y
                 tabDragging = false
+                tabPressed = true
             }
-            MotionEvent.ACTION_MOVE -> {
+            MotionEvent.ACTION_MOVE -> if (tabPressed) {
                 val dx = event.rawX - tabDownRawX; val dy = event.rawY - tabDownRawY
                 if (!tabDragging && dx * dx + dy * dy > touchSlop * touchSlop) tabDragging = true
                 if (tabDragging) onTabDraggedListener?.accept(tabStartX + dx, tabStartY + dy)
             }
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_UP -> if (tabPressed) {
+                tabPressed = false
                 if (tabDragging) { tabDragging = false; onTabDroppedListener?.run() }
                 else onDockChangedListener?.accept(DroidDeckHudDock.NONE.token)
             }
-            MotionEvent.ACTION_CANCEL -> if (tabDragging) {
-                tabDragging = false
-                onTabDragCancelledListener?.run()
+            MotionEvent.ACTION_CANCEL -> {
+                tabPressed = false
+                if (tabDragging) {
+                    tabDragging = false
+                    onTabDragCancelledListener?.run()
+                }
             }
         }
         return true
@@ -341,6 +350,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         showSession = switchOn("showSession")
         tempDisplay = HudMetrics.TempDisplay.from(cfg)
         lockController.setLocked(cfg.get("hudLocked", "1") == "1")
+        lockController.setHoldLocks(cfg.get("hudHold", "collapse") == DroidDeckHudConfig.HOLD_LOCKS)
         dock = DroidDeckHudDock.from(cfg.get("hudDock", "none"))
 
         colorIntensity = when (cfg.get("hudColor", "vivid")) {
@@ -591,7 +601,7 @@ class DroidDeckHudView(context: Context) : View(context) {
             DroidDeckHudDock.RIGHT -> intArrayOf(1, 2)
             DroidDeckHudDock.TOP -> intArrayOf(0, 1)
             DroidDeckHudDock.BOTTOM -> intArrayOf(2, 3)
-            DroidDeckHudDock.NONE -> intArrayOf()
+            DroidDeckHudDock.NONE, DroidDeckHudDock.FLOAT -> intArrayOf()
         }
         for (corner in edge) { round[corner * 2] = 0f; round[corner * 2 + 1] = 0f }
         tabPath.rewind()

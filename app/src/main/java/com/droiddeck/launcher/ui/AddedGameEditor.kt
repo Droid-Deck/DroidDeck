@@ -33,6 +33,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -73,8 +74,10 @@ import com.droiddeck.launcher.frontend.LogoPosition
 import com.droiddeck.launcher.frontend.SoundtrackCollectionArt
 import com.droiddeck.launcher.frontend.SteamGameArt
 import com.droiddeck.launcher.frontend.SteamGridDb
+import com.droiddeck.launcher.frontend.SteamInputOverride
 import com.droiddeck.launcher.frontend.SteamLaunchOptions
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -333,6 +336,107 @@ internal fun SteamLaunchOptionsPanel(appId: Int) {
                 saving = false
             }
         }
+    }
+}
+
+@Composable
+internal fun SteamInputOverridePanel(appId: Int) {
+    val app = LocalContext.current.applicationContext
+    val colors = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var selected by remember(appId) { mutableStateOf<SteamInputOverride.Mode?>(null) }
+    var version by remember(appId) { mutableIntStateOf(0) }
+    var saving by remember(appId) { mutableStateOf(false) }
+    var loading by remember(appId) { mutableStateOf(true) }
+    var error by remember(appId) { mutableStateOf<Int?>(null) }
+    var saves by remember(appId) { mutableIntStateOf(0) }
+    // SessionState.running is not snapshot state, so the panel polls it while shown.
+    val sessionRunning by produceState(SessionState.running) {
+        while (true) {
+            value = SessionState.running
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    LaunchedEffect(appId, version) {
+        val savesAtStart = saves
+        val read = withContext(Dispatchers.IO) { SteamInputOverride.current(app, appId) }
+        // A save that finished while this read ran already set the selection; the read may predate it.
+        if (!saving && saves == savesAtStart) selected = read
+        loading = false
+    }
+    var wasRunning by remember(appId) { mutableStateOf(SessionState.running) }
+    LaunchedEffect(sessionRunning) {
+        // Steam may have changed the override while it ran, so every stop reloads it.
+        if (wasRunning && !sessionRunning) {
+            if (error == R.string.edit_steam_input_running) error = null
+            loading = true
+            version++
+        }
+        wasRunning = sessionRunning
+    }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle, appId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && !saving) {
+                loading = true
+                version++
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+
+    val choices = listOf(
+        SteamInputOverride.Mode.DEFAULT to R.string.edit_steam_input_default,
+        SteamInputOverride.Mode.ENABLED to R.string.edit_steam_input_enable,
+        SteamInputOverride.Mode.DISABLED to R.string.edit_steam_input_disable,
+    )
+    Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            stringResource(R.string.edit_steam_input_override),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
+        )
+        choices.forEach { (mode, label) ->
+            MenuItem(
+                stringResource(label),
+                checked = selected == mode,
+                enabled = selected != null && !saving && !loading && !sessionRunning && selected != mode,
+            ) {
+                val before = selected ?: return@MenuItem
+                saving = true
+                scope.launch {
+                    try {
+                        val saved = withContext(Dispatchers.IO) { SteamInputOverride.set(app, appId, mode, before) }
+                        error = when (saved) {
+                            SteamInputOverride.Saved.YES -> null
+                            SteamInputOverride.Saved.NO -> R.string.edit_steam_input_not_saved
+                            SteamInputOverride.Saved.RUNNING -> R.string.edit_steam_input_running
+                        }
+                        if (saved == SteamInputOverride.Saved.YES) {
+                            saves++
+                            selected = mode
+                        } else version++
+                    } finally {
+                        saving = false
+                    }
+                }
+            }
+        }
+        val message = error ?: when {
+            sessionRunning -> R.string.edit_steam_input_running
+            selected == null && !loading -> R.string.edit_steam_input_unavailable
+            else -> R.string.edit_steam_input_hint
+        }
+        Text(
+            stringResource(message),
+            fontSize = 12.sp,
+            color = if (error == null) colors.onSurfaceVariant else colors.error,
+            modifier = Modifier.padding(start = 4.dp),
+        )
     }
 }
 

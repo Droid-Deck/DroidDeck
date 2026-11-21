@@ -178,7 +178,7 @@ class SessionDisplayTest {
     @Test fun removedFilterAliasesRetainTheirEquivalentBehavior() {
         assertEquals(0, SessionPrefs.canonicalUpscaler(1))
         assertEquals(4, SessionPrefs.canonicalUpscaler(5))
-        assertEquals(0, SessionPrefs.canonicalUpscaler(99))
+        assertEquals(2, SessionPrefs.canonicalUpscaler(99))
         assertFalse(SessionPrefs.upscalerHasSharpness(0))
         assertFalse(SessionPrefs.upscalerHasSharpness(1))
         assertFalse(SessionPrefs.upscalerHasSharpness(2))

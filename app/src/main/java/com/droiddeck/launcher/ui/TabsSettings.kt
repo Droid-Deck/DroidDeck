@@ -55,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.agent.AgentTab
 import kotlin.math.roundToInt
 
 private const val MORE_LINE = "|more|"
@@ -82,7 +81,6 @@ internal fun TabsSettingsGroup(host: MenuHost, s: FrontEndState, a: FrontEndActi
         androidx.compose.runtime.withFrameNanos { }
         reveal.bringIntoView()
     }
-    val pad = LocalInputModeManager.current.inputMode == InputMode.Keyboard
     val state by rememberUpdatedState(s)
     val rows = {
         val keys = NavTabs.listed(state)
@@ -93,106 +91,116 @@ internal fun TabsSettingsGroup(host: MenuHost, s: FrontEndState, a: FrontEndActi
         NavTabs.rearrange(ctx, state, next.subList(0, split), next.subList(split + 1, next.size))
     }
     fun setShown(key: String, show: Boolean) {
-        when (key) {
-            "stores" -> if (show != s.gameStoresEnabled) a.onGameStoresEnabled(show)
-            "soundtracks" -> if (show != s.soundtracksEnabled) a.onSoundtracksEnabled(show)
-            "agent" -> if (show != AgentTab.shown) AgentTab.set(ctx, show)
-        }
         NavTabs.setHidden(ctx, key, !show)
     }
 
+    Box(Modifier.bringIntoViewRequester(reveal)) {
+        SettingsGroup(stringResource(R.string.setup_group_tabs)) {
+            SortableRows(
+                rows = rows, commit = commit, movable = { it != MORE_LINE }, rowHeight = TAB_ROW, handleWidth = TAB_HANDLE,
+                onActivate = { tab -> if (NavTabs.hideable(tab)) setShown(tab, NavTabs.place(state, tab) == TabPlace.HIDDEN) },
+            ) { tab, held, offset, hint, modifier, onFocus ->
+                if (tab == MORE_LINE) MoreLine()
+                else TabRow(
+                    tab, NavTabs.place(s, tab) != TabPlace.HIDDEN, NavTabs.hideable(tab), held, offset, hint, modifier, onFocus,
+                ) { host.open = null; setShown(tab, it) }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+internal fun SortableRows(
+    rows: () -> List<String>,
+    commit: (List<String>) -> Unit,
+    movable: (String) -> Boolean,
+    rowHeight: androidx.compose.ui.unit.Dp,
+    handleWidth: androidx.compose.ui.unit.Dp,
+    onActivate: (String) -> Unit,
+    row: @Composable (key: String, held: Boolean, offset: Float, hint: String?, modifier: Modifier, onFocus: (Boolean) -> Unit) -> Unit,
+) {
+    val pad = LocalInputModeManager.current.inputMode == InputMode.Keyboard
     var dragging by remember { mutableStateOf<String?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var grabbed by remember { mutableStateOf<String?>(null) }
     var before by remember { mutableStateOf<List<String>>(emptyList()) }
     var focused by remember { mutableStateOf<String?>(null) }
-    val rowPx = with(LocalDensity.current) { TAB_ROW.toPx() }
-    val handlePx = with(LocalDensity.current) { TAB_HANDLE.toPx() }
+    val rowPx = with(LocalDensity.current) { rowHeight.toPx() }
+    val handlePx = with(LocalDensity.current) { handleWidth.toPx() }
     val list = rows()
-
-    Box(Modifier.bringIntoViewRequester(reveal)) {
-        SettingsGroup(stringResource(R.string.setup_group_tabs)) {
-            Column(
-                Modifier.fillMaxWidth().pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val start = (down.position.y / rowPx).toInt()
-                        val key = rows().getOrNull(start)
-                        if (key == null || key == MORE_LINE || down.position.x > handlePx || grabbed != null) return@awaitEachGesture
-                        down.consume()
-                        dragging = key
-                        dragOffset = 0f
-                        while (true) {
-                            val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
-                            change.consume()
-                            if (!change.pressed) break
-                            val travel = change.position.y - down.position.y
-                            val current = rows()
-                            val target = (start + (travel / rowPx).roundToInt()).coerceIn(0, current.lastIndex)
-                            var at = current.indexOf(key)
-                            var next = current
-                            while (target != at) {
-                                next = moveTabRow(next, key, if (target > at) 1 else -1) ?: break
-                                at = next.indexOf(key)
+    Column(
+        Modifier.fillMaxWidth().pointerInput(Unit) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                val start = (down.position.y / rowPx).toInt()
+                val key = rows().getOrNull(start)
+                if (key == null || !movable(key) || down.position.x > handlePx || grabbed != null) return@awaitEachGesture
+                down.consume()
+                dragging = key
+                dragOffset = 0f
+                while (true) {
+                    val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                    change.consume()
+                    if (!change.pressed) break
+                    val travel = change.position.y - down.position.y
+                    val current = rows()
+                    val target = (start + (travel / rowPx).roundToInt()).coerceIn(0, current.lastIndex)
+                    var at = current.indexOf(key)
+                    var next = current
+                    while (target != at) {
+                        next = moveTabRow(next, key, if (target > at) 1 else -1) ?: break
+                        at = next.indexOf(key)
+                    }
+                    if (next !== current) commit(next)
+                    dragOffset = travel - (at - start) * rowPx
+                }
+                dragging = null
+                dragOffset = 0f
+            }
+        },
+    ) {
+        list.forEachIndexed { index, item ->
+            key(item) {
+                if (!movable(item)) row(item, false, 0f, null, Modifier) {}
+                else {
+                    val bring = remember { BringIntoViewRequester() }
+                    LaunchedEffect(index, grabbed) { if (grabbed == item) bring.bringIntoView() }
+                    row(
+                        item, item == dragging || item == grabbed, if (item == dragging) dragOffset else 0f,
+                        if (pad && focused == item) stringResource(if (grabbed == item) R.string.hud_hint_drop else R.string.hud_hint_grab) else null,
+                        Modifier.bringIntoViewRequester(bring).onPreviewKeyEvent { event ->
+                            val e = event.nativeKeyEvent
+                            val down = e.action == KeyEvent.ACTION_DOWN
+                            val first = down && e.repeatCount == 0
+                            val mine = grabbed == item
+                            when (e.keyCode) {
+                                KeyEvent.KEYCODE_BUTTON_Y -> {
+                                    if (first) {
+                                        if (mine) grabbed = null
+                                        else if (grabbed == null) { before = rows(); grabbed = item }
+                                    }
+                                    true
+                                }
+                                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                    if (mine && down) moveTabRow(rows(), item, if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP) -1 else 1)?.let(commit)
+                                    mine
+                                }
+                                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> mine
+                                KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BACK -> {
+                                    if (mine && first) { commit(before); grabbed = null }
+                                    mine
+                                }
+                                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_SPACE -> {
+                                    if (first) {
+                                        if (mine) grabbed = null else onActivate(item)
+                                    }
+                                    true
+                                }
+                                else -> false
                             }
-                            if (next !== current) commit(next)
-                            dragOffset = travel - (at - start) * rowPx
-                        }
-                        dragging = null
-                        dragOffset = 0f
-                    }
-                },
-            ) {
-                list.forEachIndexed { index, tab ->
-                    key(tab) {
-                        if (tab == MORE_LINE) {
-                            MoreLine()
-                        } else {
-                            val shown = NavTabs.place(s, tab) != TabPlace.HIDDEN
-                            val held = tab == dragging || tab == grabbed
-                            val bring = remember { BringIntoViewRequester() }
-                            LaunchedEffect(index, grabbed) { if (grabbed == tab) bring.bringIntoView() }
-                            TabRow(
-                                tab, shown, NavTabs.hideable(tab), held,
-                                offset = if (tab == dragging) dragOffset else 0f,
-                                hint = if (pad && focused == tab) stringResource(if (grabbed == tab) R.string.hud_hint_drop else R.string.hud_hint_grab) else null,
-                                modifier = Modifier.bringIntoViewRequester(bring)
-                                    .onPreviewKeyEvent { event ->
-                                        val e = event.nativeKeyEvent
-                                        val down = e.action == KeyEvent.ACTION_DOWN
-                                        val first = down && e.repeatCount == 0
-                                        val mine = grabbed == tab
-                                        when (e.keyCode) {
-                                            KeyEvent.KEYCODE_BUTTON_Y -> {
-                                                if (first) {
-                                                    if (mine) grabbed = null
-                                                    else if (grabbed == null) { before = rows(); grabbed = tab }
-                                                }
-                                                true
-                                            }
-                                            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
-                                                if (mine && down) moveTabRow(rows(), tab, if (e.keyCode == KeyEvent.KEYCODE_DPAD_UP) -1 else 1)?.let(commit)
-                                                mine
-                                            }
-                                            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> mine
-                                            KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BACK -> {
-                                                if (mine && first) { commit(before); grabbed = null }
-                                                mine
-                                            }
-                                            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_SPACE -> {
-                                                if (first) {
-                                                    if (mine) grabbed = null
-                                                    else if (NavTabs.hideable(tab)) setShown(tab, !shown)
-                                                }
-                                                true
-                                            }
-                                            else -> false
-                                        }
-                                    },
-                                onFocus = { if (it) focused = tab else if (focused == tab) { focused = null; if (grabbed == tab) grabbed = null } },
-                            ) { host.open = null; setShown(tab, it) }
-                        }
-                    }
+                        },
+                    ) { if (it) focused = item else if (focused == item) { focused = null; if (grabbed == item) grabbed = null } }
                 }
             }
         }

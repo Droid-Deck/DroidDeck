@@ -26,14 +26,16 @@ class EffectsSourceResolutionTest(unittest.TestCase):
         header = (REPO / 'app/src/main/cpp/waylandcomp/src/vk_present.h').read_text()
         effects = (REPO / 'app/src/main/cpp/waylandcomp/src/effects_chain.c').read_text()
         functions = '\n'.join(function(source, signature) for signature in (
-            'static void release_external_client_image(', 'static void release_external_client_draws(',
+            'static int foreign_image(', 'static void release_external_client_image(', 'static void release_external_client_draws(',
             'static int map_draw(', 'static int draw_to_blit(',
             'static int draw_to_scene_blit(', 'static int effects_source_draw(',
             'static void effects_source_note(',
             'static void effects_overlay_draws(',
             'static int render_impl(', 'static int pass_begin_impl('))
         functions = (re.search(r'static int spatial_mode\([^\n]+', effects).group() + '\n' +
+                     re.search(r'static int cas_active\([^\n]+', effects).group() + '\n' +
                      function(effects, 'int vkp_effects_upscaling(') +
+                     function(effects, 'int vkp_effects_sharpening(') +
                      function(effects, 'int vkp_effects_postprocessing(') + functions)
         image = source[source.index('struct vkp_image {'):source.index('\n};', source.index('struct vkp_image {')) + 3]
         draw = header[header.index('struct vkp_draw {'):header.index('\n};', header.index('struct vkp_draw {')) + 3]
@@ -101,6 +103,9 @@ class EffectsSourceResolutionTest(unittest.TestCase):
     def test_postprocessing_keeps_foreground_inside_the_effect_chain(self):
         self.check_case('postprocessing')
 
+    def test_frame_generation_keeps_upscaling_and_sharpening_at_panel_size(self):
+        self.check_case('framegen-sharpening')
+
 
 TYPES = r'''
 #include <assert.h>
@@ -108,7 +113,7 @@ TYPES = r'''
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-typedef int VkImage, VkDeviceMemory, VkFormat, VkCommandBuffer, VkResult, VkFilter;
+typedef int VkImage, VkDeviceMemory, VkFormat, VkCommandBuffer, VkResult, VkFilter, VkBuffer;
 typedef int VkImageLayout, VkPipelineStageFlags, VkImageUsageFlags;
 typedef uint64_t VkDeviceSize;
 typedef struct { unsigned width, height; } VkExtent2D;
@@ -121,6 +126,13 @@ typedef struct {
     VkImageSubresourceLayers dstSubresource;
     VkOffset3D dstOffsets[2];
 } VkImageBlit;
+typedef struct {
+    VkDeviceSize bufferOffset;
+    unsigned bufferRowLength, bufferImageHeight;
+    VkImageSubresourceLayers imageSubresource;
+    VkOffset3D imageOffset;
+    struct { unsigned width, height, depth; } imageExtent;
+} VkBufferImageCopy;
 typedef struct { int sType, flags; } VkCommandBufferBeginInfo;
 typedef struct {
     int sType, oldLayout, newLayout, srcQueueFamilyIndex, dstQueueFamilyIndex;
@@ -156,6 +168,8 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 
 
 STUBS = r'''
+static void stage_linear_dmabufs(VkCommandBuffer cmd, const struct vkp_draw *draws, int count) { (void)cmd; (void)draws; (void)count; }
+static int vkp_linear_dmabuf_foreign_image(int dmabuf, int staged) { return dmabuf && !staged; }
 static void quarantine_pending_work(VkResult result, const char *where) { (void)result; (void)where; }
 static int noop(int handle, ...) { return VK_SUCCESS; }
 static VkImageMemoryBarrier recorded_barriers[64];
@@ -192,7 +206,8 @@ static struct vkp_img_slot g_hdrscene, g_fgscene;
 static struct { int active, rw, rh; VkImage result; } g_pass;
 static struct { int64_t present_ns, present_max_ns; unsigned presents; } g_perf;
 static int effects_active = 1, framegen, cardboard;
-static struct { int scaling; } g_cur = {4};
+struct fx_settings { int scaling, cas_on, cas_pct; };
+static struct fx_settings g_cur = {4};
 static int copy_count, effects_count, screen_count, hdr_count, fail_scene, fail_effects, postprocessing;
 static int copied_w, copied_h, target_w, target_h;
 static int effects_w, effects_h, output_w, output_h, logical_w, logical_h;
@@ -276,7 +291,7 @@ static struct vkp_draw fullscreen(void) {
 }
 static void reset(void) {
     copy_count = effects_count = screen_count = hdr_count = barrier_count = 0;
-    effects_active = 1; g_cur.scaling = 4;
+    effects_active = 1; g_cur = (struct fx_settings){4};
     framegen = cardboard = fail_scene = fail_effects = postprocessing = g_plain_frame = 0;
     g_pass.active = 0; g_extent = (VkExtent2D){1920, 1080};
     image.w = 1280; image.h = 720;
@@ -552,6 +567,25 @@ static void check_allocation(void) {
     assert(recorded_blits[1].dstOffsets[1].x == 1920 && recorded_blits[1].dstOffsets[1].y == 1080);
     assert(target_w == 1920 && target_h == 1080);
 }
+static void check_framegen_output(int scaling, int cas, int grading, int panel) {
+    reset(); framegen = 1; postprocessing = grading;
+    g_cur = (struct fx_settings){scaling, cas, cas ? 60 : 0};
+    g_extent = (VkExtent2D){2880, 1620};
+    struct vkp_draw draw = fullscreen();
+    run_path(0, &draw, 1, NULL);
+    assert(effects_count == 1);
+    assert(output_w == (panel ? 2880 : 1920) && output_h == (panel ? 1620 : 1080));
+}
+static void check_framegen_sharpening(void) {
+    check_framegen_output(4, 0, 0, 1);
+    check_framegen_output(3, 0, 0, 1);
+    check_framegen_output(8, 0, 0, 1);
+    check_framegen_output(0, 1, 1, 1);
+    check_framegen_output(1, 1, 1, 1);
+    check_framegen_output(0, 0, 1, 0);
+    check_framegen_output(6, 0, 0, 0);
+    check_framegen_output(2, 0, 1, 0);
+}
 int main(int argc, char **argv) {
     assert(argc == 2); reset();
     if (!strcmp(argv[1], "helper")) check_helper();
@@ -567,6 +601,7 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[1], "effect-failure")) check_effect_failure();
     else if (!strcmp(argv[1], "overlay-barriers")) check_overlay_barriers();
     else if (!strcmp(argv[1], "postprocessing")) check_postprocessing();
+    else if (!strcmp(argv[1], "framegen-sharpening")) check_framegen_sharpening();
     else assert(0);
     puts("PASS");
 }

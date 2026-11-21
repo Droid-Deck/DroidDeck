@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
@@ -41,11 +42,12 @@ import androidx.compose.runtime.getValue
 
 
 @Composable
-internal fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions) {
+internal fun GameFileFolderActions(s: FrontEndState, a: FrontEndActions, labeled: Boolean = false) {
     if (s.shortcutPicker) return
     var open by remember { androidx.compose.runtime.mutableStateOf(false) }
     Box {
-        SecondaryButton(stringResource(R.string.game_frontend_files), compact = true) { open = !open }
+        if (labeled) SecondaryButton(stringResource(R.string.game_frontend_files), compact = true) { open = !open }
+        else HeaderIconButton(stringResource(R.string.game_frontend_files), androidx.compose.material.icons.Icons.Outlined.Sync, "frontend-files", Modifier.downToFirstTile()) { open = !open }
         AnchoredMenu(open, onDismiss = { open = false }, title = s.gameSyncFolder ?: stringResource(R.string.game_frontend_files)) { first ->
             MenuItem(stringResource(R.string.game_file_sync), checked = false, focusRequester = first) {
                 open = false; a.onSyncGameFiles()
@@ -79,6 +81,12 @@ internal fun cloudMessage(context: android.content.Context, r: com.droiddeck.lau
         r.conflicts > 0 -> context.getString(R.string.cloud_conflict_files, r.conflicts)
         r.files == 0 -> context.getString(R.string.cloud_up_to_date)
         else -> context.getString(R.string.cloud_done, r.files)
+    }
+    "partial" -> when {
+        r.conflicts > 0 && r.detail.isNotEmpty() -> context.getString(R.string.cloud_conflict_files_detail, r.conflicts, r.detail)
+        r.conflicts > 0 -> context.getString(R.string.cloud_conflict_files, r.conflicts)
+        r.detail.isNotEmpty() -> context.getString(R.string.cloud_partial, r.detail)
+        else -> context.getString(R.string.cloud_not_synced)
     }
     "skipped" -> context.getString(when (r.reason) {
         "not-signed-in" -> R.string.cloud_signed_out

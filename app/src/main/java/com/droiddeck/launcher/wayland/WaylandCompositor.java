@@ -304,7 +304,7 @@ public final class WaylandCompositor {
     public static native void nativeSetDeband(boolean enabled, int strength);
 
     public static native void nativeSetScreenEffects(float brightness, float contrast, float gamma, float saturation,
-                                                     boolean fxaa, boolean toon, boolean crt, boolean ntsc);
+                                                     int aaMode, boolean toon, boolean crt, boolean ntsc);
 
     public static native void nativeSetLookName(String name);
 
@@ -320,6 +320,10 @@ public final class WaylandCompositor {
     public static native void nativeSetCardboardPoseFile(String path);
 
     public static native void nativeSetFpsLimit(int fps);
+
+    public static native void nativeSetBlackFrameInsertion(boolean on);
+
+    public static native void nativeSetPictureHold(boolean on);
 
     public static native void nativeSetRenderOnCommit(boolean on);
 

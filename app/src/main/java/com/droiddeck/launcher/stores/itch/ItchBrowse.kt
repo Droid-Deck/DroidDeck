@@ -129,8 +129,6 @@ internal object ItchBrowseState {
     private var next = 1
     private var generation = 0
 
-    val active: Boolean get() = !query.isDefault
-
     fun choose(context: Context, wanted: BrowseQuery) {
         if (wanted == query) return
         generation++
@@ -140,11 +138,11 @@ internal object ItchBrowseState {
         failed = false
         loading = false
         next = 1
-        if (active) more(context)
+        more(context)
     }
 
     fun more(context: Context, retry: Boolean = false) {
-        if (loading || ended || !active || (failed && !retry)) return
+        if (loading || ended || (failed && !retry)) return
         loading = true
         failed = false
         val app = context.applicationContext

@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">Tilbake · to ganger i Steam, én gang på skrivebordet</string>
     <string name="input_shortcut_hold_hint">I Steam-modus. Å holde Tilbake åpner også hurtigtilgang.</string>
     <string name="input_restore_shortcut">Tilbakestill til standard</string>
-    <string name="input_second_mode_hint">Panelvalget ditt huskes. Skrivebord åpner et andre arbeidsområde; det bytter ikke økten eller inndataprofilen.</string>
     <string name="input_virtual_controller">Virtuell kontroller</string>
     <string name="input_virtual_controller_hint">Kontrollertypen som Steam eller spillet ser.</string>
     <string name="input_touchscreen">Berøringsskjerm</string>

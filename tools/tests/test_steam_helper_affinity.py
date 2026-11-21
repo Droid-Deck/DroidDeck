@@ -45,9 +45,9 @@ class SteamHelperAffinityTest(unittest.TestCase):
             elif form == "empty":
                 args = []
             env = dict(os.environ, TRACE=str(root / "trace"), STARTS=str(root / "starts"))
-            env.pop("BL_STEAM_WEBHELPER", None)
+            env.pop("DD_STEAM_WEBHELPER", None)
             if configured:
-                env["BL_STEAM_WEBHELPER"] = str(helper)
+                env["DD_STEAM_WEBHELPER"] = str(helper)
             result = subprocess.run(["bash", str(wrapper), *args], env=env,
                                     capture_output=True, text=True, timeout=5)
             trace = [json.loads(x) for x in (root / "trace").read_text().splitlines()]
