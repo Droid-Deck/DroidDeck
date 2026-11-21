@@ -619,6 +619,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             syncActiveScreenEffectsProfile()
         }
     }
+    private val hdrPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == SessionPrefs.hdrKey(hdrPrefMode())) uiHandler.post { hdrWanted = SessionPrefs.hdr(this, hdrPrefMode()) }
+    }
     private val shortcutPrefListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == null || key == PhysicalShortcuts.KEY) {
             physicalShortcuts.bindings = PhysicalShortcuts.read(this)
@@ -5834,6 +5837,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         updatePadMotion()
         ControllerPrefs.prefs(this).registerOnSharedPreferenceChangeListener(shortcutPrefListener)
         SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
+        SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(hdrPrefListener)
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
         readPrefs()
         observedScreenEffectsProfileId = SessionPrefs.activeScreenEffectsProfileId(this)
@@ -5904,6 +5908,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         hidePrimaryKeyboard()
         pendingFieldKeyboard = pendingKeyboard
         SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(cardboardPrefListener)
+        SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(hdrPrefListener)
         SessionPrefs.sessionPrefs(this).unregisterOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
         ControllerPrefs.prefs(this).unregisterOnSharedPreferenceChangeListener(shortcutPrefListener)
         updateHeadTracker()

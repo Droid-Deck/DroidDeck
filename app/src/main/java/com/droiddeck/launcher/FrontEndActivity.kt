@@ -2081,6 +2081,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             refreshHomeAppState()
         }
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
+        settingsMode?.let { hdrOn = SessionPrefs.hdr(this, it) }
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
         com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, false)
