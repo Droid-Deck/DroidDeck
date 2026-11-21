@@ -1260,6 +1260,7 @@ class SessionService : Service() {
             components.add(hwmon)
             binds.add(hwmon.dir.path + ":/sys/class/hwmon")
         }
+        binds.addAll(CpuCacheSysfs.binds(File(filesDir, "session/sys/cpu-cache")))
         val cpuStat = CpuStatComponent(File(filesDir, "session/proc-stat"))
         if (cpuStat.prepare()) {
             cpuStat.attach(this)
