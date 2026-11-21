@@ -34,6 +34,7 @@ data class DownloadEntry(
     val interruptible: Boolean = true,
     val reusedBytes: Long = 0L,
     val appliedBytes: Long = 0L,
+    val cleanupKey: String? = null,
 ) {
     fun passed(s: DownloadStage): Boolean = state == DownloadState.INSTALLED || (stagesPassed and (1 shl s.ordinal)) != 0
 

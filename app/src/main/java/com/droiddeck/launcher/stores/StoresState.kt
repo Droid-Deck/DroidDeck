@@ -79,6 +79,7 @@ object StoresState {
     fun refresh(context: Context) {
         val app = context.applicationContext
         com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
+        com.droiddeck.launcher.stores.battlenet.BattleNetInstall.reconcile(app)
         if (refreshRequests.getAndIncrement() > 0) return
         var seen = 0
         background("stores-refresh", onFailure = { if (refreshRequests.getAndSet(0) > seen) main.post { refresh(app) } }) {
@@ -102,6 +103,8 @@ object StoresState {
                         accountsLoaded = true
                     }
                     com.droiddeck.launcher.stores.gog.GogMaintenance.checkInstalled(app, onDisk)
+                    onDisk.filter { it.sidecar.store == Store.BATTLENET }
+                        .forEach { com.droiddeck.launcher.stores.battlenet.BattleNetInstall.checkUpdate(app, it) }
                 }
             } while (!refreshRequests.compareAndSet(seen, 0))
         }
@@ -134,7 +137,16 @@ object StoresState {
         StoreInstalls.discard(app, folder, listOf(java.io.File(folder, ".chunks"), java.io.File(folder, ".gog_chunks"), StoreInstallRoot.scratchDir(app, item.store, item.id)))
     }
 
-    fun installedGame(store: Store, id: String): InstalledStoreGame? = installed.firstOrNull { it.sidecar.store == store && it.sidecar.id == id }
+    fun installedGame(store: Store, id: String, folder: java.io.File? = null): InstalledStoreGame? =
+        pickInstalled(store, id, folder, installed)
+
+    internal fun pickInstalled(
+        store: Store, id: String, folder: java.io.File?, candidates: List<InstalledStoreGame>,
+    ): InstalledStoreGame? {
+        val matches = candidates.filter { it.sidecar.store == store && it.sidecar.id == id }
+        if (folder != null) return matches.firstOrNull { it.folder.absolutePath == folder.absolutePath }
+        return matches.firstOrNull()
+    }
 
     fun detailItem(store: Store, id: String): CatalogItem? = detailCatalogItem(
         store, id, library[store].orEmpty(),
