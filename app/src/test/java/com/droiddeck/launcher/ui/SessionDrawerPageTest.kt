@@ -29,4 +29,17 @@ class SessionDrawerPageTest {
         assertEquals(SessionDrawerPage.SESSION, with.step(SessionDrawerPage.AGENT, 1))
         assertFalse(SessionDrawerPage.AGENT in sessionDrawerPages(hasAgent = false))
     }
+
+    @Test fun arrangeKeepsSavedOrderAndSlotsNewPagesAfterTheirNeighbour() {
+        val saved = listOf("SESSION", "HUD", "CONTROLLER")
+        val out = DrawerPages.arrange(saved)
+        assertEquals(SessionDrawerPage.entries.toSet(), out.toSet())
+        assertEquals(listOf(SessionDrawerPage.SESSION, SessionDrawerPage.HUD), out.filter { it in setOf(SessionDrawerPage.SESSION, SessionDrawerPage.HUD) })
+        assertTrue(out.indexOf(SessionDrawerPage.HUD) < out.indexOf(SessionDrawerPage.CONTROLLER))
+    }
+
+    @Test fun sessionPageCannotBeHidden() {
+        assertFalse(DrawerPages.hideable(SessionDrawerPage.SESSION))
+        assertTrue(DrawerPages.hideable(SessionDrawerPage.HUD))
+    }
 }

@@ -419,6 +419,18 @@ object SessionPrefs {
         e.remove("gameStoresEnabled").remove("soundtracksEnabled").remove("agentTab").putInt("navTabLayout", version).apply()
     }
 
+    fun drawerPageOrder(context: Context): List<String> = idList(prefs(context).getString("drawerPageOrder", null))
+
+    fun setDrawerPageOrder(context: Context, order: List<String>) {
+        prefs(context).edit().putString("drawerPageOrder", order.joinToString(",")).apply()
+    }
+
+    fun drawerPageHidden(context: Context): Set<String> = idList(prefs(context).getString("drawerPageHidden", null)).toSet()
+
+    fun setDrawerPageHidden(context: Context, keys: Set<String>) {
+        prefs(context).edit().putString("drawerPageHidden", keys.joinToString(",")).apply()
+    }
+
     fun setNavTabHidden(context: Context, keys: Set<String>) {
         prefs(context).edit().putString("navTabHidden", keys.joinToString(",")).apply()
     }
