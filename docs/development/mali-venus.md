@@ -4,6 +4,45 @@ Venus implementation notes and historical prototype measurements from a Pixel 9 
 (Tensor G4, Mali-G715, Android 17). These October prototype results do not validate
 the current DroidDeck integration.
 
+## Mali graphics choice
+
+Setup → Overview offers **Auto / MaliBridge / Venus** as one exclusive choice.
+It is independent of the overall Auto / Manual / Mix driver mode. Driver discovery
+and installation never rewrite this preference.
+
+Auto uses a compatible selected Linux driver from the existing Drivers menu,
+whether imported alone or as part of a bundle. Without one, it uses Venus when
+available with host Vulkan 1.2 or newer, otherwise MaliBridge. This is resolved at
+launch without saving a fixed choice. Compatibility requires an installed ICD
+and the stored `libvulkan_panfrost.so`; unrelated imports do not suppress the
+component routes. Compatible standalone imports use the existing open-driver
+environment and device-node handling.
+
+Fixed MaliBridge and Venus override the selected Linux runtime. Missing components
+or an incompatible host produce a startup error. Existing Bridge self-test failures
+stop a fixed Bridge launch instead of falling back to another driver. Fixed Venus stops on
+a failed Vulkan probe, missing nullDescriptor, or a failed Steam Zink probe instead
+of switching to software GL. `vulkaninfo` remains optional; the Zink probe only runs
+in the Steam branch when `droiddeck-glprobe` is available and GL uses Zink.
+Failures use the existing session log, failure message and Steam child exit status.
+
+For fixed choices, the private `droiddeck-env` and agent environment cannot override
+route flags, ICD selection, renderer sockets, Zink/software selection, Venus vtest,
+or `DD_INSIDE` (the nested-session flag). Their `DROIDDECK_GAME_` forms are also
+reserved. Unrelated diagnostics such as `VK_LOADER_DEBUG` and `MESA_DEBUG` remain
+available. Auto retains the existing debug override behavior.
+
+Legacy enabled Venus or Bridge values migrate to the matching fixed choice unless
+the old Auto owner identifies that route as automatic. Other combinations migrate
+to Auto: false or absent keys do not prove an explicit choice, because Auto wrote
+false values and Bridge defaulted to enabled on Mali. An enabled route not owned
+by Auto takes precedence; Venus wins if both are enabled without an Auto owner.
+A legacy Bridge choice with a recorded memory/draw fallback attempt and a still
+installed compatible selected driver migrates to Auto. This preserves automatic
+route selection; the record does not prove successful rendering. This exception
+does not override Venus or an already saved three-choice setting. Reset settings
+returns the choice to Auto and clears the old switches and owner.
+
 ## Status (2026-10-08, night)
 
 Prototype 13 is the APK on the phone, a release build (not debuggable).

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mali_path_choice">Mali 图形</string>
+    <string name="mali_path_bridge">MaliBridge</string>
+    <string name="mali_path_venus">Venus</string>
+    <string name="mali_path_selected">Mali 图形：%1$s</string>
+    <string name="mali_bridge_unsupported">MaliBridge 需要设备上存在可用的 Mali GPU 节点。</string>
+    <string name="mali_bridge_missing">缺少 MaliBridge 服务端，请重新安装包含 MaliBridge 支持的 DroidDeck。</string>
+    <string name="mali_venus_missing">缺少 Venus 驱动或渲染组件，请重新安装包含 Venus 支持的 DroidDeck。</string>
+    <string name="mali_venus_old_vulkan">Venus 需要宿主 Vulkan 1.2 或更高版本，当前设备报告 %1$s。请选择其他 Mali 图形选项。</string>
+    <string name="mali_venus_start_failed">Venus 渲染器未能启动，请查看会话日志。</string>
+</resources>

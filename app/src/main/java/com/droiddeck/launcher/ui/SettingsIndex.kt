@@ -67,6 +67,7 @@ internal object SettingsIndex {
         s(SettingsSection.OVERVIEW, R.string.setup_runtime, "ubuntu", "linux", "repair", "update"),
         s(SettingsSection.OVERVIEW, R.string.setup_limit, "phantom", "process", "killed", "background"),
         s(SettingsSection.OVERVIEW, R.string.setup_account, "steam", "login", "sign in"),
+        s(SettingsSection.OVERVIEW, R.string.mali_path_choice, "auto", "malibridge", "venus", "gpu", "driver"),
 
         s(SettingsSection.PERFORMANCE, R.string.perf_override, "steam client cores", "cpu"),
         s(SettingsSection.PERFORMANCE, R.string.perf_game_cores, "cpu", "pin", "cores", "affinity"),
@@ -146,5 +147,7 @@ internal object SettingsIndex {
     )
 
     fun search(context: Context, query: String): List<SettingsEntry> =
-        entries.filter { (!it.developer || DeveloperTools.on) && it.matches(context, query) }
+        entries.filter { (!it.developer || DeveloperTools.on) &&
+            (it.title != R.string.mali_path_choice || com.droiddeck.launcher.core.DeviceSupport.mali()) &&
+            it.matches(context, query) }
 }
