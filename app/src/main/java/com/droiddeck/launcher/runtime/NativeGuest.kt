@@ -167,6 +167,13 @@ object NativeGuest {
                 }
             }
 
+    private const val RELINK_STAMP = "etc/droiddeck/native-symlinks"
+
+    @JvmStatic
+    fun relinkAfterProot(root: File) {
+        File(root, RELINK_STAMP).delete()
+    }
+
     private val HOST_LINK_TARGETS = listOf("/proc", "/dev", "/sys", "/sdcard", "/storage", "/data", "/system", "/vendor", "/apex",
         "/system_ext", "/product", "/odm", "/linkerconfig", "/mnt")
 
@@ -177,7 +184,7 @@ object NativeGuest {
      * resolves the same way under proot and without it. Rerun when the runtime changes.
      */
     fun relinkAbsoluteSymlinks(context: Context, root: File): Int {
-        val stamp = File(root, "etc/droiddeck/native-symlinks")
+        val stamp = File(root, RELINK_STAMP)
         val version = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(context).orEmpty() + "/2"
         if (stamp.isFile && stamp.readText() == version) return 0
         val rootPath = root.toPath()
