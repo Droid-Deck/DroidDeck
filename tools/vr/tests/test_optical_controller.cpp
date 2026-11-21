@@ -28,7 +28,15 @@ struct Host : IVRServerDriverHost {
 };
 struct Properties : IVRProperties {
     ETrackedPropertyError ReadPropertyBatch(PropertyContainerHandle_t, PropertyRead_t *, uint32_t) override { return TrackedProp_Success; }
-    ETrackedPropertyError WritePropertyBatch(PropertyContainerHandle_t, PropertyWrite_t *, uint32_t) override { return TrackedProp_Success; }
+    std::map<std::pair<PropertyContainerHandle_t, ETrackedDeviceProperty>, std::string> strings;
+    ETrackedPropertyError WritePropertyBatch(PropertyContainerHandle_t container, PropertyWrite_t *writes, uint32_t count) override {
+        for (uint32_t i = 0; i < count; ++i) {
+            if (writes[i].unTag == k_unStringPropertyTag && writes[i].pvBuffer)
+                strings[{container, writes[i].prop}] = static_cast<const char *>(writes[i].pvBuffer);
+            writes[i].eError = TrackedProp_Success;
+        }
+        return TrackedProp_Success;
+    }
     const char *GetPropErrorNameFromEnum(ETrackedPropertyError) override { return "success"; }
     PropertyContainerHandle_t TrackedDeviceToPropertyContainer(TrackedDeviceIndex_t id) override { return id+1; }
 };
@@ -36,6 +44,8 @@ struct Input : IVRDriverInput {
     std::map<VRInputComponentHandle_t, float> values;
     std::map<std::string, VRInputComponentHandle_t> handles;
     std::map<VRInputComponentHandle_t, EVRInputError> failures;
+    unsigned skeletonUpdates = 0;
+    std::map<VRInputComponentHandle_t, HmdMatrix34_t> poses;
     EVRInputError CreateBooleanComponent(PropertyContainerHandle_t, const char *name, VRInputComponentHandle_t *h) override {
         *h = values.size()+1; values[*h]=0; handles[name]=*h; return VRInputError_None;
     }
@@ -49,10 +59,20 @@ struct Input : IVRDriverInput {
         values[h]=v; return VRInputError_None;
     }
     EVRInputError CreateHapticComponent(PropertyContainerHandle_t c, const char *n, VRInputComponentHandle_t *h) override { return CreateBooleanComponent(c,n,h); }
-    EVRInputError CreateSkeletonComponent(PropertyContainerHandle_t, const char *, const char *, const char *, EVRSkeletalTrackingLevel, const VRBoneTransform_t *, uint32_t, VRInputComponentHandle_t *) override { return VRInputError_None; }
-    EVRInputError UpdateSkeletonComponent(VRInputComponentHandle_t, EVRSkeletalMotionRange, const VRBoneTransform_t *, uint32_t) override { return VRInputError_None; }
-    EVRInputError CreatePoseComponent(PropertyContainerHandle_t, const char *, VRInputComponentHandle_t *) override { return VRInputError_None; }
-    EVRInputError UpdatePoseComponent(VRInputComponentHandle_t, const HmdMatrix34_t *, double) override { return VRInputError_None; }
+    EVRInputError CreateSkeletonComponent(PropertyContainerHandle_t c, const char *name, const char *, const char *, EVRSkeletalTrackingLevel, const VRBoneTransform_t *, uint32_t, VRInputComponentHandle_t *h) override {
+        return CreateBooleanComponent(c, name, h);
+    }
+    EVRInputError UpdateSkeletonComponent(VRInputComponentHandle_t h, EVRSkeletalMotionRange, const VRBoneTransform_t *bones, uint32_t count) override {
+        assert(h && count == 31);
+        for (uint32_t i = 0; i < count; ++i) {
+            for (float p : bones[i].position.v) assert(std::isfinite(p));
+            assert(std::isfinite(bones[i].orientation.w));
+        }
+        ++skeletonUpdates;
+        return VRInputError_None;
+    }
+    EVRInputError CreatePoseComponent(PropertyContainerHandle_t c, const char *name, VRInputComponentHandle_t *h) override { return CreateBooleanComponent(c, name, h); }
+    EVRInputError UpdatePoseComponent(VRInputComponentHandle_t h, const HmdMatrix34_t *pose, double) override { poses[h] = *pose; return VRInputError_None; }
     EVRInputError CreateEyeTrackingComponent(PropertyContainerHandle_t, const char *, VRInputComponentHandle_t *) override { return VRInputError_None; }
     EVRInputError UpdateEyeTrackingComponent(VRInputComponentHandle_t, const VREyeTrackingData_t *, double) override { return VRInputError_None; }
 };
@@ -220,6 +240,66 @@ int main() {
     const auto poseCount=context.host.poses.size();
     controller.UpdateOptical(hand,true,nullptr,now+1,connection,origin,epochs);
     assert(context.host.poses.size()==poseCount);
+    assert(controller.Activate(1) == VRInitError_None);
+    const auto xrClick = context.input.handles.at("/input/trigger/click");
+    const auto xrTrigger = context.input.handles.at("/input/trigger/value");
+    DroidDeckXrSkeleton xrSkeleton{};
+    auto xrPacket = droiddeck_xr_input_v2_neutral(101, 1);
+    xrPacket.sample_monotonic_ns = now;
+    xrPacket.flags = DROIDDECK_XR_INPUT_FOCUSED | DROIDDECK_XR_INPUT_HAND_MODE;
+    auto &xrHand = xrPacket.hands[0];
+    xrHand.source = DROIDDECK_XR_SOURCE_RUNTIME_ACTION;
+    xrHand.grip.flags = xrHand.aim.flags = 15;
+    xrHand.status_bits = 31; xrHand.ready_bits = xrHand.capability_bits = DROIDDECK_XR_PINCH | DROIDDECK_XR_GRASP;
+    xrHand.grip.position[0] = .3f;
+    xrHand.aim.position[0] = 2;
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    xrHand.pinch = 1;
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.input.values.at(xrClick) == 1 && context.input.values.at(xrTrigger) == 1);
+    assert(controller.GetPose().vecPosition[0] == xrHand.grip.position[0]);
+    const auto systemHandle = context.input.handles.at("/input/system/click");
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, true, true);
+    assert(context.input.values.at(xrClick) == 0 && context.input.values.at(xrTrigger) == 0);
+    assert(context.input.values.at(systemHandle) == 1);
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false, true);
+    assert(context.input.values.at(systemHandle) == 0 && context.input.values.at(xrTrigger) == 0);
+    xrHand.select = 1;
+    xrHand.pinch = 0;
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.input.values.at(xrClick) == 0);
+    xrHand.pinch = 1;
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.input.values.at(xrClick) == 1);
+    xrPacket.flags &= ~DROIDDECK_XR_INPUT_FOCUSED;
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.host.inputsAtPose.back().at(xrClick) == 0 && !controller.GetPose().poseIsValid);
+    xrPacket.flags |= DROIDDECK_XR_INPUT_FOCUSED;
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.input.values.at(xrClick) == 0 && context.input.values.at(xrTrigger) == 0);
+    xrHand.pinch = 0; controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    xrHand.pinch = 1; controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.input.values.at(xrClick) == 1);
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now+100000001, false);
+    assert(context.input.values.at(xrClick) == 0 && !controller.GetPose().poseIsValid);
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.input.values.at(xrClick) == 0);
+    xrHand.pinch = 0; controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    xrHand.pinch = 1; controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.input.values.at(xrClick) == 1);
+    xrHand.grip.flags = 7;
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.input.values.at(xrClick) == 0 && !controller.GetPose().poseIsValid);
+    xrHand = {};
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, true, true);
+    assert(controller.GetPose().deviceIsConnected && !controller.GetPose().poseIsValid);
+    assert(context.input.values.at(systemHandle) == 1);
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now, false);
+    assert(context.input.values.at(systemHandle) == 0);
+    controller.UpdateXrHand(xrPacket, xrSkeleton, now + 100000001, true);
+    assert(context.input.values.at(systemHandle) == 0 && !controller.GetPose().deviceIsConnected);
+    controller.Deactivate();
     HandController joyCon(false);
     assert(joyCon.Activate(2) == VRInitError_None);
     const auto joyTrigger = context.input.handles.at("/input/trigger/click");
@@ -303,4 +383,103 @@ int main() {
         assert(!padContext.input.values.count(0));
     }
     puts("PASS: game pad hands as Index and Quest Touch thumbstick controllers");
+    Context xrContext;
+    VR_CLEANUP_SERVER_DRIVER_CONTEXT();
+    VRDriverContext() = &xrContext;
+    CardboardController trackedHand(false);
+    assert(trackedHand.ConfigureAndroidXr());
+    assert(trackedHand.Activate(3) == VRInitError_None);
+    assert(xrContext.input.skeletonUpdates == 2);
+    const auto handTrigger = xrContext.input.handles.at("/input/trigger/value");
+    const auto handProfile = xrContext.properties.strings.at({4, Prop_InputProfilePath_String});
+    assert(handProfile == "{indexcontroller}/input/index_controller_profile.json");
+    assert(xrContext.input.handles.count("/input/thumbstick/x"));
+    assert(!trackedHand.ConfigureAndroidXr());
+    auto handPacket = droiddeck_xr_input_v2_neutral(77, 1);
+    handPacket.sample_monotonic_ns = 2000000000;
+    handPacket.flags = DROIDDECK_XR_INPUT_FOCUSED | DROIDDECK_XR_INPUT_HAND_MODE;
+    auto &sample = handPacket.hands[0];
+    sample.source = DROIDDECK_XR_SOURCE_RUNTIME_ACTION;
+    sample.grip.flags = sample.aim.flags = 15;
+    sample.status_bits = DROIDDECK_XR_GRIP_ACTIVE | DROIDDECK_XR_AIM_ACTIVE | DROIDDECK_XR_PINCH_ACTIVE;
+    sample.capability_bits = sample.ready_bits = DROIDDECK_XR_PINCH;
+    DroidDeckXrSkeleton noSkeleton{};
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    sample.pinch = 1;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.input.values.at(handTrigger) == 1);
+    noSkeleton.session_generation = 77;
+    noSkeleton.origin_epoch = 1;
+    noSkeleton.sample_monotonic_ns = 2000000000;
+    noSkeleton.active[0] = 1;
+    for (int joint = 0; joint < 26; ++joint) {
+        noSkeleton.joints[0][joint] = sample.grip;
+        noSkeleton.joints[0][joint].position[0] = 0.01f * joint;
+    }
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.input.skeletonUpdates == 4);
+    assert(xrContext.properties.strings.at({4, Prop_RenderModelName_String}) == "{droiddeck}droiddeck_hand_left");
+    handPacket.flags |= DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.properties.strings.at({4, Prop_RenderModelName_String}) == "{droiddeck}droiddeck_hand_left_xr");
+    handPacket.flags &= ~DROIDDECK_XR_INPUT_LOCAL_HAND_MESH;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.properties.strings.at({4, Prop_RenderModelName_String}) == "{droiddeck}droiddeck_hand_left");
+    assert(!xrContext.input.poses.empty());
+    trackedHand.Disconnect();
+    assert(xrContext.input.values.at(handTrigger) == 0);
+    assert(xrContext.properties.strings.at({4, Prop_InputProfilePath_String}) == handProfile);
+    puts("PASS: Android XR hand profile stays immutable and disconnect releases held input");
+
+    xrContext.input.handles.clear();
+    CardboardController galaxyController(false);
+    assert(galaxyController.ConfigureAndroidXr(false));
+    assert(galaxyController.Activate(4) == VRInitError_None);
+    assert(!galaxyController.ConfigureAndroidXr());
+    const auto controllerProfile = xrContext.properties.strings.at({5, Prop_InputProfilePath_String});
+    assert(controllerProfile == "{oculus}/input/touch_profile.json");
+    assert(xrContext.properties.strings.at({5, Prop_ControllerType_String}) == "oculus_touch");
+    assert(xrContext.properties.strings.at({4, Prop_ControllerType_String}) == "knuckles");
+    const auto &controllerHandles = xrContext.input.handles;
+    assert(controllerHandles.count("/input/joystick/x") && controllerHandles.count("/input/x/click"));
+    assert(!controllerHandles.count("/input/thumbstick/x") && !controllerHandles.count("/input/skeleton/left"));
+    assert(galaxyController.Haptic() && !trackedHand.Haptic());
+    const auto controllerTrigger = controllerHandles.at("/input/trigger/value");
+    const auto controllerThumbrest = controllerHandles.at("/input/thumbrest/touch");
+    const auto controllerX = controllerHandles.at("/input/x/click");
+    DroidDeckXrHand controllerState{};
+    controllerState.active = 1;
+    controllerState.pose.flags = 15;
+    controllerState.pose.orientation[3] = 1;
+    controllerState.trigger = 1;
+    controllerState.buttons = DROIDDECK_XR_PRIMARY_CLICK | DROIDDECK_XR_THUMBREST_TOUCH;
+
+    CardboardHmd routing;
+    routing.SetHands(&trackedHand, nullptr);
+    assert(routing.ActiveHand(0) == &trackedHand);
+    sample.pinch = 0;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    sample.pinch = 1;
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.input.values.at(handTrigger) == 1);
+    routing.SetHands(&galaxyController, nullptr);
+    assert(routing.ActiveHand(0) == &galaxyController);
+    assert(!trackedHand.GetPose().deviceIsConnected && xrContext.input.values.at(handTrigger) == 0);
+    galaxyController.UpdateXr(controllerState, 0);
+    assert(galaxyController.GetPose().poseIsValid);
+    assert(xrContext.input.values.at(controllerTrigger) == 1);
+    assert(xrContext.input.values.at(controllerX) == 1 && xrContext.input.values.at(controllerThumbrest) == 1);
+    routing.SetHands(&trackedHand, nullptr);
+    assert(routing.ActiveHand(0) == &trackedHand);
+    assert(!galaxyController.GetPose().deviceIsConnected && xrContext.input.values.at(controllerTrigger) == 0);
+    assert(xrContext.input.values.at(controllerX) == 0 && xrContext.input.values.at(controllerThumbrest) == 0);
+    trackedHand.UpdateXrHand(handPacket, noSkeleton, 2000000000, false);
+    assert(xrContext.input.values.at(handTrigger) == 0);
+    assert(xrContext.properties.strings.at({4, Prop_InputProfilePath_String}) == handProfile);
+    assert(xrContext.properties.strings.at({5, Prop_InputProfilePath_String}) == controllerProfile);
+    assert(!xrContext.input.values.count(0));
+    puts("PASS: Galaxy XR Touch and tracked hands keep separate profiles across switches and release held input");
+
 }

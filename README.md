@@ -57,6 +57,8 @@ The APK lands in `app/build/outputs/apk/release/`. Install it with `tools/deploy
 
 On Windows, see `tools/run_windows.ps1` and `tools/prepare_windows_runtime.py`.
 
+Experimental Android XR support adds a separate immersive entry with runtime hand input and a SteamVR skeletal bridge. The existing Quest runtime and tracking protocol are retained. See the [implementation](docs/development/android-xr.md) and [build/test runbook](docs/development/android-xr-runbook.md). Hardware and gameplay acceptance remain incomplete; this does not establish general Android XR or VR game compatibility.
+
 ## Limits
 
 Compatibility and performance vary by device. Desktop compositing is software rendered, and Firefox sandboxing is reduced under proot.
