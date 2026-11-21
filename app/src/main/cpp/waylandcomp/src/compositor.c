@@ -39,6 +39,7 @@
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
 #include "clock_domain.h"
+#include "unix_listen.h"
 
 #define WLOGI(...) __android_log_print(ANDROID_LOG_INFO, "DroidDeckWayland", __VA_ARGS__)
 #define WLOGE(...) __android_log_print(ANDROID_LOG_ERROR, "DroidDeckWayland", __VA_ARGS__)
@@ -4357,7 +4358,15 @@ int droiddeck_wayland_run(void) {
         snprintf(p, sizeof(p), "%s/wayland-0", rt);      unlink(p);
         snprintf(p, sizeof(p), "%s/wayland-0.lock", rt); unlink(p);
     }
-    if (wl_display_add_socket(display, "wayland-0") != 0) {
+    int listening = -1;
+    if (rt && *rt && !droiddeck_unix_path_fits(rt, "wayland-0")) {
+        int fd = droiddeck_unix_listen(rt, "wayland-0", 128);
+        if (fd >= 0 && wl_display_add_socket_fd(display, fd) == 0) listening = 0;
+        else if (fd >= 0) close(fd);
+    } else {
+        listening = wl_display_add_socket(display, "wayland-0");
+    }
+    if (listening != 0) {
         WLOGE("add_socket(wayland-0) failed in XDG_RUNTIME_DIR=%s (errno path/perms?)",
               rt ? rt : "(null)");
         return 1;

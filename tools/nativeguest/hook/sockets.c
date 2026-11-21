@@ -102,10 +102,11 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
         const struct sockaddr_un *sun = (const struct sockaddr_un *)addr;
         if (sun->sun_path[0] != '\0') {
             struct sockaddr_un mod_sun;
-            memset(&mod_sun, 0, sizeof(mod_sun));
-            mod_sun.sun_family = AF_UNIX;
-            rewrite_unix_socket_path(sun->sun_path, mod_sun.sun_path, sizeof(mod_sun.sun_path));
-            return orig_bind ? orig_bind(sockfd, (struct sockaddr *)&mod_sun, sizeof(mod_sun)) : -1;
+            int dir_fd;
+            if (unix_socket_address(sun->sun_path, &mod_sun, &dir_fd) != 0) return -1;
+            int ret = orig_bind ? orig_bind(sockfd, (struct sockaddr *)&mod_sun, sizeof(mod_sun)) : -1;
+            release_socket_dir(dir_fd);
+            return ret;
         }
     }
     int ret = orig_bind ? orig_bind(sockfd, addr, addrlen) : -1;
@@ -130,8 +131,6 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
         const struct sockaddr_un *sun = (const struct sockaddr_un *)addr;
         if (sun->sun_path[0] != '\0') {
             struct sockaddr_un mod_sun;
-            memset(&mod_sun, 0, sizeof(mod_sun));
-            mod_sun.sun_family = AF_UNIX;
             char guest[sizeof(sun->sun_path) + 1];
             size_t max = addrlen - offsetof(struct sockaddr_un, sun_path);
             if (max > sizeof(sun->sun_path)) max = sizeof(sun->sun_path);
@@ -139,8 +138,11 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
             guest[max] = '\0';
             char followed[PATH_MAX];
             const char *path = guest[0] == '/' ? follow_guest_link(guest, followed, sizeof(followed)) : guest;
-            rewrite_unix_socket_path(path, mod_sun.sun_path, sizeof(mod_sun.sun_path));
-            return orig_connect ? orig_connect(sockfd, (struct sockaddr *)&mod_sun, sizeof(mod_sun)) : -1;
+            int dir_fd;
+            if (unix_socket_address(path, &mod_sun, &dir_fd) != 0) return -1;
+            int ret = orig_connect ? orig_connect(sockfd, (struct sockaddr *)&mod_sun, sizeof(mod_sun)) : -1;
+            release_socket_dir(dir_fd);
+            return ret;
         }
     }
 
