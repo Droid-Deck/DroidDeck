@@ -24,6 +24,11 @@ object SessionFiles {
     val DIRECTAUDIO_SETS = arrayOf("linux-wine11", "linux-wine11-systhread")
 
     internal val DESKTOP_FILES = arrayOf(
+        "usr/local/lib/droiddeck-kwin/libkwin.so.6" to "usr/local/lib/droiddeck-kwin/libkwin.so.6",
+        "usr/local/lib/droiddeck-kwin/kwin.sha256" to "usr/local/lib/droiddeck-kwin/kwin.sha256",
+        "usr/local/lib/droiddeck-kwin/kwin_wayland" to "usr/local/lib/droiddeck-kwin/kwin_wayland",
+        "usr/local/lib/droiddeck-kwin/LICENSE" to "usr/local/lib/droiddeck-kwin/LICENSE",
+        "usr/local/lib/droiddeck-kwin/build.json" to "usr/local/lib/droiddeck-kwin/build.json",
         "usr/local/bin/droiddeck-desktop" to "usr/local/bin/droiddeck-desktop",
         "usr/local/bin/droiddeck-bottom-desktop" to "usr/local/bin/droiddeck-bottom-desktop",
         "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
@@ -31,6 +36,7 @@ object SessionFiles {
         "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
         "usr/local/bin/droiddeck-library-perms" to "usr/local/bin/droiddeck-library-perms",
         "usr/local/bin/droiddeck-ime" to "usr/local/bin/droiddeck-ime",
+        "usr/local/bin/droiddeck-ibus" to "usr/local/bin/droiddeck-ibus",
         "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
         "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
@@ -121,6 +127,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
             "usr/local/bin/droiddeck-fonts" to "usr/local/bin/droiddeck-fonts",
             "usr/local/bin/droiddeck-agent" to "usr/local/bin/droiddeck-agent",
+            "usr/local/bin/droiddeck-windows" to "usr/local/bin/droiddeck-windows",
             "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
             "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",
@@ -227,6 +234,7 @@ object SessionFiles {
             "droiddeck/bin/linuxarm64/xr-display-mode",
             "droiddeck/driver.vrdrivermanifest",
             "droiddeck/resources/settings/default.vrsettings",
+            "droiddeck/resources/licenses/webxr-input-profiles.txt",
             "layer/libVkLayer_droiddeck_vr.so",
             "layer/libdroiddeck_vr_scheduling.so",
             "layer/VK_LAYER_DROIDDECK_vr.json",

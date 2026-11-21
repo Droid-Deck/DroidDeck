@@ -61,6 +61,13 @@ int64_t droiddeck_clock_domain_adjust_ns(int64_t value) {
     return value > shift ? value - shift : 0;
 }
 
+uint32_t droiddeck_clock_domain_adjust_ms(int64_t value) {
+    int64_t shift = shift_ns();
+    /* Millisecond inputs are truncated: ceil the shift before subtracting, then wrap. */
+    int64_t shift_ms = shift / 1000000LL + (shift % 1000000LL != 0);
+    return value > shift_ms ? (uint32_t)(value - shift_ms) : 0;
+}
+
 int64_t droiddeck_clock_domain_now_ns(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);

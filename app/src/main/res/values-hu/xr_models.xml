@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s SteamVR-vezérlőmodellek</string>
+    <string name="load_xr_preparing_steamvr">SteamVR előkészítése</string>
+    <string name="load_xr_steam_ready">A Steam készen áll</string>
+    <string name="load_xr_models_downloading">Letöltés</string>
+    <string name="load_xr_models_checking">Ellenőrzés</string>
+    <string name="load_xr_models_installing">Telepítés</string>
+    <string name="load_xr_models_ready">Kész</string>
+    <string name="load_xr_models_native">Natív modellek használata</string>
+    <string name="load_xr_models_failed_fallback">Az előkészítés sikertelen; alapértelmezett modellek használata</string>
+</resources>

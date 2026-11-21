@@ -1241,6 +1241,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
+        com.droiddeck.launcher.session.SessionTaskLabels.panel(this)
         if (savedInstanceState == null) readIntegrationIntent(intent)
         val shortcutsFilter = android.content.IntentFilter(SteamIntegration.SHORTCUTS_STATUS)
         if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(shortcutsInstallStatus, shortcutsFilter, RECEIVER_NOT_EXPORTED)
@@ -1963,6 +1964,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (soundtrackLaunch) return
         if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
         if (isFinishing || isDestroyed) return
+        if (com.droiddeck.launcher.session.LinuxWindows.enabled && SessionState.running) return
         when (SessionPrefs.startupSession(this)) {
             SessionPrefs.STARTUP_STEAM -> startSteamSession()
             SessionPrefs.STARTUP_DESKTOP -> startSession(Intent(this, SessionActivity::class.java)
@@ -2082,6 +2084,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             refreshHomeAppState()
         }
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
+        com.droiddeck.launcher.session.OpenXrRuntime.invalidate()
+        com.droiddeck.launcher.session.SessionTaskLabels.panel(this)
+        if (intent.action == Intent.ACTION_MAIN && com.droiddeck.launcher.session.LinuxWindows.enabled && SessionState.running) {
+            intent.action = null
+            window.decorView.post { com.droiddeck.launcher.session.LinuxWindows.showList(this) }
+        }
         settingsMode?.let { hdrOn = SessionPrefs.hdr(this, it) }
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)

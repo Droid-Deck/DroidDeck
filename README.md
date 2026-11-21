@@ -43,6 +43,12 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
 
 Smart glasses setup is in the [support matrix](docs/smart-glasses-support.md). Release notes are in [docs/releases](docs/releases).
 
+## OpenXR SteamVR support
+
+This checkout adds a runtime-detected OpenXR entry, Neo3/PICO 4/PICO 4 Ultra controller bindings, and physical trigger/grip clicks through the standard Khronos Android OpenXR loader.
+
+## Community
+
 Help, Preview builds and device reports are on [Discord](https://discord.gg/JRGAvawjsm). For bugs, post in **#bug-reports** with the zip from **Share logs**.
 
 ## Build
@@ -53,9 +59,16 @@ Needs Docker, Java 17, the Android SDK and NDK, Rust via rustup, Go, a host C co
 tools/build_local.sh
 ```
 
+It prepares the native libraries, pinned components, independent KWin runtime and audio sinks, then verifies the APK payload. If native sources or component pins change, rerun the helper before packaging. Set `DROIDDECK_PA13_SOURCE_DIR` to an existing PulseAudio 13.0 source directory to reuse it. `DROIDDECK_SIGNING_ENV` selects a signing environment file; relative keystore paths resolve beside that file. `DROIDDECK_SKIP_RUST=1` omits store engines and cached engine libraries.
+
+On Windows, `python tools/vr/build_windows.py --vk-include <NDK-sysroot-include>` rebuilds the VR runtime with Docker Desktop's Linux engine. Machine-specific tooling options belong in the ignored `local.properties`.
+
 The APK lands in `app/build/outputs/apk/release/`. Install it with `tools/deploy_local.sh`. After the first run, `./gradlew :app:assembleRelease` reuses the prepared inputs. Unit tests run with `./gradlew -PskipRust=true :app:testDebugUnitTest`, and the helper and preload suite with `bash tools/test_local.sh`.
 
 On Windows, see `tools/run_windows.ps1` and `tools/prepare_windows_runtime.py`.
+Windows runtime preparation rebuilds the patched ARM64 KWin in Docker. Use
+`--rebuilt-kwin <directory>` to reuse the five files from a KWin build; its
+`build.json` must match the current source and output checksums.
 
 ## Limits
 
@@ -64,6 +77,8 @@ Compatibility and performance vary by device. Desktop compositing is software re
 ## Credits and licence
 
 DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. VITURE, RayNeo, XREAL, Rokid, REDMAGIC, Nintendo Switch and Joy-Con are trademarks of their owners. This project is not affiliated with any of them.
+
+PICO controller models and their input animations are generated from [WebXR Input Profiles](https://github.com/immersive-web/webxr-input-profiles/tree/f4992299601614adbfefd398dc8e281556bb7444) (MIT, Copyright © 2019 Amazon). Models are downloaded as separate add-on packs; each pack includes the full licence and source provenance. The driver ships the same licence for its generated animation data.
 
 <details>
 <summary><b>Runtime, Wine and Proton</b></summary>

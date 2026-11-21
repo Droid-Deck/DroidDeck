@@ -11,37 +11,57 @@ import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.wayland.CompositorHost
 import com.droiddeck.launcher.wayland.WaylandCompositor
 
-class QuestXrActivity : NativeActivity() {
+open class QuestXrActivity : NativeActivity() {
+    protected open val keepDesktopPanel = false
     private var steamVrStarted = false
     @Volatile private var closing = false
     @Volatile private var steamVrStatus = SteamVr.Status.UNAVAILABLE
     private var sessionId: String? = null
+    private var xrOwner = 0L
+    private var runtimeAttempt = 0L
+    private val preparation by lazy { com.droiddeck.launcher.session.XrPreparation(this) }
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(newBase)
+        com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         sessionId = SessionState.sessionId
-        SessionService.setXrActivityVisible(this, true)
+        xrOwner = SessionService.registerXrActivity()
+        runtimeAttempt = com.droiddeck.launcher.session.OpenXrRuntime.sessionStarting()
+        com.droiddeck.launcher.session.XrControllerModels.begin(this, runtimeAttempt)
+        reportVisible(true)
         super.onCreate(savedInstanceState)
     }
 
-    fun onXrActive(active: Boolean) {
+    open fun onXrActive(active: Boolean) {
         if (active) {
+            com.droiddeck.launcher.session.OpenXrRuntime.sessionReady(runtimeAttempt)
             check(CompositorHost.isStarted) { "DroidDeck compositor is not running" }
-            SessionService.resume(this)
-            WaylandCompositor.nativeSetCardboard(false, 1, 0.064f, 3f, 4f, 0f, 0f, 90f, 0f, 0f, false, 0f)
-            WaylandCompositor.nativeSetFrameGenArmed(false, 0, 0)
-            WaylandCompositor.nativeSetZeroCopy(false)
-            CompositorHost.attachXr()
-            WaylandCompositor.nativeVsync(System.nanoTime())
-            check(WaylandCompositor.nativeWaitSurface(3000)) { "XR frame GPU handshake timed out" }
+            if (!keepDesktopPanel) {
+                SessionService.resume(this)
+                WaylandCompositor.nativeSetCardboard(false, 1, 0.064f, 3f, 4f, 0f, 0f, 90f, 0f, 0f, false, 0f)
+                WaylandCompositor.nativeSetFrameGenArmed(false, 0, 0)
+                WaylandCompositor.nativeSetZeroCopy(false)
+            }
+            CompositorHost.attachXr(keepDesktopPanel)
+            if (!keepDesktopPanel) {
+                WaylandCompositor.nativeVsync(System.nanoTime())
+                check(WaylandCompositor.nativeWaitSurface(3000)) { "Desktop surface handoff timed out" }
+            }
         }
-        SessionService.setXrActivityVisible(this, active)
+        reportVisible(active)
         if (active) startSteamVr()
     }
 
-    private fun startSteamVr() {
+    protected open fun startSteamVr() {
         if (!steamVrStarted) {
             steamVrStarted = true
             Thread({
                 try {
+                    if (!com.droiddeck.launcher.session.SteamVrSession.prepare(this) { !closing && sessionAlive() }) {
+                        if (!closing && sessionAlive()) leaveXr("SteamVR preparation failed", true)
+                        return@Thread
+                    }
                     val started = synchronized(steamVrLock) {
                         if (closing || !sessionAlive()) false else {
                             steamVrOwner = this
@@ -77,7 +97,7 @@ class QuestXrActivity : NativeActivity() {
                         }
                     }
                 }
-            }, "quest-steamvr-start").start()
+            }, "xr-steamvr-start").start()
         }
     }
 
@@ -86,6 +106,7 @@ class QuestXrActivity : NativeActivity() {
 
     private fun leaveXr(reason: String, failed: Boolean) {
         Log.w("DroidDeckXR", reason)
+        if (failed) com.droiddeck.launcher.session.OpenXrRuntime.sessionFailed(runtimeAttempt, reason)
         closing = true
         runOnUiThread {
             if (failed) Toast.makeText(this, R.string.cardboard_steamvr_failed, Toast.LENGTH_LONG).show()
@@ -94,19 +115,35 @@ class QuestXrActivity : NativeActivity() {
     }
 
     fun onXrFrame(frameTimeNanos: Long) {
-        WaylandCompositor.nativeVsync(frameTimeNanos)
+        CompositorHost.xrVsync(frameTimeNanos, keepDesktopPanel)
     }
 
-    fun onXrStatus(): Int = steamVrStatus.ordinal
+    fun onXrControllers(left: Int, right: Int, leftNative: String, rightNative: String) =
+        com.droiddeck.launcher.session.XrControllerModels.controllers(this, runtimeAttempt, left, right, leftNative, rightNative)
+
+    open fun onXrStatus(): Int = steamVrStatus.ordinal
+
+    fun onXrPreparation(): android.graphics.Bitmap? =
+        if (closing || !sessionAlive() || onXrStatus() == SteamVr.Status.RUNNING.ordinal) null else preparation.bitmap()
+
+    fun onXrFailure(error: String) =
+        com.droiddeck.launcher.session.OpenXrRuntime.sessionFailed(runtimeAttempt, error)
+
+    private fun reportVisible(visible: Boolean) {
+        SessionService.setXrActivityVisible(this, visible, sessionId, xrOwner)
+        Log.i("DroidDeckXR", "activity=${javaClass.simpleName} task=$taskId owner=$xrOwner visible=$visible")
+    }
 
     override fun onDestroy() {
         closing = true
-        SessionService.setXrActivityVisible(this, false)
+        com.droiddeck.launcher.session.XrControllerModels.end(runtimeAttempt)
+        com.droiddeck.launcher.session.OpenXrRuntime.sessionEnded(runtimeAttempt)
+        reportVisible(false)
         super.onDestroy()
     }
 
     override fun onStop() {
-        SessionService.setXrActivityVisible(this, false)
+        reportVisible(false)
         super.onStop()
     }
 

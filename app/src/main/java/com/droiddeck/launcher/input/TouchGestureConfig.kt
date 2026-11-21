@@ -36,6 +36,14 @@ data class TouchGestureConfig(
     val threeFingerHoldAction: String = ACTION_KEY_ESC,
     val threeFingerHoldMouseBehavior: String = MOUSE_BEHAVIOR_HOLD,
     val threeFingerHoldDelay: Int = DEFAULT_DELAY_MS,
+    val threeFingerSwipeUp: String = ACTION_NATIVE_SWIPE,
+    val threeFingerSwipeDown: String = ACTION_NATIVE_SWIPE,
+    val threeFingerSwipeLeft: String = ACTION_NATIVE_SWIPE,
+    val threeFingerSwipeRight: String = ACTION_NATIVE_SWIPE,
+    val fourFingerSwipeUp: String = ACTION_NATIVE_SWIPE,
+    val fourFingerSwipeDown: String = ACTION_NATIVE_SWIPE,
+    val fourFingerSwipeLeft: String = ACTION_NATIVE_SWIPE,
+    val fourFingerSwipeRight: String = ACTION_NATIVE_SWIPE,
     val showGestureDebugOverlay: Boolean = false,
     val gestureThreshold: Int = DEFAULT_GESTURE_THRESHOLD,
     val mouseDragMovementMode: String = MOUSE_DRAG_MOVEMENT_DIRECT,
@@ -73,6 +81,14 @@ data class TouchGestureConfig(
             put(KEY_THREE_FINGER_HOLD_ACTION, threeFingerHoldAction)
             put(KEY_THREE_FINGER_HOLD_MOUSE_BEHAVIOR, threeFingerHoldMouseBehavior)
             put(KEY_THREE_FINGER_HOLD_DELAY, threeFingerHoldDelay)
+            put("threeFingerSwipeUp", threeFingerSwipeUp)
+            put("threeFingerSwipeDown", threeFingerSwipeDown)
+            put("threeFingerSwipeLeft", threeFingerSwipeLeft)
+            put("threeFingerSwipeRight", threeFingerSwipeRight)
+            put("fourFingerSwipeUp", fourFingerSwipeUp)
+            put("fourFingerSwipeDown", fourFingerSwipeDown)
+            put("fourFingerSwipeLeft", fourFingerSwipeLeft)
+            put("fourFingerSwipeRight", fourFingerSwipeRight)
             put(KEY_SHOW_GESTURE_DEBUG_OVERLAY, showGestureDebugOverlay)
             put(KEY_GESTURE_THRESHOLD, gestureThreshold)
             put(KEY_MOUSE_DRAG_MOVEMENT_MODE, mouseDragMovementMode)
@@ -100,6 +116,8 @@ data class TouchGestureConfig(
         const val ACTION_SHOW_KEYBOARD = "show_keyboard"
         const val ACTION_KEY_ESC = "key_ESC"
         const val ACTION_KEY_TILDE = "key_TILDE"
+        const val ACTION_NATIVE_SWIPE = "native_swipe"
+        const val ACTION_NONE = "none"
         const val PAN_WASD = "wasd"
         const val PAN_INVERTED_WASD = "inverted_wasd"
         const val PAN_ARROW_KEYS = "arrow_keys"
@@ -193,6 +211,14 @@ data class TouchGestureConfig(
                         obj.optString(KEY_THREE_FINGER_HOLD_MOUSE_BEHAVIOR, MOUSE_BEHAVIOR_HOLD)
                     ),
                     threeFingerHoldDelay = obj.optInt(KEY_THREE_FINGER_HOLD_DELAY, DEFAULT_DELAY_MS),
+                    threeFingerSwipeUp = obj.optString("threeFingerSwipeUp", ACTION_NATIVE_SWIPE),
+                    threeFingerSwipeDown = obj.optString("threeFingerSwipeDown", ACTION_NATIVE_SWIPE),
+                    threeFingerSwipeLeft = obj.optString("threeFingerSwipeLeft", ACTION_NATIVE_SWIPE),
+                    threeFingerSwipeRight = obj.optString("threeFingerSwipeRight", ACTION_NATIVE_SWIPE),
+                    fourFingerSwipeUp = obj.optString("fourFingerSwipeUp", ACTION_NATIVE_SWIPE),
+                    fourFingerSwipeDown = obj.optString("fourFingerSwipeDown", ACTION_NATIVE_SWIPE),
+                    fourFingerSwipeLeft = obj.optString("fourFingerSwipeLeft", ACTION_NATIVE_SWIPE),
+                    fourFingerSwipeRight = obj.optString("fourFingerSwipeRight", ACTION_NATIVE_SWIPE),
                     showGestureDebugOverlay = obj.optBoolean(KEY_SHOW_GESTURE_DEBUG_OVERLAY, false),
                     gestureThreshold = obj.optInt(KEY_GESTURE_THRESHOLD, DEFAULT_GESTURE_THRESHOLD),
                     mouseDragMovementMode = normalizeMouseDragMovementMode(

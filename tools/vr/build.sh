@@ -29,6 +29,7 @@ mkdir -p "$work/out/droiddeck/bin/linuxarm64" "$work/out/layer"
 compile() {
     local cmd=(sh -c '
         set -e
+        python3 tools/vr/make_pico_models.py --out build/vr/pico-models
         cc -std=c11 -O2 -Wall -Wextra -Werror -Ibuild/vr/include -Itools/vr/src \
             -o build/vr/test_fence_tracker tools/vr/tests/test_fence_tracker.c
         build/vr/test_fence_tracker
@@ -50,9 +51,12 @@ compile() {
         c++ -std=c++17 -O2 -Wall -Wextra -Werror -Itools/vr/src \
             -o build/vr/test_adaptive_pose tools/vr/tests/test_adaptive_pose.cpp
         build/vr/test_adaptive_pose
-        c++ -std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Itools/vr/src \
+        c++ -std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter -pthread -Itools/vr/src -Ibuild/vr/pico-models/include \
             -o build/vr/test_optical_controller tools/vr/tests/test_optical_controller.cpp
         build/vr/test_optical_controller
+        c++ -std=c++17 -O2 -Wall -Wextra -Werror -pthread -Itools/vr/src \
+            -o build/vr/test_xr_tracking tools/vr/tests/test_xr_tracking.cpp
+        build/vr/test_xr_tracking
         cc -shared -fPIC -O2 -Wall -Wextra -Werror \
             -o build/vr/libdroiddeck_vr_scheduling.so tools/vr/src/scheduling.c -ldl
         cc -O2 -Wall -Wextra -Werror -o build/vr/test_scheduling tools/vr/tests/test_scheduling.c
@@ -72,7 +76,7 @@ compile() {
         aarch64-linux-gnu-gcc -c -fPIC -O2 -Itools/vr/third_party/wayland -o build/vr/xdg-shell-protocol.o \
             app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c
         aarch64-linux-gnu-g++ -std=c++17 -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers \
-            -fvisibility=hidden -static-libstdc++ -static-libgcc -pthread -Wl,-z,defs -Ibuild/vr/include \
+            -fvisibility=hidden -static-libstdc++ -static-libgcc -pthread -Wl,-z,defs -Ibuild/vr/include -Ibuild/vr/pico-models/include \
             -Itools/vr/third_party/wayland -Iapp/src/main/cpp/waylandcomp/generated \
             -o build/vr/out/droiddeck/bin/linuxarm64/driver_droiddeck.so tools/vr/src/driver_droiddeck.cpp tools/vr/src/presenter.cpp \
             build/vr/xdg-shell-protocol.o -Lbuild/vr/stub -lwayland-client -ldl
@@ -89,12 +93,16 @@ compile() {
         (cd "$repo" && "${cmd[@]}")
     else
         docker run --rm --platform "${DROIDDECK_DOCKER_PLATFORM:-linux/amd64}" --user "$(id -u):$(id -g)" -v "$repo:/src" -w /src \
-            "${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}" "${cmd[@]}"
+            "${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v4}" "${cmd[@]}"
     fi
 }
 compile
 
-cp -R "$here/driver_droiddeck/." "$work/out/droiddeck/"
+cp "$here/driver_droiddeck/driver.vrdrivermanifest" "$work/out/droiddeck/"
+mkdir -p "$work/out/droiddeck/resources/settings"
+cp "$here/driver_droiddeck/resources/settings/default.vrsettings" "$work/out/droiddeck/resources/settings/"
+mkdir -p "$work/out/droiddeck/resources/licenses"
+cp "$here/third_party/webxr-input-profiles/LICENSE.md" "$work/out/droiddeck/resources/licenses/webxr-input-profiles.txt"
 cp "$here/layer/VK_LAYER_DROIDDECK_vr.json" "$here/layer/VK_LAYER_DROIDDECK_vr_implicit.json" "$work/out/layer/"
 rm -rf "$out/droiddeck" "$out/layer"
 mkdir -p "$out"

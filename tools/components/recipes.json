@@ -27,6 +27,9 @@
     ],
     "ndk": true,
     "packages": [
+      "python3-numpy",
+      "python3-pil",
+      "ca-certificates",
       "gcc-aarch64-linux-gnu",
       "libc6-dev-arm64-cross",
       "g++-aarch64-linux-gnu",

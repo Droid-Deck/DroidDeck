@@ -19,10 +19,16 @@ internal class AddonPack(
     private val reuseDeviceCopy: Boolean = sha256.isEmpty() && !BuildConfig.CI_BUILD,
     private val labBuild: Boolean = LabOverlay.active != null,
     private val bundle: (Context) -> java.io.InputStream = { it.assets.open("packs/$name.tar.zst") },
+    private val validateFiles: (File) -> Boolean = { true },
+    private val detailedState: Boolean = false,
+    private val downloadUrls: List<String>? = null,
+    private val storageName: String = name,
 ) {
     sealed interface State {
         data object Missing : State
         data class Downloading(val progress: Float) : State
+        data object Checking : State
+        data object Installing : State
         data object Failed : State
         data object Ready : State
     }
@@ -36,16 +42,25 @@ internal class AddonPack(
 
     val available: Boolean get() = sha256.isNotEmpty()
     private val tag get() = "pack-$name-${sha256.take(16)}"
-    private val urls get() = listOfNotNull(
+    private val urls get() = downloadUrls ?: listOfNotNull(
         "https://github.com/$REPO/releases/download/$tag/$name.tar.zst",
         BuildConfig.PR_NUMBER.takeIf { it > 0 }?.let { "https://github.com/$PR_REPO/releases/download/pr-$it/$tag.tar.zst" },
     )
 
-    private fun root(context: Context) = File(context.filesDir, "addons/$name")
+    private fun root(context: Context) = File(context.filesDir, "addons/$storageName")
     fun dir(context: Context) = File(root(context), version(context))
     fun file(context: Context, relative: String) = File(dir(context), relative)
 
-    fun installed(context: Context): Boolean = version(context).isNotEmpty() && File(dir(context), COMPLETE).isFile
+    fun installed(context: Context): Boolean {
+        val version = version(context)
+        val directory = dir(context)
+        return version.isNotEmpty() &&
+            runCatching { File(directory, COMPLETE).readText().trim() == version }.getOrDefault(false) &&
+            required.all { File(directory, it).isFile } &&
+            runCatching { validateFiles(directory) }.getOrDefault(false)
+    }
+
+    private fun busy(state: State) = state is State.Downloading || state == State.Checking || state == State.Installing
 
     private fun version(context: Context): String =
         if (reuseDeviceCopy || labBuild) deviceCopy(context) ?: sha256 else sha256
@@ -59,7 +74,7 @@ internal class AddonPack(
 
     fun refresh(context: Context): State {
         val now = mutableState.value
-        if (now is State.Downloading) return now
+        if (busy(now)) return now
         return (if (installed(context)) State.Ready else if (now == State.Failed) State.Failed else State.Missing)
             .also { mutableState.value = it }
     }
@@ -68,7 +83,7 @@ internal class AddonPack(
         val app = context.applicationContext
         synchronized(lock) {
             if (installed(app)) { mutableState.value = State.Ready; return }
-            if (mutableState.value is State.Downloading) return
+            if (busy(mutableState.value)) return
             mutableState.value = State.Downloading(0f)
             failure = null
         }
@@ -108,7 +123,9 @@ internal class AddonPack(
         val archive = File(root, "$sha256.tar.zst")
         val problems = mutableListOf<String>()
         val downloaded = bundled(context, archive) || urls.any { url ->
-            Downloader.downloadFile(url, archive, true, sha256) { p -> mutableState.value = State.Downloading(p.coerceIn(0f, 1f)) }
+            Downloader.downloadFile(url, archive, true, sha256) { p ->
+                mutableState.value = if (detailedState && p >= 1f) State.Checking else State.Downloading(p.coerceIn(0f, 1f))
+            }
                 .also { if (!it) { archive.delete(); Downloader.lastFailure()?.let(problems::add) } }
         }
         if (!downloaded) {
@@ -118,11 +135,14 @@ internal class AddonPack(
         val staging = File(root, "$sha256.partial")
         staging.deleteRecursively()
         try {
+            if (detailedState) mutableState.value = State.Installing
             if (!FileInputStream(archive).use { TarZst.extract(it, staging) }) {
                 failure = "could not unpack the pack"
                 return false
             }
             check(required.all { File(staging, it).isFile }) { "$name pack is incomplete" }
+            if (detailedState) mutableState.value = State.Checking
+            check(validateFiles(staging)) { "$name pack has invalid resources" }
             File(staging, COMPLETE).writeText(sha256)
             val target = dir(context)
             target.deleteRecursively()
@@ -139,6 +159,7 @@ internal class AddonPack(
         val copied = runCatching {
             bundle(context).use { input -> archive.outputStream().use { input.copyTo(it) } }
         }.isSuccess
+        if (copied && detailedState) mutableState.value = State.Checking
         if (copied && Hashes.sha256(archive).equals(sha256, ignoreCase = true)) return true
         if (copied) Log.w(TAG, "$name: the bundled pack does not match the pinned digest")
         archive.delete()

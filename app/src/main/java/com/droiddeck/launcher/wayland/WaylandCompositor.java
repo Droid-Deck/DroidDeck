@@ -223,6 +223,11 @@ public final class WaylandCompositor {
                                                      String nativeLibDir, boolean allowDriverFallback);
 
     public static native void nativeSetSurface(Surface surface);
+    public static native void nativeAttachWindow(String key, long generation, Surface surface, int width, int height);
+    public static native void nativeDetachWindow(String key, long generation);
+    public static native void nativeWindowInput(String key, long generation, int type, int a, int b);
+    public static native long[] nativeWindowStats(String key);
+    public static native boolean nativeWindowSupported();
     public static native boolean nativeWaitSurface(int timeoutMs);
 
     public static native void nativeSendPointer(int action, int x, int y);
@@ -385,6 +390,7 @@ public final class WaylandCompositor {
                                                  float screenWidthM, float k1, float k2, float fovDeg,
                                                  float lensInset, float chroma, boolean mono, float displayHz);
 
+    public static native boolean nativeCardboardActive();
     public static native void nativeSetCardboardPose(float[] rotation, boolean live);
     public static native void nativeSetCardboardSpatialPose(float[] rotation, float[] position, boolean live);
     public static native boolean nativeSetSpatialFile(String path);
@@ -405,6 +411,12 @@ public final class WaylandCompositor {
     public static native int nativeRaisePriority(int tid, int nice);
 
     public static native void nativeSendSceneInput(int type, int a, int b);
+    public static void nativePointerGesture(String key, long generation, int type,
+                                           float a, float b, float c, float d) {
+        nativePointerGesture(key, generation, type, a, b, c, d, android.os.SystemClock.uptimeMillis());
+    }
+    public static native void nativePointerGesture(String key, long generation, int type,
+                                                  float a, float b, float c, float d, long eventTime);
 
     public static final int SCENE_BUTTON = 3, SCENE_WHEEL = 4, SCENE_POINTER_DELTA = 6, SCENE_AXIS = 11, SCENE_AXIS_FINGER = 12;
     public static final int WHEEL_STEP_UNITS = 120, POINTER_DELTA_SCALE = 256;

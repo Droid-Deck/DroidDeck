@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s SteamVR-kontrollermodeller</string>
+    <string name="load_xr_preparing_steamvr">Klargjør SteamVR</string>
+    <string name="load_xr_steam_ready">Steam er klar</string>
+    <string name="load_xr_models_downloading">Laster ned</string>
+    <string name="load_xr_models_checking">Kontrollerer</string>
+    <string name="load_xr_models_installing">Installerer</string>
+    <string name="load_xr_models_ready">Klar</string>
+    <string name="load_xr_models_native">Bruker native modeller</string>
+    <string name="load_xr_models_failed_fallback">Klargjøring mislyktes; bruker standardmodeller</string>
+</resources>

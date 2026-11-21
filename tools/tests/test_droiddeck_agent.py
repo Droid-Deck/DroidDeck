@@ -560,6 +560,37 @@ class AgentTest(unittest.TestCase):
             time.sleep(0.02)
         self.assertEqual(agent.VERSION, json.loads((agent_dir / "resp" / "a.json").read_text())["version"])
 
+    def test_window_bridge_startup_failures_do_not_stop_requests(self):
+        from unittest.mock import Mock
+        for stage in ("load", "construct", "start"):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as folder:
+                agent_dir = Path(folder)
+                (agent_dir / "req").mkdir()
+                (agent_dir / "req/ping.json").write_text(json.dumps({"kind": "ping"}))
+                bridge = Mock()
+                constructor = Mock(return_value=bridge)
+                error = RuntimeError("bridge " + stage + " failed")
+                loader = Mock(return_value={"WindowBridge": constructor})
+                if stage == "load":
+                    loader.side_effect = FileNotFoundError("droiddeck-windows")
+                elif stage == "construct":
+                    constructor.side_effect = error
+                else:
+                    bridge.start.side_effect = error
+                def worker(target, **kwargs):
+                    return Mock(start=target)
+                with patch("runpy.run_path", loader), patch.object(agent, "displays", return_value={}), \
+                        patch.object(agent.threading, "Thread", side_effect=worker), \
+                        patch.object(agent.time, "sleep", side_effect=StopIteration), \
+                        patch.object(agent, "log") as log:
+                    with self.assertRaises(StopIteration):
+                        agent.serve(str(agent_dir), focus=False)
+                self.assertEqual(agent.VERSION, json.loads((agent_dir / "resp/ping.json").read_text())["version"])
+                self.assertTrue((agent_dir / "hello.json").exists())
+                self.assertTrue(any("window bridge startup failed" in call.args[0] for call in log.call_args_list))
+                if stage != "load":
+                    constructor.assert_called_once_with(agent_dir)
+
     def test_game_pids_reads_the_steam_environment(self):
         import subprocess
         if not Path("/proc").is_dir():
