@@ -31,6 +31,7 @@ class RawWindow : public QObject
     WaylandOutput *m_output;
     std::map<SurfaceInterface *, std::unique_ptr<Node>> m_nodes;
     QList<QPointer<SurfaceInterface>> m_frameSurfaces;
+    QList<QPointer<Window>> m_observed;
     wl_callback *m_frame = nullptr;
     bool m_scheduled = false;
     bool m_active = false;
@@ -67,6 +68,26 @@ class RawWindow : public QObject
         m_active = false;
     }
 
+    void observe(const QList<Window *> &included)
+    {
+        for (auto it = m_observed.begin(); it != m_observed.end();) {
+            Window *window = it->data();
+            if (!window || !included.contains(window)) {
+                if (window) disconnect(window, nullptr, this, nullptr);
+                it = m_observed.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        for (auto window : included) {
+            if (window == m_window || m_observed.contains(window)) continue;
+            m_observed.append(window);
+            connect(window, &Window::frameGeometryChanged, this, [this] { schedule(); });
+            connect(window, &Window::bufferGeometryChanged, this, [this] { schedule(); });
+            connect(window, &Window::opacityChanged, this, [this] { schedule(); });
+        }
+    }
+
     void update()
     {
         if (!m_allowed || !m_window || m_window->opacity() != 1.0 || !m_window->surface() || !m_output->isReady()) {
@@ -80,18 +101,31 @@ class RawWindow : public QObject
             deactivate();
             return;
         }
+        QList<Window *> included{m_window.data()};
         for (auto window : workspace()->stackingOrder()) {
             if (window == m_window || !window->surface()) continue;
             auto ancestor = window->transientFor();
             while (ancestor && ancestor != m_window) ancestor = ancestor->transientFor();
-            if (!ancestor || (window->output() && window->output()->name() != m_output->name() &&
-                              window->output()->name().startsWith("DroidDeckWindow:"))) continue;
+            const bool related = ancestor
+                || (window->isUnmanaged() && !window->transientFor() && window->pid() > 0
+                    && window->pid() == m_window->pid()
+                    && window->frameGeometry().intersects(m_window->frameGeometry())
+                    && Window::belongToSameApplication(m_window, window));
+            if (!related) continue;
+            if (window->output() && window->output()->name() != m_output->name() &&
+                window->output()->name().startsWith("DroidDeckWindow:")) continue;
+            if (window->opacity() != 1.0) {
+                deactivate();
+                return;
+            }
+            included.append(window);
             const auto geo = window->bufferGeometry();
             if (!collect(window->surface(), QPointF(geo.x() - frame.x(), geo.y() - frame.y()), items, 0)) {
                 deactivate();
                 return;
             }
         }
+        observe(included);
         for (const auto &item : items) {
             auto source = item.surface;
             auto buffer = source->buffer();
@@ -167,6 +201,7 @@ class RawWindow : public QObject
                     for (const auto &source : std::exchange(self->m_frameSurfaces, {})) {
                         if (source) { source->frameRendered(time); source->clearFifoBarrier(); }
                     }
+                    self->schedule();
                 },
             };
             wl_callback_add_listener(m_frame, &listener, this);

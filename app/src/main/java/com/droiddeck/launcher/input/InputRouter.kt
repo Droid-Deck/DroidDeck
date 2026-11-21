@@ -58,7 +58,7 @@ class InputRouter(private val output: InputOutput) {
     fun pad(role: InputRole, retained: PadState? = null): PadSource = PadSource(role, retained).also { pads.add(it) }
 
     @Synchronized
-    fun channel(role: InputRole, control: InputControl, fixedAction: InputAction? = null, element: InputSurfaceElement? = null, elementClick: Boolean = false): Channel = Channel(role, control, fixedAction, element, elementClick).also {
+    fun channel(role: InputRole, control: InputControl, fixedAction: InputAction? = null, element: InputSurfaceElement? = null, elementClick: Boolean = false, profileOverride: InputProfile? = null): Channel = Channel(role, control, fixedAction, element, elementClick, profileOverride).also {
         channels.add(it)
         it.configure(it.actionFrom(profile))
     }
@@ -120,7 +120,7 @@ class InputRouter(private val output: InputOutput) {
         if ((was == 0) != (buttons[at] == 0)) output.button(code, down)
     }
 
-    inner class Channel internal constructor(val role: InputRole, val control: InputControl, private val fixedAction: InputAction?, private val element: InputSurfaceElement?, private val elementClick: Boolean) {
+    inner class Channel internal constructor(val role: InputRole, val control: InputControl, private val fixedAction: InputAction?, private val element: InputSurfaceElement?, private val elementClick: Boolean, private val profileOverride: InputProfile? = null) {
         var action: InputAction = InputAction.Native()
             private set
         internal var x = 0f
@@ -131,8 +131,8 @@ class InputRouter(private val output: InputOutput) {
         private val directions = BooleanArray(4)
         private var radialKeys = emptyList<Int>()
 
-        internal fun actionFrom(profile: InputProfile) = element?.let { if (elementClick) profile.elementClickAction(role, it) else profile.elementAction(role, it.id, control) }
-            ?: profile.action(role, control)
+        internal fun actionFrom(profile: InputProfile) = (profileOverride ?: profile).let { source -> element?.let { if (elementClick) source.elementClickAction(role, it) else source.elementAction(role, it.id, control) }
+            ?: source.action(role, control) }
 
         internal fun configure(next: InputAction) {
             suspend()

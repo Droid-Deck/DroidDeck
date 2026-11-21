@@ -79,8 +79,11 @@ grep -aq DroidDeckWindow "$out/libkwin.so.$version"
     echo "Scroll source patch sha256 $(sha256sum "$here/patches/0003-forward-nested-scroll-source.patch" | cut -d' ' -f1)"
     for extension in kwin-independent.py kwin-independent.cpp kwin-passthrough.cpp kwin-output-layout.h \
         kwin-ahb-output.h kwin-output-opacity.h kwin-independent-filter.h; do
-        echo "Extension $extension sha256 $(sha256sum "$here/$extension" | cut -d' ' -f1)"
+        digest=$(sha256sum "$here/$extension") || exit 1
+        echo "Extension $extension sha256 ${digest%% *}"
     done
+    digest=$(sha256sum "$here/../../app/src/main/cpp/waylandcomp/src/ahb_broker_protocol.h") || exit 1
+    echo "Extension ahb_broker_protocol.h sha256 ${digest%% *}"
     echo "Executable sha256 $(sha256sum "$out/kwin_wayland" | cut -d' ' -f1)"
     echo "Library sha256 $(sha256sum "$out/libkwin.so.$version" | cut -d' ' -f1)"
     echo 'Build packages (Arch Linux ARM signatures verified):'
