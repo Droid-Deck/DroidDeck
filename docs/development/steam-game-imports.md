@@ -22,7 +22,9 @@ a bounded subprocess so library failures cannot crash the importer or client.
 The resulting snapshot is stored under that account's `userdata/<id>/config` and
 refreshed every 30 seconds while logged in. Title lookups retry every five minutes and
 when the source changes, so an early network failure does not end the watcher. Changed
-status and probe failures are written to the session log. Startup and post-exit import
+status and probe failures are written to the session log. While a game runs, the check still runs until it has
+succeeded once for the current folders, so a game started right after the client does not keep its owned titles
+unconfirmed for the whole session. Startup and post-exit import
 use the last successful snapshot for the selected account. The client reads manifests
 and shortcuts only at start, so when a snapshot confirms owned titles that are not yet
 imported, the watcher restarts the client once (not while a game runs or a download is in
