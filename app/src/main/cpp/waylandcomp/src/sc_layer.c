@@ -357,6 +357,7 @@ static void on_complete(void *context, ASurfaceTransactionStats *stats) {
     }
     while (ctx) {
     struct complete_ctx *next = ctx->next;
+    int token_fd = -1;
     pthread_mutex_lock(&g_lock);
     if (ctx->layer && ctx->prev_slot >= 0 && ctx->prev_slot < POOL_MAX) {
         struct slot *s = &ctx->layer->slots[ctx->prev_slot];
@@ -365,13 +366,11 @@ static void on_complete(void *context, ASurfaceTransactionStats *stats) {
         s->release_fd = fd;
         s->busy = 0;
     }
+    if (ctx->prev_token) token_fd = release_fence(stats, have_controls, controls, controls_n, ctx);
     if (g_pending_cb > 0) g_pending_cb--;
     if (ctx->layer && ctx->layer->pending_callbacks) ctx->layer->pending_callbacks--;
     pthread_mutex_unlock(&g_lock);
-    if (ctx->prev_token) {
-        int fd = release_fence(stats, have_controls, controls, controls_n, ctx);
-        ahb_swapchain_layer_released(ctx->prev_token, fd, stats && ctx->sc);
-    }
+    if (ctx->prev_token) ahb_swapchain_layer_released(ctx->prev_token, token_fd, stats && ctx->sc);
     if (ctx->retire && ctx->sc) api.release(ctx->sc);
     free(ctx);
     ctx = next;
