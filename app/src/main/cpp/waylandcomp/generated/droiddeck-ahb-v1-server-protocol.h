@@ -1,6 +1,6 @@
 
-#ifndef BANNER_AHB_V1_SERVER_PROTOCOL_H
-#define BANNER_AHB_V1_SERVER_PROTOCOL_H
+#ifndef DROIDDECK_AHB_V1_SERVER_PROTOCOL_H
+#define DROIDDECK_AHB_V1_SERVER_PROTOCOL_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -14,7 +14,7 @@ struct wl_client;
 struct wl_resource;
 
 /*
- * @section page_copyright_banner_ahb_v1 Copyright
+ * @section page_copyright_droiddeck_ahb_v1 Copyright
  *
  * Copyright 2026 The412Banner
  *
@@ -42,15 +42,15 @@ struct wl_resource;
 
 
 
-struct banner_ahb_v1;
+struct droiddeck_ahb_v1;
 struct wl_buffer;
 
-#ifndef BANNER_AHB_V1_INTERFACE
-#define BANNER_AHB_V1_INTERFACE
-extern const struct wl_interface banner_ahb_v1_interface;
+#ifndef DROIDDECK_AHB_V1_INTERFACE
+#define DROIDDECK_AHB_V1_INTERFACE
+extern const struct wl_interface droiddeck_ahb_v1_interface;
 #endif
 
-struct banner_ahb_v1_interface {
+struct droiddeck_ahb_v1_interface {
 	void (*destroy)(struct wl_client *client,
 			struct wl_resource *resource);
 	void (*attach)(struct wl_client *client,
@@ -65,17 +65,17 @@ struct banner_ahb_v1_interface {
 		       uint32_t image_count);
 };
 
-#define BANNER_AHB_V1_MODE 0
+#define DROIDDECK_AHB_V1_MODE 0
 
-#define BANNER_AHB_V1_MODE_SINCE_VERSION 2
+#define DROIDDECK_AHB_V1_MODE_SINCE_VERSION 2
 
-#define BANNER_AHB_V1_DESTROY_SINCE_VERSION 1
-#define BANNER_AHB_V1_ATTACH_SINCE_VERSION 1
+#define DROIDDECK_AHB_V1_DESTROY_SINCE_VERSION 1
+#define DROIDDECK_AHB_V1_ATTACH_SINCE_VERSION 1
 
 static inline void
-banner_ahb_v1_send_mode(struct wl_resource *resource_, uint32_t enabled)
+droiddeck_ahb_v1_send_mode(struct wl_resource *resource_, uint32_t enabled)
 {
-	wl_resource_post_event(resource_, BANNER_AHB_V1_MODE, enabled);
+	wl_resource_post_event(resource_, DROIDDECK_AHB_V1_MODE, enabled);
 }
 
 #ifdef  __cplusplus
