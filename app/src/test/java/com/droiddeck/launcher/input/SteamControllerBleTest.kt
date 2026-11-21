@@ -25,7 +25,6 @@ import java.util.UUID
 @Config(sdk = [34], manifest = Config.NONE, shadows = [SteamControllerBleTest.Writer::class])
 class SteamControllerBleTest {
     private val keys = ArrayList<Pair<Int, Boolean>>()
-    private var presses = 0
     private val router = InputRouter(object : InputOutput {
         override fun key(code: Int, down: Boolean) { keys += code to down }
         override fun button(code: Int, down: Boolean) {}
@@ -43,7 +42,7 @@ class SteamControllerBleTest {
         Writer.features = 0
         router.setProfile(InputProfile.defaults(InputProfile.GAME)
             .withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.Keys(listOf(57))))
-        controller = SteamControllerBle(RuntimeEnvironment.getApplication(), router) { presses++ }
+        controller = SteamControllerBle(RuntimeEnvironment.getApplication(), router)
         handler = ReflectionHelpers.getField(controller, "handler")
         shadowOf(handler.looper).pause()
         controller.start()
@@ -59,23 +58,6 @@ class SteamControllerBleTest {
         controller.stop()
         // The stop posts a disconnect; run it now, while Robolectric's environment still exists.
         drain(handler.looper)
-    }
-
-    @Test fun newInputNotifiesOncePerPressOrStickDeflection() {
-        subscribe(controller)
-        val held = ByteArray(45).apply { this[1] = 1 }
-        val stick = held.copyOf().apply { this[10] = 80 }
-        state(ByteArray(45))
-        assertEquals(0, presses)
-        state(held)
-        state(held)
-        assertEquals(1, presses)
-        state(stick)
-        state(stick)
-        assertEquals(2, presses)
-        state(ByteArray(45))
-        state(held)
-        assertEquals(3, presses)
     }
 
     @Test fun stopReleasesAndDetachesInputBeforeQueuedCallbacksCanPublish() {

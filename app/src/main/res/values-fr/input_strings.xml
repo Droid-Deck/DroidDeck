@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">Profils d\'entrée</string>
     <string name="input_profiles">Profils</string>
     <string name="input_physical">Manette physique</string>
     <string name="input_primary">Écran principal</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Ouvrir le menu Steam</string>
     <string name="input_command_qam">Ouvrir l\'accès rapide Steam</string>
     <string name="input_remove_element">Supprimer le contrôle</string>
+    <string name="input_add_element">Ajouter un contrôle</string>
     <string name="input_extra_keys">Boutons propres à l\'appareil</string>
     <string name="input_capture">Assigner un bouton physique</string>
     <string name="input_capture_confirm">Relâchez le bouton, puis choisissez Modifier, Réessayer ou Annuler. B ou Retour annule après le relâchement.</string>

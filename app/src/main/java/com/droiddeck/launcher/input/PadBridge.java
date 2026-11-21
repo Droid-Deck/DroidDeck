@@ -107,8 +107,6 @@ public final class PadBridge {
     private volatile Runnable onPlayerInput;
     private Runnable onChordInput;
     private final java.util.concurrent.atomic.AtomicBoolean playerInputPosted = new java.util.concurrent.atomic.AtomicBoolean();
-    private volatile Runnable onPhysicalInput;
-    private final java.util.concurrent.atomic.AtomicBoolean physicalInputPosted = new java.util.concurrent.atomic.AtomicBoolean();
 
     private static final long STATS_WINDOW_MS = 10_000;
     private int statButtons, statAxes, statOnScreen, statDropped;
@@ -370,20 +368,6 @@ public final class PadBridge {
         onPlayerInput = listener;
     }
 
-    /** Input from a controller the player holds, never from the on-screen controls. */
-    public void setOnPhysicalInput(Runnable listener) {
-        onPhysicalInput = listener;
-    }
-
-    private void notePhysicalInput() {
-        Runnable listener = onPhysicalInput;
-        if (listener == null || !physicalInputPosted.compareAndSet(false, true)) return;
-        mainHandler.post(() -> {
-            physicalInputPosted.set(false);
-            listener.run();
-        });
-    }
-
     public synchronized void setOnChordInput(Runnable listener) {
         onChordInput = listener;
     }
@@ -449,7 +433,7 @@ public final class PadBridge {
         }
         noteDevice(device, slot);
         if (pressed && event.getRepeatCount() == 0 && !event.isCanceled()) noteChordInput(slot);
-        if (pressed) { notePlayerInput(); notePhysicalInput(); }
+        if (pressed) notePlayerInput();
         statButtons++;
         scheduleStats();
         publish(slot);
@@ -537,7 +521,7 @@ public final class PadBridge {
             retainStick(slot, side, x, y);
             projectSticks(slot);
             if (chordStickInput) noteChordInput(slot);
-            if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) { notePlayerInput(); notePhysicalInput(); }
+            if (Math.max(Math.abs(x), Math.abs(y)) > 0.5f) notePlayerInput();
             publish(slot);
             InputTiming.end(timing);
             return true;
@@ -579,7 +563,6 @@ public final class PadBridge {
         if (Math.max(Math.max(Math.abs(pad.leftX), Math.abs(pad.leftY)), Math.max(Math.abs(pad.rightX), Math.abs(pad.rightY))) > 0.5f
                 || lt > 0.5f || rt > 0.5f || pad.up || pad.right || pad.down || pad.left) {
             notePlayerInput();
-            notePhysicalInput();
         }
         publish(slot);
         InputTiming.end(timing);
