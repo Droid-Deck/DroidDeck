@@ -50,6 +50,12 @@ object OnScreenLayout {
         val byId = (placed + others).associateBy { it.id }
         val ordered = stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
         if (dock != null || !supportsFloatingSteamControls(SessionPrefs.steamController(context), layout)) return ordered
+        if (generated && width >= height && usesSteamDeckButtons(context, layout) &&
+            ControllerPrefs.layout(context, reference.first.toInt(), reference.second.toInt()).isEmpty() &&
+            ControllerPrefs.layout(context, width, height).isEmpty()) {
+            return SteamDeckOverlayGeometry(width, height, safe, context.resources.displayMetrics, layout.scale)
+                .place(ordered, rearButtons == true, trackpads == true)
+        }
         return FloatingSteamOverlay(width, height, safe, context.resources.displayMetrics.density)
             .place(ordered, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
     }

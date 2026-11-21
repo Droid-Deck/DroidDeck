@@ -211,6 +211,7 @@ internal class SteamDeckButtonArt(context: Context) {
     }
 
     fun stick(canvas: Canvas, cx: Float, cy: Float, radius: Float, kx: Float, ky: Float, active: Boolean) {
+        fill.alpha = 255
         fill.shader = RadialGradient(cx, cy, radius, WELL_IN, WELL_OUT, Shader.TileMode.CLAMP)
         fill.setShadowLayer(dp(2.5f), 0f, dp(1.5f), SHADOW)
         canvas.drawCircle(cx, cy, radius, fill)

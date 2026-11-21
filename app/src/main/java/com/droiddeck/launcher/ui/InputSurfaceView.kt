@@ -241,10 +241,12 @@ class InputSurfaceView(
         deckDpad = emptyList()
         if (buttons.size != DIRECTIONS.size) return
         val (up, right, down, left) = buttons
-        val centerX = (up.left + up.right) / 2f
-        val centerY = (right.top + right.bottom) / 2f
-        if (kotlin.math.abs((down.left + down.right) / 2f - centerX) > 2f ||
+        val centerX = (left.left + right.right) / 2f
+        val centerY = (up.top + down.bottom) / 2f
+        if (kotlin.math.abs((up.left + up.right) / 2f - centerX) > 2f ||
+            kotlin.math.abs((down.left + down.right) / 2f - centerX) > 2f ||
             kotlin.math.abs((left.top + left.bottom) / 2f - centerY) > 2f ||
+            kotlin.math.abs((right.top + right.bottom) / 2f - centerY) > 2f ||
             up.bottom >= down.top || left.right >= right.left) return
         deckDpadBounds.set(left.left.toFloat(), up.top.toFloat(), right.right.toFloat(), down.bottom.toFloat())
         deckDpad = buttons

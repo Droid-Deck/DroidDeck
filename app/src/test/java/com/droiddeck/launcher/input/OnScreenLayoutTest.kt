@@ -84,6 +84,7 @@ class OnScreenLayoutTest {
     }
 
     @Test fun theBuiltInGamepadIsRegeneratedForEverySizeWithoutStretching() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
         val layout = gamepad()
         for ((w, h) in listOf(1200 to 540, 540 to 1200, 900 to 850)) {
             val placed = OnScreenLayout.elements(context, layout, w, h, Rect())
@@ -96,6 +97,7 @@ class OnScreenLayoutTest {
 
     @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
     fun aBuiltInGamepadSavedAtTheDisplaySizeRegeneratesForTheMeasuredSurface() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
         val saved = gamepad().copy(elements = LegacyGamepadLayout(context, 2608, 1200).elements(), aspect = 2608f / 1200)
         val placed = OnScreenLayout.elements(context, saved, 2048, 1200, Rect())
         assertOnlyShortcutPositionsChanged(LegacyGamepadLayout(context, 2048, 1200).regenerate(saved.elements), placed)
@@ -103,6 +105,7 @@ class OnScreenLayoutTest {
 
     @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
     fun previouslyGeneratedEdgeSticksRegenerateWithoutOverridingCustomGeometry() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
         val w = 2608
         val h = 1200
         ControllerPrefs.setLayout(context, w, h, mapOf("ls" to (0f to .5f), "rs" to (1f to .5f)))
@@ -172,6 +175,7 @@ class OnScreenLayoutTest {
     }
 
     @Test fun regenerationKeepsTheUsersButtonStylesAndRemovedButtons() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
         val layout = gamepad().let { g -> g.copy(elements = g.elements.filterNot { it.id == "legacy:y" }.map { if (it.id == "legacy:a") it.copy(opacity = .4f, icon = 0, name = "Jump") else it }) }
         val placed = OnScreenLayout.elements(context, layout, 2000, 1000, Rect())
         assertNull(placed.firstOrNull { it.id == "legacy:y" })
@@ -179,6 +183,30 @@ class OnScreenLayoutTest {
         assertEquals(.4f, a.opacity)
         assertEquals("Jump", a.name)
         assertEquals(LegacyGamepadLayout(context, 2000, 1000).elements().first { it.id == "legacy:a" }.x, a.x, .0001f)
+    }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun theDefaultDeckUsesTheRedesignReferenceGeometry() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val placed = OnScreenLayout.elements(context, gamepad(), 1600, 900, Rect(), rearButtons = true, trackpads = true)
+        fun center(control: InputControl): Pair<Float, Float> = placed.single { it.id == "legacy:${control.id}" }
+            .let { (it.x + it.width / 2f) * 1600f to (it.y + it.height / 2f) * 900f }
+        fun assertCenter(control: InputControl, x: Float, y: Float) {
+            val (cx, cy) = center(control)
+            assertEquals(control.id, x, cx, .01f)
+            assertEquals(control.id, y, cy, .01f)
+        }
+        assertCenter(InputControl.LT, 140f, 66f)
+        assertCenter(InputControl.LB, 140f, 148f)
+        assertCenter(InputControl.UP, 220f, 242.5f)
+        assertCenter(InputControl.RIGHT, 322.5f, 345f)
+        assertCenter(InputControl.LS, 290f, 640f)
+        assertCenter(InputControl.RS, 1310f, 640f)
+        assertCenter(InputControl.LEFT_PAD, 470f, 360f)
+        assertCenter(InputControl.RIGHT_PAD, 1130f, 360f)
+        assertCenter(InputControl.SELECT, 660f, 850f)
+        assertCenter(InputControl.START, 940f, 850f)
+        assertInside(placed, 1600, 900)
     }
 
     @Test fun anEditedLayoutKeepsItsAspectAndCornersWhenTheScreenRotates() {
