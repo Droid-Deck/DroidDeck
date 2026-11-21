@@ -10,6 +10,7 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import com.droiddeck.launcher.input.OnScreenLayout
+import com.droiddeck.launcher.input.PadKit
 import com.droiddeck.launcher.input.SavedInputLayout
 import com.droiddeck.launcher.input.InputSurfaceElement
 import com.droiddeck.launcher.input.InputSurfaceStyle
@@ -56,7 +57,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     }
 
     private fun updatePreviewStyle() {
-        preview.updateStyle(style, steamDeckButtons = OnScreenLayout.usesSteamDeckButtons(context, sourceLayout))
+        preview.updateStyle(style, PadKit.forOverlay(context, sourceLayout))
     }
 
     private fun refreshElements() {

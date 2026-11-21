@@ -278,7 +278,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                         else InputHint(layout.name)
                         InputNavigationRow(stringResource(R.string.input_saved_layouts), stringResource(R.string.input_saved_layouts_hint)) { go(InputPage.LAYOUTS) }
                         if (layout.editable) {
-                            if (!OnScreenLayout.usesSteamDeckButtons(context, layout)) {
+                            if (role != InputRole.PRIMARY || PadKit.forOverlay(context, layout) == null) {
                                 InputColorRow(host, layout.style.tint) { color -> update { it.withLayout(layout.copy(style = layout.style.copy(tint = color))) } }
                             }
                             SliderRow(stringResource(R.string.ctrl_opacity), null, layout.style.opacity, 1..100, step = 1,
