@@ -511,7 +511,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     .blockTouches()
                     .focusGroup()
                     .controllerBack {
-                        if (host.open != null) host.open = null else a.onClose()
+                        when {
+                            host.open != null -> host.open = null
+                            managing -> managing = false
+                            else -> a.onClose()
+                        }
                     }
                     .padding(12.dp),
             ) {

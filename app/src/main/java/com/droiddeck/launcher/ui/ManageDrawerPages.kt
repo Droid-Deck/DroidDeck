@@ -17,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -36,8 +37,10 @@ import com.droiddeck.launcher.R
 
 @Composable
 internal fun ManageDrawerPages(offeredNow: List<SessionDrawerPage>, modifier: Modifier = Modifier, onDone: () -> Unit) {
-    val current by rememberUpdatedState(offeredNow)
     val ctx = LocalContext.current
+    val current by rememberUpdatedState(offeredNow)
+    val previewing = DevPreview.drawer != null
+    DisposableEffect(previewing) { onDispose { if (previewing) DrawerPages.load(ctx) } }
     val colors = MaterialTheme.colorScheme
     BackHandler { onDone() }
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -44,7 +44,7 @@ internal object DrawerPages {
 
     fun setHidden(context: Context, page: SessionDrawerPage, hide: Boolean) {
         hidden = if (hide && hideable(page)) hidden + page else hidden - page
-        SessionPrefs.setDrawerPageHidden(context, hidden.map { it.name }.toSet())
+        if (DevPreview.drawer == null) SessionPrefs.setDrawerPageHidden(context, hidden.map { it.name }.toSet())
     }
 
     /** [placed] holds the pages on offer in their new order; pages not on offer keep their slots. */
@@ -52,12 +52,13 @@ internal object DrawerPages {
         if (placed.isEmpty() || !order.containsAll(placed)) return
         val next = placed.iterator()
         order = order.map { if (it in placed) next.next() else it }
-        SessionPrefs.setDrawerPageOrder(context, order.map { it.name })
+        if (DevPreview.drawer == null) SessionPrefs.setDrawerPageOrder(context, order.map { it.name })
     }
 
     fun reset(context: Context) {
         order = SessionDrawerPage.entries.toList()
         hidden = emptySet()
+        if (DevPreview.drawer != null) return
         SessionPrefs.setDrawerPageOrder(context, order.map { it.name })
         SessionPrefs.setDrawerPageHidden(context, emptySet())
     }
