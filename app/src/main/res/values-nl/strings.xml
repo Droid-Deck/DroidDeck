@@ -892,6 +892,9 @@
     <string name="setup_game_debug_logs_hint">Neem bij de volgende gamestart diagnostiek van Proton, Wine en graphics op. Kan de prestaties verlagen en meer opslag gebruiken.</string>
     <string name="setup_game_debug_logs_restart">Start deze sessie opnieuw om debuglogs van games op te slaan</string>
     <string name="setup_logging_update_failed">Kan logging niet bijwerken. Controleer de schakelaar en probeer het opnieuw.</string>
+    <string name="setup_log_level">Logniveau</string>
+    <string name="setup_log_level_standard">Standaard</string>
+    <string name="setup_log_level_detailed">Gedetailleerd</string>
     <string name="setup_agent_commands">Hulpmiddelen voor debuggen</string>
     <string name="setup_graphics_logs">Gedetailleerde grafische logboeken</string>
     <string name="setup_steam_gpu_drawing">Steam-interface: GPU-tekenen</string>

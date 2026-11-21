@@ -889,6 +889,9 @@
     <string name="setup_game_debug_logs_hint">次回のゲーム起動時にProton、Wine、グラフィックスの診断情報を含めます。パフォーマンスが低下し、ストレージを多く使用する場合があります。</string>
     <string name="setup_game_debug_logs_restart">ゲームのデバッグログを保存するにはこのセッションを再起動してください</string>
     <string name="setup_logging_update_failed">ログ設定を更新できませんでした。スイッチを確認して、もう一度お試しください。</string>
+    <string name="setup_log_level">ログレベル</string>
+    <string name="setup_log_level_standard">標準</string>
+    <string name="setup_log_level_detailed">詳細</string>
     <string name="setup_agent_commands">デバッグツール</string>
     <string name="setup_graphics_logs">詳細なグラフィックスログ</string>
     <string name="setup_steam_gpu_drawing">Steam インターフェース: GPU 描画</string>

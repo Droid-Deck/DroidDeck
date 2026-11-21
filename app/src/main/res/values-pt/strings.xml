@@ -902,6 +902,9 @@
     <string name="setup_game_debug_logs_hint">Inclui diagnósticos do Proton, do Wine e de gráficos na próxima inicialização do jogo. Pode reduzir o desempenho e usar mais armazenamento.</string>
     <string name="setup_game_debug_logs_restart">Reinicie esta sessão para salvar os logs de depuração dos jogos</string>
     <string name="setup_logging_update_failed">Não foi possível atualizar os logs. Verifique a chave e tente novamente.</string>
+    <string name="setup_log_level">Nível de log</string>
+    <string name="setup_log_level_standard">Padrão</string>
+    <string name="setup_log_level_detailed">Detalhado</string>
     <string name="setup_agent_commands">Ferramentas de depuração</string>
     <string name="setup_graphics_logs">Logs detalhados de gráficos</string>
     <string name="setup_steam_gpu_drawing">Interface do Steam: renderização pela GPU</string>

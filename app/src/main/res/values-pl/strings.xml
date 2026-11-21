@@ -898,6 +898,9 @@
     <string name="setup_game_debug_logs_hint">Dołącz diagnostykę Proton, Wine i grafiki przy następnym uruchomieniu gry. Może obniżyć wydajność i zająć więcej miejsca.</string>
     <string name="setup_game_debug_logs_restart">Uruchom ponownie tę sesję, aby zapisywać logi debugowania gier</string>
     <string name="setup_logging_update_failed">Nie udało się zmienić logowania. Sprawdź przełącznik i spróbuj ponownie.</string>
+    <string name="setup_log_level">Poziom logów</string>
+    <string name="setup_log_level_standard">Standardowy</string>
+    <string name="setup_log_level_detailed">Szczegółowy</string>
     <string name="setup_agent_commands">Narzędzia debugowania</string>
     <string name="setup_graphics_logs">Szczegółowe logi graficzne</string>
     <string name="setup_steam_gpu_drawing">Interfejs Steam: rysowanie przez GPU</string>

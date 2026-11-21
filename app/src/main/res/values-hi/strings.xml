@@ -892,6 +892,9 @@
     <string name="setup_game_debug_logs_hint">अगली बार गेम लॉन्च होने पर Proton, Wine और ग्राफ़िक्स डायग्नोस्टिक्स शामिल करें। परफ़ॉर्मेंस घटा सकता है और ज़्यादा स्टोरेज ले सकता है।</string>
     <string name="setup_game_debug_logs_restart">गेम डीबग लॉग सेव करने के लिए यह सेशन रीस्टार्ट करें</string>
     <string name="setup_logging_update_failed">लॉगिंग अपडेट नहीं हो सकी। स्विच जांचें और फिर कोशिश करें।</string>
+    <string name="setup_log_level">लॉग स्तर</string>
+    <string name="setup_log_level_standard">मानक</string>
+    <string name="setup_log_level_detailed">विस्तृत</string>
     <string name="setup_agent_commands">डिबगिंग टूल</string>
     <string name="setup_graphics_logs">विस्तृत ग्राफ़िक्स लॉग</string>
     <string name="setup_steam_gpu_drawing">Steam इंटरफ़ेस: GPU ड्रॉइंग</string>

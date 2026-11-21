@@ -895,6 +895,9 @@
     <string name="setup_game_debug_logs_hint">Include diagnosticare Proton, Wine și grafică la următoarea lansare a unui joc. Poate reduce performanța și folosește mai mult spațiu.</string>
     <string name="setup_game_debug_logs_restart">Repornește această sesiune pentru a salva jurnalele de depanare</string>
     <string name="setup_logging_update_failed">Jurnalizarea nu a putut fi actualizată. Verifică comutatorul și încearcă din nou.</string>
+    <string name="setup_log_level">Nivel de jurnal</string>
+    <string name="setup_log_level_standard">Standard</string>
+    <string name="setup_log_level_detailed">Detaliat</string>
     <string name="setup_agent_commands">Instrumente de depanare</string>
     <string name="setup_graphics_logs">Jurnale detaliate de grafică</string>
     <string name="setup_steam_gpu_drawing">Interfața Steam: desenare GPU</string>
