@@ -287,6 +287,7 @@ object SessionFiles {
         File(root, "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json").delete()
         LegacyNames.migrateRootfs(root)
         ComponentsManager.migrateLaunchDir(context)
+        runCatching { ComponentsManager.migrateBattleNetFex(context) }.onFailure { Log.w(TAG, "Battle.net FEX selection", it) }
         EsyncPacks.stageBundled(context, root)
         val directAudio = arrayOf(
             "aarch64-unix/winedirectaudio.so",
