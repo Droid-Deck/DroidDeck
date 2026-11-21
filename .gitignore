@@ -1,6 +1,11 @@
 *.iml
 .gradle/
 local.properties
+libglasses.so
+libcarina_vio.so
+libcloud_protocol.so
+VITURE_XR_Glasses_SDK*.zip
+VITURE_XR_Glasses_SDK*/
 .idea/
 .DS_Store
 build/

@@ -51,6 +51,7 @@ class RayNeoLinkTest {
             override fun onReady() {
                 assertEquals(io.boardId, loadedBoard)
                 assertEquals(io.boardId, reportedBoard)
+                assertEquals(if (gtTraffic) { if (nonMax) 46f else 59f } else null, link.diagonalFovDeg)
                 ready = true
                 if (gtTraffic) {
                     assertTrue(link.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(6)))

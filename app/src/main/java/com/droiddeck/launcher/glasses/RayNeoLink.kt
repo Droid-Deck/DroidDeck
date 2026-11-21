@@ -26,6 +26,8 @@ internal class RayNeoLink private constructor(
     @Volatile override var ready = false
         private set
     @Volatile private var wantImu = false
+    @Volatile internal var diagonalFovDeg: Float? = null
+        private set
     private val writeLock = Any()
     private val assembler = RayNeoPacketAssembler()
     private val readBuffer = ByteArray(maxOf(endpoints.inEndpoint.maxPacketSize, 64))
@@ -94,6 +96,11 @@ internal class RayNeoLink private constructor(
             val info = response(RayNeoProtocol.CMD_ACQUIRE_DEVICE_INFO, 2500)
                 ?.let { RayNeoProtocol.parseDeviceInfo(it.raw) } ?: error("RayNeo device-info timed out")
             val profile = RayNeoSensorProfile.forDevice(gt, info.boardId)
+            diagonalFovDeg = if (gt) when (info.boardId) {
+                RayNeoProtocol.BOARD_GT -> 46f
+                RayNeoProtocol.BOARD_GT_MAX -> 59f
+                else -> null
+            } else null
             val rotation = profile.rotationXDeg
             val gtMaxAxes = profile.gtMaxAxes
             calibration = loadCalibration(info.boardId)

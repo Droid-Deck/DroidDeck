@@ -47,6 +47,7 @@ object RayNeoProtocol {
 
     const val BOARD_AIR_4_PRO = 0x3A
     const val BOARD_GT = 0x40
+    const val BOARD_GT_MAX = 0x41
 
     const val PKT_MAGIC = 0x99
     const val PKT_SENSOR = 0x65

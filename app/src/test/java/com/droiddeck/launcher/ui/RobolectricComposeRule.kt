@@ -2,6 +2,7 @@ package com.droiddeck.launcher.ui
 
 import android.content.ComponentName
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.runtime.snapshots.Snapshot
 import org.robolectric.RuntimeEnvironment
@@ -14,4 +15,12 @@ fun createRobolectricComposeRule() = createComposeRule().also {
         ComponentName(context, ComponentActivity::class.java),
     )
     Snapshot.sendApplyNotifications()
+}
+
+fun ComposeContentTestRule.renderPendingChanges() {
+    repeat(2) {
+        runOnIdle { Snapshot.sendApplyNotifications() }
+        mainClock.advanceTimeByFrame()
+        waitForIdle()
+    }
 }

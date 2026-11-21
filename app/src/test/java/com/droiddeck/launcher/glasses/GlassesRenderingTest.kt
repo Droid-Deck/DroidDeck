@@ -5,6 +5,63 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GlassesRenderingTest {
+    @Test fun advertisedRatesDoNotGainUnsupportedSixtyHzAndOldPreferencesUseAValidRate() {
+        val state = GlassesState(rates2d = listOf(90, 120))
+        assertEquals(listOf(90, 120), GlassesRendering.refreshRates(GlassesSettings(), state))
+        for (saved in listOf(30, 60, 90)) {
+            assertEquals(90, GlassesRendering.outputHz(GlassesSettings(refreshHz = saved), state))
+        }
+    }
+
+    @Test fun sdkRefreshChoicesMatchEveryNativeAndBypassDisplayShape() {
+        val settings = GlassesSettings(refreshHz = 30, sbsHz = 30)
+        for (native in 0..1) {
+            val device = VitureDeviceState(capabilities = VitureSdk.CAP_NATIVE, nativeMode = native)
+            for (mode in device.displayModes) {
+                val state = GlassesState(connected = true, displayId = 2, supports30Hz = true,
+                    sbs = mode.stereo, sbs90 = false, rates2d = listOf(60, 90, 120),
+                    viture = device.copy(displayMode = mode.code))
+                val expected = when {
+                    mode.ultrawide -> listOf(60)
+                    mode.stereo -> listOf(if (native == 0) 90 else 60)
+                    native == 1 -> listOf(60, 120)
+                    else -> listOf(60)
+                }
+                assertEquals("native=$native mode=${mode.code}", expected, GlassesRendering.refreshRates(settings, state))
+                assertEquals(mode.hz, GlassesRendering.outputHz(settings, state))
+                assertFalse(GlassesRendering.native30HzAvailable(settings, state))
+            }
+        }
+    }
+
+    @Test fun unknownSdkDisplayOffersOnlyTheObservedRateWithoutGuessingItsMode() {
+        val settings = GlassesSettings(refreshHz = 120, sbsHz = 30)
+        val device = VitureDeviceState(capabilities = VitureSdk.CAP_NATIVE, displayMode = 0x45)
+        for (unknown in listOf(device, device.copy(nativeMode = 1), device.copy(nativeMode = 2))) {
+            val state = GlassesState(hz = 119.98f, sbs = true, supports30Hz = true, viture = unknown)
+            assertEquals(listOf(120), GlassesRendering.refreshRates(settings, state))
+            assertEquals(120, GlassesRendering.outputHz(settings, state))
+            for (missingRate in listOf(0f, Float.NaN)) {
+                val missing = state.copy(hz = missingRate)
+                assertEquals(listOf(60), GlassesRendering.refreshRates(settings, missing))
+                assertEquals(60, GlassesRendering.outputHz(settings, missing))
+            }
+        }
+    }
+
+    @Test fun deviceDisplayChoiceControlsPresentationRateInsteadOfSavedHostPreference() {
+        val settings = GlassesSettings(refreshHz = 60, sbsHz = 60)
+        val state = GlassesState(viture = VitureDeviceState(capabilities = VitureSdk.CAP_NATIVE,
+            nativeMode = 1, displayMode = 0x36))
+        assertEquals(120, GlassesRendering.outputHz(settings, state))
+        assertEquals(GlassesResolution(1920, 1200), state.viture!!.selectedDisplayMode!!.presentationResolution)
+        val bypass = state.copy(sbs = true, viture = state.viture.copy(nativeMode = 0, displayMode = 0x45))
+        assertEquals(90, GlassesRendering.outputHz(settings, bypass))
+        val ultrawide = state.copy(viture = state.viture.copy(displayMode = 0x40))
+        assertEquals(60, GlassesRendering.outputHz(settings.copy(refreshHz = 120), ultrawide))
+        assertEquals(GlassesResolution(1920, 1200), ultrawide.viture!!.selectedDisplayMode!!.presentationResolution)
+    }
+
     @Test fun modelTwoDRatesLimitChoicesAndSavedRatesFallBackToAnOfferedOne() {
         val rokid = GlassesState(displayId = 2, width = 1920, height = 1080, hz = 60f, rates2d = listOf(60, 120))
         assertEquals(listOf(60, 120), GlassesRendering.refreshRates(GlassesSettings(), rokid))

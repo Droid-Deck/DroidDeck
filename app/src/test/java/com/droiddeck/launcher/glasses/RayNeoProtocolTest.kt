@@ -96,6 +96,26 @@ class RayNeoProtocolTest {
         }
     }
 
+    @Test fun gtMaxOpticsRequireAnExplicitModelName() {
+        for (name in listOf("RayNeo GT MAX", "Ray Neo GT Max", "TCL GT MAX", " rayneo gt max ")) {
+            val model = RayNeoModel.model(0x3941, 0xaf50, name)!!
+            assertEquals(59f, model.diagonalFovDeg, 0f)
+        }
+        for (name in listOf(null, "USB device", "RayNeo GT", "RayNeo GT series", "RayNeo GT MAX 2", "RayNeo Air Max")) {
+            val model = RayNeoModel.model(0x3941, 0xaf50, name)!!
+            assertEquals(46f, model.diagonalFovDeg, 0f)
+        }
+    }
+
+    @Test fun refreshSelectionUsesAndroidModesWithConservativeFallback() {
+        for ((vid, name) in listOf(0x1bbb to "RayNeo Air 3s", 0x3941 to "RayNeo GT", 0x3941 to "RayNeo GT MAX")) {
+            val model = RayNeoModel.model(vid, 0xaf50, name)!!
+            assertEquals(listOf(60, 120), model.rates2d)
+            assertTrue(model.usesAndroidRefreshRates)
+            assertFalse(model.supportsSbs90(null))
+        }
+    }
+
     private fun sample(tick: Long, yawDps: Float = 0f) = RayNeoSensorSample(
         floatArrayOf(0f, 9.81f, 0f), floatArrayOf(0f, yawDps, 0f), 0f,
         FloatArray(3), 0f, 0f, tick,
