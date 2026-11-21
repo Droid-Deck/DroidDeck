@@ -120,7 +120,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         }
     }
     val sourceName = stringResource(R.string.addons_source_wowi)
-    AppDialog(shown, close, "addonBrowser", wide = true, scrollable = false) {
+    AppDialog(shown, close, "addonBrowser", wide = true, scrollable = false, modifier = Modifier.releaseTextFieldOnTap()) {
         DialogTitleRow(stringResource(R.string.addons_download), close)
         ModeHeader(sourceName, text, { text = it }, stringResource(R.string.stores_search_catalog, sourceName)) {
             BrowseChip(stringResource(R.string.addons_source_curse), false) {
