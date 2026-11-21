@@ -3,6 +3,7 @@ tools/mangoapp/** text=auto eol=lf
 tools/comet/LICENSE whitespace=-blank-at-eof
 tools/comet/droiddeck.patch whitespace=-blank-at-eol,-blank-at-eof
 tools/gamescope/patches/0900-enhanced-frame-diagnostics.patch whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+tools/gamescope/patches/0936-nms-asynchronous-frame-readiness.patch whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
 
 tools/linuxfs/overlay/** text eol=lf
 tools/linuxfs/desktop/** text eol=lf

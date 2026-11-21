@@ -358,3 +358,14 @@ and clears the held flag. wlroots counts repeated presses of one button and send
 reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
 game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
 earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.
+
+## 0936 No Man's Sky asynchronous frame readiness
+
+Opt-in producer readiness for No Man's Sky (Steam app 275850) on the tested
+KGSL Turnip WSI path. A per-image present fence supplies a pollable readiness
+descriptor for the matching surface commit. A background worker signals it
+after the driver's rendering/presentation work completes, and Gamescope's
+image waiter gates sampling on that signal. Application present semaphores
+are preserved. Enable with `DROIDDECK_ASYNC_PRESENT=1` after rebuilding both
+Gamescope and its WSI layer. See `docs/development/nms-frame-readiness.md` for
+driver constraints, component integration, device results and limitations.
