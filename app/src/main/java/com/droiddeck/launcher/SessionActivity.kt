@@ -3472,6 +3472,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val normalized = com.droiddeck.launcher.input.GuestKeys.normalizeKeyboardEscape(event)
+        if (normalized === event) return dispatchSessionKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            Log.i(TAG, "hardware Esc normalized from Back device=${event.deviceId} scan=${event.scanCode}")
+        }
+        return dispatchSessionKeyEvent(normalized)
+    }
+
+    private fun dispatchSessionKeyEvent(event: KeyEvent): Boolean {
         if (com.droiddeck.launcher.ui.AgentPet.handleBack(this, event)) return true
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
