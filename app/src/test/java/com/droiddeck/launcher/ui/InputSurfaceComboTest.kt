@@ -128,6 +128,18 @@ class InputSurfaceComboTest {
         assertEquals("left", held())
         lift(1)
         assertEquals("", held())
+        press(1, padUp)
+        press(2, padDown)
+        lift(2)
+        assertEquals("up", held())
+        lift(1)
+        assertEquals("", held())
+        press(1, padLeft)
+        press(2, padRight)
+        lift(1)
+        assertEquals("right", held())
+        lift(2)
+        assertEquals("", held())
     }
 
     @Test fun theDirectionPadStaysHeldWhileFaceButtonsAreTapped() {
