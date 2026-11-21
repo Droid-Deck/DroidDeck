@@ -42,6 +42,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.VideogameAsset
@@ -94,7 +95,11 @@ import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.GameRemoval
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.runtime.CurseForgeApp
+import com.droiddeck.launcher.runtime.UserApps
+import com.droiddeck.launcher.runtime.WowAddonCatalog
 import com.droiddeck.launcher.runtime.WowAddons
+import com.droiddeck.launcher.store.UserAppsState
 import com.droiddeck.launcher.session.GameSaves
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.stores.CatalogItem
@@ -960,9 +965,14 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: 
     var browsing by remember(g.gameId) { mutableStateOf<WowAddons.Target?>(null) }
     browsing?.let { AddonBrowserDialog(targets, it) { browsing = null } }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        CurseForgeEntry(a)
         targets.forEach { target ->
-            val names by produceState(emptyList<String>(), target.addOns, WowAddons.imports) {
-                value = withContext(Dispatchers.IO) { WowAddons.installed(target) }
+            val names by produceState(emptyList<WowAddons.Installed>(), target.addOns, WowAddons.imports) {
+                value = withContext(Dispatchers.IO) { WowAddons.details(target) }
+            }
+            val context = LocalContext.current
+            val updates by produceState(emptyMap<String, WowAddonCatalog.Addon>(), names) {
+                value = withContext(Dispatchers.IO) { WowAddonCatalog.updates(context, names) }
             }
             if (targets.size > 1) SectionLabel(target.flavor)
             MenuItem(stringResource(R.string.addons_download), checked = false) { browsing = target }
@@ -974,17 +984,80 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: 
                 target.addOns.mkdirs()
                 a.onBrowseFiles(target.addOns)
             }
-            names.forEach { name -> AddonRow(name, target, a) }
+            names.forEach { item -> AddonRow(item, updates[item.name], target, a) }
         }
     }
 }
 
 @Composable
-private fun AddonRow(name: String, target: WowAddons.Target, a: FrontEndActions) {
+private fun CurseForgeEntry(a: FrontEndActions) {
+    val ctx = LocalContext.current
+    val name = stringResource(R.string.addons_source_curse)
+    LaunchedEffect(Unit) { UserAppsState.refresh(ctx) }
+    val app = CurseForgeApp.find(UserAppsState.items)
+    val idle = UserAppsState.working == null
+    if (app == null) {
+        MenuItem(stringResource(R.string.content_install_named, name), checked = false, enabled = idle && !SessionState.running) {
+            UserAppsState.add(ctx, CurseForgeApp.request(), name)
+        }
+    } else {
+        var asking by remember(app.key) { mutableStateOf(false) }
+        var checked by remember { mutableStateOf<String?>(null) }
+        val checkKey = app.key + "@" + app.version
+        LaunchedEffect(checkKey, UserAppsState.checking) {
+            if (UserAppsState.checking == null && checked != checkKey) {
+                checked = checkKey
+                UserAppsState.checkUpdate(ctx, app)
+            }
+        }
+        val update = (UserAppsState.updates[app.key] as? UserApps.UpdateCheck.Available)?.release
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            MenuItem(
+                stringResource(R.string.user_apps_open, name), checked = false, enabled = idle,
+                detail = app.version, modifier = Modifier.weight(1f),
+            ) { a.onUserApp(app) }
+            DeleteButton(name, enabled = idle && !SessionState.running) { asking = true }
+        }
+        if (update != null) MenuItem(stringResource(R.string.user_apps_update_to, update.tag), checked = false, enabled = idle && !SessionState.running) {
+            UserAppsState.update(ctx, app, update)
+        }
+        if (asking) ConfirmDialog(
+            title = stringResource(R.string.flathub_remove_title, name),
+            text = stringResource(R.string.flathub_remove_note),
+            confirm = stringResource(R.string.user_apps_remove),
+            onConfirm = { asking = false; UserAppsState.remove(ctx, app) },
+            onDismiss = { asking = false },
+        )
+    }
+    if (UserAppsState.working == name || (UserAppsState.lastError?.startsWith(name) == true)) UserAppsProgress()
+}
+
+@Composable
+private fun AddonRow(item: WowAddons.Installed, update: WowAddonCatalog.Addon?, target: WowAddons.Target, a: FrontEndActions) {
+    val name = item.name
     var asking by remember(target.addOns, name) { mutableStateOf(false) }
+    var progress by remember(target.addOns, name) { mutableStateOf<Int?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val delete = stringResource(R.string.common_delete)
+    val colors = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 2.dp, bottom = 2.dp)) {
-        Text(name, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(name, fontSize = 14.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val detail = listOfNotNull(item.version, update?.let { stringResource(R.string.upd_available) }).joinToString(" · ")
+            if (detail.isNotEmpty()) Text(
+                progress?.let { stringResource(R.string.ctrl_percent, it) } ?: detail, fontSize = 12.sp,
+                color = if (update != null) LocalPalette.current.signal else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (update != null && !SessionState.running) IconAction(Icons.Outlined.Download, stringResource(R.string.common_update), "addon:update:${target.flavor}:$name", enabled = progress == null) {
+            progress = 0
+            scope.launch {
+                val message = withContext(Dispatchers.IO) { installAddon(context, update, target) { pct -> scope.launch { progress = pct } } }
+                progress = null
+                android.widget.Toast.makeText(context, message.first, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
         if (!SessionState.running) IconAction(Icons.Outlined.Delete, delete, "addon:delete:${target.flavor}:$name", danger = true) { asking = true }
     }
     if (asking) ConfirmDialog(

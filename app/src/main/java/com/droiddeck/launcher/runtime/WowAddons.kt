@@ -22,6 +22,12 @@ object WowAddons {
 
     class Addon(val name: String, val root: String)
 
+    class Installed(val name: String, val version: String?, val wowiId: String?)
+
+    class Origin(val id: String, val version: String)
+
+    private const val ORIGINS = ".droiddeck-sources"
+
     internal const val MAX_EXPANDED_BYTES = 4L * 1024 * 1024 * 1024
 
     private val SUFFIX = Regex("[-_](standard|mainline|classic|vanilla|tbc|bcc|wrath|wotlkc|cata|mists|forever)$", RegexOption.IGNORE_CASE)
@@ -45,15 +51,66 @@ object WowAddons {
         target.addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }
             .map { it.name }.sortedBy { it.lowercase() }
 
+    fun details(target: Target): List<Installed> {
+        val origins = origins(target)
+        return installed(target).map { name ->
+            val toc = toc(File(target.addOns, name))
+            val origin = origins[name]
+            Installed(name, origin?.version ?: toc["Version"], origin?.id ?: toc["X-WoWI-ID"])
+        }
+    }
+
+    internal fun tocFields(text: String): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        for (raw in text.lineSequence()) {
+            val line = raw.trim().removePrefix("\uFEFF")
+            if (!line.startsWith("##") || ':' !in line) continue
+            val key = line.removePrefix("##").substringBefore(':').trim()
+            val value = line.substringAfter(':').trim()
+            if (key.isNotEmpty() && value.isNotEmpty() && '@' !in value) out.putIfAbsent(key, value)
+        }
+        return out
+    }
+
+    private fun toc(folder: File): Map<String, String> {
+        val tocs = folder.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".toc", ignoreCase = true) }
+        val main = tocs.firstOrNull { it.name.dropLast(4).equals(folder.name, ignoreCase = true) }
+            ?: tocs.firstOrNull { it.name.dropLast(4).replace(SUFFIX, "").equals(folder.name, ignoreCase = true) }
+            ?: tocs.minByOrNull { it.name.length } ?: return emptyMap()
+        return runCatching { tocFields(main.readText()) }.getOrDefault(emptyMap())
+    }
+
+    internal fun parseOrigins(text: String): Map<String, Origin> = text.lineSequence().mapNotNull { line ->
+        val parts = line.split('\t')
+        if (parts.size != 3 || parts.any { it.isBlank() }) null else parts[0] to Origin(parts[1], parts[2])
+    }.toMap()
+
+    internal fun formatOrigins(origins: Map<String, Origin>): String =
+        origins.entries.sortedBy { it.key.lowercase() }.joinToString("") { (name, o) -> "$name\t${o.id}\t${o.version.replace(Regex("\\s+"), " ")}\n" }
+
+    private fun originsFile(target: Target) = File(target.addOns, ORIGINS)
+
+    private fun origins(target: Target): Map<String, Origin> =
+        runCatching { parseOrigins(originsFile(target).readText()) }.getOrDefault(emptyMap())
+
+    private fun keepOrigins(target: Target, names: List<String>, origin: Origin?) {
+        val current = origins(target)
+        val next = current - names.toSet() + (origin?.let { o -> names.associateWith { o } } ?: emptyMap())
+        if (next == current) return
+        val file = originsFile(target)
+        if (next.isEmpty()) file.delete() else file.writeText(formatOrigins(next))
+    }
+
     fun delete(target: Target, name: String) {
         val folder = target.addOns.listFiles()?.firstOrNull { it.name == name && !it.name.startsWith(".") }
             ?: throw IOException("Cannot find $name")
         StoreInstalls.deleteTree(folder)
         if (Files.exists(folder.toPath(), LinkOption.NOFOLLOW_LINKS)) throw IOException("Cannot delete $name")
+        runCatching { keepOrigins(target, listOf(name), null) }
         imports++
     }
 
-    fun import(zipFile: File, target: Target): List<String> {
+    fun import(zipFile: File, target: Target, origin: Origin? = null): List<String> {
         ZipFile.builder().setFile(zipFile).get().use { zip ->
             val all = zip.entries.toList()
             if (all.any { it.isUnixSymlink }) return emptyList()
@@ -89,6 +146,7 @@ object WowAddons {
             } finally {
                 StoreInstalls.deleteTree(stage)
             }
+            runCatching { keepOrigins(target, addons.map { it.name }, origin) }
             imports++
             return addons.map { it.name }
         }

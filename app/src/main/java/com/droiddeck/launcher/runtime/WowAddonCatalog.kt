@@ -38,7 +38,6 @@ object WowAddonCatalog {
     internal class Cat(val id: String, val name: String, val parents: List<String>)
 
     private const val WOWI = "https://api.mmoui.com/v3/game/WOW/"
-    private const val CURSEFORGE = "https://www.curseforge.com/wow/search?class=addons"
     private const val WOWI_FILES = "wowi-filelist.json"
     internal const val FRESH_MS = 6L * 60 * 60 * 1000
 
@@ -240,6 +239,24 @@ object WowAddonCatalog {
         return dest
     }
 
-    internal fun curseForgeUrl(text: String): String =
-        text.trim().let { if (it.isEmpty()) CURSEFORGE else CURSEFORGE + "&search=" + URLEncoder.encode(it, "UTF-8") }
+    internal fun sameVersion(a: String, b: String): Boolean {
+        fun norm(v: String) = v.trim().removePrefix("v").removePrefix("V").trim().lowercase()
+        return norm(a) == norm(b)
+    }
+
+    internal fun findUpdates(entries: List<Entry>, installed: List<WowAddons.Installed>): Map<String, Addon> {
+        val byId = entries.associateBy { it.addon.id }
+        val seen = HashSet<String>()
+        return installed.mapNotNull { item ->
+            val id = item.wowiId ?: return@mapNotNull null
+            val version = item.version ?: return@mapNotNull null
+            val latest = byId[id]?.addon?.takeIf { it.summary.isNotBlank() } ?: return@mapNotNull null
+            if (!seen.add(id) || sameVersion(version, latest.summary)) null else item.name to latest
+        }.toMap()
+    }
+
+    fun updates(context: Context, installed: List<WowAddons.Installed>): Map<String, Addon> {
+        if (installed.none { it.wowiId != null }) return emptyMap()
+        return runCatching { findUpdates(wowiEntries(context), installed) }.getOrDefault(emptyMap())
+    }
 }

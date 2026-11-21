@@ -1,8 +1,6 @@
 package com.droiddeck.launcher.ui
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
@@ -122,11 +120,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     val sourceName = stringResource(R.string.addons_source_wowi)
     AppDialog(shown, close, "addonBrowser", wide = true, scrollable = false) {
         DialogTitleRow(stringResource(R.string.addons_download), close)
-        ModeHeader(sourceName, text, { text = it }, stringResource(R.string.stores_search_catalog, sourceName)) {
-            BrowseChip(stringResource(R.string.addons_source_curse), false) {
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(WowAddonCatalog.curseForgeUrl(text))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            }
-        }
+        ModeHeader(sourceName, text, { text = it }, stringResource(R.string.stores_search_catalog, sourceName)) {}
         ChipRow {
             BrowseDropdown(sortLabel(sort)) { first, done ->
                 WowAddonCatalog.Sort.entries.forEachIndexed { index, option ->
@@ -206,12 +200,12 @@ private fun formatCount(count: Long): String = when {
     else -> count.toString()
 }
 
-private fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, Boolean> {
+internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, Boolean> {
     val zip = File(File(context.cacheDir, "wowaddons"), "download-wowi-${addon.id.filter(Char::isLetterOrDigit)}-${java.util.UUID.randomUUID()}.zip")
     return try {
         WowAddonCatalog.download(context, addon, zip, progress)
         if (SessionState.running) return context.getString(R.string.main_addons_close_session) to false
-        val names = WowAddons.import(zip, target)
+        val names = WowAddons.import(zip, target, WowAddons.Origin(addon.id, addon.summary).takeIf { addon.summary.isNotBlank() })
         if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to false
         else context.resources.getQuantityString(R.plurals.main_addons_imported, names.size, names.size, target.flavor) to true
     } catch (_: WowAddons.TooLarge) {
