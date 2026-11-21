@@ -17,7 +17,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -33,7 +35,8 @@ import androidx.activity.compose.BackHandler
 import com.droiddeck.launcher.R
 
 @Composable
-internal fun ManageDrawerPages(offered: List<SessionDrawerPage>, modifier: Modifier = Modifier, onDone: () -> Unit) {
+internal fun ManageDrawerPages(offeredNow: List<SessionDrawerPage>, modifier: Modifier = Modifier, onDone: () -> Unit) {
+    val current by rememberUpdatedState(offeredNow)
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     BackHandler { onDone() }
@@ -48,15 +51,15 @@ internal fun ManageDrawerPages(offered: List<SessionDrawerPage>, modifier: Modif
             DrawerOutlineButton(stringResource(R.string.drawer_pages_done), onClick = onDone)
         }
         SortableRows(
-            rows = { offered.map { it.name } },
-            commit = { names -> DrawerPages.rearrange(ctx, names.mapNotNull { n -> offered.firstOrNull { it.name == n } }) },
+            rows = { current.map { it.name } },
+            commit = { names -> DrawerPages.rearrange(ctx, names.mapNotNull { n -> current.firstOrNull { it.name == n } }) },
             movable = { true },
             rowHeight = STORE_ROW, handleWidth = STORE_HANDLE,
             onActivate = { name ->
-                offered.firstOrNull { it.name == name }?.let { DrawerPages.setHidden(ctx, it, it !in DrawerPages.hidden) }
+                current.firstOrNull { it.name == name }?.let { DrawerPages.setHidden(ctx, it, it !in DrawerPages.hidden) }
             },
         ) { name, held, offset, hint, rowModifier, onFocus ->
-            val page = offered.first { it.name == name }
+            val page = current.first { it.name == name }
             val shown = page !in DrawerPages.hidden
             val pal = LocalPalette.current
             val label = stringResource(page.title)
