@@ -516,6 +516,11 @@ internal fun SetupPanel(
                                     if (s.launcherFullscreen) stringResource(R.string.setup_fullscreen_on) else stringResource(R.string.setup_fullscreen_off),
                                     s.launcherFullscreen,
                                 ) { a.onLauncherFullscreen(it) }
+                                ToggleRow(
+                                    host, "controller-haptics", stringResource(R.string.setup_controller_haptics),
+                                    stringResource(R.string.setup_controller_haptics_hint),
+                                    s.controllerHaptics,
+                                ) { a.onControllerHaptics(it) }
                                 if (s.dualScreenDevice) {
                                     val dualModes = listOf(
                                         com.droiddeck.launcher.input.DualScreen.MODE_AUTO to stringResource(R.string.setup_dual_screen_auto),
