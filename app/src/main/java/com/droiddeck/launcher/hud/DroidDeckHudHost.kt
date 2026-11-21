@@ -73,7 +73,9 @@ class DroidDeckHudHost(context: Context) {
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running || !polling) return
+            val wasLive = feed.live
             if (feed.poll(System.nanoTime())) view?.onFrames()
+            if (wasLive != feed.live && SessionPrefs.hudOnlyDuringGame(context)) applyShown()
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
@@ -151,7 +153,7 @@ class DroidDeckHudHost(context: Context) {
 
     fun refresh() {
         applyConfig()
-        if (!enabled) stop() else if (!running) start()
+        if (!enabled) stop() else if (!running) start() else applyShown()
     }
 
     fun start() {
@@ -183,12 +185,14 @@ class DroidDeckHudHost(context: Context) {
 
     private fun applyShown() {
         if (!running) return
-        val show = !hidden && !backgrounded
+        val onlyDuringGame = SessionPrefs.hudOnlyDuringGame(context)
+        val show = !hidden && !backgrounded && (!onlyDuringGame || feed.live)
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
-        if (show != polling) {
-            polling = show
-            if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
+        val shouldPoll = !hidden && !backgrounded && (show || onlyDuringGame)
+        if (shouldPoll != polling) {
+            polling = shouldPoll
+            if (shouldPoll) Choreographer.getInstance().postFrameCallback(frameCallback)
             else Choreographer.getInstance().removeFrameCallback(frameCallback)
         }
     }

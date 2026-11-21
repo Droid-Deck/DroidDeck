@@ -477,6 +477,13 @@ object SessionPrefs {
 
     fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
+    fun hudOnlyDuringGame(context: Context): Boolean =
+        prefs(context).getBoolean("hudOnlyDuringGame", false)
+
+    fun setHudOnlyDuringGame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("hudOnlyDuringGame", on).apply()
+    }
+
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()
     }
