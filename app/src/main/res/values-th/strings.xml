@@ -2440,6 +2440,8 @@
     <string name="display_game_fit">การแสดงเกม 16:9 ให้พอดี</string>
     <string name="display_game_fit_hint">วิธีที่เกม 16:9 แสดงพอดีกับหน้าจอนี้ มีผลในเซสชันถัดไป</string>
     <string name="display_game_fit_unavailable">เลือกพอดีหน้าจอ หรือขนาดกำหนดเองที่แคบกว่า 16:9</string>
+    <string name="display_avoid_notch">เลี่ยงรอยบาก</string>
+    <string name="display_avoid_notch_hint">ไม่แสดงภาพทับช่องกล้อง มีผลเมื่อคุณกลับเข้าสู่เซสชัน</string>
     <string name="display_preserve">คงสัดส่วนไว้</string>
     <string name="display_stretch">ยืดให้พอดีหน้าจอ</string>
     <string name="display_image_scaling">การปรับขนาดภาพ</string>

@@ -177,6 +177,21 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var quickButtons by mutableStateOf<Map<InputCommand, Boolean>>(emptyMap())
     private var picturePosition by mutableStateOf("center")
     private var integerScaling by mutableStateOf(false)
+    private var avoidNotch = false
+
+    private fun applyNotchInset(insets: android.view.WindowInsets? = window.decorView.rootWindowInsets) {
+        if (!::sessionRoot.isInitialized) return
+        val cutout = if (avoidNotch && Build.VERSION.SDK_INT >= 28 && SessionState.mode == SessionService.MODE_STEAM &&
+            !pipUi && !isInPictureInPictureMode && glassesScreen == null && bottomGame == null && !cardboard.enabled)
+            insets?.displayCutout else null
+        val left = cutout?.safeInsetLeft ?: 0
+        val top = cutout?.safeInsetTop ?: 0
+        val right = cutout?.safeInsetRight ?: 0
+        val bottom = cutout?.safeInsetBottom ?: 0
+        if (sessionRoot.paddingLeft == left && sessionRoot.paddingTop == top &&
+            sessionRoot.paddingRight == right && sessionRoot.paddingBottom == bottom) return
+        sessionRoot.setPadding(left, top, right, bottom)
+    }
 
     private fun applyGameAlignment() {
         if (!CompositorHost.isStarted) return
@@ -863,6 +878,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 else super.onResolvePointerIcon(event, pointerIndex)
         }
         sessionRoot = root
+        window.decorView.setOnApplyWindowInsetsListener { view, insets ->
+            applyNotchInset(insets)
+            view.onApplyWindowInsets(insets)
+        }
         surfaceView = SurfaceView(this)
         surfaceView.holder.addCallback(this)
         root.addView(surfaceView)
@@ -2538,6 +2557,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         picturePosition = SessionPrefs.picturePosition(this)
         integerScaling = SessionPrefs.integerScaling(this)
+        avoidNotch = SessionPrefs.avoidNotch(this)
+        applyNotchInset()
         hudOn = SessionPrefs.hudEnabled(this)
         gpuClockPin = gpuClockHeld()
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(this)
@@ -2942,6 +2963,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         cancelTouchGestures()
         applyFollowOrientation(newConfig)
+        applyNotchInset()
         applyUnfoldedControls()
         resizeOutputForWindow(surfaceW, surfaceH)
     }

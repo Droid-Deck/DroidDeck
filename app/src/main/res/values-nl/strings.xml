@@ -2465,6 +2465,8 @@
     <string name="display_game_fit">16:9-beeldvulling</string>
     <string name="display_game_fit_hint">Hoe 16:9-games dit scherm vullen. Volgende sessie.</string>
     <string name="display_game_fit_unavailable">Kies Schermformaat of een aangepast formaat dat smaller is dan 16:9.</string>
+    <string name="display_avoid_notch">Notch vermijden</string>
+    <string name="display_avoid_notch_hint">Houdt het beeld buiten de camerauitsparing. Geldt zodra je terugkeert naar de sessie.</string>
     <string name="display_preserve">Beeldverhouding behouden</string>
     <string name="display_stretch">Uitrekken naar scherm</string>
     <string name="display_image_scaling">Beeldschaling</string>

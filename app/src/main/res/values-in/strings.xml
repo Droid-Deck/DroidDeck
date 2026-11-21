@@ -2440,6 +2440,8 @@
     <string name="display_game_fit">Penyesuaian gim 16:9</string>
     <string name="display_game_fit_hint">Cara gim 16:9 disesuaikan dengan tampilan ini. Berlaku pada sesi berikutnya.</string>
     <string name="display_game_fit_unavailable">Pilih Sesuaikan layar atau ukuran khusus yang lebih sempit dari 16:9.</string>
+    <string name="display_avoid_notch">Hindari poni</string>
+    <string name="display_avoid_notch_hint">Menjauhkan gambar dari lubang kamera. Berlaku saat Anda kembali ke sesi.</string>
     <string name="display_preserve">Pertahankan proporsi</string>
     <string name="display_stretch">Bentangkan ke tampilan</string>
     <string name="display_image_scaling">Penskalaan gambar</string>

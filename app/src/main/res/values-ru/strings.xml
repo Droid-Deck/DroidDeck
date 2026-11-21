@@ -2517,6 +2517,8 @@
     <string name="display_game_fit">Игры 16:9</string>
     <string name="display_game_fit_hint">Как игры 16:9 вписываются в этот экран. Вступит в силу в следующей сессии.</string>
     <string name="display_game_fit_unavailable">Выберите «По размеру экрана» или свой размер уже 16:9.</string>
+    <string name="display_avoid_notch">Обходить вырез</string>
+    <string name="display_avoid_notch_hint">Не выводит картинку под вырез камеры. Применяется при возврате в сессию.</string>
     <string name="display_preserve">Сохранять пропорции</string>
     <string name="display_stretch">Растянуть на экран</string>
     <string name="display_image_scaling">Масштабирование изображения</string>

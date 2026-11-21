@@ -2437,6 +2437,8 @@
     <string name="display_game_fit">16:9 遊戲顯示方式</string>
     <string name="display_game_fit_hint">16:9 遊戲如何配合此螢幕。下次工作階段生效。</string>
     <string name="display_game_fit_unavailable">請選擇「符合螢幕」或比 16:9 更窄的自訂尺寸。</string>
+    <string name="display_avoid_notch">避開瀏海</string>
+    <string name="display_avoid_notch_hint">讓畫面避開鏡頭挖孔區域。返回工作階段時生效。</string>
     <string name="display_preserve">維持比例</string>
     <string name="display_stretch">延展至螢幕</string>
     <string name="display_image_scaling">畫面縮放</string>

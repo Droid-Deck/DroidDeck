@@ -2440,6 +2440,8 @@
     <string name="display_game_fit">Suaian permainan 16:9</string>
     <string name="display_game_fit_hint">Cara permainan 16:9 disuaikan ke paparan ini. Sesi seterusnya.</string>
     <string name="display_game_fit_unavailable">Pilih Sepadan skrin atau saiz tersuai lebih nipis daripada 16:9.</string>
+    <string name="display_avoid_notch">Elak takuk</string>
+    <string name="display_avoid_notch_hint">Memastikan gambar tidak berada di potongan kamera. Digunakan apabila anda kembali ke sesi.</string>
     <string name="display_preserve">Kekalkan nisbah</string>
     <string name="display_stretch">Regang ke paparan</string>
     <string name="display_image_scaling">Penskalaan imej</string>

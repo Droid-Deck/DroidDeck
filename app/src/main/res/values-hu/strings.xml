@@ -2465,6 +2465,8 @@
     <string name="display_game_fit">16:9 játék illesztése</string>
     <string name="display_game_fit_hint">Hogyan illeszkednek a 16:9 játékok ehhez a kijelzőhöz. A következő munkamenettől.</string>
     <string name="display_game_fit_unavailable">Válassza a Képernyőhöz illesztést, vagy egy 16:9-nél szűkebb egyéni méretet.</string>
+    <string name="display_avoid_notch">Kamera-kivágás kerülése</string>
+    <string name="display_avoid_notch_hint">A képet távol tartja a kameralyuktól. A munkamenetbe való visszatéréskor lép életbe.</string>
     <string name="display_preserve">Arányok megtartása</string>
     <string name="display_stretch">Nyújtás a kijelzőhöz</string>
     <string name="display_image_scaling">Képméretezés</string>
