@@ -152,11 +152,24 @@ class InputSurfaceView(
     }
 
     private fun inComboZone(a: View, b: View, x: Float, y: Float): Boolean {
-        val ra = min(a.width, a.height) / 2f
-        val rb = min(b.width, b.height) / 2f
-        val da = distance(a, x, y)
-        val db = distance(b, x, y)
-        return da <= ra * COMBO_REACH && db <= rb * COMBO_REACH && abs(da - db) <= min(ra, rb) * COMBO_BAND
+        val ax = originX(a) + a.width / 2f
+        val ay = originY(a) + a.height / 2f
+        val bx = originX(b) + b.width / 2f
+        val by = originY(b) + b.height / 2f
+        val half = hypot(bx - ax, by - ay) / 2f
+        if (half <= 0f) return false
+        val ra = extent(a, bx - ax, by - ay)
+        val rb = extent(b, ax - bx, ay - by)
+        val da = hypot(x - ax, y - ay)
+        val db = hypot(x - bx, y - by)
+        return da <= ra * COMBO_REACH && db <= rb * COMBO_REACH && abs(da - db) <= min(ra, rb) * COMBO_BAND &&
+            hypot(x - (ax + bx) / 2f, y - (ay + by) / 2f) <= half * COMBO_GAP
+    }
+
+    private fun extent(view: View, dx: Float, dy: Float): Float {
+        if ((view as? HoldButton)?.round == true) return min(view.width, view.height) / 2f
+        val length = hypot(dx, dy)
+        return min(view.width / 2f * length / abs(dx), view.height / 2f * length / abs(dy))
     }
 
     private fun comboAt(views: List<View>, x: Float, y: Float): View? =
@@ -812,6 +825,7 @@ class InputSurfaceView(
         private const val HIT_SLACK = 0.25f
         private const val COMBO_REACH = 1.6f
         private const val COMBO_BAND = 0.5f
+        private const val COMBO_GAP = 0.5f
         private val COMBO_NEIGHBOURS = mapOf(
             InputControl.UP to setOf(InputControl.LEFT, InputControl.RIGHT),
             InputControl.RIGHT to setOf(InputControl.UP, InputControl.DOWN),

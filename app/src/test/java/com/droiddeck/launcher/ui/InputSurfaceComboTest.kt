@@ -214,6 +214,33 @@ class InputSurfaceComboTest {
         assertEquals("", held())
     }
 
+    @Test fun theCentreOfATightDiamondPressesNothingButItsGapsStillPair() {
+        relayout(round(InputControl.UP, .45f, 178f / 600f), round(InputControl.RIGHT, .522f, 250f / 600f),
+            round(InputControl.DOWN, .45f, 322f / 600f), round(InputControl.LEFT, .378f, 250f / 600f))
+        press(1, 500f to 300f)
+        assertEquals("", held())
+        lift(1)
+        press(1, 536f to 264f)
+        assertEquals("up right", held())
+        lift(1)
+    }
+
+    @Test fun longButtonsPlacedEdgeToEdgePairAtTheSharedEdge() {
+        relayout(InputSurfaceElement(InputControl.A, .3f, .5f, .2f, .1f), InputSurfaceElement(InputControl.B, .5f, .5f, .2f, .1f))
+        press(1, 500f to 330f)
+        assertEquals("A B", held())
+        lift(1)
+        press(1, 650f to 330f)
+        assertEquals("B", held())
+        lift(1)
+    }
+
+    private fun relayout(vararg elements: InputSurfaceElement) {
+        view.updateLayout(SavedInputLayout("touch", "Touch", elements.toList(), aspect = 1000f / 600f))
+        view.measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(600, View.MeasureSpec.EXACTLY))
+        view.layout(0, 0, 1000, 600)
+    }
+
     private fun held(): String {
         val s = state()
         return (listOf("A" to s.isDown(PadState.A), "B" to s.isDown(PadState.B), "X" to s.isDown(PadState.X), "Y" to s.isDown(PadState.Y),
