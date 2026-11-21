@@ -97,6 +97,7 @@ data class TouchGestureConfig(
         const val RELATIVE_MOUSE_AUTO = 0
         const val RELATIVE_MOUSE_ON = 1
         const val RELATIVE_MOUSE_OFF = 2
+        const val RELATIVE_MOUSE_PHYSICAL = 3
         const val ACTION_SHOW_KEYBOARD = "show_keyboard"
         const val ACTION_KEY_ESC = "key_ESC"
         const val ACTION_KEY_TILDE = "key_TILDE"
@@ -213,8 +214,12 @@ data class TouchGestureConfig(
             return if (value == MOUSE_BEHAVIOR_CLICK) MOUSE_BEHAVIOR_CLICK else MOUSE_BEHAVIOR_HOLD
         }
 
-        fun gamescopeRelativeMouse(mode: Int, mouseAttached: Boolean, touchpad: Boolean): Int =
-            if (mode == RELATIVE_MOUSE_AUTO && !mouseAttached && !touchpad) RELATIVE_MOUSE_OFF else mode
+        fun gamescopeRelativeMouse(mode: Int, mouseAttached: Boolean, touchpad: Boolean): Int = when {
+            mode != RELATIVE_MOUSE_AUTO -> mode
+            mouseAttached -> RELATIVE_MOUSE_PHYSICAL
+            touchpad -> mode
+            else -> RELATIVE_MOUSE_OFF
+        }
 
         private fun normalizeRelativeMouseMode(mode: Int): Int {
             return if (mode in RELATIVE_MOUSE_AUTO..RELATIVE_MOUSE_OFF) mode else RELATIVE_MOUSE_AUTO
