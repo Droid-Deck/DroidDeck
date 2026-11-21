@@ -2,11 +2,13 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import com.droiddeck.launcher.core.GameEnvironment
+import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
@@ -25,6 +27,7 @@ class GameProfileManagerTest {
     fun setUp() {
         context = RuntimeEnvironment.getApplication()
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("controller", Context.MODE_PRIVATE).edit().clear().commit()
         File(context.filesDir, "game-environment.json").delete()
         File(context.filesDir, "wincomponents.json").delete()
         File(context.filesDir, "components").deleteRecursively()
@@ -51,6 +54,8 @@ class GameProfileManagerTest {
         SessionPrefs.setGameTextureAnisotropy(context, other, 8)
         WinComponents.setPicks(context, game, listOf("vcrun2022"))
         WinComponents.setPicks(context, other, listOf("dotnet48"))
+        ControllerPrefs.setNintendoLayout(context, game, true)
+        ControllerPrefs.setNintendoLayout(context, other, true)
 
         GameProfileManager.reset(context, game)
 
@@ -65,6 +70,8 @@ class GameProfileManagerTest {
         assertEquals(8, SessionPrefs.gameTextureFiltering(context, other).anisotropy)
         assertEquals(emptyList<String>(), WinComponents.picks(context, game))
         assertEquals(listOf("dotnet48"), WinComponents.picks(context, other))
+        assertFalse(ControllerPrefs.nintendoLayout(context, game))
+        assertTrue(ControllerPrefs.nintendoLayout(context, other))
     }
 
     @Test

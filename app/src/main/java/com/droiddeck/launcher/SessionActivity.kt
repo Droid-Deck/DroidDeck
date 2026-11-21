@@ -1230,6 +1230,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         if (nextGame != null) gameStarts++
                         gestureGame = nextGame
                         refreshGestureConfig()
+                        applyNintendoLayout()
                     }
                     if (
                         SessionState.mode == SessionService.MODE_STEAM &&
@@ -3794,6 +3795,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (desiredRelativeMouseMode != wanted) requestRelativeMouse()
     }
 
+    private fun applyNintendoLayout() {
+        padBridge?.setNintendoLayout(ControllerPrefs.nintendoLayout(this, gestureGame))
+    }
+
     private fun refreshGestureConfig() {
         gestureConfig = com.droiddeck.launcher.input.GesturePrefs.read(this, gestureGame)
         directHoldBehavior = gestureConfig.directHoldBehavior
@@ -5731,6 +5736,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
         padBridge?.setStickDeadZone(ControllerPrefs.deadZone(this))
+        applyNintendoLayout()
         refreshSecondScreenDisplays()
         if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
         joyConVr?.refresh()
