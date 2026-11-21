@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 输出</string>
     <string name="mode_hdr_unavailable">不可用：%1$s。</string>
-    <string name="mode_hdr_restart">重启应用以生效。</string>
     <string name="mode_drivers">驱动</string>
     <string name="mode_gpu_drivers">GPU 驱动</string>
     <string name="mode_gpu_drivers_hint">由 Steam 和桌面共享。在“组件”页面设置。</string>
@@ -2515,6 +2514,7 @@
     <string name="driver_tag_bundle">Android + Linux</string>
     <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
     <string name="display_session">会话显示</string>
+    <string name="display_zero_copy">零拷贝呈现</string>
     <string name="display_resolution">分辨率</string>
     <string name="display_game_fit">16:9 游戏适配</string>
     <string name="display_game_fit_hint">16:9 游戏如何适配此屏幕。下次会话生效。</string>

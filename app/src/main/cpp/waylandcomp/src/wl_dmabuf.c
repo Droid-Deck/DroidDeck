@@ -15,6 +15,7 @@
 #include "droiddeck_color.h"
 #include "compositor_internal.h"
 #include "ahb_broker.h"
+#include "display_buffers.h"
 
 
 static void dbuf_buffer_resource_destroy(struct wl_resource *r) {
@@ -60,6 +61,7 @@ static struct wl_resource *params_do_create(struct wl_client *c, struct wl_resou
     ahb_broker_import(b, buf);
     struct client_info *ci = client_info_of(c);
     if (ci) ci->dmabuf_buffers++;
+    display_buffers_match(c, buf, b);
     return buf;
 }
 static void params_create(struct wl_client *c, struct wl_resource *r, int32_t w, int32_t h,
@@ -113,13 +115,16 @@ static const struct zwp_linux_dmabuf_v1_interface dmabuf_impl = {
 static struct { uint32_t fmt; uint64_t mods[DMABUF_NMOD]; int n; } g_dmabuf_fmts[DMABUF_NFMT_MAX] = {
     {DRM_ARGB8888}, {DRM_XRGB8888}, {DRM_ABGR8888}, {DRM_XBGR8888}, {DRM_ABGR2101010}, {DRM_XBGR2101010}};
 static int g_dmabuf_nfmt = DMABUF_NFMT_SDR;
-static int g_dmabuf_fmts_ready;
+static volatile int g_dmabuf_fmts_ready;
 static void dmabuf_build_feedback(void);
+
+void droiddeck_dmabuf_formats_stale(void) { g_dmabuf_fmts_ready = 0; }
 
 static void dmabuf_build_formats(void) {
     char line[320];
-    int pos = 0, compressed = 0;
+    int pos = 0, compressed = 0, backed = 0;
     g_dmabuf_fmts_ready = 1;
+    display_buffers_withdraw_ubwc();
     g_dmabuf_nfmt = droiddeck_color_hdr_open() ? DMABUF_NFMT_MAX : DMABUF_NFMT_SDR;
     for (int f = 0; f < g_dmabuf_nfmt; f++) {
         uint64_t got[DMABUF_NMOD];
@@ -130,6 +135,12 @@ static void dmabuf_build_formats(void) {
             if (got[i] == VKP_MOD_QCOM_COMPRESSED && !g_ubwc) continue;
             g_dmabuf_fmts[f].mods[k++] = got[i];
             if (got[i] == VKP_MOD_QCOM_COMPRESSED) compressed++;
+        }
+        int listed = 0;
+        for (int i = 0; i < k; i++) if (g_dmabuf_fmts[f].mods[i] == VKP_MOD_QCOM_COMPRESSED) listed = 1;
+        if (display_buffers_offer_ubwc(g_dmabuf_fmts[f].fmt) && !listed) {
+            g_dmabuf_fmts[f].mods[k++] = VKP_MOD_QCOM_COMPRESSED;
+            backed++;
         }
         g_dmabuf_fmts[f].mods[k++] = MOD_INVALID;
         g_dmabuf_fmts[f].n = k;
@@ -143,7 +154,10 @@ static void dmabuf_build_formats(void) {
     }
     droiddeck_log("dmabuf", "formats: %s%s", line,
                !g_ubwc ? " (DROIDDECK_WAYLAND_UBWC=0: qcom_compressed not advertised)" : "");
-    if (g_ubwc && !compressed)
+    if (backed)
+        droiddeck_log("dmabuf", "qcom_compressed is advertised for %d formats the compositor's driver (%s) does not "
+                   "import as dma-bufs: this session's driver renders them into gralloc buffers", backed, vkp_gpu_name());
+    else if (g_ubwc && !compressed)
         droiddeck_log("dmabuf", "the compositor's driver (%s) reports no importable qcom_compressed layout: "
                    "game swapchains stay linear", vkp_gpu_name());
     if (g_dmabuf_nfmt > DMABUF_NFMT_SDR) {
@@ -214,6 +228,7 @@ static void dmabuf_build_feedback(void) {
         return;
     }
     fcntl(fd, F_ADD_SEALS, F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE);
+    if (g_fmt_table_fd >= 0) close(g_fmt_table_fd);
     g_fmt_table_fd = fd;
     g_fmt_table_size = size;
     g_fmt_table_n = (uint16_t)n;

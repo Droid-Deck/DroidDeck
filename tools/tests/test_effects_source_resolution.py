@@ -203,7 +203,7 @@ static struct { float kx, ky, off_x, off_y; int rx, ry, rw, rh; } g_map;
 static struct { VkImage img; int w, h; } g_scene;
 struct vkp_img_slot { VkImage img; int w, h; };
 static struct vkp_img_slot g_hdrscene, g_fgscene;
-static struct { int active, rw, rh; VkImage result; } g_pass;
+static struct { int active, rw, rh, ngen; VkImage result; VkImage gens[VKP_FG_MAX_GENERATIONS]; } g_pass;
 static struct { int64_t present_ns, present_max_ns; unsigned presents; } g_perf;
 static int effects_active = 1, framegen, cardboard;
 struct fx_settings { int scaling, cas_on, cas_pct; };
@@ -368,7 +368,7 @@ static void run_path(int offscreen, const struct vkp_draw *draw, int n, const st
     assert(n > 0 && n <= 4);
     memcpy(before, draw, n * sizeof(*draw));
     int rw = 0, rh = 0;
-    assert((offscreen ? pass_begin_impl(1920, 1080, draw, n, hdr, &rw, &rh)
+    assert((offscreen ? pass_begin_impl(1920, 1080, draw, n, hdr, 0, &rw, &rh)
                       : render_impl(1920, 1080, draw, n, hdr, NULL)) == 0);
     assert(memcmp(draw, before, n * sizeof(*draw)) == 0);
     if (offscreen) assert(rw == (fail_effects ? effects_w : (int)g_extent.width) &&
@@ -393,7 +393,7 @@ static void check_path(int offscreen) {
     run_path(offscreen, &draw, 1, NULL); check_input(1280, 720);
     reset(); draw = fullscreen(); draw.dw = 1280; draw.dh = 720;
     int rw, rh;
-    assert((offscreen ? pass_begin_impl(1280, 720, &draw, 1, NULL, &rw, &rh)
+    assert((offscreen ? pass_begin_impl(1280, 720, &draw, 1, NULL, 0, &rw, &rh)
                       : render_impl(1280, 720, &draw, 1, NULL, NULL)) == 0);
     check_input(1280, 720);
 }

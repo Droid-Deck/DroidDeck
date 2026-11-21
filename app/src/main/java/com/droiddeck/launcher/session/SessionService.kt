@@ -1039,6 +1039,9 @@ class SessionService : Service() {
         if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
             SystemVulkanDriver.addEnvironment(this, guest)
         }
+        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetDisplayBufferDriver(
+            !bridge && !venus && LinuxVulkanDriverManager(this).rendersToDisplayBuffers(linuxDriverId),
+        )
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {

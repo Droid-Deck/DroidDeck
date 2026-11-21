@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-kimenet</string>
     <string name="mode_hdr_unavailable">Nem elérhető: %1$s.</string>
-    <string name="mode_hdr_restart">Indítsa újra az alkalmazást az érvényesítéshez.</string>
     <string name="mode_drivers">Illesztőprogramok</string>
     <string name="mode_gpu_drivers">GPU-illesztőprogramok</string>
     <string name="mode_gpu_drivers_hint">A Steam és az Asztal közösen használja. Az Összetevők oldalon állítható be.</string>
@@ -2461,6 +2460,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Munkamenet kijelzője</string>
+    <string name="display_zero_copy">Másolásmentes megjelenítés</string>
     <string name="display_resolution">Felbontás</string>
     <string name="display_game_fit">16:9 játék illesztése</string>
     <string name="display_game_fit_hint">Hogyan illeszkednek a 16:9 játékok ehhez a kijelzőhöz. A következő munkamenettől.</string>

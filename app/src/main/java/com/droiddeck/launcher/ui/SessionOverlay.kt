@@ -283,6 +283,9 @@ class DrawerActions(
     val blackFrameInsertion: Boolean = false,
     val blackFrameInsertionAvailable: Boolean = false,
     val onBlackFrameInsertion: (Boolean) -> Unit = {},
+    val hdr: Boolean = false,
+    val hdrAvailable: Boolean = false,
+    val onHdr: (Boolean) -> Unit = {},
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
@@ -1178,7 +1181,9 @@ private fun ScreenEffectsGroup(
         ToggleRow(host, "toon", stringResource(R.string.drawer_toon), null, e.toon, chipModifier = track("toon")) { a.onEffects(e.copy(toon = it)) }
         ToggleRow(host, "crt", stringResource(R.string.drawer_crt), null, e.crt, chipModifier = track("crt")) { a.onEffects(e.copy(crt = it)) }
         ToggleRow(host, "ntsc", stringResource(R.string.drawer_ntsc), null, e.ntsc, chipModifier = track("ntsc")) { a.onEffects(e.copy(ntsc = it)) }
-        ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
+        if (a.hdrAvailable) ToggleRow(host, "hdr", stringResource(R.string.mode_hdr), null, a.hdr,
+            chipModifier = track("hdr"), onChange = a.onHdr)
+        else ToggleRow(host, "fake-hdr", stringResource(R.string.drawer_fake_hdr), null, e.hdr, chipModifier = track("fake-hdr")) { a.onEffects(e.copy(hdr = it)) }
         if (a.blackFrameInsertionAvailable) ToggleRow(host, "bfi", stringResource(R.string.drawer_bfi),
             stringResource(R.string.drawer_bfi_note), a.blackFrameInsertion,
             chipModifier = track("bfi"), onChange = a.onBlackFrameInsertion)
