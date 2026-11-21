@@ -2051,6 +2051,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             if (!compatLaunch!!.loading.ended && event.keyCode !in listOf(
                     KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE)) return true
         }
+        if (controllerHaptics) com.droiddeck.launcher.ui.ControllerHaptics.onKey(this, event)
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -2058,7 +2059,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             }
             return true
         }
-        if (controllerHaptics) com.droiddeck.launcher.ui.ControllerHaptics.onKey(this, event)
         return try {
             super.dispatchKeyEvent(event)
         } catch (e: IllegalStateException) {
