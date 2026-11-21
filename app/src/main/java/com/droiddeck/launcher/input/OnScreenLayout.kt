@@ -74,7 +74,8 @@ object OnScreenLayout {
         val portrait = height > width
         if (layout.rotated.isEmpty() || layout.aspect <= 0f || (layout.aspect < 1f) == portrait || (layout.rotatedAspect < 1f) != portrait) return layout
         val rotated = layout.rotated.associateBy { it.id }
-        return layout.copy(elements = layout.elements.map { e -> rotated[e.id]?.let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) } ?: e },
+        return layout.copy(elements = layout.elements.map { e -> rotated[e.id]?.let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) } ?: e } +
+            layout.rotated.filter { r -> optional(r) && layout.elements.none { it.id == r.id } },
             aspect = layout.rotatedAspect, rotated = emptyList(), rotatedAspect = 0f)
     }
 

@@ -599,7 +599,7 @@ class OnScreenLayoutTest {
     }
 
     @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
-    fun aPortraitSaveKeepsOptionalControlsOutOfTheLandscapeFrame() {
+    fun aPortraitSaveKeepsOptionalControlsInThePortraitFrameOnly() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
         val layout = gamepad()
         val landscape = OnScreenLayout.elements(context, layout, 1600, 900, Rect())
@@ -612,6 +612,10 @@ class OnScreenLayoutTest {
         assertTrue(both.rotated.any { it.control == InputControl.L4 })
         assertEquals(OnScreenLayout.elements(context, edited, 1600, 900, Rect(), rearButtons = true, trackpads = true),
             OnScreenLayout.elements(context, both, 1600, 900, Rect(), rearButtons = true, trackpads = true))
+        val tall = OnScreenLayout.elements(context, both, 900, 1600, Rect(), rearButtons = true, trackpads = true)
+        for (control in listOf(InputControl.L4, InputControl.LEFT_PAD, InputControl.B)) assertEquals(control.id, portrait.at(control), tall.at(control))
+        assertTrue(OnScreenLayout.elements(context, both, 900, 1600, Rect(), rearButtons = false, trackpads = false)
+            .none { it.control == InputControl.L4 || it.control == InputControl.LEFT_PAD })
     }
 
     @Test fun stockControlsUseTheKitArtworkWhileAddedAndTrackpadControlsStillUseTheTint() {
