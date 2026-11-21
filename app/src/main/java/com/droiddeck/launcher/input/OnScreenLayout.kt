@@ -6,12 +6,20 @@ import android.hardware.display.DisplayManager
 import android.os.Build
 import android.view.Display
 import com.droiddeck.launcher.ui.findActivity
+import com.droiddeck.launcher.session.SessionPrefs
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
 object OnScreenLayout {
+    internal fun usesSteamDeckButtons(context: Context, layout: SavedInputLayout?) =
+        layout?.id == InputLibraries.OVERLAY && SessionPrefs.steamController(context) == SessionPrefs.CONTROLLER_DECK
+
+    internal fun supportsFloatingSteamControls(controller: String, layout: SavedInputLayout?) =
+        layout?.id == InputLibraries.OVERLAY &&
+            (controller == SessionPrefs.CONTROLLER_DECK || controller == SessionPrefs.CONTROLLER_STEAM)
+
     data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
         companion object {
             fun deck(portrait: Boolean, gamepad: SavedInputLayout?): Dock {
@@ -29,7 +37,8 @@ object OnScreenLayout {
     private const val KEYBOARD_ID = "builtin:keyboard"
 
     fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect,
-        buttonsOnly: Boolean = false, dock: Dock? = null): List<InputSurfaceElement> {
+        buttonsOnly: Boolean = false, dock: Dock? = null, rearButtons: Boolean? = null,
+        trackpads: Boolean? = null): List<InputSurfaceElement> {
         val stored = layout?.elements ?: return emptyList()
         if (width <= 0 || height <= 0) return stored
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
@@ -43,7 +52,24 @@ object OnScreenLayout {
             else -> generator.regenerate(gamepad)
         }
         val byId = (placed + others).associateBy { it.id }
-        return stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
+        val ordered = stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
+        if (dock != null) return ordered
+        return steamPlaced(context, layout, ordered, width, height, safe, generated, reference, rearButtons, trackpads)
+    }
+
+    /** Where a Steam or Steam Deck controller's overlay draws [elements]; any other layout or controller draws them where they are. */
+    internal fun steamPlaced(context: Context, layout: SavedInputLayout, elements: List<InputSurfaceElement>, width: Int, height: Int, safe: Rect,
+        generated: Boolean, reference: Pair<Float, Float> = width.toFloat() to height.toFloat(), rearButtons: Boolean? = null,
+        trackpads: Boolean? = null): List<InputSurfaceElement> {
+        if (!supportsFloatingSteamControls(SessionPrefs.steamController(context), layout)) return elements
+        if (generated && width >= height && usesSteamDeckButtons(context, layout) &&
+            ControllerPrefs.layout(context, reference.first.toInt(), reference.second.toInt()).isEmpty() &&
+            ControllerPrefs.layout(context, width, height).isEmpty()) {
+            return SteamDeckOverlayGeometry(width, height, safe, context.resources.displayMetrics, layout.scale)
+                .place(elements, rearButtons == true, trackpads == true)
+        }
+        return FloatingSteamOverlay(width, height, safe, context.resources.displayMetrics.density)
+            .place(elements, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
     }
 
     fun fit(elements: List<InputSurfaceElement>, referenceWidth: Float, referenceHeight: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {

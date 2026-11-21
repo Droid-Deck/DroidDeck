@@ -197,10 +197,12 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
 
     fun regenerate(stored: List<InputSurfaceElement>): List<InputSurfaceElement> = withGeometry(stored, elements())
 
-    /** A group that grows past an edge slides back as a whole, so its buttons keep their arrangement. */
-    fun rescale(stored: List<InputSurfaceElement>, from: LegacyGamepadLayout): List<InputSurfaceElement> {
-        val before = from.elements().associateBy { it.id }
-        val after = elements().associateBy { it.id }
+    fun rescale(stored: List<InputSurfaceElement>, from: LegacyGamepadLayout) = rescale(stored, from.elements(), elements())
+
+    /** Moves [stored] the way the stock controls move from [from] to [to]. A group that grows past an edge slides back as a whole, so its buttons keep their arrangement. */
+    fun rescale(stored: List<InputSurfaceElement>, from: List<InputSurfaceElement>, to: List<InputSurfaceElement>): List<InputSurfaceElement> {
+        val before = from.associateBy { it.id }
+        val after = to.associateBy { it.id }
         val moved = stored.map { e ->
             val b = before[e.id] ?: return@map e
             val a = after[e.id] ?: return@map e

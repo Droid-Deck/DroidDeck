@@ -348,6 +348,11 @@ class DrawerActions(
     val adaptiveSticks: Boolean? = null,
     val onAdaptiveSticks: (Boolean) -> Unit = {},
     val onEditButtons: (() -> Unit)? = null,
+    val showFloatingSteamControls: Boolean = false,
+    val oscRearButtons: Boolean = false,
+    val oscTrackpads: Boolean = false,
+    val onOscRearButtons: (Boolean) -> Unit = {},
+    val onOscTrackpads: (Boolean) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val unfoldedControlsWithController: Boolean = false,
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
@@ -734,6 +739,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 a.adaptiveSticks?.let { on ->
                                     ToggleRow(host, "adaptive-sticks", stringResource(R.string.ctrl_adaptive), null, on,
                                         chipModifier = focus.track(page, "adaptive-sticks"), onChange = a.onAdaptiveSticks)
+                                }
+                                if (a.showFloatingSteamControls) {
+                                    ToggleRow(host, "rear-buttons", stringResource(R.string.osc_rear_buttons), null, a.oscRearButtons,
+                                        chipModifier = focus.track(page, "rear-buttons"), onChange = a.onOscRearButtons)
+                                    ToggleRow(host, "trackpads", stringResource(R.string.osc_trackpads), null, a.oscTrackpads,
+                                        chipModifier = focus.track(page, "trackpads"), onChange = a.onOscTrackpads)
                                 }
                                 a.onEditButtons?.let { edit ->
                                     ActionRow(stringResource(R.string.input_edit_buttons), stringResource(R.string.input_edit_buttons_hint),

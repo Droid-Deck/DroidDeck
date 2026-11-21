@@ -14,6 +14,9 @@ import android.view.View
 import android.view.WindowInsets
 import android.widget.FrameLayout
 import com.droiddeck.launcher.ui.InputSurfaceView
+import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionService
+import com.droiddeck.launcher.session.SessionState
 
 class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayout.Dock? = null) : FrameLayout(context) {
     private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY, haptics = dock != null)
@@ -80,7 +83,10 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     private fun placed(): List<InputSurfaceElement> {
         val key = Placement(layout, viewWidth, viewHeight, Rect(safe), isButtonsOnly)
         return placements.getOrPut(key) {
-            OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, isButtonsOnly, dock)
+            val steam = SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad
+            OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, isButtonsOnly, dock,
+                rearButtons = SessionPrefs.oscRearButtons(context).takeIf { steam },
+                trackpads = SessionPrefs.oscTrackpads(context).takeIf { steam })
         }
     }
 
@@ -91,11 +97,16 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
             isQuickHidden -> elements.filter { it.opensKeyboard(actions) || it.alwaysShown }
             else -> elements
         })
-        val style = layout?.style ?: InputSurfaceStyle()
-        surface.updateStyle(style)
-        quickToggle.tint = style.tint
-        quickToggle.alpha = style.opacity / 100f
         quickToggle.visibility = if (isButtonsOnly || isPinnedOnly || layout == null || dock != null) GONE else VISIBLE
+        refreshAppearance()
+    }
+
+    private fun refreshAppearance() {
+        val style = layout?.style ?: InputSurfaceStyle()
+        val deck = dock == null && OnScreenLayout.usesSteamDeckButtons(context, layout)
+        surface.updateStyle(style, steamDeckButtons = deck)
+        quickToggle.tint = style.tint.takeUnless { deck }
+        quickToggle.alpha = style.opacity / 100f
         quickToggle.invalidate()
     }
 

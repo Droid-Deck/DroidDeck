@@ -25,6 +25,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import com.droiddeck.launcher.session.SessionPrefs
 
 class InputSettingsHostActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,6 +47,8 @@ class InputEditorRecreateTest {
 
     @Before fun reset() {
         for (name in listOf("input-profiles", "input-surfaces", "controller")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
+        // The Steam Deck controller redraws the stock overlay in its own places; these tests check the editor on the plain one.
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
     }
 
     @Test fun aFontOrLanguageChangeKeepsTheEditorOpenWithItsUnsavedEdits() {

@@ -69,7 +69,9 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
             }
         }
     var style = InputSurfaceStyle()
-        set(value) { if (value == field) return; field = value; preview.updateStyle(value); refreshGeometry() }
+        set(value) { if (value == field) return; field = value; preview.updateStyle(value, steamDeckButtons); refreshGeometry() }
+    var steamDeckButtons = false
+        set(value) { if (value == field) return; field = value; preview.updateStyle(style, value); refreshGeometry() }
     var snap = true
         set(value) { field = value; if (!value) clearGuides() }
     var selection: List<String> = emptyList()

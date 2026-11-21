@@ -117,14 +117,16 @@ private enum class SliderEdit { SCALE, SIZE, OPACITY }
 
 private class ScaleStep(val base: List<InputSurfaceElement>, val baseFactor: Float, val result: List<InputSurfaceElement>, val factor: Float)
 
+/** [place] moves the generated controls to where the game draws them at a given scale. */
 internal class GamepadScaler(private val context: android.content.Context, private val width: Int, private val height: Int,
-    private val safe: Rect = Rect()) {
+    private val safe: Rect = Rect(), private val place: (List<InputSurfaceElement>, Float) -> List<InputSurfaceElement> = { elements, _ -> elements }) {
     private fun generator(scale: Float) = LegacyGamepadLayout(context, width, height, safe, scale)
+    private fun stockAt(scale: Float) = place(generator(scale).elements(), scale)
     val ids = generator(1f).elements().map { it.id }.toSet()
-    fun rescale(stored: List<InputSurfaceElement>, from: Float, to: Float) = generator(to).rescale(stored, generator(from))
+    fun rescale(stored: List<InputSurfaceElement>, from: Float, to: Float) = generator(to).rescale(stored, stockAt(from), stockAt(to))
     fun reset(stored: List<InputSurfaceElement>) = stock(stored).let { placed -> stored.map { placed[it.id] ?: it } }
-    fun stock(stored: List<InputSurfaceElement>) = generator(1f).regenerate(stored).associateBy { it.id }
-    val geometry by lazy { generator(1f).elements().associateBy { it.id } }
+    fun stock(stored: List<InputSurfaceElement>) = place(generator(1f).regenerate(stored), 1f).associateBy { it.id }
+    val geometry by lazy { stockAt(1f).associateBy { it.id } }
 }
 
 private fun InputSurfaceElement.samePlace(other: InputSurfaceElement, width: Int, height: Int) =
@@ -146,7 +148,9 @@ internal fun surfaceDraft(context: android.content.Context, library: InputLibrar
     val gamepad = layout.elements.takeIf { e -> generated && e.any { it.id.startsWith("legacy:") } }?.let {
         val (w, h) = (if (primary) null else OnScreenLayout.generatedSize(context, layout, metrics.widthPixels, metrics.heightPixels))
             ?: (metrics.widthPixels to metrics.heightPixels)
-        GamepadScaler(display, w, h, if (primary) clear else Rect())
+        if (primary) GamepadScaler(display, w, h, clear) { elements, scale ->
+            OnScreenLayout.steamPlaced(display, layout.copy(scale = scale), elements, w, h, clear, generated = true)
+        } else GamepadScaler(display, w, h)
     }
     val main = primary && gamepad != null && layout.elements.any { it.id in gamepad.ids }
     val (w, h) = metrics.widthPixels to metrics.heightPixels
@@ -556,6 +560,7 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false, onD
     AndroidView(factory = { InputSurfaceEditorView(it) }, modifier = Modifier.fillMaxSize().testTag("input-layout-canvas"),
         update = { view ->
             view.setBackgroundColor(if (transparent) android.graphics.Color.TRANSPARENT else android.graphics.Color.rgb(10, 11, 13))
+            view.steamDeckButtons = OnScreenLayout.usesSteamDeckButtons(view.context, draft.layout)
             view.style = draft.layout.style.copy(removed = emptySet()); view.elements = draft.visible; view.selection = draft.selection; view.snap = draft.snap
             view.restored = draft.restored
             view.isEnabled = !draft.adding

@@ -14,6 +14,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import com.droiddeck.launcher.session.SessionPrefs
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w833dp-h468dp-land-369dpi")
@@ -27,6 +28,8 @@ class InputEditorCutoutTest {
 
     @Before fun reset() {
         for (name in listOf("input-profiles", "input-surfaces", "controller", "session")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
+        // The Steam Deck controller redraws the stock overlay in its own places; these tests check the editor on the plain one.
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
     }
 
     private fun gamepad() = InputLibraries.read(context).layouts.first { it.id == InputLibraries.OVERLAY }
@@ -83,6 +86,27 @@ class InputEditorCutoutTest {
     @Test fun aRightCutoutMovesNothingWhenTheEditorOpensOrSaves() {
         assertNotEquals(gamepad().elements.first { it.id == "legacy:a" }.x, inGame(gamepad(), right).first { it.id == "legacy:a" }.x)
         editorMatchesTheGameBeforeAndAfterSaving(right, "legacy:up", .03f)
+    }
+
+    @Test fun onTheSteamDeckControllerTheEditorShowsTheDeckPlacesAndSavesWhatItShows() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val stock = gamepad()
+        val shown = inGame(stock, left)
+        assertNotEquals(stock.elements.first { it.id == "legacy:start" }.y, shown.first { it.id == "legacy:start" }.y)
+        val draft = editor(stock, left)
+        assertSamePlaces(shown, draft.elements)
+        assertFalse(draft.resettable)
+
+        draft.checkpoint()
+        draft.scaleAll(120)
+        draft.checkpoint()
+        draft.elements = moved(draft.elements, "legacy:a", -.03f)
+        val edited = saved(stock, draft)
+        assertSamePlaces(draft.elements, inGame(edited, left))
+        assertSamePlaces(draft.elements, editor(edited, left).elements)
+
+        draft.resetLayout()
+        assertSamePlaces(shown, draft.elements)
     }
 
     @Test fun anAddedControlNearTheCutoutSitsWhereTheGameShowsIt() {

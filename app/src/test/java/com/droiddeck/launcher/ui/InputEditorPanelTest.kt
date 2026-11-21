@@ -19,6 +19,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowToast
+import com.droiddeck.launcher.session.SessionPrefs
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], qualifiers = "w914dp-h411dp-land")
@@ -32,6 +33,8 @@ class InputEditorPanelTest {
         context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("input-surfaces", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("controller", Context.MODE_PRIVATE).edit().clear().commit()
+        // The Steam Deck controller redraws the stock overlay in its own places; these tests check the editor on the plain one.
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
     }
 
     private fun open(): SavedInputLayout {
