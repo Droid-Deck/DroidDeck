@@ -1,7 +1,9 @@
 package com.droiddeck.launcher.files
 
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.nio.charset.Charset
+import java.nio.file.Files
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -113,5 +115,29 @@ class TextEditorLogicTest {
         val matches = findEditorMatches(text, "one", matchCase = true)
         assertEquals("1 two 1", replaceEditorMatches(text, matches, "1"))
         assertEquals(text, replaceEditorMatches(text, emptyList(), "x"))
+    }
+
+    @Test
+    fun saveTargetResolvesSymbolicLink() {
+        val dir = Files.createTempDirectory("editor-link").toFile()
+        try {
+            val target = File(dir, "real.txt").apply { writeText("hi") }
+            val link = File(dir, "link.txt")
+            Files.createSymbolicLink(link.toPath(), target.toPath())
+            assertEquals(target.canonicalFile, resolveEditorSaveTarget(link).canonicalFile)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun saveTargetKeepsRegularFile() {
+        val dir = Files.createTempDirectory("editor-plain").toFile()
+        try {
+            val plain = File(dir, "plain.txt").apply { writeText("hi") }
+            assertEquals(plain, resolveEditorSaveTarget(plain))
+        } finally {
+            dir.deleteRecursively()
+        }
     }
 }

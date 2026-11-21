@@ -125,6 +125,13 @@ internal fun decodeEditorText(bytes: ByteArray): DecodedEditorText {
     return DecodedEditorText(String(bytes, Charsets.UTF_8), EditorCharset.UTF8, true)
 }
 
+internal fun resolveEditorSaveTarget(file: File): File {
+    val isLink = runCatching { Files.isSymbolicLink(file.toPath()) }.getOrDefault(false)
+    if (!isLink) return file
+    // rename(2) replaces the link itself, so stage next to and rename onto the real target
+    return runCatching { file.canonicalFile }.getOrDefault(file)
+}
+
 internal fun readCapped(input: InputStream, limit: Long): ByteArray? {
     val out = ByteArrayOutputStream()
     val buffer = ByteArray(64 * 1024)
@@ -368,18 +375,18 @@ internal fun TextEditorScreen(
         scope.launch {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
-                    val parent = file.parentFile
+                    val target = resolveEditorSaveTarget(file)
+                    val parent = target.parentFile
                     if (parent == null) {
-                        file.writeBytes(bytes)
-                        true
+                        target.writeBytes(bytes)
                     } else {
-                        val tmp = File.createTempFile(".${file.name}.", ".droiddeck-tmp", parent)
+                        val tmp = File.createTempFile(".${target.name}.", ".droiddeck-tmp", parent)
                         try {
                             tmp.writeBytes(bytes)
                             runCatching {
-                                Files.setPosixFilePermissions(tmp.toPath(), Files.getPosixFilePermissions(file.toPath()))
+                                Files.setPosixFilePermissions(tmp.toPath(), Files.getPosixFilePermissions(target.toPath()))
                             }
-                            tmp.renameTo(file)
+                            if (!tmp.renameTo(target)) error("rename to ${target.name} failed")
                         } finally {
                             tmp.delete()
                         }
