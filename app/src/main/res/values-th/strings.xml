@@ -662,6 +662,8 @@
     <string name="drawer_page_display">หน้าจอ</string>
     <string name="drawer_frame_limit">จำกัดเฟรม</string>
     <string name="drawer_frame_limit_note">จำกัดเฟรมเรตของเกมนี้ หน้าจอจะเปลี่ยนไปใช้อัตรารีเฟรชที่หารด้วยค่าที่จำกัดได้ลงตัวหากมี ค่าอื่นอาจดูไม่สม่ำเสมอ เกม Steam ใช้ Frame Limit ของ Steam ในเมนู Quick Access</string>
+    <string name="drawer_even_pacing">จังหวะเฟรมสม่ำเสมอ</string>
+    <string name="drawer_even_pacing_note">แสดงเกมที่จำกัดเฟรมด้วยจังหวะที่สม่ำเสมอเมื่อค่าที่จำกัดหารรีเฟรชเรตลงตัว เช่น 30 หรือ 40 fps ที่ 120 Hz ส่วนค่าอื่นเฟรมจะยังสลับระหว่างความยาวสองแบบ เพิ่มความหน่วงเล็กน้อย ปิดอยู่ขณะเปิดการสร้างเฟรมหรือแทรกเฟรมสีดำ</string>
     <string name="drawer_bfi">แทรกเฟรมสีดำ</string>
     <string name="drawer_bfi_note">ภาพเคลื่อนไหวคมขึ้น: ทุกเฟรมตามด้วยการรีเฟรชสีดำ ต้องใช้ 100 Hz ขึ้นไป เกมจะทำงานที่ครึ่งหนึ่งของรีเฟรชเรตและดูมืดลง ปิดอยู่ขณะเปิดการสร้างเฟรม</string>
     <string name="drawer_page_effects">เอฟเฟกต์</string>

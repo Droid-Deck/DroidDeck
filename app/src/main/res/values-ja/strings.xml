@@ -662,6 +662,8 @@
     <string name="drawer_page_display">表示</string>
     <string name="drawer_frame_limit">フレームレート制限</string>
     <string name="drawer_frame_limit_note">このゲームのフレームレートを制限します。上限で割り切れるリフレッシュレートがあれば画面はそれに切り替わり、それ以外の上限では表示が不均一になることがあります。SteamゲームではクイックアクセスメニューにあるSteamのフレームレート制限を使用します。</string>
+    <string name="drawer_even_pacing">均等なフレームペーシング</string>
+    <string name="drawer_even_pacing_note">制限値がリフレッシュレートを割り切れる場合（120 Hz で 30 や 40 fps など）、制限したゲームを一定のリズムで表示します。それ以外の制限値では、フレームの長さが 2 種類で交互になります。わずかに遅延が増えます。フレーム生成または黒フレーム挿入の使用中はオフです。</string>
     <string name="drawer_bfi">黒フレーム挿入</string>
     <string name="drawer_bfi_note">動きがくっきり: 各フレームの後に黒いリフレッシュが入ります。100 Hz 以上が必要で、ゲームはリフレッシュレートの半分で動作し、画面は暗くなります。フレーム生成中はオフです。</string>
     <string name="drawer_page_effects">エフェクト</string>

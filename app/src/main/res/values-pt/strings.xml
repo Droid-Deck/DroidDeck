@@ -666,6 +666,8 @@
     <string name="drawer_page_display">Tela</string>
     <string name="drawer_frame_limit">Limite de quadros</string>
     <string name="drawer_frame_limit_note">Limita este jogo. A tela muda para uma taxa de atualização que o limite divida por igual, quando houver; outros limites podem parecer irregulares. Jogos da Steam usam o Limite de quadros da Steam no menu de Acesso rápido.</string>
+    <string name="drawer_even_pacing">Ritmo de quadros uniforme</string>
+    <string name="drawer_even_pacing_note">Mostra em ritmo uniforme um jogo limitado quando o limite divide a taxa de atualização, como 30 ou 40 fps a 120 Hz; com outros limites, os quadros continuam alternando entre duas durações. Adiciona um pequeno atraso. Desligado com a geração de quadros ou a inserção de quadros pretos.</string>
     <string name="drawer_bfi">Inserção de quadros pretos</string>
     <string name="drawer_bfi_note">Movimento mais nítido: cada quadro é seguido por uma atualização preta. Requer 100 Hz ou mais; o jogo roda na metade da taxa de atualização e fica mais escuro. Desligado com a geração de quadros.</string>
     <string name="drawer_page_effects">Efeitos</string>

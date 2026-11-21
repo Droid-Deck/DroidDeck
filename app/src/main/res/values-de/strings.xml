@@ -664,6 +664,8 @@
     <string name="drawer_page_display">Anzeige</string>
     <string name="drawer_frame_limit">Bildratenlimit</string>
     <string name="drawer_frame_limit_note">Begrenzt dieses Spiel. Der Bildschirm wechselt zu einer Bildwiederholrate, die durch das Limit glatt teilbar ist, sofern vorhanden; andere Limits können ungleichmäßig wirken. Steam-Spiele nutzen das Bildratenlimit von Steam im Schnellzugriffsmenü.</string>
+    <string name="drawer_even_pacing">Gleichmäßiges Frame-Pacing</string>
+    <string name="drawer_even_pacing_note">Zeigt ein begrenztes Spiel in gleichmäßigem Takt, wenn das Limit die Bildwiederholrate glatt teilt, etwa 30 oder 40 fps bei 120 Hz; bei anderen Limits wechseln sich weiterhin zwei Bilddauern ab. Fügt etwas Verzögerung hinzu. Aus, solange Frame-Generierung oder Schwarzbild-Einfügung aktiv ist.</string>
     <string name="drawer_bfi">Schwarzbild-Einfügung</string>
     <string name="drawer_bfi_note">Schärfere Bewegung: Auf jedes Bild folgt ein schwarzer Refresh. Braucht 100 Hz oder mehr; das Spiel läuft mit halber Bildwiederholrate und wirkt dunkler. Aus, solange Frame Generation läuft.</string>
     <string name="drawer_page_effects">Effekte</string>

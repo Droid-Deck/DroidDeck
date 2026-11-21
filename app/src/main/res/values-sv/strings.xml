@@ -664,6 +664,8 @@
     <string name="drawer_page_display">Skärm</string>
     <string name="drawer_frame_limit">Bildgräns</string>
     <string name="drawer_frame_limit_note">Begränsar det här spelet. Skärmen byter till en uppdateringsfrekvens som gränsen delar jämnt när en sådan finns; andra gränser kan se ojämna ut. Steam-spel använder Steams Frame Limit i snabbåtkomstmenyn.</string>
+    <string name="drawer_even_pacing">Jämn bildrytm</string>
+    <string name="drawer_even_pacing_note">Visar ett begränsat spel i jämn rytm när gränsen delar uppdateringsfrekvensen jämnt, till exempel 30 eller 40 fps vid 120 Hz; med andra gränser växlar bilderna fortfarande mellan två längder. Ger lite fördröjning. Av medan bildrutegenerering eller infogning av svarta bilder är på.</string>
     <string name="drawer_bfi">Infogning av svarta bilder</string>
     <string name="drawer_bfi_note">Skarpare rörelser: varje bild följs av en svart uppdatering. Kräver 100 Hz eller mer; spelet körs på halva uppdateringsfrekvensen och ser mörkare ut. Av medan bildgenerering är på.</string>
     <string name="drawer_page_effects">Effekter</string>

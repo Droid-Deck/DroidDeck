@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.wayland
 
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Process
@@ -37,6 +38,28 @@ object CompositorHost {
         }
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun vsyncTimelineCallback(generation: Int) = object : Choreographer.VsyncCallback {
+        override fun onVsync(data: Choreographer.FrameData) {
+            if (generation != vsyncGeneration) return
+            val lines = data.frameTimelines
+            val preferred = data.preferredFrameTimeline
+            val period = if (lines.size >= 2) lines[1].expectedPresentationTimeNanos - lines[0].expectedPresentationTimeNanos else 0L
+            WaylandCompositor.nativeVsyncTimeline(
+                data.frameTimeNanos, preferred.expectedPresentationTimeNanos, preferred.deadlineNanos, period,
+            )
+            if (vsyncRunning) Choreographer.getInstance().postVsyncCallback(this)
+        }
+    }
+
+    private fun postFirstVsync(generation: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Choreographer.getInstance().postVsyncCallback(vsyncTimelineCallback(generation))
+        } else {
+            Choreographer.getInstance().postFrameCallback(vsyncCallback(generation))
+        }
+    }
+
     @Synchronized
     fun startOrAttach(
         context: android.content.Context,
@@ -53,6 +76,8 @@ object CompositorHost {
         WaylandCompositor.nativeSetClockControl(java.io.File(context.filesDir, "${com.droiddeck.launcher.runtime.LinuxRuntime.DIR}/tmp/.dd-clock").path)
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
+        WaylandCompositor.nativeSetPresentCadence(SessionPrefs.presentCadence(context))
+        WaylandCompositor.nativeSetGameOnOtherDisplay(gameOnOtherDisplay)
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(context)
         WaylandCompositor.nativeSetBlackFrameInsertion(blackFrameInsertion)
         pace(refreshHz, fpsLimit)
@@ -87,6 +112,19 @@ object CompositorHost {
     @Synchronized
     fun updatePacing(refreshHz: Float, fpsLimit: Int) {
         if (started) pace(refreshHz, fpsLimit)
+    }
+
+    fun setPresentCadence(on: Boolean) {
+        if (started) WaylandCompositor.nativeSetPresentCadence(on)
+    }
+
+    @Volatile
+    private var gameOnOtherDisplay = false
+
+    /** Pacing follows the phone screen's refreshes, so it waits while the game is drawn on any other display. */
+    fun setGameOnOtherDisplay(on: Boolean) {
+        gameOnOtherDisplay = on
+        if (started) WaylandCompositor.nativeSetGameOnOtherDisplay(on)
     }
 
     @Synchronized
@@ -144,19 +182,21 @@ object CompositorHost {
         if (surface != null && attached != null && attached !== surface) return
         attached = null
         pauseVsync()
+        gameOnOtherDisplay = false
+        WaylandCompositor.nativeSetGameOnOtherDisplay(false)
         WaylandCompositor.nativeSetSurface(null)
     }
 
     private fun resumeVsync() {
         if (vsyncRunning) return
-        val callback = vsyncCallback(++vsyncGeneration)
+        val generation = ++vsyncGeneration
         vsyncRunning = true
         WaylandCompositor.nativeLog("screen", if (ownVsyncThread) "screen tick runs on its own display-priority thread" else "screen tick runs on the main thread")
         if (!ownVsyncThread) {
-            Choreographer.getInstance().postFrameCallback(callback)
+            postFirstVsync(generation)
             return
         }
-        vsyncHandler.post { Choreographer.getInstance().postFrameCallback(callback) }
+        vsyncHandler.post { postFirstVsync(generation) }
     }
 
     private fun pauseVsync() {
