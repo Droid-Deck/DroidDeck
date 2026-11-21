@@ -57,7 +57,9 @@ class InputSurfaceView(
     private var customCanvas: ViewGroup? = null
     private val owners = HashMap<Int, View>()
     private var steamDeckButtons = false
-    private val deckArt by lazy(LazyThreadSafetyMode.NONE) { SteamDeckButtonArt(resources.displayMetrics.density) }
+    private val deckArt by lazy(LazyThreadSafetyMode.NONE) { SteamDeckButtonArt(context) }
+    private var deckDpad = emptyList<HoldButton>()
+    private val deckDpadBounds = RectF()
     private var requestedLayout = customLayout
     init { customLayout = surfaceStyle.shown(customLayout); addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
 
@@ -142,7 +144,10 @@ class InputSurfaceView(
         surfaceStyle = style
         this.steamDeckButtons = steamDeckButtons
         if (relayout) updateCustomLayout(requestedLayout)
-        customCanvas?.let { canvas -> for (i in 0 until canvas.childCount) styleElement(canvas.getChildAt(i)) }
+        customCanvas?.let { canvas ->
+            for (i in 0 until canvas.childCount) styleElement(canvas.getChildAt(i))
+            canvas.invalidate()
+        }
     }
 
     private fun styleElement(view: View) {
@@ -176,6 +181,7 @@ class InputSurfaceView(
     }
 
     private fun renderCustom(pad: PadBridge?) {
+        deckDpad = emptyList()
         val canvas = object : ViewGroup(context) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val layout = customLayout
@@ -193,6 +199,20 @@ class InputSurfaceView(
                     val x = (width * e.x).toInt(); val y = (height * e.y).toInt()
                     child.layout(x, y, x + child.measuredWidth, y + child.measuredHeight)
                 }
+                updateDeckDpad(this)
+            }
+
+            override fun dispatchDraw(canvas: Canvas) {
+                if (steamDeckButtons && deckDpad.isNotEmpty()) {
+                    val alpha = (deckDpad.first().alpha * 255f).toInt()
+                    val saved = if (alpha == 255) canvas.save()
+                        else canvas.saveLayerAlpha(deckDpadBounds, alpha)
+                    canvas.translate(deckDpadBounds.left, deckDpadBounds.top)
+                    val held = deckDpad.foldIndexed(0) { i, bits, button -> if (button.highlighted) bits or (1 shl i) else bits }
+                    deckArt.dpad(canvas, deckDpadBounds.width(), deckDpadBounds.height(), held)
+                    canvas.restoreToCount(saved)
+                }
+                super.dispatchDraw(canvas)
             }
         }
         canvas.clipChildren = customLayout.none { it.kind == InputElementKind.STICK && (classic(it) || adaptive(it)) }
@@ -207,6 +227,27 @@ class InputSurfaceView(
         }
         content.addView(canvas, FrameLayout.LayoutParams(-1, -1))
         customCanvas = canvas
+    }
+
+    private fun updateDeckDpad(canvas: ViewGroup) {
+        val buttons = DIRECTIONS.mapNotNull { direction ->
+            val index = customLayout.indexOfFirst { element ->
+                element.control == direction && classic(element) && element.buttonShape == InputButtonShape.CIRCLE &&
+                    element.name == direction.label && element.icon == 0 && element.image.isEmpty() &&
+                    element.showLabel && !element.toggle && element.opacity == 1f
+            }
+            canvas.getChildAt(index) as? HoldButton
+        }
+        deckDpad = emptyList()
+        if (buttons.size != DIRECTIONS.size) return
+        val (up, right, down, left) = buttons
+        val centerX = (up.left + up.right) / 2f
+        val centerY = (right.top + right.bottom) / 2f
+        if (kotlin.math.abs((down.left + down.right) / 2f - centerX) > 2f ||
+            kotlin.math.abs((left.top + left.bottom) / 2f - centerY) > 2f ||
+            up.bottom >= down.top || left.right >= right.left) return
+        deckDpadBounds.set(left.left.toFloat(), up.top.toFloat(), right.right.toFloat(), down.bottom.toFloat())
+        deckDpad = buttons
     }
 
     override fun onAttachedToWindow() {
@@ -347,15 +388,23 @@ class InputSurfaceView(
         }
         private val imageRect = RectF()
 
+        val highlighted get() = if (element.toggle) source?.latched == true else down
+
         override fun onDraw(canvas: Canvas) {
-            val lit = if (element.toggle) source?.latched == true else down
+            val lit = highlighted
             val classic = classic(element)
-            val deck = steamDeckButtons && (classic || element.id == "legacy:${element.control.id}" &&
-                element.control in REAR_BUTTONS)
-            if (deck) deckArt.surface(canvas, width, height, element.buttonShape, lit)
-            else drawSurface(canvas, lit, element.buttonShape, classic)
+            if (steamDeckButtons && element.image.isEmpty() && element.showLabel) {
+                if (this in deckDpad) return
+                if (element.id == "builtin:keyboard" && element.icon == InputButtonIcons.KEYBOARD) {
+                    deckArt.keyboard(canvas, width, height, lit)
+                    return
+                }
+                val native = element.id == "legacy:${element.control.id}" && element.name == element.control.label && element.icon == 0
+                if (native && deckArt.button(canvas, width, height, element.control, lit)) return
+            }
+            drawSurface(canvas, lit, element.buttonShape, classic)
             val cx = width / 2f
-            labelPaint.color = if (deck) SteamDeckButtonArt.ink(lit) else if (classic && tint != null) textColor(lit) else if (lit) ACCENT else TEXT
+            labelPaint.color = if (classic && tint != null) textColor(lit) else if (lit) ACCENT else TEXT
             bitmap?.let {
                 val scale = min(width * .84f / it.width, height * .84f / it.height)
                 imageRect.set(cx - it.width * scale / 2, (height - it.height * scale) / 2,
@@ -363,28 +412,21 @@ class InputSurfaceView(
                 canvas.drawBitmap(it, null, imageRect, labelPaint)
                 return
             }
-            if (!deck && classic && element.id == "builtin:keyboard" && element.icon == InputButtonIcons.KEYBOARD) { drawKeyboard(canvas, cx, height / 2f, lit); return }
+            if (classic && element.id == "builtin:keyboard" && element.icon == InputButtonIcons.KEYBOARD) { drawKeyboard(canvas, cx, height / 2f, lit); return }
             if (element.icon != 0 && InputButtonIcons.draw(canvas, element.icon, cx, height / 2f, min(width, height) * .68f, labelPaint, symbol)) return
             if (!element.showLabel) return
             labelPaint.style = Paint.Style.FILL
-            if ((classic || deck) && element.name == element.control.label) {
+            if (classic && element.name == element.control.label) {
                 val radius = min(width, height) / 2f
                 val direction = DIRECTIONS.indexOf(element.control)
-                if (direction >= 0) {
-                    if (deck) deckArt.arrow(canvas, cx, height / 2f, radius * .32f, direction, labelPaint.color)
-                    else drawArrow(canvas, cx, height / 2f, radius * .34f, direction, labelPaint)
-                    return
-                }
-                val glyph = if (deck) steamDeckGlyph(element.control) else glyph(element.control)
+                if (direction >= 0) { drawArrow(canvas, cx, height / 2f, radius * .34f, direction, labelPaint); return }
+                val glyph = glyph(element.control)
                 labelPaint.textSize = when {
                     element.buttonShape == InputButtonShape.PILL -> height / 2f * 0.8f
                     glyph.length > 2 -> 11 * density
                     else -> radius * if (glyph.length == 2) 0.62f else 0.85f
                 }
-                if (deck) {
-                    labelPaint.textSize *= min(1f, width * .78f / labelPaint.measureText(glyph))
-                    canvas.drawText(glyph, cx, (height - labelPaint.ascent() - labelPaint.descent()) / 2f, labelPaint)
-                } else canvas.drawText(glyph, cx, height / 2f + labelPaint.textSize * .35f, labelPaint)
+                canvas.drawText(glyph, cx, height / 2f + labelPaint.textSize * .35f, labelPaint)
                 return
             }
             labelPaint.textSize = min(height * .3f, 30 * density)
@@ -408,6 +450,7 @@ class InputSurfaceView(
             if (pressed) feedback(this, HapticFeedbackConstants.VIRTUAL_KEY)
             if (!pressed && cancelled) source?.cancel() else source?.update(if (pressed) 1f else 0f)
             invalidate()
+            if (steamDeckButtons && this in deckDpad) customCanvas?.invalidate()
         }
     }
 
@@ -434,21 +477,22 @@ class InputSurfaceView(
         private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
 
         override fun onDraw(canvas: Canvas) {
-            if (captioned) drawSurface(canvas, clicked)
-            else deckArt.surface(canvas, width, height, InputButtonShape.ROUNDED, clicked)
+            if (!captioned) {
+                deckArt.trackpad(canvas, width.toFloat(), height.toFloat(), touching || clicked, fingerX, fingerY)
+                return
+            }
+            drawSurface(canvas, clicked)
             val cx = width / 2f
             val cy = height / 2f
             guide.strokeWidth = density
-            guide.color = if (captioned) GUIDE else 0x52FFFFFF
-            val reach = if (captioned) (min(width, height) / 2f - 24 * density).coerceAtLeast(0f)
-                else min(width, height) * .21f
+            val reach = (min(width, height) / 2f - 24 * density).coerceAtLeast(0f)
             canvas.drawCircle(cx, cy, reach, guide)
             canvas.drawCircle(cx, cy, reach / 2f, guide)
             canvas.drawLine(cx - reach, cy, cx + reach, cy, guide)
             canvas.drawLine(cx, cy - reach, cx, cy + reach, guide)
             captionPaint.textSize = 12 * density
             captionPaint.color = if (touching) ACCENT else TEXT_DIM
-            if (captioned) canvas.drawText((contentDescription?.toString() ?: if (right) context.getString(R.string.deck_right_trackpad) else context.getString(R.string.deck_left_trackpad)).uppercase(), cx, 28 * density, captionPaint)
+            canvas.drawText((contentDescription?.toString() ?: if (right) context.getString(R.string.deck_right_trackpad) else context.getString(R.string.deck_left_trackpad)).uppercase(), cx, 28 * density, captionPaint)
             if (touching) {
                 val radius = 56 * density
                 glow.shader = RadialGradient(fingerX, fingerY, radius, ACCENT_GLOW, Color.TRANSPARENT, Shader.TileMode.CLAMP)
@@ -550,6 +594,17 @@ class InputSurfaceView(
             if (hideWhenIdle && !touching) return
             val cx = if (touching) originX else centreX()
             val cy = if (touching) originY else height / 2f
+            if (steamDeckButtons && classic(element)) {
+                val radius = min(width, height) / 2f - 2f * density
+                if (radius > 0f) {
+                    deckArt.stick(canvas, cx, cy, radius, knobX, knobY, touching || clicking)
+                    if (element.showLabel) {
+                        labelPaint.color = TEXT
+                        drawDirectionLabels(canvas, source, false, cx, cy, radius * .66f, radius * .34f, labelPaint)
+                    }
+                    return
+                }
+            }
             val color = tint
             if (classic(element) && color != null) {
                 val radius = min(width, height) / 2f - 0.75f * density
@@ -724,7 +779,6 @@ class InputSurfaceView(
         private fun classic(element: InputSurfaceElement) = (element.id == "legacy:${element.control.id}" || element.id == "builtin:keyboard") &&
             (element.buttonShape == InputButtonShape.CIRCLE || element.buttonShape == InputButtonShape.PILL)
 
-        private val REAR_BUTTONS = setOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)
         private val DIRECTIONS = listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
 
         internal fun shade(tint: Int, alpha: Int, f: Float) =
@@ -741,15 +795,6 @@ class InputSurfaceView(
             InputControl.GUIDE -> "◉"
             InputControl.QAM -> "⋯"
             else -> control.id.uppercase()
-        }
-
-        private fun steamDeckGlyph(control: InputControl) = when (control) {
-            InputControl.LB -> "L1"
-            InputControl.RB -> "R1"
-            InputControl.LT -> "L2"
-            InputControl.RT -> "R2"
-            InputControl.GUIDE -> "STEAM"
-            else -> glyph(control)
         }
 
         private val CARDINAL = listOf(0f to -1f, 1f to 0f, 0f to 1f, -1f to 0f)
