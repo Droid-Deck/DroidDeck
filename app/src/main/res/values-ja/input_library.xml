@@ -128,4 +128,16 @@
     <string name="input_diagonal_neighbors">隣接する方向</string>
     <string name="input_imported_keys_hint">以前の画面キーは下のインポート済みプロファイルとして保存されています。1 つ選んで使用または編集します。現在のプロファイル選択は保持されています。</string>
     <string name="input_import_failed">以前の画面キーは自動でインポートできませんでした。元の設定は保持されています。</string>
+    <string name="input_stick_shape">スタイル</string>
+    <string name="input_stick_shape_stick">スティック</string>
+    <string name="input_stick_shape_dpad">十字キー</string>
+    <string name="input_dpad_ways">方向</string>
+    <string name="input_dpad_4way">4方向</string>
+    <string name="input_dpad_8way">8方向</string>
+    <string name="input_dpad_style">形状</string>
+    <string name="input_dpad_style_cross">十字</string>
+    <string name="input_dpad_style_buttons">ボタン</string>
+    <string name="input_button_style">塗り</string>
+    <string name="input_button_style_solid">塗りつぶし</string>
+    <string name="input_button_style_outline">枠線</string>
 </resources>

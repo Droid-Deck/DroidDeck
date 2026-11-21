@@ -128,4 +128,16 @@
     <string name="input_diagonal_neighbors">الاتجاهات المجاورة</string>
     <string name="input_imported_keys_hint">تم حفظ مفاتيح الشاشة القديمة كملفات تعريف مستوردة أدناه. اختر واحدًا لاستخدامه أو تحريره. تم الاحتفاظ بتحديدات ملف التعريف الحالية.</string>
     <string name="input_import_failed">لم نتمكن من استيراد مفاتيح الشاشة القديمة تلقائيًا. تم الاحتفاظ بالإعدادات الأصلية.</string>
+    <string name="input_stick_shape">النمط</string>
+    <string name="input_stick_shape_stick">عصا</string>
+    <string name="input_stick_shape_dpad">توجيه متقاطع</string>
+    <string name="input_dpad_ways">الاتجاهات</string>
+    <string name="input_dpad_4way">4 اتجاهات</string>
+    <string name="input_dpad_8way">8 اتجاهات</string>
+    <string name="input_dpad_style">الشكل</string>
+    <string name="input_dpad_style_cross">متقاطع</string>
+    <string name="input_dpad_style_buttons">أزرار</string>
+    <string name="input_button_style">تعبئة</string>
+    <string name="input_button_style_solid">ممتلئ</string>
+    <string name="input_button_style_outline">محيط</string>
 </resources>

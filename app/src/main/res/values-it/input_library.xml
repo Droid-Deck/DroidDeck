@@ -128,4 +128,16 @@
     <string name="input_diagonal_neighbors">Direzioni vicine</string>
     <string name="input_imported_keys_hint">I tuoi vecchi tasti a schermo sono salvati come profili importati qui sotto. Selezionane uno per usarlo o modificarlo. Le selezioni di profilo attuali sono state mantenute.</string>
     <string name="input_import_failed">I vecchi tasti a schermo non sono stati importati automaticamente. Le impostazioni originali sono state conservate.</string>
+    <string name="input_stick_shape">Stile</string>
+    <string name="input_stick_shape_stick">Stick</string>
+    <string name="input_stick_shape_dpad">Croce direzionale</string>
+    <string name="input_dpad_ways">Direzioni</string>
+    <string name="input_dpad_4way">4 direzioni</string>
+    <string name="input_dpad_8way">8 direzioni</string>
+    <string name="input_dpad_style">Forma</string>
+    <string name="input_dpad_style_cross">Croce</string>
+    <string name="input_dpad_style_buttons">Pulsanti</string>
+    <string name="input_button_style">Riempimento</string>
+    <string name="input_button_style_solid">Pieno</string>
+    <string name="input_button_style_outline">Contorno</string>
 </resources>

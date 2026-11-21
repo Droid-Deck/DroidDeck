@@ -93,6 +93,14 @@ class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole
         InputTiming.end(timing)
     }
 
+    fun cancelClick() {
+        if (closed) return
+        if (clickPad) pad.releaseTouch(clickOwner)
+        if (clickDeckActive) clickDeck.release()
+        clickPad = false; clickDeckActive = false
+        clickRoute?.release()
+    }
+
     private fun writePad(owner: Any, target: InputControl?, mutation: (PadState) -> Unit) {
         if (router != null) pad.applyRoutedTouch(owner, role, mutation)
         else pad.applyTouch(owner, role, when (target) { InputControl.LS -> PadBridge.LEFT_STICK; InputControl.RS -> PadBridge.RIGHT_STICK; else -> 0 }, mutation)

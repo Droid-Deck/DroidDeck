@@ -128,4 +128,16 @@
     <string name="input_diagonal_neighbors">Arah jiran</string>
     <string name="input_imported_keys_hint">Kekunci skrin lama anda disimpan sebagai profil diimport di bawah. Pilih satu untuk digunakan atau disunting. Pilihan profil semasa anda dikekalkan.</string>
     <string name="input_import_failed">Kekunci skrin lama tidak dapat diimport secara automatik. Tetapan asal dikekalkan.</string>
+    <string name="input_stick_shape">Gaya</string>
+    <string name="input_stick_shape_stick">Kayu</string>
+    <string name="input_stick_shape_dpad">D-pad</string>
+    <string name="input_dpad_ways">Arah</string>
+    <string name="input_dpad_4way">4 arah</string>
+    <string name="input_dpad_8way">8 arah</string>
+    <string name="input_dpad_style">Bentuk</string>
+    <string name="input_dpad_style_cross">Silang</string>
+    <string name="input_dpad_style_buttons">Butang</string>
+    <string name="input_button_style">Isi</string>
+    <string name="input_button_style_solid">Penuh</string>
+    <string name="input_button_style_outline">Rangka</string>
 </resources>

@@ -156,7 +156,7 @@ object InputLibraries {
         update(context) { library ->
             library.copy(layouts = library.layouts.map { layout ->
                 if (layout.id != layoutId || !layout.editable) layout
-                else layout.copy(elements = layout.elements.map { if (it.kind == InputElementKind.STICK) it.copy(floating = on, hideWhenIdle = on) else it })
+                else layout.copy(elements = layout.elements.map { if (it.kind == InputElementKind.STICK && it.stickShape == InputStickShape.STICK) it.copy(floating = on, hideWhenIdle = on) else it })
             })
         }
     }.onSuccess { ControllerPrefs.setAdaptiveSticks(context, on) }.isSuccess
@@ -328,10 +328,17 @@ object InputLibraries {
         val layouts = JSONArray()
         for (layout in library.layouts) {
             val elements = JSONArray()
-            for (e in layout.elements) elements.put(JSONObject().put("id", e.id).put("kind", e.kind.name)
-                .put("control", e.control.id).put("name", e.name).put("x", e.x.toDouble()).put("y", e.y.toDouble())
-                .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
-                .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown))
+            for (e in layout.elements) {
+                val o = JSONObject().put("id", e.id).put("kind", e.kind.name)
+                    .put("control", e.control.id).put("name", e.name).put("x", e.x.toDouble()).put("y", e.y.toDouble())
+                    .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
+                    .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown)
+                if (e.buttonStyle != InputButtonStyle.SOLID) o.put("buttonStyle", e.buttonStyle.name)
+                if (e.stickShape != InputStickShape.STICK) o.put("stickShape", e.stickShape.name)
+                if (e.dpadWays != InputDpadWays.EIGHT) o.put("dpadWays", e.dpadWays.name)
+                if (e.dpadStyle != InputDpadStyle.CROSS) o.put("dpadStyle", e.dpadStyle.name)
+                elements.put(o)
+            }
             layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
                 .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
                 .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
@@ -376,7 +383,11 @@ object InputLibraries {
                     e.getDouble("y").toFloat(), e.getDouble("width").toFloat(), e.getDouble("height").toFloat(),
                     e.getString("id"), InputElementKind.valueOf(e.getString("kind")), e.getString("name"),
                     e.optBoolean("floating", true), e.optBoolean("hideWhenIdle", false), e.optBoolean("mouseGestures", false), e.optBoolean("toggle", false), e.optInt("icon", 0), e.optString("image", ""),
-                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false))
+                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)),
+                    runCatching { InputButtonStyle.valueOf(e.optString("buttonStyle", InputButtonStyle.SOLID.name)) }.getOrDefault(InputButtonStyle.SOLID), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false),
+                    runCatching { InputStickShape.valueOf(e.optString("stickShape", InputStickShape.STICK.name)) }.getOrDefault(InputStickShape.STICK),
+                    runCatching { InputDpadWays.valueOf(e.optString("dpadWays", InputDpadWays.EIGHT.name)) }.getOrDefault(InputDpadWays.EIGHT),
+                    runCatching { InputDpadStyle.valueOf(e.optString("dpadStyle", InputDpadStyle.CROSS.name)) }.getOrDefault(InputDpadStyle.CROSS))
             }
             val id = layout.getString("id")
             val origin = layout.optionalString("origin")

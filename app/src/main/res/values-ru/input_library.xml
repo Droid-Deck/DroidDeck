@@ -128,4 +128,16 @@
     <string name="input_diagonal_neighbors">Соседние направления</string>
     <string name="input_imported_keys_hint">Ваши старые экранные клавиши сохранены ниже как импортированные профили. Выберите один, чтобы использовать или изменить. Текущие выбранные профили сохранены.</string>
     <string name="input_import_failed">Старые экранные клавиши не удалось импортировать автоматически. Исходные настройки сохранены.</string>
+    <string name="input_stick_shape">Стиль</string>
+    <string name="input_stick_shape_stick">Стик</string>
+    <string name="input_stick_shape_dpad">Крестовина</string>
+    <string name="input_dpad_ways">Направления</string>
+    <string name="input_dpad_4way">4 направления</string>
+    <string name="input_dpad_8way">8 направлений</string>
+    <string name="input_dpad_style">Форма</string>
+    <string name="input_dpad_style_cross">Крест</string>
+    <string name="input_dpad_style_buttons">Кнопки</string>
+    <string name="input_button_style">Заливка</string>
+    <string name="input_button_style_solid">Сплошной</string>
+    <string name="input_button_style_outline">Контур</string>
 </resources>

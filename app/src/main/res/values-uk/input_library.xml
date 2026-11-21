@@ -128,4 +128,16 @@
     <string name="input_diagonal_neighbors">Сусідні напрямки</string>
     <string name="input_imported_keys_hint">Ваші старі екранні клавіші збережено нижче як імпортовані профілі. Виберіть один, щоб використати або змінити. Поточні вибрані профілі збережено.</string>
     <string name="input_import_failed">Старі екранні клавіші не вдалося імпортувати автоматично. Початкові налаштування збережено.</string>
+    <string name="input_stick_shape">Стиль</string>
+    <string name="input_stick_shape_stick">Стік</string>
+    <string name="input_stick_shape_dpad">Хрестовина</string>
+    <string name="input_dpad_ways">Напрямки</string>
+    <string name="input_dpad_4way">4 напрямки</string>
+    <string name="input_dpad_8way">8 напрямків</string>
+    <string name="input_dpad_style">Форма</string>
+    <string name="input_dpad_style_cross">Хрест</string>
+    <string name="input_dpad_style_buttons">Кнопки</string>
+    <string name="input_button_style">Заливка</string>
+    <string name="input_button_style_solid">Суцільний</string>
+    <string name="input_button_style_outline">Контур</string>
 </resources>

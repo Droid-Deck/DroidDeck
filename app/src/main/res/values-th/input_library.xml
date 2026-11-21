@@ -128,4 +128,16 @@
     <string name="input_diagonal_neighbors">ทิศข้างเคียง</string>
     <string name="input_imported_keys_hint">ปุ่มหน้าจอเดิมของคุณถูกบันทึกเป็นโปรไฟล์ที่นำเข้าไว้ด้านล่าง เลือกหนึ่งรายการเพื่อใช้หรือแก้ไข ตัวเลือกโปรไฟล์ปัจจุบันยังคงอยู่</string>
     <string name="input_import_failed">ไม่สามารถนำเข้าปุ่มหน้าจอเดิมโดยอัตโนมัติได้ การตั้งค่าเดิมยังคงอยู่</string>
+    <string name="input_stick_shape">สไตล์</string>
+    <string name="input_stick_shape_stick">ก้าน</string>
+    <string name="input_stick_shape_dpad">D-pad</string>
+    <string name="input_dpad_ways">ทิศทาง</string>
+    <string name="input_dpad_4way">4 ทิศทาง</string>
+    <string name="input_dpad_8way">8 ทิศทาง</string>
+    <string name="input_dpad_style">รูปทรง</string>
+    <string name="input_dpad_style_cross">กากบาท</string>
+    <string name="input_dpad_style_buttons">ปุ่ม</string>
+    <string name="input_button_style">การเติม</string>
+    <string name="input_button_style_solid">ทึบ</string>
+    <string name="input_button_style_outline">เส้นขอบ</string>
 </resources>

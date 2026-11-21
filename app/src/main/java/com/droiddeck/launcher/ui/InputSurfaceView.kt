@@ -7,6 +7,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RadialGradient
@@ -35,6 +36,10 @@ import com.droiddeck.launcher.input.InputElementKind
 import com.droiddeck.launcher.input.InputAction
 import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
+import com.droiddeck.launcher.input.InputButtonStyle
+import com.droiddeck.launcher.input.InputDpadStyle
+import com.droiddeck.launcher.input.InputDpadWays
+import com.droiddeck.launcher.input.InputStickShape
 import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.pcKeyLabel
@@ -196,7 +201,8 @@ class InputSurfaceView(
         for (element in customLayout) {
             val source = pad?.let { InputSurfaceSource(it, inputRole, element).also { s -> elementSources += s } }
             canvas.addView(when (element.kind) {
-                InputElementKind.STICK -> StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
+                InputElementKind.STICK -> if (element.stickShape == InputStickShape.DPAD) DirectionPad(context, element, source)
+                else StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
                 InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, source = source)
                 InputElementKind.DPAD -> DirectionPad(context, element, source)
                 else -> HoldButton(context, element, source)
@@ -270,8 +276,8 @@ class InputSurfaceView(
         var tint: Int? = null
         protected val density = resources.displayMetrics.density
         protected val rect = RectF()
-        private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+        protected val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+        protected val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         protected val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -281,23 +287,27 @@ class InputSurfaceView(
             color = TEXT_DIM
         }
 
-        protected fun drawSurface(canvas: Canvas, lit: Boolean, shape: InputButtonShape = InputButtonShape.ROUNDED, classic: Boolean = false) {
+        protected fun drawSurface(canvas: Canvas, lit: Boolean, shape: InputButtonShape = InputButtonShape.ROUNDED, classic: Boolean = false, outline: Boolean = false) {
             val inset = if (classic && tint != null) 0.75f * density else density
             rect.set(inset, inset, width - inset, height - inset)
             val radius = when (shape) { InputButtonShape.CIRCLE, InputButtonShape.PILL -> min(width, height) / 2f; InputButtonShape.RECTANGLE -> 2 * density; else -> CORNER * density }
             val color = tint
             if (classic && color != null) {
                 val corner = if (shape == InputButtonShape.PILL) radius * 0.55f else radius
-                fill.color = if (lit) shade(color, 160, 1f) else shade(color, 80, 0.12f)
-                canvas.drawRoundRect(rect, corner, corner, fill)
-                stroke.color = if (lit) light(color, 230, 0.7f) else light(color, 150, 0.25f)
-                stroke.strokeWidth = 1.5f * density
+                if (!outline) {
+                    fill.color = if (lit) shade(color, 160, 1f) else shade(color, 80, 0.12f)
+                    canvas.drawRoundRect(rect, corner, corner, fill)
+                }
+                stroke.color = if (lit) light(color, 230, 0.7f) else light(color, 150, if (outline) 0.5f else 0.25f)
+                stroke.strokeWidth = (if (lit) 2f else if (outline) 1.5f else 1.5f) * density
                 canvas.drawRoundRect(rect, corner, corner, stroke)
                 return
             }
-            fill.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 140 else 48) shl 24) } ?: if (lit) ACCENT_WASH else SURFACE
-            canvas.drawRoundRect(rect, radius, radius, fill)
-            stroke.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 255 else 160) shl 24) } ?: if (lit) ACCENT else LINE
+            if (!outline) {
+                fill.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 140 else 48) shl 24) } ?: if (lit) ACCENT_WASH else SURFACE
+                canvas.drawRoundRect(rect, radius, radius, fill)
+            }
+            stroke.color = tint?.let { color -> (color and 0x00ffffff) or ((if (lit) 255 else if (outline) 210 else 160) shl 24) } ?: if (lit) ACCENT else if (outline) light(ACCENT, 190, 0.6f) else LINE
             stroke.strokeWidth = (if (lit) 2f else 1f) * density
             canvas.drawRoundRect(rect, radius, radius, stroke)
         }
@@ -347,7 +357,7 @@ class InputSurfaceView(
         override fun onDraw(canvas: Canvas) {
             val lit = if (element.toggle) source?.latched == true else down
             val classic = classic(element)
-            drawSurface(canvas, lit, element.buttonShape, classic)
+            drawSurface(canvas, lit, element.buttonShape, classic, element.buttonStyle == InputButtonStyle.OUTLINE)
             val cx = width / 2f
             labelPaint.color = if (classic && tint != null) textColor(lit) else if (lit) ACCENT else TEXT
             bitmap?.let {
@@ -620,47 +630,218 @@ class InputSurfaceView(
         }
     }
 
-    private inner class DirectionPad(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource? = null) : View(context) {
-        private val density = resources.displayMetrics.density
+    private inner class DirectionPad(context: Context, private val element: InputSurfaceElement, private val source: InputSurfaceSource? = null) : Surface(context) {
         private var held = 0
+        private var clicking = false
+        private var lastUp = 0L
+        private var downAt = 0L
+        private var downX = 0f
+        private var downY = 0f
+        private var travel = 0f
+        private val tapSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+        private val cross = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = KNOB }
         private val arm = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = TEXT }
-        private val rect = RectF()
+        private val rim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+        private val arrow = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val silhouette = Path()
+        private val armPaths = Array(4) { Path() }
+        private var builtFor = 0 to 0
+        private var builtStyle: InputDpadStyle? = null
+        private var activePointer = -1
+        private var tapBlocked = false
+        private var gradient: LinearGradient? = null
 
         override fun onDraw(canvas: Canvas) {
             val size = min(width, height) * 0.86f
             val cx = width / 2f
             val cy = height / 2f
             val half = size / 2f
-            val thick = size / 3f / 2f
-            fun armRect(bit: Int, l: Float, t: Float, r: Float, b: Float) {
-                arm.color = if (held and bit != 0) ACCENT else KNOB
-                rect.set(l, t, r, b)
-                canvas.drawRoundRect(rect, 8 * density, 8 * density, arm)
+            val thick = size / 6f
+            val color = tint
+            if (builtFor != width to height || builtStyle != element.dpadStyle) {
+                builtFor = width to height
+                builtStyle = element.dpadStyle
+                if (element.dpadStyle == InputDpadStyle.BUTTONS) {
+                    buildButtons(cx, cy, half, thick)
+                    gradient = null
+                } else {
+                    buildPath(cx, cy, half, thick)
+                    gradient = LinearGradient(cx, cy - half, cx, cy + half, light(KNOB, 255, 0.14f), KNOB, Shader.TileMode.CLAMP)
+                }
             }
-            armRect(1, cx - thick, cy - half, cx + thick, cy - thick)
-            armRect(4, cx - thick, cy + thick, cx + thick, cy + half)
-            armRect(8, cx - half, cy - thick, cx - thick, cy + thick)
-            armRect(2, cx + thick, cy - thick, cx + half, cy + thick)
-            arm.color = KNOB
-            canvas.drawRect(cx - thick, cy - thick, cx + thick, cy + thick, arm)
-            if (element.showLabel) drawDirectionLabels(canvas, source, true, cx, cy, (half + thick) / 2f, thick * 1.7f, label)
+            if (element.dpadStyle == InputDpadStyle.BUTTONS) {
+                if (color != null) {
+                    fill.color = shade(color, 80, 0.12f)
+                    canvas.drawRect(cx - thick, cy - thick, cx + thick, cy + thick, fill)
+                    stroke.color = light(color, 150, 0.25f)
+                    stroke.strokeWidth = 1.5f * density
+                    canvas.drawRect(cx - thick, cy - thick, cx + thick, cy + thick, stroke)
+                    for (i in 0..3) {
+                        val lit = held and (1 shl i) != 0
+                        fill.color = if (lit) shade(color, 160, 1f) else shade(color, 80, 0.12f)
+                        canvas.drawPath(armPaths[i], fill)
+                        stroke.color = if (lit) light(color, 230, 0.7f) else light(color, 150, 0.25f)
+                        stroke.strokeWidth = (if (lit) 2f else 1.5f) * density
+                        canvas.drawPath(armPaths[i], stroke)
+                    }
+                } else {
+                    arm.color = KNOB
+                    canvas.drawRect(cx - thick, cy - thick, cx + thick, cy + thick, arm)
+                    for (i in 0..3) canvas.drawPath(armPaths[i], arm)
+                    arm.color = ACCENT
+                    for (i in 0..3) if (held and (1 shl i) != 0) canvas.drawPath(armPaths[i], arm)
+                }
+                drawKeys(canvas, cx, cy, half, thick)
+                return
+            }
+            if (color != null) {
+                drawCircle(canvas, cx, cy, half + 2 * density,
+                (color and 0x00ffffff) or (48 shl 24),
+                light(color, 150, 0.25f))
+                fill.color = shade(color, 80, 0.12f)
+                canvas.drawPath(silhouette, fill)
+                stroke.color = light(color, 150, 0.25f)
+                stroke.strokeWidth = 1.5f * density
+                canvas.drawPath(silhouette, stroke)
+                arm.color = shade(color, 160, 1f)
+                for (i in 0..3) if (held and (1 shl i) != 0) canvas.drawPath(armPaths[i], arm)
+            } else {
+                drawCircle(canvas, cx, cy, half + 2 * density, SURFACE, LINE)
+                cross.shader = gradient
+                canvas.drawPath(silhouette, cross)
+                rim.strokeWidth = density
+                rim.color = light(KNOB, 120, 0.3f)
+                canvas.drawPath(silhouette, rim)
+                arm.color = ACCENT
+                for (i in 0..3) if (held and (1 shl i) != 0) canvas.drawPath(armPaths[i], arm)
+            }
+            drawKeys(canvas, cx, cy, half, thick)
+        }
+
+        private fun drawKeys(canvas: Canvas, cx: Float, cy: Float, half: Float, thick: Float) {
+            if (!element.showLabel) return
+            val labelColors: (Pair<Float, Float>) -> Int = fun(unit: Pair<Float, Float>): Int {
+                if (tint == null) return TEXT
+                val index = CARDINAL.indexOfFirst { it.first == unit.first && it.second == unit.second }
+                return textColor(index >= 0 && (held and (1 shl index)) != 0)
+            }
+            labelPaint.color = if (tint != null) textColor(false) else TEXT
+            if (drawDirectionLabels(canvas, source, element.dpadWays == InputDpadWays.FOUR, cx, cy, (half + thick) / 2f, thick * 1.7f, labelPaint, labelColors)) return
+            val reach = (half + thick) / 2f
+            for (i in 0..3) {
+                val (ux, uy) = CARDINAL[i]
+                arrow.color = if (held and (1 shl i) != 0) ON_ACCENT else TEXT_DIM
+                drawArrow(canvas, cx + ux * reach, cy + uy * reach, thick * 0.55f, i, arrow)
+            }
+        }
+
+        private fun buildPath(cx: Float, cy: Float, half: Float, thick: Float) {
+            armPaths.forEach { it.rewind() }
+            val outer = thick * 0.42f
+            val inner = thick * 0.34f
+            fun tip(l: Float, t: Float, r: Float, b: Float, start: Float) {
+                rect.set(l, t, r, b)
+                silhouette.arcTo(rect, start, 90f)
+            }
+            fun fillet(l: Float, t: Float, r: Float, b: Float, start: Float) {
+                rect.set(l, t, r, b)
+                silhouette.arcTo(rect, start, -90f)
+            }
+            silhouette.reset()
+            silhouette.moveTo(cx - thick + outer, cy - half)
+            silhouette.lineTo(cx + thick - outer, cy - half)
+            tip(cx + thick - 2 * outer, cy - half, cx + thick, cy - half + 2 * outer, 270f)
+            silhouette.lineTo(cx + thick, cy - thick - inner)
+            fillet(cx + thick, cy - thick - 2 * inner, cx + thick + 2 * inner, cy - thick, 180f)
+            silhouette.lineTo(cx + half - outer, cy - thick)
+            tip(cx + half - 2 * outer, cy - thick, cx + half, cy - thick + 2 * outer, 270f)
+            silhouette.lineTo(cx + half, cy + thick - outer)
+            tip(cx + half - 2 * outer, cy + thick - 2 * outer, cx + half, cy + thick, 0f)
+            silhouette.lineTo(cx + thick + inner, cy + thick)
+            fillet(cx + thick, cy + thick, cx + thick + 2 * inner, cy + thick + 2 * inner, 270f)
+            silhouette.lineTo(cx + thick, cy + half - outer)
+            tip(cx + thick - 2 * outer, cy + half - 2 * outer, cx + thick, cy + half, 0f)
+            silhouette.lineTo(cx - thick + outer, cy + half)
+            tip(cx - thick, cy + half - 2 * outer, cx - thick + 2 * outer, cy + half, 90f)
+            silhouette.lineTo(cx - thick, cy + thick + inner)
+            fillet(cx - thick - 2 * inner, cy + thick, cx - thick, cy + thick + 2 * inner, 0f)
+            silhouette.lineTo(cx - half + outer, cy + thick)
+            tip(cx - half, cy + thick - 2 * outer, cx - half + 2 * outer, cy + thick, 90f)
+            silhouette.lineTo(cx - half, cy - thick + outer)
+            tip(cx - half, cy - thick, cx - half + 2 * outer, cy - thick + 2 * outer, 180f)
+            silhouette.lineTo(cx - thick - inner, cy - thick)
+            fillet(cx - thick - 2 * inner, cy - thick - 2 * inner, cx - thick, cy - thick, 90f)
+            silhouette.lineTo(cx - thick, cy - half + outer)
+            tip(cx - thick, cy - half, cx - thick + 2 * outer, cy - half + 2 * outer, 180f)
+            silhouette.close()
+            val ro = outer
+            val ri = inner
+            armPaths[0].addRoundRect(RectF(cx - thick, cy - half, cx + thick, cy - thick), floatArrayOf(ro, ro, ro, ro, ri, ri, ri, ri), Path.Direction.CW)
+            armPaths[1].addRoundRect(RectF(cx + thick, cy - thick, cx + half, cy + thick), floatArrayOf(ri, ri, ro, ro, ro, ro, ri, ri), Path.Direction.CW)
+            armPaths[2].addRoundRect(RectF(cx - thick, cy + thick, cx + thick, cy + half), floatArrayOf(ri, ri, ri, ri, ro, ro, ro, ro), Path.Direction.CW)
+            armPaths[3].addRoundRect(RectF(cx - half, cy - thick, cx - thick, cy + thick), floatArrayOf(ro, ro, ri, ri, ri, ri, ro, ro), Path.Direction.CW)
+        }
+
+        private fun buildButtons(cx: Float, cy: Float, half: Float, thick: Float) {
+            armPaths.forEach { it.rewind() }
+            val r = 8 * density
+            armPaths[0].addRoundRect(RectF(cx - thick, cy - half, cx + thick, cy - thick), r, r, Path.Direction.CW)
+            armPaths[1].addRoundRect(RectF(cx + thick, cy - thick, cx + half, cy + thick), r, r, Path.Direction.CW)
+            armPaths[2].addRoundRect(RectF(cx - thick, cy + thick, cx + thick, cy + half), r, r, Path.Direction.CW)
+            armPaths[3].addRoundRect(RectF(cx - half, cy - thick, cx - thick, cy + thick), r, r, Path.Direction.CW)
+        }
+
+        private fun sectors(dx: Float, dy: Float): Int {
+            if (hypot(dx, dy) < min(width, height) * 0.08f) return 0
+            val degrees = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
+            return if (element.dpadWays == InputDpadWays.FOUR)
+                intArrayOf(2, 4, 8, 1)[((degrees + 360 + 45) % 360 / 90).toInt()]
+            else
+                intArrayOf(2, 2 or 4, 4, 4 or 8, 8, 8 or 1, 1, 1 or 2)[((degrees + 360 + 22.5) % 360 / 45).toInt()]
         }
 
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(event: MotionEvent): Boolean {
-            val bits = when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                    val dx = event.getX(0) - width / 2f
-                    val dy = event.getY(0) - height / 2f
-                    if (hypot(dx, dy) < min(width, height) * 0.08f) 0 else {
-                        val sector = ((Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())) + 360 + 22.5) % 360 / 45).toInt()
-                        intArrayOf(2, 2 or 4, 4, 4 or 8, 8, 8 or 1, 1, 1 or 2)[sector]
+            val index = if (activePointer >= 0) event.findPointerIndex(activePointer) else -1
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    activePointer = event.getPointerId(0)
+                    tapBlocked = false
+                    downAt = event.eventTime; downX = event.x; downY = event.y; travel = 0f
+                    if (lastUp != 0L && event.eventTime - lastUp < CLICK_MS) setClick(true)
+                    set(sectors(event.getX(0) - width / 2f, event.getY(0) - height / 2f))
+                }
+                MotionEvent.ACTION_MOVE -> if (index >= 0) {
+                    travel = maxOf(travel, hypot(event.getX(index) - downX, event.getY(index) - downY))
+                    set(sectors(event.getX(index) - width / 2f, event.getY(index) - height / 2f))
+                }
+                MotionEvent.ACTION_POINTER_UP -> if (event.getPointerId(event.actionIndex) == activePointer) {
+                    val next = (0 until event.pointerCount).firstOrNull { it != event.actionIndex }
+                    if (next == null) {
+                        activePointer = -1
+                        set(0)
+                    } else {
+                        activePointer = event.getPointerId(next)
+                        tapBlocked = true
+                        cancelClick()
+                        val bits = sectors(event.getX(next) - width / 2f, event.getY(next) - height / 2f)
+                        if (bits == 0) cancelDirection() else set(bits)
                     }
                 }
-                else -> 0
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL || event.flags and MotionEvent.FLAG_CANCELED != 0
+                    if (index >= 0) travel = maxOf(travel, hypot(event.getX(index) - downX, event.getY(index) - downY))
+                    lastUp = if (element.hasClick && !clicking && !cancelled && !tapBlocked && event.eventTime - downAt <= STICK_TAP_MS && travel <= tapSlop) event.eventTime else 0L
+                    if (cancelled) {
+                        cancelClick()
+                        cancelDirection()
+                    } else {
+                        setClick(false)
+                        set(0)
+                    }
+                    activePointer = -1
+                }
             }
-            set(bits)
             return true
         }
 
@@ -674,8 +855,38 @@ class InputSurfaceView(
             invalidate()
         }
 
+        private fun cancelDirection() {
+            if (held == 0) return
+            held = 0
+            source?.cancel()
+            invalidate()
+        }
+
+        private fun setClick(down: Boolean) {
+            if (clicking == down) return
+            clicking = down
+            if (down) feedback(this, HapticFeedbackConstants.VIRTUAL_KEY)
+            source?.click(down)
+        }
+
+        private fun cancelClick() {
+            if (!clicking) return
+            clicking = false
+            source?.cancelClick()
+        }
+
+        override fun onVisibilityChanged(changedView: View, visibility: Int) {
+            super.onVisibilityChanged(changedView, visibility)
+            if (visibility == VISIBLE) return
+            lastUp = 0L
+            activePointer = -1
+            cancelDirection()
+            cancelClick()
+        }
+
         override fun onDetachedFromWindow() {
-            set(0)
+            cancelDirection()
+            cancelClick()
             super.onDetachedFromWindow()
         }
     }
@@ -737,10 +948,11 @@ class InputSurfaceView(
         }
 
         private fun View.drawDirectionLabels(canvas: Canvas, source: InputSurfaceSource?, cardinalOnly: Boolean, cx: Float, cy: Float,
-            distance: Float, box: Float, paint: Paint): Boolean {
+            distance: Float, box: Float, paint: Paint, colorFor: ((Pair<Float, Float>) -> Int)? = null): Boolean {
             val labels = directionLabels(context, source?.directions, cardinalOnly)
             paint.style = Paint.Style.FILL
             for ((unit, text) in labels) {
+                colorFor?.let { paint.color = it(unit) }
                 paint.textSize = box * .6f
                 val measured = paint.measureText(text)
                 if (measured > box) paint.textSize *= box / measured

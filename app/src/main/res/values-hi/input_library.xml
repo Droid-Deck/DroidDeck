@@ -128,4 +128,16 @@
     <string name="input_diagonal_neighbors">पड़ोसी दिशाएँ</string>
     <string name="input_imported_keys_hint">आपकी पुरानी स्क्रीन कुंजियाँ नीचे आयातित प्रोफ़ाइल के रूप में सहेजी गई हैं। उपयोग या संपादन के लिए एक चुनें। आपके वर्तमान प्रोफ़ाइल चयन रखे गए हैं।</string>
     <string name="input_import_failed">पुरानी स्क्रीन कुंजियाँ स्वचालित रूप से आयात नहीं हो सकीं। मूल सेटिंग्स रखी गई हैं।</string>
+    <string name="input_stick_shape">स्टाइल</string>
+    <string name="input_stick_shape_stick">स्टिक</string>
+    <string name="input_stick_shape_dpad">डी-पैड</string>
+    <string name="input_dpad_ways">दिशाएँ</string>
+    <string name="input_dpad_4way">4-दिशा</string>
+    <string name="input_dpad_8way">8-दिशा</string>
+    <string name="input_dpad_style">आकार</string>
+    <string name="input_dpad_style_cross">क्रॉस</string>
+    <string name="input_dpad_style_buttons">बटन</string>
+    <string name="input_button_style">भराव</string>
+    <string name="input_button_style_solid">ठोस</string>
+    <string name="input_button_style_outline">रूपरेखा</string>
 </resources>
