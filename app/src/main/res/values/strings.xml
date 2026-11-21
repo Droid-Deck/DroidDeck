@@ -708,6 +708,9 @@
     <string name="drawer_open_qam">Open Quick Access Menu</string>
     <string name="drawer_prev_page">Previous page</string>
     <string name="drawer_next_page">Next page</string>
+    <string name="drawer_manage_pages">Arrange pages</string>
+    <string name="drawer_pages_reset">Reset</string>
+    <string name="drawer_pages_done">Done</string>
     <string name="drawer_hud">Performance HUD</string>
     <string name="drawer_hud_fps">Frame rate</string>
     <string name="drawer_hud_battery">Battery temperature</string>

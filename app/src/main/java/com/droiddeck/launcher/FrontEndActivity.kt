@@ -3349,6 +3349,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 com.droiddeck.launcher.ui.Motion.refresh(this)
                 com.droiddeck.launcher.ui.DeveloperTools.load(this)
                 com.droiddeck.launcher.ui.NavTabs.load(this)
+                com.droiddeck.launcher.ui.DrawerPages.load(this)
                 if (!switchLauncherIcon(LauncherIcon.DARK)) recreate()
             }
         }, "reset-settings").start()

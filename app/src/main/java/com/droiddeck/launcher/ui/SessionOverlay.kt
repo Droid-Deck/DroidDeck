@@ -47,6 +47,7 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Icon
@@ -162,7 +163,7 @@ import com.droiddeck.launcher.input.TouchGestureConfig.Companion.MOUSE_BEHAVIOR_
 import kotlinx.coroutines.flow.collect
 import java.util.Locale
 
-private val SessionDrawerPage.title: Int get() = when (this) {
+internal val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.CONTROLLER -> R.string.drawer_page_controller
     SessionDrawerPage.GLASSES -> R.string.drawer_page_glasses
     SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
@@ -174,7 +175,7 @@ private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.SESSION -> R.string.mode_session
 }
 
-private val SessionDrawerPage.icon get() = when (this) {
+internal val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.CONTROLLER -> Icons.Outlined.SportsEsports
     SessionDrawerPage.GLASSES -> GlassesIcon
     SessionDrawerPage.DISPLAY -> Icons.Outlined.DesktopWindows
@@ -392,7 +393,8 @@ class DrawerActions(
 internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions, docked: Boolean = false,
     backRequest: Int = 0, onLayerChange: (Boolean) -> Unit = {}) {
     val pages = sessionDrawerPages(a.glassesPresent)
-    val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
+    val page = requestedPage.takeIf { it in pages } ?: pages.first()
+    var managing by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -589,7 +591,14 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
+                    SmallIconButton(
+                        Icons.Outlined.Tune, stringResource(R.string.drawer_manage_pages), colors.onSurfaceVariant,
+                    ) { host.open = null; managing = !managing }
                 }
+                if (managing) ManageDrawerPages(
+                    offeredDrawerPages(a.glassesPresent),
+                    Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
+                ) { managing = false } else {
                 if (page == SessionDrawerPage.GLASSES) SegmentedTabs(
                     glassesPages, glassesTab, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     tabModifier = { key -> focus.track(page, "glasses-tab-$key").testTag("glasses-tab-$key") },
@@ -926,6 +935,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                     }
                 } }
+                }
             }
             StopConfirm(
                 open = confirmStop,
@@ -983,7 +993,7 @@ private fun DrawerActionButton(text: String, icon: androidx.compose.ui.graphics.
 }
 
 @Composable
-private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, progress: Float? = null, onClick: () -> Unit) {
+internal fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, progress: Float? = null, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val source = remember { MutableInteractionSource() }
