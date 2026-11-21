@@ -4690,7 +4690,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (layout == null) { panel.visibility = View.VISIBLE; return }
         panel.releaseAll()
         panel.visibility = View.GONE
-        unfoldedDeckSurface = com.droiddeck.launcher.ui.InputSurfaceView(this, padBridge, layout.elements, InputRole.PRIMARY, layout.style, haptics = true).also {
+        unfoldedDeckSurface = com.droiddeck.launcher.ui.InputSurfaceView(this, padBridge, layout.elements, InputRole.SECONDARY, layout.style, haptics = true).also {
             it.tag = layout
             column.addView(it, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         }
@@ -5471,8 +5471,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun onCapturedPointer(event: MotionEvent): Boolean {
-        if (!event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
         if (AndroidPointerSource.kind(event) == AndroidPointerSource.Kind.TOUCHPAD) return onPhysicalTouchpad(event)
+        if (!event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
         notePress(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
