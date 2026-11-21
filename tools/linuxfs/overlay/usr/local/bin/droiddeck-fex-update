@@ -2,6 +2,18 @@
 FEX_TAG=fex-2610-r5
 FEX_SHA256=0fc1ca2ba13817ad70d1ea157119a75c9c02446b57d166e6d676cce0807c19c4
 FEX_URL=https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$FEX_TAG/fex.tzst
+GITHUB_MIRRORS="https://gh-proxy.com https://gh-proxy.org https://ghproxy.net https://ghfast.top"
+
+# A release asset on github.com goes through the mirrors when the origin crawls.
+github_sources() {
+  local url=$1 mirror
+  echo "$url"
+  case $url in
+    https://github.com/*)
+      for mirror in $GITHUB_MIRRORS; do echo "$mirror/$url"; done
+      ;;
+  esac
+}
 
 fex_loads() {
   local b out
@@ -13,11 +25,19 @@ fex_loads() {
 }
 
 fex_install() {
-  local tag=$1 sha=$2 urls=$3 dst=/ tmp u f
+  local tag=$1 sha=$2 urls=$3 dst=/ tmp u f found= source
   tmp=$(mktemp -d)
   for u in $urls; do
-    curl -fsSL --retry 2 --connect-timeout 20 --speed-limit 1024 --speed-time 60 "$u" -o "$tmp/fex.tzst" && echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1 && break
-    rm -f "$tmp/fex.tzst"
+    for source in $(github_sources "$u"); do
+      [ "$source" = "$u" ] || echo "== FEX $tag: mirror ${source%%/https*}" >&2
+      if curl -fsSL --retry 2 --connect-timeout 20 --speed-limit 1024 --speed-time 60 "$source" -o "$tmp/fex.tzst" &&
+         echo "$sha  $tmp/fex.tzst" | sha256sum -c --quiet >/dev/null 2>&1; then
+        found=1
+        break
+      fi
+      rm -f "$tmp/fex.tzst"
+    done
+    [ -z "$found" ] || break
   done
   if [ ! -s "$tmp/fex.tzst" ]; then
     echo "== FEX $tag: no source gave the archive with sha256 ${sha:0:12}" >&2
