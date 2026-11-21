@@ -1,0 +1,1105 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: alien2003 <11610652+alien2003@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 09:00:00 +0000
+Subject: [PATCH] Forward nested tablet input
+
+With DROIDDECK_NESTED_TABLET=1 the nested Wayland backend binds the
+host's tablet-v2 manager and adds each host tablet as a KWin tablet, so
+clients get tablet input instead of pointer events. Positions use 0001's
+mapping, and tilt and rotation follow the output transform. While a tool
+is near, KWin draws the cursor; the host would draw it at its pointer.
+---
+ src/backends/wayland/CMakeLists.txt      |   1 +
+ src/backends/wayland/wayland_backend.cpp |  20 +
+ src/backends/wayland/wayland_backend.h   |   7 +
+ src/backends/wayland/wayland_display.cpp |  14 +
+ src/backends/wayland/wayland_display.h   |   3 +
+ src/backends/wayland/wayland_output.cpp  |   6 +-
+ src/backends/wayland/wayland_tablet.cpp  | 729 +++++++++++++++++++++++
+ src/backends/wayland/wayland_tablet.h    | 145 +++++
+ 8 files changed, 923 insertions(+), 2 deletions(-)
+ create mode 100644 src/backends/wayland/wayland_tablet.cpp
+ create mode 100644 src/backends/wayland/wayland_tablet.h
+
+diff --git a/src/backends/wayland/CMakeLists.txt b/src/backends/wayland/CMakeLists.txt
+index 437abf8..394ce0b 100644
+--- a/src/backends/wayland/CMakeLists.txt
++++ b/src/backends/wayland/CMakeLists.txt
+@@ -7,6 +7,7 @@ target_sources(kwin PRIVATE
+     wayland_logging.cpp
+     wayland_output.cpp
+     wayland_qpainter_backend.cpp
++    wayland_tablet.cpp
+ )
+ 
+ target_link_libraries(kwin PRIVATE Plasma::KWaylandClient Wayland::Client gbm::gbm)
+diff --git a/src/backends/wayland/wayland_backend.cpp b/src/backends/wayland/wayland_backend.cpp
+index a55375d..2f7a32c 100644
+--- a/src/backends/wayland/wayland_backend.cpp
++++ b/src/backends/wayland/wayland_backend.cpp
+@@ -17,6 +17,7 @@
+ #include "wayland_logging.h"
+ #include "wayland_output.h"
+ #include "wayland_qpainter_backend.h"
++#include "wayland_tablet.h"
+ 
+ #include <KWayland/Client/keyboard.h>
+ #include <KWayland/Client/pointer.h>
+@@ -360,6 +361,15 @@ void WaylandInputBackend::initialize()
+ 
+     connect(seat, &WaylandSeat::deviceAdded, this, &InputBackend::deviceAdded);
+     connect(seat, &WaylandSeat::deviceRemoved, this, &InputBackend::deviceRemoved);
++
++    if (WaylandTabletSeat *tabletSeat = seat->tabletSeat()) {
++        const auto tablets = tabletSeat->devices();
++        for (InputDevice *tablet : tablets) {
++            Q_EMIT deviceAdded(tablet);
++        }
++        connect(tabletSeat, &WaylandTabletSeat::deviceAdded, this, &InputBackend::deviceAdded);
++        connect(tabletSeat, &WaylandTabletSeat::deviceRemoved, this, &InputBackend::deviceRemoved);
++    }
+ }
+ 
+ WaylandSeat::WaylandSeat(KWayland::Client::Seat *nativeSeat, WaylandBackend *backend)
+@@ -399,15 +409,25 @@ WaylandSeat::WaylandSeat(KWayland::Client::Seat *nativeSeat, WaylandBackend *bac
+ 
+     updateTouchDevice();
+     connect(m_seat, &Seat::hasTouchChanged, this, updateTouchDevice);
++
++    if (zwp_tablet_manager_v2 *manager = m_backend->display()->tabletManager()) {
++        m_tabletSeat = std::make_unique<WaylandTabletSeat>(manager, *m_seat, this);
++    }
+ }
+ 
+ WaylandSeat::~WaylandSeat()
+ {
++    m_tabletSeat.reset();
+     destroyPointerDevice();
+     destroyKeyboardDevice();
+     destroyTouchDevice();
+ }
+ 
++bool WaylandSeat::hasTabletToolInProximity() const
++{
++    return m_tabletSeat && m_tabletSeat->hasToolInProximity();
++}
++
+ void WaylandSeat::createPointerDevice()
+ {
+     m_pointerDevice = std::make_unique<WaylandInputDevice>(m_seat->createPointer(), this);
+diff --git a/src/backends/wayland/wayland_backend.h b/src/backends/wayland/wayland_backend.h
+index dd6f1cd..652529f 100644
+--- a/src/backends/wayland/wayland_backend.h
++++ b/src/backends/wayland/wayland_backend.h
+@@ -56,6 +56,7 @@ class WaylandSeat;
+ class WaylandOutput;
+ class WaylandEglBackend;
+ class WaylandDisplay;
++class WaylandTabletSeat;
+ 
+ class WaylandInputDevice : public InputDevice
+ {
+@@ -138,6 +139,11 @@ public:
+     {
+         return m_touchDevice.get();
+     }
++    WaylandTabletSeat *tabletSeat() const
++    {
++        return m_tabletSeat.get();
++    }
++    bool hasTabletToolInProximity() const;
+ 
+     void createRelativePointer();
+     void destroyRelativePointer();
+@@ -161,6 +167,7 @@ private:
+     std::unique_ptr<WaylandInputDevice> m_relativePointerDevice;
+     std::unique_ptr<WaylandInputDevice> m_keyboardDevice;
+     std::unique_ptr<WaylandInputDevice> m_touchDevice;
++    std::unique_ptr<WaylandTabletSeat> m_tabletSeat;
+ };
+ 
+ class WaylandBuffer : public QObject
+diff --git a/src/backends/wayland/wayland_display.cpp b/src/backends/wayland/wayland_display.cpp
+index 5eed420..c84610b 100644
+--- a/src/backends/wayland/wayland_display.cpp
++++ b/src/backends/wayland/wayland_display.cpp
+@@ -43,6 +43,7 @@
+ #include "wayland-presentation-time-client-protocol.h"
+ #include "wayland-relative-pointer-unstable-v1-client-protocol.h"
+ #include "wayland-single-pixel-buffer-v1-client-protocol.h"
++#include "wayland-tablet-v2-client-protocol.h"
+ #include "wayland-tearing-control-v1-client-protocol.h"
+ #include "wayland-viewporter-client-protocol.h"
+ #include "wayland-xdg-decoration-unstable-v1-client-protocol.h"
+@@ -204,6 +205,9 @@ WaylandDisplay::~WaylandDisplay()
+     if (m_keyboardShortcutsInhibitManager) {
+         zwp_keyboard_shortcuts_inhibit_manager_v1_destroy(m_keyboardShortcutsInhibitManager);
+     }
++    if (m_tabletManager) {
++        zwp_tablet_manager_v2_destroy(m_tabletManager);
++    }
+     if (m_registry) {
+         wl_registry_destroy(m_registry);
+     }
+@@ -375,6 +379,11 @@ zwp_keyboard_shortcuts_inhibit_manager_v1 *WaylandDisplay::keyboardShortcutsInhi
+     return m_keyboardShortcutsInhibitManager;
+ }
+ 
++zwp_tablet_manager_v2 *WaylandDisplay::tabletManager() const
++{
++    return m_tabletManager;
++}
++
+ void WaylandDisplay::registry_global(void *data, wl_registry *registry, uint32_t name, const char *interface, uint32_t version)
+ {
+     WaylandDisplay *display = static_cast<WaylandDisplay *>(data);
+@@ -431,6 +440,11 @@ void WaylandDisplay::registry_global(void *data, wl_registry *registry, uint32_t
+         display->m_toplevelIconManager = reinterpret_cast<xdg_toplevel_icon_manager_v1 *>(wl_registry_bind(registry, name, &xdg_toplevel_icon_manager_v1_interface, 1));
+     } else if (strcmp(interface, zwp_keyboard_shortcuts_inhibit_manager_v1_interface.name) == 0) {
+         display->m_keyboardShortcutsInhibitManager = reinterpret_cast<zwp_keyboard_shortcuts_inhibit_manager_v1 *>(wl_registry_bind(registry, name, &zwp_keyboard_shortcuts_inhibit_manager_v1_interface, 1));
++    } else if (strcmp(interface, zwp_tablet_manager_v2_interface.name) == 0) {
++        static const bool forwardTablets = qEnvironmentVariableIntValue("DROIDDECK_NESTED_TABLET") == 1;
++        if (forwardTablets) {
++            display->m_tabletManager = reinterpret_cast<zwp_tablet_manager_v2 *>(wl_registry_bind(registry, name, &zwp_tablet_manager_v2_interface, std::min(version, 2u)));
++        }
+     }
+ }
+ 
+diff --git a/src/backends/wayland/wayland_display.h b/src/backends/wayland/wayland_display.h
+index e41da18..5088c94 100644
+--- a/src/backends/wayland/wayland_display.h
++++ b/src/backends/wayland/wayland_display.h
+@@ -21,6 +21,7 @@ struct wp_fractional_scale_manager_v1;
+ struct wp_single_pixel_buffer_manager_v1;
+ struct xdg_toplevel_icon_manager_v1;
+ struct zwp_keyboard_shortcuts_inhibit_manager_v1;
++struct zwp_tablet_manager_v2;
+ 
+ namespace KWayland
+ {
+@@ -81,6 +82,7 @@ public:
+     wp_single_pixel_buffer_manager_v1 *singlePixelManager() const;
+     xdg_toplevel_icon_manager_v1 *toplevelIconManager() const;
+     zwp_keyboard_shortcuts_inhibit_manager_v1 *keyboardShortcutsInhibitManager() const;
++    zwp_tablet_manager_v2 *tabletManager() const;
+ 
+ public Q_SLOTS:
+     void flush();
+@@ -99,6 +101,7 @@ private:
+     wp_single_pixel_buffer_manager_v1 *m_singlePixelManager = nullptr;
+     xdg_toplevel_icon_manager_v1 *m_toplevelIconManager = nullptr;
+     zwp_keyboard_shortcuts_inhibit_manager_v1 *m_keyboardShortcutsInhibitManager = nullptr;
++    zwp_tablet_manager_v2 *m_tabletManager = nullptr;
+     std::unique_ptr<ColorManager> m_colorManager;
+     std::unique_ptr<WaylandEventThread> m_eventThread;
+     std::unique_ptr<WaylandClient::LinuxDmabufV1> m_linuxDmabuf;
+diff --git a/src/backends/wayland/wayland_output.cpp b/src/backends/wayland/wayland_output.cpp
+index 2bc8ee9..3cb1f1b 100644
+--- a/src/backends/wayland/wayland_output.cpp
++++ b/src/backends/wayland/wayland_output.cpp
+@@ -263,7 +263,8 @@ bool WaylandOutput::testPresentation(const std::shared_ptr<OutputFrame> &frame)
+     auto cursorLayers = Compositor::self()->backend()->compatibleOutputLayers(this) | std::views::filter([](OutputLayer *layer) {
+         return layer->type() == OutputLayerType::CursorOnly;
+     });
+-    if (m_hasPointerLock && std::ranges::any_of(cursorLayers, &OutputLayer::isEnabled)) {
++    const bool softwareCursor = m_hasPointerLock || (m_backend->seat() && m_backend->seat()->hasTabletToolInProximity());
++    if (softwareCursor && std::ranges::any_of(cursorLayers, &OutputLayer::isEnabled)) {
+         return false;
+     }
+     return true;
+@@ -300,7 +301,8 @@ bool WaylandOutput::present(const QList<OutputLayer *> &layersToUpdate, const st
+         return layer->type() == OutputLayerType::CursorOnly;
+     });
+     if (!cursorLayers.empty()) {
+-        if (m_hasPointerLock && cursorLayers.front()->isEnabled()) {
++        const bool softwareCursor = m_hasPointerLock || (m_backend->seat() && m_backend->seat()->hasTabletToolInProximity());
++        if (softwareCursor && cursorLayers.front()->isEnabled()) {
+             return false;
+         }
+         m_cursor->setEnabled(cursorLayers.front()->isEnabled());
+diff --git a/src/backends/wayland/wayland_tablet.cpp b/src/backends/wayland/wayland_tablet.cpp
+new file mode 100644
+index 0000000..d917598
+--- /dev/null
++++ b/src/backends/wayland/wayland_tablet.cpp
+@@ -0,0 +1,729 @@
++/*
++    KWin - the KDE window manager
++    This file is part of the KDE project.
++
++    SPDX-FileCopyrightText: 2026 alien2003 <11610652+alien2003@users.noreply.github.com>
++
++    SPDX-License-Identifier: GPL-2.0-or-later
++*/
++#include "wayland_tablet.h"
++#include "core/output.h"
++#include "core/renderloop.h"
++#include "wayland_backend.h"
++#include "wayland_logging.h"
++#include "wayland_output.h"
++
++#include <KWayland/Client/subsurface.h>
++#include <KWayland/Client/surface.h>
++
++#include <QPointF>
++#include <QtMath>
++
++#include <algorithm>
++#include <cmath>
++#include <optional>
++#include <utility>
++
++#include <linux/input.h>
++
++#include "wayland-tablet-v2-client-protocol.h"
++
++namespace KWin
++{
++namespace Wayland
++{
++
++struct WaylandTabletToolFrame
++{
++    enum class Proximity {
++        Unchanged,
++        In,
++        Out,
++    };
++    Proximity proximity = Proximity::Unchanged;
++    bool down = false;
++    bool up = false;
++    bool axesChanged = false;
++    std::vector<std::pair<quint32, bool>> buttons;
++};
++
++struct WaylandTabletToolActions
++{
++    bool proximityIn = false;
++    bool tipDown = false;
++    bool tipUp = false;
++    bool axis = false;
++    std::vector<std::pair<quint32, bool>> buttons;
++    bool proximityOut = false;
++};
++
++static WaylandTabletToolActions planTabletToolFrame(const WaylandTabletToolFrame &frame, bool inProximity, bool tipDown, const QList<quint32> &pressedButtons)
++{
++    WaylandTabletToolActions actions;
++    if (frame.proximity == WaylandTabletToolFrame::Proximity::In && !inProximity) {
++        actions.proximityIn = true;
++        inProximity = true;
++    }
++    if (!inProximity) {
++        return actions;
++    }
++
++    if (frame.down && !tipDown) {
++        actions.tipDown = true;
++        tipDown = true;
++    }
++    if (frame.up && tipDown) {
++        actions.tipUp = true;
++    }
++    actions.axis = frame.axesChanged && !actions.proximityIn && !actions.tipDown && !actions.tipUp;
++
++    QList<quint32> pressed = pressedButtons;
++    for (const auto &[button, isPressed] : frame.buttons) {
++        if (isPressed == pressed.contains(button)) {
++            continue;
++        }
++        if (isPressed) {
++            pressed.append(button);
++        } else {
++            pressed.removeOne(button);
++        }
++        actions.buttons.emplace_back(button, isPressed);
++    }
++
++    actions.proximityOut = frame.proximity == WaylandTabletToolFrame::Proximity::Out;
++    return actions;
++}
++
++static QPointF tabletTiltToOutput(OutputTransform transform, const QPointF &tilt)
++{
++    return transform.inverted().map(tilt, QSizeF(0, 0));
++}
++
++static qreal tabletRotationToOutput(OutputTransform transform, qreal degrees)
++{
++    const qreal radians = qDegreesToRadians(degrees);
++    const QPointF direction = tabletTiltToOutput(transform, QPointF(std::sin(radians), -std::cos(radians)));
++    return std::fmod(qRadiansToDegrees(std::atan2(direction.x(), -direction.y())) + 360, 360);
++}
++
++static InputDeviceTabletTool::Type toolType(uint32_t type)
++{
++    switch (type) {
++    case ZWP_TABLET_TOOL_V2_TYPE_ERASER:
++        return InputDeviceTabletTool::Eraser;
++    case ZWP_TABLET_TOOL_V2_TYPE_BRUSH:
++        return InputDeviceTabletTool::Brush;
++    case ZWP_TABLET_TOOL_V2_TYPE_PENCIL:
++        return InputDeviceTabletTool::Pencil;
++    case ZWP_TABLET_TOOL_V2_TYPE_AIRBRUSH:
++        return InputDeviceTabletTool::Airbrush;
++    case ZWP_TABLET_TOOL_V2_TYPE_FINGER:
++        return InputDeviceTabletTool::Finger;
++    case ZWP_TABLET_TOOL_V2_TYPE_MOUSE:
++        return InputDeviceTabletTool::Mouse;
++    case ZWP_TABLET_TOOL_V2_TYPE_LENS:
++        return InputDeviceTabletTool::Lens;
++    default:
++        return InputDeviceTabletTool::Pen;
++    }
++}
++
++static std::optional<InputDeviceTabletTool::Capability> toolCapability(uint32_t capability)
++{
++    switch (capability) {
++    case ZWP_TABLET_TOOL_V2_CAPABILITY_TILT:
++        return InputDeviceTabletTool::Tilt;
++    case ZWP_TABLET_TOOL_V2_CAPABILITY_PRESSURE:
++        return InputDeviceTabletTool::Pressure;
++    case ZWP_TABLET_TOOL_V2_CAPABILITY_DISTANCE:
++        return InputDeviceTabletTool::Distance;
++    case ZWP_TABLET_TOOL_V2_CAPABILITY_ROTATION:
++        return InputDeviceTabletTool::Rotation;
++    case ZWP_TABLET_TOOL_V2_CAPABILITY_SLIDER:
++        return InputDeviceTabletTool::Slider;
++    case ZWP_TABLET_TOOL_V2_CAPABILITY_WHEEL:
++        return InputDeviceTabletTool::Wheel;
++    default:
++        return std::nullopt;
++    }
++}
++
++WaylandTabletTool::WaylandTabletTool(Type type, quint64 serialId, quint64 uniqueId, const QList<Capability> &capabilities, QObject *parent)
++    : InputDeviceTabletTool(parent)
++    , m_type(type)
++    , m_serialId(serialId)
++    , m_uniqueId(uniqueId)
++    , m_capabilities(capabilities)
++{
++}
++
++quint64 WaylandTabletTool::serialId() const
++{
++    return m_serialId;
++}
++
++quint64 WaylandTabletTool::uniqueId() const
++{
++    return m_uniqueId;
++}
++
++InputDeviceTabletTool::Type WaylandTabletTool::type() const
++{
++    return m_type;
++}
++
++QList<InputDeviceTabletTool::Capability> WaylandTabletTool::capabilities() const
++{
++    return m_capabilities;
++}
++
++WaylandTabletDevice::WaylandTabletDevice(zwp_tablet_v2 *tablet, quint64 id, WaylandTabletSeat *seat)
++    : m_tablet(tablet)
++    , m_id(id)
++    , m_seat(seat)
++    , m_busType(BUS_VIRTUAL)
++{
++    static const zwp_tablet_v2_listener listener{
++        .name = [](void *data, zwp_tablet_v2 *, const char *name) {
++            static_cast<WaylandTabletDevice *>(data)->m_name = QString::fromUtf8(name);
++        },
++        .id = [](void *data, zwp_tablet_v2 *, uint32_t vendor, uint32_t product) {
++            auto device = static_cast<WaylandTabletDevice *>(data);
++            device->m_vendor = vendor;
++            device->m_product = product;
++        },
++        .path = [](void *data, zwp_tablet_v2 *, const char *path) {
++            static_cast<WaylandTabletDevice *>(data)->m_path = QString::fromUtf8(path);
++        },
++        .done = [](void *data, zwp_tablet_v2 *) {
++            auto device = static_cast<WaylandTabletDevice *>(data);
++            device->m_seat->tabletDone(device);
++        },
++        .removed = [](void *data, zwp_tablet_v2 *) {
++            auto device = static_cast<WaylandTabletDevice *>(data);
++            device->m_seat->tabletRemoved(device);
++        },
++        .bustype = [](void *data, zwp_tablet_v2 *, uint32_t bustype) {
++            static_cast<WaylandTabletDevice *>(data)->m_busType = bustype;
++        },
++    };
++    zwp_tablet_v2_add_listener(m_tablet, &listener, this);
++}
++
++WaylandTabletDevice::~WaylandTabletDevice()
++{
++    zwp_tablet_v2_destroy(m_tablet);
++}
++
++QString WaylandTabletDevice::sysPath() const
++{
++    return m_path;
++}
++
++QString WaylandTabletDevice::name() const
++{
++    return m_name;
++}
++
++quint32 WaylandTabletDevice::vendor() const
++{
++    return m_vendor;
++}
++
++quint32 WaylandTabletDevice::product() const
++{
++    return m_product;
++}
++
++quint32 WaylandTabletDevice::busType() const
++{
++    return m_busType;
++}
++
++bool WaylandTabletDevice::isEnabled() const
++{
++    return true;
++}
++
++void WaylandTabletDevice::setEnabled(bool enabled)
++{
++}
++
++bool WaylandTabletDevice::isKeyboard() const
++{
++    return false;
++}
++
++bool WaylandTabletDevice::isPointer() const
++{
++    return false;
++}
++
++bool WaylandTabletDevice::isTouchpad() const
++{
++    return false;
++}
++
++bool WaylandTabletDevice::isTouch() const
++{
++    return false;
++}
++
++bool WaylandTabletDevice::isTabletTool() const
++{
++    return true;
++}
++
++bool WaylandTabletDevice::isTabletPad() const
++{
++    return false;
++}
++
++bool WaylandTabletDevice::isTabletModeSwitch() const
++{
++    return false;
++}
++
++bool WaylandTabletDevice::isLidSwitch() const
++{
++    return false;
++}
++
++struct WaylandTabletSeat::Tool
++{
++    ~Tool()
++    {
++        zwp_tablet_tool_v2_destroy(proxy);
++    }
++
++    WaylandTabletSeat *seat = nullptr;
++    zwp_tablet_tool_v2 *proxy = nullptr;
++
++    InputDeviceTabletTool::Type type = InputDeviceTabletTool::Pen;
++    quint64 serialId = 0;
++    quint64 uniqueId = 0;
++    QList<InputDeviceTabletTool::Capability> capabilities;
++    bool done = false;
++    WaylandTabletTool *kwinTool = nullptr;
++
++    WaylandTabletToolFrame frame;
++    zwp_tablet_v2 *enteredTablet = nullptr;
++    wl_surface *enteredSurface = nullptr;
++    quint32 enterSerial = 0;
++
++    QPointF surfacePosition;
++    qreal pressure = 0;
++    qreal distance = 0;
++    QPointF tilt;
++    qreal rotation = 0;
++    qreal slider = 0;
++
++    WaylandTabletDevice *device = nullptr;
++    KWayland::Client::Surface *surface = nullptr;
++    QPointF position;
++    QPointF outputTilt;
++    qreal outputRotation = 0;
++    bool tipDown = false;
++    QList<quint32> pressedButtons;
++    std::chrono::milliseconds lastTime{0};
++};
++
++struct WaylandTabletSeat::Pad
++{
++    ~Pad()
++    {
++        std::ranges::for_each(rings, zwp_tablet_pad_ring_v2_destroy);
++        std::ranges::for_each(strips, zwp_tablet_pad_strip_v2_destroy);
++        std::ranges::for_each(dials, zwp_tablet_pad_dial_v2_destroy);
++        std::ranges::for_each(groups, zwp_tablet_pad_group_v2_destroy);
++        zwp_tablet_pad_v2_destroy(proxy);
++    }
++
++    WaylandTabletSeat *seat = nullptr;
++    zwp_tablet_pad_v2 *proxy = nullptr;
++    std::vector<zwp_tablet_pad_group_v2 *> groups;
++    std::vector<zwp_tablet_pad_ring_v2 *> rings;
++    std::vector<zwp_tablet_pad_strip_v2 *> strips;
++    std::vector<zwp_tablet_pad_dial_v2 *> dials;
++};
++
++WaylandTabletSeat::WaylandTabletSeat(zwp_tablet_manager_v2 *manager, wl_seat *nativeSeat, WaylandSeat *seat)
++    : m_seat(seat)
++{
++    static const zwp_tablet_seat_v2_listener listener{
++        .tablet_added = handleTabletAdded,
++        .tool_added = handleToolAdded,
++        .pad_added = handlePadAdded,
++    };
++    m_tabletSeat = zwp_tablet_manager_v2_get_tablet_seat(manager, nativeSeat);
++    zwp_tablet_seat_v2_add_listener(m_tabletSeat, &listener, this);
++}
++
++WaylandTabletSeat::~WaylandTabletSeat()
++{
++    for (const auto &device : m_devices) {
++        if (device->m_done) {
++            Q_EMIT deviceRemoved(device.get());
++        }
++    }
++    m_tools.clear();
++    m_pads.clear();
++    m_devices.clear();
++    zwp_tablet_seat_v2_destroy(m_tabletSeat);
++}
++
++QList<InputDevice *> WaylandTabletSeat::devices() const
++{
++    QList<InputDevice *> devices;
++    for (const auto &device : m_devices) {
++        if (device->m_done) {
++            devices.append(device.get());
++        }
++    }
++    return devices;
++}
++
++bool WaylandTabletSeat::hasToolInProximity() const
++{
++    return std::ranges::any_of(m_tools, [](const auto &tool) {
++        return tool->device != nullptr;
++    });
++}
++
++void WaylandTabletSeat::handleTabletAdded(void *data, zwp_tablet_seat_v2 *seat, zwp_tablet_v2 *tablet)
++{
++    auto tabletSeat = static_cast<WaylandTabletSeat *>(data);
++    tabletSeat->m_devices.push_back(std::make_unique<WaylandTabletDevice>(tablet, ++tabletSeat->m_lastDeviceId, tabletSeat));
++}
++
++void WaylandTabletSeat::handlePadAdded(void *data, zwp_tablet_seat_v2 *seat, zwp_tablet_pad_v2 *proxy)
++{
++    static const zwp_tablet_pad_group_v2_listener groupListener{
++        .buttons = [](void *, zwp_tablet_pad_group_v2 *, wl_array *) {
++        },
++        .ring = [](void *data, zwp_tablet_pad_group_v2 *, zwp_tablet_pad_ring_v2 *ring) {
++            static_cast<Pad *>(data)->rings.push_back(ring);
++        },
++        .strip = [](void *data, zwp_tablet_pad_group_v2 *, zwp_tablet_pad_strip_v2 *strip) {
++            static_cast<Pad *>(data)->strips.push_back(strip);
++        },
++        .modes = [](void *, zwp_tablet_pad_group_v2 *, uint32_t) {
++        },
++        .done = [](void *, zwp_tablet_pad_group_v2 *) {
++        },
++        .mode_switch = [](void *, zwp_tablet_pad_group_v2 *, uint32_t, uint32_t, uint32_t) {
++        },
++        .dial = [](void *data, zwp_tablet_pad_group_v2 *, zwp_tablet_pad_dial_v2 *dial) {
++            static_cast<Pad *>(data)->dials.push_back(dial);
++        },
++    };
++    static const zwp_tablet_pad_v2_listener listener{
++        .group = [](void *data, zwp_tablet_pad_v2 *, zwp_tablet_pad_group_v2 *group) {
++            static_cast<Pad *>(data)->groups.push_back(group);
++            zwp_tablet_pad_group_v2_add_listener(group, &groupListener, data);
++        },
++        .path = [](void *, zwp_tablet_pad_v2 *, const char *) {
++        },
++        .buttons = [](void *, zwp_tablet_pad_v2 *, uint32_t) {
++        },
++        .done = [](void *, zwp_tablet_pad_v2 *) {
++        },
++        .button = [](void *, zwp_tablet_pad_v2 *, uint32_t, uint32_t, uint32_t) {
++        },
++        .enter = [](void *, zwp_tablet_pad_v2 *, uint32_t, zwp_tablet_v2 *, wl_surface *) {
++        },
++        .leave = [](void *, zwp_tablet_pad_v2 *, uint32_t, wl_surface *) {
++        },
++        .removed = [](void *data, zwp_tablet_pad_v2 *) {
++            auto pad = static_cast<Pad *>(data);
++            pad->seat->padRemoved(pad);
++        },
++    };
++
++    auto tabletSeat = static_cast<WaylandTabletSeat *>(data);
++    auto pad = std::make_unique<Pad>();
++    pad->seat = tabletSeat;
++    pad->proxy = proxy;
++    zwp_tablet_pad_v2_add_listener(proxy, &listener, pad.get());
++    tabletSeat->m_pads.push_back(std::move(pad));
++}
++
++void WaylandTabletSeat::handleToolAdded(void *data, zwp_tablet_seat_v2 *seat, zwp_tablet_tool_v2 *proxy)
++{
++    static const zwp_tablet_tool_v2_listener listener{
++        .type = [](void *data, zwp_tablet_tool_v2 *, uint32_t type) {
++            static_cast<Tool *>(data)->type = toolType(type);
++        },
++        .hardware_serial = [](void *data, zwp_tablet_tool_v2 *, uint32_t hi, uint32_t lo) {
++            static_cast<Tool *>(data)->serialId = (quint64(hi) << 32) | lo;
++        },
++        .hardware_id_wacom = [](void *data, zwp_tablet_tool_v2 *, uint32_t hi, uint32_t lo) {
++            static_cast<Tool *>(data)->uniqueId = (quint64(hi) << 32) | lo;
++        },
++        .capability = [](void *data, zwp_tablet_tool_v2 *, uint32_t capability) {
++            auto tool = static_cast<Tool *>(data);
++            if (const auto value = toolCapability(capability); value && !tool->capabilities.contains(*value)) {
++                tool->capabilities.append(*value);
++            }
++        },
++        .done = [](void *data, zwp_tablet_tool_v2 *) {
++            static_cast<Tool *>(data)->done = true;
++        },
++        .removed = [](void *data, zwp_tablet_tool_v2 *) {
++            auto tool = static_cast<Tool *>(data);
++            tool->seat->toolRemoved(tool);
++        },
++        .proximity_in = [](void *data, zwp_tablet_tool_v2 *, uint32_t serial, zwp_tablet_v2 *tablet, wl_surface *surface) {
++            auto tool = static_cast<Tool *>(data);
++            tool->frame.proximity = WaylandTabletToolFrame::Proximity::In;
++            tool->enteredTablet = tablet;
++            tool->enteredSurface = surface;
++            tool->enterSerial = serial;
++        },
++        .proximity_out = [](void *data, zwp_tablet_tool_v2 *) {
++            static_cast<Tool *>(data)->frame.proximity = WaylandTabletToolFrame::Proximity::Out;
++        },
++        .down = [](void *data, zwp_tablet_tool_v2 *, uint32_t) {
++            static_cast<Tool *>(data)->frame.down = true;
++        },
++        .up = [](void *data, zwp_tablet_tool_v2 *) {
++            static_cast<Tool *>(data)->frame.up = true;
++        },
++        .motion = [](void *data, zwp_tablet_tool_v2 *, wl_fixed_t x, wl_fixed_t y) {
++            auto tool = static_cast<Tool *>(data);
++            tool->surfacePosition = QPointF(wl_fixed_to_double(x), wl_fixed_to_double(y));
++            tool->frame.axesChanged = true;
++        },
++        .pressure = [](void *data, zwp_tablet_tool_v2 *, uint32_t pressure) {
++            auto tool = static_cast<Tool *>(data);
++            tool->pressure = std::clamp(pressure / 65535.0, 0.0, 1.0);
++            tool->frame.axesChanged = true;
++        },
++        .distance = [](void *data, zwp_tablet_tool_v2 *, uint32_t distance) {
++            auto tool = static_cast<Tool *>(data);
++            tool->distance = std::clamp(distance / 65535.0, 0.0, 1.0);
++            tool->frame.axesChanged = true;
++        },
++        .tilt = [](void *data, zwp_tablet_tool_v2 *, wl_fixed_t x, wl_fixed_t y) {
++            auto tool = static_cast<Tool *>(data);
++            tool->tilt = QPointF(wl_fixed_to_double(x), wl_fixed_to_double(y));
++            tool->frame.axesChanged = true;
++        },
++        .rotation = [](void *data, zwp_tablet_tool_v2 *, wl_fixed_t degrees) {
++            auto tool = static_cast<Tool *>(data);
++            tool->rotation = wl_fixed_to_double(degrees);
++            tool->frame.axesChanged = true;
++        },
++        .slider = [](void *data, zwp_tablet_tool_v2 *, int32_t position) {
++            auto tool = static_cast<Tool *>(data);
++            tool->slider = std::clamp(position / 65535.0, -1.0, 1.0);
++            tool->frame.axesChanged = true;
++        },
++        .wheel = [](void *, zwp_tablet_tool_v2 *, wl_fixed_t, int32_t) {
++        },
++        .button = [](void *data, zwp_tablet_tool_v2 *, uint32_t, uint32_t button, uint32_t state) {
++            static_cast<Tool *>(data)->frame.buttons.emplace_back(button, state == ZWP_TABLET_TOOL_V2_BUTTON_STATE_PRESSED);
++        },
++        .frame = [](void *data, zwp_tablet_tool_v2 *, uint32_t time) {
++            auto tool = static_cast<Tool *>(data);
++            tool->seat->toolFrame(tool, time);
++        },
++    };
++
++    auto tabletSeat = static_cast<WaylandTabletSeat *>(data);
++    auto tool = std::make_unique<Tool>();
++    tool->seat = tabletSeat;
++    tool->proxy = proxy;
++    zwp_tablet_tool_v2_add_listener(proxy, &listener, tool.get());
++    tabletSeat->m_tools.push_back(std::move(tool));
++}
++
++WaylandTabletDevice *WaylandTabletSeat::findDevice(zwp_tablet_v2 *tablet) const
++{
++    const auto it = std::ranges::find_if(m_devices, [tablet](const auto &device) {
++        return device->m_tablet == tablet;
++    });
++    return it == m_devices.end() ? nullptr : it->get();
++}
++
++void WaylandTabletSeat::tabletDone(WaylandTabletDevice *device)
++{
++    if (!device->m_done) {
++        device->m_done = true;
++        Q_EMIT deviceAdded(device);
++    }
++}
++
++void WaylandTabletSeat::tabletRemoved(WaylandTabletDevice *device)
++{
++    for (const auto &tool : m_tools) {
++        if (tool->device == device) {
++            leaveProximity(tool.get(), tool->lastTime);
++        }
++    }
++    const auto it = std::ranges::find_if(m_devices, [device](const auto &candidate) {
++        return candidate.get() == device;
++    });
++    std::unique_ptr<WaylandTabletDevice> removed = std::move(*it);
++    m_devices.erase(it);
++    if (removed->m_done) {
++        Q_EMIT deviceRemoved(removed.get());
++    }
++    removed.release()->deleteLater();
++}
++
++void WaylandTabletSeat::toolRemoved(Tool *tool)
++{
++    leaveProximity(tool, tool->lastTime);
++    std::erase_if(m_tools, [tool](const auto &candidate) {
++        return candidate.get() == tool;
++    });
++}
++
++void WaylandTabletSeat::padRemoved(Pad *pad)
++{
++    std::erase_if(m_pads, [pad](const auto &candidate) {
++        return candidate.get() == pad;
++    });
++}
++
++WaylandTabletTool *WaylandTabletSeat::findOrCreateTool(const Tool *tool, const WaylandTabletDevice *device)
++{
++    const quint64 owner = tool->serialId ? 0 : device->m_id;
++    const auto it = std::ranges::find_if(m_kwinTools, [tool, owner](const KWinTool &candidate) {
++        return candidate.owner == owner
++            && candidate.tool->type() == tool->type
++            && candidate.tool->serialId() == tool->serialId
++            && candidate.tool->uniqueId() == tool->uniqueId
++            && candidate.tool->capabilities() == tool->capabilities;
++    });
++    if (it != m_kwinTools.end()) {
++        return it->tool;
++    }
++    auto kwinTool = new WaylandTabletTool(tool->type, tool->serialId, tool->uniqueId, tool->capabilities, this);
++    m_kwinTools.push_back(KWinTool{owner, kwinTool});
++    return kwinTool;
++}
++
++bool WaylandTabletSeat::updateValues(Tool *tool)
++{
++    WaylandBackend *backend = m_seat->backend();
++    WaylandOutput *output = backend->findOutput(tool->surface);
++    if (!output) {
++        return false;
++    }
++    const KWayland::Client::SubSurface *subsurface = backend->findSubSurface(tool->surface);
++    const QPointF position = output->mapToOutput(tool->surfacePosition + (subsurface ? subsurface->position() : QPoint()));
++    const QSizeF size = output->transform().map(QSizeF(std::round(output->modeSize().width() / output->scale()),
++                                                       std::round(output->modeSize().height() / output->scale())));
++    const QPointF origin = output->position();
++    tool->position = QPointF(std::clamp(position.x(), origin.x(), origin.x() + std::max(0.0, size.width() - 1)),
++                             std::clamp(position.y(), origin.y(), origin.y() + std::max(0.0, size.height() - 1)));
++    tool->outputTilt = tabletTiltToOutput(output->transform(), tool->tilt);
++    tool->outputRotation = tabletRotationToOutput(output->transform(), tool->rotation);
++    return true;
++}
++
++void WaylandTabletSeat::scheduleRepaints()
++{
++    const auto outputs = m_seat->backend()->waylandOutputs();
++    for (WaylandOutput *output : outputs) {
++        output->renderLoop()->scheduleRepaint();
++    }
++}
++
++void WaylandTabletSeat::toolFrame(Tool *tool, uint32_t time)
++{
++    const WaylandTabletToolFrame frame = std::exchange(tool->frame, WaylandTabletToolFrame{});
++    zwp_tablet_v2 *const enteredTablet = std::exchange(tool->enteredTablet, nullptr);
++    wl_surface *const enteredSurface = std::exchange(tool->enteredSurface, nullptr);
++    const quint32 enterSerial = std::exchange(tool->enterSerial, 0);
++    const std::chrono::milliseconds timestamp(time);
++    tool->lastTime = timestamp;
++    if (!tool->done) {
++        return;
++    }
++
++    WaylandTabletDevice *enteredDevice = nullptr;
++    if (frame.proximity == WaylandTabletToolFrame::Proximity::In) {
++        enteredDevice = findDevice(enteredTablet);
++        KWayland::Client::Surface *surface = KWayland::Client::Surface::get(enteredSurface);
++        if (!enteredDevice || !enteredDevice->m_done || !surface || !m_seat->backend()->findOutput(surface)) {
++            qCDebug(KWIN_WAYLAND_BACKEND) << "Ignoring a tablet tool on an unknown tablet or surface";
++            leaveProximity(tool, timestamp);
++            return;
++        }
++        if (tool->device != enteredDevice) {
++            leaveProximity(tool, timestamp);
++        }
++        zwp_tablet_tool_v2_set_cursor(tool->proxy, enterSerial, nullptr, 0, 0);
++        tool->surface = surface;
++        if (!tool->kwinTool) {
++            tool->kwinTool = findOrCreateTool(tool, enteredDevice);
++        }
++    }
++
++    const WaylandTabletToolActions actions = planTabletToolFrame(frame, tool->device != nullptr, tool->tipDown, tool->pressedButtons);
++    if (actions.proximityIn) {
++        tool->device = enteredDevice;
++        scheduleRepaints();
++    }
++    WaylandTabletDevice *device = tool->device;
++    if (!device) {
++        return;
++    }
++    if ((frame.axesChanged || actions.proximityIn) && !updateValues(tool)) {
++        leaveProximity(tool, timestamp);
++        return;
++    }
++
++    if (actions.proximityIn) {
++        Q_EMIT device->tabletToolProximityEvent(tool->position, tool->outputTilt.x(), tool->outputTilt.y(), tool->outputRotation, tool->distance, true, tool->slider, tool->kwinTool, timestamp, device);
++    }
++    if (actions.tipDown) {
++        tool->tipDown = true;
++        Q_EMIT device->tabletToolTipEvent(tool->position, tool->pressure, tool->outputTilt.x(), tool->outputTilt.y(), tool->outputRotation, tool->distance, true, tool->slider, tool->kwinTool, timestamp, device);
++    }
++    if (actions.tipUp) {
++        tool->tipDown = false;
++        Q_EMIT device->tabletToolTipEvent(tool->position, tool->pressure, tool->outputTilt.x(), tool->outputTilt.y(), tool->outputRotation, tool->distance, false, tool->slider, tool->kwinTool, timestamp, device);
++    }
++    if (actions.axis) {
++        Q_EMIT device->tabletToolAxisEvent(tool->position, tool->pressure, tool->outputTilt.x(), tool->outputTilt.y(), tool->outputRotation, tool->distance, tool->tipDown, tool->slider, tool->kwinTool, timestamp, device);
++    }
++    for (const auto &[button, pressed] : actions.buttons) {
++        if (pressed) {
++            tool->pressedButtons.append(button);
++        } else {
++            tool->pressedButtons.removeOne(button);
++        }
++        Q_EMIT device->tabletToolButtonEvent(button, pressed, tool->kwinTool, timestamp, device);
++    }
++    if (actions.proximityOut) {
++        leaveProximity(tool, timestamp);
++    }
++}
++
++void WaylandTabletSeat::leaveProximity(Tool *tool, std::chrono::microseconds time)
++{
++    WaylandTabletDevice *device = tool->device;
++    if (!device) {
++        return;
++    }
++    if (tool->tipDown) {
++        tool->tipDown = false;
++        Q_EMIT device->tabletToolTipEvent(tool->position, tool->pressure, tool->outputTilt.x(), tool->outputTilt.y(), tool->outputRotation, tool->distance, false, tool->slider, tool->kwinTool, time, device);
++    }
++    for (quint32 button : std::exchange(tool->pressedButtons, {})) {
++        Q_EMIT device->tabletToolButtonEvent(button, false, tool->kwinTool, time, device);
++    }
++    Q_EMIT device->tabletToolProximityEvent(tool->position, tool->outputTilt.x(), tool->outputTilt.y(), tool->outputRotation, tool->distance, false, tool->slider, tool->kwinTool, time, device);
++    tool->device = nullptr;
++    tool->surface = nullptr;
++    scheduleRepaints();
++}
++
++} // namespace Wayland
++} // namespace KWin
++
++#include "moc_wayland_tablet.cpp"
+diff --git a/src/backends/wayland/wayland_tablet.h b/src/backends/wayland/wayland_tablet.h
+new file mode 100644
+index 0000000..113c19b
+--- /dev/null
++++ b/src/backends/wayland/wayland_tablet.h
+@@ -0,0 +1,145 @@
++/*
++    KWin - the KDE window manager
++    This file is part of the KDE project.
++
++    SPDX-FileCopyrightText: 2026 alien2003 <11610652+alien2003@users.noreply.github.com>
++
++    SPDX-License-Identifier: GPL-2.0-or-later
++*/
++#pragma once
++
++#include "core/inputdevice.h"
++
++#include <QList>
++#include <QObject>
++#include <QString>
++
++#include <chrono>
++#include <memory>
++#include <vector>
++
++struct wl_seat;
++struct zwp_tablet_manager_v2;
++struct zwp_tablet_pad_v2;
++struct zwp_tablet_seat_v2;
++struct zwp_tablet_tool_v2;
++struct zwp_tablet_v2;
++
++namespace KWin
++{
++namespace Wayland
++{
++
++class WaylandSeat;
++class WaylandTabletSeat;
++
++class WaylandTabletTool : public InputDeviceTabletTool
++{
++    Q_OBJECT
++
++public:
++    WaylandTabletTool(Type type, quint64 serialId, quint64 uniqueId, const QList<Capability> &capabilities, QObject *parent);
++
++    quint64 serialId() const override;
++    quint64 uniqueId() const override;
++    Type type() const override;
++    QList<Capability> capabilities() const override;
++
++private:
++    const Type m_type;
++    const quint64 m_serialId;
++    const quint64 m_uniqueId;
++    const QList<Capability> m_capabilities;
++};
++
++class WaylandTabletDevice : public InputDevice
++{
++    Q_OBJECT
++
++public:
++    WaylandTabletDevice(zwp_tablet_v2 *tablet, quint64 id, WaylandTabletSeat *seat);
++    ~WaylandTabletDevice() override;
++
++    QString sysPath() const override;
++    QString name() const override;
++    quint32 vendor() const override;
++    quint32 product() const override;
++    quint32 busType() const override;
++
++    bool isEnabled() const override;
++    void setEnabled(bool enabled) override;
++
++    bool isKeyboard() const override;
++    bool isPointer() const override;
++    bool isTouchpad() const override;
++    bool isTouch() const override;
++    bool isTabletTool() const override;
++    bool isTabletPad() const override;
++    bool isTabletModeSwitch() const override;
++    bool isLidSwitch() const override;
++
++private:
++    friend class WaylandTabletSeat;
++
++    zwp_tablet_v2 *const m_tablet;
++    const quint64 m_id;
++    WaylandTabletSeat *const m_seat;
++    QString m_name;
++    QString m_path;
++    quint32 m_vendor = 0;
++    quint32 m_product = 0;
++    quint32 m_busType;
++    bool m_done = false;
++};
++
++class WaylandTabletSeat : public QObject
++{
++    Q_OBJECT
++
++public:
++    WaylandTabletSeat(zwp_tablet_manager_v2 *manager, wl_seat *nativeSeat, WaylandSeat *seat);
++    ~WaylandTabletSeat() override;
++
++    QList<InputDevice *> devices() const;
++    bool hasToolInProximity() const;
++
++Q_SIGNALS:
++    void deviceAdded(InputDevice *device);
++    void deviceRemoved(InputDevice *device);
++
++private:
++    friend class WaylandTabletDevice;
++    struct Tool;
++    struct Pad;
++
++    static void handleTabletAdded(void *data, zwp_tablet_seat_v2 *seat, zwp_tablet_v2 *tablet);
++    static void handleToolAdded(void *data, zwp_tablet_seat_v2 *seat, zwp_tablet_tool_v2 *tool);
++    static void handlePadAdded(void *data, zwp_tablet_seat_v2 *seat, zwp_tablet_pad_v2 *pad);
++
++    void tabletDone(WaylandTabletDevice *device);
++    void tabletRemoved(WaylandTabletDevice *device);
++    void toolRemoved(Tool *tool);
++    void padRemoved(Pad *pad);
++    void toolFrame(Tool *tool, uint32_t time);
++    void leaveProximity(Tool *tool, std::chrono::microseconds time);
++    bool updateValues(Tool *tool);
++    void scheduleRepaints();
++    WaylandTabletDevice *findDevice(zwp_tablet_v2 *tablet) const;
++    WaylandTabletTool *findOrCreateTool(const Tool *tool, const WaylandTabletDevice *device);
++
++    WaylandSeat *const m_seat;
++    zwp_tablet_seat_v2 *m_tabletSeat = nullptr;
++    std::vector<std::unique_ptr<WaylandTabletDevice>> m_devices;
++    std::vector<std::unique_ptr<Tool>> m_tools;
++    std::vector<std::unique_ptr<Pad>> m_pads;
++    quint64 m_lastDeviceId = 0;
++    struct KWinTool
++    {
++        quint64 owner;
++        WaylandTabletTool *tool;
++    };
++    std::vector<KWinTool> m_kwinTools;
++};
++
++} // namespace Wayland
++} // namespace KWin

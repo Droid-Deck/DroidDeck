@@ -1,0 +1,51 @@
+From 0ca92fb4be5bdefcb70edfece31b35d1ae79eb85 Mon Sep 17 00:00:00 2001
+From: Olivier Fourdan <ofourdan@redhat.com>
+Date: Fri, 17 Apr 2026 09:54:31 +0200
+Subject: [PATCH] xwayland: Do not use pointer crossing count for slave devices
+
+Commit 0e08e5083 ("xwayland: prevent X11 get enter event when pointer is
+over Wayland client") introduced a pointer crossing count to avoid
+sending spurious pointer enter events when the pointer is within a
+Wayland native surface.
+
+However, that change breaks tablet devices, as the pointer enter count
+is only updated from the wl_pointer enter/leave events, a slave X11
+device such as a tablet pointer would report a lost focus and the event
+wrongly sent to the root window.
+
+To avoid the issue, revert partially commit 0e08e5083 to return FALSE
+as before for the slave devices. The rest of the logic from commit
+0e08e5083 remains unchanged, so that we do not send spurious
+XCrossingEvents for the pointer device when it's within a native Wayland
+surface.
+
+Signed-off-by: Olivier Fourdan <ofourdan@redhat.com>
+Closes: https://gitlab.freedesktop.org/xorg/xserver/-/work_items/1884
+(cherry picked from commit c39b1591b20a2373abf53a3ad178c14c4203f72c)
+
+Part-of: <https://gitlab.freedesktop.org/xorg/xserver/-/merge_requests/2179>
+---
+ hw/xwayland/xwayland-input.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/hw/xwayland/xwayland-input.c b/hw/xwayland/xwayland-input.c
+index 39bfa8b..8231c10 100644
+--- a/hw/xwayland/xwayland-input.c
++++ b/hw/xwayland/xwayland-input.c
+@@ -3214,14 +3214,14 @@ sprite_check_lost_focus(SpritePtr sprite, WindowPtr window)
+     pointer_crossing = (xwl_seat->pointer_enter_count > 0);
+     master = GetMaster(device, POINTER_OR_FLOAT);
+     if (!master || !master->lastSlave)
+-        return !pointer_crossing;
++        return FALSE;
+ 
+     /* We do want the last active slave, we only check on slave xwayland
+      * devices so we can find out the xwl_seat, but those don't actually own
+      * their sprite, so the match doesn't mean a lot.
+      */
+     if (master->lastSlave != get_pointer_device(xwl_seat))
+-        return !pointer_crossing;
++        return FALSE;
+ 
+     if (xwl_seat->focus_window != NULL &&
+         xwl_seat->cursor_confinement_window != NULL &&

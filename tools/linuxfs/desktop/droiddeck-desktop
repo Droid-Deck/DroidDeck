@@ -16,7 +16,7 @@ export KWIN_USE_OVERLAYS=0
 for conf in client client-rt; do
   mkdir -p "/etc/pipewire/$conf.conf.d" && printf 'context.properties = {\n    module.rt = false\n}\n' >"/etc/pipewire/$conf.conf.d/droiddeck-rt.conf"
 done 2>/dev/null
-export DROIDDECK_NESTED_SCALE=1
+export DROIDDECK_NESTED_SCALE=1 DROIDDECK_NESTED_TABLET=1 KWIN_WAYLAND_EMULATE_TABLET=1
 export DROIDDECK_GLTHREAD=${mesa_glthread:-}
 unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2 mesa_glthread
 if [ -n "${DD_DEBUG_DIR:-}" ]; then
