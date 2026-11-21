@@ -197,8 +197,10 @@ class OnScreenLayoutTest {
             assertEquals(control.id, x, cx, .01f)
             assertEquals(control.id, y, cy, .01f)
         }
-        assertCenter(InputControl.LT, 140f, 66f)
-        assertCenter(InputControl.LB, 140f, 148f)
+        assertCenter(InputControl.LT, 120f, 96f)
+        assertCenter(InputControl.LB, 310f, 96f)
+        assertCenter(InputControl.RB, 1290f, 96f)
+        assertCenter(InputControl.RT, 1480f, 96f)
         assertCenter(InputControl.UP, 220f, 242.5f)
         assertCenter(InputControl.RIGHT, 322.5f, 345f)
         assertCenter(InputControl.LS, 290f, 640f)
@@ -491,5 +493,98 @@ class OnScreenLayoutTest {
         val others = InputLibraries.read(context).layouts.filter { it.id != DeckPanel.GAMEPAD.layout }
         assertEquals(InputStockLayouts.layouts().filter { it.id != DeckPanel.GAMEPAD.layout }.map { it.elements },
             others.filter { l -> InputStockLayouts.layouts().any { it.id == l.id } }.map { it.elements })
+    }
+
+    private val kits = listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM, SessionPrefs.CONTROLLER_XBOX360,
+        SessionPrefs.CONTROLLER_DS4, SessionPrefs.CONTROLLER_DUALSENSE)
+
+    private fun List<InputSurfaceElement>.at(control: InputControl) = single { it.id == "legacy:${control.id}" }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun everyKitPutsTriggersBesideTheirBumpers() {
+        for (kit in kits) {
+            SessionPrefs.setSteamController(context, kit)
+            val placed = OnScreenLayout.elements(context, gamepad(), 1600, 900, Rect(), rearButtons = true, trackpads = true)
+            val lt = placed.at(InputControl.LT); val lb = placed.at(InputControl.LB)
+            val rb = placed.at(InputControl.RB); val rt = placed.at(InputControl.RT)
+            for ((outer, inner) in listOf(lt to lb, rt to rb)) assertEquals(kit, outer.y + outer.height / 2f, inner.y + inner.height / 2f, .001f)
+            assertTrue(kit, lt.x + lt.width <= lb.x)
+            assertTrue(kit, rb.x + rb.width <= rt.x)
+            assertInside(placed, 1600, 900)
+        }
+    }
+
+    @Test @Config(qualifiers = "w1280dp-h800dp-land-mdpi")
+    fun tabletOverlaysStayInTheLowerHalfOfTheScreen() {
+        for (kit in kits) {
+            SessionPrefs.setSteamController(context, kit)
+            val placed = OnScreenLayout.elements(context, gamepad(), 1280, 800, Rect(), rearButtons = true, trackpads = true)
+            for (e in placed) assertTrue("$kit ${e.id}", e.y >= .45f)
+            assertInside(placed, 1280, 800)
+        }
+    }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun phoneOverlaysStillUseTheFullHeight() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val placed = OnScreenLayout.elements(context, gamepad(), 1600, 900, Rect())
+        assertTrue(placed.at(InputControl.LT).y < .15f)
+        assertTrue(placed.at(InputControl.START).let { it.y + it.height } > .9f)
+    }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun aLayoutEditedInOneOrientationKeepsTheKitInTheOther() {
+        for (kit in kits) {
+            SessionPrefs.setSteamController(context, kit)
+            val layout = gamepad()
+            val landscape = OnScreenLayout.elements(context, layout, 1600, 900, Rect())
+            val moved = landscape.map { if (it.control == InputControl.A) it.copy(x = .5f, y = .5f) else it }
+            val edited = layout.copy(elements = moved, aspect = 1600f / 900f)
+            assertEquals(kit, .5f, OnScreenLayout.elements(context, edited, 1600, 900, Rect()).at(InputControl.A).x, .001f)
+            val kitPortrait = OnScreenLayout.elements(context, layout, 900, 1600, Rect())
+            val editedPortrait = OnScreenLayout.elements(context, edited, 900, 1600, Rect())
+            for (control in listOf(InputControl.A, InputControl.LT, InputControl.RB, InputControl.LS, InputControl.UP))
+                assertEquals("$kit ${control.id}", kitPortrait.at(control), editedPortrait.at(control))
+        }
+    }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun eachOrientationKeepsItsOwnEdits() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
+        val layout = gamepad()
+        val landscape = OnScreenLayout.elements(context, layout, 1600, 900, Rect()).map { if (it.control == InputControl.A) it.copy(x = .5f, y = .5f) else it }
+        val edited = OnScreenLayout.withFrame(context, layout, landscape, 1600f / 900f)
+        val portrait = OnScreenLayout.elements(context, edited, 900, 1600, Rect()).map { if (it.control == InputControl.B) it.copy(x = .1f, y = .2f) else it }
+        val both = OnScreenLayout.withFrame(context, edited, portrait, 900f / 1600f)
+        assertEquals(landscape.map { it.id to floatArrayOf(it.x, it.y).toList() }, both.elements.map { it.id to floatArrayOf(it.x, it.y).toList() })
+        val wide = OnScreenLayout.elements(context, both, 1600, 900, Rect())
+        val tall = OnScreenLayout.elements(context, both, 900, 1600, Rect())
+        assertEquals(.5f, wide.at(InputControl.A).x, .001f)
+        assertEquals(.1f, tall.at(InputControl.B).x, .001f)
+        assertEquals(.2f, tall.at(InputControl.B).y, .001f)
+        val renamed = OnScreenLayout.withFrame(context, both, both.elements.map { if (it.control == InputControl.A) it.copy(name = "Jump") else it }, both.aspect)
+        assertEquals("Jump", OnScreenLayout.elements(context, renamed, 900, 1600, Rect()).at(InputControl.A).name)
+        assertEquals(.1f, OnScreenLayout.elements(context, renamed, 900, 1600, Rect()).at(InputControl.B).x, .001f)
+        val library = InputLibraries.read(context).withLayout(both)
+        assertEquals(both, InputLibraries.decode(InputLibraries.encode(library))!!.layouts.first { it.id == both.id })
+    }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun aRemovedRearButtonStaysRemovedWhileTheOthersRemain() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad()
+        val displayed = OnScreenLayout.elements(context, layout, 1600, 900, Rect(), rearButtons = true, trackpads = true)
+        val frozen = OnScreenLayout.editorFrame(layout, displayed).filterNot { it.control == InputControl.L4 || it.control == InputControl.LEFT_PAD }
+        val edited = layout.copy(elements = frozen, aspect = 1600f / 900f)
+        for ((w, h) in listOf(1600 to 900, 900 to 1600)) {
+            val placed = OnScreenLayout.elements(context, edited, w, h, Rect(), rearButtons = true, trackpads = true).map { it.control }
+            assertFalse(InputControl.L4 in placed)
+            assertFalse(InputControl.LEFT_PAD in placed)
+            assertTrue(InputControl.R5 in placed)
+            assertTrue(InputControl.RIGHT_PAD in placed)
+        }
+        val hidden = OnScreenLayout.elements(context, edited, 1600, 900, Rect(), rearButtons = false, trackpads = false).map { it.control }
+        assertFalse(InputControl.R5 in hidden)
+        assertFalse(InputControl.RIGHT_PAD in hidden)
     }
 }

@@ -66,6 +66,7 @@ private data class SurfaceSnapshot(val elements: List<InputSurfaceElement>, val 
 private class GamepadScaler(private val context: android.content.Context, private val width: Int, private val height: Int) {
     private fun generator(scale: Float) = LegacyGamepadLayout(context, width, height, scale = scale)
     val ids = generator(1f).elements().map { it.id }.toSet()
+    fun stock(scale: Float) = generator(scale).elements()
     fun rescale(stored: List<InputSurfaceElement>, from: Float, to: Float) = generator(to).rescale(stored, generator(from))
     fun reset(stored: List<InputSurfaceElement>) = generator(1f).regenerate(stored).associateBy { it.id }.let { placed -> stored.map { placed[it.id] ?: it } }
 }
@@ -78,13 +79,14 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var clicks by mutableStateOf(preset.clicks)
     var selected by mutableStateOf<String?>(null)
     var toolsExpanded by mutableStateOf(false)
-    var toolsX by mutableFloatStateOf(.02f)
+    var toolsX by mutableFloatStateOf(-1f)
     var toolsY by mutableFloatStateOf(.02f)
     var snap by mutableStateOf(snap)
     var adding by mutableStateOf(false)
     var properties by mutableStateOf(false)
     var clickProperties by mutableStateOf(false)
     var history by mutableStateOf<List<SurfaceSnapshot>>(emptyList())
+    var canvas by mutableStateOf(IntSize.Zero)
     var layoutScale by mutableFloatStateOf(layout.scale)
     var aspect by mutableFloatStateOf(layout.aspect)
     private var scaleBase by mutableStateOf<Triple<List<InputSurfaceElement>, List<InputSurfaceElement>, Float>?>(null)
@@ -102,12 +104,13 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         if (from <= 0f || aspect <= 0f || abs(from / aspect - 1f) < .01f) return placed
         return OnScreenLayout.fit(placed, from, 1f, (aspect * 1000).roundToInt().coerceAtLeast(1), 1000, Rect())
     }
-    val element get() = elements.firstOrNull { it.id == selected }
+    val element get() = elements.firstOrNull { it.id == selected } ?: shown.firstOrNull { it.id == selected }
     val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale || aspect != layout.aspect
     fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale, aspect)).takeLast(40) }
     fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; aspect = it.aspect; history = history.dropLast(1) } }
     fun beginEdit(displayed: List<InputSurfaceElement>, aspect: Float, scaler: GamepadScaler? = gamepad) {
         checkpoint()
+        toolsExpanded = false
         elements = OnScreenLayout.editorFrame(layout.copy(elements = elements), displayed)
         this.aspect = aspect
         scaler?.let { gamepad = it }
@@ -123,6 +126,42 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         } else base.first.scaled(factor)
         scaleValue = percent; scaleBase = Triple(base.first, elements, base.third)
     }
+    var shown by mutableStateOf<List<InputSurfaceElement>>(emptyList())
+    private val canvasAspect get() = canvas.width.toFloat() / canvas.height.coerceAtLeast(1)
+
+    private fun stored(id: String): Boolean {
+        if (elements.any { it.id == id }) return true
+        if (shown.none { it.id == id }) return false
+        beginEdit(shown, canvasAspect)
+        return true
+    }
+
+    fun missing(context: android.content.Context): List<InputSurfaceElement> {
+        val pad = gamepad ?: return emptyList()
+        if (canvas.width <= 0 || canvas.height <= 0) return emptyList()
+        val ids = shown.map { it.id }.toSet()
+        return OnScreenLayout.editorElements(context, layout.copy(elements = pad.stock(layoutScale), aspect = 0f, rotated = emptyList()),
+            canvas.width, canvas.height).filter { it.id !in ids }
+    }
+
+    fun restore(context: android.content.Context, element: InputSurfaceElement) {
+        val legacy = gamepad?.stock(layoutScale)?.firstOrNull { it.id == element.id }
+        val generated = OnScreenLayout.generatedSize(context, layout.copy(elements = elements), canvas.width, canvas.height) != null
+        if (generated && legacy != null) { checkpoint(); elements = elements + legacy }
+        else { beginEdit(shown, canvasAspect); elements = elements + element }
+        selected = element.id
+    }
+
+    fun remove(id: String) {
+        if (elements.any { it.id == id }) checkpoint() else stored(id)
+        elements = elements.filterNot { it.id == id }; actions = actions - id; clicks = clicks - id; selected = null
+    }
+
+    fun update(element: InputSurfaceElement) {
+        stored(element.id)
+        elements = elements.map { if (it.id == element.id) element else it }
+    }
+
     fun resetPositions() { positioned?.let { checkpoint(); elements = it; if (rescales) layoutScale = 1f } }
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
@@ -166,7 +205,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             InputLibraries.update(context) { latest ->
                 val l = latest.layouts.first { it.id == savedLayout.id }
                 val p = latest.preset(savedBindings.id)
-                latest.withLayout(l.copy(elements = draft.elements, aspect = draft.aspect, scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
+                latest.withLayout(OnScreenLayout.withFrame(context, l, draft.elements, draft.aspect).copy(scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
                     clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
             }
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
@@ -225,7 +264,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
                             else "${library.profile(profile).name} · ${roleLabel(role)}", onSave = { action ->
                             draft.checkpoint()
                             if (draft.clickProperties) draft.clicks = draft.clicks + (element.id to action) else draft.actions = draft.actions + (element.id to action)
-                            draft.elements = draft.elements.map { if (it.id == element.id) properties.copy(name = properties.name.trim().ifBlank { element.name }) else it }
+                            draft.update(properties.copy(name = properties.name.trim().ifBlank { element.name }))
                             draft.properties = false
                         })
                 }
@@ -245,7 +284,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             }
         }
     }
-    if (draft.adding) AlertDialog(onDismissRequest = { draft.adding = false }, title = { Text(stringResource(R.string.input_add_element)) }, confirmButton = {}, text = { Column {
+    if (draft.adding) AlertDialog(onDismissRequest = { draft.adding = false }, title = { Text(stringResource(R.string.input_add_element)) }, confirmButton = {}, text = { Column(Modifier.verticalScroll(rememberScrollState())) {
         for (kind in InputElementKind.entries) PadTextButton(onClick = { draft.checkpoint()
             val w = if (kind.control.dimensions == 2) .4f else .2f
             val h = .3f
@@ -253,6 +292,11 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             val element = InputSurfaceElement(kind.control, (1f - w) / 2, (1f - h) / 2, w, h, newInputId(), kind, name)
             draft.elements = draft.elements + element; draft.selected = element.id
             draft.adding = false; draft.toolsExpanded = false }) { Text(stringResource(kind.label())) }
+        val missing = remember(draft.elements, draft.canvas) { draft.missing(context) }
+        if (missing.isNotEmpty()) HorizontalDivider()
+        for (element in missing) PadTextButton(onClick = { draft.restore(context, element); draft.adding = false; draft.toolsExpanded = false }) {
+            Text(PadKit.forOverlay(context, savedLayout)?.name(element.control)?.takeIf { element.name == element.control.label } ?: element.name)
+        }
     } })
     if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text(stringResource(R.string.input_editor_discard)) },
         confirmButton = { PadTextButton(onClick = onDismiss) { Text(stringResource(R.string.common_ok)) } },
@@ -270,6 +314,8 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false) {
             view.isEnabled = !draft.properties && !draft.adding
             view.onSelect = { if (!draft.properties) draft.selected = it }
             view.onBeginEdit = { e, w, h -> draft.beginEdit(e, w.toFloat() / h, if (draft.hasGamepad) GamepadScaler(view.context, w, h) else null) }
+            view.onResize = { w, h -> draft.canvas = IntSize(w, h) }
+            view.onDisplayed = { draft.shown = it }
             view.onChange = { e -> if (!draft.properties) draft.elements = draft.elements.map { if (it.id == e.id) e else it } }
 
         })
@@ -283,7 +329,8 @@ private fun FloatingSurfaceTools(draft: SurfaceDraft, onSave: () -> Unit, onLeav
         val screenHeight = with(density) { maxHeight.toPx() }
         val margin = with(density) { 8.dp.toPx() }
         var panelSize by remember { mutableStateOf(IntSize.Zero) }
-        val x = (draft.toolsX * screenWidth).coerceIn(margin, (screenWidth - panelSize.width - margin).coerceAtLeast(margin))
+        val x = (if (draft.toolsX < 0f) (screenWidth - panelSize.width) / 2f else draft.toolsX * screenWidth)
+            .coerceIn(margin, (screenWidth - panelSize.width - margin).coerceAtLeast(margin))
         val y = (draft.toolsY * screenHeight).coerceIn(margin, (screenHeight - panelSize.height - margin).coerceAtLeast(margin))
         val position by rememberUpdatedState(Offset(x, y))
         val expandedWidth = minOf(420.dp, maxWidth - 16.dp)
@@ -352,9 +399,7 @@ private fun SurfaceSelection(draft: SurfaceDraft) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 PrimaryButton(stringResource(R.string.input_properties), compact = true) { draft.clickProperties = false; draft.properties = true }
                 if (e.hasClick) SecondaryButton(stringResource(R.string.input_click_properties), compact = true) { draft.clickProperties = true; draft.properties = true }
-                SecondaryButton(stringResource(R.string.input_remove_element), compact = true) {
-                    draft.checkpoint(); draft.elements = draft.elements.filterNot { it.id == e.id }; draft.actions = draft.actions - e.id; draft.clicks = draft.clicks - e.id; draft.selected = null
-                }
+                SecondaryButton(stringResource(R.string.input_remove_element), compact = true) { draft.remove(e.id) }
             }
         } ?: Text(stringResource(R.string.input_editor_hint))
     }

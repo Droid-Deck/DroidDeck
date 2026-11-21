@@ -31,7 +31,7 @@ internal class ControllerOverlayGeometry(
 
     private fun x(ref: Float) = anchor(ref, 1600f, w, safe.left, safe.right)
 
-    private fun y(ref: Float) = anchor(ref, 900f, h, safe.top, safe.bottom)
+    private fun y(ref: Float) = max(safe.top + ref * unit, h - safe.bottom - (900f - ref) * unit)
 
     fun place(elements: List<InputSurfaceElement>, kit: PadKit, rearButtons: Boolean, trackpads: Boolean): List<InputSurfaceElement> {
         if (!kit.steam) return placeStandardPad(elements, kit)
@@ -75,8 +75,9 @@ internal class ControllerOverlayGeometry(
                 else -> positions[element.control]?.place(element) ?: element
             }
         }
+        val chosen = placed.filter { it.id == "legacy:${it.control.id}" }.map { it.control }
         return placed + optional.mapNotNull { (control, box) ->
-            if (placed.any { it.id == "legacy:${control.id}" }) null else box.place(InputSurfaceElement(control,
+            if (chosen.any { if (control in rear) it in rear else it in pads }) null else box.place(InputSurfaceElement(control,
                 0f, 0f, 0f, 0f, floating = false, buttonShape = InputButtonShape.PILL, showLabel = !control.isTrackpad))
         }
     }
@@ -123,10 +124,10 @@ internal class ControllerOverlayGeometry(
     }
 
     private fun shoulders() = mapOf(
-        InputControl.LT to Box(x(140f), y(66f), 88f, 34f),
-        InputControl.LB to Box(x(140f), y(148f), 88f, 30f),
-        InputControl.RT to Box(x(1460f), y(66f), 88f, 34f),
-        InputControl.RB to Box(x(1460f), y(148f), 88f, 30f),
+        InputControl.LT to Box(x(120f), y(96f), 80f, 34f),
+        InputControl.LB to Box(x(310f), y(96f), 80f, 34f),
+        InputControl.RB to Box(x(1290f), y(96f), 80f, 34f),
+        InputControl.RT to Box(x(1480f), y(96f), 80f, 34f),
     )
 
     private fun face(cx: Float, cy: Float, offset: Float) = mapOf(

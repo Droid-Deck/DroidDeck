@@ -5514,6 +5514,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             .takeIf { it.isFile }
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this, SessionState.mode == SessionService.MODE_STEAM)
+        unfoldedColumn?.let { column ->
+            val shown = if (inputSettingsOpen) View.INVISIBLE else View.VISIBLE
+            if (column.visibility != shown) { unfoldedPanel?.releaseAll(); unfoldedDeckSurface?.releaseInputs(); column.visibility = shown }
+        }
         val controls = onScreenControls ?: return
         fun showPinned() {
             controls.setPinnedOnly(true)

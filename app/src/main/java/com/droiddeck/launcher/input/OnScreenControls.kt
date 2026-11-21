@@ -14,9 +14,6 @@ import android.view.View
 import android.view.WindowInsets
 import android.widget.FrameLayout
 import com.droiddeck.launcher.ui.InputSurfaceView
-import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SessionService
-import com.droiddeck.launcher.session.SessionState
 
 class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayout.Dock? = null) : FrameLayout(context) {
     private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY, haptics = dock != null)
@@ -75,15 +72,15 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         render()
     }
 
-    private data class Placement(val layout: SavedInputLayout?, val width: Int, val height: Int, val safe: Rect, val buttonsOnly: Boolean)
+    private data class Placement(val layout: SavedInputLayout?, val width: Int, val height: Int, val safe: Rect, val buttonsOnly: Boolean,
+        val kit: PadKit?, val optional: Pair<Boolean?, Boolean?>)
 
     private fun placed(): List<InputSurfaceElement> {
-        val key = Placement(layout, viewWidth, viewHeight, Rect(safe), isButtonsOnly)
+        val optional = OnScreenLayout.optionalControls(context)
+        val key = Placement(layout, viewWidth, viewHeight, Rect(safe), isButtonsOnly, PadKit.forOverlay(context, layout), optional)
         return placements.getOrPut(key) {
-            val steam = SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad
             OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, isButtonsOnly, dock,
-                rearButtons = SessionPrefs.oscRearButtons(context).takeIf { steam },
-                trackpads = SessionPrefs.oscTrackpads(context).takeIf { steam })
+                rearButtons = optional.first, trackpads = optional.second)
         }
     }
 
@@ -136,7 +133,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
             params.bottomMargin = bottom
             quickToggle.layoutParams = params
         }
-        val fresh = Rect(cutout?.safeInsetLeft ?: 0, if (dock == null) cutout?.safeInsetTop ?: 0 else 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
+        val fresh = OnScreenLayout.safeInsets(insets, dock != null)
         if (fresh != safe) {
             safe.set(fresh)
             render()

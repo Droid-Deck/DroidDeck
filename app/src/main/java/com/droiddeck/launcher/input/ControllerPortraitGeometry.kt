@@ -22,15 +22,15 @@ internal class ControllerPortraitGeometry(
         val rear = presented.filter { it.control in REAR && isStock(it) }
         val pads = presented.filter { it.control.isTrackpad && isStock(it) }
         if (!docked && kit.steam) {
-            if (rearButtons) REAR.forEach { addOptional(presented, it) } else presented.removeAll(rear)
-            if (trackpads) {
+            if (!rearButtons) presented.removeAll(rear) else if (rear.isEmpty()) REAR.forEach { addOptional(presented, it) }
+            if (!trackpads) presented.removeAll(pads) else if (pads.isEmpty()) {
                 addOptional(presented, InputControl.LEFT_PAD)
                 addOptional(presented, InputControl.RIGHT_PAD)
-            } else presented.removeAll(pads)
+            }
         }
         fun put(control: InputControl, box: Box) { buttons["legacy:${control.id}"] = box }
         val reserve = if (docked) 0f else min(60f * density, h * .15f)
-        val panel = if (docked) h else min(min(h * .60f, w * 1.15f) * scale, h - reserve)
+        val panel = if (docked) h else min(minOf(h * .60f, w * 1.15f, PANEL_DP * density) * scale, h - reserve)
         val top = height - safe.bottom - reserve - panel
         val unit = min(density, min(w / 275f, panel / 300f))
         val pad = 8f * unit
@@ -121,6 +121,7 @@ internal class ControllerPortraitGeometry(
 
     private companion object {
         const val KEYBOARD = "builtin:keyboard"
+        const val PANEL_DP = 504f
         val REAR = listOf(InputControl.L4, InputControl.L5, InputControl.R5, InputControl.R4)
     }
 }
