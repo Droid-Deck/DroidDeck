@@ -27,14 +27,25 @@ class WebhelperLayoutTest(unittest.TestCase):
 
     def test_angle_on_vulkan_brings_chromiums_vulkan_compositing(self):
         self.assertEqual(self.layout(DD_VKBRIDGE_CEF_ANGLE="vulkan"),
-                         "--use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan")
+                         "--no-zygote --use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan")
 
     def test_vulkan_compositing_can_be_left_off(self):
         self.assertEqual(self.layout(DD_VKBRIDGE_CEF_ANGLE="vulkan", DD_VKBRIDGE_CEF_VULKAN="0"),
-                         "--use-gl=angle --use-angle=vulkan")
+                         "--no-zygote --use-gl=angle --use-angle=vulkan")
 
     def test_other_angle_backends_get_only_the_angle_switches(self):
-        self.assertEqual(self.layout(DD_VKBRIDGE_CEF_ANGLE="gl"), "--use-gl=angle --use-angle=gl")
+        self.assertEqual(self.layout(DD_VKBRIDGE_CEF_ANGLE="gl"), "--no-zygote --use-gl=angle --use-angle=gl")
+
+    def test_angle_layouts_start_children_without_the_zygote(self):
+        for settings in ({"DD_VKBRIDGE_CEF_ANGLE": "vulkan"}, {"DD_VKBRIDGE_CEF_ANGLE": "vulkan", "DD_VKBRIDGE_CEF_VULKAN": "0"},
+                         {"DD_VKBRIDGE_CEF_ANGLE": "gl"}):
+            out = self.layout(**settings).split()
+            self.assertEqual(out[0], "--no-zygote")
+            self.assertNotIn("--in-process-gpu", out)
+
+    def test_explicit_layout_and_stock_keep_the_zygote(self):
+        self.assertNotIn("--no-zygote", self.layout(DD_VKBRIDGE_CEF_ANGLE="vulkan", DD_VKBRIDGE_WEBHELPER_ARGS="--x"))
+        self.assertEqual(self.layout(DD_VKBRIDGE_CEF_ANGLE=""), "stock")
 
     def test_explicit_layout_wins(self):
         self.assertEqual(self.layout(DD_VKBRIDGE_CEF_ANGLE="vulkan", DD_VKBRIDGE_WEBHELPER_ARGS="--x +Y"),
@@ -57,10 +68,10 @@ class WebhelperLayoutTest(unittest.TestCase):
         env = {k: v for k, v in os.environ.items() if k not in KEYS}
         run = lambda **s: subprocess.run(["bash", "-c", "set -u\n" + script], env={**env, **s},
                                          capture_output=True, text=True, check=True).stdout.strip()
-        self.assertEqual(run(), "--use-gl=angle --use-angle=vulkan")
+        self.assertEqual(run(), "--no-zygote --use-gl=angle --use-angle=vulkan")
         self.assertEqual(run(DD_VKBRIDGE_CEF_VULKAN="1"),
-                         "--use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan")
-        self.assertEqual(run(DD_VKBRIDGE_CEF_ANGLE="gl"), "--use-gl=angle --use-angle=gl")
+                         "--no-zygote --use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan")
+        self.assertEqual(run(DD_VKBRIDGE_CEF_ANGLE="gl"), "--no-zygote --use-gl=angle --use-angle=gl")
 
     def test_empty_settings_are_kept_as_set(self):
         script = ': "${DD_VKBRIDGE_CEF_ANGLE=vulkan}" "${DD_VKBRIDGE_CEF_VULKAN=0}"\n' + layout_function() + "dd_webhelper_layout\n"
@@ -69,7 +80,7 @@ class WebhelperLayoutTest(unittest.TestCase):
                                          capture_output=True, text=True, check=True).stdout.strip()
         self.assertEqual(run(DD_VKBRIDGE_CEF_ANGLE=""), "stock")
         self.assertEqual(run(DD_VKBRIDGE_CEF_VULKAN=""),
-                         "--use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan")
+                         "--no-zygote --use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan")
 
 
 if __name__ == "__main__":
