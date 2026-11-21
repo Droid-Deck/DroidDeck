@@ -109,6 +109,8 @@ class ProtonRunOptionsTest(Temp):
         self.write("Steam/compatibilitytools.d/droiddeck-proton-arm64/toolmanifest.vdf",
                    '"manifest"\n{\n  "commandline" "/droiddeck-proton %verb%"\n}\n')
         self.write("Steam/compatibilitytools.d/droiddeck-proton-arm64/droiddeck-proton", b"#!/bin/sh\n", 0o755)
+        self.write("Steam/steamapps/common/Proton Experimental (ARM64)/proton", b"#!/bin/sh\n", 0o755)
+        self.write("Steam/steamapps/common/Proton Experimental (ARM64)/files/bin-arm64/wine", b"#!/bin/sh\n", 0o755)
         self.entry = str(folder / "droiddeck-proton")
         patcher = mock.patch.dict(RUN, {"EXTRA_LIBRARIES": (), "SYSTEM_TOOLS": (), "STATE": str(self.tmp / "state.json"),
                                         "say": lambda message: None})
