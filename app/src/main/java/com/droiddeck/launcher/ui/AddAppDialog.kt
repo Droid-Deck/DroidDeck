@@ -358,7 +358,7 @@ internal fun AppDialog(
                         .then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier)
                         .padding(horizontal = 18.dp, vertical = 16.dp),
                 ) {
-                    content()
+                    androidx.compose.runtime.CompositionLocalProvider(LocalRevealChecked provides true) { content() }
                     if (side != null && !beside) side()
                 }
             }
