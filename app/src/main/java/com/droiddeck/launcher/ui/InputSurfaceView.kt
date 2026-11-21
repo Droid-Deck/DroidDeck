@@ -156,14 +156,15 @@ class InputSurfaceView(
         val ay = originY(a) + a.height / 2f
         val bx = originX(b) + b.width / 2f
         val by = originY(b) + b.height / 2f
-        val half = hypot(bx - ax, by - ay) / 2f
-        if (half <= 0f) return false
+        val spacing = hypot(bx - ax, by - ay)
+        if (spacing <= 0f) return false
         val ra = extent(a, bx - ax, by - ay)
         val rb = extent(b, ax - bx, ay - by)
         val da = hypot(x - ax, y - ay)
         val db = hypot(x - bx, y - by)
-        return da <= ra * COMBO_REACH && db <= rb * COMBO_REACH && abs(da - db) <= min(ra, rb) * COMBO_BAND &&
-            hypot(x - (ax + bx) / 2f, y - (ay + by) / 2f) <= half * COMBO_GAP
+        val gap = (spacing + ra - rb) / 2f / spacing
+        return da <= ra * COMBO_REACH && db <= rb * COMBO_REACH && abs(da - ra - (db - rb)) <= min(ra, rb) * COMBO_BAND &&
+            hypot(x - ax - (bx - ax) * gap, y - ay - (by - ay) * gap) <= spacing / 2f * COMBO_GAP
     }
 
     private fun extent(view: View, dx: Float, dy: Float): Float {

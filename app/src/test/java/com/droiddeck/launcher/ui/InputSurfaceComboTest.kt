@@ -226,13 +226,15 @@ class InputSurfaceComboTest {
     }
 
     @Test fun longButtonsPlacedEdgeToEdgePairAtTheSharedEdge() {
-        relayout(InputSurfaceElement(InputControl.A, .3f, .5f, .2f, .1f), InputSurfaceElement(InputControl.B, .5f, .5f, .2f, .1f))
-        press(1, 500f to 330f)
-        assertEquals("A B", held())
-        lift(1)
-        press(1, 650f to 330f)
-        assertEquals("B", held())
-        lift(1)
+        for ((aLeft, aWidth, bWidth) in listOf(Triple(.3f, .2f, .2f), Triple(.1f, .4f, .1f))) {
+            relayout(InputSurfaceElement(InputControl.A, aLeft, .5f, aWidth, .1f), InputSurfaceElement(InputControl.B, .5f, .5f, bWidth, .1f))
+            press(1, 500f to 330f)
+            assertEquals("A B", held())
+            lift(1)
+            press(1, 500f + bWidth * 800f to 330f)
+            assertEquals("B", held())
+            lift(1)
+        }
     }
 
     private fun relayout(vararg elements: InputSurfaceElement) {
