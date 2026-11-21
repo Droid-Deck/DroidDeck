@@ -183,6 +183,7 @@ static unsigned long zr_page;
 static unsigned zr_requests;
 static int zr_stack_busy;
 static int zr_tid;
+static long zr_filters;
 static char *zr_stack;
 static char zr_maps[8192];
 static uint64_t zr_entries[ZR_BATCH];
@@ -479,7 +480,36 @@ static void *zr_tls(void *desc) {
 #endif
 }
 
+static long zr_field(const char *text, const char *key) {
+  for (const char *line = text; *line; line++) {
+    if ((line == text || line[-1] == '\n') && zr_prefix(line, key)) {
+      long value = 0;
+      for (const char *k = key; *k; k++) line++;
+      while (*line == ' ' || *line == '\t') line++;
+      for (; *line >= '0' && *line <= '9'; line++) value = value * 10 + (*line - '0');
+      return value;
+    }
+  }
+  return -1;
+}
+
+static int zr_status(long *threads, long *filters) {
+  int fd = zr_open("/proc/self/status");
+  if (fd < 0) return 0;
+  long have = 0, n;
+  while (have < (long)sizeof(zr_maps) - 1 &&
+         ((n = zr_sys(SYS_read, fd, zr_maps + have, sizeof(zr_maps) - 1 - (size_t)have)) > 0 || n == -EINTR))
+    if (n > 0) have += n;
+  zr_sys(SYS_close, fd);
+  zr_maps[have] = 0;
+  *threads = zr_field(zr_maps, "Threads:");
+  *filters = zr_field(zr_maps, "Seccomp_filters:");
+  return have > 0;
+}
+
 static int zr_start(void) {
+  long threads, filters;
+  if (!zr_status(&threads, &filters) || threads < 2 || filters > zr_filters) return 0;
   if (zr_stack == NULL) {
     long base = zr_sys(ZR_MMAP, 0, ZR_STACK, PROT_READ | PROT_WRITE,
                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK | MAP_NORESERVE, -1, 0);
@@ -523,6 +553,8 @@ __attribute__((constructor)) static void zr_init(void) {
   zr_sys(SYS_close, fd);
   long page = sysconf(_SC_PAGESIZE);
   zr_page = page > 0 ? (unsigned long)page : 4096UL;
+  long threads;
+  if (!zr_status(&threads, &zr_filters)) zr_filters = -1;
   struct sigaction old;
   if (sigaction(SIGURG, NULL, &old) != 0) return;
   if ((old.sa_flags & SA_SIGINFO) || old.sa_handler != SIG_DFL) return;

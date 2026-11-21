@@ -19,6 +19,10 @@ PROGRAM = r"""
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <sched.h>
+#include <stddef.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
@@ -144,6 +148,33 @@ static void without_threads(void) {
   if (setrlimit(RLIMIT_NPROC, &limit)) _exit(15);
 }
 
+static void *park(void *arg) {
+  (void)arg;
+  for (;;) pause();
+  return NULL;
+}
+
+static void parked(void) {
+  pthread_t thread;
+  if (pthread_create(&thread, NULL, park, NULL)) _exit(16);
+}
+
+static void filter_clone(unsigned long allowed) {
+  struct sock_filter rules[] = {
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SYS_clone, 0, 3),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, allowed, 1, 0),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+  };
+  struct sock_fprog program = {sizeof(rules) / sizeof(rules[0]), rules};
+  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) || prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &program)) _exit(17);
+}
+
+static const unsigned long thread_clone = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD |
+                                          CLONE_SYSVSEM | CLONE_SETTLS | CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID;
+
 static uint64_t sum(const unsigned char *p, size_t n) {
   uint64_t s = 0;
   for (size_t i = 0; i < n; i += 64) s = s * 31 + p[i];
@@ -176,6 +207,7 @@ int main(int argc, char **argv) {
   memset(shared, 0, size);
   pthread_t t[2];
   for (uintptr_t i = 0; i < 2; i++) pthread_create(&t[i], NULL, writer, (void *)i);
+  parked();
   struct sigaction sa;
   sigaction(SIGURG, NULL, &sa);
   printf("handler %d\n", (sa.sa_flags & SA_SIGINFO) ? 1 : 0);
@@ -217,9 +249,9 @@ int main(int argc, char **argv) {
     } else if (!strcmp(argv[4], "threads")) {
       stop = 1;
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
-      printf("idle %d\n", tasks());
+      printf("idle %d\n", tasks() - 2);
       request('1');
-      printf("after %d\n", tasks());
+      printf("after %d\n", tasks() - 2);
       return 0;
     } else if (!strcmp(argv[4], "trim")) {
       stop = 1;
@@ -287,14 +319,40 @@ int main(int argc, char **argv) {
       pid_t child = fork();
       if (child < 0) exit(6);
       if (child == 0) {
-        without_threads();
         for (size_t i = 0; i < size; i += page) data[i]++;
         printf("inline_trim %ld\n", trim('2', 1L << 30));
         fflush(stdout);
         _exit(0);
       }
       waitpid(child, NULL, 0);
+      child = fork();
+      if (child < 0) exit(6);
+      if (child == 0) {
+        parked();
+        without_threads();
+        for (size_t i = 0; i < size; i += page) data[i]++;
+        printf("nothread_trim %ld\n", trim('2', 1L << 30));
+        fflush(stdout);
+        _exit(0);
+      }
+      waitpid(child, NULL, 0);
       printf("worker_trim %ld\n", trim('2', 1L << 30));
+      return 0;
+    } else if (!strcmp(argv[4], "sandboxed")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      filter_clone(thread_clone);
+      printf("sandboxed_trim %ld\n", trim('2', 1L << 30));
+      return 0;
+    } else if (!strcmp(argv[4], "filtered")) {
+      fflush(stdout);
+      filter_clone(thread_clone);
+      execl("/proc/self/exe", argv[0], argv[1], argv[2], "0", "filtered-trim", (char *)NULL);
+      return 18;
+    } else if (!strcmp(argv[4], "filtered-trim")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      printf("filtered_trim %ld\n", trim('2', 1L << 30));
       return 0;
     } else if (!strcmp(argv[4], "burst")) {
       send_request('0');
@@ -457,8 +515,8 @@ class ZramPreloadTest(unittest.TestCase):
 
     def test_a_process_keeps_no_extra_thread_while_nothing_is_paged_out(self):
         out = self.run_program(None, 8, 0, "threads")
-        self.assertEqual([1], out["idle"])
-        self.assertEqual([1], out["after"])
+        self.assertEqual([0], out["idle"])
+        self.assertEqual([0], out["after"])
 
     def test_process_signals_do_not_reach_zram_worker(self):
         environment = dict(os.environ, LD_PRELOAD=str(self.lib))
@@ -555,8 +613,24 @@ class ZramPreloadTest(unittest.TestCase):
         if os.geteuid() == 0:
             self.skipTest("the thread limit does not apply to root")
         out = self.run_program(None, 48, 0, "trim-fork")
+        self.assertTrue(16 * 1024 < out["nothread_trim"][0] <= 32 * 1024, out)
+        self.assertGreater(out["worker_trim"][0], 64 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_a_single_threaded_process_trims_without_starting_a_thread(self):
+        out = self.run_program(None, 48, 0, "trim-fork")
         self.assertTrue(16 * 1024 < out["inline_trim"][0] <= 32 * 1024, out)
         self.assertGreater(out["worker_trim"][0], 64 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_a_process_that_sandboxed_itself_trims_without_starting_a_thread(self):
+        out = self.run_program(None, 48, 0, "sandboxed")
+        self.assertTrue(16 * 1024 < out["sandboxed_trim"][0] <= 32 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_the_worker_passes_a_filter_that_only_allows_thread_clones(self):
+        out = self.run_program(None, 48, 0, "filtered")
+        self.assertGreater(out["filtered_trim"][0], 40 * 1024, out)
 
     def test_worker_acknowledges_back_to_back_requests(self):
         out = self.run_program(None, 48, 0, "burst")
