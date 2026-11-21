@@ -1310,8 +1310,12 @@ object SessionPrefs {
         val value = prefs(context).getString("displayResolution.portrait.$mode", null) ?: return SessionDisplay.LINK_LANDSCAPE
         if (value == SessionDisplay.LINK_LANDSCAPE || value == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(value) ||
             SessionDisplay.presetHeight(value) != null) return value
-        return parseResolution(value)?.let { "${it.first}x${it.second}" } ?: SessionDisplay.LINK_LANDSCAPE
+        return parseOrientedResolution(value)?.let { "${it.first}x${it.second}" } ?: SessionDisplay.LINK_LANDSCAPE
     }
+
+    private fun parseOrientedResolution(text: String): Pair<Int, Int>? =
+        parseResolution(text) ?: text.trim().split('x', 'X', '×', '*').takeIf { it.size == 2 }
+            ?.let { parseResolution("${it[1]}x${it[0]}") }?.let { it.second to it.first }
 
     private fun landscapeResolutionStored(context: Context, mode: String, panel: Pair<Int, Int>): String {
         val saved = prefs(context)
@@ -1332,7 +1336,7 @@ object SessionPrefs {
         val link = if (portrait) SessionDisplay.LINK_LANDSCAPE else SessionDisplay.LINK_PORTRAIT
         val value = if (choice == link || choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(choice) ||
                 SessionDisplay.presetHeight(choice) != null) choice else {
-            val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
+            val size = requireNotNull(if (portrait) parseOrientedResolution(choice) else parseResolution(choice)) { "Invalid resolution" }
             "${size.first}x${size.second}"
         }
         val panel = SessionDisplay.panelSize(context)
@@ -1982,7 +1986,7 @@ object SessionPrefs {
 
     fun displayMode(context: Context, mode: String, program: String?): String =
         if (mode == SessionService.MODE_RUN && com.droiddeck.launcher.runtime.UserApps.launches(program) &&
-            resolutionChosen(context, SessionService.MODE_DESKTOP)) SessionService.MODE_DESKTOP
+            (resolutionChosen(context, SessionService.MODE_DESKTOP) || resolutionChosen(context, SessionService.MODE_DESKTOP, true))) SessionService.MODE_DESKTOP
         else prefMode(mode)
 
     fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", true)

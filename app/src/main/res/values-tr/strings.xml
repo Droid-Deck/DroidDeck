@@ -944,7 +944,7 @@
     <string name="setup_launcher_orientation_auto">Cihaz dönüşünü izle</string>
     <string name="setup_orientation_portrait">Dikey</string>
     <string name="setup_session_orientation">Oturum yönü</string>
-    <string name="setup_session_orientation_hint">Steam, oyunlar, masaüstü ve kumanda düzenleyicisi için geçerlidir. Çözünürlük ön ayarları oturumla birlikte döner; özel genişlik ve yükseklik girildiği gibi kalır.</string>
+    <string name="setup_session_orientation_hint">Steam, oyunlar, masaüstü ve kumanda düzenleyicisi için geçerlidir. Çözünürlük ön ayarları oturumla birlikte döner; bir yön diğerini izlediğinde özel genişlik ve yükseklik eşleşmek üzere yer değiştirir.</string>
     <string name="setup_orientation_auto">Otomatik yatay</string>
     <string name="setup_orientation_landscape">Yatay</string>
     <string name="setup_orientation_reverse">Ters yatay</string>

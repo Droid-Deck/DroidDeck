@@ -2956,16 +2956,28 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         WaylandCompositor.nativeResizeOutput(size.first, size.second)
     }
 
+    private fun followPortrait(): Boolean {
+        if (glassesScreen != null) return false
+        if (::sessionRoot.isInitialized && sessionRoot.width > 0) return portraitOutput()
+        val portraitWindow = SessionPrefs.portrait(this)
+        val panel = com.droiddeck.launcher.session.SessionDisplay.panelSize(this)
+        val long = maxOf(panel.first, panel.second)
+        val short = minOf(panel.first, panel.second)
+        val below = SessionPrefs.controlsBelowWanted(this, intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM,
+            if (portraitWindow) short else long, if (portraitWindow) long else short)
+        return portraitWindow && !below
+    }
+
     private fun followScale(): Float {
         val mode = displayMode()
-        val choice = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), portraitOutput())
+        val choice = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait())
         return com.droiddeck.launcher.session.SessionDisplay.followScale(choice) ?: 1f
     }
 
     private fun followChoice(): Boolean {
         val mode = displayMode()
         return com.droiddeck.launcher.session.SessionDisplay.isFollow(
-            SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), portraitOutput()))
+            SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait()))
     }
 
     private fun applyFollowOrientation(config: android.content.res.Configuration) {

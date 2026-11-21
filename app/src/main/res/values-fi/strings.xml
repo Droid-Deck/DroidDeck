@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">Seuraa laitteen kiertoa</string>
     <string name="setup_orientation_portrait">Pystysuunta</string>
     <string name="setup_session_orientation">Istunnon suunta</string>
-    <string name="setup_session_orientation_hint">Koskee Steamia, pelejä, työpöytää ja ohjainmuokkainta. Resoluution esiasetukset kääntyvät istunnon mukana; mukautettu leveys ja korkeus pysyvät syötetyn mukaisina.</string>
+    <string name="setup_session_orientation_hint">Koskee Steamia, pelejä, työpöytää ja ohjainmuokkainta. Resoluution esiasetukset kääntyvät istunnon mukana; kun toinen suunta seuraa toista, mukautettu leveys ja korkeus vaihtavat paikkaa vastaamaan toisiaan.</string>
     <string name="setup_orientation_auto">Automaattinen vaakasuunta</string>
     <string name="setup_orientation_landscape">Vaakasuunta</string>
     <string name="setup_orientation_reverse">Käänteinen vaakasuunta</string>

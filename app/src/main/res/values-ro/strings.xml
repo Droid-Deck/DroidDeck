@@ -955,7 +955,7 @@
     <string name="setup_launcher_orientation_auto">Urmează rotirea dispozitivului</string>
     <string name="setup_orientation_portrait">Portret</string>
     <string name="setup_session_orientation">Orientarea sesiunii</string>
-    <string name="setup_session_orientation_hint">Se aplică pentru Steam, jocuri, desktop și editorul de controller. Presetările de rezoluție se rotesc odată cu sesiunea; lățimea și înălțimea personalizate rămân cum au fost introduse.</string>
+    <string name="setup_session_orientation_hint">Se aplică pentru Steam, jocuri, desktop și editorul de controller. Presetările de rezoluție se rotesc odată cu sesiunea; când o orientare o urmează pe cealaltă, lățimea și înălțimea personalizate se inversează pentru a se potrivi.</string>
     <string name="setup_orientation_auto">Peisaj automat</string>
     <string name="setup_orientation_landscape">Peisaj</string>
     <string name="setup_orientation_reverse">Peisaj inversat</string>

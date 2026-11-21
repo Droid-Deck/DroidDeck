@@ -12,7 +12,7 @@ import com.droiddeck.launcher.session.SessionDisplay
 
 @Composable
 fun ResolutionRow(
-    host: MenuHost, id: String, title: String, stored: String, choice: String, link: String,
+    host: MenuHost, id: String, title: String, stored: String, choice: String, link: String, followTarget: String,
     panel: Pair<Int, Int>, onPick: (String) -> Unit,
     chipModifier: Modifier = Modifier,
     portrait: Boolean = false,
@@ -27,8 +27,9 @@ fun ResolutionRow(
         else if (size == screen) SessionDisplay.MATCH_SCREEN else choice
     var editCustom by remember { mutableStateOf(false) }
     var editFollow by remember { mutableStateOf(false) }
+    val followSize = SessionDisplay.resolveChoice(panel, followTarget, portrait)
     val linkLabel = stringResource(if (link == SessionDisplay.LINK_LANDSCAPE) R.string.display_follow_landscape else R.string.display_follow_portrait,
-        size.first, size.second)
+        followSize.first, followSize.second)
     val options = listOf(link to linkLabel) + choices.map { value ->
         val dimensions = SessionDisplay.resolveChoice(panel, value, portrait)
         value to if (value == SessionDisplay.MATCH_SCREEN) stringResource(R.string.display_match_screen, screen.first, screen.second)

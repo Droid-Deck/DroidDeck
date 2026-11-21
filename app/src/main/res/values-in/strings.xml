@@ -949,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">Ikuti rotasi perangkat</string>
     <string name="setup_orientation_portrait">Potret</string>
     <string name="setup_session_orientation">Orientasi sesi</string>
-    <string name="setup_session_orientation_hint">Berlaku untuk Steam, gim, desktop, dan editor pengontrol. Preset resolusi ikut berputar dengan sesi; lebar dan tinggi kustom tetap seperti yang dimasukkan.</string>
+    <string name="setup_session_orientation_hint">Berlaku untuk Steam, gim, desktop, dan editor pengontrol. Preset resolusi ikut berputar dengan sesi; saat satu orientasi mengikuti yang lain, lebar dan tinggi kustom ditukar agar sesuai.</string>
     <string name="setup_orientation_auto">Lanskap otomatis</string>
     <string name="setup_orientation_landscape">Lanskap</string>
     <string name="setup_orientation_reverse">Lanskap terbalik</string>

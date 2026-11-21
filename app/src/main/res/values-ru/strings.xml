@@ -958,7 +958,7 @@
     <string name="setup_launcher_orientation_auto">Следовать повороту устройства</string>
     <string name="setup_orientation_portrait">Портретная</string>
     <string name="setup_session_orientation">Ориентация сессии</string>
-    <string name="setup_session_orientation_hint">Применяется к Steam, играм, рабочему столу и редактору контроллера. Предустановки разрешения поворачиваются вместе с сессией; свои ширина и высота остаются как введены.</string>
+    <string name="setup_session_orientation_hint">Применяется к Steam, играм, рабочему столу и редактору контроллера. Предустановки разрешения поворачиваются вместе с сессией; когда одна ориентация следует за другой, свои ширина и высота меняются местами.</string>
     <string name="setup_orientation_auto">Альбомная (авто)</string>
     <string name="setup_orientation_landscape">Альбомная</string>
     <string name="setup_orientation_reverse">Перевернутая альбомная</string>

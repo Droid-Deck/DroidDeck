@@ -949,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">기기 회전 따르기</string>
     <string name="setup_orientation_portrait">세로</string>
     <string name="setup_session_orientation">세션 방향</string>
-    <string name="setup_session_orientation_hint">Steam, 게임, 데스크톱 및 컨트롤러 편집기에 적용됩니다. 해상도 프리셋은 세션에 맞춰 회전하며, 사용자 정의 너비와 높이는 입력한 그대로 유지됩니다.</string>
+    <string name="setup_session_orientation_hint">Steam, 게임, 데스크톱 및 컨트롤러 편집기에 적용됩니다. 해상도 프리셋은 세션에 맞춰 회전하며, 한 방향이 다른 방향을 따를 때 사용자 정의 너비와 높이는 방향에 맞게 서로 바뀝니다.</string>
     <string name="setup_orientation_auto">자동 가로 모드</string>
     <string name="setup_orientation_landscape">가로 모드</string>
     <string name="setup_orientation_reverse">역방향 가로 모드</string>

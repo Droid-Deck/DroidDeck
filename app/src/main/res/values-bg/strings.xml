@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">Следва завъртането на устройството</string>
     <string name="setup_orientation_portrait">Вертикална</string>
     <string name="setup_session_orientation">Ориентация на сесията</string>
-    <string name="setup_session_orientation_hint">Прилага се за Steam, игрите, работния плот и редактора на контролера. Предварително зададените резолюции се завъртат със сесията; персонализираните ширина и височина остават както са въведени.</string>
+    <string name="setup_session_orientation_hint">Прилага се за Steam, игрите, работния плот и редактора на контролера. Предварително зададените резолюции се завъртат със сесията; когато едната ориентация следва другата, персонализираните ширина и височина се разменят, за да съвпадат.</string>
     <string name="setup_orientation_auto">Автоматичен хоризонтален</string>
     <string name="setup_orientation_landscape">Хоризонтална</string>
     <string name="setup_orientation_reverse">Обърната хоризонтална</string>

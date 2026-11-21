@@ -949,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">デバイスの回転に合わせる</string>
     <string name="setup_orientation_portrait">縦向き</string>
     <string name="setup_session_orientation">セッションの向き</string>
-    <string name="setup_session_orientation_hint">Steam、ゲーム、デスクトップ、コントローラーエディターに適用されます。解像度プリセットはセッションに合わせて回転し、カスタムの幅と高さは入力したとおりになります。</string>
+    <string name="setup_session_orientation_hint">Steam、ゲーム、デスクトップ、コントローラーエディターに適用されます。解像度プリセットはセッションに合わせて回転し、一方の向きがもう一方に従う場合、カスタムの幅と高さは向きに合わせて入れ替わります。</string>
     <string name="setup_orientation_auto">横向き（自動回転）</string>
     <string name="setup_orientation_landscape">横向き</string>
     <string name="setup_orientation_reverse">横向き（反転）</string>

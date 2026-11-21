@@ -958,7 +958,7 @@
     <string name="setup_launcher_orientation_auto">Zgodnie z obrotem urządzenia</string>
     <string name="setup_orientation_portrait">Pionowa</string>
     <string name="setup_session_orientation">Orientacja sesji</string>
-    <string name="setup_session_orientation_hint">Dotyczy Steam, gier, pulpitu i edytora kontrolera. Presety rozdzielczości obracają się z sesją; własna szerokość i wysokość pozostają jak wpisano.</string>
+    <string name="setup_session_orientation_hint">Dotyczy Steam, gier, pulpitu i edytora kontrolera. Presety rozdzielczości obracają się z sesją; gdy jedna orientacja podąża za drugą, własna szerokość i wysokość są zamieniane.</string>
     <string name="setup_orientation_auto">Automatyczna pozioma</string>
     <string name="setup_orientation_landscape">Pozioma</string>
     <string name="setup_orientation_reverse">Odwrócona pozioma</string>

@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">डिवाइस रोटेशन के अनुसार</string>
     <string name="setup_orientation_portrait">पोर्ट्रेट</string>
     <string name="setup_session_orientation">सेशन ओरिएंटेशन</string>
-    <string name="setup_session_orientation_hint">Steam, गेम, डेस्कटॉप और कंट्रोलर एडिटर पर लागू होता है। रिज़ॉल्यूशन प्रीसेट सेशन के साथ घूमते हैं; कस्टम चौड़ाई और ऊंचाई जैसी डाली गई वैसी ही रहती हैं।</string>
+    <string name="setup_session_orientation_hint">Steam, गेम, डेस्कटॉप और कंट्रोलर एडिटर पर लागू होता है। रिज़ॉल्यूशन प्रीसेट सेशन के साथ घूमते हैं; जब एक ओरिएंटेशन दूसरे को फ़ॉलो करता है, तो कस्टम चौड़ाई और ऊंचाई बदलकर मेल खाती हैं।</string>
     <string name="setup_orientation_auto">ऑटोमैटिक लैंडस्केप</string>
     <string name="setup_orientation_landscape">लैंडस्केप</string>
     <string name="setup_orientation_reverse">उलटा लैंडस्केप</string>

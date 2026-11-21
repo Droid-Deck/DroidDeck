@@ -949,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">หมุนตามอุปกรณ์</string>
     <string name="setup_orientation_portrait">แนวตั้ง</string>
     <string name="setup_session_orientation">การวางแนวของเซสชัน</string>
-    <string name="setup_session_orientation_hint">มีผลกับ Steam เกม เดสก์ท็อป และตัวแก้ไขคอนโทรลเลอร์ ค่าความละเอียดที่ตั้งไว้ล่วงหน้าจะหมุนตามเซสชัน ส่วนความกว้างและความสูงที่กำหนดเองจะคงตามที่ป้อนไว้</string>
+    <string name="setup_session_orientation_hint">มีผลกับ Steam เกม เดสก์ท็อป และตัวแก้ไขคอนโทรลเลอร์ ค่าความละเอียดที่ตั้งไว้ล่วงหน้าจะหมุนตามเซสชัน เมื่อแนวหนึ่งตามอีกแนวหนึ่ง ความกว้างและความสูงที่กำหนดเองจะสลับกันให้ตรงกัน</string>
     <string name="setup_orientation_auto">แนวนอนอัตโนมัติ</string>
     <string name="setup_orientation_landscape">แนวนอน</string>
     <string name="setup_orientation_reverse">แนวนอนกลับด้าน</string>

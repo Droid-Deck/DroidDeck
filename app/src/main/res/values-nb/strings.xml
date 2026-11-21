@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">Følg enhetens rotasjon</string>
     <string name="setup_orientation_portrait">Stående</string>
     <string name="setup_session_orientation">Retning for sesjonen</string>
-    <string name="setup_session_orientation_hint">Gjelder Steam, spill, skrivebordet og kontrollerredigeringen. Forhåndsinnstilte oppløsninger roterer med sesjonen; egendefinert bredde og høyde forblir som angitt.</string>
+    <string name="setup_session_orientation_hint">Gjelder Steam, spill, skrivebordet og kontrollerredigeringen. Forhåndsinnstilte oppløsninger roterer med sesjonen; når én retning følger den andre, byttes egendefinert bredde og høyde slik at de passer.</string>
     <string name="setup_orientation_auto">Automatisk liggende</string>
     <string name="setup_orientation_landscape">Liggende</string>
     <string name="setup_orientation_reverse">Omvendt liggende</string>

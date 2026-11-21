@@ -947,7 +947,7 @@
     <string name="setup_launcher_orientation_auto">Segui la rotazione del dispositivo</string>
     <string name="setup_orientation_portrait">Verticale</string>
     <string name="setup_session_orientation">Orientamento della sessione</string>
-    <string name="setup_session_orientation_hint">Si applica a Steam, ai giochi, al desktop e all\'editor del controller. I preset di risoluzione ruotano con la sessione; larghezza e altezza personalizzate restano come inserite.</string>
+    <string name="setup_session_orientation_hint">Si applica a Steam, ai giochi, al desktop e all\'editor del controller. I preset di risoluzione ruotano con la sessione; quando un\'orientamento segue l\'altro, larghezza e altezza personalizzate vengono invertite per corrispondere.</string>
     <string name="setup_orientation_auto">Orizzontale automatico</string>
     <string name="setup_orientation_landscape">Orizzontale</string>
     <string name="setup_orientation_reverse">Orizzontale invertito</string>

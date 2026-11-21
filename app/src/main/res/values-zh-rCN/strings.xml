@@ -949,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">跟随设备旋转</string>
     <string name="setup_orientation_portrait">竖屏</string>
     <string name="setup_session_orientation">会话方向</string>
-    <string name="setup_session_orientation_hint">适用于 Steam、游戏、桌面和手柄编辑器。分辨率预设会随会话旋转；自定义宽度和高度保持输入值不变。</string>
+    <string name="setup_session_orientation_hint">适用于 Steam、游戏、桌面和手柄编辑器。分辨率预设会随会话旋转；当一个方向跟随另一个方向时，自定义宽度和高度会互换以保持一致。</string>
     <string name="setup_orientation_auto">自动横屏</string>
     <string name="setup_orientation_landscape">横屏</string>
     <string name="setup_orientation_reverse">反向横屏</string>

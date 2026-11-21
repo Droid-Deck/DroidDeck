@@ -964,7 +964,7 @@
     <string name="setup_launcher_orientation_auto">اتّباع تدوير الجهاز</string>
     <string name="setup_orientation_portrait">عمودي</string>
     <string name="setup_session_orientation">اتجاه الجلسة</string>
-    <string name="setup_session_orientation_hint">يُطبَّق على Steam والألعاب وسطح المكتب ومحرّر وحدة التحكم. تدور الدقّات المُعدّة مسبقًا مع الجلسة، ويبقى العرض والارتفاع المخصّصان كما أُدخلا.</string>
+    <string name="setup_session_orientation_hint">يُطبَّق على Steam والألعاب وسطح المكتب ومحرّر وحدة التحكم. تدور الدقّات المُعدّة مسبقًا مع الجلسة، وعندما يتبع أحد الاتجاهين الآخر ينعكس العرض والارتفاع المخصّصان ليتطابقا.</string>
     <string name="setup_orientation_auto">أفقي تلقائي</string>
     <string name="setup_orientation_landscape">أفقي</string>
     <string name="setup_orientation_reverse">أفقي معكوس</string>

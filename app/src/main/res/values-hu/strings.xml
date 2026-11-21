@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">Az eszköz elforgatásának követése</string>
     <string name="setup_orientation_portrait">Álló</string>
     <string name="setup_session_orientation">Munkamenet tájolása</string>
-    <string name="setup_session_orientation_hint">A Steamre, a játékokra, az asztalra és a kontrollerszerkesztőre vonatkozik. A felbontás-előbeállítások a munkamenettel együtt forognak; az egyéni szélesség és magasság a megadott módon marad.</string>
+    <string name="setup_session_orientation_hint">A Steamre, a játékokra, az asztalra és a kontrollerszerkesztőre vonatkozik. A felbontás-előbeállítások a munkamenettel együtt forognak; ha az egyik tájolás a másikat követi, az egyéni szélesség és magasság felcserélődik.</string>
     <string name="setup_orientation_auto">Automatikus fekvő</string>
     <string name="setup_orientation_landscape">Fekvő</string>
     <string name="setup_orientation_reverse">Fordított fekvő</string>

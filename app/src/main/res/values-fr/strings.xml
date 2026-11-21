@@ -955,7 +955,7 @@
     <string name="setup_launcher_orientation_auto">Suivre la rotation de l\'appareil</string>
     <string name="setup_orientation_portrait">Portrait</string>
     <string name="setup_session_orientation">Orientation de la session</string>
-    <string name="setup_session_orientation_hint">S\'applique à Steam, aux jeux, au bureau et à l\'éditeur de manette. Les préréglages de résolution pivotent avec la session ; la largeur et la hauteur personnalisées restent telles que saisies.</string>
+    <string name="setup_session_orientation_hint">S\'applique à Steam, aux jeux, au bureau et à l\'éditeur de manette. Les préréglages de résolution pivotent avec la session ; lorsqu\'une orientation suit l\'autre, la largeur et la hauteur personnalisées sont inversées pour correspondre.</string>
     <string name="setup_orientation_auto">Paysage automatique</string>
     <string name="setup_orientation_landscape">Paysage</string>
     <string name="setup_orientation_reverse">Paysage inversé</string>

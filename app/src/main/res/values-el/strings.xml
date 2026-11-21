@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">Ακολουθεί την περιστροφή της συσκευής</string>
     <string name="setup_orientation_portrait">Κατακόρυφος</string>
     <string name="setup_session_orientation">Προσανατολισμός συνεδρίας</string>
-    <string name="setup_session_orientation_hint">Ισχύει για το Steam, τα παιχνίδια, την επιφάνεια εργασίας και τον επεξεργαστή χειριστηρίου. Οι προκαθορισμένες αναλύσεις περιστρέφονται με τη συνεδρία· το προσαρμοσμένο πλάτος και ύψος μένουν όπως καταχωρίστηκαν.</string>
+    <string name="setup_session_orientation_hint">Ισχύει για το Steam, τα παιχνίδια, την επιφάνεια εργασίας και τον επεξεργαστή χειριστηρίου. Οι προκαθορισμένες αναλύσεις περιστρέφονται με τη συνεδρία· όταν ένας προσανατολισμός ακολουθεί τον άλλον, το προσαρμοσμένο πλάτος και ύψος αντιστρέφονται ώστε να ταιριάζουν.</string>
     <string name="setup_orientation_auto">Αυτόματος οριζόντιος προσανατολισμός</string>
     <string name="setup_orientation_landscape">Οριζόντιος προσανατολισμός</string>
     <string name="setup_orientation_reverse">Αντίστροφος οριζόντιος προσανατολισμός</string>

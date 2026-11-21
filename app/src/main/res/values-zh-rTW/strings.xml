@@ -948,7 +948,7 @@
     <string name="setup_launcher_orientation_auto">跟隨裝置旋轉</string>
     <string name="setup_orientation_portrait">直向</string>
     <string name="setup_session_orientation">工作階段方向</string>
-    <string name="setup_session_orientation_hint">套用至 Steam、遊戲、桌面和控制器編輯器。解析度預設會隨工作階段旋轉；自訂的寬度和高度則維持輸入值。</string>
+    <string name="setup_session_orientation_hint">套用至 Steam、遊戲、桌面和控制器編輯器。解析度預設會隨工作階段旋轉；當一個方向跟隨另一個方向時，自訂的寬度和高度會互換以保持一致。</string>
     <string name="setup_orientation_auto">自動橫向</string>
     <string name="setup_orientation_landscape">橫向</string>
     <string name="setup_orientation_reverse">反向橫向</string>

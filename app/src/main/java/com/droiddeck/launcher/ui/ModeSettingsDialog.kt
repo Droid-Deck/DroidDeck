@@ -243,9 +243,13 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         val displaySize = sessionDisplay.resolveChoice(s.panelSize, activeChoice, portrait)
         SettingsGroup(stringResource(R.string.display_session)) {
             ResolutionRow(host, "resolution", stringResource(R.string.display_resolution_landscape), s.resolution, landscapeChoice,
-                com.droiddeck.launcher.session.SessionDisplay.LINK_PORTRAIT, s.panelSize, a.onResolution, portrait = false)
+                com.droiddeck.launcher.session.SessionDisplay.LINK_PORTRAIT,
+                if (sessionDisplay.isLink(s.resolutionPortrait)) landscapeChoice else sessionDisplay.orientCustom(s.resolutionPortrait, false),
+                s.panelSize, a.onResolution, portrait = false)
             ResolutionRow(host, "resolution-portrait", stringResource(R.string.display_resolution_portrait), s.resolutionPortrait, portraitChoice,
-                com.droiddeck.launcher.session.SessionDisplay.LINK_LANDSCAPE, s.panelSize, a.onResolutionPortrait, portrait = true)
+                com.droiddeck.launcher.session.SessionDisplay.LINK_LANDSCAPE,
+                if (sessionDisplay.isLink(s.resolution)) portraitChoice else sessionDisplay.orientCustom(s.resolution, true),
+                s.panelSize, a.onResolutionPortrait, portrait = true)
             s.picturePosition?.let { position ->
                 ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
                     listOf("top" to stringResource(R.string.display_position_top),

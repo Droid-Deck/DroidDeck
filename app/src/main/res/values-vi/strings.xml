@@ -949,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">Theo hướng xoay thiết bị</string>
     <string name="setup_orientation_portrait">Dọc</string>
     <string name="setup_session_orientation">Hướng màn hình phiên</string>
-    <string name="setup_session_orientation_hint">Áp dụng cho Steam, game, desktop và trình chỉnh sửa tay cầm. Độ phân giải đặt sẵn xoay theo phiên; chiều rộng và chiều cao tùy chỉnh giữ nguyên như đã nhập.</string>
+    <string name="setup_session_orientation_hint">Áp dụng cho Steam, game, desktop và trình chỉnh sửa tay cầm. Độ phân giải đặt sẵn xoay theo phiên; khi một hướng theo hướng còn lại, chiều rộng và chiều cao tùy chỉnh được hoán đổi cho khớp.</string>
     <string name="setup_orientation_auto">Ngang tự động</string>
     <string name="setup_orientation_landscape">Ngang</string>
     <string name="setup_orientation_reverse">Ngang ngược</string>

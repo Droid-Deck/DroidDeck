@@ -958,7 +958,7 @@
     <string name="setup_launcher_orientation_auto">Слідувати повороту пристрою</string>
     <string name="setup_orientation_portrait">Книжкова</string>
     <string name="setup_session_orientation">Орієнтація сеансу</string>
-    <string name="setup_session_orientation_hint">Застосовується до Steam, ігор, робочого столу й редактора контролера. Готові роздільні здатності повертаються разом із сеансом; власні ширина й висота залишаються як введено.</string>
+    <string name="setup_session_orientation_hint">Застосовується до Steam, ігор, робочого столу й редактора контролера. Готові роздільні здатності повертаються разом із сеансом; коли одна орієнтація слідує за іншою, власні ширина й висота міняються місцями.</string>
     <string name="setup_orientation_auto">Автоматично альбомна</string>
     <string name="setup_orientation_landscape">Альбомна</string>
     <string name="setup_orientation_reverse">Перевернута альбомна</string>

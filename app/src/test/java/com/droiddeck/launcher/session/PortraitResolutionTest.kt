@@ -50,6 +50,21 @@ class PortraitResolutionTest {
         assertFalse(SessionDisplay.isLink(SessionPrefs.resolutionStored(app, "steam", panel, true)))
     }
 
+    @Test fun aGeneratedPortraitSizeSurvivesAReload() {
+        SessionPrefs.setResolutionChoice(app, "steam", "2560x1440")
+        SessionPrefs.setResolutionChoice(app, "steam", SessionDisplay.LINK_PORTRAIT)
+        assertEquals("1440x2560", SessionPrefs.resolutionStored(app, "steam", panel, true))
+        assertEquals("2560x1440", SessionPrefs.resolutionChoice(app, "steam", panel, false))
+        assertEquals("1440x2560", SessionPrefs.resolutionChoice(app, "steam", panel, true))
+    }
+
+    @Test fun aSavedDesktopResolutionInEitherOrientationCountsAsChosen() {
+        SessionPrefs.setResolutionChoice(app, SessionService.MODE_DESKTOP, "1080p", portrait = true)
+        assertTrue(SessionPrefs.resolutionChosen(app, SessionService.MODE_DESKTOP, true))
+        assertEquals(SessionService.MODE_DESKTOP,
+            SessionPrefs.displayMode(app, SessionService.MODE_RUN, com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER))
+    }
+
     @Test fun modesKeepSeparateChoices() {
         SessionPrefs.setResolutionChoice(app, "steam", "1080p", portrait = true)
         assertEquals(SessionDisplay.LINK_LANDSCAPE, SessionPrefs.resolutionStored(app, "lxqt", panel, true))

@@ -944,7 +944,7 @@
     <string name="setup_launcher_orientation_auto">Gerätedrehung folgen</string>
     <string name="setup_orientation_portrait">Hochformat</string>
     <string name="setup_session_orientation">Sitzungsausrichtung</string>
-    <string name="setup_session_orientation_hint">Gilt für Steam, Spiele, Desktop und den Controller-Editor. Auflösungsvoreinstellungen drehen sich mit der Sitzung; eigene Breite und Höhe bleiben wie eingegeben.</string>
+    <string name="setup_session_orientation_hint">Gilt für Steam, Spiele, Desktop und den Controller-Editor. Auflösungsvoreinstellungen drehen sich mit der Sitzung; folgt eine Ausrichtung der anderen, werden eigene Breite und Höhe passend vertauscht.</string>
     <string name="setup_orientation_auto">Automatisch Querformat</string>
     <string name="setup_orientation_landscape">Querformat</string>
     <string name="setup_orientation_reverse">Umgekehrtes Querformat</string>
