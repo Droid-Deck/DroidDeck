@@ -73,9 +73,10 @@ class DroidDeckHudHost(context: Context) {
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running || !polling) return
-            val wasLive = feed.live
+            val wasGameActive = feed.live && !feed.steamFocused
             if (feed.poll(System.nanoTime())) view?.onFrames()
-            if (wasLive != feed.live && SessionPrefs.hudOnlyDuringGame(context)) applyShown()
+            val isGameActive = feed.live && !feed.steamFocused
+            if (wasGameActive != isGameActive && SessionPrefs.hudOnlyDuringGame(context)) applyShown()
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
@@ -186,7 +187,7 @@ class DroidDeckHudHost(context: Context) {
     private fun applyShown() {
         if (!running) return
         val onlyDuringGame = SessionPrefs.hudOnlyDuringGame(context)
-        val show = !hidden && !backgrounded && (!onlyDuringGame || feed.live)
+        val show = !hidden && !backgrounded && (!onlyDuringGame || (feed.live && !feed.steamFocused))
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
         val shouldPoll = !hidden && !backgrounded && (show || onlyDuringGame)
