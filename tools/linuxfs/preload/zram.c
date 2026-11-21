@@ -11,6 +11,9 @@
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
+#if defined(__i386__)
+#include <asm/ldt.h>
+#endif
 #include <unistd.h>
 
 
@@ -32,9 +35,9 @@
 #define ZR_INLINE_CHUNKS 512UL
 #define ZR_FAILED (~0UL)
 #define ZR_FUTEX_WAIT 0
-#define ZR_FUTEX_WAKE 1
 #define ZR_STACK (128UL << 10)
-#define ZR_THREAD (CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD | CLONE_SYSVSEM)
+#define ZR_THREAD (CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD | CLONE_SYSVSEM | \
+                   CLONE_SETTLS | CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID)
 #define ZR_TEXT(x) #x
 #define ZR_NR(x) ZR_TEXT(x)
 #define ZR_CALL(n, a, b, c, d, e, f, ...) \
@@ -61,29 +64,21 @@ __asm__(".pushsection .text\n"
         ".hidden zr_clone\n"
         ".type zr_clone, %function\n"
         "zr_clone:\n"
-        "  str x19, [sp, #-16]!\n"
-        "  mov x19, x2\n"
-        "  mov x2, xzr\n"
-        "  mov x3, xzr\n"
-        "  mov x4, xzr\n"
+        "  mov x5, x2\n"
+        "  mov x2, x3\n"
+        "  mov x3, x4\n"
+        "  mov x4, x5\n"
         "  mov x8, #" ZR_NR(SYS_clone) "\n"
         "  svc #0\n"
         "  cbnz x0, 1f\n"
         "  mov x29, xzr\n"
         "  mov x30, xzr\n"
         "  bl zr_thread\n"
-        "  stlr wzr, [x19]\n"
-        "  mov x0, x19\n"
-        "  mov x1, #" ZR_NR(ZR_FUTEX_WAKE) "\n"
-        "  mov x2, #1\n"
-        "  mov x8, #" ZR_NR(SYS_futex) "\n"
-        "  svc #0\n"
         "  mov x0, xzr\n"
         "  mov x8, #" ZR_NR(SYS_exit) "\n"
         "  svc #0\n"
         "  brk #0\n"
         "1:\n"
-        "  ldr x19, [sp], #16\n"
         "  ret\n"
         ".size zr_clone, . - zr_clone\n"
         ".popsection\n");
@@ -107,29 +102,19 @@ __asm__(".pushsection .text\n"
         ".hidden zr_clone\n"
         ".type zr_clone, @function\n"
         "zr_clone:\n"
-        "  push %r12\n"
-        "  mov %rdx, %r12\n"
-        "  xor %edx, %edx\n"
-        "  xor %r10d, %r10d\n"
-        "  xor %r8d, %r8d\n"
+        "  mov %rdx, %r10\n"
+        "  mov %rcx, %rdx\n"
         "  mov $" ZR_NR(SYS_clone) ", %eax\n"
         "  syscall\n"
         "  test %rax, %rax\n"
         "  jnz 1f\n"
         "  xor %ebp, %ebp\n"
         "  call zr_thread\n"
-        "  movl $0, (%r12)\n"
-        "  mov %r12, %rdi\n"
-        "  mov $" ZR_NR(ZR_FUTEX_WAKE) ", %esi\n"
-        "  mov $1, %edx\n"
-        "  mov $" ZR_NR(SYS_futex) ", %eax\n"
-        "  syscall\n"
         "  xor %edi, %edi\n"
         "  mov $" ZR_NR(SYS_exit) ", %eax\n"
         "  syscall\n"
         "  hlt\n"
         "1:\n"
-        "  pop %r12\n"
         "  ret\n"
         ".size zr_clone, . - zr_clone\n"
         ".popsection\n");
@@ -161,36 +146,28 @@ __asm__(".pushsection .text\n"
         ".hidden zr_clone\n"
         ".type zr_clone, @function\n"
         "zr_clone:\n"
-        "  push %ebp\n"
-        "  push %edi\n"
-        "  push %esi\n"
         "  push %ebx\n"
-        "  mov 20(%esp), %ebx\n"
-        "  mov 24(%esp), %ecx\n"
-        "  mov 28(%esp), %ebp\n"
-        "  xor %edx, %edx\n"
-        "  xor %esi, %esi\n"
-        "  xor %edi, %edi\n"
+        "  push %esi\n"
+        "  push %edi\n"
+        "  mov 16(%esp), %ebx\n"
+        "  mov 20(%esp), %ecx\n"
+        "  mov 24(%esp), %edi\n"
+        "  mov 28(%esp), %edx\n"
+        "  mov 32(%esp), %esi\n"
         "  mov $" ZR_NR(SYS_clone) ", %eax\n"
         "  int $0x80\n"
         "  test %eax, %eax\n"
         "  jnz 1f\n"
+        "  xor %ebp, %ebp\n"
         "  call zr_thread\n"
-        "  movl $0, (%ebp)\n"
-        "  mov %ebp, %ebx\n"
-        "  mov $" ZR_NR(ZR_FUTEX_WAKE) ", %ecx\n"
-        "  mov $1, %edx\n"
-        "  mov $" ZR_NR(SYS_futex) ", %eax\n"
-        "  int $0x80\n"
         "  xor %ebx, %ebx\n"
         "  mov $" ZR_NR(SYS_exit) ", %eax\n"
         "  int $0x80\n"
         "  hlt\n"
         "1:\n"
-        "  pop %ebx\n"
-        "  pop %esi\n"
         "  pop %edi\n"
-        "  pop %ebp\n"
+        "  pop %esi\n"
+        "  pop %ebx\n"
         "  ret\n"
         ".size zr_clone, . - zr_clone\n"
         ".popsection\n");
@@ -199,12 +176,13 @@ __asm__(".pushsection .text\n"
 #endif
 
 long zr_call(long n, long a, long b, long c, long d, long e, long f) __attribute__((visibility("hidden")));
-long zr_clone(long flags, char *stack, int *busy) __attribute__((visibility("hidden")));
+long zr_clone(long flags, char *stack, int *child, int *parent, void *tls) __attribute__((visibility("hidden")));
 void zr_thread(void) __attribute__((visibility("hidden")));
 
 static unsigned long zr_page;
 static unsigned zr_requests;
 static int zr_stack_busy;
+static int zr_tid;
 static char *zr_stack;
 static char zr_maps[8192];
 static uint64_t zr_entries[ZR_BATCH];
@@ -483,6 +461,24 @@ void zr_thread(void) {
   zr_drain(1);
 }
 
+static void *zr_tls(void *desc) {
+#if defined(__aarch64__)
+  (void)desc;
+  return __builtin_thread_pointer();
+#elif defined(__x86_64__)
+  (void)desc;
+  void *self;
+  __asm__("mov %%fs:0, %0" : "=r"(self));
+  return self;
+#else
+  struct user_desc *entry = desc;
+  unsigned short selector;
+  __asm__("mov %%gs, %0" : "=r"(selector));
+  entry->entry_number = selector >> 3;
+  return zr_sys(SYS_get_thread_area, entry) == 0 ? entry : NULL;
+#endif
+}
+
 static int zr_start(void) {
   if (zr_stack == NULL) {
     long base = zr_sys(ZR_MMAP, 0, ZR_STACK, PROT_READ | PROT_WRITE,
@@ -494,10 +490,13 @@ static int zr_start(void) {
   for (int i = 0; i < 20 && __atomic_load_n(&zr_stack_busy, __ATOMIC_ACQUIRE); i++)
     zr_sys(SYS_futex, &zr_stack_busy, ZR_FUTEX_WAIT, 1, &wait, NULL, 0);
   if (__atomic_load_n(&zr_stack_busy, __ATOMIC_ACQUIRE)) return 0;
+  uint64_t desc[4] = {0};
+  void *tls = zr_tls(desc);
+  if (tls == NULL) return 0;
   __atomic_store_n(&zr_stack_busy, 1, __ATOMIC_RELEASE);
   uint64_t all = ~0ULL, previous;
   zr_sys(SYS_rt_sigprocmask, SIG_SETMASK, &all, &previous, sizeof(all));
-  long tid = zr_clone(ZR_THREAD, zr_stack + ZR_STACK, &zr_stack_busy);
+  long tid = zr_clone(ZR_THREAD, zr_stack + ZR_STACK, &zr_stack_busy, &zr_tid, tls);
   zr_sys(SYS_rt_sigprocmask, SIG_SETMASK, &previous, NULL, sizeof(previous));
   if (tid > 0) return 1;
   __atomic_store_n(&zr_stack_busy, 0, __ATOMIC_RELEASE);
