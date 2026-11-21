@@ -1278,6 +1278,7 @@ class SessionService : Service() {
             binds.addAll(gpuStats.binds())
         }
         if (controllersOn) components.add(RumbleComponent().also { it.attach(this) })
+        if (SessionState.mode == MODE_DESKTOP) components.add(UinputDesktopComponent().also { it.attach(this) })
         val home = File(LinuxRuntime.rootDir(this), "root")
         File(home, "Storage").mkdirs()
         binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")

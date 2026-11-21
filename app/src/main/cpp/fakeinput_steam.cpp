@@ -438,25 +438,31 @@ __attribute__((constructor)) static void library_init() {
   controller_map();
 }
 
-__attribute__((visibility("hidden"))) static void
-send_vibration(int strong, int weak, uint16_t duration_ms, uint16_t slot) {
-  if (!fake_vibration_enabled())
-    return;
-
-  int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+__attribute__((visibility("hidden"))) static int connect_app_socket(const char *name, int flags) {
+  int sock = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | flags, 0);
   if (sock < 0)
-    return;
+    return -1;
 
   struct sockaddr_un addr = {};
   addr.sun_family = AF_UNIX;
-  const char *name = "droiddeck-rumble";
   memcpy(addr.sun_path + 1, name, strlen(name));
   socklen_t addrlen = offsetof(struct sockaddr_un, sun_path) + 1 + strlen(name);
 
   if (connect(sock, reinterpret_cast<struct sockaddr *>(&addr), addrlen) < 0) {
     syscall(SYS_close, sock);
-    return;
+    return -1;
   }
+  return sock;
+}
+
+__attribute__((visibility("hidden"))) static void
+send_vibration(int strong, int weak, uint16_t duration_ms, uint16_t slot) {
+  if (!fake_vibration_enabled())
+    return;
+
+  int sock = connect_app_socket("droiddeck-rumble", SOCK_NONBLOCK);
+  if (sock < 0)
+    return;
 
   uint16_t data[4];
   data[0] = static_cast<uint16_t>(strong);
@@ -927,6 +933,7 @@ struct UinputWriter {
   std::vector<struct input_event> pending;
   uint32_t buttons = 0;
   int16_t axes[8] = {};
+  int desktop = -1;
 };
 
 static std::unordered_map<int, std::shared_ptr<UinputWriter>> &uinput_map() {
@@ -961,6 +968,95 @@ __attribute__((visibility("hidden"))) static int open_uinput(int flags) {
 __attribute__((visibility("hidden"))) static bool is_gamepad(const UinputDescription &d) {
   return test_bit(d.evbits, sizeof(d.evbits), EV_KEY) && test_bit(d.keybits, sizeof(d.keybits), BTN_SOUTH) &&
          test_bit(d.evbits, sizeof(d.evbits), EV_ABS) && test_bit(d.absbits, sizeof(d.absbits), ABS_X);
+}
+
+static constexpr const char *DESKTOP_INPUT_SOCKET = "droiddeck-uinput";
+static constexpr uint32_t DESKTOP_INPUT_MAGIC = 0x4655444b;
+static constexpr int DESKTOP_INPUT_SEND_TIMEOUT_MS = 200;
+
+struct DesktopInputHeader {
+  uint32_t magic;
+  int32_t abs_x_min, abs_x_max, abs_y_min, abs_y_max;
+};
+
+struct DesktopInputEvent {
+  uint16_t type;
+  uint16_t code;
+  int32_t value;
+};
+
+static_assert(sizeof(DesktopInputHeader) == 20 && sizeof(DesktopInputEvent) == 8,
+              "desktop input records must stay ABI-stable");
+
+__attribute__((visibility("hidden"))) static bool has_keyboard_keys(const UinputDescription &d) {
+  for (int code = KEY_ESC; code < BTN_MISC; code++)
+    if (test_bit(d.keybits, sizeof(d.keybits), code)) return true;
+  return false;
+}
+
+__attribute__((visibility("hidden"))) static bool is_absolute_pointer(const UinputDescription &d) {
+  return test_bit(d.evbits, sizeof(d.evbits), EV_ABS) && test_bit(d.absbits, sizeof(d.absbits), ABS_X) &&
+         test_bit(d.absbits, sizeof(d.absbits), ABS_Y) &&
+         (test_bit(d.keybits, sizeof(d.keybits), BTN_LEFT) || test_bit(d.keybits, sizeof(d.keybits), BTN_TOUCH)) &&
+         d.absinfo[ABS_X].maximum > d.absinfo[ABS_X].minimum && d.absinfo[ABS_Y].maximum > d.absinfo[ABS_Y].minimum;
+}
+
+__attribute__((visibility("hidden"))) static bool is_desktop_input(const UinputDescription &d) {
+  return test_bit(d.evbits, sizeof(d.evbits), EV_KEY) &&
+         (has_keyboard_keys(d) || test_bit(d.keybits, sizeof(d.keybits), BTN_LEFT) || is_absolute_pointer(d));
+}
+
+__attribute__((visibility("hidden"))) static bool send_all(int sock, const void *data, size_t size) {
+  const auto *bytes = static_cast<const uint8_t *>(data);
+  while (size > 0) {
+    ssize_t sent = send(sock, bytes, size, MSG_NOSIGNAL);
+    if (sent < 0 && errno == EINTR) continue;
+    if (sent <= 0) return false;
+    bytes += sent;
+    size -= static_cast<size_t>(sent);
+  }
+  return true;
+}
+
+__attribute__((visibility("hidden"))) static void close_desktop_input(UinputWriter &w) {
+  if (w.desktop < 0) return;
+  syscall(SYS_close, w.desktop);
+  w.desktop = -1;
+}
+
+__attribute__((visibility("hidden"))) static int connect_desktop_input(const UinputDescription &d) {
+  int sock = connect_app_socket(DESKTOP_INPUT_SOCKET, 0);
+  if (sock < 0) return -1;
+  struct timeval timeout = {0, DESKTOP_INPUT_SEND_TIMEOUT_MS * 1000};
+  setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+  bool absolute = is_absolute_pointer(d);
+  DesktopInputHeader header = {DESKTOP_INPUT_MAGIC,
+                               absolute ? d.absinfo[ABS_X].minimum : 0,
+                               absolute ? d.absinfo[ABS_X].maximum : 0,
+                               absolute ? d.absinfo[ABS_Y].minimum : 0,
+                               absolute ? d.absinfo[ABS_Y].maximum : 0};
+  if (!send_all(sock, &header, sizeof(header))) {
+    syscall(SYS_close, sock);
+    return -1;
+  }
+  return sock;
+}
+
+__attribute__((visibility("hidden"))) static void forward_desktop_input(UinputWriter &w) {
+  if (w.desktop < 0 || w.pending.empty()) return;
+  DesktopInputEvent events[64];
+  size_t count = 0;
+  for (const struct input_event &ev : w.pending) {
+    events[count++] = {ev.type, ev.code, ev.value};
+    if (count == sizeof(events) / sizeof(events[0]) || &ev == &w.pending.back()) {
+      if (!send_all(w.desktop, events, count * sizeof(events[0]))) {
+        Logger::log("uinput: \"%s\" lost the desktop compositor: %s\n", w.description.name, strerror(errno));
+        close_desktop_input(w);
+        return;
+      }
+      count = 0;
+    }
+  }
 }
 
 __attribute__((visibility("hidden"))) static void unpublish_uinput(UinputWriter &w) {
@@ -1058,6 +1154,7 @@ __attribute__((visibility("hidden"))) static int publish_uinput(UinputWriter &w)
 }
 
 __attribute__((visibility("hidden"))) static void flush_uinput(UinputWriter &w) {
+  forward_desktop_input(w);
   if (!w.published || w.pending.empty()) {
     w.pending.clear();
     return;
@@ -1149,6 +1246,7 @@ ioctl_uinput(UinputWriter &w, ioctl_request_t op, void *argp) {
   }
   if (number == _IOC_NR(UI_DEV_DESTROY)) {
     if (getpid() == w.owner) unpublish_uinput(w);
+    close_desktop_input(w);
     w.created = false;
     return 0;
   }
@@ -1192,8 +1290,13 @@ ioctl_uinput(UinputWriter &w, ioctl_request_t op, void *argp) {
   case _IOC_NR(UI_DEV_CREATE):
     w.created = true;
     if (!is_gamepad(d)) {
-      Logger::log("uinput: \"%s\" %04x:%04x is not a gamepad; its events are dropped\n", d.name,
-                  d.id.vendor, d.id.product);
+      if (is_desktop_input(d)) w.desktop = connect_desktop_input(d);
+      if (w.desktop >= 0)
+        Logger::log("uinput: \"%s\" %04x:%04x goes to the desktop compositor\n", d.name, d.id.vendor,
+                    d.id.product);
+      else
+        Logger::log("uinput: \"%s\" %04x:%04x is not a gamepad; its events are dropped\n", d.name,
+                    d.id.vendor, d.id.product);
       return 0;
     }
     if (publish_uinput(w) < 0) {
@@ -1221,6 +1324,7 @@ __attribute__((visibility("hidden"))) static void close_uinput(int fd) {
   auto it = uinput_map().find(fd);
   if (it == uinput_map().end()) return;
   if (getpid() == it->second->owner) unpublish_uinput(*it->second);
+  close_desktop_input(*it->second);
   uinput_map().erase(it);
 }
 

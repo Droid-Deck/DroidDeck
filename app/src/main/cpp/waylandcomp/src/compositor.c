@@ -3883,6 +3883,12 @@ static void deliver_pen(const struct input_msg *m) {
 
 static void key_event(uint32_t evdev, int pressed);
 struct wl_resource *droiddeck_ime_target(void);
+static void deliver_scene_pointer(int x, int y) {
+    int w, h;
+    scene_size(&w, &h);
+    pointer_event((double)x * w / INPUT_SPACE_W, (double)y * h / INPUT_SPACE_H, 0, 0);
+}
+
 static void deliver_key(const struct input_msg *m) {
     key_event((uint32_t)m->p1, m->p2);
 }
@@ -4033,6 +4039,7 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 11: axis_event(m.p1, m.p2, 0); break;
         case 12: axis_event(m.p1, m.p2, 1); break;
         case 13: deliver_pen(&m); break;
+        case 14: deliver_scene_pointer(m.p1, m.p2); break;
         case 20: stream_take(); break;
         case 21: if (!m.p1) stream_forget_all(); schedule_render(); break;
         case 22: schedule_render(); break;
