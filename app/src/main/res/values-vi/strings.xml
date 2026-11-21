@@ -293,7 +293,13 @@
     <string name="mode_pen">Bút</string>
     <string name="mode_pen_mouse">Chuột</string>
     <string name="mode_pen_touch">Chạm</string>
+    <string name="mode_pen_note">Tự động: bảng vẽ ở Desktop trong các ứng dụng hỗ trợ, chuột ở những nơi khác.</string>
     <string name="mode_pen_button">Nút bên</string>
+    <string name="mode_pen_button_eraser">Tẩy khi giữ</string>
+    <string name="mode_pen_pressure">Lực nhấn</string>
+    <string name="mode_pen_pressure_soft">Nhẹ</string>
+    <string name="mode_pen_pressure_normal">Bình thường</string>
+    <string name="mode_pen_pressure_firm">Mạnh</string>
     <string name="mode_osc">Điều khiển trên màn hình</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Tự động hiện các nút điều khiển khi không có tay cầm kết nối.</string>
@@ -1723,6 +1729,8 @@
     <string name="session_title_game">Game</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">trực tiếp</string>
+    <string name="session_pen_auto_tablet">bảng vẽ</string>
+    <string name="session_pen_auto_mouse">chuột</string>
     <string name="session_swap_failed">Thay thất bại: %1$s</string>
     <string name="session_profile_save_failed">Lưu hồ sơ thất bại: %1$s</string>
     <string name="session_desktop_paused">Desktop đang tạm dừng</string>

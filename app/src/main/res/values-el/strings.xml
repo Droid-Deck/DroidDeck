@@ -293,7 +293,13 @@
     <string name="mode_pen">Γραφίδα</string>
     <string name="mode_pen_mouse">Ποντίκι</string>
     <string name="mode_pen_touch">Αφή</string>
+    <string name="mode_pen_note">Αυτόματο: ταμπλέτα σχεδίασης στην Επιφάνεια εργασίας στις εφαρμογές που την υποστηρίζουν, ποντίκι αλλού.</string>
     <string name="mode_pen_button">Πλαϊνό κουμπί</string>
+    <string name="mode_pen_button_eraser">Γόμα όσο πατιέται</string>
+    <string name="mode_pen_pressure">Πίεση</string>
+    <string name="mode_pen_pressure_soft">Μαλακή</string>
+    <string name="mode_pen_pressure_normal">Κανονική</string>
+    <string name="mode_pen_pressure_firm">Σκληρή</string>
     <string name="mode_osc">Χειριστήρια στην οθόνη</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Το Αυτόματο εμφανίζει τα χειριστήρια όταν δεν είναι συνδεδεμένο χειριστήριο.</string>
@@ -1738,6 +1744,8 @@
     <string name="session_title_game">Παιχνίδι</string>
     <string name="session_touch_auto_touchpad">πινακίδα αφής</string>
     <string name="session_touch_auto_direct">απευθείας</string>
+    <string name="session_pen_auto_tablet">ταμπλέτα σχεδίασης</string>
+    <string name="session_pen_auto_mouse">ποντίκι</string>
     <string name="session_swap_failed">Η εναλλαγή απέτυχε: %1$s</string>
     <string name="session_profile_save_failed">Η αποθήκευση προφίλ απέτυχε: %1$s</string>
     <string name="session_desktop_paused">Η επιφάνεια εργασίας είναι σε παύση</string>

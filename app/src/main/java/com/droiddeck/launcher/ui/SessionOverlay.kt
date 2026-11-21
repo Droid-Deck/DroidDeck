@@ -237,6 +237,7 @@ class DrawerActions(
     val touchMode: String,
     val touchAuto: String,
     val pen: SessionPrefs.Pen? = null,
+    val penAuto: String = "",
     val onPen: (key: String, value: String) -> Unit = { _, _ -> },
     val fexPreset: String,
     val upscaler: Int = 0,
@@ -707,7 +708,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         onPick = a.onDirectHoldBehavior)
                                 }
                             }
-                            a.pen?.let { PenSettingsGroup(host, it, track = { key -> focus.track(page, key) }, onPick = a.onPen) }
+                            a.pen?.let {
+                                PenSettingsGroup(host, it, stringResource(R.string.drawer_touch_auto, a.penAuto), a.desktop,
+                                    track = { key -> focus.track(page, key) }, onPick = a.onPen)
+                            }
                             SettingsGroup(stringResource(R.string.input_screen_visibility)) {
                                 ChoiceRow(host, "osc", stringResource(R.string.mode_osc), null,
                                     if (a.steam) listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always), SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never))

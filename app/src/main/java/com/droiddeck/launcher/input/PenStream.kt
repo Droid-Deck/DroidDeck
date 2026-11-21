@@ -11,15 +11,19 @@ import android.view.MotionEvent
 import com.droiddeck.launcher.session.SessionPrefs
 
 class PenStream(private val sink: Sink) {
-    fun interface Sink {
-        fun sample(flags: Int, x: Int, y: Int)
+    interface Sink {
+        fun sample(flags: Int, x: Int, y: Int, pressure: Int, distance: Int, tiltX: Int, tiltY: Int)
+        fun capabilities(capabilities: Int)
     }
 
     private val handler = Handler(Looper.getMainLooper())
     private val exitLater = Runnable { if (exitPending) leave() }
     private val hoverWatchdog = Runnable { checkHover() }
+    private val tilt = IntArray(2)
     private var watching = false
     private var contact = false
+    private var eraser = false
+    private var toolEraser = false
     private var barrel = 0
     private var keyDown = false
     private var keyDevice = Int.MIN_VALUE
@@ -27,11 +31,21 @@ class PenStream(private val sink: Sink) {
     private var exitPending = false
     private var exitTime = 0L
     private var deviceId = Int.MIN_VALUE
+    private var sentCapabilities = 0
+    private var distanceMin = 0f
+    private var distanceMax = 0f
     private var x = 0
     private var y = 0
+    private var pressure = 0
+    private var distance = 0
+    private var tilted = false
     private var sampleTime = 0L
 
     var sideButton = SessionPrefs.PEN_BUTTON_RIGHT
+
+    var tablet = false
+
+    var pressureCurve: PenPressure? = null
 
     var inProximity = false
         private set
@@ -45,7 +59,7 @@ class PenStream(private val sink: Sink) {
             MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> {
                 continueAt(time)
                 contact = false
-                enter(event)
+                enter(event, pointer)
                 samples(event, pointer, area, width, height)
             }
             MotionEvent.ACTION_HOVER_EXIT -> if (inProximity && !exitPending && !contact) pendExit(time)
@@ -53,11 +67,12 @@ class PenStream(private val sink: Sink) {
                 continueAt(time)
                 if (!inProximity) return true
                 barrel = event.buttonState
+                updateEraser()
                 samples(event, pointer, area, width, height)
             }
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> if (own) {
                 continueAt(time)
-                enter(event)
+                enter(event, pointer)
                 contact = true
                 samples(event, pointer, area, width, height)
             } else if (contact) samples(event, pointer, area, width, height)
@@ -97,6 +112,7 @@ class PenStream(private val sink: Sink) {
             keyDevice = event.deviceId
             keyCode = event.keyCode
         }
+        updateEraser()
         if (state() == before) return true
         emit(state())
         return true
@@ -109,20 +125,34 @@ class PenStream(private val sink: Sink) {
 
     fun holdsKey(event: KeyEvent): Boolean = keyDown && event.deviceId == keyDevice && event.keyCode == keyCode
 
+    fun announce(device: InputDevice) {
+        if (isPenDevice(device.sources) && device.motionRanges.isNotEmpty()) send(capabilities(device, InputDevice.SOURCE_STYLUS))
+    }
+
     fun deviceRemoved(deviceId: Int) {
         if (deviceId == this.deviceId) cancel()
         if (!keyDown || deviceId != keyDevice) return
         val before = state()
         keyDown = false
+        updateEraser()
         if (inProximity && state() != before) emit(state())
     }
 
-    private fun enter(event: MotionEvent) {
+    private fun enter(event: MotionEvent, pointer: Int) {
+        toolEraser = event.getToolType(pointer) == MotionEvent.TOOL_TYPE_ERASER
         barrel = event.buttonState
+        updateEraser()
         if (inProximity) return
         inProximity = true
         deviceId = event.deviceId
+        readDevice(event)
     }
+
+    private fun updateEraser() {
+        if (!contact) eraser = toolEraser || (sideButton == SessionPrefs.PEN_BUTTON_ERASER && primaryHeld())
+    }
+
+    private fun primaryHeld(): Boolean = keyDown || barrel and MotionEvent.BUTTON_STYLUS_PRIMARY != 0
 
     private fun continueAt(time: Long) {
         if (!exitPending) return
@@ -176,16 +206,44 @@ class PenStream(private val sink: Sink) {
     private fun sample(event: MotionEvent, pointer: Int, h: Int, area: RectF, width: Int, height: Int) {
         x = InputSpace.fixedX(event.axis(MotionEvent.AXIS_X, pointer, h).coerceIn(area.left, area.right), width)
         y = InputSpace.fixedY(event.axis(MotionEvent.AXIS_Y, pointer, h).coerceIn(area.top, area.bottom), height)
+        pressure = PenAxes.pressure(event.axis(MotionEvent.AXIS_PRESSURE, pointer, h), pressureCurve)
+        distance = PenAxes.distance(event.axis(MotionEvent.AXIS_DISTANCE, pointer, h), distanceMin, distanceMax)
+        tilted = PenAxes.tilt(event.axis(MotionEvent.AXIS_TILT, pointer, h),
+            event.axis(MotionEvent.AXIS_ORIENTATION, pointer, h), tilt)
         sampleTime = if (h < 0) event.eventTime else event.getHistoricalEventTime(h)
         emit(state())
         watchHover()
     }
 
-    private fun emit(flags: Int) = sink.sample(flags, x, y)
+    private fun emit(flags: Int) = sink.sample(flags, x, y, pressure, distance, tilt[0], tilt[1])
 
     private fun state(): Int =
-        PEN_IN or (if (contact) PEN_TIP else 0) or buttonFlags(keyDown || barrel and MotionEvent.BUTTON_STYLUS_PRIMARY != 0,
-            barrel and MotionEvent.BUTTON_STYLUS_SECONDARY != 0, sideButton)
+        PEN_IN or (if (contact) PEN_TIP else 0) or (if (eraser) PEN_ERASER else 0) or (if (tablet) PEN_TABLET else 0) or
+            (if (tilted) PEN_TILT else 0) or
+            buttonFlags(primaryHeld(), barrel and MotionEvent.BUTTON_STYLUS_SECONDARY != 0, sideButton)
+
+    private fun readDevice(event: MotionEvent) {
+        val device = event.device
+        val distance = device?.range(MotionEvent.AXIS_DISTANCE, event.source)
+        distanceMin = distance?.min ?: 0f
+        distanceMax = distance?.max ?: 0f
+        send(device?.let { capabilities(it, event.source) } ?: CAP_PRESSURE)
+    }
+
+    private fun capabilities(device: InputDevice, source: Int): Int {
+        val distance = device.range(MotionEvent.AXIS_DISTANCE, source)
+        return CAP_PRESSURE or (if (device.range(MotionEvent.AXIS_TILT, source) != null) CAP_TILT else 0) or
+            (if (distance != null && distance.max - distance.min > 1f) CAP_DISTANCE else 0)
+    }
+
+    private fun send(capabilities: Int) {
+        if (capabilities or sentCapabilities == sentCapabilities) return
+        sentCapabilities = sentCapabilities or capabilities
+        sink.capabilities(sentCapabilities)
+    }
+
+    private fun InputDevice.range(axis: Int, source: Int): InputDevice.MotionRange? =
+        getMotionRange(axis, source) ?: getMotionRange(axis)
 
     private fun MotionEvent.axis(axis: Int, pointer: Int, h: Int): Float =
         if (h < 0) getAxisValue(axis, pointer) else getHistoricalAxisValue(axis, pointer, h)
@@ -195,6 +253,12 @@ class PenStream(private val sink: Sink) {
         const val PEN_TIP = 1 shl 1
         const val PEN_RIGHT = 1 shl 2
         const val PEN_MIDDLE = 1 shl 3
+        const val PEN_ERASER = 1 shl 4
+        const val PEN_TABLET = 1 shl 5
+        const val PEN_TILT = 1 shl 6
+        const val CAP_PRESSURE = 1 shl 0
+        const val CAP_TILT = 1 shl 1
+        const val CAP_DISTANCE = 1 shl 2
         const val HOVER_TIMEOUT_MS = 2_000L
         const val EXIT_GRACE_MS = 50L
 

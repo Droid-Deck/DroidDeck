@@ -293,7 +293,13 @@
     <string name="mode_pen">Pero</string>
     <string name="mode_pen_mouse">Myš</string>
     <string name="mode_pen_touch">Dotyk</string>
+    <string name="mode_pen_note">Automaticky: tablet na Ploše v aplikacích, které ho podporují, jinde myš.</string>
     <string name="mode_pen_button">Boční tlačítko</string>
+    <string name="mode_pen_button_eraser">Guma při podržení</string>
+    <string name="mode_pen_pressure">Tlak</string>
+    <string name="mode_pen_pressure_soft">Měkký</string>
+    <string name="mode_pen_pressure_normal">Normální</string>
+    <string name="mode_pen_pressure_firm">Pevný</string>
     <string name="mode_osc">Ovládání na obrazovce</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaticky zobrazí ovládání, pokud není připojen žádný ovladač.</string>
@@ -1770,6 +1776,8 @@
     <string name="session_title_game">Hra</string>
     <string name="session_touch_auto_touchpad">touchpad</string>
     <string name="session_touch_auto_direct">přímý</string>
+    <string name="session_pen_auto_tablet">tablet</string>
+    <string name="session_pen_auto_mouse">myš</string>
     <string name="session_swap_failed">Přepnutí se nezdařilo: %1$s</string>
     <string name="session_profile_save_failed">Uložení profilu se nezdařilo: %1$s</string>
     <string name="session_desktop_paused">Plocha je na pauze</string>

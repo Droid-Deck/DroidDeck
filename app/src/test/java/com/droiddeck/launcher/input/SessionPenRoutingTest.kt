@@ -9,9 +9,11 @@ import android.view.SurfaceView
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.geometry.Offset
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.input.PenStream.Companion.PEN_ERASER
 import com.droiddeck.launcher.input.PenStream.Companion.PEN_IN
 import com.droiddeck.launcher.input.PenStream.Companion.PEN_MIDDLE
 import com.droiddeck.launcher.input.PenStream.Companion.PEN_RIGHT
+import com.droiddeck.launcher.input.PenStream.Companion.PEN_TABLET
 import com.droiddeck.launcher.input.PenStream.Companion.PEN_TIP
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
@@ -43,6 +45,7 @@ class SessionPenRoutingTest {
     private val pen = MotionEvent.TOOL_TYPE_STYLUS
     private val finger = MotionEvent.TOOL_TYPE_FINGER
     private val stylusScreen = InputDevice.SOURCE_TOUCHSCREEN or InputDevice.SOURCE_STYLUS
+    private val near = PEN_IN or PEN_TABLET
 
     @Before fun setUp() {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
@@ -63,29 +66,104 @@ class SessionPenRoutingTest {
         SessionState.steamUi = previousSteamUi
     }
 
-    @Test fun penHoverMovesThePointerAndTheCursorOnTheDesktopAndInSteam() {
+    @Test fun penHoverMovesTheCursorAndOnlyAutoOnTheDesktopAsksForTheTablet() {
         assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 500f)))
-        assertEquals(listOf(Pen(PEN_IN, InputSpace.fixedX(500f, 1000), InputSpace.fixedY(300f, 600))), CompositorShadow.pens)
+        assertEquals(listOf(Pen(near, InputSpace.fixedX(500f, 1000), InputSpace.fixedY(300f, 600))), CompositorShadow.pens)
+        assertEquals(listOf(PenStream.CAP_PRESSURE), CompositorShadow.capabilities)
         assertTrue(state<Boolean>("cursorVisible").value)
         assertEquals(Offset(500f, 300f), state<Offset>("cursorPos").value)
-        steamDirect(SessionPrefs.PEN_MOUSE)
-        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20, pen to 600f)))
+        SessionPrefs.setPenSetting(activity, "pen", SessionPrefs.PEN_MOUSE)
+        invoke("readPrefs")
+        CompositorShadow.takesTablet = true
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20, pen to 550f)))
+        assertTrue(state<Boolean>("cursorVisible").value)
+        assertEquals(Offset(550f, 300f), state<Offset>("cursorPos").value)
+        CompositorShadow.takesTablet = false
+        steamDirect(SessionPrefs.PEN_AUTO)
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 30, pen to 600f)))
+        assertEquals(listOf(near, 0, PEN_IN, 0, PEN_IN), CompositorShadow.pens.map { it.flags })
         assertEquals(Pen(PEN_IN, InputSpace.fixedX(600f, 1000), InputSpace.fixedY(300f, 600)), CompositorShadow.pens.last())
         assertEquals(Offset(600f, 300f), state<Offset>("cursorPos").value)
         assertTrue(CompositorShadow.pointers.isEmpty())
         assertTrue(CompositorShadow.touches.isEmpty())
     }
 
+    @Test fun aTabletPenHidesTheOverlayWithoutMovingItAndRestoresItWhereThePenLeft() {
+        CompositorShadow.takesTablet = true
+        showCursor(100f, 200f, fromMouse = true)
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_ENTER, 10, pen to 500f)))
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20, pen to 520f)))
+        assertFalse(state<Boolean>("cursorVisible").value)
+        assertEquals(Offset(100f, 200f), state<Offset>("cursorPos").value)
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_EXIT, 30, pen to 520f)))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PenStream.EXIT_GRACE_MS))
+        assertEquals(listOf(near, near, 0), CompositorShadow.pens.map { it.flags })
+        assertTrue(state<Boolean>("cursorVisible").value)
+        assertTrue(ReflectionHelpers.getField<Boolean>(activity, "mouseOwnsCursor"))
+        assertEquals(Offset(520f, 300f), state<Offset>("cursorPos").value)
+    }
+
+    @Test fun aToolSwitchOnTheTabletRouteKeepsTheOverlayHidden() {
+        CompositorShadow.takesTablet = true
+        showCursor(100f, 200f, fromMouse = true)
+        val eraser = MotionEvent.TOOL_TYPE_ERASER
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_ENTER, 10, pen to 500f)))
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20, eraser to 510f)))
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_EXIT, 30, eraser to 510f)))
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_ENTER, 32, pen to 520f)))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PenStream.EXIT_GRACE_MS))
+        assertEquals(listOf(near, near or PEN_ERASER, near), CompositorShadow.pens.map { it.flags })
+        assertFalse(state<Boolean>("cursorVisible").value)
+        assertEquals(Offset(100f, 200f), state<Offset>("cursorPos").value)
+    }
+
+    @Test fun aMouseRemovedWhileATabletPenIsNearKeepsTheOverlayHiddenAfterThePenLeaves() {
+        CompositorShadow.takesTablet = true
+        showCursor(100f, 200f, fromMouse = true)
+        activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 500f))
+        invoke("dropMouseCursor")
+        activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_EXIT, 20, pen to 500f))
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PenStream.EXIT_GRACE_MS))
+        assertFalse(state<Boolean>("cursorVisible").value)
+        assertFalse(ReflectionHelpers.getField<Boolean>(activity, "mouseOwnsCursor"))
+    }
+
     @Test fun theSideButtonSettingDecidesWhatThePrimaryButtonSends() {
         val cases = listOf(SessionPrefs.PEN_BUTTON_RIGHT to PEN_RIGHT, SessionPrefs.PEN_BUTTON_MIDDLE to PEN_MIDDLE,
-            SessionPrefs.PEN_BUTTON_OFF to 0)
+            SessionPrefs.PEN_BUTTON_ERASER to PEN_ERASER, SessionPrefs.PEN_BUTTON_OFF to 0)
         for ((step, case) in cases.withIndex()) {
             SessionPrefs.setPenSetting(activity, "penButton", case.first)
             invoke("readPrefs")
             CompositorShadow.pens.clear()
             assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 10L + 10 * step, pen to 500f,
                 buttons = MotionEvent.BUTTON_STYLUS_PRIMARY)))
-            assertEquals(case.first, listOf(PEN_IN or case.second), CompositorShadow.pens.map { it.flags })
+            assertEquals(case.first, listOf(near or case.second), CompositorShadow.pens.map { it.flags })
+        }
+    }
+
+    @Test fun aStoredEraserWhileHeldRightClicksWhereItIsNotOffered() {
+        SessionPrefs.setPenSetting(activity, "penButton", SessionPrefs.PEN_BUTTON_ERASER)
+        SessionPrefs.setPenSetting(activity, "pen", SessionPrefs.PEN_MOUSE)
+        invoke("readPrefs")
+        val held = MotionEvent.BUTTON_STYLUS_PRIMARY
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 500f, buttons = held)))
+        SessionPrefs.setPenSetting(activity, "pen", SessionPrefs.PEN_AUTO)
+        SessionState.mode = SessionService.MODE_STEAM
+        invoke("readPrefs")
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20, pen to 500f, buttons = held)))
+        assertEquals(listOf(PEN_IN or PEN_RIGHT, 0, PEN_IN or PEN_RIGHT), CompositorShadow.pens.map { it.flags })
+    }
+
+    @Test fun thePressureSettingCurvesThePenPressure() {
+        val cases = listOf(SessionPrefs.PEN_PRESSURE_FIRM to 0.3162, SessionPrefs.PEN_PRESSURE_SOFT to 0.6838,
+            SessionPrefs.PEN_PRESSURE_NORMAL to 0.5)
+        for ((step, case) in cases.withIndex()) {
+            SessionPrefs.setPenSetting(activity, "penPressure", case.first)
+            invoke("readPrefs")
+            CompositorShadow.clear()
+            assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10L + 10 * step, pen to 500f)))
+            assertEquals(case.first, listOf(near or PEN_TIP), CompositorShadow.pens.map { it.flags })
+            assertEquals(case.first, case.second, CompositorShadow.pressures.single() / PenAxes.AXIS_MAX.toDouble(), 1e-4)
         }
     }
 
@@ -199,7 +277,7 @@ class SessionPenRoutingTest {
         activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 500f))
         state<Boolean>("achievementsOpen").value = true
         activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20, pen to 510f))
-        assertEquals(listOf(PEN_IN, 0), CompositorShadow.pens.map { it.flags })
+        assertEquals(listOf(near, 0), CompositorShadow.pens.map { it.flags })
     }
 
     @Test fun touchModeAndRouteChangesDeviceRemovalAndPauseEndThePen() {
@@ -214,7 +292,7 @@ class SessionPenRoutingTest {
         ReflectionHelpers.getField<InputManager.InputDeviceListener>(activity, "deviceListener").onInputDeviceRemoved(6)
         assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 40, pen to 500f)))
         invoke("onPause")
-        assertEquals(listOf(PEN_IN, 0, PEN_IN, 0, PEN_IN, 0, PEN_IN, 0), CompositorShadow.pens.map { it.flags })
+        assertEquals(listOf(near, 0, near, 0, near, 0, near, 0), CompositorShadow.pens.map { it.flags })
     }
 
     @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class])
@@ -226,8 +304,8 @@ class SessionPenRoutingTest {
         assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20, pen to 500f)))
         invoke("releaseHeldGuestInput")
         assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 30, pen to 500f)))
-        val right = PEN_IN or PEN_RIGHT
-        assertEquals(listOf(PEN_IN, right, 0, right, 0, PEN_IN), CompositorShadow.pens.map { it.flags })
+        val right = near or PEN_RIGHT
+        assertEquals(listOf(near, right, 0, right, 0, near), CompositorShadow.pens.map { it.flags })
     }
 
     @Config(sdk = [34], shadows = [PadBridgeRoutingTest.RegisteredKeyEvent::class])
@@ -240,7 +318,7 @@ class SessionPenRoutingTest {
         assertTrue(penKey(KeyEvent.ACTION_UP, 20))
         assertFalse(penKey(KeyEvent.ACTION_DOWN, 25))
         assertFalse(penKey(KeyEvent.ACTION_UP, 30))
-        assertEquals(listOf(PEN_IN, PEN_IN or PEN_RIGHT, 0), CompositorShadow.pens.map { it.flags })
+        assertEquals(listOf(near, near or PEN_RIGHT, 0), CompositorShadow.pens.map { it.flags })
     }
 
     @Test fun aFingerAndARelativePenOnTheTouchpadStayOneTwoPointerStream() {
@@ -299,7 +377,7 @@ class SessionPenRoutingTest {
     @Test fun changingAPenSettingEndsThePenAndRereadingTheSameSettingsDoesNot() {
         assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 500f)))
         invoke("readPrefs")
-        assertEquals(listOf(PEN_IN), CompositorShadow.pens.map { it.flags })
+        assertEquals(listOf(near), CompositorShadow.pens.map { it.flags })
         for ((step, setting) in listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE, "pen" to SessionPrefs.PEN_TOUCH).withIndex()) {
             assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20L + 10 * step, pen to 500f)))
             SessionPrefs.setPenSetting(activity, setting.first, setting.second)
@@ -370,6 +448,11 @@ class SessionPenRoutingTest {
         })
     }
 
+    private fun showCursor(x: Float, y: Float, fromMouse: Boolean) = ReflectionHelpers.callInstanceMethod<Any?>(activity, "showCursor",
+        ReflectionHelpers.ClassParameter.from(Float::class.javaPrimitiveType, x),
+        ReflectionHelpers.ClassParameter.from(Float::class.javaPrimitiveType, y),
+        ReflectionHelpers.ClassParameter.from(Boolean::class.javaPrimitiveType, fromMouse))
+
     private fun penKeyboard() = shadowOf(activity.getSystemService(InputManager::class.java)).addInputDevice(
         InputDeviceBuilder.newBuilder().setId(10).setName("OPPO AI Pen").setSources(InputDevice.SOURCE_KEYBOARD).setExternal(true)
             .setKeyboardType(InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC).build())
@@ -410,12 +493,20 @@ class SessionPenRoutingTest {
     class CompositorShadow {
         companion object {
             val pens = mutableListOf<Pen>()
+            val pressures = mutableListOf<Int>()
+            val capabilities = mutableListOf<Int>()
             val touches = mutableListOf<Touch>()
             val pointers = mutableListOf<Triple<Int, Int, Int>>()
             val keys = mutableListOf<Pair<Int, Int>>()
-            fun clear() { pens.clear(); touches.clear(); pointers.clear(); keys.clear() }
+            var takesTablet = false
+            fun clear() { pens.clear(); pressures.clear(); capabilities.clear(); touches.clear(); pointers.clear(); keys.clear(); takesTablet = false }
             @JvmStatic @Implementation fun __staticInitializer__() {}
-            @JvmStatic @Implementation fun nativeSendPen(flags: Int, x: Int, y: Int) { pens += Pen(flags, x, y) }
+            @JvmStatic @Implementation fun nativeSendPen(flags: Int, x: Int, y: Int, pressure: Int, distance: Int, tiltX: Int, tiltY: Int) {
+                pens += Pen(flags, x, y)
+                pressures += pressure
+            }
+            @JvmStatic @Implementation fun nativeSendPenCapabilities(capabilities: Int) { this.capabilities += capabilities }
+            @JvmStatic @Implementation fun nativeFocusTakesTablet(): Boolean = takesTablet
             @JvmStatic @Implementation fun nativeSendTouch(action: Int, id: Int, x: Int, y: Int) { touches += Touch(action, id, x, y) }
             @JvmStatic @Implementation fun nativeSendPointer(action: Int, x: Int, y: Int) { pointers += Triple(action, x, y) }
             @JvmStatic @Implementation fun nativeSendSceneInput(type: Int, code: Int, value: Int) {}

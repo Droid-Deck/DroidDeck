@@ -293,7 +293,13 @@
     <string name="mode_pen">觸控筆</string>
     <string name="mode_pen_mouse">滑鼠</string>
     <string name="mode_pen_touch">觸控</string>
+    <string name="mode_pen_note">自動：在桌面中支援繪圖板的應用程式裡作為繪圖板，其他情況作為滑鼠。</string>
     <string name="mode_pen_button">側鍵</string>
+    <string name="mode_pen_button_eraser">按住時為橡皮擦</string>
+    <string name="mode_pen_pressure">壓感</string>
+    <string name="mode_pen_pressure_soft">偏軟</string>
+    <string name="mode_pen_pressure_normal">正常</string>
+    <string name="mode_pen_pressure_firm">偏硬</string>
     <string name="mode_osc">螢幕控制</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">「自動」會在未連接控制器時顯示螢幕控制。</string>
@@ -1722,6 +1728,8 @@
     <string name="session_title_game">遊戲</string>
     <string name="session_touch_auto_touchpad">觸控板</string>
     <string name="session_touch_auto_direct">直接</string>
+    <string name="session_pen_auto_tablet">繪圖板</string>
+    <string name="session_pen_auto_mouse">滑鼠</string>
     <string name="session_swap_failed">替換失敗：%1$s</string>
     <string name="session_profile_save_failed">設定檔儲存失敗：%1$s</string>
     <string name="session_desktop_paused">桌面已暫停</string>
