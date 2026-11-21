@@ -1752,6 +1752,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 com.droiddeck.launcher.session.InputSysfsComponent.padTypeChanged(SessionPrefs.padType(id))
                 padType = id
                 onScreenControls?.reload()
+                applyUnfoldedControls()
+                unfoldedPanel?.reload()
                 bottomInputControls?.reload()
             },
             backHold = backHold,
@@ -4629,7 +4631,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 else "unfolded controls: game full screen")
         }
         val portrait = !com.droiddeck.launcher.session.SessionDisplay.foldable(this)
-        val dock = if (SessionState.deckPad) com.droiddeck.launcher.input.OnScreenLayout.Dock.deck(portrait, deckPanelLayouts[com.droiddeck.launcher.input.DeckPanel.GAMEPAD])
+        val kit = com.droiddeck.launcher.input.PadKit.forOverlay(this, primaryInputLayout)
+        val dock = if (SessionState.deckPad && kit?.steam != false)
+            com.droiddeck.launcher.input.OnScreenLayout.Dock.deck(portrait, deckPanelLayouts[com.droiddeck.launcher.input.DeckPanel.GAMEPAD])
             else com.droiddeck.launcher.input.OnScreenLayout.Dock(portrait, false)
         var panel = unfoldedPanel
         if (panel != null && (!wanted || panel.dock != dock)) {
@@ -5510,6 +5514,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             .takeIf { it.isFile }
             ?.let { FileUtils.readString(it)?.trim()?.lowercase() }
             ?: SessionPrefs.oscMode(this, SessionState.mode == SessionService.MODE_STEAM)
+        unfoldedColumn?.let { column ->
+            val shown = if (inputSettingsOpen) View.INVISIBLE else View.VISIBLE
+            if (column.visibility != shown) { unfoldedPanel?.releaseAll(); unfoldedDeckSurface?.releaseInputs(); column.visibility = shown }
+        }
         val controls = onScreenControls ?: return
         fun showPinned() {
             controls.setPinnedOnly(true)

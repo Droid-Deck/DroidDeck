@@ -5,11 +5,14 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.ViewConfiguration
+import android.view.WindowInsets
 import android.widget.FrameLayout
 import com.droiddeck.launcher.input.OnScreenLayout
+import com.droiddeck.launcher.input.PadKit
 import com.droiddeck.launcher.input.SavedInputLayout
 import com.droiddeck.launcher.input.InputSurfaceElement
 import com.droiddeck.launcher.input.InputSurfaceStyle
@@ -39,6 +42,8 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     var onSelect: (String?) -> Unit = {}
     var onBeginEdit: (List<InputSurfaceElement>, Int, Int) -> Unit = { _, _, _ -> }
     var onChange: (InputSurfaceElement) -> Unit = {}
+    var onResize: (Int, Int) -> Unit = { _, _ -> }
+    var onDisplayed: (List<InputSurfaceElement>) -> Unit = {}
     private val preview = InputSurfaceView(context)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(26, 159, 255); strokeWidth = 2 * resources.displayMetrics.density }
     private val radius = 14 * resources.displayMetrics.density
@@ -56,19 +61,29 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     }
 
     private fun updatePreviewStyle() {
-        preview.updateStyle(style, steamDeckButtons = OnScreenLayout.usesSteamDeckButtons(context, sourceLayout))
+        preview.updateStyle(style, PadKit.forOverlay(context, sourceLayout))
     }
+
+    private var safe = Rect()
 
     private fun refreshElements() {
         visibleElements = sourceLayout?.let { layout ->
-            OnScreenLayout.editorElements(context, layout.copy(elements = elements, aspect = aspect), width, height)
+            OnScreenLayout.editorElements(context, layout.copy(elements = elements, aspect = aspect), width, height, safe = safe)
         } ?: elements
         preview.updateCustomLayout(visibleElements)
+        onDisplayed(visibleElements)
+    }
+
+    override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        val fresh = OnScreenLayout.safeInsets(insets, false)
+        if (fresh != safe) { safe = fresh; refreshElements(); invalidate() }
+        return super.onApplyWindowInsets(insets)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         refreshElements()
+        onResize(w, h)
     }
 
     override fun dispatchDraw(canvas: Canvas) {
