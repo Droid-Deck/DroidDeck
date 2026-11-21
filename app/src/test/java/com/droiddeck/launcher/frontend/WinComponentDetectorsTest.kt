@@ -54,6 +54,15 @@ class WinComponentDetectorsTest {
         assertEquals(emptyList<String?>(), WinCompSources.steamList(context, game, 409710, "Other", auto = true).map { it.component })
     }
 
+    @Test fun dontStarveTogetherGetsTheNativeShaderCompilerItsAngleNeeds() {
+        val steamapps = tmp.newFolder("steamapps")
+        val game = File(steamapps, "common/Don't Starve Together").apply { mkdirs() }
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val found = WinCompSources.steamList(context, game, 322330, "Don't Starve Together", auto = true)
+        assertEquals(listOf("d3dcompiler_43"), found.map { it.component })
+        assertTrue(found.all { it.auto && it.origin == WinCompSources.Origin.STEAM })
+    }
+
     @Test fun theGamesInstallScriptRedistsAreInstalledAsSteamWould() {
         val steamapps = tmp.newFolder("steamapps")
         val game = File(steamapps, "common/DiRT 3 Complete Edition").apply { mkdirs() }

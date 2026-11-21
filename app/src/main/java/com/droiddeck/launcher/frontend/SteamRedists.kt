@@ -20,6 +20,8 @@ object SteamRedists {
     val SCRIPTED = mapOf(
         72850 to listOf("xact" to "DirectX XACT audio"),
         489830 to listOf("xact_x64" to "DirectX XACT audio (64-bit)"),
+        // DST's bundled ANGLE compiles SM3 shaders through d3dcompiler_43; DXVK's SM3 parser asserts on what Wine's own one emits.
+        322330 to listOf("d3dcompiler_43" to "D3DCompiler 43"),
     )
     private val BLOCK = Regex("\"SharedDepots\"\\s*\\{([^}]*)\\}", RegexOption.IGNORE_CASE)
     private val ENTRY = Regex("\"(\\d+)\"\\s+\"\\d+\"")
