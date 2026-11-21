@@ -1278,6 +1278,7 @@ AUDIO_STREAMS_PROBE = (
     'folder=$1; launch=$2; shift 2; n=0; '
     'for t in "$@"; do '
     'while [ "$n" -lt "$t" ]; do kill -0 "$launch" 2>/dev/null || exit 0; sleep 1; n=$((n + 1)); done; '
+    'kill -0 "$launch" 2>/dev/null || exit 0; '
     '{ echo "== $(date +%T)"; pactl list sink-inputs 2>&1 | head -80; } >> "$folder/audio-streams.txt"; '
     'done'
 )

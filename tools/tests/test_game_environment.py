@@ -2038,6 +2038,17 @@ class GameEnvironmentTest(unittest.TestCase):
             subprocess.run(probe + [tmp, str(ended.pid), "20", "60"], timeout=10, check=True)
             self.assertEqual(samples(tmp), 0)
 
+        with tempfile.TemporaryDirectory() as tmp:
+            game = subprocess.Popen(["sleep", "0.5"])
+            running = subprocess.Popen(probe + [tmp, str(game.pid), "1"])
+            try:
+                game.wait()
+                self.assertEqual(running.wait(timeout=10), 0)
+                self.assertEqual(samples(tmp), 0)
+            finally:
+                running.kill()
+                running.wait()
+
     def test_open_driver_pairs_report_the_drivers_own_vkd3d_caps(self):
         apply = MODULE["apply_config"]
         config = {"version": 1, "shared": {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"},
