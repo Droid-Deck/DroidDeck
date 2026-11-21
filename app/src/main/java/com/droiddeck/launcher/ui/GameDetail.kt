@@ -359,15 +359,17 @@ private val LeadGap = 20.dp
 
 @Composable
 private fun GameCapsule(scores: GameScores?, actions: @Composable () -> Unit) {
-    var empty by remember(scores) { mutableStateOf(false) }
+    var noActions by remember { mutableStateOf(false) }
+    val shown = scores?.takeIf { it.metacritic != Lookup.None || it.hltb != Lookup.None }
+    val empty = noActions && shown == null
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().then(if (empty) Modifier else Modifier.padding(top = ActionGap).glass(RoundedCornerShape(30.dp)).padding(6.dp)),
     ) {
         CompositionLocalProvider(LocalPillButtons provides true) {
-            Box(Modifier.weight(1f).onSizeChanged { empty = it.height == 0 && scores == null }) { actions() }
+            Box(Modifier.weight(1f).onSizeChanged { noActions = it.height == 0 }) { actions() }
         }
-        if (scores != null) CapsuleScores(scores, Modifier.padding(start = 8.dp, end = 10.dp))
+        shown?.let { CapsuleScores(it, Modifier.padding(start = 8.dp, end = 10.dp)) }
     }
 }
 
