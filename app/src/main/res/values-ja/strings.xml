@@ -1663,6 +1663,8 @@
     <string name="upd_stage_downloading">ダウンロード中</string>
     <string name="upd_stage_installing">インストール中</string>
     <string name="upd_stage_confirm">確認を待機中</string>
+    <string name="epic_copy_code">authorizationCode の後の英数字を長押ししてコピーし、ここに戻ってください</string>
+    <string name="stores_login_in_browser">ブラウザ</string>
     <string name="upd_failed">アップデートに失敗しました</string>
     <string name="upd_not_offered">Androidがアップデートのインストールを表示しませんでした</string>
     <string name="decky_install_failed">Deckyのインストールに失敗しました：%1$s</string>

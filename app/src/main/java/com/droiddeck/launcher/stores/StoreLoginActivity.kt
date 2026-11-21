@@ -156,6 +156,15 @@ class StoreLoginActivity : ComponentActivity() {
             setTextColor(0xFFF2F4F7.toInt()); textSize = 16f; setPadding(dp(16), 0, dp(8), 0)
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
+        val browser = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
+            text = getString(R.string.stores_login_in_browser); setTextColor(0xFFF2F4F7.toInt()); isAllCaps = false
+            visibility = if (store == Store.EPIC && clientUrl == null) View.VISIBLE else View.GONE
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(48))
+            setOnClickListener {
+                com.droiddeck.launcher.stores.epic.EpicCodeLogin.begin(this@StoreLoginActivity)
+                finish()
+            }
+        }
         val reload = ImageButton(this).apply {
             setImageResource(android.R.drawable.ic_menu_rotate); setBackgroundColor(Color.TRANSPARENT)
             contentDescription = getString(R.string.stores_login_reload); layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
@@ -167,7 +176,7 @@ class StoreLoginActivity : ComponentActivity() {
             setOnClickListener { finish() }
         }
         topBar = bar; reloadButton = reload; closeButton = close
-        bar.addView(titleText); bar.addView(reload); bar.addView(close)
+        bar.addView(titleText); bar.addView(browser); bar.addView(reload); bar.addView(close)
         progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100; isIndeterminate = false
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3))

@@ -1663,6 +1663,8 @@
     <string name="upd_stage_downloading">Memuat turun</string>
     <string name="upd_stage_installing">Memasang</string>
     <string name="upd_stage_confirm">Menunggu pengesahan anda</string>
+    <string name="epic_copy_code">Tekan lama huruf dan nombor selepas authorizationCode, salin, kemudian kembali ke sini</string>
+    <string name="stores_login_in_browser">Pelayar</string>
     <string name="upd_failed">Kemas kini gagal</string>
     <string name="upd_not_offered">Android tidak menawarkan untuk memasang kemas kini</string>
     <string name="decky_install_failed">Pemasangan Decky gagal: %1$s</string>

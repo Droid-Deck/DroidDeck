@@ -1675,6 +1675,8 @@
     <string name="upd_stage_downloading">Downloader</string>
     <string name="upd_stage_installing">Installerer</string>
     <string name="upd_stage_confirm">Venter på din bekræftelse</string>
+    <string name="epic_copy_code">Tryk længe på bogstaverne og tallene efter authorizationCode, kopiér dem, og vend så tilbage hertil</string>
+    <string name="stores_login_in_browser">Browser</string>
     <string name="upd_failed">Opdateringen mislykkedes</string>
     <string name="upd_not_offered">Android tilbød ikke at installere opdateringen</string>
     <string name="decky_install_failed">Decky-installation mislykkedes: %1$s</string>

@@ -1675,6 +1675,8 @@
     <string name="upd_stage_downloading">Λήψη</string>
     <string name="upd_stage_installing">Εγκατάσταση</string>
     <string name="upd_stage_confirm">Περιμένει να επιβεβαιώσετε</string>
+    <string name="epic_copy_code">Πατήστε παρατεταμένα τα γράμματα και τους αριθμούς μετά το authorizationCode, αντιγράψτε τα και επιστρέψτε εδώ</string>
+    <string name="stores_login_in_browser">Πρόγραμμα περιήγησης</string>
     <string name="upd_failed">Η ενημέρωση απέτυχε</string>
     <string name="upd_not_offered">Το Android δεν πρότεινε την εγκατάσταση της ενημέρωσης</string>
     <string name="decky_install_failed">Η εγκατάσταση του Decky απέτυχε: %1$s</string>

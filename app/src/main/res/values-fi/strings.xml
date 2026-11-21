@@ -1675,6 +1675,8 @@
     <string name="upd_stage_downloading">Latausta</string>
     <string name="upd_stage_installing">Asennusta</string>
     <string name="upd_stage_confirm">Odotetaan vahvistustasi</string>
+    <string name="epic_copy_code">Paina pitkään kirjaimia ja numeroita kohdan authorizationCode jälkeen, kopioi ne ja palaa tänne</string>
+    <string name="stores_login_in_browser">Selain</string>
     <string name="upd_failed">Päivitys epäonnistui</string>
     <string name="upd_not_offered">Android ei tarjonnut päivityksen asentamista</string>
     <string name="decky_install_failed">Deckyn asennus epäonnistui: %1$s</string>

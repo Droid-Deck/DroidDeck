@@ -1687,6 +1687,8 @@
     <string name="upd_stage_downloading">Téléchargement</string>
     <string name="upd_stage_installing">Installation</string>
     <string name="upd_stage_confirm">En attente de votre confirmation</string>
+    <string name="epic_copy_code">Appuyez longuement sur les lettres et chiffres après authorizationCode, copiez-les, puis revenez ici</string>
+    <string name="stores_login_in_browser">Navigateur</string>
     <string name="upd_failed">La mise à jour a échoué</string>
     <string name="upd_not_offered">Android n\'a pas proposé d\'installer la mise à jour</string>
     <string name="decky_install_failed">Échec de l\'installation de Decky : %1$s</string>
