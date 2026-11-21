@@ -200,7 +200,7 @@ class InputSurfaceView(
             val source = pad?.let { InputSurfaceSource(it, inputRole, element).also { s -> elementSources += s } }
             canvas.addView(when (element.kind) {
                 InputElementKind.STICK -> StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
-                InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, source = source)
+                InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, captioned = element.showLabel, source = source)
                 InputElementKind.DPAD -> DirectionPad(context, element, source)
                 else -> HoldButton(context, element, source)
             }.apply { tag = element; contentDescription = element.name; styleElement(this); source?.onStateChanged = { postInvalidate() } })
@@ -434,11 +434,14 @@ class InputSurfaceView(
         private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
 
         override fun onDraw(canvas: Canvas) {
-            drawSurface(canvas, clicked)
+            if (captioned) drawSurface(canvas, clicked)
+            else deckArt.surface(canvas, width, height, InputButtonShape.ROUNDED, clicked)
             val cx = width / 2f
             val cy = height / 2f
             guide.strokeWidth = density
-            val reach = min(width, height) / 2f - 24 * density
+            guide.color = if (captioned) GUIDE else 0x52FFFFFF
+            val reach = if (captioned) (min(width, height) / 2f - 24 * density).coerceAtLeast(0f)
+                else min(width, height) * .21f
             canvas.drawCircle(cx, cy, reach, guide)
             canvas.drawCircle(cx, cy, reach / 2f, guide)
             canvas.drawLine(cx - reach, cy, cx + reach, cy, guide)

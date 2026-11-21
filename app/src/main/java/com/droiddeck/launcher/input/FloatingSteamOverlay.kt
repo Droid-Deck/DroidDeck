@@ -11,7 +11,7 @@ internal class FloatingSteamOverlay(width: Int, height: Int, safe: Rect, density
     private val right = 1f - safe.right / w
     private val bottom = 1f - safe.bottom / h
     private val gap = 3f * density
-    private val bottomPadding = 7f * density
+    private val bottomPadding = 14f * density
     private val dp = min(density, min(width, height) / 250f)
 
     fun place(elements: List<InputSurfaceElement>, lowerShortcuts: Boolean,
@@ -30,7 +30,7 @@ internal class FloatingSteamOverlay(width: Int, height: Int, safe: Rect, density
         fun add(control: InputControl, x: Float, y: List<Float>, widthDp: Int, heightDp: Int, shape: InputButtonShape) {
             if (placed.any { it.id == "legacy:${control.id}" }) return
             val element = InputSurfaceElement(control, 0f, 0f, (widthDp * dp / w).coerceAtLeast(.03f),
-                (heightDp * dp / h).coerceAtLeast(.03f), floating = false, buttonShape = shape)
+                (heightDp * dp / h).coerceAtLeast(.03f), floating = false, buttonShape = shape, showLabel = !control.isTrackpad)
             findSpace(element, x, y, placed)?.let(placed::add)
         }
         if (rearButtons == true) {

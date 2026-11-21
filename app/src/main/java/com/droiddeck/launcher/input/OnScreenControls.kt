@@ -80,7 +80,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     private fun placed(): List<InputSurfaceElement> {
         val key = Placement(layout, viewWidth, viewHeight, Rect(safe), isButtonsOnly)
         return placements.getOrPut(key) {
-            val steam = SessionState.mode == SessionService.MODE_STEAM
+            val steam = SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad
             OnScreenLayout.elements(context, layout, viewWidth, viewHeight, safe, isButtonsOnly, dock,
                 rearButtons = SessionPrefs.oscRearButtons(context).takeIf { steam },
                 trackpads = SessionPrefs.oscTrackpads(context).takeIf { steam })
