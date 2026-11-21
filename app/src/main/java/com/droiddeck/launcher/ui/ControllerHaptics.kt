@@ -17,7 +17,9 @@ object ControllerHaptics {
     fun onKey(context: Context, event: KeyEvent) {
         if (event.action != KeyEvent.ACTION_DOWN || event.keyCode !in navKeys) return
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A && event.repeatCount > 0) return
-        if (!event.isFromSource(InputDevice.SOURCE_GAMEPAD) && !event.isFromSource(InputDevice.SOURCE_DPAD)) return
+        val fromController = event.isFromSource(InputDevice.SOURCE_GAMEPAD) ||
+            event.isFromSource(InputDevice.SOURCE_DPAD) || event.isFromSource(InputDevice.SOURCE_JOYSTICK)
+        if (!fromController) return
         tick(context)
     }
 
