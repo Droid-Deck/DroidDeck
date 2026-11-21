@@ -124,7 +124,7 @@ class TextEditorLogicTest {
             val target = File(dir, "real.txt").apply { writeText("hi") }
             val link = File(dir, "link.txt")
             Files.createSymbolicLink(link.toPath(), target.toPath())
-            assertEquals(target.canonicalFile, resolveEditorSaveTarget(link).canonicalFile)
+            assertEquals(target.canonicalFile, resolveEditorSaveTarget(link))
         } finally {
             dir.deleteRecursively()
         }
