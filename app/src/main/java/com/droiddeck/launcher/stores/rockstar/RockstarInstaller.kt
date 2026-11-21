@@ -99,6 +99,11 @@ internal object RockstarManifest {
     }
 
     fun key(file: RockstarFile, chunk: RockstarChunk) = "${file.versionId}:${chunk.chunkId}"
+
+    fun sdkInstaller(build: RockstarBuild): RockstarFile? {
+        val name = RockstarLaunch.SDK_INSTALLER.substringAfterLast('/')
+        return build.files.filter { it.path.substringAfterLast('/').equals(name, ignoreCase = true) }.minByOrNull { it.path.length }
+    }
 }
 
 internal class RockstarInstaller(
@@ -160,7 +165,7 @@ internal class RockstarInstaller(
                         for (c in batch) {
                             if (cancelled.get()) break
                             val f = fileOf.getValue("${c.fileEntryId}:${c.chunkId}")
-                            fetch({ retry -> (if (retry) null else urls[c.chunkId]) ?: chunkUrls(ticket, branch.accessToken, listOf(c)).getValue(c.chunkId) }, RockstarManifest.inside(folder, f.path), c, progress) {
+                            fetch(cancelled::get, { retry -> (if (retry) null else urls[c.chunkId]) ?: chunkUrls(ticket, branch.accessToken, listOf(c)).getValue(c.chunkId) }, RockstarManifest.inside(folder, f.path), c, progress) {
                                 handle.progress(progress.get(), total, "Downloading (${build.files.size} files)")
                             }
                             synchronized(ledgerLock) { ledger.appendText(RockstarManifest.key(f, c) + "\n") }
@@ -191,58 +196,6 @@ internal class RockstarInstaller(
         return folder.path
     }
 
-    private fun chunkUrls(ticket: String, branchToken: String, batch: List<RockstarChunk>): Map<String, String> {
-        val csv = batch.joinToString(",") { "${it.fileEntryId}:${it.chunkId}" }
-        val root = RockstarRos.result("app.asmx/RetrieveFileChunkMulti", listOf("ticket" to ticket, "branchAccessToken" to branchToken, "fileEntryAndChunkIdCsv" to csv))
-        return RockstarRos.all(root, "Chunk").mapNotNull { c -> RockstarRos.text(c, "RedirectUrl")?.let { c.getAttribute("FileChunkId") to it } }.toMap()
-    }
-
-    private fun fetch(url: (Boolean) -> String, target: File, chunk: RockstarChunk, progress: AtomicLong, report: () -> Unit) {
-        var lastError: Exception? = null
-        for (attempt in 0 until 3) {
-            if (cancelled.get()) return
-            val written = AtomicLong(0)
-            try {
-                val c = URL(url(attempt > 0)).openConnection() as HttpURLConnection
-                c.connectTimeout = 20_000
-                c.readTimeout = 60_000
-                try {
-                    if (c.responseCode != 200) throw java.io.IOException("chunk ${chunk.chunkId}: HTTP ${c.responseCode}")
-                    val digest = MessageDigest.getInstance("SHA-256")
-                    RandomAccessFile(target, "rw").use { out ->
-                        out.seek(chunk.offset)
-                        c.inputStream.use { input ->
-                            val buf = ByteArray(256 * 1024)
-                            var last = 0L
-                            while (true) {
-                                if (cancelled.get()) { progress.addAndGet(-written.get()); return }
-                                val n = input.read(buf)
-                                if (n < 0) break
-                                if (written.get() + n > chunk.size) throw java.io.IOException("chunk ${chunk.chunkId} is longer than the manifest says")
-                                out.write(buf, 0, n)
-                                digest.update(buf, 0, n)
-                                written.addAndGet(n.toLong())
-                                progress.addAndGet(n.toLong())
-                                val now = System.currentTimeMillis()
-                                if (now - last > 400) { last = now; report() }
-                            }
-                        }
-                    }
-                    val hex = digest.digest().joinToString("") { "%02x".format(it) }
-                    if (written.get() != chunk.size || hex != chunk.sha256) throw java.io.IOException("chunk ${chunk.chunkId} failed its check")
-                    report()
-                    return
-                } finally {
-                    c.disconnect()
-                }
-            } catch (e: Exception) {
-                progress.addAndGet(-written.get())
-                lastError = e
-            }
-        }
-        throw lastError ?: java.io.IOException("chunk ${chunk.chunkId} failed")
-    }
-
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
         if (deleteFiles) StoreInstalls.discard(app, folder, emptyList())
@@ -251,6 +204,58 @@ internal class RockstarInstaller(
     internal companion object {
         const val LEDGER = ".droiddeck-rockstar-chunks"
         private const val WORKERS = 4
+
+        fun chunkUrls(ticket: String, branchToken: String, batch: List<RockstarChunk>): Map<String, String> {
+            val csv = batch.joinToString(",") { "${it.fileEntryId}:${it.chunkId}" }
+            val root = RockstarRos.result("app.asmx/RetrieveFileChunkMulti", listOf("ticket" to ticket, "branchAccessToken" to branchToken, "fileEntryAndChunkIdCsv" to csv))
+            return RockstarRos.all(root, "Chunk").mapNotNull { c -> RockstarRos.text(c, "RedirectUrl")?.let { c.getAttribute("FileChunkId") to it } }.toMap()
+        }
+
+        fun fetch(cancelled: () -> Boolean, url: (Boolean) -> String, target: File, chunk: RockstarChunk, progress: AtomicLong, report: () -> Unit) {
+            var lastError: Exception? = null
+            for (attempt in 0 until 3) {
+                if (cancelled()) return
+                val written = AtomicLong(0)
+                try {
+                    val c = URL(url(attempt > 0)).openConnection() as HttpURLConnection
+                    c.connectTimeout = 20_000
+                    c.readTimeout = 60_000
+                    try {
+                        if (c.responseCode != 200) throw java.io.IOException("chunk ${chunk.chunkId}: HTTP ${c.responseCode}")
+                        val digest = MessageDigest.getInstance("SHA-256")
+                        RandomAccessFile(target, "rw").use { out ->
+                            out.seek(chunk.offset)
+                            c.inputStream.use { input ->
+                                val buf = ByteArray(256 * 1024)
+                                var last = 0L
+                                while (true) {
+                                    if (cancelled()) { progress.addAndGet(-written.get()); return }
+                                    val n = input.read(buf)
+                                    if (n < 0) break
+                                    if (written.get() + n > chunk.size) throw java.io.IOException("chunk ${chunk.chunkId} is longer than the manifest says")
+                                    out.write(buf, 0, n)
+                                    digest.update(buf, 0, n)
+                                    written.addAndGet(n.toLong())
+                                    progress.addAndGet(n.toLong())
+                                    val now = System.currentTimeMillis()
+                                    if (now - last > 400) { last = now; report() }
+                                }
+                            }
+                        }
+                        val hex = digest.digest().joinToString("") { "%02x".format(it) }
+                        if (written.get() != chunk.size || hex != chunk.sha256) throw java.io.IOException("chunk ${chunk.chunkId} failed its check")
+                        report()
+                        return
+                    } finally {
+                        c.disconnect()
+                    }
+                } catch (e: Exception) {
+                    progress.addAndGet(-written.get())
+                    lastError = e
+                }
+            }
+            throw lastError ?: java.io.IOException("chunk ${chunk.chunkId} failed")
+        }
 
         fun resolve(folder: File, configured: String): String? {
             var at = folder

@@ -372,6 +372,12 @@ def rockstar_launcher_log(compat_data, limit=65536):
     return [line.strip() for line in data.decode("utf-8", "replace").splitlines() if line.strip()]
 
 
+def ships_sdk(root, exe):
+    return any(directory.is_dir() and any(p.is_file() and not p.is_symlink() and p.name.lower() in ("socialclub.dll", "socialclub64.dll")
+                                          for p in directory.iterdir())
+               for directory in {root, exe.parent})
+
+
 def rockstar_sdk(folder, sidecar):
     if str(sidecar.get("id")) in ("gta4", "lanoire"):
         return True
@@ -379,10 +385,8 @@ def rockstar_sdk(folder, sidecar):
     exe = (folder / str(sidecar.get("exe") or "").replace("\\", "/")).resolve()
     if not exe.is_relative_to(root):
         return False
-    for directory in {root, exe.parent}:
-        if directory.is_dir() and any(p.is_file() and not p.is_symlink() and p.name.lower() in ("socialclub.dll", "socialclub64.dll")
-                                      for p in directory.iterdir()):
-            return True
+    if ships_sdk(root, exe):
+        return True
     if str(sidecar.get("id")) in ROCKSTAR_TITLES:
         return False
     level = [root]
@@ -608,7 +612,15 @@ def prepare_rockstar(folder, sidecar, compat_data, launch_dir, proton="", ask_ap
         return "prefix-" + made
     arch = "x86" if signature[4:] == b"\x4c\x01" else "x64"
     if sdk:
-        log("rockstar runtime: " + rockstar_runtime(folder, exe, compat_data, arch))
+        runtime = rockstar_runtime(folder, exe, compat_data, arch)
+        if runtime == "game-runtime" and not ships_sdk(root, exe):
+            answer = (ask_app or ask)(Path(launch_dir) / "stores", {"op": "rockstar-sdk", "store": "rockstar", "id": str(sidecar.get("id"))},
+                                      timeout=SERVICE_WAIT)
+            if isinstance(answer, dict) and answer.get("ok"):
+                runtime = rockstar_runtime(folder, exe, compat_data, arch)
+            else:
+                runtime = "sdk-" + (str(answer.get("reason") or "refused") if isinstance(answer, dict) else "timeout")
+        log("rockstar runtime: " + runtime)
     if not rockstar_registry(folder, title, compat_data, proton, sdk_arch=arch if sdk else None):
         return "registry-unavailable"
     target.mkdir(parents=True, exist_ok=True)
