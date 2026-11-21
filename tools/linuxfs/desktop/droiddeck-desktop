@@ -127,8 +127,11 @@ if [ -e /usr/share/droiddeck/kwin-independent ]; then
     GALLIUM_THREAD=0 exec /usr/bin/kwin_wayland "$@"
 fi
 runtime=/usr/local/lib/droiddeck-kwin
-if [ "$(dpkg-query -W -f='${Version}' libkwin6 2>/dev/null)" = '4:6.6.7-0ubuntu0.1+droiddeck1' ] &&
-   [ -r "$runtime/libkwin.so.6" ] && (cd "$runtime" && sha256sum -c kwin.sha256 >/dev/null 2>&1); then
+case "$(dpkg-query -W -f='${Version}' libkwin6 2>/dev/null)" in
+    4:6.6.*+droiddeck*) ;;
+    *) GALLIUM_THREAD=0 exec /usr/bin/kwin_wayland "$@" ;;
+esac
+if [ -r "$runtime/libkwin.so.6" ] && (cd "$runtime" && sha256sum -c kwin.sha256 >/dev/null 2>&1); then
     export LD_LIBRARY_PATH="$runtime${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     GALLIUM_THREAD=0 exec "$runtime/kwin_wayland" "$@"
 fi
