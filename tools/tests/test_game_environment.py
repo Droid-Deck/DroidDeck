@@ -9,6 +9,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from unittest import mock
 import unittest
 from unittest.mock import patch
@@ -1988,6 +1989,65 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertNotEqual(first["PROTON_LOG_DIR"], second["PROTON_LOG_DIR"])
             self.assertIn("exe: first.exe", (Path(first["PROTON_LOG_DIR"]) / "launch.txt").read_text())
             self.assertIn("exe: second.exe", (Path(second["PROTON_LOG_DIR"]) / "launch.txt").read_text())
+
+    def test_audio_probe_watches_this_launch(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen") as popen:
+            env = {"DD_GAME_LOGS": "1", "DD_DEBUG_DIR": tmp}
+            result = MODULE["game_logs"](["/proton", "waitforexitandrun", "game.exe"], env, "42", now=0)
+            self.assertEqual(popen.call_args.args[0], [
+                "sh", "-c", MODULE["AUDIO_STREAMS_PROBE"], "audio", result["PROTON_LOG_DIR"], str(os.getpid()), "20", "60",
+            ])
+
+    def test_audio_probe_ends_with_the_game_and_keeps_its_samples_while_it_runs(self):
+        probe = ["sh", "-c", MODULE["AUDIO_STREAMS_PROBE"], "audio"]
+
+        def samples(folder):
+            path = Path(folder) / "audio-streams.txt"
+            return sum(line.startswith("== ") for line in path.read_text().splitlines()) if path.exists() else 0
+
+        with tempfile.TemporaryDirectory() as tmp:
+            game = subprocess.Popen(["sleep", "60"])
+            try:
+                subprocess.run(probe + [tmp, str(game.pid), "1", "2"], timeout=15, check=True)
+                self.assertEqual(samples(tmp), 2)
+            finally:
+                game.kill()
+                game.wait()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            game = subprocess.Popen(["sleep", "60"])
+            running = subprocess.Popen(probe + [tmp, str(game.pid), "1", "600"])
+            try:
+                deadline = time.monotonic() + 15
+                while samples(tmp) < 1 and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                self.assertEqual(samples(tmp), 1)
+                game.kill()
+                game.wait()
+                self.assertEqual(running.wait(timeout=10), 0)
+                self.assertEqual(samples(tmp), 1)
+            finally:
+                game.kill()
+                game.wait()
+                running.kill()
+                running.wait()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            ended = subprocess.Popen(["true"])
+            ended.wait()
+            subprocess.run(probe + [tmp, str(ended.pid), "20", "60"], timeout=10, check=True)
+            self.assertEqual(samples(tmp), 0)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            game = subprocess.Popen(["sleep", "0.5"])
+            running = subprocess.Popen(probe + [tmp, str(game.pid), "1"])
+            try:
+                game.wait()
+                self.assertEqual(running.wait(timeout=10), 0)
+                self.assertEqual(samples(tmp), 0)
+            finally:
+                running.kill()
+                running.wait()
 
     def test_open_driver_pairs_report_the_drivers_own_vkd3d_caps(self):
         apply = MODULE["apply_config"]
