@@ -37,6 +37,9 @@ internal class SteamDeckOverlayGeometry(
         val hasKeyboard = elements.any { it.id == KEYBOARD }
         val guideEdge = if (hasKeyboard) keyboardX + 46f * unit + 8f * density else leftEdge
         val middle = (w + safe.left - safe.right) / 2f
+        val guide = Box(max(x(370f), guideEdge + 66f * unit), y(852f), 66f, 30f)
+        val select = guide.then(middle - 140f * unit, y(850f), 46f, 26f)
+        val start = select.then(middle + 140f * unit, y(850f), 46f, 26f)
         val positions = mapOf(
             InputControl.LT to Box(x(140f), y(66f), 88f, 34f),
             InputControl.LB to Box(x(140f), y(148f), 88f, 30f),
@@ -52,10 +55,10 @@ internal class SteamDeckOverlayGeometry(
             InputControl.LEFT to Box(x(220f) - 102.5f * unit, y(345f), 47.5f, 55.5f),
             InputControl.LS to Box(x(290f), y(640f), 96f),
             InputControl.RS to Box(x(1310f), y(640f), 96f),
-            InputControl.SELECT to Box(middle - 140f * unit, y(850f), 46f, 26f),
-            InputControl.START to Box(middle + 140f * unit, y(850f), 46f, 26f),
-            InputControl.GUIDE to Box(max(x(370f), guideEdge + 66f * unit), y(852f), 66f, 30f),
-            InputControl.QAM to Box(x(1230f), y(852f), 66f, 30f),
+            InputControl.SELECT to select,
+            InputControl.START to start,
+            InputControl.GUIDE to guide,
+            InputControl.QAM to start.then(x(1230f), y(852f), 66f, 30f),
         )
         val rear = mapOf(
             InputControl.L4 to Box(x(30f), y(470f), 30f, 58f),
@@ -83,8 +86,14 @@ internal class SteamDeckOverlayGeometry(
     }
 
     private inner class Box(val cx: Float, val cy: Float, val hw: Float, val hh: Float = hw) {
+        val width get() = max(hw * 2f * unit, w * .03f)
+
+        fun then(cx: Float, cy: Float, hw: Float, hh: Float): Box {
+            val next = Box(cx, cy, hw, hh)
+            return Box(max(cx, this.cx + (width + next.width) / 2f + 8f * density), cy, hw, hh)
+        }
+
         fun place(element: InputSurfaceElement): InputSurfaceElement {
-            val width = max(hw * 2f * unit, w * .03f)
             val height = max(hh * 2f * unit, h * .03f)
             return element.copy(
                 x = (cx - width / 2f).coerceIn(safe.left.toFloat(), max(safe.left.toFloat(), w - safe.right - width)) / w,

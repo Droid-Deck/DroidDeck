@@ -209,6 +209,19 @@ class OnScreenLayoutTest {
         assertInside(placed, 1600, 900)
     }
 
+    @Test @Config(qualifiers = "w800dp-h450dp-land-xxxhdpi")
+    fun theDeckShortcutRowStaysApartOnSmallDenseSurfaces() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val row = listOf("builtin:keyboard", "legacy:guide", "legacy:select", "legacy:start", "legacy:qam")
+        for ((w, h) in listOf(800 to 450, 600 to 450, 1600 to 900)) {
+            val placed = OnScreenLayout.elements(context, gamepad(), w, h, Rect())
+            for ((left, right) in row.map { id -> placed.single { it.id == id } }.zipWithNext()) {
+                assertTrue("${left.id} reaches ${right.id} at ${w}x$h", (left.x + left.width) * w <= right.x * w + .5f)
+            }
+            assertInside(placed, w, h)
+        }
+    }
+
     @Test fun anEditedLayoutKeepsItsAspectAndCornersWhenTheScreenRotates() {
         val corner = InputSurfaceElement(InputControl.A, .85f, .7f, .1f, .2f)
         val left = InputSurfaceElement(InputControl.LS, .05f, .5f, .2f, .4f)
