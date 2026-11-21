@@ -45,11 +45,11 @@ static inline VkDeviceSize vkp_linear_dmabuf_copy(VkFormat fmt, int w, int h, ui
 }
 
 static inline VkBufferMemoryBarrier vkp_linear_dmabuf_ownership(VkBuffer buffer, uint32_t queue_family,
-                                                                int acquire) {
+                                                                VkAccessFlags access, int acquire) {
     return (VkBufferMemoryBarrier){
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = acquire ? 0 : VK_ACCESS_TRANSFER_READ_BIT,
-        .dstAccessMask = acquire ? VK_ACCESS_TRANSFER_READ_BIT : 0,
+        .srcAccessMask = acquire ? 0 : access,
+        .dstAccessMask = acquire ? access : 0,
         .srcQueueFamilyIndex = acquire ? VK_QUEUE_FAMILY_FOREIGN_EXT : queue_family,
         .dstQueueFamilyIndex = acquire ? queue_family : VK_QUEUE_FAMILY_FOREIGN_EXT,
         .buffer = buffer,
