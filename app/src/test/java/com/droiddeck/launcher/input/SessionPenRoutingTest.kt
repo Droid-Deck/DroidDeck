@@ -37,6 +37,9 @@ import org.robolectric.util.ReflectionHelpers
 @Config(sdk = [28], manifest = Config.NONE, shadows = [SessionPenRoutingTest.CompositorShadow::class])
 class SessionPenRoutingTest {
     private lateinit var activity: SessionActivity
+    private lateinit var surface: SurfaceView
+    private var surfaceLeft = 0
+    private var surfaceTop = 0
     private val previousSize = SessionState.outputSize
     private val previousMode = SessionState.mode
     private val previousSteamUi = SessionState.steamUi
@@ -49,7 +52,16 @@ class SessionPenRoutingTest {
         activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         activity.window.decorView
         activity.getSharedPreferences("session", 0).edit().clear().commit()
-        field("surfaceView", SurfaceView(activity).apply { layout(0, 0, 1000, 600) })
+        surface = object : SurfaceView(activity) {
+            override fun isShown() = true
+            override fun getLocationInWindow(location: IntArray) {
+                location[0] = surfaceLeft
+                location[1] = surfaceTop
+            }
+        }.apply { layout(0, 0, 1000, 600) }
+        field("surfaceView", surface)
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "installMainSurfaceTouchListener",
+            ReflectionHelpers.ClassParameter.from(SurfaceView::class.java, surface))
         SessionState.outputSize = 1000 to 600
         SessionState.mode = SessionService.MODE_DESKTOP
         SessionState.steamUi = null
@@ -76,6 +88,25 @@ class SessionPenRoutingTest {
         assertTrue(CompositorShadow.touches.isEmpty())
     }
 
+    @Test fun windowPenHoverAndSurfaceContactUseTheSameGuestPosition() {
+        surfaceLeft = 40
+        surfaceTop = 20
+        val hover = event(MotionEvent.ACTION_HOVER_MOVE, 10, pen to 140f)
+        hover.offsetLocation(0f, 20f)
+        try {
+            assertTrue(activity.dispatchGenericMotionEvent(hover))
+            assertEquals(140f, hover.x, 0f)
+            assertEquals(320f, hover.y, 0f)
+        } finally {
+            hover.recycle()
+        }
+        val contact = event(MotionEvent.ACTION_DOWN, 20, pen to 100f)
+        try { assertTrue(surface.dispatchTouchEvent(contact)) } finally { contact.recycle() }
+        val x = InputSpace.fixedX(100f, 1000)
+        val y = InputSpace.fixedY(300f, 600)
+        assertEquals(listOf(Pen(PEN_IN, x, y), Pen(PEN_IN or PEN_TIP, x, y)), CompositorShadow.pens)
+    }
+
     @Test fun theSideButtonSettingDecidesWhatThePrimaryButtonSends() {
         val cases = listOf(SessionPrefs.PEN_BUTTON_RIGHT to PEN_RIGHT, SessionPrefs.PEN_BUTTON_MIDDLE to PEN_MIDDLE,
             SessionPrefs.PEN_BUTTON_OFF to 0)
@@ -91,9 +122,9 @@ class SessionPenRoutingTest {
 
     @Test fun penContactInMouseModeHoldsTheTipUntilItLifts() {
         steamDirect(SessionPrefs.PEN_MOUSE)
-        assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10, pen to 500f)))
-        assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_MOVE, 20, pen to 520f)))
-        assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_UP, 30, pen to 520f)))
+        assertTrue(surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 10, pen to 500f)))
+        assertTrue(surface.dispatchTouchEvent(event(MotionEvent.ACTION_MOVE, 20, pen to 520f)))
+        assertTrue(surface.dispatchTouchEvent(event(MotionEvent.ACTION_UP, 30, pen to 520f)))
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PenStream.EXIT_GRACE_MS))
         assertEquals(listOf(PEN_IN or PEN_TIP, PEN_IN or PEN_TIP, PEN_IN, 0), CompositorShadow.pens.map { it.flags })
         assertTrue(CompositorShadow.touches.isEmpty())
@@ -102,14 +133,14 @@ class SessionPenRoutingTest {
     @Test fun anExternalTabletTipReachesThePenInsteadOfTheMouse() {
         steamDirect(SessionPrefs.PEN_MOUSE)
         val source = InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_STYLUS
-        assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10, pen to 500f, source = source)))
+        assertTrue(surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 10, pen to 500f, source = source)))
         assertEquals(listOf(PEN_IN or PEN_TIP), CompositorShadow.pens.map { it.flags })
         assertTrue(CompositorShadow.pointers.isEmpty())
     }
 
     @Test fun penContactInTouchModeTakesTheFingerRouteAsBefore() {
         steamDirect(SessionPrefs.PEN_TOUCH)
-        assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10, pen to 500f)))
+        assertTrue(surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 10, pen to 500f)))
         assertEquals(listOf(Touch(0, 0, InputSpace.x(500f, 1000), InputSpace.y(300f, 600))), CompositorShadow.touches)
         activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, 20, pen to 600f))
         assertTrue(CompositorShadow.pens.isEmpty())
@@ -119,7 +150,7 @@ class SessionPenRoutingTest {
     @Test fun anExternalTabletStaysOnTheMousePathInTouchMode() {
         steamDirect(SessionPrefs.PEN_TOUCH)
         val source = InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_STYLUS
-        assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10, pen to 500f, source = source)))
+        assertTrue(surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 10, pen to 500f, source = source)))
         assertTrue(CompositorShadow.touches.isEmpty())
         assertTrue(CompositorShadow.pens.isEmpty())
     }
@@ -128,17 +159,17 @@ class SessionPenRoutingTest {
         for (mode in listOf(SessionPrefs.PEN_MOUSE, SessionPrefs.PEN_TOUCH)) {
             steamDirect(mode)
             CompositorShadow.clear()
-            assertTrue(activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10, finger to 500f, source = InputDevice.SOURCE_TOUCHSCREEN)))
+            assertTrue(surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 10, finger to 500f, source = InputDevice.SOURCE_TOUCHSCREEN)))
             assertEquals(listOf(Touch(0, 0, InputSpace.x(500f, 1000), InputSpace.y(300f, 600))), CompositorShadow.touches)
             assertTrue(CompositorShadow.pens.isEmpty())
-            activity.onTouchEvent(event(MotionEvent.ACTION_CANCEL, 20, finger to 500f, source = InputDevice.SOURCE_TOUCHSCREEN))
+            surface.dispatchTouchEvent(event(MotionEvent.ACTION_CANCEL, 20, finger to 500f, source = InputDevice.SOURCE_TOUCHSCREEN))
         }
     }
 
     @Test fun aFingerAndAPenInOneEventAreSplitByToolType() {
         steamDirect(SessionPrefs.PEN_MOUSE)
-        activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10, finger to 100f))
-        activity.onTouchEvent(event(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 20, finger to 110f, pen to 500f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 10, finger to 100f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 20, finger to 110f, pen to 500f))
         assertEquals(listOf(PEN_IN or PEN_TIP), CompositorShadow.pens.map { it.flags })
         assertEquals(InputSpace.fixedX(500f, 1000), CompositorShadow.pens.last().x)
         assertTrue(CompositorShadow.touches.isNotEmpty())
@@ -251,11 +282,11 @@ class SessionPenRoutingTest {
             val first = if (penFirst) pen to 500f else finger to 100f
             val second = if (penFirst) finger to 100f else pen to 500f
             fun both(step: Int) = arrayOf(first.first to first.second + 10f * step, second.first to second.second + 10f * step)
-            activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10_000, first))
-            activity.onTouchEvent(event(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_010, *both(0)))
-            for (step in 1..4) activity.onTouchEvent(event(MotionEvent.ACTION_MOVE, 10_010L + 10 * step, *both(step)))
-            activity.onTouchEvent(event(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_060, *both(4)))
-            activity.onTouchEvent(event(MotionEvent.ACTION_UP, 10_070, first.first to first.second + 40f))
+            surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 10_000, first))
+            surface.dispatchTouchEvent(event(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_010, *both(0)))
+            for (step in 1..4) surface.dispatchTouchEvent(event(MotionEvent.ACTION_MOVE, 10_010L + 10 * step, *both(step)))
+            surface.dispatchTouchEvent(event(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_060, *both(4)))
+            surface.dispatchTouchEvent(event(MotionEvent.ACTION_UP, 10_070, first.first to first.second + 40f))
             assertTrue("penFirst=$penFirst", pad.scrolls.isNotEmpty())
             assertTrue("penFirst=$penFirst ${pad.moves}", pad.moves.all { it in 450f..550f })
             assertTrue(CompositorShadow.pens.isEmpty())
@@ -266,17 +297,17 @@ class SessionPenRoutingTest {
         steamDirect(SessionPrefs.PEN_MOUSE)
         state<Boolean>("glassesOutputActive").value = true
         val pad = touchpad()
-        activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10_000, finger to 100f))
-        activity.onTouchEvent(event(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_010, finger to 100f, pen to 500f))
-        activity.onTouchEvent(event(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_050, finger to 100f, pen to 500f,
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 10_000, finger to 100f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_010, finger to 100f, pen to 500f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_050, finger to 100f, pen to 500f,
             flags = MotionEvent.FLAG_CANCELED))
-        activity.onTouchEvent(event(MotionEvent.ACTION_UP, 10_060, finger to 100f))
-        activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 20_000, pen to 500f))
-        activity.onTouchEvent(event(MotionEvent.ACTION_UP, 20_050, pen to 500f, flags = MotionEvent.FLAG_CANCELED))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_UP, 10_060, finger to 100f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 20_000, pen to 500f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_UP, 20_050, pen to 500f, flags = MotionEvent.FLAG_CANCELED))
         assertTrue(pad.presses.isEmpty())
         assertTrue(CompositorShadow.touches.isNotEmpty())
-        activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 30_000, pen to 500f))
-        activity.onTouchEvent(event(MotionEvent.ACTION_UP, 30_050, pen to 500f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 30_000, pen to 500f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_UP, 30_050, pen to 500f))
         assertEquals(listOf(PointerGestures.BTN_LEFT), pad.presses)
         assertTrue(CompositorShadow.pens.isEmpty())
     }
@@ -285,14 +316,14 @@ class SessionPenRoutingTest {
         steamDirect(SessionPrefs.PEN_MOUSE)
         state<Boolean>("glassesOutputActive").value = true
         val pad = touchpad()
-        activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 10_000, pen to 500f))
-        activity.onTouchEvent(event(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_010, pen to 500f, finger to 100f))
-        activity.onTouchEvent(event(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_020, pen to 500f, finger to 100f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 10_000, pen to 500f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_010, pen to 500f, finger to 100f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT), 10_020, pen to 500f, finger to 100f))
         invoke("cancelTouchGestures")
-        activity.onTouchEvent(event(MotionEvent.ACTION_UP, 10_050, pen to 500f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_UP, 10_050, pen to 500f))
         assertTrue(pad.presses.isEmpty())
-        activity.onTouchEvent(event(MotionEvent.ACTION_DOWN, 20_000, pen to 500f))
-        activity.onTouchEvent(event(MotionEvent.ACTION_UP, 20_050, pen to 500f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_DOWN, 20_000, pen to 500f))
+        surface.dispatchTouchEvent(event(MotionEvent.ACTION_UP, 20_050, pen to 500f))
         assertEquals(listOf(PointerGestures.BTN_LEFT), pad.presses)
     }
 
