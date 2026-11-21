@@ -100,7 +100,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
 
     private fun refreshAppearance() {
         val style = layout?.style ?: InputSurfaceStyle()
-        val artwork = if (dock == null) PadKit.forOverlay(context, layout) else null
+        val artwork = PadKit.forOverlay(context, layout)
         surface.updateStyle(style, artwork)
         quickToggle.tint = style.tint.takeUnless { artwork != null }
         quickToggle.alpha = style.opacity / 100f

@@ -222,7 +222,8 @@ class InputSurfaceView(
             val source = pad?.let { InputSurfaceSource(it, inputRole, element).also { s -> elementSources += s } }
             canvas.addView(when (element.kind) {
                 InputElementKind.STICK -> StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
-                InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, captioned = element.showLabel, source = source)
+                InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, captioned = element.showLabel,
+                    stock = element.id == "legacy:${element.control.id}", source = source)
                 InputElementKind.DPAD -> DirectionPad(context, element, source)
                 else -> HoldButton(context, element, source)
             }.apply { tag = element; contentDescription = element.name; styleElement(this); source?.onStateChanged = { postInvalidate() } })
@@ -461,7 +462,8 @@ class InputSurfaceView(
         }
     }
 
-    private inner class TrackpadView(context: Context, private val right: Boolean, private val captioned: Boolean = true,
+    private inner class TrackpadView(context: Context, private val right: Boolean, private val captioned: Boolean,
+        private val stock: Boolean,
         private val source: InputSurfaceSource? = null) : Surface(context) {
         private var gestureX = 0f
         private var gestureY = 0f
@@ -484,7 +486,7 @@ class InputSurfaceView(
         private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
 
         override fun onDraw(canvas: Canvas) {
-            if (!captioned) {
+            if (!captioned || stock && artwork?.steam == true) {
                 art.trackpad(canvas, width.toFloat(), height.toFloat(), touching || clicked, fingerX, fingerY)
                 return
             }

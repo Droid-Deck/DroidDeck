@@ -277,6 +277,7 @@ class OnScreenLayoutTest {
     }
 
     @Test fun theUnfoldedStripUsesTheDockGeometryInLandscapeAndPortrait() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
         for ((size, portrait) in listOf((2208 to 800) to false, (1080 to 1300) to true)) {
             val (w, h) = size
             val placed = OnScreenLayout.elements(context, gamepad(), w, h, Rect(), dock = OnScreenLayout.Dock(portrait, grips = true))
@@ -302,6 +303,41 @@ class OnScreenLayoutTest {
         val user = SavedInputLayout("edited", "Edited", listOf(InputSurfaceElement(InputControl.A, .8f, .6f, .1f, .2f)), aspect = 2208f / 1768)
         val fitted = OnScreenLayout.elements(context, user, 2208, 800, Rect(), dock = OnScreenLayout.Dock(false, false)).single()
         assertEquals(.1f * 2208f / 1768 / .2f, fitted.width * 2208 / (fitted.height * 800), .01f)
+    }
+
+    @Test fun thePortraitAndBelowGameKitsKeepDirectionalArtClearOfTheSticksAndFaceButtons() {
+        val directions = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
+        val face = setOf(InputControl.A, InputControl.B, InputControl.X, InputControl.Y)
+        val types = listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM, SessionPrefs.CONTROLLER_XBOX360,
+            SessionPrefs.CONTROLLER_DS4, SessionPrefs.CONTROLLER_DUALSENSE)
+        val layout = gamepad()
+        val w = 1080
+        for (type in types) {
+            SessionPrefs.setSteamController(context, type)
+            val steam = type == SessionPrefs.CONTROLLER_DECK || type == SessionPrefs.CONTROLLER_STEAM
+            val deckDock = if (steam) OnScreenLayout.Dock.deck(true, null) else OnScreenLayout.Dock(true, false)
+            for ((h, dock) in listOf(1920 to null, 1300 to deckDock, 385 to deckDock)) {
+                val placed = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock,
+                    rearButtons = true, trackpads = true)
+                assertInside(placed, w, h)
+                val dpad = placed.filter { it.control in directions }
+                assertEquals(4, dpad.size)
+                val rightEdge = dpad.maxOf { it.x + it.width }
+                val bottomEdge = dpad.maxOf { it.y + it.height }
+                assertTrue(type, placed.filter { it.control in face && it.id != "builtin:keyboard" }.all { it.x > rightEdge })
+                assertTrue(type, placed.filter { it.kind == InputElementKind.STICK || it.kind == InputElementKind.TRACKPAD }.all { it.y > bottomEdge })
+                if (dock == null) {
+                    val row = placed.filter { it.control in shortcuts || it.id == "builtin:keyboard" }
+                    assertEquals(5, row.size)
+                    assertTrue(row.all { it.y > bottomEdge })
+                    assertEquals(steam, placed.any { it.kind == InputElementKind.TRACKPAD })
+                } else {
+                    assertFalse(placed.any { it.control == InputControl.GUIDE || it.control == InputControl.QAM })
+                    assertEquals(steam, placed.any { it.kind == InputElementKind.TRACKPAD })
+                    assertEquals(!steam, placed.any { it.control == InputControl.RS })
+                }
+            }
+        }
     }
 
     private val legacyKeys = "29+33:0.3,0.7,44::Find::0.6:1:1:1"
@@ -399,6 +435,7 @@ class OnScreenLayoutTest {
     }
 
     @Test fun aDeckStripPutsTheDeckGamepadSurfacesInTheStickSlotsAndOtherPadsKeepSticks() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
         val stock = InputStockLayouts.layouts().first { it.id == DeckPanel.GAMEPAD.layout }
         val deck = OnScreenLayout.Dock.deck(false, stock)
         assertEquals(OnScreenLayout.Dock(false, true, InputControl.LS, InputControl.RIGHT_PAD), deck)
