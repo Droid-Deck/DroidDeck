@@ -100,9 +100,9 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
 
     private fun refreshAppearance() {
         val style = layout?.style ?: InputSurfaceStyle()
-        val deck = dock == null && OnScreenLayout.usesSteamDeckButtons(context, layout)
-        surface.updateStyle(style, steamDeckButtons = deck)
-        quickToggle.tint = style.tint.takeUnless { deck }
+        val artwork = PadKit.forOverlay(context, layout)
+        surface.updateStyle(style, artwork)
+        quickToggle.tint = style.tint.takeUnless { artwork != null }
         quickToggle.alpha = style.opacity / 100f
         quickToggle.invalidate()
     }

@@ -9,9 +9,6 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 object OnScreenLayout {
-    internal fun usesSteamDeckButtons(context: Context, layout: SavedInputLayout?) =
-        layout?.id == InputLibraries.OVERLAY && SessionPrefs.steamController(context) == SessionPrefs.CONTROLLER_DECK
-
     internal fun supportsFloatingSteamControls(controller: String, layout: SavedInputLayout?) =
         layout?.id == InputLibraries.OVERLAY &&
             (controller == SessionPrefs.CONTROLLER_DECK || controller == SessionPrefs.CONTROLLER_STEAM)
@@ -49,13 +46,18 @@ object OnScreenLayout {
         }
         val byId = (placed + others).associateBy { it.id }
         val ordered = stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
-        if (dock != null || !supportsFloatingSteamControls(SessionPrefs.steamController(context), layout)) return ordered
-        if (generated && width >= height && usesSteamDeckButtons(context, layout) &&
+        val kit = PadKit.forOverlay(context, layout) ?: return ordered
+        if (generated &&
             ControllerPrefs.layout(context, reference.first.toInt(), reference.second.toInt()).isEmpty() &&
             ControllerPrefs.layout(context, width, height).isEmpty()) {
-            return SteamDeckOverlayGeometry(width, height, safe, context.resources.displayMetrics, layout.scale)
-                .place(ordered, rearButtons == true, trackpads == true)
+            if (dock != null || height > width) {
+                return ControllerPortraitGeometry(width.toFloat(), height.toFloat(), safe, context.resources.displayMetrics.density)
+                    .place(ordered, kit, dock != null, layout.scale, rearButtons == true, trackpads == true)
+            }
+            return ControllerOverlayGeometry(width, height, safe, context.resources.displayMetrics, layout.scale)
+                .place(ordered, kit, rearButtons == true, trackpads == true)
         }
+        if (dock != null || !kit.steam) return ordered
         return FloatingSteamOverlay(width, height, safe, context.resources.displayMetrics.density)
             .place(ordered, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
     }

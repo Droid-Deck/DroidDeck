@@ -14,7 +14,7 @@ import org.robolectric.annotation.Config
 class InputLayoutToolsTest {
     private val context: Context get() = RuntimeEnvironment.getApplication()
     @Before fun reset() {
-        for (name in listOf("input-profiles", "input-surfaces", "controller")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
+        for (name in listOf("input-profiles", "input-surfaces", "controller", "session")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @Test fun scaleAllResizesEveryElementAroundItsCentreInsideTheScreen() {
@@ -139,7 +139,9 @@ class InputLayoutToolsTest {
         val scaled = gamepad.copy(scale = 1.25f, elements = LegacyGamepadLayout(display, long, short, scale = 1.25f).regenerate(gamepad.elements))
         assertEquals(long to short, OnScreenLayout.generatedSize(context, scaled, long, short))
         val rotated = OnScreenLayout.elements(context, scaled, short, long, android.graphics.Rect())
-        assertEquals(LegacyGamepadLayout(context, short, long, scale = 1.25f).regenerate(scaled.elements), rotated)
+        val stock = OnScreenLayout.elements(context, gamepad, short, long, android.graphics.Rect())
+        assertEquals(stock.map { it.id }, rotated.map { it.id })
+        assertTrue(rotated.first { it.control == InputControl.LS }.width > stock.first { it.control == InputControl.LS }.width)
         assertNull(OnScreenLayout.generatedSize(context, scaled.copy(scale = 1f), long, short))
         InputLibraries.update(context) { it.withLayout(scaled) }
         assertEquals(1.25f, InputLibraries.read(context).layouts.first { it.id == gamepad.id }.scale)
