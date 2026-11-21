@@ -685,7 +685,7 @@ class InputSurfaceView(
             if (element.showLabel) drawDirectionLabels(canvas, source, true, cx, cy, (half + thick) / 2f, thick * 1.7f, label)
         }
 
-        private val fingers = HashMap<Int, Int>()
+        private val fingers = LinkedHashMap<Int, Int>()
 
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -699,9 +699,12 @@ class InputSurfaceView(
                 }
                 else -> fingers.clear()
             }
-            set(fingers.values.fold(0) { bits, finger -> bits or finger })
+            set(fingers.values.fold(0) { bits, finger -> bits or (finger and opposite(bits).inv()) })
             return true
         }
+
+        private fun opposite(bits: Int) = (if (bits and 1 != 0) 4 else 0) or (if (bits and 4 != 0) 1 else 0) or
+            (if (bits and 2 != 0) 8 else 0) or (if (bits and 8 != 0) 2 else 0)
 
         private fun direction(x: Float, y: Float): Int {
             val dx = x - width / 2f

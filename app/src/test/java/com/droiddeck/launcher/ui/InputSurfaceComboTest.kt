@@ -54,6 +54,7 @@ class InputSurfaceComboTest {
     private val padUp = 400f to 385f
     private val padRight = 465f to 450f
     private val padLeft = 335f to 450f
+    private val padDown = 400f to 515f
 
     @Before fun setup() {
         bridge.setInputRouter(router)
@@ -110,6 +111,23 @@ class InputSurfaceComboTest {
         assertTrue(!state().up && state().left)
         lift(3)
         assertFalse(state().up || state().left || state().right)
+    }
+
+    @Test fun aSecondFingerOnTheOppositeSideKeepsTheFirstFingersDirection() {
+        press(1, padUp)
+        press(2, padDown)
+        assertEquals("up", held())
+        lift(1)
+        assertEquals("down", held())
+        lift(2)
+        assertEquals("", held())
+        press(1, padLeft)
+        press(2, padRight)
+        assertEquals("left", held())
+        lift(2)
+        assertEquals("left", held())
+        lift(1)
+        assertEquals("", held())
     }
 
     @Test fun theDirectionPadStaysHeldWhileFaceButtonsAreTapped() {
