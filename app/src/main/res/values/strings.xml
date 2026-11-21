@@ -309,7 +309,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 output</string>
     <string name="mode_hdr_unavailable">Not available: %1$s.</string>
-    <string name="mode_hdr_restart">Restart the app to apply.</string>
     <string name="mode_drivers">Drivers</string>
     <string name="mode_gpu_drivers">GPU drivers</string>
     <string name="mode_gpu_drivers_hint">Shared by Steam and Desktop. Set on the Components page.</string>
@@ -2716,6 +2715,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Session display</string>
+    <string name="display_zero_copy">Zero-copy presentation</string>
     <string name="display_resolution">Resolution</string>
     <string name="display_game_fit">16:9 game fit</string>
     <string name="display_game_fit_hint">How 16:9 games fit this display. Next session.</string>

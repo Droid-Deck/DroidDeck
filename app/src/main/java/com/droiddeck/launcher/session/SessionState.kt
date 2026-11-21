@@ -115,6 +115,10 @@ object SessionState {
 
     @JvmStatic var hdr = false
 
+    @JvmStatic var hdrCapable = false
+
+    @JvmStatic var hdrDisplay = false
+
     @Volatile private var deckPadValue = false
     @JvmStatic var deckPad: Boolean
         get() = deckPadValue

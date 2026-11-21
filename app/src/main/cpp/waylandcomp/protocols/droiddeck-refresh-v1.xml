@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="droiddeck_refresh_v1">
+  <copyright>
+    Copyright 2026 DroidDeck contributors
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+  </copyright>
+
+  <interface name="droiddeck_refresh_v1" version="1">
+    <description summary="panel refresh rates a nested compositor may ask for">
+      A nested compositor paces its clients against the refresh rate of the
+      panel it is shown on. When its clients are held to a frame rate the
+      panel's current rate does not divide evenly, frames are shown for an
+      uneven number of refreshes. This interface lets the nested compositor
+      see every refresh rate the panel can run at its current size and ask
+      for the one that suits the frame rate it is pacing to.
+
+      On bind the compositor sends one rate event per refresh rate, lowest
+      first, followed by done. The list is sent again, in full, whenever it
+      changes (a different panel, or a limit the user placed on the panel's
+      rate). The rate the panel is running at is still reported the standard
+      way, through wl_output.mode.
+
+      A request is a preference, not a guarantee: the user, the platform or
+      another output mirroring the panel may hold the panel at another rate.
+      The client reads the result from wl_output.mode.
+    </description>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the object">
+        The preference set through this object is dropped.
+      </description>
+    </request>
+
+    <request name="set_target">
+      <description summary="ask for a refresh rate">
+        refresh is the panel rate the client would like, in Hz, taken from
+        the advertised list; 0 withdraws the preference. frame_rate is the
+        frame rate the client holds its content to, in frames per second, or
+        0 when the content is not held to a rate. The compositor may multiply
+        the content's frame rate itself (generated frames); when it does, it
+        picks the advertised rate that the multiplied frame rate divides
+        evenly instead of the requested one.
+      </description>
+      <arg name="refresh" type="uint" summary="wanted panel refresh rate in Hz, 0 for none"/>
+      <arg name="frame_rate" type="uint" summary="content frame rate in frames per second, 0 for unpaced"/>
+    </request>
+
+    <event name="rate">
+      <description summary="a refresh rate the panel can run">
+        Sent once per rate, lowest first, in Hz rounded to the nearest whole
+        number.
+      </description>
+      <arg name="refresh" type="uint" summary="panel refresh rate in Hz"/>
+    </event>
+
+    <event name="done">
+      <description summary="the list of rates is complete">
+        Ends a list of rate events. The rates received since the previous
+        done replace the earlier list.
+      </description>
+    </event>
+  </interface>
+</protocol>

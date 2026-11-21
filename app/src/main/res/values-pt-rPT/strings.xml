@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Saída HDR10</string>
     <string name="mode_hdr_unavailable">Indisponível: %1$s.</string>
-    <string name="mode_hdr_restart">Reinicie a app para aplicar.</string>
     <string name="mode_drivers">Controladores</string>
     <string name="mode_gpu_drivers">Controladores da GPU</string>
     <string name="mode_gpu_drivers_hint">Partilhados pelo Steam e pelo Ambiente de trabalho. Defina-os na página Componentes.</string>
@@ -2492,6 +2491,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Ecrã da sessão</string>
+    <string name="display_zero_copy">Apresentação sem cópia</string>
     <string name="display_resolution">Resolução</string>
     <string name="display_game_fit">Ajuste de jogos 16:9</string>
     <string name="display_game_fit_hint">Como os jogos 16:9 se ajustam a este ecrã. Próxima sessão.</string>
