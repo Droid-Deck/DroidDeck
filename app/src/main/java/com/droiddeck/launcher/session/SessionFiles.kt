@@ -119,6 +119,7 @@ object SessionFiles {
             "libddaudit.so" to "usr/local/lib/libddaudit.so",
             "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
+            "usr/local/bin/droiddeck-tegra-xwayland" to "usr/local/bin/droiddeck-tegra-xwayland",
             "usr/local/bin/droiddeck-fonts" to "usr/local/bin/droiddeck-fonts",
             "usr/local/bin/droiddeck-agent" to "usr/local/bin/droiddeck-agent",
             "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
@@ -248,6 +249,10 @@ object SessionFiles {
             "usr/local/lib/droiddeck-mali/libVkLayer_droiddeck_mali_compat.so",
             "usr/local/share/vulkan/implicit_layer.d/VkLayer_droiddeck_mali_compat.json",
         ).map { it to it }
+        val tegra = if (com.droiddeck.launcher.core.DeviceSupport.switchTegra()) {
+            listOf("usr/local/lib/droiddeck-tegra/liblse_emu.so", "usr/local/share/licenses/droiddeck-tegra/NOTICE")
+                .map { it to it }
+        } else emptyList()
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/bin/droiddeck-glprobe" to "usr/local/bin/droiddeck-glprobe",
@@ -258,7 +263,7 @@ object SessionFiles {
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-        ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads + tegra).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }

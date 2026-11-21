@@ -631,6 +631,16 @@ class SessionService : Service() {
 
         val pulse = SessionEvents.step("audio") { startAudio(guest, sessionDir, directAudioPack) }
         SessionEvents.step("vk-bridge") { startVkBridge(guest, sessionDir) }
+        val tegraSteam = SessionState.mode == MODE_STEAM && SessionPrefs.steamClientArch(this) == "arm64"
+        if ((tegraSteam || SessionState.mode == MODE_RUN) && com.droiddeck.launcher.core.DeviceSupport.switchTegra() &&
+            SessionPrefs.androidDriver(this).isEmpty() && SessionPrefs.linuxDriver(this).isEmpty()) {
+            guest.add("DD_TEGRA_XWAYLAND=1")
+            val socket = File(runtimeDir, "tegra-vtest-${android.os.Process.myPid()}-$gen.sock")
+            val virgl = TegraVirglComponent(socket, File(sessionDir, "tegra-virgl.log"))
+            virgl.attach(this)
+            components.add(virgl)
+            guest.add("DD_TEGRA_VIRGL_SOCKET=${LinuxRuntime.GUEST_RUNTIME_DIR}/${socket.name}")
+        }
         if (VenusComponent.wanted(this)) {
             components.add(VenusComponent(File(sessionDir, "venus.log")).also { it.attach(this) })
         }

@@ -22,12 +22,13 @@ PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so')}
 # The loader is execve'd, which targetSdk 29+ allows only from the APK's native library directory.
 PROOT_LOADER = {'lib/arm64-v8a/libproot-loader.so': 'libproot-loader.so'}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
+TEGRA_LIBRARIES = ['libdroiddeck_tegra_vtest.so', 'libdroiddeck_tegra_virgl.so', 'libdroiddeck_tegra_epoxy.so']
 PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt', 'epic']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
                 'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/ubisoft-launcher', 'tools/rockstar-launcher', 'tools/epic-launcher', 'tools/components', 'tools/ci', 'tools/build_local.sh',
-                'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
+                'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi', 'tools/tegra',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
                 'tools/gpuload', 'app/src/main/resources/rockstar/legacy-cipher.bin',
@@ -67,7 +68,7 @@ def outputs(root):
         for path in base.rglob('*'):
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
                 result['assets/' + tree + '/' + path.relative_to(base).as_posix()] = path.relative_to(root).as_posix()
-    for library in ['libproot.so', 'libproot-loader.so', 'libdirectaudiorelay.so']:
+    for library in ['libproot.so', 'libproot-loader.so', 'libdirectaudiorelay.so'] + TEGRA_LIBRARIES:
         result['lib/arm64-v8a/' + library] = 'app/src/main/jniLibs/arm64-v8a/' + library
     result['assets/pulseaudio.tzst'] = 'app/build/prepared-assets/pulseaudio.tzst'
     result['assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst'] = \
@@ -123,6 +124,7 @@ def required():
     paths += ['assets/droiddeck-esync/index.json', 'assets/droiddeck-esync/index.json.sig',
               'lib/arm64-v8a/libproot.so', 'lib/arm64-v8a/libproot-loader.so',
               'lib/arm64-v8a/libdirectaudiorelay.so', 'assets/pulseaudio.tzst']
+    paths += ['lib/arm64-v8a/' + name for name in TEGRA_LIBRARIES]
     paths += ['assets/desktop-removal/' + name for name in
               ['lxqt-r1.tsv.gzip', 'kde-remove.tsv.gzip', 'kde-keep.txt.gzip',
                'emulators-keep.txt.gzip', 'versions.txt', 'sources.json']]

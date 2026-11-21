@@ -8,6 +8,8 @@
       "tools/linuxfs/desktop",
       "tools/linuxfs/licenses",
       "tools/linuxfs/uruntime.env",
+      "tools/linuxfs/lse-emu.env",
+      "tools/tegra/prepare-virgl.sh",
       "tools/gamescope/release.env",
       "tools/wlroots/release.env",
       "tools/mangoapp",
@@ -22,6 +24,10 @@
     ],
     "outputs": [
       "app/src/main/assets/linuxfs/usr/local/bin/gamescope",
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-tegra/liblse_emu.so",
+      "app/src/main/jniLibs/arm64-v8a/libdroiddeck_tegra_vtest.so",
+      "app/src/main/jniLibs/arm64-v8a/libdroiddeck_tegra_virgl.so",
+      "app/src/main/jniLibs/arm64-v8a/libdroiddeck_tegra_epoxy.so",
       "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-vr/droiddeck/bin/linuxarm64/driver_droiddeck.so",
       "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so"
     ],
@@ -31,7 +37,8 @@
       "libc6-dev-arm64-cross",
       "g++-aarch64-linux-gnu",
       "libvulkan1",
-      "mesa-vulkan-drivers"
+      "mesa-vulkan-drivers",
+      "patchelf"
     ]
   },
   "esync": {

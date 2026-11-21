@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+import errno
+import fcntl
+import os
+from pathlib import Path
+import secrets
+import select
+import signal
+import socket
+import stat
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+
+
+def socket_identity(path):
+    try:
+        status = path.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISSOCK(status.st_mode):
+        return f'{status.st_dev}:{status.st_ino}'
+    return None
+
+
+def remove_stale_socket(path, marker):
+    identity = socket_identity(path)
+    if identity is None or not marker.is_file() or marker.read_text() != identity:
+        return
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        probe.settimeout(.1)
+        try:
+            probe.connect(str(path))
+        except OSError as error:
+            if error.errno == errno.ECONNREFUSED and socket_identity(path) == identity:
+                path.unlink()
+
+
+def reserve_display(listener, state, lock):
+    directory = Path('/tmp/.X11-unix')
+    directory.mkdir(mode=0o700, exist_ok=True)
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        for number in range(90, 120):
+            path = directory / f'X{number}'
+            marker = state / path.name
+            remove_stale_socket(path, marker)
+            try:
+                listener.bind(str(path))
+            except OSError as error:
+                if error.errno != errno.EADDRINUSE:
+                    raise
+                continue
+            try:
+                identity = socket_identity(path)
+                path.chmod(0o600)
+                listener.listen()
+                marker.write_text(identity)
+            except Exception:
+                path.unlink(missing_ok=True)
+                raise
+            return f':{number}', path, marker, identity
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    raise RuntimeError('no free X11 display')
+
+
+def stop(process):
+    if process is not None and process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+
+def wait_for_display(ready, display):
+    # Xwayland writes the display number and newline separately.
+    expected = f'{display[1:]}\n'.encode('ascii')
+    received = b''
+    deadline = time.monotonic() + 15
+    while len(received) < len(expected):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not select.select([ready], [], [], remaining)[0]:
+            raise RuntimeError('Xwayland did not become ready')
+        chunk = os.read(ready, len(expected) - len(received))
+        if not chunk:
+            raise RuntimeError('Xwayland closed its readiness pipe')
+        received += chunk
+    if received != expected:
+        raise RuntimeError('Xwayland reported an unexpected display number')
+
+
+def write_authority(path, display):
+    fields = (os.fsencode(socket.gethostname()), display[1:].encode('ascii'),
+              b'MIT-MAGIC-COOKIE-1', secrets.token_bytes(16))
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as output:
+        output.write(struct.pack('!H', 256))  # Xauthority FamilyLocal
+        for field in fields:
+            output.write(struct.pack('!H', len(field)))
+            output.write(field)
+
+
+def probe_egl():
+    import ctypes as c
+
+    egl = c.CDLL('libEGL.so.1')
+    gl = c.CDLL('libGLESv2.so.2')
+    pointer, integer, number = c.c_void_p, c.c_int, c.c_uint
+    attrs = c.POINTER(integer)
+
+    def bind(library, name, result, *args):
+        function = getattr(library, name)
+        function.restype = result
+        function.argtypes = args
+        return function
+
+    display = bind(egl, 'eglGetDisplay', pointer, pointer)(None)
+    if not display or not bind(egl, 'eglInitialize', number, pointer, attrs, attrs)(display, None, None):
+        raise RuntimeError('eglInitialize failed')
+    try:
+        configuration, count = pointer(), integer()
+        selection = (integer * 5)(0x3033, 1, 0x3040, 4, 0x3038)
+        choose = bind(egl, 'eglChooseConfig', number, pointer, attrs, c.POINTER(pointer), integer, attrs)
+        if not choose(display, selection, c.byref(configuration), 1, c.byref(count)) or not count.value:
+            raise RuntimeError('no EGL pbuffer configuration')
+        surface = bind(egl, 'eglCreatePbufferSurface', pointer, pointer, pointer, attrs)(
+            display, configuration, (integer * 5)(0x3057, 8, 0x3056, 8, 0x3038))
+        context = bind(egl, 'eglCreateContext', pointer, pointer, pointer, pointer, attrs)(
+            display, configuration, None, (integer * 3)(0x3098, 2, 0x3038))
+        current = bind(egl, 'eglMakeCurrent', number, pointer, pointer, pointer, pointer)
+        if not surface or not context or not current(display, surface, surface, context):
+            raise RuntimeError('could not make the EGL context current')
+        renderer = bind(gl, 'glGetString', c.c_char_p, number)(0x1F01) or b''
+        if not renderer.lower().startswith(b'virgl (nvidia tegra'):
+            raise RuntimeError(f'unexpected renderer: {renderer.decode(errors="replace")}')
+        print(renderer.decode())
+    finally:
+        bind(egl, 'eglTerminate', number, pointer)(display)
+
+
+def run(session, arguments):
+    icd = '/usr/share/vulkan/icd.d/lvp_icd.json'
+    if not Path(icd).is_file():
+        raise RuntimeError('the Linux runtime does not contain the Lavapipe driver')
+    if arguments[0] == 'steam' and not Path('/usr/local/lib/droiddeck-tegra/liblse_emu.so').is_file():
+        raise RuntimeError('the Linux runtime does not contain the Tegra LSE emulator')
+
+    runtime = os.environ['XDG_RUNTIME_DIR']
+    sockets = Path(runtime) / 'tegra-x11-sockets'
+    sockets.mkdir(mode=0o700, exist_ok=True)
+    width, height = os.environ.get('DD_WIDTH', '1280'), os.environ.get('DD_HEIGHT', '720')
+    game_width, game_height = os.environ.get('DD_GAME_WIDTH', '0'), os.environ.get('DD_GAME_HEIGHT', '0')
+    if (arguments[0] == 'run' and game_width.isdecimal() and game_height.isdecimal()
+            and int(game_width) > 0 and int(game_height) > 0):
+        width, height = game_width, game_height
+    geometry = f'{width}x{height}'
+    with tempfile.TemporaryDirectory(prefix='tegra-x11.', dir=runtime) as state:
+        authority = Path(state) / 'authority'
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener, (sockets / 'lock').open('a') as lock:
+            display, path, marker, identity = reserve_display(listener, sockets, lock)
+            server = client = None
+            try:
+                write_authority(authority, display)
+
+                # A pre-bound socket lets Xwayland start under proot without making an X lock hardlink.
+                ready, notify = os.pipe()
+                try:
+                    try:
+                        server = subprocess.Popen([
+                            'Xwayland', display, '-listenfd', str(listener.fileno()),
+                            '-displayfd', str(notify), '-auth', str(authority), '-shm',
+                            '-geometry', geometry, '-fullscreen', '-noreset',
+                        ], pass_fds=(listener.fileno(), notify))
+                    finally:
+                        os.close(notify)
+                    listener.close()
+                    wait_for_display(ready, display)
+                finally:
+                    os.close(ready)
+
+                env = dict(os.environ, DISPLAY=display, XAUTHORITY=str(authority), XDG_SESSION_TYPE='x11',
+                           LIBGL_ALWAYS_SOFTWARE='1', GALLIUM_DRIVER='llvmpipe',
+                           VK_DRIVER_FILES=icd, VK_ICD_FILENAMES=icd, MESA_VK_WSI_DEBUG='sw',
+                           DD_INSIDE='1', DD_STEAM_UI='desktop')
+                if arguments[0] == 'steam':
+                    env['WAYLAND_DISPLAY'] = ''
+                env.pop('MESA_LOADER_DRIVER_OVERRIDE', None)
+                socket_path = env.get('DD_TEGRA_VIRGL_SOCKET')
+                if env.get('DD_TEGRA_VIRGL') == '1' and socket_path and Path(socket_path).is_socket():
+                    env.update(GALLIUM_DRIVER='virpipe', LIBGL_DRI3_DISABLE='1', VTEST_SOCKET_NAME=socket_path)
+                    env.setdefault('SDL_VIDEO_X11_FORCE_EGL', '1')
+                print(f'== Tegra: Xwayland display is ready ({env["GALLIUM_DRIVER"]})', flush=True)
+                client = subprocess.Popen(['dbus-run-session', '--', session, *arguments], env=env)
+                status = client.wait()
+                return status if status >= 0 else 128 - status
+            finally:
+                stop(client)
+                stop(server)
+                listener.close()
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                if socket_identity(path) == identity:
+                    path.unlink(missing_ok=True)
+                    marker.unlink(missing_ok=True)
+
+
+def exit_on_signal(number, _frame):
+    raise SystemExit(128 + number)
+
+
+if __name__ == '__main__':
+    for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+        signal.signal(signum, exit_on_signal)
+    try:
+        if sys.argv[1:] == ['--probe-egl']:
+            probe_egl()
+            sys.exit(0)
+        sys.exit(run(sys.argv[1], sys.argv[2:]))
+    except (OSError, RuntimeError) as error:
+        sys.exit(f'Tegra Xwayland session could not start: {error}')

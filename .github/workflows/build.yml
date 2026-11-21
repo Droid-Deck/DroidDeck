@@ -193,6 +193,7 @@ jobs:
         with:
           path: |
             app/src/main/assets/linuxfs
+            app/src/main/jniLibs/arm64-v8a/libdroiddeck_tegra_*.so
             !app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet
             !app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
             !app/src/main/assets/linuxfs/i386/libddsession.so
