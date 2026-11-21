@@ -223,7 +223,7 @@ class InputSurfaceView(
             canvas.addView(when (element.kind) {
                 InputElementKind.STICK -> StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
                 InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, captioned = element.showLabel,
-                    stock = element.id == "legacy:${element.control.id}", source = source)
+                    stock = element.id == "legacy:${element.control.id}" && element.name == element.control.label, source = source)
                 InputElementKind.DPAD -> DirectionPad(context, element, source)
                 else -> HoldButton(context, element, source)
             }.apply { tag = element; contentDescription = element.name; styleElement(this); source?.onStateChanged = { postInvalidate() } })
@@ -407,7 +407,8 @@ class InputSurfaceView(
                 }
                 val control = element.control
                 val native = element.id == "legacy:${control.id}" && element.icon == 0 &&
-                    (element.name == control.label || element.name == kit.name(control))
+                    (element.name == control.label || element.name == kit.name(control)) &&
+                    usesStockShape(control, element.buttonShape)
                 if (native && art.button(canvas, width, height, control, kit, lit)) return
             }
             drawSurface(canvas, lit, element.buttonShape, classic)
@@ -604,7 +605,7 @@ class InputSurfaceView(
             val cx = if (touching) originX else centreX()
             val cy = if (touching) originY else height / 2f
             val kit = artwork
-            if (kit != null && classic(element)) {
+            if (kit != null && classic(element) && element.name == element.control.label) {
                 val radius = min(width, height) / 2f - 2f * density
                 if (radius > 0f) {
                     art.stick(canvas, cx, cy, radius, kit, knobX, knobY, touching || clicking)
@@ -788,6 +789,12 @@ class InputSurfaceView(
 
         private fun classic(element: InputSurfaceElement) = (element.id == "legacy:${element.control.id}" || element.id == "builtin:keyboard") &&
             (element.buttonShape == InputButtonShape.CIRCLE || element.buttonShape == InputButtonShape.PILL)
+
+        private fun usesStockShape(control: InputControl, shape: InputButtonShape): Boolean = when (control) {
+            InputControl.LT, InputControl.LB, InputControl.RB, InputControl.RT -> shape == InputButtonShape.PILL
+            InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5 -> shape == InputButtonShape.PILL || shape == InputButtonShape.ROUNDED
+            else -> shape == InputButtonShape.CIRCLE
+        }
 
         private val DIRECTIONS = listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
 
