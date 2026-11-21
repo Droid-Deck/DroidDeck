@@ -3767,6 +3767,7 @@
     <string name="sync_not_running">Syncthing नहीं चल रहा है।</string>
     <string name="session_end_steam_sigill">Steam एक अवैध निर्देश (SIGILL) के साथ रुक गया। यह CPU निर्देश कम्पैटिबिलिटी की समस्या या क्लाइंट क्रैश हो सकता है। अपने डिवाइस की जानकारी के साथ लॉग शेयर करें।</string>
     <string name="session_end_steam_try_x64">आप Steam सेटिंग → Steam क्लाइंट → x86-64 (प्रयोगात्मक) आज़मा सकते हैं। इसके लिए अतिरिक्त डाउनलोड चाहिए और यह धीमा चल सकता है।</string>
+    <string name="session_end_fex_kernel">x86 प्रोग्राम और x86-64 Steam क्लाइंट FEX के ज़रिए चलते हैं, जो इस डिवाइस के Linux कर्नेल (%1$s) पर नहीं चल सकता।</string>
     <string name="session_end_vulkan_device">Linux ग्राफ़िक्स ड्राइवर को इस्तेमाल लायक Vulkan डिवाइस नहीं मिला। जांचें कि चुना गया Linux GPU ड्राइवर इस GPU का समर्थन करता है।</string>
     <string name="session_end_gpu_unsupported">यह सेशन शुरू नहीं हो सकता क्योंकि मौजूदा सेटअप में इस GPU के लिए कोई कम्पैटिबल Linux Vulkan ड्राइवर नहीं है। Adreno Turnip ड्राइवर MediaTek/Mali GPU का समर्थन चालू नहीं कर सकते।</string>
     <string name="setup_group_memory">मेमोरी</string>

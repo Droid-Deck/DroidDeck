@@ -30,6 +30,30 @@ include that exact flag; absent or unreadable feature data retains the prior
 behavior. Explicit x86-helper selection and the client-build matching rule
 remain unchanged.
 
+## FEX exits with SIGILL on Linux 4.9 kernels
+
+A Galaxy Note10 Lite (Exynos 9810, Linux 4.9.191) chose the x86-64 client.
+FEX itself died with `Illegal instruction` on its first run (`ldconfig.real`),
+and then the client did too, with `rc=132`. The CPU lacks LSE, but that is not
+the cause: FEX supports ARMv8.0 with CRC32, and every LSE instruction in the
+shipped FEX build is behind the runtime check from `-moutline-atomics`.
+
+FEX reads the CPU's ID registers with `mrs` at startup
+(`Source/Common/HostFeatures.cpp`, `GetCPUFeaturesFromIDRegisters`).
+Unprivileged programs can only do that when the kernel emulates those reads,
+which arrived in Linux 4.11 and shows up as `cpuid` in the `Features` lines of
+`/proc/cpuinfo`. This device's list has no `cpuid`. Upstream FEX reports the same
+crash in `FEX::FetchHostFeatures()` on a 4.9 L4T kernel
+([FEX-Emu/FEX#4148](https://github.com/FEX-Emu/FEX/issues/4148)) and requires
+Linux 5.15.
+
+When any core's `Features` line lacks `cpuid`, `droiddeck-steam-x64 --prepare`
+now stops before downloading FEX, its rootfs and the client, and
+`droiddeck-fex prepare` stops before installing FEX for x86 Linux programs. The session end
+screen says FEX can't run on this kernel and stops suggesting x86-64 after an
+arm64 client SIGILL. Absent or unreadable feature data keeps the previous
+behavior.
+
 ## gamescope cannot find a Vulkan device (#1368)
 
 The [MT6993 report](https://github.com/Droid-Deck/DroidDeck/issues/1368) shows a

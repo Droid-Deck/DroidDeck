@@ -3923,6 +3923,7 @@
     <string name="sync_not_running">Syncthing لا يعمل.</string>
     <string name="session_end_steam_sigill">توقّف Steam بسبب تعليمة غير صالحة (SIGILL). قد تكون مشكلة توافق في تعليمات CPU أو تعطّلًا في العميل. شارك السجلات مع تفاصيل جهازك.</string>
     <string name="session_end_steam_try_x64">يمكنك تجربة إعدادات Steam → عميل Steam → x86-64 (تجريبي). يتطلب تنزيلًا إضافيًا وقد يعمل بشكل أبطأ.</string>
+    <string name="session_end_fex_kernel">تعمل برامج x86 وعميل Steam بإصدار x86-64 عبر FEX، الذي لا يمكنه العمل على نواة Linux في هذا الجهاز (%1$s).</string>
     <string name="session_end_vulkan_device">تعذّر على برنامج تشغيل رسومات Linux العثور على جهاز Vulkan صالح للاستخدام. تحقّق من أن برنامج تشغيل GPU المحدد لـ Linux يدعم هذا الـ GPU.</string>
     <string name="session_end_gpu_unsupported">لا يمكن بدء هذه الجلسة لأن هذا الـ GPU ليس له برنامج تشغيل Vulkan متوافق لـ Linux في الإعداد الحالي. لا يمكن لبرامج تشغيل Adreno Turnip تفعيل دعم وحدات MediaTek/Mali GPU.</string>
     <string name="setup_group_memory">الذاكرة</string>

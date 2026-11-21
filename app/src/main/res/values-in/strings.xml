@@ -3738,6 +3738,7 @@
     <string name="sync_not_running">Syncthing tidak berjalan.</string>
     <string name="session_end_steam_sigill">Steam berhenti karena instruksi ilegal (SIGILL). Ini bisa berupa masalah kompatibilitas instruksi CPU atau klien mengalami crash. Bagikan log beserta detail perangkat Anda.</string>
     <string name="session_end_steam_try_x64">Anda dapat mencoba Setelan Steam → Klien Steam → x86-64 (eksperimental). Ini memerlukan unduhan tambahan dan mungkin berjalan lebih lambat.</string>
+    <string name="session_end_fex_kernel">Program x86 dan klien Steam x86-64 berjalan melalui FEX, yang tidak dapat berjalan di kernel Linux perangkat ini (%1$s).</string>
     <string name="session_end_vulkan_device">Driver grafis Linux tidak dapat menemukan perangkat Vulkan yang dapat digunakan. Pastikan driver GPU Linux yang dipilih mendukung GPU ini.</string>
     <string name="session_end_gpu_unsupported">Sesi ini tidak dapat dimulai karena GPU ini tidak memiliki driver Vulkan Linux yang kompatibel dalam konfigurasi saat ini. Driver Adreno Turnip tidak dapat mengaktifkan dukungan untuk GPU MediaTek/Mali.</string>
     <string name="setup_group_memory">Memori</string>

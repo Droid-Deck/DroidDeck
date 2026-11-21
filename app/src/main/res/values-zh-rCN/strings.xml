@@ -3738,6 +3738,7 @@
     <string name="spatial_print_job">DroidDeck ChArUco 30 mm</string>
     <string name="session_end_steam_sigill">Steam 因非法指令（SIGILL）停止。这可能是 CPU 指令兼容问题，也可能是客户端崩溃。请分享日志并附上设备信息。</string>
     <string name="session_end_steam_try_x64">可尝试“Steam 设置 → Steam 客户端 → x86-64（实验）”。此选项需要额外下载，运行速度也可能更慢。</string>
+    <string name="session_end_fex_kernel">x86 程序和 x86-64 Steam 客户端通过 FEX 运行，而 FEX 无法在此设备的 Linux 内核（%1$s）上运行。</string>
     <string name="session_end_vulkan_device">Linux 图形驱动未找到可用的 Vulkan 设备。请确认所选 Linux GPU 驱动支持这颗 GPU。</string>
     <string name="session_end_gpu_unsupported">当前配置缺少兼容这颗 GPU 的 Linux Vulkan 驱动，会话无法启动。Adreno Turnip 驱动不能为联发科／Mali GPU 增加支持。</string>
     <string name="setup_group_memory">内存</string>

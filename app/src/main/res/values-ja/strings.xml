@@ -3736,6 +3736,7 @@
     <string name="sync_not_running">Syncthingは実行されていません。</string>
     <string name="session_end_steam_sigill">Steamが不正な命令（SIGILL）で停止しました。CPU命令の互換性の問題か、クライアントのクラッシュの可能性があります。デバイスの詳細とあわせてログを共有してください。</string>
     <string name="session_end_steam_try_x64">Steamの設定 → Steamクライアント → x86-64（試験運用）を試すことができます。追加のダウンロードが必要で、動作が遅くなる場合があります。</string>
+    <string name="session_end_fex_kernel">x86プログラムとx86-64版SteamクライアントはFEXで動作しますが、FEXはこのデバイスのLinuxカーネル（%1$s）では動作できません。</string>
     <string name="session_end_vulkan_device">Linuxグラフィックスドライバーが使用可能なVulkanデバイスを見つけられませんでした。選択したLinux GPUドライバーがこのGPUに対応しているか確認してください。</string>
     <string name="session_end_gpu_unsupported">現在の構成ではこのGPUに対応するLinux Vulkanドライバーがないため、このセッションを開始できません。Adreno TurnipドライバーではMediaTek/Mali GPUに対応させることはできません。</string>
     <string name="tracking_recovery_look">明るい部屋でゆっくりと周囲を見回してください。\nトラッキングカメラを遮るものがないように、家具などの見えるものに顔を向けてください。</string>

@@ -3765,6 +3765,7 @@
     <string name="sync_not_running">Syncthing is niet actief.</string>
     <string name="session_end_steam_sigill">Steam is gestopt met een ongeldige instructie (SIGILL). Dit kan een compatibiliteitsprobleem met CPU-instructies of een crash van de client zijn. Deel de logs met de gegevens van je apparaat.</string>
     <string name="session_end_steam_try_x64">Je kunt Steam-instellingen → Steam-client → x86-64 (experimenteel) proberen. Dit vereist een extra download en kan trager draaien.</string>
+    <string name="session_end_fex_kernel">x86-programma\'s en de x86-64-Steam-client draaien via FEX, dat niet kan draaien op de Linux-kernel van dit apparaat (%1$s).</string>
     <string name="session_end_vulkan_device">De Linux-grafische driver kon geen bruikbaar Vulkan-apparaat vinden. Controleer of de gekozen Linux-GPU-driver deze GPU ondersteunt.</string>
     <string name="session_end_gpu_unsupported">Deze sessie kan niet starten omdat er in de huidige configuratie geen compatibele Linux-Vulkan-driver voor deze GPU is. Adreno Turnip-drivers kunnen geen ondersteuning voor MediaTek/Mali-GPU’s inschakelen.</string>
     <string name="setup_group_memory">Geheugen</string>

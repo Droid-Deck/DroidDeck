@@ -3767,6 +3767,7 @@
     <string name="sync_not_running">Το Syncthing δεν εκτελείται.</string>
     <string name="session_end_steam_sigill">Το Steam σταμάτησε με μη έγκυρη εντολή (SIGILL). Μπορεί να είναι πρόβλημα συμβατότητας εντολών CPU ή κατάρρευση του πελάτη. Μοιραστείτε τα αρχεία καταγραφής με τα στοιχεία της συσκευής σας.</string>
     <string name="session_end_steam_try_x64">Μπορείτε να δοκιμάσετε Ρυθμίσεις Steam → Πελάτης Steam → x86-64 (πειραματικό). Απαιτεί επιπλέον λήψη και μπορεί να είναι πιο αργό.</string>
+    <string name="session_end_fex_kernel">Τα προγράμματα x86 και το πρόγραμμα-πελάτης Steam x86-64 εκτελούνται μέσω του FEX, το οποίο δεν μπορεί να λειτουργήσει στον πυρήνα Linux αυτής της συσκευής (%1$s).</string>
     <string name="session_end_vulkan_device">Το πρόγραμμα οδήγησης γραφικών Linux δεν βρήκε χρησιμοποιήσιμη συσκευή Vulkan. Ελέγξτε ότι το επιλεγμένο πρόγραμμα οδήγησης GPU Linux υποστηρίζει αυτή τη GPU.</string>
     <string name="session_end_gpu_unsupported">Αυτή η συνεδρία δεν μπορεί να ξεκινήσει επειδή αυτή η GPU δεν έχει συμβατό πρόγραμμα οδήγησης Vulkan για Linux στην τρέχουσα ρύθμιση. Τα προγράμματα οδήγησης Adreno Turnip δεν μπορούν να ενεργοποιήσουν υποστήριξη για GPU MediaTek/Mali.</string>
     <string name="setup_group_memory">Μνήμη</string>

@@ -4025,6 +4025,7 @@
     <string name="setup_bridge_safe_off_detail">Faster where this GPU passed its checks.</string>
     <string name="session_end_steam_sigill">Steam stopped with an illegal instruction (SIGILL). This can be a CPU instruction compatibility problem or a client crash. Share the logs with your device details.</string>
     <string name="session_end_steam_try_x64">You can try Steam settings → Steam client → x86-64 (experimental). It needs an additional download and may run more slowly.</string>
+    <string name="session_end_fex_kernel">x86 programs and the x86-64 Steam client run through FEX, which can\'t run on this device\'s Linux kernel (%1$s).</string>
     <string name="session_end_vulkan_device">The Linux graphics driver could not find a usable Vulkan device. Check that the selected Linux GPU driver supports this GPU.</string>
     <string name="session_end_gpu_unsupported">This session cannot start because this GPU has no compatible Linux Vulkan driver in the current setup. Adreno Turnip drivers cannot enable support for MediaTek/Mali GPUs.</string>
     <string name="setup_group_memory">Memory</string>
