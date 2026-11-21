@@ -12,6 +12,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 
 
 def socket_identity(path):
@@ -74,6 +75,23 @@ def stop(process):
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
+
+
+def wait_for_display(ready, display):
+    # Xwayland writes the display number and newline separately.
+    expected = f'{display[1:]}\n'.encode('ascii')
+    received = b''
+    deadline = time.monotonic() + 15
+    while len(received) < len(expected):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not select.select([ready], [], [], remaining)[0]:
+            raise RuntimeError('Xwayland did not become ready')
+        chunk = os.read(ready, len(expected) - len(received))
+        if not chunk:
+            raise RuntimeError('Xwayland closed its readiness pipe')
+        received += chunk
+    if received != expected:
+        raise RuntimeError('Xwayland reported an unexpected display number')
 
 
 def write_authority(path, display):
@@ -160,8 +178,7 @@ def run(session, arguments):
                     finally:
                         os.close(notify)
                     listener.close()
-                    if not select.select([ready], [], [], 15)[0] or not os.read(ready, 16):
-                        raise RuntimeError('Xwayland did not become ready')
+                    wait_for_display(ready, display)
                 finally:
                     os.close(ready)
 
