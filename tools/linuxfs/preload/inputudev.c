@@ -1045,7 +1045,15 @@ static void *own_udev_symbol(const char *name) {
 }
 
 static void *dlvsym_any(const char *name) {
+#if defined(__aarch64__)
+  static const char *versions[] = {"GLIBC_2.17", "GLIBC_2.34"};
+#elif defined(__x86_64__)
+  static const char *versions[] = {"GLIBC_2.2.5", "GLIBC_2.34"};
+#elif defined(__i386__)
+  static const char *versions[] = {"GLIBC_2.0", "GLIBC_2.34"};
+#else
   static const char *versions[] = {"GLIBC_2.17", "GLIBC_2.2.5", "GLIBC_2.0", "GLIBC_2.34"};
+#endif
   size_t i;
   void *resolved = NULL;
 
