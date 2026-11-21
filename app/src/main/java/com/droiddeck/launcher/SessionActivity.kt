@@ -198,6 +198,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var unfoldedPanel by mutableStateOf<OnScreenControls?>(null)
     private var unfoldedColumn: android.widget.LinearLayout? = null
     private var unfoldedDeckSurface: com.droiddeck.launcher.ui.InputSurfaceView? = null
+    private var unfoldedDeckProfile: com.droiddeck.launcher.input.InputProfile? = null
     private var swappedInputSurface: com.droiddeck.launcher.ui.InputSurfaceView? = null
     private var unfoldedDeckPanel by mutableStateOf<com.droiddeck.launcher.input.DeckPanel?>(null)
     private var deckPanelLayouts: Map<com.droiddeck.launcher.input.DeckPanel, com.droiddeck.launcher.input.SavedInputLayout?> = emptyMap()
@@ -4772,6 +4773,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             sessionRoot.removeView(unfoldedColumn)
             unfoldedColumn = null
             unfoldedDeckSurface = null
+            unfoldedDeckProfile = null
             unfoldedDeckPanel = null
             unfoldedPanel = null
             panel = null
@@ -4812,15 +4814,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val selected = SessionPrefs.deckPanel(this).takeIf { column != null && panel?.dock?.grips == true }
         unfoldedDeckPanel = selected
         val layout = selected?.takeIf { it != com.droiddeck.launcher.input.DeckPanel.GAMEPAD }?.let { deckPanelLayouts[it] }
-        if (layout != null && unfoldedDeckSurface?.tag == layout) return
+        val profile = selected?.let { deckPanelProfiles[it] }
+        if (layout != null && unfoldedDeckSurface?.tag == layout && unfoldedDeckProfile == profile) return
         unfoldedDeckSurface?.let { it.releaseInputs(); column?.removeView(it) }
         unfoldedDeckSurface = null
+        unfoldedDeckProfile = null
         if (column == null || panel == null) return
         if (layout == null) { panel.visibility = View.VISIBLE; return }
         panel.releaseAll()
         panel.visibility = View.GONE
-        unfoldedDeckSurface = com.droiddeck.launcher.ui.InputSurfaceView(this, padBridge, layout.elements, InputRole.SECONDARY, layout.style, haptics = true, actionProfile = selected?.let { deckPanelProfiles[it] }).also {
+        unfoldedDeckSurface = com.droiddeck.launcher.ui.InputSurfaceView(this, padBridge, layout.elements, InputRole.SECONDARY, layout.style, haptics = true, actionProfile = profile).also {
             it.tag = layout
+            unfoldedDeckProfile = profile
             column.addView(it, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         }
     }
