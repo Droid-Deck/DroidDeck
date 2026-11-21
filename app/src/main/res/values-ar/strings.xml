@@ -971,6 +971,8 @@
     <string name="setup_fullscreen">ملء الشاشة</string>
     <string name="setup_fullscreen_on">يخفي شريطي الحالة والتنقّل في Android</string>
     <string name="setup_fullscreen_off">يعرض شريطي الحالة والتنقّل في Android</string>
+    <string name="setup_page_swipe">التمرير بين الصفحات</string>
+    <string name="setup_page_swipe_hint">اسحب عبر الصفحة لتغيير علامة التبويب.</string>
     <string name="setup_dual_screen_launcher">المشغّل على شاشتين</string>
     <string name="setup_dual_screen_launcher_hint">يضع الوضع «تلقائي» أقسام المشغّل (Steam والمكتبة والمتاجر وغيرها) على الشاشة الثانية في الأجهزة المحمولة المزوّدة بشاشة ثانية مدمجة. ويستخدم الوضع «تشغيل» أي شاشة ثانية. أما الوضع «إيقاف» فيُبقي المشغّل على شاشة واحدة.</string>
     <string name="setup_dual_screen_sessions">الجلسات على شاشتين</string>

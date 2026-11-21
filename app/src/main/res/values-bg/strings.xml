@@ -959,6 +959,8 @@
     <string name="setup_fullscreen">Цял екран</string>
     <string name="setup_fullscreen_on">Скрива лентите за състояние и навигация на Android</string>
     <string name="setup_fullscreen_off">Показва лентите за състояние и навигация на Android</string>
+    <string name="setup_page_swipe">Плъзгане между страниците</string>
+    <string name="setup_page_swipe_hint">Плъзнете по страница, за да смените раздела.</string>
     <string name="setup_dual_screen_launcher">Лаунчер с два екрана</string>
     <string name="setup_dual_screen_launcher_hint">Автоматично: секциите на лаунчера (Steam, Библиотека, Магазини и останалите) се показват на втория екран при преносими устройства с вграден такъв. Включено: използва се всеки втори дисплей. Изключено: лаунчерът остава на един екран.</string>
     <string name="setup_dual_screen_sessions">Сесии с два екрана</string>

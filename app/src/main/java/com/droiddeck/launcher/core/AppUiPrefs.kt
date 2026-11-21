@@ -53,6 +53,13 @@ object AppUiPrefs {
         context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().putBoolean("hide-home-from-recents", hidden).apply()
     }
 
+    fun pageSwipe(context: Context): Boolean =
+        context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).getBoolean("page-swipe", true)
+
+    fun setPageSwipe(context: Context, on: Boolean) {
+        context.getSharedPreferences("app-ui", Context.MODE_PRIVATE).edit().putBoolean("page-swipe", on).apply()
+    }
+
     internal fun normalizeScale(percent: Int): Int = percent.takeIf { it in scales } ?: DEFAULT_SCALE
 
     fun scale(context: Context): Int = normalizeScale(

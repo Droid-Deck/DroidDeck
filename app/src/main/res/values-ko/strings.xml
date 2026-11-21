@@ -956,6 +956,8 @@
     <string name="setup_fullscreen">전체 화면</string>
     <string name="setup_fullscreen_on">Android 상태 표시줄 및 탐색 표시줄 숨기기</string>
     <string name="setup_fullscreen_off">Android 상태 표시줄 및 탐색 표시줄 표시</string>
+    <string name="setup_page_swipe">스와이프로 페이지 전환</string>
+    <string name="setup_page_swipe_hint">페이지를 가로질러 스와이프하면 탭이 바뀝니다.</string>
     <string name="setup_dual_screen_launcher">듀얼 화면 런처</string>
     <string name="setup_dual_screen_launcher_hint">자동은 내장 두 번째 화면이 있는 휴대용 기기에서 런처 섹션(Steam, 라이브러리, 스토어 등)을 두 번째 화면에 표시합니다. 켜기는 어떤 두 번째 디스플레이든 사용합니다. 끄기는 런처를 한 화면에 유지합니다.</string>
     <string name="setup_dual_screen_sessions">듀얼 화면 세션</string>

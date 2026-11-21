@@ -959,6 +959,8 @@
     <string name="setup_fullscreen">Πλήρης οθόνη</string>
     <string name="setup_fullscreen_on">Αποκρύπτει τις γραμμές κατάστασης και πλοήγησης του Android</string>
     <string name="setup_fullscreen_off">Εμφανίζει τις γραμμές κατάστασης και πλοήγησης του Android</string>
+    <string name="setup_page_swipe">Σάρωση μεταξύ σελίδων</string>
+    <string name="setup_page_swipe_hint">Σαρώστε κατά μήκος μιας σελίδας για να αλλάξετε καρτέλα.</string>
     <string name="setup_dual_screen_launcher">Εκκινητής διπλής οθόνης</string>
     <string name="setup_dual_screen_launcher_hint">Η επιλογή Αυτόματα τοποθετεί τις ενότητες του εκκινητή (Steam, Βιβλιοθήκη, Καταστήματα και τις υπόλοιπες) στη δεύτερη οθόνη των φορητών κονσολών με ενσωματωμένη δεύτερη οθόνη. Η επιλογή Ενεργό χρησιμοποιεί οποιαδήποτε δεύτερη οθόνη. Η επιλογή Ανενεργό κρατά τον εκκινητή σε μία οθόνη.</string>
     <string name="setup_dual_screen_sessions">Συνεδρίες διπλής οθόνης</string>

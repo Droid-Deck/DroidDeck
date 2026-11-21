@@ -956,6 +956,8 @@
     <string name="setup_fullscreen">全屏</string>
     <string name="setup_fullscreen_on">隐藏 Android 状态栏和导航栏</string>
     <string name="setup_fullscreen_off">显示 Android 状态栏和导航栏</string>
+    <string name="setup_page_swipe">滑动切换页面</string>
+    <string name="setup_page_swipe_hint">在页面上滑动即可切换标签。</string>
     <string name="setup_dual_screen_launcher">双屏启动器</string>
     <string name="setup_dual_screen_launcher_hint">自动会把启动器的各个板块（Steam、库、商店等）放到带内置副屏的掌机的第二块屏幕上。开启使用任意第二块显示屏。关闭则让启动器只显示在一块屏幕上。</string>
     <string name="setup_dual_screen_sessions">双屏会话</string>

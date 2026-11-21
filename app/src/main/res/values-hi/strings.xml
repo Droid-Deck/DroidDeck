@@ -959,6 +959,8 @@
     <string name="setup_fullscreen">फ़ुलस्क्रीन</string>
     <string name="setup_fullscreen_on">Android स्टेटस और नेविगेशन बार छिपाता है</string>
     <string name="setup_fullscreen_off">Android स्टेटस और नेविगेशन बार दिखाता है</string>
+    <string name="setup_page_swipe">पेजों के बीच स्वाइप करें</string>
+    <string name="setup_page_swipe_hint">टैब बदलने के लिए किसी पेज पर स्वाइप करें।</string>
     <string name="setup_dual_screen_launcher">डुअल स्क्रीन लॉन्चर</string>
     <string name="setup_dual_screen_launcher_hint">स्वचालित पर, बिल्ट-इन दूसरी स्क्रीन वाले हैंडहेल्ड में लॉन्चर के सेक्शन (Steam, लाइब्रेरी, स्टोर्स और बाकी) दूसरी स्क्रीन पर चले जाते हैं। चालू पर कोई भी दूसरी डिस्प्ले इस्तेमाल होती है। बंद पर लॉन्चर एक ही स्क्रीन पर रहता है।</string>
     <string name="setup_dual_screen_sessions">डुअल स्क्रीन सत्र</string>

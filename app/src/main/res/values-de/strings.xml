@@ -951,6 +951,8 @@
     <string name="setup_fullscreen">Vollbild</string>
     <string name="setup_fullscreen_on">Blendet die Status- und Navigationsleiste von Android aus</string>
     <string name="setup_fullscreen_off">Zeigt die Status- und Navigationsleiste von Android an</string>
+    <string name="setup_page_swipe">Zwischen Seiten wischen</string>
+    <string name="setup_page_swipe_hint">Über eine Seite wischen, um den Tab zu wechseln.</string>
     <string name="setup_dual_screen_launcher">Dual-Screen-Launcher</string>
     <string name="setup_dual_screen_launcher_hint">Bei Automatisch liegen die Launcher-Bereiche (Steam, Bibliothek, Shops und die übrigen) auf dem zweiten Bildschirm von Handhelds mit integriertem zweitem Bildschirm. Ein nutzt einen beliebigen zweiten Bildschirm. Aus belässt den Launcher auf einem Bildschirm.</string>
     <string name="setup_dual_screen_sessions">Dual-Screen-Sitzungen</string>
