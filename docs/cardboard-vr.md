@@ -55,7 +55,10 @@ the lens exactly.
 Valve's ARM64 SteamVR, the build the Steam Frame runs, comes from Valve's public SteamOS package
 server (`deckard-steamvr`, pinned by version and SHA-256 in `droiddeck-steamvr`; the same hash
 [steam-frame-nixos](https://github.com/y0usaf/steam-frame-nixos) pins). `droiddeck-steamvr install`
-unpacks it to `/opt/steamvr`. The drawer's **Install** button runs that (571 MB). **Start** then
+unpacks it to `/opt/steamvr`. The drawer's **Install** button runs that (571 MB) and shows the
+download percentage. A download that stays under 1 KB/s for 60 seconds is stopped and resumed, up to
+five tries without progress; each step is written to Steam's logs as `droiddeck-steamvr-install.log`,
+which the session log share includes. **Start** then
 switches the picture to side-by-side and runs SteamVR with three DroidDeck pieces (`tools/vr`):
 
 1. **`driver_droiddeck.so`**, an OpenVR driver with one HMD:

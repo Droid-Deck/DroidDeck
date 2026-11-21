@@ -64,6 +64,22 @@ class CardboardTest {
             SteamVr.parse(answer("ok" to true, "installed" to true, "driver" to true).put("exitCode", 1)))
     }
 
+    @Test fun steamVrReportsDownloadPercentOnlyWhileInstalling() {
+        fun answer(installing: Boolean, downloaded: Long?, size: Long?) = JSONObject().apply {
+            put("ok", true)
+            put("installing", installing)
+            put("driver", true)
+            downloaded?.let { put("downloaded", it) }
+            size?.let { put("size", it) }
+        }
+        assertEquals(SteamVr.Report(SteamVr.Status.INSTALLING, 0), SteamVr.report(answer(true, 0, 571_309_057)))
+        assertEquals(SteamVr.Report(SteamVr.Status.INSTALLING, 49), SteamVr.report(answer(true, 285_654_528, 571_309_057)))
+        assertEquals(SteamVr.Report(SteamVr.Status.INSTALLING, 99), SteamVr.report(answer(true, 571_309_056, 571_309_057)))
+        assertEquals(SteamVr.Report(SteamVr.Status.INSTALLING, null), SteamVr.report(answer(true, 571_309_057, 571_309_057)))
+        assertEquals(SteamVr.Report(SteamVr.Status.INSTALLING, null), SteamVr.report(answer(true, null, null)))
+        assertEquals(SteamVr.Report(SteamVr.Status.NOT_INSTALLED, null), SteamVr.report(answer(false, 1_000, 571_309_057)))
+    }
+
     @Test fun steamVrActionsSucceedOnlyWhenTheHelperDid() {
         fun answer(ok: Boolean, exitCode: Int? = null, started: Boolean? = null) = JSONObject().apply {
             put("ok", ok)
