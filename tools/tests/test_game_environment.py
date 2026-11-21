@@ -1899,16 +1899,16 @@ class GameEnvironmentTest(unittest.TestCase):
         fixes = {"WINEDLLOVERRIDES": "msvcp100=n,b"}
         config = {"version": 1, "shared": {}, "games": {"42": {"WINEDLLOVERRIDES": "windowscodecs,windowscodecsext=n"}}}
         result = MODULE["apply_config"]({}, config, "42", fixes)
-        self.assertEqual(result["WINEDLLOVERRIDES"], "msvcp100=n,b;windowscodecs,windowscodecsext=n")
+        self.assertEqual(result["WINEDLLOVERRIDES"], "msvcp100=n,b;windowscodecs=n;windowscodecsext=n")
 
     def test_game_dll_overrides_edge_cases(self):
         fixes = {"WINEDLLOVERRIDES": "msvcp100=n,b"}
         env = {"WINEDLLOVERRIDES": "dxgi=n"}
         for game, shared, expected in (
-            ({"WINEDLLOVERRIDES": "msvcp100=b"}, {}, "msvcp100=n,b;msvcp100=b"),
-            ({"WINEDLLOVERRIDES": ""}, {}, "msvcp100=n,b"),
+            ({"WINEDLLOVERRIDES": "msvcp100=b"}, {}, "dxgi=n;msvcp100=b"),
+            ({"WINEDLLOVERRIDES": ""}, {}, ""),
             ({"WINEDLLOVERRIDES": None}, {}, None),
-            ({"WINEDLLOVERRIDES": "d3d9=n"}, {"WINEDLLOVERRIDES": "xinput1_3=n"}, "msvcp100=n,b;d3d9=n"),
+            ({"WINEDLLOVERRIDES": "d3d9=n"}, {"WINEDLLOVERRIDES": "xinput1_3=n"}, "dxgi=n;xinput1_3=n;msvcp100=n,b;d3d9=n"),
             ({}, {}, "dxgi=n;msvcp100=n,b"),
             ({"WINEDLLOVERRIDES": "x" * 8179}, {}, "msvcp100=n,b;" + "x" * 8179),
         ):
@@ -1916,13 +1916,31 @@ class GameEnvironmentTest(unittest.TestCase):
                 config = {"version": 1, "shared": shared, "games": {"42": game, "43": {"WINEDLLOVERRIDES": "d3d11=n"}}}
                 result = MODULE["apply_config"](env, config, "42", fixes)
                 self.assertEqual(result.get("WINEDLLOVERRIDES"), expected)
-                self.assertEqual(MODULE["apply_config"](env, config, "43")["WINEDLLOVERRIDES"], "d3d11=n")
+                other = "dxgi=n;xinput1_3=n;d3d11=n" if shared else "dxgi=n;d3d11=n"
+                self.assertEqual(MODULE["apply_config"](env, config, "43")["WINEDLLOVERRIDES"], other)
         stderr = io.StringIO()
         config = {"version": 1, "shared": {}, "games": {"42": {"WINEDLLOVERRIDES": "x" * 8192}}}
         with mock.patch("sys.stderr", stderr):
             result = MODULE["apply_config"](env, config, "42", fixes)
         self.assertEqual(result["WINEDLLOVERRIDES"], "x" * 8192)
         self.assertIn("too long", stderr.getvalue())
+
+    def test_empty_stored_overrides_clear_the_launcher_ones(self):
+        env = {"WINEDLLOVERRIDES": "steam_api64=n,b;lsteamclient=d"}
+        result = MODULE["apply_config"](env, {"version": 1, "shared": {"WINEDLLOVERRIDES": ""}}, "42")
+        self.assertEqual(result["WINEDLLOVERRIDES"], "")
+
+    def test_empty_per_game_overrides_clear_the_shared_ones(self):
+        config = {"version": 1, "shared": {"WINEDLLOVERRIDES": "foo=d"},
+                  "games": {"42": {"WINEDLLOVERRIDES": ""}}}
+        result = MODULE["apply_config"]({"WINEDLLOVERRIDES": "dxgi=n"}, config, "42")
+        self.assertEqual(result["WINEDLLOVERRIDES"], "")
+
+    def test_an_expansion_past_the_limit_keeps_the_stored_value_as_written(self):
+        compact = ",".join("d%04d" % i for i in range(1300)) + "=n"
+        config = {"version": 1, "shared": {"WINEDLLOVERRIDES": compact}}
+        result = MODULE["apply_config"]({}, config, "42", {"WINEDLLOVERRIDES": "d3dgear64=d"})
+        self.assertEqual(result["WINEDLLOVERRIDES"], compact + ";d3dgear64=d")
 
     def test_invalid_configuration_is_atomic(self):
         env = {"ORIGINAL": "unchanged"}
