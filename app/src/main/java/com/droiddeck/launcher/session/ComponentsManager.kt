@@ -243,6 +243,7 @@ object ComponentsManager {
     fun migrateBattleNetFex(context: Context) = synchronized(lock) {
         val marker = File(dataDir(context), ".battlenet-fex-unpinned")
         if (marker.isFile) return@synchronized
+        migratePlugin(context)
         val scope = com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
         if (gameComponents(context, scope)["fex"]?.let(UNPINNED_FEX::matches) == true) {
             setGameComponent(context, scope, "fex", null)
