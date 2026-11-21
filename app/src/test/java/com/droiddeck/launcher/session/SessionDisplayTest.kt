@@ -59,7 +59,7 @@ class SessionDisplayTest {
         assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920, 0, 2.2f))
         assertEquals(1080, SessionDisplay.unfoldedGameHeight(1440, 3039, 192, 4f / 3f))
         assertEquals(1080, SessionDisplay.unfoldedGameHeight(1440, 3039, 0, 4f / 3f))
-        assertEquals(2238, SessionDisplay.unfoldedGameHeight(1440, 3039, 0, 0.5f))
+        assertEquals(2430, SessionDisplay.unfoldedGameHeight(1440, 3039, 0, 0.5f))
         assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
         assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
