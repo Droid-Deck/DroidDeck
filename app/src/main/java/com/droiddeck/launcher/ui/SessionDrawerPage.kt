@@ -24,6 +24,9 @@ internal object DrawerPages {
     var hidden by mutableStateOf(emptySet<SessionDrawerPage>())
         private set
 
+    /** The order captured when a page row was grabbed in Arrange pages; Back restores it. */
+    var heldFrom: List<SessionDrawerPage>? = null
+
     fun hideable(page: SessionDrawerPage) = page != SessionDrawerPage.SESSION
 
     fun load(context: Context) {

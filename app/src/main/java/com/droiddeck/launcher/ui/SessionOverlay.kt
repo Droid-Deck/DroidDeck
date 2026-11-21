@@ -395,6 +395,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     val pages = sessionDrawerPages(a.glassesPresent)
     val page = requestedPage.takeIf { it in pages } ?: pages.first()
     var managing by rememberSaveable { mutableStateOf(false) }
+    var releaseSignal by remember { mutableStateOf(0) }
+    val drawerContext = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -513,7 +515,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     .controllerBack {
                         when {
                             host.open != null -> host.open = null
-                            managing -> managing = false
+                            managing -> DrawerPages.heldFrom?.let { held ->
+                                DrawerPages.rearrange(drawerContext, held)
+                                releaseSignal++
+                            } ?: run { managing = false }
                             else -> a.onClose()
                         }
                     }
@@ -603,6 +608,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                 if (managing) ManageDrawerPages(
                     offeredDrawerPages(a.glassesPresent),
                     Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
+                    releaseSignal,
                 ) { managing = false } else {
                 if (page == SessionDrawerPage.GLASSES) SegmentedTabs(
                     glassesPages, glassesTab, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

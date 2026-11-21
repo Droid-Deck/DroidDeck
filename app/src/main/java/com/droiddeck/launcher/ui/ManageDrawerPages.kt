@@ -36,10 +36,11 @@ import androidx.activity.compose.BackHandler
 import com.droiddeck.launcher.R
 
 @Composable
-internal fun ManageDrawerPages(offeredNow: List<SessionDrawerPage>, modifier: Modifier = Modifier, onDone: () -> Unit) {
+internal fun ManageDrawerPages(offeredNow: List<SessionDrawerPage>, modifier: Modifier = Modifier, releaseSignal: Int = 0, onDone: () -> Unit) {
     val ctx = LocalContext.current
     val current by rememberUpdatedState(offeredNow)
     val previewing = DevPreview.drawer != null
+    DisposableEffect(Unit) { onDispose { DrawerPages.heldFrom = null } }
     DisposableEffect(previewing) { onDispose { if (previewing) DrawerPages.load(ctx) } }
     val colors = MaterialTheme.colorScheme
     BackHandler { onDone() }
@@ -58,6 +59,8 @@ internal fun ManageDrawerPages(offeredNow: List<SessionDrawerPage>, modifier: Mo
             commit = { names -> DrawerPages.rearrange(ctx, names.mapNotNull { n -> current.firstOrNull { it.name == n } }) },
             movable = { true },
             rowHeight = STORE_ROW, handleWidth = STORE_HANDLE,
+            releaseSignal = releaseSignal,
+            onGrab = { before -> DrawerPages.heldFrom = before?.mapNotNull { n -> current.firstOrNull { it.name == n } } },
             onActivate = { name ->
                 current.firstOrNull { it.name == name }?.let { DrawerPages.setHidden(ctx, it, it !in DrawerPages.hidden) }
             },
