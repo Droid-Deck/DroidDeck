@@ -45,13 +45,14 @@ class DroidDeckHudHost(context: Context) {
     private var proton = ""
     @Volatile private var lastWindow: String? = null
     @Volatile private var lastCompositorFrameNanos = 0L
+    @Volatile private var lastVisibilityGameActive = false
 
     private fun isGameActive(): Boolean {
         val lastFrame = lastCompositorFrameNanos
         val now = System.nanoTime()
         val compositorLive = lastFrame > 0L &&
             now - lastFrame <= 1_000_000_000L
-        return (feed.live && !feed.steamFocused) || compositorLive
+        return !feed.steamFocused && (feed.live || compositorLive)
     }
 
     var onPresentingWindowChanged: (() -> Unit)? = null
@@ -83,10 +84,9 @@ class DroidDeckHudHost(context: Context) {
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running || !polling) return
-            val wasGameActive = isGameActive()
+            reconcileGameActivity()
             if (feed.poll(System.nanoTime())) view?.onFrames()
-            val isGameActive = isGameActive()
-            if (wasGameActive != isGameActive && SessionPrefs.hudOnlyDuringGame(context)) applyShown()
+            reconcileGameActivity()
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
@@ -194,12 +194,22 @@ class DroidDeckHudHost(context: Context) {
         applyShown()
     }
 
+    private fun reconcileGameActivity() {
+        if (!SessionPrefs.hudOnlyDuringGame(context)) {
+            lastVisibilityGameActive = isGameActive()
+            return
+        }
+        if (isGameActive() != lastVisibilityGameActive) applyShown()
+    }
+
     private fun applyShown() {
         if (!running) return
         val onlyDuringGame = SessionPrefs.hudOnlyDuringGame(context)
-        val show = !hidden && !backgrounded && (!onlyDuringGame || isGameActive())
+        val gameActive = isGameActive()
+        val show = !hidden && !backgrounded && (!onlyDuringGame || gameActive)
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
+        lastVisibilityGameActive = gameActive
         val shouldPoll = !hidden && !backgrounded && (show || onlyDuringGame)
         if (shouldPoll != polling) {
             polling = shouldPoll
