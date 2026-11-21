@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Output HDR10</string>
     <string name="mode_hdr_unavailable">Tidak tersedia: %1$s.</string>
-    <string name="mode_hdr_restart">Mulakan semula apl untuk menggunakannya.</string>
     <string name="mode_drivers">Pemacu</string>
     <string name="mode_gpu_drivers">Pemacu GPU</string>
     <string name="mode_gpu_drivers_hint">Dikongsi oleh Steam dan Desktop. Ditetapkan pada halaman Komponen.</string>
@@ -802,7 +801,6 @@
     <string name="drawer_pc_keyboard">Papan kekunci PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Skrin kedua</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Memaparkan</string>
     <string name="drawer_android_apps">Apl Android</string>
     <string name="drawer_launch_app">Lancarkan apl</string>
@@ -2437,6 +2435,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Paparan sesi</string>
+    <string name="display_zero_copy">Paparan tanpa salinan</string>
     <string name="display_resolution">Resolusi</string>
     <string name="display_game_fit">Suaian permainan 16:9</string>
     <string name="display_game_fit_hint">Cara permainan 16:9 disuaikan ke paparan ini. Sesi seterusnya.</string>

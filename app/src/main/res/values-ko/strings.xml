@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 출력</string>
     <string name="mode_hdr_unavailable">사용 불가: %1$s.</string>
-    <string name="mode_hdr_restart">앱을 다시 시작한 후 적용됩니다.</string>
     <string name="mode_drivers">드라이버</string>
     <string name="mode_gpu_drivers">GPU 드라이버</string>
     <string name="mode_gpu_drivers_hint">Steam과 데스크톱에서 공유됩니다. \"구성 요소\" 페이지에서 설정하세요.</string>
@@ -802,7 +801,6 @@
     <string name="drawer_pc_keyboard">PC 키보드</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">보조 화면</string>
-    <string name="drawer_second_screen_mode">모드</string>
     <string name="drawer_second_screen_shows">표시</string>
     <string name="drawer_android_apps">Android 앱</string>
     <string name="drawer_launch_app">앱 실행</string>
@@ -2437,6 +2435,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">세션 디스플레이</string>
+    <string name="display_zero_copy">제로카피 표시</string>
     <string name="display_resolution">해상도</string>
     <string name="display_game_fit">16:9 게임 맞춤</string>
     <string name="display_game_fit_hint">16:9 게임을 이 디스플레이에 맞추는 방식입니다. 다음 세션부터 적용됩니다.</string>

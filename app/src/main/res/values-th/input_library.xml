@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">ย้อนกลับ · สองครั้งใน Steam หนึ่งครั้งบนเดสก์ท็อป</string>
     <string name="input_shortcut_hold_hint">ในโหมด Steam การกดย้อนกลับค้างจะเปิดการเข้าถึงด่วนด้วย</string>
     <string name="input_restore_shortcut">คืนค่าเริ่มต้น</string>
-    <string name="input_second_mode_hint">ตัวเลือกแผงของคุณจะถูกจำไว้ เดสก์ท็อปจะเปิดพื้นที่ทำงานที่สอง ไม่ได้สลับเซสชันหรือโปรไฟล์อินพุต</string>
     <string name="input_virtual_controller">คอนโทรลเลอร์เสมือน</string>
     <string name="input_virtual_controller_hint">ชนิดคอนโทรลเลอร์ที่ Steam หรือเกมมองเห็น</string>
     <string name="input_touchscreen">หน้าจอสัมผัส</string>

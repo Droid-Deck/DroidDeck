@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Výstup HDR10</string>
     <string name="mode_hdr_unavailable">Není k dispozici: %1$s.</string>
-    <string name="mode_hdr_restart">Pro použití restartujte aplikaci.</string>
     <string name="mode_drivers">Ovladače</string>
     <string name="mode_gpu_drivers">Ovladače GPU</string>
     <string name="mode_gpu_drivers_hint">Společné pro Steam a Plochu. Nastavuje se na stránce Komponenty.</string>
@@ -808,7 +807,6 @@
     <string name="drawer_pc_keyboard">Klávesnice PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Druhá obrazovka</string>
-    <string name="drawer_second_screen_mode">Režim</string>
     <string name="drawer_second_screen_shows">Zobrazuje</string>
     <string name="drawer_android_apps">Aplikace Android</string>
     <string name="drawer_launch_app">Spustit aplikaci</string>
@@ -2514,6 +2512,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Obrazovka relace</string>
+    <string name="display_zero_copy">Zobrazení bez kopírování</string>
     <string name="display_resolution">Rozlišení</string>
     <string name="display_game_fit">Přizpůsobení hry 16:9</string>
     <string name="display_game_fit_hint">Jak se hry s poměrem 16:9 přizpůsobí této obrazovce. Příští relace.</string>

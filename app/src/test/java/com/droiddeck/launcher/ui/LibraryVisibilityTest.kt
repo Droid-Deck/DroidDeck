@@ -81,9 +81,7 @@ class LibraryVisibilityTest {
         compose.onNodeWithText("Installed Steam game").assertExists()
         compose.onNodeWithText("Uninstalled GOG").assertDoesNotExist()
         compose.onNodeWithText("NOT INSTALLED  ·  2").assertExists()
-        compose.onNodeWithText("3 games").assertExists()
         toggleNotInstalled(true)
-        compose.onNodeWithText("3 games").assertExists()
         compose.onNodeWithText("Uninstalled GOG").assertExists()
         compose.runOnIdle { generation++; Snapshot.sendApplyNotifications() }
         compose.mainClock.advanceTimeBy(2_000)
@@ -137,27 +135,47 @@ class LibraryVisibilityTest {
         compose.onNodeWithTag("library-not-installed").assertExists()
     }
 
-    @Test fun aHiddenStoreRemainsReachableInLibraryInItsConfiguredOrder() {
+    @Test fun aSwitchedOffStoreLeavesTheChipsButItsGamesStayUnderAll() {
         SessionPrefs.setStoresTabOrder(ctx, listOf("epic", "gog"))
         SessionPrefs.setStoresTabHidden(ctx, setOf("gog"))
         show()
         val steam = compose.onNodeWithTag("library-source-steam").fetchSemanticsNode().boundsInRoot.left
         val epic = compose.onNodeWithTag("library-source-epic").fetchSemanticsNode().boundsInRoot.left
-        val gog = compose.onNodeWithTag("library-source-gog").fetchSemanticsNode().boundsInRoot.left
-        assertTrue(steam < epic && epic < gog)
-        compose.onNodeWithTag("library-source-gog").performClick()
-        compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithTag("library-not-installed").assertIsDisplayed().performClick()
+        assertTrue(steam < epic)
+        compose.onNodeWithTag("library-source-gog").assertDoesNotExist()
+        compose.onNodeWithTag("library-not-installed").performClick()
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Uninstalled GOG").assertExists()
     }
 
-    @Test fun theHeaderCountsTheWholeLibraryWhicheverStoreIsPicked() {
-        show()
-        compose.onNodeWithText("3 games").assertExists()
-        compose.onNodeWithTag("library-source-gog").performClick()
+    @Test fun anEmptyLibraryStillShowsItsChipsSoCustomGamesAndSignInAreReachable() {
+        for (store in listOf(Store.GOG, Store.EPIC)) StoreAccounts.clear(ctx, store)
+        StoresState.library.clear()
+        StoresState.accounts.clear()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            DroidDeckTheme {
+                CompositionLocalProvider(LocalFrontFocus provides FrontFocus()) {
+                    FocusGlideHost { Box(Modifier.fillMaxSize()) {
+                        LibraryPage(state(emptyList()), actions(), "games", {}, Modifier.fillMaxSize())
+                    } }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithTag("library-source-added").performClick()
         compose.mainClock.advanceTimeBy(1_000)
-        compose.onNodeWithText("3 games").assertExists()
+        compose.onNodeWithTag("library-custom-empty").assertExists()
+    }
+
+    @Test fun theCustomGamesTabIsAlwaysThereAndOffersToAddWhenEmpty() {
+        show()
+        compose.onNodeWithTag("library-source-added").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithTag("library-custom-empty").assertExists()
+        compose.onNodeWithTag("library-custom-add").performClick()
+        assertTrue(GamesDialogState.adding)
+        GamesDialogState.adding = false
     }
 
     @Test fun theStoresOwnedGamesLinkRevealsOwnedGamesDespiteTheSavedInstalledOnlyView() {
@@ -198,11 +216,11 @@ class LibraryVisibilityTest {
         assertEquals(show, SessionPrefs.libraryShowUninstalled(ctx))
     }
 
-    private fun state() = FrontEndState(
+    private fun state(games: List<Library.SteamGame> = listOf(Library.SteamGame(440, "Installed Steam game", null, "internal"))) = FrontEndState(
         installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
         desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
         romsDir = null, logsEnabled = false,
-        steamGames = listOf(Library.SteamGame(440, "Installed Steam game", null, "internal")),
+        steamGames = games,
         emulators = emptyList(), running = null,
     )
 

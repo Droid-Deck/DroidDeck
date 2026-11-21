@@ -276,11 +276,18 @@ private fun Content(
         return
     }
     if (selected == "stores") {
-        StoresPage(s, a, modifier)
+        Box(modifier) {
+            StoresPage(s, a, Modifier.fillMaxSize())
+            ManageStoresSheet()
+        }
         return
     }
     if (selected == "games" || selected.startsWith("app:") || selected == "soundtracks" || selected.startsWith("sound:")) {
-        LibraryPage(s, a, selected, onSelect, modifier)
+        Box(modifier) {
+            LibraryPage(s, a, selected, onSelect, Modifier.fillMaxSize())
+            if (selected == "games") LibraryPreviewPill(Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 20.dp))
+            ManageStoresSheet()
+        }
         return
     }
     if (selected == "desktop") {

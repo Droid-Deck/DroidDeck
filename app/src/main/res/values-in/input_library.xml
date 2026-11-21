@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">Kembali · dua kali di Steam, sekali di desktop</string>
     <string name="input_shortcut_hold_hint">Di mode Steam. Menahan Kembali juga membuka akses cepat.</string>
     <string name="input_restore_shortcut">Pulihkan ke bawaan</string>
-    <string name="input_second_mode_hint">Pilihan panel Anda diingat. Desktop membuka ruang kerja kedua; tidak mengganti sesi atau profil inputnya.</string>
     <string name="input_virtual_controller">Pengontrol virtual</string>
     <string name="input_virtual_controller_hint">Jenis pengontrol yang dilihat Steam atau game.</string>
     <string name="input_touchscreen">Layar sentuh</string>

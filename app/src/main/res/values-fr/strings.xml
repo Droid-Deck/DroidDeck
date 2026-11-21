@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Sortie HDR10</string>
     <string name="mode_hdr_unavailable">Non disponible : %1$s.</string>
-    <string name="mode_hdr_restart">Prendra effet après le redémarrage de l\'application.</string>
     <string name="mode_drivers">Pilotes</string>
     <string name="mode_gpu_drivers">Pilotes GPU</string>
     <string name="mode_gpu_drivers_hint">Partagés entre Steam et le bureau. À configurer dans la page « Composants ».</string>
@@ -806,7 +805,6 @@
     <string name="drawer_pc_keyboard">Clavier PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Deuxième écran</string>
-    <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Afficher</string>
     <string name="drawer_android_apps">Applications Android</string>
     <string name="drawer_launch_app">Lancer l\'application</string>
@@ -2487,6 +2485,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Affichage de la session</string>
+    <string name="display_zero_copy">Affichage sans copie</string>
     <string name="display_resolution">Résolution</string>
     <string name="display_game_fit">Ajustement des jeux 16:9</string>
     <string name="display_game_fit_hint">Comment les jeux 16:9 s\'adaptent à cet écran. À la prochaine session.</string>

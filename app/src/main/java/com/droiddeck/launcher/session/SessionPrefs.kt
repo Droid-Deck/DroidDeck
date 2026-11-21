@@ -280,6 +280,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("developerTools", on).apply()
     }
 
+    fun previewShortcuts(context: Context): Boolean = prefs(context).getBoolean("previewShortcuts", false)
+
+    fun setPreviewShortcuts(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("previewShortcuts", on).apply()
+    }
+
     fun fpsLimitKey(mode: String?, game: String?): String? = when (mode) {
         SessionService.MODE_RUN -> game?.trim()?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)?.let { "fpsLimit.game.$it" }
         SessionService.MODE_DESKTOP -> "fpsLimit.desktop"
@@ -350,6 +356,25 @@ object SessionPrefs {
 
     fun setStoresTabOrder(context: Context, order: List<String>) {
         prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
+    }
+
+    /**
+     * Where the Library's own tabs (Favorites, Steam, Custom games) sit among the store tabs, as "tab=the tab it follows" pairs in
+     * strip order ("" follows nothing, i.e. first). Null until arranged.
+     */
+    fun libraryTabPlaces(context: Context): List<Pair<String, String>>? =
+        prefs(context).getString("libraryTabPlaces", null)?.split(',')?.mapNotNull { pair ->
+            pair.split('=', limit = 2).takeIf { it.size == 2 && it[0].isNotEmpty() }?.let { it[0] to it[1] }
+        }
+
+    fun setLibraryTabPlaces(context: Context, places: List<Pair<String, String>>) {
+        prefs(context).edit().putString("libraryTabPlaces", places.joinToString(",") { "${it.first}=${it.second}" }).apply()
+    }
+
+    fun libraryTabsHidden(context: Context): Set<String> = idList(prefs(context).getString("libraryTabsHidden", null)).toSet()
+
+    fun setLibraryTabsHidden(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("libraryTabsHidden", hidden.joinToString(",")).apply()
     }
 
     fun storesTabHidden(context: Context): Set<String> = idList(prefs(context).getString("storesTabHidden", null)).toSet()
@@ -639,7 +664,10 @@ object SessionPrefs {
         prefs(context).getString("shape", null)
             ?: if (context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")) SHAPE_WIDE else SHAPE_AUTO
 
-    fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
+    fun oscMode(context: Context, steamSession: Boolean = true): String {
+        val saved = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
+        return if (!steamSession && saved == OSC_STEAM_QAM) OSC_AUTO else saved
+    }
 
     fun setOscMode(context: Context, mode: String) {
         prefs(context).edit().putString("osc", mode).apply()
@@ -1592,10 +1620,18 @@ object SessionPrefs {
         return Pair(w and 1.inv(), h and 1.inv())
     }
 
-    fun hdr(context: Context, mode: String): Boolean = prefs(context).getBoolean("hdr.$mode", false)
+    fun hdrKey(mode: String): String = "hdr.$mode"
+
+    fun hdr(context: Context, mode: String): Boolean = prefs(context).getBoolean(hdrKey(mode), false)
 
     fun setHdr(context: Context, mode: String, on: Boolean) {
-        prefs(context).edit().putBoolean("hdr.$mode", on).apply()
+        prefs(context).edit().putBoolean(hdrKey(mode), on).apply()
+    }
+
+    fun zeroCopy(context: Context, mode: String): Boolean = prefs(context).getBoolean("zeroCopy.$mode", true)
+
+    fun setZeroCopy(context: Context, mode: String, on: Boolean) {
+        prefs(context).edit().putBoolean("zeroCopy.$mode", on).apply()
     }
 
     const val FPS_UNPACED = -1

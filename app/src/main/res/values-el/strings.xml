@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Έξοδος HDR10</string>
     <string name="mode_hdr_unavailable">Μη διαθέσιμο: %1$s.</string>
-    <string name="mode_hdr_restart">Κάντε επανεκκίνηση της εφαρμογής για να εφαρμοστεί.</string>
     <string name="mode_drivers">Προγράμματα οδήγησης</string>
     <string name="mode_gpu_drivers">Προγράμματα οδήγησης GPU</string>
     <string name="mode_gpu_drivers_hint">Κοινά για το Steam και την Επιφάνεια εργασίας. Ορίζονται στη σελίδα Στοιχεία.</string>
@@ -804,7 +803,6 @@
     <string name="drawer_pc_keyboard">Πληκτρολόγιο PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Δεύτερη οθόνη</string>
-    <string name="drawer_second_screen_mode">Λειτουργία</string>
     <string name="drawer_second_screen_shows">Εμφανίζει</string>
     <string name="drawer_android_apps">Εφαρμογές Android</string>
     <string name="drawer_launch_app">Εκκίνηση εφαρμογής</string>
@@ -2462,6 +2460,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Οθόνη συνεδρίας</string>
+    <string name="display_zero_copy">Παρουσίαση χωρίς αντιγραφή</string>
     <string name="display_resolution">Ανάλυση</string>
     <string name="display_game_fit">Προσαρμογή παιχνιδιού 16:9</string>
     <string name="display_game_fit_hint">Πώς προσαρμόζονται τα παιχνίδια 16:9 σε αυτή την οθόνη. Από την επόμενη συνεδρία.</string>
