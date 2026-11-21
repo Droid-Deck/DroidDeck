@@ -41,6 +41,19 @@ static ino_t socket_inode(int fd) {
   return fstat(fd, &st) == 0 ? st.st_ino : 0;
 }
 
+static struct stand_in *available_stand_in(void) {
+  for (size_t i = 0; i < sizeof(stand_ins) / sizeof(stand_ins[0]); i++) {
+    struct stand_in *entry = &stand_ins[i];
+    if (entry->fd == -1) return entry;
+    if (entry->inode != socket_inode(entry->fd)) {
+      close(entry->peer);
+      entry->fd = -1;
+      return entry;
+    }
+  }
+  return NULL;
+}
+
 static int is_stand_in(int fd) {
   int found = 0;
   if (fd < 0)
@@ -87,14 +100,11 @@ static int make_stand_in(int type) {
   }
   fcntl(sv[1], F_SETFD, FD_CLOEXEC);
   pthread_mutex_lock(&lock);
-  for (size_t i = 0; i < sizeof(stand_ins) / sizeof(stand_ins[0]); i++) {
-    if (stand_ins[i].fd == -1) {
-      stand_ins[i].fd = sv[0];
-      stand_ins[i].peer = sv[1];
-      stand_ins[i].inode = socket_inode(sv[0]);
-      pthread_mutex_unlock(&lock);
-      return sv[0];
-    }
+  struct stand_in *entry = available_stand_in();
+  if (entry != NULL) {
+    *entry = (struct stand_in){.fd = sv[0], .peer = sv[1], .inode = socket_inode(sv[0])};
+    pthread_mutex_unlock(&lock);
+    return sv[0];
   }
   pthread_mutex_unlock(&lock);
   close(sv[0]);
@@ -171,7 +181,10 @@ __attribute__((visibility("hidden"))) int dd_udevmon_bind(int fd, const struct s
     return 0;
   *rc = real_bind(fd, addr, len);
   int refused = errno;
-  if (*rc == 0 && subscribed(fd)) return 1;
+  if (subscribed(fd)) {
+    errno = refused;
+    return 1;
+  }
   int status = fcntl(fd, F_GETFL);
   int descriptor = fcntl(fd, F_GETFD);
   int sv[2];
@@ -180,12 +193,8 @@ __attribute__((visibility("hidden"))) int dd_udevmon_bind(int fd, const struct s
     return 1;
   }
   pthread_mutex_lock(&lock);
-  size_t slot = sizeof(stand_ins) / sizeof(stand_ins[0]);
-  for (size_t i = 0; i < sizeof(stand_ins) / sizeof(stand_ins[0]); i++) {
-    if (stand_ins[i].fd == -1) { slot = i; break; }
-  }
-  if (slot == sizeof(stand_ins) / sizeof(stand_ins[0]) ||
-      dup3(sv[0], fd, (descriptor & FD_CLOEXEC) ? O_CLOEXEC : 0) < 0) {
+  struct stand_in *entry = available_stand_in();
+  if (entry == NULL || dup3(sv[0], fd, (descriptor & FD_CLOEXEC) ? O_CLOEXEC : 0) < 0) {
     pthread_mutex_unlock(&lock);
     close(sv[0]);
     close(sv[1]);
@@ -194,9 +203,7 @@ __attribute__((visibility("hidden"))) int dd_udevmon_bind(int fd, const struct s
   }
   close(sv[0]);
   if (status & O_NONBLOCK) fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-  stand_ins[slot].fd = fd;
-  stand_ins[slot].peer = sv[1];
-  stand_ins[slot].inode = socket_inode(fd);
+  *entry = (struct stand_in){.fd = fd, .peer = sv[1], .inode = socket_inode(fd)};
   pthread_mutex_unlock(&lock);
   *rc = 0;
   return 1;
