@@ -60,6 +60,9 @@ static struct {
     void (*setOnComplete)(ASurfaceTransaction *, void *, sc_complete_fn);
     void (*setOnCommit)(ASurfaceTransaction *, void *, sc_complete_fn);
     int (*prevReleaseFence)(ASurfaceTransactionStats *, ASurfaceControl *);
+    int (*presentFence)(ASurfaceTransactionStats *);
+    void (*statsControls)(ASurfaceTransactionStats *, ASurfaceControl ***, size_t *);
+    void (*releaseStatsControls)(ASurfaceControl **);
     void (*setFrameRate)(ASurfaceTransaction *, ASurfaceControl *, float, int8_t);
     void (*setFrameRateStrategy)(ASurfaceTransaction *, ASurfaceControl *, float, int8_t, int8_t);
     void (*setBufferDataSpace)(ASurfaceTransaction *, ASurfaceControl *, int32_t);
@@ -101,6 +104,9 @@ static int resolve_api(void) {
     SYM(setOnComplete, "ASurfaceTransaction_setOnComplete");
     SYM(setOnCommit, "ASurfaceTransaction_setOnCommit");
     SYM(prevReleaseFence, "ASurfaceTransactionStats_getPreviousReleaseFenceFd");
+    SYM(presentFence, "ASurfaceTransactionStats_getPresentFenceFd");
+    SYM(statsControls, "ASurfaceTransactionStats_getASurfaceControls");
+    SYM(releaseStatsControls, "ASurfaceTransactionStats_releaseASurfaceControls");
     SYM(setFrameRate, "ASurfaceTransaction_setFrameRate");
     SYM(setFrameRateStrategy, "ASurfaceTransaction_setFrameRateWithChangeStrategy");
     SYM(setBufferDataSpace, "ASurfaceTransaction_setBufferDataSpace");
@@ -319,14 +325,42 @@ static void apply_present_time(ASurfaceTransaction *tx, int game) {
     api.setDesiredPresentTime(tx, target - period / 2);
 }
 
+static int release_fence(ASurfaceTransactionStats *stats, int have_controls, ASurfaceControl **controls,
+                         size_t controls_n, struct complete_ctx *ctx) {
+    if (!stats || !ctx->sc) return -1;
+    if (have_controls) {
+        for (size_t i = 0; i < controls_n; i++) {
+            if (controls[i] == ctx->sc) return api.prevReleaseFence(stats, ctx->sc);
+        }
+        if (api.presentFence) {
+            static int logged;
+            if (!logged) {
+                logged = 1;
+                droiddeck_log("layer", "%s is not in the transaction stats; waiting on the transaction's present fence",
+                           ctx->layer ? ctx->layer->name : "layer");
+            }
+            return api.presentFence(stats);
+        }
+        return -1;
+    }
+    return api.prevReleaseFence(stats, ctx->sc);
+}
+
 static void on_complete(void *context, ASurfaceTransactionStats *stats) {
     struct complete_ctx *ctx = context;
+    ASurfaceControl **controls = NULL;
+    size_t controls_n = 0;
+    int have_controls = 0;
+    if (stats && api.statsControls && api.releaseStatsControls) {
+        api.statsControls(stats, &controls, &controls_n);
+        have_controls = 1;
+    }
     while (ctx) {
     struct complete_ctx *next = ctx->next;
     pthread_mutex_lock(&g_lock);
     if (ctx->layer && ctx->prev_slot >= 0 && ctx->prev_slot < POOL_MAX) {
         struct slot *s = &ctx->layer->slots[ctx->prev_slot];
-        int fd = (stats && ctx->sc) ? api.prevReleaseFence(stats, ctx->sc) : -1;
+        int fd = release_fence(stats, have_controls, controls, controls_n, ctx);
         if (s->release_fd >= 0) close(s->release_fd);
         s->release_fd = fd;
         s->busy = 0;
@@ -335,13 +369,14 @@ static void on_complete(void *context, ASurfaceTransactionStats *stats) {
     if (ctx->layer && ctx->layer->pending_callbacks) ctx->layer->pending_callbacks--;
     pthread_mutex_unlock(&g_lock);
     if (ctx->prev_token) {
-        int fd = (stats && ctx->sc) ? api.prevReleaseFence(stats, ctx->sc) : -1;
+        int fd = release_fence(stats, have_controls, controls, controls_n, ctx);
         ahb_swapchain_layer_released(ctx->prev_token, fd, stats && ctx->sc);
     }
     if (ctx->retire && ctx->sc) api.release(ctx->sc);
     free(ctx);
     ctx = next;
     }
+    if (have_controls && controls) api.releaseStatsControls(controls);
 }
 
 static int add_complete_on(ASurfaceTransaction *tx, struct layer *l, ASurfaceControl *sc,
