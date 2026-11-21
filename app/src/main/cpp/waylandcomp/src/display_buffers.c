@@ -104,7 +104,6 @@ static AHardwareBuffer *allocate_ubwc(uint32_t w, uint32_t h, uint32_t format, u
         const uint64_t need = ubwc_size(w, h, got.stride * 4);
         *fd = !stride || (uint64_t)got.stride * 4 == stride ? sc_layer_ahb_fd(ahb, need) : -1;
         if (*fd >= 0 && (uint64_t)lseek(*fd, 0, SEEK_END) == need) { *size = need; return ahb; }
-        if (*fd >= 0) close(*fd);
         *fd = -1;
         AHardwareBuffer_release(ahb);
     }
@@ -174,7 +173,7 @@ static AHardwareBuffer *allocate(const struct display_buffers_request *q, uint32
     return NULL;
 }
 
-static void reply(struct peer *p, const struct display_buffers_reply *r, int fd) {
+static int reply(struct peer *p, const struct display_buffers_reply *r, int fd) {
     char control[CMSG_SPACE(sizeof(int))] = {0};
     struct iovec iov = {.iov_base = (void *)r, .iov_len = sizeof(*r)};
     struct msghdr msg = {.msg_iov = &iov, .msg_iovlen = 1};
@@ -189,6 +188,7 @@ static void reply(struct peer *p, const struct display_buffers_reply *r, int fd)
     }
     ssize_t n;
     do { n = sendmsg(p->fd, &msg, MSG_NOSIGNAL); } while (n < 0 && errno == EINTR);
+    return n == (ssize_t)sizeof(*r) ? 0 : -1;
 }
 
 static void handle_alloc(struct peer *p, const struct display_buffers_request *q) {
@@ -250,7 +250,7 @@ static void handle_alloc(struct peer *p, const struct display_buffers_request *q
                        compressed ? "its compressed frames cannot be shown" : "its frames keep the copy path");
         }
     }
-    reply(p, &r, fd);
+    if (reply(p, &r, fd) != 0 && e) entry_free(e);
 }
 
 static void peer_gone(struct peer *p) {

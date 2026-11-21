@@ -290,7 +290,7 @@ HDR_JS = r"""
   self.set = value => {
     if (typeof value !== "boolean") return true;
     self.known = value;
-    if (settings.clientSettings.gamescope_hdr_enabled === value) { self.pending = null; return true; }
+    if (settings.clientSettings.gamescope_hdr_enabled === value && self.pending === null) return true;
     self.pending = value;
     self.until = performance.now() + HOLD_MS;
     write(21015, value ? 1 : 0);
@@ -1053,6 +1053,7 @@ class Helper:
                 if self.page.evaluate("window.__droiddeckHdr ? window.__droiddeckHdr.set(%s) : false" % json.dumps(value)) is True:
                     self.hdr_state = value
                 else:
+                    self.hdr_state = None
                     self.hdr_installed = False
         except (OSError, ValueError, TypeError, AttributeError):
             pass

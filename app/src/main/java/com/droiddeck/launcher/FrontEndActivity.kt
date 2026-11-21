@@ -2645,7 +2645,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onHdr = { on -> com.droiddeck.launcher.session.SessionHdr.set(this, mode, on); hdrOn = on },
                 onZeroCopy = { on ->
                     SessionPrefs.setZeroCopy(this, mode, on); zeroCopyOn = on
-                    if (com.droiddeck.launcher.wayland.CompositorHost.isStarted && !SessionState.hdr)
+                    if (com.droiddeck.launcher.wayland.CompositorHost.isStarted && !SessionState.hdr &&
+                        SessionPrefs.prefMode(SessionState.mode) == SessionPrefs.prefMode(mode))
                         com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetZeroCopy(on)
                 },
                 onGpuDrivers = { openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.GPU_TAB) },

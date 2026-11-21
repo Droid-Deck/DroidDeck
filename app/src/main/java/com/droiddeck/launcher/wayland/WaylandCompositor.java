@@ -101,17 +101,17 @@ public final class WaylandCompositor {
     private static volatile OverlayPlanesListener overlayPlanesListener;
     private static volatile int overlayPlanes = -1;
 
-    public static void setOverlayPlanesListener(OverlayPlanesListener l) {
+    public static synchronized void setOverlayPlanesListener(OverlayPlanesListener l) {
         overlayPlanesListener = l;
         if (l != null) l.onOverlayPlanes(overlayPlanes);
     }
 
-    public static void clearOverlayPlanesListener(OverlayPlanesListener l) {
+    public static synchronized void clearOverlayPlanesListener(OverlayPlanesListener l) {
         if (overlayPlanesListener == l) overlayPlanesListener = null;
     }
 
     @SuppressWarnings("unused")
-    static void onOverlayPlanes(int planes) {
+    static synchronized void onOverlayPlanes(int planes) {
         overlayPlanes = planes;
         OverlayPlanesListener l = overlayPlanesListener;
         if (l != null) l.onOverlayPlanes(planes);

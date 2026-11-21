@@ -1062,6 +1062,7 @@ static void note_game_frame_gap(void) {
         const int64_t gap = (now - g_game_frame_ns + g_refresh_ns / 2) / g_refresh_ns;
         g_pace.gaps[gap < 1 ? 0 : gap > 4 ? 3 : gap - 1]++;
     }
+    if (g_game_frame_ns && now - g_game_frame_ns >= 1000000000LL) { g_cadence_ns = 0; g_cadence_frames = 0; }
     g_game_frame_ns = now;
     if (!g_cadence_ns) g_cadence_ns = now;
     g_cadence_frames++;
@@ -1262,8 +1263,9 @@ static void cursor_publish_buffer(struct surface *s, struct wl_resource *buffer)
         int r;
         do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
         if (vkp_image_readback(db->img, g_cursor_rb, CURSOR_MAX_PX) != 0) return;
+        const int row = vkp_image_width(db->img);
         cursor_publish_pixels((const uint8_t *)g_cursor_rb, db->width, db->height,
-                              (size_t)db->width * 4, g_cursor_hx, g_cursor_hy);
+                              (size_t)(row > db->width ? row : db->width) * 4, g_cursor_hx, g_cursor_hy);
     } else {
         return;
     }
@@ -1966,6 +1968,7 @@ static void refresh_resource_destroy(struct wl_resource *r) {
 static void refresh_destroy_req(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 
 static void refresh_set_target(struct wl_client *c, struct wl_resource *r, uint32_t refresh, uint32_t frame_rate) {
+    if (!refresh && !frame_rate && g_refresh_target_owner && g_refresh_target_owner != r) return;
     g_refresh_target_owner = refresh || frame_rate ? r : NULL;
     droiddeck_on_refresh_target((int)refresh, (int)frame_rate);
 }
@@ -2223,7 +2226,8 @@ static int hdr_plan(const struct draw_list *dl, int w, int h, int fx_on, int fra
         struct surface *s = surface_for_image(dl->d[i].img);
         if (!is_hdr_surface(s)) continue;
         const struct droiddeck_color *c = droiddeck_color_of(s->resource);
-        if (c->convert && hs->hf.convert && hs->hf.convert->identity != c->identity) {
+        if (c->convert && hs->hf.convert && (hs->hf.convert->gain != c->gain ||
+                                             memcmp(hs->hf.convert->to2020, c->to2020, sizeof(c->to2020)) != 0)) {
             static int said;
             if (!said) {
                 said = 1;
@@ -2650,6 +2654,7 @@ static void render_scene(void) {
                 g_scene_queues = sc_layer_queues();
             }
         } else {
+            sc_layer_hide();
             rendered = vkp_render(w, h, dl.d, dl.n) == 0;
             copy = 1;
             hdr_copy = "its display layer was unavailable this frame";
@@ -4247,6 +4252,12 @@ static int on_stats_timer(void *data) {
                    "frames: its OpenGL fell back to software rendering, which the Wayland layer cannot "
                    "draw - expect a black picture (main device %u:%u)", ci->name,
                    (unsigned)major(g_main_device), (unsigned)minor(g_main_device));
+    }
+    if (g_content_fps > 0 && now_ns() - g_game_frame_ns >= 2000000000LL) {
+        g_content_fps = 0;
+        g_cadence_ns = 0;
+        g_cadence_frames = 0;
+        droiddeck_on_content_rate(0);
     }
     wl_event_source_timer_update(g_stats_timer, 10000);
     return 0;

@@ -411,8 +411,8 @@ def pacing(adb: str, serial: str, seconds: float) -> dict:
     started = time.monotonic()
     try:
         time.sleep(seconds)
-        elapsed = time.monotonic() - started
         dump = run_adb(adb, serial, *timestats, "-dump", timeout=60)
+        elapsed = time.monotonic() - started
     except ControlError as exc:
         raise ControlError(str(exc), "PACING_FAILED") from exc
     finally:

@@ -59,6 +59,14 @@ now += 3000; tick();
 assert.deepStrictEqual(told, ['0', '1', '1'], 'a write the client did not take is reported as its real value');
 assert.strictEqual(bridge.set('yes'), true);
 assert.deepStrictEqual(writes, [1, 0]);
+bridge.set(false);
+bridge.set(true);
+assert.deepStrictEqual(writes, [1, 0, 0, 1], 'a newer opposite value is written while the earlier write is settling');
+settingsStore.clientSettings.gamescope_hdr_enabled = false;
+now += 500; tick();
+settingsStore.clientSettings.gamescope_hdr_enabled = true;
+now += 500; tick();
+assert.deepStrictEqual(told, ['0', '1', '1'], 'the earlier write landing late is not reported to the app');
 delete globalThis.__droiddeckHdr;
 delete settingsStore.clientSettings.gamescope_hdr_enabled;
 assert.strictEqual(eval(script), 'unavailable');
@@ -131,7 +139,11 @@ class HdrSteamSyncTest(unittest.TestCase):
                 path.write_text(json.dumps({"hdr": True}))
                 helper.sync_hdr()
                 self.assertFalse(helper.hdr_installed)
-                self.assertIs(helper.hdr_state, False)
+                self.assertIsNone(helper.hdr_state)
+                helper.page.answer = True
+                path.write_text(json.dumps({"hdr": False}))
+                helper.sync_hdr()
+                self.assertEqual(calls[-1], "window.__droiddeckHdr ? window.__droiddeckHdr.set(false) : false")
             finally:
                 globals_["CONTROLS_DIR"] = previous
 

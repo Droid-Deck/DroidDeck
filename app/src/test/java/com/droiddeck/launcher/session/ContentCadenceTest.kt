@@ -59,4 +59,26 @@ class ContentCadenceTest {
         assertTrue(cadence.note(45, rates))
         assertEquals(45, cadence.rate)
     }
+
+    @Test
+    fun aReleasedRateDoesNotDelayARateThatWasNeverReleased() {
+        val cadence = ContentCadence()
+        repeat(3) { cadence.note(45, rates) }
+        repeat(3) { cadence.note(57, rates) }
+        assertEquals(0, cadence.rate)
+        repeat(2) { assertFalse(cadence.note(60, rates)) }
+        assertTrue(cadence.note(60, rates))
+        assertEquals(60, cadence.rate)
+    }
+
+    @Test
+    fun aResetDropsTheEngagedRateAndReportsTheChangeOnce() {
+        val cadence = ContentCadence()
+        repeat(3) { cadence.note(60, rates) }
+        assertTrue(cadence.reset())
+        assertEquals(0, cadence.rate)
+        assertFalse(cadence.reset())
+        repeat(2) { assertFalse(cadence.note(60, rates)) }
+        assertTrue(cadence.note(60, rates))
+    }
 }

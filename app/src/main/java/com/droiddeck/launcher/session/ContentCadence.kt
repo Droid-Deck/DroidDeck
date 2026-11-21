@@ -6,7 +6,7 @@ class ContentCadence {
     private var candidate = 0
     private var streak = 0
     private var misses = 0
-    private var needed = ENGAGE_SAMPLES
+    private val reengage = HashMap<Int, Int>()
 
     fun note(fps: Int, panelRates: IntArray): Boolean {
         val snapped = snap(fps, panelRates)
@@ -16,9 +16,9 @@ class ContentCadence {
                 return false
             }
             if (++misses < RELEASE_SAMPLES) return false
+            reengage[rate] = minOf((reengage[rate] ?: ENGAGE_SAMPLES) * 2, MAX_ENGAGE_SAMPLES)
             rate = 0
             misses = 0
-            needed = minOf(needed * 2, MAX_ENGAGE_SAMPLES)
             candidate = snapped
             streak = if (snapped > 0) 1 else 0
             return true
@@ -28,10 +28,19 @@ class ContentCadence {
             streak = if (snapped > 0) 1 else 0
             return false
         }
-        if (++streak < needed) return false
+        if (++streak < (reengage[snapped] ?: ENGAGE_SAMPLES)) return false
         rate = snapped
         misses = 0
         return true
+    }
+
+    fun reset(): Boolean {
+        val engaged = rate != 0
+        rate = 0
+        candidate = 0
+        streak = 0
+        misses = 0
+        return engaged
     }
 
     companion object {

@@ -25,6 +25,7 @@ struct droiddeck_dma_buf_sync_file { uint32_t flags; int32_t fd; };
 #define DROIDDECK_DMA_BUF_IOCTL_IMPORT_SYNC_FILE _IOW('b', 3, struct droiddeck_dma_buf_sync_file)
 
 extern volatile int g_zero_copy;
+void droiddeck_dmabuf_formats_stale(void);
 
 struct ahb_buf {
     uint64_t id;
@@ -380,6 +381,7 @@ static void bind_ahb(struct wl_client *c, void *data, uint32_t ver, uint32_t id)
 
 void ahb_swapchain_set_mode(int on, int live) {
     on = on ? 1 : 0;
+    if (g_zero_copy != on) droiddeck_dmabuf_formats_stale();
     g_zero_copy = on;
     if (!g_advertised) {
         if (live) droiddeck_log("layer", "zero-copy switched %s from the drawer, but no display layer is available on this device: no change",

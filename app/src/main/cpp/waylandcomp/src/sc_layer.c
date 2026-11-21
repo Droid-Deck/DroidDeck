@@ -587,9 +587,16 @@ static int fence_signalled(int fd) {
     return fence_wait(fd, 0) > 0;
 }
 
+static void slot_keep_fence(struct slot *s, int fd) {
+    pthread_mutex_lock(&g_lock);
+    if (s->release_fd < 0) s->release_fd = fd; else close(fd);
+    pthread_mutex_unlock(&g_lock);
+}
+
 static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait_fd) {
     int idx = -1, pending = -1, fd = -1;
     *wait_fd = -1;
+    g_alloc_failed = 0;
     pthread_mutex_lock(&g_lock);
     for (int i = 0; i < l->pool_n; i++) {
         if (i == l->cur_slot || l->slots[i].busy) continue;
@@ -609,12 +616,7 @@ static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait
         memset(s, 0, sizeof(*s)); s->release_fd = -1;
     }
     if (fd >= 0 && !vkp_can_wait_sync_fd()) {
-        if (fence_wait(fd, 100) == 0) {
-            pthread_mutex_lock(&g_lock);
-            if (s->release_fd < 0) s->release_fd = fd; else close(fd);
-            pthread_mutex_unlock(&g_lock);
-            return -1;
-        }
+        if (fence_wait(fd, 100) == 0) { slot_keep_fence(s, fd); return -1; }
         close(fd);
         fd = -1;
     }
@@ -962,7 +964,7 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
     if (!vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
     int wait_fd;
     int idx = take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
+    if (idx < 0) { vkp_pass_abort(); log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, r, NULL, 0) != 0) return -1;
     if (!l->first_logged) {
@@ -984,7 +986,6 @@ static void slots_idle(struct layer *l, const int *idx, int from, int to) {
 static uint32_t g_hdr_pool_fmt = AHB_RGB10A2;
 
 static int take_hdr_slot(struct layer *l, int w, int h, int *wait_fd) {
-    g_alloc_failed = 0;
     int idx = take_free_slot(l, w, h, g_hdr_pool_fmt, wait_fd);
     if (idx < 0 && g_alloc_failed && g_hdr_pool_fmt == AHB_RGB10A2) {
         g_hdr_pool_fmt = AHB_RGBA8;
@@ -1015,7 +1016,7 @@ int sc_layer_present_generated(const struct vkp_draw *draws, int n_draws, const 
         if (!mapped) { vkp_pass_abort(); sc_layer_hide(); return 0; }
         idx[VKP_FG_MAX_GENERATIONS] = deep ? take_hdr_slot(l, rw, rh, &first_fd)
                                            : take_free_slot(l, rw, rh, AHB_RGBA8, &first_fd);
-        if (idx[VKP_FG_MAX_GENERATIONS] < 0) { vkp_pass_abort(); log_drop(l); return 0; }
+        if (idx[VKP_FG_MAX_GENERATIONS] < 0) { vkp_pass_abort(); log_drop(l); return g_alloc_failed ? -1 : 0; }
         pthread_mutex_lock(&g_lock);
         l->slots[idx[VKP_FG_MAX_GENERATIONS]].busy = 1;
         pthread_mutex_unlock(&g_lock);
@@ -1026,12 +1027,15 @@ int sc_layer_present_generated(const struct vkp_draw *draws, int n_draws, const 
         int fd;
         idx[m] = take_free_slot(l, rw, rh, deep ? g_hdr_pool_fmt : AHB_RGBA8, &fd);
         if (idx[m] < 0) { log_drop(l); break; }
+        if (have_fd && fd >= 0) {
+            if (fence_wait(fd, 100) == 0) { slot_keep_fence(&l->slots[idx[m]], fd); log_drop(l); break; }
+            close(fd);
+        }
         pthread_mutex_lock(&g_lock);
         l->slots[idx[m]].busy = 1;
         pthread_mutex_unlock(&g_lock);
         dst[m] = l->slots[idx[m]].img;
         if (!have_fd) { first_fd = fd; have_fd = 1; }
-        else if (fd >= 0) { fence_wait(fd, 100); close(fd); }
     }
     if (vkp_pass_copy_generated(dst, m, real, first_fd) != 0) {
         slots_idle(l, idx, 0, m);
@@ -1075,7 +1079,7 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
     const int tm = hf->tonemap;
     int wait_fd;
     int idx = tm ? take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd) : take_hdr_slot(l, rw, rh, &wait_fd);
-    if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
+    if (idx < 0) { vkp_pass_abort(); log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, r, tm ? NULL : color, 0) != 0) return -1;
     if (color && color->dataspace)

@@ -2767,6 +2767,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 .onFailure { Log.e(TAG, "Could not update game environment", it) }
         }, "game-env-publish").start()
         applyGameAlignment()
+        val attached = CompositorHost.isStarted
+        val probe = if (attached) null else HdrSupport.probe(this, glassesScreen?.display)
+        if (probe != null) SessionState.hdrDisplay = probe.reason == null
         val activeProfileId = currentScreenEffectsProfileId()
         val activeUpscaler = SessionPrefs.screenEffectsUpscaler(this, activeProfileId)
         val activeEffects = SessionPrefs.screenEffects(this, activeProfileId)
@@ -2787,10 +2790,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
         }
         val mode = hdrPrefMode()
-        val attached = CompositorHost.isStarted
-        if (!attached) {
-            val probe = HdrSupport.probe(this, glassesScreen?.display)
-            SessionState.hdrDisplay = probe.reason == null
+        if (probe != null) {
             WaylandCompositor.nativeSetHdrDisplay(
                 probe.displayId, probe.name, probe.formats, probe.hdr10,
                 probe.maxLuminance, probe.maxAverageLuminance, probe.minLuminance,
@@ -2989,8 +2989,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         return if (capped > 1f) capped else 60f
     }
 
-    private fun hdrPrefMode(): String =
-        SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+    private fun hdrPrefMode(): String = SessionPrefs.prefMode(
+        if (SessionState.running) SessionState.mode
+        else intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM,
+    )
 
     private fun blackFrameInsertionAvailable(): Boolean {
         // Glasses that present the game run at their own rate, uncapped, as refreshHz() reads them.
@@ -3015,6 +3017,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private val panelHeldCheck = Runnable {
         if (!panelHeld && hasWindowFocus() && PerfMode.panelHeld(this)) {
             panelHeld = true
+            uiHandler.removeCallbacks(panelHeldRetry)
+            uiHandler.postDelayed(panelHeldRetry, PANEL_HELD_RETRY_MS)
+            applyOutputPacing()
+        }
+    }
+    private val panelHeldRetry = Runnable {
+        if (panelHeld && !isDestroyed) {
+            panelHeld = false
             applyOutputPacing()
         }
     }
@@ -3843,7 +3853,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private val contentCadence = ContentCadence()
     private val contentRateListener = WaylandCompositor.ContentRateListener { fps ->
         runOnUiThread {
-            if (contentCadence.note(fps, PerfMode.panelRates(this, mirrorRefreshLimit(), panelHeld))) {
+            if (isDestroyed) return@runOnUiThread
+            val changed = if (fps > 0) contentCadence.note(fps, PerfMode.panelRates(this, mirrorRefreshLimit(), panelHeld))
+                          else contentCadence.reset()
+            if (changed) {
                 Log.i(TAG, "perf: steady content rate " + contentCadence.rate + " fps")
                 applyOutputPacing()
             }
@@ -3851,6 +3864,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
     private val refreshTargetListener = WaylandCompositor.RefreshTargetListener { refresh, frameRate ->
         runOnUiThread {
+            if (isDestroyed) return@runOnUiThread
             if (guestRefresh != refresh || guestFrameRate != frameRate) {
                 guestRefresh = refresh
                 guestFrameRate = frameRate
@@ -6524,6 +6538,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     override fun onDestroy() {
         uiHandler.removeCallbacks(panelHeldCheck)
+        uiHandler.removeCallbacks(panelHeldRetry)
         synchronized(frameGenGlobalLock) {
             frameGenActivityActive = false
             frameGenRequests.incrementAndGet()
@@ -6652,6 +6667,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         const val EXTRA_PLAYED_GAME = "com.droiddeck.launcher.PLAYED_GAME"
         const val EXTRA_REPAIR_RUNTIME = "repairRuntime"
         private const val PANEL_HELD_CHECK_MS = 2_500L
+        private const val PANEL_HELD_RETRY_MS = 60_000L
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TEXT_FIELD_TAP_MS = 1_000L
         private const val PAUSED_FRAME_MAX_EDGE = 1920f
