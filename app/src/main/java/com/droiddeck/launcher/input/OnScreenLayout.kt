@@ -2,12 +2,16 @@ package com.droiddeck.launcher.input
 
 import android.content.Context
 import android.graphics.Rect
+import com.droiddeck.launcher.session.SessionPrefs
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
 object OnScreenLayout {
+    internal fun usesSteamDeckButtons(context: Context, layout: SavedInputLayout?) =
+        layout?.id == InputLibraries.OVERLAY && SessionPrefs.steamController(context) == SessionPrefs.CONTROLLER_DECK
+
     data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
         companion object {
             fun deck(portrait: Boolean, gamepad: SavedInputLayout?): Dock {

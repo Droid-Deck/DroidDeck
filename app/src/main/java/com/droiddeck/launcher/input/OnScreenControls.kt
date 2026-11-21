@@ -88,11 +88,16 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
             isQuickHidden -> elements.filter { it.id == "builtin:keyboard" || it.alwaysShown }
             else -> elements
         })
-        val style = layout?.style ?: InputSurfaceStyle()
-        surface.updateStyle(style)
-        quickToggle.tint = style.tint
-        quickToggle.alpha = style.opacity / 100f
         quickToggle.visibility = if (isButtonsOnly || isPinnedOnly || layout == null || dock != null) GONE else VISIBLE
+        refreshAppearance()
+    }
+
+    fun refreshAppearance() {
+        val style = layout?.style ?: InputSurfaceStyle()
+        val deck = dock == null && OnScreenLayout.usesSteamDeckButtons(context, layout)
+        surface.updateStyle(style, steamDeckButtons = deck)
+        quickToggle.tint = style.tint.takeUnless { deck }
+        quickToggle.alpha = style.opacity / 100f
         quickToggle.invalidate()
     }
 

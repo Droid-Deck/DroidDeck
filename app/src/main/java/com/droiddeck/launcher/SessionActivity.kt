@@ -1685,6 +1685,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(id))
                 com.droiddeck.launcher.session.InputSysfsComponent.padTypeChanged(SessionPrefs.padType(id))
                 padType = id
+                onScreenControls?.refreshAppearance()
+                bottomInputControls?.refreshAppearance()
             },
             backHold = backHold,
             onBackHold = { on ->

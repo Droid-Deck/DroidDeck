@@ -56,6 +56,8 @@ class InputSurfaceView(
     private val elementSources = ArrayList<InputSurfaceSource>()
     private var customCanvas: ViewGroup? = null
     private val owners = HashMap<Int, View>()
+    private var steamDeckButtons = false
+    private val deckArt by lazy(LazyThreadSafetyMode.NONE) { SteamDeckButtonArt(resources.displayMetrics.density) }
     private var requestedLayout = customLayout
     init { customLayout = surfaceStyle.shown(customLayout); addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
 
@@ -134,17 +136,18 @@ class InputSurfaceView(
         }
     }
 
-    fun updateStyle(style: InputSurfaceStyle) {
-        if (surfaceStyle == style) return
+    fun updateStyle(style: InputSurfaceStyle, steamDeckButtons: Boolean = false) {
+        if (surfaceStyle == style && this.steamDeckButtons == steamDeckButtons) return
         val relayout = surfaceStyle.hidden != style.hidden
         surfaceStyle = style
+        this.steamDeckButtons = steamDeckButtons
         if (relayout) updateCustomLayout(requestedLayout)
         customCanvas?.let { canvas -> for (i in 0 until canvas.childCount) styleElement(canvas.getChildAt(i)) }
     }
 
     private fun styleElement(view: View) {
         view.alpha = surfaceStyle.opacity / 100f * ((view.tag as? InputSurfaceElement)?.opacity ?: 1f)
-        (view as? Surface)?.tint = surfaceStyle.tint
+        (view as? Surface)?.tint = surfaceStyle.tint.takeUnless { steamDeckButtons }
         view.invalidate()
     }
 
@@ -347,9 +350,11 @@ class InputSurfaceView(
         override fun onDraw(canvas: Canvas) {
             val lit = if (element.toggle) source?.latched == true else down
             val classic = classic(element)
-            drawSurface(canvas, lit, element.buttonShape, classic)
+            val deck = steamDeckButtons && classic
+            if (deck) deckArt.surface(canvas, width, height, element.buttonShape, lit)
+            else drawSurface(canvas, lit, element.buttonShape, classic)
             val cx = width / 2f
-            labelPaint.color = if (classic && tint != null) textColor(lit) else if (lit) ACCENT else TEXT
+            labelPaint.color = if (deck) SteamDeckButtonArt.ink(lit) else if (classic && tint != null) textColor(lit) else if (lit) ACCENT else TEXT
             bitmap?.let {
                 val scale = min(width * .84f / it.width, height * .84f / it.height)
                 imageRect.set(cx - it.width * scale / 2, (height - it.height * scale) / 2,
@@ -357,21 +362,28 @@ class InputSurfaceView(
                 canvas.drawBitmap(it, null, imageRect, labelPaint)
                 return
             }
-            if (classic && element.id == "builtin:keyboard" && element.icon == InputButtonIcons.KEYBOARD) { drawKeyboard(canvas, cx, height / 2f, lit); return }
+            if (!deck && classic && element.id == "builtin:keyboard" && element.icon == InputButtonIcons.KEYBOARD) { drawKeyboard(canvas, cx, height / 2f, lit); return }
             if (element.icon != 0 && InputButtonIcons.draw(canvas, element.icon, cx, height / 2f, min(width, height) * .68f, labelPaint, symbol)) return
             if (!element.showLabel) return
             labelPaint.style = Paint.Style.FILL
             if (classic && element.name == element.control.label) {
                 val radius = min(width, height) / 2f
                 val direction = DIRECTIONS.indexOf(element.control)
-                if (direction >= 0) { drawArrow(canvas, cx, height / 2f, radius * 0.34f, direction, labelPaint); return }
-                val glyph = glyph(element.control)
+                if (direction >= 0) {
+                    if (deck) deckArt.arrow(canvas, cx, height / 2f, radius * .32f, direction, labelPaint.color)
+                    else drawArrow(canvas, cx, height / 2f, radius * .34f, direction, labelPaint)
+                    return
+                }
+                val glyph = if (deck) steamDeckGlyph(element.control) else glyph(element.control)
                 labelPaint.textSize = when {
                     element.buttonShape == InputButtonShape.PILL -> height / 2f * 0.8f
                     glyph.length > 2 -> 11 * density
                     else -> radius * if (glyph.length == 2) 0.62f else 0.85f
                 }
-                canvas.drawText(glyph, cx, height / 2f + labelPaint.textSize * .35f, labelPaint)
+                if (deck) {
+                    labelPaint.textSize *= min(1f, width * .78f / labelPaint.measureText(glyph))
+                    canvas.drawText(glyph, cx, (height - labelPaint.ascent() - labelPaint.descent()) / 2f, labelPaint)
+                } else canvas.drawText(glyph, cx, height / 2f + labelPaint.textSize * .35f, labelPaint)
                 return
             }
             labelPaint.textSize = min(height * .3f, 30 * density)
@@ -724,6 +736,15 @@ class InputSurfaceView(
             InputControl.GUIDE -> "◉"
             InputControl.QAM -> "⋯"
             else -> control.id.uppercase()
+        }
+
+        private fun steamDeckGlyph(control: InputControl) = when (control) {
+            InputControl.LB -> "L1"
+            InputControl.RB -> "R1"
+            InputControl.LT -> "L2"
+            InputControl.RT -> "R2"
+            InputControl.GUIDE -> "STEAM"
+            else -> glyph(control)
         }
 
         private val CARDINAL = listOf(0f to -1f, 1f to 0f, 0f to 1f, -1f to 0f)

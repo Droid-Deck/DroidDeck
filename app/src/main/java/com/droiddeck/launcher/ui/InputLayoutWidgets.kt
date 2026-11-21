@@ -47,7 +47,8 @@ internal class InputLayoutPreviewView(context: Context) : View(context) {
     fun update(layout: SavedInputLayout, role: InputRole) {
         sourceHeight = if (role == InputRole.PRIMARY) 563 else 870
         renderer.updateCustomLayout(layout.elements)
-        renderer.updateStyle(layout.style.copy(opacity = 100))
+        renderer.updateStyle(layout.style.copy(opacity = 100),
+            steamDeckButtons = role == InputRole.PRIMARY && OnScreenLayout.usesSteamDeckButtons(context, layout))
         renderer.measure(MeasureSpec.makeMeasureSpec(1000, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(sourceHeight, MeasureSpec.EXACTLY))
         renderer.layout(0, 0, 1000, sourceHeight)
         contentDescription = layout.name
