@@ -60,8 +60,8 @@ def validate(folder, root=ROOT):
                 raise ValueError('KWin output is not an ARM64 ELF library or executable: ' + name)
         files[name] = data
     manifest = json.loads(files['build.json'])
-    if (manifest.get('kwin') != '6.6.6' or
-            manifest.get('systemPackage') != '4:6.6.6-0ubuntu0.1+droiddeck1' or
+    if (manifest.get('kwin') != '6.6.7' or
+            manifest.get('systemPackage') != '4:6.6.7-0ubuntu0.1+droiddeck1' or
             manifest.get('sources') != {name: digest(data) for name, data in sources(root).items()}):
         raise ValueError('KWin build is stale; rebuild from current source')
     hashes = {name: digest(data) for name, data in files.items() if name != 'build.json'}

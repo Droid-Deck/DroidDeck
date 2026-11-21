@@ -186,7 +186,7 @@ if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
 fi
 
 kwin_out="${linuxfs_dir}/usr/local/lib/droiddeck-kwin"
-kwin_key=$(inputs_hash ubuntu26.04-arm64-kwin6.6.6 \
+kwin_key=$(inputs_hash ubuntu26.04-arm64-kwin6.6.7 \
     tools/ubuntu/build-kwin-runtime.sh tools/ubuntu/kwin-independent.py \
     tools/ubuntu/kwin-independent.cpp tools/ubuntu/kwin-passthrough.cpp \
     tools/ubuntu/kwin-output-layout.h tools/ubuntu/kwin-ahb-output.h \

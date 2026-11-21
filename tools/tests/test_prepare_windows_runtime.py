@@ -86,7 +86,7 @@ class WindowsRuntimePreparationTest(unittest.TestCase):
             apk = root / 'donor.apk'
             vr_name = 'layer/libVkLayer_droiddeck_vr.so'
             kwin_files = {name: ('new ' + name).encode() for name in prepare.kwin_build.OUTPUTS}
-            kwin_manifest = {'kwin': '6.6.6', 'outputs': {}}
+            kwin_manifest = {'kwin': '6.6.7', 'outputs': {}}
             with ZipFile(apk, 'w') as package:
                 package.writestr(prepare.VR_PREFIX + vr_name, b'old library')
                 package.writestr(prepare.VR_PREFIX + 'obsolete.so', b'obsolete donor file')
