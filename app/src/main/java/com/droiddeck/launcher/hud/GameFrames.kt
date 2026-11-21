@@ -198,10 +198,16 @@ internal class GameFrameFeed(
         val compositorAdded = compositorFrames != seenCompositorFrames
         seenCompositorFrames = compositorFrames
         if (handle == 0L) {
-            if (nowNs < nextOpenNs) return compositorAdded
+            if (nowNs < nextOpenNs) {
+                if (!live) steamFocused = false
+                return compositorAdded
+            }
             nextOpenNs = nowNs + REOPEN_NS
             handle = runCatching { HudFrames.nativeOpen(file.path) }.getOrDefault(0L)
-            if (handle == 0L) return compositorAdded
+            if (handle == 0L) {
+                if (!live) steamFocused = false
+                return compositorAdded
+            }
             HudFrames.nativePoll(handle, frametimes, times)
         }
         val n = HudFrames.nativePoll(handle, frametimes, times)
@@ -219,6 +225,7 @@ internal class GameFrameFeed(
             fromGamescope = false
         }
         if (n <= 0 && nowNs - maxOf(lastRingFrameNs, nextOpenNs - REOPEN_NS) > STALE_NS) close()
+        if (!live) steamFocused = false
         if (nowNs - lastInfoNs >= INFO_NS) {
             lastInfoNs = nowNs
             readInfo()

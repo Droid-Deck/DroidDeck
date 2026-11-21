@@ -44,6 +44,16 @@ class DroidDeckHudHost(context: Context) {
     private var protonPid = 0
     private var proton = ""
     @Volatile private var lastWindow: String? = null
+    @Volatile private var lastCompositorFrameNanos = 0L
+    @Volatile private var lastVisibilityGameActive = false
+
+    private fun isGameActive(): Boolean {
+        val lastFrame = lastCompositorFrameNanos
+        val now = System.nanoTime()
+        val compositorLive = lastFrame > 0L &&
+            now - lastFrame <= 1_000_000_000L
+        return !feed.steamFocused && (feed.live || compositorLive)
+    }
 
     var onPresentingWindowChanged: (() -> Unit)? = null
 
@@ -66,14 +76,17 @@ class DroidDeckHudHost(context: Context) {
         }
 
         override fun onGameFrame() {
-            feed.onCompositorFrame(System.nanoTime())
+            lastCompositorFrameNanos = System.nanoTime()
+            feed.onCompositorFrame(lastCompositorFrameNanos)
         }
     }
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running || !polling) return
+            reconcileGameActivity()
             if (feed.poll(System.nanoTime())) view?.onFrames()
+            reconcileGameActivity()
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
@@ -151,7 +164,7 @@ class DroidDeckHudHost(context: Context) {
 
     fun refresh() {
         applyConfig()
-        if (!enabled) stop() else if (!running) start()
+        if (!enabled) stop() else if (!running) start() else applyShown()
     }
 
     fun start() {
@@ -181,14 +194,26 @@ class DroidDeckHudHost(context: Context) {
         applyShown()
     }
 
+    private fun reconcileGameActivity() {
+        if (!SessionPrefs.hudOnlyDuringGame(context)) {
+            lastVisibilityGameActive = isGameActive()
+            return
+        }
+        if (isGameActive() != lastVisibilityGameActive) applyShown()
+    }
+
     private fun applyShown() {
         if (!running) return
-        val show = !hidden && !backgrounded
+        val onlyDuringGame = SessionPrefs.hudOnlyDuringGame(context)
+        val gameActive = isGameActive()
+        val show = !hidden && !backgrounded && (!onlyDuringGame || gameActive)
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
-        if (show != polling) {
-            polling = show
-            if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
+        lastVisibilityGameActive = gameActive
+        val shouldPoll = !hidden && !backgrounded && (show || onlyDuringGame)
+        if (shouldPoll != polling) {
+            polling = shouldPoll
+            if (shouldPoll) Choreographer.getInstance().postFrameCallback(frameCallback)
             else Choreographer.getInstance().removeFrameCallback(frameCallback)
         }
     }

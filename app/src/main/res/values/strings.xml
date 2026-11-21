@@ -4346,4 +4346,6 @@
     <string name="tabs_reset_title">Reset tabs</string>
     <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>
     <string name="tabs_reset_body">Your tab order and what sits under More or is hidden go back to the defaults.</string>
+    <string name="hud_only_during_game">Show HUD only during a game</string>
+    <string name="hud_only_during_game_hint">Hide the HUD when no game frames are detected.</string>
 </resources>

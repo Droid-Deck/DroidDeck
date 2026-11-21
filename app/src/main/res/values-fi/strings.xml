@@ -4113,4 +4113,6 @@
     <string name="theme_custom_signal">Korostukset</string>
     <string name="theme_custom_good">Onnistuminen</string>
     <string name="theme_custom_error">Virhe</string>
+    <string name="hud_only_during_game">Näytä HUD vain pelin aikana</string>
+    <string name="hud_only_during_game_hint">Piilota HUD, kun pelin ruutuja ei havaita.</string>
 </resources>

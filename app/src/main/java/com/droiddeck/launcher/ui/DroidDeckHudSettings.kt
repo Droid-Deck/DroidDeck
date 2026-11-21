@@ -21,11 +21,21 @@ import com.droiddeck.launcher.session.StripMetric
 @Composable
 internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val cfg = a.hudConfig
+    val context = LocalContext.current
+    var onlyDuringGame by remember { mutableStateOf(SessionPrefs.hudOnlyDuringGame(context)) }
     fun on(key: String) = cfg[key] == "1"
     fun int(key: String, fallback: Int) = cfg[key]?.toIntOrNull() ?: fallback
 
     SettingsGroup(stringResource(R.string.drawer_hud)) {
         ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn, chipModifier = track("hud"), onChange = a.onHud)
+        if (a.hudOn) ToggleRow(
+            host, "hud-only-during-game", stringResource(R.string.hud_only_during_game),
+            stringResource(R.string.hud_only_during_game_hint), onlyDuringGame,
+            chipModifier = track("hud-only-during-game")
+        ) { on ->
+            onlyDuringGame = on
+            a.onHudOnlyDuringGame(on)
+        }
         if (!a.hudOn) return@SettingsGroup
         val size = DroidDeckHudSize.from(cfg["hudSize"])
         ChoiceRow(host, "hud-size", stringResource(R.string.hud_size), stringResource(R.string.hud_size_hint),
