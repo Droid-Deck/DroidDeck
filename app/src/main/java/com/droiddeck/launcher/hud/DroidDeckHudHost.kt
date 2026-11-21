@@ -44,6 +44,15 @@ class DroidDeckHudHost(context: Context) {
     private var protonPid = 0
     private var proton = ""
     @Volatile private var lastWindow: String? = null
+    @Volatile private var lastCompositorFrameNanos = 0L
+
+    private fun isGameActive(): Boolean {
+        val lastFrame = lastCompositorFrameNanos
+        val now = System.nanoTime()
+        val compositorLive = lastFrame > 0L &&
+            now - lastFrame <= 1_000_000_000L
+        return (feed.live && !feed.steamFocused) || compositorLive
+    }
 
     var onPresentingWindowChanged: (() -> Unit)? = null
 
@@ -66,16 +75,17 @@ class DroidDeckHudHost(context: Context) {
         }
 
         override fun onGameFrame() {
-            feed.onCompositorFrame(System.nanoTime())
+            lastCompositorFrameNanos = System.nanoTime()
+            feed.onCompositorFrame(lastCompositorFrameNanos)
         }
     }
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running || !polling) return
-            val wasGameActive = feed.live && !feed.steamFocused
+            val wasGameActive = isGameActive()
             if (feed.poll(System.nanoTime())) view?.onFrames()
-            val isGameActive = feed.live && !feed.steamFocused
+            val isGameActive = isGameActive()
             if (wasGameActive != isGameActive && SessionPrefs.hudOnlyDuringGame(context)) applyShown()
             Choreographer.getInstance().postFrameCallback(this)
         }
@@ -187,7 +197,7 @@ class DroidDeckHudHost(context: Context) {
     private fun applyShown() {
         if (!running) return
         val onlyDuringGame = SessionPrefs.hudOnlyDuringGame(context)
-        val show = !hidden && !backgrounded && (!onlyDuringGame || (feed.live && !feed.steamFocused))
+        val show = !hidden && !backgrounded && (!onlyDuringGame || isGameActive())
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
         val shouldPoll = !hidden && !backgrounded && (show || onlyDuringGame)
