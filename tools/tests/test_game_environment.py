@@ -1980,6 +1980,53 @@ class GameEnvironmentTest(unittest.TestCase):
             named = game_logs(command, on, None, now=0)
             self.assertTrue(Path(named["PROTON_LOG_DIR"]).name.endswith("-Hades"))
 
+    def test_graphics_logs_trace_wine_only_when_asked(self):
+        game_logs = MODULE["game_logs"]
+        command = ["/proton", "waitforexitandrun", "/games/Hades/Hades.exe"]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
+            on = {"BL_GAME_LOGS": "1", "BL_DEBUG_DIR": tmp}
+            for given in ({}, {"PROTON_LOG": "0"}, {"PROTON_LOG": ""}):
+                with self.subTest(given=given):
+                    result = game_logs(command, {**on, **given}, "42", now=0)
+                    self.assertEqual(result["PROTON_LOG"], "1")
+                    self.assertEqual(result["WINEDEBUG"], "-all,err+all")
+            own = game_logs(command, {**on, "WINEDEBUG": "+relay"}, "42", now=0)
+            self.assertEqual(own["WINEDEBUG"], "+relay")
+            for value in ("1", "+relay"):
+                with self.subTest(proton_log=value):
+                    user = game_logs(command, {**on, "PROTON_LOG": value}, "42", now=0)
+                    self.assertEqual(user["PROTON_LOG"], value)
+                    self.assertNotIn("WINEDEBUG", user)
+            config = {"version": 1, "gameDebugLogs": True}
+            debug = game_logs(command, MODULE["apply_game_debug_logs"](on, config, tmp), "42", now=0)
+            self.assertEqual(debug["PROTON_LOG"], "1")
+            self.assertEqual(debug["WINEDEBUG"], MODULE["game_debug_channels"]())
+
+    def test_game_debug_switch_controls_wine_traces_with_graphics_logs_on(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            config_path = home / ".config/droiddeck/game-environment.json"
+            config_path.parent.mkdir(parents=True)
+            probe = home / "proton"
+            probe.write_text("#!" + sys.executable + "\nimport json, os\n"
+                             "print(json.dumps({k: os.environ.get(k) for k in ('PROTON_LOG', 'WINEDEBUG')}))\n")
+            probe.chmod(0o755)
+            env = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/599140"),
+                   "BL_DEBUG_DIR": tmp, "BL_GAME_LOGS": "1"}
+            for name in ("PROTON_LOG", "WINEDEBUG"):
+                env.pop(name, None)
+            for enabled in (True, False, True):
+                with self.subTest(enabled=enabled):
+                    config_path.write_text(json.dumps({"version": 1, "gameDebugLogs": enabled}))
+                    result = json.loads(subprocess.run(
+                        [sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", "game.exe"],
+                        env=env, text=True, capture_output=True, check=True).stdout)
+                    self.assertEqual(result["PROTON_LOG"], "1")
+                    if enabled:
+                        self.assertIn("+seh", result["WINEDEBUG"].split(","))
+                    else:
+                        self.assertEqual(result["WINEDEBUG"], "-all,err+all")
+
     def test_rapid_game_launches_keep_separate_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
             env = {"DD_GAME_LOGS": "1", "DD_DEBUG_DIR": tmp}
