@@ -77,6 +77,7 @@ import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
 import com.droiddeck.launcher.input.OnScreenControls
+import com.droiddeck.launcher.input.OnScreenLayout
 import com.droiddeck.launcher.input.InputRouter
 import com.droiddeck.launcher.input.InputOutput
 import com.droiddeck.launcher.input.InputCommand
@@ -246,7 +247,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var handCamera: com.droiddeck.launcher.handtracking.HandCamera? = null
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
     private var resumed by mutableStateOf(false)
-    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion(); openDeckRing("deck pad changed"); applyUnfoldedControls(); leaveDeckPanel() } }
+    private val deckPadListener: () -> Unit = {
+        uiHandler.post {
+            updatePadMotion()
+            openDeckRing("deck pad changed")
+            onScreenControls?.reload()
+            bottomInputControls?.reload()
+            applyUnfoldedControls()
+            leaveDeckPanel()
+        }
+    }
 
     private fun openDeckRing(why: String) {
         val deck = SessionState.deckPad
@@ -659,6 +669,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
     private var steamDownloadsInBackground by mutableStateOf(false)
     private var oscMode by mutableStateOf(SessionPrefs.OSC_AUTO)
+    private var oscRearButtons by mutableStateOf(false)
+    private var oscTrackpads by mutableStateOf(false)
     private var onScreenButtonsVisible by mutableStateOf(false)
     private var secondScreenMode by mutableStateOf(SessionState.secondScreenMode)
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
@@ -1703,6 +1715,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 com.droiddeck.launcher.input.FakeInputWriter.setPadType(SessionPrefs.padType(id))
                 com.droiddeck.launcher.session.InputSysfsComponent.padTypeChanged(SessionPrefs.padType(id))
                 padType = id
+                onScreenControls?.reload()
+                bottomInputControls?.reload()
             },
             backHold = backHold,
             onBackHold = { on ->
@@ -1813,6 +1827,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onAdaptiveSticks = { on ->
                 primaryInputLayout?.let { com.droiddeck.launcher.input.InputLibraries.setAdaptiveSticks(this@SessionActivity, it.id, on) }
                 refreshInputProfile()
+            },
+            showFloatingSteamControls = SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad && unfoldedPanel == null &&
+                oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_QAM &&
+                !steamTouchInUse && OnScreenLayout.supportsFloatingSteamControls(padType, primaryInputLayout),
+            oscRearButtons = oscRearButtons,
+            oscTrackpads = oscTrackpads,
+            onOscRearButtons = { shown ->
+                SessionPrefs.setOscRearButtons(this@SessionActivity, shown)
+                oscRearButtons = shown
+                onScreenControls?.reload()
+                bottomInputControls?.reload()
+            },
+            onOscTrackpads = { shown ->
+                SessionPrefs.setOscTrackpads(this@SessionActivity, shown)
+                oscTrackpads = shown
+                onScreenControls?.reload()
+                bottomInputControls?.reload()
             },
             quickButtons = quickButtons.takeIf {
                 unfoldedPanel != null || oscMode != SessionPrefs.OSC_NEVER && !steamTouchInUse
@@ -2555,6 +2586,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         suspendPolicy = SessionPrefs.suspendPolicy(this, SessionState.mode)
         steamDownloadsInBackground = SessionPrefs.steamDownloadsInBackground(this)
         oscMode = SessionPrefs.oscMode(this, SessionState.mode == SessionService.MODE_STEAM)
+        oscRearButtons = SessionPrefs.oscRearButtons(this)
+        oscTrackpads = SessionPrefs.oscTrackpads(this)
         backHold = SessionPrefs.backHold(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         physicalShortcuts.bindings = PhysicalShortcuts.read(this)
