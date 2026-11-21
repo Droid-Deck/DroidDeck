@@ -83,6 +83,18 @@ class OnScreenLayoutTest {
         assertTrue(fitted.single { it.control == InputControl.START }.y < .5f)
     }
 
+    @Test fun aGamesOwnCopyOfTheOverlayKeepsTheSteamDeckLook() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val library = InputLibraries.update(context) { it.withGameProfile("game:1", "Game") }
+        val profile = library.profile(library.games.getValue("game:1"))
+        val copy = library.layouts.first { it.id == profile.parts.getValue(InputRole.PRIMARY).layout }
+        assertNotEquals(InputLibraries.OVERLAY, copy.id)
+        assertTrue(OnScreenLayout.usesSteamDeckButtons(context, copy))
+        assertTrue(OnScreenLayout.supportsFloatingSteamControls(SessionPrefs.CONTROLLER_DECK, copy))
+        val safe = Rect(24, 8, 12, 16)
+        assertEquals(OnScreenLayout.elements(context, gamepad(), 1600, 720, safe), OnScreenLayout.elements(context, copy, 1600, 720, safe))
+    }
+
     @Test fun theBuiltInGamepadIsRegeneratedForEverySizeWithoutStretching() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
         val layout = gamepad()

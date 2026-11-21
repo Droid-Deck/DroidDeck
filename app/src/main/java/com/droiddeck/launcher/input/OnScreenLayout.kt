@@ -13,11 +13,14 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 object OnScreenLayout {
+    /** The built-in overlay, or a copy of it such as a game's own layout. */
+    private fun isOverlay(layout: SavedInputLayout?) = layout != null && (layout.origin ?: layout.id) == InputLibraries.OVERLAY
+
     internal fun usesSteamDeckButtons(context: Context, layout: SavedInputLayout?) =
-        layout?.id == InputLibraries.OVERLAY && SessionPrefs.steamController(context) == SessionPrefs.CONTROLLER_DECK
+        isOverlay(layout) && SessionPrefs.steamController(context) == SessionPrefs.CONTROLLER_DECK
 
     internal fun supportsFloatingSteamControls(controller: String, layout: SavedInputLayout?) =
-        layout?.id == InputLibraries.OVERLAY &&
+        isOverlay(layout) &&
             (controller == SessionPrefs.CONTROLLER_DECK || controller == SessionPrefs.CONTROLLER_STEAM)
 
     data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
