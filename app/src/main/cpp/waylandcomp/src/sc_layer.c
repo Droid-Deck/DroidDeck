@@ -945,7 +945,7 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
 
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { log_drop(l); return 0; }
+    if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, r, color, 0) != 0) return -1;
     if (color && color->dataspace) droiddeck_color_frame_shown(color, DROIDDECK_HDR_LAYER_COPY, AHB_RGBA8);
@@ -1154,7 +1154,7 @@ int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int transl
     if (sw <= 0 || sh <= 0) return -1;
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { log_drop(l); return 0; }
+    if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, geo, NULL, translucent) != 0) return -1;
     if (!l->first_logged) {

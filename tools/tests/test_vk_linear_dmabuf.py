@@ -134,6 +134,13 @@ class VkLinearDmabufTest(unittest.TestCase):
             source.write_text(harness)
             compile_and_run(self, source, tmp, "vk-linear-layer")
 
+    def test_layer_import_failure_requests_compositor_fallback(self):
+        source = (SRC / "sc_layer.c").read_text()
+        for name in ("sc_layer_present", "sc_layer_present_overlay"):
+            with self.subTest(layer=name):
+                body = function(source, name)
+                self.assertRegex(body, r"if \(idx < 0\) \{ log_drop\(l\); return g_alloc_failed \? -1 : 0; \}")
+
 
 if __name__ == "__main__":
     unittest.main()
