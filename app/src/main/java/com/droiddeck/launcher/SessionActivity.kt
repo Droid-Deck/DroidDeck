@@ -1803,7 +1803,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             },
             showFloatingSteamControls = SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad && unfoldedPanel == null &&
                 oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_QAM &&
-                oscMode != SessionPrefs.OSC_STEAM_TOUCH && OnScreenLayout.supportsFloatingSteamControls(padType, primaryInputLayout),
+                !steamTouchInUse && OnScreenLayout.supportsFloatingSteamControls(padType, primaryInputLayout),
             oscRearButtons = oscRearButtons,
             oscTrackpads = oscTrackpads,
             onOscRearButtons = { shown ->
