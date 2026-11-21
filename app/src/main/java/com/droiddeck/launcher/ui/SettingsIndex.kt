@@ -108,6 +108,7 @@ internal object SettingsIndex {
         s(SettingsSection.LAUNCHER, R.string.setup_launcher_orientation, "rotate", "portrait"),
         s(SettingsSection.LAUNCHER, R.string.setup_session_orientation, "rotate", "portrait"),
         s(SettingsSection.LAUNCHER, R.string.setup_fullscreen),
+        s(SettingsSection.LAUNCHER, R.string.setup_controller_haptics, "vibration", "rumble"),
         s(SettingsSection.LAUNCHER, R.string.setup_dual_screen_launcher, "thor", "second screen", "bottom screen"),
         s(SettingsSection.LAUNCHER, R.string.setup_low_storage_warning),
         s(SettingsSection.LAUNCHER, R.string.mode_sgdb_key, "artwork", "steamgriddb"),
