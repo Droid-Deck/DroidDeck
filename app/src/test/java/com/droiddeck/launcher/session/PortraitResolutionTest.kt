@@ -65,6 +65,15 @@ class PortraitResolutionTest {
             SessionPrefs.displayMode(app, SessionService.MODE_RUN, com.droiddeck.launcher.runtime.UserApps.SCRIPT_LAUNCHER))
     }
 
+    @Test fun portraitInputAcceptsTallSizesLandscapeInputDoesNot() {
+        assertNull(SessionPrefs.parseResolution("1440x2560"))
+        assertEquals(1440 to 2560, SessionPrefs.parseOrientedResolution("1440x2560"))
+        assertEquals(1280 to 720, SessionPrefs.parseOrientedResolution("1280x720"))
+        assertNull(SessionPrefs.parseOrientedResolution("100x100"))
+        SessionPrefs.setResolutionChoice(app, "steam", "1440x2560", portrait = true)
+        assertEquals("1440x2560", SessionPrefs.resolutionStored(app, "steam", panel, true))
+    }
+
     @Test fun modesKeepSeparateChoices() {
         SessionPrefs.setResolutionChoice(app, "steam", "1080p", portrait = true)
         assertEquals(SessionDisplay.LINK_LANDSCAPE, SessionPrefs.resolutionStored(app, "lxqt", panel, true))

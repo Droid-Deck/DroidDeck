@@ -51,7 +51,7 @@ fun ResolutionRow(
             else onPick(value) })
     if (editCustom) CustomResolutionDialog(size,
         onSave = { value -> editCustom = false; onPick("${value.first}x${value.second}") },
-        onDismiss = { editCustom = false })
+        onDismiss = { editCustom = false }, portrait = portrait)
     if (editFollow) CustomFollowScaleDialog(SessionDisplay.followScale(choice)?.takeIf { it > 1f },
         onSave = { value -> editFollow = false; onPick(SessionDisplay.followScaled(value)) },
         onDismiss = { editFollow = false })

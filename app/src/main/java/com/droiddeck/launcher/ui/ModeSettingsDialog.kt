@@ -720,10 +720,10 @@ internal fun SgdbKeyDialog(hasKey: Boolean, onSave: (String) -> Unit, onDismiss:
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit) {
+internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit, portrait: Boolean = false) {
     var w by remember { mutableStateOf(initial?.first?.toString() ?: "") }
     var h by remember { mutableStateOf(initial?.second?.toString() ?: "") }
-    val parsed = SessionPrefs.parseResolution("${w}x$h")
+    val parsed = if (portrait) SessionPrefs.parseOrientedResolution("${w}x$h") else SessionPrefs.parseResolution("${w}x$h")
     com.droiddeck.launcher.ui.GlideAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.mode_custom_res_title)) },

@@ -1313,7 +1313,7 @@ object SessionPrefs {
         return parseOrientedResolution(value)?.let { "${it.first}x${it.second}" } ?: SessionDisplay.LINK_LANDSCAPE
     }
 
-    private fun parseOrientedResolution(text: String): Pair<Int, Int>? =
+    fun parseOrientedResolution(text: String): Pair<Int, Int>? =
         parseResolution(text) ?: text.trim().split('x', 'X', '×', '*').takeIf { it.size == 2 }
             ?.let { parseResolution("${it[1]}x${it[0]}") }?.let { it.second to it.first }
 
