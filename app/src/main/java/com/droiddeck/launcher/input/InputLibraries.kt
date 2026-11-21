@@ -161,10 +161,6 @@ object InputLibraries {
         }
     }.onSuccess { ControllerPrefs.setAdaptiveSticks(context, on) }.isSuccess
 
-    fun setQuickButton(context: Context, layoutId: String, button: InputCommand, shown: Boolean): Boolean = runCatching {
-        update(context) { library -> library.layouts.firstOrNull { it.id == layoutId && it.editable }?.let { library.withLayout(it.withQuickButton(button, shown)) } ?: library }
-    }.isSuccess
-
     fun defaultPositions(context: Context, library: InputLibrary, layout: SavedInputLayout): Pair<List<InputSurfaceElement>, Float>? {
         val origin = layout.origin ?: layout.id
         InputStockLayouts.layouts().firstOrNull { it.id == origin }?.let { return it.elements to it.aspect }
@@ -331,10 +327,11 @@ object InputLibraries {
             for (e in layout.elements) elements.put(JSONObject().put("id", e.id).put("kind", e.kind.name)
                 .put("control", e.control.id).put("name", e.name).put("x", e.x.toDouble()).put("y", e.y.toDouble())
                 .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
-                .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown))
+                .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown)
+                .apply { if (e.group.isNotBlank()) put("group", e.group) })
             layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
                 .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
-                .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
+                .put("removed", JSONArray(layout.style.removed.filter { id -> layout.elements.any { it.id == id } }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
         }
         val bindings = JSONArray()
         for (b in library.bindings) {
@@ -359,7 +356,8 @@ object InputLibraries {
             selection.parts.forEach { (role, id) -> parts.put(role.name, id) }
             selections.put(mode, JSONObject().put("profile", selection.profile).put("parts", parts).put("profileSelected", selection.profileSelected))
         }
-        return JSONObject().put("selections", selections).put("version", VERSION).put("selected", library.selected).put("steam", library.steam).put("desktop", library.desktop)
+        val games = JSONObject(); library.games.forEach { (game, id) -> games.put(game, id) }
+        return JSONObject().put("selections", selections).put("games", games).put("version", VERSION).put("selected", library.selected).put("steam", library.steam).put("desktop", library.desktop)
             .put("profiles", profiles).put("layouts", layouts).put("bindings", bindings).toString()
     }
 
@@ -371,12 +369,13 @@ object InputLibraries {
         require(version in 2..VERSION || restore)
         val generated = mutableSetOf<String>()
         val layouts = doc.getJSONArray("layouts").objects(256).map { layout ->
-            val stored = layout.getJSONArray("elements").objects(64).map { e ->
+            val stored = layout.getJSONArray("elements").objects(128).map { e ->
                 InputSurfaceElement(requireNotNull(InputControl.fromId(e.getString("control"))), e.getDouble("x").toFloat(),
                     e.getDouble("y").toFloat(), e.getDouble("width").toFloat(), e.getDouble("height").toFloat(),
                     e.getString("id"), InputElementKind.valueOf(e.getString("kind")), e.getString("name"),
                     e.optBoolean("floating", true), e.optBoolean("hideWhenIdle", false), e.optBoolean("mouseGestures", false), e.optBoolean("toggle", false), e.optInt("icon", 0), e.optString("image", ""),
-                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false))
+                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false),
+                    group = e.optString("group", "").trim().takeIf { it.length <= 128 }.orEmpty())
             }
             val id = layout.getString("id")
             val origin = layout.optionalString("origin")
@@ -386,7 +385,7 @@ object InputLibraries {
             if (followsGamepad) generated += id
             SavedInputLayout(id, layout.getString("name"), if (restore) stored.map { it.bounded() } else stored, InputLayoutTemplate.valueOf(layout.getString("template")),
                 InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100),
-                    layout.optJSONArray("hidden")?.let { hidden -> (0 until hidden.length()).map { InputCommand.valueOf(hidden.getString(it)) }.toSet() }.orEmpty()),
+                    removedElements(layout, stored.takeUnless { restore })),
                 InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)), layout.optDouble("aspect", 0.0).toFloat(), origin,
                     layout.optDouble("scale", 1.0).toFloat())
         }
@@ -396,7 +395,7 @@ object InputLibraries {
                 PhysicalInputKey(k.getString("device"), k.getString("name"), k.getInt("keyCode"), k.getInt("scanCode")),
                 requireNotNull(InputProfiles.decode(k.getJSONObject("action")))) }
             SavedInputBindings(b.getString("id"), b.getString("name"), b.getBoolean("physical"), b.optionalString("layout"),
-                controls, b.getJSONObject("elements").actions(64), keys, b.optJSONObject("clicks")?.actions(64).orEmpty())
+                controls, b.getJSONObject("elements").actions(128), keys, b.optJSONObject("clicks")?.actions(128).orEmpty())
         }
         val profiles = doc.getJSONArray("profiles").objects(64).map { p ->
             val parts = p.getJSONObject("parts")
@@ -415,7 +414,11 @@ object InputLibraries {
                     value.optBoolean("profileSelected", profile != InputProfiles.AUTO || parts.length() == 0))
             }
         }.orEmpty()
-        val library = InputLibrary(profiles, layouts, bindings, doc.getString("selected"), doc.getString("steam"), doc.getString("desktop"), selections)
+        val games = doc.optJSONObject("games")?.let { saved ->
+            saved.keys().asSequence().take(64).associateWith { saved.optString(it) }
+                .filter { (game, id) -> game.isNotBlank() && game.length <= 64 && profiles.any { it.id == id } }
+        }.orEmpty()
+        val library = InputLibrary(profiles, layouts, bindings, doc.getString("selected"), doc.getString("steam"), doc.getString("desktop"), selections, games)
         (if (restore) restoreGamepads(requireNotNull(context), library, generated) else library).validate()
     }.getOrNull()
 
@@ -423,12 +426,12 @@ object InputLibraries {
         val (display, metrics) = primaryDisplay(context)
         val height = metrics.heightPixels.coerceAtLeast(1)
         val layouts = library.layouts.map { layout ->
-            if (layout.id !in generated) return@map layout
+            if (layout.id !in generated) return@map layout.keepingRemoved()
             val width = if (layout.aspect > 0f) (layout.aspect * height).toInt().coerceAtLeast(1)
                 else metrics.widthPixels.coerceAtLeast(1)
             val gamepad = LegacyGamepadLayout(display, width, height, scale = layout.scale).elements()
-            layout.copy(elements = gamepad.take(64 - layout.elements.size) + layout.elements,
-                aspect = (width.toFloat() / height).coerceIn(.05f, 20f))
+            layout.copy(elements = gamepad.take((64 - layout.elements.size).coerceAtLeast(0)) + layout.elements,
+                aspect = (width.toFloat() / height).coerceIn(.05f, 20f)).keepingRemoved()
         }
         val byId = layouts.associateBy { it.id }
         val bindings = library.bindings.map { preset ->
@@ -448,6 +451,16 @@ object InputLibraries {
             )
         }
         return library.copy(layouts = layouts, bindings = bindings)
+    }
+
+    private fun SavedInputLayout.keepingRemoved() = copy(style = style.copy(removed = style.removed.filter { id -> elements.any { it.id == id } }.toSet()))
+
+    // Saves before element removal stored hidden quick buttons as command names under "hidden".
+    // Restored gamepads only gain their controls after decoding, so [elements] is null until then.
+    private fun removedElements(layout: JSONObject, elements: List<InputSurfaceElement>?): Set<String> {
+        fun strings(key: String) = layout.optJSONArray(key)?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
+        val legacy = strings("hidden").mapNotNull { name -> InputCommand.entries.firstOrNull { it.name == name }?.let(QUICK_BUTTON_IDS::get) }
+        return (strings("removed") + legacy).filter { id -> elements == null || elements.any { it.id == id } }.toSet()
     }
 
     private fun JSONArray.objects(limit: Int): List<JSONObject> {

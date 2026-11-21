@@ -23,6 +23,8 @@
     <string name="input_command_qam">Open Steam quick access</string>
     <string name="input_remove_element">Remove control</string>
     <string name="input_add_element">Add control</string>
+    <string name="input_add_tab_buttons">Buttons</string>
+    <string name="input_add_tab_groups">Groups</string>
     <string name="input_extra_keys">Device-specific buttons</string>
     <string name="input_capture">Assign a physical button</string>
     <string name="input_capture_confirm">Release the button, then choose Edit, Retry, or Cancel. B or Back cancels after release.</string>
@@ -34,4 +36,39 @@
     <string name="input_read_timing">Read measurements</string>
     <string name="input_latency_hint">Measures Android dispatch through publication to the existing input transport. This excludes Bluetooth arrival, guest polling, rendering and display latency. Recording is off by default.</string>
     <string name="input_normal_binding">Use normal input binding</string>
+    <string name="input_group_dpad">D-pad</string>
+    <string name="input_group_face">Face buttons</string>
+    <string name="input_group_left_shoulder">Left bumper and trigger</string>
+    <string name="input_group_right_shoulder">Right bumper and trigger</string>
+    <string name="input_group_left_stick">Left stick</string>
+    <string name="input_group_right_stick">Right stick</string>
+    <string name="input_group_hint">Drag to move the whole group, or drag a corner to resize it. Tap a button in the group again to change only that button.</string>
+    <string name="input_selection_size">Size</string>
+    <string name="input_edit_on_screen">On-screen controls</string>
+    <string name="input_edit_on_screen_hint">Move and resize buttons, sticks and groups. Changes apply when you press Save.</string>
+    <string name="input_game_controls">Controls for this game only</string>
+    <string name="input_game_controls_hint">Gives this game its own copy of the controls. Turn it off to go back to the shared ones. The copy is kept for next time.</string>
+    <string name="input_game_profile_name">Game %1$s</string>
+    <string name="input_game_controls_active">This game uses its own controls: %1$s</string>
+    <string name="input_game_controls_failed">Couldn\'t give this game its own controls. Delete a profile you no longer use in Input profiles and try again.</string>
+    <string name="input_removed_count">Removed (%1$d)</string>
+    <string name="input_removed_title">Removed controls</string>
+    <string name="input_removed_hint">Removed controls keep their place and action. Add one back to show it again.</string>
+    <string name="input_add_back">Add back</string>
+    <string name="input_add_back_all">Add all back</string>
+    <string name="input_delete_element">Delete</string>
+    <string name="input_edit_buttons">Add or delete buttons</string>
+    <string name="input_edit_buttons_hint">Add a controller button or a group of them, or select any on-screen button in the editor and delete it.</string>
+    <string name="input_add_keyboard">Keyboard</string>
+    <string name="input_reset_layout">Reset layout</string>
+    <string name="input_editor_select">Select</string>
+    <string name="input_editor_move_left">Move left</string>
+    <string name="input_editor_move_right">Move right</string>
+    <string name="input_editor_move_up">Move up</string>
+    <string name="input_editor_move_down">Move down</string>
+    <item name="input_editor_move_left" type="id" />
+    <item name="input_editor_move_right" type="id" />
+    <item name="input_editor_move_up" type="id" />
+    <item name="input_editor_move_down" type="id" />
+    <item name="input_editor_delete" type="id" />
 </resources>

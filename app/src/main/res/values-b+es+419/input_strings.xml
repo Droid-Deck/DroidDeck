@@ -24,6 +24,8 @@
     <string name="input_command_qam">Abrir el acceso rápido de Steam</string>
     <string name="input_remove_element">Quitar control</string>
     <string name="input_add_element">Agregar control</string>
+    <string name="input_add_tab_buttons">Botones</string>
+    <string name="input_add_tab_groups">Grupos</string>
     <string name="input_extra_keys">Botones específicos del dispositivo</string>
     <string name="input_capture">Asignar un botón físico</string>
     <string name="input_capture_confirm">Suelta el botón y elige Editar, Reintentar o Cancelar. B o Atrás cancela después de soltarlo.</string>

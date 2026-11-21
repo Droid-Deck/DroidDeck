@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">%1$s을(를) 삭제할까요? 사용 중인 모드는 내장 기본 프로필로 돌아갑니다. 저장된 레이아웃과 공유 설정은 계속 사용할 수 있습니다.</string>
     <string name="input_screen_visibility">표시</string>
     <string name="input_visibility_shared">모든 프로필에 적용됩니다. Auto는 게임 모드에서 컨트롤러가 연결되지 않았을 때 기본 화면 컨트롤을 표시합니다.</string>
-    <string name="input_edit_layout">화면에서 편집</string>
+    <string name="input_edit_layout">레이아웃 편집</string>
     <string name="input_saved_layouts">저장된 레이아웃…</string>
     <string name="input_saved_layouts_hint">레이아웃을 선택하거나 새로 만드세요</string>
     <string name="input_second_screen_enable">보조 화면 세션 메뉴에서 프로필 컨트롤을 선택하세요. 컨트롤러 메뉴의 프로필 및 보조 화면 선택으로 표시할 컨트롤을 정합니다.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">트리거</string>
     <string name="input_editor_done">완료</string>
     <string name="input_editor_undo">실행 취소</string>
+    <string name="input_editor_redo">다시 실행</string>
     <string name="input_editor_add">+ 추가</string>
     <string name="input_editor_hint">드래그하여 이동합니다. 모서리를 드래그하여 크기를 조정합니다. 속성을 탭하여 동작을 할당합니다.</string>
     <string name="input_editor_remote">보조 화면에서 편집 중</string>
@@ -128,4 +129,20 @@
     <string name="input_diagonal_neighbors">인접 방향</string>
     <string name="input_imported_keys_hint">이전 화면 키는 아래에 가져온 프로필로 저장되어 있습니다. 하나를 선택해 사용하거나 편집하세요. 현재 프로필 선택은 유지됩니다.</string>
     <string name="input_import_failed">이전 화면 키를 자동으로 가져올 수 없습니다. 원래 설정이 유지되었습니다.</string>
+    <string name="input_editor_open_menu">메뉴 열기</string>
+    <string name="input_editor_hide_menu">메뉴 숨기기</string>
+    <string name="input_editor_save">저장</string>
+    <string name="input_editor_layout_size">레이아웃 크기</string>
+    <string name="input_editor_tap_hint">컨트롤을 탭하여 편집합니다. 드래그하여 이동합니다.</string>
+    <string name="input_editor_saved">레이아웃을 저장했습니다</string>
+    <string name="input_editor_deleted">%1$s 삭제됨</string>
+    <plurals name="input_editor_controls">
+        <item quantity="other">컨트롤 %1$d개</item>
+    </plurals>
+    <string name="input_editor_discard_title">변경을 취소할까요?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="other">이 레이아웃에 저장하지 않은 변경이 %d건 있습니다.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">이 레이아웃에 저장하지 않은 변경이 있습니다.</string>
+    <string name="input_editor_discard_confirm">변경 취소</string>
 </resources>

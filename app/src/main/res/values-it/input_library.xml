@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">Eliminare %1$s? Le modalità che lo usano torneranno al profilo predefinito integrato. I layout salvati e le impostazioni condivise resteranno disponibili.</string>
     <string name="input_screen_visibility">Visibilità</string>
     <string name="input_visibility_shared">Vale per tutti i profili. Auto mostra i controlli dello schermo principale quando in modalità gioco non è collegato un controller.</string>
-    <string name="input_edit_layout">Modifica su schermo</string>
+    <string name="input_edit_layout">Modifica layout</string>
     <string name="input_saved_layouts">Layout salvati…</string>
     <string name="input_saved_layouts_hint">Scegli un layout o creane uno tuo</string>
     <string name="input_second_screen_enable">Scegli Controlli profilo nel menu sessione dello schermo secondario. I selettori Profilo e Schermo secondario nel menu del controller scelgono i controlli da mostrare.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Grilletto</string>
     <string name="input_editor_done">Fatto</string>
     <string name="input_editor_undo">Annulla</string>
+    <string name="input_editor_redo">Ripeti</string>
     <string name="input_editor_add">+ Aggiungi</string>
     <string name="input_editor_hint">Trascina per spostare. Trascina un angolo per ridimensionare. Tocca Proprietà per assegnare un\'azione.</string>
     <string name="input_editor_remote">Modifica sullo schermo secondario</string>
@@ -128,4 +129,24 @@
     <string name="input_diagonal_neighbors">Direzioni vicine</string>
     <string name="input_imported_keys_hint">I tuoi vecchi tasti a schermo sono salvati come profili importati qui sotto. Selezionane uno per usarlo o modificarlo. Le selezioni di profilo attuali sono state mantenute.</string>
     <string name="input_import_failed">I vecchi tasti a schermo non sono stati importati automaticamente. Le impostazioni originali sono state conservate.</string>
+    <string name="input_editor_open_menu">Apri menu</string>
+    <string name="input_editor_hide_menu">Nascondi menu</string>
+    <string name="input_editor_save">Salva</string>
+    <string name="input_editor_layout_size">Dimensione del layout</string>
+    <string name="input_editor_tap_hint">Tocca un controllo per modificarlo. Trascina per spostare.</string>
+    <string name="input_editor_saved">Layout salvato</string>
+    <string name="input_editor_deleted">%1$s eliminato</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d controllo</item>
+        <item quantity="many">%1$d controlli</item>
+        <item quantity="other">%1$d controlli</item>
+    </plurals>
+    <string name="input_editor_discard_title">Ignorare le modifiche?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Hai %d modifica non salvata in questo layout.</item>
+        <item quantity="many">Hai %d modifiche non salvate in questo layout.</item>
+        <item quantity="other">Hai %d modifiche non salvate in questo layout.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Hai modifiche non salvate in questo layout.</string>
+    <string name="input_editor_discard_confirm">Ignora</string>
 </resources>

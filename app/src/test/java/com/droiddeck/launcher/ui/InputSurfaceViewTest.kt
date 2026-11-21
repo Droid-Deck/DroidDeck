@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.ui
 
 import android.content.ComponentName
+import android.graphics.Color
+import android.os.Looper
 import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import android.view.View
@@ -8,9 +10,11 @@ import android.widget.FrameLayout
 import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.input.JoyConPadTest
 import com.droiddeck.launcher.input.PadBridge
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -19,11 +23,87 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.nio.file.Files
+import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE, instrumentedPackages = ["com.droiddeck.launcher.input.FakeInputWriter"],
     shadows = [JoyConPadTest.RecordingWriter::class, SessionInputPointerTest.CompositorShadow::class])
 class InputSurfaceViewTest {
+    @get:Rule val looper = MainLooperDrain()
+
+    @Test fun labelsFollowTheControlSizeAndShrinkOnlyToFitItsWidth() {
+        val threeLetters = { size: Float -> size * 3f }
+        assertEquals(16f, fittedTextSize(16f, 100f, measure = threeLetters), 0f)
+        assertEquals(32f, fittedTextSize(32f, 200f, measure = threeLetters), 0f)
+        assertEquals(10f, fittedTextSize(16f, 30f, measure = threeLetters), .0001f)
+        assertEquals(20f, fittedTextSize(32f, 60f, measure = threeLetters), .0001f)
+    }
+
+    @Test fun labelsNeverShrinkBelowTheFloor() {
+        val threeLetters = { size: Float -> size * 3f }
+        assertEquals(12f, fittedTextSize(16f, 30f, 12f, threeLetters), 0f)
+        assertEquals(12f, fittedTextSize(8f, 100f, 12f, threeLetters), 0f)
+        assertEquals(20f, fittedTextSize(32f, 60f, 12f, threeLetters), .0001f)
+    }
+
+    @Test fun controlColoursComeFromTheTint() {
+        val look = ControlLook()
+        look.tint(ControllerPrefs.STEAM_BLUE)
+        assertEquals(ControlLook.SIGNAL, look.accent)
+        assertEquals(Color.argb(140, 0x1A, 0x9F, 0xFF), look.stroke)
+        assertEquals(Color.rgb(0xCA, 0xE8, 0xFF), look.ink)
+        assertEquals(ControlLook.GLASS, look.fill(0f))
+        assertEquals(Color.WHITE, look.ink(1f))
+        assertEquals(look.accent, look.stroke(1f))
+        val pressed = look.fill(1f)
+        assertEquals(ControlLook.over(ControlLook.alpha(look.accent, .45f), ControlLook.GLASS), pressed)
+        assertTrue(Color.blue(pressed) > Color.blue(ControlLook.GLASS) && Color.alpha(pressed) > Color.alpha(ControlLook.GLASS))
+
+        val green = 0xFF3DDC84.toInt()
+        look.tint(green)
+        assertEquals(green, look.accent)
+        assertEquals(green and 0xFFFFFF, look.stroke and 0xFFFFFF)
+        assertTrue(Color.green(look.ink) > Color.green(green) && Color.red(look.ink) > Color.red(green))
+
+        look.tint(null)
+        assertEquals(ControlLook.NEUTRAL_INK, look.ink)
+        assertEquals(ControlLook.SIGNAL, look.stroke(1f))
+    }
+
+    @Test fun colourMixingStaysWithinItsEnds() {
+        assertEquals(Color.BLACK, ControlLook.mix(Color.BLACK, Color.WHITE, -.2f))
+        assertEquals(Color.WHITE, ControlLook.mix(Color.BLACK, Color.WHITE, 1.2f))
+        assertEquals(Color.rgb(128, 128, 128), ControlLook.mix(Color.BLACK, Color.WHITE, .5f))
+        assertEquals(Color.RED, ControlLook.over(Color.RED, Color.BLUE))
+        assertEquals(Color.BLUE, ControlLook.over(Color.TRANSPARENT, Color.BLUE))
+    }
+
+    @Test fun pressSquashesAndSpringsBackOrSnapsWithAnimationsOff() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val view = View(activity)
+        activity.setContentView(view)
+        val motion = ControlMotion(view, squash = true)
+        motion.press(true)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(200))
+        assertEquals(1f, motion.value, 0f)
+        assertEquals(1f - ControlMotion.SQUASH, view.scaleX, .0001f)
+        motion.press(false)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400))
+        assertEquals(0f, motion.value, .0001f)
+        assertEquals(1f, view.scaleX, .0001f)
+
+        try {
+            SessionPrefs.setAnimationsEnabled(activity, false)
+            Motion.refresh(activity)
+            motion.press(true)
+            assertEquals(1f, motion.value, 0f)
+            assertEquals(1f - ControlMotion.SQUASH, view.scaleY, .0001f)
+        } finally {
+            SessionPrefs.setAnimationsEnabled(activity, true)
+            Motion.refresh(activity)
+        }
+    }
+
     @Test fun customControlsReleaseOnDetachAndWorkWhenTheSameViewReturns() {
         val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
         val activity = controller.get()
@@ -56,6 +136,21 @@ class InputSurfaceViewTest {
             }
             assertEquals(listOf(true, false, true, false), events)
         } finally { root.removeAllViews(); bridge.stop(); controller.pause().stop().destroy() }
+    }
+
+    @Test fun movingOrFadingAControlKeepsItsViewAndRenamingRebuildsIt() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        val one = InputSurfaceElement(InputControl.A, .2f, .2f, .2f, .2f, "one")
+        val panel = InputSurfaceView(activity, customLayout = listOf(one))
+        fun control() = generateSequence(listOf<View>(panel)) { level -> level.flatMap { v -> (v as? android.view.ViewGroup)?.let { g -> (0 until g.childCount).map(g::getChildAt) }.orEmpty() }.takeIf { it.isNotEmpty() } }
+            .flatten().first { (it.tag as? InputSurfaceElement)?.id == "one" }
+        val view = control()
+        panel.updateCustomLayout(listOf(one.copy(x = .4f, width = .3f, opacity = .5f)))
+        assertTrue(view === control())
+        assertEquals(.5f, view.alpha, .001f)
+        assertEquals(.4f, (view.tag as InputSurfaceElement).x, 0f)
+        panel.updateCustomLayout(listOf(one.copy(name = "Jump")))
+        assertTrue(view !== control())
     }
 
     @Test fun keyedDirectionsAreLabelledWithTheirKeysAndOtherActionsAreNot() {

@@ -51,7 +51,7 @@
     <string name="input_delete_profile_detail">删除 %1$s？使用它的模式会回到内置默认配置。已保存的布局和共享设置仍可用。</string>
     <string name="input_screen_visibility">显示</string>
     <string name="input_visibility_shared">对所有配置生效。游戏模式下没接手柄时，Auto 会显示主屏控制。</string>
-    <string name="input_edit_layout">在屏幕上编辑</string>
+    <string name="input_edit_layout">编辑布局</string>
     <string name="input_saved_layouts">已保存的布局…</string>
     <string name="input_saved_layouts_hint">选择一个布局或自建一个</string>
     <string name="input_second_screen_enable">在副屏会话菜单里选「配置控制」。控制菜单里的配置和副屏选择决定显示哪些控件。</string>
@@ -128,4 +128,21 @@
     <string name="input_diagonal_neighbors">相邻方向</string>
     <string name="input_imported_keys_hint">旧的屏幕按键已存为下方的导入配置。选一个使用或编辑。当前选中的配置保持不变。</string>
     <string name="input_import_failed">无法自动导入旧的屏幕按键。原设置已保留。</string>
+    <string name="input_editor_redo">重做</string>
+    <string name="input_editor_open_menu">打开菜单</string>
+    <string name="input_editor_hide_menu">隐藏菜单</string>
+    <string name="input_editor_save">保存</string>
+    <string name="input_editor_layout_size">布局大小</string>
+    <string name="input_editor_tap_hint">点按控件可编辑，拖动可移动。</string>
+    <string name="input_editor_saved">布局已保存</string>
+    <string name="input_editor_deleted">已删除 %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="other">%1$d 个控件</item>
+    </plurals>
+    <string name="input_editor_discard_title">丢弃修改？</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="other">此布局有 %d 处修改尚未保存。</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">此布局有尚未保存的修改。</string>
+    <string name="input_editor_discard_confirm">丢弃</string>
 </resources>

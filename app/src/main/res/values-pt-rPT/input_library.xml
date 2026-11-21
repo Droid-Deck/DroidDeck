@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">Eliminar %1$s? Os modos que o usam voltam ao perfil predefinido integrado. As disposições guardadas e as definições partilhadas continuam disponíveis.</string>
     <string name="input_screen_visibility">Visibilidade</string>
     <string name="input_visibility_shared">Aplica-se a todos os perfis. Auto mostra os controlos do ecrã principal quando não há comando ligado no modo de jogo.</string>
-    <string name="input_edit_layout">Editar no ecrã</string>
+    <string name="input_edit_layout">Editar disposição</string>
     <string name="input_saved_layouts">Disposições guardadas…</string>
     <string name="input_saved_layouts_hint">Escolha uma disposição ou crie a sua</string>
     <string name="input_second_screen_enable">Escolha Controlos do perfil no menu de sessão do ecrã secundário. Os seletores Perfil e Ecrã secundário no menu do comando escolhem os controlos a mostrar.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Gatilho</string>
     <string name="input_editor_done">Concluído</string>
     <string name="input_editor_undo">Anular</string>
+    <string name="input_editor_redo">Refazer</string>
     <string name="input_editor_add">+ Adicionar</string>
     <string name="input_editor_hint">Arraste para mover. Arraste um canto para redimensionar. Toque em Propriedades para atribuir uma ação.</string>
     <string name="input_editor_remote">A editar no ecrã secundário</string>
@@ -128,4 +129,24 @@
     <string name="input_diagonal_neighbors">Direções vizinhas</string>
     <string name="input_imported_keys_hint">As suas antigas teclas no ecrã foram guardadas como perfis importados abaixo. Selecione um para usar ou editar. As suas seleções de perfil atuais foram mantidas.</string>
     <string name="input_import_failed">As antigas teclas no ecrã não puderam ser importadas automaticamente. As definições originais foram mantidas.</string>
+    <string name="input_editor_open_menu">Abrir menu</string>
+    <string name="input_editor_hide_menu">Ocultar menu</string>
+    <string name="input_editor_save">Guardar</string>
+    <string name="input_editor_layout_size">Tamanho da disposição</string>
+    <string name="input_editor_tap_hint">Toque num controlo para o editar. Arraste para mover.</string>
+    <string name="input_editor_saved">Disposição guardada</string>
+    <string name="input_editor_deleted">%1$s eliminado</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d controlo</item>
+        <item quantity="many">%1$d controlos</item>
+        <item quantity="other">%1$d controlos</item>
+    </plurals>
+    <string name="input_editor_discard_title">Descartar alterações?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Tem %d alteração não guardada nesta disposição.</item>
+        <item quantity="many">Tem %d alterações não guardadas nesta disposição.</item>
+        <item quantity="other">Tem %d alterações não guardadas nesta disposição.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Tem alterações não guardadas nesta disposição.</string>
+    <string name="input_editor_discard_confirm">Descartar</string>
 </resources>

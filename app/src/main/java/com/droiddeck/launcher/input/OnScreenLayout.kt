@@ -2,6 +2,10 @@ package com.droiddeck.launcher.input
 
 import android.content.Context
 import android.graphics.Rect
+import android.hardware.display.DisplayManager
+import android.os.Build
+import android.view.Display
+import com.droiddeck.launcher.ui.findActivity
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -29,8 +33,8 @@ object OnScreenLayout {
         val stored = layout?.elements ?: return emptyList()
         if (width <= 0 || height <= 0) return stored
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
-        val (reference, generated) = reference(context, layout, width, height)
-        if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
+        val (reference, generated) = reference(context, layout, width, height, safe)
+        if (buttonsOnly && dock == null) return generator.buttonsOnly(layout.style.shown(stored)) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
         val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val placed = when {
@@ -40,14 +44,6 @@ object OnScreenLayout {
         }
         val byId = (placed + others).associateBy { it.id }
         return stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
-    }
-
-    fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false): List<InputSurfaceElement> =
-        elements(context, if (edited && width > 0 && height > 0) layout.copy(aspect = width.toFloat() / height) else layout, width, height, Rect())
-
-    fun editorFrame(layout: SavedInputLayout, displayed: List<InputSurfaceElement>): List<InputSurfaceElement> {
-        val byId = displayed.associateBy { it.id }
-        return layout.elements.map { byId[it.id] ?: it }
     }
 
     fun fit(elements: List<InputSurfaceElement>, referenceWidth: Float, referenceHeight: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
@@ -75,10 +71,25 @@ object OnScreenLayout {
 
     private fun isGamepad(e: InputSurfaceElement) = e.id.startsWith("legacy:") || e.id == KEYBOARD_ID
 
-    fun generatedSize(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Int, Int>? =
-        reference(context, layout, width, height).takeIf { it.second }?.first?.let { it.first.toInt() to it.second.toInt() }
+    fun generatedSize(context: Context, layout: SavedInputLayout, width: Int, height: Int, safe: Rect = Rect()): Pair<Int, Int>? =
+        reference(context, layout, width, height, safe).takeIf { it.second }?.first?.let { it.first.toInt() to it.second.toInt() }
 
-    private fun reference(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Pair<Float, Float>, Boolean> {
+    /** The main screen's cutout-safe insets in its current rotation, as the game's full-screen window receives them. */
+    fun primarySafeInsets(context: Context): Rect {
+        // Android 9 reports the cutout only through a window's insets, so read them from the activity when it is on the main screen.
+        if (Build.VERSION.SDK_INT == 28) return context.findActivity()?.window?.decorView
+            ?.takeIf { it.display?.displayId == Display.DEFAULT_DISPLAY }
+            ?.rootWindowInsets?.displayCutout?.let { Rect(it.safeInsetLeft, it.safeInsetTop, it.safeInsetRight, it.safeInsetBottom) } ?: Rect()
+        return context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)?.let(::safeInsets) ?: Rect()
+    }
+
+    fun safeInsets(display: Display): Rect {
+        if (Build.VERSION.SDK_INT < 29) return Rect()
+        val cutout = display.cutout ?: return Rect()
+        return Rect(cutout.safeInsetLeft, cutout.safeInsetTop, cutout.safeInsetRight, cutout.safeInsetBottom)
+    }
+
+    private fun reference(context: Context, layout: SavedInputLayout, width: Int, height: Int, safe: Rect): Pair<Pair<Float, Float>, Boolean> {
         val (display, metrics) = InputLibraries.primaryDisplay(context)
         val long = max(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
         val short = min(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
@@ -92,6 +103,8 @@ object OnScreenLayout {
                 val generator = LegacyGamepadLayout(display, w, h, scale = layout.scale)
                 if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true))) return (w.toFloat() to h.toFloat()) to true
             }
+            if (safe != Rect() && matches(gamepad, LegacyGamepadLayout(display, width, height, safe, layout.scale).elements()))
+                return (width.toFloat() to height.toFloat()) to true
         }
         val aspect = layout.aspect.takeIf { it > 0f } ?: (long.toFloat() / short)
         return (aspect to 1f) to false

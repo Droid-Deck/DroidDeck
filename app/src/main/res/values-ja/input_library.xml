@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">%1$s を削除しますか？使用中のモードは内蔵の既定プロファイルに戻ります。保存済みレイアウトと共有設定は引き続き利用できます。</string>
     <string name="input_screen_visibility">表示</string>
     <string name="input_visibility_shared">すべてのプロファイルに適用されます。Auto はゲームモードでコントローラーが接続されていないときにメイン画面のコントロールを表示します。</string>
-    <string name="input_edit_layout">画面上で編集</string>
+    <string name="input_edit_layout">レイアウトを編集</string>
     <string name="input_saved_layouts">保存済みレイアウト…</string>
     <string name="input_saved_layouts_hint">レイアウトを選択するか、新規作成します</string>
     <string name="input_second_screen_enable">セカンド画面のセッションメニューでプロファイルコントロールを選択します。コントローラーメニューのプロファイルとセカンド画面の選択で表示するコントロールを決めます。</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">トリガー</string>
     <string name="input_editor_done">完了</string>
     <string name="input_editor_undo">元に戻す</string>
+    <string name="input_editor_redo">やり直す</string>
     <string name="input_editor_add">+ 追加</string>
     <string name="input_editor_hint">ドラッグで移動。角をドラッグでサイズ変更。プロパティをタップしてアクションを割り当てます。</string>
     <string name="input_editor_remote">サブ画面で編集中</string>
@@ -128,4 +129,20 @@
     <string name="input_diagonal_neighbors">隣接する方向</string>
     <string name="input_imported_keys_hint">以前の画面キーは下のインポート済みプロファイルとして保存されています。1 つ選んで使用または編集します。現在のプロファイル選択は保持されています。</string>
     <string name="input_import_failed">以前の画面キーは自動でインポートできませんでした。元の設定は保持されています。</string>
+    <string name="input_editor_open_menu">メニューを開く</string>
+    <string name="input_editor_hide_menu">メニューを隠す</string>
+    <string name="input_editor_save">保存</string>
+    <string name="input_editor_layout_size">レイアウトのサイズ</string>
+    <string name="input_editor_tap_hint">コントロールをタップして編集します。ドラッグで移動します。</string>
+    <string name="input_editor_saved">レイアウトを保存しました</string>
+    <string name="input_editor_deleted">%1$s を削除しました</string>
+    <plurals name="input_editor_controls">
+        <item quantity="other">%1$d 個のコントロール</item>
+    </plurals>
+    <string name="input_editor_discard_title">変更を破棄しますか？</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="other">このレイアウトに未保存の変更が %d 件あります。</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">このレイアウトに未保存の変更があります。</string>
+    <string name="input_editor_discard_confirm">破棄</string>
 </resources>

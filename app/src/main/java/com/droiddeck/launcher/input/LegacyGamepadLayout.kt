@@ -197,17 +197,28 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
 
     fun regenerate(stored: List<InputSurfaceElement>): List<InputSurfaceElement> = withGeometry(stored, elements())
 
+    /** A group that grows past an edge slides back as a whole, so its buttons keep their arrangement. */
     fun rescale(stored: List<InputSurfaceElement>, from: LegacyGamepadLayout): List<InputSurfaceElement> {
         val before = from.elements().associateBy { it.id }
         val after = elements().associateBy { it.id }
-        return stored.map { e ->
+        val moved = stored.map { e ->
             val b = before[e.id] ?: return@map e
             val a = after[e.id] ?: return@map e
             val w = (a.width * e.width / b.width).coerceIn(.03f, 1f)
             val h = (a.height * e.height / b.height).coerceIn(.03f, 1f)
             val cx = a.x + a.width / 2 + (e.x + e.width / 2 - b.x - b.width / 2)
             val cy = a.y + a.height / 2 + (e.y + e.height / 2 - b.y - b.height / 2)
-            e.copy(x = (cx - w / 2).coerceIn(0f, 1f - w), y = (cy - h / 2).coerceIn(0f, 1f - h), width = w, height = h).bounded()
+            e.copy(x = cx - w / 2, y = cy - h / 2, width = w, height = h)
+        }
+        fun back(low: Float, high: Float) = if (low < 0f) -low else if (high > 1f) max(1f - high, -low) else 0f
+        val shift = moved.filter { it.id in after }.groupBy { it.groupKey() ?: it.id }.values.flatMap { members ->
+            val dx = back(members.minOf { it.x }, members.maxOf { it.x + it.width })
+            val dy = back(members.minOf { it.y }, members.maxOf { it.y + it.height })
+            members.map { it.id to (dx to dy) }
+        }.toMap()
+        return moved.map { e ->
+            val (dx, dy) = shift[e.id] ?: return@map e
+            e.copy(x = (e.x + dx).coerceIn(0f, 1f - e.width), y = (e.y + dy).coerceIn(0f, 1f - e.height)).bounded()
         }
     }
 

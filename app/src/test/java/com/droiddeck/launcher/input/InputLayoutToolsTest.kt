@@ -63,28 +63,46 @@ class InputLayoutToolsTest {
         assertNull(InputLibraries.defaultPositions(context, library, SavedInputLayout("new", "New")))
     }
 
-    @Test fun quickButtonsHideWithoutRemovingElementsAndPersist() {
+    @Test fun removedElementsKeepTheirPlaceAndPersist() {
         val library = InputLibraries.read(context)
         val gamepad = library.layouts.first { it.id == InputLibraries.OVERLAY }
-        assertTrue(InputCommand.KEYBOARD in gamepad.quickButtons)
-        assertTrue(InputLibraries.setQuickButton(context, gamepad.id, InputCommand.KEYBOARD, false))
-        val hidden = InputLibraries.read(context).layouts.first { it.id == gamepad.id }
-        assertEquals(gamepad.elements, hidden.elements)
-        assertEquals(setOf(InputCommand.KEYBOARD), hidden.style.hidden)
-        val shown = hidden.style.shown(hidden.elements)
-        assertEquals(gamepad.elements.filterNot { it.id == "builtin:keyboard" }, shown)
-        assertTrue(InputLibraries.setQuickButton(context, gamepad.id, InputCommand.KEYBOARD, true))
+        val removed = setOf("builtin:keyboard", "legacy:${InputControl.A.id}")
+        assertTrue(removed.all { id -> gamepad.elements.any { it.id == id } })
+        InputLibraries.update(context) { it.withLayout(gamepad.copy(style = gamepad.style.copy(removed = removed))) }
+        val saved = InputLibraries.read(context).layouts.first { it.id == gamepad.id }
+        assertEquals(gamepad.elements, saved.elements)
+        assertEquals(removed, saved.style.removed)
+        assertEquals(gamepad.elements.filterNot { it.id in removed }, saved.style.shown(saved.elements))
+        assertFalse(saved.elements.any { it.quickButton == InputCommand.KEYBOARD && !saved.style.hides(it) })
+        InputLibraries.update(context) { it.withLayout(saved.copy(style = saved.style.copy(removed = emptySet()))) }
         assertEquals(gamepad, InputLibraries.read(context).layouts.first { it.id == gamepad.id })
     }
 
-    @Test fun onlySteamQuickAccessAndKeyboardCanBeHidden() {
+    @Test fun quickButtonsHiddenByOlderSavesStayRemoved() {
+        val library = InputLibraries.read(context)
+        val doc = org.json.JSONObject(InputLibraries.encode(library))
+        val layouts = doc.getJSONArray("layouts")
+        val overlay = (0 until layouts.length()).map { layouts.getJSONObject(it) }.first { it.getString("id") == InputLibraries.OVERLAY }
+        overlay.remove("removed")
+        overlay.put("hidden", org.json.JSONArray(listOf("KEYBOARD", "STEAM", "MENU")))
+        val migrated = InputLibraries.decode(doc.toString())!!.layouts.first { it.id == InputLibraries.OVERLAY }
+        assertEquals(setOf("builtin:keyboard", "legacy:${InputControl.GUIDE.id}"), migrated.style.removed)
+        assertFalse(migrated.elements.any { it.quickButton == InputCommand.KEYBOARD && !migrated.style.hides(it) })
+        assertTrue(migrated.elements.any { it.quickButton == InputCommand.QUICK_ACCESS && !migrated.style.hides(it) })
+    }
+
+    @Test fun removedIdsAreCheckedAndUnknownOnesAreNotSaved() {
         val library = InputLibraries.read(context)
         val gamepad = library.layouts.first { it.id == InputLibraries.OVERLAY }
         assertThrows(IllegalArgumentException::class.java) {
-            library.withLayout(gamepad.copy(style = gamepad.style.copy(hidden = setOf(InputCommand.MENU)))).validate()
+            library.withLayout(gamepad.copy(style = gamepad.style.copy(removed = setOf(" ")))).validate()
         }
+        val stale = library.withLayout(gamepad.copy(style = gamepad.style.copy(removed = setOf("gone", "builtin:keyboard")))).validate()
+        val decoded = InputLibraries.decode(InputLibraries.encode(stale))!!
+        assertEquals(setOf("builtin:keyboard"), decoded.layouts.first { it.id == gamepad.id }.style.removed)
         val custom = InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f, "custom", name = "Steam")
-        assertFalse(InputSurfaceStyle(hidden = QUICK_BUTTONS.toSet()).hides(custom))
+        assertFalse(InputSurfaceStyle(removed = setOf("builtin:keyboard")).hides(custom))
+        assertTrue(InputSurfaceStyle(removed = setOf("custom")).hides(custom))
     }
 
     private fun overlapping(elements: List<InputSurfaceElement>, width: Int, height: Int): List<Pair<String, String>> {
