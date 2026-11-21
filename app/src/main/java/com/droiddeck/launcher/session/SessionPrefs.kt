@@ -835,6 +835,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("stretch16x9", on).apply()
     }
 
+    fun avoidNotch(context: Context): Boolean = prefs(context).getBoolean("avoidNotch", false)
+
+    fun setAvoidNotch(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("avoidNotch", on).apply()
+    }
+
 
     fun directAudio(context: Context): Boolean = prefs(context).getBoolean("directAudio", true)
 

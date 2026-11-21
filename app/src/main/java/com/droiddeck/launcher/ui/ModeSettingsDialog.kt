@@ -87,6 +87,7 @@ class ModeSettings(
     val picturePosition: String? = null,
     val integerScaling: Boolean? = null,
     val stretch16x9: Boolean? = null,
+    val avoidNotch: Boolean? = null,
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
     val shaderPrecache: Boolean? = null,
@@ -145,6 +146,7 @@ class ModeSettingsActions(
     val onPicturePosition: (String) -> Unit = {},
     val onIntegerScaling: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
+    val onAvoidNotch: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
@@ -252,6 +254,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
                     listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
                     s.stretch16x9 && canStretch, enabled = canStretch, onPick = a.onStretch16x9)
+            }
+            s.avoidNotch?.let { enabled ->
+                ToggleRow(host, "avoid-notch", stringResource(R.string.display_avoid_notch),
+                    stringResource(R.string.display_avoid_notch_hint), checked = enabled, onChange = a.onAvoidNotch)
             }
             ToggleRow(host, "zero-copy", stringResource(R.string.display_zero_copy), null, checked = s.zeroCopy, onChange = a.onZeroCopy)
         }

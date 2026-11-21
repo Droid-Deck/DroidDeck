@@ -2517,6 +2517,8 @@
     <string name="display_game_fit">Přizpůsobení hry 16:9</string>
     <string name="display_game_fit_hint">Jak se hry s poměrem 16:9 přizpůsobí této obrazovce. Příští relace.</string>
     <string name="display_game_fit_unavailable">Vyberte Podle obrazovky nebo vlastní velikost užší než 16:9.</string>
+    <string name="display_avoid_notch">Vyhnout se výřezu</string>
+    <string name="display_avoid_notch_hint">Obraz zůstane mimo výřez kamery. Použije se po návratu do relace.</string>
     <string name="display_preserve">Zachovat proporce</string>
     <string name="display_stretch">Roztáhnout na obrazovku</string>
     <string name="display_image_scaling">Škálování obrazu</string>

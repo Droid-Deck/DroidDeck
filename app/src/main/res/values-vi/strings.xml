@@ -2440,6 +2440,8 @@
     <string name="display_game_fit">Khớp game 16:9</string>
     <string name="display_game_fit_hint">Cách game 16:9 khớp với màn hình này. Từ phiên sau.</string>
     <string name="display_game_fit_unavailable">Chọn Khớp màn hình hoặc một kích thước tùy chỉnh hẹp hơn 16:9.</string>
+    <string name="display_avoid_notch">Tránh tai thỏ</string>
+    <string name="display_avoid_notch_hint">Giữ hình ảnh tránh khỏi phần khuyết camera. Áp dụng khi bạn quay lại phiên.</string>
     <string name="display_preserve">Giữ tỷ lệ</string>
     <string name="display_stretch">Kéo giãn để khớp màn hình</string>
     <string name="display_image_scaling">Chia tỷ lệ hình ảnh</string>
