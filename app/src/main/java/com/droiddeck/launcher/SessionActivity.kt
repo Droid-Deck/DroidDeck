@@ -246,7 +246,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var handCamera: com.droiddeck.launcher.handtracking.HandCamera? = null
     private var padMotion: com.droiddeck.launcher.input.PadMotion? = null
     private var resumed by mutableStateOf(false)
-    private val deckPadListener: () -> Unit = { uiHandler.post { updatePadMotion(); openDeckRing("deck pad changed"); applyUnfoldedControls(); leaveDeckPanel() } }
+    private val deckPadListener: () -> Unit = {
+        uiHandler.post {
+            updatePadMotion()
+            openDeckRing("deck pad changed")
+            onScreenControls?.reload()
+            bottomInputControls?.reload()
+            applyUnfoldedControls()
+            leaveDeckPanel()
+        }
+    }
 
     private fun openDeckRing(why: String) {
         val deck = SessionState.deckPad
