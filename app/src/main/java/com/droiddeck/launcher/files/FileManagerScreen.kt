@@ -697,6 +697,14 @@ fun FileManagerScreen(
 
     val compactToolbar = LocalConfiguration.current.screenWidthDp < 600
     Column(modifier = Modifier.fillMaxSize()) {
+        editingTarget?.let { target ->
+            TextEditorScreen(
+                file = target,
+                onExit = { editingTarget = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+            return@Column
+        }
         if (pickMode && !pickerTitle.isNullOrEmpty()) {
             Text(
                 text = pickerTitle,
@@ -1320,13 +1328,6 @@ fun FileManagerScreen(
         }
         }
             }
-        }
-        editingTarget?.let { target ->
-            TextEditorScreen(
-                file = target,
-                onExit = { editingTarget = null },
-                modifier = Modifier.fillMaxSize(),
-            )
         }
     }
 }

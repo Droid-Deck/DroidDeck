@@ -62,6 +62,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -72,8 +73,14 @@ import com.droiddeck.launcher.ui.focusGlide
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
 import java.nio.charset.Charset
+import java.nio.charset.CodingErrorAction
+import java.nio.file.Files
 import kotlin.math.roundToInt
 
 internal const val EDITOR_FONT_SIZE_SP = 13
@@ -90,7 +97,7 @@ internal enum class EditorCharset(val label: String, private val charsetName: St
     val charset: Charset get() = Charset.forName(charsetName)
 }
 
-internal enum class EditorLock { NONE, BINARY, TOO_LARGE, PERMISSION }
+internal enum class EditorLock { NONE, BINARY, TOO_LARGE, PERMISSION, LOSSY }
 
 internal enum class EditorLoadState { LOADING, READY, TOO_LARGE, UNREADABLE }
 
@@ -102,16 +109,32 @@ internal fun editorIsBinary(bytes: ByteArray, sample: Int = 8192): Boolean {
     return false
 }
 
+private fun strictDecode(bytes: ByteArray, charset: Charset): String? = try {
+    charset.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT)
+        .onUnmappableCharacter(CodingErrorAction.REPORT)
+        .decode(ByteBuffer.wrap(bytes))
+        .toString()
+} catch (e: CharacterCodingException) {
+    null
+}
+
 internal fun decodeEditorText(bytes: ByteArray): DecodedEditorText {
-    val utf8 = String(bytes, Charsets.UTF_8)
-    val badUtf8 = utf8.count { it == '\uFFFD' }
-    if (badUtf8 == 0) return DecodedEditorText(utf8, EditorCharset.UTF8, false)
-    val gb = runCatching { String(bytes, EditorCharset.GB18030.charset) }.getOrDefault(utf8)
-    val badGb = gb.count { it == '\uFFFD' }
-    return if (badGb < badUtf8) {
-        DecodedEditorText(gb, EditorCharset.GB18030, false)
-    } else {
-        DecodedEditorText(utf8, EditorCharset.UTF8, true)
+    strictDecode(bytes, Charsets.UTF_8)?.let { return DecodedEditorText(it, EditorCharset.UTF8, false) }
+    strictDecode(bytes, EditorCharset.GB18030.charset)?.let { return DecodedEditorText(it, EditorCharset.GB18030, false) }
+    return DecodedEditorText(String(bytes, Charsets.UTF_8), EditorCharset.UTF8, true)
+}
+
+internal fun readCapped(input: InputStream, limit: Long): ByteArray? {
+    val out = ByteArrayOutputStream()
+    val buffer = ByteArray(64 * 1024)
+    var total = 0L
+    while (true) {
+        val n = input.read(buffer)
+        if (n < 0) return out.toByteArray()
+        total += n
+        if (total > limit) return null
+        out.write(buffer, 0, n)
     }
 }
 
@@ -211,6 +234,7 @@ internal fun TextEditorScreen(
     var lock by remember { mutableStateOf(EditorLock.NONE) }
     var charset by remember { mutableStateOf(EditorCharset.UTF8) }
     var dirty by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
     var showDiscard by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -221,6 +245,7 @@ internal fun TextEditorScreen(
     val scrollState = rememberScrollState()
     val textHorizontalState = rememberScrollState()
     var viewportHeight by remember { mutableIntStateOf(0) }
+    var viewportWidth by remember { mutableIntStateOf(0) }
 
     val lineHeightDp = with(density) { EDITOR_LINE_HEIGHT_SP.sp.toDp() }
     val lineHeightPx = with(density) { lineHeightDp.toPx() }
@@ -235,6 +260,8 @@ internal fun TextEditorScreen(
         lineHeight = EDITOR_LINE_HEIGHT_SP.sp,
         color = MaterialTheme.colorScheme.onBackground,
     )
+    val textMeasurer = rememberTextMeasurer()
+    val charWidthPx = remember(bodyStyle) { textMeasurer.measure(text = "0", style = bodyStyle).size.width.toFloat() }
 
     LaunchedEffect(file) {
         loadState = EditorLoadState.LOADING
@@ -243,9 +270,12 @@ internal fun TextEditorScreen(
             loadState = EditorLoadState.TOO_LARGE
             return@LaunchedEffect
         }
-        val bytes = withContext(Dispatchers.IO) { runCatching { file.readBytes() }.getOrNull() }
+        val read = withContext(Dispatchers.IO) {
+            runCatching { file.inputStream().use { readCapped(it, EDITOR_MAX_OPEN_BYTES) } }
+        }
+        val bytes = read.getOrNull()
         if (bytes == null) {
-            loadState = EditorLoadState.UNREADABLE
+            loadState = if (read.isFailure) EditorLoadState.UNREADABLE else EditorLoadState.TOO_LARGE
             return@LaunchedEffect
         }
         val decoded = decodeEditorText(bytes)
@@ -253,6 +283,7 @@ internal fun TextEditorScreen(
         charset = decoded.charset
         lock = when {
             editorIsBinary(bytes) -> EditorLock.BINARY
+            decoded.lossy -> EditorLock.LOSSY
             bytes.size > EDITOR_MAX_EDIT_BYTES -> EditorLock.TOO_LARGE
             !file.canWrite() -> EditorLock.PERMISSION
             else -> EditorLock.NONE
@@ -273,8 +304,22 @@ internal fun TextEditorScreen(
         if (clamped != current) scrollState.scrollTo(clamped)
     }
 
-    LaunchedEffect(text, selection.end, viewportHeight) {
-        if (loadState == EditorLoadState.READY) revealLine(lineIndexOfOffset(text, selection.end))
+    LaunchedEffect(text, selection.end, viewportHeight, viewportWidth) {
+        if (loadState != EditorLoadState.READY) return@LaunchedEffect
+        revealLine(lineIndexOfOffset(text, selection.end))
+        if (viewportWidth > 0 && charWidthPx > 0) {
+            val x = (columnOfOffset(text, selection.end) - 1) * charWidthPx
+            val current = textHorizontalState.value
+            val target = when {
+                x < current -> x
+                x + charWidthPx > current + viewportWidth -> x + charWidthPx - viewportWidth
+                else -> null
+            }
+            if (target != null) {
+                val clamped = target.roundToInt().coerceIn(0, textHorizontalState.maxValue)
+                if (clamped != current) textHorizontalState.scrollTo(clamped)
+            }
+        }
     }
 
     LaunchedEffect(query, matchCase) {
@@ -285,6 +330,8 @@ internal fun TextEditorScreen(
         composing = TextRange.Zero
     }
 
+    LaunchedEffect(text) { matchIndex = 0 }
+
     fun gotoMatch(delta: Int) {
         if (matches.isEmpty()) return
         matchIndex = Math.floorMod(matchIndex + delta, matches.size)
@@ -294,6 +341,7 @@ internal fun TextEditorScreen(
     }
 
     fun replaceCurrent() {
+        if (readOnly) return
         val m = matches.getOrNull(matchIndex) ?: return
         text = text.replaceRange(m.first, m.last + 1, replacement)
         dirty = true
@@ -303,8 +351,9 @@ internal fun TextEditorScreen(
     }
 
     fun replaceAll() {
-        if (matches.isEmpty()) return
-        text = replaceEditorMatches(text, matches, replacement)
+        if (readOnly || matches.isEmpty()) return
+        val all = findEditorMatches(text, query, matchCase, limit = Int.MAX_VALUE)
+        text = replaceEditorMatches(text, all, replacement)
         dirty = true
         matchIndex = 0
         selection = TextRange.Zero
@@ -312,25 +361,34 @@ internal fun TextEditorScreen(
     }
 
     fun save() {
-        if (readOnly || loadState != EditorLoadState.READY) return
-        val bytes = text.toByteArray(charset.charset)
-        val tmp = file.parentFile?.let { File(it, ".${file.name}.droiddeck-tmp") }
+        if (readOnly || saving || loadState != EditorLoadState.READY) return
+        val snapshot = text
+        val bytes = snapshot.toByteArray(charset.charset)
+        saving = true
         scope.launch {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
-                    if (tmp == null) {
+                    val parent = file.parentFile
+                    if (parent == null) {
                         file.writeBytes(bytes)
+                        true
                     } else {
-                        tmp.writeBytes(bytes)
-                        if (!tmp.renameTo(file)) {
-                            file.writeBytes(bytes)
+                        val tmp = File.createTempFile(".${file.name}.", ".droiddeck-tmp", parent)
+                        try {
+                            tmp.writeBytes(bytes)
+                            runCatching {
+                                Files.setPosixFilePermissions(tmp.toPath(), Files.getPosixFilePermissions(file.toPath()))
+                            }
+                            tmp.renameTo(file)
+                        } finally {
                             tmp.delete()
                         }
                     }
-                }.onFailure { if (tmp != null) runCatching { tmp.delete() } }.isSuccess
+                }.isSuccess
             }
+            saving = false
             if (ok) {
-                dirty = false
+                if (text == snapshot) dirty = false
             } else {
                 Toast.makeText(context, context.getString(R.string.fm_edit_save_failed, file.name), Toast.LENGTH_SHORT).show()
             }
@@ -338,6 +396,7 @@ internal fun TextEditorScreen(
     }
 
     fun tryExit() {
+        if (saving) return
         if (dirty && !readOnly) showDiscard = true else onExit()
     }
 
@@ -425,7 +484,7 @@ internal fun TextEditorScreen(
             }
             IconButton(
                 onClick = { save() },
-                enabled = loadState == EditorLoadState.READY && !readOnly && dirty,
+                enabled = loadState == EditorLoadState.READY && !readOnly && dirty && !saving,
                 modifier = Modifier.focusGlide(CircleShape),
             ) {
                 Icon(
@@ -453,7 +512,7 @@ internal fun TextEditorScreen(
                         modifier = Modifier.weight(1f).focusGlide(),
                     )
                     Text(
-                        text = "${matchIndex.coerceAtMost((matches.size - 1).coerceAtLeast(0)) + 1}/${matches.size}",
+                        text = if (matches.isEmpty()) "0/${matches.size}" else "${matchIndex.coerceAtMost(matches.size - 1) + 1}/${matches.size}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         maxLines = 1,
@@ -514,14 +573,14 @@ internal fun TextEditorScreen(
                     )
                     TextButton(
                         onClick = { replaceCurrent() },
-                        enabled = matches.isNotEmpty(),
+                        enabled = !readOnly && matches.isNotEmpty(),
                         modifier = Modifier.focusGlide(CircleShape),
                     ) {
                         Text(stringResource(R.string.fm_edit_replace), fontSize = 13.sp)
                     }
                     TextButton(
                         onClick = { replaceAll() },
-                        enabled = matches.isNotEmpty(),
+                        enabled = !readOnly && matches.isNotEmpty(),
                         modifier = Modifier.focusGlide(CircleShape),
                     ) {
                         Text(stringResource(R.string.fm_edit_replace_all), fontSize = 13.sp)
@@ -575,14 +634,15 @@ internal fun TextEditorScreen(
                             mutedColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             cursorColor = MaterialTheme.colorScheme.primary,
                         )
-                        Box(modifier = Modifier.weight(1f).horizontalScroll(textHorizontalState)) {
+                        Box(modifier = Modifier.weight(1f).onSizeChanged { viewportWidth = it.width }.horizontalScroll(textHorizontalState)) {
                             BasicTextField(
                                 value = TextFieldValue(text = text, selection = selection, composition = composing),
                                 onValueChange = { next ->
+                                    val changed = next.text != text
                                     text = next.text
                                     selection = next.selection
                                     composing = next.composition
-                                    dirty = true
+                                    if (changed) dirty = true
                                 },
                                 readOnly = readOnly,
                                 textStyle = bodyStyle,

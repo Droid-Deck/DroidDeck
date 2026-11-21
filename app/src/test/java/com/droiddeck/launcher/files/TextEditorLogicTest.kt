@@ -1,8 +1,11 @@
 package com.droiddeck.launcher.files
 
+import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -45,6 +48,20 @@ class TextEditorLogicTest {
         val decoded = decodeEditorText(byteArrayOf(0xFF.toByte()))
         assertEquals(EditorCharset.UTF8, decoded.charset)
         assertTrue(decoded.lossy)
+    }
+
+    @Test
+    fun literalReplacementCharStaysCleanUtf8() {
+        val decoded = decodeEditorText("�A".toByteArray(Charsets.UTF_8))
+        assertEquals(EditorCharset.UTF8, decoded.charset)
+        assertFalse(decoded.lossy)
+    }
+
+    @Test
+    fun readCappedRefusesOverLimit() {
+        val data = ByteArray(100) { 65 }
+        assertArrayEquals(data, readCapped(ByteArrayInputStream(data), 100L))
+        assertNull(readCapped(ByteArrayInputStream(data), 99L))
     }
 
     @Test
