@@ -86,8 +86,8 @@ class HdrSteamSyncTest(unittest.TestCase):
             LIVE["hdr_request"]("0", directory)
             self.assertEqual(path.read_text(), "0\n")
 
-    def helper(self, directory, steamos=True):
-        helper = LIVE["Helper"]("/steam", 0, steamos)
+    def helper(self, directory):
+        helper = LIVE["Helper"]("/steam", 0)
         calls = []
 
         class Page:
@@ -135,16 +135,21 @@ class HdrSteamSyncTest(unittest.TestCase):
             finally:
                 globals_["CONTROLS_DIR"] = previous
 
-    def test_only_the_session_client_is_bridged(self):
+    def test_a_client_without_the_setting_is_left_alone(self):
         with tempfile.TemporaryDirectory() as directory:
             globals_ = LIVE["Helper"].sync_hdr.__globals__
             previous = globals_["CONTROLS_DIR"]
             try:
                 globals_["CONTROLS_DIR"] = directory
-                helper, calls = self.helper(directory, steamos=False)
+                helper, calls = self.helper(directory)
+                helper.page.evaluate = lambda expression: calls.append(expression) or "unavailable"
                 (Path(directory) / "state.json").write_text(json.dumps({"hdr": True}))
                 helper.sync_hdr()
-                self.assertEqual(calls, [])
+                self.assertEqual(calls, [("Runtime.addBinding", {"name": LIVE["HDR_BINDING"]}), LIVE["HDR_JS"]])
+                self.assertFalse(helper.hdr_installed)
+                self.assertIsNone(helper.hdr_state)
+                helper.sync_hdr()
+                self.assertEqual(len(calls), 2, "a client without the setting is not asked again straight away")
             finally:
                 globals_["CONTROLS_DIR"] = previous
 

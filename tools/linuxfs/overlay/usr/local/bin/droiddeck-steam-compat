@@ -974,6 +974,7 @@ class Helper:
         self.frame_limit_retry = 0
         self.hdr_state = None
         self.hdr_installed = False
+        self.hdr_retry = 0
         self.windows = {}
         self.windows_retry = 0
 
@@ -1035,17 +1036,18 @@ class Helper:
                 del self.windows[ident]
 
     def sync_hdr(self):
-        if not self.steamos:
-            return
         try:
             with open(os.path.join(CONTROLS_DIR, "state.json")) as source:
                 value = json.load(source).get("hdr")
             if not isinstance(value, bool):
                 return
             if not self.hdr_installed:
+                if time.monotonic() < self.hdr_retry:
+                    return
                 self.page.call("Runtime.addBinding", {"name": HDR_BINDING})
                 self.hdr_installed = self.page.evaluate(HDR_JS) in ("installed", "present")
                 if not self.hdr_installed:
+                    self.hdr_retry = time.monotonic() + 10
                     return
             if value != self.hdr_state:
                 if self.page.evaluate("window.__droiddeckHdr ? window.__droiddeckHdr.set(%s) : false" % json.dumps(value)) is True:
@@ -1169,6 +1171,7 @@ class Helper:
         self.frame_limit_retry = 0
         self.hdr_state = None
         self.hdr_installed = False
+        self.hdr_retry = 0
         self.sync_controls()
         return True
 
