@@ -34,6 +34,12 @@ internal enum class PadKit(val face: FaceGlyphs, val dpad: DpadStyle, val stick:
         else -> label(control)
     }
 
+    fun native(element: InputSurfaceElement) = element.id == "legacy:${element.control.id}" && element.icon == 0 &&
+        (element.name == element.control.label || element.name == name(element.control))
+
+    fun artwork(element: InputSurfaceElement) = element.image.isEmpty() && element.showLabel &&
+        (native(element) || element.id == "builtin:keyboard" && element.icon == InputButtonIcons.KEYBOARD)
+
     companion object {
         fun forOverlay(context: Context, layout: SavedInputLayout?): PadKit? =
             if (layout?.id != InputLibraries.OVERLAY) null else when (SessionPrefs.steamController(context)) {

@@ -43,7 +43,7 @@ object OnScreenLayout {
         val (reference, matched) = reference(context, layout, width, height)
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
-            (dock != null || height > width && layout.aspect >= 1f)
+            (dock != null || height > width && layout.aspect >= 1f || height <= width && layout.aspect > 0f && layout.aspect < 1f)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
         val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val regenerated = when {
@@ -89,7 +89,7 @@ object OnScreenLayout {
         val main = if (portraitMain) 1f / saved.aspect else saved.aspect.takeIf { it > 0f } ?: (1f / aspect)
         val ids = elements.associateBy { it.id }
         val kept = saved.elements.mapNotNull { e -> ids[e.id]?.copy(x = e.x, y = e.y, width = e.width, height = e.height) }
-        val added = fit(elements.filter { d -> saved.elements.none { it.id == d.id } }, aspect, 1f, (main * 1000).roundToInt().coerceAtLeast(1), 1000, Rect())
+        val added = fit(elements.filter { d -> !optional(d) && saved.elements.none { it.id == d.id } }, aspect, 1f, (main * 1000).roundToInt().coerceAtLeast(1), 1000, Rect())
         return saved.copy(elements = kept + added, aspect = main, rotated = elements, rotatedAspect = aspect)
     }
 

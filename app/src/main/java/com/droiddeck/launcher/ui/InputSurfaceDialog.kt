@@ -114,6 +114,14 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     val dirty get() = elements != layout.elements || actions != preset.elements || clicks != preset.clicks || layoutScale != layout.scale || aspect != layout.aspect
     fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale, aspect)).takeLast(40) }
     fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; aspect = it.aspect; history = history.dropLast(1) } }
+    private fun adoptDisplayedFrame(context: android.content.Context): Boolean {
+        if (canvas.width <= 0 || canvas.height <= 0 || shown.isEmpty()) return false
+        val current = layout.copy(elements = elements, aspect = aspect)
+        if (OnScreenLayout.oriented(current, canvas.width, canvas.height).aspect == aspect) return false
+        beginEdit(shown, canvasAspect, gamepad?.let { GamepadScaler(context, canvas.width, canvas.height, layout) })
+        return true
+    }
+
     fun beginEdit(displayed: List<InputSurfaceElement>, aspect: Float, scaler: GamepadScaler? = gamepad) {
         checkpoint()
         toolsExpanded = false
@@ -121,8 +129,9 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         this.aspect = aspect
         scaler?.let { gamepad = it }
     }
-    fun scaleAll(percent: Int) {
-        val base = scaleBase?.takeIf { it.second == elements } ?: Triple(elements, elements, if (rescales) layoutScale else 0f).also { checkpoint() }
+    fun scaleAll(context: android.content.Context, percent: Int) {
+        val adopted = adoptDisplayedFrame(context)
+        val base = scaleBase?.takeIf { it.second == elements } ?: Triple(elements, elements, if (rescales) layoutScale else 0f).also { if (!adopted) checkpoint() }
         val factor = percent / 100f
         val pad = gamepad
         elements = if (base.third > 0f && pad != null) {
@@ -155,6 +164,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         val generated = OnScreenLayout.generatedSize(context, layout.copy(elements = elements), canvas.width, canvas.height) != null
         if (generated && legacy != null) { checkpoint(); elements = elements + legacy }
         else { beginEdit(shown, canvasAspect); elements = elements + element }
+        if (element.id == "builtin:keyboard" && actions[element.id] == null) actions = actions + (element.id to InputAction.Command(InputCommand.KEYBOARD))
         selected = element.id
     }
 
@@ -168,7 +178,10 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         elements = elements.map { if (it.id == element.id) element else it }
     }
 
-    fun resetPositions() { positioned?.let { checkpoint(); elements = it; if (rescales) layoutScale = 1f } }
+    fun resetPositions(context: android.content.Context) {
+        val adopted = adoptDisplayedFrame(context)
+        positioned?.let { if (!adopted) checkpoint(); elements = it; if (rescales) layoutScale = 1f }
+    }
     fun action(e: InputSurfaceElement) = preset.copy(elements = actions).action(e)
     fun clickAction(e: InputSurfaceElement) = preset.copy(elements = actions, clicks = clicks).clickAction(e)
 }
@@ -385,7 +398,7 @@ private fun SurfaceToolbar(draft: SurfaceDraft, onSave: () -> Unit, onLeave: () 
         SecondaryButton(stringResource(R.string.common_cancel), compact = true, onClick = onLeave)
         SecondaryButton(stringResource(R.string.input_editor_add), enabled = draft.elements.size < 64, compact = true) { draft.adding = true }
         SecondaryButton(stringResource(R.string.input_editor_undo), enabled = draft.history.isNotEmpty(), compact = true) { draft.undo() }
-        if (draft.defaults != null) SecondaryButton(stringResource(R.string.input_reset_positions), enabled = draft.positioned != null, compact = true) { draft.resetPositions() }
+        if (draft.defaults != null) SecondaryButton(stringResource(R.string.input_reset_positions), enabled = draft.positioned != null, compact = true) { draft.resetPositions(context) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(draft.snap, { draft.snap = it; ControllerPrefs.setSnap(context, it) })
             Text(stringResource(R.string.ctrl_editor_snap))
@@ -393,7 +406,7 @@ private fun SurfaceToolbar(draft: SurfaceDraft, onSave: () -> Unit, onLeave: () 
         PrimaryButton(stringResource(R.string.input_editor_done), compact = true, onClick = onSave)
     }
     if (draft.elements.isNotEmpty()) SliderRow(stringResource(R.string.ctrl_size), null, draft.scale, 80..125, step = 5,
-        format = { "$it%" }, modifier = Modifier.testTag("input-editor-scale")) { draft.scaleAll(it) }
+        format = { "$it%" }, modifier = Modifier.testTag("input-editor-scale")) { draft.scaleAll(context, it) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

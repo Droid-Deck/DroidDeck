@@ -405,10 +405,7 @@ class InputSurfaceView(
                     art.system(canvas, width.toFloat(), height.toFloat(), PadArt.Shape.ROUND, PadArt.Icon.KEYBOARD, lit)
                     return
                 }
-                val control = element.control
-                val native = element.id == "legacy:${control.id}" && element.icon == 0 &&
-                    (element.name == control.label || element.name == kit.name(control))
-                if (native && art.button(canvas, width, height, control, kit, lit)) return
+                if (kit.native(element) && art.button(canvas, width, height, element.control, kit, lit)) return
             }
             drawSurface(canvas, lit, element.buttonShape, classic)
             val cx = width / 2f

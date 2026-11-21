@@ -79,7 +79,7 @@ class OnScreenLayoutTest {
         assertEquals(original.map { it.id }, placed(true, true).map { it.id })
         assertEquals(placed(false, false), placed(true, true))
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
-        val edited = layout.copy(elements = layout.elements.map { e -> if (e.control == InputControl.START) e.copy(y = .3f) else e })
+        val edited = layout.copy(elements = layout.elements.map { e -> if (e.control == InputControl.START) e.copy(y = .3f) else e }, aspect = w.toFloat() / h)
         val fitted = OnScreenLayout.elements(context, edited, w, h, safe)
         assertTrue(fitted.single { it.control == InputControl.START }.y < .5f)
     }
@@ -586,5 +586,42 @@ class OnScreenLayoutTest {
         val hidden = OnScreenLayout.elements(context, edited, 1600, 900, Rect(), rearButtons = false, trackpads = false).map { it.control }
         assertFalse(InputControl.R5 in hidden)
         assertFalse(InputControl.RIGHT_PAD in hidden)
+    }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun aPortraitMainLayoutUsesTheStockControlsInLandscape() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
+        val layout = gamepad()
+        val portrait = OnScreenLayout.elements(context, layout, 900, 1600, Rect()).map { if (it.control == InputControl.A) it.copy(x = .1f, y = .1f) else it }
+        val edited = layout.copy(elements = portrait, aspect = 900f / 1600f)
+        assertEquals(OnScreenLayout.elements(context, layout, 1600, 900, Rect()), OnScreenLayout.elements(context, edited, 1600, 900, Rect()))
+        assertEquals(.1f, OnScreenLayout.elements(context, edited, 900, 1600, Rect()).at(InputControl.A).x, .001f)
+    }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun aPortraitSaveKeepsOptionalControlsOutOfTheLandscapeFrame() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad()
+        val landscape = OnScreenLayout.elements(context, layout, 1600, 900, Rect())
+        val edited = OnScreenLayout.withFrame(context, layout, landscape, 1600f / 900f)
+        val portrait = OnScreenLayout.elements(context, edited, 900, 1600, Rect(), rearButtons = true, trackpads = true)
+            .map { if (it.control == InputControl.B) it.copy(x = .1f, y = .2f) else it }
+        assertTrue(portrait.any { it.control == InputControl.L4 })
+        val both = OnScreenLayout.withFrame(context, edited, portrait, 900f / 1600f)
+        assertTrue(both.elements.none { it.control == InputControl.L4 || it.control == InputControl.LEFT_PAD })
+        assertTrue(both.rotated.any { it.control == InputControl.L4 })
+        assertEquals(OnScreenLayout.elements(context, edited, 1600, 900, Rect(), rearButtons = true, trackpads = true),
+            OnScreenLayout.elements(context, both, 1600, 900, Rect(), rearButtons = true, trackpads = true))
+    }
+
+    @Test fun stockControlsUseTheKitArtworkWhileAddedAndTrackpadControlsStillUseTheTint() {
+        for (kit in listOf(PadKit.XBOX, PadKit.DUALSENSE)) {
+            SessionPrefs.setSteamController(context, if (kit == PadKit.XBOX) SessionPrefs.CONTROLLER_XBOX360 else SessionPrefs.CONTROLLER_DUALSENSE)
+            val layout = gamepad()
+            assertTrue(kit.name, layout.elements.all { kit.artwork(it) })
+            val added = InputSurfaceElement(InputControl.A, 0f, 0f, .1f, .1f, "custom", name = "Fire")
+            assertFalse(kit.artwork(added))
+            assertFalse(kit.artwork(layout.elements.first { it.control == InputControl.A }.copy(image = "picture")))
+        }
     }
 }
