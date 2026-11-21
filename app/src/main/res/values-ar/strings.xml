@@ -2569,7 +2569,7 @@
     <string name="display_game_fit">ملاءمة اللعبة لنسبة 16:9</string>
     <string name="display_game_fit_hint">كيفية ملاءمة ألعاب 16:9 لهذه الشاشة. يُطبَّق في الجلسة التالية.</string>
     <string name="display_game_fit_unavailable">اختر «مطابقة الشاشة» أو حجمًا مخصَّصًا أضيق من 16:9.</string>
-    <string name="display_avoid_notch">تجنب الحواف</string>
+    <string name="display_avoid_notch">تجنّب فتحة الكاميرا</string>
     <string name="display_avoid_notch_hint">يُبقي الصورة بعيدًا عن فتحة الكاميرا. يُطبَّق عند العودة إلى الجلسة.</string>
     <string name="display_preserve">الحفاظ على النسب</string>
     <string name="display_stretch">تمديد لملء الشاشة</string>

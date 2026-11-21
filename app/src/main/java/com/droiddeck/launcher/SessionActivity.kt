@@ -182,7 +182,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun applyNotchInset(insets: android.view.WindowInsets? = window.decorView.rootWindowInsets) {
         if (!::sessionRoot.isInitialized) return
         val cutout = if (avoidNotch && Build.VERSION.SDK_INT >= 28 && SessionState.mode == SessionService.MODE_STEAM &&
-            !pipUi && !isInPictureInPictureMode && glassesScreen == null && bottomGame == null && !cardboard.enabled)
+            !pipUi && !isInPictureInPictureMode && glassesScreen == null && bottomGame == null && !activeCardboard.enabled)
             insets?.displayCutout else null
         val left = cutout?.safeInsetLeft ?: 0
         val top = cutout?.safeInsetTop ?: 0
@@ -191,6 +191,23 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (sessionRoot.paddingLeft == left && sessionRoot.paddingTop == top &&
             sessionRoot.paddingRight == right && sessionRoot.paddingBottom == bottom) return
         sessionRoot.setPadding(left, top, right, bottom)
+        uiHandler.post { applyUnfoldedControls() }
+    }
+
+    private fun rootContentWidth() = sessionRoot.width - sessionRoot.paddingLeft - sessionRoot.paddingRight
+
+    private fun rootContentHeight() = sessionRoot.height - sessionRoot.paddingTop - sessionRoot.paddingBottom
+
+    private inline fun <T> inSurfaceSpace(event: MotionEvent, block: () -> T): T {
+        val dx = if (outputView() === surfaceView) -surfaceView.left.toFloat() else 0f
+        val dy = if (outputView() === surfaceView) -surfaceView.top.toFloat() else 0f
+        if (dx == 0f && dy == 0f) return block()
+        event.offsetLocation(dx, dy)
+        try {
+            return block()
+        } finally {
+            event.offsetLocation(-dx, -dy)
+        }
     }
 
     private fun applyGameAlignment() {
@@ -3701,12 +3718,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (pen >= 0) when (routePen(event, pen)) {
             PenRouter.Route.TOUCH -> {}
             PenRouter.Route.PEN -> {
-                if (!appUiOwnsPointer()) return penSample(event, pen) || super.dispatchGenericMotionEvent(event)
+                if (!appUiOwnsPointer()) return inSurfaceSpace(event) { penSample(event, pen) } || super.dispatchGenericMotionEvent(event)
                 if (super.dispatchGenericMotionEvent(event)) {
                     penStream.cancel()
                     return true
                 }
-                return !touchEditorOpen && penSample(event, pen)
+                return !touchEditorOpen && inSurfaceSpace(event) { penSample(event, pen) }
             }
             else -> return super.dispatchGenericMotionEvent(event)
         }
@@ -3714,10 +3731,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             if (appUiOwnsPointer()) {
                 if (super.dispatchGenericMotionEvent(event)) return true
                 if (touchEditorOpen) return false
-                if (onMouse(event)) return true
+                if (inSurfaceSpace(event) { onMouse(event) }) return true
                 return false
             }
-            if (onMouse(event)) return true
+            if (inSurfaceSpace(event) { onMouse(event) }) return true
         }
         return super.dispatchGenericMotionEvent(event)
     }
@@ -4591,14 +4608,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun controlsBelowWanted(): Boolean {
         if (!::sessionRoot.isInitialized || glassesScreen != null || bottomGame != null || cardboard.enabled) return false
-        return SessionPrefs.controlsBelowWanted(this, SessionState.mode, sessionRoot.width, sessionRoot.height,
+        return SessionPrefs.controlsBelowWanted(this, SessionState.mode, rootContentWidth(), rootContentHeight(),
             pipUi || isInPictureInPictureMode)
     }
 
     private fun applyUnfoldedControls() {
         if (!::sessionRoot.isInitialized) return
-        val width = sessionRoot.width
-        val height = sessionRoot.height
+        val width = rootContentWidth()
+        val height = rootContentHeight()
         val wanted = controlsBelowWanted()
         val tabRow = unfoldedColumn?.getChildAt(0)?.height?.let {
             it - (com.droiddeck.launcher.ui.BAR_HEIGHT.value * resources.displayMetrics.density + 0.5f).toInt()
@@ -6131,6 +6148,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val e = effectiveCardboard(c)
         activeCardboard = e
         applyGameAlignment()
+        applyNotchInset()
         if (CompositorHost.isStarted) pushCardboard(e)
         if (e.enabled && !was.enabled) headTracker?.recenter()
         updateHeadTracker()
@@ -6214,6 +6232,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         glassesOutputActive = false
         surfaceW = 0
         surfaceH = 0
+        applyNotchInset()
         CompositorHost.detach(screen.holder.surface)
         surfaceView.visibility = View.VISIBLE
         applyOutputPacing()
@@ -6263,6 +6282,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             bottomGame = screen
             surfaceW = 0
             surfaceH = 0
+            applyNotchInset()
             screen.setOnDismissListener {
                 if (bottomGame === screen) {
                     restoreTopOutput(screen)
@@ -6304,6 +6324,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         updateOnScreenPad()
         surfaceW = 0
         surfaceH = 0
+        applyNotchInset()
         CompositorHost.detach(screen.holder.surface)
         if (glassesScreen != null) return
         surfaceView.visibility = View.VISIBLE
@@ -6468,6 +6489,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             bottomGame?.let { restoreTopOutput(it); runCatching { it.dismiss() } }
             val screen = GlassesScreen(this, target, Glasses.outputHz(), this, Glasses.outputResolution())
             glassesScreen = screen
+            applyNotchInset()
             applyOutputPacing()
             surfaceW = 0
             surfaceH = 0
