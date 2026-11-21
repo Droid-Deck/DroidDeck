@@ -926,6 +926,7 @@ class SessionService : Service() {
                         ))
                     }
                 },
+                schedule = { delay, task -> mainHandler.postDelayed({ task() }, delay) },
             )
             updateDownloadMonitoring()
             mainHandler.post { updateSuspendPolicy() }

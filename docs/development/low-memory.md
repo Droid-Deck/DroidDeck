@@ -72,10 +72,13 @@ has waited five seconds in total or six seconds have gone by since it began, is 
 minute, and a late answer from it is discarded. A process is known by its number and start time, so a new process that got the
 number of a skipped one is asked. Processes with less
 than 8 MiB of anonymous memory are skipped. While the app pages the session out for suspend, or
-reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold` and writes its own
-request (`1` to page out, `0` to read back) into that file. A signalled process reads the hold
-file first and the control file only when the hold file is missing or empty, so a trim request
-the monitor wrote at the same moment cannot replace the app's. The suspend page-out answers `1`
+reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold`. A page-out writes
+`1` into that file. A read-back writes `2 0`, which asks for nothing, and puts `0` into
+`/tmp/.dd-zram.hold.<pid>` for each process it chose. A signalled process reads its own hold file
+first, then the shared one, and the control file only when both are missing or empty. A trim
+request the monitor wrote at the same moment cannot replace the app's, and a process that was
+not chosen does not read back, even if it only now starts the page-out request it was sent
+before the suspend. The suspend page-out answers `1`
 in `/tmp/.dd-zram.ack.<pid>` and a trim answers its kB in `/tmp/.dd-zram.trim.<pid>`, so the
 monitor never removes or reads an answer the app is waiting for, and the app never takes a
 trim's answer for its own. A trim budget smaller than a chunk covers the stretch of the chunk
@@ -149,6 +152,26 @@ Without root an app cannot write its memory cgroup's `memory.reclaim` (owned by 
 `process_madvise` on another process returns `EPERM`, `PAGEMAP_SCAN` is absent before Linux 6.7,
 and KGSL's per-process GPU reclaim `state` is root-only. Page-out therefore runs inside each
 process through the preload, and GPU memory itself cannot be compressed from userspace.
+
+## Page-out and read-back around a suspend
+
+A hidden or screen-off suspend stops the session at once. It pages the session out first only
+when `MemAvailable` is below twice the reserve, the larger of 1 GiB and a tenth of RAM. Otherwise
+the session stays resident while it is stopped, and every ten seconds of uptime the app reads
+`MemAvailable` again. Once it falls below that level, the app moves the guest clock forward by
+the stopped time, continues the session with audio still suspended, pages it out and stops it
+again. If the session does not settle in that stop, the app stops it again every ten seconds
+until it does, so it stays suspended as the service reports. A resume ends the checks and the
+retries and cuts a running page-out short. A short screen-off with memory
+to spare therefore moves nothing into zram, and nothing has to come back when the screen turns on.
+Getting it back costs much more on some phones than on others: after a 12 s screen-off a Poco F7
+read 690 MB back in 6.7 s while the phone was waking up.
+
+After the resume, the processes that were paged out are read back largest first, as long as
+their swap fits the budget: half of `MemAvailable`, while leaving the reserve available.
+Only the chosen processes get a read-back request. Processes that do not fit keep their memory
+in zram and fault it back on demand, so one large process no longer stops the read-back of every
+other one.
 
 ## CRAM and the bounded pager experiment
 
