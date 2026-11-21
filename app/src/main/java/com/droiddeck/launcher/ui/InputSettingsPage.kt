@@ -278,7 +278,9 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                         else InputHint(layout.name)
                         InputNavigationRow(stringResource(R.string.input_saved_layouts), stringResource(R.string.input_saved_layouts_hint)) { go(InputPage.LAYOUTS) }
                         if (layout.editable) {
-                            InputColorRow(host, layout.style.tint) { color -> update { it.withLayout(layout.copy(style = layout.style.copy(tint = color))) } }
+                            if (!OnScreenLayout.usesSteamDeckButtons(context, layout)) {
+                                InputColorRow(host, layout.style.tint) { color -> update { it.withLayout(layout.copy(style = layout.style.copy(tint = color))) } }
+                            }
                             SliderRow(stringResource(R.string.ctrl_opacity), null, layout.style.opacity, 1..100, step = 1,
                                 format = { "$it%" }) { opacity -> update { it.withLayout(layout.copy(style = layout.style.copy(opacity = opacity))) } }
                             for (button in layout.quickButtons) ToggleRow(host, "quick-${button.name.lowercase()}", stringResource(quickButtonLabel(button)), null,

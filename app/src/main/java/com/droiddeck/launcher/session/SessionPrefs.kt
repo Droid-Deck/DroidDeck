@@ -673,6 +673,12 @@ object SessionPrefs {
         prefs(context).edit().putString("osc", mode).apply()
     }
 
+    fun oscRearButtons(context: Context): Boolean = prefs(context).getBoolean("oscRearButtons", false)
+    fun setOscRearButtons(context: Context, shown: Boolean) { prefs(context).edit().putBoolean("oscRearButtons", shown).apply() }
+
+    fun oscTrackpads(context: Context): Boolean = prefs(context).getBoolean("oscTrackpads", false)
+    fun setOscTrackpads(context: Context, shown: Boolean) { prefs(context).edit().putBoolean("oscTrackpads", shown).apply() }
+
     fun linuxDriver(context: Context): String =
         prefs(context).getString("linuxDriver", null)
             ?: prefs(context).getString("linuxDriver.steam", null)
@@ -1620,10 +1626,18 @@ object SessionPrefs {
         return Pair(w and 1.inv(), h and 1.inv())
     }
 
-    fun hdr(context: Context, mode: String): Boolean = prefs(context).getBoolean("hdr.$mode", false)
+    fun hdrKey(mode: String): String = "hdr.$mode"
+
+    fun hdr(context: Context, mode: String): Boolean = prefs(context).getBoolean(hdrKey(mode), false)
 
     fun setHdr(context: Context, mode: String, on: Boolean) {
-        prefs(context).edit().putBoolean("hdr.$mode", on).apply()
+        prefs(context).edit().putBoolean(hdrKey(mode), on).apply()
+    }
+
+    fun zeroCopy(context: Context, mode: String): Boolean = prefs(context).getBoolean("zeroCopy.$mode", true)
+
+    fun setZeroCopy(context: Context, mode: String, on: Boolean) {
+        prefs(context).edit().putBoolean("zeroCopy.$mode", on).apply()
     }
 
     const val FPS_UNPACED = -1

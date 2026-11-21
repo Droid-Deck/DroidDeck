@@ -2,16 +2,21 @@
 #define AHB_SWAPCHAIN_H
 #include <stddef.h>
 #include <stdint.h>
+#include <android/hardware_buffer.h>
 #include <wayland-server.h>
 
 struct dmabuf_buffer;
 struct surface;
+struct vkp_draw;
 
 void ahb_swapchain_init(struct wl_display *display);
 void ahb_swapchain_set_mode(int on, int live);
 int ahb_swapchain_last_frame_age_ms(void);
 int ahb_swapchain_has_ahb(const struct dmabuf_buffer *b);
-int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_w, int scene_h);
+int ahb_swapchain_adopt(struct wl_client *c, struct wl_resource *buffer, struct dmabuf_buffer *b, AHardwareBuffer *ahb,
+                        uint64_t modifier);
+AHardwareBuffer *ahb_swapchain_display_buffer(const struct dmabuf_buffer *b);
+int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_w, int scene_h, const struct vkp_draw *draw);
 int ahb_swapchain_defer_release(struct dmabuf_buffer *b, struct wl_resource *buffer, struct surface *s, int paced);
 void ahb_swapchain_surface_gone(struct surface *s);
 unsigned ahb_swapchain_stats_take(void);
