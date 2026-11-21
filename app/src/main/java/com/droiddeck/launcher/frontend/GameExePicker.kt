@@ -51,11 +51,12 @@ object GameExePicker {
                 val entries = dir.listFiles()?.sortedBy { it.name.lowercase() } ?: continue
                 for (f in entries) {
                     if (visited >= WALK_BUDGET) break@walk
-                    if (isLink(f)) continue
-                    if (f.isDirectory) {
+                    val attrs = attributes(f) ?: continue
+                    if (attrs.isSymbolicLink) continue
+                    if (attrs.isDirectory) {
                         visited++
                         if (depth < MAX_DEPTH && !skipDir(f, f.relativeTo(folder).invariantSeparatorsPath)) next.add(f)
-                    } else if (f.isFile && f.name.endsWith(".exe", ignoreCase = true)) {
+                    } else if (attrs.isRegularFile && f.name.endsWith(".exe", ignoreCase = true)) {
                         visited++
                         if (!JUNK_EXE_RE.matches(f.nameWithoutExtension)) found.add(f to depth)
                     }
@@ -98,7 +99,9 @@ object GameExePicker {
         return SKIP_PATHS.any { rel == it || rel.endsWith("/$it") }
     }
 
-    private fun isLink(f: File): Boolean = runCatching { java.nio.file.Files.isSymbolicLink(f.toPath()) }.getOrDefault(false)
+    private fun attributes(f: File): java.nio.file.attribute.BasicFileAttributes? = runCatching {
+        java.nio.file.Files.readAttributes(f.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+    }.getOrNull()
 
     private fun key(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 }
