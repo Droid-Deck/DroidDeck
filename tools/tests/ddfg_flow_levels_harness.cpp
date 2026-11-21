@@ -1,4 +1,5 @@
 #include "framegen.hpp"
+#include "ddfg_engine.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
@@ -25,12 +26,19 @@ std::map<VkBuffer, VkBufferCreateInfo> buffers;
 std::map<VkDeviceMemory, Allocation> allocations;
 std::map<VkBuffer, VkDeviceMemory> buffer_memory;
 std::map<VkDescriptorSet, std::map<uint32_t, Binding>> descriptors;
+std::map<VkDescriptorSet, VkDescriptorPool> set_pools;
+std::map<VkDescriptorPool, uint32_t> pool_capacities;
 std::map<VkPipeline, unsigned> pipelines;
 std::map<VkImage, unsigned> image_ids;
 std::map<VkBuffer, unsigned> buffer_ids;
 std::vector<Dispatch> dispatches;
+std::vector<VkImageView> external_views;
 uintptr_t serial = 100;
-unsigned buffer_creates, set_creates;
+unsigned buffer_creates, set_creates, pipeline_creates, idle_calls, image_creates, fail_image_at;
+bool gpu_pending;
+VkResult idle_result = VK_SUCCESS, reset_result = VK_SUCCESS;
+const ddfg::DeviceDispatch *engine_dispatch;
+const ddfg::InstanceDispatch *engine_instance;
 VkPipeline bound_pipeline;
 VkDescriptorSet bound_set;
 uint64_t command_hash = 14695981039346656037ull;
@@ -61,6 +69,7 @@ template<class T> void VKAPI_CALL destroy(VkDevice, T, const VkAllocationCallbac
 
 VkResult VKAPI_CALL create_image(VkDevice, const VkImageCreateInfo *info,
                                  const VkAllocationCallbacks *, VkImage *out) {
+    if (++image_creates == fail_image_at) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     *out = handle<VkImage>();
     images[*out] = {info->extent, info->format, info->usage};
     return VK_SUCCESS;
@@ -73,9 +82,11 @@ VkResult VKAPI_CALL create_view(VkDevice, const VkImageViewCreateInfo *info,
     return VK_SUCCESS;
 }
 void VKAPI_CALL destroy_image(VkDevice, VkImage image, const VkAllocationCallbacks *) {
+    assert(!gpu_pending);
     assert(images.erase(image) == 1);
 }
 void VKAPI_CALL destroy_view(VkDevice, VkImageView view, const VkAllocationCallbacks *) {
+    assert(!gpu_pending);
     assert(views.erase(view) == 1);
 }
 VkResult VKAPI_CALL create_buffer(VkDevice, const VkBufferCreateInfo *info,
@@ -86,6 +97,7 @@ VkResult VKAPI_CALL create_buffer(VkDevice, const VkBufferCreateInfo *info,
     return VK_SUCCESS;
 }
 void VKAPI_CALL destroy_buffer(VkDevice, VkBuffer buffer, const VkAllocationCallbacks *) {
+    assert(!gpu_pending);
     assert(buffers.erase(buffer) == 1);
     buffer_memory.erase(buffer);
 }
@@ -104,6 +116,7 @@ VkResult VKAPI_CALL allocate(VkDevice, const VkMemoryAllocateInfo *info,
     return VK_SUCCESS;
 }
 void VKAPI_CALL free_memory(VkDevice, VkDeviceMemory memory, const VkAllocationCallbacks *) {
+    assert(!gpu_pending);
     assert(allocations.erase(memory) == 1);
 }
 VkResult VKAPI_CALL bind_image(VkDevice, VkImage image, VkDeviceMemory memory, VkDeviceSize) {
@@ -123,8 +136,14 @@ VkResult VKAPI_CALL map_memory(VkDevice, VkDeviceMemory memory, VkDeviceSize off
     *out = allocation.data.get();
     return VK_SUCCESS;
 }
-void VKAPI_CALL unmap(VkDevice, VkDeviceMemory memory) { assert(allocations.count(memory)); }
-VkResult VKAPI_CALL idle(VkDevice) { return VK_SUCCESS; }
+void VKAPI_CALL unmap(VkDevice, VkDeviceMemory memory) {
+    assert(!gpu_pending && allocations.count(memory));
+}
+VkResult VKAPI_CALL idle(VkDevice) {
+    idle_calls++;
+    if (idle_result == VK_SUCCESS) gpu_pending = false;
+    return idle_result;
+}
 void VKAPI_CALL memory_properties(VkPhysicalDevice, VkPhysicalDeviceMemoryProperties *out) {
     *out = {};
     out->memoryTypeCount = 1;
@@ -132,15 +151,42 @@ void VKAPI_CALL memory_properties(VkPhysicalDevice, VkPhysicalDeviceMemoryProper
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 }
 VkResult VKAPI_CALL allocate_sets(VkDevice, const VkDescriptorSetAllocateInfo *info, VkDescriptorSet *out) {
+    const auto used = std::count_if(set_pools.begin(), set_pools.end(), [&](const auto &entry) {
+        return entry.second == info->descriptorPool;
+    });
+    if (used + info->descriptorSetCount > pool_capacities.at(info->descriptorPool))
+        return VK_ERROR_OUT_OF_POOL_MEMORY;
     for (uint32_t i = 0; i < info->descriptorSetCount; i++) {
         out[i] = handle<VkDescriptorSet>();
         descriptors[out[i]] = {};
+        set_pools[out[i]] = info->descriptorPool;
         set_creates++;
     }
     return VK_SUCCESS;
 }
-VkResult VKAPI_CALL reset_pool(VkDevice, VkDescriptorPool, VkDescriptorPoolResetFlags) {
-    descriptors.clear();
+VkResult VKAPI_CALL create_pool(VkDevice, const VkDescriptorPoolCreateInfo *info,
+                                const VkAllocationCallbacks *, VkDescriptorPool *out) {
+    *out = handle<VkDescriptorPool>();
+    pool_capacities[*out] = info->maxSets;
+    return VK_SUCCESS;
+}
+void drop_sets(VkDescriptorPool pool) {
+    assert(!gpu_pending);
+    for (auto it = set_pools.begin(); it != set_pools.end();) {
+        if (it->second == pool) {
+            descriptors.erase(it->first);
+            it = set_pools.erase(it);
+        } else ++it;
+    }
+}
+void VKAPI_CALL destroy_pool(VkDevice, VkDescriptorPool pool, const VkAllocationCallbacks *) {
+    drop_sets(pool);
+    assert(pool_capacities.erase(pool) == 1);
+}
+VkResult VKAPI_CALL reset_pool(VkDevice, VkDescriptorPool pool, VkDescriptorPoolResetFlags) {
+    assert(!gpu_pending);
+    if (reset_result != VK_SUCCESS) return reset_result;
+    drop_sets(pool);
     return VK_SUCCESS;
 }
 void VKAPI_CALL update_sets(VkDevice, uint32_t count, const VkWriteDescriptorSet *writes,
@@ -164,11 +210,14 @@ VkResult VKAPI_CALL create_pipelines(VkDevice, VkPipelineCache, uint32_t count,
                                      const VkComputePipelineCreateInfo *, const VkAllocationCallbacks *,
                                      VkPipeline *out) {
     for (uint32_t i = 0; i < count; i++) {
-        const auto index = static_cast<unsigned>(pipelines.size());
+        const auto index = pipeline_creates++ % 10;
         out[i] = handle<VkPipeline>();
         pipelines[out[i]] = index;
     }
     return VK_SUCCESS;
+}
+void VKAPI_CALL destroy_pipeline(VkDevice, VkPipeline pipeline, const VkAllocationCallbacks *) {
+    assert(!gpu_pending && pipelines.erase(pipeline) == 1);
 }
 void VKAPI_CALL bind_pipeline(VkCommandBuffer, VkPipelineBindPoint, VkPipeline pipeline) {
     assert(pipelines.count(pipeline));
@@ -248,10 +297,20 @@ VkImageView external_image(uint32_t width, uint32_t height) {
     images[image] = {{width, height, 1}, VK_FORMAT_R8G8B8A8_UNORM,
                      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT};
     views[view] = image;
+    external_views.push_back(view);
     return view;
 }
 
+void clear_external_images() {
+    for (auto view : external_views) {
+        images.erase(views.at(view));
+        views.erase(view);
+    }
+    external_views.clear();
+}
+
 void record(ddfg::FrameGen &fg, int model, uint32_t width, uint32_t height, unsigned generations) {
+    gpu_pending = false;
     const auto previous = external_image(width, height), current = external_image(width, height);
     const auto first = dispatches.size();
     for (unsigned i = 0; i < generations; i++)
@@ -275,14 +334,29 @@ void record(ddfg::FrameGen &fg, int model, uint32_t width, uint32_t height, unsi
         const auto &actual = dispatches[first + i], &want = expected[i];
         assert(actual.pipeline == want.pipeline && actual.x == want.x && actual.y == want.y && actual.z == want.z);
     }
-    for (auto it = views.begin(); it != views.end();) {
-        if (images.at(it->second).format == VK_FORMAT_R8G8B8A8_UNORM) {
-            images.erase(it->second);
-            it = views.erase(it);
-        } else ++it;
-    }
+    clear_external_images();
+    gpu_pending = true;
 }
 
+void check_empty() {
+    assert(images.empty() && views.empty() && buffers.empty() && allocations.empty());
+    assert(descriptors.empty() && set_pools.empty() && pool_capacities.empty() && pipelines.empty());
+}
+
+void check_working_set(const ddfg::FrameGen &fg) {
+    assert(images.size() == static_cast<size_t>(32 - 2 * fg.flowFinest()));
+    assert(buffers.size() == static_cast<size_t>(18 - fg.flowFinest()));
+    assert(descriptors.size() == static_cast<size_t>(54 - 4 * fg.flowFinest()));
+    assert(allocations.size() == images.size() + buffers.size());
+}
+
+}
+
+struct VkTable {};
+bool ddfgVkdInit(const VkTable &, ddfg::DeviceDispatch &dd, ddfg::InstanceDispatch &id) {
+    dd = *engine_dispatch;
+    id = *engine_instance;
+    return true;
 }
 
 int main(int argc, char **argv) {
@@ -312,25 +386,140 @@ int main(int argc, char **argv) {
     dd.DestroyDescriptorSetLayout = destroy<VkDescriptorSetLayout>;
     dd.CreatePipelineLayout = create<VkPipelineLayoutCreateInfo, VkPipelineLayout>;
     dd.DestroyPipelineLayout = destroy<VkPipelineLayout>;
-    dd.CreateDescriptorPool = create<VkDescriptorPoolCreateInfo, VkDescriptorPool>;
-    dd.DestroyDescriptorPool = destroy<VkDescriptorPool>; dd.ResetDescriptorPool = reset_pool;
+    dd.CreateDescriptorPool = create_pool;
+    dd.DestroyDescriptorPool = destroy_pool; dd.ResetDescriptorPool = reset_pool;
     dd.AllocateDescriptorSets = allocate_sets; dd.UpdateDescriptorSets = update_sets;
-    dd.CreateComputePipelines = create_pipelines; dd.DestroyPipeline = destroy<VkPipeline>;
+    dd.CreateComputePipelines = create_pipelines; dd.DestroyPipeline = destroy_pipeline;
     dd.CmdBindPipeline = bind_pipeline; dd.CmdBindDescriptorSets = bind_sets; dd.CmdDispatch = dispatch;
     dd.CmdPipelineBarrier = barrier; dd.CmdClearColorImage = clear_image; dd.CmdCopyImage = copy_image;
-    ddfg::FrameGen fg;
-    assert(fg.init(&dd, &id, reinterpret_cast<VkPhysicalDevice>(1), reinterpret_cast<VkDevice>(2),
-                   0, reinterpret_cast<VkQueue>(3)));
+    engine_dispatch = &dd;
+    engine_instance = &id;
     ddfg::Config cfg;
     cfg.enabled = true; cfg.model = model; cfg.perfPreset = preset; cfg.flowScale = 0.6f;
-    fg.configure(cfg);
-    assert(fg.onResize({width, height}, VK_FORMAT_R8G8B8A8_UNORM));
+    auto initialize = [&](ddfg::FrameGen &fg) {
+        assert(fg.init(&dd, &id, reinterpret_cast<VkPhysicalDevice>(1), reinterpret_cast<VkDevice>(2),
+                       0, reinterpret_cast<VkQueue>(3)));
+        fg.configure(cfg);
+        assert(fg.onResize({width, height}, VK_FORMAT_R8G8B8A8_UNORM));
+    };
+    if (mode == "steady" || mode == "automatic") {
+        const auto waits = idle_calls;
+        {
+            ddfg::FrameGen fg;
+            initialize(fg);
+            for (unsigned repeat = 0; repeat < repeats; repeat++) {
+                record(fg, model, width, height, generations);
+                assert(fg.onResize({width, height}, VK_FORMAT_R8G8B8A8_UNORM));
+                assert(idle_calls == waits);
+                check_working_set(fg);
+            }
+            if (mode == "steady") {
+                fg.destroy();
+                fg.destroy();
+                assert(idle_calls == waits + 1);
+            }
+        }
+        check_empty();
+        assert(idle_calls == waits + 1);
+        std::puts("PASS lifecycle=steady-and-idempotent-destruction");
+        return 0;
+    }
+    if (mode == "restart" || mode == "instances") {
+        for (unsigned repeat = 0; repeat < repeats; repeat++) {
+            ddfg::FrameGen first;
+            initialize(first);
+            record(first, model, width, height, generations);
+            check_working_set(first);
+            if (mode == "instances") {
+                gpu_pending = false;
+                ddfg::FrameGen second;
+                initialize(second);
+                record(second, model, width, height, generations);
+                first.destroy();
+                record(second, model, width, height, generations);
+                check_working_set(second);
+                second.destroy();
+            } else first.destroy();
+            check_empty();
+        }
+        std::puts("PASS lifecycle=restart-and-instance-isolation");
+        return 0;
+    }
+    if (mode == "engine" || mode == "engine-failure") {
+        {
+            ddfg::Engine engine;
+            assert(engine.init(VkTable{}, reinterpret_cast<VkPhysicalDevice>(1),
+                               reinterpret_cast<VkDevice>(2), 0, reinterpret_cast<VkQueue>(3)));
+            engine.configure(generations + 1, model, preset, 0.6f);
+            assert(engine.prepare(width, height, VK_FORMAT_R8G8B8A8_UNORM));
+            for (unsigned frame = 0; frame < 3; frame++) {
+                gpu_pending = false;
+                const auto source = external_image(width, height);
+                const auto output = external_image(width, height);
+                const auto count = engine.plan(generations);
+                engine.process(reinterpret_cast<VkCommandBuffer>(1), views.at(source), width, height, count);
+                for (unsigned generation = 0; generation < count; generation++)
+                    engine.generateInto(reinterpret_cast<VkCommandBuffer>(1), generation, count,
+                                        views.at(output), output, width, height);
+                clear_external_images();
+                gpu_pending = true;
+            }
+            if (mode == "engine-failure") {
+                idle_result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                assert(!engine.prepare(width + 17, height + 9, VK_FORMAT_R8G8B8A8_UNORM));
+                assert(engine.unavailable() && !engine.valid());
+            }
+        }
+        if (mode == "engine") check_empty();
+        else assert(gpu_pending && !images.empty() && !buffers.empty() && !descriptors.empty());
+        std::puts("PASS lifecycle=engine-ownership");
+        return 0;
+    }
+    if (mode == "idle-failure" || mode == "destroy-failure" || mode == "reset-failure" || mode == "partial") {
+        {
+            ddfg::FrameGen fg;
+            initialize(fg);
+            record(fg, model, width, height, generations);
+            const auto prior_buffers = buffers.size(), prior_images = images.size(), prior_sets = descriptors.size();
+            if (mode == "partial") {
+                fail_image_at = image_creates + 2;
+                assert(!fg.onResize({width + 17, height + 9}, VK_FORMAT_R8G8B8A8_UNORM));
+                assert(!fg.valid());
+            } else {
+                if (mode == "reset-failure") reset_result = VK_ERROR_OUT_OF_HOST_MEMORY;
+                else idle_result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                if (mode == "destroy-failure") fg.destroy();
+                else assert(!fg.onResize({width + 17, height + 9}, VK_FORMAT_R8G8B8A8_UNORM));
+                assert(!fg.valid());
+                assert(buffers.size() == prior_buffers && images.size() == prior_images &&
+                       descriptors.size() == prior_sets);
+                const auto prior_dispatches = dispatches.size();
+                const auto prior_waits = idle_calls;
+                fg.record(reinterpret_cast<VkCommandBuffer>(1), VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, 0.5f);
+                assert(dispatches.size() == prior_dispatches);
+                if (mode != "reset-failure") {
+                    assert(!fg.onResize({width, height}, VK_FORMAT_R8G8B8A8_UNORM));
+                    cfg.perfPreset = (preset + 1) % 3;
+                    fg.configure(cfg);
+                    fg.destroy();
+                    assert(idle_calls == prior_waits);
+                }
+            }
+        }
+        if (mode == "reset-failure" || mode == "partial") check_empty();
+        else assert(gpu_pending && !images.empty() && !buffers.empty() && !descriptors.empty());
+        std::puts("PASS lifecycle=failure-containment");
+        return 0;
+    }
+    ddfg::FrameGen fg;
+    initialize(fg);
     assert(mode == "resources" || mode == "record" || mode == "resize" || mode == "preset");
     for (unsigned repeat = 0; repeat < repeats; repeat++) {
         const auto old_buffers = buffer_creates, old_sets = set_creates;
         if (mode != "record") check_images(width, height, fg.flowFinest());
         record(fg, model, width, height, generations);
         if (mode != "record") {
+            check_working_set(fg);
             assert(buffer_creates - old_buffers == static_cast<unsigned>(15 - fg.flowFinest()));
             assert(set_creates - old_sets == static_cast<unsigned>(54 - 4 * fg.flowFinest()));
         }
@@ -356,4 +545,5 @@ int main(int argc, char **argv) {
                 dispatches.size(), static_cast<unsigned long long>(command_hash));
     fg.destroy();
     assert(images.empty() && views.empty());
+    if (mode != "record") check_empty();
 }
