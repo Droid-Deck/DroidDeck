@@ -28,7 +28,12 @@ internal class SteamDeckButtonArt(private val density: Float) {
         if (shortSide <= 0) return
         val inset = min(2f * density, shortSide * .12f)
         bounds.set(inset, inset, width - inset, height - inset)
-        val radius = min(bounds.width(), bounds.height()) * if (shape == InputButtonShape.CIRCLE) .5f else .28f
+        val side = min(bounds.width(), bounds.height())
+        val radius = if (shape == InputButtonShape.CIRCLE) {
+            val half = side / 2f
+            bounds.set(width / 2f - half, height / 2f - half, width / 2f + half, height / 2f + half)
+            half
+        } else side * .28f
         fill.color = if (pressed) 0xEB1A9FFF.toInt() else 0x850E1014.toInt()
         canvas.drawRoundRect(bounds, radius, radius, fill)
         if (!pressed) {

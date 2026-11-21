@@ -147,7 +147,7 @@ class InputSurfaceView(
 
     private fun styleElement(view: View) {
         view.alpha = surfaceStyle.opacity / 100f * ((view.tag as? InputSurfaceElement)?.opacity ?: 1f)
-        (view as? Surface)?.tint = surfaceStyle.tint.takeUnless { steamDeckButtons }
+        (view as? Surface)?.tint = surfaceStyle.tint
         view.invalidate()
     }
 
@@ -350,7 +350,8 @@ class InputSurfaceView(
         override fun onDraw(canvas: Canvas) {
             val lit = if (element.toggle) source?.latched == true else down
             val classic = classic(element)
-            val deck = steamDeckButtons && classic
+            val deck = steamDeckButtons && (classic || element.id == "legacy:${element.control.id}" &&
+                element.control in REAR_BUTTONS)
             if (deck) deckArt.surface(canvas, width, height, element.buttonShape, lit)
             else drawSurface(canvas, lit, element.buttonShape, classic)
             val cx = width / 2f
@@ -366,7 +367,7 @@ class InputSurfaceView(
             if (element.icon != 0 && InputButtonIcons.draw(canvas, element.icon, cx, height / 2f, min(width, height) * .68f, labelPaint, symbol)) return
             if (!element.showLabel) return
             labelPaint.style = Paint.Style.FILL
-            if (classic && element.name == element.control.label) {
+            if ((classic || deck) && element.name == element.control.label) {
                 val radius = min(width, height) / 2f
                 val direction = DIRECTIONS.indexOf(element.control)
                 if (direction >= 0) {
@@ -720,6 +721,7 @@ class InputSurfaceView(
         private fun classic(element: InputSurfaceElement) = (element.id == "legacy:${element.control.id}" || element.id == "builtin:keyboard") &&
             (element.buttonShape == InputButtonShape.CIRCLE || element.buttonShape == InputButtonShape.PILL)
 
+        private val REAR_BUTTONS = setOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)
         private val DIRECTIONS = listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
 
         internal fun shade(tint: Int, alpha: Int, f: Float) =

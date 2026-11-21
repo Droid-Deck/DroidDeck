@@ -12,6 +12,10 @@ object OnScreenLayout {
     internal fun usesSteamDeckButtons(context: Context, layout: SavedInputLayout?) =
         layout?.id == InputLibraries.OVERLAY && SessionPrefs.steamController(context) == SessionPrefs.CONTROLLER_DECK
 
+    internal fun supportsFloatingSteamControls(controller: String, layout: SavedInputLayout?) =
+        layout?.id == InputLibraries.OVERLAY &&
+            (controller == SessionPrefs.CONTROLLER_DECK || controller == SessionPrefs.CONTROLLER_STEAM)
+
     data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
         companion object {
             fun deck(portrait: Boolean, gamepad: SavedInputLayout?): Dock {
@@ -29,7 +33,8 @@ object OnScreenLayout {
     private const val KEYBOARD_ID = "builtin:keyboard"
 
     fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect,
-        buttonsOnly: Boolean = false, dock: Dock? = null): List<InputSurfaceElement> {
+        buttonsOnly: Boolean = false, dock: Dock? = null, rearButtons: Boolean? = null,
+        trackpads: Boolean? = null): List<InputSurfaceElement> {
         val stored = layout?.elements ?: return emptyList()
         if (width <= 0 || height <= 0) return stored
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
@@ -43,7 +48,10 @@ object OnScreenLayout {
             else -> generator.regenerate(gamepad)
         }
         val byId = (placed + others).associateBy { it.id }
-        return stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
+        val ordered = stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
+        if (dock != null || !supportsFloatingSteamControls(SessionPrefs.steamController(context), layout)) return ordered
+        return FloatingSteamOverlay(width, height, safe, context.resources.displayMetrics.density)
+            .place(ordered, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
     }
 
     fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false): List<InputSurfaceElement> =

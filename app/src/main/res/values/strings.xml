@@ -324,6 +324,8 @@
     <string name="mode_pen_button">Side button</string>
     <string name="mode_osc">On-screen controls</string>
     <string name="mode_osc_qam">Steam + QAM</string>
+    <string name="osc_rear_buttons">Rear buttons</string>
+    <string name="osc_trackpads">Trackpads</string>
     <string name="mode_osc_note">Auto shows the controls when no controller is connected.</string>
     <string name="osc_steam_touch">Steam touch (beta)</string>
     <string name="osc_style_next_session">Steam\'s touch controls start with the next Steam session</string>

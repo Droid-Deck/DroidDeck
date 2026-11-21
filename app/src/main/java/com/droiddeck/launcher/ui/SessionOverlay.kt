@@ -340,6 +340,11 @@ class DrawerActions(
     val unfoldedControls: Boolean? = null,
     val adaptiveSticks: Boolean? = null,
     val onAdaptiveSticks: (Boolean) -> Unit = {},
+    val showFloatingSteamControls: Boolean = false,
+    val oscRearButtons: Boolean = false,
+    val oscTrackpads: Boolean = false,
+    val onOscRearButtons: (Boolean) -> Unit = {},
+    val onOscTrackpads: (Boolean) -> Unit = {},
     val quickButtons: Map<com.droiddeck.launcher.input.InputCommand, Boolean> = emptyMap(),
     val onQuickButton: (com.droiddeck.launcher.input.InputCommand, Boolean) -> Unit = { _, _ -> },
     val onUnfoldedControls: (Boolean) -> Unit = {},
@@ -717,6 +722,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 a.adaptiveSticks?.let { on ->
                                     ToggleRow(host, "adaptive-sticks", stringResource(R.string.ctrl_adaptive), null, on,
                                         chipModifier = focus.track(page, "adaptive-sticks"), onChange = a.onAdaptiveSticks)
+                                }
+                                if (a.showFloatingSteamControls) {
+                                    ToggleRow(host, "rear-buttons", stringResource(R.string.osc_rear_buttons), null, a.oscRearButtons,
+                                        chipModifier = focus.track(page, "rear-buttons"), onChange = a.onOscRearButtons)
+                                    ToggleRow(host, "trackpads", stringResource(R.string.osc_trackpads), null, a.oscTrackpads,
+                                        chipModifier = focus.track(page, "trackpads"), onChange = a.onOscTrackpads)
                                 }
                                 for ((button, shown) in a.quickButtons) {
                                     val key = "quick-${button.name.lowercase()}"
