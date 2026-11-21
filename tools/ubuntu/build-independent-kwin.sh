@@ -1,10 +1,10 @@
 #!/bin/sh
 set -eu
 export LANG=C.UTF-8
-src=/build/kwin-6.6.6
+src=/build/kwin-6.6.7
 mkdir -p /build
 if [ ! -d "$src/debian" ]; then
-    dpkg-source -x /work/kwin_6.6.6-0ubuntu0.1.dsc "$src"
+    dpkg-source -x /work/kwin_6.6.7-0ubuntu0.1.dsc "$src"
     for patchfile in /repo/tools/ubuntu/patches/kwin/*.patch; do
         patch -d "$src" -p1 < "$patchfile"
     done
@@ -41,8 +41,8 @@ sources = ["/repo/tools/ubuntu/kwin-independent.cpp", "/repo/tools/ubuntu/kwin-i
            "/repo/tools/ubuntu/kwin-output-opacity.h",
            "/repo/tools/ubuntu/kwin-independent-filter.h",
            "/repo/tools/ubuntu/kwin-passthrough.cpp"]
-sources += [str(path) for path in Path("/work").glob("kwin_6.6.6*.tar.*") if path.is_file()]
-record = {"kwin": "6.6.6", "systemPackage": "4:6.6.6-0ubuntu0.1+droiddeck1",
+sources += [str(path) for path in Path("/work").glob("kwin_6.6.7*.tar.*") if path.is_file()]
+record = {"kwin": "6.6.7", "systemPackage": "4:6.6.7-0ubuntu0.1+droiddeck1",
           "sources": {Path(p).name: digest(p) for p in sources},
           "outputs": {p.name: digest(p) for p in Path("/work/result").iterdir()
                       if p.is_file() and p.name != "build.json"},

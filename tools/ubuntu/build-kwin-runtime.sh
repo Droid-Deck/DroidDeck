@@ -13,14 +13,14 @@ docker run --rm -i --platform linux/arm64 \
     ubuntu:26.04 bash -s <<'BUILD'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
-version=4:6.6.6-0ubuntu0.1
+version=4:6.6.7-0ubuntu0.1
 sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
 apt-get update -qq
 apt-get install -y -qq build-essential cmake ninja-build python3 dpkg-dev patch >/dev/null
 mkdir -p /work
 cd /work
 apt-get source -qq "kwin=$version"
-src=/work/kwin-6.6.6
+src=/work/kwin-6.6.7
 test "$(dpkg-parsechangelog -l "$src/debian/changelog" -S Version)" = "$version"
 apt-get build-dep -y -qq "$src" >/dev/null
 for patchfile in /repo/tools/ubuntu/patches/kwin/*.patch; do
@@ -54,8 +54,8 @@ out = Path("/out")
 outputs = {name: digest(out / name) for name in ("libkwin.so.6", "kwin_wayland", "LICENSE")}
 (out / "kwin.sha256").write_text("".join(f"{value}  {name}\n" for name, value in sorted(outputs.items())))
 record = {
-    "kwin": "6.6.6",
-    "systemPackage": "4:6.6.6-0ubuntu0.1+droiddeck1",
+    "kwin": "6.6.7",
+    "systemPackage": "4:6.6.7-0ubuntu0.1+droiddeck1",
     "sources": {path.relative_to(repo).as_posix(): digest(path) for path in sources},
     "upstream": {path.name: digest(path) for path in Path("/work").glob("kwin_*") if path.is_file()},
     "outputs": dict(outputs, **{"kwin.sha256": digest(out / "kwin.sha256")}),

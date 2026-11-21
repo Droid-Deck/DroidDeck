@@ -35,7 +35,7 @@ class WindowsKWinBuildTest(unittest.TestCase):
         hashes = {name: kwin.digest(data) for name, data in files.items()}
         files['kwin.sha256'] = ''.join(f'{hashes[name]}  {name}\n' for name in sorted(hashes)).encode()
         manifest = {
-            'kwin': '6.6.6', 'systemPackage': '4:6.6.6-0ubuntu0.1+droiddeck1',
+            'kwin': '6.6.7', 'systemPackage': '4:6.6.7-0ubuntu0.1+droiddeck1',
             'sources': {name: kwin.digest(data) for name, data in kwin.sources(self.root).items()},
             'outputs': {name: kwin.digest(data) for name, data in files.items()},
         }
@@ -47,7 +47,7 @@ class WindowsKWinBuildTest(unittest.TestCase):
     def test_cached_build_requires_all_five_outputs_and_current_source_hashes(self):
         files, manifest = kwin.validate(self.folder, self.root)
         self.assertEqual(kwin.OUTPUTS, set(files))
-        self.assertEqual('6.6.6', manifest['kwin'])
+        self.assertEqual('6.6.7', manifest['kwin'])
         source = self.root / 'tools/ubuntu/kwin-independent.cpp'
         source.write_bytes(source.read_bytes() + b'\nchanged\n')
         with self.assertRaisesRegex(ValueError, 'stale'):
@@ -79,7 +79,7 @@ class WindowsKWinBuildTest(unittest.TestCase):
         def run(command, input, check):
             self.assertIn('linux/arm64', command)
             self.assertIn('ubuntu:26.04', command)
-            self.assertIn(b'version=4:6.6.6-0ubuntu0.1', input)
+            self.assertIn(b'version=4:6.6.7-0ubuntu0.1', input)
             self.assertNotIn(b'\r\n', input)
             snapshot = Path(next(arg for arg in command if arg.startswith('type=bind,source='))
                             .split('source=', 1)[1].split(',target=', 1)[0])
