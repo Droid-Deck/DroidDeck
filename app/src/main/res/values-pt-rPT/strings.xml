@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Rato</string>
     <string name="mode_pen_touch">Toque</string>
     <string name="mode_pen_button">Botão lateral</string>
+    <string name="mode_pen_palm">Rejeição da palma</string>
     <string name="mode_osc">Controlos no ecrã</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Em Automático, os controlos aparecem quando não há nenhum comando ligado.</string>

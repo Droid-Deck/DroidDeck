@@ -353,6 +353,70 @@ class SessionPenRoutingTest {
         assertFalse(mouse(stylusScreen))
     }
 
+    @Test fun aFingerIsIgnoredWhileThePenIsNear() {
+        steamDirect(SessionPrefs.PEN_MOUSE)
+        val t = android.os.SystemClock.uptimeMillis()
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, t, pen to 500f)))
+        tap(t + 10, 100f)
+        activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_EXIT, t + 20, pen to 500f))
+        tap(t + 20 + PalmGate.GRACE_MS, 200f)
+        assertEquals(listOf(InputSpace.x(200f, 1000)), fingerDowns())
+    }
+
+    @Test fun aFingerAlreadyDownIsCancelledWhenThePenComesNear() {
+        steamDirect(SessionPrefs.PEN_MOUSE)
+        val t = android.os.SystemClock.uptimeMillis()
+        touch(MotionEvent.ACTION_DOWN, t, 100f)
+        activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_ENTER, t + 50, pen to 500f))
+        touch(MotionEvent.ACTION_MOVE, t + 60, 150f)
+        touch(MotionEvent.ACTION_UP, t + 70, 150f)
+        assertEquals(listOf(0, 3), CompositorShadow.touches.map { it.action })
+        assertEquals(listOf(PEN_IN), CompositorShadow.pens.map { it.flags })
+    }
+
+    @Test fun aPenOverTheLowerScreenArmsPalmRejection() {
+        steamDirect(SessionPrefs.PEN_MOUSE)
+        val t = android.os.SystemClock.uptimeMillis()
+        ReflectionHelpers.callInstanceMethod<Boolean>(activity, "onBottomGameHover",
+            ReflectionHelpers.ClassParameter.from(MotionEvent::class.java, event(MotionEvent.ACTION_HOVER_MOVE, t, pen to 500f)))
+        tap(t + 10, 100f)
+        assertTrue(fingerDowns().isEmpty())
+    }
+
+    @Test fun palmRejectionOffLetsFingersThrough() {
+        SessionPrefs.setPenPalm(activity, false)
+        steamDirect(SessionPrefs.PEN_MOUSE)
+        val t = android.os.SystemClock.uptimeMillis()
+        assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, t, pen to 500f)))
+        tap(t + 10, 100f)
+        assertEquals(listOf(InputSpace.x(100f, 1000)), fingerDowns())
+    }
+
+    @Test fun endingThePenEndsPalmRejectionAfterTheGrace() {
+        steamDirect(SessionPrefs.PEN_MOUSE)
+        val listener = ReflectionHelpers.getField<InputManager.InputDeviceListener>(activity, "deviceListener")
+        for (end in listOf({ invoke("cancelTouchGestures") }, { listener.onInputDeviceRemoved(6) })) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+            CompositorShadow.clear()
+            val t = android.os.SystemClock.uptimeMillis()
+            assertTrue(activity.dispatchGenericMotionEvent(event(MotionEvent.ACTION_HOVER_MOVE, t, pen to 500f)))
+            end()
+            tap(t + PalmGate.GRACE_MS - 10, 100f)
+            tap(t + PalmGate.GRACE_MS, 200f)
+            assertEquals(listOf(InputSpace.x(200f, 1000)), fingerDowns())
+        }
+    }
+
+    private fun touch(action: Int, time: Long, x: Float) =
+        activity.dispatchTouchEvent(event(action, time, finger to x, source = InputDevice.SOURCE_TOUCHSCREEN))
+
+    private fun tap(time: Long, x: Float) {
+        touch(MotionEvent.ACTION_DOWN, time, x)
+        touch(MotionEvent.ACTION_UP, time + 20, x)
+    }
+
+    private fun fingerDowns() = CompositorShadow.touches.filter { it.action == 0 }.map { it.x }
+
     private fun steamDirect(mode: String) {
         SessionPrefs.setPenSetting(activity, "pen", mode)
         invoke("readPrefs")

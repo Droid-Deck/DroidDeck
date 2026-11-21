@@ -123,6 +123,7 @@ class ModeSettingsActions(
     val onUpscaleSharpness: (Int) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onPen: (key: String, value: String) -> Unit = { _, _ -> },
+    val onPenPalm: (Boolean) -> Unit = {},
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
@@ -354,7 +355,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             PhysicalShortcutRows()
         }
-        s.pen?.let { PenSettingsGroup(host, it, onPick = a.onPen) }
+        s.pen?.let { PenSettingsGroup(host, it, onPick = a.onPen, onPalm = a.onPenPalm) }
     }
     if (tab == SheetTab.AUDIO && steam) {
         if (s.directAudio != null && s.mic != null) SettingsGroup(stringResource(R.string.mode_audio)) {

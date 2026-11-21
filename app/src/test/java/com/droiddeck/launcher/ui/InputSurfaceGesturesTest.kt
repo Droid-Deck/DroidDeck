@@ -107,11 +107,24 @@ class InputSurfaceGesturesTest {
         assertEquals(listOf("button:272:true", "button:272:false"), events)
     }
 
-    private fun touch(action: Int, y: Float = 200f, fingers: Int = 1) {
+    @Test fun cancelledFingersDoNotClickThroughThePanel() {
+        val second = 1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT
+        touch(MotionEvent.ACTION_DOWN, viaPanel = true)
+        touch(MotionEvent.ACTION_POINTER_DOWN or second, fingers = 2, viaPanel = true)
+        touch(MotionEvent.ACTION_POINTER_UP or second, fingers = 2, flags = MotionEvent.FLAG_CANCELED, viaPanel = true)
+        touch(MotionEvent.ACTION_UP, viaPanel = true)
+        time += 1000
+        touch(MotionEvent.ACTION_DOWN, viaPanel = true)
+        touch(MotionEvent.ACTION_UP, flags = MotionEvent.FLAG_CANCELED, viaPanel = true)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1000))
+        assertTrue(events.toString(), events.isEmpty())
+    }
+
+    private fun touch(action: Int, y: Float = 200f, fingers: Int = 1, flags: Int = 0, viaPanel: Boolean = false) {
         val properties = Array(fingers) { i -> MotionEvent.PointerProperties().apply { id = i; toolType = MotionEvent.TOOL_TYPE_FINGER } }
         val coords = Array(fingers) { i -> MotionEvent.PointerCoords().apply { x = 200f + 100 * i; this.y = y; pressure = 1f; size = 1f } }
-        val event = MotionEvent.obtain(time - 20, time, action, fingers, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, 0)
-        try { assertTrue(pad.onTouchEvent(event)) } finally { event.recycle(); time += 10 }
+        val event = MotionEvent.obtain(time - 20, time, action, fingers, properties, coords, 0, 0, 1f, 1f, 0, 0, 0, flags)
+        try { assertTrue(if (viaPanel) panel.dispatchTouchEvent(event) else pad.onTouchEvent(event)) } finally { event.recycle(); time += 10 }
     }
     private fun descendants(view: View): Sequence<View> = sequence {
         yield(view)

@@ -2656,6 +2656,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onUpscaleSharpness = { pct -> SessionPrefs.setUpscaleSharpness(this, pct); upscaleSharpness = pct },
                 onTouch = { t -> SessionPrefs.setTouchMode(this, t); touchMode = t },
                 onPen = { key, value -> SessionPrefs.setPenSetting(this, key, value); pen = SessionPrefs.pen(this) },
+                onPenPalm = { on -> SessionPrefs.setPenPalm(this, on); pen = SessionPrefs.pen(this) },
                 onSuspendPolicy = { policy -> SessionPrefs.setSuspendPolicy(this, mode, policy); suspendPolicy = policy },
                 onSteamDownloadsInBackground = { enabled ->
                     SessionPrefs.setSteamDownloadsInBackground(this, enabled)

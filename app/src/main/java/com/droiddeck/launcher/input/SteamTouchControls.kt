@@ -668,7 +668,8 @@ class SteamTouchControls(
                 val f = fingers.remove(id)
                 if (event.actionMasked == MotionEvent.ACTION_CANCEL) fingers.clear()
                 val e = f?.element
-                if (event.actionMasked != MotionEvent.ACTION_CANCEL && e != null && reach(e, event.getX(index), event.getY(index)) <= 1.3f) {
+                val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL || event.flags and MotionEvent.FLAG_CANCELED != 0
+                if (!cancelled && e != null && reach(e, event.getX(index), event.getY(index)) <= 1.3f) {
                     when (e.type) {
                         SteamTouchConfig.THUMB -> { cancelForwarded(event); openMenu() }
                         SteamTouchConfig.KEYBOARD -> onKeyboard()

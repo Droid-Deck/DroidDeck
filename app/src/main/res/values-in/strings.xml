@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Mouse</string>
     <string name="mode_pen_touch">Sentuhan</string>
     <string name="mode_pen_button">Tombol samping</string>
+    <string name="mode_pen_palm">Penolakan telapak tangan</string>
     <string name="mode_osc">Kontrol di layar</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatis menampilkan kontrol saat tidak ada pengontrol yang terhubung.</string>

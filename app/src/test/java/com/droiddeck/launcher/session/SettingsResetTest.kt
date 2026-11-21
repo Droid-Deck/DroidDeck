@@ -36,6 +36,7 @@ class SettingsResetTest {
         SessionPrefs.setBackDoubleTapMs(app, 100)
         SessionPrefs.setPenSetting(app, "pen", SessionPrefs.PEN_TOUCH)
         SessionPrefs.setPenSetting(app, "penButton", SessionPrefs.PEN_BUTTON_OFF)
+        SessionPrefs.setPenPalm(app, false)
         SessionPrefs.setPenSeen(app)
         SessionPrefs.setUnfoldedControlsWithController(app, true)
         SessionPrefs.setNoXalia(app, false)

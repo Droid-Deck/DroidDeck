@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Hiiri</string>
     <string name="mode_pen_touch">Kosketus</string>
     <string name="mode_pen_button">Sivupainike</string>
+    <string name="mode_pen_palm">Kämmenen hylkäys</string>
     <string name="mode_osc">Näytön ohjaimet</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaattinen näyttää ohjaimet, kun yhtään ohjainta ei ole kytketty.</string>
