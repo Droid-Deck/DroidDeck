@@ -518,6 +518,10 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             img = vkp_image_import_dmabuf(nh->data[0], fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod, w, h,
                                           got.stride * 4, 0, 1);
             path = "dma-buf (QTI handle)";
+            if (!img && mod == MOD_LINEAR && vkp_can_import_ahb()) {
+                img = vkp_image_import_ahb(ahb, info, sizeof(info));
+                if (img) { mod = SC_MOD_GRALLOC; path = "AHardwareBuffer"; }
+            }
         } else {
             if (tier == TIER_UBWC) {
                 char hd[256];

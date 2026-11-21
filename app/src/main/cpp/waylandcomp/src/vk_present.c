@@ -1324,10 +1324,17 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
     if (modifier == MOD_INVALID || w <= 0 || h <= 0) return NULL;
     if (dev_init() != 0) return NULL;
 
+    const VkFormat format = drm_to_vk(drm_format);
+    if (as_blit_dst && vkp_padded_linear_target_needs_layout(g_drm_modifiers, modifier, format, w, stride, offset)) {
+        LOGE("layer: padded linear %dx%d dma-buf (pitch %u, offset %u) needs an explicit layout or AHardwareBuffer import",
+             w, h, stride, offset);
+        return NULL;
+    }
+
     struct vkp_image *img = calloc(1, sizeof(*img));
     if (!img) return NULL;
     img->w = w; img->h = h; img->dmabuf = 1; img->blit_dst = as_blit_dst ? 1 : 0;
-    img->fmt = drm_to_vk(drm_format);
+    img->fmt = format;
     const int through_buffer = vkp_linear_dmabuf_through_buffer(g_drm_modifiers, modifier, as_blit_dst);
     const VkImageUsageFlags sampled_usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     const int modifier_sampled = !as_blit_dst && g_drm_modifiers && g_vk.GetPhysicalDeviceImageFormatProperties2 &&

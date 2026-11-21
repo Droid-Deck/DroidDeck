@@ -63,6 +63,16 @@ static void check_foreign_image(void) {
     assert(!vkp_linear_dmabuf_foreign_image(0, 1));
 }
 
+static void check_padded_layer_targets(void) {
+    const VkFormat rgba = VK_FORMAT_R8G8B8A8_UNORM;
+    const uint64_t qcom_compressed = 0x0500000000000001ULL;
+    assert(vkp_padded_linear_target_needs_layout(0, 0, rgba, 720, 3072, 0));
+    assert(vkp_padded_linear_target_needs_layout(0, 0, rgba, 720, 2880, 64));
+    assert(!vkp_padded_linear_target_needs_layout(0, 0, rgba, 1280, 5120, 0));
+    assert(!vkp_padded_linear_target_needs_layout(1, 0, rgba, 720, 3072, 0));
+    assert(!vkp_padded_linear_target_needs_layout(0, qcom_compressed, rgba, 720, 3072, 0));
+}
+
 static void check_readback_order(void) {
     assert(vkp_linear_dmabuf_readback_stage(1) & VK_PIPELINE_STAGE_TRANSFER_BIT);
     assert(vkp_linear_dmabuf_readback_access(1) & VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -99,6 +109,7 @@ int main(void) {
     check_offset_and_wide_texels();
     check_rejected_layouts();
     check_path_choice();
+    check_padded_layer_targets();
     check_foreign_image();
     check_readback_order();
     check_ownership();

@@ -24,6 +24,12 @@ static inline uint32_t vkp_linear_dmabuf_texel_bytes(VkFormat fmt) {
     return fmt == VK_FORMAT_R16G16B16A16_SFLOAT ? 8u : 4u;
 }
 
+static inline int vkp_padded_linear_target_needs_layout(int drm_modifiers, uint64_t modifier, VkFormat fmt,
+                                                        int w, uint32_t stride, uint32_t offset) {
+    return !drm_modifiers && modifier == 0 &&
+           (offset != 0 || (uint64_t)stride != (uint64_t)w * vkp_linear_dmabuf_texel_bytes(fmt));
+}
+
 static inline VkDeviceSize vkp_linear_dmabuf_copy(VkFormat fmt, int w, int h, uint32_t stride, uint32_t offset,
                                                   VkBufferImageCopy *copy) {
     const uint32_t texel = vkp_linear_dmabuf_texel_bytes(fmt);
