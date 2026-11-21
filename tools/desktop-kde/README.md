@@ -63,6 +63,14 @@ between GPUs or change normal KWin device selection.
 through the nested backend, which upstream leaves as a TODO. Two-finger touch scrolling then reaches
 apps as touchpad scrolling, and wheel steps stay whole clicks.
 
+`kwin-independent.py` adds DroidDeck's native-output extension to the same source tree. Each Linux
+window the app shows as an Android task gets its own virtual nested output named
+`DroidDeckWindow:wl:<uuid>`; the output renders only that window, and its content reaches the app
+through the AHB broker when `KWIN_DROIDDECK_OUTPUT_AHB` is set. `kwin-independent.cpp`,
+`kwin-passthrough.cpp` and the headers next to the script are the extension's sources. The script
+fails the build when a source block it patches no longer matches the pinned KWin version, so a KWin
+update cannot ship with the extension silently missing.
+
 `pins/mesa/desc` keeps Mesa 26.2.4 and its actual package dependencies ahead of the rolling
 repository metadata. Mesa 26.2.5 crashes in Zink shader compilation on Thor with the selected
 Turnip driver. `mesa.env` points at immutable copies of the original 26.2.4 package and signature;
@@ -71,7 +79,8 @@ both build jobs verify the Arch Linux ARM signature and pinned SHA-256 as for ev
 The desktop workflow replaces the same-version `kwin_wayland` executable and `libkwin.so`; the rest
 comes from the signature-checked Arch packages. `desktop-kde.kwin.txt` records the source, patch,
 executable, library and build package hashes. Corresponding source is
-https://download.kde.org/stable/plasma/6.8.2/kwin-6.8.2.tar.xz plus the patch in this repository.
+https://download.kde.org/stable/plasma/6.8.3/kwin-6.8.3.tar.xz plus the patch and the extension
+sources in this repository.
 
 The inventories use `.gzip` rather than `.gz`: Android's asset packer expands `.gz` and strips
 its suffix. The shared local/CI runtime payload check verifies the exact APK names and bytes.
