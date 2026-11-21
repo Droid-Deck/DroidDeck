@@ -943,7 +943,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             controls.onTouchMiss = miss@{ event ->
                 if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.ON_SCREEN_CONTROLS, event)) return@miss
                 event.offsetLocation(controls.left - surfaceView.left.toFloat(), controls.top - surfaceView.top.toFloat())
-                onTouchEvent(event)
+                handleTouch(event)
             }
             root.addView(controls)
         }
@@ -988,7 +988,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 false
             } else if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.SURFACE, event)) {
                 false
-            } else onTouchEvent(event)
+            } else handleTouch(event)
         }
         padMouse = PadMouse(padMouseListener)
         bridge.setTouchRoute(object : PadBridge.TouchRoute {
@@ -5044,10 +5044,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         secondScreenPresentation?.controlsView, swappedInputSurface,
     ).any { it.isShown && inputProfile.showsMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
+    override fun onTouchEvent(event: MotionEvent): Boolean =
+        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) inSurfaceSpace(event) { handleTouch(event) }
+        else handleTouch(event)
+
+    private fun handleTouch(event: MotionEvent): Boolean {
         val pen = PenStream.penIndex(event)
         val penRouted = if (pen >= 0) routePen(event, pen).takeIf { it != PenRouter.Route.TOUCH } else null
-        if (penRouted == null && event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return inSurfaceSpace(event) { onMouse(event) }
+        if (penRouted == null && event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) return onMouse(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 sessionTouchDown = true
@@ -5171,7 +5175,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (event.pointerCount > 1) {
             var fingers = 0
             for (index in 0 until event.pointerCount) if (!PenStream.isPen(event, index)) fingers = fingers or (1 shl event.getPointerId(index))
-            event.pointerSubset(fingers)?.let { split -> try { onTouchEvent(split) } finally { split.recycle() } }
+            event.pointerSubset(fingers)?.let { split -> try { handleTouch(split) } finally { split.recycle() } }
         }
         when (route) {
             PenRouter.Route.PEN -> penSample(event, pen)
@@ -5482,7 +5486,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         view.onTouchMiss = miss@{ event ->
             if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.ON_SCREEN_CONTROLS, event)) return@miss
             event.offsetLocation(view.left - surfaceView.left.toFloat(), view.top - surfaceView.top.toFloat())
-            onTouchEvent(event)
+            handleTouch(event)
         }
         root.addView(view, root.indexOfChild(onScreenControls) + 1)
         steamTouchControls = view
@@ -6355,7 +6359,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             gestureTouchStreamGate.reset()
         }
         if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.SURFACE, event)) return false
-        return onTouchEvent(event)
+        return handleTouch(event)
     }
 
     @androidx.compose.runtime.Composable
