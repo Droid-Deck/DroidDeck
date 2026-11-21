@@ -986,13 +986,12 @@ class SessionService : Service() {
         guest.add("USER=root")
         guest.add("PATH=" + LinuxRuntime.GUEST_PATH)
         guest.add("TERM=xterm-256color")
-        if (SessionState.mode == MODE_DESKTOP) {
-            val appLocale = com.droiddeck.launcher.core.AppLanguage.effective(this)
-            guest.add("LANG=" + DesktopLocale.lang(appLocale))
-            DesktopLocale.language(appLocale)?.let { guest.add("LANGUAGE=$it") }
-        } else {
-            guest.add("LANG=C.UTF-8")
-        }
+        val appLocale = com.droiddeck.launcher.core.AppLanguage.effective(this)
+        val requested = DesktopLocale.lang(appLocale)
+        val sessionLocale = if (DesktopLocale.present(LinuxRuntime.rootDir(this), requested)) requested
+            else DesktopLocale.DEFAULT.also { Log.w(TAG, "no $requested in the runtime, the session runs in $it") }
+        guest.add("LANG=$sessionLocale")
+        if (sessionLocale != DesktopLocale.DEFAULT) DesktopLocale.language(appLocale)?.let { guest.add("LANGUAGE=$it") }
         guest.add("DD_STEAM_LANGUAGE=" + SteamLanguage.forLocale(
             com.droiddeck.launcher.core.AppLanguage.effective(this),
             com.droiddeck.launcher.core.AppLanguage.system(this).country,

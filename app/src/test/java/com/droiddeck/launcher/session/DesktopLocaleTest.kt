@@ -3,6 +3,7 @@ package com.droiddeck.launcher.session
 import com.droiddeck.launcher.core.AppLanguage
 import java.util.Locale
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -40,6 +41,20 @@ class DesktopLocaleTest {
 
     @Test fun unknownLanguagesFallBack() {
         assertEquals(DesktopLocale.DEFAULT, lang("sw"))
+    }
+
+    @Test fun aLocaleTheRuntimeDoesNotShipIsNotPresent() {
+        val root = java.nio.file.Files.createTempDirectory("runtime").toFile()
+        try {
+            assertTrue(DesktopLocale.present(root, DesktopLocale.DEFAULT))
+            assertFalse(DesktopLocale.present(root, "zh_CN.UTF-8"))
+            val locale = java.io.File(root, "usr/lib/locale/zh_CN.utf8")
+            assertTrue(locale.mkdirs())
+            assertTrue(java.io.File(locale, "LC_CTYPE").createNewFile())
+            assertTrue(DesktopLocale.present(root, "zh_CN.UTF-8"))
+        } finally {
+            root.deleteRecursively()
+        }
     }
 
     @Test fun languageListPrefersTheRegionThenTheLanguage() {
