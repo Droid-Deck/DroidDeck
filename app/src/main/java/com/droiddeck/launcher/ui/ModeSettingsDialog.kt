@@ -85,6 +85,8 @@ class ModeSettings(
     val picturePosition: String? = null,
     val integerScaling: Boolean? = null,
     val stretch16x9: Boolean? = null,
+    val forceSoftwareRendering: Boolean? = null,
+    val forceSoftwareRenderingConflicted: Boolean = false,
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
     val shaderPrecache: Boolean? = null,
@@ -142,6 +144,7 @@ class ModeSettingsActions(
     val onPicturePosition: (String) -> Unit = {},
     val onIntegerScaling: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
+    val onForceSoftwareRendering: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
@@ -281,6 +284,24 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     ?: stringResource(R.string.mode_hdr_restart),
                 checked = s.hdr && s.hdrReason == null, enabled = s.hdrReason == null, onChange = a.onHdr,
             )
+        }
+        if (!steam && s.forceSoftwareRendering != null) {
+            if (s.forceSoftwareRenderingConflicted) LockedToggleRow(
+                host, "software-rendering", stringResource(R.string.display_software_rendering),
+                stringResource(R.string.display_software_rendering_hint),
+                checked = s.forceSoftwareRendering,
+                note = stringResource(R.string.display_software_rendering_locked),
+            ) else SettingsGroup(
+                stringResource(R.string.display_desktop_compositor),
+                detail = stringResource(R.string.common_applies_next_session),
+                detailColor = LocalPalette.current.pending,
+            ) {
+                ToggleRow(
+                    host, "software-rendering", stringResource(R.string.display_software_rendering),
+                    stringResource(R.string.display_software_rendering_hint),
+                    checked = s.forceSoftwareRendering, onChange = a.onForceSoftwareRendering,
+                )
+            }
         }
         extras.frameGen()
         extras.drivers(s.gpuDrivers)
