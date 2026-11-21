@@ -17,7 +17,8 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.*
 
 @Composable
-internal fun InputQuickSettings(host: MenuHost, desktop: Boolean, onChanged: (InputRole?) -> Unit = {}, onEdit: () -> Unit = {}, track: (String) -> Modifier = { Modifier }) {
+internal fun InputQuickSettings(host: MenuHost, desktop: Boolean, onChanged: (InputRole?) -> Unit = {}, onEdit: () -> Unit = {}, gameProfile: String? = null,
+    track: (String) -> Modifier = { Modifier }) {
     val context = LocalContext.current
     var library by remember { mutableStateOf(InputLibraries.read(context)) }
     var expanded by remember { mutableStateOf(false) }
@@ -32,6 +33,13 @@ internal fun InputQuickSettings(host: MenuHost, desktop: Boolean, onChanged: (In
     fun update(role: InputRole?, change: (InputLibrary) -> InputLibrary) {
         runCatching { InputLibraries.update(context, change) }.onSuccess { library = it; onChanged(role) }
             .onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
+    }
+    library.profiles.firstOrNull { it.id == gameProfile }?.let { game ->
+        Text(stringResource(R.string.input_game_controls_active, game.name), style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp).testTag("input-game-profile"))
+        ActionRow(stringResource(R.string.input_settings), null, stringResource(R.string.ctrl_edit), onEdit,
+            modifier = track("input-settings").testTag("input-profile-edit"))
+        return
     }
     val selection = library.selection(desktop)
     val mixed = selection.parts.isNotEmpty()

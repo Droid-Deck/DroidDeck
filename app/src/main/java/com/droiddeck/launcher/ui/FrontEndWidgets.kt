@@ -205,6 +205,7 @@ internal fun PrimaryButton(
     large: Boolean = false,
     icon: ImageVector? = null,
     fill: Boolean = false,
+    centred: Boolean = false,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -225,7 +226,7 @@ internal fun PrimaryButton(
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = if (fill) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
+        horizontalArrangement = if (fill || centred) Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(8.dp),
         modifier = modifier.then(track)
             .onGloballyPositioned { placed[0] = it }
             .heightIn(min = if (pillMode) 40.dp else if (compact) 44.dp else 48.dp)
@@ -253,7 +254,7 @@ internal fun PrimaryButton(
             fontWeight = if (large) FontWeight.Bold else FontWeight.SemiBold, letterSpacing = 0.5.sp, color = fg,
         ))
         if (fill) FittedLabel(text, style, Modifier.weight(1f, fill = false))
-        else Text(text, style = style, maxLines = 1)
+        else Text(text, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

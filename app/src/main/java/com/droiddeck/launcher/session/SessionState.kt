@@ -69,6 +69,8 @@ object SessionState {
     @Volatile
     var gameId: String? = null
     @Volatile
+    var inputGame: String? = null
+    @Volatile
     var steamUi: String? = null
     @Volatile
     var steamUrl: String? = null

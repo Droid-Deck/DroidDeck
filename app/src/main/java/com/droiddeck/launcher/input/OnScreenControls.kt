@@ -21,6 +21,7 @@ import com.droiddeck.launcher.session.SessionState
 class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayout.Dock? = null) : FrameLayout(context) {
     private val surface = InputSurfaceView(context, pad, inputRole = InputRole.PRIMARY, haptics = dock != null)
     private var layout: SavedInputLayout? = null
+    private var actions: Map<String, InputAction> = emptyMap()
     private val safe = Rect()
     private var viewWidth = 0
     private var viewHeight = 0
@@ -46,10 +47,12 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         addView(quickToggle, LayoutParams(size, size, Gravity.START or Gravity.BOTTOM))
     }
 
-    fun updateLayout(value: SavedInputLayout?) {
-        if (layout == value) return
+    /** Shows [value]; [actions] are what each of its controls does in the profile, which says which controls open the keyboard. */
+    fun updateLayout(value: SavedInputLayout?, actions: Map<String, InputAction> = emptyMap()) {
+        if (layout == value && this.actions == actions) return
         releaseAll()
         layout = value
+        this.actions = actions
         render()
     }
 
@@ -91,7 +94,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         val elements = placed()
         surface.updateCustomLayout(when {
             isPinnedOnly -> elements.filter { it.alwaysShown }
-            isQuickHidden -> elements.filter { it.id == "builtin:keyboard" || it.alwaysShown }
+            isQuickHidden -> elements.filter { it.opensKeyboard(actions) || it.alwaysShown }
             else -> elements
         })
         quickToggle.visibility = if (isButtonsOnly || isPinnedOnly || layout == null || dock != null) GONE else VISIBLE

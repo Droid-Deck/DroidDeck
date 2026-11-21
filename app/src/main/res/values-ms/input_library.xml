@@ -30,6 +30,7 @@
     <string name="input_element_trigger">Pencetus</string>
     <string name="input_editor_done">Selesai</string>
     <string name="input_editor_undo">Buat asal</string>
+    <string name="input_editor_redo">Buat semula</string>
     <string name="input_editor_add">+ Tambah</string>
     <string name="input_editor_hint">Seret untuk mengalih. Seret penjuru untuk mengubah saiz. Ketik Sifat untuk menetapkan tindakan.</string>
     <string name="input_editor_remote">Menyunting pada skrin kedua</string>
@@ -51,7 +52,7 @@
     <string name="input_delete_profile_detail">Padam %1$s? Mod yang menggunakannya akan kembali kepada profil lalai terbina dalam. Susun atur tersimpan dan tetapan dikongsi kekal tersedia.</string>
     <string name="input_screen_visibility">Keterlihatan</string>
     <string name="input_visibility_shared">Terpakai pada semua profil. Auto menunjukkan kawalan skrin utama apabila tiada pengawal disambungkan dalam mod permainan.</string>
-    <string name="input_edit_layout">Sunting pada skrin</string>
+    <string name="input_edit_layout">Sunting susun atur</string>
     <string name="input_saved_layouts">Susun atur tersimpan…</string>
     <string name="input_saved_layouts_hint">Pilih susun atur atau cipta sendiri</string>
     <string name="input_second_screen_enable">Pilih Kawalan profil dalam menu sesi skrin kedua. Pemilih Profil dan Skrin kedua dalam menu pengawal menentukan kawalan yang dipaparkan.</string>
@@ -128,4 +129,20 @@
     <string name="input_diagonal_neighbors">Arah jiran</string>
     <string name="input_imported_keys_hint">Kekunci skrin lama anda disimpan sebagai profil diimport di bawah. Pilih satu untuk digunakan atau disunting. Pilihan profil semasa anda dikekalkan.</string>
     <string name="input_import_failed">Kekunci skrin lama tidak dapat diimport secara automatik. Tetapan asal dikekalkan.</string>
+    <string name="input_editor_open_menu">Buka menu</string>
+    <string name="input_editor_hide_menu">Sembunyikan menu</string>
+    <string name="input_editor_save">Simpan</string>
+    <string name="input_editor_layout_size">Saiz susun atur</string>
+    <string name="input_editor_tap_hint">Ketik kawalan untuk menyuntingnya. Seret untuk mengalih.</string>
+    <string name="input_editor_saved">Susun atur disimpan</string>
+    <string name="input_editor_deleted">%1$s dipadam</string>
+    <plurals name="input_editor_controls">
+        <item quantity="other">%1$d kawalan</item>
+    </plurals>
+    <string name="input_editor_discard_title">Buang perubahan?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="other">Terdapat %d perubahan yang belum disimpan pada susun atur ini.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Terdapat perubahan yang belum disimpan pada susun atur ini.</string>
+    <string name="input_editor_discard_confirm">Buang</string>
 </resources>

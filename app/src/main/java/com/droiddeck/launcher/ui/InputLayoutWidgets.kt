@@ -28,7 +28,7 @@ internal fun InputLayoutRow(layout: SavedInputLayout, role: InputRole, detail: S
             InputLayoutThumbnail(layout, role)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(layout.name, style = MaterialTheme.typography.titleMedium)
-                Text(detail ?: stringResource(R.string.input_layout_count, layout.elements.size),
+                Text(detail ?: stringResource(R.string.input_layout_count, layout.style.shown(layout.elements).size),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -49,7 +49,7 @@ internal class InputLayoutPreviewView(context: Context) : View(context) {
         sourceHeight = if (role == InputRole.PRIMARY) 563 else 870
         val primary = role == InputRole.PRIMARY
         val steamOverlay = primary && OnScreenLayout.supportsFloatingSteamControls(SessionPrefs.steamController(context), layout)
-        val elements = if (steamOverlay) OnScreenLayout.editorElements(context, layout, 1000, sourceHeight) else layout.elements
+        val elements = if (steamOverlay) OnScreenLayout.elements(context, layout, 1000, sourceHeight, android.graphics.Rect()) else layout.elements
         renderer.updateCustomLayout(elements)
         renderer.updateStyle(layout.style.copy(opacity = 100),
             steamDeckButtons = primary && OnScreenLayout.usesSteamDeckButtons(context, layout))

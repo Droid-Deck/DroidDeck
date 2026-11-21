@@ -1240,6 +1240,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
+        showMapping = savedInstanceState?.getBoolean(STATE_MAPPING) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
         val shortcutsFilter = android.content.IntentFilter(SteamIntegration.SHORTCUTS_STATUS)
         if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(shortcutsInstallStatus, shortcutsFilter, RECEIVER_NOT_EXPORTED)
@@ -2167,6 +2168,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
+        outState.putBoolean(STATE_MAPPING, showMapping)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
@@ -3412,6 +3414,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     companion object {
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
+        private const val STATE_MAPPING = "mapping_open"
         private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
         private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
         private const val TAG = "MainActivity"

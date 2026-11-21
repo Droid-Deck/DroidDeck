@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">¿Eliminar %1$s? Los modos que lo usan volverán a su perfil predeterminado integrado. Los diseños guardados y los ajustes compartidos seguirán disponibles.</string>
     <string name="input_screen_visibility">Visibilidad</string>
     <string name="input_visibility_shared">Se aplica a todos los perfiles. Auto muestra los controles de la pantalla principal cuando no hay mando conectado en el modo juego.</string>
-    <string name="input_edit_layout">Editar en pantalla</string>
+    <string name="input_edit_layout">Editar diseño</string>
     <string name="input_saved_layouts">Diseños guardados…</string>
     <string name="input_saved_layouts_hint">Elige un diseño o crea el tuyo</string>
     <string name="input_second_screen_enable">Elige Controles de perfil en el menú de sesión de la pantalla secundaria. Los selectores de Perfil y Pantalla secundaria del menú del mando eligen los controles que se muestran.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Gatillo</string>
     <string name="input_editor_done">Listo</string>
     <string name="input_editor_undo">Deshacer</string>
+    <string name="input_editor_redo">Rehacer</string>
     <string name="input_editor_add">+ Añadir</string>
     <string name="input_editor_hint">Arrastra para mover. Arrastra una esquina para cambiar el tamaño. Toca Propiedades para asignar una acción.</string>
     <string name="input_editor_remote">Editando en la pantalla secundaria</string>
@@ -128,4 +129,24 @@
     <string name="input_diagonal_neighbors">Direcciones vecinas</string>
     <string name="input_imported_keys_hint">Tus antiguas teclas en pantalla se guardaron como perfiles importados abajo. Selecciona uno para usarlo o editarlo. Se mantuvieron tus selecciones de perfil actuales.</string>
     <string name="input_import_failed">Las antiguas teclas en pantalla no se pudieron importar automáticamente. Se conservó la configuración original.</string>
+    <string name="input_editor_open_menu">Abrir menú</string>
+    <string name="input_editor_hide_menu">Ocultar menú</string>
+    <string name="input_editor_save">Guardar</string>
+    <string name="input_editor_layout_size">Tamaño del diseño</string>
+    <string name="input_editor_tap_hint">Toca un control para editarlo. Arrastra para mover.</string>
+    <string name="input_editor_saved">Diseño guardado</string>
+    <string name="input_editor_deleted">Eliminado: %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d control</item>
+        <item quantity="many">%1$d de controles</item>
+        <item quantity="other">%1$d controles</item>
+    </plurals>
+    <string name="input_editor_discard_title">¿Descartar los cambios?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Tienes %d cambio sin guardar en este diseño.</item>
+        <item quantity="many">Tienes %d de cambios sin guardar en este diseño.</item>
+        <item quantity="other">Tienes %d cambios sin guardar en este diseño.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Tienes cambios sin guardar en este diseño.</string>
+    <string name="input_editor_discard_confirm">Descartar</string>
 </resources>

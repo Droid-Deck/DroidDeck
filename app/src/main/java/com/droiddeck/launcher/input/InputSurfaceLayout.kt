@@ -35,6 +35,8 @@ data class InputSurfaceElement(
     val buttonShape: InputButtonShape = InputButtonShape.ROUNDED,
     val showLabel: Boolean = true,
     val alwaysShown: Boolean = false,
+    /** Ties a set added from the editor's Groups tab together; blank for every other control. */
+    val group: String = "",
 ) {
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
 
@@ -42,14 +44,25 @@ data class InputSurfaceElement(
         width = width.coerceIn(0.03f, (1f - x.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)), height = height.coerceIn(0.03f, (1f - y.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)))
 }
 
-internal val QUICK_BUTTONS = listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.KEYBOARD)
+internal val QUICK_BUTTON_IDS = mapOf(InputCommand.STEAM to "legacy:${InputControl.GUIDE.id}",
+    InputCommand.QUICK_ACCESS to "legacy:${InputControl.QAM.id}", InputCommand.KEYBOARD to "builtin:keyboard")
 
-val InputSurfaceElement.quickButton: InputCommand? get() = when {
-    id == "legacy:${InputControl.GUIDE.id}" -> InputCommand.STEAM
-    id == "legacy:${InputControl.QAM.id}" -> InputCommand.QUICK_ACCESS
-    id == "builtin:keyboard" -> InputCommand.KEYBOARD
-    else -> null
-}
+val InputSurfaceElement.quickButton: InputCommand? get() = QUICK_BUTTON_IDS.entries.firstOrNull { it.value == id }?.key
+
+/** Whether this opens the keyboard: the stock keyboard button, any control [actions] bind to the keyboard command, or an unbound copy of either. */
+fun InputSurfaceElement.opensKeyboard(actions: Map<String, InputAction>): Boolean = quickButton == InputCommand.KEYBOARD ||
+    actions[id] == InputAction.Command(InputCommand.KEYBOARD) ||
+    id !in actions && copiedStock(id)?.let { copy(id = it).opensKeyboard(actions) } == true
+
+/** A new id for a copy of stock control [stock]; without its own binding the copy acts like [stock] in each profile. */
+/** The stock keyboard button; it opens the keyboard wherever no binding says otherwise. */
+internal const val KEYBOARD_BUTTON = "builtin:keyboard"
+
+internal fun copyId(stock: String) = "copy:$stock#${newInputId()}"
+
+internal fun copiedStock(id: String): String? = if (id.startsWith("copy:")) id.removePrefix("copy:").substringBefore('#') else null
+
+internal fun InputAction.forCopy(control: InputControl) = if (this is InputAction.Native && target == null) InputAction.Native(control) else this
 
 internal fun List<InputSurfaceElement>.scaled(factor: Float): List<InputSurfaceElement> = map { e ->
     fun anchor(centre: Float) = when { centre < 1f / 3f -> 0f; centre > 2f / 3f -> 1f; else -> .5f }

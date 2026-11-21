@@ -144,6 +144,20 @@ class InputLibraryTest {
         assertTrue(InputLibraries.read(context).activeLayout(false, InputRole.PRIMARY)!!.elements.isEmpty())
     }
 
+    @Test fun revertingKeepsAHiddenKeyboardHiddenOnTheRestoredGamepad() {
+        val doc = JSONObject(InputLibraries.encode(InputLibraries.read(context))).put("version", 16)
+        val layouts = doc.getJSONArray("layouts")
+        val overlay = (0 until layouts.length()).map(layouts::getJSONObject)
+            .single { it.getString("id") == InputLibraries.OVERLAY }
+        overlay.put("elements", org.json.JSONArray()).remove("removed")
+        overlay.put("hidden", org.json.JSONArray().put("KEYBOARD"))
+        prefs.edit().putString("library", doc.toString()).commit()
+
+        val restored = InputLibraries.read(context).layouts.single { it.id == InputLibraries.OVERLAY }
+        assertTrue(restored.elements.any { it.id == "builtin:keyboard" })
+        assertEquals(setOf("builtin:keyboard"), restored.style.removed)
+    }
+
     @Test fun legacyLowerScreenBindingsKeepTheirOriginalControlsWithoutSavedGeometry() {
         prefs.edit().putBoolean("migrated", true).putString("profile.game",
             """{"version":1,"bindings":[{"role":"SECONDARY","control":"a","action":{"type":"keys","codes":[57]}}]}""").commit()
@@ -314,6 +328,68 @@ class InputLibraryTest {
         assertEquals(count, library.bindings.size)
         assertEquals(InputAction.Keys(listOf(57)), library.compile("desktop").action(InputRole.PHYSICAL, InputControl.A))
         assertEquals(InputAction.MouseButton(272), library.compile("editor").action(InputRole.PHYSICAL, InputControl.A))
+    }
+
+    @Test fun addedSticksAndTrackpadsClickLikeTheStockOnes() {
+        fun copy(stock: InputControl) = InputSurfaceElement(stock, .1f, .1f, .2f, .2f, copyId("legacy:${stock.id}"))
+        val ls = copy(InputControl.LS); val rs = copy(InputControl.RS); val pad = copy(InputControl.RIGHT_PAD); val a = copy(InputControl.A)
+        val on = InputProfile("p")
+        assertEquals(InputAction.Native(InputControl.L3), on.elementClickAction(InputRole.PRIMARY, ls))
+        assertEquals(InputAction.Native(InputControl.R3), on.elementClickAction(InputRole.PRIMARY, rs))
+        assertEquals(InputAction.Native(InputControl.RIGHT_CLICK), on.elementClickAction(InputRole.PRIMARY, pad))
+        assertEquals(InputAction.Disabled, on.elementClickAction(InputRole.PRIMARY, a))
+        val off = InputProfile("p", clicks = mapOf(InputRole.PRIMARY to mapOf("legacy:ls" to InputAction.Disabled, "legacy:rs" to InputAction.Disabled)))
+        assertEquals(InputAction.Disabled, off.elementClickAction(InputRole.PRIMARY, ls))
+        assertEquals(InputAction.Disabled, off.elementClickAction(InputRole.PRIMARY, rs))
+        val remapped = InputProfile("p", bindings = mapOf(InputRole.PRIMARY to mapOf(InputControl.L3 to InputAction.Keys(listOf(57)))))
+        assertEquals(InputAction.Keys(listOf(57)), remapped.elementClickAction(InputRole.PRIMARY, ls))
+        val preset = SavedInputBindings("b", "B", false, "l", clicks = mapOf("legacy:ls" to InputAction.Disabled))
+        assertEquals(InputAction.Disabled, preset.clickAction(ls))
+        assertEquals(InputAction.Native(InputControl.R3), preset.clickAction(rs))
+    }
+
+    @Test fun anAddedStickBoundToTheOtherStickClicksLikeIt() {
+        val ls = InputSurfaceElement(InputControl.LS, .1f, .1f, .2f, .2f, copyId("legacy:ls"))
+        val profile = InputProfile("p", elements = mapOf(InputRole.PRIMARY to mapOf(ls.id to InputAction.Native(InputControl.RS))))
+        assertEquals(InputAction.Native(InputControl.R3), profile.elementClickAction(InputRole.PRIMARY, ls))
+        val preset = SavedInputBindings("b", "B", false, "l", elements = mapOf(ls.id to InputAction.Native(InputControl.RS)))
+        assertEquals(InputAction.Native(InputControl.R3), preset.clickAction(ls))
+    }
+
+    @Test fun aStockControlBoundToTheKeyboardOpensItAndSoDoItsUnboundCopies() {
+        val select = InputSurfaceElement(InputControl.SELECT, .1f, .1f, .1f, .1f)
+        val profile = InputProfile("p", bindings = mapOf(InputRole.PRIMARY to mapOf(InputControl.SELECT to InputAction.Command(InputCommand.KEYBOARD))))
+        val actions = profile.surfaceActions(InputRole.PRIMARY)
+        assertTrue(select.opensKeyboard(actions))
+        assertTrue(select.copy(id = copyId("legacy:select")).opensKeyboard(actions))
+        assertTrue(select.copy(id = copyId("builtin:keyboard")).opensKeyboard(actions))
+        assertFalse(InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f).opensKeyboard(actions))
+    }
+
+    @Test fun anAddedSetKeepsItsGroupThroughSaveAndCopyAndOldFilesLoadUnchanged() {
+        val library = InputLibraries.read(context)
+        val overlay = library.layouts.first { it.id == InputLibraries.OVERLAY }
+        val key = InputControlGroup.newSetKey(InputControlGroup.LEFT_SHOULDER)
+        val set = (0..1).map { InputSurfaceElement(InputControl.A, .4f, .4f, .1f, .1f, id = newInputId(), group = key) }
+        val loose = InputSurfaceElement(InputControl.A, .2f, .2f, .1f, .1f, id = newInputId())
+        val updated = library.withLayout(overlay.copy(elements = overlay.elements + set + loose))
+        val raw = InputLibraries.encode(updated)
+        val reloaded = InputLibraries.decode(raw)!!
+        assertEquals(updated, reloaded)
+        val elements = reloaded.layouts.first { it.id == InputLibraries.OVERLAY }.elements
+        assertEquals(set.map { it.id }, elements.groupOf(set.last().id))
+        assertEquals(listOf(loose.id), elements.groupOf(loose.id))
+        val doc = JSONObject(raw)
+        val stored = doc.getJSONArray("layouts").let { a -> (0 until a.length()).map(a::getJSONObject) }
+            .first { it.getString("id") == InputLibraries.OVERLAY }.getJSONArray("elements")
+        val json = (0 until stored.length()).map(stored::getJSONObject)
+        assertEquals(listOf(key, key), json.filter { it.has("group") }.map { it.getString("group") })
+        val copied = reloaded.copyLayout(InputLibraries.OVERLAY, "Copy", "copy")
+        assertEquals(elements, copied.layouts.first { it.id == "copy" }.elements)
+        json.filter { it.has("group") }.forEachIndexed { i, e -> if (i == 0) e.remove("group") else e.put("group", "  ") }
+        val oldElements = InputLibraries.decode(doc.toString())!!.layouts.first { it.id == InputLibraries.OVERLAY }.elements
+        assertTrue(oldElements.all { it.group.isEmpty() })
+        assertEquals(listOf(set.last().id), oldElements.groupOf(set.last().id))
     }
 
     @Test fun clickActionsRoundTripAndArePrunedWithTheirElement() {
@@ -728,5 +804,28 @@ class InputLibraryTest {
             assertTrue(bound.compileActive(desktop).showsMouseButton(InputRole.SECONDARY, layout.elements + added, bound.compileStock(desktop)))
             assertFalse(bound.compileActive(desktop).showsMouseButton(InputRole.SECONDARY, layout.elements, bound.compileStock(desktop)))
         }
+    }
+
+    @Test fun aKeyboardButtonOpensTheKeyboardInAPresetThatNeverBoundIt() {
+        val bindings = SavedInputBindings("other", "Other", false, "shared")
+        val copy = InputSurfaceElement(InputControl.SELECT, .1f, .1f, .1f, .1f, id = copyId(KEYBOARD_BUTTON))
+        assertEquals(InputAction.Command(InputCommand.KEYBOARD), bindings.action(copy))
+        val profile = InputProfile("touch")
+        assertEquals(InputAction.Command(InputCommand.KEYBOARD), profile.elementAction(InputRole.PRIMARY, copy.id, copy.control))
+        assertEquals(InputAction.Disabled, bindings.copy(elements = mapOf(copy.id to InputAction.Disabled)).action(copy))
+    }
+
+    @Test fun aGroupScaledDownAgainstAnInsetEdgeStillSaves() {
+        val library = InputLibraries.read(context)
+        val source = library.layouts.first { it.template == InputLayoutTemplate.CUSTOM }
+        // Each pair spans the screen, so the 5% inset pushes its right member onto the edge, where 1f - width can round.
+        val pairs = (100..160 step 2).flatMap { k ->
+            val w = k / 1000f
+            listOf(InputSurfaceElement(InputControl.A, 0f, .4f, w, w, id = "l$k", group = "FACE:$k"),
+                InputSurfaceElement(InputControl.B, 1f - w, .4f, w, w, id = "r$k", group = "FACE:$k"))
+        }
+        val scaled = pairs.scaled(.8f).keptIn(SurfaceBounds(.05f, 0f, 1f, 1f))
+        InputLibraries.update(context) { it.withLayout(source.copy(elements = scaled)) }
+        assertEquals(scaled, InputLibraries.read(context).layouts.first { it.id == source.id }.elements)
     }
 }

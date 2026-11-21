@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">Slet %1$s? Tilstande, der bruger den, vender tilbage til deres indbyggede standardprofil. Gemte layouts og delte indstillinger forbliver tilgængelige.</string>
     <string name="input_screen_visibility">Synlighed</string>
     <string name="input_visibility_shared">Gælder for alle profiler. Auto viser hovedskærmens betjening, når der ikke er tilsluttet en controller i spiltilstand.</string>
-    <string name="input_edit_layout">Rediger på skærmen</string>
+    <string name="input_edit_layout">Rediger layout</string>
     <string name="input_saved_layouts">Gemte layouts…</string>
     <string name="input_saved_layouts_hint">Vælg et layout, eller opret dit eget</string>
     <string name="input_second_screen_enable">Vælg Profilbetjening i sekundærskærmens sessionsmenu. Valgene Profil og Sekundær skærm i controllermenuen bestemmer, hvilken betjening der vises.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Aftrækker</string>
     <string name="input_editor_done">Færdig</string>
     <string name="input_editor_undo">Fortryd</string>
+    <string name="input_editor_redo">Gentag</string>
     <string name="input_editor_add">+ Tilføj</string>
     <string name="input_editor_hint">Træk for at flytte. Træk i et hjørne for at ændre størrelse. Tryk på Egenskaber for at tildele en handling.</string>
     <string name="input_editor_remote">Redigeres på sekundærskærmen</string>
@@ -128,4 +129,22 @@
     <string name="input_diagonal_neighbors">Naboretninger</string>
     <string name="input_imported_keys_hint">Dine gamle skærmtaster er gemt som importerede profiler nedenfor. Vælg en for at bruge eller redigere den. Dine nuværende profilvalg er bevaret.</string>
     <string name="input_import_failed">De gamle skærmtaster kunne ikke importeres automatisk. De oprindelige indstillinger er bevaret.</string>
+    <string name="input_editor_open_menu">Åbn menu</string>
+    <string name="input_editor_hide_menu">Skjul menu</string>
+    <string name="input_editor_save">Gem</string>
+    <string name="input_editor_layout_size">Layoutstørrelse</string>
+    <string name="input_editor_tap_hint">Tryk på en kontrol for at redigere den. Træk for at flytte.</string>
+    <string name="input_editor_saved">Layout gemt</string>
+    <string name="input_editor_deleted">%1$s slettet</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d kontrol</item>
+        <item quantity="other">%1$d kontroller</item>
+    </plurals>
+    <string name="input_editor_discard_title">Kassér ændringer?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Du har %d ugemt ændring i dette layout.</item>
+        <item quantity="other">Du har %d ugemte ændringer i dette layout.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Du har ugemte ændringer i dette layout.</string>
+    <string name="input_editor_discard_confirm">Kassér</string>
 </resources>

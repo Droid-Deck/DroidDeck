@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">%1$s löschen? Modi, die es verwenden, kehren zu ihrem integrierten Standardprofil zurück. Gespeicherte Layouts und geteilte Einstellungen bleiben verfügbar.</string>
     <string name="input_screen_visibility">Sichtbarkeit</string>
     <string name="input_visibility_shared">Gilt für alle Profile. Auto zeigt die Hauptbildschirm-Steuerung, wenn im Spielmodus kein Controller angeschlossen ist.</string>
-    <string name="input_edit_layout">Auf dem Bildschirm bearbeiten</string>
+    <string name="input_edit_layout">Layout bearbeiten</string>
     <string name="input_saved_layouts">Gespeicherte Layouts…</string>
     <string name="input_saved_layouts_hint">Wählen Sie ein Layout oder erstellen Sie ein eigenes</string>
     <string name="input_second_screen_enable">Wählen Sie Profilsteuerung im Sitzungsmenü des Zweitbildschirms. Die Auswahl von Profil und Zweitbildschirm im Controller-Menü bestimmt die angezeigte Steuerung.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Trigger</string>
     <string name="input_editor_done">Fertig</string>
     <string name="input_editor_undo">Rückgängig</string>
+    <string name="input_editor_redo">Wiederholen</string>
     <string name="input_editor_add">+ Hinzufügen</string>
     <string name="input_editor_hint">Zum Verschieben ziehen. An einer Ecke ziehen zum Größe ändern. Auf Eigenschaften tippen, um eine Aktion zuzuweisen.</string>
     <string name="input_editor_remote">Bearbeitung auf dem Zweitbildschirm</string>
@@ -128,4 +129,22 @@
     <string name="input_diagonal_neighbors">Benachbarte Richtungen</string>
     <string name="input_imported_keys_hint">Ihre alten Bildschirmtasten sind unten als importierte Profile gespeichert. Wählen Sie eines zum Verwenden oder Bearbeiten. Ihre aktuellen Profilauswahlen bleiben erhalten.</string>
     <string name="input_import_failed">Die alten Bildschirmtasten konnten nicht automatisch importiert werden. Die ursprünglichen Einstellungen wurden beibehalten.</string>
+    <string name="input_editor_open_menu">Menü öffnen</string>
+    <string name="input_editor_hide_menu">Menü ausblenden</string>
+    <string name="input_editor_save">Speichern</string>
+    <string name="input_editor_layout_size">Layoutgröße</string>
+    <string name="input_editor_tap_hint">Auf ein Steuerelement tippen, um es zu bearbeiten. Zum Verschieben ziehen.</string>
+    <string name="input_editor_saved">Layout gespeichert</string>
+    <string name="input_editor_deleted">%1$s gelöscht</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d Steuerelement</item>
+        <item quantity="other">%1$d Steuerelemente</item>
+    </plurals>
+    <string name="input_editor_discard_title">Änderungen verwerfen?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Sie haben %d nicht gespeicherte Änderung an diesem Layout.</item>
+        <item quantity="other">Sie haben %d nicht gespeicherte Änderungen an diesem Layout.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Sie haben nicht gespeicherte Änderungen an diesem Layout.</string>
+    <string name="input_editor_discard_confirm">Verwerfen</string>
 </resources>

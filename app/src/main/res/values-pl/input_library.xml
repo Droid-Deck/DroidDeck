@@ -30,6 +30,7 @@
     <string name="input_element_trigger">Spust</string>
     <string name="input_editor_done">Gotowe</string>
     <string name="input_editor_undo">Cofnij</string>
+    <string name="input_editor_redo">Ponów</string>
     <string name="input_editor_add">+ Dodaj</string>
     <string name="input_editor_hint">Przeciągnij, aby przenieść. Przeciągnij róg, aby zmienić rozmiar. Dotknij Właściwości, aby przypisać akcję.</string>
     <string name="input_editor_remote">Edycja na dodatkowym ekranie</string>
@@ -51,7 +52,7 @@
     <string name="input_delete_profile_detail">Usunąć %1$s? Tryby, które go używają, wrócą do wbudowanego profilu domyślnego. Zapisane układy i udostępnione ustawienia pozostaną dostępne.</string>
     <string name="input_screen_visibility">Widoczność</string>
     <string name="input_visibility_shared">Dotyczy wszystkich profili. Auto pokazuje sterowanie ekranu głównego, gdy w trybie gry nie podłączono kontrolera.</string>
-    <string name="input_edit_layout">Edytuj na ekranie</string>
+    <string name="input_edit_layout">Edytuj układ</string>
     <string name="input_saved_layouts">Zapisane układy…</string>
     <string name="input_saved_layouts_hint">Wybierz układ lub utwórz własny</string>
     <string name="input_second_screen_enable">Wybierz Sterowanie profilu w menu sesji dodatkowego ekranu. Wybory Profil i Dodatkowy ekran w menu kontrolera decydują, które sterowanie jest pokazywane.</string>
@@ -128,4 +129,26 @@
     <string name="input_diagonal_neighbors">Sąsiednie kierunki</string>
     <string name="input_imported_keys_hint">Twoje stare klawisze ekranowe są zapisane poniżej jako zaimportowane profile. Wybierz jeden, aby go użyć lub edytować. Bieżące wybory profili zostały zachowane.</string>
     <string name="input_import_failed">Nie udało się automatycznie zaimportować starych klawiszy ekranowych. Oryginalne ustawienia zostały zachowane.</string>
+    <string name="input_editor_open_menu">Otwórz menu</string>
+    <string name="input_editor_hide_menu">Ukryj menu</string>
+    <string name="input_editor_save">Zapisz</string>
+    <string name="input_editor_layout_size">Rozmiar układu</string>
+    <string name="input_editor_tap_hint">Dotknij elementu sterującego, aby go edytować. Przeciągnij, aby przenieść.</string>
+    <string name="input_editor_saved">Zapisano układ</string>
+    <string name="input_editor_deleted">Usunięto: %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d element sterujący</item>
+        <item quantity="few">%1$d elementy sterujące</item>
+        <item quantity="many">%1$d elementów sterujących</item>
+        <item quantity="other">%1$d elementu sterującego</item>
+    </plurals>
+    <string name="input_editor_discard_title">Odrzucić zmiany?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Masz %d niezapisaną zmianę w tym układzie.</item>
+        <item quantity="few">Masz %d niezapisane zmiany w tym układzie.</item>
+        <item quantity="many">Masz %d niezapisanych zmian w tym układzie.</item>
+        <item quantity="other">Masz %d niezapisanej zmiany w tym układzie.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Masz niezapisane zmiany w tym układzie.</string>
+    <string name="input_editor_discard_confirm">Odrzuć</string>
 </resources>

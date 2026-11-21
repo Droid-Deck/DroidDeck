@@ -93,6 +93,15 @@ class SessionSecondScreenTest {
         assertEquals(SecondScreenMode.CUSTOM_CONTROLS, selected)
     }
 
+    @Test fun controllerFocusesTheEditorWhenAGameHasItsOwnControls() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val library = InputLibraries.update(context) { it.withGameProfile("1091500", "Cyberpunk 2077") }
+        val game = library.gameProfile(false, "1091500")!!
+        compose.setContent { DroidDeckTheme { SessionDrawer(true, SessionDrawerPage.CONTROLLER, true, {}, actions(true, emptyList(), gameProfile = game)) } }
+        compose.onNodeWithTag("input-game-profile").assertExists()
+        compose.onNodeWithTag("input-profile-edit").assertIsFocused()
+    }
+
     @Test fun desktopWithoutASecondDisplayHasNoScreenPicker() {
         SessionState.mode = SessionService.MODE_DESKTOP
         compose.setContent {
@@ -401,9 +410,9 @@ class SessionSecondScreenTest {
     private fun actions(steam: Boolean, displays: List<SecondScreenDisplay>,
         micAvailable: Boolean = false, micEnabled: Boolean = false, onMic: (Boolean) -> Unit = {},
         desktop: Boolean = !steam, direct: Boolean = false, onInputSelection: (InputRole?) -> Unit = {},
-        onClose: () -> Unit = {}, mode: SecondScreenMode = SecondScreenMode.NONE, gameSwap: Boolean = false,
+        onClose: () -> Unit = {}, mode: SecondScreenMode = SecondScreenMode.NONE, gameSwap: Boolean = false, gameProfile: String? = null,
         select: (SecondScreenMode) -> Unit = {}) =
-        DrawerActions(steam = steam, desktop = desktop, direct = direct, onInputSelection = onInputSelection,
+        DrawerActions(steam = steam, desktop = desktop, direct = direct, onInputSelection = onInputSelection, gameProfile = gameProfile,
             isHomeApp = false, androidApps = emptyList(), hudOn = false,
             micAvailable = micAvailable, micEnabled = micEnabled, onMicEnabled = onMic,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",

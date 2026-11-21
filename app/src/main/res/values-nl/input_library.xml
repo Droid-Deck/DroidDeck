@@ -30,6 +30,7 @@
     <string name="input_element_trigger">Trigger</string>
     <string name="input_editor_done">Gereed</string>
     <string name="input_editor_undo">Ongedaan maken</string>
+    <string name="input_editor_redo">Opnieuw</string>
     <string name="input_editor_add">+ Toevoegen</string>
     <string name="input_editor_hint">Sleep om te verplaatsen. Sleep een hoek om te vergroten of verkleinen. Tik op Eigenschappen om een actie toe te wijzen.</string>
     <string name="input_editor_remote">Bewerken op het secundaire scherm</string>
@@ -51,7 +52,7 @@
     <string name="input_delete_profile_detail">%1$s verwijderen? Modi die het gebruiken keren terug naar hun ingebouwde standaardprofiel. Opgeslagen indelingen en gedeelde instellingen blijven beschikbaar.</string>
     <string name="input_screen_visibility">Zichtbaarheid</string>
     <string name="input_visibility_shared">Geldt voor alle profielen. Auto toont de bediening van het hoofdscherm als er geen controller is aangesloten in spelmodus.</string>
-    <string name="input_edit_layout">Op scherm bewerken</string>
+    <string name="input_edit_layout">Indeling bewerken</string>
     <string name="input_saved_layouts">Opgeslagen indelingen…</string>
     <string name="input_saved_layouts_hint">Kies een indeling of maak je eigen</string>
     <string name="input_second_screen_enable">Kies Profielbediening in het sessiemenu van het secundaire scherm. De keuzes Profiel en Secundair scherm in het controllermenu bepalen welke bediening wordt getoond.</string>
@@ -128,4 +129,22 @@
     <string name="input_diagonal_neighbors">Aangrenzende richtingen</string>
     <string name="input_imported_keys_hint">Je oude schermtoetsen zijn hieronder opgeslagen als geïmporteerde profielen. Selecteer er een om te gebruiken of te bewerken. Je huidige profielkeuzes zijn behouden.</string>
     <string name="input_import_failed">De oude schermtoetsen konden niet automatisch worden geïmporteerd. De oorspronkelijke instellingen zijn behouden.</string>
+    <string name="input_editor_open_menu">Menu openen</string>
+    <string name="input_editor_hide_menu">Menu verbergen</string>
+    <string name="input_editor_save">Opslaan</string>
+    <string name="input_editor_layout_size">Grootte van indeling</string>
+    <string name="input_editor_tap_hint">Tik op een besturing om die te bewerken. Sleep om te verplaatsen.</string>
+    <string name="input_editor_saved">Indeling opgeslagen</string>
+    <string name="input_editor_deleted">%1$s verwijderd</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d besturingselement</item>
+        <item quantity="other">%1$d besturingselementen</item>
+    </plurals>
+    <string name="input_editor_discard_title">Wijzigingen negeren?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Je hebt %d niet-opgeslagen wijziging in deze indeling.</item>
+        <item quantity="other">Je hebt %d niet-opgeslagen wijzigingen in deze indeling.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Je hebt niet-opgeslagen wijzigingen in deze indeling.</string>
+    <string name="input_editor_discard_confirm">Negeren</string>
 </resources>

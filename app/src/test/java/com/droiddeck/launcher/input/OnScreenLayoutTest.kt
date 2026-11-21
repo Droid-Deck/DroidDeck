@@ -83,6 +83,18 @@ class OnScreenLayoutTest {
         assertTrue(fitted.single { it.control == InputControl.START }.y < .5f)
     }
 
+    @Test fun aGamesOwnCopyOfTheOverlayKeepsTheSteamDeckLook() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val library = InputLibraries.update(context) { it.withGameProfile("game:1", "Game") }
+        val profile = library.profile(library.games.getValue("game:1"))
+        val copy = library.layouts.first { it.id == profile.parts.getValue(InputRole.PRIMARY).layout }
+        assertNotEquals(InputLibraries.OVERLAY, copy.id)
+        assertTrue(OnScreenLayout.usesSteamDeckButtons(context, copy))
+        assertTrue(OnScreenLayout.supportsFloatingSteamControls(SessionPrefs.CONTROLLER_DECK, copy))
+        val safe = Rect(24, 8, 12, 16)
+        assertEquals(OnScreenLayout.elements(context, gamepad(), 1600, 720, safe), OnScreenLayout.elements(context, copy, 1600, 720, safe))
+    }
+
     @Test fun theBuiltInGamepadIsRegeneratedForEverySizeWithoutStretching() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
         val layout = gamepad()
@@ -117,52 +129,6 @@ class OnScreenLayoutTest {
         assertOnlyShortcutPositionsChanged(LegacyGamepadLayout(context, 2048, h).regenerate(old), OnScreenLayout.elements(context, saved, 2048, h, Rect()))
         val custom = saved.copy(elements = old.map { if (it.id == "legacy:a") it.copy(x = .4f) else it })
         assertEquals(OnScreenLayout.fit(custom.elements, custom.aspect, 1f, 2048, h, Rect()), OnScreenLayout.elements(context, custom, 2048, h, Rect()))
-    }
-
-    @Test fun savingTheEditorFrameKeepsEveryControlWhereTheEditorShowsIt() {
-        val w = 2608
-        val h = 1200
-        val layout = SavedInputLayout("custom", "Custom", listOf(
-            InputSurfaceElement(InputControl.A, .1f, .2f, .1f, .2f, "custom:a"),
-            InputSurfaceElement(InputControl.B, .7f, .6f, .1f, .2f, "custom:b")), aspect = 16f / 9f)
-        val displayed = OnScreenLayout.editorElements(context, layout, w, h, edited = true)
-        val moved = displayed.map { if (it.id == "custom:a") it.copy(x = .4f) else it }
-        val frame = OnScreenLayout.editorFrame(layout, moved + InputSurfaceElement(InputControl.X, .5f, .5f, .1f, .1f, "builtin:keyboard"))
-        assertEquals(layout.elements.map { it.id }, frame.map { it.id })
-        val saved = layout.copy(elements = frame, aspect = w.toFloat() / h)
-        val game = OnScreenLayout.elements(context, saved, w, h, Rect())
-        val editor = OnScreenLayout.editorElements(context, saved, w, h, edited = true)
-        for (shown in moved) {
-            assertArrayEquals(px(shown, w, h), px(game.first { it.id == shown.id }, w, h), .001f)
-            assertArrayEquals(px(shown, w, h), px(editor.first { it.id == shown.id }, w, h), .001f)
-        }
-    }
-
-    @Test fun editorAndGameUseTheSamePixelRectsOnWideAndStandardScreens() {
-        val layout = gamepad()
-        for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
-            val game = OnScreenLayout.elements(context, layout, w, h, Rect())
-            val editor = OnScreenLayout.editorElements(context, layout, w, h)
-            assertEquals(game.map { it.id }, editor.map { it.id })
-            game.zip(editor).forEach { (gameElement, editorElement) ->
-                assertArrayEquals(px(gameElement, w, h), px(editorElement, w, h), .001f)
-            }
-        }
-    }
-
-    @Test fun editedGeneratedAndCustomLayoutsKeepTheirPixelRectsAcrossRefreshes() {
-        for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
-            val generated = gamepad()
-            val generatedEdit = generated.elements.map { if (it.id == "legacy:a") it.copy(x = .3f, y = .4f, width = .12f, height = .12f) else it }
-            val generatedSaved = generated.copy(elements = generatedEdit, aspect = w.toFloat() / h)
-            val generatedPixels = px(OnScreenLayout.elements(context, generatedSaved, w, h, Rect()).first { it.id == "legacy:a" }, w, h)
-            val generatedRefresh = px(OnScreenLayout.editorElements(context, generatedSaved, w, h, edited = true).first { it.id == "legacy:a" }, w, h)
-            assertArrayEquals(generatedPixels, generatedRefresh, .001f)
-
-            val custom = SavedInputLayout("custom", "Custom", listOf(InputSurfaceElement(InputControl.A, .3f, .4f, .12f, .12f)), aspect = w.toFloat() / h)
-            val customRefresh = OnScreenLayout.editorElements(context, custom, w, h, edited = true)
-            assertArrayEquals(px(customRefresh.single(), w, h), px(OnScreenLayout.editorElements(context, custom.copy(elements = customRefresh), w, h, edited = true).single(), w, h), .001f)
-        }
     }
 
     @Test fun resetPositionsRestoresGeneratedGeometryAfterAnEdit() {
@@ -273,6 +239,20 @@ class OnScreenLayoutTest {
         assertEquals(500 - 20 - inset, centre(keyboard).second, .5f)
         val user = SavedInputLayout("edited", "Edited", listOf(InputSurfaceElement(InputControl.A, .5f, .5f, .1f, .1f)))
         assertEquals(setOf(InputControl.GUIDE, InputControl.QAM), OnScreenLayout.elements(context, user, 2000, 1000, Rect(), buttonsOnly = true).map { it.control }.toSet())
+    }
+
+    @Test fun steamAndQamOnlyModeShowsAddedSteamAndQamButtonsWhenTheStockOnesAreDeleted() {
+        val stock = gamepad()
+        val steam = InputSurfaceElement(InputControl.GUIDE, .5f, .5f, .1f, .1f, copyId("legacy:guide"), buttonShape = InputButtonShape.CIRCLE)
+        val qam = InputSurfaceElement(InputControl.QAM, .3f, .5f, .1f, .1f, copyId("legacy:qam"), buttonShape = InputButtonShape.CIRCLE)
+        val layout = stock.copy(elements = stock.elements + steam + qam, style = stock.style.copy(removed = setOf("legacy:guide", "legacy:qam")))
+        val shown = layout.style.shown(OnScreenLayout.elements(context, layout, 1000, 500, Rect(), buttonsOnly = true))
+        assertEquals(setOf(steam.id, qam.id, "builtin:keyboard"), shown.map { it.id }.toSet())
+        val usual = OnScreenLayout.elements(context, stock, 1000, 500, Rect(), buttonsOnly = true)
+        val guide = usual.first { it.id == "legacy:guide" }
+        assertArrayEquals(px(guide, 1000, 500), px(shown.first { it.id == steam.id }, 1000, 500), .5f)
+        assertEquals(setOf("legacy:guide", "legacy:qam", "builtin:keyboard"),
+            OnScreenLayout.elements(context, stock.copy(elements = stock.elements + steam + qam), 1000, 500, Rect(), buttonsOnly = true).map { it.id }.toSet())
     }
 
     @Test fun theUnfoldedStripUsesTheDockGeometryInLandscapeAndPortrait() {

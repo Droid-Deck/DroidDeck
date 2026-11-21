@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -84,17 +85,19 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     val context = LocalContext.current
     val host = rememberMenuHost()
     var library by remember { mutableStateOf(InputLibraries.read(context)) }
-    var page by remember { mutableStateOf(InputPage.HOME) }
-    var bindingsTab by remember { mutableIntStateOf(0) }
-    var profileId by remember { mutableStateOf(InputProfile.GAME) }
-    var role by remember { mutableStateOf(InputRole.PHYSICAL) }
+    var page by rememberSaveable { mutableStateOf(InputPage.HOME) }
+    var bindingsTab by rememberSaveable { mutableIntStateOf(0) }
+    var profileId by rememberSaveable { mutableStateOf(InputProfile.GAME) }
+    var role by rememberSaveable { mutableStateOf(InputRole.PHYSICAL) }
     var edit by remember { mutableStateOf<InputBindingEdit?>(null) }
     var naming by remember { mutableStateOf<InputNameRequest?>(null) }
     var confirmation by remember { mutableStateOf<InputConfirmation?>(null) }
     var reuse by remember { mutableStateOf<InputReuseRequest?>(null) }
     var capture by remember { mutableStateOf(false) }
-    var surface by remember { mutableStateOf(false) }
-    LaunchedEffect(surface) { onSurfaceEditing(surface) }
+    var surface by rememberSaveable { mutableStateOf(false) }
+    // The session's main-screen editor draws over the game, so the page must not show under it. Other editors cover the page.
+    val seeThrough = surface && role == InputRole.PRIMARY && (LocalInputActivity.current ?: context.findActivity()) is com.droiddeck.launcher.SessionActivity
+    LaunchedEffect(seeThrough) { onSurfaceEditing(seeThrough) }
     DisposableEffect(Unit) { onDispose { onSurfaceEditing(false) } }
     var managingLayout by remember { mutableStateOf<SavedInputLayout?>(null) }
     var exporting by remember { mutableStateOf<String?>(null) }
@@ -184,7 +187,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                     else -> b.copy(controls = b.controls + (editing.control to action))
                 }) }) edit = null
             })
-    } else if (!surface) key(page, profileId, role) {
+    } else if (!seeThrough) key(page, profileId, role) {
         SettingsPage(host, title = when (page) {
             InputPage.HOME -> if (embedded) null else stringResource(R.string.setup_controller)
             InputPage.PROFILE -> profile.name
@@ -283,15 +286,13 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                             }
                             SliderRow(stringResource(R.string.ctrl_opacity), null, layout.style.opacity, 1..100, step = 1,
                                 format = { "$it%" }) { opacity -> update { it.withLayout(layout.copy(style = layout.style.copy(opacity = opacity))) } }
-                            for (button in layout.quickButtons) ToggleRow(host, "quick-${button.name.lowercase()}", stringResource(quickButtonLabel(button)), null,
-                                button !in layout.style.hidden) { on -> update { it.withLayout(layout.withQuickButton(button, on)) } }
                         }
                         if (role == InputRole.SECONDARY) InputHint(stringResource(R.string.input_second_screen_enable))
                     }
                     SettingsGroup(stringResource(R.string.input_assign_actions)) {
                         val users = library.usersOfBindings(preset.id)
                         if (users.size > 1) InputHint(stringResource(R.string.input_shared_with, users.filterNot { it.id == profileId }.joinToString { it.name }))
-                        val elements = layout?.takeIf { it.editable }?.elements
+                        val elements = layout?.takeIf { it.editable }?.let { it.style.shown(it.elements) }
                         if (elements != null) {
                             if (elements.isEmpty()) InputHint(stringResource(R.string.input_empty_elements))
                             for (e in elements) {
@@ -364,7 +365,7 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
     }
     managingLayout?.let { saved -> AlertDialog(onDismissRequest = { managingLayout = null }, title = { Text(saved.name) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.input_layout_count, saved.elements.size))
+            Text(stringResource(R.string.input_layout_count, saved.style.shown(saved.elements).size))
             SecondaryButton(stringResource(R.string.input_rename)) {
                 managingLayout = null
                 rename(R.string.input_rename_layout, saved.name) { name -> update { it.withLayout(saved.copy(name = name)) } }
@@ -461,12 +462,6 @@ private fun InputNavigationRow(title: String, detail: String?, modifier: Modifie
         }
         Text("›", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-}
-
-internal fun quickButtonLabel(button: InputCommand) = when (button) {
-    InputCommand.STEAM -> R.string.ctrl_steam_button
-    InputCommand.QUICK_ACCESS -> R.string.ctrl_qam_button
-    else -> R.string.ctrl_keyboard_button
 }
 
 @Suppress("DEPRECATION")

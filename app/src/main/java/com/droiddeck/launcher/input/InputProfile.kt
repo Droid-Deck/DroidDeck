@@ -47,10 +47,19 @@ data class InputProfile(
     fun withBinding(role: InputRole, control: InputControl, action: InputAction) =
         copy(bindings = bindings + (role to (bindings[role].orEmpty() + (control to action))))
 
-    fun elementAction(role: InputRole, id: String, control: InputControl): InputAction =
-        elements[role]?.get(id) ?: if (id == "legacy:${control.id}") action(role, control) else InputAction.Disabled
+    fun elementAction(role: InputRole, id: String, control: InputControl): InputAction = elements[role]?.get(id) ?: when {
+        id == "legacy:${control.id}" -> action(role, control)
+        id == KEYBOARD_BUTTON -> InputAction.Command(InputCommand.KEYBOARD)
+        else -> copiedStock(id)?.let { elementAction(role, it, control).forCopy(control) } ?: InputAction.Disabled
+    }
+
+    /** Each control's own binding, with stock controls falling back to their control binding; copies are left to resolve through their stock id. */
+    fun surfaceActions(role: InputRole): Map<String, InputAction> =
+        InputControl.entries.associate { "legacy:${it.id}" to action(role, it) } + (KEYBOARD_BUTTON to InputAction.Command(InputCommand.KEYBOARD)) +
+            elements[role].orEmpty()
 
     fun elementClickAction(role: InputRole, element: InputSurfaceElement): InputAction = clicks[role]?.get(element.id)
+        ?: copiedStock(element.id)?.takeIf { elements[role]?.containsKey(element.id) != true }?.let { elementClickAction(role, element.copy(id = it)) }
         ?: defaultElementClick(element, elementAction(role, element.id, element.control)) { action(role, it) }
 
     fun showsMouseButton(role: InputRole, shown: List<InputSurfaceElement>, stock: InputProfile): Boolean = shown.any { element ->

@@ -30,6 +30,7 @@
     <string name="input_element_trigger">Trăgaci</string>
     <string name="input_editor_done">Gata</string>
     <string name="input_editor_undo">Anulează ultima acțiune</string>
+    <string name="input_editor_redo">Refă</string>
     <string name="input_editor_add">+ Adaugă</string>
     <string name="input_editor_hint">Trage pentru a muta. Trage de un colț pentru a redimensiona. Atinge Proprietăți pentru a atribui o acțiune.</string>
     <string name="input_editor_remote">Editare pe ecranul secundar</string>
@@ -51,7 +52,7 @@
     <string name="input_delete_profile_detail">Ștergi %1$s? Modurile care îl folosesc revin la profilul implicit integrat. Aspectele salvate și setările partajate rămân disponibile.</string>
     <string name="input_screen_visibility">Vizibilitate</string>
     <string name="input_visibility_shared">Se aplică tuturor profilurilor. Auto afișează comenzile ecranului principal când nu este conectat un controller în modul joc.</string>
-    <string name="input_edit_layout">Editează pe ecran</string>
+    <string name="input_edit_layout">Editează aspectul</string>
     <string name="input_saved_layouts">Aspecte salvate…</string>
     <string name="input_saved_layouts_hint">Alege un aspect sau creează-l pe al tău</string>
     <string name="input_second_screen_enable">Alege Comenzile profilului în meniul de sesiune al ecranului secundar. Selectoarele Profil și Ecran secundar din meniul controllerului decid ce comenzi sunt afișate.</string>
@@ -128,4 +129,24 @@
     <string name="input_diagonal_neighbors">Direcții vecine</string>
     <string name="input_imported_keys_hint">Vechile tale taste de pe ecran sunt salvate mai jos ca profiluri importate. Selectează unul pentru a-l folosi sau edita. Selecțiile actuale de profil au fost păstrate.</string>
     <string name="input_import_failed">Vechile taste de pe ecran nu au putut fi importate automat. Setările originale au fost păstrate.</string>
+    <string name="input_editor_open_menu">Deschide meniul</string>
+    <string name="input_editor_hide_menu">Ascunde meniul</string>
+    <string name="input_editor_save">Salvează</string>
+    <string name="input_editor_layout_size">Dimensiunea aspectului</string>
+    <string name="input_editor_tap_hint">Atinge un control ca să-l editezi. Trage pentru a muta.</string>
+    <string name="input_editor_saved">Aspect salvat</string>
+    <string name="input_editor_deleted">%1$s a fost șters</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d control</item>
+        <item quantity="few">%1$d controale</item>
+        <item quantity="other">%1$d de controale</item>
+    </plurals>
+    <string name="input_editor_discard_title">Renunți la modificări?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Ai %d modificare nesalvată în acest aspect.</item>
+        <item quantity="few">Ai %d modificări nesalvate în acest aspect.</item>
+        <item quantity="other">Ai %d de modificări nesalvate în acest aspect.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Ai modificări nesalvate în acest aspect.</string>
+    <string name="input_editor_discard_confirm">Renunță</string>
 </resources>

@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">Poistetaanko %1$s? Sitä käyttävät tilat palaavat sisäänrakennettuun oletusprofiiliin. Tallennetut asettelut ja jaetut asetukset säilyvät.</string>
     <string name="input_screen_visibility">Näkyvyys</string>
     <string name="input_visibility_shared">Koskee kaikkia profiileja. Auto näyttää päänäytön ohjaimet, kun pelitilassa ei ole ohjainta kytkettynä.</string>
-    <string name="input_edit_layout">Muokkaa näytöllä</string>
+    <string name="input_edit_layout">Muokkaa asettelua</string>
     <string name="input_saved_layouts">Tallennetut asettelut…</string>
     <string name="input_saved_layouts_hint">Valitse asettelu tai luo oma</string>
     <string name="input_second_screen_enable">Valitse Profiilin ohjaimet toissijaisen näytön istuntovalikosta. Ohjainvalikon Profiili- ja Toissijainen näyttö -valinnat määräävät näytettävät ohjaimet.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Liipaisin</string>
     <string name="input_editor_done">Valmis</string>
     <string name="input_editor_undo">Kumoa</string>
+    <string name="input_editor_redo">Tee uudelleen</string>
     <string name="input_editor_add">+ Lisää</string>
     <string name="input_editor_hint">Vedä siirtääksesi. Vedä kulmasta muuttaaksesi kokoa. Napauta Ominaisuudet määrittääksesi toiminnon.</string>
     <string name="input_editor_remote">Muokataan toissijaisella näytöllä</string>
@@ -128,4 +129,22 @@
     <string name="input_diagonal_neighbors">Viereiset suunnat</string>
     <string name="input_imported_keys_hint">Vanhat näyttönäppäimesi on tallennettu alle tuotuina profiileina. Valitse yksi käyttääksesi tai muokataksesi sitä. Nykyiset profiilivalintasi on säilytetty.</string>
     <string name="input_import_failed">Vanhoja näyttönäppäimiä ei voitu tuoda automaattisesti. Alkuperäiset asetukset on säilytetty.</string>
+    <string name="input_editor_open_menu">Avaa valikko</string>
+    <string name="input_editor_hide_menu">Piilota valikko</string>
+    <string name="input_editor_save">Tallenna</string>
+    <string name="input_editor_layout_size">Asettelun koko</string>
+    <string name="input_editor_tap_hint">Napauta ohjainta muokataksesi sitä. Vedä siirtääksesi.</string>
+    <string name="input_editor_saved">Asettelu tallennettu</string>
+    <string name="input_editor_deleted">%1$s poistettu</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d ohjain</item>
+        <item quantity="other">%1$d ohjainta</item>
+    </plurals>
+    <string name="input_editor_discard_title">Hylätäänkö muutokset?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Tähän asetteluun on %d tallentamaton muutos.</item>
+        <item quantity="other">Tähän asetteluun on %d tallentamatonta muutosta.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Tässä asettelussa on tallentamattomia muutoksia.</string>
+    <string name="input_editor_discard_confirm">Hylkää</string>
 </resources>
