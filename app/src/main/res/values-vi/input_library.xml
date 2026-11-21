@@ -75,9 +75,14 @@
     <string name="input_independent_copy">Bản sao độc lập</string>
     <string name="input_floating_stick">Bắt đầu cần tại điểm chạm</string>
     <string name="input_hide_idle">Ẩn cần khi không dùng</string>
+    <string name="input_tools">Công cụ</string>
+    <string name="input_quick_auto">Tự động (%1$s)</string>
+    <string name="input_quick_mixed">Tùy chỉnh (%1$s)</string>
     <string name="input_save_combination">Lưu thành hồ sơ mới</string>
     <string name="input_profile_controls_mode">Điều khiển hồ sơ</string>
+    <string name="input_profile">Hồ sơ</string>
     <string name="input_mouse_gestures">Cử chỉ bàn di chuột</string>
+    <string name="input_mouse_gestures_hint">Khi gán cho con trỏ chuột: chạm để nhấp, giữ để kéo và cuộn bằng hai ngón.</string>
     <string name="input_quick_override_hint">%1$s có ghi đè menu nhanh. Chọn Tự động ở đó để dùng hồ sơ mặc định và cả ba phần đã lưu.</string>
     <string name="input_route_local">Đầu vào DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Giữ khi cần được đẩy theo mọi hướng: nhấn trên 55%, nhả dưới 35%. Dùng Phím hướng để gán từng hướng riêng. Lệnh DroidDeck chạy một lần mỗi lần lệch. Nhấp cần được cấu hình riêng.</string>
@@ -99,11 +104,17 @@
     <string name="input_shortcut_hold_hint">Ở chế độ Steam. Giữ Quay lại cũng mở truy cập nhanh.</string>
     <string name="input_restore_shortcut">Khôi phục mặc định</string>
     <string name="input_virtual_controller">Tay cầm ảo</string>
+    <string name="input_virtual_controller_hint">Loại tay cầm mà Steam hoặc trò chơi thấy.</string>
     <string name="input_touchscreen">Màn hình cảm ứng</string>
+    <string name="input_touchscreen_hint">Cách xử lý các lần chạm trên màn hình trò chơi. Các nút hồ sơ giữ hành động đã gán.</string>
     <string name="input_touch_cursor">Con trỏ chạm</string>
+    <string name="input_touch_cursor_hint">Hiện con trỏ cho các lần chạm trực tiếp trên màn hình trò chơi.</string>
     <string name="input_touch_hold">Chạm và giữ</string>
+    <string name="input_touch_hold_hint">Hành động chuột khi giữ ngón tay trên màn hình trò chơi.</string>
     <string name="input_back_taps">Chạm nút Quay lại</string>
+    <string name="input_back_taps_hint">Hành động thứ nhất: một lần chạm. Hành động thứ hai: hai lần chạm.</string>
     <string name="input_toggle_button">Nút bật/tắt</string>
+    <string name="input_toggle_button_hint">Chạm để giữ, chạm lại để nhả. Mở menu hoặc đổi hồ sơ sẽ nhả nút.</string>
     <string name="input_button_shape">Hình dạng</string>
     <string name="input_shape_rounded">Bo tròn</string>
     <string name="input_shape_pill">Viên nang</string>

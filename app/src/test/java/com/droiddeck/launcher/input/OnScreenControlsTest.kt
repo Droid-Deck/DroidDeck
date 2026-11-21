@@ -1,13 +1,6 @@
 package com.droiddeck.launcher.input
 
 import android.content.Context
-import android.os.Looper
-import android.view.ViewConfiguration
-import com.droiddeck.launcher.session.SessionPrefs
-import java.time.Duration
-import org.robolectric.Shadows.shadowOf
-import org.robolectric.Robolectric
-import androidx.activity.ComponentActivity
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -112,9 +105,23 @@ class OnScreenControlsTest {
             view.updateLayout(SavedInputLayout("test", "Test", listOf(left.copy(floating = floating)), aspect = ASPECT))
             measure(view)
             touch(MotionEvent.ACTION_DOWN, 3 to (230f to 300f))
-            assertEquals(if (floating) 0f else .5f, state().leftX, .01f)
+            assertEquals(if (floating) 0f else .5f, state().leftX, .001f)
             touch(MotionEvent.ACTION_UP, 3 to (230f to 300f))
         }
+    }
+
+    @Test fun systemOnlyVisibilityMovesSteamAndQamToTheBottomCornersAndReleasesOtherButtons() {
+        val guide = InputSurfaceElement(InputControl.GUIDE, .4f, .7f, .1f, .2f)
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(button, guide), aspect = ASPECT))
+        measure(view)
+        touch(MotionEvent.ACTION_DOWN, 0 to (800f to 250f))
+        view.setButtonsOnly(true)
+        measure(view)
+        assertFalse(state().isDown(PadState.A))
+        assertFalse(view.takesTouchAt(800f, 250f))
+        assertFalse(view.takesTouchAt(450f, 480f))
+        assertTrue(view.takesTouchAt(44f, 556f))
+        assertTrue(view.takesTouchAt(956f, 556f))
     }
 
     @Test fun aCancelledSecondFingerDoesNotArmAStickClick() {
@@ -170,111 +177,54 @@ class OnScreenControlsTest {
         assertFalse(state().isDown(PadState.L3))
     }
 
-    private val corner get() = 26 * context.resources.displayMetrics.density to 600 - 26 * context.resources.displayMetrics.density
-
-    private fun tapCorner() {
-        val (x, y) = corner
-        touch(MotionEvent.ACTION_DOWN, 1 to (x to y)); touch(MotionEvent.ACTION_UP, 1 to (x to y))
-        shadowOf(Looper.getMainLooper()).idle()
+    @Test fun theQuickToggleHidesEverythingButTheKeyboardAndShowsItAgain() {
+        val keyboard = InputSurfaceElement(InputControl.A, .4f, .4f, .1f, .1f, "builtin:keyboard", name = "Keyboard")
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button, keyboard), aspect = ASPECT))
         measure(view)
-    }
-
-    @Test fun tappingTheCornerHidesTheControlsAndTappingAgainShowsThem() {
-        val taps = mutableListOf<OnScreenControls.Hidden?>()
-        view.onCornerTap = { taps += it }
-        touch(MotionEvent.ACTION_DOWN, 4 to (800f to 250f))
-        assertTrue(state().isDown(PadState.A))
-        val (x, y) = corner
-        assertTrue(view.cornerTakes(x, y))
-        assertFalse(view.cornerTakes(800f, 250f))
-        touch(MotionEvent.ACTION_POINTER_DOWN or (1 shl 8), 4 to (800f to 250f), 1 to (x to y))
-        touch(MotionEvent.ACTION_POINTER_UP or (1 shl 8), 4 to (800f to 250f), 1 to (x to y))
-        shadowOf(Looper.getMainLooper()).idle()
-        measure(view)
-        assertEquals(OnScreenControls.Hidden.BY_TAP, view.hidden)
-        assertFalse(state().isDown(PadState.A))
-        assertFalse(view.takesTouchAt(800f, 250f))
+        val density = context.resources.displayMetrics.density
+        val x = 34 * density
+        val y = 600 - 34 * density
         assertTrue(view.takesTouchAt(x, y))
-        touch(MotionEvent.ACTION_UP, 4 to (800f to 250f))
-        tapCorner()
-        assertNull(view.hidden)
-        assertTrue(view.takesTouchAt(800f, 250f))
-        assertEquals(listOf(OnScreenControls.Hidden.BY_TAP, null), taps)
-    }
-
-    @Test fun holdingTheCornerOpensTheMenuOnLiftWithoutHiding() {
-        var held = 0
-        val taps = mutableListOf<OnScreenControls.Hidden?>()
-        view.onCornerHold = { held++ }
-        view.onCornerTap = { taps += it }
-        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
-        activity.setContentView(view, FrameLayout.LayoutParams(1000, 600))
+        touch(MotionEvent.ACTION_UP, 4 to (x to y))
+        touch(MotionEvent.ACTION_DOWN, 5 to (x to y)); touch(MotionEvent.ACTION_CANCEL, 5 to (x to y)); touch(MotionEvent.ACTION_UP, 5 to (x to y))
+        assertFalse(view.isQuickHidden)
+        touch(MotionEvent.ACTION_DOWN, 1 to (x to y)); touch(MotionEvent.ACTION_UP, 1 to (x to y))
         measure(view)
-        val (x, y) = corner
-        touch(MotionEvent.ACTION_DOWN, 1 to (x to y))
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ViewConfiguration.getLongPressTimeout() + 50L))
-        assertEquals(0, held)
-        touch(MotionEvent.ACTION_UP, 1 to (x to y))
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(1, held)
-        assertNull(view.hidden)
-        assertTrue(taps.isEmpty())
-        touch(MotionEvent.ACTION_DOWN, 1 to (x to y))
-        touch(MotionEvent.ACTION_CANCEL, 1 to (x to y))
-        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ViewConfiguration.getLongPressTimeout() + 50L))
-        touch(MotionEvent.ACTION_UP, 1 to (x to y))
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(1, held)
-        assertNull(view.hidden)
-        assertTrue(taps.isEmpty())
-    }
-
-    @Test fun aControllerHideReleasesHeldControlsAndATapBringsThemBack() {
-        touch(MotionEvent.ACTION_DOWN, 4 to (800f to 250f))
-        view.setPresentation(OnScreenControls.Hidden.BY_CONTROLLER)
-        measure(view)
-        assertFalse(state().isDown(PadState.A))
+        assertTrue(view.isQuickHidden)
         assertFalse(view.takesTouchAt(800f, 250f))
-        touch(MotionEvent.ACTION_UP, 4 to (800f to 250f))
-        tapCorner()
-        assertNull(view.hidden)
+        assertTrue(view.takesTouchAt(450f, 270f))
+        touch(MotionEvent.ACTION_DOWN, 2 to (800f to 250f)); touch(MotionEvent.ACTION_UP, 2 to (800f to 250f))
+        assertTrue(view.isQuickHidden)
+        touch(MotionEvent.ACTION_DOWN, 3 to (x to y)); touch(MotionEvent.ACTION_UP, 3 to (x to y))
+        measure(view)
+        assertFalse(view.isQuickHidden)
         assertTrue(view.takesTouchAt(800f, 250f))
-    }
-
-    @Test fun tappingTheCornerKeepsTheShortcutsMode() {
-        fun shownIds() = view.inputSurface.shownElements.map { it.id }
-        view.setPresentation(null, shortcuts = true)
+        view.setButtonsOnly(true)
         measure(view)
-        val shortcuts = listOf(OnScreenLayout.STEAM_SHORTCUT_ID, OnScreenLayout.QAM_SHORTCUT_ID)
-        assertEquals(shortcuts, shownIds())
-        tapCorner()
-        assertTrue(shownIds().isEmpty())
-        tapCorner()
-        assertEquals(shortcuts, shownIds())
+        touch(MotionEvent.ACTION_DOWN, 6 to (x to y)); touch(MotionEvent.ACTION_UP, 6 to (x to y))
+        assertFalse(view.isQuickHidden)
     }
 
-    @Test fun theCornerIsGoneWithoutALayoutAndOnTheDockedStrip() {
-        val (x, y) = corner
-        view.updateLayout(null)
+    @Test fun hidingTheGamepadKeepsAlwaysShownKeysDrawnAndTouchable() {
+        val key = InputSurfaceElement(InputControl.A, .45f, .1f, .1f, .1f, "imported:0", name = "Find", alwaysShown = true)
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button, key), aspect = ASPECT))
         measure(view)
-        assertFalse(view.cornerTakes(x, y))
-        assertFalse(view.takesTouchAt(x, y))
-        val docked = OnScreenControls(context, bridge, OnScreenLayout.Dock(false, grips = true))
-        docked.updateLayout(SavedInputLayout("test", "Test", listOf(button), aspect = ASPECT))
-        measure(docked)
-        assertFalse(docked.cornerTakes(x, y))
-        docked.releaseAll()
-    }
-
-    @Test fun switchingTheVirtualControllerRedrawsTheSameLayoutWithTheNewKit() {
-        assertEquals(PadKit.STEAM_DECK, view.inputSurface.kit)
-        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DS4)
+        assertTrue(view.hasPinned)
+        view.setPinnedOnly(true)
+        measure(view)
+        assertTrue(view.takesTouchAt(500f, 90f))
+        assertFalse(view.takesTouchAt(800f, 250f))
+        assertFalse(view.takesTouchAt(200f, 300f))
+        view.setPinnedOnly(false)
+        measure(view)
+        assertTrue(view.takesTouchAt(800f, 250f))
+        assertTrue(view.takesTouchAt(500f, 90f))
+        view.setQuickHidden(true)
+        measure(view)
+        assertTrue(view.takesTouchAt(500f, 90f))
+        assertFalse(view.takesTouchAt(800f, 250f))
         view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button), aspect = ASPECT))
-        assertEquals(PadKit.DUALSHOCK, view.inputSurface.kit)
-        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
-        view.reload()
-        assertEquals(PadKit.XBOX, view.inputSurface.kit)
-        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        assertFalse(view.hasPinned)
     }
 
     private companion object { const val ASPECT = 1000f / 600f }

@@ -75,9 +75,14 @@
     <string name="input_independent_copy">Nezávislá kopie</string>
     <string name="input_floating_stick">Spustit páčku v místě dotyku</string>
     <string name="input_hide_idle">Skrýt páčku, když se nepoužívá</string>
+    <string name="input_tools">Nástroje</string>
+    <string name="input_quick_auto">Automaticky (%1$s)</string>
+    <string name="input_quick_mixed">Vlastní (%1$s)</string>
     <string name="input_save_combination">Uložit jako nový profil</string>
     <string name="input_profile_controls_mode">Ovládání profilu</string>
+    <string name="input_profile">Profil</string>
     <string name="input_mouse_gestures">Gesta touchpadu myši</string>
+    <string name="input_mouse_gestures_hint">Při přiřazení k ukazateli myši: klepnutím kliknete, podržením táhnete a dvěma prsty posouváte.</string>
     <string name="input_quick_override_hint">%1$s má přepsání rychlé nabídky. Vyberte Automaticky, chcete-li použít výchozí profil a všechny tři uložené části.</string>
     <string name="input_route_local">Vstup DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Drženo, když je páčka vychýlena jakýmkoli směrem: stisk nad 55 %, uvolnění pod 35 %. Pomocí Směrových kláves přiřaďte každý směr zvlášť. Příkazy DroidDeck se spustí jednou za vychýlení. Kliknutí páčky se nastavuje zvlášť.</string>
@@ -99,11 +104,17 @@
     <string name="input_shortcut_hold_hint">V režimu Steam. Podržením Zpět se také otevře rychlý přístup.</string>
     <string name="input_restore_shortcut">Obnovit výchozí</string>
     <string name="input_virtual_controller">Virtuální ovladač</string>
+    <string name="input_virtual_controller_hint">Typ ovladače, který vidí Steam nebo hra.</string>
     <string name="input_touchscreen">Dotyková obrazovka</string>
+    <string name="input_touchscreen_hint">Jak se zpracovávají dotyky na obrazovce hry. Tlačítka profilu si zachovávají přiřazené akce.</string>
     <string name="input_touch_cursor">Kurzor dotyku</string>
+    <string name="input_touch_cursor_hint">Zobrazí ukazatel pro přímé dotyky na obrazovce hry.</string>
     <string name="input_touch_hold">Dotknout se a podržet</string>
+    <string name="input_touch_hold_hint">Akce myši při podržení prstu na obrazovce hry.</string>
     <string name="input_back_taps">Klepnutí tlačítka Zpět</string>
+    <string name="input_back_taps_hint">První akce: jedno klepnutí. Druhá akce: dvojité klepnutí.</string>
     <string name="input_toggle_button">Přepínací tlačítko</string>
+    <string name="input_toggle_button_hint">Klepnutím podržíte, dalším klepnutím uvolníte. Otevření nabídky nebo přepnutí profilu tlačítko uvolní.</string>
     <string name="input_button_shape">Tvar</string>
     <string name="input_shape_rounded">Zaoblený</string>
     <string name="input_shape_pill">Kapsle</string>

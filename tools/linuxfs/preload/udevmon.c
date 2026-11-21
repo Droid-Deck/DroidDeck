@@ -14,7 +14,6 @@
 #include <sys/stat.h>
 #include <endian.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 
 struct stand_in {
@@ -145,61 +144,6 @@ int socket(int domain, int type, int protocol) {
 
 __attribute__((visibility("hidden"))) int dd_udevmon_stand_in(int fd) {
   return is_stand_in(fd);
-}
-
-static int subscribed(int fd) {
-#ifdef UDEVMON_TEST
-  if (getenv("DD_UDEVMON_REFUSE") != NULL) return 0;
-#endif
-  struct sockaddr_nl nl;
-  socklen_t len = sizeof(nl);
-  memset(&nl, 0, sizeof(nl));
-  return getsockname(fd, (struct sockaddr *)&nl, &len) == 0 && nl.nl_groups != 0;
-}
-
-/* Android lets an app open a uevent socket but not join its multicast groups, and libudev joins none
-   when no udev daemon runs, so a monitor bound there hears nothing. Such a socket is replaced, under
-   the same descriptor, by a stand-in. */
-__attribute__((visibility("hidden"))) int dd_udevmon_bind(int fd, const struct sockaddr *addr, socklen_t len,
-                                                          int (*real_bind)(int, const struct sockaddr *, socklen_t),
-                                                          int *rc) {
-  int protocol = -1;
-  socklen_t protocol_len = sizeof(protocol);
-  if (addr == NULL || len < sizeof(struct sockaddr_nl) || addr->sa_family != AF_NETLINK) return 0;
-  if (is_stand_in(fd) || is_wine_process()) return 0;
-  if (getsockopt(fd, SOL_SOCKET, SO_PROTOCOL, &protocol, &protocol_len) != 0 || protocol != NETLINK_KOBJECT_UEVENT)
-    return 0;
-  *rc = real_bind(fd, addr, len);
-  int refused = errno;
-  if (*rc == 0 && subscribed(fd)) return 1;
-  int status = fcntl(fd, F_GETFL);
-  int descriptor = fcntl(fd, F_GETFD);
-  int sv[2];
-  if (status < 0 || descriptor < 0 || socketpair(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC, 0, sv) != 0) {
-    errno = refused;
-    return 1;
-  }
-  pthread_mutex_lock(&lock);
-  size_t slot = sizeof(stand_ins) / sizeof(stand_ins[0]);
-  for (size_t i = 0; i < sizeof(stand_ins) / sizeof(stand_ins[0]); i++) {
-    if (stand_ins[i].fd == -1) { slot = i; break; }
-  }
-  if (slot == sizeof(stand_ins) / sizeof(stand_ins[0]) ||
-      dup3(sv[0], fd, (descriptor & FD_CLOEXEC) ? O_CLOEXEC : 0) < 0) {
-    pthread_mutex_unlock(&lock);
-    close(sv[0]);
-    close(sv[1]);
-    errno = refused;
-    return 1;
-  }
-  close(sv[0]);
-  if (status & O_NONBLOCK) fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-  stand_ins[slot].fd = fd;
-  stand_ins[slot].peer = sv[1];
-  stand_ins[slot].inode = socket_inode(fd);
-  pthread_mutex_unlock(&lock);
-  *rc = 0;
-  return 1;
 }
 
 int getsockname(int fd, struct sockaddr *addr, socklen_t *len) {
