@@ -63,11 +63,17 @@ import com.droiddeck.launcher.session.SessionState
 private data class SurfaceSnapshot(val elements: List<InputSurfaceElement>, val actions: Map<String, InputAction>,
     val clicks: Map<String, InputAction>, val scale: Float, val aspect: Float)
 
-private class GamepadScaler(private val context: android.content.Context, private val width: Int, private val height: Int) {
+private class GamepadScaler(private val context: android.content.Context, private val width: Int, private val height: Int,
+    private val layout: SavedInputLayout) {
     private fun generator(scale: Float) = LegacyGamepadLayout(context, width, height, scale = scale)
     val ids = generator(1f).elements().map { it.id }.toSet()
     fun stock(scale: Float) = generator(scale).elements()
-    fun rescale(stored: List<InputSurfaceElement>, from: Float, to: Float) = generator(to).rescale(stored, generator(from))
+    private fun placed(scale: Float) = OnScreenLayout.editorElements(context,
+        layout.copy(elements = stock(scale), aspect = 0f, rotated = emptyList(), scale = scale), width, height)
+    fun rescale(stored: List<InputSurfaceElement>, from: Float, to: Float) =
+        if (PadKit.forOverlay(context, layout) == null || OnScreenLayout.generatedSize(context, layout.copy(elements = stored, scale = from), width, height) != null)
+            generator(to).rescale(stored, generator(from))
+        else rescaleBetween(stored, placed(from), placed(to), stock(from), stock(to))
     fun reset(stored: List<InputSurfaceElement>) = generator(1f).regenerate(stored).associateBy { it.id }.let { placed -> stored.map { placed[it.id] ?: it } }
 }
 
@@ -140,7 +146,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         val pad = gamepad ?: return emptyList()
         if (canvas.width <= 0 || canvas.height <= 0) return emptyList()
         val ids = shown.map { it.id }.toSet()
-        return OnScreenLayout.editorElements(context, layout.copy(elements = pad.stock(layoutScale), aspect = 0f, rotated = emptyList()),
+        return OnScreenLayout.editorElements(context, layout.copy(elements = pad.stock(layoutScale), aspect = 0f, rotated = emptyList(), scale = layoutScale),
             canvas.width, canvas.height).filter { it.id !in ids }
     }
 
@@ -181,7 +187,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
         val (display, metrics) = InputLibraries.primaryDisplay(context)
         val gamepad = savedLayout.elements.takeIf { e -> e.any { it.id.startsWith("legacy:") } }?.let {
             val (w, h) = OnScreenLayout.generatedSize(context, savedLayout, metrics.widthPixels, metrics.heightPixels) ?: (metrics.widthPixels to metrics.heightPixels)
-            GamepadScaler(display, w, h)
+            GamepadScaler(display, w, h, savedLayout)
         }
         val defaults = InputLibraries.defaultPositions(context, library, savedLayout)
         SurfaceDraft(savedLayout, savedBindings, defaults?.first, defaults?.second ?: 0f, gamepad, ControllerPrefs.snap(context))
@@ -313,7 +319,7 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false) {
             view.style = draft.layout.style.copy(hidden = emptySet()); view.sourceLayout = draft.layout; view.aspect = draft.aspect; view.elements = draft.elements; view.selected = draft.selected; view.snap = draft.snap
             view.isEnabled = !draft.properties && !draft.adding
             view.onSelect = { if (!draft.properties) draft.selected = it }
-            view.onBeginEdit = { e, w, h -> draft.beginEdit(e, w.toFloat() / h, if (draft.hasGamepad) GamepadScaler(view.context, w, h) else null) }
+            view.onBeginEdit = { e, w, h -> draft.beginEdit(e, w.toFloat() / h, if (draft.hasGamepad) GamepadScaler(view.context, w, h, draft.layout) else null) }
             view.onResize = { w, h -> draft.canvas = IntSize(w, h) }
             view.onDisplayed = { draft.shown = it }
             view.onChange = { e -> if (!draft.properties) draft.elements = draft.elements.map { if (it.id == e.id) e else it } }
