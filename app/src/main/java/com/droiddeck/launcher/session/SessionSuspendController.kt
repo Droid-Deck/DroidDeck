@@ -127,30 +127,40 @@ internal class SessionSuspendController(
         return false
     }
 
-    private fun checkPageOut(check: Int) {
-        schedule(PAGE_OUT_CHECK_MS) { submit({ pageOutIfShort(check) }, {}) }
+    private fun checkPageOut(check: Int) = later(check, ::pageOutIfShort)
+
+    private fun later(check: Int, task: (Int) -> Unit) {
+        schedule(PAGE_OUT_CHECK_MS) { submit({ task(check) }, {}) }
     }
 
     private fun pageOutIfShort(check: Int) {
         if (check != pageOutChecks || closing || cancelled || frozen.isEmpty()) return
         if (!memoryShort()) return checkPageOut(check)
-        pageOutChecks++
+        restopUntilStable(++pageOutChecks, pageOut = true)
+    }
+
+    private fun restopUntilStable(check: Int, pageOut: Boolean = false) {
+        if (check != pageOutChecks || closing || cancelled || frozen.isEmpty()) return
         val records = frozen.associateByTo(LinkedHashMap()) { it.pid to it.started }
-        val root = records.values.firstOrNull { it.role == Role.SESSION_ROOT } ?: return
+        val root = records.values.firstOrNull { it.role == Role.SESSION_ROOT }?.takeUnless { isGone(it) } ?: return
         val helpers = records.values.filter { it.role == Role.HELPER_ROOT }.map { it.pid }
-        advanceClock()
+        if (pageOut) advanceClock()
+        var stable = false
         try {
-            restore(records.values.toList())
-            pageOut(records, root.pid, helpers)
-            stopUntilStable(records, root, helpers)
+            if (pageOut) {
+                restore(records.values.toList())
+                pageOut(records, root.pid, helpers)
+            }
+            stable = stopUntilStable(records, root, helpers)
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         } catch (_: Exception) {
         } finally {
             stop(records.values.toList())
             frozen = records.values.toList()
-            frozenSince = nowNanos()
+            if (pageOut) frozenSince = nowNanos()
         }
+        if (!stable) later(check, ::restopUntilStable)
     }
 
     private fun memoryShort(): Boolean {

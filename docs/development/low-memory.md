@@ -160,7 +160,9 @@ when `MemAvailable` is below twice the reserve, the larger of 1 GiB and a tenth 
 the session stays resident while it is stopped, and every ten seconds of uptime the app reads
 `MemAvailable` again. Once it falls below that level, the app moves the guest clock forward by
 the stopped time, continues the session with audio still suspended, pages it out and stops it
-again. A resume ends the checks and cuts a running page-out short. A short screen-off with memory
+again. If the session does not settle in that stop, the app stops it again every ten seconds
+until it does, so it stays suspended as the service reports. A resume ends the checks and the
+retries and cuts a running page-out short. A short screen-off with memory
 to spare therefore moves nothing into zram, and nothing has to come back when the screen turns on.
 Getting it back costs much more on some phones than on others: after a 12 s screen-off a Poco F7
 read 690 MB back in 6.7 s while the phone was waking up.

@@ -184,6 +184,56 @@ class SessionSuspendControllerTest {
         assertTrue(fixture.game.threads.all { it.state == 'S' })
     }
 
+    @Test fun anUnsettledStopAfterADeferredPageOutIsRetriedUntilTheSessionStops() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        val results = mutableListOf<Boolean>()
+        fixture.availableWhileSuspendedKb = 8_000_000L
+        fixture.controller.freeze(pageOut = true) { results += it }
+        fixture.availableWhileSuspendedKb = 3_000_000L
+        fixture.neverStop = true
+        fixture.sync()
+        fixture.runScheduled()
+        assertEquals(listOf(1), fixture.pagedOut.map { it.first })
+        assertEquals('T', fixture.root.threads.single().state)
+        assertEquals('S', fixture.game.threads.last().state)
+        assertEquals(listOf(10_000L), fixture.scheduled.map { it.first })
+        fixture.runScheduled()
+        assertEquals('S', fixture.game.threads.last().state)
+        assertEquals(1, fixture.scheduled.size)
+        fixture.neverStop = false
+        val before = fixture.signals.size
+        fixture.runScheduled()
+        assertFalse(fixture.signals.drop(before).any { it.signal == CONT || it.signal == URG })
+        assertTrue(fixture.game.threads.all { it.state == 't' })
+        assertTrue(fixture.scheduled.isEmpty())
+        assertEquals(listOf(true), results)
+        assertEquals(1, fixture.audioSuspends)
+        assertEquals(0, fixture.audioResumes)
+        assertEquals(listOf(1), fixture.pagedOut.map { it.first })
+        fixture.controller.resume { assertTrue(it) }
+        assertEquals(listOf(1), fixture.pagedIn.map { it.first })
+        assertTrue(fixture.game.threads.all { it.state == 'S' })
+    }
+
+    @Test fun aResumeEndsTheRetriedStop() {
+        val fixture = fixture(17)
+        fixture.control.writeText("0")
+        fixture.availableWhileSuspendedKb = 8_000_000L
+        fixture.controller.freeze(pageOut = true) { assertTrue(it) }
+        fixture.availableWhileSuspendedKb = 3_000_000L
+        fixture.neverStop = true
+        fixture.sync()
+        fixture.runScheduled()
+        assertEquals(1, fixture.scheduled.size)
+        fixture.controller.resume { assertTrue(it) }
+        val before = fixture.signals.size
+        fixture.runScheduled()
+        assertFalse(fixture.signals.drop(before).any { it.signal == STOP })
+        assertTrue(fixture.scheduled.isEmpty())
+        assertTrue(fixture.game.threads.all { it.state == 'S' })
+    }
+
     @Test fun aResumeEndsThePageOutChecks() {
         val fixture = fixture(17)
         fixture.control.writeText("0")
