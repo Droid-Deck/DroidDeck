@@ -383,7 +383,8 @@ class EpicRockstarLaunch(unittest.TestCase):
     def launch(self, bat, parent, compat_data=''):
         (self.folder / '.droiddeck-launch.bat').write_text(bat)
         calls = []
-        env = {'DD_LAUNCH_DIR': str(self.root / 'launch'), 'STEAM_COMPAT_DATA_PATH': compat_data, 'HOME': str(self.root / 'home')}
+        env = {'DD_LAUNCH_DIR': str(self.root / 'launch'), 'STEAM_COMPAT_DATA_PATH': compat_data, 'HOME': str(self.root / 'home'),
+               'DD_EPIC_PARENT': ''}
         with patch.dict(os.environ, env), patch.object(store, 'EPIC_PARENT', parent), \
                 patch.object(store, 'client_wanted', return_value=False), \
                 patch.object(store, 'ask', side_effect=lambda channel, request, timeout=0, claim=False: calls.append((request['op'], timeout)) or {'ok': False}):
