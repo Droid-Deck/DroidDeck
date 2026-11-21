@@ -137,7 +137,9 @@ def apply(source):
             "        m_renderLoop->inhibit();\n"
             "        for (auto &layer : m_layers) {\n"
             "            layer->setEnabled(false);\n"
-            "            static_cast<WaylandLayer *>(layer.get())->commit(PresentationMode::VSync);\n"
+            "            if (layer->type() != OutputLayerType::CursorOnly) {\n"
+            "                static_cast<WaylandLayer *>(layer.get())->commit(PresentationMode::VSync);\n"
+            "            }\n"
             "            layer->releaseBuffers();\n"
             "        }\n"
             "    } else {\n"
@@ -175,7 +177,10 @@ def apply(source):
             "    createOutputs();\n    startIndependentWindows(this);")
     replace("wayland_backend.cpp", "namespace KWin\n{",
             "namespace KWin\n{\n"
-            "namespace Wayland { bool closeIndependentWindow(WaylandOutput *); void startIndependentWindows(WaylandBackend *); }")
+            "namespace Wayland { bool closeIndependentWindow(WaylandOutput *); void shutdownIndependentWindows(WaylandBackend *); void startIndependentWindows(WaylandBackend *); }")
+    replace("wayland_backend.cpp",
+            "void WaylandBackend::destroyOutputs()\n{\n    while (!m_outputs.isEmpty()) {",
+            "void WaylandBackend::destroyOutputs()\n{\n    shutdownIndependentWindows(this);\n    while (!m_outputs.isEmpty()) {")
     replace("wayland_backend.cpp",
             "    connect(waylandOutput, &WaylandOutput::closeRequested, this, [this, waylandOutput] {\n"
             "        if (m_outputs.count() == 1) {",
@@ -206,7 +211,8 @@ def apply(source):
             "        killWindow();\n"
             "    }",
             "    } else {\n"
-            '        if (!qEnvironmentVariableIsEmpty("BL_LAUNCH_DIR")) {\n'
+            '        if (!qEnvironmentVariableIsEmpty("BL_LAUNCH_DIR") && output()\n'
+            '            && output()->name().startsWith("DroidDeckWindow:")) {\n'
             "            return;\n"
             "        }\n"
             "        killWindow();\n"

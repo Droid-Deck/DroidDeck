@@ -9,9 +9,9 @@ struct IndependentOutputPosition {
     int y;
 };
 
-inline std::optional<IndependentOutputPosition> independentOutputPosition(int slot, int width, int height)
+inline std::optional<IndependentOutputPosition> independentOutputPosition(int slot, int width, int rowHeight, int ownHeight)
 {
-    if (slot < 0 || slot >= 64 || width < 1 || height < 1 || width > 8192 || height > 8192) {
+    if (slot < 0 || slot >= 64 || width < 1 || ownHeight < 1 || width > 8192 || ownHeight > 8192) {
         return std::nullopt;
     }
     // Legacy Qt XCB windows clamp both position coordinates to 16383.
@@ -23,8 +23,8 @@ inline std::optional<IndependentOutputPosition> independentOutputPosition(int sl
         return std::nullopt;
     }
     const int x = origin + (slot % columns) * (width + gap);
-    const int y = (slot / columns) * (height + gap);
-    if (x + width > extent || y + height > extent) {
+    const int y = (slot / columns) * (rowHeight + gap);
+    if (x + width > extent || y + ownHeight > extent) {
         return std::nullopt;
     }
     return IndependentOutputPosition{x, y};

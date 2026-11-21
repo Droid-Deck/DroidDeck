@@ -18,12 +18,16 @@
 
 namespace KWin::Wayland
 {
+class IndependentWindows;
+static IndependentWindows *g_windows = nullptr;
+
 class IndependentWindows : public QObject
 {
     struct Entry {
         QPointer<Window> window;
         WaylandOutput *output;
         RectF original;
+        RectF restoreGeometry;
         bool border;
         QPoint position;
         int slot;
@@ -35,6 +39,7 @@ class IndependentWindows : public QObject
     QString m_path;
     QHash<QString, Entry> m_entries;
     QByteArray m_lastStatus;
+    QTimer *m_timer = nullptr;
 
     void restore(const QString &key)
     {
@@ -43,7 +48,8 @@ class IndependentWindows : public QObject
         if (entry.window) {
             entry.window->setNoBorder(entry.border);
             entry.window->moveResize(entry.original);
-            entry.window->setMaximize(entry.maximized & MaximizeVertical, entry.maximized & MaximizeHorizontal);
+            entry.window->setMaximize(entry.maximized & MaximizeVertical, entry.maximized & MaximizeHorizontal,
+                                      entry.restoreGeometry);
             entry.window->setFullScreen(entry.fullscreen);
         }
         m_backend->removeVirtualOutput(entry.output);
@@ -113,9 +119,10 @@ class IndependentWindows : public QObject
                         }
                         if (!occupied) break;
                     }
-                    const auto candidate = independentOutputPosition(slot, cellWidth, cellHeight);
+                    const auto candidate = independentOutputPosition(slot, cellWidth, cellHeight, height);
                     if (!candidate) continue;
                     const auto original = window->frameGeometry();
+                    const auto restoreGeometry = window->geometryRestore();
                     const bool border = window->noBorder();
                     const bool fullscreen = window->isFullScreen();
                     const auto maximized = window->maximizeMode();
@@ -128,11 +135,11 @@ class IndependentWindows : public QObject
                     changes->pos = position;
                     changes->scale = 1.0;
                     (void)ws->applyOutputConfiguration(configuration);
-                    m_entries.insert(key, {window, output, original, border, position, slot, fullscreen, maximized,
+                    m_entries.insert(key, {window, output, original, restoreGeometry, border, position, slot, fullscreen, maximized,
                         std::make_shared<RawWindow>(m_backend, window, output)});
                 }
                 auto &entry = m_entries[key];
-                const auto position = independentOutputPosition(entry.slot, cellWidth, cellHeight);
+                const auto position = independentOutputPosition(entry.slot, cellWidth, cellHeight, height);
                 if (!position) continue;
                 wanted.insert(key);
                 entry.position = QPoint(position->x, position->y);
@@ -198,11 +205,34 @@ public:
         : QObject(backend), m_backend(backend)
         , m_path(QString::fromLocal8Bit(qgetenv("BL_LAUNCH_DIR")) + "/agent")
     {
-        auto timer = new QTimer(this);
-        connect(timer, &QTimer::timeout, this, [this] { poll(); });
-        timer->start(100);
+        g_windows = this;
+        m_timer = new QTimer(this);
+        connect(m_timer, &QTimer::timeout, this, [this] { poll(); });
+        m_timer->start(100);
+    }
+
+    ~IndependentWindows() override
+    {
+        if (g_windows == this) {
+            g_windows = nullptr;
+        }
+        shutdown();
+    }
+
+    void shutdown()
+    {
+        if (m_timer) m_timer->stop();
+        for (auto it = m_entries.begin(); it != m_entries.end(); ++it) {
+            it->raw.reset();
+        }
+        m_entries.clear();
     }
 };
+
+void shutdownIndependentWindows(WaylandBackend *)
+{
+    if (g_windows) g_windows->shutdown();
+}
 
 bool closeIndependentWindow(WaylandOutput *output)
 {
