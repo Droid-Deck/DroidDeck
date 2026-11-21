@@ -1,8 +1,9 @@
 #define _GNU_SOURCE
-#include <dlfcn.h>
+#pragma GCC optimize("no-stack-protector", "no-tree-loop-distribute-patterns")
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <sched.h>
 #include <signal.h>
 #include <stdint.h>
 #include <string.h>
@@ -32,12 +33,179 @@
 #define ZR_FAILED (~0UL)
 #define ZR_FUTEX_WAIT 0
 #define ZR_FUTEX_WAKE 1
+#define ZR_STACK (128UL << 10)
+#define ZR_THREAD (CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD | CLONE_SYSVSEM)
+#define ZR_TEXT(x) #x
+#define ZR_NR(x) ZR_TEXT(x)
+#define ZR_CALL(n, a, b, c, d, e, f, ...) \
+  zr_call((long)(n), (long)(a), (long)(b), (long)(c), (long)(d), (long)(e), (long)(f))
+#define zr_sys(...) ZR_CALL(__VA_ARGS__, 0, 0, 0, 0, 0, 0, 0)
 
-static long (*zr_sys)(long, ...);
+#if defined(__aarch64__)
+#define ZR_MMAP SYS_mmap
+__asm__(".pushsection .text\n"
+        ".p2align 2\n"
+        ".hidden zr_call\n"
+        ".type zr_call, %function\n"
+        "zr_call:\n"
+        "  mov x8, x0\n"
+        "  mov x0, x1\n"
+        "  mov x1, x2\n"
+        "  mov x2, x3\n"
+        "  mov x3, x4\n"
+        "  mov x4, x5\n"
+        "  mov x5, x6\n"
+        "  svc #0\n"
+        "  ret\n"
+        ".size zr_call, . - zr_call\n"
+        ".hidden zr_clone\n"
+        ".type zr_clone, %function\n"
+        "zr_clone:\n"
+        "  str x19, [sp, #-16]!\n"
+        "  mov x19, x2\n"
+        "  mov x2, xzr\n"
+        "  mov x3, xzr\n"
+        "  mov x4, xzr\n"
+        "  mov x8, #" ZR_NR(SYS_clone) "\n"
+        "  svc #0\n"
+        "  cbnz x0, 1f\n"
+        "  mov x29, xzr\n"
+        "  mov x30, xzr\n"
+        "  bl zr_thread\n"
+        "  stlr wzr, [x19]\n"
+        "  mov x0, x19\n"
+        "  mov x1, #" ZR_NR(ZR_FUTEX_WAKE) "\n"
+        "  mov x2, #1\n"
+        "  mov x8, #" ZR_NR(SYS_futex) "\n"
+        "  svc #0\n"
+        "  mov x0, xzr\n"
+        "  mov x8, #" ZR_NR(SYS_exit) "\n"
+        "  svc #0\n"
+        "  brk #0\n"
+        "1:\n"
+        "  ldr x19, [sp], #16\n"
+        "  ret\n"
+        ".size zr_clone, . - zr_clone\n"
+        ".popsection\n");
+#elif defined(__x86_64__)
+#define ZR_MMAP SYS_mmap
+__asm__(".pushsection .text\n"
+        ".p2align 4\n"
+        ".hidden zr_call\n"
+        ".type zr_call, @function\n"
+        "zr_call:\n"
+        "  mov %rdi, %rax\n"
+        "  mov %rsi, %rdi\n"
+        "  mov %rdx, %rsi\n"
+        "  mov %rcx, %rdx\n"
+        "  mov %r8, %r10\n"
+        "  mov %r9, %r8\n"
+        "  mov 8(%rsp), %r9\n"
+        "  syscall\n"
+        "  ret\n"
+        ".size zr_call, . - zr_call\n"
+        ".hidden zr_clone\n"
+        ".type zr_clone, @function\n"
+        "zr_clone:\n"
+        "  push %r12\n"
+        "  mov %rdx, %r12\n"
+        "  xor %edx, %edx\n"
+        "  xor %r10d, %r10d\n"
+        "  xor %r8d, %r8d\n"
+        "  mov $" ZR_NR(SYS_clone) ", %eax\n"
+        "  syscall\n"
+        "  test %rax, %rax\n"
+        "  jnz 1f\n"
+        "  xor %ebp, %ebp\n"
+        "  call zr_thread\n"
+        "  movl $0, (%r12)\n"
+        "  mov %r12, %rdi\n"
+        "  mov $" ZR_NR(ZR_FUTEX_WAKE) ", %esi\n"
+        "  mov $1, %edx\n"
+        "  mov $" ZR_NR(SYS_futex) ", %eax\n"
+        "  syscall\n"
+        "  xor %edi, %edi\n"
+        "  mov $" ZR_NR(SYS_exit) ", %eax\n"
+        "  syscall\n"
+        "  hlt\n"
+        "1:\n"
+        "  pop %r12\n"
+        "  ret\n"
+        ".size zr_clone, . - zr_clone\n"
+        ".popsection\n");
+#elif defined(__i386__)
+#define ZR_MMAP SYS_mmap2
+__asm__(".pushsection .text\n"
+        ".p2align 4\n"
+        ".hidden zr_call\n"
+        ".type zr_call, @function\n"
+        "zr_call:\n"
+        "  push %ebp\n"
+        "  push %edi\n"
+        "  push %esi\n"
+        "  push %ebx\n"
+        "  mov 20(%esp), %eax\n"
+        "  mov 24(%esp), %ebx\n"
+        "  mov 28(%esp), %ecx\n"
+        "  mov 32(%esp), %edx\n"
+        "  mov 36(%esp), %esi\n"
+        "  mov 40(%esp), %edi\n"
+        "  mov 44(%esp), %ebp\n"
+        "  int $0x80\n"
+        "  pop %ebx\n"
+        "  pop %esi\n"
+        "  pop %edi\n"
+        "  pop %ebp\n"
+        "  ret\n"
+        ".size zr_call, . - zr_call\n"
+        ".hidden zr_clone\n"
+        ".type zr_clone, @function\n"
+        "zr_clone:\n"
+        "  push %ebp\n"
+        "  push %edi\n"
+        "  push %esi\n"
+        "  push %ebx\n"
+        "  mov 20(%esp), %ebx\n"
+        "  mov 24(%esp), %ecx\n"
+        "  mov 28(%esp), %ebp\n"
+        "  xor %edx, %edx\n"
+        "  xor %esi, %esi\n"
+        "  xor %edi, %edi\n"
+        "  mov $" ZR_NR(SYS_clone) ", %eax\n"
+        "  int $0x80\n"
+        "  test %eax, %eax\n"
+        "  jnz 1f\n"
+        "  call zr_thread\n"
+        "  movl $0, (%ebp)\n"
+        "  mov %ebp, %ebx\n"
+        "  mov $" ZR_NR(ZR_FUTEX_WAKE) ", %ecx\n"
+        "  mov $1, %edx\n"
+        "  mov $" ZR_NR(SYS_futex) ", %eax\n"
+        "  int $0x80\n"
+        "  xor %ebx, %ebx\n"
+        "  mov $" ZR_NR(SYS_exit) ", %eax\n"
+        "  int $0x80\n"
+        "  hlt\n"
+        "1:\n"
+        "  pop %ebx\n"
+        "  pop %esi\n"
+        "  pop %edi\n"
+        "  pop %ebp\n"
+        "  ret\n"
+        ".size zr_clone, . - zr_clone\n"
+        ".popsection\n");
+#else
+#error "zram.c needs a raw system call for this architecture"
+#endif
+
+long zr_call(long n, long a, long b, long c, long d, long e, long f) __attribute__((visibility("hidden")));
+long zr_clone(long flags, char *stack, int *busy) __attribute__((visibility("hidden")));
+void zr_thread(void) __attribute__((visibility("hidden")));
+
 static unsigned long zr_page;
-static int zr_busy;
-static int zr_pending;
-static int zr_worker;
+static unsigned zr_requests;
+static int zr_stack_busy;
+static char *zr_stack;
 static char zr_maps[8192];
 static uint64_t zr_entries[ZR_BATCH];
 static struct iovec zr_iov[ZR_BATCH];
@@ -53,6 +221,18 @@ static struct zr_slot {
 static uint16_t zr_gen = 1;
 static unsigned long zr_cursor;
 static unsigned long zr_visits;
+
+static int zr_prefix(const char *text, const char *prefix) {
+  while (*prefix)
+    if (*text++ != *prefix++) return 0;
+  return 1;
+}
+
+static char *zr_find(char *text, char c, size_t n) {
+  for (; n > 0; n--, text++)
+    if (*text == c) return text;
+  return NULL;
+}
 
 static int zr_open(const char *path) {
   return (int)zr_sys(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC, 0);
@@ -103,7 +283,7 @@ static int zr_eligible(const char *line, int compress, unsigned long *start, uns
     while (*p && *p != ' ') p++;
     while (*p == ' ') p++;
   }
-  return *p == 0 || strncmp(p, "[heap]", 6) == 0 || strncmp(p, "[anon:", 6) == 0;
+  return *p == 0 || zr_prefix(p, "[heap]") || zr_prefix(p, "[anon:");
 }
 
 static void zr_read_back(int pagemap, unsigned long start, unsigned long end) {
@@ -137,7 +317,7 @@ static unsigned long zr_count(int pagemap, unsigned long start, unsigned long en
   do {
     if (zr_sys(SYS_lseek, pagemap, (long)(start / zr_page * sizeof(uint64_t)), SEEK_SET) < 0) return ZR_FAILED;
     got = zr_sys(SYS_read, pagemap, zr_entries, size);
-  } while (got < 0 && errno == EINTR);
+  } while (got == -EINTR);
   if (got != size) return ZR_FAILED;
   for (long i = 0; i < got / (long)sizeof(uint64_t); i++)
     if (zr_entries[i] & bit) count++;
@@ -157,8 +337,7 @@ static struct zr_slot *zr_slot(unsigned long addr, int create) {
     }
   }
   if (!create) return NULL;
-  memset(&zr_slots[home], 0, sizeof(zr_slots[home]));
-  zr_slots[home].key = key;
+  zr_slots[home] = (struct zr_slot){.key = key};
   return &zr_slots[home];
 }
 
@@ -228,13 +407,13 @@ static unsigned long zr_walk(int mode, unsigned long want, unsigned long lo, uns
   size_t have = 0;
   while (done < want && zr_visits > 0) {
     long n = zr_sys(SYS_read, maps, zr_maps + have, sizeof(zr_maps) - 1 - have);
-    if (n < 0 && errno == EINTR) continue;
+    if (n == -EINTR) continue;
     if (n <= 0) break;
     have += (size_t)n;
     zr_maps[have] = 0;
     char *line = zr_maps;
     char *nl;
-    while (done < want && zr_visits > 0 && (nl = memchr(line, '\n', have - (size_t)(line - zr_maps))) != NULL) {
+    while (done < want && zr_visits > 0 && (nl = zr_find(line, '\n', have - (size_t)(line - zr_maps))) != NULL) {
       *nl = 0;
       unsigned long s, e;
       if (zr_eligible(line, mode != 0, &s, &e) && e > s) {
@@ -245,7 +424,7 @@ static unsigned long zr_walk(int mode, unsigned long want, unsigned long lo, uns
       line = nl + 1;
     }
     have -= (size_t)(line - zr_maps);
-    memmove(zr_maps, line, have);
+    for (size_t i = 0; i < have; i++) zr_maps[i] = line[i];
     if (have == sizeof(zr_maps) - 1) have = 0;
   }
   if (pagemap >= 0) zr_sys(SYS_close, pagemap);
@@ -291,15 +470,38 @@ static void zr_request(int worker) {
   zr_ack((long)(done * (zr_page / 1024)), 1);
 }
 
-static void *zr_worker_main(void *unused) {
-  (void)unused;
-  prctl(PR_SET_NAME, "zr-worker", 0, 0, 0);
-  for (;;) {
-    while (!__atomic_exchange_n(&zr_pending, 0, __ATOMIC_SEQ_CST))
-      zr_sys(SYS_futex, &zr_pending, ZR_FUTEX_WAIT, 0, NULL, NULL, 0);
-    zr_request(1);
+static void zr_drain(int worker) {
+  unsigned seen;
+  do {
+    seen = __atomic_load_n(&zr_requests, __ATOMIC_ACQUIRE);
+    zr_request(worker);
+  } while (!__atomic_compare_exchange_n(&zr_requests, &seen, 0, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
+}
+
+void zr_thread(void) {
+  zr_sys(SYS_prctl, PR_SET_NAME, "zr-worker");
+  zr_drain(1);
+}
+
+static int zr_start(void) {
+  if (zr_stack == NULL) {
+    long base = zr_sys(ZR_MMAP, 0, ZR_STACK, PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK | MAP_NORESERVE, -1, 0);
+    if ((unsigned long)base > -4096UL) return 0;
+    zr_stack = (char *)base;
   }
-  return NULL;
+  struct { long sec, nsec; } wait = {0, 5000000};
+  for (int i = 0; i < 20 && __atomic_load_n(&zr_stack_busy, __ATOMIC_ACQUIRE); i++)
+    zr_sys(SYS_futex, &zr_stack_busy, ZR_FUTEX_WAIT, 1, &wait, NULL, 0);
+  if (__atomic_load_n(&zr_stack_busy, __ATOMIC_ACQUIRE)) return 0;
+  __atomic_store_n(&zr_stack_busy, 1, __ATOMIC_RELEASE);
+  uint64_t all = ~0ULL, previous;
+  zr_sys(SYS_rt_sigprocmask, SIG_SETMASK, &all, &previous, sizeof(all));
+  long tid = zr_clone(ZR_THREAD, zr_stack + ZR_STACK, &zr_stack_busy);
+  zr_sys(SYS_rt_sigprocmask, SIG_SETMASK, &previous, NULL, sizeof(previous));
+  if (tid > 0) return 1;
+  __atomic_store_n(&zr_stack_busy, 0, __ATOMIC_RELEASE);
+  return 0;
 }
 
 static void zr_handler(int sig, siginfo_t *info, void *context) {
@@ -307,29 +509,16 @@ static void zr_handler(int sig, siginfo_t *info, void *context) {
   (void)context;
   if (info == NULL || info->si_code != SI_USER) return;
   int saved = errno;
-  __atomic_store_n(&zr_pending, 1, __ATOMIC_SEQ_CST);
-  if (__atomic_load_n(&zr_worker, __ATOMIC_ACQUIRE)) {
-    zr_sys(SYS_futex, &zr_pending, ZR_FUTEX_WAKE, 1, NULL, NULL, 0);
-  } else while (__atomic_load_n(&zr_pending, __ATOMIC_SEQ_CST)
-                && !__atomic_exchange_n(&zr_busy, 1, __ATOMIC_SEQ_CST)) {
-    __atomic_store_n(&zr_pending, 0, __ATOMIC_SEQ_CST);
-    zr_request(0);
-    __atomic_store_n(&zr_busy, 0, __ATOMIC_SEQ_CST);
-  }
+  if (__atomic_fetch_add(&zr_requests, 1, __ATOMIC_ACQ_REL) == 0 && !zr_start()) zr_drain(0);
   errno = saved;
 }
 
 static void zr_child(void) {
-  __atomic_store_n(&zr_busy, 0, __ATOMIC_SEQ_CST);
-  __atomic_store_n(&zr_pending, 0, __ATOMIC_SEQ_CST);
-  __atomic_store_n(&zr_worker, 0, __ATOMIC_RELEASE);
+  __atomic_store_n(&zr_requests, 0, __ATOMIC_RELEASE);
+  __atomic_store_n(&zr_stack_busy, 0, __ATOMIC_RELEASE);
 }
 
 __attribute__((constructor)) static void zr_init(void) {
-  void *libc = dlopen("libc.so.6", RTLD_LAZY | RTLD_NOLOAD);
-  if (libc == NULL) return;
-  zr_sys = (long (*)(long, ...))dlsym(libc, "syscall");
-  if (zr_sys == NULL) return;
   int fd = zr_open(ZR_CTL);
   if (fd < 0) return;
   zr_sys(SYS_close, fd);
@@ -343,21 +532,5 @@ __attribute__((constructor)) static void zr_init(void) {
   sa.sa_sigaction = zr_handler;
   sa.sa_flags = SA_SIGINFO | SA_RESTART;
   sigemptyset(&sa.sa_mask);
-  if (sigaction(SIGURG, &sa, NULL) == 0) {
-    pthread_atfork(NULL, NULL, zr_child);
-    pthread_attr_t attr;
-    if (pthread_attr_init(&attr) == 0) {
-      pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-      pthread_t thread;
-      sigset_t blocked;
-      sigset_t previous;
-      if (sigfillset(&blocked) == 0 &&
-          pthread_sigmask(SIG_SETMASK, &blocked, &previous) == 0) {
-        if (pthread_create(&thread, &attr, zr_worker_main, NULL) == 0)
-          __atomic_store_n(&zr_worker, 1, __ATOMIC_RELEASE);
-        pthread_sigmask(SIG_SETMASK, &previous, NULL);
-      }
-      pthread_attr_destroy(&attr);
-    }
-  }
+  if (sigaction(SIGURG, &sa, NULL) == 0) pthread_atfork(NULL, NULL, zr_child);
 }

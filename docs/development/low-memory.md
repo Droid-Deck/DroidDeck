@@ -99,10 +99,14 @@ available.
 
 ## Threads
 
-Page-out never runs on a thread of the game. The preload's signal handler only wakes its
-`zr-worker` thread, which does the `madvise` calls. A forked process
-without a worker trims inline in steps of at most 32 MiB per request and looks at no more
-than 512 MiB of its address space each time. The page-out for a suspend and the read-back
+Page-out never runs on a thread of the game. The preload's signal handler starts a
+`zr-worker` thread for the request, which does the `madvise` calls and exits once no request
+is left, so a process that is not paging out has no thread the preload added. Programs that
+check they are single-threaded before they fork or call `unshare(CLONE_NEWUSER)`, such as
+Chromium's zygote, keep working. The worker is a bare `clone` on a stack the preload maps
+itself and makes only raw system calls, so starting it from the signal handler is safe. When
+it cannot be started, the process trims inline in steps of at most 32 MiB per request and
+looks at no more than 512 MiB of its address space each time. The page-out for a suspend and the read-back
 after it are not limited there: they run once, while the process is being stopped or
 started, and cover all of it. The monitor is a
 shell loop in the session, outside every game process.
