@@ -2561,6 +2561,8 @@
     <string name="display_game_fit">Ajuste de juegos 16:9</string>
     <string name="display_game_fit_hint">Cómo se ajustan los juegos 16:9 a esta pantalla. Próxima sesión.</string>
     <string name="display_game_fit_unavailable">Elige Igual a la pantalla o un tamaño personalizado más estrecho que 16:9.</string>
+    <string name="display_avoid_notch">Evitar la muesca</string>
+    <string name="display_avoid_notch_hint">Mantiene la imagen fuera del recorte de la cámara. Se aplica al volver a la sesión.</string>
     <string name="display_preserve">Mantener proporciones</string>
     <string name="display_stretch">Estirar a la pantalla</string>
     <string name="display_image_scaling">Escalado de imagen</string>

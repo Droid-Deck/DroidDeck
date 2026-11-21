@@ -289,6 +289,7 @@ object DeviceReport {
         k("Guest host name", SessionPrefs.guestHostname(context))
         k("DirectAudio for games", SessionPrefs.directAudio(context))
         k("Stretch 16:9 to panel", SessionPrefs.stretch16x9(context))
+        k("Avoid notch", SessionPrefs.avoidNotch(context))
         k("Return to launcher after a game", SessionPrefs.returnAfterGame(context))
         k("Microphone", SessionPrefs.micEnabled(context))
         k("On-screen controls", SessionPrefs.oscMode(context))

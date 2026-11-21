@@ -2465,6 +2465,8 @@
     <string name="display_game_fit">16:9-pelin sovitus</string>
     <string name="display_game_fit_hint">Miten 16:9-pelit sovitetaan tähän näyttöön. Seuraava istunto.</string>
     <string name="display_game_fit_unavailable">Valitse Sovita näyttöön tai mukautettu koko, joka on 16:9:ää kapeampi.</string>
+    <string name="display_avoid_notch">Vältä lovea</string>
+    <string name="display_avoid_notch_hint">Pitää kuvan poissa kameran lovesta. Tulee voimaan, kun palaat istuntoon.</string>
     <string name="display_preserve">Säilytä kuvasuhde</string>
     <string name="display_stretch">Venytä näyttöön</string>
     <string name="display_image_scaling">Kuvan skaalaus</string>

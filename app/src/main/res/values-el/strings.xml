@@ -2465,6 +2465,8 @@
     <string name="display_game_fit">Προσαρμογή παιχνιδιού 16:9</string>
     <string name="display_game_fit_hint">Πώς προσαρμόζονται τα παιχνίδια 16:9 σε αυτή την οθόνη. Από την επόμενη συνεδρία.</string>
     <string name="display_game_fit_unavailable">Επιλέξτε Αντιστοίχιση οθόνης ή ένα προσαρμοσμένο μέγεθος πιο στενό από 16:9.</string>
+    <string name="display_avoid_notch">Αποφυγή εγκοπής</string>
+    <string name="display_avoid_notch_hint">Κρατά την εικόνα μακριά από την εγκοπή της κάμερας. Εφαρμόζεται όταν επιστρέψεις στη συνεδρία.</string>
     <string name="display_preserve">Διατήρηση αναλογιών</string>
     <string name="display_stretch">Διάταση στην οθόνη</string>
     <string name="display_image_scaling">Κλιμάκωση εικόνας</string>

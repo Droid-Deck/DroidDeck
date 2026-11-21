@@ -2457,6 +2457,8 @@
     <string name="display_game_fit">16:9 oyun sığdırma</string>
     <string name="display_game_fit_hint">16:9 oyunların bu ekrana nasıl sığacağı. Sonraki oturumda.</string>
     <string name="display_game_fit_unavailable">Ekrana Uydur\'u veya 16:9\'dan daha dar özel bir boyutu seçin.</string>
+    <string name="display_avoid_notch">Çentikten kaçın</string>
+    <string name="display_avoid_notch_hint">Görüntüyü kamera çentiğinin dışında tutar. Oturuma döndüğünüzde uygulanır.</string>
     <string name="display_preserve">Oranları koru</string>
     <string name="display_stretch">Ekrana uzat</string>
     <string name="display_image_scaling">Görüntü ölçekleme</string>

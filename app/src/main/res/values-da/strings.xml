@@ -2465,6 +2465,8 @@
     <string name="display_game_fit">16:9-spiltilpasning</string>
     <string name="display_game_fit_hint">Hvordan 16:9-spil tilpasses denne skærm. Fra næste session.</string>
     <string name="display_game_fit_unavailable">Vælg Match skærm eller en brugerdefineret størrelse, der er smallere end 16:9.</string>
+    <string name="display_avoid_notch">Undgå notch</string>
+    <string name="display_avoid_notch_hint">Holder billedet uden for kameraudskæringen. Træder i kraft, når du vender tilbage til sessionen.</string>
     <string name="display_preserve">Bevar proportioner</string>
     <string name="display_stretch">Stræk til skærm</string>
     <string name="display_image_scaling">Billedskalering</string>
