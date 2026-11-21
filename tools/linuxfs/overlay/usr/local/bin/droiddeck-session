@@ -260,6 +260,33 @@ vkbridge_wait_socket() {
     sleep 0.05
   done
 }
+# Frame diagnostics of the bridge: VKBRIDGE_STATS (round trips, server and transport time) and
+# VKBRIDGE_FRAME_TRACE (a line per frame event) are written per frame and cost frame time: 15.5 fps in
+# Steam's menu on an X8 (90.9 fps with them, 106.4 without, same mode). They are off unless this session's
+# Setup switch asked for them (DD_VKBRIDGE_DIAG=1). The keys also leave /root/.vkbridge-env: that file is
+# read at every session's start, so one left there slows every session after it with nothing on screen
+# saying why. MALIDECK_KEEP_DIAG only ever meant "keep them", never "turn them on".
+dd_vkbridge_env_file=${DD_VKBRIDGE_ENV_FILE:-/root/.vkbridge-env}
+dd_vkbridge_diag_clean() {
+  [ -r "$dd_vkbridge_env_file" ] || return 0
+  grep -qE '^(VKBRIDGE_STATS|VKBRIDGE_FRAME_TRACE|VKBRIDGE_STATS_SPLIT|MALIDECK_KEEP_DIAG)=' "$dd_vkbridge_env_file" || return 0
+  _dd_diag_env=$(mktemp "${TMPDIR:-/tmp}/vkbridge-env.XXXXXX") || return 0
+  grep -vE '^(VKBRIDGE_STATS|VKBRIDGE_FRAME_TRACE|VKBRIDGE_STATS_SPLIT|MALIDECK_KEEP_DIAG)=' "$dd_vkbridge_env_file" > "$_dd_diag_env"
+  cat "$_dd_diag_env" > "$dd_vkbridge_env_file"
+  rm -f "$_dd_diag_env"
+  [ -z "${DD_INSIDE:-}" ] && echo "== vkbridge: frame diagnostics off; VKBRIDGE_STATS/VKBRIDGE_FRAME_TRACE cleared from $dd_vkbridge_env_file"
+  return 0
+}
+
+dd_vkbridge_diag_gate() {
+  if [ "${DD_VKBRIDGE_DIAG:-0}" = 1 ]; then
+    export VKBRIDGE_STATS=${VKBRIDGE_STATS:-1}
+    return 0
+  fi
+  unset VKBRIDGE_STATS VKBRIDGE_FRAME_TRACE VKBRIDGE_STATS_SPLIT MALIDECK_KEEP_DIAG
+  dd_vkbridge_diag_clean
+}
+
 if [ "${DD_VKBRIDGE:-0}" = 1 ]; then
   dd_vkb_icd=/usr/local/share/vkbridge/droidbridge_icd.json
   [ -z "${DD_INSIDE:-}" ] && vkbridge_wait_socket "${VKBRIDGE_SOCKET:-}" "${DD_VKBRIDGE_WAIT_MS:-10000}"
@@ -279,6 +306,7 @@ if [ "${DD_VKBRIDGE:-0}" = 1 ]; then
       done < /root/.vkbridge-env
       [ -z "${DD_INSIDE:-}" ] && echo "== vkbridge: development settings from /root/.vkbridge-env: $(cut -d= -f1 /root/.vkbridge-env | tr '\n' ' ')"
     fi
+    dd_vkbridge_diag_gate
     export VKD3D_FEATURE_LEVEL=${VKD3D_FEATURE_LEVEL:-12_0}
     unset TU_DEBUG
     if [ -z "${DD_INSIDE:-}" ]; then

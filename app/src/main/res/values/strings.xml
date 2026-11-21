@@ -974,6 +974,8 @@
     <string name="setup_gpu_bridge_fell_back">The Mali bridge failed its self-test on %1$s last session (images or draws), so the session used the PanVK driver pair instead.</string>
     <string name="setup_gpu_bridge_no_memory_sharing">The Mali bridge found no way to share memory with the driver on %1$s last session, so the session used the PanVK driver pair instead. The bridge cannot work on this phone; turning it off keeps the PanVK pair.</string>
     <string name="setup_graphics_logs_hint">Each game\'s Proton, DXVK and driver logs in the session\'s logs. Always on when the GPU is not an Adreno.</string>
+    <string name="setup_bridge_diag">Mali bridge frame diagnostics</string>
+    <string name="setup_bridge_diag_hint">Logs the bridge\'s round trips and frame events (VKBRIDGE_STATS, VKBRIDGE_FRAME_TRACE). Costs frame time: about 15 fps in Steam\'s menu on a POCO X8. Off by default, and turned off again at the end of the session.</string>
     <string name="setup_latest_logs">Latest session logs</string>
     <string name="setup_saved_logs">Saved session logs</string>
     <string name="setup_saved_logs_hint">Keeps the newest %1$d</string>
