@@ -27,6 +27,16 @@ class OnScreenLayoutTest {
 
     private fun px(e: InputSurfaceElement, w: Int, h: Int) = floatArrayOf(e.x * w, e.y * h, e.width * w, e.height * h)
 
+    private val shortcuts = setOf(InputControl.SELECT, InputControl.START, InputControl.GUIDE, InputControl.QAM)
+
+    private fun assertOnlyShortcutPositionsChanged(before: List<InputSurfaceElement>, after: List<InputSurfaceElement>) {
+        assertEquals(before.map { it.id }, after.map { it.id })
+        for ((original, placed) in before.zip(after)) {
+            val expected = if (original.control in shortcuts) original.copy(x = placed.x, y = placed.y) else original
+            assertEquals(expected, placed)
+        }
+    }
+
     private fun assertSquare(e: InputSurfaceElement, w: Int, h: Int) = assertEquals(e.width * w, e.height * h, 1.5f)
 
     private fun assertInside(elements: List<InputSurfaceElement>, w: Int, h: Int, safe: Rect = Rect()) {
@@ -37,6 +47,76 @@ class OnScreenLayoutTest {
             assertTrue("${e.id} right", x + ew <= w - safe.right + .5f)
             assertTrue("${e.id} bottom", y + eh <= h - safe.bottom + .5f)
         }
+    }
+
+    @Test fun theFloatingSteamPadOffersIndependentVisibilityAndLowersOnlyTheDefaultShortcuts() {
+        val w = 1280
+        val h = 960
+        val safe = Rect(24, 8, 12, 16)
+        val layout = gamepad()
+        val original = LegacyGamepadLayout(context, w, h, safe).regenerate(layout.elements)
+        val extraRear = setOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)
+        val extraPads = setOf(InputControl.LEFT_PAD, InputControl.RIGHT_PAD)
+        fun placed(rear: Boolean, pads: Boolean) =
+            OnScreenLayout.elements(context, layout, w, h, safe, rearButtons = rear, trackpads = pads)
+        for (type in listOf(SessionPrefs.CONTROLLER_DECK, SessionPrefs.CONTROLLER_STEAM)) {
+            SessionPrefs.setSteamController(context, type)
+            val base = placed(false, false)
+            for (control in listOf(InputControl.SELECT, InputControl.START)) {
+                val old = original.single { it.control == control }
+                val moved = base.single { it.control == control }
+                assertTrue(control.id, moved.y > old.y)
+            }
+            val standard = base.map { it.control }.toSet()
+            assertEquals(extraRear, placed(true, false).map { it.control }.toSet() - standard)
+            assertEquals(extraPads, placed(false, true).map { it.control }.toSet() - standard)
+            val both = placed(true, true)
+            assertEquals(extraRear + extraPads, both.map { it.control }.toSet() - standard)
+            assertInside(both, w, h, safe)
+            assertEquals(base, both.filter { it.control in standard })
+        }
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
+        assertEquals(original, placed(true, true))
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val edited = layout.copy(elements = layout.elements.map { e -> if (e.control == InputControl.START) e.copy(y = .3f) else e })
+        val fitted = OnScreenLayout.elements(context, edited, w, h, safe)
+        assertTrue(fitted.single { it.control == InputControl.START }.y < .5f)
+    }
+
+    @Test fun theBuiltInGamepadIsRegeneratedForEverySizeWithoutStretching() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
+        val layout = gamepad()
+        for ((w, h) in listOf(1200 to 540, 540 to 1200, 900 to 850)) {
+            val placed = OnScreenLayout.elements(context, layout, w, h, Rect())
+            assertEquals(layout.elements.map { it.id }, placed.map { it.id })
+            assertOnlyShortcutPositionsChanged(LegacyGamepadLayout(context, w, h).regenerate(layout.elements), placed)
+            for (id in listOf("legacy:a", "legacy:up", "legacy:guide")) assertSquare(placed.first { it.id == id }, w, h)
+            assertInside(placed, w, h)
+        }
+    }
+
+    @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
+    fun aBuiltInGamepadSavedAtTheDisplaySizeRegeneratesForTheMeasuredSurface() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
+        val saved = gamepad().copy(elements = LegacyGamepadLayout(context, 2608, 1200).elements(), aspect = 2608f / 1200)
+        val placed = OnScreenLayout.elements(context, saved, 2048, 1200, Rect())
+        assertOnlyShortcutPositionsChanged(LegacyGamepadLayout(context, 2048, 1200).regenerate(saved.elements), placed)
+    }
+
+    @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
+    fun previouslyGeneratedEdgeSticksRegenerateWithoutOverridingCustomGeometry() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
+        val w = 2608
+        val h = 1200
+        ControllerPrefs.setLayout(context, w, h, mapOf("ls" to (0f to .5f), "rs" to (1f to .5f)))
+        val generator = LegacyGamepadLayout(context, w, h)
+        val old = generator.elements(previousStickGeometry = true)
+        val current = generator.elements()
+        assertTrue(old.filter { it.control == InputControl.LS || it.control == InputControl.RS }.zip(current.filter { it.control == InputControl.LS || it.control == InputControl.RS }).any { (a, b) -> kotlin.math.abs(a.width - b.width) > .01f })
+        val saved = gamepad().copy(elements = old, aspect = w.toFloat() / h)
+        assertOnlyShortcutPositionsChanged(LegacyGamepadLayout(context, 2048, h).regenerate(old), OnScreenLayout.elements(context, saved, 2048, h, Rect()))
+        val custom = saved.copy(elements = old.map { if (it.id == "legacy:a") it.copy(x = .4f) else it })
+        assertEquals(OnScreenLayout.fit(custom.elements, custom.aspect, 1f, 2048, h, Rect()), OnScreenLayout.elements(context, custom, 2048, h, Rect()))
     }
 
     @Test fun savingTheEditorFrameKeepsEveryControlWhereTheEditorShowsIt() {
@@ -58,27 +138,6 @@ class OnScreenLayoutTest {
         }
     }
 
-    @Test fun onlyAnUntouchedBuiltInGamepadOrACopyOfOneFollowsTheKit() {
-        assertTrue(OnScreenLayout.generated(gamepad()))
-        assertTrue(OnScreenLayout.generated(SavedInputLayout("copy", "Copy", origin = InputLibraries.OVERLAY)))
-        assertFalse(OnScreenLayout.generated(SavedInputLayout("custom", "Custom")))
-        assertFalse(OnScreenLayout.generated(SavedInputLayout("copy", "Copy", origin = InputLibraries.DECK)))
-        val edited = gamepad().copy(elements = listOf(InputSurfaceElement(InputControl.A, .5f, .5f, .1f, .1f)), aspect = 2f)
-        assertFalse(OnScreenLayout.generated(edited))
-        assertEquals(listOf("legacy:a"), OnScreenLayout.elements(context, edited, 2000, 1000, Rect()).map { it.id })
-    }
-
-    @Test fun theBuiltInGamepadFollowsTheVirtualControllersKitAndScale() {
-        for ((type, kit) in listOf(SessionPrefs.CONTROLLER_DECK to PadKit.STEAM_DECK, SessionPrefs.CONTROLLER_XBOX360 to PadKit.XBOX,
-            SessionPrefs.CONTROLLER_DUALSENSE to PadKit.DUALSENSE)) {
-            SessionPrefs.setSteamController(context, type)
-            val safe = Rect(40, 0, 20, 10)
-            assertEquals(KitLayout.elements(context, kit, 2400, 1080, safe), OnScreenLayout.elements(context, gamepad(), 2400, 1080, safe))
-            assertEquals(KitLayout.elements(context, kit, 2400, 1080, safe, 1.25f), OnScreenLayout.elements(context, gamepad().copy(scale = 1.25f), 2400, 1080, safe))
-        }
-        assertEquals(emptyList<InputSurfaceElement>(), OnScreenLayout.elements(context, null, 2400, 1080, Rect()))
-    }
-
     @Test fun editorAndGameUseTheSamePixelRectsOnWideAndStandardScreens() {
         val layout = gamepad()
         for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
@@ -94,7 +153,7 @@ class OnScreenLayoutTest {
     @Test fun editedGeneratedAndCustomLayoutsKeepTheirPixelRectsAcrossRefreshes() {
         for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
             val generated = gamepad()
-            val generatedEdit = KitLayout.elements(context, PadKit.current(context), w, h).map { if (it.id == "legacy:a") it.copy(x = .3f, y = .4f, width = .12f, height = .12f) else it }
+            val generatedEdit = generated.elements.map { if (it.id == "legacy:a") it.copy(x = .3f, y = .4f, width = .12f, height = .12f) else it }
             val generatedSaved = generated.copy(elements = generatedEdit, aspect = w.toFloat() / h)
             val generatedPixels = px(OnScreenLayout.elements(context, generatedSaved, w, h, Rect()).first { it.id == "legacy:a" }, w, h)
             val generatedRefresh = px(OnScreenLayout.editorElements(context, generatedSaved, w, h, edited = true).first { it.id == "legacy:a" }, w, h)
@@ -103,6 +162,65 @@ class OnScreenLayoutTest {
             val custom = SavedInputLayout("custom", "Custom", listOf(InputSurfaceElement(InputControl.A, .3f, .4f, .12f, .12f)), aspect = w.toFloat() / h)
             val customRefresh = OnScreenLayout.editorElements(context, custom, w, h, edited = true)
             assertArrayEquals(px(customRefresh.single(), w, h), px(OnScreenLayout.editorElements(context, custom.copy(elements = customRefresh), w, h, edited = true).single(), w, h), .001f)
+        }
+    }
+
+    @Test fun resetPositionsRestoresGeneratedGeometryAfterAnEdit() {
+        for ((w, h) in listOf(2000 to 900, 1600 to 900)) {
+            val original = gamepad()
+            val moved = original.copy(elements = original.elements.map { if (it.id == "legacy:a") it.copy(x = .3f) else it }, aspect = w.toFloat() / h)
+            val reset = LegacyGamepadLayout(context, w, h).regenerate(moved.elements)
+            assertEquals(OnScreenLayout.elements(context, original, w, h, Rect()), OnScreenLayout.elements(context, moved.copy(elements = reset), w, h, Rect()))
+        }
+    }
+
+    @Test fun regenerationKeepsTheUsersButtonStylesAndRemovedButtons() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_STEAM)
+        val layout = gamepad().let { g -> g.copy(elements = g.elements.filterNot { it.id == "legacy:y" }.map { if (it.id == "legacy:a") it.copy(opacity = .4f, icon = 0, name = "Jump") else it }) }
+        val placed = OnScreenLayout.elements(context, layout, 2000, 1000, Rect())
+        assertNull(placed.firstOrNull { it.id == "legacy:y" })
+        val a = placed.first { it.id == "legacy:a" }
+        assertEquals(.4f, a.opacity)
+        assertEquals("Jump", a.name)
+        assertEquals(LegacyGamepadLayout(context, 2000, 1000).elements().first { it.id == "legacy:a" }.x, a.x, .0001f)
+    }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun theDefaultDeckUsesTheRedesignReferenceGeometry() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val placed = OnScreenLayout.elements(context, gamepad(), 1600, 900, Rect(), rearButtons = true, trackpads = true)
+        fun center(control: InputControl): Pair<Float, Float> = placed.single { it.id == "legacy:${control.id}" }
+            .let { (it.x + it.width / 2f) * 1600f to (it.y + it.height / 2f) * 900f }
+        fun assertCenter(control: InputControl, x: Float, y: Float) {
+            val (cx, cy) = center(control)
+            assertEquals(control.id, x, cx, .01f)
+            assertEquals(control.id, y, cy, .01f)
+        }
+        assertCenter(InputControl.LT, 140f, 66f)
+        assertCenter(InputControl.LB, 140f, 148f)
+        assertCenter(InputControl.UP, 220f, 242.5f)
+        assertCenter(InputControl.RIGHT, 322.5f, 345f)
+        assertCenter(InputControl.LS, 290f, 640f)
+        assertCenter(InputControl.RS, 1310f, 640f)
+        assertCenter(InputControl.LEFT_PAD, 470f, 360f)
+        assertCenter(InputControl.RIGHT_PAD, 1130f, 360f)
+        assertCenter(InputControl.SELECT, 660f, 850f)
+        assertCenter(InputControl.START, 940f, 850f)
+        assertInside(placed, 1600, 900)
+    }
+
+    @Test @Config(qualifiers = "w800dp-h450dp-land-xxxhdpi")
+    fun theDeckShortcutRowStaysApartOnSmallDenseSurfaces() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val row = listOf("builtin:keyboard", "legacy:guide", "legacy:select", "legacy:start", "legacy:qam")
+        for ((size, safe) in listOf(800 to 450 to Rect(), 600 to 450 to Rect(), 600 to 450 to Rect(0, 0, 120, 0),
+            600 to 450 to Rect(120, 0, 0, 0), 1600 to 900 to Rect())) {
+            val (w, h) = size
+            val placed = OnScreenLayout.elements(context, gamepad(), w, h, safe)
+            for ((left, right) in row.map { id -> placed.single { it.id == id } }.zipWithNext()) {
+                assertTrue("${left.id} reaches ${right.id} at ${w}x$h $safe", (left.x + left.width) * w <= right.x * w + .5f)
+            }
+            assertInside(placed, w, h, safe)
         }
     }
 
@@ -137,12 +255,31 @@ class OnScreenLayoutTest {
         assertInside(OnScreenLayout.elements(context, edge, 2400, 1080, safe), 2400, 1080, safe)
     }
 
+    @Test fun steamAndQamOnlyModePutsLargeButtonsInTheBottomCornersAndTheKeyboardBetween() {
+        val safe = Rect(80, 0, 30, 20)
+        val placed = OnScreenLayout.elements(context, gamepad(), 1000, 500, safe, buttonsOnly = true)
+        assertEquals(setOf(InputControl.GUIDE, InputControl.QAM, InputControl.A), placed.map { it.control }.toSet())
+        val radius = 30 * density
+        val inset = 44 * density
+        fun centre(e: InputSurfaceElement) = (e.x + e.width / 2f) * 1000 to (e.y + e.height / 2f) * 500
+        val guide = placed.first { it.control == InputControl.GUIDE }
+        val qam = placed.first { it.control == InputControl.QAM }
+        val keyboard = placed.first { it.id == "builtin:keyboard" }
+        assertEquals(2 * radius, guide.width * 1000, .5f)
+        assertEquals(80 + inset, centre(guide).first, .5f)
+        assertEquals(500 - 20 - inset, centre(guide).second, .5f)
+        assertEquals(1000 - 30 - inset, centre(qam).first, .5f)
+        assertEquals(500f, centre(keyboard).first, .5f)
+        assertEquals(500 - 20 - inset, centre(keyboard).second, .5f)
+        val user = SavedInputLayout("edited", "Edited", listOf(InputSurfaceElement(InputControl.A, .5f, .5f, .1f, .1f)))
+        assertEquals(setOf(InputControl.GUIDE, InputControl.QAM), OnScreenLayout.elements(context, user, 2000, 1000, Rect(), buttonsOnly = true).map { it.control }.toSet())
+    }
+
     @Test fun theUnfoldedStripUsesTheDockGeometryInLandscapeAndPortrait() {
         for ((size, portrait) in listOf((2208 to 800) to false, (1080 to 1300) to true)) {
             val (w, h) = size
             val placed = OnScreenLayout.elements(context, gamepad(), w, h, Rect(), dock = OnScreenLayout.Dock(portrait, grips = true))
-            val steam = PadKit.current(context).steam
-            val boxes = GamepadGeometry.layout(w.toFloat(), h.toFloat(), density, portrait, grips = steam, trackpads = steam)
+            val boxes = GamepadGeometry.layout(w.toFloat(), h.toFloat(), density, portrait)
             val ls = placed.first { it.id == "legacy:ls" }
             val box = boxes.getValue(GamepadGeometry.Slot.LEFT_MAIN)
             assertEquals(box.left, ls.x * w, 1f)
@@ -150,7 +287,7 @@ class OnScreenLayoutTest {
             assertEquals(box.height, ls.height * h, 1f)
             assertSquare(placed.first { it.id == "legacy:a" }, w, h)
             assertNull(placed.firstOrNull { it.control == InputControl.GUIDE || it.control == InputControl.QAM })
-            assertEquals(steam && GamepadGeometry.Slot.L4 in boxes, placed.any { it.control == InputControl.L4 })
+            assertEquals(portrait, placed.any { it.control == InputControl.L4 })
             assertInside(placed, w, h)
             val solid = placed.filter { it.kind != InputElementKind.STICK }
             for (a in solid) for (b in solid) if (a !== b) {
@@ -184,15 +321,8 @@ class OnScreenLayoutTest {
         assertTrue(migrated.profiles.any { it.id == "migrated.screenkeys.0" })
         assertTrue(prefs.getBoolean(LegacyScreenKeyMigration.MERGED, false))
         assertEquals(migrated, InputLibraries.read(context))
-    }
-
-    @Test fun migratedScreenKeysAreDrawnNextToTheKitGamepad() {
-        prefs.edit().clear().commit()
-        ControllerPrefs.prefs(context).edit().putString("screenKeys", legacyKeys).commit()
-        val layout = InputLibraries.read(context).activeLayout(false, InputRole.PRIMARY)!!
-        val placed = OnScreenLayout.elements(context, layout, 2400, 1080, Rect()).map { it.id }
-        assertTrue(placed.contains("imported:0"))
-        assertTrue(placed.containsAll(listOf("legacy:a", KitLayout.DPAD_ID, "legacy:ls")))
+        val placed = OnScreenLayout.elements(context, layout, 2400, 1080, Rect())
+        assertEquals(layout.elements.map { it.id }, placed.map { it.id })
     }
 
     @Test fun librariesMigratedBeforeTheMergeGetTheirScreenKeysBackOnceWithoutLosingEdits() {
@@ -222,6 +352,20 @@ class OnScreenLayoutTest {
         val shown = JSONObject().put("screenKeys", legacyKeys).toString()
         val selected = old.selectProfile(false, "migrated.screenkeys.0").selectProfile(true, "migrated.screenkeys.0")
         assertEquals(selected, LegacyScreenKeyMigration.merge(selected, shown))
+    }
+
+    @Test fun alwaysShownKeysStayInButtonsOnlyModeAndLeaveTheUnfoldedStrip() {
+        val key = InputSurfaceElement(InputControl.A, .45f, .1f, .1f, .1f, "imported:0", name = "Find", alwaysShown = true)
+        val plain = InputSurfaceElement(InputControl.A, .45f, .4f, .1f, .1f, "imported:1", name = "Jump")
+        val layout = gamepad().let { it.copy(elements = it.elements + key + plain) }
+        val buttons = OnScreenLayout.elements(context, layout, 1000, 500, Rect(), buttonsOnly = true)
+        assertTrue(buttons.any { it.id == key.id })
+        assertFalse(buttons.any { it.id == plain.id })
+        assertEquals(OnScreenLayout.elements(context, gamepad(), 1000, 500, Rect(), buttonsOnly = true), buttons.filterNot { it.id == key.id })
+        val strip = OnScreenLayout.elements(context, layout, 2208, 800, Rect(), dock = OnScreenLayout.Dock(false, grips = false))
+        assertFalse(strip.any { it.id == key.id })
+        assertTrue(strip.any { it.id == plain.id })
+        assertTrue(OnScreenLayout.elements(context, layout, 1000, 500, Rect()).map { it.id }.containsAll(listOf(key.id, plain.id)))
     }
 
     @Test fun migratedScreenKeysAreAlwaysShownButOtherElementsAreNot() {

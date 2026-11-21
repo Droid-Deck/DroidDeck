@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">Profily vstupu</string>
     <string name="input_profiles">Profily</string>
     <string name="input_physical">Fyzický ovladač</string>
     <string name="input_primary">Hlavní obrazovka</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Otevřít nabídku Steam</string>
     <string name="input_command_qam">Otevřít rychlý přístup Steam</string>
     <string name="input_remove_element">Odebrat prvek</string>
+    <string name="input_add_element">Přidat prvek</string>
     <string name="input_extra_keys">Tlačítka specifická pro zařízení</string>
     <string name="input_capture">Přiřadit fyzické tlačítko</string>
     <string name="input_capture_confirm">Uvolněte tlačítko a zvolte Upravit, Znovu nebo Zrušit. B nebo Zpět zruší po uvolnění.</string>

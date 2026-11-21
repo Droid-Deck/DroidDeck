@@ -44,10 +44,11 @@ static struct surface surface = { .xdg_toplevel = 1, .toplevel_committed = 1 };
 static int g_input_pipe[2] = {-1, -1};
 static atomic_int g_output_refresh_mhz = 60000;
 static atomic_int g_output_refresh_pending;
+static atomic_int g_panel_rates_pending;
 static int g_output_announced_refresh_mhz = 60000;
 static int g_output_w = 1920, g_output_h = 1080;
 static int flushes, resizes, pointers, ticks;
-static int scale_changes, scale_mode, scale_alignment, renders;
+static int scale_changes, scale_mode, scale_alignment, renders, rate_notifies;
 static void *g_display;
 #define WL_OUTPUT_MODE_CURRENT 1
 #define WL_OUTPUT_MODE_PREFERRED 2
@@ -77,6 +78,7 @@ static void vk_present_set_scale_mode(int mode, int alignment) {
     scale_changes++; scale_mode = mode; scale_alignment = alignment;
 }
 static void schedule_render(void) { renders++; }
+static void refresh_notify_rates(void) { rate_notifies++; }
 '''
 
 CHECKS = r'''
@@ -138,6 +140,11 @@ int main(void) {
     droiddeck_wayland_set_output_refresh_rate(90000);
     drain(); expect(6, 90000, 1);
     assert(scale_changes == 2 && scale_mode == 1 && scale_alignment == 3 && renders == 2);
+    atomic_store(&g_panel_rates_pending, 1);
+    drain();
+    assert(rate_notifies == 1 && !atomic_load(&g_panel_rates_pending));
+    drain();
+    assert(rate_notifies == 1);
     close(g_input_pipe[0]); close(g_input_pipe[1]);
     puts("PASS");
 }

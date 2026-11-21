@@ -9,7 +9,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.test.*
 import com.droiddeck.launcher.input.*
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SessionService
 import org.junit.Assert.*
@@ -36,8 +35,6 @@ class InputSettingsTest {
         context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("input-surfaces", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("controller", Context.MODE_PRIVATE).edit().clear().commit()
-        context.getSharedPreferences("game-controls", Context.MODE_PRIVATE).edit().clear().commit()
-        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
     @Test fun commandSymbolsAreSelectableForAnyCustomButton() {
@@ -63,10 +60,40 @@ class InputSettingsTest {
                 ModeSettingsActions(onResolution = {}, onHdr = {}, onTouch = {}, onSuspendPolicy = {}, onOsc = {},
                     onInputSettings = { opened++ }, onDirectAudio = {}, onMic = {}, onDismiss = {}), SheetTab.CONTROLS)
         } }
-        compose.onNodeWithText(context.getString(R.string.ctrl_edit)).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+        compose.onNodeWithTag("input-profile-expand").performClick()
+        compose.onNodeWithText(context.getString(R.string.ctrl_edit)).performClick()
         compose.runOnIdle { assertEquals(1, opened); mode.value = SessionService.MODE_DESKTOP }
-        compose.onNodeWithText(context.getString(R.string.ctrl_edit)).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+        compose.onNodeWithText(context.getString(R.string.ctrl_edit)).performClick()
         compose.runOnIdle { assertEquals(2, opened) }
+    }
+
+    @Test fun quickMenuCombinesPartsWithoutChangingTheSavedProfile() {
+        val original = InputLibraries.read(context)
+        compose.setContent { DroidDeckTheme {
+            androidx.compose.foundation.layout.Column { InputQuickSettings(rememberMenuHost(), desktop = true) }
+        } }
+        compose.onNodeWithTag("setting-input-profile").assertExists()
+        compose.onNodeWithTag("setting-input-part-PHYSICAL").assertDoesNotExist()
+        compose.onNodeWithTag("input-profile-expand").performClick()
+        compose.onNodeWithTag("setting-input-part-PHYSICAL").assertExists()
+        compose.onNodeWithTag("setting-input-part-PRIMARY").assertExists()
+        compose.onNodeWithTag("setting-input-part-SECONDARY").performClick()
+        compose.onNodeWithText("Deck grips + trackpads").performScrollTo().performClick()
+        compose.runOnIdle {
+            val changed = InputLibraries.read(context)
+            assertEquals(InputStockLayouts.DECK, changed.activePart(true, InputRole.SECONDARY).bindings)
+            assertEquals(original.profiles, changed.profiles)
+            assertEquals(original.compileActive(false), changed.compileActive(false))
+        }
+        compose.onNodeWithText(context.getString(R.string.input_save_combination)).performClick()
+        compose.onNode(hasSetTextAction()).performTextInput("Reading")
+        compose.onNodeWithText(context.getString(R.string.gesture_save_changes)).performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context)
+            assertEquals("Reading", saved.profile(saved.activeId(true)).name)
+            assertTrue(saved.selection(true).parts.isEmpty())
+            assertEquals(original.profile("desktop"), saved.profile("desktop"))
+        }
     }
 
     @Test fun actionDraftSurvivesRouteAndTypeChanges() {
@@ -87,7 +114,8 @@ class InputSettingsTest {
     @Test fun bindingEditorPersistsDisabledWithoutChangingTouchControls() {
         var changed = false
         compose.setContent { DroidDeckTheme { InputSettingsPage({}, { changed = true }) } }
-        compose.onNodeWithTag("input-remap").performScrollTo().performClick()
+        compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-physical").performScrollTo().performClick()
         compose.onNodeWithTag("input-binding-a").performScrollTo().performClick()
         compose.onNodeWithText("Disabled", substring = false).performScrollTo().performClick()
         compose.runOnIdle { assertFalse(changed) }
@@ -106,9 +134,12 @@ class InputSettingsTest {
         val layout = library.layout(InputProfile.GAME, InputRole.SECONDARY)!!
         compose.setContent { DroidDeckTheme { InputSurfaceDialog(InputProfile.GAME, {}, { changed = true },
             role = InputRole.PRIMARY, layoutId = layout.id, bindingsId = library.profile(InputProfile.GAME).binding(InputRole.SECONDARY)) } }
-        addButton(layout)
-        compose.onNodeWithText(context.getString(R.string.input_options)).assertExists()
-        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_add)).performClick()
+        compose.onNodeWithText(context.getString(R.string.input_element_button), substring = false).performClick()
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_properties)).assertExists()
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performClick()
         compose.runOnIdle {
             assertTrue(changed)
             val updated = InputLibraries.read(context)
@@ -118,106 +149,64 @@ class InputSettingsTest {
         }
     }
 
-    @Test fun remapButtonsOpensThePhysicalControllerAndBackReturnsToTheControllerPage() {
+    @Test fun aNewProfileIsIndependentAndDoesNotBecomeActive() {
         compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
-        compose.onNodeWithTag("input-remap").performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.input_physical).uppercase()).assertExists()
+        compose.onNodeWithText(context.getString(R.string.input_new_profile)).performScrollTo().performClick()
+        compose.onNodeWithTag("input-name").performTextInput("Minecraft")
+        compose.onNodeWithText(context.getString(R.string.gesture_save_changes)).performClick()
+        compose.runOnIdle {
+            val library = InputLibraries.read(context)
+            val created = library.profiles.single { it.name == "Minecraft" }
+            for (role in InputRole.entries) assertNotEquals(library.profile(InputProfile.GAME).binding(role), created.binding(role))
+            assertNotEquals(library.layout(InputProfile.GAME, InputRole.SECONDARY)!!.id, library.layout(created.id, InputRole.SECONDARY)!!.id)
+            assertEquals(InputProfiles.AUTO, library.selected)
+        }
+    }
+
+    @Test fun openingAProfileDoesNotActivateItAndBackKeepsItsContext() {
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("input-profile-desktop").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-physical").performScrollTo().performClick()
         compose.onNodeWithTag("input-binding-a").performScrollTo().performClick()
-        compose.onNodeWithText("Disabled", substring = false).performScrollTo().performClick()
         compose.onNodeWithTag("input-action-save").performClick()
-        compose.onNodeWithTag("input-remap-reset").performScrollTo().assertExists()
-        compose.onNodeWithText(context.getString(R.string.mode_back)).performClick()
-        compose.onNodeWithTag("osc-edit").assertExists()
-        compose.runOnIdle {
-            assertEquals(InputProfiles.AUTO, InputLibraries.read(context).selected)
-            assertEquals(InputAction.Disabled, InputProfiles.read(context, InputProfile.GAME).action(InputRole.PHYSICAL, InputControl.A))
-        }
-    }
-
-    @Test fun inGameRemapOpensStraightOnThePhysicalController() {
-        var closed = false
-        compose.setContent { DroidDeckTheme { InputSettingsPage({ closed = true }, remapOnly = true) } }
         compose.onNodeWithTag("input-binding-a").assertExists()
-        compose.onNodeWithTag("osc-edit").assertDoesNotExist()
         compose.onNodeWithText(context.getString(R.string.mode_back)).performClick()
-        compose.runOnIdle { assertTrue(closed) }
+        compose.onNodeWithTag("input-part-secondary").assertExists()
+        compose.runOnIdle { assertEquals(InputProfiles.AUTO, InputLibraries.read(context).selected) }
     }
 
-    @Test fun settingsShowTheInGameControllerPageForTheDefault() {
+    @Test fun profileCreationCanExplicitlyShareOnlyPhysicalControls() {
         compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
-        compose.onNodeWithText(context.getString(R.string.osc_group_for, context.getString(R.string.osc_default)).uppercase()).assertExists()
-        for (label in listOf(R.string.osc_layout, R.string.osc_edit_layout, R.string.osc_show, R.string.input_touches, R.string.unfolded_controls,
-            R.string.input_virtual_controller, R.string.ctrl_rumble, R.string.ctrl_dead_zone, R.string.input_remap_buttons))
-            compose.onNodeWithText(context.getString(label)).performScrollTo().assertExists()
-        for (removed in listOf(R.string.input_default_profiles, R.string.input_profiles, R.string.input_new_profile))
-            compose.onNodeWithText(context.getString(removed)).assertDoesNotExist()
-        compose.onNodeWithTag("input-profile-game").assertDoesNotExist()
-        compose.onNodeWithTag("osc-${SessionPrefs.OSC_NEVER}").performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(SessionPrefs.OSC_NEVER, SessionPrefs.oscMode(context)) }
-    }
-
-    @Test fun choosingTheDefaultLayoutAppliesToGamesWithoutTheirOwn() {
-        InputLibraries.update(context) { it.copyLayout(InputLibraries.OVERLAY, "Big sticks", "big-sticks") }
-        ControlsChoice.newForGame(context, 7, "Castle Crashers", desktop = false)
-        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
-        compose.onNodeWithTag("setting-osc-layout").performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.osc_layout_steam)).assertExists()
-        compose.onNodeWithText("Big sticks").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_new_profile)).performScrollTo().performClick()
+        compose.onNodeWithTag("input-name").performTextInput("Shared controls")
+        compose.onNodeWithTag("input-share-physical").performClick()
+        compose.onNodeWithText(context.getString(R.string.gesture_save_changes)).performClick()
         compose.runOnIdle {
-            assertEquals("big-sticks", ControlsChoice.current(context, null, steamMode = true))
-            assertEquals("big-sticks", ControlsChoice.current(context, 8, steamMode = true))
-            assertNotEquals("big-sticks", ControlsChoice.current(context, 7, steamMode = true))
-            assertEquals("big-sticks", InputLibraries.read(context).activeLayout(false, InputRole.PRIMARY)!!.id)
+            val library = InputLibraries.read(context)
+            val created = library.profiles.single { it.name == "Shared controls" }
+            assertEquals(library.profile("game").binding(InputRole.PHYSICAL), created.binding(InputRole.PHYSICAL))
+            assertNotEquals(library.profile("game").binding(InputRole.SECONDARY), created.binding(InputRole.SECONDARY))
         }
-        compose.onNodeWithTag("osc-edit").performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.osc_scope_default, "Big sticks")).assertExists()
-        compose.onNodeWithTag("input-editor-split").assertDoesNotExist()
     }
 
-    @Test fun useDefaultReturnsAGameToTheDefaultLayout() {
-        ControlsChoice.newForGame(context, 42, "Castle Crashers", desktop = false)
-        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
-        compose.onNodeWithText(context.getString(R.string.osc_games_own).uppercase()).performScrollTo().assertExists()
-        compose.onNodeWithTag("osc-use-default-42").performScrollTo().performClick()
-        compose.runOnIdle { assertNull(GameControls.bindings(context, 42)) }
-        compose.onNodeWithText(context.getString(R.string.osc_games_own).uppercase()).assertDoesNotExist()
-    }
-
-    @Test fun justThisGameSavesTheEditIntoTheGamesOwnCopy() {
+    @Test fun hidingEditorToolsPreservesPlacedElements() {
         val library = InputLibraries.read(context)
-        val layout = library.layout("game", InputRole.PRIMARY)!!
-        var closed = false
-        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", { closed = true }, {}, role = InputRole.PRIMARY,
-            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY),
-            scope = context.getString(R.string.osc_scope_default, layout.name),
-            split = InputEditorSplit(context.getString(R.string.osc_just_this_game), "Gamepad · saved for Castle Crashers",
-                { lib, layoutId, bindingsId -> ControlsChoice.copyForGame(context, lib, 7, "Castle Crashers", false, layoutId, bindingsId) },
-                { bindingsId -> ControlsChoice.useForGame(context, 7, "Castle Crashers", bindingsId) }) ) } }
-        compose.onNodeWithTag("input-editor-split").performClick()
-        compose.onNodeWithText("Gamepad · saved for Castle Crashers").assertExists()
-        compose.onNodeWithTag("input-editor-split").assertDoesNotExist()
-        pressPlus(2)
-        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
-        compose.runOnIdle {
-            assertTrue(closed)
-            val saved = InputLibraries.read(context)
-            assertTrue(OnScreenLayout.generated(saved.layouts.first { it.id == layout.id }))
-            val own = saved.layouts.first { it.id == ControlsChoice.current(context, 7, steamMode = false) }
-            assertNotEquals(layout.id, own.id)
-            assertFalse(OnScreenLayout.generated(own))
-            assertEquals(layout.id, ControlsChoice.current(context, 8, steamMode = false))
-        }
+        val layout = library.layout("game", InputRole.SECONDARY)!!
+        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.SECONDARY)) } }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_add)).performClick()
+        compose.onNodeWithText(context.getString(R.string.input_element_button)).performClick()
+        compose.onNodeWithTag("input-layout-canvas").performTouchInput { click(center) }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_hide_tools)).performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_add)).assertDoesNotExist()
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performClick()
+        compose.runOnIdle { assertEquals(layout.elements.size + 1, InputLibraries.read(context).layout("game", InputRole.SECONDARY)!!.elements.size) }
     }
 
-    private val add get() = context.getString(R.string.input_editor_add)
-
-    private fun addButton(layout: SavedInputLayout) {
-        compose.onNodeWithText(add).performScrollTo().performClick()
-        val clicks = listOf("legacy:l3", "legacy:r3").count { id -> layout.elements.none { it.id == id } }
-        compose.onAllNodesWithText(add)[1 + clicks + InputElementKind.entries.indexOf(InputElementKind.BUTTON)].performScrollTo().performClick()
-    }
-
-    @Test fun theEditorToolbarStaysAboveTheCanvasAndAddOpensAndClosesItsList() {
+    @Test fun localToolsCanMoveAndExpandWithoutMovingTheCanvas() {
         val library = InputLibraries.read(context)
         compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
             layoutId = library.layout("game", InputRole.SECONDARY)!!.id, bindingsId = library.profile("game").binding(InputRole.SECONDARY)) } }
@@ -227,75 +216,69 @@ class InputSettingsTest {
             assertEquals(android.view.WindowManager.LayoutParams.MATCH_PARENT, window.attributes.height)
         }
         val canvas = compose.onNodeWithTag("input-layout-canvas").fetchSemanticsNode().boundsInRoot
-        val tools = compose.onNodeWithTag("input-editor-tools").fetchSemanticsNode().boundsInRoot
-        assertTrue(tools.top >= canvas.top && tools.bottom < canvas.center.y)
-        val button = context.getString(R.string.input_element_button)
-        compose.onNodeWithText(button).assertDoesNotExist()
-        compose.onNodeWithText(add).performScrollTo().performClick()
-        compose.onNodeWithText(button).assertIsDisplayed()
-        compose.onAllNodesWithText(add).onFirst().performScrollTo().performClick()
-        compose.onNodeWithText(button).assertDoesNotExist()
+        val before = compose.onNodeWithTag("input-editor-tools").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithTag("input-editor-tools").performTouchInput { swipe(center, center + androidx.compose.ui.geometry.Offset(250f, 150f), 500) }
+        val after = compose.onNodeWithTag("input-editor-tools").fetchSemanticsNode().boundsInRoot
+        assertTrue(after.left > before.left + 100f)
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_add)).assertIsDisplayed()
         assertEquals(canvas, compose.onNodeWithTag("input-layout-canvas").fetchSemanticsNode().boundsInRoot)
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_add)).assertDoesNotExist()
     }
 
-    @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
-    fun removedKitControlsWaitUnderHiddenAndRestoringThemKeepsTheGamepadGenerated() {
-        val library = InputLibraries.read(context)
-        val layout = library.layout("game", InputRole.PRIMARY)!!
-        val a = InputLibraries.defaultPositions(context, library, layout)!!.first.single { it.id == "legacy:a" }
-        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
-            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
-        compose.onNodeWithText(context.getString(R.string.input_hidden_count, 0)).performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.input_nothing_hidden)).assertExists()
-        compose.onNodeWithText(context.getString(R.string.input_hidden_count, 0)).performScrollTo().performClick()
-        compose.onNodeWithTag("input-layout-canvas").performTouchInput { click(percentOffset(a.x + a.width / 2, a.y + a.height / 2)) }
-        compose.onNodeWithText(context.getString(R.string.input_remove_element)).performClick()
-        compose.onNodeWithText(context.getString(R.string.input_hidden_count, 1)).performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.input_restore)).performClick()
-        compose.onNodeWithText(context.getString(R.string.input_hidden_count, 0)).assertExists()
-        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
-        compose.runOnIdle { assertTrue(OnScreenLayout.generated(InputLibraries.read(context).layouts.first { it.id == layout.id })) }
+    @Test fun deckPresetOffersItsRealElementsAndTheCommonEditor() {
+        InputLibraries.update(context) { it.useLayout("game", InputRole.SECONDARY, InputLibraries.DECK, shared = true) }
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-secondary").performScrollTo().performClick()
+        compose.onNodeWithTag("input-element-legacy:l4").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("input-binding-a").assertDoesNotExist()
     }
 
-    @Test fun resetAfterResizingMakesTheGamepadFollowTheKitAgain() {
-        val library = InputLibraries.read(context)
-        val layout = library.layout("game", InputRole.PRIMARY)!!
-        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
-            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
-        val reset = compose.onNodeWithText(context.getString(R.string.hud_reset_button))
-        reset.performScrollTo().assertIsNotEnabled()
-        pressPlus(2)
-        reset.performScrollTo().assertIsEnabled().performClick()
-        compose.onNodeWithTag("input-editor-scale").assertTextEquals("100%")
-        reset.performScrollTo().assertIsNotEnabled()
-        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
-        compose.runOnIdle { assertTrue(OnScreenLayout.generated(InputLibraries.read(context).layouts.first { it.id == layout.id })) }
+    @Test fun mouseTrackpadPresetIsEditableLikeAnyOtherLayout() {
+        InputLibraries.update(context) { it.useLayout("game", InputRole.SECONDARY, InputLibraries.TRACKPAD, shared = true) }
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-secondary").performScrollTo().performClick()
+        compose.onNodeWithTag("input-element-legacy:right-pad").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("input-surface-secondary").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("input-binding-a").assertDoesNotExist()
     }
 
-    @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
-    fun removingAndRestoringAKitButtonKeepsItsAction() {
-        val library = InputLibraries.read(context)
-        val layout = library.layout("game", InputRole.PRIMARY)!!
-        val bindingsId = library.profile("game").binding(InputRole.PRIMARY)
-        InputLibraries.update(context) { lib -> lib.preset(bindingsId).let { b -> lib.withPreset(b.copy(elements = b.elements + ("legacy:a" to InputAction.Keys(listOf(30))))) } }
-        val a = InputLibraries.defaultPositions(context, library, layout)!!.first.single { it.id == "legacy:a" }
-        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY, layoutId = layout.id, bindingsId = bindingsId) } }
-        compose.onNodeWithTag("input-layout-canvas").performTouchInput { click(percentOffset(a.x + a.width / 2, a.y + a.height / 2)) }
-        compose.onNodeWithText(context.getString(R.string.input_remove_element)).performClick()
-        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(InputAction.Keys(listOf(30)), InputLibraries.read(context).preset(bindingsId).elements["legacy:a"]) }
+    @Test fun primaryScreenOffersItsActualElementsAndTheCommonEditor() {
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-primary").performScrollTo().performClick()
+        compose.onNodeWithTag("input-element-legacy:a").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("input-binding-a").assertDoesNotExist()
+        compose.onNodeWithTag("input-surface-primary").performScrollTo().performClick()
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_editor_add)).assertIsDisplayed()
+        compose.onNodeWithTag("input-layout-canvas").assertExists()
     }
 
-    @Test fun resetAndSaveKeepTheDpadDirectionOverrides() {
-        val library = InputLibraries.read(context)
-        val layout = library.layout("game", InputRole.PRIMARY)!!
-        val bindingsId = library.profile("game").binding(InputRole.PRIMARY)
-        InputLibraries.update(context) { lib -> lib.preset(bindingsId).let { b -> lib.withPreset(b.copy(elements = b.elements + ("legacy:up" to InputAction.Keys(listOf(103))))) } }
-        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY, layoutId = layout.id, bindingsId = bindingsId) } }
-        pressPlus(2)
-        compose.onNodeWithText(context.getString(R.string.hud_reset_button)).performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(InputAction.Keys(listOf(103)), InputLibraries.read(context).preset(bindingsId).elements["legacy:up"]) }
+    @Test fun deviceSettingsAreInlineBelowProfiles() {
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("input-more").assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.ctrl_dead_zone)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("input-profile-game").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun migratedPadClicksRemainEditableWithoutChangingMovement() {
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("input-profile-desktop").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-secondary").performScrollTo().performClick()
+        compose.onNodeWithTag("input-click-legacy:right-pad").performScrollTo().performClick()
+        compose.onNodeWithText("Disabled", substring = false).performScrollTo().performClick()
+        compose.onNodeWithTag("input-action-save").performClick()
+        compose.runOnIdle {
+            val library = InputLibraries.read(context)
+            val pad = library.layout("desktop", InputRole.SECONDARY)!!.elements.first { it.control == InputControl.RIGHT_PAD }
+            val profile = library.compile("desktop")
+            assertEquals(InputAction.Disabled, profile.elementClickAction(InputRole.SECONDARY, pad))
+            assertEquals(InputAction.Pointer(), profile.elementAction(InputRole.SECONDARY, pad.id, pad.control))
+        }
     }
 
     @Test @Config(sdk = [34]) fun secondarySettingsCanOpenAnActivityDialogAndCloseCleanly() {
@@ -308,8 +291,8 @@ class InputSettingsTest {
                 val host = androidx.compose.ui.platform.LocalContext.current.findActivity() as androidx.activity.ComponentActivity
                 if (open.value) InputDisplayContent(host, display, { open.value = false }) { InputSettingsPage({ open.value = false }) }
             } }
-            compose.onNodeWithText(context.getString(R.string.input_read_timing)).performScrollTo().performClick()
-            compose.onNodeWithText(context.getString(R.string.common_close)).assertExists()
+            compose.onNodeWithText(context.getString(R.string.input_new_profile)).performScrollTo().performClick()
+            compose.onNodeWithTag("input-name").assertExists()
             compose.runOnIdle {
                 assertTrue(ShadowDialog.getShownDialogs().filterIsInstance<Presentation>().any { it.isShowing && it.display.displayId == displayId })
                 val dialog = ShadowDialog.getShownDialogs().last { it !is Presentation && it.isShowing }
@@ -437,14 +420,15 @@ class InputSettingsTest {
         val round = mutableStateOf(0)
         compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
             layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.SECONDARY)) } } }
-        compose.onNodeWithText(context.getString(R.string.hud_reset_button)).performScrollTo().assertIsNotEnabled()
-        repeat(4) { compose.onNodeWithText("\u2212").performScrollTo().performClick() }
-        compose.onNodeWithTag("input-editor-scale").assertTextEquals("80%")
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_reset_positions)).performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(80f) }
         compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
         val scaled = InputLibraries.read(context).layouts.first { it.id == layout.id }
         assertEquals(layout.elements.scaled(.8f), scaled.elements)
         compose.runOnIdle { round.value = 1 }
-        compose.onNodeWithText(context.getString(R.string.hud_reset_button)).performScrollTo().performClick()
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_reset_positions)).performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
         compose.runOnIdle { assertEquals(layout.elements, InputLibraries.read(context).layouts.first { it.id == layout.id }.elements) }
     }
@@ -466,54 +450,104 @@ class InputSettingsTest {
         com.droiddeck.launcher.input.ControllerPrefs.setSnap(context, true)
     }
 
-    private fun pressPlus(times: Int) = repeat(times) { compose.onNodeWithText("+").performScrollTo().performClick() }
+    @Test fun quickButtonTogglesHideBuiltInButtonsWithoutDeletingThem() {
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-primary").performScrollTo().performClick()
+        val before = InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!
+        compose.onNodeWithTag("setting-quick-keyboard").performScrollTo().performClick()
+        compose.runOnIdle {
+            val after = InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!
+            assertEquals(before.elements, after.elements)
+            assertEquals(setOf(InputCommand.KEYBOARD), after.style.hidden)
+        }
+        compose.onNodeWithTag("setting-quick-keyboard").performScrollTo().performClick()
+        compose.runOnIdle { assertTrue(InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!.style.hidden.isEmpty()) }
+    }
 
-    @Test fun sizeButtonsScaleTheWholeGamepadAndUndoAsOneStep() {
+    @Test fun layoutsCanBeImportedAndExported() {
+        val source = java.io.File(context.cacheDir, "jump.icp").apply {
+            writeText("""{"name":"Jump keys","elements":[{"type":"BUTTON","shape":"CIRCLE","bindings":["KEY_SPACE"],"scale":1.0,"x":0.8,"y":0.7,"text":"Jump"}]}""")
+        }
+        val target = java.io.File(context.cacheDir, "out.icp").apply { delete() }
+        val registry = object : androidx.activity.result.ActivityResultRegistry() {
+            override fun <I, O> onLaunch(requestCode: Int, contract: androidx.activity.result.contract.ActivityResultContract<I, O>, input: I,
+                options: androidx.core.app.ActivityOptionsCompat?) {
+                dispatchResult(requestCode, android.net.Uri.fromFile(if (input is String) target else source))
+            }
+        }
+        val owner = object : androidx.activity.result.ActivityResultRegistryOwner { override val activityResultRegistry = registry }
+        compose.setContent { androidx.compose.runtime.CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides owner) {
+            DroidDeckTheme { InputSettingsPage({}) }
+        } }
+        compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()
+        compose.onNodeWithTag("input-part-primary").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.input_saved_layouts)).performScrollTo().performClick()
+        compose.onNodeWithTag("layout-manage-${InputLibraries.OVERLAY}").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.screen_key_layout_export)).assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.common_close)).performClick()
+        compose.onNodeWithTag("input-layout-import").performScrollTo().performClick()
+        compose.waitUntil(5_000) { InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!.name == "Jump keys" }
+        val imported = InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!
+        assertEquals(InputLayoutScreen.MAIN, imported.screen)
+        assertEquals(InputAction.Keys(listOf(57)), InputLibraries.read(context).compile("game").elementAction(InputRole.PRIMARY, imported.elements.single().id, InputControl.A))
+        compose.onNodeWithText(context.getString(R.string.input_saved_layouts)).performScrollTo().performClick()
+        compose.onNodeWithTag("layout-manage-${imported.id}").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.screen_key_layout_export)).performClick()
+        compose.waitUntil(5_000) { target.isFile && target.length() > 0 }
+        assertEquals(source.readText().let { org.json.JSONObject(it).getString("name") }, org.json.JSONObject(target.readText()).getString("name"))
+        assertEquals("KEY_SPACE", org.json.JSONObject(target.readText()).getJSONArray("elements").getJSONObject(0).getJSONArray("bindings").getString(0))
+    }
+
+    @Test fun buttonSizeRegeneratesTheGamepadAndUndoesAsOneStep() {
         val library = InputLibraries.read(context)
         val layout = library.layout("game", InputRole.PRIMARY)!!
-        assertTrue(OnScreenLayout.generated(layout))
-        val defaults = InputLibraries.defaultPositions(context, library, layout)!!.first
+        val (_, metrics) = InputLibraries.primaryDisplay(context)
+        assertNotNull(OnScreenLayout.generatedSize(context, layout, metrics.widthPixels, metrics.heightPixels))
         compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
             layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
-        val scale = compose.onNodeWithTag("input-editor-scale")
-        scale.assertTextEquals("100%")
-        pressPlus(2)
-        scale.assertTextEquals("110%")
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        val slider = compose.onNodeWithTag("input-editor-scale").performScrollTo()
+        slider.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "100%"))
+        for (value in listOf(110f, 125f)) slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(value) }
         compose.onNodeWithText(context.getString(R.string.input_editor_undo)).performScrollTo().performClick()
-        scale.assertTextEquals("100%")
-        pressPlus(5)
-        scale.assertTextEquals("125%")
+        slider.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "100%"))
+        slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(125f) }
         compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
         compose.runOnIdle {
             val saved = InputLibraries.read(context).layouts.first { it.id == layout.id }
-            assertFalse(OnScreenLayout.generated(saved))
-            assertEquals(defaults.map { it.id }, saved.elements.map { it.id })
-            assertTrue(saved.elements.first { it.id == "legacy:a" }.width > defaults.first { it.id == "legacy:a" }.width * 1.2f)
+            assertEquals(1.25f, saved.scale)
+            assertNotNull(OnScreenLayout.generatedSize(context, saved, metrics.widthPixels, metrics.heightPixels))
+            assertNotEquals(layout.elements.first { it.id == "legacy:a" }.y, saved.elements.first { it.id == "legacy:a" }.y)
         }
     }
 
     @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
-    fun sizeButtonsKeepAMovedFaceClusterInShape() {
+    fun buttonSizeKeepsMovedGamepadGroupsInShape() {
         val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")
         val original = InputLibraries.read(context)
         val gamepad = original.layout("game", InputRole.PRIMARY)!!
-        val (defaults, aspect) = InputLibraries.defaultPositions(context, original, gamepad)!!
-        val moved = gamepad.copy(elements = defaults.map { if (it.id in face) it.copy(x = it.x + .012f, y = it.y + .017f) else it }, aspect = aspect)
+        val moved = gamepad.copy(elements = gamepad.elements.map { if (it.id in face) it.copy(x = it.x + .012f, y = it.y + .017f) else it })
         InputLibraries.update(context) { it.withLayout(moved) }
+        val (_, metrics) = InputLibraries.primaryDisplay(context)
+        assertNull(OnScreenLayout.generatedSize(context, moved, metrics.widthPixels, metrics.heightPixels))
         val library = InputLibraries.read(context)
         compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
             layoutId = moved.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
-        pressPlus(5)
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(125f) }
         compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
         compose.runOnIdle {
             val saved = InputLibraries.read(context).layouts.first { it.id == moved.id }
-            val w = saved.aspect * 1000; val h = 1000f
+            assertEquals(1.25f, saved.scale)
+            val w = metrics.widthPixels; val h = metrics.heightPixels
             fun centre(id: String) = saved.elements.first { it.id == id }.let { (it.x + it.width / 2) * w to (it.y + it.height / 2) * h }
-            val cross = face.associateWith(::centre)
             assertEquals(centre("legacy:y").first, centre("legacy:a").first, 1f)
             assertEquals(centre("legacy:x").second, centre("legacy:b").second, 1f)
-            assertTrue("$cross", centre("legacy:y").second < centre("legacy:x").second && centre("legacy:x").second < centre("legacy:a").second)
-            assertTrue("$cross", centre("legacy:x").first < centre("legacy:a").first && centre("legacy:a").first < centre("legacy:b").first)
+            assertTrue(centre("legacy:y").second < centre("legacy:x").second && centre("legacy:x").second < centre("legacy:a").second)
+            assertEquals(centre("legacy:a").second - centre("legacy:y").second, centre("legacy:b").first - centre("legacy:x").first, 1f)
+            assertEquals(centre("legacy:up").first, centre("legacy:down").first, 1f)
+            assertEquals(centre("legacy:left").second, centre("legacy:right").second, 1f)
             val before = moved.elements.first { it.id == "legacy:a" }
             assertTrue(saved.elements.first { it.id == "legacy:a" }.width > before.width * 1.2f)
         }

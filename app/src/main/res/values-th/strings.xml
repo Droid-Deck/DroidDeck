@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">เอาต์พุต HDR10</string>
     <string name="mode_hdr_unavailable">ไม่พร้อมใช้งาน: %1$s</string>
-    <string name="mode_hdr_restart">รีสตาร์ทแอปเพื่อให้มีผล</string>
     <string name="mode_drivers">ไดรเวอร์</string>
     <string name="mode_gpu_drivers">ไดรเวอร์ GPU</string>
     <string name="mode_gpu_drivers_hint">ใช้ร่วมกันระหว่าง Steam และเดสก์ท็อป ตั้งค่าได้ที่หน้า Components</string>
@@ -295,10 +294,14 @@
     <string name="mode_pen_touch">การสัมผัส</string>
     <string name="mode_pen_button">ปุ่มด้านข้าง</string>
     <string name="mode_osc">ปุ่มควบคุมบนหน้าจอ</string>
+    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">อัตโนมัติจะแสดงปุ่มควบคุมเมื่อไม่มีคอนโทรลเลอร์เชื่อมต่ออยู่</string>
+    <string name="osc_steam_touch">การสัมผัสของ Steam (ทดลอง)</string>
+    <string name="osc_style_next_session">ปุ่มสัมผัสของ Steam จะเริ่มใช้งานในเซสชัน Steam ถัดไป</string>
     <string name="osc_steam_layout">รูปแบบปุ่มสัมผัสของ Steam</string>
     <string name="screen_key_layout_export">ส่งออก</string>
     <string name="screen_key_image">รูปภาพ</string>
+    <string name="osc_steam_layout_hint">ย้าย ปรับขนาด หรือซ่อนปุ่มสัมผัสของเกมนี้ บันทึกไปยัง Steam</string>
     <string name="mode_controller">คอนโทรลเลอร์</string>
     <string name="mode_controller_hint">วิธีที่ Steam มองเห็นคอนโทรลเลอร์ของคุณ จะมีผลในเซสชันถัดไป</string>
     <string name="mode_controller_deck">คอนโทรลเลอร์ Steam Deck</string>
@@ -424,6 +427,7 @@
     <string name="mode_directaudio_hint">ข้าม PulseAudio เพื่อลดความหน่วง</string>
     <string name="mode_mic">ไมโครโฟน</string>
     <string name="mode_mic_hint">สำหรับการแชทด้วยเสียง</string>
+    <string name="drawer_mic_hint">เปิดหรือปิดการรับเสียงจากไมโครโฟนสำหรับเซสชันนี้</string>
     <string name="drawer_mic_failed">เปลี่ยนไมโครโฟนไม่ได้ โปรดลองอีกครั้ง</string>
     <string name="mode_network">เครือข่าย</string>
     <string name="mode_wifi_discovery">การค้นหา Wi-Fi</string>
@@ -784,6 +788,7 @@
     <string name="drawer_keyboard">แป้นพิมพ์</string>
     <string name="drawer_latency">ความหน่วง</string>
     <string name="drawer_low_latency">โหมดหน่วงเวลาต่ำ</string>
+    <string name="drawer_low_latency_hint">ใช้ CPU และแบตเตอรี่มากขึ้น</string>
     <string name="drawer_low_latency_controller">คอนโทรลเลอร์ความหน่วงต่ำ</string>
     <string name="drawer_low_latency_controller_hint">คอนโทรลเลอร์รายงานที่ 1000 Hz แทน 250 Hz ใช้ CPU เพิ่มขึ้นเล็กน้อย</string>
     <string name="drawer_low_latency_touch">การสัมผัสความหน่วงต่ำ</string>
@@ -1333,8 +1338,12 @@
     <string name="ctrl_opacity">ความโปร่งใส</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">ขนาดปุ่ม</string>
+    <string name="ctrl_adaptive">สติ๊กแบบปรับอัตโนมัติ</string>
     <string name="ctrl_rumble">การสั่นของเกม</string>
     <string name="ctrl_dead_zone">เดดโซนของแอนะล็อกสติ๊ก</string>
+    <string name="ctrl_steam_button">ปุ่ม Steam</string>
+    <string name="ctrl_qam_button">ปุ่ม QAM</string>
+    <string name="ctrl_keyboard_button">ปุ่มแป้นพิมพ์</string>
     <string name="ctrl_joycon_vr">ใช้ Joy-Con เป็นคอนโทรลเลอร์ VR</string>
     <string name="ctrl_joycon_vr_hint">ขณะที่ SteamVR ทำงาน Joy-Con แต่ละตัวจะกลายเป็นมือ ชี้ไปข้างหน้าแล้วกด Home หรือ Capture ค้างไว้เพื่อจัดให้อยู่ตรงกลางอีกครั้ง</string>
     <string name="setup_animations">ภาพเคลื่อนไหว</string>
@@ -1462,6 +1471,8 @@
     <string name="deck_surface_trackpad">แทร็กแพด</string>
     <string name="deck_close">ปิดการควบคุมหน้าจอที่สอง</string>
     <string name="deck_open_steam_menu">เปิดเมนู Steam</string>
+    <string name="deck_right_trackpad">แทร็กแพดขวา</string>
+    <string name="deck_left_trackpad">แทร็กแพดซ้าย</string>
     <string name="second_trackpad">แทร็กแพด</string>
     <string name="second_show_keyboard">แสดงแป้นพิมพ์</string>
     <string name="second_hide_keyboard">ซ่อนแป้นพิมพ์</string>
@@ -1500,8 +1511,11 @@
     <string name="pckb_android">แป้นพิมพ์ Android</string>
     <string name="pckb_hide">ซ่อน  ✕</string>
     <string name="pckb_size">ขนาดบนหน้าจอ</string>
+    <string name="pckb_size_hint">สัดส่วนหน้าจอที่คีย์บอร์ดใช้ รวมแถบหัวด้วย</string>
     <string name="pckb_opacity">ความทึบแสง</string>
+    <string name="pckb_opacity_hint">ลดค่านี้เพื่อให้เห็นเกมด้านหลังคีย์บอร์ด</string>
     <string name="pckb_hidden_keys">ปุ่มที่ซ่อนไว้</string>
+    <string name="pckb_hidden_keys_hint">ปุ่มที่ใช้ไม่บ่อยจะไม่แสดงบนคีย์บอร์ด</string>
     <string name="pckb_group_function">Esc และแถวปุ่มฟังก์ชัน</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">ปุ่มลูกศร</string>
@@ -1706,6 +1720,8 @@
     <string name="drivers_installed_pick">ติดตั้ง %1$s แล้ว - เลือกจากเมนู</string>
     <string name="session_wait_removal">รอให้การลบรันไทม์เสร็จสิ้น</string>
     <string name="session_title_game">เกม</string>
+    <string name="session_touch_auto_touchpad">ทัชแพด</string>
+    <string name="session_touch_auto_direct">โดยตรง</string>
     <string name="session_swap_failed">สลับล้มเหลว: %1$s</string>
     <string name="session_profile_save_failed">บันทึกโปรไฟล์ล้มเหลว: %1$s</string>
     <string name="session_desktop_paused">เดสก์ท็อปหยุดชั่วคราว</string>
@@ -1952,6 +1968,15 @@
     <string name="fm_up_one_level">ขึ้นหนึ่งระดับ</string>
     <string name="fm_choose_folder">เลือกโฟลเดอร์</string>
     <string name="fm_choose_file">เลือกไฟล์</string>
+    <string name="ctrl_tint_steam_blue">ฟ้า Steam</string>
+    <string name="ctrl_tint_sky">ฟ้าสดใส</string>
+    <string name="ctrl_tint_white">ขาว</string>
+    <string name="ctrl_tint_violet">ม่วง</string>
+    <string name="ctrl_tint_green">เขียว</string>
+    <string name="ctrl_tint_amber">อำพัน</string>
+    <string name="ctrl_tint_red">แดง</string>
+    <string name="ctrl_tint_pink">ชมพู</string>
+    <string name="ctrl_tint_gray">เทา</string>
     <string name="ctrl_button_a">ปุ่ม A</string>
     <string name="ctrl_button_b">ปุ่ม B</string>
     <string name="ctrl_button_x">ปุ่ม X</string>
@@ -2410,6 +2435,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s %2$s\n\n%3$s</string>
     <string name="display_session">การแสดงผลของเซสชัน</string>
+    <string name="display_zero_copy">การแสดงผลแบบไม่คัดลอก</string>
     <string name="display_resolution">ความละเอียด</string>
     <string name="display_game_fit">การแสดงเกม 16:9 ให้พอดี</string>
     <string name="display_game_fit_hint">วิธีที่เกม 16:9 แสดงพอดีกับหน้าจอนี้ มีผลในเซสชันถัดไป</string>
@@ -3084,6 +3110,7 @@
     <string name="glasses_pro2_experimental">การติดตามศีรษะแบบทดลองสำหรับ Pro 2 ยังไม่รองรับการปรับความสว่าง ระดับเสียง และการสลับโหมดการแสดงผล</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">โหมด Cardboard</string>
+    <string name="cardboard_mode_hint">ภาพสำหรับตาซ้ายและตาขวาสำหรับแว่น VR ของโทรศัพท์</string>
     <string name="cardboard_source">ภาพ</string>
     <string name="cardboard_source_screen">หน้าจอเสมือน</string>
     <string name="cardboard_source_sbs">3D แบบเคียงข้าง</string>
@@ -3106,6 +3133,7 @@
     <string name="cardboard_steamvr_unavailable">ใช้ไม่ได้ในเซสชันนี้</string>
     <string name="cardboard_steamvr_failed">SteamVR ไม่ตอบสนอง ตรวจสอบบันทึกเซสชัน</string>
     <string name="drawer_component_downloads">ดาวน์โหลดคอมโพเนนต์</string>
+    <string name="drawer_component_downloads_hint">ไฟล์ที่ดาวน์โหลดใช้ร่วมกับหน้า Components เลือกเวอร์ชันที่ดาวน์โหลดแล้วด้านบนเพื่อใช้ในการเปิดเกมครั้งถัดไป</string>
     <string name="drawer_component_choose_download">เลือกเวอร์ชันที่จะดาวน์โหลด</string>
     <string name="stores_fact_developer">ผู้พัฒนา</string>
     <string name="stores_fact_publisher">ผู้จัดจำหน่าย</string>

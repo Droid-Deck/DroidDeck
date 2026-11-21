@@ -21,6 +21,8 @@ object FrameGen {
     private const val PREFS = "frame_gen"
 
     data class Mode(val engine: String, val multiplier: Int = 2, val target: Int = 0) {
+        val outputFactor: Int get() = if (engine == ENGINE_OFF) 1 else multiplier
+
         companion object {
             val OFF = Mode(ENGINE_OFF)
         }

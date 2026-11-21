@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-uitvoer</string>
     <string name="mode_hdr_unavailable">Niet beschikbaar: %1$s.</string>
-    <string name="mode_hdr_restart">Start de app opnieuw om dit toe te passen.</string>
     <string name="mode_drivers">Drivers</string>
     <string name="mode_gpu_drivers">GPU-drivers</string>
     <string name="mode_gpu_drivers_hint">Gedeeld door Steam en Desktop. In te stellen op de pagina Componenten.</string>
@@ -295,10 +294,14 @@
     <string name="mode_pen_touch">Aanraken</string>
     <string name="mode_pen_button">Zijknop</string>
     <string name="mode_osc">Schermbediening</string>
+    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automatisch toont de bediening als er geen controller is verbonden.</string>
+    <string name="osc_steam_touch">Steam-aanraakbediening (bèta)</string>
+    <string name="osc_style_next_session">De aanraakbediening van Steam start bij de volgende Steam-sessie</string>
     <string name="osc_steam_layout">Steam-aanraakindeling</string>
     <string name="screen_key_layout_export">Exporteren</string>
     <string name="screen_key_image">Afbeelding</string>
+    <string name="osc_steam_layout_hint">Verplaats, schaal of verberg de aanraakbediening van deze game; opgeslagen in Steam</string>
     <string name="mode_controller">Controller</string>
     <string name="mode_controller_hint">Hoe Steam je controller ziet. Geldt vanaf de volgende sessie.</string>
     <string name="mode_controller_deck">Steam Deck-controller</string>
@@ -425,6 +428,7 @@
     <string name="mode_directaudio_hint">Omzeilt PulseAudio voor minder vertraging.</string>
     <string name="mode_mic">Microfoon</string>
     <string name="mode_mic_hint">Voor spraakchat.</string>
+    <string name="drawer_mic_hint">Zet microfoonopname aan of uit voor deze sessie.</string>
     <string name="drawer_mic_failed">Kan de microfoon niet wijzigen. Probeer het opnieuw.</string>
     <string name="mode_network">Netwerk</string>
     <string name="mode_wifi_discovery">Wi-Fi-detectie</string>
@@ -786,6 +790,7 @@
     <string name="drawer_keyboard">Toetsenbord</string>
     <string name="drawer_latency">Latentie</string>
     <string name="drawer_low_latency">Modus voor lage latentie</string>
+    <string name="drawer_low_latency_hint">Verhoogt CPU- en batterijgebruik</string>
     <string name="drawer_low_latency_controller">Controller met lage latentie</string>
     <string name="drawer_low_latency_controller_hint">De controller rapporteert op 1000 Hz in plaats van 250 Hz. Iets meer CPU.</string>
     <string name="drawer_low_latency_touch">Aanraking met lage latentie</string>
@@ -1339,8 +1344,12 @@
     <string name="ctrl_opacity">Transparantie</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Knopgrootte</string>
+    <string name="ctrl_adaptive">Adaptieve sticks</string>
     <string name="ctrl_rumble">Trillen in games</string>
     <string name="ctrl_dead_zone">Dode zone van stick</string>
+    <string name="ctrl_steam_button">Steam-knop</string>
+    <string name="ctrl_qam_button">QAM-knop</string>
+    <string name="ctrl_keyboard_button">Toetsenbordknop</string>
     <string name="ctrl_joycon_vr">Joy-Cons als VR-controllers</string>
     <string name="ctrl_joycon_vr_hint">Zolang SteamVR draait, wordt elke Joy-Con een hand. Richt hem naar voren en houd Home of Capture ingedrukt om hem opnieuw te centreren.</string>
     <string name="setup_animations">Animaties</string>
@@ -1469,6 +1478,8 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Bediening op tweede scherm sluiten</string>
     <string name="deck_open_steam_menu">Steam-menu openen</string>
+    <string name="deck_right_trackpad">Rechtertrackpad</string>
+    <string name="deck_left_trackpad">Linkertrackpad</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Toetsenbord tonen</string>
     <string name="second_hide_keyboard">Toetsenbord verbergen</string>
@@ -1507,8 +1518,11 @@
     <string name="pckb_android">Android-toetsenbord</string>
     <string name="pckb_hide">Verbergen  ✕</string>
     <string name="pckb_size">Grootte op scherm</string>
+    <string name="pckb_size_hint">Het deel van het scherm dat het toetsenbord inneemt, inclusief de header.</string>
     <string name="pckb_opacity">Dekking</string>
+    <string name="pckb_opacity_hint">Verlaag deze om het spel achter het toetsenbord te zien.</string>
     <string name="pckb_hidden_keys">Verborgen toetsen</string>
+    <string name="pckb_hidden_keys_hint">Toetsen die je zelden gebruikt staan niet op het toetsenbord.</string>
     <string name="pckb_group_function">Esc en functierij</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Pijltjestoetsen</string>
@@ -1721,6 +1735,8 @@
     <string name="drivers_installed_pick">%1$s geïnstalleerd - kies hem in het menu</string>
     <string name="session_wait_removal">Wacht tot de runtime is verwijderd</string>
     <string name="session_title_game">Game</string>
+    <string name="session_touch_auto_touchpad">touchpad</string>
+    <string name="session_touch_auto_direct">direct</string>
     <string name="session_swap_failed">Wisselen mislukt: %1$s</string>
     <string name="session_profile_save_failed">Profiel opslaan mislukt: %1$s</string>
     <string name="session_desktop_paused">De desktop is gepauzeerd</string>
@@ -1976,6 +1992,15 @@
     <string name="fm_up_one_level">Eén niveau omhoog</string>
     <string name="fm_choose_folder">Kies een map</string>
     <string name="fm_choose_file">Kies een bestand</string>
+    <string name="ctrl_tint_steam_blue">Steam-blauw</string>
+    <string name="ctrl_tint_sky">Hemelsblauw</string>
+    <string name="ctrl_tint_white">Wit</string>
+    <string name="ctrl_tint_violet">Violet</string>
+    <string name="ctrl_tint_green">Groen</string>
+    <string name="ctrl_tint_amber">Amber</string>
+    <string name="ctrl_tint_red">Rood</string>
+    <string name="ctrl_tint_pink">Roze</string>
+    <string name="ctrl_tint_gray">Grijs</string>
     <string name="ctrl_button_a">A-knop</string>
     <string name="ctrl_button_b">B-knop</string>
     <string name="ctrl_button_x">X-knop</string>
@@ -2435,6 +2460,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Sessiescherm</string>
+    <string name="display_zero_copy">Weergave zonder kopie</string>
     <string name="display_resolution">Resolutie</string>
     <string name="display_game_fit">16:9-beeldvulling</string>
     <string name="display_game_fit_hint">Hoe 16:9-games dit scherm vullen. Volgende sessie.</string>
@@ -3113,6 +3139,7 @@
     <string name="glasses_pro2_experimental">Experimentele hoofdtracking voor Pro 2. Het aanpassen van helderheid en volume en het wisselen van weergavemodus worden nog niet ondersteund.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-modus</string>
+    <string name="cardboard_mode_hint">Beelden voor linker- en rechteroog voor een VR-bril voor je telefoon.</string>
     <string name="cardboard_source">Beeld</string>
     <string name="cardboard_source_screen">Virtueel scherm</string>
     <string name="cardboard_source_sbs">Side-by-side 3D</string>
@@ -3135,6 +3162,7 @@
     <string name="cardboard_steamvr_unavailable">Niet beschikbaar in deze sessie.</string>
     <string name="cardboard_steamvr_failed">SteamVR reageerde niet; controleer het sessielog.</string>
     <string name="drawer_component_downloads">Componenten downloaden</string>
+    <string name="drawer_component_downloads_hint">Downloads worden gedeeld met de pagina Componenten. Kies hierboven een gedownloade versie om die bij de volgende start van een game te gebruiken.</string>
     <string name="drawer_component_choose_download">Kies een versie om te downloaden</string>
     <string name="stores_fact_developer">Ontwikkelaar</string>
     <string name="stores_fact_publisher">Uitgever</string>

@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Výstup HDR10</string>
     <string name="mode_hdr_unavailable">Není k dispozici: %1$s.</string>
-    <string name="mode_hdr_restart">Pro použití restartujte aplikaci.</string>
     <string name="mode_drivers">Ovladače</string>
     <string name="mode_gpu_drivers">Ovladače GPU</string>
     <string name="mode_gpu_drivers_hint">Společné pro Steam a Plochu. Nastavuje se na stránce Komponenty.</string>
@@ -295,10 +294,14 @@
     <string name="mode_pen_touch">Dotyk</string>
     <string name="mode_pen_button">Boční tlačítko</string>
     <string name="mode_osc">Ovládání na obrazovce</string>
+    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaticky zobrazí ovládání, pokud není připojen žádný ovladač.</string>
+    <string name="osc_steam_touch">Dotykové ovládání Steamu (beta)</string>
+    <string name="osc_style_next_session">Dotykové ovládání Steamu se spustí od příští relace Steamu</string>
     <string name="osc_steam_layout">Rozvržení dotykového ovládání Steamu</string>
     <string name="screen_key_layout_export">Exportovat</string>
     <string name="screen_key_image">Obrázek</string>
+    <string name="osc_steam_layout_hint">Přesuňte, změňte velikost nebo skryjte dotykové ovládání této hry; uloží se do Steamu</string>
     <string name="mode_controller">Ovladač</string>
     <string name="mode_controller_hint">Jak Steam vidí váš ovladač. Použije se od příští relace.</string>
     <string name="mode_controller_deck">Ovladač Steam Deck</string>
@@ -427,6 +430,7 @@
     <string name="mode_directaudio_hint">Obchází PulseAudio pro nižší latenci.</string>
     <string name="mode_mic">Mikrofon</string>
     <string name="mode_mic_hint">Pro hlasový chat.</string>
+    <string name="drawer_mic_hint">Zapnout nebo vypnout snímání mikrofonu pro tuto relaci.</string>
     <string name="drawer_mic_failed">Mikrofon se nepodařilo změnit. Zkuste to znovu.</string>
     <string name="mode_network">Síť</string>
     <string name="mode_wifi_discovery">Vyhledávání Wi-Fi</string>
@@ -790,6 +794,7 @@
     <string name="drawer_keyboard">Klávesnice</string>
     <string name="drawer_latency">Zpoždění</string>
     <string name="drawer_low_latency">Režim nízkého zpoždění</string>
+    <string name="drawer_low_latency_hint">Zvyšuje využití CPU a baterie</string>
     <string name="drawer_low_latency_controller">Ovladač s nízkým zpožděním</string>
     <string name="drawer_low_latency_controller_hint">Ovladač hlásí na 1000 Hz místo 250 Hz. O něco víc CPU.</string>
     <string name="drawer_low_latency_touch">Dotek s nízkým zpožděním</string>
@@ -1353,8 +1358,12 @@
     <string name="ctrl_opacity">Průhlednost</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Velikost tlačítek</string>
+    <string name="ctrl_adaptive">Adaptivní páčky</string>
     <string name="ctrl_rumble">Vibrace ve hře</string>
     <string name="ctrl_dead_zone">Mrtvá zóna páčky</string>
+    <string name="ctrl_steam_button">Tlačítko Steam</string>
+    <string name="ctrl_qam_button">Tlačítko QAM</string>
+    <string name="ctrl_keyboard_button">Tlačítko klávesnice</string>
     <string name="ctrl_joycon_vr">Joy-Cony jako ovladače VR</string>
     <string name="ctrl_joycon_vr_hint">Když běží SteamVR, každý Joy-Con slouží jako ruka. Namiřte ho dopředu a podržením Home nebo Capture ho znovu vycentrujete.</string>
     <string name="setup_animations">Animace</string>
@@ -1485,6 +1494,8 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Zavřít ovládání druhé obrazovky</string>
     <string name="deck_open_steam_menu">Otevřít nabídku Steamu</string>
+    <string name="deck_right_trackpad">Pravý trackpad</string>
+    <string name="deck_left_trackpad">Levý trackpad</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Zobrazit klávesnici</string>
     <string name="second_hide_keyboard">Skrýt klávesnici</string>
@@ -1523,8 +1534,11 @@
     <string name="pckb_android">Klávesnice Androidu</string>
     <string name="pckb_hide">Skrýt ✕</string>
     <string name="pckb_size">Velikost na obrazovce</string>
+    <string name="pckb_size_hint">Podíl obrazovky, který klávesnice zabírá, včetně záhlaví.</string>
     <string name="pckb_opacity">Neprůhlednost</string>
+    <string name="pckb_opacity_hint">Snižte ji, abyste viděli hru za klávesnicí.</string>
     <string name="pckb_hidden_keys">Skryté klávesy</string>
+    <string name="pckb_hidden_keys_hint">Klávesy, které používáte zřídka, se na klávesnici nezobrazují.</string>
     <string name="pckb_group_function">Esc a řada funkčních kláves</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Klávesy se šipkami</string>
@@ -1753,6 +1767,8 @@
     <string name="drivers_installed_pick">Nainstalováno %1$s - vyberte ho v nabídce</string>
     <string name="session_wait_removal">Počkejte, až skončí odstranění runtime</string>
     <string name="session_title_game">Hra</string>
+    <string name="session_touch_auto_touchpad">touchpad</string>
+    <string name="session_touch_auto_direct">přímý</string>
     <string name="session_swap_failed">Přepnutí se nezdařilo: %1$s</string>
     <string name="session_profile_save_failed">Uložení profilu se nezdařilo: %1$s</string>
     <string name="session_desktop_paused">Plocha je na pauze</string>
@@ -2026,6 +2042,15 @@
     <string name="fm_up_one_level">O úroveň výš</string>
     <string name="fm_choose_folder">Vybrat složku</string>
     <string name="fm_choose_file">Vybrat soubor</string>
+    <string name="ctrl_tint_steam_blue">Steam modrá</string>
+    <string name="ctrl_tint_sky">Nebeská</string>
+    <string name="ctrl_tint_white">Bílá</string>
+    <string name="ctrl_tint_violet">Fialová</string>
+    <string name="ctrl_tint_green">Zelená</string>
+    <string name="ctrl_tint_amber">Ambrová</string>
+    <string name="ctrl_tint_red">Červená</string>
+    <string name="ctrl_tint_pink">Růžová</string>
+    <string name="ctrl_tint_gray">Šedá</string>
     <string name="ctrl_button_a">Tlačítko A</string>
     <string name="ctrl_button_b">Tlačítko B</string>
     <string name="ctrl_button_x">Tlačítko X</string>
@@ -2487,6 +2512,7 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Obrazovka relace</string>
+    <string name="display_zero_copy">Zobrazení bez kopírování</string>
     <string name="display_resolution">Rozlišení</string>
     <string name="display_game_fit">Přizpůsobení hry 16:9</string>
     <string name="display_game_fit_hint">Jak se hry s poměrem 16:9 přizpůsobí této obrazovce. Příští relace.</string>
@@ -3173,6 +3199,7 @@
     <string name="glasses_pro2_experimental">Experimentální sledování pohybu hlavy pro Pro 2. Nastavení jasu, hlasitosti a přepínání režimů zobrazení zatím nejsou podporovány.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Režim Cardboard</string>
+    <string name="cardboard_mode_hint">Obraz pro levé a pravé oko pro VR brýle pro telefon.</string>
     <string name="cardboard_source">Obraz</string>
     <string name="cardboard_source_screen">Virtuální obrazovka</string>
     <string name="cardboard_source_sbs">3D vedle sebe</string>
@@ -3195,6 +3222,7 @@
     <string name="cardboard_steamvr_unavailable">V této relaci není k dispozici.</string>
     <string name="cardboard_steamvr_failed">SteamVR neodpovídá; zkontrolujte protokol relace.</string>
     <string name="drawer_component_downloads">Stáhnout komponenty</string>
+    <string name="drawer_component_downloads_hint">Stažené soubory se sdílejí se stránkou Komponenty. Výběrem stažené verze výše ji použijete při dalším spuštění hry.</string>
     <string name="drawer_component_choose_download">Vyberte verzi ke stažení</string>
     <string name="stores_fact_developer">Vývojář</string>
     <string name="stores_fact_publisher">Vydavatel</string>
