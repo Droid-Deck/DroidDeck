@@ -358,3 +358,11 @@ and clears the held flag. wlroots counts repeated presses of one button and send
 reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
 game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
 earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.
+
+## 0135 rendervulkan: release Vulkan objects before exit
+
+Ported from JROtto5's ValveSoftware/gamescope#2542. Gamescope's device and output are globals, so their Vulkan-backed
+objects otherwise destruct after the driver's exit handlers. Shutdown now joins the pipeline thread, waits up to one
+second for submitted work, and releases command buffers, the cached ReShade pipeline and output textures while the
+driver is available. If work does not drain, pending command buffers and the cached pipeline are leaked to avoid
+calling their destructors after driver teardown.
