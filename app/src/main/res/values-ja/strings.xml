@@ -4083,4 +4083,6 @@
     <string name="theme_custom_signal">強調表示</string>
     <string name="theme_custom_good">成功</string>
     <string name="theme_custom_error">エラー</string>
+    <string name="hud_only_during_game">ゲーム中のみHUDを表示</string>
+    <string name="hud_only_during_game_hint">ゲームのフレームが検出されないときはHUDを非表示にする。</string>
 </resources>

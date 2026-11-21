@@ -4152,4 +4152,6 @@
     <string name="theme_custom_signal">Mises en évidence</string>
     <string name="theme_custom_good">Succès</string>
     <string name="theme_custom_error">Erreur</string>
+    <string name="hud_only_during_game">Afficher le HUD uniquement pendant une partie</string>
+    <string name="hud_only_during_game_hint">Masquer le HUD lorsqu’aucune image du jeu n’est détectée.</string>
 </resources>

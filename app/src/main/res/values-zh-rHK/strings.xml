@@ -4083,4 +4083,6 @@
     <string name="theme_custom_signal">重點標示</string>
     <string name="theme_custom_good">成功</string>
     <string name="theme_custom_error">錯誤</string>
+    <string name="hud_only_during_game">只在遊戲期間顯示 HUD</string>
+    <string name="hud_only_during_game_hint">未偵測到遊戲畫面時隱藏 HUD。</string>
 </resources>
