@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">Profil input</string>
     <string name="input_profiles">Profil</string>
     <string name="input_physical">Pengontrol fisik</string>
     <string name="input_primary">Layar utama</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Buka menu Steam</string>
     <string name="input_command_qam">Buka akses cepat Steam</string>
     <string name="input_remove_element">Hapus kontrol</string>
+    <string name="input_add_element">Tambah kontrol</string>
     <string name="input_extra_keys">Tombol khusus perangkat</string>
     <string name="input_capture">Tetapkan tombol fisik</string>
     <string name="input_capture_confirm">Lepaskan tombol, lalu pilih Edit, Coba lagi, atau Batal. B atau Kembali membatalkan setelah dilepas.</string>

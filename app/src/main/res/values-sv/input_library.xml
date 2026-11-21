@@ -75,9 +75,14 @@
     <string name="input_independent_copy">Oberoende kopia</string>
     <string name="input_floating_stick">Starta spaken vid beröringspunkten</string>
     <string name="input_hide_idle">Dölj spaken när den inte används</string>
+    <string name="input_tools">Verktyg</string>
+    <string name="input_quick_auto">Auto (%1$s)</string>
+    <string name="input_quick_mixed">Anpassad (%1$s)</string>
     <string name="input_save_combination">Spara som ny profil</string>
     <string name="input_profile_controls_mode">Profilstyrning</string>
+    <string name="input_profile">Profil</string>
     <string name="input_mouse_gestures">Musstyrplattesgester</string>
+    <string name="input_mouse_gestures_hint">När tilldelad muspekaren: tryck för att klicka, håll för att dra och rulla med två fingrar.</string>
     <string name="input_quick_override_hint">%1$s har en åsidosättning av snabbmenyn. Välj Auto där för att använda standardprofilen och alla tre sparade delarna.</string>
     <string name="input_route_local">DroidDeck-inmatning</string>
     <string name="input_axis_action_hint" formatted="false">Hålls medan spaken rörs i valfri riktning: tryck över 55 %, släpp under 35 %. Använd Riktningstangenter för att tilldela varje riktning separat. DroidDeck-kommandon körs en gång per utslag. Spakens klick konfigureras separat.</string>
@@ -99,11 +104,17 @@
     <string name="input_shortcut_hold_hint">I Steam-läge. Att hålla Tillbaka öppnar även snabbåtkomst.</string>
     <string name="input_restore_shortcut">Återställ till standard</string>
     <string name="input_virtual_controller">Virtuell handkontroll</string>
+    <string name="input_virtual_controller_hint">Den handkontrolltyp som Steam eller spelet ser.</string>
     <string name="input_touchscreen">Pekskärm</string>
+    <string name="input_touchscreen_hint">Hur beröringar på spelskärmen hanteras. Profilknapparna behåller sina tilldelade åtgärder.</string>
     <string name="input_touch_cursor">Pekmarkör</string>
+    <string name="input_touch_cursor_hint">Visa en pekare för direkta beröringar på spelskärmen.</string>
     <string name="input_touch_hold">Tryck och håll</string>
+    <string name="input_touch_hold_hint">Musåtgärd när du håller ett finger på spelskärmen.</string>
     <string name="input_back_taps">Tryck på Tillbaka-knappen</string>
+    <string name="input_back_taps_hint">Första åtgärden: ett tryck. Andra åtgärden: dubbeltryck.</string>
     <string name="input_toggle_button">Växlingsknapp</string>
+    <string name="input_toggle_button_hint">Tryck för att hålla, tryck igen för att släppa. Att öppna en meny eller byta profil släpper knappen.</string>
     <string name="input_button_shape">Form</string>
     <string name="input_shape_rounded">Rundad</string>
     <string name="input_shape_pill">Kapsel</string>

@@ -24,8 +24,7 @@ class PhysicalInputBindingsTest {
         override fun command(command: InputCommand) { events += command.name }
         override fun requestMotion() {}
     })
-    private val presses = ArrayList<Int>()
-    private val bindings = PhysicalInputBindings(router) { presses += it.deviceId }
+    private val bindings = PhysicalInputBindings(router)
 
     private fun device(id: Int): InputDevice {
         val device = InputDeviceBuilder.newBuilder().setId(id).setName("Thor extra keys").setDescriptor("keys-$id")
@@ -56,7 +55,6 @@ class PhysicalInputBindingsTest {
         assertEquals(listOf("29 true", "30 true", "30 false", "29 false"), events)
         bindings.onKey(event(device.id, true), true)
         assertEquals("28 true", events.last())
-        assertEquals(listOf(device.id, device.id), presses)
     }
 
     @Test fun releasesRemainConsumedAfterOpeningMenuAndVirtualKeysAreUntouched() {

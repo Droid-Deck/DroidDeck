@@ -45,6 +45,7 @@ object SessionFiles {
     private val SERVICE_PACKS = mapOf(
         AddonPack.UBISOFT to "usr/local/lib/droiddeck-ubisoft",
         AddonPack.ROCKSTAR to "usr/local/lib/droiddeck-rockstar",
+        AddonPack.EPIC to "usr/local/lib/droiddeck-epic",
         AddonPack.DIRT to "usr/local/lib/droiddeck-dirt",
     )
 
@@ -52,6 +53,8 @@ object SessionFiles {
     fun ensureUbisoftService(context: Context) = ensureStoreService(context, AddonPack.UBISOFT)
 
     fun ensureRockstarService(context: Context) = ensureStoreService(context, AddonPack.ROCKSTAR)
+
+    fun ensureEpicParent(context: Context) = ensureStoreService(context, AddonPack.EPIC)
 
     /** The DiRT 3 / DiRT Showdown ws2_32 stand-in; droiddeck-game-env applies it only when it is staged. */
     fun ensureDirtStandIn(context: Context) = ensureStoreService(context, AddonPack.DIRT)

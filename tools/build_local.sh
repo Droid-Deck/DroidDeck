@@ -452,6 +452,13 @@ if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
         CARGO_TARGET_DIR="${cache_dir}/rockstar-target" bash tools/rockstar-launcher/build.sh "${rockstar_out}"
         save_step rockstar "${rockstar_key}" "${rockstar_out}"
     fi
+    epic_out="${linuxfs_dir}/usr/local/lib/droiddeck-epic"
+    epic_key=$(inputs_hash "x86_64-pc-windows-gnu" tools/epic-launcher/src tools/epic-launcher/Cargo.toml tools/epic-launcher/Cargo.lock tools/epic-launcher/build.sh)
+    if ! restore_step epic "${epic_key}" "${epic_out}"; then
+        command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { echo "x86_64-w64-mingw32-gcc is required for EpicGamesLauncher.exe." >&2; exit 1; }
+        CARGO_TARGET_DIR="${cache_dir}/epic-target" bash tools/epic-launcher/build.sh "${epic_out}"
+        save_step epic "${epic_key}" "${epic_out}"
+    fi
 fi
 python3 tools/powervr/fetch.py
 bash tools/packs/build.sh app/build/packs

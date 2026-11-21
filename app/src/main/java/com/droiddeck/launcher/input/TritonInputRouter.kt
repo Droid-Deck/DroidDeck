@@ -63,25 +63,16 @@ class TritonInputRouter(private val router: InputRouter) {
     fun release() = synchronized(router) { channels.forEach { it.release() }; last = null }
     fun close() = synchronized(router) { release(); channels.forEach { it.close() }; router.removeSnapshot(snapshot) }
 
+    private fun bits(data: ByteArray): Int = (data[1].toInt() and 255) or ((data[2].toInt() and 255) shl 8) or
+        ((data[3].toInt() and 255) shl 16) or ((data[4].toInt() and 255) shl 24)
     private fun putBits(data: ByteArray, value: Int) { for (i in 0..3) data[i + 1] = (value ushr (i * 8)).toByte() }
+    private fun short(data: ByteArray, offset: Int) = ((data[offset].toInt() and 255) or (data[offset + 1].toInt() shl 8)).toShort().toInt()
     private fun axis(data: ByteArray, offset: Int): Float = short(data, offset).let { it / if (it < 0) 32768f else 32767f }
     private fun shortValue(value: Float) = (value * if (value < 0f) 32768f else 32767f).roundToInt().coerceIn(-32768, 32767)
     private fun putShort(data: ByteArray, offset: Int, value: Int) { data[offset] = value.toByte(); data[offset + 1] = (value shr 8).toByte() }
 
     companion object {
         private const val CONTROL_BITS = 0x0fffffff
-
-        internal fun pressedControls(data: ByteArray): Int {
-            var active = bits(data) and CONTROL_BITS
-            if ((5..15 step 2).any { kotlin.math.abs(short(data, it)) > 16384 }) active = active or (1 shl 28)
-            return active
-        }
-
-        private fun bits(data: ByteArray): Int = (data[1].toInt() and 255) or ((data[2].toInt() and 255) shl 8) or
-            ((data[3].toInt() and 255) shl 16) or ((data[4].toInt() and 255) shl 24)
-
-        private fun short(data: ByteArray, offset: Int) =
-            ((data[offset].toInt() and 255) or (data[offset + 1].toInt() shl 8)).toShort().toInt()
         private fun bit(c: InputControl): Int = when (c) {
             InputControl.A -> 0x1; InputControl.B -> 0x2; InputControl.X -> 0x4; InputControl.Y -> 0x8
             InputControl.QAM -> 0x10; InputControl.R3 -> 0x20; InputControl.START -> 0x40

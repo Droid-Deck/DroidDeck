@@ -26,7 +26,7 @@ class EffectsSourceResolutionTest(unittest.TestCase):
         header = (REPO / 'app/src/main/cpp/waylandcomp/src/vk_present.h').read_text()
         effects = (REPO / 'app/src/main/cpp/waylandcomp/src/effects_chain.c').read_text()
         functions = '\n'.join(function(source, signature) for signature in (
-            'static void release_external_client_image(', 'static void release_external_client_draws(',
+            'static int foreign_image(', 'static void release_external_client_image(', 'static void release_external_client_draws(',
             'static int map_draw(', 'static int draw_to_blit(',
             'static int draw_to_scene_blit(', 'static int effects_source_draw(',
             'static void effects_source_note(',
@@ -113,7 +113,7 @@ TYPES = r'''
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-typedef int VkImage, VkDeviceMemory, VkFormat, VkCommandBuffer, VkResult, VkFilter;
+typedef int VkImage, VkDeviceMemory, VkFormat, VkCommandBuffer, VkResult, VkFilter, VkBuffer;
 typedef int VkImageLayout, VkPipelineStageFlags, VkImageUsageFlags;
 typedef uint64_t VkDeviceSize;
 typedef struct { unsigned width, height; } VkExtent2D;
@@ -126,6 +126,13 @@ typedef struct {
     VkImageSubresourceLayers dstSubresource;
     VkOffset3D dstOffsets[2];
 } VkImageBlit;
+typedef struct {
+    VkDeviceSize bufferOffset;
+    unsigned bufferRowLength, bufferImageHeight;
+    VkImageSubresourceLayers imageSubresource;
+    VkOffset3D imageOffset;
+    struct { unsigned width, height, depth; } imageExtent;
+} VkBufferImageCopy;
 typedef struct { int sType, flags; } VkCommandBufferBeginInfo;
 typedef struct {
     int sType, oldLayout, newLayout, srcQueueFamilyIndex, dstQueueFamilyIndex;
@@ -161,6 +168,8 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 
 
 STUBS = r'''
+static void stage_linear_dmabufs(VkCommandBuffer cmd, const struct vkp_draw *draws, int count) { (void)cmd; (void)draws; (void)count; }
+static int vkp_linear_dmabuf_foreign_image(int dmabuf, int staged) { return dmabuf && !staged; }
 static void quarantine_pending_work(VkResult result, const char *where) { (void)result; (void)where; }
 static int noop(int handle, ...) { return VK_SUCCESS; }
 static VkImageMemoryBarrier recorded_barriers[64];

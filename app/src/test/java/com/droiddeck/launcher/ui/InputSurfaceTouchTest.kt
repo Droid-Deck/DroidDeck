@@ -63,19 +63,6 @@ class InputSurfaceTouchTest {
 
     private fun state() = JoyConPadTest.RecordingWriter.pads[0] ?: PadState()
 
-    @Test fun controlsTakeTheSizeTheyAreLaidOutAtEvenIfMeasuredAtAnother() {
-        val element = InputSurfaceElement(InputControl.LT, .1f, .1f, .2f, .05f, kind = InputElementKind.TRIGGER, buttonShape = InputButtonShape.PILL)
-        val surface = InputSurfaceView(context).apply { updateCustomLayout(listOf(element)) }
-        surface.measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(3000, View.MeasureSpec.EXACTLY))
-        surface.layout(0, 0, 1000, 3000)
-        val canvas = descendants(surface).first { it.tag == element }.parent as View
-        canvas.layout(0, 0, 1000, 1000)
-        val control = descendants(surface).first { it.tag == element }
-        assertEquals(100, control.top)
-        assertEquals(200, control.width)
-        assertEquals(50, control.height)
-    }
-
     @Test fun aFingerSlidingBetweenButtonsMovesThePress() {
         touch(MotionEvent.ACTION_DOWN, 1 to (800f to 240f))
         assertTrue(state().isDown(PadState.A))
@@ -147,23 +134,26 @@ class InputSurfaceTouchTest {
         touch(MotionEvent.ACTION_UP, 1 to (600f to 510f))
         assertTrue(events.isEmpty())
         show(a, b, stick)
-        view.setHidden(OnScreenControls.Hidden.BY_TAP)
+        view.setQuickHidden(true)
         measure(view)
         assertFalse(view.takesTouchAt(450f, 510f))
         assertFalse(touch(MotionEvent.ACTION_DOWN, 1 to (450f to 510f)))
         assertTrue(events.isEmpty())
     }
 
-    @Test fun hiddenControlsHideTheKeyboardShortcutUntilShownAgain() {
-        view.setHidden(OnScreenControls.Hidden.BY_CONTROLLER)
+    @Test fun keyboardShortcutWorksWithHiddenPadAndButtonsOnly() {
+        view.setQuickHidden(true)
         measure(view)
         assertFalse(view.takesTouchAt(800f, 240f))
-        assertFalse(view.takesTouchAt(450f, 510f))
-        view.setHidden(null)
-        measure(view)
         touch(MotionEvent.ACTION_DOWN, 1 to (450f to 510f))
         touch(MotionEvent.ACTION_UP, 1 to (450f to 510f))
-        assertEquals(listOf("KEYBOARD:PRIMARY"), events)
+        view.setButtonsOnly(true)
+        measure(view)
+        val (x, y) = centre(element(view, "builtin:keyboard"))
+        assertFalse(view.takesTouchAt(800f, 240f))
+        touch(MotionEvent.ACTION_DOWN, 1 to (x to y))
+        touch(MotionEvent.ACTION_UP, 1 to (x to y))
+        assertEquals(listOf("KEYBOARD:PRIMARY", "KEYBOARD:PRIMARY"), events)
     }
 
     @Test fun hidingTheViewReleasesLatchedKeys() {
@@ -191,14 +181,11 @@ class InputSurfaceTouchTest {
         touch(MotionEvent.ACTION_CANCEL, 1 to (800f to 240f), target = panel)
     }
 
-    @Test fun fixedSticksReachFullTiltInsideTheirRing() {
+    @Test fun classicSticksTravelTheirFullRadius() {
         show(stick.copy(buttonShape = InputButtonShape.CIRCLE))
-        val reach = (100f - 3 * context.resources.displayMetrics.density) * .62f
         touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
-        touch(MotionEvent.ACTION_MOVE, 1 to (200f + reach / 2 to 300f))
+        touch(MotionEvent.ACTION_MOVE, 1 to (250f to 300f))
         assertEquals(.5f, state().leftX, .01f)
-        touch(MotionEvent.ACTION_MOVE, 1 to (200f + reach to 300f))
-        assertEquals(1f, state().leftX, .01f)
         touch(MotionEvent.ACTION_MOVE, 1 to (300f to 300f))
         assertEquals(1f, state().leftX, .01f)
         touch(MotionEvent.ACTION_UP, 1 to (300f to 300f))
@@ -222,15 +209,14 @@ class InputSurfaceTouchTest {
     }
 
     @Test fun adaptiveSticksCaptureAroundThemAndTheLeftOneToTheEdge() {
-        val left = InputSurfaceElement(InputControl.LS, .3f, .3f, .2f, .4f, floating = true)
-        val right = InputSurfaceElement(InputControl.RS, .6f, .3f, .2f, .4f, floating = true)
+        val left = InputSurfaceElement(InputControl.LS, .3f, .3f, .2f, .4f, hideWhenIdle = true)
+        val right = InputSurfaceElement(InputControl.RS, .6f, .3f, .2f, .4f, hideWhenIdle = true)
         show(left, right)
-        val limit = (100f - 3 * context.resources.displayMetrics.density) * 1.71f
         assertTrue(view.takesTouchAt(10f, 300f))
-        assertTrue(view.takesTouchAt(10f, 300f + limit - 4f))
-        assertFalse(view.takesTouchAt(10f, 300f + limit + 4f))
-        assertTrue(view.takesTouchAt(990f, 300f))
-        assertFalse(view.takesTouchAt(990f, 300f + limit + 4f))
+        assertTrue(view.takesTouchAt(10f, 390f))
+        assertFalse(view.takesTouchAt(10f, 420f))
+        assertTrue(view.takesTouchAt(795f, 300f))
+        assertFalse(view.takesTouchAt(815f, 300f))
         val missed = mutableListOf<Int>()
         view.onTouchMiss = { missed += it.getPointerId(0) }
         touch(MotionEvent.ACTION_DOWN, 1 to (50f to 300f))
@@ -238,9 +224,9 @@ class InputSurfaceTouchTest {
         assertEquals(listOf(2), missed)
         touch(MotionEvent.ACTION_MOVE, 1 to (150f to 300f), 2 to (60f to 310f))
         assertTrue(state().leftX > .9f)
-        show(left.copy(floating = false), right.copy(floating = false))
+        show(left.copy(hideWhenIdle = false), right.copy(hideWhenIdle = false))
         assertFalse(view.takesTouchAt(10f, 300f))
-        assertFalse(view.takesTouchAt(990f, 300f))
+        assertFalse(view.takesTouchAt(815f, 300f))
     }
 
     private fun element(root: View, id: String): View = descendants(root).first { (it.tag as? InputSurfaceElement)?.id == id }

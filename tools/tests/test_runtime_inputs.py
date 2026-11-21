@@ -207,6 +207,19 @@ class RuntimeInputsTest(unittest.TestCase):
                 finally:
                     path.write_bytes(content)
 
+    def test_cargo_output_beside_a_windows_helper_is_not_a_source(self):
+        crate = self.root / 'tools/epic-launcher'
+        (crate / 'src').mkdir(parents=True)
+        (crate / 'Cargo.toml').write_text('[package]\n')
+        (crate / 'src/lib.rs').write_text('old')
+        runtime.record(self.root)
+        (crate / 'target/debug').mkdir(parents=True)
+        (crate / 'target/debug/build.log').write_text('local cargo test')
+        runtime.verify(self.root)
+        (crate / 'src/lib.rs').write_text('new')
+        with self.assertRaisesRegex(ValueError, 'sources changed'):
+            runtime.verify(self.root)
+
     def test_missing_quest_driver_cannot_be_attested(self):
         (self.root / 'app/build/prepared-assets/graphics_driver/adrenotools-turnip25.1.0-quest1.tzst').unlink()
         with self.assertRaisesRegex(ValueError, 'quest1.tzst'):
@@ -346,7 +359,20 @@ class RuntimeInputsTest(unittest.TestCase):
         source.parent.mkdir(parents=True, exist_ok=True)
         source.write_bytes(b'old controller')
         self.assertFalse(any('droiddeck_pico_' in name for name in runtime.outputs(self.root)))
-
+    def test_an_apk_still_carrying_the_epic_parent_stand_in_is_rejected(self):
+        epic = self.root / 'app/src/main/assets/linuxfs/usr/local/lib/droiddeck-epic'
+        epic.mkdir(parents=True)
+        (epic / 'EpicGamesLauncher.exe').write_bytes(b'MZ parent')
+        self.packs()
+        name = 'assets/linuxfs/usr/local/lib/droiddeck-epic/EpicGamesLauncher.exe'
+        self.assertIn(name, runtime.outputs(self.root))
+        apk = self.current_apk(self.root / 'bundled.apk', {name: b'MZ parent'})
+        with self.assertRaisesRegex(ValueError, 'epic pack provides'):
+            runtime.check_apk(apk, self.root)
+        runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
+        self.pack('epic', {'EpicGamesLauncher.exe': b'MZ older parent'})
+        with self.assertRaisesRegex(ValueError, 'epic is missing or has a stale'):
+            runtime.check_apk(self.current_apk(self.root / 'current.apk'), self.root)
     def test_an_apk_still_carrying_the_powervr_runtime_is_rejected(self):
         apk = self.current_apk(self.root / 'bundled.apk', {'assets/hybris/runtime.tzst': b'runtime'})
         with self.assertRaisesRegex(ValueError, 'powervr pack provides'):

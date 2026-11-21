@@ -29,6 +29,16 @@ class SessionBackgroundPrefsTest {
         }
     }
 
+    @Test fun steamAndQuickAccessFallsBackToAutoOutsideSteam() {
+        SessionPrefs.setOscMode(context, SessionPrefs.OSC_STEAM_QAM)
+        assertEquals(SessionPrefs.OSC_AUTO, SessionPrefs.oscMode(context, steamSession = false))
+        assertEquals(SessionPrefs.OSC_STEAM_QAM, SessionPrefs.oscMode(context))
+        assertEquals(SessionPrefs.OSC_STEAM_QAM, SessionPrefs.oscMode(context, steamSession = true))
+
+        SessionPrefs.setOscMode(context, SessionPrefs.OSC_ALWAYS)
+        assertEquals(SessionPrefs.OSC_ALWAYS, SessionPrefs.oscMode(context, steamSession = false))
+    }
+
     @Test fun automaticPipDefaultsOnAndHonorsSavedChoices() {
         assertEquals(true, SessionPrefs.pipAutoEnter(context))
         SessionPrefs.setPipAutoEnter(context, false)

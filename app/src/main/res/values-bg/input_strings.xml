@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">Профили за вход</string>
     <string name="input_profiles">Профили</string>
     <string name="input_physical">Физически контролер</string>
     <string name="input_primary">Основен екран</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Отваряне на менюто на Steam</string>
     <string name="input_command_qam">Отваряне на бързия достъп на Steam</string>
     <string name="input_remove_element">Премахване на контрола</string>
+    <string name="input_add_element">Добавяне на контрол</string>
     <string name="input_extra_keys">Бутони, специфични за устройството</string>
     <string name="input_capture">Задаване на физически бутон</string>
     <string name="input_capture_confirm">Отпуснете бутона, след което изберете Редакция, Повторение или Отказ. B или Назад отменя след отпускането.</string>

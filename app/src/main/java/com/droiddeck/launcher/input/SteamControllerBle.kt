@@ -20,11 +20,7 @@ import java.util.ArrayDeque
 import java.util.UUID
 
 @SuppressLint("MissingPermission")
-class SteamControllerBle(
-    private val context: Context,
-    router: InputRouter? = null,
-    private val onPhysicalInput: (() -> Unit)? = null,
-) {
+class SteamControllerBle(private val context: Context, router: InputRouter? = null) {
     private val inputLock = router ?: Any()
     private var routedInput = router?.let(::TritonInputRouter)
     @Volatile private var stopped = false
@@ -43,7 +39,6 @@ class SteamControllerBle(
     private var outputSequence = 0L
     private var outputWritePending = false
     private var featureRead = 0L
-    private var lastPressedControls = 0
 
     fun start(): Unit = synchronized(inputLock) {
         if (stopped || started) return@synchronized
@@ -271,18 +266,12 @@ class SteamControllerBle(
         val timing = InputTiming.begin()
         FakeInputWriter.writeTritonState(SLOT, reportId, routedInput?.route(data) ?: data)
         InputTiming.end(timing)
-        if (connected && onPhysicalInput != null) {
-            val pressed = TritonInputRouter.pressedControls(data)
-            if (pressed and lastPressedControls.inv() != 0) onPhysicalInput()
-            lastPressedControls = pressed
-        }
     }
 
     private fun release() = synchronized(inputLock) {
         if (stopped) return@synchronized
         routedInput?.release()
         withSlot {
-            lastPressedControls = 0
             FakeInputWriter.writeTritonState(SLOT, if (reportId == 0x47) 0x47 else 0x45, ByteArray(STATE_BYTES))
         }
     }
