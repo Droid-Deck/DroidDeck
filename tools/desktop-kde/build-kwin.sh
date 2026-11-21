@@ -6,7 +6,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 source "$here/kwin.env"
 source "$here/mesa.env"
 version=$DESKTOP_KWIN_VERSION
-source_sha=ea5e68d957c7d70abed97222a592d4445fda29129e20942658badd224ee138b4
+source_sha=fd5cb783f220ea4526a9afee2f72b582c3e87ef7f91b19bc5c7a6662ffe7fbdc
 mirror=https://fl.us.mirror.archlinuxarm.org/aarch64
 builder=68B3537F39A313B3E574D06777193F152BDBE6A6
 work=$(mktemp -d)
@@ -53,6 +53,7 @@ sudo tar -xf "$work/kwin.tar.xz" -C "$work/root/build"
 sudo patch -d "$work/root/build/kwin-$version" -p1 < "$here/patches/0001-respect-nested-desktop-scale.patch"
 sudo patch -d "$work/root/build/kwin-$version" -p1 < "$here/patches/0002-select-explicit-nested-render-node.patch"
 sudo patch -d "$work/root/build/kwin-$version" -p1 < "$here/patches/0003-forward-nested-scroll-source.patch"
+sudo python3 "$here/kwin-independent.py" "$work/root/build/kwin-$version"
 sudo chroot "$work/root" /usr/bin/env PATH=/usr/bin:/bin HOME=/root LC_ALL=C.UTF-8 \
     /usr/bin/cmake -S "/build/kwin-$version" -B /build/out -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBEXECDIR=lib \
@@ -69,11 +70,17 @@ if grep -Eq '\((RPATH|RUNPATH)\)' "$work/dynamic-tags.txt"; then
     exit 1
 fi
 grep -aq DROIDDECK_NESTED_SCALE "$out/libkwin.so.$version"
+grep -aq KWIN_DROIDDECK_OUTPUT_AHB "$out/libkwin.so.$version"
+grep -aq DroidDeckWindow "$out/libkwin.so.$version"
 {
     echo "KWin $version source sha256 $source_sha"
     echo "Patch sha256 $(sha256sum "$here/patches/0001-respect-nested-desktop-scale.patch" | cut -d' ' -f1)"
     echo "Render node patch sha256 $(sha256sum "$here/patches/0002-select-explicit-nested-render-node.patch" | cut -d' ' -f1)"
     echo "Scroll source patch sha256 $(sha256sum "$here/patches/0003-forward-nested-scroll-source.patch" | cut -d' ' -f1)"
+    for extension in kwin-independent.py kwin-independent.cpp kwin-passthrough.cpp kwin-output-layout.h \
+        kwin-ahb-output.h kwin-output-opacity.h kwin-independent-filter.h; do
+        echo "Extension $extension sha256 $(sha256sum "$here/$extension" | cut -d' ' -f1)"
+    done
     echo "Executable sha256 $(sha256sum "$out/kwin_wayland" | cut -d' ' -f1)"
     echo "Library sha256 $(sha256sum "$out/libkwin.so.$version" | cut -d' ' -f1)"
     echo 'Build packages (Arch Linux ARM signatures verified):'
