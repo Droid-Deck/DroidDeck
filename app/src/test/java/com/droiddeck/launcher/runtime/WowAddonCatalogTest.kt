@@ -150,8 +150,8 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
 
     @Test fun wowiDetailsGiveUrlAndMd5() {
         val d = WowAddonCatalog.parseWowiDetails("""[{"UID":"1","UIMD5":"abc","UIDownload":"https://cdn.wowinterface.com/downloads/getfile.php?id=1"}]""")
-        assertEquals("https://cdn.wowinterface.com/downloads/getfile.php?id=1", d?.first)
-        assertEquals("abc", d?.second)
+        assertEquals("https://cdn.wowinterface.com/downloads/getfile.php?id=1", d?.url)
+        assertEquals("abc", d?.md5)
         assertNull(WowAddonCatalog.parseWowiDetails("""[{"UID":"1","UIDownload":""}]"""))
         assertNull(WowAddonCatalog.parseWowiDetails("[]"))
     }
@@ -179,6 +179,17 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
         val updates = WowAddonCatalog.findUpdates(entries, installed)
         assertEquals(setOf("Old"), updates.keys)
         assertEquals("2.1.0", updates.getValue("Old").summary)
+    }
+
+    @Test fun aCurrentRowDoesNotHideAnOutdatedRowWithTheSameSource() {
+        val installed = listOf(WowAddons.Installed("A", "2", "10"), WowAddons.Installed("B", "1", "10"))
+        assertEquals(setOf("B"), WowAddonCatalog.findUpdates(listOf(entry("10", "2")), installed).keys)
+    }
+
+    @Test fun wowiDetailsCarryTheDownloadedVersion() {
+        val d = WowAddonCatalog.parseWowiDetails("""[{"UIDownload":"https://cdn.wowinterface.com/a.zip","UIVersion":" 2.0 "}]""")
+        assertEquals("2.0", d?.version)
+        assertNull(WowAddonCatalog.parseWowiDetails("""[{"UIDownload":"https://cdn.wowinterface.com/a.zip"}]""")?.version)
     }
 
     @Test fun versionsCompareWithoutPrefixOrCase() {

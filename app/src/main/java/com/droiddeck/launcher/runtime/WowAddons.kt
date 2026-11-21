@@ -93,12 +93,15 @@ object WowAddons {
     private fun origins(target: Target): Map<String, Origin> =
         runCatching { parseOrigins(originsFile(target).readText()) }.getOrDefault(emptyMap())
 
-    private fun keepOrigins(target: Target, names: List<String>, origin: Origin?) {
+    private val originsLock = Any()
+
+    private fun keepOrigins(target: Target, names: List<String>, origin: Origin?) = synchronized(originsLock) {
         val current = origins(target)
         val next = current - names.toSet() + (origin?.let { o -> names.associateWith { o } } ?: emptyMap())
-        if (next == current) return
-        val file = originsFile(target)
-        if (next.isEmpty()) file.delete() else file.writeText(formatOrigins(next))
+        if (next != current) {
+            val file = originsFile(target)
+            if (next.isEmpty()) file.delete() else file.writeText(formatOrigins(next))
+        }
     }
 
     fun delete(target: Target, name: String) {

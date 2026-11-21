@@ -203,9 +203,9 @@ private fun formatCount(count: Long): String = when {
 internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, Boolean> {
     val zip = File(File(context.cacheDir, "wowaddons"), "download-wowi-${addon.id.filter(Char::isLetterOrDigit)}-${java.util.UUID.randomUUID()}.zip")
     return try {
-        WowAddonCatalog.download(context, addon, zip, progress)
+        val version = WowAddonCatalog.download(context, addon, zip, progress) ?: addon.summary
         if (SessionState.running) return context.getString(R.string.main_addons_close_session) to false
-        val names = WowAddons.import(zip, target, WowAddons.Origin(addon.id, addon.summary).takeIf { addon.summary.isNotBlank() })
+        val names = WowAddons.import(zip, target, WowAddons.Origin(addon.id, version).takeIf { version.isNotBlank() })
         if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to false
         else context.resources.getQuantityString(R.plurals.main_addons_imported, names.size, names.size, target.flavor) to true
     } catch (_: WowAddons.TooLarge) {

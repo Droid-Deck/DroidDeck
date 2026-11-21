@@ -1,7 +1,9 @@
 package com.droiddeck.launcher.runtime
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UserAppsFeedTest {
@@ -46,5 +48,13 @@ class UserAppsFeedTest {
         val official = UserApps.App("appimage:b", UserApps.Kind.APPIMAGE, "Mods", null, null, AppImageManager.LAUNCHER, emptyList(), feed = CurseForgeApp.FEED)
         assertEquals("appimage:b", CurseForgeApp.find(listOf(other, official))?.key)
         assertNull(CurseForgeApp.find(listOf(other)))
+    }
+
+    @Test fun olderOrEqualFeedReleasesAreNotOffered() {
+        val release = UserApps.parseFeed(feed, body())!!
+        assertTrue(UserApps.isNewer(release, "2026-11-01T00:00:00.000Z", "1.0"))
+        assertFalse(UserApps.isNewer(release, "2099-01-01T00:00:00.000Z", "9.9"))
+        assertFalse(UserApps.isNewer(release, "", release.tag))
+        assertTrue(UserApps.isNewer(release, "", "0.1"))
     }
 }

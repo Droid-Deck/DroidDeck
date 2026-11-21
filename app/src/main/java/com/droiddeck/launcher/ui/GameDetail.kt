@@ -55,6 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -972,7 +973,7 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: 
             }
             val context = LocalContext.current
             val updates by produceState(emptyMap<String, WowAddonCatalog.Addon>(), names) {
-                value = withContext(Dispatchers.IO) { WowAddonCatalog.updates(context, names) }
+                value = withContext(Dispatchers.IO) { WowAddonCatalog.updates(context, names, target) }
             }
             if (targets.size > 1) SectionLabel(target.flavor)
             MenuItem(stringResource(R.string.addons_download), checked = false) { browsing = target }
@@ -984,7 +985,7 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: 
                 target.addOns.mkdirs()
                 a.onBrowseFiles(target.addOns)
             }
-            names.forEach { item -> AddonRow(item, updates[item.name], target, a) }
+            names.forEach { item -> key(target.addOns, item.name) { AddonRow(item, updates[item.name], target, a) } }
         }
     }
 }
@@ -1020,6 +1021,11 @@ private fun CurseForgeEntry(a: FrontEndActions) {
         }
         if (update != null) MenuItem(stringResource(R.string.user_apps_update_to, update.tag), checked = false, enabled = idle && !SessionState.running) {
             UserAppsState.update(ctx, app, update)
+        }
+        (UserAppsState.updates[app.key] as? UserApps.UpdateCheck.Failed)?.let { failed ->
+            MenuItem(stringResource(R.string.user_apps_check_updates), checked = false, enabled = idle && UserAppsState.checking == null, detail = failed.message) {
+                UserAppsState.checkUpdate(ctx, app)
+            }
         }
         if (asking) ConfirmDialog(
             title = stringResource(R.string.flathub_remove_title, name),

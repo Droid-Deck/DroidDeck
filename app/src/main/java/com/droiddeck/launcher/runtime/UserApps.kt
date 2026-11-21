@@ -430,18 +430,21 @@ object UserApps {
         }
     }
 
+    internal fun isNewer(release: Release, published: String, installed: String?): Boolean =
+        if (published.isNotEmpty() && release.published.isNotEmpty()) release.published > published else release.tag != installed
+
     fun checkUpdate(context: Context, app: App): UpdateCheck {
         app.feed?.let { feed ->
             val release = feedRelease(context, feed) ?: return UpdateCheck.Failed(context.getString(R.string.user_apps_update_failed))
-            return if (release.tag != app.version) UpdateCheck.Available(release) else UpdateCheck.Current(release.tag)
+            val published = FileUtils.readString(File(AppImageManager.dir(context, app.key.substringAfter(':')), GITHUB_PUBLISHED))?.trim().orEmpty()
+            return if (isNewer(release, published, app.version)) UpdateCheck.Available(release) else UpdateCheck.Current(app.version ?: release.tag)
         }
         val repo = app.repo ?: return UpdateCheck.Failed(context.getString(R.string.user_apps_update_failed))
         val dir = AppImageManager.dir(context, app.key.substringAfter(':'))
         val (release, problem) = latestRelease(context, repo, FileUtils.readString(File(dir, GITHUB_ASSET))?.trim()?.takeIf { it.isNotEmpty() })
         if (release == null) return UpdateCheck.Failed(problem ?: context.getString(R.string.user_apps_update_failed))
         val published = FileUtils.readString(File(dir, GITHUB_PUBLISHED))?.trim().orEmpty()
-        val newer = if (published.isNotEmpty() && release.published.isNotEmpty()) release.published > published else release.tag != app.version
-        return if (newer) UpdateCheck.Available(release) else UpdateCheck.Current(app.version ?: release.tag)
+        return if (isNewer(release, published, app.version)) UpdateCheck.Available(release) else UpdateCheck.Current(app.version ?: release.tag)
     }
 
     fun update(context: Context, app: App, release: Release, onProgress: (String, Int) -> Unit): String? {
