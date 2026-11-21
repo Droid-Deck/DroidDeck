@@ -5044,9 +5044,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         secondScreenPresentation?.controlsView, swappedInputSurface,
     ).any { it.isShown && inputProfile.showsMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean =
-        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) inSurfaceSpace(event) { handleTouch(event) }
-        else handleTouch(event)
+    override fun onTouchEvent(event: MotionEvent): Boolean = inSurfaceSpace(event) { handleTouch(event) }
 
     private fun handleTouch(event: MotionEvent): Boolean {
         val pen = PenStream.penIndex(event)
