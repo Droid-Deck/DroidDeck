@@ -24,7 +24,8 @@ object SocNames {
         val sdk = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL.takeIf { it != Build.UNKNOWN }.orEmpty() else ""
         return listOf(prop("ro.soc.model"), prop("ro.vendor.qti.soc_model"), sdk, prop("ro.fota.platform"))
             .map { it.trim() }
-            .firstOrNull { it.isNotEmpty() && !Regex("(?i)^msm_\\d").containsMatchIn(it) }.orEmpty()
+            .firstOrNull { it.isNotEmpty() && !it.equals(Build.UNKNOWN, ignoreCase = true) && !Regex("(?i)^msm_\\d").containsMatchIn(it) }
+            .orEmpty()
     }
 
     internal fun normalizedModel(model: String): String = model.trim().uppercase().removePrefix("QTI ").trim()
