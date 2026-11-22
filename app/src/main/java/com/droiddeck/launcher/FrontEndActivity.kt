@@ -2850,6 +2850,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             },
             onDismiss = { showPerformance = false },
             embedded = embedded,
+            games = steamGames + steamGamesX64,
         )
     }
 
@@ -3301,6 +3302,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     }
                     shortcutLibraryScanning = false
                     handleGameLink(all)
+                    com.droiddeck.launcher.session.ShaderPrecompManager.maybeAutoRebuildOnDriverChange(this, steamGames + steamGamesX64)
                 }
             }
             if (!OfflineMode.enabled(this) && CoverArt.fetchMissing(this, emus.flatMap { it.games })) {
@@ -3346,6 +3348,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
         val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.canDraw(this)
         if (warn && available != null) { showNonAdreno = available; return false }
+        if (SessionPrefs.shaderPrecompIdleOnly(this)) {
+            com.droiddeck.launcher.session.ShaderPrecompManager.stop()
+        }
         startActivity(intent)
         return true
     }

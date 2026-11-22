@@ -2143,4 +2143,68 @@ object SessionPrefs {
     fun setSteamLibraryNextId(context: Context, id: Int) {
         prefs(context).edit().putInt("steamLibraryNextId", id).apply()
     }
+
+    fun shaderPrecompEnabled(context: Context): Boolean = prefs(context).getBoolean("shaderPrecompEnabled", false)
+
+    fun setShaderPrecompEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("shaderPrecompEnabled", on).apply()
+        runCatching { GameEnvironmentStore.publish(context) }
+    }
+
+    fun shaderPrecompGames(context: Context): Set<String> =
+        prefs(context).getStringSet("shaderPrecompGames", null)?.toSet().orEmpty()
+
+    fun setShaderPrecompGames(context: Context, games: Set<String>) {
+        prefs(context).edit().putStringSet("shaderPrecompGames", games.toSet()).apply()
+        runCatching { GameEnvironmentStore.publish(context) }
+    }
+
+    fun shaderPrecompThreads(context: Context): Int =
+        prefs(context).getInt("shaderPrecompThreads", 0).coerceIn(0, 16)
+
+    fun setShaderPrecompThreads(context: Context, threads: Int) {
+        prefs(context).edit().putInt("shaderPrecompThreads", threads.coerceIn(0, 16)).apply()
+    }
+
+    fun shaderPrecompIdleOnly(context: Context): Boolean = prefs(context).getBoolean("shaderPrecompIdleOnly", true)
+
+    fun setShaderPrecompIdleOnly(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("shaderPrecompIdleOnly", on).apply()
+    }
+
+    fun shaderPrecompMaxMemoryMb(context: Context): Int =
+        prefs(context).getInt("shaderPrecompMaxMemoryMb", 0).coerceAtLeast(0)
+
+    fun setShaderPrecompMaxMemoryMb(context: Context, mb: Int) {
+        prefs(context).edit().putInt("shaderPrecompMaxMemoryMb", mb.coerceAtLeast(0)).apply()
+    }
+
+    fun shaderPrecompSkipCompiled(context: Context): Boolean =
+        prefs(context).getBoolean("shaderPrecompSkipCompiled", true)
+
+    fun setShaderPrecompSkipCompiled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("shaderPrecompSkipCompiled", on).apply()
+    }
+
+    fun shaderPrecompRecordMissing(context: Context): Boolean =
+        prefs(context).getBoolean("shaderPrecompRecordMissing", false)
+
+    fun setShaderPrecompRecordMissing(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("shaderPrecompRecordMissing", on).apply()
+        runCatching { GameEnvironmentStore.publish(context) }
+    }
+
+    fun shaderPrecompAutoDriverRebuild(context: Context): Boolean =
+        prefs(context).getBoolean("shaderPrecompAutoDriverRebuild", false)
+
+    fun setShaderPrecompAutoDriverRebuild(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("shaderPrecompAutoDriverRebuild", on).apply()
+    }
+
+    fun shaderPrecompLastDriver(context: Context): String =
+        prefs(context).getString("shaderPrecompLastDriver", "").orEmpty()
+
+    fun setShaderPrecompLastDriver(context: Context, driver: String) {
+        prefs(context).edit().putString("shaderPrecompLastDriver", driver).apply()
+    }
 }

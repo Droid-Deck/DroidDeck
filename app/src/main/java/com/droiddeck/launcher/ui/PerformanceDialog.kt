@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.SessionPrefs
 
@@ -73,6 +74,7 @@ fun PerformancePage(
     onGameCore: (Int, Boolean) -> Unit,
     onDismiss: () -> Unit,
     embedded: Boolean = false,
+    games: List<Library.SteamGame> = emptyList(),
 ) {
     val host = rememberMenuHost()
     val colors = MaterialTheme.colorScheme
@@ -124,6 +126,7 @@ fun PerformancePage(
             )
         }
         if (GpuClockPin.supported) GpuClockGroup(host, gpuClockPin, onChange = onGpuClockPin)
+        ShaderPrecompGroup(host, games)
         SettingsGroup(stringResource(R.string.perf_fixes)) {
             ToggleRow(
                 host, "sysmem", stringResource(R.string.perf_sysmem),
