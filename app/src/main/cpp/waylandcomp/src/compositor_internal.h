@@ -20,6 +20,7 @@
 #define DRM_XBGR8888 FOURCC('X', 'B', '2', '4')
 #define MOD_LINEAR VKP_MOD_LINEAR
 #define MOD_INVALID VKP_MOD_INVALID
+#define MOD_QCOM_COMPRESSED VKP_MOD_QCOM_COMPRESSED
 #define MAX_PLANES 4
 
 struct dmabuf_params {

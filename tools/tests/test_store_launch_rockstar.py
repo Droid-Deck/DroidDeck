@@ -292,5 +292,150 @@ class RockstarLaunch(unittest.TestCase):
             self.assertIn('Grand Theft Auto: Vice City', text)
 
 
+SDK_FILES = {'socialclub.dll': b'sdk dll', 'socialclub.pak': b'sdk pak', 'SocialClubHelper.exe': b'sdk helper'}
+
+
+class EpicRockstarLaunch(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.folder = self.root / 'Grand Theft Auto V'
+        self.folder.mkdir()
+        (self.folder / 'PlayGTAV.exe').write_bytes(b'MZ')
+        self.sidecar = {'store': 'epic', 'id': '9d2d0eb64d5c44529cece33fe2a46482', 'title': 'Grand Theft Auto V', 'exe': 'PlayGTAV.exe'}
+        (self.folder / '.droiddeck-store.json').write_text(json.dumps(self.sidecar))
+        self.prefix = self.root / 'prefix'
+        (self.prefix / 'pfx').mkdir(parents=True)
+        (self.prefix / 'pfx/user.reg').write_text('WINE REGISTRY Version 2\n')
+        (self.prefix / 'pfx/system.reg').write_text('WINE REGISTRY Version 2\n')
+        self.sdk = self.prefix / 'pfx/drive_c/Program Files/Rockstar Games/Social Club'
+        self.unpacked = []
+
+    def unpacker(self, command, **kwargs):
+        if command[1] == 'l':
+            listing = ''.join('Path = x64/%s\nSize = %d\n\n' % (name, len(data)) for name, data in SDK_FILES.items())
+            return type('Listing', (), {'returncode': 0, 'stdout': listing.encode()})()
+        self.unpacked.append(Path(command[-2]))
+        out = Path(next(arg[2:] for arg in command if arg.startswith('-o'))) / 'x64'
+        out.mkdir(parents=True)
+        for name, data in SDK_FILES.items():
+            (out / name).write_bytes(data + b' from ' + Path(command[-2]).read_bytes())
+        return type('Done', (), {'returncode': 0})()
+
+    def stage(self):
+        with patch.object(store.shutil, 'which', return_value='/bin/7z'), patch.object(store.subprocess, 'run', side_effect=self.unpacker), \
+                patch.object(store, 'wait_for_server', return_value=True), \
+                patch.object(store, 'create_prefix', side_effect=AssertionError('the prefix already exists')):
+            return store.epic_rockstar_sdk(self.folder, self.sidecar, str(self.prefix), '')
+
+    def test_the_launchers_own_sdk_installer_is_staged_so_it_never_runs_it(self):
+        setup = self.prefix / 'pfx' / store.EPIC_SDK_SETUP
+        setup.parent.mkdir(parents=True)
+        setup.write_bytes(b'launcher setup')
+        (self.folder / 'Installers').mkdir()
+        (self.folder / 'Installers/Social-Club-Setup.exe').write_bytes(b'older game setup')
+        self.assertEqual('installed', self.stage())
+        self.assertEqual([setup], self.unpacked)
+        self.assertEqual(b'sdk dll from launcher setup', (self.sdk / 'socialclub.dll').read_bytes())
+        text = (self.prefix / 'pfx/system.reg').read_text()
+        self.assertIn(r'[Software\\Wow6432Node\\Rockstar Games\\Rockstar Games Social Club]', text)
+        self.assertIn(r'"InstallFolder"="C:\\Program Files\\Rockstar Games\\Social Club"', text)
+        self.assertNotIn(r'Rockstar Games\\Launcher]', text)
+        self.assertEqual('present', self.stage())
+        self.assertEqual([setup], self.unpacked)
+
+    def test_an_updated_launcher_installer_is_staged_again(self):
+        setup = self.prefix / 'pfx' / store.EPIC_SDK_SETUP
+        setup.parent.mkdir(parents=True)
+        setup.write_bytes(b'launcher setup')
+        self.assertEqual('installed', self.stage())
+        setup.write_bytes(b'newer launcher setup')
+        self.assertEqual('installed', self.stage())
+        self.assertEqual(b'sdk dll from newer launcher setup', (self.sdk / 'socialclub.dll').read_bytes())
+
+    def test_before_the_launcher_is_installed_the_games_installer_is_used(self):
+        (self.folder / 'Redistributables').mkdir()
+        (self.folder / 'Redistributables/Social-Club-Setup.exe').write_bytes(b'game setup')
+        self.assertEqual('installed', self.stage())
+        self.assertEqual(b'sdk dll from game setup', (self.sdk / 'socialclub.dll').read_bytes())
+        self.assertNotIn(r'Rockstar Games\\Launcher]', (self.prefix / 'pfx/system.reg').read_text())
+
+    def test_other_epic_games_are_left_alone(self):
+        self.assertIsNone(self.stage())
+        self.assertEqual([], self.unpacked)
+        self.assertFalse(self.sdk.exists())
+        self.assertEqual('WINE REGISTRY Version 2\n', (self.prefix / 'pfx/system.reg').read_text())
+
+    def test_an_installer_linked_from_outside_the_game_is_ignored(self):
+        outside = self.root / 'outside.exe'
+        outside.write_bytes(b'not the game')
+        (self.folder / 'Installers').mkdir()
+        (self.folder / 'Installers/Social-Club-Setup.exe').symlink_to(outside)
+        self.assertIsNone(self.stage())
+        self.assertEqual([], self.unpacked)
+
+    def game_environment(self, shared=None, games=None):
+        config = self.root / 'home/.config/droiddeck/game-environment.json'
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(json.dumps({'version': 1, 'shared': shared or {}, 'games': games or {}}))
+
+    def launch(self, bat, parent, compat_data=''):
+        (self.folder / '.droiddeck-launch.bat').write_text(bat)
+        calls = []
+        env = {'DD_LAUNCH_DIR': str(self.root / 'launch'), 'STEAM_COMPAT_DATA_PATH': compat_data, 'HOME': str(self.root / 'home'),
+               'DD_EPIC_PARENT': ''}
+        with patch.dict(os.environ, env), patch.object(store, 'EPIC_PARENT', parent), \
+                patch.object(store, 'client_wanted', return_value=False), \
+                patch.object(store, 'ask', side_effect=lambda channel, request, timeout=0, claim=False: calls.append((request['op'], timeout)) or {'ok': False}):
+            store.main([str(self.folder / '.droiddeck-launch.bat')])
+        return calls
+
+    def test_a_title_that_needs_the_parent_fetches_the_stand_in_before_its_code(self):
+        bat = '@echo off\r\nsetlocal\r\nset "DD_P=1"\r\n'
+        calls = self.launch(bat, self.root / 'missing/EpicGamesLauncher.exe')
+        self.assertEqual([('store-service', store.EPIC_SERVICE_WAIT), 'epic-code', 'cloud-down'],
+                         [calls[0]] + [op for op, _ in calls[1:]])
+        staged = self.root / 'EpicGamesLauncher.exe'
+        staged.write_bytes(b'MZ')
+        self.assertEqual(['epic-code', 'cloud-down'], [op for op, _ in self.launch(bat, staged)])
+
+    def test_other_epic_games_do_not_fetch_the_stand_in(self):
+        bat = '@echo off\r\nsetlocal\r\nset "DD_P="\r\nif "%DD_EPIC_PARENT%"=="1" set "DD_P=1"\r\n'
+        calls = self.launch(bat, self.root / 'missing/EpicGamesLauncher.exe')
+        self.assertEqual(['epic-code', 'cloud-down'], [op for op, _ in calls])
+
+    def test_the_games_own_switch_decides_whether_the_stand_in_is_fetched(self):
+        compat_data = str(self.root / 'compatdata/4089453117')
+        missing = self.root / 'missing/EpicGamesLauncher.exe'
+        self.game_environment(games={'4089453117': {'DD_EPIC_PARENT': '1'}})
+        self.assertEqual('store-service', self.launch('@echo off\r\nset "DD_P="\r\n', missing, compat_data)[0][0])
+        self.game_environment(games={'4089453117': {'DD_EPIC_PARENT': '0'}})
+        self.assertEqual(['epic-code', 'cloud-down'], [op for op, _ in self.launch('@echo off\r\nset "DD_P=1"\r\n', missing, compat_data)])
+        self.game_environment(games={'4089453117': {'DD_EPIC_PARENT': None}}, shared={'DD_EPIC_PARENT': '0'})
+        self.assertEqual('store-service', self.launch('@echo off\r\nset "DD_P=1"\r\n', missing, compat_data)[0][0])
+
+    def test_the_sidecars_own_environment_wins_like_it_does_in_the_batch(self):
+        compat_data = str(self.root / 'compatdata/4089453117')
+        missing = self.root / 'missing/EpicGamesLauncher.exe'
+        sidecar = self.folder / '.droiddeck-store.json'
+        sidecar.write_text(json.dumps(dict(self.sidecar, env={'DD_EPIC_PARENT': '1'})))
+        self.assertEqual('store-service', self.launch('@echo off\r\nset "DD_P="\r\n', missing, compat_data)[0][0])
+        self.game_environment(games={'4089453117': {'DD_EPIC_PARENT': '1'}})
+        sidecar.write_text(json.dumps(dict(self.sidecar, env={'DD_EPIC_PARENT': '"0"'})))
+        self.assertEqual(['epic-code', 'cloud-down'], [op for op, _ in self.launch('@echo off\r\nset "DD_P=1"\r\n', missing, compat_data)])
+
+    def test_the_switch_is_read_the_way_the_game_will_see_it(self):
+        env = {'HOME': str(self.root / 'home'), 'STEAM_COMPAT_DATA_PATH': str(self.root / 'compatdata/4089453117')}
+        self.assertEqual('', store.epic_parent_switch({}, env))
+        self.assertEqual('1', store.epic_parent_switch({}, dict(env, DD_EPIC_PARENT='1')))
+        self.game_environment(shared={'DD_EPIC_PARENT': '1'}, games={'4089453117': {'DD_EPIC_PARENT': '0'}, '7': {'DD_EPIC_PARENT': '1'}})
+        self.assertEqual('0', store.epic_parent_switch({}, env))
+        self.assertEqual('1', store.epic_parent_switch({'env': {'DD_EPIC_PARENT': '1'}}, env))
+        self.assertEqual('1', store.epic_parent_switch({}, dict(env, STEAM_COMPAT_DATA_PATH=str(self.root / 'compatdata/12'))))
+        (self.root / 'home/.config/droiddeck/game-environment.json').write_text('{"version": 9}')
+        self.assertEqual('1', store.epic_parent_switch({}, dict(env, DD_EPIC_PARENT='1')))
+
+
 if __name__ == '__main__':
     unittest.main()

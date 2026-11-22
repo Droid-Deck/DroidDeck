@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-Ausgabe</string>
     <string name="mode_hdr_unavailable">Nicht verfügbar: %1$s.</string>
-    <string name="mode_hdr_restart">Starte die App neu, um dies anzuwenden.</string>
     <string name="mode_drivers">Treiber</string>
     <string name="mode_gpu_drivers">GPU-Treiber</string>
     <string name="mode_gpu_drivers_hint">Für Steam und Desktop gemeinsam. Wird auf der Seite „Komponenten“ festgelegt.</string>
@@ -804,7 +803,6 @@
     <string name="drawer_pc_keyboard">PC-Tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Zweiter Bildschirm</string>
-    <string name="drawer_second_screen_mode">Modus</string>
     <string name="drawer_second_screen_shows">Zeigt</string>
     <string name="drawer_android_apps">Android-Apps</string>
     <string name="drawer_launch_app">App starten</string>
@@ -946,7 +944,7 @@
     <string name="setup_launcher_orientation_auto">Gerätedrehung folgen</string>
     <string name="setup_orientation_portrait">Hochformat</string>
     <string name="setup_session_orientation">Sitzungsausrichtung</string>
-    <string name="setup_session_orientation_hint">Gilt für Steam, Spiele, Desktop und den Controller-Editor. Auflösungsvoreinstellungen drehen sich mit der Sitzung; eigene Breite und Höhe bleiben wie eingegeben.</string>
+    <string name="setup_session_orientation_hint">Gilt für Steam, Spiele, Desktop und den Controller-Editor. Auflösungsvoreinstellungen drehen sich mit der Sitzung; folgt eine Ausrichtung der anderen, werden eigene Breite und Höhe passend vertauscht.</string>
     <string name="setup_orientation_auto">Automatisch Querformat</string>
     <string name="setup_orientation_landscape">Querformat</string>
     <string name="setup_orientation_reverse">Umgekehrtes Querformat</string>
@@ -2454,10 +2452,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Sitzungsanzeige</string>
-    <string name="display_resolution">Auflösung</string>
+    <string name="display_zero_copy">Kopierfreie Darstellung</string>
+    <string name="display_resolution_landscape">Auflösung im Querformat</string>
+    <string name="display_resolution_portrait">Auflösung im Hochformat</string>
+    <string name="display_follow_landscape">Wie Querformat (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Wie Hochformat (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9-Spielanpassung</string>
     <string name="display_game_fit_hint">Wie 16:9-Spiele auf dieses Display passen. Ab der nächsten Sitzung.</string>
     <string name="display_game_fit_unavailable">Wähle „An Bildschirm anpassen“ oder eine eigene Größe schmaler als 16:9.</string>
+    <string name="display_avoid_notch">Notch aussparen</string>
+    <string name="display_avoid_notch_hint">Hält das Bild aus der Kameraaussparung heraus. Gilt, sobald du zur Sitzung zurückkehrst.</string>
     <string name="display_preserve">Seitenverhältnis beibehalten</string>
     <string name="display_stretch">Auf Display strecken</string>
     <string name="display_image_scaling">Bildskalierung</string>

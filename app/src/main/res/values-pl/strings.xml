@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Wyjście HDR10</string>
     <string name="mode_hdr_unavailable">Niedostępne: %1$s.</string>
-    <string name="mode_hdr_restart">Uruchom ponownie aplikację, aby zastosować.</string>
     <string name="mode_drivers">Sterowniki</string>
     <string name="mode_gpu_drivers">Sterowniki GPU</string>
     <string name="mode_gpu_drivers_hint">Wspólne dla Steam i pulpitu. Ustawiane na stronie Komponenty.</string>
@@ -808,7 +807,6 @@
     <string name="drawer_pc_keyboard">Klawiatura PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Drugi ekran</string>
-    <string name="drawer_second_screen_mode">Tryb</string>
     <string name="drawer_second_screen_shows">Pokazuje</string>
     <string name="drawer_android_apps">Aplikacje Android</string>
     <string name="drawer_launch_app">Uruchom aplikację</string>
@@ -960,7 +958,7 @@
     <string name="setup_launcher_orientation_auto">Zgodnie z obrotem urządzenia</string>
     <string name="setup_orientation_portrait">Pionowa</string>
     <string name="setup_session_orientation">Orientacja sesji</string>
-    <string name="setup_session_orientation_hint">Dotyczy Steam, gier, pulpitu i edytora kontrolera. Presety rozdzielczości obracają się z sesją; własna szerokość i wysokość pozostają jak wpisano.</string>
+    <string name="setup_session_orientation_hint">Dotyczy Steam, gier, pulpitu i edytora kontrolera. Presety rozdzielczości obracają się z sesją; gdy jedna orientacja podąża za drugą, własna szerokość i wysokość są zamieniane.</string>
     <string name="setup_orientation_auto">Automatyczna pozioma</string>
     <string name="setup_orientation_landscape">Pozioma</string>
     <string name="setup_orientation_reverse">Odwrócona pozioma</string>
@@ -2514,10 +2512,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Ekran sesji</string>
-    <string name="display_resolution">Rozdzielczość</string>
+    <string name="display_zero_copy">Prezentacja bez kopiowania</string>
+    <string name="display_resolution_landscape">Rozdzielczość w poziomie</string>
+    <string name="display_resolution_portrait">Rozdzielczość w pionie</string>
+    <string name="display_follow_landscape">Jak w poziomie (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Jak w pionie (%1$d×%2$d)</string>
     <string name="display_game_fit">Dopasowanie gier 16:9</string>
     <string name="display_game_fit_hint">Jak gry 16:9 mieszczą się na tym ekranie. Od następnej sesji.</string>
     <string name="display_game_fit_unavailable">Wybierz „Dopasuj do ekranu” lub własny rozmiar węższy niż 16:9.</string>
+    <string name="display_avoid_notch">Omijaj notch</string>
+    <string name="display_avoid_notch_hint">Utrzymuje obraz poza wycięciem na aparat. Działa po powrocie do sesji.</string>
     <string name="display_preserve">Zachowaj proporcje</string>
     <string name="display_stretch">Rozciągnij do ekranu</string>
     <string name="display_image_scaling">Skalowanie obrazu</string>

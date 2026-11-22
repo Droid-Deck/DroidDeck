@@ -522,6 +522,127 @@ class InputSettingsTest {
         }
     }
 
+    @Test fun buttonSizeResizesOnlyTheSelectedControlAndEverythingWithoutASelection() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.PRIMARY)!!
+        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
+        fun editor() = generateSequence(listOf<android.view.View>(ShadowDialog.getLatestDialog().window!!.decorView)) { views ->
+            views.filterIsInstance<android.view.ViewGroup>().flatMap { g -> (0 until g.childCount).map(g::getChildAt) }.ifEmpty { null }
+        }.flatten().filterIsInstance<InputSurfaceEditorView>().first()
+        val stock = compose.runOnIdle { editor().rendered().associateBy { it.id } }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.runOnIdle { editor().onSelect("legacy:a") }
+        val slider = compose.onNodeWithTag("input-editor-scale").performScrollTo()
+        slider.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "100%"))
+        slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(150f) }
+        val one = compose.runOnIdle { editor().rendered().associateBy { it.id } }
+        assertEquals(stock.getValue("legacy:a").width * 1.5f, one.getValue("legacy:a").width, .002f)
+        for (id in listOf("legacy:b", "legacy:x", "legacy:ls")) stock.getValue(id).let { e -> one.getValue(id).let { o ->
+            assertEquals(id, e.x, o.x, .0001f); assertEquals(id, e.y, o.y, .0001f); assertEquals(id, e.width, o.width, .0001f) } }
+        compose.runOnIdle { editor().onSelect("legacy:up") }
+        slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(150f) }
+        val pad = compose.runOnIdle { editor().rendered().associateBy { it.id } }
+        for (id in listOf("legacy:up", "legacy:down", "legacy:left", "legacy:right")) assertEquals(id, stock.getValue(id).height * 1.5f, pad.getValue(id).height, .002f)
+        compose.runOnIdle { assertEquals(4, editor().artworkDpad().size) }
+        compose.runOnIdle { editor().onSelect(null) }
+        slider.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "100%"))
+        slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(110f) }
+        val all = compose.runOnIdle { editor().rendered().associateBy { it.id } }
+        assertEquals(stock.getValue("legacy:ls").width * 1.1f, all.getValue("legacy:ls").width, .003f)
+        assertEquals(stock.getValue("legacy:a").width * 1.65f, all.getValue("legacy:a").width, .004f)
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(1.1f, InputLibraries.read(context).layouts.first { it.id == layout.id }.scale) }
+    }
+
+    @Test fun undoAfterResizingAControlAgainKeepsAnotherControlsMove() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.PRIMARY)!!
+        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
+        fun editor() = generateSequence(listOf<android.view.View>(ShadowDialog.getLatestDialog().window!!.decorView)) { views ->
+            views.filterIsInstance<android.view.ViewGroup>().flatMap { g -> (0 until g.childCount).map(g::getChildAt) }.ifEmpty { null }
+        }.flatten().filterIsInstance<InputSurfaceEditorView>().first()
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.runOnIdle { editor().onSelect("legacy:a") }
+        fun slider() = compose.onNodeWithTag("input-editor-scale").performScrollTo()
+        slider().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(150f) }
+        val resized = compose.runOnIdle { editor().rendered().associateBy { it.id } }
+        compose.runOnIdle {
+            val view = editor()
+            view.onBeginEdit(view.rendered(), view.width, view.height)
+            view.onChange(listOf(view.rendered().first { it.id == "legacy:b" }.let { it.copy(x = it.x - .1f) }))
+        }
+        val moved = compose.runOnIdle { editor().rendered().associateBy { it.id } }
+        assertEquals(resized.getValue("legacy:b").x - .1f, moved.getValue("legacy:b").x, .002f)
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.runOnIdle { editor().onSelect("legacy:a") }
+        slider().assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "100%"))
+        slider().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(120f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_undo)).performScrollTo().performClick()
+        val undone = compose.runOnIdle { editor().rendered().associateBy { it.id } }
+        assertEquals(moved.getValue("legacy:b").x, undone.getValue("legacy:b").x, .0001f)
+        assertEquals(resized.getValue("legacy:a").width, undone.getValue("legacy:a").width, .0001f)
+    }
+
+    @Test fun buttonSizeShowsTheGamepadWhereItWillBeSaved() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.PRIMARY)!!
+        assertEquals(InputLibraries.OVERLAY, layout.id)
+        val round = mutableStateOf(0)
+        compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } } }
+        fun editor() = generateSequence(listOf<android.view.View>(ShadowDialog.getLatestDialog().window!!.decorView)) { views ->
+            views.filterIsInstance<android.view.ViewGroup>().flatMap { g -> (0 until g.childCount).map(g::getChildAt) }.ifEmpty { null }
+        }.flatten().filterIsInstance<InputSurfaceEditorView>().first()
+        val stock = compose.runOnIdle { editor().rendered() }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(95f) }
+        val scaled = compose.runOnIdle { editor().rendered() }
+        assertNotEquals(stock, scaled)
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(.95f, InputLibraries.read(context).layouts.first { it.id == layout.id }.scale) }
+        compose.runOnIdle { round.value = 1 }
+        compose.runOnIdle { assertEquals(scaled, editor().rendered()) }
+    }
+
+    @Test @Config(qualifiers = "w468dp-h833dp-port-369dpi")
+    fun buttonSizeInPortraitKeepsLandscapeEditsWithoutARotatedFrame() {
+        val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")
+        val gamepad = InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!
+        val landscape = gamepad.copy(elements = gamepad.elements.map { if (it.id in face) it.copy(x = it.x + .012f, y = it.y + .017f) else it },
+            aspect = 1600f / 900f, rotated = emptyList(), rotatedAspect = 0f)
+        InputLibraries.update(context) { it.withLayout(landscape) }
+        val library = InputLibraries.read(context)
+        val round = mutableStateOf(0)
+        compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = landscape.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } } }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(90f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context).layouts.first { it.id == landscape.id }
+            assertEquals(landscape.aspect, saved.aspect)
+            for (id in face) assertEquals(landscape.elements.first { it.id == id }.let { it.x to it.y }, saved.elements.first { it.id == id }.let { it.x to it.y })
+            assertTrue(saved.rotated.isNotEmpty() && saved.rotatedAspect < 1f)
+            assertEquals(landscape.scale, saved.scale)
+            assertEquals(.9f, saved.rotatedScale)
+            assertEquals(.9f, OnScreenLayout.oriented(saved, 900, 1600).scale)
+            assertEquals(landscape.scale, OnScreenLayout.oriented(saved, 1600, 900).scale)
+        }
+        compose.runOnIdle { round.value = 1 }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        val slider = compose.onNodeWithTag("input-editor-scale").performScrollTo()
+        assertEquals(90f, slider.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ProgressBarRangeInfo].current, .5f)
+        slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(80f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context).layouts.first { it.id == landscape.id }
+            assertEquals(landscape.scale, saved.scale)
+            assertEquals(.8f, saved.rotatedScale)
+        }
+    }
+
     @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
     fun buttonSizeKeepsMovedGamepadGroupsInShape() {
         val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")

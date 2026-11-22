@@ -665,7 +665,7 @@ private fun Storefront(
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
     val gameJolt = store == Store.GAMEJOLT
     LaunchedEffect(gameJolt, s.storesShowMature) { if (gameJolt) GameJoltBrowseState.sync(ctx, s.storesShowMature) }
-    val browsing = q.isEmpty() && ((store == Store.ITCH && ItchBrowseState.active) || gameJolt)
+    val browsing = q.isEmpty() && (store == Store.ITCH || gameJolt)
     val browseItems = if (!browsing) emptyList() else if (gameJolt) GameJoltBrowseState.items else ItchBrowseState.items
     val catalog = store == Store.BATTLENET && q.isEmpty()
     val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog) {

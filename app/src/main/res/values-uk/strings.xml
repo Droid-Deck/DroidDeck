@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Вивід HDR10</string>
     <string name="mode_hdr_unavailable">Недоступно: %1$s.</string>
-    <string name="mode_hdr_restart">Перезапустіть додаток, щоб застосувати.</string>
     <string name="mode_drivers">Драйвери</string>
     <string name="mode_gpu_drivers">Драйвери GPU</string>
     <string name="mode_gpu_drivers_hint">Спільні для Steam і робочого столу. Налаштовуються на сторінці «Компоненти».</string>
@@ -808,7 +807,6 @@
     <string name="drawer_pc_keyboard">Клавіатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Другий екран</string>
-    <string name="drawer_second_screen_mode">Режим</string>
     <string name="drawer_second_screen_shows">Показує</string>
     <string name="drawer_android_apps">Додатки Android</string>
     <string name="drawer_launch_app">Запустити додаток</string>
@@ -960,7 +958,7 @@
     <string name="setup_launcher_orientation_auto">Слідувати повороту пристрою</string>
     <string name="setup_orientation_portrait">Книжкова</string>
     <string name="setup_session_orientation">Орієнтація сеансу</string>
-    <string name="setup_session_orientation_hint">Застосовується до Steam, ігор, робочого столу й редактора контролера. Готові роздільні здатності повертаються разом із сеансом; власні ширина й висота залишаються як введено.</string>
+    <string name="setup_session_orientation_hint">Застосовується до Steam, ігор, робочого столу й редактора контролера. Готові роздільні здатності повертаються разом із сеансом; коли одна орієнтація слідує за іншою, власні ширина й висота міняються місцями.</string>
     <string name="setup_orientation_auto">Автоматично альбомна</string>
     <string name="setup_orientation_landscape">Альбомна</string>
     <string name="setup_orientation_reverse">Перевернута альбомна</string>
@@ -2514,10 +2512,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Дисплей сеансу</string>
-    <string name="display_resolution">Роздільна здатність</string>
+    <string name="display_zero_copy">Показ без копіювання</string>
+    <string name="display_resolution_landscape">Роздільна здатність в альбомній орієнтації</string>
+    <string name="display_resolution_portrait">Роздільна здатність у портретній орієнтації</string>
+    <string name="display_follow_landscape">Як в альбомній (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Як у портретній (%1$d×%2$d)</string>
     <string name="display_game_fit">Вписування гри 16:9</string>
     <string name="display_game_fit_hint">Як ігри 16:9 вписуються в цей дисплей. З наступного сеансу.</string>
     <string name="display_game_fit_unavailable">Виберіть «Під екран» або власний розмір, вужчий за 16:9.</string>
+    <string name="display_avoid_notch">Обходити виріз</string>
+    <string name="display_avoid_notch_hint">Не виводить зображення під виріз камери. Застосовується після повернення до сесії.</string>
     <string name="display_preserve">Зберігати пропорції</string>
     <string name="display_stretch">Розтягнути на весь дисплей</string>
     <string name="display_image_scaling">Масштабування зображення</string>

@@ -36,6 +36,7 @@ object UserApps {
     private const val GITHUB_TAG = "github-tag"
     private const val GITHUB_PUBLISHED = "github-published"
     private const val GITHUB_ASSET = "github-asset"
+    private const val FEED = "update-feed"
 
     enum class Kind { SCRIPT, APPIMAGE, FLATPAK }
 
@@ -43,10 +44,15 @@ object UserApps {
         val key: String, val kind: Kind, val name: String, val icon: Any?, val detail: String?,
         val program: String, val args: List<String>, val copied: Boolean = false,
         val repo: String? = null, val version: String? = null,
-        val fex: String = LinuxFex.AUTO, val arch: String? = null,
-    )
+        val fex: String = LinuxFex.AUTO, val arch: String? = null, val feed: String? = null,
+    ) {
+        val updatable get() = repo != null || feed != null
+    }
 
-    class Release(val tag: String, val published: String, val asset: String, val url: String, val sha256: String? = null)
+    class Release(
+        val tag: String, val published: String, val asset: String, val url: String,
+        val sha256: String? = null, val sha512: String? = null,
+    )
 
     sealed class UpdateCheck {
         class Current(val tag: String) : UpdateCheck()
@@ -58,6 +64,7 @@ object UserApps {
         class Script(val file: File) : Source()
         class AppImage(val file: File) : Source()
         class GitHub(val repo: String, val asset: String? = null) : Source()
+        class Feed(val url: String) : Source()
         class Flatpak(val id: String) : Source()
         class FlatpakBundle(val file: File) : Source()
     }
@@ -91,6 +98,7 @@ object UserApps {
                 "appimage:${item.id}", Kind.APPIMAGE, item.name, item.icon, item.comment, AppImageManager.LAUNCHER, listOf(item.guestDir),
                 repo = FileUtils.readString(File(dir, GITHUB_REPO))?.trim(), version = FileUtils.readString(File(dir, GITHUB_TAG))?.trim(),
                 fex = LinuxFex.mode(dir), arch = FileUtils.readString(File(dir, "arch"))?.trim()?.takeIf { it.isNotEmpty() },
+                feed = FileUtils.readString(File(dir, FEED))?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
         val flatpaks = FlatpakManager.installedApps(context).map { app ->
@@ -115,6 +123,7 @@ object UserApps {
                 is Source.Script -> addScript(context, s.file, name, icon, request.meta, onProgress)
                 is Source.AppImage -> AppImageManager.import(context, s.file, name, icon, request.meta) { onProgress(it, -1) }
                 is Source.GitHub -> addFromGitHub(context, s.repo, s.asset, name, icon, onProgress)
+                is Source.Feed -> addFromFeed(context, s.url, name, icon, onProgress)
                 is Source.Flatpak -> addFlatpak(context, s.id, name, icon, onProgress)
                 is Source.FlatpakBundle -> addFlatpakBundle(context, s.file, name, icon, onProgress)
             }
@@ -346,11 +355,15 @@ object UserApps {
     }
 
     private fun withDownload(context: Context, release: Release, onProgress: (String, Int) -> Unit, use: (File) -> String?): String? {
-        val download = File(context.cacheDir, "github-${release.asset}")
+        val download = File(File(context.cacheDir, "user-apps").apply { mkdirs() }, release.asset)
         try {
             val label = context.getString(R.string.user_apps_downloading, release.asset)
             val ok = Downloader.downloadFile(release.url, download, false, release.sha256) { f -> onProgress(label, if (f < 0) -1 else Math.round(f * 100f)) }
-            return if (ok) use(download) else context.getString(R.string.user_apps_download_failed)
+            if (!ok) return context.getString(R.string.user_apps_download_failed)
+            if (release.sha512 != null && !Hashes.sha512(download).equals(release.sha512, ignoreCase = true)) {
+                return context.getString(R.string.selfinst_checksum_mismatch)
+            }
+            return use(download)
         } finally {
             download.delete()
         }
@@ -392,20 +405,57 @@ object UserApps {
         return urls + listOfNotNull(avatar)
     }
 
+    internal fun parseFeed(feed: String, body: String): Release? {
+        val top = body.lineSequence().filter { it.isNotEmpty() && !it[0].isWhitespace() && ':' in it }
+            .associate { it.substringBefore(':').trim() to it.substringAfter(':').trim().trim('\'', '"') }
+        val version = top["version"]?.takeIf { it.isNotEmpty() } ?: return null
+        val path = top["path"]?.takeIf { it.endsWith(".AppImage", ignoreCase = true) && '/' !in it && ".." !in it } ?: return null
+        val sha512 = top["sha512"]?.let { runCatching { java.util.Base64.getDecoder().decode(it) }.getOrNull() }
+            ?.takeIf { it.size == 64 }?.joinToString("") { "%02x".format(it) } ?: return null
+        val base = feed.substringBeforeLast('/', "").takeIf { it.startsWith("https://") } ?: return null
+        return Release(version, top["releaseDate"].orEmpty(), path, "$base/$path", sha512 = sha512)
+    }
+
+    private fun feedRelease(context: Context, feed: String): Release? =
+        Downloader.downloadString(feed)?.let { parseFeed(feed, it) }
+
+    private fun feedMeta(feed: String, release: Release) =
+        mapOf(FEED to feed, GITHUB_TAG to release.tag, GITHUB_PUBLISHED to release.published, GITHUB_ASSET to release.asset)
+
+    private fun addFromFeed(context: Context, feed: String, name: String?, icon: File?, onProgress: (String, Int) -> Unit): String? {
+        onProgress(context.getString(R.string.user_apps_github_checking, name ?: feed), -1)
+        val release = feedRelease(context, feed) ?: return context.getString(R.string.user_apps_update_failed)
+        return withDownload(context, release, onProgress) { file ->
+            AppImageManager.import(context, file, name ?: release.asset.substringBefore('-'), icon, feedMeta(feed, release)) { onProgress(it, -1) }
+        }
+    }
+
+    internal fun isNewer(release: Release, published: String, installed: String?): Boolean =
+        if (published.isNotEmpty() && release.published.isNotEmpty()) {
+            val feed = runCatching { java.time.Instant.parse(release.published) }.getOrNull()
+            val have = runCatching { java.time.Instant.parse(published) }.getOrNull()
+            if (feed != null && have != null) feed > have else release.published > published
+        } else release.tag != installed
+
     fun checkUpdate(context: Context, app: App): UpdateCheck {
+        app.feed?.let { feed ->
+            val release = feedRelease(context, feed) ?: return UpdateCheck.Failed(context.getString(R.string.user_apps_update_failed))
+            val published = FileUtils.readString(File(AppImageManager.dir(context, app.key.substringAfter(':')), GITHUB_PUBLISHED))?.trim().orEmpty()
+            return if (isNewer(release, published, app.version)) UpdateCheck.Available(release) else UpdateCheck.Current(app.version ?: release.tag)
+        }
         val repo = app.repo ?: return UpdateCheck.Failed(context.getString(R.string.user_apps_update_failed))
         val dir = AppImageManager.dir(context, app.key.substringAfter(':'))
         val (release, problem) = latestRelease(context, repo, FileUtils.readString(File(dir, GITHUB_ASSET))?.trim()?.takeIf { it.isNotEmpty() })
         if (release == null) return UpdateCheck.Failed(problem ?: context.getString(R.string.user_apps_update_failed))
         val published = FileUtils.readString(File(dir, GITHUB_PUBLISHED))?.trim().orEmpty()
-        val newer = if (published.isNotEmpty() && release.published.isNotEmpty()) release.published > published else release.tag != app.version
-        return if (newer) UpdateCheck.Available(release) else UpdateCheck.Current(app.version ?: release.tag)
+        return if (isNewer(release, published, app.version)) UpdateCheck.Available(release) else UpdateCheck.Current(app.version ?: release.tag)
     }
 
     fun update(context: Context, app: App, release: Release, onProgress: (String, Int) -> Unit): String? {
-        val repo = app.repo ?: return context.getString(R.string.user_apps_update_failed)
+        val meta = app.feed?.let { feedMeta(it, release) }
+            ?: app.repo?.let { githubMeta(it, release) } ?: return context.getString(R.string.user_apps_update_failed)
         return withDownload(context, release, onProgress) { file ->
-            AppImageManager.replace(context, app.key.substringAfter(':'), file, githubMeta(repo, release)) { onProgress(it, -1) }
+            AppImageManager.replace(context, app.key.substringAfter(':'), file, meta) { onProgress(it, -1) }
         }
     }
 

@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 출력</string>
     <string name="mode_hdr_unavailable">사용 불가: %1$s.</string>
-    <string name="mode_hdr_restart">앱을 다시 시작한 후 적용됩니다.</string>
     <string name="mode_drivers">드라이버</string>
     <string name="mode_gpu_drivers">GPU 드라이버</string>
     <string name="mode_gpu_drivers_hint">Steam과 데스크톱에서 공유됩니다. \"구성 요소\" 페이지에서 설정하세요.</string>
@@ -802,7 +801,6 @@
     <string name="drawer_pc_keyboard">PC 키보드</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">보조 화면</string>
-    <string name="drawer_second_screen_mode">모드</string>
     <string name="drawer_second_screen_shows">표시</string>
     <string name="drawer_android_apps">Android 앱</string>
     <string name="drawer_launch_app">앱 실행</string>
@@ -951,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">기기 회전 따르기</string>
     <string name="setup_orientation_portrait">세로</string>
     <string name="setup_session_orientation">세션 방향</string>
-    <string name="setup_session_orientation_hint">Steam, 게임, 데스크톱 및 컨트롤러 편집기에 적용됩니다. 해상도 프리셋은 세션에 맞춰 회전하며, 사용자 정의 너비와 높이는 입력한 그대로 유지됩니다.</string>
+    <string name="setup_session_orientation_hint">Steam, 게임, 데스크톱 및 컨트롤러 편집기에 적용됩니다. 해상도 프리셋은 세션에 맞춰 회전하며, 한 방향이 다른 방향을 따를 때 사용자 정의 너비와 높이는 방향에 맞게 서로 바뀝니다.</string>
     <string name="setup_orientation_auto">자동 가로 모드</string>
     <string name="setup_orientation_landscape">가로 모드</string>
     <string name="setup_orientation_reverse">역방향 가로 모드</string>
@@ -2437,10 +2435,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">세션 디스플레이</string>
-    <string name="display_resolution">해상도</string>
+    <string name="display_zero_copy">제로카피 표시</string>
+    <string name="display_resolution_landscape">가로 해상도</string>
+    <string name="display_resolution_portrait">세로 해상도</string>
+    <string name="display_follow_landscape">가로와 동일 (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">세로와 동일 (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 게임 맞춤</string>
     <string name="display_game_fit_hint">16:9 게임을 이 디스플레이에 맞추는 방식입니다. 다음 세션부터 적용됩니다.</string>
     <string name="display_game_fit_unavailable">화면에 맞춤 또는 16:9보다 좁은 사용자 정의 크기를 선택하세요.</string>
+    <string name="display_avoid_notch">노치 피하기</string>
+    <string name="display_avoid_notch_hint">화면을 카메라 컷아웃 밖에 표시합니다. 세션으로 돌아오면 적용됩니다.</string>
     <string name="display_preserve">비율 유지</string>
     <string name="display_stretch">화면에 맞게 늘이기</string>
     <string name="display_image_scaling">이미지 스케일링</string>

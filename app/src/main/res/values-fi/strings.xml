@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-lähtö</string>
     <string name="mode_hdr_unavailable">Ei käytettävissä: %1$s.</string>
-    <string name="mode_hdr_restart">Käynnistä sovellus uudelleen, jotta muutos tulee voimaan.</string>
     <string name="mode_drivers">Ajurit</string>
     <string name="mode_gpu_drivers">GPU-ajurit</string>
     <string name="mode_gpu_drivers_hint">Jaettu Steamin ja Työpöydän kesken. Asetetaan Komponentit-sivulla.</string>
@@ -804,7 +803,6 @@
     <string name="drawer_pc_keyboard">PC-näppäimistö</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Toinen näyttö</string>
-    <string name="drawer_second_screen_mode">Tila</string>
     <string name="drawer_second_screen_shows">Näyttää</string>
     <string name="drawer_android_apps">Android-sovellukset</string>
     <string name="drawer_launch_app">Käynnistä sovellus</string>
@@ -954,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">Seuraa laitteen kiertoa</string>
     <string name="setup_orientation_portrait">Pystysuunta</string>
     <string name="setup_session_orientation">Istunnon suunta</string>
-    <string name="setup_session_orientation_hint">Koskee Steamia, pelejä, työpöytää ja ohjainmuokkainta. Resoluution esiasetukset kääntyvät istunnon mukana; mukautettu leveys ja korkeus pysyvät syötetyn mukaisina.</string>
+    <string name="setup_session_orientation_hint">Koskee Steamia, pelejä, työpöytää ja ohjainmuokkainta. Resoluution esiasetukset kääntyvät istunnon mukana; kun toinen suunta seuraa toista, mukautettu leveys ja korkeus vaihtavat paikkaa vastaamaan toisiaan.</string>
     <string name="setup_orientation_auto">Automaattinen vaakasuunta</string>
     <string name="setup_orientation_landscape">Vaakasuunta</string>
     <string name="setup_orientation_reverse">Käänteinen vaakasuunta</string>
@@ -2462,10 +2460,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Istunnon näyttö</string>
-    <string name="display_resolution">Tarkkuus</string>
+    <string name="display_zero_copy">Kopioimaton esitys</string>
+    <string name="display_resolution_landscape">Vaakatilan resoluutio</string>
+    <string name="display_resolution_portrait">Pystytilan resoluutio</string>
+    <string name="display_follow_landscape">Seuraa vaakaa (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Seuraa pystyä (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9-pelin sovitus</string>
     <string name="display_game_fit_hint">Miten 16:9-pelit sovitetaan tähän näyttöön. Seuraava istunto.</string>
     <string name="display_game_fit_unavailable">Valitse Sovita näyttöön tai mukautettu koko, joka on 16:9:ää kapeampi.</string>
+    <string name="display_avoid_notch">Vältä lovea</string>
+    <string name="display_avoid_notch_hint">Pitää kuvan poissa kameran lovesta. Tulee voimaan, kun palaat istuntoon.</string>
     <string name="display_preserve">Säilytä kuvasuhde</string>
     <string name="display_stretch">Venytä näyttöön</string>
     <string name="display_image_scaling">Kuvan skaalaus</string>

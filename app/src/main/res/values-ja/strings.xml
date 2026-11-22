@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10出力</string>
     <string name="mode_hdr_unavailable">利用不可：%1$s。</string>
-    <string name="mode_hdr_restart">アプリの再起動後に有効になります。</string>
     <string name="mode_drivers">ドライバー</string>
     <string name="mode_gpu_drivers">GPUドライバー</string>
     <string name="mode_gpu_drivers_hint">Steamとデスクトップで共有されます。「コンポーネント」ページで設定してください。</string>
@@ -802,7 +801,6 @@
     <string name="drawer_pc_keyboard">PCキーボード</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">セカンドスクリーン</string>
-    <string name="drawer_second_screen_mode">モード</string>
     <string name="drawer_second_screen_shows">表示</string>
     <string name="drawer_android_apps">Androidアプリ</string>
     <string name="drawer_launch_app">アプリを起動</string>
@@ -951,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">デバイスの回転に合わせる</string>
     <string name="setup_orientation_portrait">縦向き</string>
     <string name="setup_session_orientation">セッションの向き</string>
-    <string name="setup_session_orientation_hint">Steam、ゲーム、デスクトップ、コントローラーエディターに適用されます。解像度プリセットはセッションに合わせて回転し、カスタムの幅と高さは入力したとおりになります。</string>
+    <string name="setup_session_orientation_hint">Steam、ゲーム、デスクトップ、コントローラーエディターに適用されます。解像度プリセットはセッションに合わせて回転し、一方の向きがもう一方に従う場合、カスタムの幅と高さは向きに合わせて入れ替わります。</string>
     <string name="setup_orientation_auto">横向き（自動回転）</string>
     <string name="setup_orientation_landscape">横向き</string>
     <string name="setup_orientation_reverse">横向き（反転）</string>
@@ -2437,10 +2435,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
     <string name="display_session">セッションの表示</string>
-    <string name="display_resolution">解像度</string>
+    <string name="display_zero_copy">ゼロコピー表示</string>
+    <string name="display_resolution_landscape">横向きの解像度</string>
+    <string name="display_resolution_portrait">縦向きの解像度</string>
+    <string name="display_follow_landscape">横向きに合わせる (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">縦向きに合わせる (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9ゲームの表示</string>
     <string name="display_game_fit_hint">16:9のゲームをこのディスプレイにどう合わせるか。次回のセッションから。</string>
     <string name="display_game_fit_unavailable">「画面に合わせる」か、16:9より縦長のカスタムサイズを選んでください。</string>
+    <string name="display_avoid_notch">ノッチを避ける</string>
+    <string name="display_avoid_notch_hint">映像をカメラの切り欠きから離します。セッションに戻ると反映されます。</string>
     <string name="display_preserve">縦横比を保持</string>
     <string name="display_stretch">画面いっぱいに引き伸ばす</string>
     <string name="display_image_scaling">画像のスケーリング</string>

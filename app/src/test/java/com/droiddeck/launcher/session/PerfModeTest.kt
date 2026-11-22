@@ -56,4 +56,64 @@ class PerfModeTest {
         assertTrue(PerfMode.needsChange(modes, 0, oneTwenty))
         assertTrue(PerfMode.needsChange(modes, 99, oneTwenty))
     }
+
+    @Test fun aGuestFrameRateChoosesTheHighestPanelRateItDividesEvenly() {
+        val modes = arrayOf(mode(1, 60f), mode(2, 90f), mode(3, 120f), mode(4, 144f))
+        val current = modes[3]
+        assertEquals(modes[2], PerfMode.selectMode(modes, current, 60, Float.POSITIVE_INFINITY, 120))
+        assertEquals(modes[2], PerfMode.selectMode(modes, current, 40, Float.POSITIVE_INFINITY, 120))
+        assertEquals(modes[1], PerfMode.selectMode(modes, current, 45, Float.POSITIVE_INFINITY, 90))
+        assertEquals(modes[3], PerfMode.selectMode(modes, current, 72, Float.POSITIVE_INFINITY, 144))
+        assertEquals(modes[3], PerfMode.selectMode(modes, current, 50, Float.POSITIVE_INFINITY, 144))
+    }
+
+    @Test fun frameGenerationRaisesThePanelRateToItsOutputRate() {
+        val modes = arrayOf(mode(1, 60f), mode(2, 90f), mode(3, 120f), mode(4, 144f))
+        val current = modes[0]
+        assertEquals(120, PerfMode.contentRate(60, 2, 0))
+        assertEquals(60, PerfMode.contentRate(60, 1, 0))
+        assertEquals(90, PerfMode.contentRate(40, 3, 90))
+        assertEquals(0, PerfMode.contentRate(0, 2, 0))
+        assertEquals(modes[2], PerfMode.selectMode(modes, current, PerfMode.contentRate(60, 2, 0), Float.POSITIVE_INFINITY))
+        assertEquals(modes[1], PerfMode.selectMode(modes, current, PerfMode.contentRate(45, 2, 0), Float.POSITIVE_INFINITY))
+        assertEquals(modes[3], PerfMode.selectMode(modes, current, PerfMode.contentRate(72, 2, 0), Float.POSITIVE_INFINITY))
+        assertEquals(modes[3], PerfMode.selectMode(modes, current, PerfMode.contentRate(60, 3, 0), Float.POSITIVE_INFINITY))
+        assertEquals(modes[2], PerfMode.selectMode(modes, current, PerfMode.contentRate(60, 4, 0), 120f))
+    }
+
+    @Test fun aGuestRefreshRequestWithoutAFrameRatePicksThatPanelRate() {
+        val modes = arrayOf(mode(1, 60f), mode(2, 90f), mode(3, 120f))
+        val current = modes[2]
+        assertEquals(modes[0], PerfMode.selectMode(modes, current, 0, Float.POSITIVE_INFINITY, 60))
+        assertEquals(modes[1], PerfMode.selectMode(modes, current, 0, Float.POSITIVE_INFINITY, 75))
+        assertEquals(modes[1], PerfMode.selectMode(modes, current, 0, 90f, 120))
+        assertEquals(modes[2], PerfMode.selectMode(modes, current, 0, Float.POSITIVE_INFINITY, 0))
+    }
+
+    @Test fun panelRatesListOnlyTheCurrentSizeWithinTheCap() {
+        val modes = arrayOf(mode(1, 60f), mode(2, 120f), mode(3, 144f), mode(4, 90f, 720), mode(5, 59.94f))
+        assertEquals(listOf(60, 120, 144), PerfMode.panelRates(modes, modes[1], Float.POSITIVE_INFINITY).toList())
+        assertEquals(listOf(60, 120), PerfMode.panelRates(modes, modes[1], 120f).toList())
+    }
+
+    @Test fun aPanelTheSystemHoldsOffersOnlyItsCurrentRate() {
+        val modes = arrayOf(mode(1, 60f), mode(2, 120f), mode(3, 185f))
+        assertTrue(PerfMode.panelHeld(185f, 120f))
+        assertTrue(PerfMode.panelHeld(60f, 120f))
+        assertFalse(PerfMode.panelHeld(120f, 119.88f))
+        assertFalse(PerfMode.panelHeld(0f, 120f))
+        assertEquals(listOf(120), PerfMode.panelRates(modes, modes[1], Float.POSITIVE_INFINITY, true).toList())
+        assertEquals(listOf(60, 120, 185), PerfMode.panelRates(modes, modes[1], Float.POSITIVE_INFINITY, false).toList())
+    }
+
+    @Test
+    fun aSteadyRateBelowAnUnconstrainingLimiterSetsThePace() {
+        assertEquals(30, PerfMode.pacedRate(30, 120, 120, 45))
+        assertEquals(45, PerfMode.pacedRate(0, 0, 0, 45))
+        assertEquals(40, PerfMode.pacedRate(0, 40, 120, 45))
+        assertEquals(45, PerfMode.pacedRate(0, 120, 120, 45))
+        assertEquals(120, PerfMode.pacedRate(0, 120, 120, 60))
+        assertEquals(120, PerfMode.pacedRate(0, 120, 120, 0))
+        assertEquals(60, PerfMode.pacedRate(0, 60, 0, 45))
+    }
 }

@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">إخراج HDR10</string>
     <string name="mode_hdr_unavailable">غير متاح: %1$s.</string>
-    <string name="mode_hdr_restart">أعد تشغيل التطبيق لتطبيق التغيير.</string>
     <string name="mode_drivers">برامج التشغيل</string>
     <string name="mode_gpu_drivers">برامج تشغيل GPU</string>
     <string name="mode_gpu_drivers_hint">مشتركة بين Steam وسطح المكتب. يتم ضبطها في صفحة «المكوّنات».</string>
@@ -812,7 +811,6 @@
     <string name="drawer_pc_keyboard">لوحة مفاتيح الكمبيوتر</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">الشاشة الثانية</string>
-    <string name="drawer_second_screen_mode">الوضع</string>
     <string name="drawer_second_screen_shows">يعرض</string>
     <string name="drawer_android_apps">تطبيقات Android</string>
     <string name="drawer_launch_app">تشغيل تطبيق</string>
@@ -966,7 +964,7 @@
     <string name="setup_launcher_orientation_auto">اتّباع تدوير الجهاز</string>
     <string name="setup_orientation_portrait">عمودي</string>
     <string name="setup_session_orientation">اتجاه الجلسة</string>
-    <string name="setup_session_orientation_hint">يُطبَّق على Steam والألعاب وسطح المكتب ومحرّر وحدة التحكم. تدور الدقّات المُعدّة مسبقًا مع الجلسة، ويبقى العرض والارتفاع المخصّصان كما أُدخلا.</string>
+    <string name="setup_session_orientation_hint">يُطبَّق على Steam والألعاب وسطح المكتب ومحرّر وحدة التحكم. تدور الدقّات المُعدّة مسبقًا مع الجلسة، وعندما يتبع أحد الاتجاهين الآخر ينعكس العرض والارتفاع المخصّصان ليتطابقا.</string>
     <string name="setup_orientation_auto">أفقي تلقائي</string>
     <string name="setup_orientation_landscape">أفقي</string>
     <string name="setup_orientation_reverse">أفقي معكوس</string>
@@ -2566,10 +2564,16 @@
     <string name="driver_tag_bundle">Android + Linux</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">شاشة الجلسة</string>
-    <string name="display_resolution">الدقة</string>
+    <string name="display_zero_copy">العرض بدون نسخ</string>
+    <string name="display_resolution_landscape">دقة الوضع الأفقي</string>
+    <string name="display_resolution_portrait">دقة الوضع العمودي</string>
+    <string name="display_follow_landscape">اتباع الأفقي (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">اتباع العمودي (%1$d×%2$d)</string>
     <string name="display_game_fit">ملاءمة اللعبة لنسبة 16:9</string>
     <string name="display_game_fit_hint">كيفية ملاءمة ألعاب 16:9 لهذه الشاشة. يُطبَّق في الجلسة التالية.</string>
     <string name="display_game_fit_unavailable">اختر «مطابقة الشاشة» أو حجمًا مخصَّصًا أضيق من 16:9.</string>
+    <string name="display_avoid_notch">تجنّب فتحة الكاميرا</string>
+    <string name="display_avoid_notch_hint">يُبقي الصورة بعيدًا عن فتحة الكاميرا. يُطبَّق عند العودة إلى الجلسة.</string>
     <string name="display_preserve">الحفاظ على النسب</string>
     <string name="display_stretch">تمديد لملء الشاشة</string>
     <string name="display_image_scaling">تكبير الصورة</string>

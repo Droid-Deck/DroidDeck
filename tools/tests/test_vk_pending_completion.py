@@ -56,16 +56,20 @@ static VkResult wait_fn(uintptr_t dev, unsigned n, const VkFence *f, int all, ui
 static void unmap_fn(uintptr_t dev, uintptr_t mem) { (void)dev; (void)mem; ++unmapped; }
 static void destroy_fn(uintptr_t dev, uintptr_t img, void *allocator) { (void)dev; (void)img; (void)allocator; ++destroyed; }
 static void free_fn(uintptr_t dev, uintptr_t mem, void *allocator) { (void)dev; (void)mem; (void)allocator; ++freed_memory; }
+static unsigned destroyed_buffers;
+static void destroy_buffer_fn(uintptr_t dev, uintptr_t buf, void *allocator) { (void)dev; (void)buf; (void)allocator; ++destroyed_buffers; }
+#define VK_NULL_HANDLE 0
 static struct {
     VkResult (*WaitForFences)(uintptr_t, unsigned, const VkFence *, int, uint64_t);
     void (*UnmapMemory)(uintptr_t, uintptr_t);
     void (*DestroyImage)(uintptr_t, uintptr_t, void *);
     void (*FreeMemory)(uintptr_t, uintptr_t, void *);
-} g_vk = {wait_fn, unmap_fn, destroy_fn, free_fn};
+    void (*DestroyBuffer)(uintptr_t, uintptr_t, void *);
+} g_vk = {wait_fn, unmap_fn, destroy_fn, free_fn, destroy_buffer_fn};
 typedef struct AHardwareBuffer AHardwareBuffer;
 static int released_buffers;
 static void AHardwareBuffer_release(AHardwareBuffer *b) { (void)b; ++released_buffers; }
-struct vkp_image { uintptr_t image, mem; void *map; AHardwareBuffer *android_buffer; };
+struct vkp_image { uintptr_t image, mem; void *map; AHardwareBuffer *android_buffer; uintptr_t linear_buf, linear_mem; int staged, in_general; };
 static void blendp_forget_image(uintptr_t image) { (void)image; ++forgotten; }
 /* PRODUCTION_FUNCTIONS */
 static struct vkp_image *image(void) {
@@ -173,7 +177,7 @@ class VkPendingCompletionTest(unittest.TestCase):
             self.assertEqual(ran.returncode,0,ran.stdout+ran.stderr)
 
     def test_unknown_completion_retains_gpu_resources(self):
-        self.compile_and_run(HARNESS, ['quarantine_pending_work', 'timed_wait', 'vkp_image_destroy'])
+        self.compile_and_run(HARNESS, ['quarantine_pending_work', 'timed_wait', 'destroy_image_objects', 'vkp_image_destroy'])
 
     def test_failed_device_idle_does_not_destroy_swapchain(self):
         # LOGE's arguments must be evaluated as real production logging does.

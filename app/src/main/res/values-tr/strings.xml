@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 çıkışı</string>
     <string name="mode_hdr_unavailable">Kullanılamıyor: %1$s.</string>
-    <string name="mode_hdr_restart">Uygulamak için uygulamayı yeniden başlatın.</string>
     <string name="mode_drivers">Sürücüler</string>
     <string name="mode_gpu_drivers">GPU sürücüleri</string>
     <string name="mode_gpu_drivers_hint">Steam ve Masaüstü tarafından paylaşılır. Bileşenler sayfasından ayarlanır.</string>
@@ -804,7 +803,6 @@
     <string name="drawer_pc_keyboard">PC klavyesi</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">İkinci ekran</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Gösterilen</string>
     <string name="drawer_android_apps">Android uygulamaları</string>
     <string name="drawer_launch_app">Uygulama başlat</string>
@@ -946,7 +944,7 @@
     <string name="setup_launcher_orientation_auto">Cihaz dönüşünü izle</string>
     <string name="setup_orientation_portrait">Dikey</string>
     <string name="setup_session_orientation">Oturum yönü</string>
-    <string name="setup_session_orientation_hint">Steam, oyunlar, masaüstü ve kumanda düzenleyicisi için geçerlidir. Çözünürlük ön ayarları oturumla birlikte döner; özel genişlik ve yükseklik girildiği gibi kalır.</string>
+    <string name="setup_session_orientation_hint">Steam, oyunlar, masaüstü ve kumanda düzenleyicisi için geçerlidir. Çözünürlük ön ayarları oturumla birlikte döner; bir yön diğerini izlediğinde özel genişlik ve yükseklik eşleşmek üzere yer değiştirir.</string>
     <string name="setup_orientation_auto">Otomatik yatay</string>
     <string name="setup_orientation_landscape">Yatay</string>
     <string name="setup_orientation_reverse">Ters yatay</string>
@@ -2454,10 +2452,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Oturum ekranı</string>
-    <string name="display_resolution">Çözünürlük</string>
+    <string name="display_zero_copy">Kopyasız sunum</string>
+    <string name="display_resolution_landscape">Yatay çözünürlük</string>
+    <string name="display_resolution_portrait">Dikey çözünürlük</string>
+    <string name="display_follow_landscape">Yatayı izle (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Dikeyi izle (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 oyun sığdırma</string>
     <string name="display_game_fit_hint">16:9 oyunların bu ekrana nasıl sığacağı. Sonraki oturumda.</string>
     <string name="display_game_fit_unavailable">Ekrana Uydur\'u veya 16:9\'dan daha dar özel bir boyutu seçin.</string>
+    <string name="display_avoid_notch">Çentikten kaçın</string>
+    <string name="display_avoid_notch_hint">Görüntüyü kamera çentiğinin dışında tutar. Oturuma döndüğünüzde uygulanır.</string>
     <string name="display_preserve">Oranları koru</string>
     <string name="display_stretch">Ekrana uzat</string>
     <string name="display_image_scaling">Görüntü ölçekleme</string>

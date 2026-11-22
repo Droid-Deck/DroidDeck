@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Salida HDR10</string>
     <string name="mode_hdr_unavailable">No disponible: %1$s.</string>
-    <string name="mode_hdr_restart">Reinicia la app para aplicarlo.</string>
     <string name="mode_drivers">Controladores</string>
     <string name="mode_gpu_drivers">Controladores de GPU</string>
     <string name="mode_gpu_drivers_hint">Compartidos por Steam y Escritorio. Se definen en la página Componentes.</string>
@@ -806,7 +805,6 @@
     <string name="drawer_pc_keyboard">Teclado de PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Segunda pantalla</string>
-    <string name="drawer_second_screen_mode">Modo</string>
     <string name="drawer_second_screen_shows">Muestra</string>
     <string name="drawer_android_apps">Apps de Android</string>
     <string name="drawer_launch_app">Abrir una app</string>
@@ -957,7 +955,7 @@
     <string name="setup_launcher_orientation_auto">Seguir la rotación del dispositivo</string>
     <string name="setup_orientation_portrait">Vertical</string>
     <string name="setup_session_orientation">Orientación de la sesión</string>
-    <string name="setup_session_orientation_hint">Se aplica a Steam, los juegos, el escritorio y el editor de mandos. Los ajustes predefinidos de resolución giran con la sesión; el ancho y el alto personalizados se mantienen como se introdujeron.</string>
+    <string name="setup_session_orientation_hint">Se aplica a Steam, los juegos, el escritorio y el editor de mandos. Los ajustes predefinidos de resolución giran con la sesión; cuando una orientación sigue a la otra, el ancho y el alto personalizados se invierten para coincidir.</string>
     <string name="setup_orientation_auto">Horizontal automática</string>
     <string name="setup_orientation_landscape">Horizontal</string>
     <string name="setup_orientation_reverse">Horizontal invertida</string>
@@ -2488,10 +2486,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Pantalla de la sesión</string>
-    <string name="display_resolution">Resolución</string>
+    <string name="display_zero_copy">Presentación sin copia</string>
+    <string name="display_resolution_landscape">Resolución horizontal</string>
+    <string name="display_resolution_portrait">Resolución vertical</string>
+    <string name="display_follow_landscape">Igual que horizontal (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Igual que vertical (%1$d×%2$d)</string>
     <string name="display_game_fit">Ajuste de juegos 16:9</string>
     <string name="display_game_fit_hint">Cómo se ajustan los juegos 16:9 a esta pantalla. Próxima sesión.</string>
     <string name="display_game_fit_unavailable">Elige Igual a la pantalla o un tamaño personalizado más estrecho que 16:9.</string>
+    <string name="display_avoid_notch">Evitar la muesca</string>
+    <string name="display_avoid_notch_hint">Mantiene la imagen fuera del recorte de la cámara. Se aplica al volver a la sesión.</string>
     <string name="display_preserve">Mantener proporciones</string>
     <string name="display_stretch">Estirar a la pantalla</string>
     <string name="display_image_scaling">Escalado de imagen</string>

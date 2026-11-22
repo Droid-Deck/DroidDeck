@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Вывод HDR10</string>
     <string name="mode_hdr_unavailable">Недоступно: %1$s.</string>
-    <string name="mode_hdr_restart">Вступит в силу после перезапуска приложения.</string>
     <string name="mode_drivers">Драйверы</string>
     <string name="mode_gpu_drivers">Драйверы GPU</string>
     <string name="mode_gpu_drivers_hint">Общие для Steam и рабочего стола. Настройте на странице «Компоненты».</string>
@@ -808,7 +807,6 @@
     <string name="drawer_pc_keyboard">Клавиатура ПК</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Второй экран</string>
-    <string name="drawer_second_screen_mode">Режим</string>
     <string name="drawer_second_screen_shows">Показывать</string>
     <string name="drawer_android_apps">Приложения Android</string>
     <string name="drawer_launch_app">Запустить приложение</string>
@@ -960,7 +958,7 @@
     <string name="setup_launcher_orientation_auto">Следовать повороту устройства</string>
     <string name="setup_orientation_portrait">Портретная</string>
     <string name="setup_session_orientation">Ориентация сессии</string>
-    <string name="setup_session_orientation_hint">Применяется к Steam, играм, рабочему столу и редактору контроллера. Предустановки разрешения поворачиваются вместе с сессией; свои ширина и высота остаются как введены.</string>
+    <string name="setup_session_orientation_hint">Применяется к Steam, играм, рабочему столу и редактору контроллера. Предустановки разрешения поворачиваются вместе с сессией; когда одна ориентация следует за другой, свои ширина и высота меняются местами.</string>
     <string name="setup_orientation_auto">Альбомная (авто)</string>
     <string name="setup_orientation_landscape">Альбомная</string>
     <string name="setup_orientation_reverse">Перевернутая альбомная</string>
@@ -2514,10 +2512,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Экран сессии</string>
-    <string name="display_resolution">Разрешение</string>
+    <string name="display_zero_copy">Вывод без копирования</string>
+    <string name="display_resolution_landscape">Разрешение в альбомной ориентации</string>
+    <string name="display_resolution_portrait">Разрешение в портретной ориентации</string>
+    <string name="display_follow_landscape">Как в альбомной (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Как в портретной (%1$d×%2$d)</string>
     <string name="display_game_fit">Игры 16:9</string>
     <string name="display_game_fit_hint">Как игры 16:9 вписываются в этот экран. Вступит в силу в следующей сессии.</string>
     <string name="display_game_fit_unavailable">Выберите «По размеру экрана» или свой размер уже 16:9.</string>
+    <string name="display_avoid_notch">Обходить вырез</string>
+    <string name="display_avoid_notch_hint">Не выводит картинку под вырез камеры. Применяется при возврате в сессию.</string>
     <string name="display_preserve">Сохранять пропорции</string>
     <string name="display_stretch">Растянуть на экран</string>
     <string name="display_image_scaling">Масштабирование изображения</string>

@@ -84,15 +84,18 @@ static struct {
 static _Atomic int g_gate = -1;
 static char g_gate_why[320];
 static _Atomic int g_output_on = 1;
+static _Atomic int g_output_wanted = 1;
+static pthread_mutex_t g_output_mu = PTHREAD_MUTEX_INITIALIZER;
 
 void droiddeck_color_set_request(int mode, const char *source, int dxvk_hdr, int zero_copy_forced) {
     pthread_mutex_lock(&g_mu);
-    g_req.mode = mode < 0 ? 0 : mode > 2 ? 2 : mode;
+    g_req.mode = mode < 0 ? 0 : mode > 3 ? 3 : mode;
     snprintf(g_req.source, sizeof(g_req.source), "%s", source ? source : "environment");
     g_req.dxvk_hdr = dxvk_hdr ? 1 : 0;
     g_req.zero_copy_forced = zero_copy_forced ? 1 : 0;
     pthread_mutex_unlock(&g_mu);
     atomic_store(&g_output_on, 1);
+    atomic_store(&g_output_wanted, 1);
 }
 
 void droiddeck_color_set_display(int id, const char *name, const char *formats, int hdr10, float max_lum,
@@ -610,11 +613,23 @@ int droiddeck_color_tonemapped_on_screen(void) {
 
 void droiddeck_color_set_output(int on) {
     on = on ? 1 : 0;
-    if (atomic_load(&g_gate) != 1) {
-        droiddeck_log(TAG, "HDR output switch (%s) ignored: HDR is not open in this session", on ? "on" : "off");
+    pthread_mutex_lock(&g_mu);
+    const int tonemap_only = g_req.mode == 3;
+    pthread_mutex_unlock(&g_mu);
+    pthread_mutex_lock(&g_output_mu);
+    atomic_store(&g_output_wanted, on);
+    const int gate = atomic_load(&g_gate);
+    const int changed = gate == 1 && !(on && tonemap_only) && atomic_exchange(&g_output_on, on) != on;
+    pthread_mutex_unlock(&g_output_mu);
+    if (gate != 1) {
+        if (gate == 0) droiddeck_log(TAG, "HDR output switch (%s) ignored: HDR is not open in this session", on ? "on" : "off");
         return;
     }
-    if (atomic_exchange(&g_output_on, on) == on) return;
+    if (on && tonemap_only) {
+        droiddeck_log(TAG, "HDR output switch (on) ignored: this display cannot show HDR10, HDR frames stay tone-mapped");
+        return;
+    }
+    if (!changed) return;
     char who[160];
     int age = droiddeck_color_last_frame_age_ms(), tm = droiddeck_color_tonemapped_on_screen();
     pthread_mutex_lock(&g_mu);
@@ -658,6 +673,8 @@ static void desc_unref(struct cm_desc *d) { if (d && --d->refs <= 0) free(d); }
 
 struct cm_params {
     uint32_t tf, primaries;
+    int has_prim; int32_t prim[8];
+    int has_lum; uint32_t lum_ref;
     int has_mprim; int32_t mprim[8];
     int has_mlum; uint32_t mlum_min, mlum_max;
     int has_cll; uint32_t cll;
@@ -730,9 +747,83 @@ static void make_output_description(struct wl_client *c, struct wl_resource *par
                droiddeck_client_name(c), what, col->text);
 }
 
+static const float BT709_XY[8] = {0.64f, 0.33f, 0.30f, 0.60f, 0.15f, 0.06f, 0.3127f, 0.3290f};
+static const float BT2020_XY[8] = {0.708f, 0.292f, 0.170f, 0.797f, 0.131f, 0.046f, 0.3127f, 0.3290f};
+
+static void mat_mul(const double a[9], const double b[9], double out[9]) {
+    double m[9];
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            m[3 * i + j] = a[3 * i] * b[j] + a[3 * i + 1] * b[3 + j] + a[3 * i + 2] * b[6 + j];
+    memcpy(out, m, sizeof(m));
+}
+
+static int mat_invert(const double m[9], double out[9]) {
+    const double det = m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) +
+                       m[2] * (m[3] * m[7] - m[4] * m[6]);
+    if (det > -1e-12 && det < 1e-12) return -1;
+    const double k = 1.0 / det;
+    double r[9] = {(m[4] * m[8] - m[5] * m[7]) * k, (m[2] * m[7] - m[1] * m[8]) * k, (m[1] * m[5] - m[2] * m[4]) * k,
+                   (m[5] * m[6] - m[3] * m[8]) * k, (m[0] * m[8] - m[2] * m[6]) * k, (m[2] * m[3] - m[0] * m[5]) * k,
+                   (m[3] * m[7] - m[4] * m[6]) * k, (m[1] * m[6] - m[0] * m[7]) * k, (m[0] * m[4] - m[1] * m[3]) * k};
+    memcpy(out, r, sizeof(r));
+    return 0;
+}
+
+static int rgb_to_xyz(const float xy[8], double out[9], double white[3]) {
+    for (int i = 0; i < 4; i++)
+        if (xy[2 * i + 1] < 1e-4f) return -1;
+    double p[9], inv[9];
+    for (int i = 0; i < 3; i++) {
+        const double x = xy[2 * i], y = xy[2 * i + 1];
+        p[i] = x / y; p[3 + i] = 1.0; p[6 + i] = (1.0 - x - y) / y;
+    }
+    white[0] = xy[6] / xy[7]; white[1] = 1.0; white[2] = (1.0 - xy[6] - xy[7]) / xy[7];
+    if (mat_invert(p, inv) != 0) return -1;
+    for (int i = 0; i < 3; i++) {
+        const double scale = inv[3 * i] * white[0] + inv[3 * i + 1] * white[1] + inv[3 * i + 2] * white[2];
+        out[i] = p[i] * scale; out[3 + i] = p[3 + i] * scale; out[6 + i] = p[6 + i] * scale;
+    }
+    return 0;
+}
+
+static int matrix_to_bt2020(const float xy[8], float out[9]) {
+    static const double bradford[9] = {0.8951, 0.2664, -0.1614, -0.7502, 1.7135, 0.0367, 0.0389, -0.0685, 1.0296};
+    double src[9], dst[9], dst_inv[9], sw[3], dw[3], cone_inv[9], adapt[9], m[9];
+    if (rgb_to_xyz(xy, src, sw) != 0 || rgb_to_xyz(BT2020_XY, dst, dw) != 0) return -1;
+    if (mat_invert(dst, dst_inv) != 0 || mat_invert(bradford, cone_inv) != 0) return -1;
+    double scale[9] = {0};
+    for (int i = 0; i < 3; i++) {
+        const double from = bradford[3 * i] * sw[0] + bradford[3 * i + 1] * sw[1] + bradford[3 * i + 2] * sw[2];
+        const double to = bradford[3 * i] * dw[0] + bradford[3 * i + 1] * dw[1] + bradford[3 * i + 2] * dw[2];
+        if (from > -1e-9 && from < 1e-9) return -1;
+        scale[4 * i] = to / from;
+    }
+    mat_mul(scale, bradford, adapt);
+    mat_mul(cone_inv, adapt, adapt);
+    mat_mul(adapt, src, m);
+    mat_mul(dst_inv, m, m);
+    for (int i = 0; i < 9; i++) out[i] = (float)m[i];
+    return 0;
+}
+
+static struct wl_resource *publish_description(struct wl_client *client, struct wl_resource *parent, uint32_t id,
+                                               struct cm_desc *d) {
+    struct wl_resource *out = wl_resource_create(client, &wp_image_description_v1_interface,
+                                                 wl_resource_get_version(parent), id);
+    if (!out) { free(d); wl_client_post_no_memory(client); return NULL; }
+    d->refs = 1;
+    wl_resource_set_implementation(out, &image_description_impl, d, image_description_resource_destroy);
+    wp_image_description_v1_send_ready(out, d->c.identity);
+    pthread_mutex_lock(&g_mu);
+    g_hdr.descs++;
+    pthread_mutex_unlock(&g_mu);
+    return out;
+}
+
 static void params_create(struct wl_client *client, struct wl_resource *r, uint32_t id) {
     struct cm_params *p = wl_resource_get_user_data(r);
-    if (!p->tf || !p->primaries) {
+    if (!p->tf || (!p->primaries && !p->has_prim)) {
         wl_resource_post_error(r, WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INCOMPLETE_SET,
                                "transfer function and primaries must both be set");
         return;
@@ -744,10 +835,29 @@ static void params_create(struct wl_client *client, struct wl_resource *r, uint3
     if (!g_next_identity) g_next_identity = 1;
     c->primaries = p->primaries;
     c->tf = p->tf;
-    if (p->primaries == WP_COLOR_MANAGER_V1_PRIMARIES_BT2020 && p->tf == WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ)
+    const float ref = p->has_lum ? (float)p->lum_ref : 203.0f;
+    float xy[8];
+    for (int i = 0; i < 8; i++)
+        xy[i] = p->has_prim ? p->prim[i] / 1e6f
+              : p->primaries == WP_COLOR_MANAGER_V1_PRIMARIES_SRGB ? BT709_XY[i] : BT2020_XY[i];
+    if (p->primaries == WP_COLOR_MANAGER_V1_PRIMARIES_BT2020 && ref == 203.0f) {
         c->dataspace = DROIDDECK_ADATASPACE_BT2020_PQ;
-    else if (p->primaries == WP_COLOR_MANAGER_V1_PRIMARIES_BT2020 && p->tf == WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_HLG)
-        c->dataspace = DROIDDECK_ADATASPACE_BT2020_HLG;
+    } else if (matrix_to_bt2020(xy, c->to2020) == 0) {
+        c->convert = 1;
+        c->gain = 10000.0f * 203.0f / ref;
+    } else {
+        struct wl_resource *bad = wl_resource_create(client, &wp_image_description_v1_interface,
+                                                     wl_resource_get_version(r), id);
+        free(d);
+        if (!bad) { wl_client_post_no_memory(client); return; }
+        wl_resource_set_implementation(bad, &image_description_impl, NULL, NULL);
+        wp_image_description_v1_send_failed(bad, WP_IMAGE_DESCRIPTION_V1_CAUSE_UNSUPPORTED,
+                                            "the primaries do not form a colour space");
+        droiddeck_log(TAG, "image description from %s refused: its primaries do not form a colour space",
+                   droiddeck_client_name(client));
+        wl_resource_destroy(r);
+        return;
+    }
 
     char dropped[160] = "";
     float mlum_min = 0.005f, mlum_max = 10000.0f;
@@ -781,7 +891,12 @@ static void params_create(struct wl_client *client, struct wl_resource *r, uint3
     }
     if (cll > 0.0f || fall > 0.0f) { c->has_cta861 = 1; c->max_cll = cll; c->max_fall = fall; }
 
-    int n = snprintf(c->text, sizeof(c->text), "%s, %s", primaries_name(c->primaries), tf_name(c->tf));
+    int n = snprintf(c->text, sizeof(c->text), "%s, %s", p->has_prim ? "custom primaries" : primaries_name(c->primaries),
+                     tf_name(c->tf));
+    if (c->convert && n < (int)sizeof(c->text))
+        n += snprintf(c->text + n, sizeof(c->text) - (size_t)n,
+                      "; R %.4f,%.4f G %.4f,%.4f B %.4f,%.4f W %.4f,%.4f, reference white %.0f nits",
+                      xy[0], xy[1], xy[2], xy[3], xy[4], xy[5], xy[6], xy[7], ref);
     if (c->has_st2086 && n < (int)sizeof(c->text))
         n += snprintf(c->text + n, sizeof(c->text) - (size_t)n,
                       "; mastering R %.4f,%.4f G %.4f,%.4f B %.4f,%.4f W %.4f,%.4f, %.4f-%.0f nits%s",
@@ -793,19 +908,13 @@ static void params_create(struct wl_client *client, struct wl_resource *r, uint3
     if (!c->has_st2086 && !c->has_cta861 && n < (int)sizeof(c->text))
         snprintf(c->text + n, sizeof(c->text) - (size_t)n, " (no HDR metadata: the game has not called vkSetHdrMetadataEXT)");
 
-    struct wl_resource *out = wl_resource_create(client, &wp_image_description_v1_interface,
-                                                 wl_resource_get_version(r), id);
-    if (!out) { free(d); wl_client_post_no_memory(client); return; }
-    d->refs = 1;
-    wl_resource_set_implementation(out, &image_description_impl, d, image_description_resource_destroy);
-    wp_image_description_v1_send_ready(out, c->identity);
-    if (c->dataspace) {
-        pthread_mutex_lock(&g_mu);
-        g_hdr.descs++;
-        pthread_mutex_unlock(&g_mu);
-    }
-    droiddeck_log(TAG, "image description #%u from %s: %s -> ready (on a display layer: dataspace %s)", c->identity,
-               droiddeck_client_name(client), c->text, dataspace_name(c->dataspace));
+    if (!publish_description(client, r, id, d)) return;
+    if (c->convert)
+        droiddeck_log(TAG, "image description #%u from %s: %s -> ready (converted to BT.2020 PQ when the scene is "
+                   "composed)", c->identity, droiddeck_client_name(client), c->text);
+    else
+        droiddeck_log(TAG, "image description #%u from %s: %s -> ready (on a display layer: dataspace %s)", c->identity,
+                   droiddeck_client_name(client), c->text, dataspace_name(c->dataspace));
     if (dropped[0]) {
         size_t l = strlen(dropped);
         if (l && dropped[l - 1] == ',') dropped[l - 1] = 0;
@@ -840,8 +949,8 @@ static void params_set_tf_power(struct wl_client *c, struct wl_resource *r, uint
 }
 static void params_set_primaries_named(struct wl_client *c, struct wl_resource *r, uint32_t primaries) {
     struct cm_params *p = wl_resource_get_user_data(r);
-    PARAMS_ONCE(p->primaries, "primaries");
-    if (primaries != WP_COLOR_MANAGER_V1_PRIMARIES_BT2020) {
+    PARAMS_ONCE(p->primaries || p->has_prim, "primaries");
+    if (primaries != WP_COLOR_MANAGER_V1_PRIMARIES_BT2020 && primaries != WP_COLOR_MANAGER_V1_PRIMARIES_SRGB) {
         wl_resource_post_error(r, WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_PRIMARIES_NAMED,
                                "primaries %u were not advertised", primaries);
         return;
@@ -850,12 +959,21 @@ static void params_set_primaries_named(struct wl_client *c, struct wl_resource *
 }
 static void params_set_primaries(struct wl_client *c, struct wl_resource *r, int32_t rx, int32_t ry, int32_t gx,
                                  int32_t gy, int32_t bx, int32_t by, int32_t wx, int32_t wy) {
-    wl_resource_post_error(r, WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_UNSUPPORTED_FEATURE,
-                           "set_primaries is not supported");
+    struct cm_params *p = wl_resource_get_user_data(r);
+    PARAMS_ONCE(p->primaries || p->has_prim, "primaries");
+    p->has_prim = 1;
+    p->prim[0] = rx; p->prim[1] = ry; p->prim[2] = gx; p->prim[3] = gy;
+    p->prim[4] = bx; p->prim[5] = by; p->prim[6] = wx; p->prim[7] = wy;
 }
 static void params_set_luminances(struct wl_client *c, struct wl_resource *r, uint32_t mn, uint32_t mx, uint32_t ref) {
-    wl_resource_post_error(r, WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_UNSUPPORTED_FEATURE,
-                           "set_luminances is not supported");
+    struct cm_params *p = wl_resource_get_user_data(r);
+    PARAMS_ONCE(p->has_lum, "luminances");
+    if ((uint64_t)mx * 10000u <= mn || (uint64_t)ref * 10000u <= mn) {
+        wl_resource_post_error(r, WP_IMAGE_DESCRIPTION_CREATOR_PARAMS_V1_ERROR_INVALID_LUMINANCE,
+                               "maximum and reference luminance must be above the minimum");
+        return;
+    }
+    p->has_lum = 1; p->lum_ref = ref;
 }
 static void params_set_mastering_display_primaries(struct wl_client *c, struct wl_resource *r, int32_t rx, int32_t ry,
                                                    int32_t gx, int32_t gy, int32_t bx, int32_t by, int32_t wx, int32_t wy) {
@@ -1083,7 +1201,20 @@ static void cm_create_parametric_creator(struct wl_client *c, struct wl_resource
 }
 
 static void cm_create_windows_scrgb(struct wl_client *c, struct wl_resource *r, uint32_t id) {
-    wl_resource_post_error(r, WP_COLOR_MANAGER_V1_ERROR_UNSUPPORTED_FEATURE, "windows_scrgb is not supported");
+    struct cm_desc *d = calloc(1, sizeof(*d));
+    if (!d) { wl_client_post_no_memory(c); return; }
+    struct droiddeck_color *col = &d->c;
+    col->identity = g_next_identity++;
+    if (!g_next_identity) g_next_identity = 1;
+    col->primaries = WP_COLOR_MANAGER_V1_PRIMARIES_SRGB;
+    col->tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR;
+    col->convert = 2;
+    col->gain = 80.0f;
+    matrix_to_bt2020(BT709_XY, col->to2020);
+    snprintf(col->text, sizeof(col->text), "%s, %s (1.0 = 80 nits)", primaries_name(col->primaries), tf_name(col->tf));
+    if (!publish_description(c, r, id, d)) return;
+    droiddeck_log(TAG, "image description #%u from %s: %s -> ready (converted to BT.2020 PQ when the scene is composed)",
+               col->identity, droiddeck_client_name(c), col->text);
 }
 
 static const struct wp_color_manager_v1_interface cm_impl = {
@@ -1103,14 +1234,20 @@ static void bind_cm(struct wl_client *c, void *data, uint32_t ver, uint32_t id) 
     wl_resource_set_implementation(r, &cm_impl, NULL, NULL);
     wp_color_manager_v1_send_supported_intent(r, WP_COLOR_MANAGER_V1_RENDER_INTENT_PERCEPTUAL);
     wp_color_manager_v1_send_supported_feature(r, WP_COLOR_MANAGER_V1_FEATURE_PARAMETRIC);
+    wp_color_manager_v1_send_supported_feature(r, WP_COLOR_MANAGER_V1_FEATURE_SET_PRIMARIES);
+    wp_color_manager_v1_send_supported_feature(r, WP_COLOR_MANAGER_V1_FEATURE_SET_LUMINANCES);
     wp_color_manager_v1_send_supported_feature(r, WP_COLOR_MANAGER_V1_FEATURE_SET_MASTERING_DISPLAY_PRIMARIES);
+    wp_color_manager_v1_send_supported_feature(r, WP_COLOR_MANAGER_V1_FEATURE_EXTENDED_TARGET_VOLUME);
+    wp_color_manager_v1_send_supported_feature(r, WP_COLOR_MANAGER_V1_FEATURE_WINDOWS_SCRGB);
+    wp_color_manager_v1_send_supported_primaries_named(r, WP_COLOR_MANAGER_V1_PRIMARIES_SRGB);
     wp_color_manager_v1_send_supported_primaries_named(r, WP_COLOR_MANAGER_V1_PRIMARIES_BT2020);
     wp_color_manager_v1_send_supported_tf_named(r, WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ);
     wp_color_manager_v1_send_done(r);
     if (last_named != c) {
         last_named = c;
         droiddeck_log(TAG, "%s bound wp_color_manager_v1 version %u (offered: perceptual intent; parametric descriptions "
-                   "with mastering metadata; BT.2020 primaries; ST 2084 PQ) - its Vulkan driver can now list "
+                   "with custom primaries, luminances and mastering metadata; Windows scRGB; sRGB and BT.2020 primaries; "
+                   "ST 2084 PQ) - its Vulkan driver can now list "
                    "VK_COLOR_SPACE_HDR10_ST2084_EXT", droiddeck_client_name(c), ver > 1 ? 1u : ver);
     }
 }
@@ -1150,6 +1287,7 @@ void droiddeck_color_init(struct wl_display *display) {
 
     char asked[128];
     if (mode == 2) snprintf(asked, sizeof(asked), "DROIDDECK_WAYLAND_HDR=force (%s)", source);
+    else if (mode == 3) snprintf(asked, sizeof(asked), "HDR is on, tone-mapped for this display (%s)", source);
     else if (strstr(source, "env")) snprintf(asked, sizeof(asked), "DROIDDECK_WAYLAND_HDR=1 (%s)", source);
     else snprintf(asked, sizeof(asked), "HDR output is on (%s)", source);
 
@@ -1168,7 +1306,7 @@ void droiddeck_color_init(struct wl_display *display) {
         snprintf(why, sizeof(why), "this Android has no display layers with dataspace control "
                  "(ASurfaceControl + ASurfaceTransaction_setBufferDataSpace, Android 10+)");
     else if (!ahb_ok)
-        snprintf(why, sizeof(why), "zero-copy presentation is unavailable here (banner_ahb_v1 not advertised), and an "
+        snprintf(why, sizeof(why), "zero-copy presentation is unavailable here (droiddeck_ahb_v1 not advertised), and an "
                  "HDR frame is only honest on the game's own display layer");
 
     if (why[0]) {
@@ -1198,13 +1336,20 @@ void droiddeck_color_init(struct wl_display *display) {
         log_verdict(1);
         return;
     }
+    pthread_mutex_lock(&g_output_mu);
     atomic_store(&g_gate, 1);
+    if (mode == 3 || !atomic_load(&g_output_wanted)) atomic_store(&g_output_on, 0);
+    pthread_mutex_unlock(&g_output_mu);
     char syms[160];
     sc_layer_hdr_symbols(syms, sizeof(syms));
     droiddeck_log(TAG, "HDR gate %s: %s and %s. Offering games HDR10: wp_color_manager_v1 version 1 (BT.2020 primaries "
                "+ ST 2084 PQ, parametric descriptions with mastering metadata) and 10-bit AB30/XB30 dma-buf formats; HDR "
                "frames go on the game's own display layer as BT2020_PQ (%s)",
                mode == 2 ? "FORCED OPEN (testing)" : "OPEN", asked, disp, syms);
+    if (mode == 3) {
+        droiddeck_log(TAG, "this display cannot show HDR10: games still render HDR and every HDR frame is tone-mapped to "
+                   "SDR on the game's display layer");
+    }
     if (mode == 2 && !hdr10)
         droiddeck_log(TAG, "DROIDDECK_WAYLAND_HDR=force on a display without HDR10 - testing only: SurfaceFlinger will tone-map "
                    "the game layer for this panel (expect GPU/CLIENT composition for it), nothing looks HDR");

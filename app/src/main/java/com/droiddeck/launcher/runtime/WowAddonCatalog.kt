@@ -38,7 +38,6 @@ object WowAddonCatalog {
     internal class Cat(val id: String, val name: String, val parents: List<String>)
 
     private const val WOWI = "https://api.mmoui.com/v3/game/WOW/"
-    private const val CURSEFORGE = "https://www.curseforge.com/wow/search?class=addons"
     private const val WOWI_FILES = "wowi-filelist.json"
     internal const val FRESH_MS = 6L * 60 * 60 * 1000
 
@@ -209,10 +208,12 @@ object WowAddonCatalog {
 
     fun categories(context: Context): List<Category> = wowiCategories(context).map { Category(it.id, it.name) }
 
-    internal fun parseWowiDetails(json: String): Pair<String, String?>? {
+    internal class Details(val url: String, val md5: String?, val version: String?)
+
+    internal fun parseWowiDetails(json: String): Details? {
         val o = JSONArray(json).optJSONObject(0) ?: return null
         val url = o.optString("UIDownload").ifEmpty { return null }
-        return url to o.optString("UIMD5").ifEmpty { null }
+        return Details(url, o.optString("UIMD5").ifEmpty { null }, o.optString("UIVersion").trim().ifEmpty { null })
     }
 
     internal fun isHttps(url: String) = url.startsWith("https://", ignoreCase = true)
@@ -220,10 +221,11 @@ object WowAddonCatalog {
     internal fun md5Matches(file: File, expected: String?): Boolean =
         expected.isNullOrBlank() || Hashes.md5(file).equals(expected.trim(), ignoreCase = true)
 
-    fun download(context: Context, addon: Addon, dest: File, progress: (Int) -> Unit): File {
+    fun download(context: Context, addon: Addon, dest: File, progress: (Int) -> Unit): String? {
         val body = StoreNet.get(WOWI + "filedetails/${URLEncoder.encode(addon.id, "UTF-8")}.json", timeoutMs = 30_000)
             ?: throw unreachable(context)
-        val (url, md5) = parseWowiDetails(body) ?: throw IOException(context.getString(R.string.addons_no_file))
+        val details = parseWowiDetails(body) ?: throw IOException(context.getString(R.string.addons_no_file))
+        val url = details.url
         if (!isHttps(url)) throw IOException(context.getString(R.string.addons_no_file))
         dest.parentFile?.mkdirs()
         dest.delete()
@@ -232,14 +234,33 @@ object WowAddonCatalog {
             dest.delete()
             throw unreachable(context)
         }
-        if (!md5Matches(dest, md5)) {
+        if (!md5Matches(dest, details.md5)) {
             dest.delete()
             throw IOException(context.getString(R.string.selfinst_checksum_mismatch))
         }
         progress(100)
-        return dest
+        return details.version
     }
 
-    internal fun curseForgeUrl(text: String): String =
-        text.trim().let { if (it.isEmpty()) CURSEFORGE else CURSEFORGE + "&search=" + URLEncoder.encode(it, "UTF-8") }
+    internal fun sameVersion(a: String, b: String): Boolean {
+        fun norm(v: String) = v.trim().removePrefix("v").removePrefix("V").trim().lowercase()
+        return norm(a) == norm(b)
+    }
+
+    internal fun findUpdates(entries: List<Entry>, installed: List<WowAddons.Installed>): Map<String, Addon> {
+        val byId = entries.associateBy { it.addon.id }
+        val seen = HashSet<String>()
+        return installed.mapNotNull { item ->
+            val id = item.wowiId ?: return@mapNotNull null
+            val version = item.version ?: return@mapNotNull null
+            val latest = byId[id]?.addon?.takeIf { it.summary.isNotBlank() } ?: return@mapNotNull null
+            if (sameVersion(version, latest.summary) || !seen.add(id)) null else item.name to latest
+        }.toMap()
+    }
+
+    fun updates(context: Context, installed: List<WowAddons.Installed>, target: WowAddons.Target): Map<String, Addon> {
+        if (installed.none { it.wowiId != null }) return emptyMap()
+        val family = client(target).family
+        return runCatching { findUpdates(wowiEntries(context).filter { flavorMatches(it.flavors, family) }, installed) }.getOrDefault(emptyMap())
+    }
 }
