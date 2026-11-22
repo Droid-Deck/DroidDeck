@@ -17,8 +17,11 @@ import android.os.Looper
 import android.util.Log
 import android.view.Display
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.widget.EditText
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -2040,6 +2043,36 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 }
             }
         }
+    }
+
+    private var touchDownX = 0f
+    private var touchDownY = 0f
+    private var touchDragged = false
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                com.droiddeck.launcher.ui.ScreenTaps.count++
+                touchDownX = event.rawX
+                touchDownY = event.rawY
+                touchDragged = false
+            }
+            // A drag that wanders back to where it began is still a drag, not a tap.
+            MotionEvent.ACTION_MOVE -> if (!touchDragged &&
+                kotlin.math.hypot(event.rawX - touchDownX, event.rawY - touchDownY) > ViewConfiguration.get(this).scaledTouchSlop
+            ) touchDragged = true
+            MotionEvent.ACTION_CANCEL -> touchDragged = true
+        }
+        val handled = super.dispatchTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP) leaveTextFieldOnOutsideTap(event)
+        return handled
+    }
+
+    private fun leaveTextFieldOnOutsideTap(event: MotionEvent) {
+        val field = currentFocus as? EditText ?: return
+        val slop = ViewConfiguration.get(this).scaledTouchSlop
+        if (touchDragged || kotlin.math.hypot(event.rawX - touchDownX, event.rawY - touchDownY) > slop) return
+        com.droiddeck.launcher.ui.releaseTextField(field, IntArray(2).also(field::getLocationOnScreen), event.rawX, event.rawY)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

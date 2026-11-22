@@ -162,7 +162,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     LaunchedEffect(results, results.items.isNotEmpty()) {
         if (results.items.isNotEmpty() && !searching && inputMode.inputMode == InputMode.Keyboard) focusSoon { firstAction }
     }
-    AppDialog(shown, close, "addonBrowser", wide = true, maxWidth = 980.dp, scrollable = false, fillHeight = true) {
+    AppDialog(shown, close, "addonBrowser", wide = true, maxWidth = 980.dp, scrollable = false, fillHeight = true, modifier = Modifier.releaseTextFieldOnTap()) {
         val sortChip: @Composable () -> Unit = {
             BrowseDropdown(sortLabel(sort)) { first, done ->
                 WowAddonCatalog.Sort.entries.forEachIndexed { index, option ->
