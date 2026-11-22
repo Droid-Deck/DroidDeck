@@ -66,7 +66,7 @@ try:
             break
         time.sleep(0.05)
     res = subprocess.run(["bash", harness, "steam"],
-                         env=dict(os.environ, BL_INSIDE="1"),
+                         env=dict(os.environ, DD_INSIDE="1"),
                          capture_output=True, text=True, timeout=15)
     out, rc = res.stdout, res.returncode
     if orphan_adopted:
@@ -120,7 +120,7 @@ export HOME=${{HOME:-/root}}
 mode=${{1:-desktop}}
 shift || true
 {guard_before}
-if [ -z "${{BL_INSIDE:-}}" ]; then
+if [ -z "${{DD_INSIDE:-}}" ]; then
   exec "$DD_FIXTURE" "$0"
 fi
 {guard_after}
@@ -130,7 +130,7 @@ printf 'BUS=%s\n' "${{DBUS_SESSION_BUS_ADDRESS:-}}"
 reap_orphans
 """
 
-SETUP = 'if [ -z "${BL_INSIDE:-}" ]; then\n  /usr/local/bin/droiddeck-fonts'
+SETUP = 'if [ -z "${DD_INSIDE:-}" ]; then\n  /usr/local/bin/droiddeck-fonts'
 
 
 def extract():
@@ -169,7 +169,7 @@ class SessionDBusTest(unittest.TestCase):
             fixture.write_text(FIXTURE, encoding="utf-8")
             fixture.chmod(0o755)
             env = {k: v for k, v in os.environ.items()
-                   if k not in ("DBUS_SESSION_BUS_ADDRESS", "BL_INSIDE")}
+                   if k not in ("DBUS_SESSION_BUS_ADDRESS", "DD_INSIDE")}
             env["DD_FIXTURE"] = str(fixture)
             cmd = ["bash", str(harness), "steam"]
             if inherited:

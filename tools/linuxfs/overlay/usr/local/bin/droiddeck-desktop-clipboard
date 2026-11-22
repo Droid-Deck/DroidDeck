@@ -1,12 +1,12 @@
 #!/bin/bash
 [ -n "${DISPLAY:-}" ] || exit 0
 children=()
-if [ -n "${BL_ANDROID_CLIPBOARD:-}" ]; then
-  /usr/local/bin/droiddeck-clipboard "$BL_ANDROID_CLIPBOARD" &
+if [ -n "${DD_ANDROID_CLIPBOARD:-}" ]; then
+  /usr/local/bin/droiddeck-clipboard "$DD_ANDROID_CLIPBOARD" &
   children+=("$!")
 fi
-if [ -n "${BL_LAUNCH_DIR:-}" ] && [ -x /usr/local/bin/droiddeck-text-input ]; then
-  /usr/local/bin/droiddeck-text-input "$BL_LAUNCH_DIR/text-input.sock" &
+if [ -n "${DD_LAUNCH_DIR:-}" ] && [ -x /usr/local/bin/droiddeck-text-input ]; then
+  /usr/local/bin/droiddeck-text-input "$DD_LAUNCH_DIR/text-input.sock" &
   children+=("$!")
 fi
 [ "${#children[@]}" -gt 0 ] || exit 0

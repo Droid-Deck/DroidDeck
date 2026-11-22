@@ -128,15 +128,15 @@ docker run --rm --platform "${docker_platform}" \
             -o "$d/libfakeinput.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libfakeinput.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-            -o "$d/libblsession.so" tools/linuxfs/preload/*.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libblsession.so"
+            -o "$d/libddsession.so" tools/linuxfs/preload/*.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libddsession.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-            -o "$d/libblfastpath.so" tools/proot/fastpath/fastpath.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libblfastpath.so"
+            -o "$d/libddfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libddfastpath.so"
         bash tools/nativeguest/build.sh "$d/libddnatv-hook.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
-          -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libblaudit.so" tools/proot/fastpath/audit.c
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libblaudit.so"
+          -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libddaudit.so" tools/proot/fastpath/audit.c
+        aarch64-linux-gnu-strip --strip-unneeded "$d/libddaudit.so"
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
@@ -439,6 +439,13 @@ if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
         command -v i686-w64-mingw32-gcc >/dev/null 2>&1 || { echo "i686-w64-mingw32-gcc is required for the Rockstar launcher service." >&2; exit 1; }
         CARGO_TARGET_DIR="${cache_dir}/rockstar-target" bash tools/rockstar-launcher/build.sh "${rockstar_out}"
         save_step rockstar "${rockstar_key}" "${rockstar_out}"
+    fi
+    epic_out="${linuxfs_dir}/usr/local/lib/droiddeck-epic"
+    epic_key=$(inputs_hash "x86_64-pc-windows-gnu" tools/epic-launcher/src tools/epic-launcher/Cargo.toml tools/epic-launcher/Cargo.lock tools/epic-launcher/build.sh)
+    if ! restore_step epic "${epic_key}" "${epic_out}"; then
+        command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { echo "x86_64-w64-mingw32-gcc is required for EpicGamesLauncher.exe." >&2; exit 1; }
+        CARGO_TARGET_DIR="${cache_dir}/epic-target" bash tools/epic-launcher/build.sh "${epic_out}"
+        save_step epic "${epic_key}" "${epic_out}"
     fi
 fi
 python3 tools/powervr/fetch.py

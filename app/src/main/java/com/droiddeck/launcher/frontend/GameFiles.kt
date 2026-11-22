@@ -2,6 +2,9 @@ package com.droiddeck.launcher.frontend
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
 import android.util.AtomicFile
 import com.droiddeck.launcher.R
 import androidx.core.util.readText
@@ -13,26 +16,64 @@ import java.io.InputStream
 
 object GameFiles {
     const val EXTENSION = "steam"
-    private const val MAX_BYTES = 128
+    private const val MAX_BYTES = 4096
     private const val MAX_NAME_BYTES = 200
     private const val INVENTORY = ".droiddeck-sync.json"
     private const val FORMAT = "droiddeck-game-files-v1"
 
-    fun readIntent(context: Context, request: Intent): String? = runCatching {
+    fun readIntent(context: Context, request: Intent): GameRequest? = runCatching {
         if (request.action != Intent.ACTION_VIEW) return null
         val uri = request.data ?: return null
-        GameLaunchLink.parse(uri.toString())?.let { return it }
+        GameRequest.link(uri.toString())?.let { return GameRequest(it) }
+        val name = displayName(context, uri)
+        val extension = name?.substringAfterLast('.', "").orEmpty()
+        if (extension.lowercase(java.util.Locale.ROOT) in GameRequest.PROGRAMS) {
+            val program = localFile(context, uri)?.takeIf { it.isFile } ?: return null
+            return GameRequest(title = name?.substringBeforeLast('.'), program = program.canonicalFile)
+        }
         val stream = when (uri.scheme) {
-            "content" -> context.contentResolver.openInputStream(uri)
-            "file" -> {
-                if (!uri.authority.isNullOrEmpty() || uri.query != null || uri.fragment != null) return null
-                File(uri.path ?: return null).inputStream()
-            }
-            null -> File(uri.toString()).takeIf { it.isAbsolute }?.inputStream()
+            "content" -> runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
+                ?: localFile(context, uri)?.takeIf { it.isFile }?.inputStream()
+            "file", null -> localFile(context, uri)?.inputStream()
             else -> null
         } ?: return null
-        stream.use(::read)
+        val id = stream.use(::read) ?: return null
+        GameRequest(id, GameRequest.sourceOf(extension), name?.substringBeforeLast('.'))
     }.getOrNull()
+
+    private fun displayName(context: Context, uri: Uri): String? = when (uri.scheme) {
+        "content" -> runCatching {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')
+        "file" -> uri.path?.let { File(it).name }
+        null -> File(uri.toString()).name
+        else -> null
+    }?.takeIf { it.isNotEmpty() }
+
+    private fun localFile(context: Context, uri: Uri): File? = when (uri.scheme) {
+        "file" -> {
+            if (!uri.authority.isNullOrEmpty() || uri.query != null || uri.fragment != null) null
+            else uri.path?.let(::File)
+        }
+        null -> File(uri.toString()).takeIf { it.isAbsolute }
+        "content" -> storageDocument(context, uri) ?: uri.pathSegments.let { parts ->
+            (0..1).asSequence().map { File("/" + parts.drop(it).joinToString("/")) }.firstOrNull { it.isFile }
+        }
+        else -> null
+    }
+
+    // Frontends pass SAF document URIs or FileProvider URIs whose path mirrors shared storage.
+    private fun storageDocument(context: Context, uri: Uri): File? {
+        if (uri.authority != "com.android.externalstorage.documents" || !DocumentsContract.isDocumentUri(context, uri)) return null
+        val id = DocumentsContract.getDocumentId(uri)
+        val volume = id.substringBefore(':')
+        val path = id.substringAfter(':', "")
+        val root = if (volume.equals("primary", ignoreCase = true)) android.os.Environment.getExternalStorageDirectory()
+            else File("/storage", volume)
+        return File(root, path)
+    }
 
     fun read(stream: InputStream): String? {
         val bytes = ByteArray(MAX_BYTES + 1)
@@ -44,8 +85,7 @@ object GameFiles {
             count += n
         }
         if (count > MAX_BYTES) return null
-        val text = String(bytes, 0, count, Charsets.UTF_8).trim()
-        return text.takeIf(GameLaunchLink::validId)
+        return GameRequest.parse(String(bytes, 0, count, Charsets.UTF_8))
     }
 
     fun filename(game: Library.SteamGame, disambiguate: Boolean = false): String {
@@ -61,7 +101,7 @@ object GameFiles {
         }
         val title = String(points, 0, end).trimEnd { it.isWhitespace() || it == '.' }.ifBlank { "Game" }
         val suffix = if (disambiguate) " (${game.gameIdString})" else ""
-        return "$title$suffix.$EXTENSION"
+        return "$title$suffix.${GameRequest.extension(game)}"
     }
 
     private fun contents(id: String): String {
@@ -130,7 +170,7 @@ object GameFiles {
         }
         for (name in previous.keys()) {
             val id = previous.getString(name)
-            if (!next.has(name) && name.endsWith(".$EXTENSION") && GameLaunchLink.validId(id)) {
+            if (!next.has(name) && ours(name) && GameLaunchLink.validId(id)) {
                 val file = child(context, folder, name)
                 if (matches(file, contents(id))) {
                     val retained = exports.any { java.nio.file.Files.isSameFile(it.toPath(), file.toPath()) }
@@ -140,6 +180,9 @@ object GameFiles {
         }
         if (previous.toString() != next.toString()) write(inventory, JSONObject().put("format", FORMAT).put("games", next).toString())
     }
+
+    private fun ours(name: String) = name.substringAfterLast('.', "").lowercase(java.util.Locale.ROOT)
+        .let { it == EXTENSION || it in GameRequest.extensions }
 
     private fun inventoryOwns(context: Context, folder: File, record: JSONObject, file: File, id: String): Boolean {
         if (record.optString(file.name) == id) return true

@@ -51,6 +51,10 @@ class VkDmabufQuarantineTest(unittest.TestCase):
             # One surface per buffer in these scenarios: never shown elsewhere.
             helpers += ['static int buffer_shown_elsewhere(struct wl_resource *b, const struct surface *e) '
                         '{ (void)b; (void)e; return 0; }']
+        if re.search(r'^static void release_due_buffers\(void\) \{', comp, re.M):
+            helpers += ['static void release_due_buffers(void);', 'static void arm_release_timer(void);',
+                        function(comp, 'sync_holder')]
+            names.insert(names.index('on_release_timer'), 'release_due_buffers')
         if re.search(r'\bvolatile int g_release_unpaced;', comp):
             # Releases stay paced in these scenarios (fps limit -1 sends them at once).
             helpers.insert(0, 'static int g_release_unpaced;')

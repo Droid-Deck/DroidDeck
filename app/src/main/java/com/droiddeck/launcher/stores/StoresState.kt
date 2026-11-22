@@ -202,6 +202,7 @@ object StoresState {
             backend?.signOut(app)
             if (store == Store.GOG) com.droiddeck.launcher.stores.gog.GogComet.replaceAccount { StoreAccounts.clear(app, store) }
             else if (store != Store.XBOX || backend == null) StoreAccounts.clear(app, store)
+            StoreLibraryCache.clear(app, store)
             if (store == Store.GAMEJOLT) {
                 com.droiddeck.launcher.stores.gamejolt.GameJoltCollections.clear()
                 com.droiddeck.launcher.stores.gamejolt.GameJoltUpdates.clear(app)

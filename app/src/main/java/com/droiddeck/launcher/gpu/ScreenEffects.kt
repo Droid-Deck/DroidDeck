@@ -2,6 +2,7 @@ package com.droiddeck.launcher.gpu
 
 import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import org.json.JSONObject
 import kotlin.math.abs
@@ -16,30 +17,36 @@ data class ScreenEffects(
     val hdr: Boolean = false,
     val deband: Boolean = false,
     val debandStrength: Int = 100,
-    val fxaa: Boolean = false,
+    val aaMode: Int = AA_OFF,
     val toon: Boolean = false,
     val crt: Boolean = false,
     val ntsc: Boolean = false,
 ) {
+    val fxaa: Boolean get() = aaMode == AA_FXAA
+    val smaa: Boolean get() = aaMode == AA_SMAA
     val effectiveCas: Int get() = if (cas) casLevel else 0
 
     val any: Boolean get() = brightness != 0 || contrast != 0 || abs(gamma - 1f) > 0.005f || saturation != 100 ||
-        effectiveCas > 0 || hdr || deband || fxaa || toon || crt || ntsc
+        effectiveCas > 0 || hdr || deband || aaMode != AA_OFF || toon || crt || ntsc
 
     fun push(upscaler: Int) {
         WaylandCompositor.nativeSetCas(cas, casLevel)
-        WaylandCompositor.nativeSetHdr(hdr)
+        WaylandCompositor.nativeSetHdr(hdr && !SessionState.hdrDisplay)
         WaylandCompositor.nativeSetDeband(deband, debandStrength)
-        WaylandCompositor.nativeSetScreenEffects(brightness.toFloat(), contrast.toFloat(), gamma, saturation.toFloat(), fxaa, toon, crt, ntsc)
+        WaylandCompositor.nativeSetScreenEffects(brightness.toFloat(), contrast.toFloat(), gamma, saturation.toFloat(), aaMode, toon, crt, ntsc)
         WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(this, upscaler)?.name)
     }
 
     fun encode(): JSONObject = JSONObject()
         .put("brightness", brightness).put("contrast", contrast).put("gamma", gamma.toDouble()).put("saturation", saturation)
         .put("cas", cas).put("casLevel", casLevel).put("hdr", hdr).put("deband", deband).put("debandStrength", debandStrength)
-        .put("fxaa", fxaa).put("toon", toon).put("crt", crt).put("ntsc", ntsc)
+        .put("aaMode", aaMode).put("fxaa", fxaa).put("toon", toon).put("crt", crt).put("ntsc", ntsc)
 
     companion object {
+        const val AA_OFF = 0
+        const val AA_FXAA = 1
+        const val AA_SMAA = 2
+
         val OFF = ScreenEffects()
 
         fun decode(json: JSONObject): ScreenEffects = ScreenEffects(
@@ -52,7 +59,7 @@ data class ScreenEffects(
             hdr = json.optBoolean("hdr", false),
             deband = json.optBoolean("deband", false),
             debandStrength = json.optInt("debandStrength", 100).coerceIn(0, 200),
-            fxaa = json.optBoolean("fxaa", false),
+            aaMode = json.optInt("aaMode", if (json.optBoolean("fxaa", false)) AA_FXAA else AA_OFF).coerceIn(AA_OFF, AA_SMAA),
             toon = json.optBoolean("toon", false),
             crt = json.optBoolean("crt", false),
             ntsc = json.optBoolean("ntsc", false),
@@ -79,13 +86,13 @@ object ScreenEffectLooks {
             desc = "Sharpening with a touch of contrast - the everyday one.", label = R.string.look_game_clarity, descRes = R.string.look_game_clarity_desc),
         Look("Vivid", ScreenEffects(brightness = 3, contrast = 10, gamma = 0.98f, saturation = 145, cas = true, casLevel = 30, deband = true),
             desc = "Colour pushed hard. Deband on so skies don't stripe.", label = R.string.look_vivid, descRes = R.string.look_vivid_desc),
-        Look("Cinematic", ScreenEffects(brightness = -4, contrast = 22, gamma = 1.10f, saturation = 88, cas = true, casLevel = 20, fxaa = true, deband = true),
+        Look("Cinematic", ScreenEffects(brightness = -4, contrast = 22, gamma = 1.10f, saturation = 88, cas = true, casLevel = 20, aaMode = ScreenEffects.AA_FXAA, deband = true),
             desc = "Deeper contrast, cooler colour, edges smoothed.", label = R.string.look_cinematic, descRes = R.string.look_cinematic_desc),
         Look("Competitive", ScreenEffects(brightness = 16, contrast = 18, gamma = 0.92f, saturation = 82, cas = true, casLevel = 75),
             desc = "Shadows lifted and heavy sharpening - spot people first.", label = R.string.look_competitive, descRes = R.string.look_competitive_desc),
         Look("Adaptive Sharpen", ScreenEffects(cas = true, casLevel = 85),
             desc = "Sharpening only, colour untouched.", label = R.string.look_adaptive_sharpen, descRes = R.string.look_adaptive_sharpen_desc),
-        Look("Filmic", ScreenEffects(brightness = -2, contrast = 16, gamma = 1.14f, saturation = 92, cas = true, casLevel = 15, fxaa = true, deband = true),
+        Look("Filmic", ScreenEffects(brightness = -2, contrast = 16, gamma = 1.14f, saturation = 92, cas = true, casLevel = 15, aaMode = ScreenEffects.AA_FXAA, deband = true),
             desc = "Film-like curve, slightly muted.", label = R.string.look_filmic, descRes = R.string.look_filmic_desc),
         Look("Arcade", ScreenEffects(brightness = 6, contrast = 20, gamma = 0.95f, saturation = 170, cas = true, casLevel = 45, deband = true),
             desc = "Loud and punchy.", label = R.string.look_arcade, descRes = R.string.look_arcade_desc),
@@ -103,7 +110,7 @@ object ScreenEffectLooks {
         val t = l.effects
         t.brightness == e.brightness && t.contrast == e.contrast && abs(t.gamma - e.gamma) < 0.005f &&
             t.saturation == e.saturation && t.effectiveCas == e.effectiveCas &&
-            t.fxaa == e.fxaa && t.crt == e.crt && t.toon == e.toon && t.ntsc == e.ntsc && t.deband == e.deband &&
+            t.aaMode == e.aaMode && t.crt == e.crt && t.toon == e.toon && t.ntsc == e.ntsc && t.deband == e.deband &&
             (l.scalingMode == null || l.scalingMode == upscaler)
     }
 }

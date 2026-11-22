@@ -24,6 +24,7 @@ FAKE = r"""
 
 int real_opendirs;
 int real_accesses;
+int real_stats;
 
 static void coarse(const char *path, struct stat *st) {
   if (getenv("COARSE") && strstr(path, "/fuse/") && S_ISDIR(st->st_mode)) {
@@ -33,23 +34,42 @@ static void coarse(const char *path, struct stat *st) {
   }
 }
 
-int stat(const char *path, struct stat *st) {
-  static int (*next)(const char *, struct stat *);
-  if (!next) next = dlsym(RTLD_NEXT, "stat");
-  char folded[4096];
+static const char *fold_case(const char *path, char *folded, size_t size) {
   const char *fold = getenv("FOLD");
   const char *upper = fold ? strstr(path, "/STEAMAPPS") : NULL;
   if (!upper && fold && !strcmp(fold, "all")) upper = strcasestr(path, "/steamapps/");
-  if (upper && strlen(path) < sizeof(folded)) {
-    strcpy(folded, path);
-    memcpy(folded + (upper - path) + 1, "steamapps", 9);
-    if (!strcmp(fold, "all"))
-      for (char *c = folded + (upper - path); *c; c++) if (*c >= 'A' && *c <= 'Z') *c += 'a' - 'A';
-    path = folded;
-  }
+  if (!upper || strlen(path) >= size) return path;
+  strcpy(folded, path);
+  memcpy(folded + (upper - path) + 1, "steamapps", 9);
+  if (!strcmp(fold, "all"))
+    for (char *c = folded + (upper - path); *c; c++) if (*c >= 'A' && *c <= 'Z') *c += 'a' - 'A';
+  return folded;
+}
+
+static int fold_stat(const char *name, const char *path, struct stat *st) {
+  int (*next)(const char *, struct stat *) = dlsym(RTLD_NEXT, name);
+  char folded[4096];
+  if (strstr(path, "/fuse/")) real_stats++;
   int r = next(path, st);
+  if (r != 0) r = next(fold_case(path, folded, sizeof(folded)), st);
+  return r;
+}
+
+int stat(const char *path, struct stat *st) {
+  int r = fold_stat("stat", path, st);
   if (r == 0) coarse(path, st);
   return r;
+}
+
+int lstat(const char *path, struct stat *st) {
+  return fold_stat("lstat", path, st);
+}
+
+int __xstat64(int version, const char *path, struct stat64 *st) {
+  static int (*next)(int, const char *, struct stat64 *);
+  if (!next) next = dlsym(RTLD_NEXT, "__xstat64");
+  if (strstr(path, "/fuse/")) real_stats++;
+  return next ? next(version, path, st) : stat64(path, st);
 }
 
 int fstat(int fd, struct stat *st) {
@@ -221,6 +241,7 @@ static void stress(const char *dir) {
 int main(int argc, char **argv) {
   int *opens = dlsym(RTLD_DEFAULT, "real_opendirs");
   int *accesses = dlsym(RTLD_DEFAULT, "real_accesses");
+  int *stats = dlsym(RTLD_DEFAULT, "real_stats");
   for (int i = 1; i < argc; i++) {
     const char *op = argv[i], *a = argv[i + 1];
     if (!strcmp(op, "list")) { list(a); i++; }
@@ -309,6 +330,27 @@ int main(int argc, char **argv) {
       printf("%d %d\n", r, r ? errno : 0);
       i++;
     }
+    else if (!strcmp(op, "accessat")) {
+      int r = faccessat(STDIN_FILENO, a, F_OK, 0);
+      printf("%d %d\n", r, r ? errno : 0);
+      i++;
+    }
+    else if (!strcmp(op, "xstat")) {
+      int (*old)(int, const char *, struct stat64 *) = dlsym(RTLD_DEFAULT, "__xstat64");
+      struct stat64 st;
+      int r = old ? old(0, a, &st) : -2;
+      printf("%d %d\n", r, r ? errno : 0);
+      i++;
+    }
+    else if (!strcmp(op, "inode")) {
+      DIR *d = opendir(a);
+      struct dirent *e;
+      while (d && (e = readdir(d)))
+        if (!strcmp(e->d_name, argv[i + 2])) printf("%llu\n", (unsigned long long)e->d_ino);
+      if (d) closedir(d);
+      i += 2;
+    }
+    else if (!strcmp(op, "stats")) printf("%d\n", stats ? *stats : -1);
     else if (!strcmp(op, "accesses")) printf("%d\n", accesses ? *accesses : -1);
     else if (!strcmp(op, "opens")) printf("%d\n", opens ? *opens : -1);
   }
@@ -326,7 +368,7 @@ class DirCachePreloadTest(unittest.TestCase):
         build.mkdir()
         (build / "fake.c").write_text(FAKE)
         (build / "program.c").write_text(PROGRAM)
-        cls.cache = build / "libblsession.so"
+        cls.cache = build / "libddsession.so"
         cls.fake = build / "fake.so"
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(cls.cache),
                         *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
@@ -675,6 +717,152 @@ class DirCachePreloadTest(unittest.TestCase):
                               "access", s / "x.bundle", "accesses", "opens", between=churn)
         self.assertEqual([s.name, "a.bundle,b.bundle", s.name, "a.bundle,b.bundle", "-1 2", "0", "3"], out)
 
+    def test_absolute_paths_checked_against_a_descriptor_are_answered_from_the_listing(self):
+        s = self.staging
+        out = self.run_program("list", s, "accessat", s / "x.bundle", "accessat", s / "y.bundle", "accesses",
+                               "accessat", s / "a.bundle", "accessat", s / "a.bundle", "accesses",
+                               "create", s / "x.bundle", "accessat", s / "x.bundle")
+        self.assertEqual(["-1 2", "-1 2", "0", "0 0", "0 0", "1", "0 0"], out[1:])
+
+    def test_absolute_paths_checked_against_a_descriptor_elsewhere_reach_the_filesystem(self):
+        s = self.staging
+        other = self.run_program("list", s, "accessat", s / "x.bundle", "accessat", s / "x.bundle", "accesses",
+                                 program=self.other)
+        self.assertEqual(["-1 2", "-1 2", "2"], other[1:])
+        off = self.run_program("list", s, "accessat", s / "x.bundle", "accessat", s / "x.bundle", "accesses",
+                               env={"DD_NO_DIR_CACHE": "1", "DD_NO_PATH_CACHE": "1"})
+        self.assertEqual(["-1 2", "-1 2", "2"], off[1:])
+
+    def test_missing_names_asked_through_the_old_stat_entry_are_answered_from_the_listing(self):
+        s = self.staging
+        out = self.run_program("list", s, "stats", "xstat", s / "x.bundle", "stats", "xstat", s / "a.bundle", "stats",
+                               "create", s / "x.bundle", "xstat", s / "x.bundle")
+        self.assertEqual(["-1 2", out[1], "0 0", str(int(out[1]) + 1), "0 0"], out[2:])
+        other = self.run_program("list", s, "stats", "xstat", s / "z.bundle", "stats", program=self.other)
+        self.assertEqual(["-1 2", str(int(other[1]) + 1)], other[2:])
+
+    def test_folders_that_differ_only_in_case_stay_cached_together(self):
+        s = self.staging
+        names = ["Content/Data", "content/data", "Content/Characters", "content/characters"]
+        for name in names:
+            (s / name).mkdir(parents=True)
+        checks = [op for name in names for op in ("access", s / name)]
+        out = self.run_program(*checks, "accesses", *checks, *checks, "accesses")
+        self.assertEqual(out[4], out[-1])
+
+    def test_a_cached_listing_is_served_without_asking_the_filesystem(self):
+        s = self.staging
+        out = self.run_program("list", s, "stats", "list", s, "list", s, "access", s / "x.bundle", "stats", "opens")
+        self.assertEqual(out[1], out[-2])
+        self.assertEqual("1", out[-1])
+
+    def test_own_changes_in_a_cached_folder_do_not_ask_the_filesystem(self):
+        s = self.staging
+        out = self.run_program(
+            "list", s, "stats",
+            "create", s / "c.bundle", "rename", s / "c.bundle", s / "d.bundle", "unlink", s / "a.bundle", "stats",
+            "list", s, "raw", s, "opens")
+        self.assertEqual(out[1], out[2])
+        self.assertEqual(["b.bundle,d.bundle", "b.bundle,d.bundle", "1"], out[3:])
+
+    def test_own_changes_in_a_folder_never_listed_do_not_ask_the_filesystem(self):
+        s = self.staging
+        out = self.run_program("stats", "create", s / "c.bundle", "rename", s / "c.bundle", s / "d.bundle",
+                               "unlink", s / "d.bundle", "stats", "list", s, "raw", s)
+        self.assertEqual(out[0], out[1])
+        self.assertEqual(["a.bundle,b.bundle", "a.bundle,b.bundle"], out[2:])
+
+    def test_a_differently_cased_folder_is_checked_once(self):
+        s = self.staging
+        upper = Path(str(s).replace("downloading", "DOWNLOADING"))
+        out = self.run_program("list", s, "access", upper / "x.bundle", "stats",
+                               "access", upper / "y.bundle", "access", upper / "z.bundle", "stats", "accesses",
+                               env={"FOLD": "all"})
+        self.assertEqual(out[2], out[5])
+        self.assertEqual("0", out[-1])
+
+    def test_a_folder_reached_through_a_link_follows_the_link(self):
+        s = self.staging
+        other = self.lib / "elsewhere" / s.name
+        other.mkdir(parents=True)
+        (other / "x.bundle").touch()
+        link = self.lib / "DOWNLOADING"
+        link.symlink_to("downloading")
+
+        def repoint():
+            link.unlink()
+            link.symlink_to("elsewhere")
+
+        out = self.run_paused("list", s, "access", link / s.name / "x.bundle", "pause",
+                              "access", link / s.name / "x.bundle", between=repoint, env={"FOLD": "all"})
+        self.assertEqual(["-1 2", "0 0"], out[1:])
+
+    def test_a_linked_last_component_follows_the_link(self):
+        s = self.staging
+        other = self.lib / "elsewhere" / s.name
+        other.mkdir(parents=True)
+        (other / "x.bundle").touch()
+        twin = self.lib / "DOWNLOADING"
+        twin.mkdir()
+        link = twin / s.name
+        link.symlink_to(s)
+
+        def repoint():
+            link.unlink()
+            link.symlink_to(other)
+
+        out = self.run_paused("list", s, "access", link / "x.bundle", "pause",
+                              "access", link / "x.bundle", between=repoint, env={"FOLD": "all"})
+        self.assertEqual(["-1 2", "0 0"], out[1:])
+
+    def test_a_folder_reached_through_a_parent_step_is_checked_each_time(self):
+        s = self.staging
+        other = self.lib / "elsewhere"
+        (other / "branch").mkdir(parents=True)
+        (other / s.parent.name / s.name).mkdir(parents=True)
+        (other / s.parent.name / s.name / "x.bundle").touch()
+        (self.lib / "branch").mkdir()
+        twin = self.lib / "BRANCH"
+        twin.mkdir()
+        listed = self.lib / "branch" / ".." / s.parent.name / s.name
+        through = twin / ".." / s.parent.name / s.name
+
+        def repoint():
+            twin.rmdir()
+            twin.symlink_to(other / "branch")
+
+        out = self.run_paused("list", listed, "access", through / "x.bundle", "pause",
+                              "access", through / "x.bundle", between=repoint, env={"FOLD": "all"})
+        self.assertEqual(["-1 2", "0 0"], out[1:])
+
+    def test_a_permission_change_on_the_folder_or_above_it_is_noticed(self):
+        s = self.staging
+        for target in (s, s.parent):
+            with self.subTest(target=target.name):
+                out = self.run_paused("list", s, "opens", "pause", "list", s, "opens",
+                                      between=lambda: target.chmod(0o700))
+                self.assertEqual(int(out[1]) + 1, int(out[3]))
+
+    def test_a_permission_change_on_a_file_keeps_the_listing(self):
+        s = self.staging
+        out = self.run_paused("list", s, "opens", "pause", "list", s, "opens",
+                              between=lambda: (s / "a.bundle").chmod(0o600))
+        self.assertEqual(out[1], out[3])
+
+    def test_opening_an_existing_link_keeps_its_entry(self):
+        s = self.staging
+        (s / "l.bundle").symlink_to("a.bundle")
+        out = self.run_program("list", s, "create", s / "l.bundle", "inode", s, "l.bundle", "raw", s)
+        self.assertEqual(str((s / "l.bundle").lstat().st_ino), out[1])
+
+    def test_changes_made_around_the_cache_after_own_changes_are_noticed(self):
+        s = self.staging
+        out = self.run_program("list", s, "create", s / "c.bundle", "sneak", s / "y.bundle", "list", s, "raw", s,
+                               "access", s / "y.bundle")
+        self.assertEqual(out[1], out[2])
+        self.assertIn("y.bundle", out[1])
+        self.assertEqual("0 0", out[3])
+
     def test_misses_outside_the_client_or_fuse_steamapps_reach_the_filesystem(self):
         s = self.staging
         other = self.run_program("list", s, "access", s / "x.bundle", "access", s / "y.bundle", "accesses",
@@ -688,7 +876,7 @@ class DirCachePreloadTest(unittest.TestCase):
     def test_misses_reach_the_filesystem_when_turned_off(self):
         s = self.staging
         out = self.run_program("list", s, "access", s / "x.bundle", "access", s / "y.bundle", "accesses",
-                               env={"BL_NO_DIR_CACHE": "1"})
+                               env={"DD_NO_DIR_CACHE": "1"})
         self.assertEqual(["-1 2", "-1 2", "2"], out[1:])
 
     def test_a_preload_below_calling_back_while_a_folder_is_watched_does_not_hang(self):
@@ -706,7 +894,7 @@ class DirCachePreloadTest(unittest.TestCase):
         self.assertEqual(["a.bundle,b.bundle", "b.bundle", "b.bundle", "1"], out)
 
     def test_can_be_turned_off(self):
-        out = self.run_program("list", self.staging, "list", self.staging, "opens", env={"BL_NO_DIR_CACHE": "1"})
+        out = self.run_program("list", self.staging, "list", self.staging, "opens", env={"DD_NO_DIR_CACHE": "1"})
         self.assertEqual("2", out[-1])
 
 

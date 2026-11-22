@@ -3,8 +3,8 @@
 Built by `tools/proot/build.sh` with the NDK on top of termux/proot `4dba3afb` (Termux's
 5.1.107-70 package, the proot the Linux runtime ships at `opt/android-host/proot`; every
 `file.c:line` site in that binary matches this commit). talloc is linked in statically from
-Samba's release tarball, so the apk carries one self-contained `libproot.so` plus
-`libproot-loader.so`, and `LinuxRuntime` prefers them over the runtime's copy.
+Samba's release tarball, so the proot add-on pack carries one self-contained `libproot.so`, which
+Android's linker runs from app data, and the apk carries `libproot-loader.so`, which proot execs.
 
 Ported from WinNative (`feature/proot-enhancements`, e7af0f24):
 
@@ -99,8 +99,14 @@ Added by DroidDeck:
   `get_robust_list`. proot still answers the first with `ENOSYS` but keeps the head each thread
   offered (cleared on `execve`, none in a new task), and answers the second for the calling thread
   with it. SteamVR's `vrclient.so` asks for the head through libc's `syscall()`, which
-  `libblsession.so`'s robust.c never sees: `libopenvr_api.so` opens it `RTLD_DEEPBIND`. Steam
+  `libddsession.so`'s robust.c never sees: `libopenvr_api.so` opens it `RTLD_DEEPBIND`. Steam
   aborted on "futex robust_list not initialized by pthreads" as soon as SteamVR was registered.
+
+- `0029-proc-pid-root-guest.patch` - `/proc/<pid>/root` of a tracee resolved to the rootfs's host
+  path, which does not exist inside the guest, so opening it failed with `ENOENT`. It now reads
+  as `/`, like `exe` and `cwd` read as guest paths. xdg-desktop-portal opens it for every caller to
+  tell sandboxed apps from host ones, so every portal request failed with "Unable to open
+  /proc/<pid>/root", Sunshine's screen capture included.
 
 Prototype (inert unless `PROOT_FASTPATH` is set; see `docs/development/proot-performance.md`):
 

@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">戻る · Steam では 2 回、デスクトップでは 1 回</string>
     <string name="input_shortcut_hold_hint">Steam モード時。戻るを長押しするとクイックアクセスも開きます。</string>
     <string name="input_restore_shortcut">既定に戻す</string>
-    <string name="input_second_mode_hint">パネルの選択は記憶されます。デスクトップは 2 つ目のワークスペースを開くだけで、セッションやその入力プロファイルを切り替えません。</string>
     <string name="input_virtual_controller">仮想コントローラー</string>
     <string name="input_virtual_controller_hint">Steam またはゲームが認識するコントローラーの種類。</string>
     <string name="input_touchscreen">タッチスクリーン</string>

@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.ui.input.pointer.pointerInput
 import java.io.File
 import androidx.compose.ui.res.stringResource
 import com.droiddeck.launcher.R
@@ -173,6 +174,7 @@ class FrontEndState(
     val launcherOrientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER,
     val homePage: String = com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_STEAM,
     val launcherFullscreen: Boolean = true,
+    val controllerHaptics: Boolean = true,
     val downloadSource: String = DownloadSource.MODE_AUTO,
     val downloadMirror: String = "",
     val downloadPrefix: String = "",
@@ -180,7 +182,6 @@ class FrontEndState(
     val animationsEnabled: Boolean = true,
     val lowStorageWarning: Boolean = true,
     val launcherIcon: String = com.droiddeck.launcher.LauncherIcon.DARK,
-    val gameStoresEnabled: Boolean = true,
     val soundtracksEnabled: Boolean = true,
     val soundtracksIngame: Boolean = false,
     val soundtracks: List<Library.SteamGame> = emptyList(),
@@ -246,6 +247,7 @@ class FrontEndActions(
     val onAddonDelete: (com.droiddeck.launcher.runtime.WowAddons.Target, String) -> Unit = { _, _ -> },
     val onSaveExport: (Library.SteamGame, com.droiddeck.launcher.session.GameSaves.Layout) -> Unit = { _, _ -> },
     val onPerformance: () -> Unit,
+    val performancePanel: @Composable () -> Unit = {},
     val onRoms: () -> Unit,
     val onFiles: () -> Unit,
     val onBrowseFiles: (File) -> Unit = {},
@@ -278,6 +280,7 @@ class FrontEndActions(
     val onLauncherOrientation: (Int) -> Unit = {},
     val onHomePage: (String) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
+    val onControllerHaptics: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
     val onLowStorageWarning: (Boolean) -> Unit = {},
     val onDualScreenMode: (String) -> Unit = {},
@@ -288,8 +291,6 @@ class FrontEndActions(
     val onDownloadMirror: (String) -> Unit = {},
     val onDownloadPrefix: (String) -> Unit = {},
     val onDownloadProxy: (String) -> Unit = {},
-    val onGameStoresEnabled: (Boolean) -> Unit = {},
-    val onSoundtracksEnabled: (Boolean) -> Unit = {},
     val onSoundtracksIngame: (Boolean) -> Unit = {},
     val onSoundtrackAdded: (java.io.File) -> Unit = {},
     val onSoundtracksChanged: () -> Unit = {},
@@ -455,15 +456,25 @@ fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -
     val frontFocus = remember { FrontFocus() }
     val textInput = androidx.compose.ui.platform.LocalTextInputService.current
     val bottomTextInput = remember(textInput) { textInput?.let { androidx.compose.ui.text.input.TextInputService(BottomScreenTextInput(it)) } }
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                e.changes.firstOrNull { it.pressed && !it.previousPressed }?.let { StoresMotion.touched(it.position) }
+            }
+        }
+    }) {
         CompositionLocalProvider(
             LocalFrontFocus provides frontFocus,
             LocalNarrowPane provides (maxWidth < NarrowPaneWidth),
             androidx.compose.ui.platform.LocalTextInputService provides (if (s.dualScreen) bottomTextInput else textInput),
             LocalBottomTyping provides s.dualScreen,
         ) { FrontEndScreenBody(s, a, page, frontFocus) }
+        DownloadFlights()
     }
 }
+
+private val SETTINGS_NAV = SettingsSection.entries.map { "settings:${it.key}" }.toSet() + "settings"
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -475,11 +486,12 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(s.navigate) {
         val target = s.navigate ?: return@LaunchedEffect
         when (target) {
-            "stores:downloads" -> { com.droiddeck.launcher.stores.StoresState.openDownloads = true; selected = "stores" }
+            "stores:downloads" -> selected = "downloads"
             "components" -> a.onComponents(true)
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
             com.droiddeck.launcher.sync.SyncthingService.NAV -> com.droiddeck.launcher.sync.Syncthing.requestOpen()
             "setup:integration" -> { SetupTabs.openOverview = true; selected = "setup" }
+            in SETTINGS_NAV -> { SetupTabs.openSection = SettingsSection.of(target.removePrefix("settings:")) ?: SettingsSection.OVERVIEW; selected = "setup" }
             com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_APPS -> {
                 // Home lands on the apps page itself, so a page open over the rail (Components, Performance) closes first.
                 if (s.pageKey != null) a.onPageBack()
@@ -581,7 +593,6 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     BackHandler(enabled = !processSettingsPageVisible && backToMore) {
         selected = NavTabs.MORE
     }
-    LaunchedEffect(s.isHomeApp) { if (!s.isHomeApp && selected == "android-apps") selected = "steam" }
     LaunchedEffect(s.soundtracksEnabled) {
         if (!s.soundtracksEnabled && (selected == "soundtracks" || selected.startsWith("sound:"))) selected = "games"
     }
@@ -595,7 +606,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
 
     val openTab = when {
         Hops.origin != null && s.pageKey == Hops.origin?.page -> Hops.origin!!.dest
-        s.pageKey == "performance" -> "steam"
+        s.pageKey == "performance" -> "setup"
         s.pageKey == "controller-mapping" -> "setup"
         selected.startsWith("app:") -> "games"
         selected.startsWith("sound:") -> "soundtracks"
@@ -603,6 +614,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         else -> s.pageKey ?: selected
     }
     val railSelection = if (openTab in NavTabs.more(s)) NavTabs.MORE else openTab
+    androidx.compose.runtime.SideEffect { MoreTabs.inside = railSelection == NavTabs.MORE && openTab != NavTabs.MORE }
     val railSelectionNow = androidx.compose.runtime.rememberUpdatedState(railSelection)
     var railPicks by remember { mutableStateOf(0) }
     val showRailPage: (String, Boolean) -> Unit = { key, focusContent ->
@@ -616,10 +628,35 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         }
     }
     LaunchedEffect(com.droiddeck.launcher.storage.StorageState.openRequests) {
-        if (com.droiddeck.launcher.storage.StorageState.openPending) showRailPage("setup", true)
+        if (com.droiddeck.launcher.storage.StorageState.openPending) {
+            com.droiddeck.launcher.storage.StorageState.openPending = false
+            showRailPage("storage", true)
+        }
     }
     LaunchedEffect(com.droiddeck.launcher.sync.Syncthing.openRequests) {
-        if (com.droiddeck.launcher.sync.Syncthing.openPending) showRailPage("setup", true)
+        if (com.droiddeck.launcher.sync.Syncthing.openPending) {
+            com.droiddeck.launcher.sync.Syncthing.openPending = false
+            showRailPage("sync", true)
+        }
+    }
+    LaunchedEffect(com.droiddeck.launcher.stores.StoresState.openDownloads) {
+        if (com.droiddeck.launcher.stores.StoresState.openDownloads) {
+            com.droiddeck.launcher.stores.StoresState.openDownloads = false
+            showRailPage("downloads", true)
+        }
+    }
+    LaunchedEffect(RailRequest.key) {
+        RailRequest.key?.let { showRailPage(it, true) }
+        RailRequest.key = null
+    }
+    LaunchedEffect(SetupTabs.openSection) {
+        if (SetupTabs.openSection != null && (railSelection != "setup" || s.pageKey != null)) showRailPage("setup", true)
+    }
+    LaunchedEffect(DevPreview.openLibrary) {
+        if (!DevPreview.openLibrary) return@LaunchedEffect
+        DevPreview.openLibrary = false
+        LibraryView.source = LIBRARY_ALL
+        showRailPage("games", true)
     }
     val onRailFocus: (String) -> Unit = { key ->
         if (key != railSelection) showRailPage(key, false)
@@ -725,11 +762,11 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             onRailSelect(key)
         }, a)
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
-        val agentKeyboardOpen = railSelection == "agent" && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+        val agentKeyboardOpen = openTab == "agent" && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         LauncherLayout(
             bottomNavigation && !s.dualScreen, pal.line,
             Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }
-                .then(if (railSelection == "agent") Modifier.imePadding() else Modifier)
+                .then(if (openTab == "agent") Modifier.imePadding() else Modifier)
                 .then(if (s.dualScreen) Modifier.onKeyEvent { event ->
                     val step = dualPageStep(event.nativeKeyEvent) ?: return@onKeyEvent false
                     if (event.type == KeyEventType.KeyDown && !processSettingsPageVisible) {
@@ -777,6 +814,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         com.droiddeck.launcher.stores.StoresState.itchPicking?.let { item -> StoreTheme(item.store) { ItchBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.itchPicking = null } } }
         com.droiddeck.launcher.stores.StoresState.gameJoltPicking?.let { item -> StoreTheme(item.store) { GameJoltBuildPicker(item) { com.droiddeck.launcher.stores.StoresState.gameJoltPicking = null } } }
         StepsLayer(screenAt)
+        UiZooSheet()
+        SessionDrawerPreview(s.secondScreenDisplays)
 
         appToChooseDisplay?.let { app ->
             val secondaryDisplay = s.secondScreenDisplays.firstOrNull()
@@ -847,7 +886,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             (selected.startsWith("emu:") || selected.startsWith("rom:") || selected.startsWith("user:") || selected == "store"))
     val exitArmed = !processSettingsPageVisible && !hasBackTarget
     LaunchedEffect(exitArmed, selected) { ExitGesture.reset() }
-    BackHandler(enabled = exitArmed) {
+    BackHandler(enabled = exitArmed && DevPreview.drawer == null) {
         when (ExitGesture.back()) {
             2 -> android.widget.Toast.makeText(ctx, R.string.exit_hint_back, android.widget.Toast.LENGTH_SHORT).show()
             3 -> {

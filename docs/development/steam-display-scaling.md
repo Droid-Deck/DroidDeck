@@ -13,7 +13,7 @@ very high-resolution panels and on foldables?
 ## How the session is sized today (main @ c636eea3)
 
 - `droiddeck-session` starts gamescope with `-W/-H` (output) = `-w/-h` (nested, what games and the
-  client see) = `BL_WIDTH x BL_HEIGHT`, the per-mode "Resolution" setting. The default is
+  client see) = `DD_WIDTH x DD_HEIGHT`, the per-mode "Resolution" setting. The default is
   `1280x720` (`SessionDisplay.DEFAULT_RESOLUTION`). One Xwayland server holds both the Steam
   client and the games.
 - The Android compositor (`waylandcomp`) draws gamescope's output into a panel-sized swapchain
@@ -68,7 +68,7 @@ fullscreen off, with a spike build of `feat/steam-native-output`. Each run sets
 
 Steam UI idle: GPU 0%, gamescope 27 dma-bufs, Xwayland 39. Everything renders at 1920x1080.
 
-### Run 2: client height cap (`BL_STEAM_MAX_HEIGHT=720`)
+### Run 2: client height cap (`DD_STEAM_MAX_HEIGHT=720`)
 
 - Log: `== steam: the client's height capped at 720 (was unset)`. The client never wrote its own
   value during the run, so a one-time set would hold.
@@ -173,15 +173,15 @@ restored): the session starts at `size=1280x720` and the device report shows `72
 
 ### How runs 2 to 6 were driven
 
-Two temporary session-script hooks, not kept on this branch: `BL_STEAM_MAX_HEIGHT=N` wrote
-`GAMESCOPE_STEAM_MAX_HEIGHT` on the root window, and `BL_GAME_XWAYLAND_MODE=WxH` wrote
+Two temporary session-script hooks, not kept on this branch: `DD_STEAM_MAX_HEIGHT=N` wrote
+`GAMESCOPE_STEAM_MAX_HEIGHT` on the root window, and `DD_GAME_XWAYLAND_MODE=WxH` wrote
 `GAMESCOPE_XWAYLAND_MODE_CONTROL = 1,W,H,0` five seconds after `GAMESCOPE_FOCUSED_APP` showed a
 game. `--xwayland-count 2` and `STEAM_MULTIPLE_XWAYLANDS=1` went through `Download/droiddeck-env`.
 
 ## Two Xwayland servers by default (`feat/steam-dual-xwayland`)
 
 Steam sessions now start gamescope with `--xwayland-count 2` and `STEAM_MULTIPLE_XWAYLANDS=1`.
-`BL_XWAYLAND_COUNT=1` in `Android/data/com.droiddeck.launcher/files/droiddeck-env` goes back to one. The session script's
+`DD_XWAYLAND_COUNT=1` in `Android/data/com.droiddeck.launcher/files/droiddeck-env` goes back to one. The session script's
 root-window requests that are meant for the game (the drawer's live Force fullscreen,
 `GAMESCOPE_FORCE_WINDOWS_FULLSCREEN`, and the resume watcher's `GAMESCOPE_RESTORE_FOCUS_WINDOW`)
 go to both displays, `$DISPLAY` and `STEAM_GAME_DISPLAY_0`. gamescope reads both per server, so
@@ -221,8 +221,8 @@ With games on their own Xwayland server, FlatOut 2 no longer shrinks under the Q
 reason "Force game windows fullscreen" existed. What it still did was make any game whose Game
 Resolution differs from what it draws fight it (runs 4 and 5). The switch is gone from Steam
 settings (Games) and the session drawer (Display), along with its preference, the
-`BL_GAMESCOPE_FORCE_FULLSCREEN` flag, the `~/.droiddeck-fill` live watcher and the device report
-line. `BL_GAMESCOPE_ARGS=--force-windows-fullscreen` in `Android/data/com.droiddeck.launcher/files/droiddeck-env` still passes the
+`DD_GAMESCOPE_FORCE_FULLSCREEN` flag, the `~/.droiddeck-fill` live watcher and the device report
+line. `DD_GAMESCOPE_ARGS=--force-windows-fullscreen` in `Android/data/com.droiddeck.launcher/files/droiddeck-env` still passes the
 flag for an experiment.
 
 Device check (Thor): Alan Wake's American Nightmare with its 1280x720 Game Resolution runs on `:1`

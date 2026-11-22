@@ -21,9 +21,9 @@ def select_desktop(evaluate, timeout=90):
 
 
 if __name__ == '__main__':
-    base = os.environ.get('BL_LAUNCH_DIR')
+    base = os.environ.get('DD_LAUNCH_DIR')
     if not base:
-        raise SystemExit('BL_LAUNCH_DIR is not set')
+        raise SystemExit('DD_LAUNCH_DIR is not set')
     agent = runpy.run_path('/usr/local/bin/droiddeck-agent')
     selected = select_desktop(lambda expression: agent['cdp_eval'](
         Path(base) / 'agent', expression, timeout=2))

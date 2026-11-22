@@ -40,7 +40,8 @@ internal object XboxContent {
                     val item = CatalogItem(Store.XBOX, id, localized?.optString("ProductTitle")?.ifBlank { id } ?: id,
                         imageUrl = base.sidecar.cover, owned = access == "owned", subscription = access == "gamepass",
                         sizeBytes = pkg.optLong("MaxDownloadSizeInBytes"),
-                        extra = mapOf("baseId" to base.sidecar.id, "contentId" to cid, "market" to market, "family" to pkg.getString("PackageFamilyName")))
+                        extra = mapOf("baseId" to base.sidecar.id, "contentId" to cid, "market" to market,
+                            "family" to pkg.getString("PackageFamilyName"), "format" to pkg.optString("PackageFormat")))
                     Offer(item, File(base.folder, ".xbox-content/$id/.droiddeck-content.json").isFile)
                 }
                 StoresState.post { plan = Plan(base, offers) }
@@ -51,7 +52,7 @@ internal object XboxContent {
     private fun packages(product: JSONObject?): List<JSONObject> = XboxCatalog.objects(product?.optJSONArray("DisplaySkuAvailabilities"))
         .filter { it.optJSONObject("Sku")?.optJSONObject("Properties")?.optBoolean("IsTrial", true) == false }
         .flatMap { XboxCatalog.objects(it.optJSONObject("Sku")?.optJSONObject("Properties")?.optJSONArray("Packages")) }
-        .filter { pkg -> pkg.optString("PackageFormat") == "MSIXVC" &&
+        .filter { pkg -> XboxCatalog.installableFormat(pkg.optString("PackageFormat")) &&
             XboxCatalog.objects(pkg.optJSONArray("PlatformDependencies")).any { it.optString("PlatformName") == "Windows.Desktop" } }
 
     private val parents = java.util.concurrent.ConcurrentHashMap<String, String>()

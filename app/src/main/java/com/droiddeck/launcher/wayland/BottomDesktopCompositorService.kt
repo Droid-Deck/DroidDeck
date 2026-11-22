@@ -70,7 +70,7 @@ class BottomDesktopCompositorService : Service() {
             FileUtils.copyAsset(this, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
             data.getString(KEY_LOG)?.let { path ->
                 WaylandCompositor.setSessionLogFile(File(path))
-                runCatching { android.system.Os.setenv("BL_WAYLAND_LOG", path, true) }
+                runCatching { android.system.Os.setenv("DD_WAYLAND_LOG", path, true) }
                     .onFailure { Log.w(TAG, "could not point the compositor's log at $path", it) }
             }
             WaylandCompositor.setFirstFrameListener { reply(MSG_FIRST_FRAME) }

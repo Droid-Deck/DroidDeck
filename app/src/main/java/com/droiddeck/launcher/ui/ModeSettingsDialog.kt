@@ -59,6 +59,8 @@ class ModeSettings(
     val panelSize: Pair<Int, Int> = 1280 to 720,
     val hdr: Boolean,
     val hdrReason: String?,
+    val hdrDisplay: Boolean = true,
+    val zeroCopy: Boolean = true,
     val gpuDrivers: String? = null,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
@@ -85,6 +87,7 @@ class ModeSettings(
     val picturePosition: String? = null,
     val integerScaling: Boolean? = null,
     val stretch16x9: Boolean? = null,
+    val avoidNotch: Boolean? = null,
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
     val shaderPrecache: Boolean? = null,
@@ -114,6 +117,7 @@ class ModeSettings(
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
     val onHdr: (Boolean) -> Unit,
+    val onZeroCopy: (Boolean) -> Unit = {},
     val onGpuDrivers: () -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
@@ -142,6 +146,7 @@ class ModeSettingsActions(
     val onPicturePosition: (String) -> Unit = {},
     val onIntegerScaling: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
+    val onAvoidNotch: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
@@ -213,6 +218,14 @@ class SheetExtras(
 fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: SheetExtras = SheetExtras()) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
+    Text(
+        stringResource(when (s.mode) {
+            SessionService.MODE_STEAM -> R.string.sheet_scope_steam
+            SessionService.MODE_DESKTOP -> R.string.sheet_scope_desktop
+            else -> R.string.sheet_scope_other
+        }),
+        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 4.dp),
+    )
     if (tab == SheetTab.DISPLAY) {
         val context = LocalContext.current
         val portraitWindow = SessionPrefs.portrait(context)
@@ -242,6 +255,11 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
                     s.stretch16x9 && canStretch, enabled = canStretch, onPick = a.onStretch16x9)
             }
+            s.avoidNotch?.let { enabled ->
+                ToggleRow(host, "avoid-notch", stringResource(R.string.display_avoid_notch),
+                    stringResource(R.string.display_avoid_notch_hint), checked = enabled, onChange = a.onAvoidNotch)
+            }
+            ToggleRow(host, "zero-copy", stringResource(R.string.display_zero_copy), null, checked = s.zeroCopy, onChange = a.onZeroCopy)
         }
         SettingsGroup(stringResource(R.string.display_image_scaling)) {
             s.integerScaling?.let { enabled ->
@@ -251,7 +269,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     stringResource(R.string.display_integer_scaling_hint),
                     listOf(
                         false to stringResource(R.string.display_scaling_fit),
-                        true to stringResource(R.string.display_scaling_auto),
+                        true to stringResource(R.string.display_scaling_integer),
                     ),
                     enabled, onPick = a.onIntegerScaling,
                 )
@@ -268,9 +286,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         }
         SettingsGroup(stringResource(R.string.mode_hdr)) {
             ToggleRow(
-                host, "hdr", stringResource(R.string.mode_hdr10),
-                s.hdrReason?.let { stringResource(R.string.mode_hdr_unavailable, it) }
-                    ?: stringResource(R.string.mode_hdr_restart),
+                host, "hdr", stringResource(if (s.hdrDisplay) R.string.mode_hdr10 else R.string.drawer_fake_hdr),
+                s.hdrReason?.let { stringResource(R.string.mode_hdr_unavailable, it) },
                 checked = s.hdr && s.hdrReason == null, enabled = s.hdrReason == null, onChange = a.onHdr,
             )
         }

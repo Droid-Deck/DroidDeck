@@ -38,6 +38,7 @@ class BottomDesktopPanel(
     steamButtons: Pair<() -> Unit, () -> Unit>?,
     onSwap: (() -> Unit)? = null,
     private val fullResolution: Boolean = false,
+    picker: (() -> ScreenPicker?)? = null,
 ) : LinearLayout(context), SurfaceHolder.Callback {
     private lateinit var surfaceView: SurfaceView
     private val area = FrameLayout(context).apply { clipChildren = true }
@@ -71,7 +72,7 @@ class BottomDesktopPanel(
         setBackgroundColor(Color.BLACK)
         isFocusable = true
         isFocusableInTouchMode = true
-        addView(bar(onClose, onMenu, steamButtons, onSwap), LayoutParams(-1, -2))
+        addView(bar(onClose, onMenu, steamButtons, onSwap, picker), LayoutParams(-1, -2))
         area.addView(keyboardHost)
         addSurface()
         area.addView(status, FrameLayout.LayoutParams(-1, -1))
@@ -88,7 +89,8 @@ class BottomDesktopPanel(
         area.addView(surfaceView, 1, FrameLayout.LayoutParams(fullWidth.takeIf { it > 0 } ?: -1, fullHeight.takeIf { it > 0 } ?: -1))
     }
 
-    private fun bar(onClose: (() -> Unit)?, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?, onSwap: (() -> Unit)?): View =
+    private fun bar(onClose: (() -> Unit)?, onMenu: (() -> Unit)?, steamButtons: Pair<() -> Unit, () -> Unit>?, onSwap: (() -> Unit)?,
+        picker: (() -> ScreenPicker?)?): View =
         bottomScreenBarView(context) {
             val touch = touchMode.value
             BottomBarModel(
@@ -101,6 +103,7 @@ class BottomDesktopPanel(
                     BarExtra(context.getString(R.string.second_show_keyboard), icon = R.drawable.ic_bottom_keyboard) { keyboardHost.toggle() },
                     onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, onClick = it) },
                 ),
+                picker = picker?.invoke(),
             )
         }
 
