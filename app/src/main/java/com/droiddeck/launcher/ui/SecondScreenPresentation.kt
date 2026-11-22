@@ -358,7 +358,7 @@ class SecondScreenPresentation(
         val host = KeyboardHost(
             context,
             sendKeyEvent = { event ->
-                val handled = sessionActivity.dispatchKeyEvent(event)
+                val handled = sessionActivity.dispatchImeKeyEvent(event)
                 if (fieldKeyboard && event.action == KeyEvent.ACTION_UP &&
                     (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) root.post { closeFieldKeyboard() }
                 handled

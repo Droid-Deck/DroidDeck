@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <stdatomic.h>
+#include <limits.h>
 #include <android/log.h>
 #include "droiddeck_ext.h"
 #include "ahb_swapchain.h"
@@ -22,6 +24,21 @@ struct host_msg {
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 static struct host_msg *g_head, *g_tail;
 static int g_wake[2] = {-1, -1};
+
+/* Compositor-thread-only fallback ordering state. */
+static int g_pending_token;
+static int g_next_token = 1;
+static struct host_msg *g_deferred_head, *g_deferred_tail;
+static atomic_int g_last_completed;
+
+void droiddeck_host_text_input_fallback_complete(int token) {
+    atomic_store(&g_last_completed, token);
+    if (g_wake[1] >= 0) {
+        char c = 1;
+        ssize_t n = write(g_wake[1], &c, 1);
+        (void)n;
+    }
+}
 
 static void host_post(enum host_kind kind, const char *text, size_t len, int a, int b) {
     struct host_msg *m = calloc(1, sizeof(*m));
@@ -71,19 +88,44 @@ static int on_wake(int fd, uint32_t mask, void *data) {
     char buf[64];
     while (read(fd, buf, sizeof(buf)) > 0) {}
     for (;;) {
+        int deferred = 0;
         pthread_mutex_lock(&g_mu);
+        if (g_pending_token != 0 && g_pending_token == atomic_load(&g_last_completed)) {
+            g_pending_token = 0;
+            if (g_deferred_head) {
+                g_deferred_tail->next = g_head;
+                if (!g_head) g_tail = g_deferred_tail;
+                g_head = g_deferred_head;
+                g_deferred_head = g_deferred_tail = NULL;
+            }
+        }
         struct host_msg *m = g_head;
-        if (m) { g_head = m->next; if (!g_head) g_tail = NULL; }
+        if (m) { g_head = m->next; if (!g_head) g_tail = NULL; m->next = NULL; }
         pthread_mutex_unlock(&g_mu);
         if (!m) break;
+        if (g_pending_token != 0 &&
+            (m->kind == HOST_TEXT_COMMIT || m->kind == HOST_TEXT_PREEDIT ||
+             m->kind == HOST_TEXT_DELETE || m->kind == HOST_KEY)) {
+            if (g_deferred_tail) g_deferred_tail->next = m; else g_deferred_head = m;
+            g_deferred_tail = m;
+            deferred = 1;
+        }
+        if (deferred) continue;
         switch (m->kind) {
         case HOST_CLIPBOARD:
             clipboard_host_text(m->text, m->len);
             m->text = NULL;
             break;
         case HOST_TEXT_COMMIT:
-            if (!text_input_host_commit(m->text ? m->text : "", m->len))
-                droiddeck_on_text_input_fallback(m->text ? m->text : "", (int)m->len);
+            if (!text_input_host_commit(m->text ? m->text : "", m->len)) {
+                int token = 0;
+                if (g_next_token == INT_MAX) g_next_token = 1;
+                else g_next_token++;
+                token = g_next_token;
+                g_pending_token = 0;
+                if (droiddeck_on_text_input_fallback(m->text ? m->text : "", (int)m->len, token))
+                    g_pending_token = token;
+            }
             break;
         case HOST_TEXT_PREEDIT:
             text_input_host_preedit(m->text ? m->text : "", m->len, m->a, m->b);

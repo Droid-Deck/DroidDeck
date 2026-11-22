@@ -196,7 +196,7 @@ public final class WaylandCompositor {
     }
 
     public interface TextInputFallbackListener {
-        void onTextInputFallback(String text);
+        boolean onTextInputFallback(String text, int token);
     }
 
     private static volatile TextInputFallbackListener textInputFallbackListener;
@@ -210,9 +210,10 @@ public final class WaylandCompositor {
     }
 
     @SuppressWarnings("unused")
-    static void onTextInputFallback(byte[] utf8) {
+    static boolean onTextInputFallback(byte[] utf8, int token) {
         TextInputFallbackListener l = textInputFallbackListener;
-        if (l != null && utf8 != null) l.onTextInputFallback(new String(utf8, java.nio.charset.StandardCharsets.UTF_8));
+        if (l == null || utf8 == null) return false;
+        return l.onTextInputFallback(new String(utf8, java.nio.charset.StandardCharsets.UTF_8), token);
     }
 
     private static byte[] utf8(String s) {
@@ -227,10 +228,13 @@ public final class WaylandCompositor {
 
     public static void textInputDelete(int before, int after) { nativeTextInputDelete(before, after); }
 
+    public static void completeTextInputFallback(int token) { nativeCompleteTextInputFallback(token); }
+
     private static native void nativeSetClipboardText(byte[] utf8);
     private static native void nativeTextInputCommit(byte[] utf8);
     private static native void nativeTextInputPreedit(byte[] utf8, int cursorBegin, int cursorEnd);
     private static native void nativeTextInputDelete(int before, int after);
+    private static native void nativeCompleteTextInputFallback(int token);
 
     public static native void nativeStart(String xdgRuntimeDir);
 

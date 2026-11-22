@@ -144,20 +144,70 @@ class KeyboardHost(
         override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
             val before = beforeLength.coerceAtLeast(0)
             val after = afterLength.coerceAtLeast(0)
+            if (before == 0 && after == 0) return true
             val consumedBefore = minOf(before, composingCursor)
             val consumedAfter = minOf(after, composingText.length - composingCursor)
-            if (consumedBefore > 0 || consumedAfter > 0) {
-                composingText = composingText.removeRange(
-                    composingCursor - consumedBefore,
-                    composingCursor + consumedAfter,
-                )
-                composingCursor -= consumedBefore
+            return applyDeletion(
+                composingCursor - consumedBefore,
+                composingCursor + consumedAfter,
+                before - consumedBefore,
+                after - consumedAfter,
+            )
+        }
+
+        override fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int): Boolean {
+            val before = beforeLength.coerceAtLeast(0)
+            val after = afterLength.coerceAtLeast(0)
+            if (before == 0 && after == 0) return true
+            if (splitsPair(composingCursor)) return false
+            val text = composingText
+            val beforePoints = Character.codePointCount(text, 0, composingCursor)
+            val afterPoints = Character.codePointCount(text, composingCursor, text.length)
+            val consumedBefore = minOf(before, beforePoints)
+            val consumedAfter = minOf(after, afterPoints)
+            val start = Character.offsetByCodePoints(text, composingCursor, -consumedBefore)
+            val end = Character.offsetByCodePoints(text, composingCursor, consumedAfter)
+            if (hasUnpairedSurrogate(text, start, end)) return false
+            return applyDeletion(
+                start,
+                end,
+                before - consumedBefore,
+                after - consumedAfter,
+            )
+        }
+
+        private fun applyDeletion(start: Int, end: Int, guestBefore: Int, guestAfter: Int): Boolean {
+            if (guestBefore > 1 || guestAfter > 1) return false
+            if (splitsPair(start) || splitsPair(end)) return false
+            if (start < end) {
+                composingText = composingText.removeRange(start, end)
+                composingCursor = start
             }
             val controls = StringBuilder()
-            repeat(before - consumedBefore) { controls.append(BACKSPACE) }
-            repeat(after - consumedAfter) { controls.append(FORWARD_DELETE) }
+            if (guestBefore > 0) controls.append(BACKSPACE)
+            if (guestAfter > 0) controls.append(FORWARD_DELETE)
             if (controls.isNotEmpty()) sendText(controls.toString())
             return true
+        }
+
+        private fun splitsPair(index: Int): Boolean =
+            index > 0 && index < composingText.length &&
+                composingText[index - 1].isHighSurrogate() && composingText[index].isLowSurrogate()
+
+        private fun hasUnpairedSurrogate(text: CharSequence, start: Int, end: Int): Boolean {
+            var i = start
+            while (i < end) {
+                val c = text[i]
+                if (c.isHighSurrogate()) {
+                    if (i + 1 >= end || !text[i + 1].isLowSurrogate()) return true
+                    i += 2
+                } else if (c.isLowSurrogate()) {
+                    return true
+                } else {
+                    i++
+                }
+            }
+            return false
         }
 
         override fun sendKeyEvent(event: KeyEvent): Boolean {
@@ -172,6 +222,7 @@ class KeyboardHost(
                     controlRoutes[event.keyCode] ?: !event.isModified()
                 }
                 if (!soft) return this@KeyboardHost.sendKeyEvent(event)
+                if (control == ENTER) finishComposingText()
                 sendText(control.toString())
                 return true
             }
@@ -184,6 +235,7 @@ class KeyboardHost(
         }
 
         override fun performEditorAction(actionCode: Int): Boolean {
+            finishComposingText()
             sendText(ENTER.toString())
             return true
         }

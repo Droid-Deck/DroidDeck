@@ -180,14 +180,14 @@ class KeyboardHostTest {
         val connection = connection()
 
         connection.setComposingText("ab", 1)
-        connection.deleteSurroundingText(3, 2)
+        connection.deleteSurroundingText(3, 1)
         connection.finishComposingText()
         connection.setComposingText("cd", 0)
         connection.deleteSurroundingText(1, 3)
         connection.finishComposingText()
         idle()
 
-        assertEquals(listOf("\b\u007f\u007f", "\b\u007f"), texts)
+        assertEquals(listOf("\b\u007f", "\b\u007f"), texts)
         assertTrue(keys.isEmpty())
     }
 
@@ -221,6 +221,78 @@ class KeyboardHostTest {
         idle()
 
         assertEquals(listOf("中文"), texts)
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun chinesePendingTextFinishesBeforeEditorActionWithoutDuplication() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.setComposingText("中文", 1)
+        connection.performEditorAction(EditorInfo.IME_ACTION_SEND)
+        connection.finishComposingText()
+        idle()
+
+        assertEquals(listOf("中文", "\r"), texts)
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun chinesePendingTextFinishesBeforePlainSoftEnterWithoutDuplication() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.setComposingText("中文", 1)
+        connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
+        connection.sendKeyEvent(keyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+        connection.finishComposingText()
+        idle()
+
+        assertEquals(listOf("中文", "\r"), texts)
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun unknownUtf16DeleteOfCommittedEmojiIsRejectedWithoutGuestEdit() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        assertTrue(connection.commitText("A\uD83D\uDE00", 1))
+        idle()
+        texts.clear()
+
+        assertFalse("unknown committed UTF-16 deletion must be rejected",
+                    connection.deleteSurroundingText(2, 0))
+        idle()
+        assertTrue("a rejected deletion must not edit the guest", texts.isEmpty())
+
+        assertTrue(connection.deleteSurroundingTextInCodePoints(1, 0))
+        idle()
+        assertEquals(listOf("\b"), texts)
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
+    @Test fun codePointDeleteAtEndOfComposingSurrogateSendsOnlyTextBeforeEmoji() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        connection.setComposingText("A\uD83D\uDE00", 1)
+        assertFalse("half-surrogate UTF-16 deletion must be rejected",
+                    connection.deleteSurroundingText(1, 0))
+        idle()
+        assertTrue("a rejected half-surrogate deletion must retain original text", texts.isEmpty())
+
+        assertTrue(connection.deleteSurroundingTextInCodePoints(1, 0))
+        connection.finishComposingText()
+        idle()
+
+        assertEquals(listOf("A"), texts)
         assertTrue(keys.isEmpty())
     }
 
@@ -274,10 +346,10 @@ class KeyboardHostTest {
         host.show()
         idle()
 
-        assertTrue(connection().deleteSurroundingText(2, 1))
+        assertTrue(connection().deleteSurroundingText(1, 1))
         idle()
 
-        assertEquals(listOf("\b\b\u007f"), texts)
+        assertEquals(listOf("\b\u007f"), texts)
         assertTrue("deletions must not become key events", keys.isEmpty())
     }
 

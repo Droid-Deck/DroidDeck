@@ -22,10 +22,21 @@ class SessionTextInput(context: Context, private val hasFocus: () -> Boolean) {
     @Volatile private var active = false
     private var executor: ExecutorService? = null
     private var socket: LocalSocket? = null
+    private var pendingToken = 0
     private val guestListener = object : WaylandCompositor.TextInputFallbackListener {
-        override fun onTextInputFallback(text: String) {
-            val received = synchronized(lock) { generation }
-            handler.post { enqueue(text, received) }
+        override fun onTextInputFallback(text: String, token: Int): Boolean {
+            synchronized(lock) {
+                if (!active || pendingToken != 0 || token <= 0) return false
+                val received = generation
+                pendingToken = token
+                val posted = try {
+                    handler.post { enqueue(text, received, token) }
+                } catch (e: RuntimeException) {
+                    false
+                }
+                if (!posted) pendingToken = 0
+                return posted
+            }
         }
     }
 
@@ -48,27 +59,59 @@ class SessionTextInput(context: Context, private val hasFocus: () -> Boolean) {
             generation += 1
             val queue = executor
             val open = socket
+            val token = pendingToken
             executor = null
             socket = null
-            queue to open
+            pendingToken = 0
+            Triple(queue, open, token)
         }
         WaylandCompositor.clearTextInputFallbackListener(guestListener)
         handler.removeCallbacksAndMessages(null)
         detached.second?.let { close(it) }
         detached.first?.shutdownNow()
+        if (detached.third != 0) WaylandCompositor.completeTextInputFallback(detached.third)
     }
 
-    private fun enqueue(text: String, received: Long) {
-        if (!active || !hasFocus() || !WaylandCompositor.isTextInputFallbackListener(guestListener)) return
+    private fun enqueue(text: String, received: Long, token: Int) {
+        if (!active || !hasFocus() || !WaylandCompositor.isTextInputFallbackListener(guestListener)) {
+            complete(token)
+            return
+        }
         val bytes = text.toByteArray(Charsets.UTF_8)
-        if (bytes.isEmpty() || bytes.size > MAX_BYTES) return
+        if (bytes.isEmpty() || bytes.size > MAX_BYTES) {
+            complete(token)
+            return
+        }
         val queue = synchronized(lock) {
             if (active && generation == received) executor else null
-        } ?: return
-        try {
-            queue.execute { send(bytes, received) }
-        } catch (e: RejectedExecutionException) {
         }
+        if (queue == null) {
+            complete(token)
+            return
+        }
+        try {
+            queue.execute {
+                try {
+                    send(bytes, received)
+                } finally {
+                    complete(token)
+                }
+            }
+        } catch (e: RejectedExecutionException) {
+            complete(token)
+        }
+    }
+
+    private fun complete(token: Int) {
+        val owned = synchronized(lock) {
+            if (pendingToken == token) {
+                pendingToken = 0
+                true
+            } else {
+                false
+            }
+        }
+        if (owned) WaylandCompositor.completeTextInputFallback(token)
     }
 
     private fun send(bytes: ByteArray, received: Long) {

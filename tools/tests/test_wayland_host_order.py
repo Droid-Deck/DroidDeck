@@ -73,10 +73,15 @@ static struct ev g_ev[32];
 static int g_n;
 static int g_display_stub;
 static int g_loop_stub;
+static int g_fallback_accept;
+static int g_fallback_token;
+static int g_hdr_count;
 
 int text_input_host_commit(const char *u, size_t n)
 {
     struct ev *e;
+    if (n == 3 && memcmp(u, "x11", 3) == 0)
+        return 0;
     if (g_n >= 32 || n >= sizeof(g_ev[0].text))
         return 0;
     e = &g_ev[g_n++];
@@ -94,7 +99,16 @@ void text_input_host_preedit(const char *u, size_t n, int a, int b)
 
 void text_input_host_delete(int a, int b) { (void)a; (void)b; }
 void clipboard_host_text(char *u, size_t n) { (void)n; free(u); }
-void droiddeck_on_text_input_fallback(const char *u, int n) { (void)u; (void)n; }
+int droiddeck_on_text_input_fallback(const char *u, int n, int token)
+{
+    if (!g_fallback_accept) return 0;
+    if (n == 3 && memcmp(u, "x11", 3) == 0) {
+        g_fallback_token = token;
+        return 1;
+    }
+    g_fallback_token = token;
+    return 1;
+}
 
 void droiddeck_inject_key(uint32_t k, int s)
 {
@@ -112,7 +126,7 @@ void text_input_init(struct wl_display *d) { (void)d; }
 void toplevel_icon_init(struct wl_display *d) { (void)d; }
 void single_pixel_init(struct wl_display *d) { (void)d; }
 void ahb_swapchain_set_mode(int a, int b) { (void)a; (void)b; }
-void droiddeck_color_set_output(int a) { (void)a; }
+void droiddeck_color_set_output(int a) { (void)a; g_hdr_count++; }
 
 struct wl_display *droiddeck_get_display(void) { return (struct wl_display *)&g_display_stub; }
 void wl_display_flush_clients(struct wl_display *d) { (void)d; }
@@ -174,6 +188,45 @@ int main(void)
     CHECK(g_ev[saved].kind == 1 && strcmp(g_ev[saved].text, "尾") == 0);
     CHECK(g_ev[saved + 1].kind == 2 && g_ev[saved + 1].a == 16u && g_ev[saved + 1].b == 1);
     CHECK(g_ev[saved + 2].kind == 2 && g_ev[saved + 2].a == 16u && g_ev[saved + 2].b == 0);
+    CHECK(g_head == NULL && g_tail == NULL);
+    saved = g_n;
+    g_fallback_accept = 1;
+    droiddeck_host_text_commit("x11", 3);
+    droiddeck_host_key(29, 1);
+    droiddeck_host_key(28, 1);
+    droiddeck_host_key(28, 0);
+    droiddeck_host_key(29, 0);
+    droiddeck_host_text_commit("later", 5);
+    droiddeck_host_hdr_output(1);
+    CHECK(on_wake(g_wake[0], 0, NULL) == 0);
+    CHECK(g_n == saved);
+    CHECK(g_hdr_count == 1);
+    CHECK(g_fallback_token > 0);
+    droiddeck_host_text_input_fallback_complete(g_fallback_token + 1);
+    CHECK(on_wake(g_wake[0], 0, NULL) == 0);
+    CHECK(g_n == saved);
+    droiddeck_host_key(30, 1);
+    droiddeck_host_key(30, 0);
+    droiddeck_host_text_input_fallback_complete(g_fallback_token);
+    CHECK(on_wake(g_wake[0], 0, NULL) == 0);
+    CHECK(g_n == saved + 7);
+    CHECK(g_ev[saved].kind == 2 && g_ev[saved].a == 29u && g_ev[saved].b == 1);
+    CHECK(g_ev[saved + 1].kind == 2 && g_ev[saved + 1].a == 28u && g_ev[saved + 1].b == 1);
+    CHECK(g_ev[saved + 2].kind == 2 && g_ev[saved + 2].a == 28u && g_ev[saved + 2].b == 0);
+    CHECK(g_ev[saved + 3].kind == 2 && g_ev[saved + 3].a == 29u && g_ev[saved + 3].b == 0);
+    CHECK(g_ev[saved + 4].kind == 1 && strcmp(g_ev[saved + 4].text, "later") == 0);
+    CHECK(g_ev[saved + 5].kind == 2 && g_ev[saved + 5].a == 30u && g_ev[saved + 5].b == 1);
+    CHECK(g_ev[saved + 6].kind == 2 && g_ev[saved + 6].a == 30u && g_ev[saved + 6].b == 0);
+    CHECK(on_wake(g_wake[0], 0, NULL) == 0);
+    CHECK(g_n == saved + 7);
+    g_fallback_accept = 0;
+    droiddeck_host_text_commit("x11", 3);
+    droiddeck_host_key(31, 1);
+    droiddeck_host_key(31, 0);
+    CHECK(on_wake(g_wake[0], 0, NULL) == 0);
+    CHECK(g_n == saved + 9);
+    CHECK(g_ev[saved + 7].kind == 2 && g_ev[saved + 7].a == 31u && g_ev[saved + 7].b == 1);
+    CHECK(g_ev[saved + 8].kind == 2 && g_ev[saved + 8].a == 31u && g_ev[saved + 8].b == 0);
     CHECK(g_head == NULL && g_tail == NULL);
     close(g_wake[0]);
     close(g_wake[1]);
