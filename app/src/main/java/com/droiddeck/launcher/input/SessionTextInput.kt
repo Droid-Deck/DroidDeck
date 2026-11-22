@@ -11,9 +11,9 @@ import com.droiddeck.launcher.wayland.WaylandCompositor
 import java.io.File
 import java.io.IOException
 import java.net.SocketTimeoutException
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 class SessionTextInput(context: Context, private val hasFocus: () -> Boolean) {
     private val appContext = context.applicationContext
@@ -21,7 +21,7 @@ class SessionTextInput(context: Context, private val hasFocus: () -> Boolean) {
     private val lock = Any()
     private var generation = 0L
     @Volatile private var active = false
-    private var executor: ExecutorService? = null
+    private var executor: ScheduledThreadPoolExecutor? = null
     private var socket: LocalSocket? = null
     private var pendingToken = 0
     private var runningToken = 0
@@ -45,15 +45,16 @@ class SessionTextInput(context: Context, private val hasFocus: () -> Boolean) {
 
     fun start() {
         if (active) return
-        val queue = Executors.newSingleThreadExecutor { runnable ->
+        val queue = ScheduledThreadPoolExecutor(1) { runnable ->
             Thread(runnable, "session-text-input").apply { isDaemon = true }
         }
+        queue.executeExistingDelayedTasksAfterShutdownPolicy = false
         synchronized(lock) {
             active = true
             executor = queue
+            if (failedToken != 0) scheduleRetryLocked(failedToken, INITIAL_DELAY_MS)
         }
         WaylandCompositor.setTextInputFallbackListener(guestListener)
-        if (synchronized(lock) { failedToken } != 0) scheduleFailedProbe(queue)
     }
 
     fun stop() {
@@ -113,35 +114,51 @@ class SessionTextInput(context: Context, private val hasFocus: () -> Boolean) {
         val marked = synchronized(lock) {
             if (pendingToken == token && failedToken == 0) {
                 failedToken = token
+                WaylandCompositor.completeTextInputFallback(-token)
+                scheduleRetryLocked(token, INITIAL_DELAY_MS)
                 true
             } else {
                 false
             }
         }
-        if (marked) {
-            Log.w(TAG, "text injection could not be confirmed")
-            WaylandCompositor.completeTextInputFallback(-token)
+        if (marked) Log.w(TAG, "text injection could not be confirmed")
+    }
+
+    private fun scheduleRetryLocked(token: Int, delayMs: Long) {
+        if (!active || failedToken != token || pendingToken != token) return
+        val queue = executor ?: return
+        val current = generation
+        try {
+            queue.schedule({ retryProbe(current, token, delayMs) }, delayMs, TimeUnit.MILLISECONDS)
+        } catch (e: RejectedExecutionException) {
         }
     }
 
-    private fun scheduleFailedProbe(queue: ExecutorService) {
-        try {
-            queue.execute {
-                val token = synchronized(lock) { failedToken }
-                if (token == 0) return@execute
-                if (!probe()) return@execute
-                val owned = synchronized(lock) {
-                    if (active && failedToken == token && pendingToken == token) {
-                        failedToken = 0
-                        true
-                    } else {
-                        false
-                    }
-                }
-                if (owned) complete(token)
-            }
-        } catch (e: RejectedExecutionException) {
+    private fun retryProbe(received: Long, token: Int, delayMs: Long) {
+        val ready = synchronized(lock) {
+            active && generation == received && failedToken == token && pendingToken == token
         }
+        if (!ready) return
+        val proven = probe()
+        val owned = synchronized(lock) {
+            if (proven) {
+                if (active && generation == received && failedToken == token && pendingToken == token) {
+                    pendingToken = 0
+                    runningToken = 0
+                    failedToken = 0
+                    true
+                } else {
+                    false
+                }
+            } else {
+                if (active && generation == received && failedToken == token && pendingToken == token) {
+                    val next = (delayMs * 2).coerceAtMost(MAX_DELAY_MS)
+                    scheduleRetryLocked(token, next)
+                }
+                false
+            }
+        }
+        if (owned) WaylandCompositor.completeTextInputFallback(token)
     }
 
     private fun probe(): Boolean {
@@ -269,5 +286,7 @@ class SessionTextInput(context: Context, private val hasFocus: () -> Boolean) {
         const val TAG = "SessionTextInput"
         const val MAX_BYTES = 65536
         const val TIMEOUT_MS = 3000
+        const val INITIAL_DELAY_MS = 500L
+        const val MAX_DELAY_MS = 5000L
     }
 }
