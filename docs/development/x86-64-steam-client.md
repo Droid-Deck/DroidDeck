@@ -197,6 +197,13 @@ alone would then read as an installed client.
     restarted from the top forever (found with `perf_event_open` IP sampling, since proot holds
     ptrace). Such a range is now skipped whole and a second exhausted scan returns `-ENOMEM`, as the
     kernel does (`fex-2610-r3`).
+  - `0006-smc-alias-of-code-created-after-translation`: a JIT with a double-mapped memfd (CoreCLR's
+    W^X allocator) maps its writable alias after the executable alias was translated. Under
+    `SMCChecks=mtrack` the new alias was not write-protected, so writes through it never faulted and
+    never invalidated the translated code; x86-64 .NET programs ran stale code (access violations,
+    NullReferenceException, internal CLR errors). A writable mapping or mprotect now write-protects the
+    overlapping part of any alias that is already executable, so the first write faults and invalidates.
+    `FEX_SMCCHECKS=full` was the only workaround; no setting is needed with the patch.
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,
