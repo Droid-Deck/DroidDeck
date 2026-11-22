@@ -543,6 +543,27 @@ class InputSettingsTest {
         compose.runOnIdle { assertEquals(scaled, editor().rendered()) }
     }
 
+    @Test @Config(qualifiers = "w468dp-h833dp-port-369dpi")
+    fun buttonSizeInPortraitKeepsLandscapeEditsWithoutARotatedFrame() {
+        val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")
+        val gamepad = InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!
+        val landscape = gamepad.copy(elements = gamepad.elements.map { if (it.id in face) it.copy(x = it.x + .012f, y = it.y + .017f) else it },
+            aspect = 1600f / 900f, rotated = emptyList(), rotatedAspect = 0f)
+        InputLibraries.update(context) { it.withLayout(landscape) }
+        val library = InputLibraries.read(context)
+        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = landscape.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(90f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context).layouts.first { it.id == landscape.id }
+            assertEquals(landscape.aspect, saved.aspect)
+            for (id in face) assertEquals(landscape.elements.first { it.id == id }.let { it.x to it.y }, saved.elements.first { it.id == id }.let { it.x to it.y })
+            assertTrue(saved.rotated.isNotEmpty() && saved.rotatedAspect < 1f)
+        }
+    }
+
     @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
     fun buttonSizeKeepsMovedGamepadGroupsInShape() {
         val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")

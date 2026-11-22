@@ -115,10 +115,10 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun checkpoint() { history = (history + SurfaceSnapshot(elements, actions, clicks, layoutScale, aspect)).takeLast(40) }
     fun undo() { history.lastOrNull()?.let { elements = it.elements; actions = it.actions; clicks = it.clicks; layoutScale = it.scale; aspect = it.aspect; history = history.dropLast(1) } }
     private fun adoptDisplayedFrame(context: android.content.Context): Boolean {
-        if (canvas.width <= 0 || canvas.height <= 0 || shown.isEmpty()) return false
-        val current = layout.copy(elements = elements, aspect = aspect)
-        if (OnScreenLayout.oriented(current, canvas.width, canvas.height).aspect == aspect) return false
+        if (canvas.width <= 0 || canvas.height <= 0 || shown.isEmpty() || aspect <= 0f || (aspect < 1f) == (canvasAspect < 1f)) return false
+        val open = toolsExpanded
         beginEdit(shown, canvasAspect, gamepad?.let { GamepadScaler(context, canvas.width, canvas.height, layout) })
+        toolsExpanded = open
         return true
     }
 
