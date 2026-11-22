@@ -100,7 +100,8 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     private val rescales get() = gamepad?.let { pad -> elements.any { it.id in pad.ids } } == true
     val scale get() = when {
         scaleBase?.second == elements -> scaleValue
-        rescales -> (layoutScale * 100).roundToInt()
+        rescales -> ((if (canvas.width > 0 && canvas.height > 0 && aspect > 0f && (aspect < 1f) != (canvasAspect < 1f))
+            OnScreenLayout.oriented(layout, canvas.width, canvas.height).scale else layoutScale) * 100).roundToInt()
         else -> 100
     }
     val positioned get() = (if (rescales) gamepad!!.reset(elements) else defaults?.let { elements.withPositionsOf(refit(it, defaultsFrame)) })
@@ -118,7 +119,6 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         if (canvas.width <= 0 || canvas.height <= 0 || shown.isEmpty() || aspect <= 0f || (aspect < 1f) == (canvasAspect < 1f)) return false
         val open = toolsExpanded
         beginEdit(shown, canvasAspect, gamepad?.let { GamepadScaler(context, canvas.width, canvas.height, layout) })
-        layoutScale = OnScreenLayout.oriented(layout, canvas.width, canvas.height).scale
         toolsExpanded = open
         return true
     }
@@ -127,6 +127,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         checkpoint()
         toolsExpanded = false
         elements = OnScreenLayout.editorFrame(layout.copy(elements = elements), displayed)
+        if (this.aspect > 0f && aspect > 0f && (this.aspect < 1f) != (aspect < 1f)) layoutScale = OnScreenLayout.oriented(layout, (aspect * 1000).roundToInt(), 1000).scale
         this.aspect = aspect
         scaler?.let { gamepad = it }
     }

@@ -551,8 +551,9 @@ class InputSettingsTest {
             aspect = 1600f / 900f, rotated = emptyList(), rotatedAspect = 0f)
         InputLibraries.update(context) { it.withLayout(landscape) }
         val library = InputLibraries.read(context)
-        compose.setContent { DroidDeckTheme { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
-            layoutId = landscape.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } }
+        val round = mutableStateOf(0)
+        compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = landscape.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } } }
         compose.onNodeWithTag("input-editor-tools").performClick()
         compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(90f) }
         compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
@@ -565,6 +566,17 @@ class InputSettingsTest {
             assertEquals(.9f, saved.rotatedScale)
             assertEquals(.9f, OnScreenLayout.oriented(saved, 900, 1600).scale)
             assertEquals(landscape.scale, OnScreenLayout.oriented(saved, 1600, 900).scale)
+        }
+        compose.runOnIdle { round.value = 1 }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        val slider = compose.onNodeWithTag("input-editor-scale").performScrollTo()
+        assertEquals(90f, slider.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ProgressBarRangeInfo].current, .5f)
+        slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(80f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context).layouts.first { it.id == landscape.id }
+            assertEquals(landscape.scale, saved.scale)
+            assertEquals(.8f, saved.rotatedScale)
         }
     }
 
