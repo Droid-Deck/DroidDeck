@@ -1,6 +1,8 @@
 #!/usr/bin/bash
 set -euxo pipefail
-VERSION=${FEX_VERSION:-FEX-2610}
+VERSION=${FEX_VERSION:?FEX_VERSION must name a FEX release tag, e.g. FEX-2611.1}
+RELEASE=${VERSION#FEX-}
+RELEASE=${RELEASE%%.*}
 WORK=/work
 cd "$WORK"
 grep -q '^DisableSandbox' /etc/pacman.conf || sed -i 's/^\[options\]/[options]\nDisableSandbox/' /etc/pacman.conf
@@ -38,7 +40,7 @@ fi
 rm -rf fex-src out && git clone -q --depth 1 --branch "$VERSION" --recurse-submodules --shallow-submodules https://github.com/FEX-Emu/FEX.git fex-src
 for p in tools/fex/patches/*.patch; do
   upstream=$(sed -n 's/^Fixed-upstream: FEX-\([0-9]\{4\}\)$/\1/p' "$p")
-  if [ -n "$upstream" ] && [ "${VERSION#FEX-}" -ge "$upstream" ]; then
+  if [ -n "$upstream" ] && [ "$RELEASE" -ge "$upstream" ]; then
     echo "$(basename "$p"): already in FEX-$upstream, skipped for $VERSION"
     continue
   fi

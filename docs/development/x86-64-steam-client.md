@@ -204,13 +204,18 @@ alone would then read as an installed client.
     NullReferenceException, internal CLR errors). A writable mapping or mprotect now write-protects the
     overlapping part of any alias that is already executable, so the first write faults and invalidates.
     `FEX_SMCCHECKS=full` was the only workaround; no setting is needed with the patch.
+  - `0007-cmake-install-code-without-depends`: CMake 4.5 rejects the `DEPENDS` argument FEX passes to
+    `install(CODE ...)` for the guest thunk libraries, so builds with host thunks stopped at configure.
+    The guest libraries are external projects in the default build, which `install` already follows.
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,
   checks the digest GitHub stored, and records the build's version, sha256 and size in its `fex.json`
   (in that order: a device that reads the old `fex.json` meanwhile gets a mismatching archive and keeps
   its FEX). This repository's `build-fex.yml` only builds `tools/fex` when it changes (and on dispatch,
-  for diagnostic builds such as `-DDEBUG_STRACE`); nothing is published from it.
+  for diagnostic builds such as `-DDEBUG_STRACE`); nothing is published from it. It builds FEX's latest
+  release, point releases (`FEX-2611.1`) included; `build-in-arch.sh` takes the tag from `FEX_VERSION`
+  and compares only its four-digit release against a patch's `Fixed-upstream`.
 - Releases so far: `fex-2609-r2` (no thunks), `fex-2609-r3` (thunks), `fex-2610-r1`, `fex-2610-r2`,
   `fex-2610-r3`, `fex-2610-r4` (in-root resolution when openat2 is missing, exact MAP_32BIT
   marking), `fex-2610-r5` (current: bundles libxxhash, which the Linux runtime does not ship; the
