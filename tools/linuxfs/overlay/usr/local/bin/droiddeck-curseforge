@@ -1,14 +1,15 @@
 #!/bin/bash
 set -u
+umask 077
+self=${BASH_SOURCE[0]}
 proc=${DD_PROC:-/proc}
 state=${DD_CURSEFORGE_STATE:-${XDG_RUNTIME_DIR:-/tmp}/droiddeck-curseforge}
-runner=${DD_APPIMAGE_RUN:-${BASH_SOURCE[0]%/*}/droiddeck-appimage-run}
+runner=${DD_APPIMAGE_RUN:-${self%/*}/droiddeck-appimage-run}
 wait_s=${DD_CURSEFORGE_WAIT:-60}
 cmd=${1:-}
 dir=${2:-}
-port=${3:-9229}
-case $cmd in start|stop|display) ;; *) echo "usage: droiddeck-curseforge start|stop|display <imported AppImage directory> [port]" >&2; exit 2 ;; esac
-case $port in ''|*[!0-9]*) echo "droiddeck-curseforge: bad port $port" >&2; exit 2 ;; esac
+flag=--inspect-publish-uid=stderr
+case $cmd in start|hold|stop|display) ;; *) echo "usage: droiddeck-curseforge start|hold|stop|display <imported AppImage directory>" >&2; exit 2 ;; esac
 if [ "$cmd" != display ] && [ ! -d "$dir/app" ]; then
   echo "droiddeck-curseforge: $dir is not an imported AppImage" >&2
   exit 2
@@ -45,19 +46,61 @@ running() {
   return 1
 }
 
-inspector() {
-  python3 - "$port" <<'EOF' >/dev/null 2>&1
-import json, sys, urllib.request
-with urllib.request.urlopen("http://127.0.0.1:%s/json/list" % sys.argv[1], timeout=2) as r:
-    sys.exit(0 if any(t.get("type") == "node" for t in json.load(r)) else 1)
-EOF
-}
-
 ours() {
   local pid
   pid=$(cat "$state/pid" 2>/dev/null) || return 1
   case $pid in ''|*[!0-9]*) return 1 ;; esac
-  [ -d "$proc/$pid" ] && tr '\0' '\n' 2>/dev/null < "$proc/$pid/cmdline" | grep -qxF -- "--inspect=127.0.0.1:$port" && echo "$pid"
+  [ -d "$proc/$pid" ] && tr '\0' '\n' 2>/dev/null < "$proc/$pid/cmdline" | grep -qxF -- "$flag" && echo "$pid"
+}
+
+inspector() {
+  grep -aom1 'ws://127\.0\.0\.1:[0-9]*/[0-9a-f]\{8\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{12\}' "$state/log" 2>/dev/null
+}
+
+start() {
+  local shown display auth url
+  mkdir -p "$state" && chmod 700 "$state"
+  exec 9>"$state/lock"
+  flock 9 2>/dev/null
+  if ! ours >/dev/null; then
+    if running; then
+      echo busy
+      return 3
+    fi
+    shown=$(x_display) || { echo "no X display" >&2; return 4; }
+    display=$(sed -n 1p <<<"$shown")
+    auth=$(sed -n 2p <<<"$shown")
+    env -u DBUS_SESSION_BUS_ADDRESS -u WAYLAND_DISPLAY -u GAMESCOPE_WAYLAND_DISPLAY DISPLAY="$display" ${auth:+XAUTHORITY="$auth"} \
+      setsid "$runner" "$dir" --minimized --inspect=127.0.0.1:0 "$flag" </dev/null >"$state/log" 2>&1 9>&- &
+    echo $! > "$state/pid"
+  fi
+  exec 9>&-
+  for _ in $(seq 1 $((wait_s * 2))); do
+    if url=$(inspector); then
+      echo "$url"
+      return 0
+    fi
+    ours >/dev/null || break
+    sleep 0.5
+  done
+  tail -n 20 "$state/log" >&2
+  return 5
+}
+
+stop() {
+  local pid p
+  pid=$(ours) || { rm -f "$state/pid"; return 0; }
+  rm -f "$state/pid"
+  kill -TERM -- "-$pid" 2>/dev/null
+  for _ in $(seq 1 20); do
+    kill -0 -- "-$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  kill -KILL -- "-$pid" 2>/dev/null
+  for p in "$proc"/[0-9]*; do
+    tr '\0' '\n' 2>/dev/null < "$p/cmdline" | grep -qF -- "$dir/app/" && kill -KILL "${p##*/}" 2>/dev/null
+  done
+  return 0
 }
 
 case $cmd in
@@ -65,42 +108,20 @@ case $cmd in
     x_display || exit 4
     ;;
   start)
-    if ! ours >/dev/null; then
-      if running; then
-        echo busy
-        exit 3
-      fi
-      shown=$(x_display) || { echo "no X display" >&2; exit 4; }
-      display=$(sed -n 1p <<<"$shown")
-      auth=$(sed -n 2p <<<"$shown")
-      mkdir -p "$state" && chmod 700 "$state"
-      env -u DBUS_SESSION_BUS_ADDRESS -u WAYLAND_DISPLAY -u GAMESCOPE_WAYLAND_DISPLAY DISPLAY="$display" ${auth:+XAUTHORITY="$auth"} \
-        setsid "$runner" "$dir" --minimized "--inspect=127.0.0.1:$port" </dev/null >"$state/log" 2>&1 &
-      echo $! > "$state/pid"
-    fi
-    for _ in $(seq 1 $((wait_s * 2))); do
-      if inspector; then
-        echo ready
-        exit 0
-      fi
-      ours >/dev/null || break
-      sleep 0.5
+    start
+    exit $?
+    ;;
+  hold)
+    start >/dev/null || exit $?
+    trap 'stop; exit 0' TERM INT HUP
+    while ours >/dev/null; do
+      sleep 1 &
+      wait $!
     done
-    tail -n 20 "$state/log" >&2
-    exit 5
+    exit 0
     ;;
   stop)
-    pid=$(ours) || { rm -f "$state/pid"; exit 0; }
-    rm -f "$state/pid"
-    kill -TERM -- "-$pid" 2>/dev/null
-    for _ in $(seq 1 20); do
-      kill -0 -- "-$pid" 2>/dev/null || break
-      sleep 0.5
-    done
-    kill -KILL -- "-$pid" 2>/dev/null
-    for p in "$proc"/[0-9]*; do
-      tr '\0' '\n' 2>/dev/null < "$p/cmdline" | grep -qF -- "$dir/app/" && kill -KILL "${p##*/}" 2>/dev/null
-    done
+    stop
     exit 0
     ;;
 esac
