@@ -73,6 +73,8 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin main
           echo "base-sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
+      - name: Verify checked-in binary provenance
+        run: python3 tools/provenance/check.py
       - name: Record pinned source tree
         id: source
         run: echo "tree-sha=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
