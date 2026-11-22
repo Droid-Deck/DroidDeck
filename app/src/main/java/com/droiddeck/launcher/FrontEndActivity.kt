@@ -2052,6 +2052,14 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             if (!compatLaunch!!.loading.ended && event.keyCode !in listOf(
                     KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE)) return true
         }
+        if (!triggerKeys.synthesizing) triggerKeys.noteKey(event)
+        val tabStep = com.droiddeck.launcher.ui.dualPageStep(event)
+        val tabs = com.droiddeck.launcher.ui.MainTabSteps.handler
+        if (tabStep != null && tabs != null) {
+            if (controllerHaptics) com.droiddeck.launcher.ui.ControllerHaptics.onKey(this, event)
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) tabs(tabStep)
+            return true
+        }
         if (controllerHaptics) com.droiddeck.launcher.ui.ControllerHaptics.onKey(this, event)
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
@@ -2069,9 +2077,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
     }
 
+    private val triggerKeys = com.droiddeck.launcher.input.TriggerKeys { dispatchKeyEvent(it) }
+
     override fun dispatchGenericMotionEvent(event: android.view.MotionEvent): Boolean {
         if (compatLaunch != null && !compatLaunch!!.loading.ended &&
             com.droiddeck.launcher.input.PadBridge.isControllerMotionEvent(event)) return true
+        triggerKeys.onMotion(event)
         return super.dispatchGenericMotionEvent(event)
     }
 

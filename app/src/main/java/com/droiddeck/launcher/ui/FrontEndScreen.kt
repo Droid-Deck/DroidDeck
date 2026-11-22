@@ -761,6 +761,20 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusManager.clearFocus(force = true)
             onRailSelect(key)
         }, a)
+        val tabStep = androidx.compose.runtime.rememberUpdatedState { step: Int ->
+            if (!processSettingsPageVisible) {
+                val keys = navigationKeys(s)
+                keys.getOrNull(keys.indexOf(railSelectionNow.value) + step)?.let { key ->
+                    PageSwipe.direction = step
+                    onRailSelect(key)
+                }
+            }
+        }
+        DisposableEffect(Unit) {
+            val handler: (Int) -> Unit = { tabStep.value(it) }
+            MainTabSteps.handler = handler
+            onDispose { if (MainTabSteps.handler === handler) MainTabSteps.handler = null }
+        }
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
         val swipeContext = androidx.compose.ui.platform.LocalContext.current
         remember { com.droiddeck.launcher.core.AppUiPrefs.pageSwipe(swipeContext).also { PageSwipe.on = it } }
@@ -768,19 +782,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         LauncherLayout(
             bottomNavigation && !s.dualScreen, pal.line,
             Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }
-                .then(if (openTab == "agent") Modifier.imePadding() else Modifier)
-                .then(if (s.dualScreen) Modifier.onKeyEvent { event ->
-                    val step = dualPageStep(event.nativeKeyEvent) ?: return@onKeyEvent false
-                    if (event.type == KeyEventType.KeyDown && !processSettingsPageVisible) {
-                        val keys = navigationKeys(s)
-                        val at = keys.indexOf(railSelectionNow.value)
-                        keys.getOrNull(at + step)?.let { key ->
-                            PageSwipe.direction = step
-                            onRailSelect(key)
-                        }
-                    }
-                    true
-                } else Modifier),
+                .then(if (openTab == "agent") Modifier.imePadding() else Modifier),
             navigation = {
                 if (s.dualScreen || (bottomNavigation && agentKeyboardOpen)) Unit
                 else if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
@@ -901,4 +903,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             }
         }
     }
+}
+
+internal object MainTabSteps {
+    @Volatile var handler: ((Int) -> Unit)? = null
 }
