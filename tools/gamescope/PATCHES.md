@@ -406,3 +406,13 @@ carried `DXVK_HDR=0`. Whether the display can show HDR now comes from the host's
 either direction. The 10-bit output format is chosen only while HDR is enabled, so an SDR session keeps the 8-bit
 output it had, and the output images are made again in the other format when the setting changes. On a display that can show HDR, a session that starts with HDR off leaves `DXVK_HDR` unset instead of
 forcing it to 0, so a game started after HDR is switched on finds it.
+
+## 0140 Focus is chosen again when a window turns visible or fully transparent
+
+A window is a focus candidate only while its `_NET_WM_WINDOW_OPACITY` is above zero, but a change of that property
+did not ask for focus to be chosen again. Wine sets the property for layered windows, and a window that fades in maps
+fully transparent, so it was skipped when it mapped and stayed skipped once it was opaque until something else
+changed focus. In a nested session with no other window the SDL window stayed hidden, and the game ran with nothing
+on screen. Focus is now chosen again whenever a window's opacity crosses zero in either direction; a change between
+two visible opacities leaves focus alone. `tools/tests/test_gamescope_focus_opacity.py` compiles the rule from this
+patch and checks the property handler applies it.
