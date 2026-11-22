@@ -121,8 +121,8 @@ private fun cornersOf(shape: Shape, size: Size, dir: LayoutDirection, density: D
     }
 
 private fun ringRect(l: Float, t: Float, w: Float, h: Float, radii: FloatArray, inset: Float): Path {
-    val cap = minOf(w, h) / 2f
-    fun r(i: Int) = CornerRadius((radii[i] - inset).coerceIn(0f, cap))
+    // Radii are not capped one by one: the path scales corners whose neighbours overlap, as the outline does.
+    fun r(i: Int) = CornerRadius((radii[i] - inset).coerceAtLeast(0f))
     return Path().apply { addRoundRect(RoundRect(Rect(l, t, l + w, t + h), r(0), r(1), r(2), r(3))) }
 }
 
