@@ -18,7 +18,6 @@
 #include <string.h>
 #include <sys/system_properties.h>
 #include <sys/ioctl.h>
-#include <fcntl.h>
 #include <linux/dma-buf.h>
 #include <unistd.h>
 #include <errno.h>
@@ -1153,7 +1152,7 @@ static int wait_client_writes(struct vkp_image *img, int64_t deadline) {
     return r > 0;
 }
 
-static int draws_client_writes_done(const struct vkp_draw *draws, int n) {
+int vkp_draws_client_writes_done(const struct vkp_draw *draws, int n) {
     const int64_t deadline = perf_now() + CLIENT_WRITE_WAIT_NS;
     for (int i = 0; i < n; i++)
         if (!wait_client_writes(draws[i].img, deadline)) return 0;
@@ -1168,9 +1167,7 @@ unsigned vkp_client_write_deferrals(void) { return g_client_write_deferrals; }
 
 void vkp_image_track_client_writes(struct vkp_image *img, int dmabuf_fd) {
     if (!img || img->has_client_fd || dmabuf_fd < 0) return;
-    const int fd = fcntl(dmabuf_fd, F_DUPFD_CLOEXEC, 0);
-    if (fd < 0) return;
-    img->client_fd = fd;
+    img->client_fd = dmabuf_fd;
     img->has_client_fd = 1;
 }
 
@@ -1716,7 +1713,6 @@ void vkp_image_destroy(struct vkp_image *img) {
         destroy_image_objects(img);
     }
     if (img->android_buffer) AHardwareBuffer_release(img->android_buffer);
-    if (img->has_client_fd) close(img->client_fd);
     free(img);
 }
 
@@ -2218,7 +2214,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     check_surface_changed();
     if (g_dev_state == -2) return -1;
     if (dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
-    if (!draws_client_writes_done(draws, n)) return -1;
+    if (!vkp_draws_client_writes_done(draws, n)) return -1;
 
     if (g_swapchain && vkp_framegen_extra_images() != g_swap_extra) {
         droiddeck_log("gpu", "frame generation now wants %d present%s per frame: rebuilding the swapchain",
@@ -2833,7 +2829,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
     if (g_pass.active) vkp_pass_abort();
     g_pass.ngen = 0;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
-    if (!draws_client_writes_done(draws, n)) return -1;
+    if (!vkp_draws_client_writes_done(draws, n)) return -1;
     int input_w = scene_w, input_h = scene_h;
     int pass_n = n, overlay_start = n;
     struct vkp_draw source_draw;

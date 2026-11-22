@@ -34,7 +34,6 @@ HARNESS = r'''
 #define DMA_BUF_SYNC_READ 1
 #define DMA_BUF_IOCTL_EXPORT_SYNC_FILE 100
 #define POLLIN 1
-#define F_DUPFD_CLOEXEC 1030
 struct dma_buf_export_sync_file { unsigned flags; int fd; };
 struct pollfd { int fd; short events, revents; };
 struct vkp_image { int client_fd, has_client_fd, client_stalled; };
@@ -62,7 +61,6 @@ static int poll(struct pollfd *p, unsigned n, int timeout) {
     now_ms += timeout; return 0;
 }
 static int close(int fd) { closed[fd]++; return 0; }
-static int fcntl(int fd, int cmd, int arg) { (void)arg; assert(cmd == F_DUPFD_CLOEXEC); return fd; }
 /* PRODUCTION_FUNCTIONS */
 int main(void) {
     struct vkp_image idle = {0}, slow = {0}, stuck = {0}, shm = {0};
@@ -75,13 +73,13 @@ int main(void) {
     assert(g_perf.client_write_waits == 0 && now_ms == 0 && closed[20] == 1);
 
     struct vkp_draw draws[] = {{&idle}, {&slow}, {&shm}};
-    assert(draws_client_writes_done(draws, 3) && now_ms == 30 && g_perf.client_write_waits == 1);
+    assert(vkp_draws_client_writes_done(draws, 3) && now_ms == 30 && g_perf.client_write_waits == 1);
 
     /* A write still running at the deadline skips the read. Until it finishes, its image is only checked. */
     now_ms = 0;
     struct vkp_draw blocked[] = {{&slow}, {&stuck}};
     finish_ms[11] = 40;
-    assert(!draws_client_writes_done(blocked, 2) && now_ms == 100 && g_perf.client_write_waits == 3);
+    assert(!vkp_draws_client_writes_done(blocked, 2) && now_ms == 100 && g_perf.client_write_waits == 3);
     assert(vkp_client_write_deferrals() == 1);
     assert(!vkp_image_client_writes_done(&stuck) && now_ms == 100 && g_perf.client_write_waits == 3);
     assert(vkp_client_write_deferrals() == 2);
@@ -127,7 +125,7 @@ class VkClientWriteFencesTest(unittest.TestCase):
         bound = re.search(r'^#define CLIENT_WRITE_WAIT_NS .*\nstatic unsigned g_client_write_deferrals;$',
                           source, re.M).group(0)
         functions = bound + '\n' + '\n'.join(function(source, name) for name in
-                              ('wait_client_writes', 'draws_client_writes_done', 'vkp_image_client_writes_done',
+                              ('wait_client_writes', 'vkp_draws_client_writes_done', 'vkp_image_client_writes_done',
                                'vkp_client_write_deferrals', 'vkp_image_track_client_writes'))
         with tempfile.TemporaryDirectory(prefix='droiddeck-client-writes-') as temp:
             folder = Path(temp)

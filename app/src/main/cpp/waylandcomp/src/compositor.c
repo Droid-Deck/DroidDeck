@@ -1261,7 +1261,7 @@ static void surface_set_input(struct wl_client *c, struct wl_resource *r,
 
 static void send_toplevel_configure(struct surface *s);
 
-static void cursor_publish_buffer(struct surface *s, struct wl_resource *buffer) {
+static int cursor_publish_buffer(struct surface *s, struct wl_resource *buffer) {
     struct dmabuf_buffer *db = get_dmabuf(buffer);
     struct wl_shm_buffer *shm = db ? NULL : wl_shm_buffer_get(buffer);
     if (shm) {
@@ -1272,18 +1272,18 @@ static void cursor_publish_buffer(struct surface *s, struct wl_resource *buffer)
             db->img = import_dmabuf(db);
             if (!db->img) db->import_failed = 1;
         }
-        if (!db->img) return;
-        struct pollfd p = {.fd = db->fd[0], .events = POLLIN};
-        int r;
-        do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
-        if (vkp_image_readback(db->img, g_cursor_rb, CURSOR_MAX_PX) != 0) return;
+        if (!db->img) return 0;
+        const unsigned deferrals = vkp_client_write_deferrals();
+        if (vkp_image_readback(db->img, g_cursor_rb, CURSOR_MAX_PX) != 0)
+            return vkp_client_write_deferrals() != deferrals;
         const int row = vkp_image_width(db->img);
         cursor_publish_pixels((const uint8_t *)g_cursor_rb, db->width, db->height,
                               (size_t)(row > db->width ? row : db->width) * 4, g_cursor_hx, g_cursor_hy);
     } else {
-        return;
+        return 0;
     }
     g_cursor_shown = s;
+    return 0;
 }
 
 static void surface_forget_idle_px(struct surface *s) {
@@ -1341,6 +1341,26 @@ static void surface_drop_idle(struct surface *s) {
     if (buffer) send_buffer_release(buffer);
 }
 
+static struct wl_event_source *g_cursor_retry;
+static int on_cursor_retry(void *data);
+
+/* A cursor buffer whose client write is unfinished is held rather than released, and read again later. */
+static void cursor_publish_or_hold(struct surface *s, struct wl_resource *buffer) {
+    if (!cursor_publish_buffer(s, buffer)) { send_buffer_release(buffer); return; }
+    if (!g_cursor_retry)
+        g_cursor_retry = wl_event_loop_add_timer(wl_display_get_event_loop(g_display), on_cursor_retry, NULL);
+    if (!g_cursor_retry) { send_buffer_release(buffer); return; }
+    surface_hold_idle(s, buffer);
+    wl_event_source_timer_update(g_cursor_retry, 16);
+}
+
+static int on_cursor_retry(void *data) {
+    struct surface *s = g_cursor_surface;
+    struct wl_resource *buffer = s && s->role == ROLE_CURSOR ? surface_take_idle(s) : NULL;
+    if (buffer) cursor_publish_or_hold(s, buffer);
+    return 0;
+}
+
 static void surface_commit(struct wl_client *c, struct wl_resource *r) {
     struct surface *s = wl_resource_get_user_data(r);
     struct surface *child;
@@ -1391,8 +1411,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
             if (!buffer) {
                 cursor_publish_hidden();
             } else {
-                cursor_publish_buffer(s, buffer);
-                send_buffer_release(buffer);
+                cursor_publish_or_hold(s, buffer);
             }
         } else if (s->role == ROLE_NONE) {
             if (buffer) surface_hold_idle(s, buffer);
@@ -2478,6 +2497,9 @@ static int64_t scene_next_due(int64_t now, int64_t due, int limit) {
     return due > 0 && now - due < interval ? due + interval : now + interval;
 }
 
+/* A copy that would wait for an unfinished client write keeps the layers on screen. */
+static int copy_ready(const struct draw_list *dl) { return vkp_draws_client_writes_done(dl->d, dl->n); }
+
 static void render_scene(void) {
     g_scene_due_ns = scene_next_due(now_ns(), g_scene_due_ns, g_fps_limit);
     if (atomic_load(&g_stream_on)) { g_dirty_since_ns = 0; render_stream(); return; }
@@ -2579,8 +2601,10 @@ static void render_scene(void) {
     }
     if (hdr_route == 2) {
         int how = 0;
-        sc_layer_hide();
-        rendered = vkp_render_hdr(w, h, dl.d, dl.n, &hs.hf, &how) == 0;
+        if (copy_ready(&dl)) {
+            sc_layer_hide();
+            rendered = vkp_render_hdr(w, h, dl.d, dl.n, &hs.hf, &how) == 0;
+        }
         copy = 1;
         if (rendered && how == 1) droiddeck_color_frame_shown(hs.color, DROIDDECK_HDR_SWAPCHAIN, 0);
         else if (rendered && how == 2) droiddeck_color_frame_shown(hs.color, DROIDDECK_HDR_TONEMAPPED, 0);
@@ -2658,7 +2682,7 @@ static void render_scene(void) {
             int go[8], ov = 0;
             if (over == 1 && li >= 0 && vkp_map_draw(&dl.d[li + 1], go))
                 ov = sc_layer_present_overlay(dl.d[li + 1].img, go, dl.d[li + 1].blend) == 0 ? 1 : -1;
-            const int held = ov < 0 && vkp_client_write_deferrals() != deferrals;
+            const int held = ov < 0 && (vkp_client_write_deferrals() != deferrals || !copy_ready(&dl));
             if (ov <= 0 && !held) sc_layer_hide_overlay();
             if (ov < 0 && !held) {
                 sc_layer_hide();
@@ -2669,15 +2693,17 @@ static void render_scene(void) {
                 rendered = vkp_base_black(w, h) == 0;
                 g_scene_queues = sc_layer_queues();
             }
-        } else if (vkp_client_write_deferrals() == deferrals) {
+        } else if (vkp_client_write_deferrals() == deferrals && copy_ready(&dl)) {
             sc_layer_hide();
             rendered = vkp_render(w, h, dl.d, dl.n) == 0;
             copy = 1;
             hdr_copy = "its display layer was unavailable this frame";
         }
     } else {
-        sc_layer_hide();
-        rendered = vkp_render(w, h, dl.d, dl.n) == 0;
+        if (copy_ready(&dl)) {
+            sc_layer_hide();
+            rendered = vkp_render(w, h, dl.d, dl.n) == 0;
+        }
         copy = 1;
         hdr_copy = ov_blocks ? "a window is above it and this display cannot compose a second layer in hardware"
                  : fx_blocks ? "a window is above it and screen effects need the whole scene"
@@ -2886,8 +2912,7 @@ static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint3
     pthread_mutex_unlock(&g_cursor_lock);
     struct wl_resource *buffer = surface_take_idle(s);
     if (buffer) {
-        cursor_publish_buffer(s, buffer);
-        send_buffer_release(buffer);
+        cursor_publish_or_hold(s, buffer);
     } else if (g_cursor_shown == s) {
         cursor_publish_shown();
     } else if (s->idle_px) {

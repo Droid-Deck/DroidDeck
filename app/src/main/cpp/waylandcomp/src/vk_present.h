@@ -44,6 +44,7 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
 int vkp_image_is_dmabuf(const struct vkp_image *img);
 struct AHardwareBuffer;
 int vkp_can_import_ahb(void);
+/* The fd stays the caller's and must outlive the image. */
 void vkp_image_track_client_writes(struct vkp_image *img, int dmabuf_fd);
 int vkp_image_client_writes_done(struct vkp_image *img);
 /* Counts reads skipped because a client write was still running; such a frame keeps what is on screen. */
@@ -78,6 +79,7 @@ int vkp_device_lost(void);
  * This terminal state is distinct from genuine device loss. */
 int vkp_completion_unknown(void);
 
+int vkp_draws_client_writes_done(const struct vkp_draw *draws, int n);
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n);
 int vkp_render_plain(int scene_w, int scene_h);
 int vkp_base_black(int scene_w, int scene_h);
