@@ -27,6 +27,7 @@ data class SavedInputLayout(
     val rotatedScale: Float = 1f,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
+    val overlay get() = (origin ?: id).let { it == InputLibraries.OVERLAY || it.startsWith("migrated.layout.") }
     val quickButtons get() = QUICK_BUTTONS.filter { button -> elements.any { it.quickButton == button } }
     fun withQuickButton(button: InputCommand, shown: Boolean) =
         copy(style = style.copy(hidden = if (shown) style.hidden - button else style.hidden + button))

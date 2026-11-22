@@ -139,6 +139,25 @@ class InputSurfaceEditorViewTest {
         assertEquals(4, view.artworkDpad().size)
     }
 
+    @Test fun copiesOfTheOverlayDrawTheSameKitArtworkInTheSamePlaces() {
+        val source = overlay()
+        val copy = source.derived("copy", "Copy")
+        val again = copy.derived("again", "Again")
+        for (layout in listOf(copy, again)) {
+            assertEquals(PadKit.forOverlay(context, source), PadKit.forOverlay(context, layout))
+            for ((w, h) in listOf(2400 to 1504, 1504 to 2400)) {
+                assertEquals(OnScreenLayout.editorElements(context, source, w, h),
+                    OnScreenLayout.editorElements(context, layout, w, h))
+            }
+            assertEquals(4, editor(layout, 2400, 1504).artworkDpad().size)
+        }
+        assertNotNull(PadKit.forOverlay(context, source.copy(id = "migrated.layout.2400x1504")))
+        assertEquals(null, PadKit.forOverlay(context, this.layout))
+        assertEquals(null, PadKit.forOverlay(context, this.layout.derived("custom-copy", "Copy")))
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
+        assertEquals(null, PadKit.forOverlay(context, copy))
+    }
+
     @Config(qualifiers = "xhdpi")
     @Test fun controlsAddedForTheScreenAreDrawnOnTheFirstFrameInBothOrientations() {
         SessionState.mode = SessionService.MODE_STEAM
@@ -232,6 +251,25 @@ class InputSurfaceEditorViewTest {
         assertEquals(arrows.toSet(), resized.keys)
         assertTrue(resized.getValue("legacy:up").width > moved.getValue("legacy:up").width)
         assertEquals(4, view.artworkDpad().size)
+    }
+
+    @Test fun shrinkingTheDpadStopsBeforeAnyArrowIsSmallerThanASingleControlCanBe() {
+        val view = editor(overlay(), 2400, 1504)
+        val arrows = listOf("legacy:up", "legacy:right", "legacy:down", "legacy:left")
+        val pad = view.rendered().filter { it.id in arrows }
+        val changes = mutableListOf<InputSurfaceElement>()
+        view.onBeginEdit = { shown, w, h -> view.aspect = w.toFloat() / h; view.elements = shown }
+        view.onChange = { changes += it; view.elements = view.elements.map { e -> it.firstOrNull { c -> c.id == e.id } ?: e } }
+        val right = pad.maxOf { it.x + it.width } * 2400; val bottom = pad.maxOf { it.y + it.height } * 1504
+        val (ux, uy) = view.centre("legacy:up")
+        view.touch(MotionEvent.ACTION_DOWN, ux, uy)
+        view.touch(MotionEvent.ACTION_UP, ux, uy)
+        view.touch(MotionEvent.ACTION_DOWN, right, bottom)
+        view.touch(MotionEvent.ACTION_MOVE, 0f, 0f)
+        view.touch(MotionEvent.ACTION_UP, 0f, 0f)
+        val shrunk = changes.takeLast(4)
+        assertEquals(arrows.toSet(), shrunk.map { it.id }.toSet())
+        shrunk.forEach { assertTrue(it.id, it.width >= .0299f && it.height >= .0299f) }
     }
 
     @Test fun aMouseSelectsDragsAndResizesLikeATouch() {

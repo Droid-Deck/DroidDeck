@@ -148,10 +148,12 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
                 val dx = (event.x - downX) / width; val dy = (event.y - downY) / height
                 val next = if (corner == 0) e.copy(x = (e.x + dx).coerceIn(0f, 1f - e.width), y = (e.y + dy).coerceIn(0f, 1f - e.height))
                     else {
-                        val left = if (corner and 1 != 0) (e.x + dx).coerceIn(0f, e.x + e.width - .03f) else e.x
-                        val top = if (corner and 4 != 0) (e.y + dy).coerceIn(0f, e.y + e.height - .03f) else e.y
-                        val right = if (corner and 2 != 0) (e.x + e.width + dx).coerceIn(left + .03f, 1f) else e.x + e.width
-                        val bottom = if (corner and 8 != 0) (e.y + e.height + dy).coerceIn(top + .03f, 1f) else e.y + e.height
+                        val minW = (.03f * e.width / original.minOf { it.width }).coerceIn(.03f, e.width.coerceAtLeast(.03f))
+                        val minH = (.03f * e.height / original.minOf { it.height }).coerceIn(.03f, e.height.coerceAtLeast(.03f))
+                        val left = if (corner and 1 != 0) (e.x + dx).coerceIn(0f, (e.x + e.width - minW).coerceAtLeast(0f)) else e.x
+                        val top = if (corner and 4 != 0) (e.y + dy).coerceIn(0f, (e.y + e.height - minH).coerceAtLeast(0f)) else e.y
+                        val right = if (corner and 2 != 0) (e.x + e.width + dx).coerceIn((left + minW).coerceAtMost(1f), 1f) else e.x + e.width
+                        val bottom = if (corner and 8 != 0) (e.y + e.height + dy).coerceIn((top + minH).coerceAtMost(1f), 1f) else e.y + e.height
                         e.copy(x = left, y = top, width = right - left, height = bottom - top).bounded()
                     }
                 val aligned = if (snap) snapSurfaceElement(next, visibleElements.filter { v -> original.none { it.id == v.id } }, 9 * resources.displayMetrics.density / width,

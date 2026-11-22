@@ -42,7 +42,7 @@ internal enum class PadKit(val face: FaceGlyphs, val dpad: DpadStyle, val stick:
 
     companion object {
         fun forOverlay(context: Context, layout: SavedInputLayout?): PadKit? =
-            if (layout?.id != InputLibraries.OVERLAY) null else when (SessionPrefs.steamController(context)) {
+            if (layout?.overlay != true) null else when (SessionPrefs.steamController(context)) {
                 SessionPrefs.CONTROLLER_DECK -> STEAM_DECK
                 SessionPrefs.CONTROLLER_STEAM -> STEAM_CONTROLLER
                 SessionPrefs.CONTROLLER_XBOX360 -> XBOX

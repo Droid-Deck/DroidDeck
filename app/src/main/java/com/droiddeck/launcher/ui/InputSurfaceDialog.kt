@@ -147,14 +147,15 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         } else base.first.scaled(factor)
         scaleValue = percent; scaleBase = Triple(base.first, elements, base.third)
     }
-    fun scaleSelected(percent: Int) {
+    fun scaleSelected(context: android.content.Context, percent: Int) {
         val id = selected ?: return
+        val adopted = adoptDisplayedFrame(context)
         val base = pieceBase?.takeIf { it.second == piece } ?: run {
-            if (canvas.width > 0 && canvas.height > 0 && shown.isNotEmpty()) {
+            if (!adopted && canvas.width > 0 && canvas.height > 0 && shown.isNotEmpty()) {
                 val open = toolsExpanded
                 beginEdit(shown, canvasAspect)
                 toolsExpanded = open
-            } else checkpoint()
+            } else if (!adopted) checkpoint()
             val start = elements.firstOrNull { it.id == id }?.let { elements.groupOf(it) } ?: return
             Triple(start, start, 100)
         }
@@ -428,7 +429,7 @@ private fun SurfaceToolbar(draft: SurfaceDraft, onSave: () -> Unit, onLeave: () 
         PrimaryButton(stringResource(R.string.input_editor_done), compact = true, onClick = onSave)
     }
     if (draft.elements.isNotEmpty()) SliderRow(stringResource(R.string.ctrl_size), null, draft.scale, draft.scaleRange, step = 5,
-        format = { "$it%" }, modifier = Modifier.testTag("input-editor-scale")) { if (draft.element != null) draft.scaleSelected(it) else draft.scaleAll(context, it) }
+        format = { "$it%" }, modifier = Modifier.testTag("input-editor-scale")) { if (draft.element != null) draft.scaleSelected(context, it) else draft.scaleAll(context, it) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
 
 object OnScreenLayout {
     internal fun supportsFloatingSteamControls(controller: String, layout: SavedInputLayout?) =
-        layout?.id == InputLibraries.OVERLAY &&
+        layout?.overlay == true &&
             (controller == SessionPrefs.CONTROLLER_DECK || controller == SessionPrefs.CONTROLLER_STEAM)
 
     data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
@@ -156,7 +156,7 @@ object OnScreenLayout {
         if (gamepad.any { it.id.startsWith("legacy:") }) {
             val named = layout.id.removePrefix("migrated.layout.").takeIf { it != layout.id }?.split('x')?.mapNotNull { it.toIntOrNull() }
                 ?.takeIf { it.size == 2 && it.all { size -> size > 0 } }?.let { it[0] to it[1] }
-            val aspectSize = layout.aspect.takeIf { layout.id == InputLibraries.OVERLAY && it > 0f }
+            val aspectSize = layout.aspect.takeIf { layout.overlay && it > 0f }
                 ?.let { (it * height).roundToInt().coerceAtLeast(1) to height }
             for ((w, h) in listOfNotNull(named, width to height, aspectSize, long to short, short to long).distinct()) {
                 val generator = LegacyGamepadLayout(display, w, h, scale = layout.scale)
