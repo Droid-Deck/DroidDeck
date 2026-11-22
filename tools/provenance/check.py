@@ -33,9 +33,19 @@ VALID_STATES = {"prebuilt-exception", "binary-data", "build-tool"}
 
 def tracked_paths(root: Path) -> list[str]:
     data = subprocess.check_output(
-        ["git", "ls-files", "--cached", "-z"], cwd=root
+        ["git", "ls-files", "--cached", "--stage", "-z"], cwd=root
     )
-    return sorted(os.fsdecode(item) for item in data.split(b"\0") if item)
+    paths = []
+    for item in data.split(b"\0"):
+        if not item:
+            continue
+        meta, path = item.split(b"\t", 1)
+        # Gitlinks contain an object ID, not a file blob. They are checked
+        # separately by the pinned submodule source/build process.
+        if meta.split()[0] == b"160000":
+            continue
+        paths.append(os.fsdecode(path))
+    return sorted(paths)
 
 
 def is_binary_payload(relpath: str, prefix: bytes) -> bool:
@@ -47,22 +57,48 @@ def is_binary_payload(relpath: str, prefix: bytes) -> bool:
     )
 
 
+def hash_content(rel: str, handle) -> str | None:
+    prefix = handle.read(8)
+    if not is_binary_payload(rel, prefix):
+        return None
+    digest = hashlib.sha256()
+    digest.update(prefix)
+    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
 def discover(root: Path) -> dict[str, str]:
-    """Hash binary-like tracked files. Sparse-checkout omissions are skipped."""
+    """Hash tracked binary payloads, including paths omitted by sparse checkout.
+
+    Git's index still holds blob IDs for sparse entries, so read those entries
+    from Git rather than silently skipping them. A missing blob fails the gate.
+    """
     result: dict[str, str] = {}
     for rel in tracked_paths(root):
         file = root / rel
-        if not file.is_file():
-            continue
-        with file.open("rb") as handle:
-            prefix = handle.read(8)
-            if not is_binary_payload(rel, prefix):
-                continue
-            digest = hashlib.sha256()
-            digest.update(prefix)
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
-        result[rel] = digest.hexdigest()
+        if file.is_file():
+            with file.open("rb") as handle:
+                digest = hash_content(rel, handle)
+        else:
+            # The source CI checkout deliberately omits docs/releases/media.
+            # Read the index version so an ELF added there cannot evade the gate.
+            with subprocess.Popen(
+                ["git", "show", f":{rel}"], cwd=root,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            ) as proc:
+                assert proc.stdout is not None
+                digest = hash_content(rel, proc.stdout)
+                # Drain even non-binary files before checking the exit status.
+                for _ in iter(lambda: proc.stdout.read(1024 * 1024), b""):
+                    pass
+                error = proc.stderr.read() if proc.stderr else b""
+                if proc.wait() != 0:
+                    raise RuntimeError(
+                        f"cannot read tracked Git blob for {rel}: {error.decode(errors='replace')}"
+                    )
+        if digest is not None:
+            result[rel] = digest
     return result
 
 

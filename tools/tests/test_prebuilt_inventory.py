@@ -65,8 +65,20 @@ class PrebuiltInventoryTest(unittest.TestCase):
         (self.root / "untracked.so").write_bytes(b"\x7fELF\x00local")
         self.assertEqual(check.validate(self.root, self.manifest), [])
 
-    def test_missing_binary_is_rejected(self):
+    def test_sparse_missing_binary_is_checked_from_git(self):
         self.binary.unlink()
+        self.assertEqual(check.validate(self.root, self.manifest), [])
+
+    def test_sparse_unlisted_binary_is_rejected(self):
+        hidden = self.root / "docs" / "releases" / "media" / "payload.exe"
+        hidden.parent.mkdir(parents=True)
+        hidden.write_bytes(b"MZhidden")
+        subprocess.run(["git", "add", "docs/releases/media/payload.exe"], cwd=self.root, check=True)
+        hidden.unlink()  # Mimics a sparse-checkout file missing on disk.
+        self.assertTrue(any("UNREVIEWED binary" in x for x in check.validate(self.root, self.manifest)))
+
+    def test_removed_index_entry_is_rejected(self):
+        subprocess.run(["git", "rm", "--cached", "vendor.so"], cwd=self.root, check=True, stdout=subprocess.DEVNULL)
         self.assertTrue(any("missing/untracked" in x for x in check.validate(self.root, self.manifest)))
 
     def test_duplicate_manifest_entry_is_rejected(self):
