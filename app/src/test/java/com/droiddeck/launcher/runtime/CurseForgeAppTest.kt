@@ -102,7 +102,12 @@ class CurseForgeAppTest {
         val missing = JSONObject().put("ok", true).put("value", """{"missing":true}""")
         assertThrows(CurseForgeApp.Failure::class.java) { CurseForgeApp.unwrap(missing) }
         val failed = JSONObject().put("ok", false).put("error", JSONObject().put("code", "NO_TARGET").put("message", "no node"))
-        assertEquals("no node", assertThrows(CurseForgeApp.Failure::class.java) { CurseForgeApp.unwrap(failed) }.message)
+        val failure = assertThrows(CurseForgeApp.Failure::class.java) { CurseForgeApp.unwrap(failed) }
+        assertEquals("no node", failure.message)
+        assertEquals("NO_TARGET", failure.code)
+        assertFalse(failure.gone)
+        val lost = JSONObject().put("ok", false).put("error", JSONObject().put("code", "DEVTOOLS_UNREACHABLE").put("message", "refused"))
+        assertTrue(assertThrows(CurseForgeApp.Failure::class.java) { CurseForgeApp.unwrap(lost) }.gone)
     }
 
     @Test

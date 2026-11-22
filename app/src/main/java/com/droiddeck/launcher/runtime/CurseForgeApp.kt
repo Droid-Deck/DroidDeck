@@ -21,7 +21,9 @@ object CurseForgeApp {
 
     private val INSPECTOR = Regex("ws://127\\.0\\.0\\.1:[0-9]{4,5}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
-    class Failure(message: String) : Exception(message)
+    class Failure(message: String, val code: String? = null) : Exception(message) {
+        val gone get() = code == "DEVTOOLS_UNREACHABLE"
+    }
 
     fun find(apps: List<UserApps.App>): UserApps.App? = apps.firstOrNull { it.feed == FEED }
 
@@ -88,7 +90,7 @@ object CurseForgeApp {
     internal fun unwrap(answer: JSONObject): Any? {
         if (!answer.optBoolean("ok")) {
             val error = answer.optJSONObject("error")
-            throw Failure(error?.optString("message")?.takeIf { it.isNotBlank() } ?: answer.toString())
+            throw Failure(error?.optString("message")?.takeIf { it.isNotBlank() } ?: answer.toString(), error?.optString("code")?.takeIf { it.isNotBlank() })
         }
         val text = answer.opt("value") as? String ?: throw Failure("CurseForge gave no answer")
         val reply = JSONObject(text)
@@ -203,7 +205,10 @@ object CurseForgeApp {
         if (call(context, inspector, "InstalledProjectsAppService", "installAddon", JSONArray().put(installRequest(guid, projectId)), 300_000) != true) return false
         val deadline = System.currentTimeMillis() + INSTALL_MS
         while (System.currentTimeMillis() < deadline) {
-            if (projectId in installed(context, inspector, guid)) return true
+            val listed = runCatching { installed(context, inspector, guid) }
+            val error = listed.exceptionOrNull()
+            if (error is Failure && error.gone || error is AgentException && error.code == "NO_ACTIVE_SESSION") throw error
+            if (projectId in listed.getOrDefault(emptySet())) return true
             Thread.sleep(1_000)
         }
         return false

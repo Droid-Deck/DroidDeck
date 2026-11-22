@@ -1,4 +1,5 @@
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -30,7 +31,7 @@ class CurseForgeHelperTest(unittest.TestCase):
             "echo 'Debugger listening on %s'\n"
             "echo 'For help, see: https://nodejs.org/en/docs/inspector'\n"
             "exec sleep 60\n"
-            % (self.seen, self.proc, self.proc, URL))
+            % (shlex.quote(str(self.seen)), shlex.quote(str(self.proc)), shlex.quote(str(self.proc)), URL))
         self.runner.chmod(0o755)
 
     def fake(self, pid, *argv):
@@ -50,6 +51,9 @@ class CurseForgeHelperTest(unittest.TestCase):
 
     def stop(self):
         self.run_helper("stop", str(self.dir))
+
+    def pid(self):
+        return int((self.state / "pid").read_text().split()[0])
 
     def gone(self, pid):
         for _ in range(50):
@@ -97,7 +101,7 @@ class CurseForgeHelperTest(unittest.TestCase):
         self.assertEqual(0o600, (self.state / "log").stat().st_mode & 0o777)
         again = self.run_helper("start", str(self.dir))
         self.assertEqual(URL, again.stdout.strip())
-        pid = int((self.state / "pid").read_text())
+        pid = self.pid()
         self.stop()
         self.assertFalse((self.state / "pid").exists())
         self.assertTrue(self.gone(pid), "the started instance is still running")
@@ -105,12 +109,12 @@ class CurseForgeHelperTest(unittest.TestCase):
     def test_hold_keeps_the_app_until_it_is_signalled(self):
         held = subprocess.Popen(["bash", str(HELPER), "hold", str(self.dir)], env=self.env({"DISPLAY": ":0"}),
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        self.addCleanup(lambda: held.poll() is None and held.kill())
+        self.addCleanup(self.end, held)
         for _ in range(100):
             if (self.state / "pid").exists() and self.seen.exists():
                 break
             time.sleep(0.1)
-        pid = int((self.state / "pid").read_text())
+        pid = self.pid()
         time.sleep(1)
         self.assertIsNone(held.poll())
         held.send_signal(signal.SIGTERM)
@@ -118,9 +122,39 @@ class CurseForgeHelperTest(unittest.TestCase):
         self.assertTrue(self.gone(pid), "hold left the app running")
         self.assertFalse((self.state / "pid").exists())
 
+    def end(self, held):
+        if held.poll() is None:
+            held.send_signal(signal.SIGTERM)
+            try:
+                held.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                held.kill()
+                held.wait()
+        record = self.state / "pid"
+        if record.exists():
+            try:
+                os.killpg(self.pid(), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+
+    def test_a_launch_for_another_directory_is_busy(self):
+        other = self.tmp / "other"
+        (other / "app").mkdir(parents=True)
+        first = self.run_helper("start", str(self.dir), env={"DISPLAY": ":0"})
+        self.addCleanup(self.stop)
+        self.assertEqual(0, first.returncode, first.stderr)
+        out = self.run_helper("start", str(other), env={"DISPLAY": ":0"})
+        self.assertEqual(3, out.returncode)
+        self.assertEqual("busy", out.stdout.strip())
+        pid = self.pid()
+        self.run_helper("stop", str(other))
+        self.assertEqual(pid, self.pid())
+        os.kill(pid, 0)
+
     def test_hold_ends_when_the_app_exits(self):
+        proc = shlex.quote(str(self.proc))
         self.runner.write_text("#!/bin/bash\nmkdir -p %s/$$ && printf '%%s\\0' bash \"$0\" \"$@\" > %s/$$/cmdline\n"
-                               "echo 'Debugger listening on %s'\nsleep 2\nrm -r %s/$$\n" % (self.proc, self.proc, URL, self.proc))
+                               "echo 'Debugger listening on %s'\nsleep 2\nrm -r %s/$$\n" % (proc, proc, URL, proc))
         out = subprocess.run(["bash", str(HELPER), "hold", str(self.dir)], env=self.env({"DISPLAY": ":0"}),
                              capture_output=True, text=True, timeout=60)
         self.assertEqual(0, out.returncode, out.stderr)

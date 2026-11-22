@@ -432,7 +432,7 @@ class FocusWatcher(threading.Thread):
 
 class WebSocket:
 
-    def __init__(self, url, timeout):
+    def __init__(self, url, timeout, bounded=False):
         target = urllib.parse.urlsplit(url)
         if (target.scheme != "ws" or target.hostname not in ("127.0.0.1", "::1", "localhost")
                 or target.username is not None or target.password is not None or target.fragment):
@@ -442,6 +442,7 @@ class WebSocket:
         if target.query:
             path += "?" + target.query
         host = "127.0.0.1" if target.hostname == "localhost" else target.hostname
+        self.deadline = time.monotonic() + timeout if bounded else None
         self.s = socket.create_connection((host, target.port or 80), timeout=timeout)
         try:
             self._handshake(path, hostport)
@@ -457,6 +458,7 @@ class WebSocket:
         ).encode())
         head = b""
         while b"\r\n\r\n" not in head:
+            self._wait()
             chunk = self.s.recv(4096)
             if not chunk:
                 raise OSError("DevTools closed the connection during the handshake")
@@ -468,8 +470,17 @@ class WebSocket:
             raise OSError("DevTools refused the WebSocket: " + status.decode(errors="replace"))
         self.buffer = head.split(b"\r\n\r\n", 1)[1]
 
+    def _wait(self):
+        if self.deadline is None:
+            return
+        left = self.deadline - time.monotonic()
+        if left <= 0:
+            raise socket.timeout("DevTools did not answer in time")
+        self.s.settimeout(left)
+
     def _read(self, n):
         while len(self.buffer) < n:
+            self._wait()
             chunk = self.s.recv(65536)
             if not chunk:
                 raise OSError("DevTools closed the connection")
@@ -569,15 +580,24 @@ def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15,
             names = ", ".join(sorted({t.get("title") or t.get("url") or "?" for t in targets}))
             raise AgentError("NO_TARGET", "No DevTools target matches '%s' (have: %s)" % (want, names))
         url, name = match[0]["webSocketDebuggerUrl"], match[0].get("title")
-    ws = WebSocket(url, timeout)
+    try:
+        ws = WebSocket(url, timeout, bounded=True)
+    except socket.timeout:
+        raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
+    except OSError as e:
+        raise AgentError("DEVTOOLS_UNREACHABLE", "Could not reach DevTools: %s" % e)
     try:
         ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
             "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
             "userGesture": True, "includeCommandLineAPI": command_line_api,
         }}))
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            message = json.loads(ws.recv())
+        while True:
+            try:
+                message = json.loads(ws.recv())
+            except socket.timeout:
+                raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
+            except OSError as e:
+                raise AgentError("DEVTOOLS_UNREACHABLE", "DevTools went away: %s" % e)
             if message.get("id") != 1:
                 continue
             if "error" in message:
@@ -590,7 +610,6 @@ def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15,
             value = result.get("result", {})
             return {"target": name, "type": value.get("type"),
                     "value": value.get("value"), "description": value.get("description")}
-        raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
     finally:
         ws.close()
 

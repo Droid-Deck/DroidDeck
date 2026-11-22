@@ -46,11 +46,32 @@ running() {
   return 1
 }
 
-ours() {
-  local pid
-  pid=$(cat "$state/pid" 2>/dev/null) || return 1
+started_at() {
+  local stat
+  stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+  stat=${stat##*) }
+  set -- $stat
+  echo "${20}"
+}
+
+tracked() {
+  local pid at launched
+  read -r pid at launched < "$state/pid" 2>/dev/null || return 1
   case $pid in ''|*[!0-9]*) return 1 ;; esac
-  [ -d "$proc/$pid" ] && tr '\0' '\n' 2>/dev/null < "$proc/$pid/cmdline" | grep -qxF -- "$flag" && echo "$pid"
+  kill -0 "$pid" 2>/dev/null && [ "$(started_at "$pid")" = "$at" ] || return 1
+  printf '%s %s\n' "$pid" "$launched"
+}
+
+ours() {
+  local pid launched
+  read -r pid launched <<<"$(tracked)"
+  [ -n "$pid" ] && [ "$launched" = "$dir" ] && echo "$pid"
+}
+
+lock() {
+  mkdir -p "$state" && chmod 700 "$state" || return 1
+  exec 9>"$state/lock" || return 1
+  flock 9
 }
 
 inspector() {
@@ -58,21 +79,21 @@ inspector() {
 }
 
 start() {
-  local shown display auth url
-  mkdir -p "$state" && chmod 700 "$state"
-  exec 9>"$state/lock"
-  flock 9 2>/dev/null
+  local shown display auth url pid
+  lock || { echo "droiddeck-curseforge: cannot lock $state" >&2; return 5; }
   if ! ours >/dev/null; then
-    if running; then
+    if tracked >/dev/null || running; then
+      exec 9>&-
       echo busy
       return 3
     fi
-    shown=$(x_display) || { echo "no X display" >&2; return 4; }
+    shown=$(x_display) || { exec 9>&-; echo "no X display" >&2; return 4; }
     display=$(sed -n 1p <<<"$shown")
     auth=$(sed -n 2p <<<"$shown")
     env -u DBUS_SESSION_BUS_ADDRESS -u WAYLAND_DISPLAY -u GAMESCOPE_WAYLAND_DISPLAY DISPLAY="$display" ${auth:+XAUTHORITY="$auth"} \
       setsid "$runner" "$dir" --minimized --inspect=127.0.0.1:0 "$flag" </dev/null >"$state/log" 2>&1 9>&- &
-    echo $! > "$state/pid"
+    pid=$!
+    printf '%s %s %s\n' "$pid" "$(started_at "$pid")" "$dir" > "$state/pid"
   fi
   exec 9>&-
   for _ in $(seq 1 $((wait_s * 2))); do
@@ -89,8 +110,8 @@ start() {
 
 stop() {
   local pid p
-  pid=$(ours) || { rm -f "$state/pid"; return 0; }
-  rm -f "$state/pid"
+  lock || return 1
+  pid=$(ours) || { tracked >/dev/null || rm -f "$state/pid"; exec 9>&-; return 0; }
   kill -TERM -- "-$pid" 2>/dev/null
   for _ in $(seq 1 20); do
     kill -0 -- "-$pid" 2>/dev/null || break
@@ -100,6 +121,8 @@ stop() {
   for p in "$proc"/[0-9]*; do
     tr '\0' '\n' 2>/dev/null < "$p/cmdline" | grep -qF -- "$dir/app/" && kill -KILL "${p##*/}" 2>/dev/null
   done
+  rm -f "$state/pid"
+  exec 9>&-
   return 0
 }
 
