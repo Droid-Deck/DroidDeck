@@ -411,7 +411,9 @@ internal class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInput
         val frame = aspect ?: layout.aspect
         val saved = framing?.let { OnScreenLayout.withFrame(it, l, elements, frame, layoutScale) }
             ?: l.copy(elements = elements, aspect = frame, scale = layoutScale)
-        return latest.withLayout(saved.copy(style = l.style.copy(removed = removed.filter { id -> elements.any { it.id == id } }.toSet()))).withPreset(p.copy(elements = actions.filterKeys { id -> elements.any { it.id == id } },
+        val drafted = elements.map { it.id }.toSet()
+        val elsewhere = l.style.removed.filter { id -> id !in drafted && (saved.elements + saved.rotated).any { it.id == id } }
+        return latest.withLayout(saved.copy(style = l.style.copy(removed = removed.filter { it in drafted }.toSet() + elsewhere))).withPreset(p.copy(elements = actions.filterKeys { id -> elements.any { it.id == id } },
             clicks = clicks.filterKeys { id -> elements.any { it.id == id && it.hasClick } }))
     }
 }

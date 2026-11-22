@@ -34,6 +34,10 @@ internal fun InputQuickSettings(host: MenuHost, desktop: Boolean, onChanged: (In
         runCatching { InputLibraries.update(context, change) }.onSuccess { library = it; onChanged(role) }
             .onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }
     }
+    val gameOnly = library.profiles.any { it.id == gameProfile }
+    LaunchedEffect(gameOnly) {
+        if (gameOnly && host.open.let { it == "input-profile" || it?.startsWith("input-part-") == true }) host.open = null
+    }
     library.profiles.firstOrNull { it.id == gameProfile }?.let { game ->
         Text(stringResource(R.string.input_game_controls_active, game.name), style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp).testTag("input-game-profile"))

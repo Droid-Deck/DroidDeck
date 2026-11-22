@@ -312,7 +312,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var steamController: SteamControllerBle? = null
     private var onScreenControls: OnScreenControls? = null
     private var bottomInputControls: OnScreenControls? = null
-    private var primaryInputLayout: com.droiddeck.launcher.input.SavedInputLayout? = null
+    private var primaryInputLayout by mutableStateOf<com.droiddeck.launcher.input.SavedInputLayout?>(null)
     private val primaryInputActions get() = inputProfile.surfaceActions(InputRole.PRIMARY)
     private var secondaryInputLayout by mutableStateOf<com.droiddeck.launcher.input.SavedInputLayout?>(null)
     private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null

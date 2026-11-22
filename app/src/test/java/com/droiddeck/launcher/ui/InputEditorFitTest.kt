@@ -72,6 +72,17 @@ class InputEditorFitTest {
         }
     }
 
+    @Test fun savingKeepsAControlDeletedOnlyFromThePortraitFrame() {
+        val portraitOnly = InputSurfaceElement(InputControl.Y, .4f, .4f, .1f, .1f, "custom:y")
+        val base = custom()
+        val layout = base.copy(rotated = base.elements + portraitOnly, rotatedAspect = 3f / 4f,
+            style = base.style.copy(removed = setOf("custom:y")))
+        val draft = editor(layout, Rect())
+        draft.checkpoint()
+        draft.elements = draft.elements.map { if (it.id == "custom:a") it.copy(opacity = .5f) else it }
+        assertEquals(setOf("custom:y"), saved(layout, draft).style.removed)
+    }
+
     @Test fun resetReturnsToWhereTheGameDrawsTheStockLayout() {
         val layout = deck()
         val draft = editor(layout, Rect())
