@@ -1,0 +1,106 @@
+#!/bin/bash
+set -u
+proc=${DD_PROC:-/proc}
+state=${DD_CURSEFORGE_STATE:-${XDG_RUNTIME_DIR:-/tmp}/droiddeck-curseforge}
+runner=${DD_APPIMAGE_RUN:-${BASH_SOURCE[0]%/*}/droiddeck-appimage-run}
+wait_s=${DD_CURSEFORGE_WAIT:-60}
+cmd=${1:-}
+dir=${2:-}
+port=${3:-9229}
+case $cmd in start|stop|display) ;; *) echo "usage: droiddeck-curseforge start|stop|display <imported AppImage directory> [port]" >&2; exit 2 ;; esac
+case $port in ''|*[!0-9]*) echo "droiddeck-curseforge: bad port $port" >&2; exit 2 ;; esac
+if [ "$cmd" != display ] && [ ! -d "$dir/app" ]; then
+  echo "droiddeck-curseforge: $dir is not an imported AppImage" >&2
+  exit 2
+fi
+
+x_display() {
+  if [ -n "${DISPLAY:-}" ]; then
+    printf '%s\n%s\n' "$DISPLAY" "${XAUTHORITY:-}"
+    return 0
+  fi
+  local p name a prev display auth
+  for p in "$proc"/[0-9]*; do
+    name=$(tr '\0' '\n' 2>/dev/null < "$p/cmdline" | head -n 1)
+    case ${name##*/} in Xwayland|Xorg|Xvfb) ;; *) continue ;; esac
+    display= auth= prev=
+    while IFS= read -r a; do
+      case $a in :[0-9]*) [ -z "$display" ] && display=$a ;; esac
+      [ "$prev" = -auth ] && auth=$a
+      prev=$a
+    done < <(tr '\0' '\n' 2>/dev/null < "$p/cmdline")
+    if [ -n "$display" ]; then
+      printf '%s\n%s\n' "$display" "$auth"
+      return 0
+    fi
+  done
+  return 1
+}
+
+running() {
+  local p
+  for p in "$proc"/[0-9]*; do
+    tr '\0' '\n' 2>/dev/null < "$p/cmdline" | grep -qF -- "$dir/app/" && return 0
+  done
+  return 1
+}
+
+inspector() {
+  python3 - "$port" <<'EOF' >/dev/null 2>&1
+import json, sys, urllib.request
+with urllib.request.urlopen("http://127.0.0.1:%s/json/list" % sys.argv[1], timeout=2) as r:
+    sys.exit(0 if any(t.get("type") == "node" for t in json.load(r)) else 1)
+EOF
+}
+
+ours() {
+  local pid
+  pid=$(cat "$state/pid" 2>/dev/null) || return 1
+  case $pid in ''|*[!0-9]*) return 1 ;; esac
+  [ -d "$proc/$pid" ] && tr '\0' '\n' 2>/dev/null < "$proc/$pid/cmdline" | grep -qxF -- "--inspect=127.0.0.1:$port" && echo "$pid"
+}
+
+case $cmd in
+  display)
+    x_display || exit 4
+    ;;
+  start)
+    if ! ours >/dev/null; then
+      if running; then
+        echo busy
+        exit 3
+      fi
+      shown=$(x_display) || { echo "no X display" >&2; exit 4; }
+      display=$(sed -n 1p <<<"$shown")
+      auth=$(sed -n 2p <<<"$shown")
+      mkdir -p "$state" && chmod 700 "$state"
+      env -u DBUS_SESSION_BUS_ADDRESS -u WAYLAND_DISPLAY -u GAMESCOPE_WAYLAND_DISPLAY DISPLAY="$display" ${auth:+XAUTHORITY="$auth"} \
+        setsid "$runner" "$dir" --minimized "--inspect=127.0.0.1:$port" </dev/null >"$state/log" 2>&1 &
+      echo $! > "$state/pid"
+    fi
+    for _ in $(seq 1 $((wait_s * 2))); do
+      if inspector; then
+        echo ready
+        exit 0
+      fi
+      ours >/dev/null || break
+      sleep 0.5
+    done
+    tail -n 20 "$state/log" >&2
+    exit 5
+    ;;
+  stop)
+    pid=$(ours) || { rm -f "$state/pid"; exit 0; }
+    rm -f "$state/pid"
+    kill -TERM -- "-$pid" 2>/dev/null
+    for _ in $(seq 1 20); do
+      kill -0 -- "-$pid" 2>/dev/null || break
+      sleep 0.5
+    done
+    kill -KILL -- "-$pid" 2>/dev/null
+    for p in "$proc"/[0-9]*; do
+      tr '\0' '\n' 2>/dev/null < "$p/cmdline" | grep -qF -- "$dir/app/" && kill -KILL "${p##*/}" 2>/dev/null
+    done
+    exit 0
+    ;;
+esac

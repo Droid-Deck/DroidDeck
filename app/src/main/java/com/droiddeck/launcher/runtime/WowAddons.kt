@@ -28,6 +28,14 @@ object WowAddons {
 
     class TooLarge : IOException()
 
+    fun changed() {
+        imports++
+    }
+
+    fun flavorDir(target: Target): File? = target.addOns.parentFile?.parentFile
+
+    fun root(target: Target): File? = flavorDir(target)?.parentFile
+
     class Target(val flavor: String, val addOns: File)
 
     class Addon(val name: String, val root: String)

@@ -3987,6 +3987,8 @@
     <string name="addons_sort_downloads">Paling banyak dimuat turun</string>
     <string name="addons_category_all">Semua kategori</string>
     <string name="addons_none_found">Tiada addon ditemui</string>
+    <string name="addons_curse_session">Mulakan sesi untuk menggunakan CurseForge</string>
+    <string name="addons_curse_busy">Tutup CurseForge dahulu</string>
     <string name="addons_unreachable">Tidak dapat mencapai %1$s</string>
     <string name="addons_no_file">Tiada fail untuk versi permainan ini</string>
     <string name="input_reset_positions">Tetapkan semula kedudukan</string>

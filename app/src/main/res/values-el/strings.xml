@@ -4017,6 +4017,8 @@
     <string name="addons_sort_downloads">Περισσότερες λήψεις</string>
     <string name="addons_category_all">Όλες οι κατηγορίες</string>
     <string name="addons_none_found">Δεν βρέθηκαν πρόσθετα</string>
+    <string name="addons_curse_session">Ξεκινήστε μια συνεδρία για να χρησιμοποιήσετε το CurseForge</string>
+    <string name="addons_curse_busy">Κλείστε πρώτα το CurseForge</string>
     <string name="addons_unreachable">Δεν ήταν δυνατή η σύνδεση με %1$s</string>
     <string name="addons_no_file">Δεν υπάρχει αρχείο για αυτή την έκδοση του παιχνιδιού</string>
     <string name="input_reset_positions">Επαναφορά θέσεων</string>

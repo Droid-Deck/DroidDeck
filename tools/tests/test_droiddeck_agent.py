@@ -26,9 +26,10 @@ loader.exec_module(agent)
 
 class FakeDevTools(threading.Thread):
 
-    def __init__(self, answer):
+    def __init__(self, answer, targets=None):
         super().__init__(daemon=True)
         self.answer = answer
+        self.targets = targets
         self.server = socket.socket()
         self.server.bind(("127.0.0.1", 0))
         self.server.listen(4)
@@ -49,7 +50,7 @@ class FakeDevTools(threading.Thread):
             head += conn.recv(4096)
         request = head.decode()
         if request.startswith("GET /json"):
-            body = json.dumps([{"title": "SharedJSContext", "url": "https://steamloopback.host/", "type": "page",
+            body = json.dumps(self.targets or [{"title": "SharedJSContext", "url": "https://steamloopback.host/", "type": "page",
                                 "webSocketDebuggerUrl": "ws://127.0.0.1:%d/devtools/page/1" % self.port}]).encode()
             conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % len(body) + body)
             conn.close()
@@ -367,6 +368,34 @@ class AgentTest(unittest.TestCase):
         self.assertEqual("SharedJSContext", targets["targets"][0]["title"])
         missing = self.ask({"kind": "cdp", "expression": "1", "target": "Nope"})
         self.assertEqual("NO_TARGET", missing["error"]["code"])
+
+    def test_cdp_eval_on_an_explicit_port_and_node_target(self):
+        server = FakeDevTools({"result": {"result": {"type": "string", "value": "ok"}}})
+        server.targets = [
+            {"title": "ad", "url": "https://ads.example/", "type": "page",
+             "webSocketDebuggerUrl": "ws://127.0.0.1:%d/devtools/page/1" % server.port},
+            {"title": "--no-sandbox", "url": "file:///app/main.js", "type": "node",
+             "webSocketDebuggerUrl": "ws://127.0.0.1:%d/node-1" % server.port},
+        ]
+        server.start()
+        self.addCleanup(server.server.close)
+        os.environ.pop("DD_CDP_PORT", None)
+        answer = self.ask({"kind": "cdp", "expression": "require('electron')", "port": server.port,
+                           "targetType": "node", "commandLineApi": True})
+        self.assertTrue(answer["ok"], answer)
+        self.assertEqual("--no-sandbox", answer["target"])
+        self.assertTrue(server.seen[0]["params"]["includeCommandLineAPI"])
+        plain = self.ask({"kind": "cdp", "expression": "1", "port": server.port, "target": "ad"})
+        self.assertTrue(plain["ok"], plain)
+        self.assertFalse(server.seen[1]["params"]["includeCommandLineAPI"])
+        targets = self.ask({"kind": "cdp", "op": "targets", "port": server.port})
+        self.assertEqual(["page", "node"], [t["type"] for t in targets["targets"]])
+
+    def test_cdp_rejects_bad_ports_and_target_types(self):
+        for port in (80, 70000, "9229", True, 9229.5):
+            self.assertEqual("INVALID_REQUEST", self.ask({"kind": "cdp", "expression": "1", "port": port})["error"]["code"])
+        self.assertEqual("INVALID_REQUEST",
+                         self.ask({"kind": "cdp", "expression": "1", "port": 9229, "targetType": "worker"})["error"]["code"])
 
     def test_steam_selection(self):
         with patch.object(agent, "cdp_eval", return_value={"value": "3180310"}) as evaluate:

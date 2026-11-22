@@ -1049,7 +1049,7 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
 @Composable
 private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: FrontEndActions) {
     var browsing by remember(g.gameId) { mutableStateOf<WowAddons.Target?>(null) }
-    browsing?.let { AddonBrowserDialog(targets, it) { browsing = null } }
+    browsing?.let { AddonBrowserDialog(targets, it, CurseForgeApp.find(UserAppsState.items)) { browsing = null } }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         CurseForgeEntry(a)
         targets.forEach { target ->

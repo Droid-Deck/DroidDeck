@@ -525,7 +525,11 @@ class WebSocket:
             pass
 
 
-def cdp_port(agent_dir):
+def cdp_port(agent_dir, port=None):
+    if port is not None:
+        if isinstance(port, bool) or not isinstance(port, int) or not 1024 <= port <= 65535:
+            raise AgentError("INVALID_REQUEST", "port must be a number from 1024 to 65535")
+        return port
     try:
         port = (agent_dir / "cdp-port").read_text().strip()
     except OSError:
@@ -535,8 +539,8 @@ def cdp_port(agent_dir):
     return int(port)
 
 
-def cdp_targets(agent_dir, timeout=5):
-    url = "http://127.0.0.1:%d/json" % cdp_port(agent_dir)
+def cdp_targets(agent_dir, timeout=5, port=None):
+    url = "http://127.0.0.1:%d/json" % cdp_port(agent_dir, port)
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
             data = r.read(RESPONSE_CAP + 1)
@@ -547,9 +551,12 @@ def cdp_targets(agent_dir, timeout=5):
         raise AgentError("DEVTOOLS_UNREACHABLE", "Could not reach the client's DevTools at %s: %s" % (url, e))
 
 
-def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15):
-    targets = [t for t in cdp_targets(agent_dir) if t.get("webSocketDebuggerUrl")]
-    want = target or "SharedJSContext"
+def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15, port=None,
+             target_type=None, command_line_api=False):
+    targets = [t for t in cdp_targets(agent_dir, port=port) if t.get("webSocketDebuggerUrl")]
+    if target_type:
+        targets = [t for t in targets if t.get("type") == target_type]
+    want = target or ("" if target_type else "SharedJSContext")
     match = [t for t in targets if want in (t.get("title") or "") or want in (t.get("url") or "")]
     if not match:
         names = ", ".join(sorted({t.get("title") or t.get("url") or "?" for t in targets}))
@@ -558,7 +565,7 @@ def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15)
     try:
         ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
             "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
-            "userGesture": True,
+            "userGesture": True, "includeCommandLineAPI": command_line_api,
         }}))
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -1152,12 +1159,16 @@ def handle(agent_dir, req):
         return focus_snapshot()
     if kind == "cdp":
         if req.get("op") == "targets":
-            return {"targets": [{k: t.get(k) for k in ("title", "url", "type")} for t in cdp_targets(agent_dir)]}
+            return {"targets": [{k: t.get(k) for k in ("title", "url", "type")}
+                                for t in cdp_targets(agent_dir, port=req.get("port"))]}
         expression = req.get("expression")
         if not isinstance(expression, str) or not expression:
             raise AgentError("INVALID_REQUEST", "cdp eval needs an expression")
+        target_type = req.get("targetType")
+        if target_type is not None and target_type not in ("page", "node"):
+            raise AgentError("INVALID_REQUEST", "targetType must be page or node")
         return cdp_eval(agent_dir, expression, req.get("target"), bool(req.get("awaitPromise", True)),
-                        request_timeout(req, 15))
+                        request_timeout(req, 15), req.get("port"), target_type, req.get("commandLineApi") is True)
     if kind == "steam-selection":
         return steam_selection(agent_dir, request_timeout(req, 5))
     if kind == "quit":

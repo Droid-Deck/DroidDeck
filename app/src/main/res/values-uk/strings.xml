@@ -4097,6 +4097,8 @@
     <string name="addons_sort_downloads">Найбільше завантажень</string>
     <string name="addons_category_all">Усі категорії</string>
     <string name="addons_none_found">Аддонів не знайдено</string>
+    <string name="addons_curse_session">Запустіть сеанс, щоб користуватися CurseForge</string>
+    <string name="addons_curse_busy">Спочатку закрийте CurseForge</string>
     <string name="addons_unreachable">Не вдалося під’єднатися до %1$s</string>
     <string name="addons_no_file">Немає файлу для цієї версії гри</string>
     <string name="input_reset_positions">Скинути розташування</string>
