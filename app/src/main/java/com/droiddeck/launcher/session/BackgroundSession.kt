@@ -30,29 +30,28 @@ object BackgroundSession {
         val app = context.applicationContext
         val claim = AtomicBoolean(false)
         val began = CountDownLatch(1)
-        var ok = false
+        var own: String? = null
         main.post {
             if (claim.compareAndSet(false, true)) {
-                ok = runCatching { begin(app, program, args) }
+                own = runCatching { begin(app, program, args) }
                     .onFailure { Log.w(TAG, "could not start a hidden session for $program", it) }
-                    .getOrDefault(false)
+                    .getOrNull()
             }
             began.countDown()
         }
         if (!began.await(BEGIN_MS, TimeUnit.MILLISECONDS) && claim.compareAndSet(false, true)) return null
         began.await()
-        if (!ok) return null
+        val session = own ?: return null
         val deadline = System.currentTimeMillis() + AGENT_MS
         val settle = System.currentTimeMillis() + 5_000
         while (System.currentTimeMillis() < deadline) {
-            val session = SessionState.sessionId
-            if (SessionState.running && session != null && AgentGuest.hello(app) != null &&
-                SessionState.sessionId == session) return session
+            if (SessionState.sessionId != session) return null
+            if (SessionState.running && AgentGuest.hello(app) != null && SessionState.sessionId == session) return session
             if (SessionState.phase == SessionPhase.FAILED) break
             if (!SessionState.running && SessionState.phase in ended && System.currentTimeMillis() > settle) break
             Thread.sleep(250)
         }
-        SessionState.sessionId?.let { stop(app, it) } ?: main.post { SessionService.stop(app) }
+        stop(app, session)
         return null
     }
 
@@ -75,10 +74,12 @@ object BackgroundSession {
     private fun live(session: String) =
         SessionState.sessionId == session && (SessionState.running || SessionState.phase !in ended)
 
-    private fun begin(context: Context, program: String, args: List<String>): Boolean {
+    private fun begin(context: Context, program: String, args: List<String>): String? {
         if (SessionState.running || SessionState.phase !in ended || LinuxRuntimeInstaller.isBusy() ||
-            SessionState.installing != null || StorageState.cleaning) return false
+            SessionState.installing != null || StorageState.cleaning) return null
         release()
+        SessionEvents.begin(context, SessionService.MODE_RUN, SessionPaths.label(SessionService.MODE_RUN, program))
+        val session = SessionState.sessionId ?: return null
         SessionState.stopRequested = false
         SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         var requested = false
@@ -98,7 +99,7 @@ object BackgroundSession {
             SessionEvents.transition(SessionPhase.STARTING_GUEST, "guest.starting")
             requested = true
             SessionService.start(context, SessionService.MODE_RUN, program, programArgs = args.toTypedArray())
-            return true
+            return session
         } catch (e: Exception) {
             if (requested) SessionService.stop(context)
             if (!SessionState.running) {
