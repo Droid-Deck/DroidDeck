@@ -152,7 +152,7 @@ internal fun SessionDrawerPreview(secondScreens: List<SecondScreenDisplay>) {
         suspendPolicy = suspend, onSuspendPolicy = { suspend = it },
         backActionsInverted = inverted, onBackActionsInverted = { inverted = it },
         touchMode = touch, onTouch = { touch = it },
-        touchAuto = stringResource(R.string.mode_touch_mouse),
+        touchAuto = stringResource(R.string.session_touch_auto_direct),
         fexPreset = fex, onFexPreset = { fex = it },
         fpsLimit = fps, onFpsLimit = { fps = it },
         secondScreenMode = second, onSecondScreenMode = { second = it },

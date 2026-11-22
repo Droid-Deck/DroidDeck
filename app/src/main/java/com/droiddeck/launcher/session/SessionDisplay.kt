@@ -69,18 +69,8 @@ object SessionDisplay {
 
     const val UNFOLDED_MIN_DP = 600
 
-    /**
-     * The game's share of a screen with the controls below it, at the game's [aspect] across the full width. A tab row under the bar
-     * comes out of the controls while they keep [UNFOLDED_MIN_CONTROLS_SHARE] of the screen, and out of the game otherwise.
-     */
-    fun unfoldedGameHeight(width: Int, height: Int, tabRow: Int = 0, aspect: Float = 16f / 9f): Int {
-        val game = minOf((width / aspect.coerceAtLeast(.5f)).toInt(), (height * UNFOLDED_MAX_GAME_SHARE).toInt())
-        val tabs = tabRow.coerceAtLeast(0)
-        val roomy = height - game - tabs >= height * UNFOLDED_MIN_CONTROLS_SHARE
-        return (if (roomy) game else game - tabs).coerceAtLeast(0) and 1.inv()
-    }
-
-    const val UNFOLDED_MIN_CONTROLS_SHARE = .45f
+    fun unfoldedGameHeight(width: Int, height: Int, tabRow: Int = 0): Int =
+        (minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt()) - tabRow.coerceAtLeast(0)).coerceAtLeast(0) and 1.inv()
 
     fun unfoldedControlsWanted(
         enabled: Boolean,

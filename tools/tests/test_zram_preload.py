@@ -18,7 +18,14 @@ PROGRAM = r"""
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <sched.h>
+#include <stddef.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
+#include <sys/resource.h>
 #include <sys/syscall.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -31,14 +38,15 @@ static unsigned char *shared;
 static volatile sig_atomic_t urg_tid;
 static volatile sig_atomic_t usr_tid;
 static int urg_count, usr_count;
-static int worker_tid;
 static int worker_delivery;
 
 _Static_assert(__atomic_always_lock_free(sizeof(int), 0), "signal state must be lock-free");
 
 static void signal_tid(int sig) {
   sig_atomic_t tid = (sig_atomic_t)syscall(SYS_gettid);
-  if (tid == __atomic_load_n(&worker_tid, __ATOMIC_RELAXED))
+  char name[16] = {0};
+  prctl(PR_GET_NAME, name, 0, 0, 0);
+  if (!strcmp(name, "zr-worker"))
     __atomic_store_n(&worker_delivery, 1, __ATOMIC_RELAXED);
   if (sig == SIGURG) {
     __atomic_store_n(&urg_tid, tid, __ATOMIC_RELAXED);
@@ -123,6 +131,75 @@ static long trim(char mode, long kb) {
   exit(5);
 }
 
+static int workers(void) {
+  DIR *dir = opendir("/proc/self/task");
+  struct dirent *entry;
+  int count = 0;
+  while (dir && (entry = readdir(dir)) != NULL) {
+    if (entry->d_name[0] == '.') continue;
+    char path[64], name[32] = {0};
+    snprintf(path, sizeof(path), "/proc/self/task/%s/comm", entry->d_name);
+    FILE *comm = fopen(path, "r");
+    if (comm && fgets(name, sizeof(name), comm) && !strcmp(name, "zr-worker\n")) count++;
+    if (comm) fclose(comm);
+  }
+  if (dir) closedir(dir);
+  return count;
+}
+
+static void without_threads(void) {
+  struct rlimit limit;
+  if (getrlimit(RLIMIT_NPROC, &limit)) _exit(15);
+  limit.rlim_cur = 0;
+  if (setrlimit(RLIMIT_NPROC, &limit)) _exit(15);
+}
+
+static void *park(void *arg) {
+  (void)arg;
+  for (;;) pause();
+  return NULL;
+}
+
+static void parked(void) {
+  pthread_t thread;
+  sigset_t urg, previous;
+  sigemptyset(&urg);
+  sigaddset(&urg, SIGURG);
+  pthread_sigmask(SIG_BLOCK, &urg, &previous);
+  if (pthread_create(&thread, NULL, park, NULL)) _exit(16);
+  pthread_sigmask(SIG_SETMASK, &previous, NULL);
+}
+
+static void filter_clone(unsigned long allowed) {
+  struct sock_filter rules[] = {
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SYS_clone, 0, 3),
+    BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
+    BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, allowed, 1, 0),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+    BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+  };
+  struct sock_fprog program = {sizeof(rules) / sizeof(rules[0]), rules};
+  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) || prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &program)) _exit(17);
+}
+
+static volatile int sandbox_ready;
+
+static void *sandbox(void *arg) {
+  (void)arg;
+  sigset_t urg;
+  sigemptyset(&urg);
+  sigaddset(&urg, SIGURG);
+  filter_clone(0);
+  pthread_sigmask(SIG_UNBLOCK, &urg, NULL);
+  sandbox_ready = 1;
+  for (;;) pause();
+  return NULL;
+}
+
+static const unsigned long thread_clone = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD |
+                                          CLONE_SYSVSEM | CLONE_SETTLS | CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID;
+
 static uint64_t sum(const unsigned char *p, size_t n) {
   uint64_t s = 0;
   for (size_t i = 0; i < n; i += 64) s = s * 31 + p[i];
@@ -155,6 +232,7 @@ int main(int argc, char **argv) {
   memset(shared, 0, size);
   pthread_t t[2];
   for (uintptr_t i = 0; i < 2; i++) pthread_create(&t[i], NULL, writer, (void *)i);
+  parked();
   struct sigaction sa;
   sigaction(SIGURG, NULL, &sa);
   printf("handler %d\n", (sa.sa_flags & SA_SIGINFO) ? 1 : 0);
@@ -164,27 +242,21 @@ int main(int argc, char **argv) {
       memset(&signal_action, 0, sizeof(signal_action));
       signal_action.sa_handler = signal_tid;
       sigemptyset(&signal_action.sa_mask);
-      sigaction(SIGURG, &signal_action, NULL);
       sigaction(SIGUSR1, &signal_action, NULL);
+      int fd = open(ctl, O_WRONLY | O_TRUNC);
+      if (fd < 0 || write(fd, "1", 1) != 1) return 10;
+      close(fd);
       printf("ready %d\n", getpid());
-      fflush(stdout);
-      int id;
-      if (scanf("%d", &id) != 1) return 10;
-      __atomic_store_n(&worker_tid, id, __ATOMIC_RELAXED);
-      printf("armed 1\n");
       fflush(stdout);
       for (int round = 1; round <= 100; round++) {
         int i;
-        for (i = 0; i < 5000 &&
-             (__atomic_load_n(&urg_count, __ATOMIC_ACQUIRE) < round ||
-              __atomic_load_n(&usr_count, __ATOMIC_ACQUIRE) < round); i++) usleep(1000);
+        for (i = 0; i < 5000 && __atomic_load_n(&usr_count, __ATOMIC_ACQUIRE) < round; i++) usleep(1000);
         if (i == 5000) return 11;
         printf("received %d\n", round);
         fflush(stdout);
       }
       stop = 1;
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
-      printf("urg %d\n", __atomic_load_n(&urg_tid, __ATOMIC_RELAXED));
       printf("usr %d\n", __atomic_load_n(&usr_tid, __ATOMIC_RELAXED));
       printf("worker %d\n", __atomic_load_n(&worker_delivery, __ATOMIC_RELAXED));
       return 0;
@@ -199,6 +271,13 @@ int main(int argc, char **argv) {
       int status_code;
       waitpid(child, &status_code, 0);
       printf("childack %d\n", WIFEXITED(status_code) && WEXITSTATUS(status_code) == 0);
+    } else if (!strcmp(argv[4], "threads")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      printf("idle %d\n", workers());
+      request('1');
+      printf("after %d\n", workers());
+      return 0;
     } else if (!strcmp(argv[4], "trim")) {
       stop = 1;
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
@@ -301,7 +380,46 @@ int main(int argc, char **argv) {
         _exit(0);
       }
       waitpid(child, NULL, 0);
+      child = fork();
+      if (child < 0) exit(6);
+      if (child == 0) {
+        parked();
+        without_threads();
+        for (size_t i = 0; i < size; i += page) data[i]++;
+        printf("nothread_trim %ld\n", trim('2', 1L << 30));
+        fflush(stdout);
+        _exit(0);
+      }
+      waitpid(child, NULL, 0);
       printf("worker_trim %ld\n", trim('2', 1L << 30));
+      return 0;
+    } else if (!strcmp(argv[4], "sandboxed")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      filter_clone(thread_clone);
+      printf("sandboxed_trim %ld\n", trim('2', 1L << 30));
+      return 0;
+    } else if (!strcmp(argv[4], "thread-sandboxed")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      sigset_t urg;
+      sigemptyset(&urg);
+      sigaddset(&urg, SIGURG);
+      pthread_sigmask(SIG_BLOCK, &urg, NULL);
+      pthread_t thread;
+      if (pthread_create(&thread, NULL, sandbox, NULL)) exit(16);
+      while (!sandbox_ready) usleep(1000);
+      printf("thread_sandboxed_trim %ld\n", trim('2', 1L << 30));
+      return 0;
+    } else if (!strcmp(argv[4], "filtered")) {
+      fflush(stdout);
+      filter_clone(thread_clone);
+      execl("/proc/self/exe", argv[0], argv[1], argv[2], "0", "filtered-trim", (char *)NULL);
+      return 18;
+    } else if (!strcmp(argv[4], "filtered-trim")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      printf("filtered_trim %ld\n", trim('2', 1L << 30));
       return 0;
     } else if (!strcmp(argv[4], "burst")) {
       send_request('0');
@@ -313,6 +431,7 @@ int main(int argc, char **argv) {
       pid_t child = fork();
       if (child < 0) exit(8);
       if (child == 0) {
+        without_threads();
         if (!strcmp(argv[4], "timed-inline-single")) {
           if (munmap(data, size) || munmap(shared, size)) _exit(12);
           data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -463,6 +582,11 @@ class ZramPreloadTest(unittest.TestCase):
         self.assertEqual([1], out["intact"])
         self.assertEqual(6, len(out["out"]))
 
+    def test_a_process_keeps_no_extra_thread_while_nothing_is_paged_out(self):
+        out = self.run_program(None, 8, 0, "threads")
+        self.assertEqual([0], out["idle"])
+        self.assertEqual([0], out["after"])
+
     def test_process_signals_do_not_reach_zram_worker(self):
         environment = dict(os.environ, LD_PRELOAD=str(self.lib))
         process = subprocess.Popen([str(self.steam), str(self.ctl), "1", "0", "signals"],
@@ -471,30 +595,16 @@ class ZramPreloadTest(unittest.TestCase):
             process.stdout.readline()
             ready = process.stdout.readline().split()
             self.assertEqual("ready", ready[0])
-            worker = None
-            task_dir = Path("/proc") / ready[1] / "task"
-            for task in task_dir.iterdir():
-                if (task / "comm").read_text().strip() == "zr-worker":
-                    worker = int(task.name)
-                    break
-            self.assertIsNotNone(worker)
-            self.assertEqual(os.sched_getscheduler(process.pid), os.sched_getscheduler(worker))
-            process.stdin.write(f"{worker}\n")
-            process.stdin.flush()
-            self.assertEqual("armed 1", process.stdout.readline().strip())
-            for _ in range(100):
+            for round in range(100):
                 os.kill(process.pid, signal.SIGURG)
                 os.kill(process.pid, signal.SIGUSR1)
-                self.assertEqual(f"received {_ + 1}", process.stdout.readline().strip())
+                self.assertEqual(f"received {round + 1}", process.stdout.readline().strip())
             process.stdin.close()
             process.wait(timeout=10)
             output = process.stdout.read()
             values = dict(line.split() for line in output.splitlines())
-            self.assertNotEqual(0, int(values["urg"]))
             self.assertNotEqual(0, int(values["usr"]))
             self.assertEqual(0, int(values["worker"]))
-            self.assertNotEqual(worker, int(values["urg"]))
-            self.assertNotEqual(worker, int(values["usr"]))
         finally:
             if process.poll() is None:
                 process.kill()
@@ -577,9 +687,32 @@ class ZramPreloadTest(unittest.TestCase):
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_process_without_a_worker_trims_in_small_steps(self):
+        if os.geteuid() == 0:
+            self.skipTest("the thread limit does not apply to root")
+        out = self.run_program(None, 48, 0, "trim-fork")
+        self.assertTrue(16 * 1024 < out["nothread_trim"][0] <= 32 * 1024, out)
+        self.assertGreater(out["worker_trim"][0], 64 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_a_single_threaded_process_trims_without_starting_a_thread(self):
         out = self.run_program(None, 48, 0, "trim-fork")
         self.assertTrue(16 * 1024 < out["inline_trim"][0] <= 32 * 1024, out)
         self.assertGreater(out["worker_trim"][0], 64 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_a_process_that_sandboxed_itself_trims_without_starting_a_thread(self):
+        out = self.run_program(None, 48, 0, "sandboxed")
+        self.assertTrue(16 * 1024 < out["sandboxed_trim"][0] <= 32 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_a_thread_that_sandboxed_itself_trims_without_starting_a_thread(self):
+        out = self.run_program(None, 48, 0, "thread-sandboxed")
+        self.assertTrue(16 * 1024 < out["thread_sandboxed_trim"][0] <= 32 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_the_worker_passes_a_filter_that_only_allows_thread_clones(self):
+        out = self.run_program(None, 48, 0, "filtered")
+        self.assertGreater(out["filtered_trim"][0], 40 * 1024, out)
 
     def test_worker_acknowledges_back_to_back_requests(self):
         out = self.run_program(None, 48, 0, "burst")

@@ -245,7 +245,8 @@ class SecondScreenPresentation(
         if (!created || !currentMode.controls) return
         val controls = controlsView ?: return
         val layout = panelLayout(currentMode)
-        controls.showLayout(layout)
+        controls.updateCustomLayout(layout?.elements.orEmpty())
+        controls.updateStyle(layout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
     }
 
     fun showKeyboard(): Boolean {
@@ -292,7 +293,8 @@ class SecondScreenPresentation(
                 if (mode == SecondScreenMode.DECK_CONTROLS) deckPanel.value = SessionPrefs.deckPanel(context)
                 bar(mode)
                 val layout = panelLayout(mode)
-                val controls = InputSurfaceView(context, pad).also { it.showLayout(layout) }
+                val controls = InputSurfaceView(context, pad, layout?.elements.orEmpty(),
+                    surfaceStyle = layout?.style ?: com.droiddeck.launcher.input.InputSurfaceStyle())
                 controlsView = controls
                 root.addView(controls, weightParams())
                 attachKeyboard()

@@ -3,11 +3,11 @@ package com.droiddeck.launcher.input
 import android.content.Context
 import com.droiddeck.launcher.session.SessionPrefs
 
-enum class FaceGlyphs { MONO_LETTERS, COLOR_LETTERS, COLOR_SYMBOLS, MONO_SYMBOLS }
-enum class DpadStyle { CROSS, DISC, ARROWS }
-enum class StickCap { RINGED, DISHED, KNURLED }
+internal enum class FaceGlyphs { MONO_LETTERS, COLOR_LETTERS, COLOR_SYMBOLS, MONO_SYMBOLS }
+internal enum class DpadStyle { CROSS, DISC, ARROWS }
+internal enum class StickCap { RINGED, DISHED, KNURLED }
 
-enum class PadKit(val face: FaceGlyphs, val dpad: DpadStyle, val stick: StickCap, private val xbox: Boolean = false) {
+internal enum class PadKit(val face: FaceGlyphs, val dpad: DpadStyle, val stick: StickCap, private val xbox: Boolean = false) {
     STEAM_DECK(FaceGlyphs.MONO_LETTERS, DpadStyle.CROSS, StickCap.RINGED),
     STEAM_CONTROLLER(FaceGlyphs.MONO_LETTERS, DpadStyle.CROSS, StickCap.RINGED),
     XBOX(FaceGlyphs.COLOR_LETTERS, DpadStyle.DISC, StickCap.DISHED, xbox = true),
@@ -34,15 +34,21 @@ enum class PadKit(val face: FaceGlyphs, val dpad: DpadStyle, val stick: StickCap
         else -> label(control)
     }
 
-    companion object {
-        fun of(type: String) = when (type) {
-            SessionPrefs.CONTROLLER_STEAM -> STEAM_CONTROLLER
-            SessionPrefs.CONTROLLER_XBOX360 -> XBOX
-            SessionPrefs.CONTROLLER_DS4 -> DUALSHOCK
-            SessionPrefs.CONTROLLER_DUALSENSE -> DUALSENSE
-            else -> STEAM_DECK
-        }
+    fun native(element: InputSurfaceElement) = element.id == "legacy:${element.control.id}" && element.icon == 0 &&
+        (element.name == element.control.label || element.name == name(element.control))
 
-        fun current(context: Context) = of(SessionPrefs.steamController(context))
+    fun artwork(element: InputSurfaceElement) = element.image.isEmpty() && element.showLabel &&
+        (native(element) || element.id == "builtin:keyboard" && element.icon == InputButtonIcons.KEYBOARD)
+
+    companion object {
+        fun forOverlay(context: Context, layout: SavedInputLayout?): PadKit? =
+            if (layout?.id != InputLibraries.OVERLAY) null else when (SessionPrefs.steamController(context)) {
+                SessionPrefs.CONTROLLER_DECK -> STEAM_DECK
+                SessionPrefs.CONTROLLER_STEAM -> STEAM_CONTROLLER
+                SessionPrefs.CONTROLLER_XBOX360 -> XBOX
+                SessionPrefs.CONTROLLER_DS4 -> DUALSHOCK
+                SessionPrefs.CONTROLLER_DUALSENSE -> DUALSENSE
+                else -> null
+            }
     }
 }

@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Output HDR10</string>
     <string name="mode_hdr_unavailable">Tidak tersedia: %1$s.</string>
-    <string name="mode_hdr_restart">Mulai ulang aplikasi untuk menerapkannya.</string>
     <string name="mode_drivers">Driver</string>
     <string name="mode_gpu_drivers">Driver GPU</string>
     <string name="mode_gpu_drivers_hint">Digunakan bersama oleh Steam dan Desktop. Diatur di halaman Komponen.</string>
@@ -295,10 +294,14 @@
     <string name="mode_pen_touch">Sentuhan</string>
     <string name="mode_pen_button">Tombol samping</string>
     <string name="mode_osc">Kontrol di layar</string>
+    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatis menampilkan kontrol saat tidak ada pengontrol yang terhubung.</string>
+    <string name="osc_steam_touch">Sentuhan Steam (beta)</string>
+    <string name="osc_style_next_session">Kontrol sentuh Steam dimulai pada sesi Steam berikutnya</string>
     <string name="osc_steam_layout">Tata letak sentuh Steam</string>
     <string name="screen_key_layout_export">Ekspor</string>
     <string name="screen_key_image">Gambar</string>
+    <string name="osc_steam_layout_hint">Pindahkan, ubah ukuran, atau sembunyikan kontrol sentuh gim ini; disimpan ke Steam</string>
     <string name="mode_controller">Pengontrol</string>
     <string name="mode_controller_hint">Cara Steam mendeteksi pengontrol Anda. Berlaku pada sesi berikutnya.</string>
     <string name="mode_controller_deck">Pengontrol Steam Deck</string>
@@ -424,6 +427,7 @@
     <string name="mode_directaudio_hint">Melewati PulseAudio untuk latensi yang lebih rendah.</string>
     <string name="mode_mic">Mikrofon</string>
     <string name="mode_mic_hint">Untuk obrolan suara.</string>
+    <string name="drawer_mic_hint">Aktifkan atau nonaktifkan perekaman mikrofon untuk sesi ini.</string>
     <string name="drawer_mic_failed">Tidak dapat mengubah mikrofon. Coba lagi.</string>
     <string name="mode_network">Jaringan</string>
     <string name="mode_wifi_discovery">Pencarian Wi-Fi</string>
@@ -784,6 +788,7 @@
     <string name="drawer_keyboard">Keyboard</string>
     <string name="drawer_latency">Latensi</string>
     <string name="drawer_low_latency">Mode latensi rendah</string>
+    <string name="drawer_low_latency_hint">Meningkatkan penggunaan CPU dan baterai</string>
     <string name="drawer_low_latency_controller">Pengontrol latensi rendah</string>
     <string name="drawer_low_latency_controller_hint">Pengontrol melapor pada 1000 Hz, bukan 250 Hz. Sedikit lebih banyak CPU.</string>
     <string name="drawer_low_latency_touch">Sentuh latensi rendah</string>
@@ -1333,8 +1338,12 @@
     <string name="ctrl_opacity">Opasitas</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Ukuran tombol</string>
+    <string name="ctrl_adaptive">Stik adaptif</string>
     <string name="ctrl_rumble">Getaran gim</string>
     <string name="ctrl_dead_zone">Zona mati stik</string>
+    <string name="ctrl_steam_button">Tombol Steam</string>
+    <string name="ctrl_qam_button">Tombol QAM</string>
+    <string name="ctrl_keyboard_button">Tombol keyboard</string>
     <string name="ctrl_joycon_vr">Joy-Con sebagai pengontrol VR</string>
     <string name="ctrl_joycon_vr_hint">Saat SteamVR berjalan, setiap Joy-Con menjadi tangan. Arahkan ke depan lalu tahan Home atau Capture untuk memusatkannya kembali.</string>
     <string name="setup_animations">Animasi</string>
@@ -1462,6 +1471,8 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Tutup kontrol layar kedua</string>
     <string name="deck_open_steam_menu">Buka menu Steam</string>
+    <string name="deck_right_trackpad">Trackpad kanan</string>
+    <string name="deck_left_trackpad">Trackpad kiri</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Tampilkan keyboard</string>
     <string name="second_hide_keyboard">Sembunyikan keyboard</string>
@@ -1500,8 +1511,11 @@
     <string name="pckb_android">Keyboard Android</string>
     <string name="pckb_hide">Sembunyikan  ✕</string>
     <string name="pckb_size">Ukuran di layar</string>
+    <string name="pckb_size_hint">Porsi layar yang dipakai keyboard, termasuk header.</string>
     <string name="pckb_opacity">Opasitas</string>
+    <string name="pckb_opacity_hint">Turunkan agar game di belakang keyboard terlihat.</string>
     <string name="pckb_hidden_keys">Tombol tersembunyi</string>
+    <string name="pckb_hidden_keys_hint">Tombol yang jarang dipakai tidak ditampilkan di keyboard.</string>
     <string name="pckb_group_function">Baris Esc dan fungsi</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Tombol panah</string>
@@ -1706,6 +1720,8 @@
     <string name="drivers_installed_pick">Terinstal %1$s - pilih di menu</string>
     <string name="session_wait_removal">Tunggu penghapusan runtime selesai</string>
     <string name="session_title_game">Game</string>
+    <string name="session_touch_auto_touchpad">touchpad</string>
+    <string name="session_touch_auto_direct">langsung</string>
     <string name="session_swap_failed">Pergantian gagal: %1$s</string>
     <string name="session_profile_save_failed">Penyimpanan profil gagal: %1$s</string>
     <string name="session_desktop_paused">Desktop dijeda</string>
@@ -1952,6 +1968,15 @@
     <string name="fm_up_one_level">Naik satu tingkat</string>
     <string name="fm_choose_folder">Pilih folder</string>
     <string name="fm_choose_file">Pilih file</string>
+    <string name="ctrl_tint_steam_blue">Biru Steam</string>
+    <string name="ctrl_tint_sky">Langit</string>
+    <string name="ctrl_tint_white">Putih</string>
+    <string name="ctrl_tint_violet">Ungu</string>
+    <string name="ctrl_tint_green">Hijau</string>
+    <string name="ctrl_tint_amber">Ambar</string>
+    <string name="ctrl_tint_red">Merah</string>
+    <string name="ctrl_tint_pink">Merah muda</string>
+    <string name="ctrl_tint_gray">Abu-abu</string>
     <string name="ctrl_button_a">Tombol A</string>
     <string name="ctrl_button_b">Tombol B</string>
     <string name="ctrl_button_x">Tombol X</string>
@@ -2410,10 +2435,13 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Tampilan sesi</string>
+    <string name="display_zero_copy">Presentasi tanpa salin</string>
     <string name="display_resolution">Resolusi</string>
     <string name="display_game_fit">Penyesuaian gim 16:9</string>
     <string name="display_game_fit_hint">Cara gim 16:9 disesuaikan dengan tampilan ini. Berlaku pada sesi berikutnya.</string>
     <string name="display_game_fit_unavailable">Pilih Sesuaikan layar atau ukuran khusus yang lebih sempit dari 16:9.</string>
+    <string name="display_avoid_notch">Hindari poni</string>
+    <string name="display_avoid_notch_hint">Menjauhkan gambar dari lubang kamera. Berlaku saat Anda kembali ke sesi.</string>
     <string name="display_preserve">Pertahankan proporsi</string>
     <string name="display_stretch">Bentangkan ke tampilan</string>
     <string name="display_image_scaling">Penskalaan gambar</string>
@@ -3084,6 +3112,7 @@
     <string name="glasses_pro2_experimental">Pelacakan kepala Pro 2 eksperimental. Pengaturan kecerahan, volume, dan pergantian mode tampilan belum didukung.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mode Cardboard</string>
+    <string name="cardboard_mode_hint">Tampilan mata kiri dan kanan untuk kacamata VR ponsel.</string>
     <string name="cardboard_source">Gambar</string>
     <string name="cardboard_source_screen">Layar virtual</string>
     <string name="cardboard_source_sbs">3D berdampingan</string>
@@ -3106,6 +3135,7 @@
     <string name="cardboard_steamvr_unavailable">Tidak tersedia di sesi ini.</string>
     <string name="cardboard_steamvr_failed">SteamVR tidak merespons; periksa log sesi.</string>
     <string name="drawer_component_downloads">Unduh komponen</string>
+    <string name="drawer_component_downloads_hint">Unduhan dipakai bersama halaman Komponen. Pilih versi yang sudah diunduh di atas untuk memakainya pada peluncuran gim berikutnya.</string>
     <string name="drawer_component_choose_download">Pilih versi untuk diunduh</string>
     <string name="stores_fact_developer">Pengembang</string>
     <string name="stores_fact_publisher">Penerbit</string>

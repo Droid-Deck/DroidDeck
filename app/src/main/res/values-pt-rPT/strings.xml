@@ -281,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Saída HDR10</string>
     <string name="mode_hdr_unavailable">Indisponível: %1$s.</string>
-    <string name="mode_hdr_restart">Reinicie a app para aplicar.</string>
     <string name="mode_drivers">Controladores</string>
     <string name="mode_gpu_drivers">Controladores da GPU</string>
     <string name="mode_gpu_drivers_hint">Partilhados pelo Steam e pelo Ambiente de trabalho. Defina-os na página Componentes.</string>
@@ -295,10 +294,14 @@
     <string name="mode_pen_touch">Toque</string>
     <string name="mode_pen_button">Botão lateral</string>
     <string name="mode_osc">Controlos no ecrã</string>
+    <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Em Automático, os controlos aparecem quando não há nenhum comando ligado.</string>
+    <string name="osc_steam_touch">Controlos táteis do Steam (beta)</string>
+    <string name="osc_style_next_session">Os controlos táteis do Steam começam na próxima sessão do Steam</string>
     <string name="osc_steam_layout">Esquema tátil do Steam</string>
     <string name="screen_key_layout_export">Exportar</string>
     <string name="screen_key_image">Imagem</string>
+    <string name="osc_steam_layout_hint">Mova, redimensione ou oculte os controlos táteis deste jogo; é guardado no Steam</string>
     <string name="mode_controller">Comando</string>
     <string name="mode_controller_hint">Como o Steam vê o seu comando. Aplica-se na próxima sessão.</string>
     <string name="mode_controller_deck">Comando Steam Deck</string>
@@ -426,6 +429,7 @@
     <string name="mode_directaudio_hint">Ignora o PulseAudio para reduzir a latência.</string>
     <string name="mode_mic">Microfone</string>
     <string name="mode_mic_hint">Para chat de voz.</string>
+    <string name="drawer_mic_hint">Ativa ou desativa a captura do microfone nesta sessão.</string>
     <string name="drawer_mic_failed">Não foi possível alterar o microfone. Tente novamente.</string>
     <string name="mode_network">Rede</string>
     <string name="mode_wifi_discovery">Deteção de Wi-Fi</string>
@@ -788,6 +792,7 @@
     <string name="drawer_keyboard">Teclado</string>
     <string name="drawer_latency">Latência</string>
     <string name="drawer_low_latency">Modo de baixa latência</string>
+    <string name="drawer_low_latency_hint">Aumenta o consumo de CPU e de bateria</string>
     <string name="drawer_low_latency_controller">Comando de baixa latência</string>
     <string name="drawer_low_latency_controller_hint">O comando comunica a 1000 Hz em vez de 250 Hz. Um pouco mais de CPU.</string>
     <string name="drawer_low_latency_touch">Toque de baixa latência</string>
@@ -1337,8 +1342,12 @@
     <string name="ctrl_opacity">Opacidade</string>
     <string name="ctrl_percent">%1$d%%</string>
     <string name="ctrl_size">Tamanho dos botões</string>
+    <string name="ctrl_adaptive">Analógicos adaptáveis</string>
     <string name="ctrl_rumble">Vibração do jogo</string>
     <string name="ctrl_dead_zone">Zona morta do manípulo</string>
+    <string name="ctrl_steam_button">Botão Steam</string>
+    <string name="ctrl_qam_button">Botão QAM</string>
+    <string name="ctrl_keyboard_button">Botão do teclado</string>
     <string name="ctrl_joycon_vr">Joy-Con como comandos de RV</string>
     <string name="ctrl_joycon_vr_hint">Enquanto o SteamVR está a correr, cada Joy-Con torna-se uma mão. Aponte-o para a frente e mantenha Home ou Capture premido para o recentrar.</string>
     <string name="setup_animations">Animações</string>
@@ -1468,6 +1477,8 @@
     <string name="deck_surface_trackpad">Trackpad</string>
     <string name="deck_close">Fechar controlos do segundo ecrã</string>
     <string name="deck_open_steam_menu">Abrir menu Steam</string>
+    <string name="deck_right_trackpad">Trackpad direito</string>
+    <string name="deck_left_trackpad">Trackpad esquerdo</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Mostrar teclado</string>
     <string name="second_hide_keyboard">Ocultar teclado</string>
@@ -1506,8 +1517,11 @@
     <string name="pckb_android">Teclado Android</string>
     <string name="pckb_hide">Ocultar  ✕</string>
     <string name="pckb_size">Tamanho no ecrã</string>
+    <string name="pckb_size_hint">Percentagem do ecrã ocupada pelo teclado, incluindo o cabeçalho.</string>
     <string name="pckb_opacity">Opacidade</string>
+    <string name="pckb_opacity_hint">Reduza-a para ver o jogo por trás do teclado.</string>
     <string name="pckb_hidden_keys">Teclas ocultas</string>
+    <string name="pckb_hidden_keys_hint">As teclas que raramente usa não aparecem no teclado.</string>
     <string name="pckb_group_function">Esc e linha das teclas de função</string>
     <string name="pckb_group_nav">Ins / Del / Home / End / PgUp / PgDn</string>
     <string name="pckb_group_arrows">Teclas de direção</string>
@@ -1728,6 +1742,8 @@
     <string name="drivers_installed_pick">%1$s instalado - escolha-o no menu</string>
     <string name="session_wait_removal">Aguarde que a remoção do runtime termine</string>
     <string name="session_title_game">Jogo</string>
+    <string name="session_touch_auto_touchpad">painel tátil</string>
+    <string name="session_touch_auto_direct">direto</string>
     <string name="session_swap_failed">Falha na troca: %1$s</string>
     <string name="session_profile_save_failed">Falha ao guardar o perfil: %1$s</string>
     <string name="session_desktop_paused">O ambiente de trabalho está em pausa</string>
@@ -2006,6 +2022,15 @@
     <string name="fm_up_one_level">Subir um nível</string>
     <string name="fm_choose_folder">Escolha uma pasta</string>
     <string name="fm_choose_file">Escolha um ficheiro</string>
+    <string name="ctrl_tint_steam_blue">Azul Steam</string>
+    <string name="ctrl_tint_sky">Céu</string>
+    <string name="ctrl_tint_white">Branco</string>
+    <string name="ctrl_tint_violet">Violeta</string>
+    <string name="ctrl_tint_green">Verde</string>
+    <string name="ctrl_tint_amber">Âmbar</string>
+    <string name="ctrl_tint_red">Vermelho</string>
+    <string name="ctrl_tint_pink">Rosa</string>
+    <string name="ctrl_tint_gray">Cinzento</string>
     <string name="ctrl_button_a">Botão A</string>
     <string name="ctrl_button_b">Botão B</string>
     <string name="ctrl_button_x">Botão X</string>
@@ -2466,10 +2491,13 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Ecrã da sessão</string>
+    <string name="display_zero_copy">Apresentação sem cópia</string>
     <string name="display_resolution">Resolução</string>
     <string name="display_game_fit">Ajuste de jogos 16:9</string>
     <string name="display_game_fit_hint">Como os jogos 16:9 se ajustam a este ecrã. Próxima sessão.</string>
     <string name="display_game_fit_unavailable">Escolha «Igual ao ecrã» ou um tamanho personalizado mais estreito do que 16:9.</string>
+    <string name="display_avoid_notch">Evitar o entalhe</string>
+    <string name="display_avoid_notch_hint">Mantém a imagem fora do recorte da câmara. Aplica-se ao voltar à sessão.</string>
     <string name="display_preserve">Manter proporções</string>
     <string name="display_stretch">Esticar até ao ecrã</string>
     <string name="display_image_scaling">Escala da imagem</string>
@@ -3145,6 +3173,7 @@
     <string name="glasses_pro2_experimental">Seguimento experimental dos movimentos da cabeça para Pro 2. O ajuste do brilho e do volume e a mudança do modo de ecrã ainda não são suportados.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Modo Cardboard</string>
+    <string name="cardboard_mode_hint">Imagens para o olho esquerdo e o direito, para uns óculos de RV para telemóvel.</string>
     <string name="cardboard_source">Imagem</string>
     <string name="cardboard_source_screen">Ecrã virtual</string>
     <string name="cardboard_source_sbs">3D lado a lado</string>
@@ -3167,6 +3196,7 @@
     <string name="cardboard_steamvr_unavailable">Indisponível nesta sessão.</string>
     <string name="cardboard_steamvr_failed">O SteamVR não respondeu; verifica o registo da sessão.</string>
     <string name="drawer_component_downloads">Transferir componentes</string>
+    <string name="drawer_component_downloads_hint">As transferências são partilhadas com a página Componentes. Escolhe acima uma versão transferida para a usar quando iniciares o próximo jogo.</string>
     <string name="drawer_component_choose_download">Escolhe uma versão para transferir</string>
     <string name="stores_fact_developer">Programadora</string>
     <string name="stores_fact_publisher">Editora</string>

@@ -75,9 +75,14 @@
     <string name="input_independent_copy">Salinan independen</string>
     <string name="input_floating_stick">Mulai stik di posisi sentuh</string>
     <string name="input_hide_idle">Sembunyikan stik saat tidak digunakan</string>
+    <string name="input_tools">Alat</string>
+    <string name="input_quick_auto">Otomatis (%1$s)</string>
+    <string name="input_quick_mixed">Khusus (%1$s)</string>
     <string name="input_save_combination">Simpan sebagai profil baru</string>
     <string name="input_profile_controls_mode">Kontrol profil</string>
+    <string name="input_profile">Profil</string>
     <string name="input_mouse_gestures">Gestur touchpad mouse</string>
+    <string name="input_mouse_gestures_hint">Jika ditetapkan ke penunjuk mouse: ketuk untuk klik, tahan untuk menyeret, dan gulir dengan dua jari.</string>
     <string name="input_quick_override_hint">%1$s memiliki penggantian menu cepat. Pilih Otomatis di sana untuk memakai profil bawaan dan ketiga bagian tersimpannya.</string>
     <string name="input_route_local">Input DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Ditahan saat stik digerakkan ke segala arah: tekan di atas 55%, lepas di bawah 35%. Gunakan Tombol arah untuk menetapkan tiap arah secara terpisah. Perintah DroidDeck berjalan sekali per defleksi. Klik stik diatur terpisah.</string>
@@ -99,11 +104,17 @@
     <string name="input_shortcut_hold_hint">Di mode Steam. Menahan Kembali juga membuka akses cepat.</string>
     <string name="input_restore_shortcut">Pulihkan ke bawaan</string>
     <string name="input_virtual_controller">Pengontrol virtual</string>
+    <string name="input_virtual_controller_hint">Jenis pengontrol yang dilihat Steam atau game.</string>
     <string name="input_touchscreen">Layar sentuh</string>
+    <string name="input_touchscreen_hint">Cara sentuhan di layar game ditangani. Tombol profil tetap memakai tindakan yang ditetapkan.</string>
     <string name="input_touch_cursor">Kursor sentuh</string>
+    <string name="input_touch_cursor_hint">Tampilkan penunjuk untuk sentuhan langsung di layar game.</string>
     <string name="input_touch_hold">Sentuh dan tahan</string>
+    <string name="input_touch_hold_hint">Tindakan mouse saat menahan jari di layar game.</string>
     <string name="input_back_taps">Ketukan tombol Kembali</string>
+    <string name="input_back_taps_hint">Tindakan pertama: satu ketuk. Tindakan kedua: dua ketuk.</string>
     <string name="input_toggle_button">Tombol sakelar</string>
+    <string name="input_toggle_button_hint">Ketuk untuk menahan, ketuk lagi untuk melepas. Membuka menu atau mengganti profil melepas tombol.</string>
     <string name="input_button_shape">Bentuk</string>
     <string name="input_shape_rounded">Membulat</string>
     <string name="input_shape_pill">Pil</string>

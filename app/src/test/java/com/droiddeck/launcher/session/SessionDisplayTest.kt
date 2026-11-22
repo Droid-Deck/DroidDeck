@@ -60,20 +60,6 @@ class SessionDisplayTest {
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
     }
 
-    @Test fun unfoldedControlsFitTheGamesOwnAspectUnderTheCap() {
-        assertEquals(810, SessionDisplay.unfoldedGameHeight(1080, 1920, aspect = 4f / 3f))
-        assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920, aspect = 16f / 9f))
-        assertEquals((1920 * SessionDisplay.UNFOLDED_MAX_GAME_SHARE).toInt() and 1.inv(), SessionDisplay.unfoldedGameHeight(1080, 1920, aspect = 9f / 16f))
-        assertEquals(SessionDisplay.unfoldedGameHeight(1080, 1920, aspect = .5f), SessionDisplay.unfoldedGameHeight(1080, 1920, aspect = .1f))
-        assertEquals(810, SessionDisplay.unfoldedGameHeight(1080, 1920, 136, aspect = 4f / 3f))
-        assertEquals(1240, SessionDisplay.unfoldedGameHeight(2448, 1848, 136, aspect = 16f / 9f))
-    }
-
-    @Test fun aTallScreenTakesTheTabRowFromTheControlsSoTheGameKeepsTheFullWidth() {
-        assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920, 146))
-        assertEquals(1080, SessionDisplay.unfoldedGameHeight(1080, 2400, 146, aspect = 1f))
-    }
-
     @Test fun aTabRowUnderTheBarComesOutOfTheGameNotTheControls() {
         assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848, 0))
         assertEquals(1240, SessionDisplay.unfoldedGameHeight(2448, 1848, 136))

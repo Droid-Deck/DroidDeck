@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">Beviteli profilok</string>
     <string name="input_profiles">Profilok</string>
     <string name="input_physical">Fizikai vezérlő</string>
     <string name="input_primary">Fő képernyő</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Steam menü megnyitása</string>
     <string name="input_command_qam">Steam gyorselérés megnyitása</string>
     <string name="input_remove_element">Vezérlőelem eltávolítása</string>
+    <string name="input_add_element">Vezérlőelem hozzáadása</string>
     <string name="input_extra_keys">Eszközspecifikus gombok</string>
     <string name="input_capture">Fizikai gomb hozzárendelése</string>
     <string name="input_capture_confirm">Engedje el a gombot, majd válassza a Szerkesztés, Újra vagy Mégse lehetőséget. A B vagy a Vissza elengedés után megszakítja.</string>

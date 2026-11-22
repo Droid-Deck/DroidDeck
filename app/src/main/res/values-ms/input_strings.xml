@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">Profil input</string>
     <string name="input_profiles">Profil</string>
     <string name="input_physical">Pengawal fizikal</string>
     <string name="input_primary">Skrin utama</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Buka menu Steam</string>
     <string name="input_command_qam">Buka akses pantas Steam</string>
     <string name="input_remove_element">Alih keluar kawalan</string>
+    <string name="input_add_element">Tambah kawalan</string>
     <string name="input_extra_keys">Butang khusus peranti</string>
     <string name="input_capture">Tetapkan butang fizikal</string>
     <string name="input_capture_confirm">Lepaskan butang, kemudian pilih Edit, Cuba lagi atau Batal. B atau Kembali membatalkan selepas dilepaskan.</string>
