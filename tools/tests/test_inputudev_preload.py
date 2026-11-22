@@ -77,6 +77,66 @@ char *realpath(const char *path, char *resolved) {
 }
 """
 
+LOCKED = r"""
+#include <sys/syscall.h>
+#include <unistd.h>
+
+extern int busy;
+
+__attribute__((constructor)) static void start(void) {
+  busy = 1;
+  syscall(SYS_getpid);
+  busy = 0;
+}
+"""
+
+ARENA = r"""
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+static _Alignas(64) unsigned char arena[1 << 23];
+static size_t used;
+int busy;
+static int busy_allocations;
+
+void *memalign(size_t align, size_t size) {
+  uintptr_t start;
+  if (busy) busy_allocations++;
+  if (align < 16) align = 16;
+  start = ((uintptr_t)(arena + used) + 16 + align - 1) & ~(uintptr_t)(align - 1);
+  if (start + size > (uintptr_t)(arena + sizeof(arena))) return NULL;
+  ((size_t *)start)[-1] = size;
+  used = start + size - (uintptr_t)arena;
+  return (void *)start;
+}
+
+void *malloc(size_t size) { return memalign(16, size); }
+void *aligned_alloc(size_t align, size_t size) { return memalign(align, size); }
+int posix_memalign(void **out, size_t align, size_t size) { return (*out = memalign(align, size)) ? 0 : 12; }
+void free(void *p) { (void)p; }
+
+void *calloc(size_t n, size_t size) {
+  void *p = malloc(n * size);
+  if (p) memset(p, 0, n * size);
+  return p;
+}
+
+void *realloc(void *p, size_t size) {
+  void *q = malloc(size);
+  if (p && q) {
+    size_t old = ((size_t *)p)[-1];
+    memcpy(q, p, old < size ? old : size);
+  }
+  return q;
+}
+
+int main(void) {
+  printf("allocations %d\n", busy_allocations);
+  return 0;
+}
+"""
+
 UDEV = r"""
 #include <stdio.h>
 #include <stdlib.h>
@@ -414,7 +474,7 @@ class InputUdevPreloadTest(unittest.TestCase):
         if "__GLIBC__" not in compile_c("-dM", "-E", "-x", "c", "-include", "limits.h", "/dev/null"):
             raise unittest.SkipTest("needs a glibc toolchain")
         sources = (("once.c", ONCE), ("first.c", FIRST), ("second.c", SECOND), ("chain.c", CHAIN), ("mark.c", MARK),
-                   ("udev.c", UDEV), ("program.c", PROGRAM))
+                   ("udev.c", UDEV), ("program.c", PROGRAM), ("locked.c", LOCKED), ("arena.c", ARENA))
         for name, text in sources:
             (build / name).write_text(text)
         cls.lib = cls.dir / "libddsession.so"
@@ -427,6 +487,11 @@ class InputUdevPreloadTest(unittest.TestCase):
         compile_c("-shared", "-fPIC", "-O2", "-o", str(cls.udev), str(build / "udev.c"))
         cls.program = cls.dir / "program"
         compile_c("-O0", "-o", str(cls.program), str(build / "program.c"), str(cls.dir / "libfirst.so"), "-ldl")
+        compile_c("-shared", "-fPIC", "-O0", "-o", str(cls.dir / "liblocked.so"), str(build / "locked.c"))
+        cls.arena = cls.dir / "arena"
+        compile_c("-O0", "-rdynamic", "-o", str(cls.arena), str(build / "arena.c"), "-Wl,--no-as-needed",
+                  str(cls.dir / "liblocked.so"),
+                  f"-Wl,-rpath,{cls.dir}")
         cls.pads = cls.pad_dir("pads", "event0")
 
     @classmethod
@@ -448,6 +513,12 @@ class InputUdevPreloadTest(unittest.TestCase):
 
     def test_a_lookup_from_another_preloads_initialiser_does_not_reenter_it(self):
         self.assertEqual(self.run_program("once", "libonce.so"), ["readlink 1"])
+
+    def test_a_first_wrapped_call_inside_the_programs_allocator_does_not_allocate(self):
+        result = subprocess.run([str(self.arena)], env=dict(os.environ, LD_PRELOAD=str(self.lib)), capture_output=True,
+                                text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["allocations 0"])
 
     def test_the_real_lookup_still_sees_the_original_caller(self):
         self.assertEqual(self.run_program("next", "libfirst.so", "libsecond.so"), ["next 2"])
