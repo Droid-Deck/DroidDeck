@@ -50,7 +50,7 @@ struct vkp_image {
     VkBuffer linear_buf;
     VkDeviceMemory linear_mem;
     VkBufferImageCopy linear_copy;
-    int client_fd, has_client_fd;
+    int client_fd, has_client_fd, client_stalled;
 };
 
 static ANativeWindow *g_window;
@@ -1130,11 +1130,11 @@ static void release_external_client_draws(VkCommandBuffer cmd, const struct vkp_
  * the fences stay on the buffer for the next attempt. Until that write finishes, its image is only checked,
  * so fallback paths and retries do not block again. */
 #define CLIENT_WRITE_WAIT_NS 100000000LL
-static const struct vkp_image *g_client_stalled;
+static unsigned g_client_write_deferrals;
 
-static int wait_client_writes(const struct vkp_image *img, int64_t deadline) {
+static int wait_client_writes(struct vkp_image *img, int64_t deadline) {
     if (!img || !img->has_client_fd) return 1;
-    const int stalled = img == g_client_stalled;
+    const int stalled = img->client_stalled;
     struct dma_buf_export_sync_file exp = {.flags = DMA_BUF_SYNC_READ, .fd = -1};
     const int exported = ioctl(img->client_fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &exp) == 0 && exp.fd >= 0;
     struct pollfd p = {.fd = exported ? exp.fd : img->client_fd, .events = POLLIN};
@@ -1148,8 +1148,8 @@ static int wait_client_writes(const struct vkp_image *img, int64_t deadline) {
         g_perf.client_write_waits++;
     }
     if (exported) close(exp.fd);
-    if (r > 0 && stalled) g_client_stalled = NULL;
-    else if (r <= 0) g_client_stalled = img;
+    img->client_stalled = r <= 0;
+    if (r <= 0) g_client_write_deferrals++;
     return r > 0;
 }
 
@@ -1160,9 +1160,11 @@ static int draws_client_writes_done(const struct vkp_draw *draws, int n) {
     return 1;
 }
 
-int vkp_image_client_writes_done(const struct vkp_image *img) {
+int vkp_image_client_writes_done(struct vkp_image *img) {
     return wait_client_writes(img, perf_now() + CLIENT_WRITE_WAIT_NS);
 }
+
+unsigned vkp_client_write_deferrals(void) { return g_client_write_deferrals; }
 
 void vkp_image_track_client_writes(struct vkp_image *img, int dmabuf_fd) {
     if (!img || img->has_client_fd || dmabuf_fd < 0) return;
@@ -1715,7 +1717,6 @@ void vkp_image_destroy(struct vkp_image *img) {
     }
     if (img->android_buffer) AHardwareBuffer_release(img->android_buffer);
     if (img->has_client_fd) close(img->client_fd);
-    if (img == g_client_stalled) g_client_stalled = NULL;
     free(img);
 }
 

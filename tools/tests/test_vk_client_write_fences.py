@@ -37,7 +37,7 @@ HARNESS = r'''
 #define F_DUPFD_CLOEXEC 1030
 struct dma_buf_export_sync_file { unsigned flags; int fd; };
 struct pollfd { int fd; short events, revents; };
-struct vkp_image { int client_fd, has_client_fd; };
+struct vkp_image { int client_fd, has_client_fd, client_stalled; };
 struct vkp_draw { struct vkp_image *img; };
 
 /* Fake fds: 10..19 are client dma-bufs, 20+ are sync_files. A write finishes at finish_ms[dma-buf]. */
@@ -64,7 +64,6 @@ static int poll(struct pollfd *p, unsigned n, int timeout) {
 static int close(int fd) { closed[fd]++; return 0; }
 static int fcntl(int fd, int cmd, int arg) { (void)arg; assert(cmd == F_DUPFD_CLOEXEC); return fd; }
 /* PRODUCTION_FUNCTIONS */
-static void vkp_image_destroy(struct vkp_image *img) { if (img == g_client_stalled) g_client_stalled = NULL; }
 int main(void) {
     struct vkp_image idle = {0}, slow = {0}, stuck = {0}, shm = {0};
     vkp_image_track_client_writes(&idle, 10);
@@ -83,14 +82,22 @@ int main(void) {
     struct vkp_draw blocked[] = {{&slow}, {&stuck}};
     finish_ms[11] = 40;
     assert(!draws_client_writes_done(blocked, 2) && now_ms == 100 && g_perf.client_write_waits == 3);
+    assert(vkp_client_write_deferrals() == 1);
     assert(!vkp_image_client_writes_done(&stuck) && now_ms == 100 && g_perf.client_write_waits == 3);
-    assert(vkp_image_client_writes_done(&slow) && now_ms == 100);
-    finish_ms[12] = 250; now_ms = 116;
-    assert(!vkp_image_client_writes_done(&stuck) && now_ms == 116);
+    assert(vkp_client_write_deferrals() == 2);
+    assert(vkp_image_client_writes_done(&slow) && now_ms == 100 && vkp_client_write_deferrals() == 2);
+
+    /* Two stalled images each block once, whatever order they are checked in. */
+    finish_ms[11] = 1000;
+    assert(!vkp_image_client_writes_done(&slow) && now_ms == 200);
+    assert(!vkp_image_client_writes_done(&stuck) && !vkp_image_client_writes_done(&slow) && now_ms == 200);
+    finish_ms[11] = 250; finish_ms[12] = 250; now_ms = 216;
+    assert(!vkp_image_client_writes_done(&stuck) && now_ms == 216);
     now_ms = 260;
-    assert(vkp_image_client_writes_done(&stuck) && now_ms == 260);
+    assert(vkp_image_client_writes_done(&stuck) && vkp_image_client_writes_done(&slow) && now_ms == 260);
+    assert(!stuck.client_stalled && !slow.client_stalled);
     finish_ms[12] = 290;
-    assert(vkp_image_client_writes_done(&stuck) && now_ms == 290 && g_perf.client_write_waits == 4);
+    assert(vkp_image_client_writes_done(&stuck) && now_ms == 290 && g_perf.client_write_waits == 5);
     for (int fd = 20; fd < next_fd; fd++) assert(closed[fd] == 1);
 
     /* Without sync_file export the dma-buf itself is polled for its write fences. */
@@ -100,12 +107,11 @@ int main(void) {
     finish_ms[11] = 1000;
     assert(!vkp_image_client_writes_done(&slow) && now_ms == 120 && closed[11] == 0);
 
-    /* A destroyed image is forgotten; EINTR retries; a failing poll does not count as a finished write. */
-    vkp_image_destroy(&slow);
-    export_ok = 1; now_ms = 0; finish_ms[11] = 10; interrupted = 2;
-    assert(vkp_image_client_writes_done(&slow) && now_ms == 10);
+    /* EINTR retries; a failing poll does not count as a finished write. */
+    export_ok = 1; now_ms = 0; finish_ms[10] = 10; interrupted = 2;
+    assert(vkp_image_client_writes_done(&idle) && now_ms == 10);
     poll_fails = 1;
-    assert(!vkp_image_client_writes_done(&idle));
+    assert(!vkp_image_client_writes_done(&idle) && idle.client_stalled);
     puts("PASS");
     return 0;
 }
@@ -118,11 +124,11 @@ class VkClientWriteFencesTest(unittest.TestCase):
         if not compiler:
             self.skipTest('A host C compiler is required')
         source = SOURCE.read_text()
-        bound = re.search(r'^#define CLIENT_WRITE_WAIT_NS .*\nstatic const struct vkp_image \*g_client_stalled;$',
+        bound = re.search(r'^#define CLIENT_WRITE_WAIT_NS .*\nstatic unsigned g_client_write_deferrals;$',
                           source, re.M).group(0)
         functions = bound + '\n' + '\n'.join(function(source, name) for name in
                               ('wait_client_writes', 'draws_client_writes_done', 'vkp_image_client_writes_done',
-                               'vkp_image_track_client_writes'))
+                               'vkp_client_write_deferrals', 'vkp_image_track_client_writes'))
         with tempfile.TemporaryDirectory(prefix='droiddeck-client-writes-') as temp:
             folder = Path(temp)
             (folder / 'probe.c').write_text(HARNESS.replace('/* PRODUCTION_FUNCTIONS */', functions))

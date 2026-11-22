@@ -2554,6 +2554,7 @@ static void render_scene(void) {
     } else {
         cursor_hdr_said = 0;
     }
+    const unsigned deferrals = vkp_client_write_deferrals();
     if (hdr_route == 1) {
         static int fell_back;
         vkp_apply_window_request();
@@ -2567,7 +2568,7 @@ static void render_scene(void) {
         if (framegen ? generated >= 0 : sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color) == 0) {
             rendered = vkp_base_black(w, h) == 0;
             if (fell_back) { fell_back = 0; droiddeck_log("color", "the composed picture is on the game's display layer again"); }
-        } else {
+        } else if (vkp_client_write_deferrals() == deferrals) {
             hdr_route = 2;
             if (!fell_back) {
                 fell_back = 1;
@@ -2657,17 +2658,18 @@ static void render_scene(void) {
             int go[8], ov = 0;
             if (over == 1 && li >= 0 && vkp_map_draw(&dl.d[li + 1], go))
                 ov = sc_layer_present_overlay(dl.d[li + 1].img, go, dl.d[li + 1].blend) == 0 ? 1 : -1;
-            if (ov <= 0) sc_layer_hide_overlay();
-            if (ov < 0) {
+            const int held = ov < 0 && vkp_client_write_deferrals() != deferrals;
+            if (ov <= 0 && !held) sc_layer_hide_overlay();
+            if (ov < 0 && !held) {
                 sc_layer_hide();
                 rendered = vkp_render(w, h, dl.d, dl.n) == 0;
                 copy = 1;
                 hdr_copy = "the overlay layer refused the window above it";
-            } else {
+            } else if (!held) {
                 rendered = vkp_base_black(w, h) == 0;
                 g_scene_queues = sc_layer_queues();
             }
-        } else {
+        } else if (vkp_client_write_deferrals() == deferrals) {
             sc_layer_hide();
             rendered = vkp_render(w, h, dl.d, dl.n) == 0;
             copy = 1;
