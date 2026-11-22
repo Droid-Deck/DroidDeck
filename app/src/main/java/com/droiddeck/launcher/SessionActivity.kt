@@ -545,6 +545,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             drawerOpenState = value
             if (!value && drawerDocked) closeDockedMenu()
         }
+    private val dockedTouchOnly: Boolean get() = drawerOpen && drawerDocked && !dockedMenuController
     private val menuOwnsController: Boolean get() = com.droiddeck.launcher.input.DualScreen.menuOwnsController(drawerOpen, drawerDocked, dockedMenuController)
     private var quitFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
     private var quitFlooded = false
@@ -1111,6 +1112,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 when {
                     ::loading.isInitialized && loading.ended -> finish()
                     inputSettingsOpen -> inputSettingsOpen = false
+                    dockedTouchOnly -> routeBackAction()
                     drawerOpen -> drawerOpen = false
                     achievementsOpen -> closeAchievements()
                     pcKeyboardOpen -> pcKeyboardOpen = false
@@ -2092,7 +2094,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun performBackAction(double: Boolean) {
         val isSteam = SessionState.mode == SessionService.MODE_STEAM
         val opensQam = isSteam && (double xor backActionsInverted)
-        if (opensQam) triggerSteamQam() else drawerOpen = !drawerOpen
+        if (opensQam) triggerSteamQam() else if (!dockedTouchOnly) drawerOpen = !drawerOpen
     }
 
     private fun handleHomeGuideIntent(incoming: Intent?) {
@@ -3560,7 +3562,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     when (action) {
                         PhysicalShortcuts.Action.STEAM -> sendSteamGuide()
                         PhysicalShortcuts.Action.QAM -> triggerSteamQam()
-                        PhysicalShortcuts.Action.DROIDDECK -> drawerOpen = !drawerOpen
+                        PhysicalShortcuts.Action.DROIDDECK -> if (!dockedTouchOnly) drawerOpen = !drawerOpen
                     }
                 }) return true
         }
@@ -3635,7 +3637,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
             return true
         }
-        if (drawerOpen && (menuOwnsController || !fromController)) {
+        if (drawerOpen && (menuOwnsController || (!fromController && !(dockedTouchOnly && event.keyCode == KeyEvent.KEYCODE_BACK)))) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                     drawerPage = sessionDrawerPages(glasses.present)
