@@ -43,6 +43,14 @@ class GamepadTest(FakeAdbTest):
         self.assertEqual([50, 100, 50, 100], [c["duration"] for c in commands[2:-2] if c["command"] == "delay"])
         self.assertEqual({"id": 1, "command": "sync", "syncToken": ctl.GAMEPAD_SYNC}, commands[-1])
 
+    def test_a_zero_gap_sends_no_empty_delay_which_android_rejects(self):
+        code, _ = self.gamepad("a", "b", "--hold", "40", "--gap", "0")
+        self.assertEqual(0, code)
+        commands = self.script()
+        self.assertEqual([{"BTN_SOUTH": 1}, {"BTN_SOUTH": 0}, {"BTN_EAST": 1}, {"BTN_EAST": 0}], key_frames(commands))
+        self.assertEqual([], [c for c in commands if c["command"] == "delay" and c["duration"] <= 0])
+        self.assertEqual([40, 40], [c["duration"] for c in commands[2:-2] if c["command"] == "delay"])
+
     def test_the_dpad_uses_the_hat_axes(self):
         code, _ = self.gamepad("up", "right", "down", "left")
         self.assertEqual(0, code)

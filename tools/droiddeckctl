@@ -858,8 +858,9 @@ def gamepad_commands(buttons: list[str], hold: int, gap: int) -> list[dict]:
         kind = "EV_KEY" if name in GAMEPAD_BUTTONS else "EV_ABS"
         commands += [{"id": 1, "command": "inject", "events": [kind, code, down, "EV_SYN", "SYN_REPORT", 0]},
                      {"id": 1, "command": "delay", "duration": hold},
-                     {"id": 1, "command": "inject", "events": [kind, code, up, "EV_SYN", "SYN_REPORT", 0]},
-                     {"id": 1, "command": "delay", "duration": gap}]
+                     {"id": 1, "command": "inject", "events": [kind, code, up, "EV_SYN", "SYN_REPORT", 0]}]
+        if gap > 0:
+            commands.append({"id": 1, "command": "delay", "duration": gap})
     return commands + [{"id": 1, "command": "delay", "duration": UINPUT_TAIL_MS},
                        {"id": 1, "command": "sync", "syncToken": GAMEPAD_SYNC}]
 
