@@ -1164,6 +1164,7 @@ int vkp_image_client_writes_done(struct vkp_image *img) {
 }
 
 unsigned vkp_client_write_deferrals(void) { return g_client_write_deferrals; }
+void vkp_note_client_write_deferral(void) { g_client_write_deferrals++; }
 
 void vkp_image_track_client_writes(struct vkp_image *img, int dmabuf_fd) {
     if (!img || img->has_client_fd || dmabuf_fd < 0) return;

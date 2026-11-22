@@ -49,6 +49,7 @@ void vkp_image_track_client_writes(struct vkp_image *img, int dmabuf_fd);
 int vkp_image_client_writes_done(struct vkp_image *img);
 /* Counts reads skipped because a client write was still running; such a frame keeps what is on screen. */
 unsigned vkp_client_write_deferrals(void);
+void vkp_note_client_write_deferral(void);
 struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, char *info, size_t info_n);
 
 struct vkp_image *vkp_image_create_shm(int w, int h);

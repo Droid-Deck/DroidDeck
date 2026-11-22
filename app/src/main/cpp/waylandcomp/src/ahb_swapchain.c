@@ -42,6 +42,7 @@ struct ahb_buf {
     int on_layer;
     int release_pending;
     int64_t deferred_ns;
+    int writes_stalled;
     struct surface *surface;
     struct wl_event_source *fence_src;
     int fence_fd;
@@ -205,7 +206,9 @@ int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_
         }
         struct pollfd p = {.fd = dmabuf_fd, .events = POLLIN};
         int r;
-        do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
+        do { r = poll(&p, 1, ab->writes_stalled ? 0 : 100); } while (r < 0 && errno == EINTR);
+        ab->writes_stalled = r <= 0;
+        if (r <= 0) { vkp_note_client_write_deferral(); return -1; }
     }
     int r = sc_layer_present_ahb(ab->ahb, ab->w, ab->h, acquire, (void *)(uintptr_t)ab->id, scene_w, scene_h, draw,
                                  s ? droiddeck_surface_color(s) : NULL, ab->format);

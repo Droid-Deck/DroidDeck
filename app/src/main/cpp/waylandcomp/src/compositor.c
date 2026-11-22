@@ -2676,7 +2676,7 @@ static void render_scene(void) {
             r = generated >= 0 ? 0 : -1;
         else if (generated >= 0 && !(fx_on && li >= 0) && ls && ls->dmabuf_buf && ahb_swapchain_has_ahb(ls->dmabuf_buf))
             r = ahb_swapchain_present(ls->dmabuf_buf, ls, w, h, ld);
-        if (!fg_pass && generated >= 0 && r != 0 && li >= 0)
+        if (!fg_pass && generated >= 0 && r != 0 && li >= 0 && vkp_client_write_deferrals() == deferrals)
             r = fx_on ? sc_layer_present_pass(&dl.d[li], 1, w, h)
                       : sc_layer_present(dl.d[li].img, w, h, ld, ls ? droiddeck_surface_color(ls) : NULL);
         if (r == 0) {
