@@ -2,15 +2,25 @@ package com.droiddeck.launcher.runtime
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import android.content.Context
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreArchiveUnpacker
 import com.droiddeck.launcher.stores.StoreInstalls
+import com.droiddeck.launcher.stores.itch.ItchArchives
 import org.apache.commons.compress.archivers.zip.ZipFile
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
+import java.util.concurrent.atomic.AtomicBoolean
 
 object WowAddons {
     var imports by mutableIntStateOf(0)
@@ -120,46 +130,80 @@ object WowAddons {
         imports++
     }
 
-    fun import(zipFile: File, target: Target, origin: Origin? = null): List<String> {
+    fun import(archive: File, target: Target, origin: Origin? = null, context: Context? = null): List<String> {
+        if (context == null || ItchArchives.kind(archive, archive.name) == "zip") return importZip(archive, target, origin)
+        val work = File(File(context.cacheDir, "wowaddons"), "unpack-${System.nanoTime()}")
+        try {
+            if (!work.mkdirs()) throw IOException("Cannot create ${work.path}")
+            val unpacker = StoreArchiveUnpacker(context, AtomicBoolean(), "Addons", R.string.stores_itch_archive, R.string.stores_itch_extract_failed, "addon-unpack")
+            unpacker.work = work
+            unpacker.limit = MAX_EXPANDED_BYTES
+            try {
+                unpacker.unpack(archive, archive.name, { _, _ -> }, {})
+            } catch (_: StoreArchiveUnpacker.TooLarge) {
+                throw TooLarge()
+            }
+            return importFolder(work, target, origin)
+        } finally {
+            StoreInstalls.deleteTree(work)
+        }
+    }
+
+    private class Entry(val path: String, val open: () -> InputStream)
+
+    private fun importZip(zipFile: File, target: Target, origin: Origin?): List<String> =
         ZipFile.builder().setFile(zipFile).get().use { zip ->
             val all = zip.entries.toList()
             if (all.any { it.isUnixSymlink }) return emptyList()
-            val entries = all.filter { clean(it.name) != null }
-            val addons = addons(entries.filter { !it.isDirectory }.mapNotNull { clean(it.name) })
-            if (addons.isEmpty()) return emptyList()
-            val addOns = target.addOns
-            if (!addOns.isDirectory && !addOns.mkdirs()) throw IOException("Cannot create ${addOns.path}")
-            val stage = File(addOns.parentFile, ".addon-import-${System.nanoTime()}")
-            try {
-                val fresh = File(stage, "new")
-                val buffer = ByteArray(64 * 1024)
-                var written = 0L
-                for (entry in entries) {
-                    if (entry.isDirectory) continue
-                    val path = clean(entry.name) ?: continue
-                    val addon = addons.firstOrNull { path.startsWith(it.root) } ?: continue
-                    val out = inside(fresh, addon.name + "/" + path.removePrefix(addon.root)) ?: continue
-                    out.parentFile?.mkdirs()
-                    zip.getInputStream(entry).use { input ->
-                        out.outputStream().use { output ->
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                written += read
-                                if (written > MAX_EXPANDED_BYTES) throw TooLarge()
-                                output.write(buffer, 0, read)
-                            }
+            importEntries(all.filter { !it.isDirectory }.mapNotNull { entry -> clean(entry.name)?.let { Entry(it) { zip.getInputStream(entry) } } }, target, origin)
+        }
+
+    internal fun importFolder(folder: File, target: Target, origin: Origin?): List<String> {
+        val entries = ArrayList<Entry>()
+        var links = false
+        Files.walkFileTree(folder.toPath(), object : SimpleFileVisitor<Path>() {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                if (!attrs.isRegularFile) links = true
+                else clean(folder.toPath().relativize(file).joinToString("/"))?.let { entries.add(Entry(it) { Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS) }) }
+                return if (links) FileVisitResult.TERMINATE else FileVisitResult.CONTINUE
+            }
+        })
+        return if (links) emptyList() else importEntries(entries, target, origin)
+    }
+
+    private fun importEntries(entries: List<Entry>, target: Target, origin: Origin?): List<String> {
+        val addons = addons(entries.map { it.path })
+        if (addons.isEmpty()) return emptyList()
+        val addOns = target.addOns
+        if (!addOns.isDirectory && !addOns.mkdirs()) throw IOException("Cannot create ${addOns.path}")
+        val stage = File(addOns.parentFile, ".addon-import-${System.nanoTime()}")
+        try {
+            val fresh = File(stage, "new")
+            val buffer = ByteArray(64 * 1024)
+            var written = 0L
+            for (entry in entries) {
+                val addon = addons.firstOrNull { entry.path.startsWith(it.root) } ?: continue
+                val out = inside(fresh, addon.name + "/" + entry.path.removePrefix(addon.root)) ?: continue
+                out.parentFile?.mkdirs()
+                entry.open().use { input ->
+                    out.outputStream().use { output ->
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            written += read
+                            if (written > MAX_EXPANDED_BYTES) throw TooLarge()
+                            output.write(buffer, 0, read)
                         }
                     }
                 }
-                swap(addons.map { File(fresh, it.name) to it.name }, addOns, File(stage, "old").apply { mkdirs() })
-            } finally {
-                StoreInstalls.deleteTree(stage)
             }
-            runCatching { keepOrigins(target, addons.map { it.name }, origin) }
-            imports++
-            return addons.map { it.name }
+            swap(addons.map { File(fresh, it.name) to it.name }, addOns, File(stage, "old").apply { mkdirs() })
+        } finally {
+            StoreInstalls.deleteTree(stage)
         }
+        runCatching { keepOrigins(target, addons.map { it.name }, origin) }
+        imports++
+        return addons.map { it.name }
     }
 
     internal fun addons(files: List<String>): List<Addon> {

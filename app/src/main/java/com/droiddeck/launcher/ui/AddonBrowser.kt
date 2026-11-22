@@ -302,7 +302,7 @@ internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target
     return try {
         val version = WowAddonCatalog.download(context, addon, zip, progress) ?: addon.summary
         if (SessionState.running) return context.getString(R.string.main_addons_close_session) to null
-        val names = WowAddons.import(zip, target, WowAddons.Origin(addon.id, version).takeIf { version.isNotBlank() })
+        val names = WowAddons.import(zip, target, WowAddons.Origin(addon.id, version).takeIf { version.isNotBlank() }, context)
         if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to null
         else context.resources.getQuantityString(R.plurals.main_addons_imported, names.size, names.size, target.flavor) to version
     } catch (_: WowAddons.TooLarge) {
