@@ -1357,7 +1357,9 @@ static void cursor_publish_or_hold(struct surface *s, struct wl_resource *buffer
 static int on_cursor_retry(void *data) {
     struct surface *s = g_cursor_surface;
     struct wl_resource *buffer = s && s->role == ROLE_CURSOR ? surface_take_idle(s) : NULL;
-    if (buffer) cursor_publish_or_hold(s, buffer);
+    if (!buffer) return 0;
+    cursor_publish_or_hold(s, buffer);
+    if (s->idle_buffer != buffer && atomic_load(&g_cursor_composite)) schedule_render();
     return 0;
 }
 
@@ -2580,7 +2582,6 @@ static void render_scene(void) {
     if (hdr_route == 1) {
         static int fell_back;
         vkp_apply_window_request();
-        sc_layer_hide_overlay();
         const int generated = framegen ? sc_layer_present_generated(dl.d, dl.n, &hs.hf, w, h, 1, hs.color) : 0;
         if (framegen) g_framegen_layer = generated >= 0;
         if (generated > 0 && g_framegen_layer_said != 3) {
@@ -2588,6 +2589,7 @@ static void render_scene(void) {
             droiddeck_log("framegen", "generated frames and the composed HDR picture go on the game's display layer");
         }
         if (framegen ? generated >= 0 : sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color) == 0) {
+            sc_layer_hide_overlay();
             rendered = vkp_base_black(w, h) == 0;
             if (fell_back) { fell_back = 0; droiddeck_log("color", "the composed picture is on the game's display layer again"); }
         } else if (vkp_client_write_deferrals() == deferrals) {
