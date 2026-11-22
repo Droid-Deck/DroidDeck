@@ -131,6 +131,18 @@ The client's web helper draws its whole UI. There are two:
   blank. `LinuxRuntime` binds an empty folder over `/sys/bus/pci/devices` on such devices; device:
   0 GPU process exits, ANGLE on zink and Turnip.
 
+FEX ships per-program AppConfigs, and `/usr/local/share/fex-emu/AppConfig/steamwebhelper.json` turns
+the GL thunk off for every program named `steamwebhelper`. A program's AppConfig is read after
+`FEX_THUNKCONFIG`, so the x86 helper got the rootfs's x86 Mesa while the client next to it had the
+thunk. Steam's browser compositor creates its output window through SDL3 and GLX in the helper's
+browser process, and x86 Mesa's `driCreateNewScreen3` (kisak libgallium 26.1.6) faulted there
+(SIGSEGV, exit 139) about 11 s after every start; the client restarted it each time (device: 57
+restarts in 11 minutes). `x64_env` therefore writes, for every global AppConfig that turns off a
+thunk the session uses, a local AppConfig (`$X64_HOME/.config/fex-emu/AppConfig/<name>.json`, read
+after the global one) with the session's thunk set. It never touches a local file with other content,
+so a user's own AppConfig wins, and removes its own files when the client runs in software. Device:
+helper up for over 10 minutes with no restart, ANGLE on zink and Turnip through the thunk.
+
 The session shim (`preload/net.c`) turns `steamrt64/steamwebhelper.sh`'s exec of `./steamwebhelper`
 into `DD_X64_ARM_WEBHELPER`. Nothing in the client's folder is edited: the client checksums its files
 as it starts and reinstalled itself over an edited launcher (2-3 minutes) on every start.
