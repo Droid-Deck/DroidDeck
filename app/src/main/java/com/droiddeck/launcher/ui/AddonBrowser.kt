@@ -1,28 +1,32 @@
 package com.droiddeck.launcher.ui
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,16 +38,29 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.WowAddonCatalog
 import com.droiddeck.launcher.runtime.WowAddons
@@ -62,6 +79,10 @@ private class AddonResults {
     var more by mutableStateOf(false)
 }
 
+private enum class AddonStatus { INSTALL, UPDATE, INSTALLED }
+
+private const val PAGES_AHEAD = 8
+
 @Composable
 internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAddons.Target, onDismiss: () -> Unit) {
     val context = LocalContext.current.applicationContext
@@ -74,9 +95,18 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     var sort by remember { mutableStateOf(WowAddonCatalog.Sort.POPULAR) }
     val results = remember(text, category, sort, target) { AddonResults() }
     val installing = remember { mutableStateMapOf<String, Int>() }
-    val installed = remember { mutableStateMapOf<String, Boolean>() }
+    val installed = remember { mutableStateMapOf<String, Pair<String, String>>() }
     val categories by produceState(emptyList<WowAddonCatalog.Category>()) {
         value = withContext(Dispatchers.IO) { runCatching { WowAddonCatalog.categories(context) }.getOrDefault(emptyList()) }
+    }
+    val present by produceState(emptyMap<String, String?>(), target.addOns, WowAddons.imports) {
+        value = withContext(Dispatchers.IO) { WowAddons.details(target).mapNotNull { item -> item.wowiId?.let { it to item.version } }.toMap() }
+    }
+    fun status(addon: WowAddonCatalog.Addon): AddonStatus {
+        if (addon.id !in present) return AddonStatus.INSTALL
+        val have = present[addon.id]
+        val latest = installed[installKey(addon, target)]?.takeIf { it.first == addon.summary }?.second ?: addon.summary
+        return if (have == null || latest.isBlank() || WowAddonCatalog.sameVersion(have, latest)) AddonStatus.INSTALLED else AddonStatus.UPDATE
     }
     fun load(page: Int) {
         if (results.loading) return
@@ -115,48 +145,93 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         scope.launch {
             val message = withContext(Dispatchers.IO) { installAddon(context, addon, into) { pct -> scope.launch { if (key in installing) installing[key] = pct } } }
             installing.remove(key)
-            if (message.second) installed[key] = true
+            message.second?.let { installed[key] = addon.summary to it }
             Toast.makeText(context, message.first, Toast.LENGTH_LONG).show()
         }
     }
     val sourceName = stringResource(R.string.addons_source_wowi)
-    AppDialog(shown, close, "addonBrowser", wide = true, scrollable = false) {
-        DialogTitleRow(stringResource(R.string.addons_download), close)
-        ModeHeader(sourceName, text, { text = it }, stringResource(R.string.stores_search_catalog, sourceName)) {
-            BrowseChip(stringResource(R.string.addons_source_curse), false) {
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(WowAddonCatalog.curseForgeUrl(text))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            }
+    val grid = rememberLazyGridState()
+    LaunchedEffect(results, grid) {
+        snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index to grid.layoutInfo.totalItemsCount }.collect { (last, total) ->
+            if (last != null && results.more && results.failed == null && last >= total - PAGES_AHEAD) load(results.page + 1)
         }
-        ChipRow {
+    }
+    val firstAction = remember(results) { FocusRequester() }
+    val inputMode = LocalInputModeManager.current
+    var searching by remember { mutableStateOf(false) }
+    LaunchedEffect(results, results.items.isNotEmpty()) {
+        if (results.items.isNotEmpty() && !searching && inputMode.inputMode == InputMode.Keyboard) focusSoon { firstAction }
+    }
+    AppDialog(shown, close, "addonBrowser", wide = true, maxWidth = 980.dp, scrollable = false, fillHeight = true) {
+        val sortChip: @Composable () -> Unit = {
             BrowseDropdown(sortLabel(sort)) { first, done ->
                 WowAddonCatalog.Sort.entries.forEachIndexed { index, option ->
                     MenuItem(sortLabel(option), sort == option, focusRequester = if (index == 0) first else null) { sort = option; done() }
                 }
             }
+        }
+        val categoryChip: @Composable () -> Unit = {
             if (categories.isNotEmpty()) BrowseDropdown(category?.name ?: stringResource(R.string.addons_category_all)) { first, done ->
                 MenuItem(stringResource(R.string.addons_category_all), category == null, focusRequester = first) { category = null; done() }
                 categories.forEach { option -> MenuItem(option.name, category?.id == option.id) { category = option; done() } }
             }
+        }
+        val flavorChip: @Composable () -> Unit = {
             if (targets.size > 1) BrowseDropdown(target.flavor) { first, done ->
                 targets.forEachIndexed { index, option ->
                     MenuItem(option.flavor, option.addOns == target.addOns, focusRequester = if (index == 0) first else null) { target = option; done() }
                 }
             }
         }
-        val height = (LocalConfiguration.current.screenHeightDp * 0.62f).dp
+        val search: @Composable (Modifier) -> Unit = { modifier ->
+            AdbTextField(
+                value = text, onValueChange = { text = it }, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
+                placeholder = stringResource(R.string.stores_search_catalog, sourceName), compact = true, showLabel = false, modifier = modifier, onFocusChange = { searching = it },
+            )
+        }
+        val closeButton: @Composable () -> Unit = {
+            SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.error, onClick = close)
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth >= 640.dp) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                search(Modifier.weight(1f))
+                sortChip()
+                categoryChip()
+                flavorChip()
+                closeButton()
+            } else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    search(Modifier.weight(1f))
+                    closeButton()
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
+                    sortChip()
+                    categoryChip()
+                    flavorChip()
+                }
+            }
+        }
+        val thumb = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         LazyVerticalGrid(
-            GridCells.Adaptive(libraryTileWidth() + 40.dp), Modifier.fillMaxWidth().height(height),
-            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+            GridCells.Adaptive(400.dp), Modifier.fillMaxWidth().weight(1f).scrollThumb(grid, thumb), state = grid,
+            contentPadding = PaddingValues(end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             items(results.items, key = { it.id }) { addon ->
-                AddonCard(addon, installing[installKey(addon, target)], installed[installKey(addon, target)] == true) { install(addon) }
+                val key = installKey(addon, target)
+                AddonRow(addon, status(addon), installing[key], if (addon.id == results.items.firstOrNull()?.id) Modifier.focusRequester(firstAction) else Modifier) { install(addon) }
             }
-            item(key = "tail", span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     when {
                         results.loading -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                        results.failed != null -> BrowseChip(stringResource(R.string.stores_dl_retry), false) { load(if (results.items.isEmpty()) 0 else results.page + 1) }
-                        results.more -> BrowseChip(stringResource(R.string.stores_itch_load_more), false) { load(results.page + 1) }
+                        results.failed != null -> {
+                            Text(stringResource(R.string.addons_unreachable, sourceName), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            BrowseChip(stringResource(R.string.stores_dl_retry), false) { load(if (results.items.isEmpty()) 0 else results.page + 1) }
+                        }
                         results.items.isEmpty() -> Text(stringResource(R.string.addons_none_found), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -166,27 +241,43 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
 }
 
 @Composable
-private fun AddonCard(addon: WowAddonCatalog.Addon, progress: Int?, done: Boolean, onInstall: () -> Unit) {
+private fun AddonRow(addon: WowAddonCatalog.Addon, status: AddonStatus, progress: Int?, action: Modifier, onInstall: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
-    Column(
-        Modifier.fillMaxWidth().clip(shape).glideBorder(hot, shape, pal.signal, pal.line)
-            .hoverable(src)
-            .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onInstall)
-            .controllerConfirm(onClick = onInstall),
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface.copy(alpha = 0.6f)).border(1.dp, pal.line, Shape12)
+            .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
     ) {
-        ArtCard(addon.name, addon.thumb, null, null, hot, capsule = false, chip = progress?.let { "$it%" }) {
-            if (done) Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.height(11.dp))
-            else Text(stringResource(if (progress != null) R.string.store_installing else R.string.store_install), fontSize = 10.sp, color = pal.signal, maxLines = 1)
+        Box(Modifier.size(44.dp).clip(Shape12).background(artBrush(hueOf(addon.name)))) {
+            if (addon.thumb != null) AsyncImage(model = addon.thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         }
-        Text(
-            listOf(addon.author, formatCount(addon.downloads)).filter { it.isNotEmpty() }.joinToString(" · "),
-            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-        )
+        Column(Modifier.weight(1f)) {
+            Text(addon.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOf(addon.author, addon.summary, formatCount(addon.downloads)).filter { it.isNotEmpty() }.joinToString(" · "),
+                fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        val size = Modifier.widthIn(min = 104.dp).then(action)
+        when {
+            progress != null -> SecondaryButton(stringResource(R.string.store_installing), compact = true, modifier = size, progress = progress / 100f, onClick = onInstall)
+            status == AddonStatus.INSTALLED -> SecondaryButton(stringResource(R.string.stores_installed_chip), enabled = false, compact = true, modifier = size) {}
+            else -> PrimaryButton(stringResource(if (status == AddonStatus.UPDATE) R.string.common_update else R.string.store_install), compact = true, modifier = size, onClick = onInstall)
+        }
     }
+}
+
+private fun Modifier.scrollThumb(state: LazyGridState, color: Color): Modifier = drawWithContent {
+    drawContent()
+    val info = state.layoutInfo
+    val visible = info.visibleItemsInfo
+    if (visible.isEmpty() || visible.size >= info.totalItemsCount) return@drawWithContent
+    val total = info.totalItemsCount.toFloat()
+    val length = (size.height * visible.size / total).coerceAtLeast(24.dp.toPx())
+    val top = (size.height - length) * (visible.first().index / (total - visible.size).coerceAtLeast(1f)).coerceIn(0f, 1f)
+    val width = 3.dp.toPx()
+    drawRoundRect(color, Offset(size.width - width, top), Size(width, length), CornerRadius(width / 2))
 }
 
 @Composable
@@ -206,18 +297,18 @@ private fun formatCount(count: Long): String = when {
     else -> count.toString()
 }
 
-private fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, Boolean> {
+internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, String?> {
     val zip = File(File(context.cacheDir, "wowaddons"), "download-wowi-${addon.id.filter(Char::isLetterOrDigit)}-${java.util.UUID.randomUUID()}.zip")
     return try {
-        WowAddonCatalog.download(context, addon, zip, progress)
-        if (SessionState.running) return context.getString(R.string.main_addons_close_session) to false
-        val names = WowAddons.import(zip, target)
-        if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to false
-        else context.resources.getQuantityString(R.plurals.main_addons_imported, names.size, names.size, target.flavor) to true
+        val version = WowAddonCatalog.download(context, addon, zip, progress) ?: addon.summary
+        if (SessionState.running) return context.getString(R.string.main_addons_close_session) to null
+        val names = WowAddons.import(zip, target, WowAddons.Origin(addon.id, version).takeIf { version.isNotBlank() }, context)
+        if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to null
+        else context.resources.getQuantityString(R.plurals.main_addons_imported, names.size, names.size, target.flavor) to version
     } catch (_: WowAddons.TooLarge) {
-        context.getString(R.string.main_addons_too_large, addon.name) to false
+        context.getString(R.string.main_addons_too_large, addon.name) to null
     } catch (e: Exception) {
-        context.getString(R.string.stores_dl_failed_reason, e.message ?: e.javaClass.simpleName) to false
+        context.getString(R.string.stores_dl_failed_reason, e.message ?: e.javaClass.simpleName) to null
     } finally {
         zip.delete()
     }
