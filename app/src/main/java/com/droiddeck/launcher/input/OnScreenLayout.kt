@@ -76,22 +76,23 @@ object OnScreenLayout {
         val rotated = layout.rotated.associateBy { it.id }
         return layout.copy(elements = layout.elements.map { e -> rotated[e.id]?.let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) } ?: e } +
             layout.rotated.filter { r -> optional(r) && layout.elements.none { it.id == r.id } },
-            aspect = layout.rotatedAspect, rotated = emptyList(), rotatedAspect = 0f)
+            aspect = layout.rotatedAspect, scale = layout.rotatedScale, rotated = emptyList(), rotatedAspect = 0f, rotatedScale = 1f)
     }
 
-    fun withFrame(context: Context, saved: SavedInputLayout, elements: List<InputSurfaceElement>, aspect: Float): SavedInputLayout {
+    fun withFrame(context: Context, saved: SavedInputLayout, elements: List<InputSurfaceElement>, aspect: Float, scale: Float = saved.scale): SavedInputLayout {
         val (_, metrics) = InputLibraries.primaryDisplay(context)
         val generated = generatedSize(context, saved, metrics.widthPixels, metrics.heightPixels) != null
         val portraitMain = saved.aspect > 0f && saved.aspect < 1f
         if (aspect <= 0f || aspect >= 1f || portraitMain && !generated) {
-            val rotated = if (aspect >= 1f && portraitMain && !generated) saved.elements to saved.aspect else saved.rotated to saved.rotatedAspect
-            return saved.copy(elements = elements, aspect = aspect, rotated = rotated.first, rotatedAspect = if (rotated.first.isEmpty()) 0f else rotated.second)
+            val rotated = if (aspect >= 1f && portraitMain && !generated) Triple(saved.elements, saved.aspect, saved.scale) else Triple(saved.rotated, saved.rotatedAspect, saved.rotatedScale)
+            return saved.copy(elements = elements, aspect = aspect, scale = scale, rotated = rotated.first,
+                rotatedAspect = if (rotated.first.isEmpty()) 0f else rotated.second, rotatedScale = if (rotated.first.isEmpty()) 1f else rotated.third)
         }
         val main = if (portraitMain) 1f / saved.aspect else saved.aspect.takeIf { it > 0f } ?: (1f / aspect)
         val ids = elements.associateBy { it.id }
         val kept = saved.elements.mapNotNull { e -> ids[e.id]?.copy(x = e.x, y = e.y, width = e.width, height = e.height) }
         val added = fit(elements.filter { d -> !optional(d) && saved.elements.none { it.id == d.id } }, aspect, 1f, (main * 1000).roundToInt().coerceAtLeast(1), 1000, Rect())
-        return saved.copy(elements = kept + added, aspect = main, rotated = elements, rotatedAspect = aspect)
+        return saved.copy(elements = kept + added, aspect = main, rotated = elements, rotatedAspect = aspect, rotatedScale = scale)
     }
 
     fun optionalControls(context: Context): Pair<Boolean?, Boolean?> {

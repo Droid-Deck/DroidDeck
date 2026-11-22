@@ -118,6 +118,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         if (canvas.width <= 0 || canvas.height <= 0 || shown.isEmpty() || aspect <= 0f || (aspect < 1f) == (canvasAspect < 1f)) return false
         val open = toolsExpanded
         beginEdit(shown, canvasAspect, gamepad?.let { GamepadScaler(context, canvas.width, canvas.height, layout) })
+        layoutScale = OnScreenLayout.oriented(layout, canvas.width, canvas.height).scale
         toolsExpanded = open
         return true
     }
@@ -224,7 +225,7 @@ fun InputSurfaceDialog(profile: String, onDismiss: () -> Unit, onChanged: () -> 
             InputLibraries.update(context) { latest ->
                 val l = latest.layouts.first { it.id == savedLayout.id }
                 val p = latest.preset(savedBindings.id)
-                latest.withLayout(OnScreenLayout.withFrame(context, l, draft.elements, draft.aspect).copy(scale = draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
+                latest.withLayout(OnScreenLayout.withFrame(context, l, draft.elements, draft.aspect, draft.layoutScale)).withPreset(p.copy(elements = draft.actions.filterKeys { id -> draft.elements.any { it.id == id } },
                     clicks = draft.clicks.filterKeys { id -> draft.elements.any { it.id == id && it.hasClick } }))
             }
         }.onSuccess { onChanged(); onDismiss() }.onFailure { failure = it.message ?: context.getString(R.string.input_save_failed) }

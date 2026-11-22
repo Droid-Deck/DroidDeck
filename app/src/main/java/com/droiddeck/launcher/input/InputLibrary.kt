@@ -24,6 +24,7 @@ data class SavedInputLayout(
     val scale: Float = 1f,
     val rotated: List<InputSurfaceElement> = emptyList(),
     val rotatedAspect: Float = 0f,
+    val rotatedScale: Float = 1f,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
     val quickButtons get() = QUICK_BUTTONS.filter { button -> elements.any { it.quickButton == button } }
@@ -251,7 +252,7 @@ data class InputLibrary(
         for (layout in layouts) {
             require(layout.style.opacity in 1..100 && layout.style.hidden.all { it in QUICK_BUTTONS })
             require(layout.aspect == 0f || layout.aspect.isFinite() && layout.aspect in .05f..20f)
-            require(layout.rotated.isEmpty() || layout.rotatedAspect.isFinite() && layout.rotatedAspect in .05f..20f)
+            require(layout.rotated.isEmpty() || layout.rotatedAspect.isFinite() && layout.rotatedAspect in .05f..20f && layout.rotatedScale.isFinite() && layout.rotatedScale in .5f..2f)
             require(layout.rotated.size <= 64 && layout.rotated.all { r -> listOf(r.x, r.y, r.width, r.height).all { it.isFinite() } })
             require(layout.scale.isFinite() && layout.scale in .5f..2f)
             inputName(layout.name); require(layout.elements.size <= 64); unique(layout.elements.map { it.id })

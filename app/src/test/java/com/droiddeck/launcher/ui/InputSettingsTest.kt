@@ -561,6 +561,10 @@ class InputSettingsTest {
             assertEquals(landscape.aspect, saved.aspect)
             for (id in face) assertEquals(landscape.elements.first { it.id == id }.let { it.x to it.y }, saved.elements.first { it.id == id }.let { it.x to it.y })
             assertTrue(saved.rotated.isNotEmpty() && saved.rotatedAspect < 1f)
+            assertEquals(landscape.scale, saved.scale)
+            assertEquals(.9f, saved.rotatedScale)
+            assertEquals(.9f, OnScreenLayout.oriented(saved, 900, 1600).scale)
+            assertEquals(landscape.scale, OnScreenLayout.oriented(saved, 1600, 900).scale)
         }
     }
 

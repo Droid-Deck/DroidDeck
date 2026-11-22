@@ -343,7 +343,7 @@ object InputLibraries {
         val layouts = JSONArray()
         for (layout in library.layouts) {
             val encoded = JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", encodeElements(layout.elements))
-            if (layout.rotated.isNotEmpty()) encoded.put("rotated", encodeElements(layout.rotated)).put("rotatedAspect", layout.rotatedAspect.toDouble())
+            if (layout.rotated.isNotEmpty()) encoded.put("rotated", encodeElements(layout.rotated)).put("rotatedAspect", layout.rotatedAspect.toDouble()).put("rotatedScale", layout.rotatedScale.toDouble())
             layouts.put(encoded
                 .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
                 .put("hidden", JSONArray(layout.style.hidden.map { it.name }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
@@ -395,7 +395,7 @@ object InputLibraries {
                     layout.optJSONArray("hidden")?.let { hidden -> (0 until hidden.length()).map { InputCommand.valueOf(hidden.getString(it)) }.toSet() }.orEmpty()),
                 InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)), layout.optDouble("aspect", 0.0).toFloat(), origin,
                     layout.optDouble("scale", 1.0).toFloat(), layout.optJSONArray("rotated")?.let(::decodeElements).orEmpty(),
-                    layout.optDouble("rotatedAspect", 0.0).toFloat())
+                    layout.optDouble("rotatedAspect", 0.0).toFloat(), layout.optDouble("rotatedScale", layout.optDouble("scale", 1.0)).toFloat())
         }
         val bindings = doc.getJSONArray("bindings").objects(512).map { b ->
             val controls = b.getJSONObject("controls").actions(28).mapKeys { requireNotNull(InputControl.fromId(it.key)) }
