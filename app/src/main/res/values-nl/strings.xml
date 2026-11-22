@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">Apparaatrotatie volgen</string>
     <string name="setup_orientation_portrait">Staand</string>
     <string name="setup_session_orientation">Oriëntatie van sessie</string>
-    <string name="setup_session_orientation_hint">Geldt voor Steam, games, desktop en de controllereditor. Resolutievoorinstellingen draaien mee met de sessie; aangepaste breedte en hoogte blijven zoals ingevoerd.</string>
+    <string name="setup_session_orientation_hint">Geldt voor Steam, games, desktop en de controllereditor. Resolutievoorinstellingen draaien mee met de sessie; als de ene oriëntatie de andere volgt, worden aangepaste breedte en hoogte omgewisseld.</string>
     <string name="setup_orientation_auto">Automatisch liggend</string>
     <string name="setup_orientation_landscape">Liggend</string>
     <string name="setup_orientation_reverse">Liggend omgekeerd</string>
@@ -2461,7 +2461,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Sessiescherm</string>
     <string name="display_zero_copy">Weergave zonder kopie</string>
-    <string name="display_resolution">Resolutie</string>
+    <string name="display_resolution_landscape">Resolutie in liggend</string>
+    <string name="display_resolution_portrait">Resolutie in staand</string>
+    <string name="display_follow_landscape">Volg liggend (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Volg staand (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9-beeldvulling</string>
     <string name="display_game_fit_hint">Hoe 16:9-games dit scherm vullen. Volgende sessie.</string>
     <string name="display_game_fit_unavailable">Kies Schermformaat of een aangepast formaat dat smaller is dan 16:9.</string>

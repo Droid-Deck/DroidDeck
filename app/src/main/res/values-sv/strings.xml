@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">Följ enhetens rotation</string>
     <string name="setup_orientation_portrait">Stående</string>
     <string name="setup_session_orientation">Sessionens orientering</string>
-    <string name="setup_session_orientation_hint">Gäller Steam, spel, skrivbordet och kontrollredigeraren. Upplösningsförinställningar roterar med sessionen; anpassad bredd och höjd förblir som angivet.</string>
+    <string name="setup_session_orientation_hint">Gäller Steam, spel, skrivbordet och kontrollredigeraren. Upplösningsförinställningar roterar med sessionen; när en orientering följer den andra byts anpassad bredd och höjd så att de passar.</string>
     <string name="setup_orientation_auto">Automatiskt liggande</string>
     <string name="setup_orientation_landscape">Liggande</string>
     <string name="setup_orientation_reverse">Liggande, upp och ned</string>
@@ -2461,7 +2461,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Sessionsskärm</string>
     <string name="display_zero_copy">Presentation utan kopiering</string>
-    <string name="display_resolution">Upplösning</string>
+    <string name="display_resolution_landscape">Upplösning i liggande</string>
+    <string name="display_resolution_portrait">Upplösning i stående</string>
+    <string name="display_follow_landscape">Följ liggande (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Följ stående (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9-spelanpassning</string>
     <string name="display_game_fit_hint">Hur 16:9-spel anpassas till den här skärmen. Nästa session.</string>
     <string name="display_game_fit_unavailable">Välj Matcha skärmen eller en anpassad storlek som är smalare än 16:9.</string>

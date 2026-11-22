@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">Az eszköz elforgatásának követése</string>
     <string name="setup_orientation_portrait">Álló</string>
     <string name="setup_session_orientation">Munkamenet tájolása</string>
-    <string name="setup_session_orientation_hint">A Steamre, a játékokra, az asztalra és a kontrollerszerkesztőre vonatkozik. A felbontás-előbeállítások a munkamenettel együtt forognak; az egyéni szélesség és magasság a megadott módon marad.</string>
+    <string name="setup_session_orientation_hint">A Steamre, a játékokra, az asztalra és a kontrollerszerkesztőre vonatkozik. A felbontás-előbeállítások a munkamenettel együtt forognak; ha az egyik tájolás a másikat követi, az egyéni szélesség és magasság felcserélődik.</string>
     <string name="setup_orientation_auto">Automatikus fekvő</string>
     <string name="setup_orientation_landscape">Fekvő</string>
     <string name="setup_orientation_reverse">Fordított fekvő</string>
@@ -2461,7 +2461,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Munkamenet kijelzője</string>
     <string name="display_zero_copy">Másolásmentes megjelenítés</string>
-    <string name="display_resolution">Felbontás</string>
+    <string name="display_resolution_landscape">Fekvő felbontás</string>
+    <string name="display_resolution_portrait">Álló felbontás</string>
+    <string name="display_follow_landscape">Mint a fekvő (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Mint az álló (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 játék illesztése</string>
     <string name="display_game_fit_hint">Hogyan illeszkednek a 16:9 játékok ehhez a kijelzőhöz. A következő munkamenettől.</string>
     <string name="display_game_fit_unavailable">Válassza a Képernyőhöz illesztést, vagy egy 16:9-nél szűkebb egyéni méretet.</string>

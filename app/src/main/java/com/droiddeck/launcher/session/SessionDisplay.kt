@@ -12,6 +12,9 @@ object SessionDisplay {
     const val FOLLOW_SCALE_MAX = 8f
     private const val FOLLOW_SCALED_PREFIX = "follow/"
 
+    const val LINK_LANDSCAPE = "link/landscape"
+    const val LINK_PORTRAIT = "link/portrait"
+
     const val DEFAULT_RESOLUTION = "720p"
     private val PRESET_HEIGHTS = listOf(720, 900, 1080)
 
@@ -33,6 +36,23 @@ object SessionDisplay {
         choice == FOLLOW_SCREEN -> 1f
         choice.startsWith(FOLLOW_SCALED_PREFIX) -> parseFollowScale(choice.removePrefix(FOLLOW_SCALED_PREFIX))
         else -> null
+    }
+
+    fun isLink(choice: String): Boolean = choice == LINK_LANDSCAPE || choice == LINK_PORTRAIT
+
+    fun orientCustom(choice: String, portrait: Boolean): String {
+        val parts = choice.split('x').map { it.toIntOrNull() }
+        if (parts.size != 2 || parts.any { it == null || it <= 0 }) return choice
+        val width = parts[0]!!
+        val height = parts[1]!!
+        return if ((portrait && width > height) || (!portrait && height > width)) "${height}x$width" else choice
+    }
+
+    fun effectiveChoice(landscape: String, portrait: String, forPortrait: Boolean): String {
+        val own = if (forPortrait) portrait else landscape
+        if (!isLink(own)) return own
+        val other = if (forPortrait) landscape else portrait
+        return if (isLink(other)) DEFAULT_RESOLUTION else orientCustom(other, forPortrait)
     }
 
     fun screenSize(panel: Pair<Int, Int>): Pair<Int, Int> =
@@ -69,8 +89,12 @@ object SessionDisplay {
 
     const val UNFOLDED_MIN_DP = 600
 
-    fun unfoldedGameHeight(width: Int, height: Int, tabRow: Int = 0): Int =
-        (minOf(width * 9 / 16, (height * UNFOLDED_MAX_GAME_SHARE).toInt()) - tabRow.coerceAtLeast(0)).coerceAtLeast(0) and 1.inv()
+    fun unfoldedGameHeight(width: Int, height: Int, tabRow: Int = 0, aspect: Float = 0f): Int {
+        val row = tabRow.coerceAtLeast(0)
+        val cap = (height * UNFOLDED_MAX_GAME_SHARE).toInt()
+        if (aspect > 0f && aspect < 16f / 9f) return minOf((width / aspect).toInt(), cap - row).coerceAtLeast(0) and 1.inv()
+        return (minOf(width * 9 / 16, cap) - row).coerceAtLeast(0) and 1.inv()
+    }
 
     fun unfoldedControlsWanted(
         enabled: Boolean,

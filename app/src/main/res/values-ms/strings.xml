@@ -949,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">Ikut putaran peranti</string>
     <string name="setup_orientation_portrait">Potret</string>
     <string name="setup_session_orientation">Orientasi sesi</string>
-    <string name="setup_session_orientation_hint">Berkuat kuasa pada Steam, permainan, desktop dan editor pengawal. Pratetap resolusi berputar bersama sesi; lebar dan tinggi tersuai kekal seperti yang dimasukkan.</string>
+    <string name="setup_session_orientation_hint">Berkuat kuasa pada Steam, permainan, desktop dan editor pengawal. Pratetap resolusi berputar bersama sesi; apabila satu orientasi mengikuti yang lain, lebar dan tinggi tersuai ditukar supaya sepadan.</string>
     <string name="setup_orientation_auto">Lanskap automatik</string>
     <string name="setup_orientation_landscape">Lanskap</string>
     <string name="setup_orientation_reverse">Lanskap songsang</string>
@@ -2436,7 +2436,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Paparan sesi</string>
     <string name="display_zero_copy">Paparan tanpa salinan</string>
-    <string name="display_resolution">Resolusi</string>
+    <string name="display_resolution_landscape">Resolusi landskap</string>
+    <string name="display_resolution_portrait">Resolusi potret</string>
+    <string name="display_follow_landscape">Ikut landskap (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Ikut potret (%1$d×%2$d)</string>
     <string name="display_game_fit">Suaian permainan 16:9</string>
     <string name="display_game_fit_hint">Cara permainan 16:9 disuaikan ke paparan ini. Sesi seterusnya.</string>
     <string name="display_game_fit_unavailable">Pilih Sepadan skrin atau saiz tersuai lebih nipis daripada 16:9.</string>

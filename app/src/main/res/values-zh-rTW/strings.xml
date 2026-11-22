@@ -948,7 +948,7 @@
     <string name="setup_launcher_orientation_auto">跟隨裝置旋轉</string>
     <string name="setup_orientation_portrait">直向</string>
     <string name="setup_session_orientation">工作階段方向</string>
-    <string name="setup_session_orientation_hint">套用至 Steam、遊戲、桌面和控制器編輯器。解析度預設會隨工作階段旋轉；自訂的寬度和高度則維持輸入值。</string>
+    <string name="setup_session_orientation_hint">套用至 Steam、遊戲、桌面和控制器編輯器。解析度預設會隨工作階段旋轉；當一個方向跟隨另一個方向時，自訂的寬度和高度會互換以保持一致。</string>
     <string name="setup_orientation_auto">自動橫向</string>
     <string name="setup_orientation_landscape">橫向</string>
     <string name="setup_orientation_reverse">反向橫向</string>
@@ -2433,7 +2433,10 @@
     <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
     <string name="display_session">工作階段顯示</string>
     <string name="display_zero_copy">零複製呈現</string>
-    <string name="display_resolution">解析度</string>
+    <string name="display_resolution_landscape">橫向解析度</string>
+    <string name="display_resolution_portrait">直向解析度</string>
+    <string name="display_follow_landscape">跟隨橫向 (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">跟隨直向 (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 遊戲顯示方式</string>
     <string name="display_game_fit_hint">16:9 遊戲如何配合此螢幕。下次工作階段生效。</string>
     <string name="display_game_fit_unavailable">請選擇「符合螢幕」或比 16:9 更窄的自訂尺寸。</string>

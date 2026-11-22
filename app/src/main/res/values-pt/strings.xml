@@ -954,7 +954,7 @@
     <string name="setup_launcher_orientation_auto">Seguir a rotação do dispositivo</string>
     <string name="setup_orientation_portrait">Retrato</string>
     <string name="setup_session_orientation">Orientação da sessão</string>
-    <string name="setup_session_orientation_hint">Vale para a Steam, os jogos, a área de trabalho e o editor de controle. As predefinições de resolução giram com a sessão; largura e altura personalizadas ficam como foram digitadas.</string>
+    <string name="setup_session_orientation_hint">Vale para a Steam, os jogos, a área de trabalho e o editor de controle. As predefinições de resolução giram com a sessão; quando uma orientação segue a outra, largura e altura personalizadas são trocadas para corresponder.</string>
     <string name="setup_orientation_auto">Paisagem automática</string>
     <string name="setup_orientation_landscape">Paisagem</string>
     <string name="setup_orientation_reverse">Paisagem invertida</string>
@@ -2500,7 +2500,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Tela da sessão</string>
     <string name="display_zero_copy">Apresentação sem cópia</string>
-    <string name="display_resolution">Resolução</string>
+    <string name="display_resolution_landscape">Resolução na horizontal</string>
+    <string name="display_resolution_portrait">Resolução na vertical</string>
+    <string name="display_follow_landscape">Igual à horizontal (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Igual à vertical (%1$d×%2$d)</string>
     <string name="display_game_fit">Ajuste de jogos 16:9</string>
     <string name="display_game_fit_hint">Como os jogos 16:9 se ajustam a esta tela. Na próxima sessão.</string>
     <string name="display_game_fit_unavailable">Escolha Igual à tela ou um tamanho personalizado mais estreito que 16:9.</string>

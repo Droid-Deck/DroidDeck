@@ -949,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">跟随设备旋转</string>
     <string name="setup_orientation_portrait">竖屏</string>
     <string name="setup_session_orientation">会话方向</string>
-    <string name="setup_session_orientation_hint">适用于 Steam、游戏、桌面和手柄编辑器。分辨率预设会随会话旋转；自定义宽度和高度保持输入值不变。</string>
+    <string name="setup_session_orientation_hint">适用于 Steam、游戏、桌面和手柄编辑器。分辨率预设会随会话旋转；当一个方向跟随另一个方向时，自定义宽度和高度会互换以保持一致。</string>
     <string name="setup_orientation_auto">自动横屏</string>
     <string name="setup_orientation_landscape">横屏</string>
     <string name="setup_orientation_reverse">反向横屏</string>
@@ -2513,7 +2513,10 @@
     <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
     <string name="display_session">会话显示</string>
     <string name="display_zero_copy">零拷贝呈现</string>
-    <string name="display_resolution">分辨率</string>
+    <string name="display_resolution_landscape">横屏分辨率</string>
+    <string name="display_resolution_portrait">竖屏分辨率</string>
+    <string name="display_follow_landscape">跟随横屏 (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">跟随竖屏 (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 游戏适配</string>
     <string name="display_game_fit_hint">16:9 游戏如何适配此屏幕。下次会话生效。</string>
     <string name="display_game_fit_unavailable">请选择“匹配屏幕”或比 16:9 更窄的自定义尺寸。</string>

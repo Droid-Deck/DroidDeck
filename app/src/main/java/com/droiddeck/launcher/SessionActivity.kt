@@ -2958,16 +2958,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         WaylandCompositor.nativeResizeOutput(size.first, size.second)
     }
 
+    private fun followPortrait(): Boolean = glassesScreen == null && SessionPrefs.portrait(this)
+
     private fun followScale(): Float {
         val mode = displayMode()
-        val choice = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
+        val choice = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait())
         return com.droiddeck.launcher.session.SessionDisplay.followScale(choice) ?: 1f
     }
 
     private fun followChoice(): Boolean {
         val mode = displayMode()
         return com.droiddeck.launcher.session.SessionDisplay.isFollow(
-            SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this)))
+            SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait()))
     }
 
     private fun applyFollowOrientation(config: android.content.res.Configuration) {
@@ -3033,17 +3035,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun displayMode(): String = SessionPrefs.displayMode(this,
         intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM, intent.getStringExtra(SessionService.EXTRA_PROGRAM))
 
+    private fun portraitOutput(): Boolean = SessionPrefs.portrait(this) && !controlsBelowWanted()
+
     private fun outputSize(): Pair<Int, Int> =
         com.droiddeck.launcher.session.SessionDisplay.resolveChoice(com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
-            resolutionChoice(), SessionPrefs.portrait(this) && !controlsBelowWanted())
+            resolutionChoice(), portraitOutput())
 
-    private fun resolutionChoice(): String {
+    private fun resolutionChoice(portrait: Boolean = SessionPrefs.portrait(this)): String {
         val mode = displayMode()
         val program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
         return if (intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_RUN &&
-            Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode))
+            Library.drawsAtPanel(program) && !SessionPrefs.resolutionChosen(this, mode, portrait))
             com.droiddeck.launcher.session.SessionDisplay.MATCH_SCREEN
-        else SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
+        else SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), portrait)
     }
 
     private fun refreshHz(): Float = refreshHz(null)
@@ -4622,7 +4626,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val tabRow = unfoldedColumn?.getChildAt(0)?.height?.let {
             it - (com.droiddeck.launcher.ui.BAR_HEIGHT.value * resources.displayMetrics.density + 0.5f).toInt()
         } ?: 0
-        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height, tabRow)
+        val outputAspect = if (!wanted || SessionState.followScreen) 0f
+            else outputSize().let { it.first.toFloat() / it.second.coerceAtLeast(1) }
+        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height, tabRow, outputAspect)
             else FrameLayout.LayoutParams.MATCH_PARENT
         val params = surfaceView.layoutParams as FrameLayout.LayoutParams
         if (params.height != gameHeight) {

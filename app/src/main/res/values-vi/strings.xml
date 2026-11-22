@@ -949,7 +949,7 @@
     <string name="setup_launcher_orientation_auto">Theo hướng xoay thiết bị</string>
     <string name="setup_orientation_portrait">Dọc</string>
     <string name="setup_session_orientation">Hướng màn hình phiên</string>
-    <string name="setup_session_orientation_hint">Áp dụng cho Steam, game, desktop và trình chỉnh sửa tay cầm. Độ phân giải đặt sẵn xoay theo phiên; chiều rộng và chiều cao tùy chỉnh giữ nguyên như đã nhập.</string>
+    <string name="setup_session_orientation_hint">Áp dụng cho Steam, game, desktop và trình chỉnh sửa tay cầm. Độ phân giải đặt sẵn xoay theo phiên; khi một hướng theo hướng còn lại, chiều rộng và chiều cao tùy chỉnh được hoán đổi cho khớp.</string>
     <string name="setup_orientation_auto">Ngang tự động</string>
     <string name="setup_orientation_landscape">Ngang</string>
     <string name="setup_orientation_reverse">Ngang ngược</string>
@@ -2436,7 +2436,10 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Hiển thị phiên</string>
     <string name="display_zero_copy">Hiển thị không sao chép</string>
-    <string name="display_resolution">Độ phân giải</string>
+    <string name="display_resolution_landscape">Độ phân giải chiều ngang</string>
+    <string name="display_resolution_portrait">Độ phân giải chiều dọc</string>
+    <string name="display_follow_landscape">Theo chiều ngang (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Theo chiều dọc (%1$d×%2$d)</string>
     <string name="display_game_fit">Khớp game 16:9</string>
     <string name="display_game_fit_hint">Cách game 16:9 khớp với màn hình này. Từ phiên sau.</string>
     <string name="display_game_fit_unavailable">Chọn Khớp màn hình hoặc một kích thước tùy chỉnh hẹp hơn 16:9.</string>
