@@ -741,19 +741,27 @@ for name in names:
     if cur is not None and cur != want:
         continue
     if on == "1" and cur is None:
-        os.makedirs(dst, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=dst, prefix="." + name, suffix=".tmp")
+        try:
+            os.makedirs(dst, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=dst, prefix=".fex", suffix=".tmp")
+        except OSError:
+            continue
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(cfg + "\n")
-            os.replace(tmp, path)
+            os.link(tmp, path)
         except OSError:
+            pass
+        finally:
             try:
                 os.remove(tmp)
             except OSError:
                 pass
     elif on != "1" and cur is not None:
-        os.remove(path)
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 PY
 }
 
