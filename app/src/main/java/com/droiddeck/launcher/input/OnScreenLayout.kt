@@ -31,17 +31,20 @@ object OnScreenLayout {
     private const val TOLERANCE = .01f
     private const val KEYBOARD_ID = "builtin:keyboard"
     private val REAR = setOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)
+    private val BAR = setOf(InputControl.GUIDE, InputControl.QAM)
 
     fun elements(context: Context, saved: SavedInputLayout?, width: Int, height: Int, safe: Rect,
         buttonsOnly: Boolean = false, dock: Dock? = null, rearButtons: Boolean? = null,
         trackpads: Boolean? = null): List<InputSurfaceElement> {
         if (saved == null) return emptyList()
         if (width <= 0 || height <= 0) return saved.elements
-        val layout = oriented(saved, width, height)
+        val layout = oriented(saved, dock?.portrait ?: (height > width))
         val stored = layout.elements
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
         val (reference, matched) = reference(context, layout, width, height)
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
+        if (dock?.portrait == true && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
+            return cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe)
         val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
             (dock != null || height > width && layout.aspect >= 1f || height <= width && layout.aspect > 0f && layout.aspect < 1f)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
@@ -70,8 +73,9 @@ object OnScreenLayout {
             .place(ordered, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
     }
 
-    fun oriented(layout: SavedInputLayout, width: Int, height: Int): SavedInputLayout {
-        val portrait = height > width
+    fun oriented(layout: SavedInputLayout, width: Int, height: Int): SavedInputLayout = oriented(layout, height > width)
+
+    private fun oriented(layout: SavedInputLayout, portrait: Boolean): SavedInputLayout {
         if (layout.rotated.isEmpty() || layout.aspect <= 0f || (layout.aspect < 1f) == portrait || (layout.rotatedAspect < 1f) != portrait) return layout
         val rotated = layout.rotated.associateBy { it.id }
         return layout.copy(elements = layout.elements.map { e -> rotated[e.id]?.let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) } ?: e } +
@@ -128,6 +132,23 @@ object OnScreenLayout {
             val left = anchor(e.x, e.width, referenceWidth, w, scale).coerceIn(safe.left.toFloat(), max(safe.left.toFloat(), w - safe.right - ew))
             val top = anchor(e.y, e.height, referenceHeight, h, scale).coerceIn(safe.top.toFloat(), max(safe.top.toFloat(), h - safe.bottom - eh))
             e.copy(x = left / w, y = top / h, width = ew / w, height = eh / h).bounded()
+        }
+    }
+
+    private fun cluster(elements: List<InputSurfaceElement>, aspect: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
+        if (elements.isEmpty()) return elements
+        val left = elements.minOf { it.x } * aspect
+        val top = elements.minOf { it.y }
+        val spanX = (elements.maxOf { it.x + it.width } * aspect - left).coerceAtLeast(.0001f)
+        val spanY = (elements.maxOf { it.y + it.height } - top).coerceAtLeast(.0001f)
+        val w = (width - safe.left - safe.right).toFloat().coerceAtLeast(1f)
+        val h = (height - safe.top - safe.bottom).toFloat().coerceAtLeast(1f)
+        val scale = minOf(w / aspect, w / spanX, h / spanY)
+        val originX = safe.left + (w - spanX * scale) / 2f - left * scale
+        val originY = safe.top + (h - spanY * scale) / 2f - top * scale
+        return elements.map { e ->
+            e.copy(x = (originX + e.x * aspect * scale) / width, y = (originY + e.y * scale) / height,
+                width = e.width * aspect * scale / width, height = e.height * scale / height).bounded()
         }
     }
 

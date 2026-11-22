@@ -307,6 +307,33 @@ class OnScreenLayoutTest {
         assertEquals(.1f * 2208f / 1768 / .2f, fitted.width * 2208 / (fitted.height * 800), .01f)
     }
 
+    @Test fun controlsEditedInPortraitKeepTheirPlacesInThePanelBelowTheGame() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
+        val (w, h) = 1080 to 2400
+        val stock = gamepad()
+        val shown = OnScreenLayout.editorElements(context, stock, w, h)
+        val moved = shown.map { if (it.id == "legacy:a") it.copy(x = .05f) else if (it.id == "legacy:ls") it.copy(x = .6f) else it }
+        val edited = OnScreenLayout.withFrame(context, stock, OnScreenLayout.editorFrame(stock, moved), w.toFloat() / h)
+        val shownA = shown.first { it.id == "legacy:a" }
+        for (panelHeight in listOf(1100, 800)) {
+            val placed = OnScreenLayout.elements(context, edited, w, panelHeight, Rect(), dock = OnScreenLayout.Dock(true, false))
+            val a = placed.first { it.id == "legacy:a" }
+            val ls = placed.first { it.id == "legacy:ls" }
+            val b = placed.first { it.id == "legacy:b" }
+            assertTrue(a.x < .2f)
+            assertTrue(ls.x > .5f)
+            assertTrue(b.x > a.x)
+            assertNull(placed.firstOrNull { it.id == "builtin:keyboard" || it.control == InputControl.GUIDE || it.control == InputControl.QAM })
+            assertInside(placed, w, panelHeight)
+            assertEquals(shownA.width * w / (shownA.height * h), a.width * w / (a.height * panelHeight), .01f)
+            val untouched = OnScreenLayout.elements(context, stock, w, panelHeight, Rect(), dock = OnScreenLayout.Dock(true, false))
+            assertTrue(untouched.first { it.id == "legacy:a" }.x > .5f)
+            assertTrue(untouched.first { it.id == "legacy:ls" }.x < .5f)
+        }
+        val landscape = OnScreenLayout.elements(context, edited, 2400, 1080, Rect())
+        assertTrue(landscape.first { it.id == "legacy:a" }.x > .5f)
+    }
+
     @Test fun thePortraitAndBelowGameKitsKeepDirectionalArtClearOfTheSticksAndFaceButtons() {
         val directions = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
         val face = setOf(InputControl.A, InputControl.B, InputControl.X, InputControl.Y)
