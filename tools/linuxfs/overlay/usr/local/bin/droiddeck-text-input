@@ -12,6 +12,7 @@ import struct
 import sys
 
 MAX_TEXT = 65536
+CANCELLABLE = 1 << 31
 CLIENT_TIMEOUT = 2.0
 PROBE_TIMEOUT = 0.5
 FOCUS_PROPERTY = b'GAMESCOPE_KEYBOARD_FOCUS_DISPLAY'
@@ -223,7 +224,7 @@ class XBridge:
             available.append((keycode, width, tuple(row)))
         return available
 
-    def type_text(self, state, text):
+    def type_text(self, state, text, cancelled=None):
         """Reserve all required mappings before injecting any part of a frame."""
         handle = state.handle
         needed = []
@@ -248,6 +249,8 @@ class XBridge:
             self.lib.XSync(handle, 0)
         for character in text:
             if _STOP:
+                return False
+            if cancelled is not None and cancelled():
                 return False
             keycode = state.codes[_character_keysym(character)]
             if not self._tap(handle, keycode):
@@ -318,7 +321,9 @@ def read_request(connection):
     header = _recv_exact(connection, 4)
     if header is None:
         return None
-    length = struct.unpack('>I', header)[0]
+    raw = struct.unpack('>I', header)[0]
+    cancellable = bool(raw & CANCELLABLE)
+    length = raw & ~CANCELLABLE
     if length < 1 or length > MAX_TEXT:
         return None
     body = _recv_exact(connection, length)
@@ -327,7 +332,7 @@ def read_request(connection):
     if b'\0' in body:
         return None
     try:
-        return body.decode('utf-8')
+        return body.decode('utf-8'), cancellable
     except UnicodeDecodeError:
         return None
 
@@ -347,23 +352,39 @@ def answer(connection, accepted):
         pass
 
 
-def deliver(bridge, text):
+def _cancellation_probe(connection):
+    """Return a predicate that is true once the peer has cancelled a flagged frame.
+
+    After the full frame has been read, any readable event (POLLIN/POLLHUP/POLLERR)
+    means extra data, half-close or reset - all of which are cancellation for a
+    cancellable client.
+    """
+    poller = select.poll()
+    poller.register(connection, select.POLLIN)
+    return lambda: bool(poller.poll(0))
+
+
+def deliver(bridge, text, cancelled=None):
+    if cancelled is not None and cancelled():
+        return False
     target = bridge.target_display()
     if target is None:
         return False
     state = bridge.state(target)
     if state is None:
         return False
-    return bridge.type_text(state, text)
+    return bridge.type_text(state, text, cancelled)
 
 
 def serve_connection(connection, bridge):
     connection.settimeout(CLIENT_TIMEOUT)
-    text = read_request(connection)
+    request = read_request(connection)
     accepted = False
-    if text is not None:
+    if request is not None:
+        text, cancellable = request
+        cancelled = _cancellation_probe(connection) if cancellable else None
         try:
-            accepted = deliver(bridge, text)
+            accepted = deliver(bridge, text, cancelled)
         except Exception:
             accepted = False
     answer(connection, accepted)

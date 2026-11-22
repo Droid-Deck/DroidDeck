@@ -147,11 +147,14 @@ class KeyboardHost(
             if (before == 0 && after == 0) return true
             val consumedBefore = minOf(before, composingCursor)
             val consumedAfter = minOf(after, composingText.length - composingCursor)
+            val guestBefore = before - consumedBefore
+            val guestAfter = after - consumedAfter
+            if (guestBefore > 1 || guestAfter > 1) return false
             return applyDeletion(
                 composingCursor - consumedBefore,
                 composingCursor + consumedAfter,
-                before - consumedBefore,
-                after - consumedAfter,
+                guestBefore,
+                guestAfter,
             )
         }
 
@@ -177,15 +180,15 @@ class KeyboardHost(
         }
 
         private fun applyDeletion(start: Int, end: Int, guestBefore: Int, guestAfter: Int): Boolean {
-            if (guestBefore > 1 || guestAfter > 1) return false
+            if (guestBefore > 64 || guestAfter > 64) return false
             if (splitsPair(start) || splitsPair(end)) return false
             if (start < end) {
                 composingText = composingText.removeRange(start, end)
                 composingCursor = start
             }
             val controls = StringBuilder()
-            if (guestBefore > 0) controls.append(BACKSPACE)
-            if (guestAfter > 0) controls.append(FORWARD_DELETE)
+            repeat(guestBefore) { controls.append(BACKSPACE) }
+            repeat(guestAfter) { controls.append(FORWARD_DELETE) }
             if (controls.isNotEmpty()) sendText(controls.toString())
             return true
         }

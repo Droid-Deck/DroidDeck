@@ -297,6 +297,23 @@ class KeyboardHostTest {
     }
 
     @Config(sdk = [33])
+    @Test fun codePointDeleteBeyondCompositionForwardsBothResidualControls() {
+        host.show()
+        idle()
+        val connection = connection()
+
+        assertTrue(connection.commitText("abcd", 1))
+        idle()
+        texts.clear()
+
+        assertTrue(connection.deleteSurroundingTextInCodePoints(2, 2))
+        idle()
+
+        assertEquals(listOf("\b\b\u007f\u007f"), texts)
+        assertTrue(keys.isEmpty())
+    }
+
+    @Config(sdk = [33])
     @Test fun asciiTextIsCommittedAsOneTextCallback() {
         host.show()
         idle()

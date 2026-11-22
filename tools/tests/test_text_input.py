@@ -3,6 +3,7 @@ import ctypes
 import ctypes.util
 import locale
 import os
+import runpy
 import select
 import shutil
 import signal
@@ -16,6 +17,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 HELPER = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-text-input"
 XVFB = shutil.which("Xvfb")
@@ -750,6 +752,50 @@ class TextInputTest(unittest.TestCase):
             time.sleep(0.05)
         self.assertFalse(self.pid_alive(pid), "the bridge outlived the session that started it")
         self.assertFalse(socket_path.exists(), "the bridge left its socket behind")
+
+    def test_a_shutdown_client_during_a_blocked_tap_gets_no_ack(self):
+        helper = runpy.run_path(str(HELPER))
+        bridge_type = helper["XBridge"]
+        begun = threading.Event()
+        release = threading.Event()
+        taps = []
+
+        class FakeBridge:
+            type_text = bridge_type.type_text
+
+            def target_display(self):
+                return ":fake"
+
+            def state(self, name):
+                return SimpleNamespace(handle=None, codes={ord("a"): 1, ord("b"): 2})
+
+            def _tap(self, handle, keycode):
+                taps.append(keycode)
+                if len(taps) == 1:
+                    begun.set()
+                    release.wait(10)
+                return True
+
+        server, client = socket.socketpair()
+        self.addCleanup(server.close)
+        self.addCleanup(client.close)
+        worker = threading.Thread(target=helper["serve_connection"],
+                                  args=(server, FakeBridge()), daemon=True)
+        worker.start()
+        try:
+            client.sendall(struct.pack(">I", (1 << 31) | 2) + b"ab")
+            self.assertTrue(begun.wait(10), "the bridge never began the first tap")
+            client.shutdown(socket.SHUT_WR)
+            readable, _, _ = select.select([client], [], [], 0.05)
+            self.assertEqual([], readable, "the bridge answered a client that went away mid-tap")
+        finally:
+            release.set()
+        client.settimeout(10)
+        self.assertEqual(ACK_FAILED, client.recv(1),
+                         "a client that stopped reading must be told the tap failed")
+        worker.join(10)
+        self.assertFalse(worker.is_alive(), "the connection thread did not finish")
+        self.assertEqual([1], taps, "the bridge kept tapping after the client went away")
 
     def test_a_stalled_client_does_not_block_the_service(self):
         display = self.start_display()
