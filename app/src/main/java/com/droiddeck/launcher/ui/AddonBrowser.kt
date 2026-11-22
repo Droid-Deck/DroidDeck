@@ -45,7 +45,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -187,7 +186,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         val search: @Composable (Modifier) -> Unit = { modifier ->
             AdbTextField(
                 value = text, onValueChange = { text = it }, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                placeholder = stringResource(R.string.stores_search_catalog, sourceName), compact = true, showLabel = false, modifier = modifier.onFocusChanged { searching = it.hasFocus },
+                placeholder = stringResource(R.string.stores_search_catalog, sourceName), compact = true, showLabel = false, modifier = modifier, onFocusChange = { searching = it },
             )
         }
         val closeButton: @Composable () -> Unit = {
