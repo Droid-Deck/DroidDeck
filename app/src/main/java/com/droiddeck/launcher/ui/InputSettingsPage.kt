@@ -267,12 +267,6 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                     }
                 }
                 InputPage.SOURCE -> {
-                    if (role == InputRole.PRIMARY) SettingsGroup(stringResource(R.string.input_screen_visibility)) {
-                        ChoiceRow(host, "controller-osc", stringResource(R.string.mode_osc), stringResource(R.string.input_visibility_shared),
-                            listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
-                                SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
-                            oscMode) { SessionPrefs.setOscMode(context, it); oscMode = it; onChanged() }
-                    }
                     if (layout != null) SettingsGroup(stringResource(R.string.ctrl_layout)) {
                         if (layout.editable) InputNavigationRow(stringResource(R.string.input_edit_layout), layout.name, Modifier.testTag("input-surface-${role.name.lowercase()}")) { surface = true }
                         else InputHint(layout.name)
@@ -287,6 +281,12 @@ private fun InputSettingsContent(onBack: () -> Unit, onChanged: () -> Unit, embe
                                 button !in layout.style.hidden) { on -> update { it.withLayout(layout.withQuickButton(button, on)) } }
                         }
                         if (role == InputRole.SECONDARY) InputHint(stringResource(R.string.input_second_screen_enable))
+                    }
+                    if (role == InputRole.PRIMARY) SettingsGroup(stringResource(R.string.input_screen_visibility)) {
+                        ChoiceRow(host, "controller-osc", stringResource(R.string.mode_osc), stringResource(R.string.input_visibility_shared),
+                            listOf(SessionPrefs.OSC_AUTO to stringResource(R.string.common_auto), SessionPrefs.OSC_ALWAYS to stringResource(R.string.common_always),
+                                SessionPrefs.OSC_STEAM_TOUCH to stringResource(R.string.osc_steam_touch), SessionPrefs.OSC_STEAM_QAM to stringResource(R.string.mode_osc_qam), SessionPrefs.OSC_NEVER to stringResource(R.string.common_never)),
+                            oscMode) { SessionPrefs.setOscMode(context, it); oscMode = it; onChanged() }
                     }
                     SettingsGroup(stringResource(R.string.input_assign_actions)) {
                         val users = library.usersOfBindings(preset.id)
