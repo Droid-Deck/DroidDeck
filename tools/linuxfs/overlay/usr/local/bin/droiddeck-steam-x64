@@ -715,7 +715,7 @@ x64_webhelper_gpu() {
 
 x64_thunk_appconfigs() {
   python3 - "$1" "$2" "$3" "$4" <<'PY' || true
-import json, os, sys
+import json, os, sys, tempfile
 src, dst, cfg, on = sys.argv[1:5]
 want = json.loads(cfg)
 try:
@@ -742,9 +742,9 @@ for name in names:
         continue
     if on == "1" and cur is None:
         os.makedirs(dst, exist_ok=True)
-        tmp = path + ".tmp"
+        fd, tmp = tempfile.mkstemp(dir=dst, prefix="." + name, suffix=".tmp")
         try:
-            with open(tmp, "w", encoding="utf-8") as f:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(cfg + "\n")
             os.replace(tmp, path)
         except OSError:
