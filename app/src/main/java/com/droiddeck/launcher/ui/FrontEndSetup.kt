@@ -517,6 +517,13 @@ internal fun SetupPanel(
                                     s.launcherFullscreen,
                                 ) { a.onLauncherFullscreen(it) }
                                 ToggleRow(
+                                    host, "page-swipe", stringResource(R.string.setup_page_swipe),
+                                    stringResource(R.string.setup_page_swipe_hint), PageSwipe.on,
+                                ) { on ->
+                                    PageSwipe.on = on
+                                    com.droiddeck.launcher.core.AppUiPrefs.setPageSwipe(ctx, on)
+                                }
+                                ToggleRow(
                                     host, "controller-haptics", stringResource(R.string.setup_controller_haptics),
                                     stringResource(R.string.setup_controller_haptics_hint),
                                     s.controllerHaptics,

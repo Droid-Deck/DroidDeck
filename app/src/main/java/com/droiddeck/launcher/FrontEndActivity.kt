@@ -586,6 +586,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
     private var settingsMode by mutableStateOf<String?>(null)
     private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
+    private var resolutionPortrait by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.LINK_LANDSCAPE)
     private var fexPreset by mutableStateOf("")
     private var forceSsbs by mutableStateOf(false)
     private var steamClientArch by mutableStateOf("arm64")
@@ -2595,7 +2596,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (settingsMode != mode) return
         com.droiddeck.launcher.ui.ModeSheetRows(
             ModeSettings(
-                mode = mode, resolution = resolution,
+                mode = mode, resolution = resolution, resolutionPortrait = resolutionPortrait,
                 panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
                 hdr = hdrOn, hdrReason = hdrReason, hdrDisplay = hdrDisplay, zeroCopy = zeroCopyOn,
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
@@ -2650,7 +2651,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onIntegration = ::configureIntegration,
                 onIntegrationAppInfo = ::openAppInfo,
                 onIntegrationLocation = ::openWifiDiscoverySettings,
-                onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); resolution = value },
+                onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); loadResolutions(mode) },
+                onResolutionPortrait = { value -> SessionPrefs.setResolutionChoice(this, mode, value, portrait = true); loadResolutions(mode) },
                 onHdr = { on -> com.droiddeck.launcher.session.SessionHdr.set(this, mode, on); hdrOn = on },
                 onZeroCopy = { on ->
                     SessionPrefs.setZeroCopy(this, mode, on); zeroCopyOn = on
@@ -2983,11 +2985,17 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }, "shader-precache").start()
     }
 
+    private fun loadResolutions(mode: String) {
+        val panel = com.droiddeck.launcher.session.SessionDisplay.panelSize(this)
+        resolution = SessionPrefs.resolutionStored(this, mode, panel, false)
+        resolutionPortrait = SessionPrefs.resolutionStored(this, mode, panel, true)
+    }
+
     private fun loadModeSettings(mode: String) {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
-        resolution = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
+        loadResolutions(mode)
         fexPreset = SessionPrefs.fexPreset(this)
         forceSsbs = SessionPrefs.forceSsbs(this)
         fastSync = SessionPrefs.fastSync(this)

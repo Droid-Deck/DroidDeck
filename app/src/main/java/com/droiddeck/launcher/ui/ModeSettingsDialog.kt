@@ -56,6 +56,7 @@ class DownloadRow(val key: String, val label: String, val detail: String, val pr
 class ModeSettings(
     val mode: String,
     val resolution: String,
+    val resolutionPortrait: String = com.droiddeck.launcher.session.SessionDisplay.LINK_LANDSCAPE,
     val panelSize: Pair<Int, Int> = 1280 to 720,
     val hdr: Boolean,
     val hdrReason: String?,
@@ -116,6 +117,7 @@ class ModeSettings(
 
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
+    val onResolutionPortrait: (String) -> Unit = {},
     val onHdr: (Boolean) -> Unit,
     val onZeroCopy: (Boolean) -> Unit = {},
     val onGpuDrivers: () -> Unit = {},
@@ -234,9 +236,20 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         val controlsBelow = SessionPrefs.controlsBelowWanted(context, s.mode,
             if (portraitWindow) shortSide else longSide, if (portraitWindow) longSide else shortSide)
         val portrait = portraitWindow && !controlsBelow
-        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution, portrait)
+        val sessionDisplay = com.droiddeck.launcher.session.SessionDisplay
+        val landscapeChoice = sessionDisplay.effectiveChoice(s.resolution, s.resolutionPortrait, false)
+        val portraitChoice = sessionDisplay.effectiveChoice(s.resolution, s.resolutionPortrait, true)
+        val activeChoice = if (portraitWindow) portraitChoice else landscapeChoice
+        val displaySize = sessionDisplay.resolveChoice(s.panelSize, activeChoice, portrait)
         SettingsGroup(stringResource(R.string.display_session)) {
-            ResolutionRow(host, s.resolution, s.panelSize, a.onResolution, portrait = portrait)
+            ResolutionRow(host, "resolution", stringResource(R.string.display_resolution_landscape), s.resolution, landscapeChoice,
+                com.droiddeck.launcher.session.SessionDisplay.LINK_PORTRAIT,
+                if (sessionDisplay.isLink(s.resolutionPortrait)) landscapeChoice else sessionDisplay.orientCustom(s.resolutionPortrait, false),
+                s.panelSize, a.onResolution, portrait = false)
+            ResolutionRow(host, "resolution-portrait", stringResource(R.string.display_resolution_portrait), s.resolutionPortrait, portraitChoice,
+                com.droiddeck.launcher.session.SessionDisplay.LINK_LANDSCAPE,
+                if (sessionDisplay.isLink(s.resolution)) portraitChoice else sessionDisplay.orientCustom(s.resolution, true),
+                s.panelSize, a.onResolutionPortrait, portrait = true)
             s.picturePosition?.let { position ->
                 ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
                     listOf("top" to stringResource(R.string.display_position_top),
@@ -248,7 +261,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
-                val canStretch = !com.droiddeck.launcher.session.SessionDisplay.isFollow(s.resolution) &&
+                val canStretch = !com.droiddeck.launcher.session.SessionDisplay.isFollow(activeChoice) &&
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
                 ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
                     stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
@@ -707,10 +720,10 @@ internal fun SgdbKeyDialog(hasKey: Boolean, onSave: (String) -> Unit, onDismiss:
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit) {
+internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit, portrait: Boolean = false) {
     var w by remember { mutableStateOf(initial?.first?.toString() ?: "") }
     var h by remember { mutableStateOf(initial?.second?.toString() ?: "") }
-    val parsed = SessionPrefs.parseResolution("${w}x$h")
+    val parsed = if (portrait) SessionPrefs.parseOrientedResolution("${w}x$h") else SessionPrefs.parseResolution("${w}x$h")
     com.droiddeck.launcher.ui.GlideAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.mode_custom_res_title)) },

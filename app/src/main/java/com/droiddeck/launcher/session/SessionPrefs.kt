@@ -614,6 +614,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("backHold", on).apply()
     }
 
+    fun dockedMenuController(context: Context): Boolean = prefs(context).getBoolean("dockedMenuController", false)
+
+    fun setDockedMenuController(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dockedMenuController", on).apply()
+    }
+
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
 
     fun setBackActionsInverted(context: Context, inverted: Boolean) {
@@ -1314,14 +1320,31 @@ object SessionPrefs {
 
     private fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", 720)
 
-    fun resolutionChosen(context: Context, mode: String): Boolean =
+    fun resolutionChosen(context: Context, mode: String, portrait: Boolean = false): Boolean =
         prefs(context).contains("displayResolution.$mode") ||
-            prefs(context).contains("resolutionCap.$mode") || customResolution(context, mode) != null
+            prefs(context).contains("resolutionCap.$mode") || customResolution(context, mode) != null ||
+            (portrait && prefs(context).contains("displayResolution.portrait.$mode"))
 
-    fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
+    fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>, portrait: Boolean = false): String =
+        SessionDisplay.effectiveChoice(
+            resolutionStored(context, mode, panel, false), resolutionStored(context, mode, panel, true), portrait)
+
+    fun resolutionStored(context: Context, mode: String, panel: Pair<Int, Int>, portrait: Boolean): String {
+        if (!portrait) return landscapeResolutionStored(context, mode, panel)
+        val value = prefs(context).getString("displayResolution.portrait.$mode", null) ?: return SessionDisplay.LINK_LANDSCAPE
+        if (value == SessionDisplay.LINK_LANDSCAPE || value == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(value) ||
+            SessionDisplay.presetHeight(value) != null) return value
+        return parseOrientedResolution(value)?.let { "${it.first}x${it.second}" } ?: SessionDisplay.LINK_LANDSCAPE
+    }
+
+    fun parseOrientedResolution(text: String): Pair<Int, Int>? =
+        parseResolution(text) ?: text.trim().split('x', 'X', '×', '*').takeIf { it.size == 2 }
+            ?.let { parseResolution("${it[1]}x${it[0]}") }?.let { it.second to it.first }
+
+    private fun landscapeResolutionStored(context: Context, mode: String, panel: Pair<Int, Int>): String {
         val saved = prefs(context)
         saved.getString("displayResolution.$mode", null)?.let { value ->
-            if (value == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(value) ||
+            if (value == SessionDisplay.MATCH_SCREEN || value == SessionDisplay.LINK_PORTRAIT || SessionDisplay.isFollow(value) ||
                 SessionDisplay.presetHeight(value) != null) return value
             parseResolution(value)?.let { return "${it.first}x${it.second}" }
         }
@@ -1333,13 +1356,22 @@ object SessionPrefs {
         else "${legacy.first}x${legacy.second}"
     }
 
-    fun setResolutionChoice(context: Context, mode: String, choice: String) {
-        val value = if (choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(choice) ||
+    fun setResolutionChoice(context: Context, mode: String, choice: String, portrait: Boolean = false) {
+        val link = if (portrait) SessionDisplay.LINK_LANDSCAPE else SessionDisplay.LINK_PORTRAIT
+        val value = if (choice == link || choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(choice) ||
                 SessionDisplay.presetHeight(choice) != null) choice else {
-            val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
+            val size = requireNotNull(if (portrait) parseOrientedResolution(choice) else parseResolution(choice)) { "Invalid resolution" }
             "${size.first}x${size.second}"
         }
-        prefs(context).edit().putString("displayResolution.$mode", value).apply()
+        val panel = SessionDisplay.panelSize(context)
+        val landscapeStored = resolutionStored(context, mode, panel, false)
+        val portraitStored = resolutionStored(context, mode, panel, true)
+        val edit = prefs(context).edit()
+        if (value == link && SessionDisplay.isLink(if (portrait) landscapeStored else portraitStored)) {
+            val concrete = SessionDisplay.effectiveChoice(landscapeStored, portraitStored, !portrait)
+            edit.putString(if (portrait) "displayResolution.$mode" else "displayResolution.portrait.$mode", concrete)
+        }
+        edit.putString(if (portrait) "displayResolution.portrait.$mode" else "displayResolution.$mode", value).apply()
     }
 
     fun fexPreset(context: Context): String = prefs(context).getString("fexPreset", DEFAULT_FEX_PRESET) ?: DEFAULT_FEX_PRESET
@@ -1978,7 +2010,7 @@ object SessionPrefs {
 
     fun displayMode(context: Context, mode: String, program: String?): String =
         if (mode == SessionService.MODE_RUN && com.droiddeck.launcher.runtime.UserApps.launches(program) &&
-            resolutionChosen(context, SessionService.MODE_DESKTOP)) SessionService.MODE_DESKTOP
+            (resolutionChosen(context, SessionService.MODE_DESKTOP) || resolutionChosen(context, SessionService.MODE_DESKTOP, true))) SessionService.MODE_DESKTOP
         else prefMode(mode)
 
     fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", true)

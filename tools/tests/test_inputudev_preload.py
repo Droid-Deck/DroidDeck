@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -181,13 +182,40 @@ void *udev_device_new_from_subsystem_sysname(void *udev, const char *subsystem, 
   (void)udev; (void)subsystem; (void)sysname;
   return NULL;
 }
-void *udev_device_unref(void *device) { (void)device; return NULL; }
-void *udev_device_ref(void *device) { (void)device; return NULL; }
-void *udev_device_get_parent(void *device) { (void)device; return NULL; }
-void *udev_device_get_udev(void *device) { (void)device; return NULL; }
-const char *udev_device_get_syspath(void *device) { (void)device; return "real"; }
-const char *udev_device_get_sysnum(void *device) { (void)device; return "real"; }
+int real_device_calls;
+void *udev_device_unref(void *device) { (void)device; real_device_calls++; return NULL; }
+void *udev_device_ref(void *device) { (void)device; real_device_calls++; return NULL; }
+void *udev_device_get_parent(void *device) { (void)device; real_device_calls++; return NULL; }
+void *udev_device_get_udev(void *device) { (void)device; real_device_calls++; return NULL; }
+const char *udev_device_get_syspath(void *device) { (void)device; real_device_calls++; return "real"; }
+const char *udev_device_get_sysnum(void *device) { (void)device; real_device_calls++; return "real"; }
+void *udev_device_new_from_devnum(void *udev, char type, unsigned long devnum) {
+  (void)udev; (void)type; (void)devnum;
+  return NULL;
+}
 """
+
+DEVICE_FUNCTIONS = (
+    "p:udev_device_ref", "p:udev_device_get_udev", "p:udev_device_get_parent",
+    "P:udev_device_get_parent_with_subsystem_devtype", "s:udev_device_get_devpath", "s:udev_device_get_subsystem",
+    "s:udev_device_get_devtype", "s:udev_device_get_syspath", "s:udev_device_get_sysname",
+    "s:udev_device_get_sysnum", "s:udev_device_get_devnode", "i:udev_device_get_is_initialized",
+    "p:udev_device_get_devlinks_list_entry", "p:udev_device_get_properties_list_entry",
+    "p:udev_device_get_tags_list_entry", "p:udev_device_get_current_tags_list_entry",
+    "p:udev_device_get_sysattr_list_entry", "S:udev_device_get_property_value", "s:udev_device_get_driver",
+    "d:udev_device_get_devnum", "s:udev_device_get_action", "u:udev_device_get_seqnum",
+    "u:udev_device_get_usec_since_initialized", "S:udev_device_get_sysattr_value",
+    "W:udev_device_set_sysattr_value", "I:udev_device_has_tag", "I:udev_device_has_current_tag",
+    "p:udev_device_unref",
+)
+SIGNATURES = {
+    "p": ("void *", ""), "s": ("const char *", ""), "i": ("int", ""), "d": ("dev_t", ""),
+    "u": ("unsigned long long", ""), "S": ("const char *", ", const char *a"), "I": ("int", ", const char *a"),
+    "P": ("void *", ", const char *a, const char *b"), "W": ("int", ", const char *a, const char *b"),
+}
+UDEV += "#include <sys/types.h>\n" + "".join(
+    f"{SIGNATURES[kind][0]} {name}(void *device{SIGNATURES[kind][1]}) {{ (void)device; real_device_calls++; return 0; }}\n"
+    for kind, _, name in (entry.partition(":") for entry in DEVICE_FUNCTIONS) if not re.search(rf"\b{name}\(", UDEV))
 
 PROGRAM = r"""
 #define _GNU_SOURCE
@@ -195,6 +223,7 @@ PROGRAM = r"""
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 
 #define PAD "/sys/devices/virtual/input/droiddeck0"
@@ -400,6 +429,37 @@ static void run_enumerate(void) {
   printf("nothing added scan %d\n", scan(other));
 }
 
+static void run_every(int count, char **entries) {
+  void *(*from_devnum)(void *, char, dev_t) = sym("udev_device_new_from_devnum");
+  int *real_calls = dlsym(lib, "real_device_calls");
+  int udev;
+  void *pad = from_devnum(&udev, 'c', makedev(13, 64));
+  int i;
+
+  for (i = 0; pad != NULL && i < count; i++) {
+    const char *name = entries[i] + 2;
+    void *call = sym(name);
+
+    if (call == NULL) {
+      printf("missing %s\n", name);
+      continue;
+    }
+    switch (entries[i][0]) {
+      case 'p': ((void *(*)(void *))call)(pad); break;
+      case 's': ((const char *(*)(void *))call)(pad); break;
+      case 'i': ((int (*)(void *))call)(pad); break;
+      case 'd': ((dev_t (*)(void *))call)(pad); break;
+      case 'u': ((unsigned long long (*)(void *))call)(pad); break;
+      case 'S': ((const char *(*)(void *, const char *))call)(pad, "attr"); break;
+      case 'I': ((int (*)(void *, const char *))call)(pad, "attr"); break;
+      case 'P': ((void *(*)(void *, const char *, const char *))call)(pad, "input", NULL); break;
+      case 'W': ((int (*)(void *, const char *, const char *))call)(pad, "attr", "value"); break;
+      default: printf("unknown signature %s\n", entries[i]);
+    }
+  }
+  printf("pad %d real calls %d\n", pad != NULL, real_calls != NULL ? *real_calls : -1);
+}
+
 static void run_probe(void) {
   int udev;
 
@@ -447,6 +507,7 @@ int main(int argc, char **argv) {
   name = sym("udev_list_entry_get_name");
   value = sym("udev_list_entry_get_value");
   if (strcmp(argv[1], "probe") == 0) run_probe();
+  else if (strcmp(argv[1], "every") == 0) run_every(argc - 3, argv + 3);
   else if (strcmp(argv[1], "stable") == 0) run_stable();
   else if (strcmp(argv[1], "enumerate") == 0) run_enumerate();
   else run_udev();
@@ -502,11 +563,11 @@ class InputUdevPreloadTest(unittest.TestCase):
             (pads / node).write_text("")
         return pads
 
-    def run_program(self, mode, *preloads, pads=None, slots="0=/pad", program=None):
+    def run_program(self, mode, *preloads, pads=None, slots="0=/pad", program=None, args=()):
         env = dict(os.environ, LD_PRELOAD=":".join(str(self.dir / name) for name in ("libddsession.so", *preloads)),
                    FAKE_EVDEV_MEMFD_PATHS=slots, FAKE_EVDEV_DIR=str(pads or self.pads))
         env.pop("FAKE_EVDEV_UINPUT", None)
-        result = subprocess.run([str(program or self.program), mode, str(self.udev)], env=env, capture_output=True, text=True,
+        result = subprocess.run([str(program or self.program), mode, str(self.udev), *args], env=env, capture_output=True, text=True,
                                 timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         return result.stdout.splitlines()
@@ -553,6 +614,9 @@ class InputUdevPreloadTest(unittest.TestCase):
             f"parent sysname {parent}",
             "contexts 1 1",
         ])
+
+    def test_no_device_call_on_a_pad_reaches_the_real_libudev(self):
+        self.assertEqual(self.run_program("every", args=DEVICE_FUNCTIONS), ["pad 1 real calls 0"])
 
     def test_a_handle_keeps_its_strings_after_the_pad_goes_away(self):
         self.assertEqual(self.run_program("stable", pads=self.pad_dir("stable", "event0")), [

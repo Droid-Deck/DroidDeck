@@ -44,6 +44,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Settings
@@ -230,6 +231,8 @@ class DrawerActions(
     val onMicEnabled: (Boolean) -> Unit = {},
     val backHold: Boolean = true,
     val onBackHold: (Boolean) -> Unit = {},
+    val dockedMenuController: Boolean = false,
+    val onDockedMenuController: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
     val backDoubleTapMs: Int = 500,
     val onBackDoubleTapMs: (Int) -> Unit = {},
@@ -336,6 +339,7 @@ class DrawerActions(
     val onSteamVr: (String) -> Unit = {},
     val onTextureAnisotropy: (Int?) -> Unit = {},
     val onTextureLodBias: (String?) -> Unit = {},
+    val onSelectMenuMode: () -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
     val onSecondScreenDisplay: (Int) -> Unit,
     val onLaunchAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit,
@@ -344,6 +348,10 @@ class DrawerActions(
     val pipAutoEnter: Boolean = false,
     val onPip: () -> Unit = {},
     val onPause: () -> Unit = {},
+    val paused: Boolean = false,
+    val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+    val onOrientation: (Int) -> Unit = {},
+    val onResume: () -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val unfoldedControls: Boolean? = null,
     val adaptiveSticks: Boolean? = null,
@@ -547,14 +555,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             ScreenPicker(
                                 secondScreenModes(a.secondScreenNone, com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable, a.desktopAvailable),
                                 a.secondScreenMode, onPick = { host.open = null; a.onSecondScreenMode(it) },
-                                onMenu = if (docked) ({ host.open = null }) else null, menuShown = docked,
+                                onMenu = if (docked) ({ host.open = null; a.onSelectMenuMode() }) else null, menuShown = docked,
                             ),
                             focus.track(page, "screen").testTag("drawer-screen-picker"),
                         )
                     } else if (roomyHeader) Spacer(Modifier.weight(1f))
                     SteamActionPill(
-                        stringResource(R.string.stores_dl_pause), Icons.Outlined.Pause, focus.track(page, "pause"),
-                    ) { host.open = null; a.onPause() }
+                        stringResource(if (a.paused) R.string.resume_session else R.string.stores_dl_pause),
+                        if (a.paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, focus.track(page, "pause"),
+                    ) { host.open = null; if (a.paused) a.onResume() else a.onPause() }
                     if (a.pipSupported) SteamActionPill(
                         stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt, focus.track(page, "pip"),
                     ) { host.open = null; a.onPip() }
@@ -669,6 +678,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         a.onQam?.invoke()
                                     }
                                 }
+                            }
+                            SettingsGroup(stringResource(R.string.setup_orientation)) {
+                                ChoiceRow(host, "orientation", stringResource(R.string.setup_session_orientation), null,
+                                    SessionPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },
+                                    a.orientation, chipModifier = focus.track(page, "orientation"), onPick = a.onOrientation)
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                                 if (a.steam) SettingsRow(stringResource(R.string.display_integer_scaling), null) {
@@ -793,6 +807,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     SessionPrefs.BACK_DOUBLE_TAP_MS_OPTIONS.map { it to stringResource(R.string.back_tap_ms, it) },
                                     a.backDoubleTapMs, chipModifier = focus.track(page, "back-double-tap"), onPick = a.onBackDoubleTapMs)
                                 PhysicalShortcutRows(modifierFor = { focus.track(page, "physical-shortcut-${it.name}") })
+                                if (a.secondScreenDisplays.isNotEmpty()) ToggleRow(host, "docked-menu-controller", stringResource(R.string.drawer_docked_menu_controller),
+                                    null, a.dockedMenuController,
+                                    chipModifier = focus.track(page, "docked-menu-controller"), onChange = a.onDockedMenuController)
                                 ToggleRow(host, "corner-tap", stringResource(R.string.drawer_corner_tap),
                                     stringResource(R.string.drawer_corner_tap_hint), a.cornerTap,
                                     chipModifier = focus.track(page, "corner-tap"), onChange = a.onCornerTap)
