@@ -30,6 +30,16 @@ class DualScreenTest {
         assertTrue(DualScreen.menuOwnsController(open = true, docked = true, optIn = true))
     }
 
+    @Test fun aVisibleDockedMenuThatDoesNotOwnTheControllerIsIdle() {
+        assertFalse(DualScreen.menuIdleOnBottom(open = false, docked = false, pinned = false, optIn = false))
+        assertFalse(DualScreen.menuIdleOnBottom(open = true, docked = false, pinned = false, optIn = false))
+        assertTrue(DualScreen.menuIdleOnBottom(open = true, docked = true, pinned = false, optIn = false))
+        assertTrue(DualScreen.menuIdleOnBottom(open = false, docked = true, pinned = true, optIn = false))
+        assertTrue(DualScreen.menuIdleOnBottom(open = false, docked = true, pinned = true, optIn = true))
+        assertFalse(DualScreen.menuIdleOnBottom(open = true, docked = true, pinned = false, optIn = true))
+        assertFalse(DualScreen.menuIdleOnBottom(open = false, docked = true, pinned = false, optIn = false))
+    }
+
     @Test fun internalPanelsCountAsBuiltIn() {
         assertTrue(DualScreen.isBuiltIn(1, "Anything"))
         assertFalse(DualScreen.isBuiltIn(2, "Retroid Pocket Duo"))

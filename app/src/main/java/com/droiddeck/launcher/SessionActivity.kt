@@ -545,6 +545,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             drawerOpenState = value
             if (!value && drawerDocked) closeDockedMenu()
         }
+    private val dockedMenuIdle: Boolean get() = com.droiddeck.launcher.input.DualScreen.menuIdleOnBottom(drawerOpen, drawerDocked, drawerPinned, dockedMenuController)
     private val dockedTouchOnly: Boolean get() = drawerOpen && drawerDocked && !dockedMenuController
     private val menuOwnsController: Boolean get() = com.droiddeck.launcher.input.DualScreen.menuOwnsController(drawerOpen, drawerDocked, dockedMenuController)
     private var quitFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
@@ -3567,7 +3568,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 ) { action ->
                     pendingBackAction?.let(uiHandler::removeCallbacks)
                     pendingBackAction = null
-                    drawerControllerActive = true
+                    if (!dockedMenuIdle) drawerControllerActive = true
                     Log.i(TAG, "physical shortcut ${action.name} device=${event.deviceId} key=${event.keyCode} scan=${event.scanCode}")
                     when (action) {
                         PhysicalShortcuts.Action.STEAM -> sendSteamGuide()
@@ -3615,7 +3616,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             padBridge?.setInputEnabled(false)
             padBridge?.onKeyEvent(event)
         }
-        if (fromController && event.action == KeyEvent.ACTION_DOWN && (!drawerOpen || menuOwnsController)) {
+        if (fromController && event.action == KeyEvent.ACTION_DOWN && !dockedMenuIdle) {
             if (menuOwnsController && !drawerControllerActive) focusDrawer()
             drawerControllerActive = true
         }
