@@ -195,8 +195,6 @@ void *udev_device_new_from_devnum(void *udev, char type, unsigned long devnum) {
 }
 """
 
-# Every libudev function that takes a struct udev_device, with a letter for its signature (run_every's
-# switch); ref comes before unref so the pad stays alive.
 DEVICE_FUNCTIONS = (
     "p:udev_device_ref", "p:udev_device_get_udev", "p:udev_device_get_parent",
     "P:udev_device_get_parent_with_subsystem_devtype", "s:udev_device_get_devpath", "s:udev_device_get_subsystem",
@@ -618,7 +616,6 @@ class InputUdevPreloadTest(unittest.TestCase):
         ])
 
     def test_no_device_call_on_a_pad_reaches_the_real_libudev(self):
-        # The real libudev would read the pad's handle as its own device (SDL 3 asks for the driver)
         self.assertEqual(self.run_program("every", args=DEVICE_FUNCTIONS), ["pad 1 real calls 0"])
 
     def test_a_handle_keeps_its_strings_after_the_pad_goes_away(self):
