@@ -77,6 +77,22 @@ class PrebuiltInventoryTest(unittest.TestCase):
         hidden.unlink()  # Mimics a sparse-checkout file missing on disk.
         self.assertTrue(any("UNREVIEWED binary" in x for x in check.validate(self.root, self.manifest)))
 
+    def test_symlink_hash_is_identical_in_full_and_sparse_checkout(self):
+        alias = self.root / "alias.so"
+        alias.symlink_to("vendor.so")
+        subprocess.run(["git", "add", "alias.so"], cwd=self.root, check=True)
+        full = check.discover(self.root)
+        self.assertEqual(full["alias.so"], __import__("hashlib").sha256(b"vendor.so").hexdigest())
+        alias.unlink()
+        sparse = check.discover(self.root)
+        self.assertEqual(full, sparse)
+
+    def test_unlisted_symlink_is_rejected(self):
+        alias = self.root / "alias.so"
+        alias.symlink_to("vendor.so")
+        subprocess.run(["git", "add", "alias.so"], cwd=self.root, check=True)
+        self.assertTrue(any("UNREVIEWED binary: alias.so" in x for x in check.validate(self.root, self.manifest)))
+
     def test_removed_index_entry_is_rejected(self):
         subprocess.run(["git", "rm", "--cached", "vendor.so"], cwd=self.root, check=True, stdout=subprocess.DEVNULL)
         self.assertTrue(any("missing/untracked" in x for x in check.validate(self.root, self.manifest)))

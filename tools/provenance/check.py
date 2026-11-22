@@ -44,7 +44,7 @@ def tracked_paths(root: Path) -> list[str]:
         # separately by the pinned submodule source/build process.
         if meta.split()[0] == b"160000":
             continue
-        paths.append(os.fsdecode(path))
+        paths.append((os.fsdecode(path), meta.split()[0]))
     return sorted(paths)
 
 
@@ -75,9 +75,11 @@ def discover(root: Path) -> dict[str, str]:
     from Git rather than silently skipping them. A missing blob fails the gate.
     """
     result: dict[str, str] = {}
-    for rel in tracked_paths(root):
+    for rel, mode in tracked_paths(root):
         file = root / rel
-        if file.is_file():
+        # A Git symlink blob stores the link target string, not target bytes.
+        # Always hash that blob to match sparse and full checkouts.
+        if mode != b"120000" and file.is_file():
             with file.open("rb") as handle:
                 digest = hash_content(rel, handle)
         else:
