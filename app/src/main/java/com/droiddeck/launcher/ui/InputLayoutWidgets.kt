@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.*
-import com.droiddeck.launcher.session.SessionPrefs
 
 @Composable
 internal fun InputLayoutRow(layout: SavedInputLayout, role: InputRole, detail: String?, onManage: () -> Unit, onPick: () -> Unit) {
@@ -48,11 +47,10 @@ internal class InputLayoutPreviewView(context: Context) : View(context) {
     fun update(layout: SavedInputLayout, role: InputRole) {
         sourceHeight = if (role == InputRole.PRIMARY) 563 else 870
         val primary = role == InputRole.PRIMARY
-        val steamOverlay = primary && OnScreenLayout.supportsFloatingSteamControls(SessionPrefs.steamController(context), layout)
-        val elements = if (steamOverlay) OnScreenLayout.editorElements(context, layout, 1000, sourceHeight) else layout.elements
+        val artwork = if (primary) PadKit.forOverlay(context, layout) else null
+        val elements = if (artwork != null) OnScreenLayout.editorElements(context, layout, 1000, sourceHeight) else layout.elements
         renderer.updateCustomLayout(elements)
-        renderer.updateStyle(layout.style.copy(opacity = 100),
-            steamDeckButtons = primary && OnScreenLayout.usesSteamDeckButtons(context, layout))
+        renderer.updateStyle(layout.style.copy(opacity = 100), artwork)
         renderer.measure(MeasureSpec.makeMeasureSpec(1000, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(sourceHeight, MeasureSpec.EXACTLY))
         renderer.layout(0, 0, 1000, sourceHeight)
         contentDescription = layout.name

@@ -522,6 +522,64 @@ class InputSettingsTest {
         }
     }
 
+    @Test fun buttonSizeShowsTheGamepadWhereItWillBeSaved() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.PRIMARY)!!
+        assertEquals(InputLibraries.OVERLAY, layout.id)
+        val round = mutableStateOf(0)
+        compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } } }
+        fun editor() = generateSequence(listOf<android.view.View>(ShadowDialog.getLatestDialog().window!!.decorView)) { views ->
+            views.filterIsInstance<android.view.ViewGroup>().flatMap { g -> (0 until g.childCount).map(g::getChildAt) }.ifEmpty { null }
+        }.flatten().filterIsInstance<InputSurfaceEditorView>().first()
+        val stock = compose.runOnIdle { editor().rendered() }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(95f) }
+        val scaled = compose.runOnIdle { editor().rendered() }
+        assertNotEquals(stock, scaled)
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(.95f, InputLibraries.read(context).layouts.first { it.id == layout.id }.scale) }
+        compose.runOnIdle { round.value = 1 }
+        compose.runOnIdle { assertEquals(scaled, editor().rendered()) }
+    }
+
+    @Test @Config(qualifiers = "w468dp-h833dp-port-369dpi")
+    fun buttonSizeInPortraitKeepsLandscapeEditsWithoutARotatedFrame() {
+        val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")
+        val gamepad = InputLibraries.read(context).layout("game", InputRole.PRIMARY)!!
+        val landscape = gamepad.copy(elements = gamepad.elements.map { if (it.id in face) it.copy(x = it.x + .012f, y = it.y + .017f) else it },
+            aspect = 1600f / 900f, rotated = emptyList(), rotatedAspect = 0f)
+        InputLibraries.update(context) { it.withLayout(landscape) }
+        val library = InputLibraries.read(context)
+        val round = mutableStateOf(0)
+        compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = landscape.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } } }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        compose.onNodeWithTag("input-editor-scale").performScrollTo().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(90f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context).layouts.first { it.id == landscape.id }
+            assertEquals(landscape.aspect, saved.aspect)
+            for (id in face) assertEquals(landscape.elements.first { it.id == id }.let { it.x to it.y }, saved.elements.first { it.id == id }.let { it.x to it.y })
+            assertTrue(saved.rotated.isNotEmpty() && saved.rotatedAspect < 1f)
+            assertEquals(landscape.scale, saved.scale)
+            assertEquals(.9f, saved.rotatedScale)
+            assertEquals(.9f, OnScreenLayout.oriented(saved, 900, 1600).scale)
+            assertEquals(landscape.scale, OnScreenLayout.oriented(saved, 1600, 900).scale)
+        }
+        compose.runOnIdle { round.value = 1 }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        val slider = compose.onNodeWithTag("input-editor-scale").performScrollTo()
+        assertEquals(90f, slider.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ProgressBarRangeInfo].current, .5f)
+        slider.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(80f) }
+        compose.onNodeWithText(context.getString(R.string.input_editor_done)).performScrollTo().performClick()
+        compose.runOnIdle {
+            val saved = InputLibraries.read(context).layouts.first { it.id == landscape.id }
+            assertEquals(landscape.scale, saved.scale)
+            assertEquals(.8f, saved.rotatedScale)
+        }
+    }
+
     @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
     fun buttonSizeKeepsMovedGamepadGroupsInShape() {
         val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")

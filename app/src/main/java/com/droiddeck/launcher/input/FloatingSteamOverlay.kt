@@ -27,8 +27,9 @@ internal class FloatingSteamOverlay(width: Int, height: Int, safe: Rect, density
         val lowered = if (lowerShortcuts) lower(visible) else visible
         if (rearButtons != true && trackpads != true) return lowered
         val placed = lowered.toMutableList()
+        val chosen = lowered.filter(::isStock).map { it.control }
         fun add(control: InputControl, x: Float, y: List<Float>, widthDp: Int, heightDp: Int, shape: InputButtonShape) {
-            if (placed.any { it.id == "legacy:${control.id}" }) return
+            if (chosen.any { if (control in rear) it in rear else it.isTrackpad }) return
             val element = InputSurfaceElement(control, 0f, 0f, (widthDp * dp / w).coerceAtLeast(.03f),
                 (heightDp * dp / h).coerceAtLeast(.03f), floating = false, buttonShape = shape, showLabel = !control.isTrackpad)
             findSpace(element, x, y, placed)?.let(placed::add)

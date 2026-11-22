@@ -5,7 +5,7 @@ import android.util.DisplayMetrics
 import kotlin.math.max
 import kotlin.math.min
 
-internal class SteamDeckOverlayGeometry(
+internal class ControllerOverlayGeometry(
     width: Int, height: Int, private val safe: Rect, metrics: DisplayMetrics, scale: Float,
 ) {
     private val w = width.toFloat()
@@ -29,9 +29,12 @@ internal class SteamDeckOverlayGeometry(
         }
     }
 
-    fun place(elements: List<InputSurfaceElement>, rearButtons: Boolean, trackpads: Boolean): List<InputSurfaceElement> {
-        val x = { ref: Float -> anchor(ref, 1600f, w, safe.left, safe.right) }
-        val y = { ref: Float -> anchor(ref, 900f, h, safe.top, safe.bottom) }
+    private fun x(ref: Float) = anchor(ref, 1600f, w, safe.left, safe.right)
+
+    private fun y(ref: Float) = max(safe.top + ref * unit, h - safe.bottom - (900f - ref) * unit)
+
+    fun place(elements: List<InputSurfaceElement>, kit: PadKit, rearButtons: Boolean, trackpads: Boolean): List<InputSurfaceElement> {
+        if (!kit.steam) return placeStandardPad(elements, kit)
         val leftEdge = safe.left + 52f * density
         val middle = (w + safe.left - safe.right) / 2f
         val keyboard = Box(max(x(136f), leftEdge + 46f * unit), y(848f), 46f).takeIf { elements.any { it.id == KEYBOARD } }
@@ -41,15 +44,7 @@ internal class SteamDeckOverlayGeometry(
             Box(middle + 140f * unit, y(850f), 46f, 26f),
             Box(x(1230f), y(852f), 66f, 30f)), leftEdge)
         val (guide, select, start, qam) = row.takeLast(4)
-        val positions = mapOf(
-            InputControl.LT to Box(x(140f), y(66f), 88f, 34f),
-            InputControl.LB to Box(x(140f), y(148f), 88f, 30f),
-            InputControl.RT to Box(x(1460f), y(66f), 88f, 34f),
-            InputControl.RB to Box(x(1460f), y(148f), 88f, 30f),
-            InputControl.Y to Box(x(1375f), y(345f) - 96f * unit, 58f),
-            InputControl.X to Box(x(1375f) - 96f * unit, y(345f), 58f),
-            InputControl.B to Box(x(1375f) + 96f * unit, y(345f), 58f),
-            InputControl.A to Box(x(1375f), y(345f) + 96f * unit, 58f),
+        val positions = shoulders() + face(1375f, 345f, 96f) + mapOf(
             InputControl.UP to Box(x(220f), y(345f) - 102.5f * unit, 55.5f, 47.5f),
             InputControl.RIGHT to Box(x(220f) + 102.5f * unit, y(345f), 47.5f, 55.5f),
             InputControl.DOWN to Box(x(220f), y(345f) + 102.5f * unit, 55.5f, 47.5f),
@@ -80,10 +75,79 @@ internal class SteamDeckOverlayGeometry(
                 else -> positions[element.control]?.place(element) ?: element
             }
         }
+        val chosen = placed.filter { it.id == "legacy:${it.control.id}" }.map { it.control }
         return placed + optional.mapNotNull { (control, box) ->
-            if (placed.any { it.id == "legacy:${control.id}" }) null else box.place(InputSurfaceElement(control,
+            if (chosen.any { if (control in rear) it in rear else it in pads }) null else box.place(InputSurfaceElement(control,
                 0f, 0f, 0f, 0f, floating = false, buttonShape = InputButtonShape.PILL, showLabel = !control.isTrackpad))
         }
+    }
+
+    private fun placeStandardPad(elements: List<InputSurfaceElement>, kit: PadKit): List<InputSurfaceElement> {
+        val leftEdge = safe.left + 52f * density
+        val middle = (w + safe.left - safe.right) / 2f
+        val keyboard = Box(max(x(136f), leftEdge + 46f * unit), y(848f), 46f).takeIf { elements.any { it.id == KEYBOARD } }
+        val controls = if (kit.playStation) listOf(
+            InputControl.QAM to Box(x(220f), y(848f), 46f),
+            InputControl.SELECT to Box(middle - 160f * unit, y(850f), 50f, 30f),
+            InputControl.GUIDE to Box(middle, y(850f), 46f),
+            InputControl.START to Box(middle + 160f * unit, y(850f), 50f, 30f),
+        ) else listOf(
+            InputControl.QAM to Box(x(220f), y(848f), 46f),
+            InputControl.SELECT to Box(middle - 110f * unit, y(850f), 38f),
+            InputControl.GUIDE to Box(middle, y(850f), 46f),
+            InputControl.START to Box(middle + 110f * unit, y(850f), 38f),
+        )
+        val row = fitRow(listOfNotNull(keyboard) + controls.map { it.second }, leftEdge)
+        val positions = controls.map { it.first }.zip(row.takeLast(controls.size)).toMap() + shoulders() +
+            if (kit.playStation) {
+                face(1350f, 395f, 96f) + dpad(250f, 395f, 125f, kit.dpad) + mapOf(
+                    InputControl.LS to Box(x(565f), y(690f), 100f),
+                    InputControl.RS to Box(x(1035f), y(690f), 100f),
+                    InputControl.L3 to Box(x(565f) - 135f * unit, y(690f) - 100f * unit, 42f),
+                    InputControl.R3 to Box(x(1035f) + 135f * unit, y(690f) - 100f * unit, 42f),
+                )
+            } else {
+                face(1375f, 400f, 94f) + dpad(470f, 675f, 118f, kit.dpad) + mapOf(
+                    InputControl.LS to Box(x(235f), y(400f), 104f),
+                    InputControl.RS to Box(x(1130f), y(690f), 104f),
+                    InputControl.L3 to Box(x(235f) + 150f * unit, y(400f) - 110f * unit, 42f),
+                    InputControl.R3 to Box(x(1130f) + 160f * unit, y(690f) + 100f * unit, 42f),
+                )
+            }
+        return elements.map { element ->
+            when (element.id) {
+                KEYBOARD -> row.first().place(element)
+                "legacy:${element.control.id}" -> positions[element.control]?.place(element) ?: element
+                else -> element
+            }
+        }
+    }
+
+    private fun shoulders() = mapOf(
+        InputControl.LT to Box(x(120f), y(96f), 80f, 34f),
+        InputControl.LB to Box(x(310f), y(96f), 80f, 34f),
+        InputControl.RB to Box(x(1290f), y(96f), 80f, 34f),
+        InputControl.RT to Box(x(1480f), y(96f), 80f, 34f),
+    )
+
+    private fun face(cx: Float, cy: Float, offset: Float) = mapOf(
+        InputControl.Y to Box(x(cx), y(cy) - offset * unit, 58f),
+        InputControl.X to Box(x(cx) - offset * unit, y(cy), 58f),
+        InputControl.B to Box(x(cx) + offset * unit, y(cy), 58f),
+        InputControl.A to Box(x(cx), y(cy) + offset * unit, 58f),
+    )
+
+    private fun dpad(cx: Float, cy: Float, radius: Float, style: DpadStyle): Map<InputControl, Box> {
+        val inner = radius * if (style == DpadStyle.DISC) .25f else .14f
+        val depth = (radius - inner) / 2f
+        val offset = (radius - depth) * unit
+        val side = radius * .25f
+        return mapOf(
+            InputControl.UP to Box(x(cx), y(cy) - offset, side, depth),
+            InputControl.RIGHT to Box(x(cx) + offset, y(cy), depth, side),
+            InputControl.DOWN to Box(x(cx), y(cy) + offset, side, depth),
+            InputControl.LEFT to Box(x(cx) - offset, y(cy), depth, side),
+        )
     }
 
     private fun fitRow(row: List<Box>, start: Float): List<Box> {

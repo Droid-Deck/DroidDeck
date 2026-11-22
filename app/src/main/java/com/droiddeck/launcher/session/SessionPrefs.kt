@@ -85,6 +85,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
+    fun controllerHaptics(context: Context): Boolean = prefs(context).getBoolean("controllerHaptics", true)
+
+    fun setControllerHaptics(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("controllerHaptics", on).apply()
+    }
+
     fun blackFrameInsertion(context: Context): Boolean = prefs(context).getBoolean("blackFrameInsertion", false)
 
     fun setBlackFrameInsertion(context: Context, on: Boolean) {
