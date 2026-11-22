@@ -100,7 +100,14 @@ object WowAddons {
         val next = current - names.toSet() + (origin?.let { o -> names.associateWith { o } } ?: emptyMap())
         if (next != current) {
             val file = originsFile(target)
-            if (next.isEmpty()) file.delete() else file.writeText(formatOrigins(next))
+            if (next.isEmpty()) file.delete() else {
+                val temp = File(target.addOns, "$ORIGINS.tmp")
+                temp.writeText(formatOrigins(next))
+                if (!temp.renameTo(file)) {
+                    temp.delete()
+                    throw IOException("Cannot save $ORIGINS")
+                }
+            }
         }
     }
 

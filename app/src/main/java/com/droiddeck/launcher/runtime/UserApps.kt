@@ -431,7 +431,11 @@ object UserApps {
     }
 
     internal fun isNewer(release: Release, published: String, installed: String?): Boolean =
-        if (published.isNotEmpty() && release.published.isNotEmpty()) release.published > published else release.tag != installed
+        if (published.isNotEmpty() && release.published.isNotEmpty()) {
+            val feed = runCatching { java.time.Instant.parse(release.published) }.getOrNull()
+            val have = runCatching { java.time.Instant.parse(published) }.getOrNull()
+            if (feed != null && have != null) feed > have else release.published > published
+        } else release.tag != installed
 
     fun checkUpdate(context: Context, app: App): UpdateCheck {
         app.feed?.let { feed ->

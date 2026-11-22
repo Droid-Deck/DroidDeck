@@ -57,4 +57,11 @@ class UserAppsFeedTest {
         assertFalse(UserApps.isNewer(release, "", release.tag))
         assertTrue(UserApps.isNewer(release, "", "0.1"))
     }
+
+    @Test fun publicationTimesCompareAsInstantsWhateverTheirPrecision() {
+        val release = UserApps.parseFeed(feed, body())!!
+        assertTrue(UserApps.isNewer(release, "2026-11-15T18:08:09Z", "1.0"))
+        assertFalse(UserApps.isNewer(release, "2026-11-15T18:08:09.118000Z", "1.0"))
+        assertFalse(UserApps.isNewer(release, "2026-11-15T18:08:10Z", "1.0"))
+    }
 }
