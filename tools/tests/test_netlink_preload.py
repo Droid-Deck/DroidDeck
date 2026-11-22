@@ -180,6 +180,8 @@ static void proc_net_test(int denied) {
         target[length] = 0;
         require((strncmp(target, "/memfd:droiddeck-net", 20) == 0) == denied, "synthesized only when denied");
         if (denied) {
+            require((fcntl(descriptor, F_GETFL) & O_ACCMODE) == O_RDONLY, "socket table is read-only");
+            require(write(descriptor, "x", 1) < 0 && errno == EBADF, "socket table rejects writes");
             ssize_t total = read(descriptor, text, sizeof(text) - 1);
             require(total > 0, "socket table read");
             text[total] = 0;
@@ -190,6 +192,7 @@ static void proc_net_test(int denied) {
     if (denied) {
         require(open("/proc/net/tcp", O_WRONLY) < 0 && errno == EACCES, "socket table writes stay denied");
         require(open("/proc/net/netstat", O_RDONLY) < 0 && errno == EACCES, "other tables stay denied");
+        require(open("/proc/net/tcp", O_RDONLY | O_DIRECTORY) < 0 && errno == EACCES, "directory opens stay denied");
     }
 }
 

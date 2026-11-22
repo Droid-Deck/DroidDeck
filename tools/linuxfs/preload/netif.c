@@ -636,7 +636,7 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode, cons
 int dd_net_open(const char *path, int flags, int fd) __attribute__((visibility("hidden")));
 
 int dd_net_open(const char *path, int flags, int fd) {
-    if (fd >= 0 || path == NULL || (flags & O_ACCMODE) != O_RDONLY) return fd;
+    if (fd >= 0 || path == NULL || (flags & O_ACCMODE) != O_RDONLY || (flags & O_DIRECTORY)) return fd;
     int table = denied_table(path);
     if (table < 0) return fd;
     int saved = errno;
@@ -645,7 +645,9 @@ int dd_net_open(const char *path, int flags, int fd) {
         errno = saved;
         return fd;
     }
-    int copy = fcntl(fileno(f), flags & O_CLOEXEC ? F_DUPFD_CLOEXEC : F_DUPFD, 0);
+    char self[32];
+    snprintf(self, sizeof(self), "/proc/self/fd/%d", fileno(f));
+    int copy = open(self, O_RDONLY | (flags & O_CLOEXEC));
     fclose(f);
     if (copy < 0) {
         errno = saved;
