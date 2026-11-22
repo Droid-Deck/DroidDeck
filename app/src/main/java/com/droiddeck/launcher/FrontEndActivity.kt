@@ -2850,7 +2850,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             },
             onDismiss = { showPerformance = false },
             embedded = embedded,
-            games = steamGames + steamGamesX64,
+            games = steamGames,
         )
     }
 
@@ -3302,7 +3302,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     }
                     shortcutLibraryScanning = false
                     handleGameLink(all)
-                    com.droiddeck.launcher.session.ShaderPrecompManager.maybeAutoRebuildOnDriverChange(this, steamGames + steamGamesX64)
+                    com.droiddeck.launcher.session.ShaderPrecompManager.maybeAutoRebuildOnDriverChange(this, steamGames)
                 }
             }
             if (!OfflineMode.enabled(this) && CoverArt.fetchMissing(this, emus.flatMap { it.games })) {
