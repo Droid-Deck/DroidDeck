@@ -63,13 +63,12 @@ struct SyscallHandler {
 
 #include "extracted.inc"
 
-static MappedResource resource;
-static VMAEntry code, alias;
+static MappedResource resource, other;
 
 int main(int argc, char** argv) {
   std::string scenario = argc > 1 ? argv[1] : "";
   SyscallHandler handler;
-  code = {};
+  VMAEntry code{}, alias{};
   code.Resource = &resource;
   code.Base = 0x100000;
   code.Offset = 0x10000;
@@ -77,7 +76,6 @@ int main(int argc, char** argv) {
   code.Flags.Shared = true;
   code.Prot.Readable = true;
   code.Prot.Executable = true;
-  alias = {};
   alias.Resource = &resource;
   alias.Base = 0x700000;
   alias.Offset = 0x10000;
@@ -94,6 +92,11 @@ int main(int argc, char** argv) {
   } else if (scenario == "tail") {
     base += 0x2000;
     length = 0x10000;
+  } else if (scenario == "gap") {
+    base -= 0x2000;
+    length = 0x6000;
+  } else if (scenario == "two") {
+    length = 0x6000;
   } else if (scenario == "no_code") {
     code.Prot.Executable = false;
   } else if (scenario == "private") {
@@ -115,6 +118,27 @@ int main(int argc, char** argv) {
   resource.FirstVMA = &handler.VMATracking.VMAs[code.Base];
   handler.VMATracking.VMAs[code.Base].Resource = &resource;
   handler.VMATracking.VMAs[alias.Base].Resource = &resource;
+  if (scenario == "two") {
+    VMAEntry& next_code = handler.VMATracking.VMAs[0x200000];
+    VMAEntry& next_alias = handler.VMATracking.VMAs[0x704000];
+    next_code = {};
+    next_code.Resource = &other;
+    next_code.Base = 0x200000;
+    next_code.Length = 0x2000;
+    next_code.Flags.Shared = true;
+    next_code.Prot.Readable = true;
+    next_code.Prot.Executable = true;
+    next_alias = {};
+    next_alias.Resource = &other;
+    next_alias.Base = 0x704000;
+    next_alias.Length = 0x2000;
+    next_alias.Flags.Shared = true;
+    next_alias.Prot.Readable = true;
+    next_alias.Prot.Writable = true;
+    next_code.ResourceNextVMA = &next_alias;
+    next_alias.ResourcePrevVMA = &next_code;
+    other.FirstVMA = &next_code;
+  }
   handler.ProtectWritableAliasOfCode(base, length);
   printf("%d", count);
   for (int i = 0; i < count; i++) printf(" %llx+%llx:%d", (unsigned long long)calls[i].Address, (unsigned long long)calls[i].Length, calls[i].Prot);
@@ -161,6 +185,12 @@ class SmcAliasTest(unittest.TestCase):
 
     def test_alias_beyond_the_mapping_end_is_clamped(self):
         self.assertEqual(self.run_scenario("tail"), "1 702000+2000:1")
+
+    def test_range_starting_in_a_gap_reaches_the_alias_after_it(self):
+        self.assertEqual(self.run_scenario("gap"), "1 700000+4000:1")
+
+    def test_every_alias_in_one_range_is_protected(self):
+        self.assertEqual(self.run_scenario("two"), "2 700000+4000:1 704000+2000:1")
 
     def test_alias_of_another_file_range_is_untouched(self):
         self.assertEqual(self.run_scenario("disjoint"), "0")

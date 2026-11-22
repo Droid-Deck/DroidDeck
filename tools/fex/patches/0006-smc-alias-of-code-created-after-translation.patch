@@ -11,10 +11,10 @@ index d720866..f55bce4 100644
    std::optional<FEXCore::ExecutableFileSectionInfo>
    LookupExecutableFileSection(FEXCore::Core::InternalThreadState* Thread, uint64_t GuestAddr) final override;
 diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
-index 94bdd37..408e58a 100644
+index 94bdd37..5d6c850 100644
 --- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
 +++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
-@@ -196,6 +196,37 @@ void SyscallHandler::MarkGuestExecutableRange(FEXCore::Core::InternalThreadState
+@@ -196,6 +196,44 @@ void SyscallHandler::MarkGuestExecutableRange(FEXCore::Core::InternalThreadState
    }
  }
  
@@ -23,36 +23,43 @@ index 94bdd37..408e58a 100644
 +    return;
 +  }
 +
++  const auto End = Base + Length;
 +  auto Mapping = VMATracking.FindVMAEntry(Base);
-+  if (Mapping == VMATracking.VMAs.end() || !Mapping->second.Flags.Shared || !Mapping->second.Prot.Writable || !Mapping->second.Resource) {
-+    return;
++  if (Mapping == VMATracking.VMAs.end()) {
++    Mapping = VMATracking.VMAs.lower_bound(Base);
 +  }
 +
-+  const auto MapTop = Mapping->first + Mapping->second.Length;
-+  const auto Top = std::min(Base + Length, MapTop);
-+  if (Top <= Base) {
-+    return;
-+  }
-+
-+  const auto OffsetBase = Mapping->second.Offset + (Base - Mapping->first);
-+  const auto OffsetTop = OffsetBase + (Top - Base);
-+
-+  for (auto VMA = Mapping->second.Resource->FirstVMA; VMA; VMA = VMA->ResourceNextVMA) {
-+    if (!VMA->Prot.Executable || VMA->Offset >= OffsetTop || VMA->Offset + VMA->Length <= OffsetBase) {
++  for (; Mapping != VMATracking.VMAs.end() && Mapping->first < End; ++Mapping) {
++    if (!Mapping->second.Flags.Shared || !Mapping->second.Prot.Writable || !Mapping->second.Resource) {
 +      continue;
 +    }
 +
-+    const auto OverlapBase = std::max(VMA->Offset, OffsetBase);
-+    const auto OverlapTop = std::min(VMA->Offset + VMA->Length, OffsetTop);
-+    auto rv = mprotect((void*)(Base + (OverlapBase - OffsetBase)), OverlapTop - OverlapBase, PROT_READ);
-+    LogMan::Throw::AFmt(rv == 0, "mprotect({}, {}) failed", OverlapBase, OverlapTop - OverlapBase);
++    const auto MapBase = std::max(Base, Mapping->first);
++    const auto MapTop = std::min(End, Mapping->first + Mapping->second.Length);
++    if (MapTop <= MapBase) {
++      continue;
++    }
++
++    const auto OffsetBase = Mapping->second.Offset + (MapBase - Mapping->first);
++    const auto OffsetTop = OffsetBase + (MapTop - MapBase);
++
++    for (auto VMA = Mapping->second.Resource->FirstVMA; VMA; VMA = VMA->ResourceNextVMA) {
++      if (!VMA->Prot.Executable || VMA->Offset >= OffsetTop || VMA->Offset + VMA->Length <= OffsetBase) {
++        continue;
++      }
++
++      const auto OverlapBase = std::max(VMA->Offset, OffsetBase);
++      const auto OverlapTop = std::min(VMA->Offset + VMA->Length, OffsetTop);
++      auto rv = mprotect((void*)(MapBase + (OverlapBase - OffsetBase)), OverlapTop - OverlapBase, PROT_READ);
++      LogMan::Throw::AFmt(rv == 0, "mprotect({}, {}) failed", OverlapBase, OverlapTop - OverlapBase);
++    }
 +  }
 +}
 +
  void SyscallHandler::InvalidateGuestCodeRange(FEXCore::Core::InternalThreadState* Thread, uint64_t Start, uint64_t Length) {
    InvalidateCodeRangeIfNecessary(Thread, Start, Length, false);
  }
-@@ -334,6 +365,9 @@ void* SyscallHandler::GuestMmap(bool Is64Bit, FEXCore::Core::InternalThreadState
+@@ -334,6 +372,9 @@ void* SyscallHandler::GuestMmap(bool Is64Bit, FEXCore::Core::InternalThreadState
      }
  
      LateMetadata = TrackMmap(Thread, Result, length, prot, flags, fd, offset, CachedSection);
@@ -62,7 +69,7 @@ index 94bdd37..408e58a 100644
      PendingResourceDeletion = VMATracking.HasPendingResourceDeletions();
    }
  
-@@ -479,6 +513,9 @@ uint64_t SyscallHandler::GuestMprotect(FEXCore::Core::InternalThreadState* Threa
+@@ -479,6 +520,9 @@ uint64_t SyscallHandler::GuestMprotect(FEXCore::Core::InternalThreadState* Threa
      }
  
      TrackMprotect(Thread, addr, len, prot);
