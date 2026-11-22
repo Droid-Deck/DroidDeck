@@ -207,19 +207,27 @@ object ComponentsManager {
         if (comp == "fex" && file != null) fetchFexTwin(context, safeName(file))
     }
 
+    // Twin downloads in flight: one worker per name, so two profile changes cannot share one partial download.
+    private val twinDownloads = HashSet<String>()
+
     private fun fetchFexTwin(context: Context, file: String) {
         val twin = fexTwin(file) ?: return
-        if (isStored(context, twin) || protons(context).all { fexFits(it.dir.name, file) }) return
+        if (protons(context).all { fexFits(it.dir.name, file) }) return
+        synchronized(lock) { if (isStored(context, twin) || !twinDownloads.add(twin)) return }
         val app = context.applicationContext
         Thread({
-            runCatching {
-                val item = catalogItem(app, twin, if (bionicFex(twin)) DD_BIONIC else "FexCore-Linux")
-                if (item == null) Log.i(TAG, "$twin is not listed")
-                else {
-                    download(app, item) {}
-                    republish(app)
-                }
-            }.onFailure { Log.w(TAG, "download $twin", it) }
+            try {
+                runCatching {
+                    val item = catalogItem(app, twin, if (bionicFex(twin)) DD_BIONIC else "FexCore-Linux")
+                    if (item == null) Log.i(TAG, "$twin is not listed")
+                    else {
+                        download(app, item) {}
+                        republish(app)
+                    }
+                }.onFailure { Log.w(TAG, "download $twin", it) }
+            } finally {
+                synchronized(lock) { twinDownloads.remove(twin) }
+            }
         }, "fex-twin").start()
     }
 
@@ -832,6 +840,18 @@ object ComponentsManager {
     internal fun liveOnAny(key: String, entry: JSONObject, installs: List<Proton>?): Boolean =
         installs?.any { liveSelection(key, entry, it) } == true
 
+    // An installed tool that launches with `name` as the stored twin of a game's FEX choice (a Linux choice on
+    // DroidDeck-Bionic, a -bionic one on another Proton): deleting the twin would drop that choice for that tool.
+    internal fun twinUser(state: JSONObject, installed: List<Proton>, name: String): Proton? {
+        val profiles = state.optJSONObject("profiles") ?: return null
+        for (scope in profiles.keys()) {
+            val chosen = profiles.optJSONObject(scope)?.optString("fex")?.takeIf { it.isNotEmpty() } ?: continue
+            if (fexTwin(chosen) != name) continue
+            installed.firstOrNull { !fexFits(it.dir.name, chosen) }?.let { return it }
+        }
+        return null
+    }
+
     internal fun packagesInUse(state: JSONObject, installed: List<Proton>): Set<String> {
         val byId = installed.groupBy { it.id }
         val names = HashSet<String>()
@@ -1004,6 +1024,8 @@ object ComponentsManager {
     fun deletePackage(context: Context, file: String): String = synchronized(lock) {
         val name = safeName(file)
         val state = loadState(context)
+        val twinTool = twinUser(state, protons(context), name)
+        check(twinTool == null) { context.getString(R.string.cmgr_package_in_use, name, twinTool?.name ?: "") }
         val installed = protons(context).groupBy { it.id }
         var changed = false
         for (key in listOf("queued", "active")) {

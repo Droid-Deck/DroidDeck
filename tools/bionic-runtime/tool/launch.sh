@@ -253,7 +253,8 @@ programs_left() { # a program of this prefix is still running, apart from Wine's
     [ "$q" = "$$" ] || [ "$q" = "${GT:-x}" ] && continue
     c=; read -r c < "$p/comm" 2>/dev/null
     case "$c" in
-      ""|wineserver|services.exe|winedevice.exe|plugplay.exe|explorer.exe|svchost.exe|rpcss.exe|conhost.exe|start.exe) continue ;;
+      ""|wineserver|services.exe|winedevice.exe|plugplay.exe|explorer.exe|svchost.exe|rpcss.exe|conhost.exe|start.exe|\
+      winemenubuilder|wineboot.exe|tabtip.exe) continue ;;
     esac
     tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -qx "WINEPREFIX=$COMPAT/pfx" && return 0
   done
@@ -311,15 +312,25 @@ prepare_prefix
 # runs the prefix next. Code cached by another FEX build (DroidDeck-Proton's, or a different FEX picked in the
 # Components tab) made this FEX crash in Steam's install-script step, and Wine then looped on the crash, so Steam never
 # started the game. The cache is cleared when the FEX that runs the prefix is not the one that filled it.
+# The stamp holds this FEX's ID and what the caches held when this tool last finished with the prefix, so a cache that
+# another FEX wrote to since (DroidDeck-Proton running the same game) is cleared too.
 fexid=$(cat "$F/lib/wine/aarch64-windows/libarm64ecfex.dll" "$F/lib/wine/aarch64-windows/libwow64fex.dll" \
   "$F/lib/wine/aarch64-unix/libarm64ecfex.so" "$F/lib/wine/aarch64-unix/libwow64fex.so" 2>/dev/null | md5sum | cut -c1-16)
-if [ "$(cat "$COMPAT/pfx/.droiddeck-fex-cache" 2>/dev/null)" != "$fexid" ]; then
+fex_cache_sum() { # names, sizes and times of the files in the prefix's FEX code caches
+  for u in "$COMPAT/pfx/drive_c/users"/*; do
+    [ -L "$u" ] && continue
+    c=$u/AppData/Local/fex-emu/DiskCache
+    [ -d "$c" ] && find "$c" -type f -exec stat -c '%n %s %Y' {} + 2>/dev/null
+  done | sort | md5sum | cut -c1-16
+}
+save_fex_stamp() { echo "$fexid $(fex_cache_sum)" > "$COMPAT/pfx/.droiddeck-fex-cache" 2>/dev/null; }
+if [ "$(cat "$COMPAT/pfx/.droiddeck-fex-cache" 2>/dev/null)" != "$fexid $(fex_cache_sum)" ]; then
   for u in "$COMPAT/pfx/drive_c/users"/*; do
     c=$u/AppData/Local/fex-emu/DiskCache
     [ -L "$u" ] || [ ! -d "$c" ] && continue
-    rm -rf "$c" && echo "$(date +%H:%M:%S) FEX code cache of ${u##*/} cleared (filled by another FEX build or unknown)"
+    rm -rf "$c" && echo "$(date +%H:%M:%S) FEX code cache of ${u##*/} cleared (another FEX build wrote to it, or it is unknown)"
   done
-  echo "$fexid" > "$COMPAT/pfx/.droiddeck-fex-cache"
+  save_fex_stamp
 fi
 
 # Steam's Windows client files in the prefix, the ones Proton copies from Steam's legacycompat folder: a game's
@@ -373,12 +384,19 @@ case "$EXE" in [A-Za-z]:[\\/]*) ;; *) cd "$(dirname "$EXE")" || exit 1 ;; esac
 
 if [ "$verb" = runinprefix ]; then
   wine_ "$EXE" "$@"
-  exit $?
+  rc=$?
+  save_fex_stamp
+  exit $rc
 fi
 
 name=${EXE##*/}; name=${name##*\\}
 comm=$(echo "$name" | cut -c1-15)
-game_pids() { grep -lx "$comm" /proc/[0-9]*/comm 2>/dev/null | cut -d/ -f3; }
+game_pids() { # processes of this prefix with the game's name (two prefixes can run programs with the same name)
+  for p in $(grep -lFx "$comm" /proc/[0-9]*/comm 2>/dev/null); do
+    p=${p%/comm}
+    tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -qxF "WINEPREFIX=$COMPAT/pfx" && echo "${p#/proc/}"
+  done
+}
 # The game's windows go straight to gamescope's X server, as with DroidDeck-Proton (no Wine desktop): the game
 # sees gamescope's real modes and refresh rate, and gamescope manages its windows.
 wine_ "$EXE" "$@" &
@@ -392,7 +410,7 @@ if [ "${SteamAppId:-0}" != 0 ]; then
   "$LINKER" "$PACK/bin/gstag" "${XD:-0}" "$SteamAppId" .exe 86400 > "$COMPAT/gstag.log" 2>&1 &
   GT=$!
 fi
-trap 'echo "$(date +%H:%M:%S) stopped by Steam"; [ -n "$GT" ] && kill $GT 2>/dev/null; stop_wine; exit 0' TERM INT HUP
+trap 'echo "$(date +%H:%M:%S) stopped by Steam"; [ -n "$GT" ] && kill $GT 2>/dev/null; stop_wine; save_fex_stamp; exit 0' TERM INT HUP
 n=0
 while [ $n -lt 90 ] && [ -z "$(game_pids)" ]; do
   # A program that ended before it was seen (Steam's install-script step takes about a second) leaves nothing
@@ -402,10 +420,15 @@ while [ $n -lt 90 ] && [ -z "$(game_pids)" ]; do
 done
 echo "$(date +%H:%M:%S) game process $(game_pids | tr '\n' ' ')after ${n}s"
 # The program Steam started counts while it runs: a program that names its main thread (Chromium-based games call
-# it CrBrowserMain) changes its process name, which Wine copies, and is then no longer found by name.
-while [ -n "$(game_pids)" ] || kill -0 $WP 2>/dev/null; do sleep 2; done
+# it CrBrowserMain) changes its process name, which Wine copies, and is then no longer found by name. A launcher
+# that started the game and ended leaves the game as another program of this prefix, so the wait goes on while any
+# program of the prefix runs, apart from Wine's own services (Proton waits for the prefix's programs the same way).
+while [ -n "$(game_pids)" ] || kill -0 $WP 2>/dev/null || programs_left; do sleep 2; done
 echo "$(date +%H:%M:%S) game exited"
 [ -n "$GT" ] && kill $GT 2>/dev/null
 stop_wine
 wait $WP
-echo "$(date +%H:%M:%S) done"
+rc=$?
+save_fex_stamp
+echo "$(date +%H:%M:%S) done (exit $rc)"
+exit $rc

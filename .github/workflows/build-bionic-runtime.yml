@@ -7,6 +7,7 @@ on:
       - 'tools/gamescope/patches/0117-wsi-cache-present-bypass-check.patch'
       - 'tools/gamescope/patches/0119-wsi-default-images-under-limiter.patch'
       - 'app/src/main/cpp/fakeinput_steam.cpp'
+      - 'tools/gpuload/**'
       - '.github/workflows/build-bionic-runtime.yml'
   workflow_dispatch:
 

@@ -1147,9 +1147,12 @@ class GameEnvironmentTest(unittest.TestCase):
     def test_install_script_run_keys_default_to_the_app_key(self):
         keys = MODULE["run_keys"](MODULE["read_vdf"](self.SCRIPT))
         self.assertEqual(keys, {
-            ("hkey_local_machine\\software\\valve\\steam\\apps\\commonredist\\vcredist\\2019", "x64 14.28.29334.0"),
-            ("hkey_local_machine\\software\\valve\\steam\\apps\\228980", "setup"),
+            ("hkey_local_machine\\software\\valve\\steam\\apps\\commonredist\\vcredist\\2019", "x64 14.28.29334.0", 1),
+            ("hkey_local_machine\\software\\valve\\steam\\apps\\228980", "setup", 1),
         })
+        with_minimum = self.SCRIPT.replace('"Setup" { "process 1"', '"Setup" { "MinimumHasRunValue" "3" "process 1"')
+        self.assertIn(("hkey_local_machine\\software\\valve\\steam\\apps\\228980", "setup", 3),
+                      MODULE["run_keys"](MODULE["read_vdf"](with_minimum)))
         with self.assertRaises(ValueError):
             MODULE["read_vdf"]('"a" { "b" }')
 
@@ -1196,6 +1199,30 @@ class GameEnvironmentTest(unittest.TestCase):
             script.write_text(self.SCRIPT.replace('"run process" {',
                                                   '"registry" { "HKEY_LOCAL_MACHINE\\\\Software\\\\Game" { "string" { "Path" "x" } } } "run process" {'))
             self.assertFalse(done([str(script)], env))
+
+    def test_install_scripts_need_their_dword_guards_satisfied(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "evaluatorscript_1.vdf"
+            script.write_text(self.SCRIPT)
+            prefix = Path(tmp) / "compat/pfx"
+            prefix.mkdir(parents=True)
+            env = {"STEAM_COMPAT_DATA_PATH": str(prefix.parent)}
+            done = MODULE["install_scripts_done"]
+            MODULE["record_install_scripts"](MODULE["scripts_digest"]([str(script)]), env)
+            # a guard DWORD of 0 means Steam still runs the process, recorded or not
+            (prefix / "system.reg").write_text(self.REDIST + self.SETUP.replace("dword:00000001", "dword:00000000"))
+            self.assertFalse(done([str(script)], env))
+            (prefix / MODULE["INSTALL_STAMP"]).unlink()
+            self.assertFalse(done([str(script)], env))
+            # a value that is not a DWORD does not count either
+            (prefix / "system.reg").write_text(self.REDIST + self.SETUP.replace("dword:00000001", '"1"'))
+            self.assertFalse(done([str(script)], env))
+            # MinimumHasRunValue: below it the process runs again, at or above it the scripts are done
+            script.write_text(self.SCRIPT.replace('"Setup" { "process 1"', '"Setup" { "MinimumHasRunValue" "2" "process 1"'))
+            (prefix / "system.reg").write_text(self.REDIST + self.SETUP)
+            self.assertFalse(done([str(script)], env))
+            (prefix / "system.reg").write_text(self.REDIST + self.SETUP.replace("dword:00000001", "dword:00000002"))
+            self.assertTrue(done([str(script)], env))
 
     def test_the_evaluator_is_skipped_once_it_finished_the_same_scripts(self):
         with tempfile.TemporaryDirectory() as tmp:

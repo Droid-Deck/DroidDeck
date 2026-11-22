@@ -305,6 +305,8 @@ if [ -f "$here/bionic/launch.sh" ] && [ -z "${DDNATV_ROOT:-}" ]; then
     echo "droiddeck-proton: DroidDeck-Bionic needs Run without proot; this launch uses ${dd_fallback##*/}" >&2
     exec "$dd_fallback/droiddeck-proton-wrap" "$verb" "$@"
   fi
+  echo "droiddeck-proton: DroidDeck-Bionic needs Run without proot, and no DroidDeck-Proton is installed to run this launch instead; turn on Run without proot or install DroidDeck-Proton" >&2
+  exit 1
 fi
 """
 

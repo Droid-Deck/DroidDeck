@@ -84,6 +84,14 @@ class ComponentsBionicFexTest {
             ComponentsManager.packagesInUse(state, listOf(proton(ownTool), proton(bionicTool))))
     }
 
+    @Test fun aTwinAGameChoiceStillNeedsCannotBeDeletedAsUnused() {
+        val state = JSONObject().put("profiles", JSONObject().put("42", JSONObject().put("fex", "FEXCore-2611.1-linux.wcp")))
+        assertEquals(bionicTool, ComponentsManager.twinUser(state, listOf(proton(ownTool), proton(bionicTool)), "FEXCore-2611.1-bionic.wcp")?.dir?.name)
+        assertEquals(null, ComponentsManager.twinUser(state, listOf(proton(ownTool)), "FEXCore-2611.1-bionic.wcp"))
+        assertEquals(null, ComponentsManager.twinUser(state, listOf(proton(ownTool), proton(bionicTool)), "FEXCore-2610-bionic.wcp"))
+        assertEquals(null, ComponentsManager.twinUser(JSONObject(), listOf(proton(bionicTool)), "FEXCore-2611.1-bionic.wcp"))
+    }
+
     @Test fun droidDeckBionicFollowsTheNewestBionicFexAndNothingElse() {
         val bionic = proton(bionicTool)
         val own = proton(ownTool)

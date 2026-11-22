@@ -22,6 +22,7 @@
 #include <semaphore.h>
 #include <sys/auxv.h>
 #include <sys/mman.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #define EXPORT __attribute__((visibility("default")))
@@ -98,18 +99,33 @@ static int hook_open(const char *name, size_t size, bool *created)
             return fd;
         }
         if (errno != ENOENT) break;
-        fd = open(path, O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
-        if (fd >= 0) {
-            if (ftruncate(fd, (off_t)size) == 0) {
-                if (created) *created = true;
-                if (notes++ < 64) say("steamshm: %s created (%zu bytes)\n", path, size);
-                return fd;
-            }
+        // made and sized under a private name, then put in place in one step: no other process can open it while it
+        // is still empty, and an object another process published first is opened instead
+        char tmp[PATH_MAX];
+        int w = snprintf(tmp, sizeof tmp, "%s.%d.%d", path, (int)getpid(), i);
+        if (w <= 0 || (size_t)w >= sizeof tmp) break;
+        fd = open(tmp, O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (fd < 0) break;
+        if (ftruncate(fd, (off_t)size) != 0) {
             close(fd);
-            unlink(path);
+            unlink(tmp);
             break;
         }
-        if (errno != EEXIST) break;
+        int placed = (int)syscall(SYS_renameat2, AT_FDCWD, tmp, AT_FDCWD, path, 1 /* RENAME_NOREPLACE */);
+        if (placed != 0 && (errno == ENOSYS || errno == EINVAL)) {  // no renameat2: a hard link fails on EEXIST too
+            placed = link(tmp, path);
+            unlink(tmp);
+        }
+        if (placed == 0) {
+            if (created) *created = true;
+            if (notes++ < 64) say("steamshm: %s created (%zu bytes)\n", path, size);
+            return fd;
+        }
+        int err = errno;
+        close(fd);
+        unlink(tmp);
+        errno = err;
+        if (err != EEXIST) break;
     }
     say("steamshm: %s failed (errno %d)\n", path, errno);
     return -1;
@@ -286,28 +302,107 @@ static void *trampoline(uint32_t *fn)
     if (t == MAP_FAILED) return NULL;
     memcpy(t, fn, 16);
     jump_code(t + 4, (uintptr_t)(fn + 4));
-    if (mprotect(t, page, PROT_READ | PROT_EXEC)) return NULL;
+    if (mprotect(t, page, PROT_READ | PROT_EXEC)) {
+        munmap(t, page);
+        return NULL;
+    }
     flush((uintptr_t)t, 32);
     return t;
 }
 
-// The library's code pages are file mappings: write an anonymous copy and move it over the original in one step.
-static bool redirect(uint32_t *fn, uintptr_t to)
+static void drop_trampoline(void *t)
 {
-    size_t page = getauxval(AT_PAGESZ);
-    uintptr_t lo = (uintptr_t)fn & ~(page - 1), hi = ((uintptr_t)fn + 16 + page - 1) & ~(page - 1);
-    size_t len = hi - lo;
-    uint8_t *copy = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (copy == MAP_FAILED) return false;
-    memcpy(copy, (void *)lo, len);
-    jump_code((uint32_t *)(copy + ((uintptr_t)fn - lo)), to);
-    if (mprotect(copy, len, PROT_READ | PROT_EXEC) ||
-        mremap(copy, len, len, MREMAP_MAYMOVE | MREMAP_FIXED, (void *)lo) == MAP_FAILED) {
-        munmap(copy, len);
+    if (t) munmap(t, getauxval(AT_PAGESZ));
+}
+
+// The library's code pages are file mappings: patched anonymous copies are prepared first and then moved over the
+// originals in one step each. Both hooks go in or neither: the pages of both functions (one range when they share a
+// page) are copied, patched and made executable before anything is replaced, and a copy of the original pages is
+// kept, so a failed second replacement puts the first range back.
+struct range {
+    uintptr_t lo;
+    size_t len;
+    uint8_t *patched, *saved;
+};
+
+static bool prepare(struct range *r, uintptr_t lo, uintptr_t hi)
+{
+    r->lo = lo;
+    r->len = hi - lo;
+    r->patched = mmap(NULL, r->len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    r->saved = mmap(NULL, r->len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (r->patched == MAP_FAILED || r->saved == MAP_FAILED) {
+        if (r->patched != MAP_FAILED) munmap(r->patched, r->len);
+        if (r->saved != MAP_FAILED) munmap(r->saved, r->len);
+        r->patched = r->saved = NULL;
         return false;
     }
-    flush(lo, len);
+    memcpy(r->patched, (void *)lo, r->len);
+    memcpy(r->saved, (void *)lo, r->len);
     return true;
+}
+
+static void patch(struct range *r, uint32_t *fn, uintptr_t to)
+{
+    if ((uintptr_t)fn >= r->lo && (uintptr_t)fn + 16 <= r->lo + r->len)
+        jump_code((uint32_t *)(r->patched + ((uintptr_t)fn - r->lo)), to);
+}
+
+static bool seal(struct range *r)
+{
+    return !mprotect(r->patched, r->len, PROT_READ | PROT_EXEC) && !mprotect(r->saved, r->len, PROT_READ | PROT_EXEC);
+}
+
+static bool commit(struct range *r)
+{
+    if (mremap(r->patched, r->len, r->len, MREMAP_MAYMOVE | MREMAP_FIXED, (void *)r->lo) == MAP_FAILED) return false;
+    r->patched = NULL;  // now the mapping at lo
+    flush(r->lo, r->len);
+    return true;
+}
+
+static void restore(struct range *r)
+{
+    if (r->saved && mremap(r->saved, r->len, r->len, MREMAP_MAYMOVE | MREMAP_FIXED, (void *)r->lo) != MAP_FAILED) {
+        r->saved = NULL;
+        flush(r->lo, r->len);
+    }
+}
+
+static void release(struct range *r)
+{
+    if (r->patched) munmap(r->patched, r->len);
+    if (r->saved) munmap(r->saved, r->len);
+    r->patched = r->saved = NULL;
+}
+
+static bool redirect_both(uint32_t *fa, uintptr_t ta, uint32_t *fb, uintptr_t tb)
+{
+    size_t page = getauxval(AT_PAGESZ);
+    uintptr_t alo = (uintptr_t)fa & ~(page - 1), ahi = ((uintptr_t)fa + 16 + page - 1) & ~(page - 1);
+    uintptr_t blo = (uintptr_t)fb & ~(page - 1), bhi = ((uintptr_t)fb + 16 + page - 1) & ~(page - 1);
+    struct range r[2] = {{0}};
+    int n = 1;
+    if (alo < bhi && blo < ahi) {  // overlapping pages: one range holds both patches
+        if (!prepare(&r[0], alo < blo ? alo : blo, ahi > bhi ? ahi : bhi)) return false;
+    } else if (!prepare(&r[0], alo, ahi) || !prepare(&r[1], blo, bhi)) {
+        release(&r[0]);
+        release(&r[1]);
+        return false;
+    } else n = 2;
+    for (int i = 0; i < n; i++) {
+        patch(&r[i], fa, ta);
+        patch(&r[i], fb, tb);
+    }
+    bool ok = true;
+    for (int i = 0; i < n && ok; i++) ok = seal(&r[i]);
+    if (ok && !commit(&r[0])) ok = false;
+    else if (ok && n == 2 && !commit(&r[1])) {
+        restore(&r[0]);
+        ok = false;
+    }
+    for (int i = 0; i < n; i++) release(&r[i]);
+    return ok;
 }
 
 static void install(void)
@@ -335,8 +430,12 @@ static void install(void)
     }
     orig_open = (shm_open_fn)trampoline(open_fn);
     orig_unlink = (shm_unlink_fn)trampoline(unlink_fn);
-    if (!orig_open || !orig_unlink || !redirect(unlink_fn, (uintptr_t)hook_unlink) ||
-        !redirect(open_fn, (uintptr_t)hook_open)) {
+    if (!orig_open || !orig_unlink ||
+        !redirect_both(unlink_fn, (uintptr_t)hook_unlink, open_fn, (uintptr_t)hook_open)) {
+        drop_trampoline((void *)orig_open);
+        drop_trampoline((void *)orig_unlink);
+        orig_open = NULL;
+        orig_unlink = NULL;
         say("steamshm: could not redirect the library's shared memory; left as it is\n");
         return;
     }

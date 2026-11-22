@@ -20,6 +20,7 @@ typedef struct __posix_spawn_file_actions *posix_spawn_file_actions_t;
 #endif
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define LINKER "/system/bin/linker64"
@@ -29,8 +30,14 @@ enum kind { PASS, VIA_LINKER, VIA_INTERP };
 // What starting `path` needs; for scripts, the interpreter and its optional argument.
 static enum kind classify(const char *path, char *resolved, char *interp, char *iarg) {
     if (!path || !realpath(path, resolved) || strncmp(resolved, "/data/", 6) != 0) return PASS;
-    int fd = open(resolved, O_RDONLY | O_CLOEXEC);
+    // non-blocking, so a FIFO without a writer cannot hang the start; anything but a regular file goes to libc
+    int fd = open(resolved, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
     if (fd < 0) return PASS;
+    struct stat st;
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+        close(fd);
+        return PASS;
+    }
     enum kind k = PASS;
     unsigned char head[256];
     ssize_t n = pread(fd, head, sizeof head, 0);
@@ -81,7 +88,8 @@ static char **rewrite(const char *path, char *const argv[], const char **file, c
     enum kind k = classify(path, resolved, interp, iarg);
     if (k == PASS) return NULL;
     int argc = argc_of(argv);
-    char **out = calloc((size_t)argc + 4, sizeof *out);
+    // up to four leading entries, argc - 1 trailing ones and the terminator (argc may be 0)
+    char **out = calloc((size_t)(argc > 0 ? argc - 1 : 0) + 5, sizeof *out);
     if (!out) return NULL;
     int j = 0;
     if (k == VIA_LINKER) {
@@ -107,11 +115,41 @@ static char **rewrite(const char *path, char *const argv[], const char **file, c
     return out;
 }
 
-static ssize_t (*real_readlink)(const char *, char *, size_t);
+// libc's functions: bound when the library loads (single-threaded), so execve() in a post-fork child finds them bound.
+// A call that comes before that (another library's constructor) binds through an atomic slot: concurrent binders
+// store the same pointer, and readers never see a torn one.
+typedef ssize_t (*readlink_fn)(const char *, char *, size_t);
+typedef char *(*realpath_fn)(const char *, char *);
+typedef int (*execve_fn)(const char *, char *const[], char *const[]);
+typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
+                        char *const[], char *const[]);
+static void *slot_readlink, *slot_realpath, *slot_execve, *slot_spawn, *slot_spawnp;
+
+static void *bound(void **slot, const char *name) {
+    void *p = __atomic_load_n(slot, __ATOMIC_ACQUIRE);
+    if (!p) {
+        p = dlsym(RTLD_NEXT, name);
+        __atomic_store_n(slot, p, __ATOMIC_RELEASE);
+    }
+    return p;
+}
+#define real_readlink ((readlink_fn)bound(&slot_readlink, "readlink"))
+#define real_realpath ((realpath_fn)bound(&slot_realpath, "realpath"))
+#define real_execve ((execve_fn)bound(&slot_execve, "execve"))
+#define real_spawn ((spawn_fn)bound(&slot_spawn, "posix_spawn"))
+#define real_spawnp ((spawn_fn)bound(&slot_spawnp, "posix_spawnp"))
+
+__attribute__((constructor)) static void bind_libc(void) {
+    (void)real_readlink;
+    (void)real_realpath;
+    (void)real_execve;
+    (void)real_spawn;
+    (void)real_spawnp;
+}
 
 // The program linker64 runs, when this process is such a start; 0 otherwise.
 static int linker_program(char *out, size_t n) {
-    if (!real_readlink) real_readlink = (ssize_t (*)(const char *, char *, size_t))dlsym(RTLD_NEXT, "readlink");
+    if (!real_readlink) return 0;
     char link[PATH_MAX];
     ssize_t l = real_readlink("/proc/self/exe", link, sizeof link - 1);
     if (l <= 0) return 0;
@@ -132,32 +170,38 @@ static int linker_program(char *out, size_t n) {
 }
 
 char *realpath(const char *path, char *resolved) {
-    static char *(*real)(const char *, char *);
-    if (!real) real = (char *(*)(const char *, char *))dlsym(RTLD_NEXT, "realpath");
+    if (!real_realpath) {
+        errno = ENOSYS;
+        return NULL;
+    }
     char prog[PATH_MAX];
-    if (path && strcmp(path, "/proc/self/exe") == 0 && linker_program(prog, sizeof prog)) return real(prog, resolved);
-    return real(path, resolved);
+    if (path && strcmp(path, "/proc/self/exe") == 0 && linker_program(prog, sizeof prog)) return real_realpath(prog, resolved);
+    return real_realpath(path, resolved);
 }
 
 ssize_t readlink(const char *path, char *buf, size_t size) {
     char prog[PATH_MAX], full[PATH_MAX];
     if (path && strcmp(path, "/proc/self/exe") == 0 && linker_program(prog, sizeof prog)) {
-        static char *(*real_rp)(const char *, char *);
-        if (!real_rp) real_rp = (char *(*)(const char *, char *))dlsym(RTLD_NEXT, "realpath");
-        if (real_rp(prog, full)) {
+        if (real_realpath && real_realpath(prog, full)) {
             size_t l = strlen(full);
             if (l > size) l = size;
             memcpy(buf, full, l);
             return (ssize_t)l;
         }
     }
-    if (!real_readlink) real_readlink = (ssize_t (*)(const char *, char *, size_t))dlsym(RTLD_NEXT, "readlink");
+    if (!real_readlink) {
+        errno = ENOSYS;
+        return -1;
+    }
     return real_readlink(path, buf, size);
 }
 
 int execve(const char *path, char *const argv[], char *const envp[]) {
-    static int (*real)(const char *, char *const[], char *const[]);
-    if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execve");
+    execve_fn real = real_execve;
+    if (!real) {
+        errno = ENOSYS;
+        return -1;
+    }
     char storage[6 * PATH_MAX];  // stack only: this may run in posix_spawn's vfork-like child (where it passes)
     const char *file = path;
     char **args = rewrite(path, argv, &file, storage);
@@ -170,14 +214,13 @@ int execve(const char *path, char *const argv[], char *const envp[]) {
 
 int posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *actions,
                 const posix_spawnattr_t *attr, char *const argv[], char *const envp[]) {
-    static int (*real)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
-                       char *const[], char *const[]);
-    if (!real)
-        real = (int (*)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
-                        char *const[], char *const[]))dlsym(RTLD_NEXT, "posix_spawn");
+    spawn_fn real = real_spawn;
+    if (!real) return ENOSYS;
     char storage[6 * PATH_MAX];
     const char *file = path;
-    char **args = rewrite(path, argv, &file, storage);
+    // file actions can change the child's directory before it starts: a relative path is resolved there by libc, so
+    // it is left to libc instead of being resolved here against the parent's directory
+    char **args = (actions && path && path[0] != '/') ? NULL : rewrite(path, argv, &file, storage);
     int ret = real(pid, file, actions, attr, args ? args : argv, envp);
     free(args);
     return ret;
@@ -185,11 +228,8 @@ int posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *
 
 int posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *actions,
                  const posix_spawnattr_t *attr, char *const argv[], char *const envp[]) {
-    static int (*real)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
-                       char *const[], char *const[]);
-    if (strchr(file, '/')) return posix_spawn(pid, file, actions, attr, argv, envp);
-    if (!real)
-        real = (int (*)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
-                        char *const[], char *const[]))dlsym(RTLD_NEXT, "posix_spawnp");
+    if (file && strchr(file, '/')) return posix_spawn(pid, file, actions, attr, argv, envp);
+    spawn_fn real = real_spawnp;
+    if (!real) return ENOSYS;
     return real(pid, file, actions, attr, argv, envp);
 }

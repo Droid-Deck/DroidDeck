@@ -37,15 +37,18 @@ def elf_files(pack):
 
 
 def needed(readelf, path):
-    out = subprocess.run([readelf, "-d", path], capture_output=True, text=True).stdout
-    return [l.split("[", 1)[1].split("]", 1)[0] for l in out.splitlines() if "(NEEDED)" in l]
+    run = subprocess.run([readelf, "-d", path], capture_output=True, text=True)
+    if run.returncode != 0:  # a damaged ELF must fail the check, not pass with no dependencies
+        raise SystemExit("check-needed: %s -d %s failed (%d): %s" % (readelf, path, run.returncode, run.stderr.strip()))
+    return [l.split("[", 1)[1].split("]", 1)[0] for l in run.stdout.splitlines() if "(NEEDED)" in l]
 
 
 def names_in(*dirs):
     names = set()
     for d in dirs:
-        for _, _, files in os.walk(d):
-            names.update(files)
+        for root, _, files in os.walk(d):
+            # a link whose target is missing provides nothing
+            names.update(f for f in files if os.path.isfile(os.path.join(root, f)))
     return names
 
 
