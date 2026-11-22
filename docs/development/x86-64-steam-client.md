@@ -131,6 +131,18 @@ The client's web helper draws its whole UI. There are two:
   blank. `LinuxRuntime` binds an empty folder over `/sys/bus/pci/devices` on such devices; device:
   0 GPU process exits, ANGLE on zink and Turnip.
 
+FEX ships per-program AppConfigs, and `/usr/local/share/fex-emu/AppConfig/steamwebhelper.json` turns
+the GL thunk off for every program named `steamwebhelper`. A program's AppConfig is read after
+`FEX_THUNKCONFIG`, so the x86 helper got the rootfs's x86 Mesa while the client next to it had the
+thunk. Steam's browser compositor creates its output window through SDL3 and GLX in the helper's
+browser process, and x86 Mesa's `driCreateNewScreen3` (kisak libgallium 26.1.6) faulted there
+(SIGSEGV, exit 139) about 11 s after every start; the client restarted it each time (device: 57
+restarts in 11 minutes). `x64_env` therefore writes, for every global AppConfig that turns off a
+thunk the session uses, a local AppConfig (`$X64_HOME/.config/fex-emu/AppConfig/<name>.json`, read
+after the global one) with the session's thunk set. It never touches a local file with other content,
+so a user's own AppConfig wins, and removes its own files when the client runs in software. Device:
+helper up for over 10 minutes with no restart, ANGLE on zink and Turnip through the thunk.
+
 The session shim (`preload/net.c`) turns `steamrt64/steamwebhelper.sh`'s exec of `./steamwebhelper`
 into `DD_X64_ARM_WEBHELPER`. Nothing in the client's folder is edited: the client checksums its files
 as it starts and reinstalled itself over an edited launcher (2-3 minutes) on every start.
@@ -197,13 +209,25 @@ alone would then read as an installed client.
     restarted from the top forever (found with `perf_event_open` IP sampling, since proot holds
     ptrace). Such a range is now skipped whole and a second exhausted scan returns `-ENOMEM`, as the
     kernel does (`fex-2610-r3`).
+  - `0006-smc-alias-of-code-created-after-translation`: a JIT with a double-mapped memfd (CoreCLR's
+    W^X allocator) maps its writable alias after the executable alias was translated. Under
+    `SMCChecks=mtrack` the new alias was not write-protected, so writes through it never faulted and
+    never invalidated the translated code; x86-64 .NET programs ran stale code (access violations,
+    NullReferenceException, internal CLR errors). A writable mapping or mprotect now write-protects the
+    overlapping part of any alias that is already executable, so the first write faults and invalidates.
+    `FEX_SMCCHECKS=full` was the only workaround; no setting is needed with the patch.
+  - `0007-cmake-install-code-without-depends`: CMake 4.5 rejects the `DEPENDS` argument FEX passes to
+    `install(CODE ...)` for the guest thunk libraries, so builds with host thunks stopped at configure.
+    The guest libraries are external projects in the default build, which `install` already follows.
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,
   checks the digest GitHub stored, and records the build's version, sha256 and size in its `fex.json`
   (in that order: a device that reads the old `fex.json` meanwhile gets a mismatching archive and keeps
   its FEX). This repository's `build-fex.yml` only builds `tools/fex` when it changes (and on dispatch,
-  for diagnostic builds such as `-DDEBUG_STRACE`); nothing is published from it.
+  for diagnostic builds such as `-DDEBUG_STRACE`); nothing is published from it. It builds FEX's latest
+  release, point releases (`FEX-2611.1`) included; `build-in-arch.sh` takes the tag from `FEX_VERSION`
+  and compares only its four-digit release against a patch's `Fixed-upstream`.
 - Releases so far: `fex-2609-r2` (no thunks), `fex-2609-r3` (thunks), `fex-2610-r1`, `fex-2610-r2`,
   `fex-2610-r3`, `fex-2610-r4` (in-root resolution when openat2 is missing, exact MAP_32BIT
   marking), `fex-2610-r5` (current: bundles libxxhash, which the Linux runtime does not ship; the

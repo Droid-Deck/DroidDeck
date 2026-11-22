@@ -44,6 +44,8 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Launcher orientation | Settings › Launcher (`droiddeck://settings/launcher`) | rotate, portrait |
 | Session orientation | Settings › Launcher (`droiddeck://settings/launcher`) | rotate, portrait |
 | Fullscreen | Settings › Launcher (`droiddeck://settings/launcher`) |  |
+| Swipe between pages | Settings › Launcher (`droiddeck://settings/launcher`) | gesture |
+| Controller haptics | Settings › Launcher (`droiddeck://settings/launcher`) | vibration, rumble |
 | Dual screen launcher | Settings › Launcher (`droiddeck://settings/launcher`) | thor, second screen, bottom screen |
 | Warn when storage is low | Settings › Launcher (`droiddeck://settings/launcher`) |  |
 | SteamGridDB API key | Settings › Launcher (`droiddeck://settings/launcher`) | artwork, steamgriddb |

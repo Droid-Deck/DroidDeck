@@ -293,6 +293,12 @@ configuration falls back to the inherited environment without evaluating its
 contents. Both component and environment selection normalize signed non-Steam
 prefix IDs to unsigned IDs.
 
+A Dragon's Dogma 2 launch (Steam app 2054970) appends the game's own
+`/WineDetectionEnabled:False` switch: the game checks for Wine and its Wine path
+does not start. The switch is added only at launch, never to Steam's stored
+Launch Options, and a user's own `/WineDetectionEnabled:` value in Launch
+Options keeps priority and is not repeated.
+
 The published file also carries generated `dxvkConfig` and `dxvkConfigGames`
 values the app's own file never has. The session menu's texture filtering
 (`core/TextureFiltering`) becomes `d3d9/d3d11.samplerAnisotropy` and

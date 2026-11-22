@@ -305,7 +305,7 @@ class SecondScreenPresentation(
                     (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap,
                     picker = picker?.let { pick -> { pick(SecondScreenMode.DESKTOP) } }), weightParams())
             }
-            SecondScreenMode.NONE -> Unit
+            SecondScreenMode.NONE, SecondScreenMode.MENU -> Unit
         }
     }
 

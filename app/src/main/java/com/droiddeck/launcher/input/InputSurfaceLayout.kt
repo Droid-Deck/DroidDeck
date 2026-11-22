@@ -3,6 +3,8 @@ package com.droiddeck.launcher.input
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.max
+import kotlin.math.min
 
 enum class InputElementKind(val control: InputControl) {
     BUTTON(InputControl.A), STICK(InputControl.LS), TRACKPAD(InputControl.LEFT_PAD),
@@ -61,6 +63,27 @@ internal fun List<InputSurfaceElement>.scaled(factor: Float): List<InputSurfaceE
     val ay = anchor(cy)
     e.copy(x = (ax + (cx - ax) * factor - w / 2).coerceIn(0f, 1f - w), y = (ay + (cy - ay) * factor - h / 2).coerceIn(0f, 1f - h),
         width = w, height = h).bounded()
+}
+
+
+internal val DPAD = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
+internal val InputSurfaceElement.dpadPiece get() = id == "legacy:${control.id}" && control in DPAD
+
+internal fun List<InputSurfaceElement>.groupOf(e: InputSurfaceElement) = if (e.dpadPiece) filter { it.dpadPiece } else listOf(e)
+
+internal fun List<InputSurfaceElement>.frame(): InputSurfaceElement {
+    val left = minOf { it.x }; val top = minOf { it.y }
+    return first().copy(x = left, y = top, width = maxOf { it.x + it.width } - left, height = maxOf { it.y + it.height } - top)
+}
+
+internal fun List<InputSurfaceElement>.resizedAroundCentre(factor: Float): List<InputSurfaceElement> {
+    if (isEmpty()) return this
+    val f = frame()
+    val k = factor.coerceIn(.03f / minOf { min(it.width, it.height) }, 1f / max(f.width, f.height))
+    val w = f.width * k; val h = f.height * k
+    val left = (f.x + f.width / 2 - w / 2).coerceIn(0f, 1f - w)
+    val top = (f.y + f.height / 2 - h / 2).coerceIn(0f, 1f - h)
+    return map { it.copy(x = left + (it.x - f.x) * k, y = top + (it.y - f.y) * k, width = it.width * k, height = it.height * k).bounded() }
 }
 
 internal fun List<InputSurfaceElement>.withPositionsOf(defaults: List<InputSurfaceElement>): List<InputSurfaceElement> {

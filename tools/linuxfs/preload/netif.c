@@ -22,6 +22,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -520,6 +521,13 @@ static void write_table(FILE *out, const char *table, const struct link *link) {
         fprintf(out, "%6s: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n", link->name);
     } else if (strcmp(table, "arp") == 0) {
         fprintf(out, "IP address       HW type     Flags       HW address            Mask     Device\n");
+    } else if (strcmp(table, "tcp") == 0 || strcmp(table, "udp") == 0) {
+        fprintf(out, "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode%s\n",
+                table[0] == 'u' ? " ref pointer drops" : "");
+    } else if (strcmp(table, "tcp6") == 0 || strcmp(table, "udp6") == 0) {
+        fprintf(out, "  sl  local_address                         remote_address                        "
+                     "st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode%s\n",
+                table[0] == 'u' ? " ref pointer drops" : "");
     } else {
         fprintf(out, "1\n");
     }
@@ -527,7 +535,10 @@ static void write_table(FILE *out, const char *table, const struct link *link) {
 
 #define CARRIER_TABLE 5
 
-static const char *const net_tables[] = { "route", "ipv6_route", "if_inet6", "dev", "arp", "carrier" };
+#define SOCKET_TABLES 6
+
+static const char *const net_tables[] = { "route", "ipv6_route", "if_inet6", "dev", "arp", "carrier",
+                                          "tcp", "tcp6", "udp", "udp6" };
 static long long net_denied_at[sizeof(net_tables) / sizeof(net_tables[0])];
 
 #define CARRIER_SLOTS 8
@@ -564,8 +575,8 @@ static void remember_denial(int table, const char *path) {
 
 static int denied_table(const char *path) {
     if (strncmp(path, "/proc/net/", 10) == 0) {
-        for (int i = 0; i < CARRIER_TABLE; i++) {
-            if (strcmp(path + 10, net_tables[i]) == 0) return i;
+        for (int i = 0; i < (int) (sizeof(net_tables) / sizeof(net_tables[0])); i++) {
+            if (i != CARRIER_TABLE && strcmp(path + 10, net_tables[i]) == 0) return i;
         }
         return -1;
     }
@@ -576,9 +587,9 @@ static int denied_table(const char *path) {
     return -1;
 }
 
-static FILE *synthesize(const char *table) {
+static FILE *synthesize(int table) {
     struct link link;
-    if (!load_link(&link)) return NULL;
+    if (!load_link(&link) && table < SOCKET_TABLES) return NULL;
     int fd = memfd_create("droiddeck-net", MFD_CLOEXEC);
     if (fd < 0) return NULL;
     FILE *out = fdopen(fd, "w+");
@@ -586,7 +597,7 @@ static FILE *synthesize(const char *table) {
         close(fd);
         return NULL;
     }
-    write_table(out, table, &link);
+    write_table(out, net_tables[table], &link);
     if (fflush(out) != 0) {
         fclose(out);
         return NULL;
@@ -610,16 +621,40 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode, cons
     path = dd_oom_adj_redirect(path, mode && (mode[0] == 'w' || mode[0] == 'a' || strchr(mode, '+')));
     int table = path && mode && mode[0] == 'r' ? denied_table(path) : -1;
     FILE *f;
-    if (table >= 0 && denied_recently(table, path) && (f = synthesize(net_tables[table])) != NULL) return f;
+    if (table >= 0 && denied_recently(table, path) && (f = synthesize(table)) != NULL) return f;
     f = real(path, mode);
     if (f || table < 0) return f;
     int saved = errno;
-    if ((f = synthesize(net_tables[table])) != NULL) {
+    if ((f = synthesize(table)) != NULL) {
         if (saved == EACCES) remember_denial(table, path);
         return f;
     }
     errno = saved;
     return NULL;
+}
+
+int dd_net_open(const char *path, int flags, int fd) __attribute__((visibility("hidden")));
+
+int dd_net_open(const char *path, int flags, int fd) {
+    if (fd >= 0 || path == NULL || (flags & O_ACCMODE) != O_RDONLY || (flags & O_DIRECTORY)) return fd;
+    int table = denied_table(path);
+    if (table < 0) return fd;
+    int saved = errno;
+    FILE *f = synthesize(table);
+    if (f == NULL) {
+        errno = saved;
+        return fd;
+    }
+    char self[32];
+    snprintf(self, sizeof(self), "/proc/self/fd/%d", fileno(f));
+    int copy = open(self, O_RDONLY | (flags & O_CLOEXEC));
+    fclose(f);
+    if (copy < 0) {
+        errno = saved;
+        return fd;
+    }
+    if (saved == EACCES) remember_denial(table, path);
+    return copy;
 }
 
 FILE *fopen(const char *path, const char *mode) {
@@ -664,6 +699,7 @@ struct nl_socket {
     unsigned references;
     int type;
     int cap_ack;
+    uint64_t groups;
     struct nl_socket *next;
 };
 
@@ -685,13 +721,14 @@ struct nl_fd_page {
 
 struct nl_metadata {
     uint64_t nonce;
+    uint64_t groups;
     uint32_t port;
     uint32_t type;
     uint32_t cap_ack;
     char magic[12];
 };
 
-_Static_assert(sizeof(struct nl_metadata) == 32, "netlink socket metadata ABI");
+_Static_assert(sizeof(struct nl_metadata) == 40, "netlink socket metadata ABI");
 
 struct nl_packet {
     struct nl_packet *next;
@@ -705,9 +742,9 @@ struct nl_reply {
     int overflow;
 };
 
-static const char nl_client_magic[12] = "dd-nl-c-v1";
-static const char nl_peer_magic[12] = "dd-nl-p-v1";
-static const char nl_reservation_magic[12] = "dd-nl-r-v1";
+static const char nl_client_magic[12] = "dd-nl-c-v2";
+static const char nl_peer_magic[12] = "dd-nl-p-v2";
+static const char nl_reservation_magic[12] = "dd-nl-r-v2";
 static struct nl_socket *nl_sockets;
 static struct nl_fd *nl_fds;
 static struct nl_fd_page *nl_fd_pages[NL_FD_BUCKETS];
@@ -910,13 +947,13 @@ static int nl_save_packets(int fd, struct nl_packet **packets) {
     }
 }
 
-static int nl_replace_peer(int fd, struct nl_socket *socket, unsigned port, int capped) {
+static int nl_replace_peer(int fd, struct nl_socket *socket, unsigned port, int capped, uint64_t groups) {
     static int (*real_socket)(int, int, int);
     static int (*real_close)(int);
     if (real_socket == NULL) real_socket = (int (*)(int, int, int)) dlsym(RTLD_NEXT, "socket");
     if (real_close == NULL) real_close = (int (*)(int)) dlsym(RTLD_NEXT, "close");
     struct sockaddr_un client_addr, peer_addr;
-    struct nl_metadata client, peer = { .port = port, .type = socket->type, .cap_ack = capped };
+    struct nl_metadata client, peer = { .groups = groups, .port = port, .type = socket->type, .cap_ack = capped };
     if (!nl_address(fd, 0, &client_addr, &client, nl_client_magic)) {
         errno = EINVAL;
         return -1;
@@ -955,6 +992,7 @@ static int nl_replace_peer(int fd, struct nl_socket *socket, unsigned port, int 
     socket->peer_inode = status.st_ino;
     socket->port = port;
     socket->cap_ack = capped;
+    socket->groups = groups;
     errno = saved;
     return replayed;
 failed: {
@@ -1025,7 +1063,7 @@ static struct nl_fd *nl_restore(int fd) {
         socket->device = status.st_dev;
         socket->inode = status.st_ino;
         socket->type = peer.type;
-        if (nl_replace_peer(fd, socket, peer.port, peer.cap_ack) != 0) {
+        if (nl_replace_peer(fd, socket, peer.port, peer.cap_ack, peer.groups) != 0) {
             free(socket);
             free(entry);
             return NULL;
@@ -1159,7 +1197,7 @@ static int nl_peer_of(int fd) {
         if (nl_address(fd, 1, &addr, &metadata, nl_peer_magic)) {
             if ((metadata.nonce == socket->peer_inode
                     && nl_identity(socket->peer, socket->device, socket->peer_inode))
-                    || nl_replace_peer(fd, socket, metadata.port, metadata.cap_ack) == 0) {
+                    || nl_replace_peer(fd, socket, metadata.port, metadata.cap_ack, metadata.groups) == 0) {
                 if (socket->port != 0 && (socket->reservation < 0
                         || !nl_identity(socket->reservation, socket->device, socket->reservation_inode)))
                     nl_reserve_port(socket, socket->port);
@@ -1317,7 +1355,7 @@ static int nl_bind_port(int fd, unsigned requested, int automatic) {
                 }
                 if (other == NULL) {
                     if (nl_reserve_port(socket, port) == 0) {
-                        result = nl_replace_peer(fd, socket, port, socket->cap_ack);
+                        result = nl_replace_peer(fd, socket, port, socket->cap_ack, socket->groups);
                         if (result != 0) nl_close_reservation(socket);
                         break;
                     }
@@ -1342,6 +1380,23 @@ static int nl_autobind(int fd) {
     return nl_bind_port(fd, 0, 1);
 }
 
+static int nl_set_groups(int fd, uint64_t keep, uint64_t add) {
+    int result = 0;
+    pthread_mutex_lock(&nl_sockets_lock);
+    struct nl_fd *entry = nl_find(fd);
+    if (entry) {
+        struct nl_socket *socket = entry->socket;
+        struct sockaddr_un addr;
+        struct nl_metadata metadata;
+        uint64_t current = nl_address(fd, 1, &addr, &metadata, nl_peer_magic) ? metadata.groups : socket->groups;
+        uint64_t groups = (current & keep) | add;
+        if (groups != current || groups != socket->groups)
+            result = nl_replace_peer(fd, socket, socket->port, socket->cap_ack, groups);
+    }
+    pthread_mutex_unlock(&nl_sockets_lock);
+    return result;
+}
+
 int dd_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
     const struct sockaddr_nl *nl;
     if (addr && len >= sizeof(sa_family_t) && addr->sa_family == AF_NETLINK) nl_discover(fd);
@@ -1352,13 +1407,37 @@ int dd_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
         return 1;
     }
     nl = (const struct sockaddr_nl *) addr;
-    if (nl->nl_groups != 0) {
-        errno = EACCES;
-        *rc = -1;
-        return 1;
-    }
     *rc = nl_bind_port(fd, nl->nl_pid, 0);
+    if (*rc == 0) *rc = nl_set_groups(fd, ~(uint64_t) UINT32_MAX, nl->nl_groups);
     return 1;
+}
+
+static unsigned nl_groups_of(int fd) {
+    struct sockaddr_un addr;
+    struct nl_metadata metadata;
+    if (nl_address(fd, 1, &addr, &metadata, nl_peer_magic)) return (unsigned) metadata.groups;
+    unsigned groups = 0;
+    pthread_mutex_lock(&nl_sockets_lock);
+    struct nl_fd *entry = nl_find(fd);
+    if (entry) groups = (unsigned) entry->socket->groups;
+    pthread_mutex_unlock(&nl_sockets_lock);
+    return groups;
+}
+
+static int nl_membership(int fd, int option, const void *value, socklen_t len) {
+    unsigned group;
+    if (value == NULL || len < sizeof(group)) {
+        errno = value == NULL ? EFAULT : EINVAL;
+        return -1;
+    }
+    memcpy(&group, value, sizeof(group));
+    if (group == 0 || group > RTNLGRP_MAX) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (group > 64) return 0;
+    uint64_t bit = (uint64_t) 1 << (group - 1);
+    return nl_set_groups(fd, ~bit, option == NETLINK_ADD_MEMBERSHIP ? bit : 0);
 }
 
 int dd_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
@@ -1373,6 +1452,7 @@ int dd_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
     memset(&nl, 0, sizeof(nl));
     nl.nl_family = AF_NETLINK;
     nl.nl_pid = nl_port_of(fd);
+    nl.nl_groups = nl_groups_of(fd);
     size = *len < sizeof(nl) ? *len : (socklen_t) sizeof(nl);
     memcpy(addr, &nl, size);
     *len = sizeof(nl);
@@ -1517,9 +1597,10 @@ int dd_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t
             *rc = real(peer, level, option, value, len);
         return 1;
     }
-    if (option != NETLINK_CAP_ACK && option != NETLINK_EXT_ACK) {
-        errno = option == NETLINK_ADD_MEMBERSHIP || option == NETLINK_DROP_MEMBERSHIP
-                ? EACCES : ENOPROTOOPT;
+    if (option == NETLINK_ADD_MEMBERSHIP || option == NETLINK_DROP_MEMBERSHIP) {
+        *rc = nl_membership(fd, option, value, len);
+    } else if (option != NETLINK_CAP_ACK && option != NETLINK_EXT_ACK) {
+        errno = ENOPROTOOPT;
         *rc = -1;
     } else if (value == NULL || len < sizeof(int)) {
         errno = value == NULL ? EFAULT : EINVAL;
@@ -1530,7 +1611,7 @@ int dd_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t
             memcpy(&enabled, value, sizeof(enabled));
             pthread_mutex_lock(&nl_sockets_lock);
             struct nl_fd *entry = nl_find(fd);
-            if (entry && nl_replace_peer(fd, entry->socket, entry->socket->port, enabled != 0) != 0) {
+            if (entry && nl_replace_peer(fd, entry->socket, entry->socket->port, enabled != 0, entry->socket->groups) != 0) {
                 pthread_mutex_unlock(&nl_sockets_lock);
                 *rc = -1;
                 return 1;
