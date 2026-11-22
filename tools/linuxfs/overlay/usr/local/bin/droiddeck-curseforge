@@ -56,7 +56,7 @@ started_at() {
 
 tracked() {
   local pid at launched
-  read -r pid at launched < "$state/pid" 2>/dev/null || return 1
+  read -r pid at launched 2>/dev/null < "$state/pid" || return 1
   case $pid in ''|*[!0-9]*) return 1 ;; esac
   kill -0 "$pid" 2>/dev/null && [ "$(started_at "$pid")" = "$at" ] || return 1
   printf '%s %s\n' "$pid" "$launched"

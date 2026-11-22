@@ -159,6 +159,11 @@ class CurseForgeHelperTest(unittest.TestCase):
                              capture_output=True, text=True, timeout=60)
         self.assertEqual(0, out.returncode, out.stderr)
 
+    def test_stop_without_a_launch_is_quiet(self):
+        out = self.run_helper("stop", str(self.dir))
+        self.assertEqual(0, out.returncode)
+        self.assertEqual("", out.stderr)
+
     def test_bad_arguments_are_refused(self):
         self.assertEqual(2, self.run_helper("start", str(self.tmp / "missing")).returncode)
         self.assertEqual(2, self.run_helper("launch", str(self.dir)).returncode)
