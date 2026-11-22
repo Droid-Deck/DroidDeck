@@ -1035,6 +1035,8 @@
     <string name="setup_fullscreen">Fullscreen</string>
     <string name="setup_fullscreen_on">Hides the Android status and navigation bars</string>
     <string name="setup_fullscreen_off">Shows the Android status and navigation bars</string>
+    <string name="setup_page_swipe">Swipe between pages</string>
+    <string name="setup_page_swipe_hint">Swipe across a page to change tabs.</string>
     <string name="setup_controller_haptics">Controller haptics</string>
     <string name="setup_controller_haptics_hint">A light tick when the D-pad, A or the shoulder buttons move or select in the launcher. Touch stays silent</string>
     <string name="setup_dual_screen_launcher">Dual screen launcher</string>

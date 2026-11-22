@@ -955,6 +955,8 @@
     <string name="setup_fullscreen">全螢幕</string>
     <string name="setup_fullscreen_on">隱藏 Android 狀態列和導覽列</string>
     <string name="setup_fullscreen_off">顯示 Android 狀態列和導覽列</string>
+    <string name="setup_page_swipe">滑動切換頁面</string>
+    <string name="setup_page_swipe_hint">在頁面上滑動即可切換分頁。</string>
     <string name="setup_dual_screen_launcher">雙螢幕啟動器</string>
     <string name="setup_dual_screen_launcher_hint">自動：在內建第二螢幕的掌機上，將啟動器區塊（Steam、收藏庫、商店等）放到第二螢幕。開啟：使用任一第二螢幕。關閉：啟動器維持在單一螢幕。</string>
     <string name="setup_dual_screen_sessions">雙螢幕工作階段</string>

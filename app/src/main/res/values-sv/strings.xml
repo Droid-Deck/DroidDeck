@@ -959,6 +959,8 @@
     <string name="setup_fullscreen">Helskärm</string>
     <string name="setup_fullscreen_on">Döljer Androids statusfält och navigeringsfält</string>
     <string name="setup_fullscreen_off">Visar Androids statusfält och navigeringsfält</string>
+    <string name="setup_page_swipe">Svep mellan sidor</string>
+    <string name="setup_page_swipe_hint">Svep över en sida för att byta flik.</string>
     <string name="setup_dual_screen_launcher">Startprogram för två skärmar</string>
     <string name="setup_dual_screen_launcher_hint">Automatiskt: placerar startprogrammets avsnitt (Steam, Bibliotek, Butiker med flera) på den inbyggda andra skärmen på handhållna enheter som har en. På: använder vilken andra bildskärm som helst. Av: behåller startprogrammet på en skärm.</string>
     <string name="setup_dual_screen_sessions">Sessioner med två skärmar</string>

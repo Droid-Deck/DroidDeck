@@ -965,6 +965,8 @@
     <string name="setup_fullscreen">Повний екран</string>
     <string name="setup_fullscreen_on">Приховує рядок стану та панель навігації Android</string>
     <string name="setup_fullscreen_off">Показує рядок стану та панель навігації Android</string>
+    <string name="setup_page_swipe">Гортання сторінок свайпом</string>
+    <string name="setup_page_swipe_hint">Проведіть по сторінці, щоб змінити вкладку.</string>
     <string name="setup_dual_screen_launcher">Лаунчер для двох екранів</string>
     <string name="setup_dual_screen_launcher_hint">Автоматичний режим розміщує розділи лаунчера (Steam, Бібліотека, Магазини тощо) на вбудованому другому екрані портативних пристроїв. У режимі «Увімкнено» використовується будь-який другий дисплей. У режимі «Вимкнено» лаунчер залишається на одному екрані.</string>
     <string name="setup_dual_screen_sessions">Сеанси для двох екранів</string>

@@ -956,6 +956,8 @@
     <string name="setup_fullscreen">Skrin penuh</string>
     <string name="setup_fullscreen_on">Menyembunyikan bar status dan navigasi Android</string>
     <string name="setup_fullscreen_off">Memaparkan bar status dan navigasi Android</string>
+    <string name="setup_page_swipe">Leret antara halaman</string>
+    <string name="setup_page_swipe_hint">Leret merentasi halaman untuk menukar tab.</string>
     <string name="setup_dual_screen_launcher">Pelancar dwi skrin</string>
     <string name="setup_dual_screen_launcher_hint">Automatik meletakkan bahagian pelancar (Steam, Pustaka, Kedai dan selebihnya) pada skrin kedua terbina dalam peranti genggam. Hidup menggunakan sebarang paparan kedua. Mati mengekalkan pelancar pada satu skrin.</string>
     <string name="setup_dual_screen_sessions">Sesi dwi skrin</string>

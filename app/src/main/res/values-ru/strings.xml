@@ -965,6 +965,8 @@
     <string name="setup_fullscreen">Полноэкранный режим</string>
     <string name="setup_fullscreen_on">Скрывает строку состояния и панель навигации Android</string>
     <string name="setup_fullscreen_off">Показывает строку состояния и панель навигации Android</string>
+    <string name="setup_page_swipe">Перелистывание страниц свайпом</string>
+    <string name="setup_page_swipe_hint">Проведите по странице, чтобы сменить вкладку.</string>
     <string name="setup_dual_screen_launcher">Лаунчер на двух экранах</string>
     <string name="setup_dual_screen_launcher_hint">«Автоматически» переносит разделы лаунчера (Steam, Библиотека, Магазины и остальные) на второй экран портативных устройств со встроенным вторым экраном. «Вкл.» использует любой второй дисплей. «Выкл.» оставляет лаунчер на одном экране.</string>
     <string name="setup_dual_screen_sessions">Сессии на двух экранах</string>
