@@ -105,7 +105,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     fun status(addon: WowAddonCatalog.Addon): AddonStatus {
         if (addon.id !in present) return AddonStatus.INSTALL
         val have = present[addon.id]
-        val latest = installed[addon.id]?.takeIf { it.first == addon.summary }?.second ?: addon.summary
+        val latest = installed[installKey(addon, target)]?.takeIf { it.first == addon.summary }?.second ?: addon.summary
         return if (have == null || latest.isBlank() || WowAddonCatalog.sameVersion(have, latest)) AddonStatus.INSTALLED else AddonStatus.UPDATE
     }
     fun load(page: Int) {
@@ -145,7 +145,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         scope.launch {
             val message = withContext(Dispatchers.IO) { installAddon(context, addon, into) { pct -> scope.launch { if (key in installing) installing[key] = pct } } }
             installing.remove(key)
-            message.second?.let { installed[addon.id] = addon.summary to it }
+            message.second?.let { installed[key] = addon.summary to it }
             Toast.makeText(context, message.first, Toast.LENGTH_LONG).show()
         }
     }
