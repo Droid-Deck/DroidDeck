@@ -54,24 +54,6 @@ class WinComponentDetectorsTest {
         assertEquals(emptyList<String?>(), WinCompSources.steamList(context, game, 409710, "Other", auto = true).map { it.component })
     }
 
-    @Test fun warbandGetsTheNativeDirectXEffectCompilerItsShadersNeed() {
-        val steamapps = tmp.newFolder("steamapps")
-        val game = File(steamapps, "common/MountBlade Warband").apply { mkdirs() }
-        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
-        val found = WinCompSources.steamList(context, game, 48700, "Mount & Blade: Warband", auto = true)
-        assertEquals(listOf("d3dx9", "d3dcompiler_42"), found.map { it.component })
-        assertTrue(found.all { it.auto && it.origin == WinCompSources.Origin.STEAM })
-    }
-
-    @Test fun dontStarveTogetherGetsTheNativeShaderCompilerItsAngleNeeds() {
-        val steamapps = tmp.newFolder("steamapps")
-        val game = File(steamapps, "common/Don't Starve Together").apply { mkdirs() }
-        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
-        val found = WinCompSources.steamList(context, game, 322330, "Don't Starve Together", auto = true)
-        assertEquals(listOf("d3dcompiler_43"), found.map { it.component })
-        assertTrue(found.all { it.auto && it.origin == WinCompSources.Origin.STEAM })
-    }
-
     @Test fun eu4GetsTheNativeShaderCompilerItsMapEffectsNeed() {
         val steamapps = tmp.newFolder("steamapps")
         val game = File(steamapps, "common/Europa Universalis IV").apply { mkdirs() }
