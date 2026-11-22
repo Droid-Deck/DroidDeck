@@ -1227,39 +1227,69 @@ def wmi_value(text):
 CPUID_LEAVES = (0, 1, 0x80000002, 0x80000003, 0x80000004)
 
 
-def cpuid_exe():
-    """A 32-bit console program that writes the raw CPUID leaves an x86 game sees under the emulator."""
+def cpuid_exe(wide=False):
+    """A console program that writes the raw CPUID leaves an x86 game sees under the emulator: 32-bit, or 64-bit when wide."""
     import struct
-    base, rva = 0x400000, 0x1000
-    buf, written = base + rva + 0x180, base + rva + 0x1D0
-    iat = base + rva + 0x138
-    code = b"\x53\x57\xbf" + struct.pack("<I", buf)
+    rva = 0x1000
+    if wide:
+        base, thunk, optional, names, dll, buf, written = 0x140000000, 8, 0xF0, (0x168, 0x178, 0x184), 0x192, 0x1A0, 0x1F0
+    else:
+        base, thunk, optional, names, dll, buf, written = 0x400000, 4, 0xE0, (0x148, 0x158, 0x164), 0x172, 0x180, 0x1D0
+    ilt, iat = 0x128, 0x128 + 4 * thunk
+    code = bytearray()
+
+    def rip(op, target):
+        code.extend(op + struct.pack("<i", target - len(code) - len(op) - 4))
+
+    if wide:
+        code += b"\x53\x57\x48\x83\xec\x38"
+        rip(b"\x48\x8d\x3d", buf)
+    else:
+        code += b"\x53\x57\xbf" + struct.pack("<I", base + rva + buf)
     for leaf in CPUID_LEAVES:
-        code += b"\xb8" + struct.pack("<I", leaf) + b"\x31\xc9\x0f\xa2\x89\x07\x89\x5f\x04\x89\x4f\x08\x89\x57\x0c\x83\xc7\x10"
-    code += b"\x6a\xf5\xff\x15" + struct.pack("<I", iat)
-    code += b"\x6a\x00\x68" + struct.pack("<I", written) + b"\x6a\x50\x68" + struct.pack("<I", buf) + b"\x50\xff\x15" + struct.pack("<I", iat + 4)
-    code += b"\x6a\x00\xff\x15" + struct.pack("<I", iat + 8)
+        code += b"\xb8" + struct.pack("<I", leaf) + b"\x31\xc9\x0f\xa2\x89\x07\x89\x5f\x04\x89\x4f\x08\x89\x57\x0c"
+        code += b"\x48\x83\xc7\x10" if wide else b"\x83\xc7\x10"
+    if wide:
+        code += b"\xb9\xf5\xff\xff\xff"
+        rip(b"\xff\x15", iat)
+        code += b"\x48\x89\xc1"
+        rip(b"\x48\x8d\x15", buf)
+        code += b"\x41\xb8\x50\x00\x00\x00"
+        rip(b"\x4c\x8d\x0d", written)
+        code += b"\x48\xc7\x44\x24\x20\x00\x00\x00\x00"
+        rip(b"\xff\x15", iat + 8)
+        code += b"\x31\xc9"
+        rip(b"\xff\x15", iat + 16)
+    else:
+        at = base + rva
+        code += b"\x6a\xf5\xff\x15" + struct.pack("<I", at + iat)
+        code += b"\x6a\x00\x68" + struct.pack("<I", at + written) + b"\x6a\x50\x68" + struct.pack("<I", at + buf)
+        code += b"\x50\xff\x15" + struct.pack("<I", at + iat + 4) + b"\x6a\x00\xff\x15" + struct.pack("<I", at + iat + 8)
     section = bytearray(0x200)
     section[:len(code)] = code
-    names = [(0x148, b"GetStdHandle"), (0x158, b"WriteFile"), (0x164, b"ExitProcess")]
-    struct.pack_into("<IIIII", section, 0x100, rva + 0x128, 0, 0, rva + 0x172, rva + 0x138)
-    for i, (at, name) in enumerate(names):
-        struct.pack_into("<I", section, 0x128 + 4 * i, rva + at)
-        struct.pack_into("<I", section, 0x138 + 4 * i, rva + at)
+    struct.pack_into("<IIIII", section, 0x100, rva + ilt, 0, 0, rva + dll, rva + iat)
+    entry = "<Q" if wide else "<I"
+    for i, (at, name) in enumerate(zip(names, (b"GetStdHandle", b"WriteFile", b"ExitProcess"))):
+        struct.pack_into(entry, section, ilt + thunk * i, rva + at)
+        struct.pack_into(entry, section, iat + thunk * i, rva + at)
         section[at + 2:at + 2 + len(name)] = name
-    section[0x172:0x172 + 12] = b"KERNEL32.dll"
+    section[dll:dll + 12] = b"KERNEL32.dll"
     header = bytearray(0x200)
     header[0:2] = b"MZ"
     struct.pack_into("<I", header, 0x3C, 0x40)
     header[0x40:0x44] = b"PE\0\0"
-    struct.pack_into("<HHIIIHH", header, 0x44, 0x14C, 1, 0, 0, 0, 0xE0, 0x0103)
-    opt = struct.pack("<HBBIIIIIIIIIHHHHHHIIIIHHIIIIII", 0x10B, 0, 0, 0x200, 0, 0, rva, rva, rva, base, 0x1000, 0x200,
-                      4, 0, 0, 0, 4, 0, 0, 0x2000, 0x200, 0, 3, 0, 0x100000, 0x1000, 0x100000, 0x1000, 0, 16)
+    struct.pack_into("<HHIIIHH", header, 0x44, 0x8664 if wide else 0x14C, 1, 0, 0, 0, optional, 0x0023 if wide else 0x0103)
+    if wide:
+        opt = struct.pack("<HBBIIIIIQIIHHHHHHIIIIHHQQQQII", 0x20B, 0, 0, 0x200, 0, 0, rva, rva, base, 0x1000, 0x200,
+                          5, 2, 0, 0, 5, 2, 0, 0x2000, 0x200, 0, 3, 0, 0x100000, 0x1000, 0x100000, 0x1000, 0, 16)
+    else:
+        opt = struct.pack("<HBBIIIIIIIIIHHHHHHIIIIHHIIIIII", 0x10B, 0, 0, 0x200, 0, 0, rva, rva, rva, base, 0x1000, 0x200,
+                          4, 0, 0, 0, 4, 0, 0, 0x2000, 0x200, 0, 3, 0, 0x100000, 0x1000, 0x100000, 0x1000, 0, 16)
     dirs = bytearray(128)
     struct.pack_into("<II", dirs, 8, rva + 0x100, 40)
-    struct.pack_into("<II", dirs, 96, rva + 0x138, 16)
-    header[0x58:0x58 + 0xE0] = opt + bytes(dirs)
-    header[0x138:0x138 + 40] = struct.pack("<8sIIIIIIHHI", b".text", 0x1000, rva, 0x200, 0x200, 0, 0, 0, 0, 0xE0000060)
+    struct.pack_into("<II", dirs, 96, rva + iat, 4 * thunk)
+    header[0x58:0x58 + optional] = opt + bytes(dirs)
+    header[0x58 + optional:0x58 + optional + 40] = struct.pack("<8sIIIIIIHHI", b".text", 0x1000, rva, 0x200, 0x200, 0, 0, 0, 0, 0xE0000060)
     return bytes(header) + bytes(section)
 
 
@@ -1315,20 +1345,60 @@ EA_PROBE_FIELDS = ("boardManufacturer", "biosManufacturer", "osInstallDate", "os
                    "cpuVendor", "cpuEax", "cpuEdx", "cpuEcx")
 
 
+EA_CPU64 = "cpu64"
+EA_RUNTIME = "runtime"
+EA_RUNTIME_FILES = ("version", "files/lib/wine/aarch64-windows/libarm64ecfex.dll", "files/lib/wine/aarch64-windows/libwow64fex.dll")
+
+
 def probe_complete(values):
     return all(str(values.get(key) or "").strip() for key in EA_PROBE_FIELDS)
+
+
+def runtime_stamp(proton):
+    if not proton or not Path(proton).is_file():
+        return ""
+    root = Path(proton).parent
+    parts = []
+    for name in EA_RUNTIME_FILES:
+        try:
+            parts.append(name + " " + hashlib.sha256((root / name).read_bytes()).hexdigest())
+        except OSError:
+            parts.append(name + " -")
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+def read_cpuid(path):
+    try:
+        return cpuid_values(path.read_bytes())
+    except OSError:
+        return {}
+
+
+def ea_game_hardware(values, folder, sidecar):
+    chosen = {key: value for key, value in values.items() if key not in (EA_CPU64, EA_RUNTIME)}
+    wide = values.get(EA_CPU64)
+    exe = find_case(folder, str(sidecar.get("exe") or ""))
+    if isinstance(wide, dict) and exe is not None and exe.is_file():
+        pe = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
+        if pe["pe_machine"](str(exe)) == 0x8664:
+            chosen.update(wide)
+    return chosen
 
 
 def ea_hardware(compat_data, proton, timeout=240):
     pfx = Path(compat_data) / "pfx"
     cache = pfx / EA_HARDWARE
+    runtime = runtime_stamp(proton)
+    stale = {}
     try:
         cached = json.loads(cache.read_text())
         if isinstance(cached, dict) and probe_complete(cached):
-            return cached, "cached"
+            if not runtime or cached.get(EA_RUNTIME) == runtime:
+                return cached, "cached"
+            stale = cached
     except (OSError, ValueError):
         pass
-    if not proton or not Path(proton).is_file():
+    if not runtime:
         return {}, "no-proton"
     values = {}
     with tempfile.TemporaryDirectory(prefix="droiddeck-ea-") as tmp:
@@ -1338,17 +1408,18 @@ def ea_hardware(compat_data, proton, timeout=240):
             lines.append('wmic path %s get %s > "%s"' % (cls, prop, windows_path(str(folder / (key + ".txt")))))
         lines.append('vol C: > "%s"' % windows_path(str(folder / "volume.txt")))
         lines.append('hostname > "%s"' % windows_path(str(folder / "hostname.txt")))
-        (folder / "cpuid.exe").write_bytes(cpuid_exe())
-        lines.append('"%s" > "%s"' % (windows_path(str(folder / "cpuid.exe")), windows_path(str(folder / "cpuid.bin"))))
+        for name, wide in (("cpuid", False), ("cpuid64", True)):
+            (folder / (name + ".exe")).write_bytes(cpuid_exe(wide))
+            lines.append('"%s" > "%s"' % (windows_path(str(folder / (name + ".exe"))), windows_path(str(folder / (name + ".bin")))))
         bat = folder / "probe.bat"
         bat.write_bytes(("\r\n".join(lines) + "\r\n").encode())
         try:
             subprocess.run([proton, "run", "cmd.exe", "/d", "/c", windows_path(str(bat))], stdin=subprocess.DEVNULL,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
         except subprocess.TimeoutExpired:
-            return {}, "timeout"
+            return stale, "timeout"
         except OSError:
-            return {}, "failed"
+            return stale, "failed"
         for key, _, _ in EA_WMI:
             try:
                 values[key] = wmi_value(decode_output((folder / (key + ".txt")).read_bytes()))
@@ -1363,17 +1434,18 @@ def ea_hardware(compat_data, proton, timeout=240):
             values["hostname"] = decode_output((folder / "hostname.txt").read_bytes()).strip().splitlines()[0].strip()
         except (OSError, IndexError):
             values["hostname"] = ""
-        try:
-            values.update(cpuid_values((folder / "cpuid.bin").read_bytes()))
-        except OSError:
-            pass
+        values.update(read_cpuid(folder / "cpuid.bin"))
+        wide = read_cpuid(folder / "cpuid64.bin")
+        if wide:
+            values[EA_CPU64] = wide
     if probe_complete(values):
+        values[EA_RUNTIME] = runtime
         try:
             cache.write_text(json.dumps(values))
         except OSError:
             pass
         return values, "probed"
-    return values, "incomplete"
+    return stale or values, "incomplete"
 
 
 def ea_registry_entries(folder, sidecar):
@@ -1522,7 +1594,8 @@ def prepare_ea(folder, sidecar, compat_data, launch_dir):
     hardware, probe = ea_hardware(compat_data, proton) if ready else ({}, "no-prefix")
     answer = None
     if launch_dir:
-        answer = ask(Path(launch_dir) / "stores", {"op": "ea-prepare", "store": "ea", "id": game, "hardware": hardware}, timeout=40.0)
+        answer = ask(Path(launch_dir) / "stores", {"op": "ea-prepare", "store": "ea", "id": game,
+                                                   "hardware": ea_game_hardware(hardware, folder, sidecar)}, timeout=40.0)
     sidecar = sidecar_at(Path(folder)) or sidecar
     log("ea %s prefix=%s stub=%s hardware=%s registry=%s touchup=%s" % (
         game, made, stub, probe, ea_registry(folder, sidecar, compat_data, proton), ea_touchup(folder, sidecar, compat_data, proton)))
