@@ -348,6 +348,23 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual("INVALID_TARGET", caught.exception.code)
                 connect.assert_not_called()
 
+    def test_a_devtools_endpoint_lost_while_sending_is_reported_as_gone(self):
+        class Lost:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def send(self, text):
+                raise BrokenPipeError("closed")
+
+            def close(self):
+                pass
+
+        with patch.object(agent, "WebSocket", Lost), patch.object(
+                agent, "cdp_targets", return_value=[{"title": "SharedJSContext", "webSocketDebuggerUrl": "ws://127.0.0.1:1/x"}]):
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.cdp_eval(str(self.dir), "1")
+        self.assertEqual("DEVTOOLS_UNREACHABLE", caught.exception.code)
+
     def test_cdp_without_a_port(self):
         os.environ.pop("DD_CDP_PORT", None)
         self.assertEqual("NO_DEVTOOLS", self.ask({"kind": "cdp", "expression": "1"})["error"]["code"])

@@ -46,7 +46,8 @@ object BackgroundSession {
         val settle = System.currentTimeMillis() + 5_000
         while (System.currentTimeMillis() < deadline) {
             val session = SessionState.sessionId
-            if (SessionState.running && session != null && AgentGuest.hello(app) != null) return session
+            if (SessionState.running && session != null && AgentGuest.hello(app) != null &&
+                SessionState.sessionId == session) return session
             if (SessionState.phase == SessionPhase.FAILED) break
             if (!SessionState.running && SessionState.phase in ended && System.currentTimeMillis() > settle) break
             Thread.sleep(250)

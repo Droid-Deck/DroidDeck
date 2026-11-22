@@ -587,10 +587,15 @@ def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15,
     except OSError as e:
         raise AgentError("DEVTOOLS_UNREACHABLE", "Could not reach DevTools: %s" % e)
     try:
-        ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
-            "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
-            "userGesture": True, "includeCommandLineAPI": command_line_api,
-        }}))
+        try:
+            ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
+                "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
+                "userGesture": True, "includeCommandLineAPI": command_line_api,
+            }}))
+        except socket.timeout:
+            raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
+        except OSError as e:
+            raise AgentError("DEVTOOLS_UNREACHABLE", "DevTools went away: %s" % e)
         while True:
             try:
                 message = json.loads(ws.recv())
