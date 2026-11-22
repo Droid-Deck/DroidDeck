@@ -12,7 +12,7 @@ FUNCTIONS = (
     'pending_release_free', 'pending_releases_forget_surface', 'pending_releases_cancel',
     'pending_releases_apply', 'sync_holder', 'pending_releases_rehold', 'on_pending_release_buffer_destroyed',
     'arm_release_timer', 'release_due_buffers', 'release_buffer', 'buffer_shown_elsewhere',
-    'drop_dmabuf',
+    'drop_dmabuf', 'on_pixel_destroyed', 'hold_pixel', 'drop_pixel',
 )
 
 
@@ -82,6 +82,20 @@ class SubsurfaceReleaseTest(unittest.TestCase):
 
     def test_set_desync_releases_what_the_old_parent_held(self):
         self.check_case('set-desync')
+
+    def test_backing_attached_every_frame_is_released_once_when_replaced(self):
+        self.check_case('backing')
+
+    def test_backing_shown_on_two_surfaces_is_released_by_the_last(self):
+        self.check_case('backing-moved')
+
+    def test_compositor_holds_single_pixel_buffers_while_shown(self):
+        self.assertNotIn('send_buffer_release', function_body(self.source, 'take_pixel'))
+        commit = function_body(self.source, 'surface_commit')
+        self.assertLess(commit.index('if (s->pixel != buffer) drop_pixel(s);'), commit.index('if (s->role == ROLE_CURSOR)'))
+        self.assertLess(commit.index('take_pixel(s, pixel);'), commit.index('hold_pixel(s, buffer);'))
+        self.assertIn('drop_pixel(s);', function_body(self.source, 'surface_resource_destroy'))
+        self.assertIn('drop_pixel(s);', function_body(self.source, 'subsurface_resource_destroy'))
 
     def test_compositor_attach_and_commit_use_the_release_hold(self):
         self.assertIn('pending_releases_cancel(buffer);', function_body(self.source, 'take_dmabuf'))

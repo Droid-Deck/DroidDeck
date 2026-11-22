@@ -22,7 +22,7 @@ void wl_list_remove(struct wl_list *elm) {
 int wl_list_empty(const struct wl_list *list) { return list->next == list; }
 
 struct wl_listener { struct wl_list link; void (*notify)(struct wl_listener *, void *); };
-struct wl_resource { struct wl_list listeners; int acquired, releases, errors; };
+struct wl_resource { struct wl_list listeners; int acquired, releases, errors, in_flight; };
 struct dmabuf_buffer { int unused; };
 enum surface_role { ROLE_NONE, ROLE_TOPLEVEL, ROLE_SUBSURFACE };
 struct surface {
@@ -30,6 +30,8 @@ struct surface {
     struct wl_resource *dmabuf;
     struct dmabuf_buffer *dmabuf_buf;
     struct wl_listener dmabuf_destroy;
+    struct wl_resource *pixel;
+    struct wl_listener pixel_destroy;
     int64_t next_release_ns;
     int releases_pending;
     enum surface_role role;
@@ -47,6 +49,7 @@ static int g_release_unpaced;
 static int64_t g_now = 1000000000LL;
 static int64_t g_armed;
 static struct dmabuf_buffer g_buf;
+static int g_late_dispatch;
 
 static int64_t now_ns(void) { return g_now; }
 static void perf_note_release(int64_t since) { (void)since; }
@@ -64,10 +67,16 @@ static int timerfd_settime(int fd, int flags, const struct itimerspec *its, stru
     g_armed = (int64_t)its->it_value.tv_sec * 1000000000LL + its->it_value.tv_nsec;
     return 0;
 }
+static void dispatch(struct wl_resource *b) {
+    for (; b->in_flight; b->in_flight--) {
+        if (b->acquired) b->acquired = 0;
+        else b->errors++;
+    }
+}
 static void send_buffer_release(struct wl_resource *b) {
     b->releases++;
-    if (b->acquired) b->acquired = 0;
-    else b->errors++;
+    b->in_flight++;
+    if (!g_late_dispatch) dispatch(b);
 }
 
 #include "release.inc"
@@ -75,6 +84,7 @@ static void send_buffer_release(struct wl_resource *b) {
 static void present(struct wl_resource *b) { b->acquired = 1; }
 
 static void commit(struct surface *s, struct wl_resource *b) {
+    if (s->pixel != b) drop_pixel(s);
     if (s->dmabuf != b) {
         drop_dmabuf(s, 1);
         if (b) {
@@ -84,6 +94,13 @@ static void commit(struct surface *s, struct wl_resource *b) {
             wl_resource_add_destroy_listener(b, &s->dmabuf_destroy);
         }
     }
+    pending_releases_apply(s);
+}
+
+static void commit_pixel(struct surface *s, struct wl_resource *b) {
+    if (s->pixel != b) drop_pixel(s);
+    drop_dmabuf(s, 1);
+    hold_pixel(s, b);
     pending_releases_apply(s);
 }
 
@@ -300,6 +317,57 @@ static void set_desync_frees_held_release(void) {
     check(&d, 0);
 }
 
+static void backing_attached_every_frame(void) {
+    struct surface root, plane;
+    struct wl_resource black, a, b, c;
+    struct wl_resource *frames[3] = {&a, &b, &c};
+    surface_init(&root, ROLE_TOPLEVEL, NULL);
+    surface_init(&plane, ROLE_SUBSURFACE, &root);
+    buffer_init(&black); buffer_init(&a); buffer_init(&b); buffer_init(&c);
+    g_late_dispatch = 1;
+    for (int i = 0; i < 6; i += 2) {
+        present(&black); present(frames[i % 3]);
+        present(&black); present(frames[(i + 1) % 3]);
+        commit(&plane, frames[i % 3]); commit_pixel(&root, &black);
+        commit(&plane, frames[(i + 1) % 3]); commit_pixel(&root, &black);
+        timer_fires(g_now + 100000000LL);
+        dispatch(&black); dispatch(&a); dispatch(&b); dispatch(&c);
+    }
+    check(&black, 0);
+    check(&a, 2);
+    check(&b, 2);
+    check(&c, 1);
+    present(&a);
+    commit(&plane, NULL);
+    commit(&root, &a);
+    timer_fires(g_now + 100000000LL);
+    dispatch(&black); dispatch(&a); dispatch(&b); dispatch(&c);
+    check(&black, 1);
+    check(&a, 2);
+    check(&c, 2);
+    present(&black);
+    commit_pixel(&root, &black);
+    wl_list_remove(&root.link);
+    drop_pixel(&root);
+    dispatch(&black);
+    check(&black, 2);
+}
+
+static void backing_moved_to_another_surface(void) {
+    struct surface low, high;
+    struct wl_resource black;
+    surface_init(&low, ROLE_TOPLEVEL, NULL);
+    surface_init(&high, ROLE_TOPLEVEL, NULL);
+    buffer_init(&black);
+    present(&black);
+    commit_pixel(&low, &black);
+    commit_pixel(&high, &black);
+    commit(&low, NULL);
+    check(&black, 0);
+    commit(&high, NULL);
+    check(&black, 1);
+}
+
 int main(int argc, char **argv) {
     assert(argc == 2);
     wl_list_init(&g_surfaces);
@@ -313,6 +381,8 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[1], "destroyed")) holder_destroyed();
     else if (!strcmp(argv[1], "nested")) desync_parent_holds_sync_grandchild();
     else if (!strcmp(argv[1], "set-desync")) set_desync_frees_held_release();
+    else if (!strcmp(argv[1], "backing")) backing_attached_every_frame();
+    else if (!strcmp(argv[1], "backing-moved")) backing_moved_to_another_surface();
     else return 2;
     return 0;
 }

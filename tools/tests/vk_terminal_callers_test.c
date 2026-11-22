@@ -234,28 +234,29 @@ static void upload_timeout(int single_pixel) {
     struct wl_shm_buffer b = {.w = img->w, .h = img->h, .stride = img->w * 4, .data = data};
     struct wl_resource resource = {0};
     expected_release = &resource;
-    if (single_pixel) take_pixel(&s, data, &resource); else take_shm(&s, &b, &resource);
-    assert(bytes[3] == 0x3c && bytes[0] == 0xa5 && releases == 1);
+    const unsigned per_take = single_pixel ? 0 : 1;
+    if (single_pixel) take_pixel(&s, data); else take_shm(&s, &b, &resource);
+    assert(bytes[3] == 0x3c && bytes[0] == 0xa5 && releases == per_take);
     memcpy(saved, bytes, sizeof(saved));
     struct vkp_image dst = {.image = (VkImage)(uintptr_t)9, .blit_dst = 1, .w = img->w, .h = img->h};
     fence_answer = VK_TIMEOUT;
     assert(vkp_blit_image(img, &dst, -1) == -1);
     assert(g_dev_state == -3 && submits == 1 && waits == 1);
     memset(data, 0x7e, sizeof(data));
-    if (single_pixel) take_pixel(&s, data, &resource); else take_shm(&s, &b, &resource);
-    assert(s.shm_img == img && memcmp(saved, bytes, sizeof(saved)) == 0 && releases == 2);
+    if (single_pixel) take_pixel(&s, data); else take_shm(&s, &b, &resource);
+    assert(s.shm_img == img && memcmp(saved, bytes, sizeof(saved)) == 0 && releases == 2 * per_take);
     struct wl_resource dmabuf = {.dmabuf = 1};
     expected_release = &dmabuf;
     assert(buffer_release_blocked(&dmabuf));
     send_buffer_release(&dmabuf);
-    assert(releases == 2);
+    assert(releases == 2 * per_take);
     vkp_image_destroy(img);
     assert(destroys == 0 && img->map == bytes && img->image && img->mem);
     assert_stopped();
     g_dev_state = 1;
     assert(!buffer_release_blocked(&dmabuf));
     send_buffer_release(&dmabuf);
-    assert(releases == 3);
+    assert(releases == 2 * per_take + 1);
     free(img); free(g_images); /* fake resources only, not production cleanup */
 }
 
