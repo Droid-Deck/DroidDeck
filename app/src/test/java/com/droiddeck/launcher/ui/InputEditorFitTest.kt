@@ -83,6 +83,20 @@ class InputEditorFitTest {
         assertEquals(setOf("custom:y"), saved(layout, draft).style.removed)
     }
 
+    @Test fun savingKeepsTheActionOfAControlOnlyInThePortraitFrame() {
+        val portraitOnly = InputSurfaceElement(InputControl.Y, .4f, .4f, .1f, .1f, "custom:y")
+        val base = custom()
+        val layout = base.copy(rotated = base.elements + portraitOnly, rotatedAspect = 3f / 4f)
+        val lib = library(layout)
+        val presetId = lib.profile(InputProfile.GAME).binding(InputRole.PRIMARY)
+        val jump = InputAction.Native(InputControl.B)
+        val bound = lib.withPreset(lib.preset(presetId).let { it.copy(elements = it.elements + ("custom:y" to jump)) })
+        val draft = surfaceDraft(context, bound, layout, bound.preset(presetId), InputRole.PRIMARY, Rect())
+        draft.checkpoint()
+        draft.elements = draft.elements.map { if (it.id == "custom:a") it.copy(opacity = .5f) else it }
+        assertEquals(jump, draft.saveTo(bound, null).preset(presetId).elements["custom:y"])
+    }
+
     @Test fun resetReturnsToWhereTheGameDrawsTheStockLayout() {
         val layout = deck()
         val draft = editor(layout, Rect())
