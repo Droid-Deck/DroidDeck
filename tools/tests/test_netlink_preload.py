@@ -12,7 +12,10 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 SHIM = r"""
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,6 +95,33 @@ FILE *fopen(const char *path, const char *mode) {
     return real(path, mode);
 }
 
+static int denied(const char *path) {
+    const char *prefix = getenv("NETLINK_TEST_DENIED");
+    if (!prefix || !path || strncmp(path, prefix, strlen(prefix))) return 0;
+    errno = EACCES;
+    return 1;
+}
+
+int open(const char *path, int flags, ...) {
+    static int (*real)(const char *, int, ...);
+    if (!real) real = dlsym(RTLD_NEXT, "open");
+    va_list ap;
+    va_start(ap, flags);
+    mode_t mode = va_arg(ap, mode_t);
+    va_end(ap);
+    return denied(path) ? -1 : real(path, flags, mode);
+}
+
+int openat(int dirfd, const char *path, int flags, ...) {
+    static int (*real)(int, const char *, int, ...);
+    if (!real) real = dlsym(RTLD_NEXT, "openat");
+    va_list ap;
+    va_start(ap, flags);
+    mode_t mode = va_arg(ap, mode_t);
+    va_end(ap);
+    return denied(path) ? -1 : real(dirfd, path, flags, mode);
+}
+
 int close_range(unsigned int first, unsigned int last, int flags) {
     return syscall(SYS_close_range, (long)first, (long)last, (long)flags, 0L, 0L, 0L);
 }
@@ -135,6 +165,32 @@ static int route_socket(void) {
     require(descriptor >= 0, "socket");
     require(bind(descriptor, (struct sockaddr *)&address, sizeof(address)) == 0, "bind");
     return descriptor;
+}
+
+static void proc_net_test(int denied) {
+    static const char *const tables[] = {"/proc/net/tcp", "/proc/net/tcp6", "/proc/net/udp", "/proc/net/udp6"};
+    char text[512], target[128], link[64];
+    for (unsigned i = 0; i < sizeof(tables) / sizeof(tables[0]); i++) {
+        int descriptor = i % 2 ? openat(AT_FDCWD, tables[i], O_RDONLY | O_CLOEXEC) : open(tables[i], O_RDONLY | O_CLOEXEC);
+        require(descriptor >= 0, "socket table opens");
+        require(fcntl(descriptor, F_GETFD) & FD_CLOEXEC, "socket table keeps close-on-exec");
+        snprintf(link, sizeof(link), "/proc/self/fd/%d", descriptor);
+        ssize_t length = readlink(link, target, sizeof(target) - 1);
+        require(length > 0, "socket table target");
+        target[length] = 0;
+        require((strncmp(target, "/memfd:droiddeck-net", 20) == 0) == denied, "synthesized only when denied");
+        if (denied) {
+            ssize_t total = read(descriptor, text, sizeof(text) - 1);
+            require(total > 0, "socket table read");
+            text[total] = 0;
+            require(strstr(text, "local_address") && strchr(text, '\n') == text + total - 1, "header without sockets");
+        }
+        close(descriptor);
+    }
+    if (denied) {
+        require(open("/proc/net/tcp", O_WRONLY) < 0 && errno == EACCES, "socket table writes stay denied");
+        require(open("/proc/net/netstat", O_RDONLY) < 0 && errno == EACCES, "other tables stay denied");
+    }
 }
 
 static unsigned port_of(int descriptor) {
@@ -1132,6 +1188,7 @@ int main(int argc, char **argv) {
     }
     else if (!strcmp(argv[1], "range") || !strcmp(argv[1], "cloexec") || !strcmp(argv[1], "closefrom"))
         close_range_test(argv[1]);
+    else if (!strcmp(argv[1], "proc_net")) proc_net_test(argc > 2 && !strcmp(argv[2], "denied"));
     else if (!strcmp(argv[1], "route")) {
         require(argc >= 3, "route destination");
         route_test(argv[2]);
@@ -1179,10 +1236,12 @@ class NetlinkPreloadTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.temp.cleanup()
 
-    def run_program(self, mode, *arguments, snapshot=None):
+    def run_program(self, mode, *arguments, snapshot=None, denied=None):
         env = dict(os.environ, LD_PRELOAD=f"{self.preload}:{self.shim}",
                    NETLINK_TEST_SNAPSHOT=str(snapshot or self.snapshot),
                    DD_SYSV_DIR=str(self.directory / "sysv"))
+        if denied:
+            env["NETLINK_TEST_DENIED"] = denied
         result = subprocess.run([str(self.program), mode, *arguments], env=env,
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -1301,6 +1360,12 @@ class NetlinkPreloadTest(unittest.TestCase):
         for mode in ("range", "cloexec", "closefrom"):
             with self.subTest(mode=mode):
                 self.run_program(mode)
+
+    def test_denied_socket_tables_open_as_empty_tables(self):
+        self.run_program("proc_net", "denied", denied="/proc/net/")
+
+    def test_readable_socket_tables_stay_real(self):
+        self.run_program("proc_net")
 
     def test_loopback_and_own_addresses_are_local_routes(self):
         for destination, source in (("127.0.0.2", "127.0.0.1"), ("::1", "::1"),

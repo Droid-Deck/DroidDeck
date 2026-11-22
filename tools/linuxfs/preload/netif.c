@@ -521,6 +521,13 @@ static void write_table(FILE *out, const char *table, const struct link *link) {
         fprintf(out, "%6s: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n", link->name);
     } else if (strcmp(table, "arp") == 0) {
         fprintf(out, "IP address       HW type     Flags       HW address            Mask     Device\n");
+    } else if (strcmp(table, "tcp") == 0 || strcmp(table, "udp") == 0) {
+        fprintf(out, "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode%s\n",
+                table[0] == 'u' ? " ref pointer drops" : "");
+    } else if (strcmp(table, "tcp6") == 0 || strcmp(table, "udp6") == 0) {
+        fprintf(out, "  sl  local_address                         remote_address                        "
+                     "st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode%s\n",
+                table[0] == 'u' ? " ref pointer drops" : "");
     } else {
         fprintf(out, "1\n");
     }
@@ -528,7 +535,10 @@ static void write_table(FILE *out, const char *table, const struct link *link) {
 
 #define CARRIER_TABLE 5
 
-static const char *const net_tables[] = { "route", "ipv6_route", "if_inet6", "dev", "arp", "carrier" };
+#define SOCKET_TABLES 6
+
+static const char *const net_tables[] = { "route", "ipv6_route", "if_inet6", "dev", "arp", "carrier",
+                                          "tcp", "tcp6", "udp", "udp6" };
 static long long net_denied_at[sizeof(net_tables) / sizeof(net_tables[0])];
 
 #define CARRIER_SLOTS 8
@@ -565,8 +575,8 @@ static void remember_denial(int table, const char *path) {
 
 static int denied_table(const char *path) {
     if (strncmp(path, "/proc/net/", 10) == 0) {
-        for (int i = 0; i < CARRIER_TABLE; i++) {
-            if (strcmp(path + 10, net_tables[i]) == 0) return i;
+        for (int i = 0; i < (int) (sizeof(net_tables) / sizeof(net_tables[0])); i++) {
+            if (i != CARRIER_TABLE && strcmp(path + 10, net_tables[i]) == 0) return i;
         }
         return -1;
     }
@@ -577,9 +587,9 @@ static int denied_table(const char *path) {
     return -1;
 }
 
-static FILE *synthesize(const char *table) {
+static FILE *synthesize(int table) {
     struct link link;
-    if (!load_link(&link)) return NULL;
+    if (!load_link(&link) && table < SOCKET_TABLES) return NULL;
     int fd = memfd_create("droiddeck-net", MFD_CLOEXEC);
     if (fd < 0) return NULL;
     FILE *out = fdopen(fd, "w+");
@@ -587,7 +597,7 @@ static FILE *synthesize(const char *table) {
         close(fd);
         return NULL;
     }
-    write_table(out, table, &link);
+    write_table(out, net_tables[table], &link);
     if (fflush(out) != 0) {
         fclose(out);
         return NULL;
@@ -611,16 +621,38 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode, cons
     path = dd_oom_adj_redirect(path, mode && (mode[0] == 'w' || mode[0] == 'a' || strchr(mode, '+')));
     int table = path && mode && mode[0] == 'r' ? denied_table(path) : -1;
     FILE *f;
-    if (table >= 0 && denied_recently(table, path) && (f = synthesize(net_tables[table])) != NULL) return f;
+    if (table >= 0 && denied_recently(table, path) && (f = synthesize(table)) != NULL) return f;
     f = real(path, mode);
     if (f || table < 0) return f;
     int saved = errno;
-    if ((f = synthesize(net_tables[table])) != NULL) {
+    if ((f = synthesize(table)) != NULL) {
         if (saved == EACCES) remember_denial(table, path);
         return f;
     }
     errno = saved;
     return NULL;
+}
+
+int dd_net_open(const char *path, int flags, int fd) __attribute__((visibility("hidden")));
+
+int dd_net_open(const char *path, int flags, int fd) {
+    if (fd >= 0 || path == NULL || (flags & O_ACCMODE) != O_RDONLY) return fd;
+    int table = denied_table(path);
+    if (table < 0) return fd;
+    int saved = errno;
+    FILE *f = synthesize(table);
+    if (f == NULL) {
+        errno = saved;
+        return fd;
+    }
+    int copy = fcntl(fileno(f), flags & O_CLOEXEC ? F_DUPFD_CLOEXEC : F_DUPFD, 0);
+    fclose(f);
+    if (copy < 0) {
+        errno = saved;
+        return fd;
+    }
+    if (saved == EACCES) remember_denial(table, path);
+    return copy;
 }
 
 FILE *fopen(const char *path, const char *mode) {
