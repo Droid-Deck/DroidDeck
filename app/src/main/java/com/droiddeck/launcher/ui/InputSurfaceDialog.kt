@@ -409,10 +409,11 @@ internal class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInput
         val l = latest.layouts.first { it.id == layout.id }
         val p = latest.preset(preset.id)
         val frame = aspect ?: layout.aspect
-        val saved = framing?.let { OnScreenLayout.withFrame(it, l, elements, frame, layoutScale) }
-            ?: l.copy(elements = elements, aspect = frame, scale = layoutScale)
         val drafted = elements.map { it.id }.toSet()
-        val other = (saved.elements + saved.rotated).filter { it.id !in drafted }.associateBy { it.id }
+        val deleted = layout.elements.map { it.id }.filterNot { it in drafted }.toSet()
+        val saved = (framing?.let { OnScreenLayout.withFrame(it, l, elements, frame, layoutScale) }
+            ?: l.copy(elements = elements, aspect = frame, scale = layoutScale)).let { s -> s.copy(rotated = s.rotated.filterNot { it.id in deleted }) }
+        val other = (saved.elements + saved.rotated).filter { it.id !in drafted && it.id !in deleted }.associateBy { it.id }
         val elsewhere = l.style.removed.filter { it in other }
         return latest.withLayout(saved.copy(style = l.style.copy(removed = removed.filter { it in drafted }.toSet() + elsewhere))).withPreset(p.copy(
             elements = p.elements.filterKeys { it in other } + actions.filterKeys { it in drafted },

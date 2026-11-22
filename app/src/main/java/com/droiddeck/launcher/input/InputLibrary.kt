@@ -27,6 +27,8 @@ data class SavedInputLayout(
     val rotatedScale: Float = 1f,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
+    /** Every control in either orientation's frame; a binding may belong to one that only the portrait frame holds. */
+    val anyFrame get() = elements + rotated.filter { r -> elements.none { it.id == r.id } }
     val overlay get() = (origin ?: id).let { it == InputLibraries.OVERLAY || it.startsWith("migrated.layout.") }
     fun derived(id: String, name: String) = copy(id = id, name = name, origin = origin ?: this.id)
     val adaptiveSticks get() = elements.filter { it.kind == InputElementKind.STICK }.takeIf { editable && it.isNotEmpty() }?.all { it.floating && it.hideWhenIdle }
@@ -121,6 +123,8 @@ data class InputLibrary(
         require(profiles.size < 64)
         val current = profile(activeId(false))
         var result = withProfile(SavedInputProfile(id, inputName(name), current.base, InputRole.entries.associateWith { activePart(false, it) }))
+        require(bindings.size + InputRole.entries.size <= 512) { "No room for the game's bindings" }
+        require(layouts.size + InputRole.entries.count { result.layout(id, it)?.editable == true } <= 256) { "No room for the game's layouts" }
         for (role in InputRole.entries) result = result.usePart(id, role, id, shared = false)
         return result.copy(games = games + (game to id))
     }
@@ -154,8 +158,8 @@ data class InputLibrary(
     fun withPreset(value: SavedInputBindings) = copy(bindings = bindings.filterNot { it.id == value.id } + value)
     fun withLayout(value: SavedInputLayout) = copy(layouts = layouts.filterNot { it.id == value.id } + value,
         bindings = bindings.map { preset -> if (preset.layoutId != value.id) preset else preset.copy(
-            elements = preset.elements.filter { (id, action) -> value.elements.any { it.id == id && action.validFor(it) } },
-            clicks = preset.clicks.filter { (id, action) -> value.elements.any { it.id == id && it.hasClick && action.validForClick() } }) })
+            elements = preset.elements.filter { (id, action) -> value.anyFrame.any { it.id == id && action.validFor(it) } },
+            clicks = preset.clicks.filter { (id, action) -> value.anyFrame.any { it.id == id && it.hasClick && action.validForClick() } }) })
 
     fun duplicateProfile(id: String, name: String, newId: String = newInputId(), sharePhysical: Boolean = false): InputLibrary {
         require(profiles.size < 64)
@@ -292,8 +296,8 @@ data class InputLibrary(
             require(preset.physical || preset.keys.isEmpty())
             val layout = preset.layoutId?.let { id -> layouts.first { it.id == id } }
             require(!preset.physical || layout == null && preset.elements.isEmpty() && preset.clicks.isEmpty())
-            require(preset.elements.all { (id, action) -> layout?.elements?.firstOrNull { it.id == id }?.let { action.validFor(it) } == true })
-            require(preset.clicks.all { (id, action) -> layout?.elements?.any { it.id == id && it.hasClick } == true && action.validForClick() })
+            require(preset.elements.all { (id, action) -> layout?.anyFrame?.firstOrNull { it.id == id }?.let { action.validFor(it) } == true })
+            require(preset.clicks.all { (id, action) -> layout?.anyFrame?.any { it.id == id && it.hasClick } == true && action.validForClick() })
             require(preset.keys.all { it.key.device.isNotBlank() && it.key.keyCode >= 0 && it.key.scanCode >= 0 &&
                 it.action.validFor(InputControl.A) && (it.action !is InputAction.Native || it.action.target == null) })
         }

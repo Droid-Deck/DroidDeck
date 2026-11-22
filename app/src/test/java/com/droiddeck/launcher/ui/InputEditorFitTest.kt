@@ -72,29 +72,46 @@ class InputEditorFitTest {
         }
     }
 
-    @Test fun savingKeepsAControlDeletedOnlyFromThePortraitFrame() {
-        val portraitOnly = InputSurfaceElement(InputControl.Y, .4f, .4f, .1f, .1f, "custom:y")
-        val base = custom()
-        val layout = base.copy(rotated = base.elements + portraitOnly, rotatedAspect = 3f / 4f,
-            style = base.style.copy(removed = setOf("custom:y")))
-        val draft = editor(layout, Rect())
+    private val rear = InputSurfaceElement(InputControl.L4, .02f, .4f, .08f, .08f)
+    private fun portraitSaved(layout: SavedInputLayout, actions: Map<String, InputAction>): Pair<SavedInputLayout, SavedInputBindings> {
+        val preset = SavedInputBindings("custom.bindings", "Custom", false, layout.id, elements = actions)
+        val library = InputLibraries.update(context) { it.withLayout(layout).withPreset(preset) }
+        return library.layouts.first { it.id == layout.id } to library.preset(preset.id)
+    }
+    private fun editAndSave(layout: SavedInputLayout, preset: SavedInputBindings, edit: SurfaceDraft.() -> Unit): InputLibrary {
+        val draft = surfaceDraft(context, InputLibraries.read(context), layout, preset, InputRole.PRIMARY, Rect())
         draft.checkpoint()
-        draft.elements = draft.elements.map { if (it.id == "custom:a") it.copy(opacity = .5f) else it }
-        assertEquals(setOf("custom:y"), saved(layout, draft).style.removed)
+        draft.edit()
+        InputLibraries.update(context) { draft.saveTo(it, null) }
+        return InputLibraries.read(context)
+    }
+    private fun withRear(removed: Set<String> = emptySet()) = custom().let { base ->
+        base.copy(rotated = base.elements + rear, rotatedAspect = 3f / 4f, style = base.style.copy(removed = removed))
+    }
+
+    @Test fun savingKeepsAControlDeletedOnlyFromThePortraitFrame() {
+        val (layout, preset) = portraitSaved(withRear(setOf(rear.id)), emptyMap())
+        assertTrue(OnScreenLayout.oriented(layout, 900, 1600).elements.any { it.id == rear.id })
+        val saved = editAndSave(layout, preset) { elements = elements.map { if (it.id == "custom:a") it.copy(opacity = .5f) else it } }
+        assertEquals(setOf(rear.id), saved.layouts.first { it.id == layout.id }.style.removed)
     }
 
     @Test fun savingKeepsTheActionOfAControlOnlyInThePortraitFrame() {
-        val portraitOnly = InputSurfaceElement(InputControl.Y, .4f, .4f, .1f, .1f, "custom:y")
-        val base = custom()
-        val layout = base.copy(rotated = base.elements + portraitOnly, rotatedAspect = 3f / 4f)
-        val lib = library(layout)
-        val presetId = lib.profile(InputProfile.GAME).binding(InputRole.PRIMARY)
+        val jump = InputAction.Keys(listOf(57))
+        val (layout, preset) = portraitSaved(withRear(), mapOf(rear.id to jump))
+        assertTrue(OnScreenLayout.oriented(layout, 900, 1600).elements.any { it.id == rear.id })
+        val saved = editAndSave(layout, preset) { elements = elements.map { if (it.id == "custom:a") it.copy(opacity = .5f) else it } }
+        assertEquals(jump, saved.preset(preset.id).elements[rear.id])
+    }
+
+    @Test fun deletingAControlInOneFrameDropsItAndItsActionFromBoth() {
         val jump = InputAction.Native(InputControl.B)
-        val bound = lib.withPreset(lib.preset(presetId).let { it.copy(elements = it.elements + ("custom:y" to jump)) })
-        val draft = surfaceDraft(context, bound, layout, bound.preset(presetId), InputRole.PRIMARY, Rect())
-        draft.checkpoint()
-        draft.elements = draft.elements.map { if (it.id == "custom:a") it.copy(opacity = .5f) else it }
-        assertEquals(jump, draft.saveTo(bound, null).preset(presetId).elements["custom:y"])
+        val base = custom()
+        val (layout, preset) = portraitSaved(base.copy(rotated = base.elements, rotatedAspect = 3f / 4f), mapOf("custom:x" to jump))
+        val saved = editAndSave(layout, preset) { elements = elements.filterNot { it.id == "custom:x" }; actions = actions - "custom:x" }
+        val result = saved.layouts.first { it.id == layout.id }
+        assertTrue(result.anyFrame.none { it.id == "custom:x" })
+        assertNull(saved.preset(preset.id).elements["custom:x"])
     }
 
     @Test fun sizeChangesOnlyTheSelectedControlOrTheWholeDpad() {

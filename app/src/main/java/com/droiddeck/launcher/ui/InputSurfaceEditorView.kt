@@ -641,17 +641,20 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
     /** The controls as TalkBack nodes, each named after its control, that select on a double tap and move or delete through actions. */
     private inner class ControlAccess : ExploreByTouchHelper(this) {
         private val bounds = Rect()
+        /** Node IDs follow the control, not its place in the list, so an action aimed at a removed control never lands on another. */
+        private val ids = HashMap<String, Int>()
+        private fun idOf(e: InputSurfaceElement) = ids.getOrPut(e.id) { ids.size }
+        private fun control(id: Int) = elements.firstOrNull { ids[it.id] == id }
 
         override fun getVirtualViewAt(x: Float, y: Float): Int {
             if (width == 0 || height == 0) return HOST_ID
-            val i = elements.indexOfLast { x / width in it.x..(it.x + it.width) && y / height in it.y..(it.y + it.height) }
-            return if (i >= 0) i else HOST_ID
+            return elements.lastOrNull { x / width in it.x..(it.x + it.width) && y / height in it.y..(it.y + it.height) }?.let(::idOf) ?: HOST_ID
         }
 
-        override fun getVisibleVirtualViews(ids: MutableList<Int>) { ids.addAll(elements.indices) }
+        override fun getVisibleVirtualViews(ids: MutableList<Int>) { elements.mapTo(ids, ::idOf) }
 
         override fun onPopulateNodeForVirtualView(id: Int, node: AccessibilityNodeInfoCompat) {
-            val e = elements.getOrNull(id)
+            val e = control(id)
             if (e == null) { node.contentDescription = ""; node.setBoundsInParent(bounds.apply { set(0, 0, 1, 1) }); return }
             node.contentDescription = e.name
             node.className = Button::class.java.name
@@ -665,7 +668,7 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
         }
 
         override fun onPerformActionForVirtualView(id: Int, action: Int, arguments: Bundle?): Boolean {
-            val e = elements.getOrNull(id) ?: return false
+            val e = control(id) ?: return false
             if (width == 0 || height == 0) return false
             if (action == AccessibilityNodeInfoCompat.ACTION_CLICK) {
                 focused = e.id

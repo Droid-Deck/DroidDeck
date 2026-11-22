@@ -868,7 +868,11 @@ class InputSettingsTest {
         val first = draft.addOne(choice("control-a"))
         val second = draft.addOne(choice("control-a"))
         assertTrue(draft.visible.any { it.id == "legacy:a" })
-        assertEquals(draft.actions[first.id], draft.actions[second.id])
+        val bound = draft.preset.copy(elements = draft.actions)
+        val stockA = bound.action(draft.visible.first { it.id == "legacy:a" })
+        assertNotEquals(InputAction.Disabled, stockA)
+        assertEquals(stockA.forCopy(InputControl.A), bound.action(first))
+        assertEquals(stockA.forCopy(InputControl.A), bound.action(second))
         assertFalse(bounds(first).overlaps(bounds(second)))
         for (other in draft.visible.filter { it.id != first.id && it.id != second.id }) assertFalse(other.id, bounds(first).overlaps(bounds(other)))
     }
