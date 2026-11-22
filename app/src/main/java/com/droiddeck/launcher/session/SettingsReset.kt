@@ -28,6 +28,9 @@ object SettingsReset {
         "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds", "skipBootMovie",
         "bootMovieApplyNext", "bootMovieSteamSeen", "bootMovieShuffle",
         "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsHud", "bottomHud", "bottomStripMetrics", "bottomStripTabs", "statsDash", "statsSpeedUnit",
+        "shaderPrecompEnabled", "shaderPrecompGames", "shaderPrecompThreads", "shaderPrecompIdleOnly",
+        "shaderPrecompMaxMemoryMb", "shaderPrecompSkipCompiled", "shaderPrecompRecordMissing",
+        "shaderPrecompAutoDriverRebuild", "shaderPrecompLastDriver",
     )
 
     internal val SESSION_PREFIXES = listOf(

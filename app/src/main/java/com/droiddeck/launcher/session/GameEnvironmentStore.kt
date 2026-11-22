@@ -111,7 +111,24 @@ object GameEnvironmentStore {
         config: GameEnvironment.Config = read(context),
         gameDebugLogsOverride: Boolean? = null,
     ) {
-        val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
+        val resolvedGames = if (SessionPrefs.shaderPrecompEnabled(context) && SessionPrefs.shaderPrecompRecordMissing(context)) {
+            val games = config.games.toMutableMap()
+            for (scope in SessionPrefs.shaderPrecompGames(context)) {
+                if (scope.isNotEmpty() && GameEnvironment.validScope(scope)) {
+                    val entries = games[scope].orEmpty()
+                    if ("ENABLE_VK_LAYER_VALVE_steam_fossilize_1" !in entries) {
+                        games[scope] = entries + ("ENABLE_VK_LAYER_VALVE_steam_fossilize_1" to "1")
+                    }
+                }
+            }
+            games
+        } else {
+            config.games
+        }
+        val resolved = config.copy(
+            shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared,
+            games = resolvedGames,
+        )
         val json = encode(resolved)
         val dxvk = TextureFiltering.dxvkOptions(
             SessionPrefs.textureAnisotropy(context), SessionPrefs.textureLodBias(context),

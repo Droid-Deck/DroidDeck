@@ -76,6 +76,7 @@ internal object SettingsIndex {
         s(SettingsSection.PERFORMANCE, R.string.perf_noglerror),
         s(SettingsSection.PERFORMANCE, R.string.perf_gsrealtime, "gamescope"),
         s(SettingsSection.PERFORMANCE, R.string.perf_gpuclock, "gpu", "clock", "max"),
+        s(SettingsSection.PERFORMANCE, R.string.shader_precomp_title, "shader", "precompile", "pre-compilation", "fossilize", "cache", "stutter"),
         s(SettingsSection.PERFORMANCE, R.string.setup_clear_cached, "memory", "ram", "crash", "sleep", "killed"),
         s(SettingsSection.PERFORMANCE, R.string.setup_bg_limit, "memory", "ram", "background apps"),
         s(SettingsSection.PERFORMANCE, R.string.setup_memory_hud, "memory", "ram", "overlay"),
