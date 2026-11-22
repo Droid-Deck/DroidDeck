@@ -22,6 +22,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -664,6 +665,7 @@ struct nl_socket {
     unsigned references;
     int type;
     int cap_ack;
+    uint64_t groups;
     struct nl_socket *next;
 };
 
@@ -1352,13 +1354,46 @@ int dd_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
         return 1;
     }
     nl = (const struct sockaddr_nl *) addr;
-    if (nl->nl_groups != 0) {
-        errno = EACCES;
-        *rc = -1;
-        return 1;
-    }
     *rc = nl_bind_port(fd, nl->nl_pid, 0);
+    if (*rc == 0) {
+        pthread_mutex_lock(&nl_sockets_lock);
+        struct nl_fd *entry = nl_find(fd);
+        if (entry) entry->socket->groups = (entry->socket->groups & ~(uint64_t) UINT32_MAX) | nl->nl_groups;
+        pthread_mutex_unlock(&nl_sockets_lock);
+    }
     return 1;
+}
+
+static unsigned nl_groups_of(int fd) {
+    unsigned groups = 0;
+    pthread_mutex_lock(&nl_sockets_lock);
+    struct nl_fd *entry = nl_find(fd);
+    if (entry) groups = (unsigned) entry->socket->groups;
+    pthread_mutex_unlock(&nl_sockets_lock);
+    return groups;
+}
+
+static int nl_membership(int fd, int option, const void *value, socklen_t len) {
+    unsigned group;
+    if (value == NULL || len < sizeof(group)) {
+        errno = value == NULL ? EFAULT : EINVAL;
+        return -1;
+    }
+    memcpy(&group, value, sizeof(group));
+    if (group == 0 || group > RTNLGRP_MAX) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (group > 64) return 0;
+    uint64_t bit = (uint64_t) 1 << (group - 1);
+    pthread_mutex_lock(&nl_sockets_lock);
+    struct nl_fd *entry = nl_find(fd);
+    if (entry) {
+        if (option == NETLINK_ADD_MEMBERSHIP) entry->socket->groups |= bit;
+        else entry->socket->groups &= ~bit;
+    }
+    pthread_mutex_unlock(&nl_sockets_lock);
+    return 0;
 }
 
 int dd_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
@@ -1373,6 +1408,7 @@ int dd_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
     memset(&nl, 0, sizeof(nl));
     nl.nl_family = AF_NETLINK;
     nl.nl_pid = nl_port_of(fd);
+    nl.nl_groups = nl_groups_of(fd);
     size = *len < sizeof(nl) ? *len : (socklen_t) sizeof(nl);
     memcpy(addr, &nl, size);
     *len = sizeof(nl);
@@ -1517,9 +1553,10 @@ int dd_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t
             *rc = real(peer, level, option, value, len);
         return 1;
     }
-    if (option != NETLINK_CAP_ACK && option != NETLINK_EXT_ACK) {
-        errno = option == NETLINK_ADD_MEMBERSHIP || option == NETLINK_DROP_MEMBERSHIP
-                ? EACCES : ENOPROTOOPT;
+    if (option == NETLINK_ADD_MEMBERSHIP || option == NETLINK_DROP_MEMBERSHIP) {
+        *rc = nl_membership(fd, option, value, len);
+    } else if (option != NETLINK_CAP_ACK && option != NETLINK_EXT_ACK) {
+        errno = ENOPROTOOPT;
         *rc = -1;
     } else if (value == NULL || len < sizeof(int)) {
         errno = value == NULL ? EFAULT : EINVAL;

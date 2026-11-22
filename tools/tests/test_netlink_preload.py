@@ -718,8 +718,8 @@ static void ack_test(const char *mode) {
 static void options_test(void) {
     int descriptor = route_socket();
     int group = RTNLGRP_LINK;
-    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == -1
-            && errno == EACCES, "membership denied");
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == 0,
+            "membership accepted");
     require(setsockopt(descriptor, SOL_NETLINK, NETLINK_PKTINFO, &group, sizeof(group)) == -1
             && errno == ENOPROTOOPT, "unsupported option");
     require(setsockopt(descriptor, SOL_NETLINK, NETLINK_EXT_ACK, &group, sizeof(group)) == 0, "ext ack");
@@ -732,6 +732,40 @@ static void options_test(void) {
     unsigned char buffer[4096];
     require(recv(descriptor, buffer, sizeof(buffer), 0) == -1
             && (errno == EAGAIN || errno == EWOULDBLOCK), "receive times out");
+    close(descriptor);
+}
+
+static unsigned groups_of(int descriptor) {
+    struct sockaddr_nl address;
+    socklen_t length = sizeof(address);
+    require(getsockname(descriptor, (struct sockaddr *)&address, &length) == 0, "getsockname");
+    return address.nl_groups;
+}
+
+static void subscribe_test(void) {
+    unsigned wanted = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
+    int descriptor = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+    struct sockaddr_nl address = {.nl_family = AF_NETLINK, .nl_groups = wanted};
+    require(descriptor >= 0, "socket");
+    require(bind(descriptor, (struct sockaddr *)&address, sizeof(address)) == 0, "bind with groups");
+    require(groups_of(descriptor) == wanted, "bound groups");
+    int group = RTNLGRP_IPV4_ROUTE;
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == 0,
+            "add membership");
+    require(groups_of(descriptor) == (wanted | RTMGRP_IPV4_ROUTE), "added group");
+    group = RTNLGRP_LINK;
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_DROP_MEMBERSHIP, &group, sizeof(group)) == 0,
+            "drop membership");
+    require(groups_of(descriptor) == ((wanted & ~RTMGRP_LINK) | RTMGRP_IPV4_ROUTE), "dropped group");
+    group = 0;
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == -1
+            && errno == EINVAL, "group zero refused");
+    struct timeval timeout = {.tv_usec = 30000};
+    require(setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == 0, "receive timeout");
+    unsigned char buffer[4096];
+    require(recv(descriptor, buffer, sizeof(buffer), 0) == -1
+            && (errno == EAGAIN || errno == EWOULDBLOCK), "no unsolicited events");
+    usable(descriptor);
     close(descriptor);
 }
 
@@ -1040,6 +1074,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[1], "ack") || !strcmp(argv[1], "error") || !strcmp(argv[1], "capped"))
         ack_test(argv[1]);
     else if (!strcmp(argv[1], "options")) options_test();
+    else if (!strcmp(argv[1], "subscribe")) subscribe_test();
     else if (!strcmp(argv[1], "dump")) dump_test();
     else if (!strcmp(argv[1], "send_timeout")) send_timeout_test(0);
     else if (!strcmp(argv[1], "nonblocking")) send_timeout_test(1);
@@ -1207,8 +1242,11 @@ class NetlinkPreloadTest(unittest.TestCase):
     def test_cloexec_sockets_release_their_ports_after_exec(self):
         self.run_program("all_cloexec")
 
-    def test_subscription_is_denied_and_receive_timeout_is_applied(self):
+    def test_membership_is_accepted_and_receive_timeout_is_applied(self):
         self.run_program("options")
+
+    def test_change_listeners_subscribe_and_still_query(self):
+        self.run_program("subscribe")
 
     def test_dump_keeps_multipart_completion(self):
         self.run_program("dump")
