@@ -65,8 +65,43 @@ class XboxCatalogTest {
     @Test fun libraryDiagnosticsContainCountsWithoutAccountOrProductIdentifiers() {
         val lines = mutableListOf<String>()
         XboxCatalog.access(envelope(row(game), row(parent, plan)), "test@example.test", "US", now, lines::add)
-        assertEquals(listOf("library entitlements=2 invalid=0 restricted=0 unverified-plan=1 owned=1 gamepass=0"), lines)
+        assertEquals(listOf("library entitlements=2 invalid=0 restricted=0 unverified-plan=1 owned=1 gamepass=0 plan-rows=0 unlisted-parent=0"), lines)
         assertFalse(lines.single().contains(game) || lines.single().contains(parent) || lines.single().contains("@"))
+    }
+
+    @Test fun libraryDiagnosticsCountActiveRowsWhoseParentIsNotListed() {
+        val lines = mutableListOf<String>()
+        val unlisted = "9CCCCCCCCCCC"
+        val access = XboxCatalog.access(envelope(row(game, unlisted), row(parent, unlisted).put("status", "Expired"), row(plan)),
+            "test@example.test", "US", now, lines::add)
+        assertTrue(access.isEmpty())
+        assertEquals(listOf("library entitlements=3 invalid=0 restricted=1 unverified-plan=0 owned=0 gamepass=0 plan-rows=1 unlisted-parent=1"), lines)
+        assertFalse(listOf(game, parent, unlisted, plan, "@").any { lines.single().contains(it) })
+    }
+
+    @Test fun catalogDropReasonsNameTheFailingStepWithoutChangingWhatIsListed() {
+        fun sku(vararg packages: Pair<String, String>, bundle: Boolean = false) = JSONObject().put("Sku", JSONObject().put("Properties",
+            JSONObject().put("IsBundle", bundle).put("Packages", JSONArray(packages.map { (format, platform) ->
+                JSONObject().put("PackageFormat", format).put("PlatformDependencies", JSONArray().put(JSONObject().put("PlatformName", platform)))
+            }))))
+        fun offer(vararg skus: JSONObject, type: String = "Game", title: String = "A Game") = JSONObject().put("ProductId", game)
+            .put("ProductType", type).put("LocalizedProperties", JSONArray().put(JSONObject().put("ProductTitle", title)))
+            .put("DisplaySkuAvailabilities", JSONArray(skus.toList()))
+        val owned = mapOf(game to "owned")
+        fun reasons(json: JSONObject, cloud: XboxCloudCatalog? = null) = mutableListOf<String>().also { found ->
+            XboxCatalog.product(json, owned, cloud) { found.add(it) }
+        }
+        assertEquals(listOf("not-game"), reasons(offer(sku("MSIXVC" to "Windows.Desktop"), type = "Durable")))
+        assertEquals(listOf("no-title"), reasons(offer(sku("MSIXVC" to "Windows.Desktop"), title = "")))
+        assertEquals(listOf("console-only"), reasons(offer(sku("XVC" to "Windows.Xbox"))))
+        assertEquals(listOf("pc-format"), reasons(offer(sku("APPX" to "Windows.Desktop"))))
+        assertEquals(listOf("bundle"), reasons(offer(sku(bundle = true))))
+        assertEquals(listOf("no-package"), reasons(offer(sku())))
+        assertEquals(emptyList<String>(), reasons(offer(sku("XVC" to "Windows.Xbox", "MSIXVC" to "Windows.Desktop"))))
+        assertEquals(emptyList<String>(), reasons(offer(sku("XVC" to "Windows.Xbox")), XboxCloudCatalog(emptySet(), setOf(game))))
+        assertNull(XboxCatalog.product(offer(sku("XVC" to "Windows.Xbox")), owned))
+        assertNull(XboxCatalog.product(offer(sku(bundle = true)), owned))
+        assertTrue(XboxCatalog.product(offer(sku("XVC" to "Windows.Xbox", "MSIXVC" to "Windows.Desktop")), owned)!!.xboxPc)
     }
 
     @Test fun purchasedAndSubscriptionAccessRemainDistinct() {

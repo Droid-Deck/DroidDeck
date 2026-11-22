@@ -61,11 +61,14 @@ object XboxBackend : StoreBackend {
                 val products = XboxCatalog.rawProducts(licenses.keys.toList(), market)
                 val cloud = runCatching { XboxCatalog.cloudCatalog(market) }
                     .onFailure { StoresState.logLine("Xbox: cloud lists unavailable (${it.javaClass.simpleName})") }.getOrNull()
-                val games = mergeEditions(products.mapNotNull { XboxCatalog.product(it, licenses, cloud) }).sortedBy { it.title.lowercase() }
+                val drops = java.util.TreeMap<String, Int>()
+                val listed = products.mapNotNull { XboxCatalog.product(it, licenses, cloud) { reason -> drops[reason] = (drops[reason] ?: 0) + 1 } }
+                val games = mergeEditions(listed).sortedBy { it.title.lowercase() }
                 StoresState.logLine("Xbox: library catalog requested=${licenses.size} returned=${products.size} supported=${games.size} " +
                     "filtered=${products.size - games.size} backend-skipped=${response.optInt("skippedEntitlements")} " +
                     "pc=${games.count { it.xboxPc }} cloud=${games.count { it.xboxCloud }} cloud-only=${games.count { !it.xboxPc }} " +
-                    "cloud-lists=${cloud?.gamePass?.size ?: -1}/${cloud?.all?.size ?: -1}")
+                    "cloud-lists=${cloud?.gamePass?.size ?: -1}/${cloud?.all?.size ?: -1} folded=${listed.size - games.size}" +
+                    drops.entries.joinToString("") { " ${it.key}=${it.value}" })
                 synchronized(this) {
                     if (current != generation || StoreAccounts.signedInAs(app, store) != account) return@Thread
                     access = licenses
