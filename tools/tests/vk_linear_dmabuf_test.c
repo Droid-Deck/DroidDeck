@@ -63,6 +63,16 @@ static void check_foreign_image(void) {
     assert(!vkp_linear_dmabuf_foreign_image(0, 1));
 }
 
+static void check_padded_layer_targets(void) {
+    const VkFormat rgba = VK_FORMAT_R8G8B8A8_UNORM;
+    const uint64_t qcom_compressed = 0x0500000000000001ULL;
+    assert(vkp_padded_linear_target_needs_layout(0, 0, rgba, 720, 3072, 0));
+    assert(vkp_padded_linear_target_needs_layout(0, 0, rgba, 720, 2880, 64));
+    assert(!vkp_padded_linear_target_needs_layout(0, 0, rgba, 1280, 5120, 0));
+    assert(!vkp_padded_linear_target_needs_layout(1, 0, rgba, 720, 3072, 0));
+    assert(!vkp_padded_linear_target_needs_layout(0, qcom_compressed, rgba, 720, 3072, 0));
+}
+
 static void check_readback_order(void) {
     assert(vkp_linear_dmabuf_readback_stage(1) & VK_PIPELINE_STAGE_TRANSFER_BIT);
     assert(vkp_linear_dmabuf_readback_access(1) & VK_ACCESS_TRANSFER_WRITE_BIT);
@@ -73,7 +83,7 @@ static void check_readback_order(void) {
 static void check_ownership(void) {
     const VkBuffer buffer = (VkBuffer)(uintptr_t)0x4321;
     const uint32_t queue_family = 3;
-    const VkBufferMemoryBarrier acquire = vkp_linear_dmabuf_ownership(buffer, queue_family, 1);
+    const VkBufferMemoryBarrier acquire = vkp_linear_dmabuf_ownership(buffer, queue_family, VK_ACCESS_TRANSFER_READ_BIT, 1);
     assert(acquire.sType == VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER);
     assert(acquire.pNext == NULL);
     assert(acquire.srcQueueFamilyIndex == VK_QUEUE_FAMILY_FOREIGN_EXT);
@@ -84,7 +94,7 @@ static void check_ownership(void) {
     assert(acquire.offset == 0);
     assert(acquire.size == VK_WHOLE_SIZE);
 
-    const VkBufferMemoryBarrier release = vkp_linear_dmabuf_ownership(buffer, queue_family, 0);
+    const VkBufferMemoryBarrier release = vkp_linear_dmabuf_ownership(buffer, queue_family, VK_ACCESS_TRANSFER_READ_BIT, 0);
     assert(release.sType == VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER);
     assert(release.srcQueueFamilyIndex == queue_family);
     assert(release.dstQueueFamilyIndex == VK_QUEUE_FAMILY_FOREIGN_EXT);
@@ -92,6 +102,13 @@ static void check_ownership(void) {
     assert(release.dstAccessMask == 0);
     assert(release.buffer == buffer);
     assert(release.size == VK_WHOLE_SIZE);
+
+    const VkBufferMemoryBarrier write = vkp_linear_dmabuf_ownership(buffer, queue_family, VK_ACCESS_TRANSFER_WRITE_BIT, 1);
+    const VkBufferMemoryBarrier written = vkp_linear_dmabuf_ownership(buffer, queue_family, VK_ACCESS_TRANSFER_WRITE_BIT, 0);
+    assert(write.srcQueueFamilyIndex == VK_QUEUE_FAMILY_FOREIGN_EXT);
+    assert(write.dstAccessMask == VK_ACCESS_TRANSFER_WRITE_BIT);
+    assert(written.dstQueueFamilyIndex == VK_QUEUE_FAMILY_FOREIGN_EXT);
+    assert(written.srcAccessMask == VK_ACCESS_TRANSFER_WRITE_BIT);
 }
 
 int main(void) {
@@ -99,6 +116,7 @@ int main(void) {
     check_offset_and_wide_texels();
     check_rejected_layouts();
     check_path_choice();
+    check_padded_layer_targets();
     check_foreign_image();
     check_readback_order();
     check_ownership();
