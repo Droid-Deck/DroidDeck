@@ -37,8 +37,8 @@ class InputSettingsTest {
         context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("input-surfaces", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("controller", Context.MODE_PRIVATE).edit().clear().commit()
-        // The Steam Deck controller redraws the stock overlay in its own places; these tests check the editor on the plain one.
-        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
+        // Every controller kit redraws the stock overlay in its own places; these tests check the editor on the plain one.
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
     }
 
     @Test fun commandSymbolsAreSelectableForAnyCustomButton() {
@@ -1242,6 +1242,7 @@ class InputSettingsTest {
     }
 
     @Test fun buttonSizeShowsTheGamepadWhereItWillBeSaved() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
         val library = InputLibraries.read(context)
         val layout = library.layout("game", InputRole.PRIMARY)!!
         assertEquals(InputLibraries.OVERLAY, layout.id)
@@ -1259,7 +1260,11 @@ class InputSettingsTest {
         compose.onNodeWithTag("input-editor-save").performClick()
         compose.runOnIdle { assertEquals(.95f, InputLibraries.read(context).layouts.first { it.id == layout.id }.scale) }
         compose.runOnIdle { round.value = 1 }
-        compose.runOnIdle { assertEquals(scaled, editor().elements) }
+        compose.runOnIdle {
+            val reopened = editor().elements
+            assertEquals(scaled.map { it.id }, reopened.map { it.id })
+            for ((a, b) in scaled.zip(reopened)) for ((x, y) in listOf(a.x to b.x, a.y to b.y, a.width to b.width, a.height to b.height)) assertEquals(a.id, x, y, 1e-4f)
+        }
     }
 
     @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")

@@ -28,8 +28,8 @@ class InputEditorCutoutTest {
 
     @Before fun reset() {
         for (name in listOf("input-profiles", "input-surfaces", "controller", "session")) context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
-        // The Steam Deck controller redraws the stock overlay in its own places; these tests check the editor on the plain one.
-        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
+        // Every controller kit redraws the stock overlay in its own places; these tests check the editor on the plain one.
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
     }
 
     private fun gamepad() = InputLibraries.read(context).layouts.first { it.id == InputLibraries.OVERLAY }

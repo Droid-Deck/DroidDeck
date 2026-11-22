@@ -33,8 +33,8 @@ class InputEditorPanelTest {
         context.getSharedPreferences("input-profiles", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("input-surfaces", Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("controller", Context.MODE_PRIVATE).edit().clear().commit()
-        // The Steam Deck controller redraws the stock overlay in its own places; these tests check the editor on the plain one.
-        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_XBOX360)
+        // Every controller kit redraws the stock overlay in its own places; these tests check the editor on the plain one.
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
     }
 
     private fun open(): SavedInputLayout {
