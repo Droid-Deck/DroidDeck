@@ -2013,6 +2013,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus) triggerKeys.cancel()
         if (hasFocus) {
             com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
             applyLauncherFullscreen()
@@ -2052,7 +2053,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             if (!compatLaunch!!.loading.ended && event.keyCode !in listOf(
                     KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE)) return true
         }
-        if (!triggerKeys.synthesizing) triggerKeys.noteKey(event)
+        if (!triggerKeys.synthesizing && triggerKeys.nativeKey(event)) return true
         val tabStep = com.droiddeck.launcher.ui.dualPageStep(event)
         val tabs = com.droiddeck.launcher.ui.MainTabSteps.handler
         if (tabStep != null && tabs != null) {
@@ -2212,6 +2213,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     override fun onDestroy() {
+        triggerKeys.cancel()
         gameLaunchRequest.incrementAndGet()
         cancelCompatLaunch()
         updates.unregister()
