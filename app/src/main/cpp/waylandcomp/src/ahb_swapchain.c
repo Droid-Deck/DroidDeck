@@ -205,8 +205,13 @@ int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_
                        strerror(errno));
         }
         struct pollfd p = {.fd = dmabuf_fd, .events = POLLIN};
+        const int64_t deadline = now_ns() + (ab->writes_stalled ? 0 : 100000000LL);
         int r;
-        do { r = poll(&p, 1, ab->writes_stalled ? 0 : 100); } while (r < 0 && errno == EINTR);
+        for (;;) {
+            const int64_t left = deadline - now_ns();
+            r = poll(&p, 1, left > 0 ? (int)((left + 999999) / 1000000) : 0);
+            if (r >= 0 || errno != EINTR || left <= 0) break;
+        }
         ab->writes_stalled = r <= 0;
         if (r <= 0) { vkp_note_client_write_deferral(); return -1; }
     }
