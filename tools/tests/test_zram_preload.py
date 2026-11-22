@@ -150,17 +150,18 @@ static void without_threads(void) {
 
 static void *park(void *arg) {
   (void)arg;
-  sigset_t urg;
-  sigemptyset(&urg);
-  sigaddset(&urg, SIGURG);
-  pthread_sigmask(SIG_BLOCK, &urg, NULL);
   for (;;) pause();
   return NULL;
 }
 
 static void parked(void) {
   pthread_t thread;
+  sigset_t urg, previous;
+  sigemptyset(&urg);
+  sigaddset(&urg, SIGURG);
+  pthread_sigmask(SIG_BLOCK, &urg, &previous);
   if (pthread_create(&thread, NULL, park, NULL)) _exit(16);
+  pthread_sigmask(SIG_SETMASK, &previous, NULL);
 }
 
 static void filter_clone(unsigned long allowed) {
