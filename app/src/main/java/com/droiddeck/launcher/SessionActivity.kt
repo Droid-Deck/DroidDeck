@@ -1848,6 +1848,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 setRelativeMouse(mode)
             },
             onFexPreset = { v -> SessionPrefs.setFexPreset(this@SessionActivity, v); readPrefs() },
+            onSelectMenuMode = ::pickMenuMode,
             onSecondScreenMode = { mode ->
                 if (docked) drawerOpen = false
                 pickSecondScreenMode(mode)

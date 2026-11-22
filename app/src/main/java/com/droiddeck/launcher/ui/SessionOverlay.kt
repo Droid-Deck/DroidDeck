@@ -335,6 +335,7 @@ class DrawerActions(
     val onSteamVr: (String) -> Unit = {},
     val onTextureAnisotropy: (Int?) -> Unit = {},
     val onTextureLodBias: (String?) -> Unit = {},
+    val onSelectMenuMode: () -> Unit = {},
     val onSecondScreenMode: (SecondScreenMode) -> Unit,
     val onSecondScreenDisplay: (Int) -> Unit,
     val onLaunchAndroidApp: (HomeApp.LaunchableApp, Int?) -> Unit,
@@ -548,7 +549,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             ScreenPicker(
                                 secondScreenModes(a.secondScreenNone, com.droiddeck.launcher.session.SessionState.deckPad, a.dashboardAvailable, a.desktopAvailable),
                                 a.secondScreenMode, onPick = { host.open = null; a.onSecondScreenMode(it) },
-                                onMenu = if (docked) ({ host.open = null }) else null, menuShown = docked,
+                                onMenu = if (docked) ({ host.open = null; a.onSelectMenuMode() }) else null, menuShown = docked,
                             ),
                             focus.track(page, "screen").testTag("drawer-screen-picker"),
                         )
