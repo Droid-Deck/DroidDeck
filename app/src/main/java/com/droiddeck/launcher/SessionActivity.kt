@@ -1429,7 +1429,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     if (!SessionState.manualPause && !SessionState.suspended) pauseAnimated = false
                 }
                 SessionPausedOverlay(
-                    suspended = SessionState.suspended && (!autoResume || SessionState.resumeFailed || SessionState.manualPause),
+                    suspended = (SessionState.suspended || SessionState.manualPause) && (!autoResume || SessionState.resumeFailed || SessionState.manualPause),
                     engaged = SessionState.resumeRequested || SessionState.resuming,
                     failures = SessionState.resumeFailures,
                     frame = pausedFrame,
@@ -5687,31 +5687,44 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         heldKeys.set(owner, code, down)
     }
 
-    private fun capturePausedFrame(manual: Boolean = false) {
-        if (!SessionState.running || pipUi || isInPictureInPictureMode || glassesOutputActive || bottomOutputActive) return
+    private fun capturePausedFrame(manual: Boolean = false, onDone: () -> Unit = {}) {
+        fun skipped(reason: String) {
+            if (manual) SessionEvents.record("pause.frame_skipped", mapOf("reason" to reason))
+            onDone()
+        }
+        if (!SessionState.running || pipUi || isInPictureInPictureMode || glassesOutputActive || bottomOutputActive) {
+            return skipped("state running=${SessionState.running} pip=$pipUi glasses=$glassesOutputActive bottom=$bottomOutputActive")
+        }
         if (SessionState.suspended && pausedFrame != null) return
-        if ((suspendPolicy == SessionPrefs.SUSPEND_NEVER && !manual && !SessionState.manualPause) || !::surfaceView.isInitialized) return
-        if (surfaceView.holder.surface?.isValid != true) return
+        if ((suspendPolicy == SessionPrefs.SUSPEND_NEVER && !manual && !SessionState.manualPause) || !::surfaceView.isInitialized) return skipped("policy")
+        if (surfaceView.holder.surface?.isValid != true) return skipped("surface invalid")
         val width = surfaceView.width
         val height = surfaceView.height
-        if (width <= 0 || height <= 0) return
+        if (width <= 0 || height <= 0) return skipped("size ${width}x$height")
         val scale = minOf(1f, PAUSED_FRAME_MAX_EDGE / maxOf(width, height).toFloat())
         val bitmap = try {
             android.graphics.Bitmap.createBitmap(
                 maxOf(1, (width * scale).toInt()), maxOf(1, (height * scale).toInt()), android.graphics.Bitmap.Config.ARGB_8888,
             )
         } catch (_: OutOfMemoryError) {
-            return
+            return skipped("oom")
         }
         val surfaceAt = IntArray(2).also { surfaceView.getLocationInWindow(it) }
         val overlayAt = IntArray(2).also { sessionOverlay.getLocationInWindow(it) }
         val left = surfaceAt[0] - overlayAt[0]
         val top = surfaceAt[1] - overlayAt[1]
         val bounds = android.graphics.Rect(left, top, left + width, top + height)
+        val requestedAt = SystemClock.elapsedRealtime()
         withPictureFrame { done ->
             try {
                 android.view.PixelCopy.request(surfaceView, bitmap, { result ->
                     done()
+                    onDone()
+                    if (manual) SessionEvents.record("pause.frame_copy", mapOf(
+                        "result" to result, "ms" to SystemClock.elapsedRealtime() - requestedAt,
+                        "zeroCopy" to SessionPrefs.zeroCopy(this, SessionState.mode), "size" to "${width}x$height",
+                        "lit" to (result == android.view.PixelCopy.SUCCESS && bitmapHasPicture(bitmap)),
+                    ))
                     if (result == android.view.PixelCopy.SUCCESS && !isDestroyed) {
                         pausedFrame = com.droiddeck.launcher.ui.PausedFrame(bitmap.asImageBitmap(), bounds)
                         pausedFrameWanted = false
@@ -5722,6 +5735,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             } catch (_: IllegalArgumentException) {
                 done()
                 bitmap.recycle()
+                skipped("copy rejected")
             }
         }
     }
@@ -5731,8 +5745,31 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         pauseAnimated = true
         if (!dockedTouchOnly) drawerOpen = false
         pausedFrame = null
-        capturePausedFrame(manual = true)
+        if (zeroCopyActive()) {
+            WaylandCompositor.nativeSetZeroCopy(false)
+            val restore = java.util.concurrent.atomic.AtomicBoolean(false)
+            val back = { if (restore.compareAndSet(false, true)) WaylandCompositor.nativeSetZeroCopy(true) }
+            uiHandler.postDelayed({ capturePausedFrame(manual = true, onDone = back) }, ZERO_COPY_SETTLE_MS)
+            uiHandler.postDelayed({ back() }, ZERO_COPY_RESTORE_MS)
+        } else {
+            capturePausedFrame(manual = true)
+        }
         SessionService.pause(this)
+    }
+
+    private fun zeroCopyActive(): Boolean =
+        CompositorHost.isStarted && !SessionState.hdr && SessionPrefs.zeroCopy(this, SessionState.mode)
+
+    private fun bitmapHasPicture(bitmap: android.graphics.Bitmap): Boolean {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w <= 0 || h <= 0) return false
+        var lit = 0
+        for (i in 0 until 64) {
+            val c = bitmap.getPixel((w * (i % 8 + 1)) / 9, (h * (i / 8 + 1)) / 9)
+            if (android.graphics.Color.red(c) + android.graphics.Color.green(c) + android.graphics.Color.blue(c) > 24) lit++
+        }
+        return lit >= 3
     }
 
     private fun requestPausedFrame() {
@@ -6762,6 +6799,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         private const val LEAVE_TIMEOUT_MS = 1_500L
         private const val TEXT_FIELD_TAP_MS = 1_000L
         private const val PAUSED_FRAME_MAX_EDGE = 1920f
+        private const val ZERO_COPY_SETTLE_MS = 150L
+        private const val ZERO_COPY_RESTORE_MS = 1200L
         private const val BFI_PICTURE_SETTLE_MS = 50L
         private const val PAUSED_FRAME_REDRAW_MS = 150L
         private const val BOTTOM_RECOVERY_MS = 1_000L
