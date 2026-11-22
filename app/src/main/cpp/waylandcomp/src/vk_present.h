@@ -44,6 +44,7 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
 int vkp_image_is_dmabuf(const struct vkp_image *img);
 struct AHardwareBuffer;
 int vkp_can_import_ahb(void);
+void vkp_image_track_client_writes(struct vkp_image *img, int dmabuf_fd);
 struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, char *info, size_t info_n);
 
 struct vkp_image *vkp_image_create_shm(int w, int h);
@@ -86,6 +87,7 @@ struct vkp_perf {
     unsigned base_presents;
     unsigned base_kept;
     unsigned gpu_release_waits;
+    unsigned client_write_waits;
 };
 void vkp_perf_take(struct vkp_perf *out);
 int vkp_can_wait_sync_fd(void);

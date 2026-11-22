@@ -712,8 +712,10 @@ const struct wl_buffer_interface dbuf_buffer_impl = {
 static struct vkp_image *import_dmabuf(struct dmabuf_buffer *b) {
     AHardwareBuffer *ahb = ahb_swapchain_display_buffer(b);
     struct vkp_image *img = ahb ? vkp_image_from_ahb(ahb) : NULL;
-    return img ? img : vkp_image_from_dmabuf(b->fd[0], b->format, b->modifier, b->width, b->height, b->stride[0],
-                                             b->offset[0]);
+    if (!img) img = vkp_image_from_dmabuf(b->fd[0], b->format, b->modifier, b->width, b->height, b->stride[0],
+                                          b->offset[0]);
+    vkp_image_track_client_writes(img, b->fd[0]);
+    return img;
 }
 
 static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer) {
@@ -4214,7 +4216,7 @@ static int on_stats_timer(void *data) {
         if (g_perf.scenes || vp.presents || g_perf.releases || drops)
             droiddeck_log("perf", "last 10 s: %u ticks, %u scenes, %u on screen (copy %u, zero-copy %u, layer copy %u) | "
                        "render_scene %.2f/%.2f ms | base %u black kept, %u presented | acquire %.2f/%.2f ms | "
-                       "present %.2f/%.2f ms (%u) | fence wait %.2f/%.2f ms (%u, %u GPU release waits) | "
+                       "present %.2f/%.2f ms (%u) | fence wait %.2f/%.2f ms (%u, %u GPU release waits, %u client write waits) | "
                        "release %.2f/%.2f ms (%u, %u held) | %u pool drops | layer frames timed for the next refresh %u, "
                        "the one after %u, held to an even step %u",
                        g_perf.ticks, g_perf.scenes, g_stat_frames, g_perf.copy_scenes, zero_copy, layer_frames,
@@ -4223,6 +4225,7 @@ static int on_stats_timer(void *data) {
                        PERF_MS(vp.acquire_ns, vp.acquires), (double)vp.acquire_max_ns / 1e6,
                        PERF_MS(vp.present_ns, vp.presents), (double)vp.present_max_ns / 1e6, vp.presents,
                        PERF_MS(vp.wait_ns, vp.waits), (double)vp.wait_max_ns / 1e6, vp.waits, vp.gpu_release_waits,
+                       vp.client_write_waits,
                        PERF_MS(g_perf.release_ns, g_perf.releases), (double)g_perf.release_max_ns / 1e6,
                        g_perf.releases, g_perf.releases_held, drops, aimed_next, aimed_later, aimed_even);
 #undef PERF_MS

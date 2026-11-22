@@ -17,6 +17,10 @@
 #include <math.h>
 #include <string.h>
 #include <sys/system_properties.h>
+#include <sys/ioctl.h>
+#include <fcntl.h>
+#include <linux/dma-buf.h>
+#include <linux/sync_file.h>
 #include <unistd.h>
 #include <errno.h>
 #include <poll.h>
@@ -47,6 +51,7 @@ struct vkp_image {
     VkBuffer linear_buf;
     VkDeviceMemory linear_mem;
     VkBufferImageCopy linear_copy;
+    int client_fd, has_client_fd;
 };
 
 static ANativeWindow *g_window;
@@ -145,6 +150,8 @@ static int g_black_state;
 
 static PFN_vkImportSemaphoreFdKHR g_import_sem_fd;
 static VkSemaphore g_wait_sem;
+static VkSemaphore g_client_sem;
+static int g_client_wait_fd = -1;
 
 #define VKP_VENDOR_QUALCOMM 0x5143
 static uint32_t g_vendor_id;
@@ -686,6 +693,8 @@ static int dev_init(void) {
             g_import_sem_fd = NULL;
             g_wait_sem = VK_NULL_HANDLE;
         }
+        if (g_import_sem_fd && g_vk.CreateSemaphore(g_dev, &wsci, NULL, &g_client_sem) != VK_SUCCESS)
+            g_client_sem = VK_NULL_HANDLE;
     }
     droiddeck_log("perf", "layer buffers: the display's release fences are waited for %s",
                g_import_sem_fd ? "on the GPU (VK_KHR_external_semaphore_fd)"
@@ -1120,7 +1129,57 @@ static void release_external_client_draws(VkCommandBuffer cmd, const struct vkp_
     }
 }
 
+/* Clients commit a dma-buf as soon as their GPU work is queued, and nothing here offers explicit sync, so
+ * reads of a client's buffer wait for the write fences the client's driver attached to it. */
+static void note_client_writes(const struct vkp_image *img) {
+    if (!img || !img->has_client_fd) return;
+    struct dma_buf_export_sync_file exp = {.flags = DMA_BUF_SYNC_READ, .fd = -1};
+    if (ioctl(img->client_fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &exp) != 0 || exp.fd < 0) return;
+    struct pollfd p = {.fd = exp.fd, .events = POLLIN};
+    if (poll(&p, 1, 0) > 0) { close(exp.fd); return; }
+    if (g_client_wait_fd < 0) { g_client_wait_fd = exp.fd; return; }
+    struct sync_merge_data m = {.name = "droiddeck-client-writes", .fd2 = exp.fd};
+    if (ioctl(g_client_wait_fd, SYNC_IOC_MERGE, &m) == 0) {
+        close(g_client_wait_fd);
+        g_client_wait_fd = m.fence;
+    } else {
+        int r;
+        do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
+    }
+    close(exp.fd);
+}
+
+static int take_client_wait(void) {
+    const int fd = g_client_wait_fd;
+    if (fd < 0) return 0;
+    g_client_wait_fd = -1;
+    if (g_import_sem_fd && g_client_sem != VK_NULL_HANDLE) {
+        VkImportSemaphoreFdInfoKHR ii = {.sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
+                                         .semaphore = g_client_sem, .flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
+                                         .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT, .fd = fd};
+        if (g_import_sem_fd(g_dev, &ii) == VK_SUCCESS) {
+            g_perf.client_write_waits++;
+            return 1;
+        }
+    }
+    struct pollfd p = {.fd = fd, .events = POLLIN};
+    int r;
+    do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
+    close(fd);
+    g_perf.client_write_waits++;
+    return 0;
+}
+
+void vkp_image_track_client_writes(struct vkp_image *img, int dmabuf_fd) {
+    if (!img || img->has_client_fd || dmabuf_fd < 0) return;
+    const int fd = fcntl(dmabuf_fd, F_DUPFD_CLOEXEC, 0);
+    if (fd < 0) return;
+    img->client_fd = fd;
+    img->has_client_fd = 1;
+}
+
 static void stage_linear_dmabuf(VkCommandBuffer cmd, const struct vkp_image *img) {
+    note_client_writes(img);
     if (!img || !img->linear_buf) return;
     const VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     VkBufferMemoryBarrier acquire = vkp_linear_dmabuf_ownership(img->linear_buf, g_qfam, VK_ACCESS_TRANSFER_READ_BIT, 1);
@@ -1662,6 +1721,7 @@ void vkp_image_destroy(struct vkp_image *img) {
         destroy_image_objects(img);
     }
     if (img->android_buffer) AHardwareBuffer_release(img->android_buffer);
+    if (img->has_client_fd) close(img->client_fd);
     free(img);
 }
 
@@ -2396,9 +2456,11 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
             g_vk.EndCommandBuffer(ck);
         }
         const int last = (k + 1 == presents);
-        VkPipelineStageFlags wait = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .waitSemaphoreCount = 1,
-                           .pWaitSemaphores = &g_acqs[k], .pWaitDstStageMask = &wait, .commandBufferCount = 1,
+        const int client_wait = k == 0 && take_client_wait();
+        VkSemaphore waits[2] = {g_acqs[k], g_client_sem};
+        VkPipelineStageFlags wait[2] = {VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT};
+        VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .waitSemaphoreCount = client_wait ? 2u : 1u,
+                           .pWaitSemaphores = waits, .pWaitDstStageMask = wait, .commandBufferCount = 1,
                            .pCommandBuffers = &g_cmds[k], .signalSemaphoreCount = 1, .pSignalSemaphores = &g_rnds[k]};
         VkResult qr = g_vk.QueueSubmit(g_queue, 1, &si, last ? g_fence : VK_NULL_HANDLE);
         if (qr != VK_SUCCESS) {
@@ -2617,10 +2679,14 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
     release_external_client_image(g_cmd, src);
     g_vk.EndCommandBuffer(g_cmd);
 
-    VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    VkSemaphore waits[2];
+    VkPipelineStageFlags wait_stages[2];
+    uint32_t n_waits = 0;
+    if (gpu_wait) { waits[n_waits] = g_wait_sem; wait_stages[n_waits++] = VK_PIPELINE_STAGE_TRANSFER_BIT; }
+    if (take_client_wait()) { waits[n_waits] = g_client_sem; wait_stages[n_waits++] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT; }
     VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &g_cmd,
-                       .waitSemaphoreCount = gpu_wait ? 1u : 0u, .pWaitSemaphores = gpu_wait ? &g_wait_sem : NULL,
-                       .pWaitDstStageMask = gpu_wait ? &wait_stage : NULL};
+                       .waitSemaphoreCount = n_waits, .pWaitSemaphores = n_waits ? waits : NULL,
+                       .pWaitDstStageMask = n_waits ? wait_stages : NULL};
     g_vk.ResetFences(g_dev, 1, &g_fence);
     VkResult qr = g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
     if (qr != VK_SUCCESS) {
@@ -2728,7 +2794,11 @@ int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px) {
                             0, 0, NULL, 0, NULL, done_count, done);
     release_external_client_image(cmd, src);
     g_vk.EndCommandBuffer(cmd);
-    VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &cmd};
+    VkPipelineStageFlags client_stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    const int client_wait = take_client_wait();
+    VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &cmd,
+                       .waitSemaphoreCount = client_wait ? 1u : 0u, .pWaitSemaphores = client_wait ? &g_client_sem : NULL,
+                       .pWaitDstStageMask = client_wait ? &client_stage : NULL};
     g_vk.ResetFences(g_dev, 1, &g_fence);
     VkResult qr = g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
     if (qr != VK_SUCCESS) {
@@ -2941,10 +3011,14 @@ static int pass_finish(const VkImage *srcs, VkImageLayout src_layout, struct vkp
     }
     g_vk.EndCommandBuffer(cmd);
 
-    VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    VkSemaphore waits[2];
+    VkPipelineStageFlags wait_stages[2];
+    uint32_t n_waits = 0;
+    if (gpu_wait) { waits[n_waits] = g_wait_sem; wait_stages[n_waits++] = VK_PIPELINE_STAGE_TRANSFER_BIT; }
+    if (take_client_wait()) { waits[n_waits] = g_client_sem; wait_stages[n_waits++] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT; }
     VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &cmd,
-                       .waitSemaphoreCount = gpu_wait ? 1u : 0u, .pWaitSemaphores = gpu_wait ? &g_wait_sem : NULL,
-                       .pWaitDstStageMask = gpu_wait ? &wait_stage : NULL};
+                       .waitSemaphoreCount = n_waits, .pWaitSemaphores = n_waits ? waits : NULL,
+                       .pWaitDstStageMask = n_waits ? wait_stages : NULL};
     g_vk.ResetFences(g_dev, 1, &g_fence);
     VkResult qr = g_vk.QueueSubmit(g_queue, 1, &si, g_fence);
     if (qr != VK_SUCCESS) {
