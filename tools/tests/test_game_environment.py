@@ -1168,10 +1168,33 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertFalse(done([str(script)], env))
             (prefix / "system.reg").write_text(self.REDIST + self.SETUP)
             self.assertTrue(done([str(script)], env))
+            # Steam rewrote the file: only marked "run process" entries, so its evaluator would run nothing either
             script.write_text(self.SCRIPT.replace("x64.cmd", "x64-update.cmd"))
+            self.assertTrue(done([str(script)], env))
+            script.write_text(self.SCRIPT.replace('"Setup"', '"Setup 2"'))
             self.assertFalse(done([str(script)], env))
             script.write_text('"InstallScript" { "Registry" { "HKEY_LOCAL_MACHINE\\\\Software\\\\Game" { "string" { "Path" "%INSTALLDIR%" } } } }')
             MODULE["record_install_scripts"](MODULE["scripts_digest"]([str(script)]), env)
+            self.assertFalse(done([str(script)], env))
+
+    def test_marked_run_process_scripts_count_as_done_without_a_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "evaluatorscript_291550.vdf"
+            script.write_text(self.SCRIPT.replace('"0" { "appid" "228980"',
+                                                  '"0" { "appid" "228980" "mode" "1" "language" "english" '
+                                                  '"install_path" "/root/x" "SteamID" "7656"'))
+            prefix = Path(tmp) / "compat/pfx"
+            prefix.mkdir(parents=True)
+            env = {"STEAM_COMPAT_DATA_PATH": str(prefix.parent)}
+            done = MODULE["install_scripts_done"]
+            (prefix / "system.reg").write_text(self.REDIST)
+            self.assertFalse(done([str(script)], env))
+            (prefix / "system.reg").write_text(self.REDIST + self.SETUP)
+            self.assertTrue(done([str(script)], env))
+            (prefix / MODULE["INSTALL_STAMP"]).write_text("an older digest\n")
+            self.assertTrue(done([str(script)], env))
+            script.write_text(self.SCRIPT.replace('"run process" {',
+                                                  '"registry" { "HKEY_LOCAL_MACHINE\\\\Software\\\\Game" { "string" { "Path" "x" } } } "run process" {'))
             self.assertFalse(done([str(script)], env))
 
     def test_the_evaluator_is_skipped_once_it_finished_the_same_scripts(self):
@@ -1189,8 +1212,12 @@ class GameEnvironmentTest(unittest.TestCase):
             proton.write_text("#!/bin/sh\necho run >> %s\nexit ${EXIT_CODE:-0}\n" % shlex.quote(str(runs)))
             proton.chmod(0o755)
 
-            def evaluate(exit_code="0"):
-                script.write_text(self.SCRIPT if exit_code != "changed" else self.SCRIPT.replace("setup.exe", "setup-update.exe"))
+            # a registry action besides the marked runs: Steam's evaluator has work to do, so it runs once
+            with_registry = self.SCRIPT.replace(
+                '"run process" {', '"registry" { "HKEY_LOCAL_MACHINE\\\\Software\\\\Game" { "string" { "Path" "x" } } } "run process" {')
+
+            def evaluate(exit_code="0", text=None):
+                script.write_text(text or (with_registry if exit_code != "changed" else with_registry.replace("setup.exe", "setup-update.exe")))
                 env = dict(os.environ, HOME=tmp, STEAM_COMPAT_CLIENT_INSTALL_PATH=str(root),
                            STEAM_COMPAT_DATA_PATH=str(prefix.parent), EXIT_CODE="0" if exit_code == "changed" else exit_code)
                 result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(proton), "run",
@@ -1203,6 +1230,8 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(evaluate(), (0, 2))
             self.assertEqual(evaluate(), (0, 2))
             self.assertEqual(evaluate("changed"), (0, 3))
+            # only marked "run process" entries, all set: skipped even though the file differs from the recorded one
+            self.assertEqual(evaluate(text=self.SCRIPT.replace("x64.cmd", "x64-update.cmd")), (0, 3))
 
     def test_the_mali_bridge_caps_the_vkd3d_feature_level(self):
         bridge = {"DD_VKBRIDGE": "1", "VKD3D_FEATURE_LEVEL": "12_2"}
@@ -1391,6 +1420,61 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual((base / paths["dxvk"]).read_text(), "dxvk-game")
             self.assertFalse(leftover.exists())
             self.assertEqual(selection.read_bytes(), saved)
+
+    def test_droiddeck_bionic_takes_only_android_fex_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = root / "home"
+            component_dir = home / ".local/share/droiddeck-components"
+            store = component_dir / "store"
+            component_dir.mkdir(parents=True)
+            unix = "files/lib/wine/aarch64-unix/libwow64fex.so"
+            other = "files/lib/wine/aarch64-unix/libarm64ecfex.so"
+            dll = "files/lib/wine/aarch64-windows/libwow64fex.dll"
+            digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+
+            def source(key, rel, text):
+                path = store / key / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text)
+                return path
+
+            def row(scope, tool, rel, path):
+                return "%s\t%s\tbuild-1\tfex\t%s\t%s\t%s\n" % (scope, tool, rel, digest(path), path)
+
+            bionic, glibc_tool = "DroidDeck-Bionic-12.8-r24", "DroidDeck-Proton-11-12.8"
+            for tool in (bionic, glibc_tool):
+                for rel in (unix, other, dll):
+                    (root / tool / rel).parent.mkdir(parents=True, exist_ok=True)
+                    (root / tool / rel).write_text("bundled " + rel)
+                (root / tool / "version").write_text("1 build-1\n")
+            glibc = source("FEXCore-2611-linux", unix, "glibc so")
+            android = source("FEXCore-2611-bionic", unix, "android so")
+            android_dll = source("FEXCore-2611-Bionic", dll, "android dll")
+            saved = source("original-%s-%s-fex" % (bionic, bionic), unix, "saved android so")
+            rows = []
+            for tool in (bionic, glibc_tool):
+                rows += [row("42", tool, unix, glibc), "42\t%s\tbuild-1\tfex\t%s\t-\t-\n" % (tool, other)]
+                rows += [row("43", tool, unix, android), row("43", tool, dll, android_dll)]
+                rows += [row("*", tool, unix, saved)]
+            (component_dir / "desired.tsv").write_text("".join(rows))
+            script = COMPAT["DD_COMPONENTS_SETUP"] + '\nverb=waitforexitandrun; dd_components "$1"\n'
+            run = lambda tool, app: subprocess.run(
+                ["bash", "-c", script, "test", str(root / tool)], check=True, capture_output=True,
+                env=dict(os.environ, HOME=str(home), STEAM_COMPAT_DATA_PATH="/steam/compatdata/" + app))
+
+            run(bionic, "42")
+            self.assertEqual((root / bionic / unix).read_text(), "bundled " + unix)
+            self.assertEqual((root / bionic / other).read_text(), "bundled " + other)
+            run(bionic, "43")
+            self.assertEqual((root / bionic / unix).read_text(), "android so")
+            self.assertEqual((root / bionic / dll).read_text(), "android dll")
+            run(bionic, "44")
+            self.assertEqual((root / bionic / unix).read_text(), "saved android so")
+
+            run(glibc_tool, "42")
+            self.assertEqual((root / glibc_tool / unix).read_text(), "glibc so")
+            self.assertFalse((root / glibc_tool / other).exists())
 
     def test_component_scope_matches_environment_scope_for_shortcut_ids(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2234,6 +2318,46 @@ class GameEnvironmentTest(unittest.TestCase):
             out = subprocess.run(["bash", "-c", "verb=" + verb + "\n" + skip + "echo continued", "_"] + args,
                                  env=env, capture_output=True, text=True, check=True).stdout
             self.assertEqual(out, "continued\n", (verb, args, prefix))
+
+    def test_bionic_tool_starts_droiddeck_proton_when_proot_is_on(self):
+        script = COMPAT["extra_wrapper_sh"]("proton")
+        with tempfile.TemporaryDirectory() as tmp:
+            tools = Path(tmp) / "compatibilitytools.d"
+
+            def tool(name, bionic=False):
+                d = tools / name
+                (d / "bionic").mkdir(parents=True)
+                if bionic:
+                    (d / "bionic" / "launch.sh").write_text("")
+                wrapper = d / "droiddeck-proton-wrap"
+                wrapper.write_text(script if bionic else '#!/bin/sh\necho "ran ${0%/*}" "$@"\n')
+                wrapper.chmod(0o755)
+                return wrapper
+
+            bionic = tool("DroidDeck-Bionic-12.8-r37", bionic=True)
+            tool("DroidDeck-Proton 11-12.8")
+            tool("DroidDeck-Proton-11-12.10")
+            tool("DroidDeck-Proton-12.8-bionic-test", bionic=True)
+            tool("GE-Proton10-25")
+            base = {"PATH": os.defpath, "HOME": "/nonexistent"}
+
+            def launch(extra=()):
+                env = dict(base, **dict(extra))
+                return subprocess.run([str(bionic), "waitforexitandrun", "/games/A B/game.exe", "-x"], env=env,
+                                      capture_output=True, text=True, timeout=10)
+
+            result = launch()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "ran %s waitforexitandrun /games/A B/game.exe -x\n"
+                             % os.path.realpath(tools / "DroidDeck-Proton-11-12.10"))
+            self.assertIn("this launch uses DroidDeck-Proton-11-12.10", result.stderr)
+
+            shutil.rmtree(tools / "DroidDeck-Proton-11-12.10")
+            self.assertIn("ran %s " % os.path.realpath(tools / "DroidDeck-Proton 11-12.8"), launch().stdout)
+
+            self.assertNotIn("ran ", launch({"DDNATV_ROOT": "/data/rootfs"}).stdout)
+            shutil.rmtree(tools / "DroidDeck-Proton 11-12.8")
+            self.assertNotIn("this launch uses", launch().stderr)
 
     def test_wrappers_preload_the_session_library_before_the_input_shim(self):
         overlay = "/root/.local/share/Steam/ubuntu12_64/gameoverlayrenderer.so"

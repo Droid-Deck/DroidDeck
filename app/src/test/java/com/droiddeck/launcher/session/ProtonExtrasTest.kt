@@ -77,8 +77,8 @@ class ProtonExtrasTest {
     }
 
     @Test
-    fun theThreeSourcesInOrder() {
-        assertEquals(listOf("ge", "cachyos", "droiddeck"), ProtonExtras.tools.map { it.id })
+    fun theSourcesInOrder() {
+        assertEquals(listOf("ge", "cachyos", "droiddeck", "bionic"), ProtonExtras.tools.map { it.id })
         val droiddeck = tool("droiddeck")
         assertEquals("DroidDeck-Proton", droiddeck.name)
         assertEquals("DroidDeck-Proton", droiddeck.prefix)
@@ -88,6 +88,29 @@ class ProtonExtrasTest {
         assertFalse(droiddeck.assetPattern.containsMatchIn("DroidDeck-Proton-11-7.5-aarch64.sha512sum"))
         assertFalse(droiddeck.assetPattern.containsMatchIn("DroidDeck-Proton-11-7.5-aarch64.build-info.json"))
         assertFalse(tool("cachyos").assetPattern.containsMatchIn("proton-cachyos-11.0-20261005-slr-x86_64.tar.xz"))
+    }
+
+    @Test
+    fun bionicAndDroidDeckProtonShareTheReleasesButNotTheirArchives() {
+        val bionic = tool("bionic")
+        assertEquals("DroidDeck-Bionic", bionic.prefix)
+        assertEquals("Droid-Deck/DroidDeck-Proton", bionic.repo)
+        assertTrue(bionic.assetPattern.containsMatchIn("DroidDeck-Bionic-12.8-r3-aarch64.tar.xz"))
+        assertFalse(bionic.assetPattern.containsMatchIn("DroidDeck-Proton-11-12.8-aarch64.tar.gz"))
+        assertFalse(bionic.assetPattern.containsMatchIn("DroidDeck-Bionic-12.8-r3-aarch64.sha512sum"))
+        assertFalse(tool("droiddeck").assetPattern.containsMatchIn("DroidDeck-Bionic-12.8-r3-aarch64.tar.xz"))
+    }
+
+    @Test
+    fun bionicTakesItsPrereleaseAndDroidDeckProtonSkipsIt() {
+        val releases = JSONArray()
+            .put(release("DroidDeck-Bionic-12.8-r3", asset("DroidDeck-Bionic-12.8-r3-aarch64.sha512sum"),
+                asset("DroidDeck-Bionic-12.8-r3-aarch64.tar.xz"), prerelease = true))
+            .put(droiddeckRelease("11-12.8"))
+        val bionic = ProtonExtras.pickAsset(tool("bionic"), releases)!!
+        assertEquals("DroidDeck-Bionic-12.8-r3-aarch64.tar.xz", bionic.name)
+        assertTrue(bionic.sha512!!.endsWith("DroidDeck-Bionic-12.8-r3-aarch64.sha512sum"))
+        assertEquals("DroidDeck-Proton-11-12.8-aarch64.tar.gz", ProtonExtras.pickAsset(tool("droiddeck"), releases)!!.name)
     }
 
     @Test
@@ -204,6 +227,22 @@ class ProtonExtrasTest {
         File(context.filesDir, "proton-extras.json").writeText(JSONObject().put("DroidDeck-Proton 11-7.5", "DroidDeck-Proton-11-7.6").toString())
         assertEquals(listOf("DroidDeck-Proton-11-7.6"), ProtonExtras.installedTags(context, tool("droiddeck")))
         assertNull(ProtonExtras.update(context, tool("droiddeck")))
+    }
+
+    @Test
+    fun removingDeletesLinksButNeverWhatTheyPointTo() {
+        val context = RuntimeEnvironment.getApplication()
+        val tools = File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/compatibilitytools.d")
+        val outside = temp.newFolder("outside").apply { File(this, "keep.txt").writeText("x") }
+        for (name in listOf("DroidDeck-Bionic-12.8-r3", "DroidDeck-Bionic-12.8-r5")) {
+            val dosdevices = File(installTool(tools, name), "files/default_pfx/dosdevices").apply { mkdirs() }
+            java.nio.file.Files.createSymbolicLink(File(dosdevices, "z:").toPath(), outside.toPath())
+        }
+        ProtonExtras.removeOlder(context, tool("bionic"))
+        ProtonExtras.remove(context, tool("bionic"), "DroidDeck-Bionic-12.8-r5")
+        assertFalse(File(tools, "DroidDeck-Bionic-12.8-r3").exists())
+        assertFalse(File(tools, "DroidDeck-Bionic-12.8-r5").exists())
+        assertTrue(File(outside, "keep.txt").isFile)
     }
 
     @Test

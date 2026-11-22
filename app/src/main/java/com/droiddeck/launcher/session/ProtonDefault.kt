@@ -14,7 +14,8 @@ object ProtonDefault {
 
     data class Tool(val name: String, val display: String, val dir: String, val valve: Boolean)
     data class Request(val seq: Long, val valve: Boolean, val dir: String)
-    data class State(val default: String?, val applied: Long, val live: Boolean, val pending: String?, val tools: List<Tool>)
+    data class State(val default: String?, val applied: Long, val live: Boolean, val pending: String?, val tools: List<Tool>,
+                     val source: String? = null)
     data class GameChoice(val valve: Boolean, val dir: String)
 
     enum class Outcome { LIVE, NEXT_START, NOT_RUNNABLE }
@@ -34,6 +35,7 @@ object ProtonDefault {
                     Tool(t.optString("name"), t.optString("display"), t.optString("dir"), t.optBoolean("valve"))
                 }?.takeIf { it.name.isNotEmpty() }
             },
+            source = o.optString("source").ifEmpty { null },
         )
     }
 
@@ -99,7 +101,13 @@ object ProtonDefault {
         if (!runnable(state, proton)) return Outcome.NOT_RUNNABLE
         val d = dir(context)
         val seq = nextSeq(System.currentTimeMillis(), state, parseRequest(read(File(d, "request.json"))))
-        val body = JSONObject().put("seq", seq).put("valve", proton.valve).put("dir", proton.dir.name).toString(1) + "\n"
+        writeRequest(d, Request(seq, proton.valve, proton.dir.name))
+        val tool = state.tools.firstOrNull { it.valve == proton.valve && it.dir == proton.dir.name }
+        return if (SessionState.running && state.live && (tool == null || state.pending != tool.name)) Outcome.LIVE else Outcome.NEXT_START
+    }
+
+    private fun writeRequest(d: File, request: Request) {
+        val body = JSONObject().put("seq", request.seq).put("valve", request.valve).put("dir", request.dir).toString(1) + "\n"
         val staged = File(d, "request.json.staged")
         try {
             d.mkdirs()
@@ -110,8 +118,45 @@ object ProtonDefault {
             Log.w(TAG, "could not write the Proton request", e)
             throw e
         }
-        val tool = state.tools.firstOrNull { it.valve == proton.valve && it.dir == proton.dir.name }
-        return if (SessionState.running && state.live && (tool == null || state.pending != tool.name)) Outcome.LIVE else Outcome.NEXT_START
+    }
+
+    // The default that names a tool an update replaces moves to the new one, as the per-game picks do: otherwise the guest
+    // no longer finds it and falls back to DroidDeck-Proton.
+    internal fun movedDefault(state: State, request: Request?, from: Set<String>, to: String, now: Long): Request? {
+        val (valve, dir) = chosen(state, request) ?: return null
+        if (valve || dir !in from) return null
+        return Request(nextSeq(now, state, request), false, to)
+    }
+
+    @Synchronized
+    fun moveDefault(context: Context, from: Set<String>, to: String) {
+        val d = dir(context)
+        val moved = movedDefault(state(context), parseRequest(read(File(d, "request.json"))), from, to, System.currentTimeMillis()) ?: return
+        writeRequest(d, moved)
+    }
+
+    // DroidDeck-Bionic keeps one build. A default naming another one moves to the installed build: an app from before
+    // updates carried the default over left it, or the guest fell back to its own tool when that build was gone (the
+    // request the app last wrote still names it).
+    internal fun bionicDefault(state: State, request: Request?, prefix: String, newest: String, now: Long): Request? {
+        val current = chosen(state, request)
+        val stale = when {
+            current != null && !current.first && current.second.startsWith(prefix) -> current.second
+            state.source == "fallback" && request != null && !request.valve && request.dir.startsWith(prefix) -> request.dir
+            else -> return null
+        }
+        return if (stale == newest) null else Request(nextSeq(now, state, request), false, newest)
+    }
+
+    /** The default and the per-game picks that name a DroidDeck-Bionic build other than [newest] move to it. */
+    @Synchronized
+    fun keepBionicCurrent(context: Context, prefix: String, newest: String) {
+        val d = dir(context)
+        bionicDefault(state(context), parseRequest(read(File(d, "request.json"))), prefix, newest, System.currentTimeMillis())
+            ?.let { writeRequest(d, it) }
+        val games = parseGames(read(File(d, GAMES)))
+        val stale = games.values.filterNotNull().filter { !it.valve && it.dir.startsWith(prefix) && it.dir != newest }.map { it.dir }.toSet()
+        if (stale.isNotEmpty()) movedGames(games, stale, newest)?.let { writeGames(d, it) }
     }
 
     internal fun movedGames(choices: Map<String, GameChoice?>, from: Set<String>, to: String): Map<String, GameChoice?>? {
