@@ -344,6 +344,8 @@ class DrawerActions(
     val onPip: () -> Unit = {},
     val onPause: () -> Unit = {},
     val paused: Boolean = false,
+    val orientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE,
+    val onOrientation: (Int) -> Unit = {},
     val onResume: () -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val unfoldedControls: Boolean? = null,
@@ -669,6 +671,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         a.onQam?.invoke()
                                     }
                                 }
+                            }
+                            SettingsGroup(stringResource(R.string.setup_orientation)) {
+                                ChoiceRow(host, "orientation", stringResource(R.string.setup_session_orientation), null,
+                                    SessionPrefs.orientationOptions.map { (value, label) -> value to stringResource(label) },
+                                    a.orientation, chipModifier = focus.track(page, "orientation"), onPick = a.onOrientation)
                             }
                             SettingsGroup(stringResource(R.string.display_image_scaling)) {
                                 if (a.steam) SettingsRow(stringResource(R.string.display_integer_scaling), null) {

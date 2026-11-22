@@ -591,6 +591,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var drawerControllerActive by mutableStateOf(false)
     private var backHold by mutableStateOf(true)
     private var dockedMenuController by mutableStateOf(false)
+    private var sessionOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var backActionsInverted by mutableStateOf(false)
     private var backDoubleTapMs by mutableStateOf(500)
     private var lowLatency by mutableStateOf(true)
@@ -1863,6 +1864,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onPause = ::pauseNow,
             paused = SessionState.suspended || SessionState.manualPause,
             onResume = { SessionService.resume(this@SessionActivity) },
+            orientation = sessionOrientation,
+            onOrientation = { value ->
+                SessionPrefs.setOrientation(this@SessionActivity, value)
+                sessionOrientation = value
+                applyFollowOrientation(resources.configuration)
+            },
             onPipAutoEnter = { on ->
                 SessionPrefs.setPipAutoEnter(this@SessionActivity, on)
                 pipAutoEnter = on
@@ -2641,6 +2648,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         oscTrackpads = SessionPrefs.oscTrackpads(this)
         backHold = SessionPrefs.backHold(this)
         dockedMenuController = SessionPrefs.dockedMenuController(this)
+        sessionOrientation = SessionPrefs.orientation(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         physicalShortcuts.bindings = PhysicalShortcuts.read(this)
         backDoubleTapMs = SessionPrefs.backDoubleTapMs(this)
