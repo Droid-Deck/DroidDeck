@@ -98,11 +98,12 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     private var scaleBase by mutableStateOf<Triple<List<InputSurfaceElement>, List<InputSurfaceElement>, Float>?>(null)
     private var scaleValue by mutableIntStateOf(100)
     private var pieceBase by mutableStateOf<Triple<List<InputSurfaceElement>, List<InputSurfaceElement>, Int>?>(null)
+    private var pieceLayout: List<InputSurfaceElement>? = null
     private val piece get() = element?.let { e -> (if (elements.any { it.id == e.id }) elements else shown).groupOf(e) }.orEmpty()
     val scaleRange get() = if (piece.isEmpty()) 80..125 else 50..200
     private val rescales get() = gamepad?.let { pad -> elements.any { it.id in pad.ids } } == true
     val scale get() = when {
-        piece.isNotEmpty() -> pieceBase?.takeIf { it.second == piece }?.third ?: 100
+        piece.isNotEmpty() -> pieceBase?.takeIf { it.second == piece && pieceLayout == elements }?.third ?: 100
         scaleBase?.second == elements -> scaleValue
         rescales -> ((if (canvas.width > 0 && canvas.height > 0 && aspect > 0f && (aspect < 1f) != (canvasAspect < 1f))
             OnScreenLayout.oriented(layout, canvas.width, canvas.height).scale else layoutScale) * 100).roundToInt()
@@ -150,7 +151,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     fun scaleSelected(context: android.content.Context, percent: Int) {
         val id = selected ?: return
         val adopted = adoptDisplayedFrame(context)
-        val base = pieceBase?.takeIf { it.second == piece } ?: run {
+        val base = pieceBase?.takeIf { it.second == piece && pieceLayout == elements } ?: run {
             if (!adopted && canvas.width > 0 && canvas.height > 0 && shown.isNotEmpty()) {
                 val open = toolsExpanded
                 beginEdit(shown, canvasAspect)
@@ -163,6 +164,7 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
         val byId = resized.associateBy { it.id }
         elements = elements.map { byId[it.id] ?: it }
         pieceBase = Triple(base.first, resized, percent)
+        pieceLayout = elements
     }
     var shown by mutableStateOf<List<InputSurfaceElement>>(emptyList())
     private val canvasAspect get() = canvas.width.toFloat() / canvas.height.coerceAtLeast(1)
