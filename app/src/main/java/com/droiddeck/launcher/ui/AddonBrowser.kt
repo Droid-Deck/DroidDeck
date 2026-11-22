@@ -220,7 +220,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
                 val key = installKey(addon, target)
                 AddonRow(addon, status(addon), installing[key], if (addon.id == results.items.firstOrNull()?.id) Modifier.focusRequester(firstAction) else Modifier) { install(addon) }
             }
-            item(key = "tail", span = { GridItemSpan(maxLineSpan) }) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     when {
                         results.loading -> LinearProgressIndicator(Modifier.fillMaxWidth())
