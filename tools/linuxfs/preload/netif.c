@@ -590,7 +590,7 @@ static int denied_table(const char *path) {
 static FILE *synthesize(int table) {
     struct link link;
     if (!load_link(&link) && table < SOCKET_TABLES) return NULL;
-    int fd = memfd_create("droiddeck-net", MFD_CLOEXEC);
+    int fd = memfd_create("droiddeck-net", MFD_CLOEXEC | MFD_ALLOW_SEALING);
     if (fd < 0) return NULL;
     FILE *out = fdopen(fd, "w+");
     if (out == NULL) {
@@ -648,6 +648,9 @@ int dd_net_open(const char *path, int flags, int fd) {
     char self[32];
     snprintf(self, sizeof(self), "/proc/self/fd/%d", fileno(f));
     int copy = open(self, O_RDONLY | (flags & O_CLOEXEC));
+    if (copy < 0 && fcntl(fileno(f), F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE | F_SEAL_SEAL) == 0) {
+        copy = fcntl(fileno(f), flags & O_CLOEXEC ? F_DUPFD_CLOEXEC : F_DUPFD, 0);
+    }
     fclose(f);
     if (copy < 0) {
         errno = saved;
