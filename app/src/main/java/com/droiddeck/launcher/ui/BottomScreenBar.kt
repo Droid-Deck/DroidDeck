@@ -230,6 +230,7 @@ internal fun BarButton(
 
 internal val SecondScreenMode.icon: ImageVector get() = when (this) {
     SecondScreenMode.NONE -> Icons.Outlined.DesktopAccessDisabled
+    SecondScreenMode.MENU -> Icons.Outlined.MoreHoriz
     SecondScreenMode.KEYBOARD_TRACKPAD -> Icons.Outlined.Keyboard
     SecondScreenMode.TERMINAL -> Icons.Outlined.Terminal
     SecondScreenMode.DECK_CONTROLS -> Icons.Outlined.SportsEsports
@@ -290,17 +291,11 @@ private fun ScreenPickerMenu(picker: ScreenPicker, open: Boolean, dismiss: () ->
                 leading = { Icon(painterResource(R.drawable.ic_stat_session), contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(18.dp)) },
                 focusRequester = first.takeIf { target == null }, modifier = Modifier.testTag("screen-picker-menu"),
             ) { dismiss(); menu() }
-            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(pal.line))
-            Text(
-                stringResource(R.string.drawer_second_screen).uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
-                color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 10.dp, top = 6.dp, bottom = 4.dp),
-            )
         }
         picker.modes.forEach { mode ->
             val current = mode == picker.current
             MenuItem(
                 stringResource(mode.label), checked = current && !picker.menuShown,
-                detail = if (current && picker.menuShown) stringResource(R.string.screen_picker_last_used) else null,
                 leading = { Icon(mode.icon, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(18.dp)) },
                 focusRequester = first.takeIf { mode == target }, modifier = Modifier.testTag("screen-picker:${mode.id}"),
             ) { dismiss(); picker.onPick(mode) }

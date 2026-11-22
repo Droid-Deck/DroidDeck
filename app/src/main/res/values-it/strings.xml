@@ -947,7 +947,7 @@
     <string name="setup_launcher_orientation_auto">Segui la rotazione del dispositivo</string>
     <string name="setup_orientation_portrait">Verticale</string>
     <string name="setup_session_orientation">Orientamento della sessione</string>
-    <string name="setup_session_orientation_hint">Si applica a Steam, ai giochi, al desktop e all\'editor del controller. I preset di risoluzione ruotano con la sessione; larghezza e altezza personalizzate restano come inserite.</string>
+    <string name="setup_session_orientation_hint">Si applica a Steam, ai giochi, al desktop e all\'editor del controller. I preset di risoluzione ruotano con la sessione; quando un\'orientamento segue l\'altro, larghezza e altezza personalizzate vengono invertite per corrispondere.</string>
     <string name="setup_orientation_auto">Orizzontale automatico</string>
     <string name="setup_orientation_landscape">Orizzontale</string>
     <string name="setup_orientation_reverse">Orizzontale invertito</string>
@@ -2480,10 +2480,15 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Schermo della sessione</string>
     <string name="display_zero_copy">Presentazione senza copia</string>
-    <string name="display_resolution">Risoluzione</string>
+    <string name="display_resolution_landscape">Risoluzione orizzontale</string>
+    <string name="display_resolution_portrait">Risoluzione verticale</string>
+    <string name="display_follow_landscape">Come orizzontale (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Come verticale (%1$d×%2$d)</string>
     <string name="display_game_fit">Adattamento giochi 16:9</string>
     <string name="display_game_fit_hint">Come i giochi 16:9 si adattano a questo schermo. Dalla prossima sessione.</string>
     <string name="display_game_fit_unavailable">Scegli Adatta allo schermo o una dimensione personalizzata più stretta di 16:9.</string>
+    <string name="display_avoid_notch">Evita il notch</string>
+    <string name="display_avoid_notch_hint">Tiene l\'immagine fuori dal ritaglio della fotocamera. Si applica al ritorno alla sessione.</string>
     <string name="display_preserve">Mantieni proporzioni</string>
     <string name="display_stretch">Estendi allo schermo</string>
     <string name="display_image_scaling">Ridimensionamento immagine</string>

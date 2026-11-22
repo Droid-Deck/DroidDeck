@@ -952,7 +952,7 @@
     <string name="setup_launcher_orientation_auto">डिवाइस रोटेशन के अनुसार</string>
     <string name="setup_orientation_portrait">पोर्ट्रेट</string>
     <string name="setup_session_orientation">सेशन ओरिएंटेशन</string>
-    <string name="setup_session_orientation_hint">Steam, गेम, डेस्कटॉप और कंट्रोलर एडिटर पर लागू होता है। रिज़ॉल्यूशन प्रीसेट सेशन के साथ घूमते हैं; कस्टम चौड़ाई और ऊंचाई जैसी डाली गई वैसी ही रहती हैं।</string>
+    <string name="setup_session_orientation_hint">Steam, गेम, डेस्कटॉप और कंट्रोलर एडिटर पर लागू होता है। रिज़ॉल्यूशन प्रीसेट सेशन के साथ घूमते हैं; जब एक ओरिएंटेशन दूसरे को फ़ॉलो करता है, तो कस्टम चौड़ाई और ऊंचाई बदलकर मेल खाती हैं।</string>
     <string name="setup_orientation_auto">ऑटोमैटिक लैंडस्केप</string>
     <string name="setup_orientation_landscape">लैंडस्केप</string>
     <string name="setup_orientation_reverse">उलटा लैंडस्केप</string>
@@ -2463,10 +2463,15 @@
     <string name="phantom_warning">%1$s। %2$s\n\n%3$s</string>
     <string name="display_session">सेशन डिस्प्ले</string>
     <string name="display_zero_copy">बिना कॉपी प्रस्तुति</string>
-    <string name="display_resolution">रिज़ॉल्यूशन</string>
+    <string name="display_resolution_landscape">लैंडस्केप रेज़ोल्यूशन</string>
+    <string name="display_resolution_portrait">पोर्ट्रेट रेज़ोल्यूशन</string>
+    <string name="display_follow_landscape">लैंडस्केप जैसा (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">पोर्ट्रेट जैसा (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 गेम फ़िट</string>
     <string name="display_game_fit_hint">16:9 गेम इस डिस्प्ले में कैसे फ़िट होते हैं। अगले सेशन से।</string>
     <string name="display_game_fit_unavailable">Match screen चुनें या 16:9 से पतला कस्टम आकार चुनें।</string>
+    <string name="display_avoid_notch">नॉच से बचें</string>
+    <string name="display_avoid_notch_hint">तस्वीर को कैमरा कटआउट से दूर रखता है। सेशन में लौटने पर लागू होता है।</string>
     <string name="display_preserve">अनुपात बनाए रखें</string>
     <string name="display_stretch">डिस्प्ले में स्ट्रेच करें</string>
     <string name="display_image_scaling">इमेज स्केलिंग</string>

@@ -955,7 +955,7 @@
     <string name="setup_launcher_orientation_auto">Urmează rotirea dispozitivului</string>
     <string name="setup_orientation_portrait">Portret</string>
     <string name="setup_session_orientation">Orientarea sesiunii</string>
-    <string name="setup_session_orientation_hint">Se aplică pentru Steam, jocuri, desktop și editorul de controller. Presetările de rezoluție se rotesc odată cu sesiunea; lățimea și înălțimea personalizate rămân cum au fost introduse.</string>
+    <string name="setup_session_orientation_hint">Se aplică pentru Steam, jocuri, desktop și editorul de controller. Presetările de rezoluție se rotesc odată cu sesiunea; când o orientare o urmează pe cealaltă, lățimea și înălțimea personalizate se inversează pentru a se potrivi.</string>
     <string name="setup_orientation_auto">Peisaj automat</string>
     <string name="setup_orientation_landscape">Peisaj</string>
     <string name="setup_orientation_reverse">Peisaj inversat</string>
@@ -2489,10 +2489,15 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Afișajul sesiunii</string>
     <string name="display_zero_copy">Prezentare fără copiere</string>
-    <string name="display_resolution">Rezoluție</string>
+    <string name="display_resolution_landscape">Rezoluție în peisaj</string>
+    <string name="display_resolution_portrait">Rezoluție în portret</string>
+    <string name="display_follow_landscape">Ca peisajul (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Ca portretul (%1$d×%2$d)</string>
     <string name="display_game_fit">Potrivire joc 16:9</string>
     <string name="display_game_fit_hint">Cum se potrivesc jocurile 16:9 cu acest afișaj. Sesiunea următoare.</string>
     <string name="display_game_fit_unavailable">Alege Potrivire ecran sau o dimensiune personalizată mai îngustă decât 16:9.</string>
+    <string name="display_avoid_notch">Evită decupajul</string>
+    <string name="display_avoid_notch_hint">Ține imaginea departe de decupajul camerei. Se aplică la revenirea în sesiune.</string>
     <string name="display_preserve">Păstrează proporțiile</string>
     <string name="display_stretch">Întinde pe afișaj</string>
     <string name="display_image_scaling">Scalarea imaginii</string>

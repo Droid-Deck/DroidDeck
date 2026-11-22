@@ -238,6 +238,20 @@ object ComponentsManager {
         saveState(context, state)
     }
 
+    private val UNPINNED_FEX = Regex("""(?i)FEXCore-\d+(?:\.\d+)*-d2rfix\d+-linux\.wcp""")
+
+    fun migrateBattleNetFex(context: Context) = synchronized(lock) {
+        val marker = File(dataDir(context), ".battlenet-fex-unpinned")
+        if (marker.isFile) return@synchronized
+        migratePlugin(context)
+        val scope = com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
+        if (gameComponents(context, scope)["fex"]?.let(UNPINNED_FEX::matches) == true) {
+            setGameComponent(context, scope, "fex", null)
+            Log.i(TAG, "Battle.net follows the selected FEX again")
+        }
+        marker.writeText("1\n")
+    }
+
     private fun migratePlugin(context: Context) {
         val marker = File(dataDir(context), ".plugin-imported")
         if (marker.isFile) return
@@ -487,6 +501,7 @@ object ComponentsManager {
 
     fun snapshotAll(context: Context) = synchronized(lock) {
         migratePlugin(context)
+        runCatching { migrateBattleNetFex(context) }.onFailure { Log.w(TAG, "Battle.net FEX selection", it) }
         val state = loadState(context)
         for (p in protons(context)) for (comp in COMPONENTS) {
             runCatching { ensureOriginal(context, p, comp, state) }.onFailure { Log.w(TAG, "original $comp of ${p.name}", it) }
@@ -497,6 +512,7 @@ object ComponentsManager {
 
     fun snapshot(context: Context): Snapshot = synchronized(lock) {
         migratePlugin(context)
+        runCatching { migrateBattleNetFex(context) }.onFailure { Log.w(TAG, "Battle.net FEX selection", it) }
         val state = loadState(context)
         val reapplied = HashMap<String, Long>()
         runCatching {

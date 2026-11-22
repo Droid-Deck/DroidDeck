@@ -221,8 +221,8 @@ internal fun SideSheet(open: Boolean, onClose: () -> Unit, returnFocus: FocusReq
     }
 }
 
-private val STORE_ROW = 60.dp
-private val STORE_HANDLE = 44.dp
+internal val STORE_ROW = 60.dp
+internal val STORE_HANDLE = 44.dp
 
 @Composable
 internal fun ManageStoresSheet() {
@@ -302,7 +302,7 @@ private fun StoreSortRow(
 }
 
 @Composable
-private fun SortRowFrame(
+internal fun SortRowFrame(
     held: Boolean, offset: Float, modifier: Modifier, hot: Boolean, src: MutableInteractionSource, onFocus: (Boolean) -> Unit,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {

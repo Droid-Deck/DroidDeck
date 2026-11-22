@@ -523,6 +523,11 @@ internal fun SetupPanel(
                                     PageSwipe.on = on
                                     com.droiddeck.launcher.core.AppUiPrefs.setPageSwipe(ctx, on)
                                 }
+                                ToggleRow(
+                                    host, "controller-haptics", stringResource(R.string.setup_controller_haptics),
+                                    stringResource(R.string.setup_controller_haptics_hint),
+                                    s.controllerHaptics,
+                                ) { a.onControllerHaptics(it) }
                                 if (s.dualScreenDevice) {
                                     val dualModes = listOf(
                                         com.droiddeck.launcher.input.DualScreen.MODE_AUTO to stringResource(R.string.setup_dual_screen_auto),

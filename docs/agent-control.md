@@ -135,6 +135,7 @@ tools/droiddeckctl input text 'hello world'
 tools/droiddeckctl input tap 640 360
 tools/droiddeckctl input swipe 100 600 100 100 --duration 400
 tools/droiddeckctl input pad a
+tools/droiddeckctl input gamepad b rb up --hold 120 --gap 400
 tools/droiddeckctl input stick left 0 -1 --hold 500
 tools/droiddeckctl input trigger right 1.0
 tools/droiddeckctl input pen tap 0.5 0.5 --pressure 0.7
@@ -233,6 +234,18 @@ and returns its exit code with the last 160 KiB of stdout and stderr (`--timeout
 `result`, `files`, `bytes`, `reason`, `conflicts` and `detail` the game page shows; `--force` takes
 that side over conflicts. The store id is the one in the game's install record (`library` shows
 it). Both need Setup > Developer > Debugging tools.
+
+`input pad` writes to the session's virtual pad, the one the guest sees, and never reaches the app's
+own key handling. To test how DroidDeck's own screens treat a controller (menu focus and outlines,
+page switching with LB and RB, Back and Steam shortcuts), use `input gamepad`. It registers a real
+gamepad called "DroidDeck test pad" with `adb shell uinput -`, so Android reports a physical
+controller, and presses the buttons in order: `a b x y lb rb select start guide l3 r3` and the
+d-pad `up down left right`. `--hold` (120 ms) is how long each stays down and `--gap` (400 ms) the
+pause after it; a d-pad press always waits at least 20 ms, so Android sees each release before
+the next press. The device exists only while the command runs, takes about a second to appear, and
+works without a session or Setup > Developer > Debugging tools. Its name does not start with
+`uinput-`, which the app treats as a system virtual device. `UINPUT_UNAVAILABLE` and `UINPUT_FAILED`
+mean the same as for `input pen`.
 
 `input pen` does not go through the app. It registers a virtual pen with `adb shell uinput -`, so
 Android's own input reader makes the stylus events, as for a built-in pen, and it works on whatever

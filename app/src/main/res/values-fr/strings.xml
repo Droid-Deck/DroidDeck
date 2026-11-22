@@ -955,7 +955,7 @@
     <string name="setup_launcher_orientation_auto">Suivre la rotation de l\'appareil</string>
     <string name="setup_orientation_portrait">Portrait</string>
     <string name="setup_session_orientation">Orientation de la session</string>
-    <string name="setup_session_orientation_hint">S\'applique à Steam, aux jeux, au bureau et à l\'éditeur de manette. Les préréglages de résolution pivotent avec la session ; la largeur et la hauteur personnalisées restent telles que saisies.</string>
+    <string name="setup_session_orientation_hint">S\'applique à Steam, aux jeux, au bureau et à l\'éditeur de manette. Les préréglages de résolution pivotent avec la session ; lorsqu\'une orientation suit l\'autre, la largeur et la hauteur personnalisées sont inversées pour correspondre.</string>
     <string name="setup_orientation_auto">Paysage automatique</string>
     <string name="setup_orientation_landscape">Paysage</string>
     <string name="setup_orientation_reverse">Paysage inversé</string>
@@ -2488,10 +2488,15 @@
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Affichage de la session</string>
     <string name="display_zero_copy">Affichage sans copie</string>
-    <string name="display_resolution">Résolution</string>
+    <string name="display_resolution_landscape">Résolution en paysage</string>
+    <string name="display_resolution_portrait">Résolution en portrait</string>
+    <string name="display_follow_landscape">Comme le paysage (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Comme le portrait (%1$d×%2$d)</string>
     <string name="display_game_fit">Ajustement des jeux 16:9</string>
     <string name="display_game_fit_hint">Comment les jeux 16:9 s\'adaptent à cet écran. À la prochaine session.</string>
     <string name="display_game_fit_unavailable">Choisissez « Adapter à l\'écran » ou une taille personnalisée plus étroite que 16:9.</string>
+    <string name="display_avoid_notch">Éviter l\'encoche</string>
+    <string name="display_avoid_notch_hint">Garde l\'image hors de la découpe de la caméra. S\'applique au retour dans la session.</string>
     <string name="display_preserve">Conserver les proportions</string>
     <string name="display_stretch">Étirer sur l\'écran</string>
     <string name="display_image_scaling">Mise à l\'échelle de l\'image</string>
