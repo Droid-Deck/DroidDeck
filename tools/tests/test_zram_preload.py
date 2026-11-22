@@ -150,6 +150,10 @@ static void without_threads(void) {
 
 static void *park(void *arg) {
   (void)arg;
+  sigset_t urg;
+  sigemptyset(&urg);
+  sigaddset(&urg, SIGURG);
+  pthread_sigmask(SIG_BLOCK, &urg, NULL);
   for (;;) pause();
   return NULL;
 }
@@ -170,6 +174,20 @@ static void filter_clone(unsigned long allowed) {
   };
   struct sock_fprog program = {sizeof(rules) / sizeof(rules[0]), rules};
   if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) || prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &program)) _exit(17);
+}
+
+static volatile int sandbox_ready;
+
+static void *sandbox(void *arg) {
+  (void)arg;
+  sigset_t urg;
+  sigemptyset(&urg);
+  sigaddset(&urg, SIGURG);
+  filter_clone(0);
+  pthread_sigmask(SIG_UNBLOCK, &urg, NULL);
+  sandbox_ready = 1;
+  for (;;) pause();
+  return NULL;
 }
 
 static const unsigned long thread_clone = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD |
@@ -343,6 +361,18 @@ int main(int argc, char **argv) {
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
       filter_clone(thread_clone);
       printf("sandboxed_trim %ld\n", trim('2', 1L << 30));
+      return 0;
+    } else if (!strcmp(argv[4], "thread-sandboxed")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      sigset_t urg;
+      sigemptyset(&urg);
+      sigaddset(&urg, SIGURG);
+      pthread_sigmask(SIG_BLOCK, &urg, NULL);
+      pthread_t thread;
+      if (pthread_create(&thread, NULL, sandbox, NULL)) exit(16);
+      while (!sandbox_ready) usleep(1000);
+      printf("thread_sandboxed_trim %ld\n", trim('2', 1L << 30));
       return 0;
     } else if (!strcmp(argv[4], "filtered")) {
       fflush(stdout);
@@ -626,6 +656,11 @@ class ZramPreloadTest(unittest.TestCase):
     def test_a_process_that_sandboxed_itself_trims_without_starting_a_thread(self):
         out = self.run_program(None, 48, 0, "sandboxed")
         self.assertTrue(16 * 1024 < out["sandboxed_trim"][0] <= 32 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_a_thread_that_sandboxed_itself_trims_without_starting_a_thread(self):
+        out = self.run_program(None, 48, 0, "thread-sandboxed")
+        self.assertTrue(16 * 1024 < out["thread_sandboxed_trim"][0] <= 32 * 1024, out)
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_the_worker_passes_a_filter_that_only_allows_thread_clones(self):

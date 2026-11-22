@@ -494,7 +494,7 @@ static long zr_field(const char *text, const char *key) {
 }
 
 static int zr_status(long *threads, long *filters) {
-  int fd = zr_open("/proc/self/status");
+  int fd = zr_open("/proc/thread-self/status");
   if (fd < 0) return 0;
   long have = 0, n;
   while (have < (long)sizeof(zr_maps) - 1 &&
@@ -523,9 +523,9 @@ static int zr_start(void) {
   uint64_t desc[4] = {0};
   void *tls = zr_tls(desc);
   if (tls == NULL) return 0;
-  __atomic_store_n(&zr_stack_busy, 1, __ATOMIC_RELEASE);
   uint64_t all = ~0ULL, previous;
-  zr_sys(SYS_rt_sigprocmask, SIG_SETMASK, &all, &previous, sizeof(all));
+  if (zr_sys(SYS_rt_sigprocmask, SIG_SETMASK, &all, &previous, sizeof(all)) != 0) return 0;
+  __atomic_store_n(&zr_stack_busy, 1, __ATOMIC_RELEASE);
   long tid = zr_clone(ZR_THREAD, zr_stack + ZR_STACK, &zr_stack_busy, &zr_tid, tls);
   zr_sys(SYS_rt_sigprocmask, SIG_SETMASK, &previous, NULL, sizeof(previous));
   if (tid > 0) return 1;
