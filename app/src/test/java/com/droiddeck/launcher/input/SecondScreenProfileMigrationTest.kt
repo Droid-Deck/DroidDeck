@@ -108,6 +108,15 @@ class SecondScreenProfileMigrationTest {
         }
     }
 
+    @Test fun pickingAnotherModeClearsTheMenuRestoreLeftByATeardown() {
+        customLibrary(desktop = false)
+        SessionState.bottomMenu = true
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "pickSecondScreenMode",
+            ReflectionHelpers.ClassParameter.from(SecondScreenMode::class.java, SecondScreenMode.KEYBOARD_TRACKPAD))
+        assertFalse(SessionState.bottomMenu)
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD.id, SessionPrefs.secondScreenPanel(activity, false))
+    }
+
     private fun customLibrary(desktop: Boolean): InputLibrary {
         session(desktop)
         return InputLibraries.update(activity) { library ->
