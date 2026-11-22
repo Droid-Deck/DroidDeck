@@ -1958,7 +1958,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun sendSteamGuide() {
-        drawerOpen = false
+        if (!dockedTouchOnly) drawerOpen = false
         padBridge?.triggerSteamMenu()
     }
 
@@ -2005,7 +2005,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun triggerSteamQam() {
-        drawerOpen = false
+        if (!dockedTouchOnly) drawerOpen = false
         padBridge?.triggerQam()
     }
 
@@ -5729,7 +5729,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun pauseNow() {
         if (!SessionState.running || SessionState.suspended) return
         pauseAnimated = true
-        drawerOpen = false
+        if (!dockedTouchOnly) drawerOpen = false
         pausedFrame = null
         capturePausedFrame(manual = true)
         SessionService.pause(this)
