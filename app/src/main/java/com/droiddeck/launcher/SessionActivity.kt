@@ -4476,6 +4476,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun pickSecondScreenMode(mode: SecondScreenMode) {
         typingReturnMode = null
         automaticPanel = false
+        SessionState.bottomMenu = false
         if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this, desktopSession, mode.id)
         selectSecondScreenMode(mode)
     }
