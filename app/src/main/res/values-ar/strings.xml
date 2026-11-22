@@ -4177,6 +4177,7 @@
     <string name="addons_sort_downloads">الأكثر تنزيلًا</string>
     <string name="addons_category_all">كل الفئات</string>
     <string name="addons_none_found">لم يتم العثور على إضافات</string>
+    <string name="addons_curse_busy">أغلق CurseForge أولاً</string>
     <string name="addons_unreachable">تعذّر الوصول إلى %1$s</string>
     <string name="addons_no_file">لا يوجد ملف لإصدار اللعبة هذا</string>
     <string name="input_reset_positions">إعادة تعيين المواضع</string>

@@ -4017,6 +4017,7 @@
     <string name="addons_sort_downloads">Mest nedlastet</string>
     <string name="addons_category_all">Alle kategorier</string>
     <string name="addons_none_found">Fant ingen tillegg</string>
+    <string name="addons_curse_busy">Lukk CurseForge først</string>
     <string name="addons_unreachable">Fikk ikke kontakt med %1$s</string>
     <string name="addons_no_file">Ingen fil for denne spillversjonen</string>
     <string name="input_reset_positions">Tilbakestill plasseringer</string>

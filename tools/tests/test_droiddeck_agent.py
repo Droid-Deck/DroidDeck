@@ -348,6 +348,23 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual("INVALID_TARGET", caught.exception.code)
                 connect.assert_not_called()
 
+    def test_a_devtools_endpoint_lost_while_sending_is_reported_as_gone(self):
+        class Lost:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def send(self, text):
+                raise BrokenPipeError("closed")
+
+            def close(self):
+                pass
+
+        with patch.object(agent, "WebSocket", Lost), patch.object(
+                agent, "cdp_targets", return_value=[{"title": "SharedJSContext", "webSocketDebuggerUrl": "ws://127.0.0.1:1/x"}]):
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.cdp_eval(str(self.dir), "1")
+        self.assertEqual("DEVTOOLS_UNREACHABLE", caught.exception.code)
+
     def test_cdp_without_a_port(self):
         os.environ.pop("DD_CDP_PORT", None)
         self.assertEqual("NO_DEVTOOLS", self.ask({"kind": "cdp", "expression": "1"})["error"]["code"])
@@ -367,6 +384,22 @@ class AgentTest(unittest.TestCase):
         self.assertEqual("SharedJSContext", targets["targets"][0]["title"])
         missing = self.ask({"kind": "cdp", "expression": "1", "target": "Nope"})
         self.assertEqual("NO_TARGET", missing["error"]["code"])
+
+    def test_cdp_eval_on_a_secret_inspector_url(self):
+        server = FakeDevTools({"result": {"result": {"type": "string", "value": "ok"}}})
+        server.start()
+        self.addCleanup(server.server.close)
+        os.environ.pop("DD_CDP_PORT", None)
+        url = "ws://127.0.0.1:%d/0f8fad5b-d9cb-469f-a165-70867728950e" % server.port
+        answer = self.ask({"kind": "cdp", "expression": "require('electron')", "inspector": url, "commandLineApi": True})
+        self.assertTrue(answer["ok"], answer)
+        self.assertEqual("inspector", answer["target"])
+        self.assertTrue(server.seen[0]["params"]["includeCommandLineAPI"])
+
+    def test_cdp_refuses_inspector_urls_without_a_session_id(self):
+        for url in ("ws://127.0.0.1:9229/", "ws://127.0.0.1:9229/json/list", "ws://10.0.0.2:9229/0f8fad5b-d9cb-469f-a165-70867728950e",
+                    "ws://127.0.0.1:80/0f8fad5b-d9cb-469f-a165-70867728950e", "ws://127.0.0.1:9229/0f8fad5b-d9cb-469f-a165-70867728950e/x", 9229):
+            self.assertEqual("INVALID_REQUEST", self.ask({"kind": "cdp", "expression": "1", "inspector": url})["error"]["code"])
 
     def test_steam_selection(self):
         with patch.object(agent, "cdp_eval", return_value={"value": "3180310"}) as evaluate:

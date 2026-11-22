@@ -4017,6 +4017,7 @@
     <string name="addons_sort_downloads">सबसे ज़्यादा डाउनलोड</string>
     <string name="addons_category_all">सभी श्रेणियाँ</string>
     <string name="addons_none_found">कोई ऐडऑन नहीं मिला</string>
+    <string name="addons_curse_busy">पहले CurseForge बंद करें</string>
     <string name="addons_unreachable">%1$s तक नहीं पहुँच सके</string>
     <string name="addons_no_file">गेम के इस संस्करण के लिए कोई फ़ाइल नहीं है</string>
     <string name="input_reset_positions">स्थितियाँ रीसेट करें</string>

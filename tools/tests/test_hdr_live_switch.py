@@ -43,11 +43,15 @@ class HdrLiveSwitchTest(unittest.TestCase):
     def test_the_gate_follows_the_display_not_the_setting(self):
         text = (APP / "SessionActivity.kt").read_text()
         start = text.index("val attached = CompositorHost.isStarted")
-        block = text[start:text.index("DriverSetupLog.write", start)]
+        block = text[start:text.index("CompositorHost.start(", start)]
         request = block[block.index("nativeSetHdrRequest("):block.index("Log.i", block.index("nativeSetHdrRequest("))]
-        self.assertNotIn("SessionPrefs.hdr", block[:block.index("if (!SessionState.running)")])
+        self.assertNotIn("SessionPrefs.hdr", block)
         self.assertIn("capable, false", request)
-        self.assertIn("SessionState.hdrCapable && SessionPrefs.hdr(this, mode)", block)
+        self.assertIn("if (!SessionState.running) CompositorHost.applyHdr(this, mode)", block)
+        host = (APP / "wayland/CompositorHost.kt").read_text()
+        gate = host[host.index("fun applyHdr("):]
+        gate = gate[:gate.index("\n    }")]
+        self.assertIn("SessionState.hdrCapable && SessionPrefs.hdr(context, mode)", gate)
 
     def test_both_switches_apply_to_the_running_session(self):
         helper = (APP / "session/SessionHdr.kt").read_text()

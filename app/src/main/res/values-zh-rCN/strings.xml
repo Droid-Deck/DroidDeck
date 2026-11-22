@@ -3987,6 +3987,7 @@
     <string name="addons_sort_downloads">下载最多</string>
     <string name="addons_category_all">所有类别</string>
     <string name="addons_none_found">未找到插件</string>
+    <string name="addons_curse_busy">请先关闭 CurseForge</string>
     <string name="addons_unreachable">无法连接到 %1$s</string>
     <string name="addons_no_file">没有适用于此游戏版本的文件</string>
     <string name="input_reset_positions">重置位置</string>

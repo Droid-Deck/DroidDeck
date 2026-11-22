@@ -4056,6 +4056,7 @@
     <string name="addons_sort_downloads">Les plus téléchargés</string>
     <string name="addons_category_all">Toutes les catégories</string>
     <string name="addons_none_found">Aucun addon trouvé</string>
+    <string name="addons_curse_busy">Fermez d\'abord CurseForge</string>
     <string name="addons_unreachable">Impossible de joindre %1$s</string>
     <string name="addons_no_file">Aucun fichier pour cette version du jeu</string>
     <string name="input_reset_positions">Réinitialiser les positions</string>

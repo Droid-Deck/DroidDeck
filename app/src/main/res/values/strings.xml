@@ -4202,6 +4202,7 @@
     <string name="addons_sort_downloads">Most downloaded</string>
     <string name="addons_category_all">All categories</string>
     <string name="addons_none_found">No addons found</string>
+    <string name="addons_curse_busy">Close CurseForge first</string>
     <string name="addons_unreachable">Could not reach %1$s</string>
     <string name="addons_no_file">No file for this game version</string>
     <string name="addons_source_wowi" translatable="false">WoWInterface</string>

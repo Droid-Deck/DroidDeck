@@ -93,8 +93,7 @@ object WowAddonCatalog {
         Client(folder, version?.let(::flavorOf) ?: folderFamily(folder))
 
     fun client(target: WowAddons.Target): Client {
-        val dir = target.addOns.parentFile?.parentFile
-        return client(target.flavor, dir?.let(::clientVersion))
+        return client(target.flavor, WowAddons.flavorDir(target)?.let(::clientVersion))
     }
 
     internal fun flavorMatches(flavors: Set<String>?, family: String?): Boolean =

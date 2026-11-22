@@ -3987,6 +3987,7 @@
     <string name="addons_sort_downloads">다운로드 많은 순</string>
     <string name="addons_category_all">모든 카테고리</string>
     <string name="addons_none_found">애드온을 찾을 수 없음</string>
+    <string name="addons_curse_busy">먼저 CurseForge를 닫으세요</string>
     <string name="addons_unreachable">%1$s에 연결할 수 없습니다</string>
     <string name="addons_no_file">이 게임 버전용 파일이 없습니다</string>
     <string name="input_reset_positions">위치 초기화</string>

@@ -3987,6 +3987,7 @@
     <string name="addons_sort_downloads">ダウンロード数順</string>
     <string name="addons_category_all">すべてのカテゴリ</string>
     <string name="addons_none_found">アドオンが見つかりません</string>
+    <string name="addons_curse_busy">先に CurseForge を閉じてください</string>
     <string name="addons_unreachable">%1$s に接続できませんでした</string>
     <string name="addons_no_file">このゲームバージョン用のファイルがありません</string>
     <string name="input_reset_positions">位置をリセット</string>

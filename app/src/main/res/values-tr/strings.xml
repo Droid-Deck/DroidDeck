@@ -4017,6 +4017,7 @@
     <string name="addons_sort_downloads">En çok indirilen</string>
     <string name="addons_category_all">Tüm kategoriler</string>
     <string name="addons_none_found">Eklenti bulunamadı</string>
+    <string name="addons_curse_busy">Önce CurseForge\'u kapatın</string>
     <string name="addons_unreachable">%1$s adresine ulaşılamadı</string>
     <string name="addons_no_file">Bu oyun sürümü için dosya yok</string>
     <string name="input_reset_positions">Konumları sıfırla</string>
