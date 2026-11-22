@@ -97,6 +97,24 @@ class InputEditorFitTest {
         assertEquals(jump, draft.saveTo(bound, null).preset(presetId).elements["custom:y"])
     }
 
+    @Test fun sizeChangesOnlyTheSelectedControlOrTheWholeDpad() {
+        val lib = InputLibraries.read(context)
+        val layout = lib.layout("game", InputRole.PRIMARY)!!
+        val draft = editor(layout, Rect())
+        val stock = draft.elements.associateBy { it.id }
+        draft.select(listOf("legacy:a"))
+        draft.resizeSelection(150)
+        val one = draft.elements.associateBy { it.id }
+        assertEquals(stock.getValue("legacy:a").width * 1.5f, one.getValue("legacy:a").width, .002f)
+        for (id in listOf("legacy:b", "legacy:x", "legacy:ls")) assertEquals(id, stock.getValue(id), one.getValue(id))
+        val dpad = listOf("legacy:up", "legacy:down", "legacy:left", "legacy:right")
+        draft.select(draft.visible.groupOf("legacy:up"))
+        assertEquals(dpad.toSet(), draft.selection.toSet())
+        val opened = draft.selectionSize!!
+        draft.resizeSelection(opened * 3 / 2)
+        for (id in dpad) assertEquals(id, stock.getValue(id).height * (opened * 3 / 2) / opened, draft.elements.first { it.id == id }.height, .002f)
+    }
+
     @Test fun resetReturnsToWhereTheGameDrawsTheStockLayout() {
         val layout = deck()
         val draft = editor(layout, Rect())

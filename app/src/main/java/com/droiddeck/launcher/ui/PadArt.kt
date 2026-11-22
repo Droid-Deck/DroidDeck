@@ -50,6 +50,7 @@ internal class PadArt(context: Context) {
             InputControl.LB, InputControl.RB, InputControl.LT, InputControl.RT -> shoulder(canvas, w, h, control, kit, pressed)
             InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5 -> grip(canvas, w, h, control.label, pressed)
             InputControl.L3, InputControl.R3 -> small(canvas, w, h, control.label, pressed)
+            InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT -> arrow(canvas, w, h, control, pressed)
             InputControl.SELECT, InputControl.START, InputControl.GUIDE, InputControl.QAM -> {
                 val (shape, icon) = systemLook(kit, control)
                 system(canvas, w, h, shape, icon, pressed)
@@ -236,6 +237,19 @@ internal class PadArt(context: Context) {
         bar.reset()
         bar.addRoundRect(RectF(cx - s, cy - h, cx + s, cy + h), rc, rc, Path.Direction.CW)
         op(bar, Path.Op.UNION)
+    }
+
+    fun arrow(canvas: Canvas, w: Float, h: Float, control: InputControl, pressed: Boolean) {
+        val cx = w / 2f; val cy = h / 2f
+        val s = min(w, h) / 2f - dp(2f)
+        val (dx, dy) = when (control) {
+            InputControl.UP -> 0f to -1f
+            InputControl.RIGHT -> 1f to 0f
+            InputControl.DOWN -> 0f to 1f
+            else -> -1f to 0f
+        }
+        glass(canvas, roundRect(cx - s, cy - s, cx + s, cy + s, s * .32f), pressed)
+        chevron(canvas, cx, cy, dx, dy, s * .3f, if (pressed) ON_ACCENT else INK, s * .14f)
     }
 
     /** [held] bits: up 1, right 2, down 4, left 8. */

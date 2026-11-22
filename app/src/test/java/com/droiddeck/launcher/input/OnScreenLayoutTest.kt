@@ -494,6 +494,32 @@ class OnScreenLayoutTest {
         }
     }
 
+    @Test @Config(qualifiers = "w800dp-h450dp-land-320dpi")
+    fun buttonSizeGrowsAndShrinksControlsOnAScreenWhoseHeightAlreadyLimitsTheLayout() {
+        val (display, _) = InputLibraries.primaryDisplay(context)
+        val stock = gamepad()
+        fun at(scale: Float) = OnScreenLayout.elements(context, stock.copy(scale = scale,
+            elements = LegacyGamepadLayout(display, 1600, 900, scale = scale).regenerate(stock.elements)), 1600, 900, Rect())
+        fun List<InputSurfaceElement>.centre(controls: List<InputControl>) = controls.map { at(it) }.let { c ->
+            c.sumOf { (it.x + it.width / 2).toDouble() } / c.size to c.sumOf { (it.y + it.height / 2).toDouble() } / c.size }
+        val face = listOf(InputControl.A, InputControl.B, InputControl.X, InputControl.Y)
+        val dpad = listOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
+        for (kit in kits) {
+            SessionPrefs.setSteamController(context, kit)
+            val normal = at(1f)
+            for (scale in listOf(.8f, 1.25f)) {
+                val placed = at(scale)
+                assertEquals("$kit $scale", normal.at(InputControl.A).width * scale, placed.at(InputControl.A).width, .002f)
+                assertEquals("$kit $scale", normal.at(InputControl.LS).height * scale, placed.at(InputControl.LS).height, .002f)
+                if (scale > 1f) for (cluster in listOf(face, dpad)) {
+                    val (x0, y0) = normal.centre(cluster); val (x1, y1) = placed.centre(cluster)
+                    assertEquals("$kit", x0, x1, .01); assertEquals("$kit", y0, y1, .01)
+                }
+                assertInside(placed, 1600, 900)
+            }
+        }
+    }
+
     @Test @Config(qualifiers = "w1280dp-h800dp-land-mdpi")
     fun tabletOverlaysStayInTheLowerHalfOfTheScreen() {
         for (kit in kits) {

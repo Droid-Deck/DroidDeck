@@ -134,6 +134,23 @@ class VkLinearDmabufTest(unittest.TestCase):
             source.write_text(harness)
             compile_and_run(self, source, tmp, "vk-linear-layer")
 
+    def test_layer_import_failure_requests_compositor_fallback(self):
+        source = (SRC / "sc_layer.c").read_text()
+        for name in ("sc_layer_present", "sc_layer_present_overlay"):
+            with self.subTest(layer=name):
+                body = function(source, name)
+                self.assertRegex(body, r"if \(idx < 0\) \{ log_drop\(l\); return g_alloc_failed \? -1 : 0; \}")
+
+    def test_layer_blits_use_the_imported_output_row_pitch(self):
+        source = (SRC / "vk_present.c").read_text()
+        blit = function(source, "blit_to_layer")
+        copy = blit.index("CmdCopyImageToBuffer")
+        self.assertLess(blit.index("VkBufferImageCopy copy = dst->linear_copy"), copy)
+        self.assertLess(blit.index("VK_ACCESS_TRANSFER_WRITE_BIT, 1"), copy)
+        self.assertGreater(blit.index("VK_ACCESS_TRANSFER_WRITE_BIT, 0"), copy)
+        for name in ("vkp_blit_image", "pass_finish"):
+            self.assertIn("blit_to_layer(", function(source, name))
+
 
 if __name__ == "__main__":
     unittest.main()

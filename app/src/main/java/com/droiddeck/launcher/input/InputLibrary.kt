@@ -27,6 +27,7 @@ data class SavedInputLayout(
     val rotatedScale: Float = 1f,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
+    val overlay get() = (origin ?: id).let { it == InputLibraries.OVERLAY || it.startsWith("migrated.layout.") }
     fun derived(id: String, name: String) = copy(id = id, name = name, origin = origin ?: this.id)
     val adaptiveSticks get() = elements.filter { it.kind == InputElementKind.STICK }.takeIf { editable && it.isNotEmpty() }?.all { it.floating && it.hideWhenIdle }
     fun supports(role: InputRole) = screen.supports(role) && when (template) {

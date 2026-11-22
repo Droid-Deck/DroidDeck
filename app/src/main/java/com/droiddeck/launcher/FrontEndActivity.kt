@@ -530,7 +530,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             saveAction(getString(R.string.main_addons_importing, name)) {
                 if (SessionState.running) return@saveAction getString(R.string.main_addons_close_session)
                 val imported = try {
-                    com.droiddeck.launcher.runtime.WowAddons.import(zip, target)
+                    com.droiddeck.launcher.runtime.WowAddons.import(zip, target, context = this@FrontEndActivity)
                 } catch (_: com.droiddeck.launcher.runtime.WowAddons.TooLarge) {
                     return@saveAction getString(R.string.main_addons_too_large, zip.name)
                 }
@@ -539,7 +539,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             }
         }
         val downloads = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS).path
-        pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip"), getString(R.string.main_addons_pick_zip, name), downloads))
+        pickSaveZip.launch(InAppFilePicker.buildIntent(this, listOf("zip", "rar", "7z"), getString(R.string.main_addons_pick_zip, name), downloads))
     }
 
     private fun exportSaves(name: String, layout: GameSaves.Layout, game: () -> GameSaves.Game) {
