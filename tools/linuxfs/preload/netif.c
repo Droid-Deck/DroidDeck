@@ -687,13 +687,14 @@ struct nl_fd_page {
 
 struct nl_metadata {
     uint64_t nonce;
+    uint64_t groups;
     uint32_t port;
     uint32_t type;
     uint32_t cap_ack;
     char magic[12];
 };
 
-_Static_assert(sizeof(struct nl_metadata) == 32, "netlink socket metadata ABI");
+_Static_assert(sizeof(struct nl_metadata) == 40, "netlink socket metadata ABI");
 
 struct nl_packet {
     struct nl_packet *next;
@@ -707,9 +708,9 @@ struct nl_reply {
     int overflow;
 };
 
-static const char nl_client_magic[12] = "dd-nl-c-v1";
-static const char nl_peer_magic[12] = "dd-nl-p-v1";
-static const char nl_reservation_magic[12] = "dd-nl-r-v1";
+static const char nl_client_magic[12] = "dd-nl-c-v2";
+static const char nl_peer_magic[12] = "dd-nl-p-v2";
+static const char nl_reservation_magic[12] = "dd-nl-r-v2";
 static struct nl_socket *nl_sockets;
 static struct nl_fd *nl_fds;
 static struct nl_fd_page *nl_fd_pages[NL_FD_BUCKETS];
@@ -912,13 +913,13 @@ static int nl_save_packets(int fd, struct nl_packet **packets) {
     }
 }
 
-static int nl_replace_peer(int fd, struct nl_socket *socket, unsigned port, int capped) {
+static int nl_replace_peer(int fd, struct nl_socket *socket, unsigned port, int capped, uint64_t groups) {
     static int (*real_socket)(int, int, int);
     static int (*real_close)(int);
     if (real_socket == NULL) real_socket = (int (*)(int, int, int)) dlsym(RTLD_NEXT, "socket");
     if (real_close == NULL) real_close = (int (*)(int)) dlsym(RTLD_NEXT, "close");
     struct sockaddr_un client_addr, peer_addr;
-    struct nl_metadata client, peer = { .port = port, .type = socket->type, .cap_ack = capped };
+    struct nl_metadata client, peer = { .groups = groups, .port = port, .type = socket->type, .cap_ack = capped };
     if (!nl_address(fd, 0, &client_addr, &client, nl_client_magic)) {
         errno = EINVAL;
         return -1;
@@ -957,6 +958,7 @@ static int nl_replace_peer(int fd, struct nl_socket *socket, unsigned port, int 
     socket->peer_inode = status.st_ino;
     socket->port = port;
     socket->cap_ack = capped;
+    socket->groups = groups;
     errno = saved;
     return replayed;
 failed: {
@@ -1027,7 +1029,7 @@ static struct nl_fd *nl_restore(int fd) {
         socket->device = status.st_dev;
         socket->inode = status.st_ino;
         socket->type = peer.type;
-        if (nl_replace_peer(fd, socket, peer.port, peer.cap_ack) != 0) {
+        if (nl_replace_peer(fd, socket, peer.port, peer.cap_ack, peer.groups) != 0) {
             free(socket);
             free(entry);
             return NULL;
@@ -1161,7 +1163,7 @@ static int nl_peer_of(int fd) {
         if (nl_address(fd, 1, &addr, &metadata, nl_peer_magic)) {
             if ((metadata.nonce == socket->peer_inode
                     && nl_identity(socket->peer, socket->device, socket->peer_inode))
-                    || nl_replace_peer(fd, socket, metadata.port, metadata.cap_ack) == 0) {
+                    || nl_replace_peer(fd, socket, metadata.port, metadata.cap_ack, metadata.groups) == 0) {
                 if (socket->port != 0 && (socket->reservation < 0
                         || !nl_identity(socket->reservation, socket->device, socket->reservation_inode)))
                     nl_reserve_port(socket, socket->port);
@@ -1319,7 +1321,7 @@ static int nl_bind_port(int fd, unsigned requested, int automatic) {
                 }
                 if (other == NULL) {
                     if (nl_reserve_port(socket, port) == 0) {
-                        result = nl_replace_peer(fd, socket, port, socket->cap_ack);
+                        result = nl_replace_peer(fd, socket, port, socket->cap_ack, socket->groups);
                         if (result != 0) nl_close_reservation(socket);
                         break;
                     }
@@ -1344,6 +1346,23 @@ static int nl_autobind(int fd) {
     return nl_bind_port(fd, 0, 1);
 }
 
+static int nl_set_groups(int fd, uint64_t keep, uint64_t add) {
+    int result = 0;
+    pthread_mutex_lock(&nl_sockets_lock);
+    struct nl_fd *entry = nl_find(fd);
+    if (entry) {
+        struct nl_socket *socket = entry->socket;
+        struct sockaddr_un addr;
+        struct nl_metadata metadata;
+        uint64_t current = nl_address(fd, 1, &addr, &metadata, nl_peer_magic) ? metadata.groups : socket->groups;
+        uint64_t groups = (current & keep) | add;
+        if (groups != current || groups != socket->groups)
+            result = nl_replace_peer(fd, socket, socket->port, socket->cap_ack, groups);
+    }
+    pthread_mutex_unlock(&nl_sockets_lock);
+    return result;
+}
+
 int dd_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
     const struct sockaddr_nl *nl;
     if (addr && len >= sizeof(sa_family_t) && addr->sa_family == AF_NETLINK) nl_discover(fd);
@@ -1355,16 +1374,14 @@ int dd_nl_bind(int fd, const struct sockaddr *addr, socklen_t len, int *rc) {
     }
     nl = (const struct sockaddr_nl *) addr;
     *rc = nl_bind_port(fd, nl->nl_pid, 0);
-    if (*rc == 0) {
-        pthread_mutex_lock(&nl_sockets_lock);
-        struct nl_fd *entry = nl_find(fd);
-        if (entry) entry->socket->groups = (entry->socket->groups & ~(uint64_t) UINT32_MAX) | nl->nl_groups;
-        pthread_mutex_unlock(&nl_sockets_lock);
-    }
+    if (*rc == 0) *rc = nl_set_groups(fd, ~(uint64_t) UINT32_MAX, nl->nl_groups);
     return 1;
 }
 
 static unsigned nl_groups_of(int fd) {
+    struct sockaddr_un addr;
+    struct nl_metadata metadata;
+    if (nl_address(fd, 1, &addr, &metadata, nl_peer_magic)) return (unsigned) metadata.groups;
     unsigned groups = 0;
     pthread_mutex_lock(&nl_sockets_lock);
     struct nl_fd *entry = nl_find(fd);
@@ -1386,14 +1403,7 @@ static int nl_membership(int fd, int option, const void *value, socklen_t len) {
     }
     if (group > 64) return 0;
     uint64_t bit = (uint64_t) 1 << (group - 1);
-    pthread_mutex_lock(&nl_sockets_lock);
-    struct nl_fd *entry = nl_find(fd);
-    if (entry) {
-        if (option == NETLINK_ADD_MEMBERSHIP) entry->socket->groups |= bit;
-        else entry->socket->groups &= ~bit;
-    }
-    pthread_mutex_unlock(&nl_sockets_lock);
-    return 0;
+    return nl_set_groups(fd, ~bit, option == NETLINK_ADD_MEMBERSHIP ? bit : 0);
 }
 
 int dd_nl_getsockname(int fd, struct sockaddr *addr, socklen_t *len, int *rc) {
@@ -1567,7 +1577,7 @@ int dd_nl_setsockopt(int fd, int level, int option, const void *value, socklen_t
             memcpy(&enabled, value, sizeof(enabled));
             pthread_mutex_lock(&nl_sockets_lock);
             struct nl_fd *entry = nl_find(fd);
-            if (entry && nl_replace_peer(fd, entry->socket, entry->socket->port, enabled != 0) != 0) {
+            if (entry && nl_replace_peer(fd, entry->socket, entry->socket->port, enabled != 0, entry->socket->groups) != 0) {
                 pthread_mutex_unlock(&nl_sockets_lock);
                 *rc = -1;
                 return 1;

@@ -609,6 +609,13 @@ static void batch_test(int oversized) {
     close(descriptor);
 }
 
+static unsigned groups_of(int descriptor) {
+    struct sockaddr_nl address;
+    socklen_t length = sizeof(address);
+    require(getsockname(descriptor, (struct sockaddr *)&address, &length) == 0, "getsockname");
+    return address.nl_groups;
+}
+
 static void inherited_test(int argc, char **argv) {
     require(argc == 6, "inherited arguments");
     int descriptor = atoi(argv[2]), closed = atoi(argv[4]), datagram = atoi(argv[5]);
@@ -616,6 +623,7 @@ static void inherited_test(int argc, char **argv) {
     require(fcntl(closed, F_GETFD) == -1 && errno == EBADF, "cloexec descriptor closed");
     require(port_of(descriptor) == port && !(fcntl(descriptor, F_GETFD) & FD_CLOEXEC),
             "inherited bound port");
+    require(groups_of(descriptor) == RTMGRP_LINK, "membership survives exec");
     socket_info(descriptor, SOCK_RAW);
     socket_info(datagram, SOCK_DGRAM);
     require(fcntl(datagram, F_GETFL) & O_NONBLOCK, "inherited nonblocking flag");
@@ -640,6 +648,9 @@ static void exec_test(const char *program, int forked) {
     int enabled = 1;
     require(setsockopt(descriptor, SOL_NETLINK, NETLINK_CAP_ACK, &enabled, sizeof(enabled)) == 0,
             "inherited cap ack");
+    int group = RTNLGRP_LINK;
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == 0,
+            "inherited membership");
     unsigned port = port_of(descriptor);
     int alias = fcntl(descriptor, F_DUPFD, 100);
     int closed = fcntl(descriptor, F_DUPFD_CLOEXEC, 200);
@@ -735,13 +746,6 @@ static void options_test(void) {
     close(descriptor);
 }
 
-static unsigned groups_of(int descriptor) {
-    struct sockaddr_nl address;
-    socklen_t length = sizeof(address);
-    require(getsockname(descriptor, (struct sockaddr *)&address, &length) == 0, "getsockname");
-    return address.nl_groups;
-}
-
 static void subscribe_test(void) {
     unsigned wanted = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
     int descriptor = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
@@ -757,6 +761,17 @@ static void subscribe_test(void) {
     require(setsockopt(descriptor, SOL_NETLINK, NETLINK_DROP_MEMBERSHIP, &group, sizeof(group)) == 0,
             "drop membership");
     require(groups_of(descriptor) == ((wanted & ~RTMGRP_LINK) | RTMGRP_IPV4_ROUTE), "dropped group");
+    pid_t child = fork();
+    require(child >= 0, "membership fork");
+    if (child == 0) {
+        group = RTNLGRP_IPV4_ROUTE;
+        _exit(setsockopt(descriptor, SOL_NETLINK, NETLINK_DROP_MEMBERSHIP, &group, sizeof(group)) == 0
+              && groups_of(descriptor) == (wanted & ~RTMGRP_LINK) ? 0 : 1);
+    }
+    int status;
+    require(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+            "membership child");
+    require(groups_of(descriptor) == (wanted & ~RTMGRP_LINK), "membership shared after fork");
     group = 0;
     require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == -1
             && errno == EINVAL, "group zero refused");
