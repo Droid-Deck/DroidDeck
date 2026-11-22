@@ -742,7 +742,16 @@ for name in names:
         continue
     if on == "1" and cur is None:
         os.makedirs(dst, exist_ok=True)
-        open(path, "w", encoding="utf-8").write(cfg + "\n")
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(cfg + "\n")
+            os.replace(tmp, path)
+        except OSError:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
     elif on != "1" and cur is not None:
         os.remove(path)
 PY
