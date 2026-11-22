@@ -30,6 +30,17 @@ class DualScreenTest {
         assertTrue(DualScreen.menuOwnsController(open = true, docked = true, optIn = true))
     }
 
+    @Test fun theMenuComesBackOnStartWhenItIsTheSelectedModeOrWasShowingWhenTheScreenClosed() {
+        val menu = SecondScreenMode.MENU
+        val terminal = SecondScreenMode.TERMINAL
+        assertTrue(DualScreen.menuReturnsOnStart(menu, menuWasShown = false, menuUp = false))
+        assertTrue(DualScreen.menuReturnsOnStart(menu, menuWasShown = true, menuUp = false))
+        assertTrue(DualScreen.menuReturnsOnStart(terminal, menuWasShown = true, menuUp = false))
+        assertFalse(DualScreen.menuReturnsOnStart(terminal, menuWasShown = false, menuUp = false))
+        assertFalse(DualScreen.menuReturnsOnStart(menu, menuWasShown = true, menuUp = true))
+        assertFalse(DualScreen.menuReturnsOnStart(terminal, menuWasShown = true, menuUp = true))
+    }
+
     @Test fun aVisibleDockedMenuThatDoesNotOwnTheControllerIsIdle() {
         assertFalse(DualScreen.menuIdleOnBottom(open = false, docked = false, pinned = false, optIn = false))
         assertFalse(DualScreen.menuIdleOnBottom(open = true, docked = false, pinned = false, optIn = false))
