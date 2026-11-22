@@ -241,7 +241,8 @@ page switching with LB and RB, Back and Steam shortcuts), use `input gamepad`. I
 gamepad called "DroidDeck test pad" with `adb shell uinput -`, so Android reports a physical
 controller, and presses the buttons in order: `a b x y lb rb select start guide l3 r3` and the
 d-pad `up down left right`. `--hold` (120 ms) is how long each stays down and `--gap` (400 ms) the
-pause after it. The device exists only while the command runs, takes about a second to appear, and
+pause after it; a d-pad press always waits at least 20 ms, so Android sees each release before
+the next press. The device exists only while the command runs, takes about a second to appear, and
 works without a session or Setup > Developer > Debugging tools. Its name does not start with
 `uinput-`, which the app treats as a system virtual device. `UINPUT_UNAVAILABLE` and `UINPUT_FAILED`
 mean the same as for `input pen`.

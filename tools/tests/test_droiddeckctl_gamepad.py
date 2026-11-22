@@ -51,6 +51,14 @@ class GamepadTest(FakeAdbTest):
         self.assertEqual([], [c for c in commands if c["command"] == "delay" and c["duration"] <= 0])
         self.assertEqual([40, 40], [c["duration"] for c in commands[2:-2] if c["command"] == "delay"])
 
+    def test_a_dpad_release_never_runs_into_the_next_press_even_at_zero_gap(self):
+        code, _ = self.gamepad("left", "left", "--hold", "40", "--gap", "0")
+        self.assertEqual(0, code)
+        commands = self.script()
+        self.assertEqual([{"ABS_HAT0X": -1}, {"ABS_HAT0X": 0}, {"ABS_HAT0X": -1}, {"ABS_HAT0X": 0}], key_frames(commands))
+        self.assertEqual([40, ctl.GAMEPAD_DPAD_MIN_GAP_MS, 40, ctl.GAMEPAD_DPAD_MIN_GAP_MS],
+                         [c["duration"] for c in commands[2:-2] if c["command"] == "delay"])
+
     def test_the_dpad_uses_the_hat_axes(self):
         code, _ = self.gamepad("up", "right", "down", "left")
         self.assertEqual(0, code)

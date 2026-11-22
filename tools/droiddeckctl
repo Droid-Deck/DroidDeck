@@ -827,6 +827,7 @@ GAMEPAD_BUTTONS = {"a": "BTN_SOUTH", "b": "BTN_EAST", "x": "BTN_NORTH", "y": "BT
                    "select": "BTN_SELECT", "start": "BTN_START", "guide": "BTN_MODE", "l3": "BTN_THUMBL", "r3": "BTN_THUMBR"}
 GAMEPAD_DPAD = {"up": ("ABS_HAT0Y", -1), "down": ("ABS_HAT0Y", 1), "left": ("ABS_HAT0X", -1), "right": ("ABS_HAT0X", 1)}
 GAMEPAD_MAX_PRESSES = 200
+GAMEPAD_DPAD_MIN_GAP_MS = 20
 
 
 def gamepad_commands(buttons: list[str], hold: int, gap: int) -> list[dict]:
@@ -859,8 +860,9 @@ def gamepad_commands(buttons: list[str], hold: int, gap: int) -> list[dict]:
         commands += [{"id": 1, "command": "inject", "events": [kind, code, down, "EV_SYN", "SYN_REPORT", 0]},
                      {"id": 1, "command": "delay", "duration": hold},
                      {"id": 1, "command": "inject", "events": [kind, code, up, "EV_SYN", "SYN_REPORT", 0]}]
-        if gap > 0:
-            commands.append({"id": 1, "command": "delay", "duration": gap})
+        pause = gap if name in GAMEPAD_BUTTONS else max(gap, GAMEPAD_DPAD_MIN_GAP_MS)
+        if pause > 0:
+            commands.append({"id": 1, "command": "delay", "duration": pause})
     return commands + [{"id": 1, "command": "delay", "duration": UINPUT_TAIL_MS},
                        {"id": 1, "command": "sync", "syncToken": GAMEPAD_SYNC}]
 
@@ -1431,7 +1433,7 @@ def build_parser() -> argparse.ArgumentParser:
     gamepad.add_argument("buttons", nargs="+", metavar="BUTTON",
                          help="a b x y lb rb select start guide l3 r3 up down left right, pressed in order")
     gamepad.add_argument("--hold", type=int, default=120, help="ms each button stays down")
-    gamepad.add_argument("--gap", type=int, default=400, help="ms between buttons")
+    gamepad.add_argument("--gap", type=int, default=400, help="ms between buttons (a d-pad press always waits at least 20 ms)")
     stick = kinds.add_parser("stick", help="hold a stick at x, y (-1..1)")
     stick.add_argument("stick", choices=["left", "right"])
     stick.add_argument("x", type=float)
