@@ -244,9 +244,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         override fun key(code: Int, down: Boolean) { heldKeys.set(4, code, down) }
         override fun button(code: Int, down: Boolean) { heldButtons.set(4, code, down) }
         override fun pointer(dx: Float, dy: Float) {
-            if (Looper.myLooper() == Looper.getMainLooper()) moveInputPointer(dx, dy)
-            else uiHandler.post {
-                if (resumed && !SessionState.suspended && !pipUi && !drawerOpen && !inputSettingsOpen)
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                if (!menuOwnsController) moveInputPointer(dx, dy)
+            } else uiHandler.post {
+                if (resumed && !SessionState.suspended && !pipUi && !menuOwnsController && !inputSettingsOpen)
                     moveInputPointer(dx, dy)
             }
         }
@@ -1310,7 +1311,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         runCatching { com.droiddeck.launcher.session.TelemetryOutput.applyAutomatic(this@SessionActivity, nextGame) }
                     }
                 }
-                LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, inputSettingsOpen, pipUi, SessionState.suspended, resumed, appTextFocus) {
+                LaunchedEffect(drawerOpen, menuOwnsController, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, inputSettingsOpen, pipUi, SessionState.suspended, resumed, appTextFocus) {
                     updateOnScreenControls()
                     padBridge?.setInputEnabled(resumed && !menuOwnsController && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen && !inputSettingsOpen && !pipUi && !appTextFocus && !SessionState.suspended)
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || inputSettingsOpen || pipUi || appTextFocus || SessionState.suspended) {
@@ -1372,6 +1373,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                             androidx.compose.runtime.withFrameNanos { }
                             val requested = focusDrawer()
                             Log.i(TAG, "drawer root focus requested=$requested docked=$drawerDocked")
+                        } else {
+                            releaseDrawerDirection()
                         }
                     } else {
                         releaseDrawerDirection()
@@ -1773,6 +1776,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onDockedMenuController = { on ->
                 SessionPrefs.setDockedMenuController(this@SessionActivity, on)
                 dockedMenuController = on
+                if (!on && drawerDocked) drawerControllerActive = false
             },
             backActionsInverted = backActionsInverted,
             backDoubleTapMs = backDoubleTapMs,
