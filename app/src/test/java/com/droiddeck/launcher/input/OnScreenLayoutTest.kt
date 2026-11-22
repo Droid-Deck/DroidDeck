@@ -332,6 +332,24 @@ class OnScreenLayoutTest {
         }
         val landscape = OnScreenLayout.elements(context, edited, 2400, 1080, Rect())
         assertTrue(landscape.first { it.id == "legacy:a" }.x > .5f)
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val deck = OnScreenLayout.elements(context, edited, w, 1100, Rect(), dock = OnScreenLayout.Dock.deck(true, null), trackpads = true)
+        assertTrue(deck.none { it.id == "legacy:rs" })
+        assertTrue(deck.any { it.kind == InputElementKind.TRACKPAD && it.x + it.width / 2f > .5f })
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
+        val tiny = stock.copy(aspect = .45f, elements = stock.elements.map {
+            when (it.id) {
+                "legacy:a" -> it.copy(x = .05f, y = .05f, width = .1f, height = .045f)
+                "legacy:b" -> it.copy(x = .16f, y = .05f, width = .1f, height = .045f)
+                "legacy:ls" -> it.copy(x = .8f, y = .85f, width = .15f, height = .1f)
+                else -> it
+            }
+        }, rotated = emptyList())
+        val short = OnScreenLayout.elements(context, tiny, w, 385, Rect(), dock = OnScreenLayout.Dock(true, false))
+        val sa = short.first { it.id == "legacy:a" }
+        val sb = short.first { it.id == "legacy:b" }
+        assertTrue(sa.x + sa.width <= sb.x)
+        assertEquals(1f, sa.width * w / (sa.height * 385), .01f)
     }
 
     @Test fun thePortraitAndBelowGameKitsKeepDirectionalArtClearOfTheSticksAndFaceButtons() {

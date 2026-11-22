@@ -43,7 +43,7 @@ object OnScreenLayout {
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
         val (reference, matched) = reference(context, layout, width, height)
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
-        if (dock?.portrait == true && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
+        if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
             return cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe)
         val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
             (dock != null || height > width && layout.aspect >= 1f || height <= width && layout.aspect > 0f && layout.aspect < 1f)
@@ -148,7 +148,7 @@ object OnScreenLayout {
         val originY = safe.top + (h - spanY * scale) / 2f - top * scale
         return elements.map { e ->
             e.copy(x = (originX + e.x * aspect * scale) / width, y = (originY + e.y * scale) / height,
-                width = e.width * aspect * scale / width, height = e.height * scale / height).bounded()
+                width = e.width * aspect * scale / width, height = e.height * scale / height)
         }
     }
 
