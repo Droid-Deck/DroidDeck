@@ -62,7 +62,6 @@ class InputSurfaceEditorViewTest {
 
     private fun field(target: Any, name: String) = target.javaClass.getDeclaredField(name).also { it.isAccessible = true }.get(target)
     private fun InputSurfaceEditorView.controls() = (field(field(this, "preview")!!, "customCanvas") as ViewGroup).let { canvas -> (0 until canvas.childCount).map(canvas::getChildAt) }
-    private fun InputSurfaceEditorView.artworkDpad() = field(field(this, "preview")!!, "artworkDpad") as List<*>
     private fun InputSurfaceEditorView.rects() = controls().map { listOf(it.left, it.top, it.width, it.height) }
 
     private fun InputSurfaceEditorView.assertControlsDrawnWhereDisplayed() {
@@ -203,6 +202,38 @@ class InputSurfaceEditorViewTest {
         assertEquals(a.width, moved.width, .0001f)
     }
 
+    @Test fun theDpadMovesAndResizesAsOneControlFromAnyArrowOrItsCentre() {
+        val view = editor(overlay(), 2400, 1504)
+        val arrows = listOf("legacy:up", "legacy:right", "legacy:down", "legacy:left")
+        fun pad() = view.rendered().filter { it.id in arrows }.associateBy { it.id }
+        val before = pad()
+        assertEquals(4, view.artworkDpad().size)
+        val changes = mutableListOf<InputSurfaceElement>()
+        view.onBeginEdit = { shown, w, h -> view.aspect = w.toFloat() / h; view.elements = shown }
+        view.onChange = { changes += it; view.elements = view.elements.map { e -> it.firstOrNull { c -> c.id == e.id } ?: e } }
+        val left = before.getValue("legacy:left"); val right = before.getValue("legacy:right")
+        val x = (left.x + left.width + right.x) / 2 * 2400; val y = (left.y + left.height / 2) * 1504
+        view.touch(MotionEvent.ACTION_DOWN, x, y)
+        view.touch(MotionEvent.ACTION_MOVE, x + 240f, y - 150f)
+        view.touch(MotionEvent.ACTION_UP, x + 240f, y - 150f)
+        val moved = changes.takeLast(4).associateBy { it.id }
+        assertEquals(arrows.toSet(), moved.keys)
+        for (id in arrows) {
+            assertEquals(id, before.getValue(id).x + 240f / 2400, moved.getValue(id).x, .0001f)
+            assertEquals(id, before.getValue(id).y - 150f / 1504, moved.getValue(id).y, .0001f)
+        }
+        assertEquals(4, view.artworkDpad().size)
+        val down = moved.getValue("legacy:down"); val r = moved.getValue("legacy:right")
+        val cx = (r.x + r.width) * 2400; val cy = (down.y + down.height) * 1504
+        view.touch(MotionEvent.ACTION_DOWN, cx, cy)
+        view.touch(MotionEvent.ACTION_MOVE, cx + 80f, cy + 80f)
+        view.touch(MotionEvent.ACTION_UP, cx + 80f, cy + 80f)
+        val resized = changes.takeLast(4).associateBy { it.id }
+        assertEquals(arrows.toSet(), resized.keys)
+        assertTrue(resized.getValue("legacy:up").width > moved.getValue("legacy:up").width)
+        assertEquals(4, view.artworkDpad().size)
+    }
+
     @Test fun aMouseSelectsDragsAndResizesLikeATouch() {
         val view = editor(overlay(), 2400, 1504)
         val a = view.rendered().first { it.id == "legacy:a" }
@@ -236,3 +267,6 @@ internal fun InputSurfaceEditorView.place(w: Int, h: Int) {
 
 @Suppress("UNCHECKED_CAST")
 internal fun InputSurfaceEditorView.rendered() = javaClass.getDeclaredField("visibleElements").also { it.isAccessible = true }.get(this) as List<InputSurfaceElement>
+
+internal fun InputSurfaceEditorView.artworkDpad() = javaClass.getDeclaredField("preview").also { it.isAccessible = true }.get(this)!!.let { preview ->
+    preview.javaClass.getDeclaredField("artworkDpad").also { it.isAccessible = true }.get(preview) as List<*> }

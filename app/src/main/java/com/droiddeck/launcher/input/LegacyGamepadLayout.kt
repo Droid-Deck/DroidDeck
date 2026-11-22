@@ -334,7 +334,6 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         const val STICK_REACH = 1.25f
         const val LEGACY_DPAD_RADIUS_DP = 26f
         const val LEGACY_DPAD_OFFSET_DP = 52f
-        val DPAD = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
         const val KEYBOARD_ID = "builtin:keyboard"
         const val KEYBOARD_RADIUS_DP = 18f
         const val KEYBOARD_X_DP = 90f

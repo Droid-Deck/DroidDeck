@@ -97,8 +97,12 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
     var aspect by mutableFloatStateOf(layout.aspect)
     private var scaleBase by mutableStateOf<Triple<List<InputSurfaceElement>, List<InputSurfaceElement>, Float>?>(null)
     private var scaleValue by mutableIntStateOf(100)
+    private var pieceBase by mutableStateOf<Triple<List<InputSurfaceElement>, List<InputSurfaceElement>, Int>?>(null)
+    private val piece get() = element?.let { e -> (if (elements.any { it.id == e.id }) elements else shown).groupOf(e) }.orEmpty()
+    val scaleRange get() = if (piece.isEmpty()) 80..125 else 50..200
     private val rescales get() = gamepad?.let { pad -> elements.any { it.id in pad.ids } } == true
     val scale get() = when {
+        piece.isNotEmpty() -> pieceBase?.takeIf { it.second == piece }?.third ?: 100
         scaleBase?.second == elements -> scaleValue
         rescales -> ((if (canvas.width > 0 && canvas.height > 0 && aspect > 0f && (aspect < 1f) != (canvasAspect < 1f))
             OnScreenLayout.oriented(layout, canvas.width, canvas.height).scale else layoutScale) * 100).roundToInt()
@@ -142,6 +146,22 @@ private class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputB
             pad.rescale(base.first, base.third, factor).map { others[it.id] ?: it }
         } else base.first.scaled(factor)
         scaleValue = percent; scaleBase = Triple(base.first, elements, base.third)
+    }
+    fun scaleSelected(percent: Int) {
+        val id = selected ?: return
+        val base = pieceBase?.takeIf { it.second == piece } ?: run {
+            if (canvas.width > 0 && canvas.height > 0 && shown.isNotEmpty()) {
+                val open = toolsExpanded
+                beginEdit(shown, canvasAspect)
+                toolsExpanded = open
+            } else checkpoint()
+            val start = elements.firstOrNull { it.id == id }?.let { elements.groupOf(it) } ?: return
+            Triple(start, start, 100)
+        }
+        val resized = base.first.resizedAroundCentre(percent / 100f)
+        val byId = resized.associateBy { it.id }
+        elements = elements.map { byId[it.id] ?: it }
+        pieceBase = Triple(base.first, resized, percent)
     }
     var shown by mutableStateOf<List<InputSurfaceElement>>(emptyList())
     private val canvasAspect get() = canvas.width.toFloat() / canvas.height.coerceAtLeast(1)
@@ -337,7 +357,7 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false) {
             view.onBeginEdit = { e, w, h -> draft.beginEdit(e, w.toFloat() / h, if (draft.hasGamepad) GamepadScaler(view.context, w, h, draft.layout) else null) }
             view.onResize = { w, h -> draft.canvas = IntSize(w, h) }
             view.onDisplayed = { draft.shown = it }
-            view.onChange = { e -> if (!draft.properties) draft.elements = draft.elements.map { if (it.id == e.id) e else it } }
+            view.onChange = { changed -> if (!draft.properties) changed.associateBy { it.id }.let { byId -> draft.elements = draft.elements.map { byId[it.id] ?: it } } }
 
         })
 }
@@ -407,8 +427,8 @@ private fun SurfaceToolbar(draft: SurfaceDraft, onSave: () -> Unit, onLeave: () 
         }
         PrimaryButton(stringResource(R.string.input_editor_done), compact = true, onClick = onSave)
     }
-    if (draft.elements.isNotEmpty()) SliderRow(stringResource(R.string.ctrl_size), null, draft.scale, 80..125, step = 5,
-        format = { "$it%" }, modifier = Modifier.testTag("input-editor-scale")) { draft.scaleAll(context, it) }
+    if (draft.elements.isNotEmpty()) SliderRow(stringResource(R.string.ctrl_size), null, draft.scale, draft.scaleRange, step = 5,
+        format = { "$it%" }, modifier = Modifier.testTag("input-editor-scale")) { if (draft.element != null) draft.scaleSelected(it) else draft.scaleAll(context, it) }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
