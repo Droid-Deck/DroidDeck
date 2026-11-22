@@ -23,6 +23,8 @@ object DualScreen {
     @Volatile private var takenDisplays: Set<Int> = emptySet()
     private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
 
+    fun menuOwnsController(open: Boolean, docked: Boolean, optIn: Boolean): Boolean = open && (!docked || optIn)
+
     fun yieldsBottom(model: String): Boolean = model.trim().lowercase().let { m -> knownModels.any(m::startsWith) }
 
     fun taken(displayId: Int): Boolean = displayId in takenDisplays

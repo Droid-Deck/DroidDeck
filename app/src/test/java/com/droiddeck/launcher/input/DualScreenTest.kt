@@ -23,6 +23,13 @@ class DualScreenTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val displays = context.getSystemService(DisplayManager::class.java)
 
+    @Test fun dockedMenuOnlyTakesTheControllerWhenOptedIn() {
+        assertFalse(DualScreen.menuOwnsController(open = false, docked = false, optIn = true))
+        assertTrue(DualScreen.menuOwnsController(open = true, docked = false, optIn = false))
+        assertFalse(DualScreen.menuOwnsController(open = true, docked = true, optIn = false))
+        assertTrue(DualScreen.menuOwnsController(open = true, docked = true, optIn = true))
+    }
+
     @Test fun internalPanelsCountAsBuiltIn() {
         assertTrue(DualScreen.isBuiltIn(1, "Anything"))
         assertFalse(DualScreen.isBuiltIn(2, "Retroid Pocket Duo"))

@@ -545,6 +545,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             drawerOpenState = value
             if (!value && drawerDocked) closeDockedMenu()
         }
+    private val menuOwnsController: Boolean get() = com.droiddeck.launcher.input.DualScreen.menuOwnsController(drawerOpen, drawerDocked, dockedMenuController)
     private var quitFrom by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
     private var quitFlooded = false
     private var leaving by mutableStateOf(false)
@@ -588,6 +589,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var drawerPage by mutableStateOf(SessionDrawerPage.CONTROLLER)
     private var drawerControllerActive by mutableStateOf(false)
     private var backHold by mutableStateOf(true)
+    private var dockedMenuController by mutableStateOf(false)
     private var backActionsInverted by mutableStateOf(false)
     private var backDoubleTapMs by mutableStateOf(500)
     private var lowLatency by mutableStateOf(true)
@@ -1306,7 +1308,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 }
                 LaunchedEffect(drawerOpen, pcKeyboardOpen, achievementsOpen, gestureSettingsOpen, inputSettingsOpen, pipUi, SessionState.suspended, resumed, appTextFocus) {
                     updateOnScreenControls()
-                    padBridge?.setInputEnabled(resumed && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen && !inputSettingsOpen && !pipUi && !appTextFocus && !SessionState.suspended)
+                    padBridge?.setInputEnabled(resumed && !menuOwnsController && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen && !inputSettingsOpen && !pipUi && !appTextFocus && !SessionState.suspended)
                     if (drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || inputSettingsOpen || pipUi || appTextFocus || SessionState.suspended) {
                         backQamInput.cancel()
                         com.droiddeck.launcher.input.HomeButtonShortcuts.cancel(this@SessionActivity)
@@ -1358,13 +1360,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     onDismiss = { gestureSettingsOpen = false },
                     onSaved = { gestureSettingsOpen = false; refreshGestureConfig() },
                 )
-                androidx.compose.runtime.LaunchedEffect(drawerOpen) {
+                androidx.compose.runtime.LaunchedEffect(drawerOpen, menuOwnsController) {
                     if (drawerOpen) {
                         syncLossless()
-                        releasePads()
-                        androidx.compose.runtime.withFrameNanos { }
-                        val requested = focusDrawer()
-                        Log.i(TAG, "drawer root focus requested=$requested docked=$drawerDocked")
+                        if (menuOwnsController) {
+                            releasePads()
+                            androidx.compose.runtime.withFrameNanos { }
+                            val requested = focusDrawer()
+                            Log.i(TAG, "drawer root focus requested=$requested docked=$drawerDocked")
+                        }
                     } else {
                         releaseDrawerDirection()
                     }
@@ -1758,6 +1762,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onBackHold = { on ->
                 SessionPrefs.setBackHold(this@SessionActivity, on)
                 backHold = on
+            },
+            dockedMenuController = dockedMenuController,
+            onDockedMenuController = { on ->
+                SessionPrefs.setDockedMenuController(this@SessionActivity, on)
+                dockedMenuController = on
             },
             backActionsInverted = backActionsInverted,
             backDoubleTapMs = backDoubleTapMs,
@@ -2627,6 +2636,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         oscRearButtons = SessionPrefs.oscRearButtons(this)
         oscTrackpads = SessionPrefs.oscTrackpads(this)
         backHold = SessionPrefs.backHold(this)
+        dockedMenuController = SessionPrefs.dockedMenuController(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         physicalShortcuts.bindings = PhysicalShortcuts.read(this)
         backDoubleTapMs = SessionPrefs.backDoubleTapMs(this)
@@ -3517,7 +3527,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 val steamVolume =
                     SessionState.mode == SessionService.MODE_STEAM && SessionState.running &&
                     SessionState.firstFrameSeen && !SessionState.suspended && !ended &&
-                    !pipUi && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
+                    !pipUi && !menuOwnsController && !pcKeyboardOpen && !achievementsOpen &&
                     !gestureSettingsOpen && !inputSettingsOpen && !appTextFocus && window.decorView.hasWindowFocus()
                 if (steamVolume) {
                     val audio = getSystemService(android.media.AudioManager::class.java)
@@ -3531,13 +3541,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (penStream.holdsKey(event) || (penSettings.mode != SessionPrefs.PEN_TOUCH && PenStream.isPenKey(event))) return penStream.onKey(event)
         if (appTextFocus) return super.dispatchKeyEvent(event)
         if (!pipUi) {
-            if (physicalInputBindings?.onKey(event, resumed && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
+            if (physicalInputBindings?.onKey(event, resumed && !menuOwnsController && !pcKeyboardOpen && !achievementsOpen &&
                     !inputSettingsOpen && !gestureSettingsOpen && !SessionState.suspended && !loading.visible) == true) return true
             if (physicalShortcuts.onKey(
                     event,
                     enabled = resumed && SessionState.running && !SessionState.suspended &&
-                        !(drawerOpen && event.keyCode == KeyEvent.KEYCODE_BUTTON_A) &&
-                        !(drawerOpen && PhysicalShortcuts.isDrawerNavigationKey(event)) &&
+                        !(menuOwnsController && event.keyCode == KeyEvent.KEYCODE_BUTTON_A) &&
+                        !(menuOwnsController && PhysicalShortcuts.isDrawerNavigationKey(event)) &&
                         (event.deviceId to event.keyCode) !in resumeKeysDown &&
                         !(::loading.isInitialized && (loading.visible || loading.ended)) &&
                         !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen && !inputSettingsOpen,
@@ -3576,7 +3586,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
         }
         if (mouseBackHandled) return true
-        val backToQam = !pipUi && !appTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
+        val backToQam = !pipUi && !appTextFocus && !menuOwnsController && !pcKeyboardOpen && !achievementsOpen &&
             !inputSettingsOpen && !gestureSettingsOpen &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.running && SessionState.firstFrameSeen &&
             !SessionState.suspended && padBridge?.canHoldQam() == true
@@ -3589,12 +3599,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val pad = com.droiddeck.launcher.input.JoyCon.normalize(event)
         if (pad !== event) return dispatchKeyEvent(pad)
         val fromController = PadBridge.isControllerKeyEvent(event)
-        if (fromController && (drawerOpen || pcKeyboardOpen || achievementsOpen || inputSettingsOpen || gestureSettingsOpen || SessionState.suspended)) {
+        if (fromController && (menuOwnsController || pcKeyboardOpen || achievementsOpen || inputSettingsOpen || gestureSettingsOpen || SessionState.suspended)) {
             padBridge?.setInputEnabled(false)
             padBridge?.onKeyEvent(event)
         }
-        if (fromController && event.action == KeyEvent.ACTION_DOWN) {
-            if (drawerOpen && !drawerControllerActive) focusDrawer()
+        if (fromController && event.action == KeyEvent.ACTION_DOWN && (!drawerOpen || menuOwnsController)) {
+            if (menuOwnsController && !drawerControllerActive) focusDrawer()
             drawerControllerActive = true
         }
         if (fromController && event.keyCode == KeyEvent.KEYCODE_BUTTON_B && ::loading.isInitialized && loading.visible && !loading.ended && !drawerOpen) {
@@ -3613,7 +3623,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         val drawerShortcutKey = event.deviceId to event.keyCode
         if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_SELECT || event.keyCode == KeyEvent.KEYCODE_BUTTON_START) &&
-            ((drawerOpen && SessionState.mode == SessionService.MODE_STEAM) || drawerShortcutKey in drawerShortcutKeysDown)) {
+            ((menuOwnsController && SessionState.mode == SessionService.MODE_STEAM) || drawerShortcutKey in drawerShortcutKeysDown)) {
             if (event.action == KeyEvent.ACTION_DOWN) {
                 drawerShortcutKeysDown.add(drawerShortcutKey)
                 if (event.repeatCount == 0) {
@@ -3625,7 +3635,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
             return true
         }
-        if (drawerOpen) {
+        if (drawerOpen && (menuOwnsController || !fromController)) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                     drawerPage = sessionDrawerPages(glasses.present)
@@ -3695,11 +3705,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         if (pipUi) return true
         notePress(event)
-        if (PadBridge.isControllerMotionEvent(event) && (drawerOpen || pcKeyboardOpen || achievementsOpen || inputSettingsOpen || gestureSettingsOpen || SessionState.suspended)) {
+        if (PadBridge.isControllerMotionEvent(event) && (menuOwnsController || pcKeyboardOpen || achievementsOpen || inputSettingsOpen || gestureSettingsOpen || SessionState.suspended)) {
             padBridge?.setInputEnabled(false)
             padBridge?.onMotionEvent(event)
         }
-        if (drawerOpen && PadBridge.isControllerMotionEvent(event)) {
+        if (menuOwnsController && PadBridge.isControllerMotionEvent(event)) {
             if (!drawerControllerActive) focusDrawer()
             drawerControllerActive = true
             if (event.actionMasked == MotionEvent.ACTION_MOVE &&

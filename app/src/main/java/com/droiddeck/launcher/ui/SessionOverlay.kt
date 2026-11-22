@@ -230,6 +230,8 @@ class DrawerActions(
     val onMicEnabled: (Boolean) -> Unit = {},
     val backHold: Boolean = true,
     val onBackHold: (Boolean) -> Unit = {},
+    val dockedMenuController: Boolean = false,
+    val onDockedMenuController: (Boolean) -> Unit = {},
     val backActionsInverted: Boolean,
     val backDoubleTapMs: Int = 500,
     val onBackDoubleTapMs: (Int) -> Unit = {},
@@ -780,6 +782,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     SessionPrefs.BACK_DOUBLE_TAP_MS_OPTIONS.map { it to stringResource(R.string.back_tap_ms, it) },
                                     a.backDoubleTapMs, chipModifier = focus.track(page, "back-double-tap"), onPick = a.onBackDoubleTapMs)
                                 PhysicalShortcutRows(modifierFor = { focus.track(page, "physical-shortcut-${it.name}") })
+                                if (a.secondScreenDisplays.isNotEmpty()) ToggleRow(host, "docked-menu-controller", stringResource(R.string.drawer_docked_menu_controller),
+                                    stringResource(R.string.drawer_docked_menu_controller_hint), a.dockedMenuController,
+                                    chipModifier = focus.track(page, "docked-menu-controller"), onChange = a.onDockedMenuController)
                                 ToggleRow(host, "corner-tap", stringResource(R.string.drawer_corner_tap),
                                     stringResource(R.string.drawer_corner_tap_hint), a.cornerTap,
                                     chipModifier = focus.track(page, "corner-tap"), onChange = a.onCornerTap)
