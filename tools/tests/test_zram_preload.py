@@ -131,12 +131,18 @@ static long trim(char mode, long kb) {
   exit(5);
 }
 
-static int tasks(void) {
+static int workers(void) {
   DIR *dir = opendir("/proc/self/task");
   struct dirent *entry;
   int count = 0;
-  while (dir && (entry = readdir(dir)) != NULL)
-    if (entry->d_name[0] != '.') count++;
+  while (dir && (entry = readdir(dir)) != NULL) {
+    if (entry->d_name[0] == '.') continue;
+    char path[64], name[32] = {0};
+    snprintf(path, sizeof(path), "/proc/self/task/%s/comm", entry->d_name);
+    FILE *comm = fopen(path, "r");
+    if (comm && fgets(name, sizeof(name), comm) && !strcmp(name, "zr-worker\n")) count++;
+    if (comm) fclose(comm);
+  }
   if (dir) closedir(dir);
   return count;
 }
@@ -268,9 +274,9 @@ int main(int argc, char **argv) {
     } else if (!strcmp(argv[4], "threads")) {
       stop = 1;
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
-      printf("idle %d\n", tasks() - 2);
+      printf("idle %d\n", workers());
       request('1');
-      printf("after %d\n", tasks() - 2);
+      printf("after %d\n", workers());
       return 0;
     } else if (!strcmp(argv[4], "trim")) {
       stop = 1;
