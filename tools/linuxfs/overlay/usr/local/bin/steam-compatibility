@@ -92,7 +92,7 @@ dd_run() {
   if [ -n "${DD_STORE_REPLACE:-}" ]; then
     local arg replaced=()
     for arg in "$@"; do
-      case $arg in steam2ea://*|STEAM2EA://*) replaced+=("$DD_STORE_REPLACE") ;; *) replaced+=("$arg") ;; esac
+      case ${arg,,} in steam2ea://*) replaced+=("$DD_STORE_REPLACE") ;; *) replaced+=("$arg") ;; esac
     done
     set -- "${replaced[@]}"
   fi

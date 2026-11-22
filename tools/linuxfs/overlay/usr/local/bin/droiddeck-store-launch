@@ -1610,6 +1610,10 @@ def batch_text(value):
     return value.replace("%", "%%").replace('"', "")
 
 
+def batch_arguments(value):
+    return re.sub(r"[\x00-\x1f]+", " ", value).replace("%", "%%")
+
+
 def steam_ea_launcher(folder, exe, parameters, compat_data):
     env = windows_path(str(Path(compat_data) / STEAM_EA_ENV))
     lines = [
@@ -1622,7 +1626,7 @@ def steam_ea_launcher(folder, exe, parameters, compat_data):
         'del "%s"' % batch_text(env),
         ":run",
         'if exist "%s" start "" "%s"' % (EA_STUB, EA_STUB),
-        '"%s"%s %%*' % (batch_text(windows_path(str(exe))), " " + batch_text(parameters) if parameters else ""),
+        '"%s"%s %%*' % (batch_text(windows_path(str(exe))), " " + batch_arguments(parameters) if parameters else ""),
         'set "DD_RC=%errorlevel%"',
         "taskkill /f /im Origin.exe >nul 2>&1",
         "exit /b %DD_RC%",
