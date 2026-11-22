@@ -946,6 +946,7 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
     if (g < 0) return -1;
     if (g == 0) { sc_layer_hide(); return 0; }
 
+    if (!vkp_image_client_writes_done(src)) return -1;
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
@@ -1155,6 +1156,7 @@ int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int transl
     if (ensure_sc(l) != 0) return -1;
     int sw = vkp_image_width(src), sh = vkp_image_height(src);
     if (sw <= 0 || sh <= 0) return -1;
+    if (!vkp_image_client_writes_done(src)) return -1;
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }

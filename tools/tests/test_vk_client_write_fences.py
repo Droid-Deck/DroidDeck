@@ -33,74 +33,79 @@ HARNESS = r'''
 #include <string.h>
 #define DMA_BUF_SYNC_READ 1
 #define DMA_BUF_IOCTL_EXPORT_SYNC_FILE 100
-#define SYNC_IOC_MERGE 200
 #define POLLIN 1
 #define F_DUPFD_CLOEXEC 1030
-#define VK_NULL_HANDLE 0
-#define VK_SUCCESS 0
-#define VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR 1
-#define VK_SEMAPHORE_IMPORT_TEMPORARY_BIT 1
-#define VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT 16
-typedef uintptr_t VkSemaphore;
-typedef int VkResult;
 struct dma_buf_export_sync_file { unsigned flags; int fd; };
-struct sync_merge_data { char name[32]; int fd2; int fence; unsigned flags, pad; };
 struct pollfd { int fd; short events, revents; };
-typedef struct { int sType; VkSemaphore semaphore; unsigned flags, handleType; int fd; } VkImportSemaphoreFdInfoKHR;
 struct vkp_image { int client_fd, has_client_fd; };
+struct vkp_draw { struct vkp_image *img; };
 
-/* Fake fds: 10..19 are client dma-bufs, 20+ are sync_files. done[fd] says a sync_file has signalled. */
-static int next_fd = 20, done[64], closed[64], merges, imports, polled_ms;
-static int pending_of[64];
+/* Fake fds: 10..19 are client dma-bufs, 20+ are sync_files. A write finishes at finish_ms[dma-buf]. */
+static int next_fd = 20, closed[64], export_ok = 1, interrupted, poll_fails, polled[64];
+static int64_t now_ms, finish_ms[64];
+static int owner[64];
 static struct { unsigned client_write_waits; } g_perf;
-static uintptr_t g_dev = 1;
-static VkSemaphore g_client_sem = 7;
-static int g_client_wait_fd = -1;
-static int import_ok = 1;
-static VkResult import_fn(uintptr_t dev, const VkImportSemaphoreFdInfoKHR *ii) {
-    (void)dev; assert(ii->semaphore == g_client_sem); assert(ii->flags == VK_SEMAPHORE_IMPORT_TEMPORARY_BIT);
-    ++imports; return import_ok ? VK_SUCCESS : 1;
-}
-static VkResult (*g_import_sem_fd)(uintptr_t, const VkImportSemaphoreFdInfoKHR *) = import_fn;
+static int64_t perf_now(void) { return now_ms * 1000000; }
 static int ioctl(int fd, unsigned long req, void *arg) {
-    if (req == DMA_BUF_IOCTL_EXPORT_SYNC_FILE) {
-        struct dma_buf_export_sync_file *e = arg;
-        assert(fd >= 10 && fd < 20 && e->flags == DMA_BUF_SYNC_READ);
-        e->fd = next_fd++; done[e->fd] = !pending_of[fd]; return 0;
-    }
-    if (req == SYNC_IOC_MERGE) {
-        struct sync_merge_data *m = arg;
-        ++merges; m->fence = next_fd++; done[m->fence] = done[fd] && done[m->fd2]; return 0;
-    }
-    return -1;
+    struct dma_buf_export_sync_file *e = arg;
+    assert(req == DMA_BUF_IOCTL_EXPORT_SYNC_FILE && fd >= 10 && fd < 20 && e->flags == DMA_BUF_SYNC_READ);
+    if (!export_ok) { errno = ENOTTY; return -1; }
+    e->fd = next_fd++; owner[e->fd] = fd; return 0;
 }
 static int poll(struct pollfd *p, unsigned n, int timeout) {
-    (void)n; polled_ms += timeout; return done[p->fd] ? 1 : 0;
+    assert(n == 1 && p->events == POLLIN && timeout >= 0);
+    polled[p->fd]++;
+    if (interrupted) { interrupted--; errno = EINTR; return -1; }
+    if (poll_fails) { errno = ENOMEM; return -1; }
+    const int buf = p->fd >= 20 ? owner[p->fd] : p->fd;
+    if (finish_ms[buf] <= now_ms + timeout) { if (finish_ms[buf] > now_ms) now_ms = finish_ms[buf]; return 1; }
+    now_ms += timeout; return 0;
 }
 static int close(int fd) { closed[fd]++; return 0; }
 static int fcntl(int fd, int cmd, int arg) { (void)arg; assert(cmd == F_DUPFD_CLOEXEC); return fd; }
 /* PRODUCTION_FUNCTIONS */
+static void vkp_image_destroy(struct vkp_image *img) { if (img == g_client_stalled) g_client_stalled = NULL; }
 int main(void) {
-    struct vkp_image busy = {0}, idle = {0}, busy2 = {0}, shm = {0};
-    vkp_image_track_client_writes(&busy, 10);
-    vkp_image_track_client_writes(&idle, 11);
-    vkp_image_track_client_writes(&busy2, 12);
-    pending_of[10] = 1; pending_of[12] = 1;
+    struct vkp_image idle = {0}, slow = {0}, stuck = {0}, shm = {0};
+    vkp_image_track_client_writes(&idle, 10);
+    vkp_image_track_client_writes(&slow, 11);
+    vkp_image_track_client_writes(&stuck, 12);
+    finish_ms[11] = 30; finish_ms[12] = 1000000;
 
-    note_client_writes(&shm);
-    note_client_writes(&idle);
-    assert(g_client_wait_fd == -1);
-    assert(take_client_wait() == 0 && g_perf.client_write_waits == 0);
+    assert(vkp_image_client_writes_done(&shm) && vkp_image_client_writes_done(&idle));
+    assert(g_perf.client_write_waits == 0 && now_ms == 0 && closed[20] == 1);
 
-    note_client_writes(&busy);
-    note_client_writes(&busy2);
-    assert(merges == 1 && g_client_wait_fd >= 20);
-    assert(take_client_wait() == 1 && imports == 1 && g_perf.client_write_waits == 1);
-    assert(g_client_wait_fd == -1 && polled_ms == 0);
+    struct vkp_draw draws[] = {{&idle}, {&slow}, {&shm}};
+    assert(draws_client_writes_done(draws, 3) && now_ms == 30 && g_perf.client_write_waits == 1);
 
-    import_ok = 0;
-    note_client_writes(&busy);
-    assert(take_client_wait() == 0 && polled_ms == 100 && g_perf.client_write_waits == 2);
+    /* A write still running at the deadline skips the read. Until it finishes, its image is only checked. */
+    now_ms = 0;
+    struct vkp_draw blocked[] = {{&slow}, {&stuck}};
+    finish_ms[11] = 40;
+    assert(!draws_client_writes_done(blocked, 2) && now_ms == 100 && g_perf.client_write_waits == 3);
+    assert(!vkp_image_client_writes_done(&stuck) && now_ms == 100 && g_perf.client_write_waits == 3);
+    assert(vkp_image_client_writes_done(&slow) && now_ms == 100);
+    finish_ms[12] = 250; now_ms = 116;
+    assert(!vkp_image_client_writes_done(&stuck) && now_ms == 116);
+    now_ms = 260;
+    assert(vkp_image_client_writes_done(&stuck) && now_ms == 260);
+    finish_ms[12] = 290;
+    assert(vkp_image_client_writes_done(&stuck) && now_ms == 290 && g_perf.client_write_waits == 4);
+    for (int fd = 20; fd < next_fd; fd++) assert(closed[fd] == 1);
+
+    /* Without sync_file export the dma-buf itself is polled for its write fences. */
+    export_ok = 0; now_ms = 0; finish_ms[11] = 20;
+    const int before = next_fd;
+    assert(vkp_image_client_writes_done(&slow) && now_ms == 20 && next_fd == before && polled[11] == 2);
+    finish_ms[11] = 1000;
+    assert(!vkp_image_client_writes_done(&slow) && now_ms == 120 && closed[11] == 0);
+
+    /* A destroyed image is forgotten; EINTR retries; a failing poll does not count as a finished write. */
+    vkp_image_destroy(&slow);
+    export_ok = 1; now_ms = 0; finish_ms[11] = 10; interrupted = 2;
+    assert(vkp_image_client_writes_done(&slow) && now_ms == 10);
+    poll_fails = 1;
+    assert(!vkp_image_client_writes_done(&idle));
     puts("PASS");
     return 0;
 }
@@ -108,13 +113,16 @@ int main(void) {
 
 
 class VkClientWriteFencesTest(unittest.TestCase):
-    def test_reads_wait_only_for_unfinished_client_writes(self):
+    def test_reads_wait_for_client_writes_or_skip_the_frame(self):
         compiler = shutil.which(os.environ.get('CC', 'cc'))
         if not compiler:
             self.skipTest('A host C compiler is required')
         source = SOURCE.read_text()
-        functions = '\n'.join(function(source, name) for name in
-                              ('note_client_writes', 'take_client_wait', 'vkp_image_track_client_writes'))
+        bound = re.search(r'^#define CLIENT_WRITE_WAIT_NS .*\nstatic const struct vkp_image \*g_client_stalled;$',
+                          source, re.M).group(0)
+        functions = bound + '\n' + '\n'.join(function(source, name) for name in
+                              ('wait_client_writes', 'draws_client_writes_done', 'vkp_image_client_writes_done',
+                               'vkp_image_track_client_writes'))
         with tempfile.TemporaryDirectory(prefix='droiddeck-client-writes-') as temp:
             folder = Path(temp)
             (folder / 'probe.c').write_text(HARNESS.replace('/* PRODUCTION_FUNCTIONS */', functions))

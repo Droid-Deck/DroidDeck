@@ -45,6 +45,7 @@ int vkp_image_is_dmabuf(const struct vkp_image *img);
 struct AHardwareBuffer;
 int vkp_can_import_ahb(void);
 void vkp_image_track_client_writes(struct vkp_image *img, int dmabuf_fd);
+int vkp_image_client_writes_done(const struct vkp_image *img);
 struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, char *info, size_t info_n);
 
 struct vkp_image *vkp_image_create_shm(int w, int h);
