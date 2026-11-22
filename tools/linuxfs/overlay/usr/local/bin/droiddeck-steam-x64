@@ -713,14 +713,50 @@ x64_webhelper_gpu() {
   x64_gpu && [ "${DD_X64_CLIENT_SOFTWARE:-0}" != 1 ] && [ "${DD_X64_CEF_GPU:-1}" != 0 ]
 }
 
+x64_thunk_appconfigs() {
+  python3 - "$1" "$2" "$3" "$4" <<'PY' || true
+import json, os, sys
+src, dst, cfg, on = sys.argv[1:5]
+want = json.loads(cfg)
+try:
+    names = sorted(os.listdir(src))
+except OSError:
+    names = []
+for name in names:
+    if not name.endswith(".json"):
+        continue
+    try:
+        db = json.load(open(os.path.join(src, name), encoding="utf-8")).get("ThunksDB") or {}
+        if not any(k in want["ThunksDB"] and not v for k, v in db.items()):
+            continue
+    except (OSError, ValueError, AttributeError):
+        continue
+    path = os.path.join(dst, name)
+    try:
+        cur = json.load(open(path, encoding="utf-8"))
+    except FileNotFoundError:
+        cur = None
+    except (OSError, ValueError):
+        continue
+    if cur is not None and cur != want:
+        continue
+    if on == "1" and cur is None:
+        os.makedirs(dst, exist_ok=True)
+        open(path, "w", encoding="utf-8").write(cfg + "\n")
+    elif on != "1" and cur is not None:
+        os.remove(path)
+PY
+}
+
 x64_env() {
 export -p | grep -v -E '^declare -x (PWD|OLDPWD|SHLVL|_)=' > "$X64_HOME/arm-session.env.new" || true
 mv -f "$X64_HOME/arm-session.env.new" "$X64_HOME/arm-session.env"
 unset LD_LIBRARY_PATH LD_PRELOAD STEAM_RUNTIME STEAM_RUNTIME_PREFER_HOST_LIBRARIES
 gpu_vars="GALLIUM_DRIVER MESA_LOADER_DRIVER_OVERRIDE VK_ICD_FILENAMES VK_DRIVER_FILES LIBGL_KOPPER_DRI2 ZINK_DEBUG ZINK_DESCRIPTORS TU_DEBUG MESA_NO_ERROR mesa_glthread"
+thunk_cfg='{"ThunksDB": {"GL": 1, "Vulkan": 1}}'
 rm -f "$X64_HOME/game-gpu.env"
 if x64_gpu; then
-  printf '{"ThunksDB": {"GL": 1, "Vulkan": 1}}\n' > "$X64_HOME/thunks.json"
+  printf '%s\n' "$thunk_cfg" > "$X64_HOME/thunks.json"
   {
     echo "export FEX_THUNKCONFIG='$X64_HOME/thunks.json'"
     echo "unset LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE GALLIUM_DRIVER"
@@ -729,7 +765,10 @@ if x64_gpu; then
     done
   } > "$X64_HOME/game-gpu.env"
 fi
-if x64_gpu && [ "${DD_X64_CLIENT_SOFTWARE:-0}" != 1 ]; then
+client_thunks=0
+x64_gpu && [ "${DD_X64_CLIENT_SOFTWARE:-0}" != 1 ] && client_thunks=1
+x64_thunk_appconfigs /usr/local/share/fex-emu/AppConfig "$X64_HOME/.config/fex-emu/AppConfig" "$thunk_cfg" "$client_thunks"
+if [ "$client_thunks" = 1 ]; then
   export FEX_THUNKCONFIG=$X64_HOME/thunks.json
   unset LIBGL_ALWAYS_SOFTWARE LIBGL_DRI3_DISABLE
 else
