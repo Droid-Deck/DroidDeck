@@ -7,6 +7,8 @@ import android.os.Build
 import android.view.Display
 import com.droiddeck.launcher.ui.findActivity
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionService
+import com.droiddeck.launcher.session.SessionState
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -14,10 +16,7 @@ import kotlin.math.roundToInt
 
 object OnScreenLayout {
     /** The built-in overlay, or a copy of it such as a game's own layout. */
-    private fun isOverlay(layout: SavedInputLayout?) = layout != null && (layout.origin ?: layout.id) == InputLibraries.OVERLAY
-
-    internal fun usesSteamDeckButtons(context: Context, layout: SavedInputLayout?) =
-        isOverlay(layout) && SessionPrefs.steamController(context) == SessionPrefs.CONTROLLER_DECK
+    internal fun isOverlay(layout: SavedInputLayout?) = layout != null && (layout.origin ?: layout.id) == InputLibraries.OVERLAY
 
     internal fun supportsFloatingSteamControls(controller: String, layout: SavedInputLayout?) =
         isOverlay(layout) &&
@@ -38,41 +37,99 @@ object OnScreenLayout {
 
     private const val TOLERANCE = .01f
     private const val KEYBOARD_ID = "builtin:keyboard"
+    private val REAR = setOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)
 
-    fun elements(context: Context, layout: SavedInputLayout?, width: Int, height: Int, safe: Rect,
+    fun elements(context: Context, saved: SavedInputLayout?, width: Int, height: Int, safe: Rect,
         buttonsOnly: Boolean = false, dock: Dock? = null, rearButtons: Boolean? = null,
         trackpads: Boolean? = null): List<InputSurfaceElement> {
-        val stored = layout?.elements ?: return emptyList()
-        if (width <= 0 || height <= 0) return stored
+        if (saved == null) return emptyList()
+        if (width <= 0 || height <= 0) return saved.elements
+        val layout = oriented(saved, width, height)
+        val stored = layout.elements
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
-        val (reference, generated) = reference(context, layout, width, height, safe)
+        val (reference, matched) = reference(context, layout, width, height, safe)
         if (buttonsOnly && dock == null) return generator.buttonsOnly(layout.style.shown(stored)) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
+        val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
+            (dock != null || height > width && layout.aspect >= 1f || height <= width && layout.aspect > 0f && layout.aspect < 1f)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
         val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
-        val placed = when {
+        val regenerated = when {
             gamepad.isEmpty() -> emptyList()
             dock != null -> generator.dock(gamepad, dock.portrait, dock.grips, dock.left, dock.right)
             else -> generator.regenerate(gamepad)
         }
+        val placed = regenerated + gamepad.filter { g -> dock == null && optional(g) && regenerated.none { it.id == g.id } }
         val byId = (placed + others).associateBy { it.id }
         val ordered = stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
-        if (dock != null) return ordered
-        return steamPlaced(context, layout, ordered, width, height, safe, generated, reference, rearButtons, trackpads)
+        return kitPlaced(context, layout, ordered, width, height, safe, generated, reference, dock != null, rearButtons, trackpads)
     }
 
-    /** Where a Steam or Steam Deck controller's overlay draws [elements]; any other layout or controller draws them where they are. */
-    internal fun steamPlaced(context: Context, layout: SavedInputLayout, elements: List<InputSurfaceElement>, width: Int, height: Int, safe: Rect,
-        generated: Boolean, reference: Pair<Float, Float> = width.toFloat() to height.toFloat(), rearButtons: Boolean? = null,
-        trackpads: Boolean? = null): List<InputSurfaceElement> {
-        if (!supportsFloatingSteamControls(SessionPrefs.steamController(context), layout)) return elements
-        if (generated && width >= height && usesSteamDeckButtons(context, layout) &&
+    /** Where the controller kit's overlay draws [elements]; a layout with no kit draws them where they are. */
+    internal fun kitPlaced(context: Context, layout: SavedInputLayout, elements: List<InputSurfaceElement>, width: Int, height: Int, safe: Rect,
+        generated: Boolean, reference: Pair<Float, Float> = width.toFloat() to height.toFloat(), docked: Boolean = false,
+        rearButtons: Boolean? = null, trackpads: Boolean? = null): List<InputSurfaceElement> {
+        val kit = PadKit.forOverlay(context, layout) ?: return elements
+        if (generated &&
             ControllerPrefs.layout(context, reference.first.toInt(), reference.second.toInt()).isEmpty() &&
             ControllerPrefs.layout(context, width, height).isEmpty()) {
-            return SteamDeckOverlayGeometry(width, height, safe, context.resources.displayMetrics, layout.scale)
-                .place(elements, rearButtons == true, trackpads == true)
+            if (docked || height > width) {
+                return ControllerPortraitGeometry(width.toFloat(), height.toFloat(), safe, context.resources.displayMetrics.density)
+                    .place(elements, kit, docked, layout.scale, rearButtons == true, trackpads == true)
+            }
+            return ControllerOverlayGeometry(width, height, safe, context.resources.displayMetrics, layout.scale)
+                .place(elements, kit, rearButtons == true, trackpads == true)
         }
+        if (docked || !kit.steam) return elements
         return FloatingSteamOverlay(width, height, safe, context.resources.displayMetrics.density)
             .place(elements, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
+    }
+
+    fun oriented(layout: SavedInputLayout, width: Int, height: Int): SavedInputLayout {
+        val portrait = height > width
+        if (layout.rotated.isEmpty() || layout.aspect <= 0f || (layout.aspect < 1f) == portrait || (layout.rotatedAspect < 1f) != portrait) return layout
+        val rotated = layout.rotated.associateBy { it.id }
+        return layout.copy(elements = layout.elements.map { e -> rotated[e.id]?.let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) } ?: e } +
+            layout.rotated.filter { r -> optional(r) && layout.elements.none { it.id == r.id } },
+            aspect = layout.rotatedAspect, scale = layout.rotatedScale, rotated = emptyList(), rotatedAspect = 0f, rotatedScale = 1f)
+    }
+
+    fun withFrame(context: Context, saved: SavedInputLayout, elements: List<InputSurfaceElement>, aspect: Float, scale: Float = saved.scale): SavedInputLayout {
+        val (_, metrics) = InputLibraries.primaryDisplay(context)
+        val generated = generatedSize(context, saved, metrics.widthPixels, metrics.heightPixels) != null
+        val portraitMain = saved.aspect > 0f && saved.aspect < 1f
+        if (aspect <= 0f || aspect >= 1f || portraitMain && !generated) {
+            val rotated = if (aspect >= 1f && portraitMain && !generated) Triple(saved.elements, saved.aspect, saved.scale) else Triple(saved.rotated, saved.rotatedAspect, saved.rotatedScale)
+            return saved.copy(elements = elements, aspect = aspect, scale = scale, rotated = rotated.first,
+                rotatedAspect = if (rotated.first.isEmpty()) 0f else rotated.second, rotatedScale = if (rotated.first.isEmpty()) 1f else rotated.third)
+        }
+        val main = if (portraitMain) 1f / saved.aspect else saved.aspect.takeIf { it > 0f } ?: (1f / aspect)
+        val ids = elements.associateBy { it.id }
+        val kept = saved.elements.mapNotNull { e -> ids[e.id]?.copy(x = e.x, y = e.y, width = e.width, height = e.height) }
+        val added = fit(elements.filter { d -> !optional(d) && saved.elements.none { it.id == d.id } }, aspect, 1f, (main * 1000).roundToInt().coerceAtLeast(1), 1000, Rect())
+        return saved.copy(elements = kept + added, aspect = main, rotated = elements, rotatedAspect = aspect, rotatedScale = scale)
+    }
+
+    fun optionalControls(context: Context): Pair<Boolean?, Boolean?> {
+        val steam = SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad
+        return SessionPrefs.oscRearButtons(context).takeIf { steam } to SessionPrefs.oscTrackpads(context).takeIf { steam }
+    }
+
+    fun editorElements(context: Context, layout: SavedInputLayout, width: Int, height: Int, edited: Boolean = false, safe: Rect = Rect()): List<InputSurfaceElement> {
+        val (rear, pads) = optionalControls(context)
+        return elements(context, if (edited && width > 0 && height > 0) layout.copy(aspect = width.toFloat() / height) else layout, width, height, safe,
+            rearButtons = rear, trackpads = pads)
+    }
+
+    fun editorFrame(layout: SavedInputLayout, displayed: List<InputSurfaceElement>): List<InputSurfaceElement> {
+        val byId = displayed.associateBy { it.id }
+        return layout.elements.map { byId[it.id] ?: it } + displayed.filter { d ->
+            optional(d) && layout.elements.none { it.id == d.id }
+        }
+    }
+
+    fun safeInsets(insets: android.view.WindowInsets?, docked: Boolean): Rect {
+        val cutout = if (android.os.Build.VERSION.SDK_INT >= 28) insets?.displayCutout else null
+        return Rect(cutout?.safeInsetLeft ?: 0, if (docked) 0 else cutout?.safeInsetTop ?: 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
     }
 
     fun fit(elements: List<InputSurfaceElement>, referenceWidth: Float, referenceHeight: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
@@ -97,6 +154,8 @@ object OnScreenLayout {
             else -> centre * actual - scaled / 2f
         }
     }
+
+    private fun optional(e: InputSurfaceElement) = e.id == "legacy:${e.control.id}" && (e.control.isTrackpad || e.control in REAR)
 
     private fun isGamepad(e: InputSurfaceElement) = e.id.startsWith("legacy:") || e.id == KEYBOARD_ID
 

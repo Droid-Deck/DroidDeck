@@ -47,6 +47,7 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Icon
@@ -162,7 +163,7 @@ import com.droiddeck.launcher.input.TouchGestureConfig.Companion.MOUSE_BEHAVIOR_
 import kotlinx.coroutines.flow.collect
 import java.util.Locale
 
-private val SessionDrawerPage.title: Int get() = when (this) {
+internal val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.CONTROLLER -> R.string.drawer_page_controller
     SessionDrawerPage.GLASSES -> R.string.drawer_page_glasses
     SessionDrawerPage.DISPLAY -> R.string.drawer_page_display
@@ -174,7 +175,7 @@ private val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.SESSION -> R.string.mode_session
 }
 
-private val SessionDrawerPage.icon get() = when (this) {
+internal val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.CONTROLLER -> Icons.Outlined.SportsEsports
     SessionDrawerPage.GLASSES -> GlassesIcon
     SessionDrawerPage.DISPLAY -> Icons.Outlined.DesktopWindows
@@ -395,7 +396,10 @@ class DrawerActions(
 internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, controllerActive: Boolean, onPageChange: (SessionDrawerPage) -> Unit, a: DrawerActions, docked: Boolean = false,
     backRequest: Int = 0, onLayerChange: (Boolean) -> Unit = {}) {
     val pages = sessionDrawerPages(a.glassesPresent)
-    val page = requestedPage.takeIf { it in pages } ?: SessionDrawerPage.CONTROLLER
+    val page = requestedPage.takeIf { it in pages } ?: pages.first()
+    var managing by rememberSaveable { mutableStateOf(false) }
+    var releaseSignal by remember { mutableStateOf(0) }
+    val drawerContext = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(requestedPage, pages) { if (page != requestedPage) onPageChange(page) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -515,16 +519,24 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     .blockTouches()
                     .focusGroup()
                     .controllerBack {
-                        if (host.open != null) host.open = null else a.onClose()
+                        when {
+                            host.open != null -> host.open = null
+                            managing -> DrawerPages.heldFrom?.let { held ->
+                                DrawerPages.rearrange(drawerContext, held)
+                                releaseSignal++
+                            } ?: run { managing = false }
+                            else -> a.onClose()
+                        }
                     }
                     .padding(12.dp),
             ) {
                 val showPicker = a.secondScreenDisplays.isNotEmpty()
                 val roomyHeader = sheetWidth >= if (showPicker) 560.dp else 408.dp
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp)
                         .then(if (roomyHeader) Modifier else Modifier.horizontalScroll(rememberScrollState())),
                 ) {
                     SteamActionPill(
@@ -546,7 +558,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     if (a.pipSupported) SteamActionPill(
                         stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt, focus.track(page, "pip"),
                     ) { host.open = null; a.onPip() }
-                    if (docked) StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                     val steamActions = a.steam && a.onSteamMenu != null && a.onQam != null
                     val qamInteraction = remember { MutableInteractionSource() }
                     var qamStartedOnPress by remember { mutableStateOf(false) }
@@ -576,7 +587,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         onQamConfirm = { host.open = null; a.onQam?.invoke() },
                         showShortcuts = !docked,
                     )
-                    if (!docked) StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
+                }
+                    StopSessionButton(modifier = focus.track(page, "stop").onGloballyPositioned { stopCoords = it }) { host.open = null; confirmStop = true }
                 }
                 a.onAchievements?.let { show ->
                     DrawerAchievementsRow(a.achievementsProgress, Modifier.padding(top = if (short) 6.dp else 10.dp).then(focus.track(page, "achievements"))) {
@@ -595,7 +607,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
+                    SmallIconButton(
+                        Icons.Outlined.Tune, stringResource(R.string.drawer_manage_pages), colors.onSurfaceVariant,
+                    ) { host.open = null; managing = !managing }
                 }
+                if (managing) ManageDrawerPages(
+                    offeredDrawerPages(a.glassesPresent),
+                    Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
+                    releaseSignal,
+                ) { managing = false } else {
                 if (page == SessionDrawerPage.GLASSES) SegmentedTabs(
                     glassesPages, glassesTab, modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     tabModifier = { key -> focus.track(page, "glasses-tab-$key").testTag("glasses-tab-$key") },
@@ -939,6 +959,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                     }
                 } }
+                }
             }
             StopConfirm(
                 open = confirmStop,
@@ -996,7 +1017,7 @@ private fun DrawerActionButton(text: String, icon: androidx.compose.ui.graphics.
 }
 
 @Composable
-private fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, progress: Float? = null, onClick: () -> Unit) {
+internal fun DrawerOutlineButton(text: String, modifier: Modifier = Modifier, progress: Float? = null, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val source = remember { MutableInteractionSource() }
@@ -1018,15 +1039,14 @@ private fun StopSessionButton(modifier: Modifier = Modifier, onClick: () -> Unit
     val src = remember { MutableInteractionSource() }
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val fill by animateColorAsState(if (hot) colors.error.copy(alpha = 0.18f) else Color.Transparent, Motion.tw(220), label = "dangerFill")
-    val shape = RoundedCornerShape(20.dp)
+    val shape = androidx.compose.foundation.shape.CircleShape
     val stopDescription = stringResource(R.string.stop_session)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
-        modifier = modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
+        modifier = modifier.size(44.dp).semantics { contentDescription = stopDescription }.testTag("drawer-stop")
             .clip(shape).background(fill).glideBorder(hot, shape, colors.error.copy(alpha = 0.9f), colors.error.copy(alpha = 0.55f))
             .hoverable(src).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = src, indication = LocalIndication.current, onClick = onClick)
-            .controllerConfirm(onClick = onClick)
-            .padding(horizontal = 12.dp),
+            .controllerConfirm(onClick = onClick),
     ) {
         Icon(Icons.Outlined.PowerSettingsNew, contentDescription = null, tint = colors.error, modifier = Modifier.size(18.dp))
     }

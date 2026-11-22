@@ -150,6 +150,7 @@ class InputLayoutToolsTest {
     }
 
     @Test fun aScaledGamepadStaysGeneratedAndRegeneratesOnRotation() {
+        com.droiddeck.launcher.session.SessionPrefs.setSteamController(context, com.droiddeck.launcher.session.SessionPrefs.CONTROLLER_NONE)
         val (display, metrics) = InputLibraries.primaryDisplay(context)
         val long = maxOf(metrics.widthPixels, metrics.heightPixels)
         val short = minOf(metrics.widthPixels, metrics.heightPixels)

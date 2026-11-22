@@ -2465,6 +2465,8 @@
     <string name="display_game_fit">16:9 गेम फ़िट</string>
     <string name="display_game_fit_hint">16:9 गेम इस डिस्प्ले में कैसे फ़िट होते हैं। अगले सेशन से।</string>
     <string name="display_game_fit_unavailable">Match screen चुनें या 16:9 से पतला कस्टम आकार चुनें।</string>
+    <string name="display_avoid_notch">नॉच से बचें</string>
+    <string name="display_avoid_notch_hint">तस्वीर को कैमरा कटआउट से दूर रखता है। सेशन में लौटने पर लागू होता है।</string>
     <string name="display_preserve">अनुपात बनाए रखें</string>
     <string name="display_stretch">डिस्प्ले में स्ट्रेच करें</string>
     <string name="display_image_scaling">इमेज स्केलिंग</string>

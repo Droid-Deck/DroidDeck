@@ -194,10 +194,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var picturePosition by mutableStateOf("center")
     private var integerScaling by mutableStateOf(false)
     private var stretch16x9 by mutableStateOf(false)
+    private var avoidNotch by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var launcherOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER)
     private var homePage by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_STEAM)
     private var launcherFullscreen by mutableStateOf(true)
+    private var controllerHaptics by mutableStateOf(true)
     private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
     private var downloadMirror by mutableStateOf("")
     private var downloadPrefix by mutableStateOf("")
@@ -1264,6 +1266,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         requestedOrientation = launcherOrientation
         homePage = com.droiddeck.launcher.core.AppUiPrefs.homePage(this)
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
+        controllerHaptics = SessionPrefs.controllerHaptics(this)
         downloadSource = DownloadSource.mode(this)
         downloadMirror = DownloadSource.mirror(this)
         downloadPrefix = DownloadSource.custom(this)
@@ -1363,6 +1366,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         launcherOrientation = launcherOrientation,
                         homePage = homePage,
                         launcherFullscreen = launcherFullscreen,
+                        controllerHaptics = controllerHaptics,
                         downloadSource = downloadSource,
                         downloadMirror = downloadMirror,
                         downloadPrefix = downloadPrefix,
@@ -1679,6 +1683,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             com.droiddeck.launcher.core.AppUiPrefs.setHomePage(this, value)
                             homePage = value
                         },
+                        onControllerHaptics = { on -> SessionPrefs.setControllerHaptics(this, on); controllerHaptics = on },
                         onLauncherFullscreen = { on ->
                             SessionPrefs.setLauncherFullscreen(this, on)
                             launcherFullscreen = on
@@ -2047,6 +2052,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             if (!compatLaunch!!.loading.ended && event.keyCode !in listOf(
                     KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE)) return true
         }
+        if (controllerHaptics) com.droiddeck.launcher.ui.ControllerHaptics.onKey(this, event)
         if (event.keyCode == KeyEvent.KEYCODE_BUTTON_A) com.droiddeck.launcher.ui.HeldKeys.confirm = event.action == KeyEvent.ACTION_DOWN
         if (showComponents && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -2609,6 +2615,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 picturePosition = if (mode == SessionService.MODE_STEAM) picturePosition else null,
                 integerScaling = if (mode == SessionService.MODE_STEAM) integerScaling else null,
                 stretch16x9 = if (mode == SessionService.MODE_STEAM) stretch16x9 else null,
+                avoidNotch = if (mode == SessionService.MODE_STEAM) avoidNotch else null,
                 mic = if (mode == SessionService.MODE_STEAM) mic else null,
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,
@@ -2677,6 +2684,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onPicturePosition = { value -> SessionPrefs.setPicturePosition(this, value); picturePosition = value },
                 onIntegerScaling = { on -> SessionPrefs.setIntegerScaling(this, on); integerScaling = on },
                 onStretch16x9 = { on -> SessionPrefs.setStretch16x9(this, on); stretch16x9 = on },
+                onAvoidNotch = { on -> SessionPrefs.setAvoidNotch(this, on); avoidNotch = on },
                 onMic = { on ->
                     SessionPrefs.setMicEnabled(this, on)
                     mic = on
@@ -3011,6 +3019,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         picturePosition = SessionPrefs.picturePosition(this)
         integerScaling = SessionPrefs.integerScaling(this)
         stretch16x9 = SessionPrefs.stretch16x9(this)
+        avoidNotch = SessionPrefs.avoidNotch(this)
         mic = SessionPrefs.micEnabled(this)
         refreshWifiDiscovery()
         gameStorage = SessionPrefs.gameStorage(this)
@@ -3341,6 +3350,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         Thread({
             val ok = com.droiddeck.launcher.session.SettingsReset.resetAll(this, gameProfiles, scopes)
             ui.post {
+                com.droiddeck.launcher.ui.DrawerPages.load(applicationContext)
                 if (isDestroyed) return@post
                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
                 if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()

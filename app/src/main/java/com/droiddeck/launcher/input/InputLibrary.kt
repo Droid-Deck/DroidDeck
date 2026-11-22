@@ -22,6 +22,9 @@ data class SavedInputLayout(
     val aspect: Float = 0f,
     val origin: String? = null,
     val scale: Float = 1f,
+    val rotated: List<InputSurfaceElement> = emptyList(),
+    val rotatedAspect: Float = 0f,
+    val rotatedScale: Float = 1f,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
     fun derived(id: String, name: String) = copy(id = id, name = name, origin = origin ?: this.id)
@@ -264,6 +267,8 @@ data class InputLibrary(
         for (layout in layouts) {
             require(layout.style.opacity in 1..100 && layout.style.removed.size <= 64 && layout.style.removed.all { it.isNotBlank() && it.length <= 128 })
             require(layout.aspect == 0f || layout.aspect.isFinite() && layout.aspect in .05f..20f)
+            require(layout.rotated.isEmpty() || layout.rotatedAspect.isFinite() && layout.rotatedAspect in .05f..20f && layout.rotatedScale.isFinite() && layout.rotatedScale in .5f..2f)
+            require(layout.rotated.size <= 128 && layout.rotated.all { r -> listOf(r.x, r.y, r.width, r.height).all { it.isFinite() } })
             require(layout.scale.isFinite() && layout.scale in .5f..2f)
             inputName(layout.name); require(layout.elements.count { it.id !in layout.style.removed } <= 64 && layout.elements.size <= 128); unique(layout.elements.map { it.id })
             for (e in layout.elements) {

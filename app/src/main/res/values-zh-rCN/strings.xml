@@ -2517,6 +2517,8 @@
     <string name="display_game_fit">16:9 游戏适配</string>
     <string name="display_game_fit_hint">16:9 游戏如何适配此屏幕。下次会话生效。</string>
     <string name="display_game_fit_unavailable">请选择“匹配屏幕”或比 16:9 更窄的自定义尺寸。</string>
+    <string name="display_avoid_notch">避开刘海</string>
+    <string name="display_avoid_notch_hint">让画面避开摄像头挖孔区域。返回会话时生效。</string>
     <string name="display_preserve">保持比例</string>
     <string name="display_stretch">拉伸至屏幕</string>
     <string name="display_image_scaling">画面缩放</string>

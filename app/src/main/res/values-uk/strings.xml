@@ -2517,6 +2517,8 @@
     <string name="display_game_fit">Вписування гри 16:9</string>
     <string name="display_game_fit_hint">Як ігри 16:9 вписуються в цей дисплей. З наступного сеансу.</string>
     <string name="display_game_fit_unavailable">Виберіть «Під екран» або власний розмір, вужчий за 16:9.</string>
+    <string name="display_avoid_notch">Обходити виріз</string>
+    <string name="display_avoid_notch_hint">Не виводить зображення під виріз камери. Застосовується після повернення до сесії.</string>
     <string name="display_preserve">Зберігати пропорції</string>
     <string name="display_stretch">Розтягнути на весь дисплей</string>
     <string name="display_image_scaling">Масштабування зображення</string>

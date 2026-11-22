@@ -85,6 +85,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
+    fun controllerHaptics(context: Context): Boolean = prefs(context).getBoolean("controllerHaptics", true)
+
+    fun setControllerHaptics(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("controllerHaptics", on).apply()
+    }
+
     fun blackFrameInsertion(context: Context): Boolean = prefs(context).getBoolean("blackFrameInsertion", false)
 
     fun setBlackFrameInsertion(context: Context, on: Boolean) {
@@ -417,6 +423,18 @@ object SessionPrefs {
         val e = p.edit()
         if (!p.contains("developerTools") && p.getBoolean("agentTab", false)) e.putBoolean("developerTools", true)
         e.remove("gameStoresEnabled").remove("soundtracksEnabled").remove("agentTab").putInt("navTabLayout", version).apply()
+    }
+
+    fun drawerPageOrder(context: Context): List<String> = idList(prefs(context).getString("drawerPageOrder", null))
+
+    fun setDrawerPageOrder(context: Context, order: List<String>) {
+        prefs(context).edit().putString("drawerPageOrder", order.joinToString(",")).apply()
+    }
+
+    fun drawerPageHidden(context: Context): Set<String> = idList(prefs(context).getString("drawerPageHidden", null)).toSet()
+
+    fun setDrawerPageHidden(context: Context, keys: Set<String>) {
+        prefs(context).edit().putString("drawerPageHidden", keys.joinToString(",")).apply()
     }
 
     fun setNavTabHidden(context: Context, keys: Set<String>) {
@@ -833,6 +851,12 @@ object SessionPrefs {
 
     fun setStretch16x9(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("stretch16x9", on).apply()
+    }
+
+    fun avoidNotch(context: Context): Boolean = prefs(context).getBoolean("avoidNotch", false)
+
+    fun setAvoidNotch(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("avoidNotch", on).apply()
     }
 
 

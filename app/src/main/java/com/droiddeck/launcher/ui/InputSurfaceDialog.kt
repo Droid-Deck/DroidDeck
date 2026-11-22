@@ -123,7 +123,9 @@ internal class GamepadScaler(private val context: android.content.Context, priva
     private fun generator(scale: Float) = LegacyGamepadLayout(context, width, height, safe, scale)
     private fun stockAt(scale: Float) = place(generator(scale).elements(), scale)
     val ids = generator(1f).elements().map { it.id }.toSet()
-    fun rescale(stored: List<InputSurfaceElement>, from: Float, to: Float) = generator(to).rescale(stored, stockAt(from), stockAt(to))
+    // Positions follow where the kit draws the stock controls; sizes follow the plain stock, since the kit may draw at a fixed size.
+    fun rescale(stored: List<InputSurfaceElement>, from: Float, to: Float) =
+        rescaleBetween(stored, stockAt(from), stockAt(to), generator(from).elements(), generator(to).elements())
     fun reset(stored: List<InputSurfaceElement>) = stock(stored).let { placed -> stored.map { placed[it.id] ?: it } }
     fun stock(stored: List<InputSurfaceElement>) = place(generator(1f).regenerate(stored), 1f).associateBy { it.id }
     val geometry by lazy { stockAt(1f).associateBy { it.id } }
@@ -145,25 +147,29 @@ internal fun surfaceDraft(context: android.content.Context, library: InputLibrar
     val origin = layout.origin ?: layout.id
     // Only the main-screen gamepad is generated; second-screen layouts with the same controls keep their own stock positions.
     val generated = origin == InputLibraries.OVERLAY || origin.startsWith("migrated.layout.")
-    val gamepad = layout.elements.takeIf { e -> generated && e.any { it.id.startsWith("legacy:") } }?.let {
-        val (w, h) = (if (primary) null else OnScreenLayout.generatedSize(context, layout, metrics.widthPixels, metrics.heightPixels))
-            ?: (metrics.widthPixels to metrics.heightPixels)
-        if (primary) GamepadScaler(display, w, h, clear) { elements, scale ->
-            OnScreenLayout.steamPlaced(display, layout.copy(scale = scale), elements, w, h, clear, generated = true)
-        } else GamepadScaler(display, w, h)
-    }
-    val main = primary && gamepad != null && layout.elements.any { it.id in gamepad.ids }
     val (w, h) = metrics.widthPixels to metrics.heightPixels
     val fits = primary && w > 0 && h > 0
+    // The main screen edits the frame for its current orientation; Save writes it back beside the other one.
+    val framed = if (fits) OnScreenLayout.oriented(layout, w, h) else layout
+    val (rear, pads) = if (primary) OnScreenLayout.optionalControls(context) else null to null
+    val gamepad = layout.elements.takeIf { e -> generated && e.any { it.id.startsWith("legacy:") } }?.let {
+        val (gw, gh) = (if (primary) null else OnScreenLayout.generatedSize(context, layout, metrics.widthPixels, metrics.heightPixels))
+            ?: (metrics.widthPixels to metrics.heightPixels)
+        if (primary) GamepadScaler(display, gw, gh, clear) { elements, scale ->
+            OnScreenLayout.kitPlaced(display, framed.copy(scale = scale), elements, gw, gh, clear, generated = true, rearButtons = rear, trackpads = pads)
+        } else GamepadScaler(display, gw, gh)
+    }
+    val main = primary && gamepad != null && layout.elements.any { it.id in gamepad.ids }
     // Controls the game draws within half a pixel of their stored place keep it, so an untouched layout saves unchanged.
-    fun inGame(elements: List<InputSurfaceElement>, frame: Float = layout.aspect): List<InputSurfaceElement> {
-        val placed = OnScreenLayout.elements(display, layout.copy(elements = elements, aspect = frame), w, h, clear)
+    fun inGame(elements: List<InputSurfaceElement>, frame: Float = framed.aspect): List<InputSurfaceElement> {
+        val placed = OnScreenLayout.elements(display, framed.copy(elements = elements, aspect = frame, rotated = emptyList()), w, h, clear,
+            rearButtons = rear, trackpads = pads)
         if (main) return placed
         val stored = elements.associateBy { it.id }
         return placed.map { p -> stored[p.id]?.takeIf { s -> s.samePlace(p, w, h) } ?: p }
     }
-    val placed = if (fits) inGame(layout.elements) else layout.elements
-    val shown = if (placed == layout.elements) layout else layout.copy(elements = placed, aspect = w.toFloat() / h)
+    val placed = if (fits) inGame(framed.elements) else layout.elements
+    val shown = if (placed == framed.elements) framed else framed.copy(elements = placed, aspect = w.toFloat() / h)
     // Stock positions keep the frame they were made for, which can differ from the saved layout's.
     val defaults = InputLibraries.defaultPositions(context, library, layout)?.let { (stock, frame) ->
         when {
@@ -176,12 +182,12 @@ internal fun surfaceDraft(context: android.content.Context, library: InputLibrar
     val area = if (!primary) WHOLE_SURFACE else SurfaceBounds(clear.left.toFloat() / metrics.widthPixels, clear.top.toFloat() / metrics.heightPixels,
         1f - clear.right.toFloat() / metrics.widthPixels, 1f - clear.bottom.toFloat() / metrics.heightPixels)
     return SurfaceDraft(shown, preset, defaults, gamepad, ControllerPrefs.snap(context),
-        ControllerPrefs.read(context).adaptiveSticks, area)
+        ControllerPrefs.read(context).adaptiveSticks, area, framing = context.takeIf { fits })
 }
 
 internal class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInputBindings, val defaults: List<InputSurfaceElement>? = null,
     private val gamepad: GamepadScaler? = null, snap: Boolean = true, private val adaptiveSticks: Boolean = true,
-    private val area: SurfaceBounds = WHOLE_SURFACE) {
+    private val area: SurfaceBounds = WHOLE_SURFACE, private val framing: android.content.Context? = null) {
     var elements by mutableStateOf(layout.elements)
     var actions by mutableStateOf(preset.elements)
     var clicks by mutableStateOf(preset.clicks)
@@ -373,7 +379,9 @@ internal class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInput
     /** What the selection is called: its group, else its one control's name, else how many controls it holds. */
     fun selectionName(context: android.content.Context): String = selectionGroup?.let { context.getString(it.label()) }
         ?: if (selection.size > 1) context.resources.getQuantityString(R.plurals.input_editor_controls, selection.size, selection.size)
-        else elements.firstOrNull { it.id in selection }?.name.orEmpty()
+        else elements.firstOrNull { it.id in selection }?.let { e ->
+            PadKit.forOverlay(context, layout)?.takeIf { it.native(e) }?.name(e.control) ?: e.name
+        }.orEmpty()
     val selectionOpacity get() = elements.firstOrNull { it.id in selection }?.opacity ?: 1f
     fun setSelectionOpacity(percent: Int) {
         if (elements.filter { it.id in selection }.all { (it.opacity * 100).roundToInt() == percent }) return
@@ -400,8 +408,10 @@ internal class SurfaceDraft(val layout: SavedInputLayout, val preset: SavedInput
     fun saveTo(latest: InputLibrary, aspect: Float?): InputLibrary {
         val l = latest.layouts.first { it.id == layout.id }
         val p = latest.preset(preset.id)
-        return latest.withLayout(l.copy(elements = elements, aspect = aspect ?: layout.aspect, scale = layoutScale,
-            style = l.style.copy(removed = removed.filter { id -> elements.any { it.id == id } }.toSet()))).withPreset(p.copy(elements = actions.filterKeys { id -> elements.any { it.id == id } },
+        val frame = aspect ?: layout.aspect
+        val saved = framing?.let { OnScreenLayout.withFrame(it, l, elements, frame, layoutScale) }
+            ?: l.copy(elements = elements, aspect = frame, scale = layoutScale)
+        return latest.withLayout(saved.copy(style = l.style.copy(removed = removed.filter { id -> elements.any { it.id == id } }.toSet()))).withPreset(p.copy(elements = actions.filterKeys { id -> elements.any { it.id == id } },
             clicks = clicks.filterKeys { id -> elements.any { it.id == id && it.hasClick } }))
     }
 }
@@ -560,7 +570,7 @@ private fun SurfaceCanvas(draft: SurfaceDraft, transparent: Boolean = false, onD
     AndroidView(factory = { InputSurfaceEditorView(it) }, modifier = Modifier.fillMaxSize().testTag("input-layout-canvas"),
         update = { view ->
             view.setBackgroundColor(if (transparent) android.graphics.Color.TRANSPARENT else android.graphics.Color.rgb(10, 11, 13))
-            view.steamDeckButtons = OnScreenLayout.usesSteamDeckButtons(view.context, draft.layout)
+            view.artwork = PadKit.forOverlay(view.context, draft.layout)
             view.style = draft.layout.style.copy(removed = emptySet()); view.elements = draft.visible; view.selection = draft.selection; view.snap = draft.snap
             view.restored = draft.restored
             view.isEnabled = !draft.adding

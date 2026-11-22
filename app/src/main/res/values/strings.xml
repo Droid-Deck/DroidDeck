@@ -708,6 +708,9 @@
     <string name="drawer_open_qam">Open Quick Access Menu</string>
     <string name="drawer_prev_page">Previous page</string>
     <string name="drawer_next_page">Next page</string>
+    <string name="drawer_manage_pages">Arrange pages</string>
+    <string name="drawer_pages_reset">Reset</string>
+    <string name="drawer_pages_done">Done</string>
     <string name="drawer_hud">Performance HUD</string>
     <string name="drawer_hud_fps">Frame rate</string>
     <string name="drawer_hud_battery">Battery temperature</string>
@@ -1032,6 +1035,8 @@
     <string name="setup_fullscreen">Fullscreen</string>
     <string name="setup_fullscreen_on">Hides the Android status and navigation bars</string>
     <string name="setup_fullscreen_off">Shows the Android status and navigation bars</string>
+    <string name="setup_controller_haptics">Controller haptics</string>
+    <string name="setup_controller_haptics_hint">A light tick when the D-pad, A or the shoulder buttons move or select in the launcher. Touch stays silent</string>
     <string name="setup_dual_screen_launcher">Dual screen launcher</string>
     <string name="setup_dual_screen_launcher_hint">Automatic puts the launcher sections (Steam, Library, Stores and the rest) on the second screen of handhelds with a built-in one. On uses any second display. Off keeps the launcher on one screen.</string>
     <string name="setup_dual_screen_sessions">Dual screen sessions</string>
@@ -2722,6 +2727,8 @@
     <string name="display_game_fit">16:9 game fit</string>
     <string name="display_game_fit_hint">How 16:9 games fit this display. Next session.</string>
     <string name="display_game_fit_unavailable">Choose Match screen or a custom size that isn\'t 16:9.</string>
+    <string name="display_avoid_notch">Avoid notch</string>
+    <string name="display_avoid_notch_hint">Keeps the picture out of the camera cutout. Applies when you return to the session.</string>
     <string name="display_preserve">Keep proportions</string>
     <string name="display_stretch">Stretch to display</string>
     <string name="display_image_scaling">Image scaling</string>

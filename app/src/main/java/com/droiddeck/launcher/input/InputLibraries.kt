@@ -320,18 +320,31 @@ object InputLibraries {
         layout.copy(screen = screen)
     })
 
+    private fun encodeElements(list: List<InputSurfaceElement>) = JSONArray().also { elements ->
+        for (e in list) elements.put(JSONObject().put("id", e.id).put("kind", e.kind.name)
+            .put("control", e.control.id).put("name", e.name).put("x", e.x.toDouble()).put("y", e.y.toDouble())
+            .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
+            .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown)
+            .apply { if (e.group.isNotBlank()) put("group", e.group) })
+    }
+
+    private fun decodeElements(array: JSONArray) = array.objects(128).map { e ->
+        InputSurfaceElement(requireNotNull(InputControl.fromId(e.getString("control"))), e.getDouble("x").toFloat(),
+            e.getDouble("y").toFloat(), e.getDouble("width").toFloat(), e.getDouble("height").toFloat(),
+            e.getString("id"), InputElementKind.valueOf(e.getString("kind")), e.getString("name"),
+            e.optBoolean("floating", true), e.optBoolean("hideWhenIdle", false), e.optBoolean("mouseGestures", false), e.optBoolean("toggle", false), e.optInt("icon", 0), e.optString("image", ""),
+            e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false),
+            group = e.optString("group", "").trim().takeIf { it.length <= 128 }.orEmpty())
+    }
+
     internal fun encode(library: InputLibrary): String {
         val layouts = JSONArray()
         for (layout in library.layouts) {
-            val elements = JSONArray()
-            for (e in layout.elements) elements.put(JSONObject().put("id", e.id).put("kind", e.kind.name)
-                .put("control", e.control.id).put("name", e.name).put("x", e.x.toDouble()).put("y", e.y.toDouble())
-                .put("width", e.width.toDouble()).put("height", e.height.toDouble()).put("floating", e.floating).put("hideWhenIdle", e.hideWhenIdle).put("mouseGestures", e.mouseGestures).put("toggle", e.toggle).put("icon", e.icon).put("image", e.image)
-                .put("elementOpacity", e.opacity.toDouble()).put("buttonShape", e.buttonShape.name).put("showLabel", e.showLabel).put("alwaysShown", e.alwaysShown)
-                .apply { if (e.group.isNotBlank()) put("group", e.group) })
-            layouts.put(JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", elements)
+            val encoded = JSONObject().put("id", layout.id).put("name", layout.name).put("template", layout.template.name).put("elements", encodeElements(layout.elements))
+            if (layout.rotated.isNotEmpty()) encoded.put("rotated", encodeElements(layout.rotated)).put("rotatedAspect", layout.rotatedAspect.toDouble()).put("rotatedScale", layout.rotatedScale.toDouble())
+            layouts.put(encoded
                 .put("tint", layout.style.tint ?: JSONObject.NULL).put("opacity", layout.style.opacity).put("screen", layout.screen.name).put("aspect", layout.aspect.toDouble()).put("scale", layout.scale.toDouble())
-                .put("removed", JSONArray(layout.style.removed.filter { id -> layout.elements.any { it.id == id } }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
+                .put("removed", JSONArray(layout.style.removed.filter { id -> (layout.elements + layout.rotated).any { it.id == id } }.sorted())).put("origin", layout.origin ?: JSONObject.NULL))
         }
         val bindings = JSONArray()
         for (b in library.bindings) {
@@ -369,25 +382,20 @@ object InputLibraries {
         require(version in 2..VERSION || restore)
         val generated = mutableSetOf<String>()
         val layouts = doc.getJSONArray("layouts").objects(256).map { layout ->
-            val stored = layout.getJSONArray("elements").objects(128).map { e ->
-                InputSurfaceElement(requireNotNull(InputControl.fromId(e.getString("control"))), e.getDouble("x").toFloat(),
-                    e.getDouble("y").toFloat(), e.getDouble("width").toFloat(), e.getDouble("height").toFloat(),
-                    e.getString("id"), InputElementKind.valueOf(e.getString("kind")), e.getString("name"),
-                    e.optBoolean("floating", true), e.optBoolean("hideWhenIdle", false), e.optBoolean("mouseGestures", false), e.optBoolean("toggle", false), e.optInt("icon", 0), e.optString("image", ""),
-                    e.optDouble("elementOpacity", 1.0).toFloat(), InputButtonShape.valueOf(e.optString("buttonShape", InputButtonShape.ROUNDED.name)), e.optBoolean("showLabel", true), e.optBoolean("alwaysShown", false),
-                    group = e.optString("group", "").trim().takeIf { it.length <= 128 }.orEmpty())
-            }
+            val stored = decodeElements(layout.getJSONArray("elements"))
             val id = layout.getString("id")
             val origin = layout.optionalString("origin")
             val followsGamepad = restore && !layout.optBoolean("kitless") &&
                 (id == OVERLAY || origin == OVERLAY) &&
                 stored.none { it.id.startsWith("legacy:") || it.id == KIT_DPAD || it.id == KEYBOARD }
             if (followsGamepad) generated += id
+            val rotated = layout.optJSONArray("rotated")?.let(::decodeElements).orEmpty()
             SavedInputLayout(id, layout.getString("name"), if (restore) stored.map { it.bounded() } else stored, InputLayoutTemplate.valueOf(layout.getString("template")),
                 InputSurfaceStyle(if (!layout.has("tint")) ControllerPrefs.STEAM_BLUE else if (layout.isNull("tint")) null else layout.getInt("tint"), layout.optInt("opacity", 100),
-                    removedElements(layout, stored.takeUnless { restore })),
+                    removedElements(layout, (stored + rotated).takeUnless { restore })),
                 InputLayoutScreen.valueOf(layout.optString("screen", InputLayoutScreen.BOTH.name)), layout.optDouble("aspect", 0.0).toFloat(), origin,
-                    layout.optDouble("scale", 1.0).toFloat())
+                    layout.optDouble("scale", 1.0).toFloat(), rotated,
+                    layout.optDouble("rotatedAspect", 0.0).toFloat(), layout.optDouble("rotatedScale", layout.optDouble("scale", 1.0)).toFloat())
         }
         val bindings = doc.getJSONArray("bindings").objects(512).map { b ->
             val controls = b.getJSONObject("controls").actions(28).mapKeys { requireNotNull(InputControl.fromId(it.key)) }

@@ -33,6 +33,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.InputControl
 import com.droiddeck.launcher.input.InputElementKind
 import com.droiddeck.launcher.input.InputSurfaceElement
+import com.droiddeck.launcher.input.PadKit
 import com.droiddeck.launcher.input.InputSurfaceStyle
 import com.droiddeck.launcher.input.SurfaceBounds
 import com.droiddeck.launcher.input.boundsOf
@@ -69,8 +70,8 @@ internal class InputSurfaceEditorView(context: Context) : FrameLayout(context) {
             }
         }
     var style = InputSurfaceStyle()
-        set(value) { if (value == field) return; field = value; preview.updateStyle(value, steamDeckButtons); refreshGeometry() }
-    var steamDeckButtons = false
+        set(value) { if (value == field) return; field = value; preview.updateStyle(value, artwork); refreshGeometry() }
+    var artwork: PadKit? = null
         set(value) { if (value == field) return; field = value; preview.updateStyle(style, value); refreshGeometry() }
     var snap = true
         set(value) { field = value; if (!value) clearGuides() }

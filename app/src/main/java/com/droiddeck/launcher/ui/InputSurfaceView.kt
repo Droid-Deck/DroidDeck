@@ -37,6 +37,7 @@ import com.droiddeck.launcher.input.InputButtonIcons
 import com.droiddeck.launcher.input.InputButtonShape
 import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.PadBridge
+import com.droiddeck.launcher.input.PadKit
 import com.droiddeck.launcher.input.pcKeyLabel
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlin.math.atan2
@@ -61,10 +62,10 @@ class InputSurfaceView(
     private val elementSources = ArrayList<InputSurfaceSource>()
     private var customCanvas: ViewGroup? = null
     private val owners = HashMap<Int, View>()
-    private var steamDeckButtons = false
-    private val deckArt by lazy(LazyThreadSafetyMode.NONE) { SteamDeckButtonArt(context) }
-    private var deckDpad = emptyList<HoldButton>()
-    private val deckDpadBounds = RectF()
+    private var artwork: PadKit? = null
+    private val art by lazy(LazyThreadSafetyMode.NONE) { PadArt(context) }
+    private var artworkDpad = emptyList<HoldButton>()
+    private val artworkDpadBounds = RectF()
     private var requestedLayout = customLayout
     init { customLayout = surfaceStyle.shown(customLayout); addView(content, LayoutParams(-1, -1)); renderCustom(pad) }
 
@@ -143,11 +144,11 @@ class InputSurfaceView(
         }
     }
 
-    fun updateStyle(style: InputSurfaceStyle, steamDeckButtons: Boolean = false) {
-        if (surfaceStyle == style && this.steamDeckButtons == steamDeckButtons) return
+    internal fun updateStyle(style: InputSurfaceStyle, artwork: PadKit? = null) {
+        if (surfaceStyle == style && this.artwork == artwork) return
         val relayout = surfaceStyle.removed != style.removed
         surfaceStyle = style
-        this.steamDeckButtons = steamDeckButtons
+        this.artwork = artwork
         if (relayout) updateCustomLayout(requestedLayout)
         customCanvas?.let { canvas ->
             for (i in 0 until canvas.childCount) styleElement(canvas.getChildAt(i))
@@ -200,7 +201,7 @@ class InputSurfaceView(
     }
 
     private fun renderCustom(pad: PadBridge?) {
-        deckDpad = emptyList()
+        artworkDpad = emptyList()
         val canvas = object : ViewGroup(context) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val layout = customLayout
@@ -218,17 +219,18 @@ class InputSurfaceView(
                     val x = (width * e.x).toInt(); val y = (height * e.y).toInt()
                     child.layout(x, y, x + child.measuredWidth, y + child.measuredHeight)
                 }
-                updateDeckDpad(this)
+                updateArtworkDpad(this)
             }
 
             override fun dispatchDraw(canvas: Canvas) {
-                if (steamDeckButtons && deckDpad.isNotEmpty()) {
-                    val alpha = (deckDpad.first().alpha * 255f).toInt()
+                val kit = artwork
+                if (kit != null && artworkDpad.isNotEmpty()) {
+                    val alpha = (artworkDpad.first().alpha * 255f).toInt()
                     val saved = if (alpha == 255) canvas.save()
-                        else canvas.saveLayerAlpha(deckDpadBounds, alpha)
-                    canvas.translate(deckDpadBounds.left, deckDpadBounds.top)
-                    val held = deckDpad.foldIndexed(0) { i, bits, button -> if (button.highlighted) bits or (1 shl i) else bits }
-                    deckArt.dpad(canvas, deckDpadBounds.width(), deckDpadBounds.height(), held)
+                        else canvas.saveLayerAlpha(artworkDpadBounds, alpha)
+                    canvas.translate(artworkDpadBounds.left, artworkDpadBounds.top)
+                    val held = artworkDpad.foldIndexed(0) { i, bits, button -> if (button.highlighted) bits or (1 shl i) else bits }
+                    art.dpad(canvas, artworkDpadBounds.width(), artworkDpadBounds.height(), kit, held)
                     canvas.restoreToCount(saved)
                 }
                 super.dispatchDraw(canvas)
@@ -239,7 +241,8 @@ class InputSurfaceView(
             val source = pad?.let { InputSurfaceSource(it, inputRole, element).also { s -> elementSources += s } }
             canvas.addView(when (element.kind) {
                 InputElementKind.STICK -> StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
-                InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, captioned = element.showLabel, source = source)
+                InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, captioned = element.showLabel,
+                    stock = element.id == "legacy:${element.control.id}", source = source)
                 InputElementKind.DPAD -> DirectionPad(context, element, source)
                 else -> HoldButton(context, element, source)
             }.apply { tag = element; contentDescription = element.name; styleElement(this); source?.onStateChanged = { postInvalidate() } })
@@ -248,7 +251,7 @@ class InputSurfaceView(
         customCanvas = canvas
     }
 
-    private fun updateDeckDpad(canvas: ViewGroup) {
+    private fun updateArtworkDpad(canvas: ViewGroup) {
         val buttons = DIRECTIONS.mapNotNull { direction ->
             val index = customLayout.indexOfFirst { element ->
                 element.control == direction && classic(element) && element.buttonShape == InputButtonShape.CIRCLE &&
@@ -257,8 +260,13 @@ class InputSurfaceView(
             }
             canvas.getChildAt(index) as? HoldButton
         }
-        deckDpad = emptyList()
-        if (buttons.size != DIRECTIONS.size) return
+        val previous = artworkDpad
+        artworkDpad = if (crossed(buttons)) buttons else emptyList()
+        if (artworkDpad != previous) (previous + artworkDpad).forEach { it.invalidate() }
+    }
+
+    private fun crossed(buttons: List<HoldButton>): Boolean {
+        if (buttons.size != DIRECTIONS.size) return false
         val (up, right, down, left) = buttons
         val centerX = (left.left + right.right) / 2f
         val centerY = (up.top + down.bottom) / 2f
@@ -266,9 +274,9 @@ class InputSurfaceView(
             kotlin.math.abs((down.left + down.right) / 2f - centerX) > 2f ||
             kotlin.math.abs((left.top + left.bottom) / 2f - centerY) > 2f ||
             kotlin.math.abs((right.top + right.bottom) / 2f - centerY) > 2f ||
-            up.bottom >= down.top || left.right >= right.left) return
-        deckDpadBounds.set(left.left.toFloat(), up.top.toFloat(), right.right.toFloat(), down.bottom.toFloat())
-        deckDpad = buttons
+            up.bottom >= down.top || left.right >= right.left) return false
+        artworkDpadBounds.set(left.left.toFloat(), up.top.toFloat(), right.right.toFloat(), down.bottom.toFloat())
+        return true
     }
 
     override fun onAttachedToWindow() {
@@ -456,15 +464,15 @@ class InputSurfaceView(
 
         override fun onDraw(canvas: Canvas) {
             val press = motion.shown
-            if (steamDeckButtons && element.image.isEmpty() && element.showLabel) {
-                if (this in deckDpad) return
+            val kit = artwork
+            if (kit != null && element.image.isEmpty() && element.showLabel) {
+                if (this in artworkDpad) return
                 val lit = highlighted
                 if (element.id == "builtin:keyboard" && element.icon == InputButtonIcons.KEYBOARD) {
-                    deckArt.keyboard(canvas, width, height, lit)
+                    art.system(canvas, width.toFloat(), height.toFloat(), PadArt.Shape.ROUND, PadArt.Icon.KEYBOARD, lit)
                     return
                 }
-                val native = element.id == "legacy:${element.control.id}" && element.name == element.control.label && element.icon == 0
-                if (native && deckArt.button(canvas, width, height, element.control, lit)) return
+                if (kit.native(element) && art.button(canvas, width, height, element.control, kit, lit)) return
             }
             drawBody(canvas, element.buttonShape, press, latched = element.toggle && source?.latched == true)
             val classic = classic(element)
@@ -516,11 +524,12 @@ class InputSurfaceView(
             if (!pressed && cancelled) source?.cancel() else source?.update(if (pressed) 1f else 0f)
             motion.press(pressed)
             invalidate()
-            if (steamDeckButtons && this in deckDpad) customCanvas?.invalidate()
+            if (artwork != null && this in artworkDpad) customCanvas?.invalidate()
         }
     }
 
-    private inner class TrackpadView(context: Context, private val right: Boolean, private val captioned: Boolean = true,
+    private inner class TrackpadView(context: Context, private val right: Boolean, private val captioned: Boolean,
+        private val stock: Boolean,
         private val source: InputSurfaceSource? = null) : Surface(context) {
         private var gestureX = 0f
         private var gestureY = 0f
@@ -544,8 +553,8 @@ class InputSurfaceView(
         private var captionFrom: CharSequence? = null
 
         override fun onDraw(canvas: Canvas) {
-            if (!captioned) {
-                deckArt.trackpad(canvas, width.toFloat(), height.toFloat(), touching || clicked, fingerX, fingerY)
+            if (!captioned || stock && artwork?.steam == true) {
+                art.trackpad(canvas, width.toFloat(), height.toFloat(), touching || clicked, fingerX, fingerY)
                 return
             }
             drawBody(canvas, InputButtonShape.ROUNDED, motion.shown, hot = if (touching) 1f else 0f)
@@ -671,10 +680,11 @@ class InputSurfaceView(
             val cx = if (touching) originX else centreX()
             val cy = if (touching) originY else height / 2f
             val touched = motion.shown
-            if (steamDeckButtons && classic(element)) {
+            val kit = artwork
+            if (kit != null && classic(element)) {
                 val radius = min(width, height) / 2f - 2f * density
                 if (radius > 0f) {
-                    deckArt.stick(canvas, cx, cy, radius, knobX, knobY, touching || clicking)
+                    art.stick(canvas, cx, cy, radius, kit, knobX, knobY, touching || clicking)
                     if (element.showLabel) {
                         labelPaint.color = TEXT
                         drawDirectionLabels(canvas, source?.directions, false, cx, cy, radius * .66f, radius * .34f)

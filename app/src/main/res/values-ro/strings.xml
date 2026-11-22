@@ -2491,6 +2491,8 @@
     <string name="display_game_fit">Potrivire joc 16:9</string>
     <string name="display_game_fit_hint">Cum se potrivesc jocurile 16:9 cu acest afișaj. Sesiunea următoare.</string>
     <string name="display_game_fit_unavailable">Alege Potrivire ecran sau o dimensiune personalizată mai îngustă decât 16:9.</string>
+    <string name="display_avoid_notch">Evită decupajul</string>
+    <string name="display_avoid_notch_hint">Ține imaginea departe de decupajul camerei. Se aplică la revenirea în sesiune.</string>
     <string name="display_preserve">Păstrează proporțiile</string>
     <string name="display_stretch">Întinde pe afișaj</string>
     <string name="display_image_scaling">Scalarea imaginii</string>

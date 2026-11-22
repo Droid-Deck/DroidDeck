@@ -1241,6 +1241,27 @@ class InputSettingsTest {
         }
     }
 
+    @Test fun buttonSizeShowsTheGamepadWhereItWillBeSaved() {
+        val library = InputLibraries.read(context)
+        val layout = library.layout("game", InputRole.PRIMARY)!!
+        assertEquals(InputLibraries.OVERLAY, layout.id)
+        val round = mutableStateOf(0)
+        compose.setContent { DroidDeckTheme { androidx.compose.runtime.key(round.value) { InputSurfaceDialog("game", {}, {}, role = InputRole.PRIMARY,
+            layoutId = layout.id, bindingsId = library.profile("game").binding(InputRole.PRIMARY)) } } }
+        fun editor() = generateSequence(listOf<android.view.View>(ShadowDialog.getLatestDialog().window!!.decorView)) { views ->
+            views.filterIsInstance<android.view.ViewGroup>().flatMap { g -> (0 until g.childCount).map(g::getChildAt) }.ifEmpty { null }
+        }.flatten().filterIsInstance<InputSurfaceEditorView>().first()
+        val stock = compose.runOnIdle { editor().elements }
+        compose.onNodeWithTag("input-editor-tools").performClick()
+        scaleSlider().performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(95f) }
+        val scaled = compose.runOnIdle { editor().elements }
+        assertNotEquals(stock, scaled)
+        compose.onNodeWithTag("input-editor-save").performClick()
+        compose.runOnIdle { assertEquals(.95f, InputLibraries.read(context).layouts.first { it.id == layout.id }.scale) }
+        compose.runOnIdle { round.value = 1 }
+        compose.runOnIdle { assertEquals(scaled, editor().elements) }
+    }
+
     @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
     fun buttonSizeKeepsMovedGamepadGroupsInShape() {
         val face = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y")

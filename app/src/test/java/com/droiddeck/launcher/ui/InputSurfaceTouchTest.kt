@@ -87,10 +87,12 @@ class InputSurfaceTouchTest {
 
         touch(MotionEvent.ACTION_DOWN, 1 to (800f to 240f))
         assertTrue(state().isDown(PadState.A))
-        surface.updateStyle(InputSurfaceStyle(), steamDeckButtons = true)
-        assertEquals(shown, surface.shownElements)
-        assertTrue(surface.takesTouchAt(800f, 240f))
-        assertTrue(state().isDown(PadState.A))
+        for (artwork in PadKit.entries) {
+            surface.updateStyle(InputSurfaceStyle(), artwork)
+            assertEquals(shown, surface.shownElements)
+            assertTrue(surface.takesTouchAt(800f, 240f))
+            assertTrue(state().isDown(PadState.A))
+        }
 
         touch(MotionEvent.ACTION_UP, 1 to (800f to 240f))
         assertFalse(state().isDown(PadState.A))
