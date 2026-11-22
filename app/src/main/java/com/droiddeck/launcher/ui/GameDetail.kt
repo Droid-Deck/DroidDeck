@@ -224,10 +224,17 @@ internal fun GameDetail(
         val t = tab ?: return@LaunchedEffect
         if (!inPage) focusWithinFrames({ onStrip }) { tabFocus.getValue(t) }
     }
+    var stepped by remember(key) { mutableStateOf(0) }
+    LaunchedEffect(stepped) {
+        if (stepped == 0) return@LaunchedEffect
+        val t = tab ?: return@LaunchedEffect
+        focusSoon { tabFocus.getValue(t) }
+    }
     fun cycle(step: Int) {
         if (tabs.size < 2) return
         val at = tabs.indexOf(tab).coerceAtLeast(0)
         picked = tabs[(at + step + tabs.size) % tabs.size]
+        if (inPage) stepped++
     }
     val art: Any? = game?.hero ?: item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
     val artModel: Any? = if (art is String) cardArtRequest(art, item?.tallImageUrl) else art
