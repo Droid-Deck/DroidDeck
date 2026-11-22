@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -95,6 +96,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     var sort by remember { mutableStateOf(WowAddonCatalog.Sort.POPULAR) }
     val results = remember(text, category, sort, target) { AddonResults() }
     val installing = remember { mutableStateMapOf<String, Int>() }
+    val installed = remember { mutableStateMapOf<String, Pair<String, String>>() }
     val categories by produceState(emptyList<WowAddonCatalog.Category>()) {
         value = withContext(Dispatchers.IO) { runCatching { WowAddonCatalog.categories(context) }.getOrDefault(emptyList()) }
     }
@@ -104,7 +106,8 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     fun status(addon: WowAddonCatalog.Addon): AddonStatus {
         if (addon.id !in present) return AddonStatus.INSTALL
         val have = present[addon.id]
-        return if (have == null || addon.summary.isBlank() || WowAddonCatalog.sameVersion(have, addon.summary)) AddonStatus.INSTALLED else AddonStatus.UPDATE
+        val latest = installed[addon.id]?.takeIf { it.first == addon.summary }?.second ?: addon.summary
+        return if (have == null || latest.isBlank() || WowAddonCatalog.sameVersion(have, latest)) AddonStatus.INSTALLED else AddonStatus.UPDATE
     }
     fun load(page: Int) {
         if (results.loading) return
@@ -143,6 +146,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         scope.launch {
             val message = withContext(Dispatchers.IO) { installAddon(context, addon, into) { pct -> scope.launch { if (key in installing) installing[key] = pct } } }
             installing.remove(key)
+            message.second?.let { installed[addon.id] = addon.summary to it }
             Toast.makeText(context, message.first, Toast.LENGTH_LONG).show()
         }
     }
@@ -155,8 +159,9 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     }
     val firstAction = remember(results) { FocusRequester() }
     val inputMode = LocalInputModeManager.current
+    var searching by remember { mutableStateOf(false) }
     LaunchedEffect(results, results.items.isNotEmpty()) {
-        if (results.items.isNotEmpty() && inputMode.inputMode == InputMode.Keyboard) focusSoon { firstAction }
+        if (results.items.isNotEmpty() && !searching && inputMode.inputMode == InputMode.Keyboard) focusSoon { firstAction }
     }
     AppDialog(shown, close, "addonBrowser", wide = true, maxWidth = 980.dp, scrollable = false, fillHeight = true) {
         val sortChip: @Composable () -> Unit = {
@@ -182,7 +187,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         val search: @Composable (Modifier) -> Unit = { modifier ->
             AdbTextField(
                 value = text, onValueChange = { text = it }, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                placeholder = stringResource(R.string.stores_search_catalog, sourceName), compact = true, showLabel = false, modifier = modifier,
+                placeholder = stringResource(R.string.stores_search_catalog, sourceName), compact = true, showLabel = false, modifier = modifier.onFocusChanged { searching = it.hasFocus },
             )
         }
         val closeButton: @Composable () -> Unit = {
@@ -293,18 +298,18 @@ private fun formatCount(count: Long): String = when {
     else -> count.toString()
 }
 
-internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, Boolean> {
+internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, String?> {
     val zip = File(File(context.cacheDir, "wowaddons"), "download-wowi-${addon.id.filter(Char::isLetterOrDigit)}-${java.util.UUID.randomUUID()}.zip")
     return try {
         val version = WowAddonCatalog.download(context, addon, zip, progress) ?: addon.summary
-        if (SessionState.running) return context.getString(R.string.main_addons_close_session) to false
+        if (SessionState.running) return context.getString(R.string.main_addons_close_session) to null
         val names = WowAddons.import(zip, target, WowAddons.Origin(addon.id, version).takeIf { version.isNotBlank() })
-        if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to false
-        else context.resources.getQuantityString(R.plurals.main_addons_imported, names.size, names.size, target.flavor) to true
+        if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to null
+        else context.resources.getQuantityString(R.plurals.main_addons_imported, names.size, names.size, target.flavor) to version
     } catch (_: WowAddons.TooLarge) {
-        context.getString(R.string.main_addons_too_large, addon.name) to false
+        context.getString(R.string.main_addons_too_large, addon.name) to null
     } catch (e: Exception) {
-        context.getString(R.string.stores_dl_failed_reason, e.message ?: e.javaClass.simpleName) to false
+        context.getString(R.string.stores_dl_failed_reason, e.message ?: e.javaClass.simpleName) to null
     } finally {
         zip.delete()
     }
