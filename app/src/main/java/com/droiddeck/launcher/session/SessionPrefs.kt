@@ -614,6 +614,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("backHold", on).apply()
     }
 
+    fun dockedMenuController(context: Context): Boolean = prefs(context).getBoolean("dockedMenuController", false)
+
+    fun setDockedMenuController(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dockedMenuController", on).apply()
+    }
+
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
 
     fun setBackActionsInverted(context: Context, inverted: Boolean) {

@@ -4342,6 +4342,7 @@
     <string name="drawer_hint_button">%1$s opens this menu</string>
     <string name="drawer_hint_steam_inverted">Back twice opens this menu · Back once opens Steam\'s menu</string>
     <string name="drawer_corner_tap">Corner tap opens this menu</string>
+    <string name="drawer_docked_menu_controller">Physical controls can use bottom screen</string>
     <string name="drawer_corner_tap_hint">Double-tap the top-right corner, for devices without a Back button</string>
     <string name="drawer_handle">Open the session menu</string>
     <string name="play_needs_you">Settings need you</string>
