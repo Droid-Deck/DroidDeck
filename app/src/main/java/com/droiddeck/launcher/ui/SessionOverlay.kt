@@ -44,6 +44,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.Settings
@@ -342,6 +343,8 @@ class DrawerActions(
     val pipAutoEnter: Boolean = false,
     val onPip: () -> Unit = {},
     val onPause: () -> Unit = {},
+    val paused: Boolean = false,
+    val onResume: () -> Unit = {},
     val onPipAutoEnter: (Boolean) -> Unit = {},
     val unfoldedControls: Boolean? = null,
     val adaptiveSticks: Boolean? = null,
@@ -549,8 +552,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         )
                     } else if (roomyHeader) Spacer(Modifier.weight(1f))
                     SteamActionPill(
-                        stringResource(R.string.stores_dl_pause), Icons.Outlined.Pause, focus.track(page, "pause"),
-                    ) { host.open = null; a.onPause() }
+                        stringResource(if (a.paused) R.string.resume_session else R.string.stores_dl_pause),
+                        if (a.paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, focus.track(page, "pause"),
+                    ) { host.open = null; if (a.paused) a.onResume() else a.onPause() }
                     if (a.pipSupported) SteamActionPill(
                         stringResource(R.string.pip_title), Icons.Outlined.PictureInPictureAlt, focus.track(page, "pip"),
                     ) { host.open = null; a.onPip() }

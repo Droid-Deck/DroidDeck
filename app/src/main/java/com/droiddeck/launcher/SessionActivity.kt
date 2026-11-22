@@ -1861,6 +1861,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             pipAutoEnter = pipAutoEnter,
             onPip = { pip.enter() },
             onPause = ::pauseNow,
+            paused = SessionState.suspended || SessionState.manualPause,
+            onResume = { SessionService.resume(this@SessionActivity) },
             onPipAutoEnter = { on ->
                 SessionPrefs.setPipAutoEnter(this@SessionActivity, on)
                 pipAutoEnter = on
