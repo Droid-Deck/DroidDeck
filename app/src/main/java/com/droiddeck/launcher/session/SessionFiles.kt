@@ -39,6 +39,7 @@ object SessionFiles {
     private val SERVICE_PACKS = mapOf(
         AddonPack.UBISOFT to "usr/local/lib/droiddeck-ubisoft",
         AddonPack.ROCKSTAR to "usr/local/lib/droiddeck-rockstar",
+        AddonPack.EPIC to "usr/local/lib/droiddeck-epic",
         AddonPack.DIRT to "usr/local/lib/droiddeck-dirt",
     )
 
@@ -46,6 +47,8 @@ object SessionFiles {
     fun ensureUbisoftService(context: Context) = ensureStoreService(context, AddonPack.UBISOFT)
 
     fun ensureRockstarService(context: Context) = ensureStoreService(context, AddonPack.ROCKSTAR)
+
+    fun ensureEpicParent(context: Context) = ensureStoreService(context, AddonPack.EPIC)
 
     /** The DiRT 3 / DiRT Showdown ws2_32 stand-in; droiddeck-game-env applies it only when it is staged. */
     fun ensureDirtStandIn(context: Context) = ensureStoreService(context, AddonPack.DIRT)
@@ -284,6 +287,7 @@ object SessionFiles {
         File(root, "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json").delete()
         LegacyNames.migrateRootfs(root)
         ComponentsManager.migrateLaunchDir(context)
+        runCatching { ComponentsManager.migrateBattleNetFex(context) }.onFailure { Log.w(TAG, "Battle.net FEX selection", it) }
         EsyncPacks.stageBundled(context, root)
         val directAudio = arrayOf(
             "aarch64-unix/winedirectaudio.so",

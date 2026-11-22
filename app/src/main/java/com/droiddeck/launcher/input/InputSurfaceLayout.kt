@@ -3,6 +3,8 @@ package com.droiddeck.launcher.input
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.max
+import kotlin.math.min
 
 enum class InputElementKind(val control: InputControl) {
     BUTTON(InputControl.A), STICK(InputControl.LS), TRACKPAD(InputControl.LEFT_PAD),
@@ -38,13 +40,8 @@ data class InputSurfaceElement(
 ) {
     val hasClick get() = kind == InputElementKind.STICK || kind == InputElementKind.TRACKPAD
 
-    fun bounded() = copy(x = x.coerceIn(0f, 1f - MIN_SIZE), y = y.coerceIn(0f, 1f - MIN_SIZE),
-        width = width.coerceIn(MIN_SIZE, (1f - x.coerceIn(0f, 1f - MIN_SIZE)).coerceAtLeast(MIN_SIZE)),
-        height = height.coerceIn(MIN_SIZE, (1f - y.coerceIn(0f, 1f - MIN_SIZE)).coerceAtLeast(MIN_SIZE)))
-
-    companion object {
-        const val MIN_SIZE = .01f
-    }
+    fun bounded() = copy(x = x.coerceIn(0f, 0.97f), y = y.coerceIn(0f, 0.97f),
+        width = width.coerceIn(0.03f, (1f - x.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)), height = height.coerceIn(0.03f, (1f - y.coerceIn(0f, 0.97f)).coerceAtLeast(0.03f)))
 }
 
 internal val QUICK_BUTTONS = listOf(InputCommand.STEAM, InputCommand.QUICK_ACCESS, InputCommand.KEYBOARD)
@@ -56,32 +53,37 @@ val InputSurfaceElement.quickButton: InputCommand? get() = when {
     else -> null
 }
 
-/** Controls whose boxes touch, grown by 15%, scale around one shared anchor so a cluster such as the face buttons keeps its shape. */
-internal fun List<InputSurfaceElement>.scaled(factor: Float): List<InputSurfaceElement> {
+internal fun List<InputSurfaceElement>.scaled(factor: Float): List<InputSurfaceElement> = map { e ->
     fun anchor(centre: Float) = when { centre < 1f / 3f -> 0f; centre > 2f / 3f -> 1f; else -> .5f }
-    val group = IntArray(size) { it }
-    fun root(i: Int): Int = if (group[i] == i) i else root(group[i]).also { group[i] = it }
-    for (i in indices) for (j in i + 1 until size) {
-        val a = this[i]; val b = this[j]
-        val near = kotlin.math.abs(a.x + a.width / 2 - b.x - b.width / 2) < (a.width + b.width) / 2 * 1.15f &&
-            kotlin.math.abs(a.y + a.height / 2 - b.y - b.height / 2) < (a.height + b.height) / 2 * 1.15f
-        if (near) group[root(i)] = root(j)
-    }
-    val anchors = indices.groupBy(::root).mapValues { (_, members) ->
-        anchor(members.map { this[it].x + this[it].width / 2 }.average().toFloat()) to anchor(members.map { this[it].y + this[it].height / 2 }.average().toFloat())
-    }
-    return mapIndexed { i, e -> e.scaledAround(factor, anchors.getValue(root(i))) }
-}
-
-private fun InputSurfaceElement.scaledAround(factor: Float, anchor: Pair<Float, Float>): InputSurfaceElement {
-    val e = this
-    val w = (e.width * factor).coerceIn(InputSurfaceElement.MIN_SIZE, 1f)
-    val h = (e.height * factor).coerceIn(InputSurfaceElement.MIN_SIZE, 1f)
+    val w = (e.width * factor).coerceIn(.03f, 1f)
+    val h = (e.height * factor).coerceIn(.03f, 1f)
     val cx = e.x + e.width / 2
     val cy = e.y + e.height / 2
-    val (ax, ay) = anchor
-    return e.copy(x = (ax + (cx - ax) * factor - w / 2).coerceIn(0f, 1f - w), y = (ay + (cy - ay) * factor - h / 2).coerceIn(0f, 1f - h),
+    val ax = anchor(cx)
+    val ay = anchor(cy)
+    e.copy(x = (ax + (cx - ax) * factor - w / 2).coerceIn(0f, 1f - w), y = (ay + (cy - ay) * factor - h / 2).coerceIn(0f, 1f - h),
         width = w, height = h).bounded()
+}
+
+
+internal val DPAD = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
+internal val InputSurfaceElement.dpadPiece get() = id == "legacy:${control.id}" && control in DPAD
+
+internal fun List<InputSurfaceElement>.groupOf(e: InputSurfaceElement) = if (e.dpadPiece) filter { it.dpadPiece } else listOf(e)
+
+internal fun List<InputSurfaceElement>.frame(): InputSurfaceElement {
+    val left = minOf { it.x }; val top = minOf { it.y }
+    return first().copy(x = left, y = top, width = maxOf { it.x + it.width } - left, height = maxOf { it.y + it.height } - top)
+}
+
+internal fun List<InputSurfaceElement>.resizedAroundCentre(factor: Float): List<InputSurfaceElement> {
+    if (isEmpty()) return this
+    val f = frame()
+    val k = factor.coerceIn(.03f / minOf { min(it.width, it.height) }, 1f / max(f.width, f.height))
+    val w = f.width * k; val h = f.height * k
+    val left = (f.x + f.width / 2 - w / 2).coerceIn(0f, 1f - w)
+    val top = (f.y + f.height / 2 - h / 2).coerceIn(0f, 1f - h)
+    return map { it.copy(x = left + (it.x - f.x) * k, y = top + (it.y - f.y) * k, width = it.width * k, height = it.height * k).bounded() }
 }
 
 internal fun List<InputSurfaceElement>.withPositionsOf(defaults: List<InputSurfaceElement>): List<InputSurfaceElement> {

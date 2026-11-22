@@ -1,0 +1,20 @@
+diff --git a/src/Backends/WaylandBackend.cpp b/src/Backends/WaylandBackend.cpp
+index 372fc08..fe38c7d 100644
+--- a/src/Backends/WaylandBackend.cpp
++++ b/src/Backends/WaylandBackend.cpp
+@@ -126,6 +126,7 @@ namespace gamescope
+     gamescope::ConVar<bool> cv_wayland_mouse_warp_without_keyboard_focus( "wayland_mouse_warp_without_keyboard_focus", true, "Should we only forward mouse warps to the app when we have keyboard focus?" );
+     gamescope::ConVar<bool> cv_wayland_mouse_relmotion_without_keyboard_focus( "wayland_mouse_relmotion_without_keyboard_focus", false, "Should we only forward mouse relative motion to the app when we have keyboard focus?" );
+     gamescope::ConVar<bool> cv_wayland_use_modifiers( "wayland_use_modifiers", true, "Use DMA-BUF modifiers?" );
++    gamescope::ConVar<int> cv_wayland_overlay_planes( "wayland_overlay_planes", -1, "How many planes above the base one the host shows without composing them itself; more are composited here into one. -1 for no limit." );
+ 
+     gamescope::ConVar<float> cv_wayland_hdr10_saturation_scale( "wayland_hdr10_saturation_scale", 1.0, "Saturation scale for HDR10 content by gamut expansion. 1.0 - 1.2 is a good range to play with." );
+ 
+@@ -1102,6 +1103,7 @@ namespace gamescope
+                                                eLayer0Filter == GamescopeUpscaleFilter::PIXEL ) && !bLayer0ScreenSize;
+ 
+             bNeedsFullComposite |= cv_composite_force;
++            bNeedsFullComposite |= cv_wayland_overlay_planes >= 0 && pFrameInfo->layers.count() > 1 + cv_wayland_overlay_planes;
+             bNeedsFullComposite |= pFrameInfo->useFSRLayer0;
+             bNeedsFullComposite |= pFrameInfo->useNISLayer0;
+             bNeedsFullComposite |= pFrameInfo->useSGSRLayer0;

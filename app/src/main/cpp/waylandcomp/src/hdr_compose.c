@@ -12,7 +12,7 @@
 
 #define MIXED_FORMAT VK_FORMAT_A2B10G10R10_UNORM_PACK32
 
-struct pc_encode { float ndc[4]; float params[4]; float rects[HDRC_MAX_RECTS][4]; };
+struct pc_encode { float ndc[4]; float params[4]; uint32_t rects[HDRC_MAX_RECTS][2]; float conv[3][4]; };
 
 static VkDevice g_dev;
 static int g_ready;
@@ -266,7 +266,16 @@ int hdrc_encode(VkCommandBuffer cmd, VkImage mixed, VkImage out, VkFormat out_fm
     pc.params[1] = p->peak_nits > 0.0f ? p->peak_nits : 1000.0f;
     pc.params[2] = p->mode == HDRC_OUT_SDR ? 1.0f : 0.0f;
     pc.params[3] = (float)count + 16.0f * (float)mask;
-    for (int i = 0; i < count; i++) memcpy(pc.rects[i], p->rects[i], sizeof(pc.rects[i]));
+    for (int i = 0; i < count; i++) {
+        uint32_t v[4];
+        for (int k = 0; k < 4; k++) v[k] = p->rects[i][k] <= 0.0f ? 0u : p->rects[i][k] >= 65535.0f ? 65535u : (uint32_t)p->rects[i][k];
+        pc.rects[i][0] = v[0] | v[1] << 16;
+        pc.rects[i][1] = v[2] | v[3] << 16;
+    }
+    for (int k = 0; k < 3; k++) memcpy(pc.conv[k], &p->conv[3 * k], 3 * sizeof(float));
+    pc.conv[0][3] = (float)(p->conv_mask & mask);
+    pc.conv[1][3] = p->conv_linear ? 1.0f : 0.0f;
+    pc.conv[2][3] = p->conv_gain;
 
     VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_out[slot].rp,
                                  .framebuffer = fb, .renderArea = {{0, 0}, {(uint32_t)w, (uint32_t)h}}};

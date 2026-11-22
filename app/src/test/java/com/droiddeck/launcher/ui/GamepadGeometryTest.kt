@@ -33,12 +33,12 @@ class GamepadGeometryTest {
     private val grips = setOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4)
     private val portraitPanels get() = panels.take(3) + Panel("312dp phone portrait", 720, 1280, 369 / 160f)
     private fun portraitBoxes(panel: Panel) =
-        GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, portraitDock = true, grips = true)
+        GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, portraitDock = true)
 
     @Test fun everyControlIsPlacedAndPanelsOnlyWhenUpright() {
         for (panel in panels) {
             val upright = panel.height > panel.width
-            val expected = Slot.values().toSet() - grips - setOf(Slot.LEFT_TOUCH, Slot.RIGHT_TOUCH) - if (upright) emptySet() else setOf(Slot.PANELS)
+            val expected = Slot.values().toSet() - grips - if (upright) emptySet() else setOf(Slot.PANELS)
             assertEquals(panel.name, expected, boxes(panel).keys)
         }
     }
@@ -94,7 +94,7 @@ class GamepadGeometryTest {
     @Test fun portraitDockPlacesAllControlsWithinThePanel() {
         for (panel in portraitPanels) {
             val b = portraitBoxes(panel)
-            assertEquals(panel.name, Slot.values().toSet() - setOf(Slot.STEAM, Slot.QAM, Slot.PANELS, Slot.LEFT_TOUCH, Slot.RIGHT_TOUCH), b.keys)
+            assertEquals(panel.name, Slot.values().toSet(), b.keys)
             for ((slot, box) in b) {
                 val where = "${panel.name}: $slot $box"
                 assertTrue(where, box.left >= 0f && box.top >= 0f)
@@ -126,70 +126,20 @@ class GamepadGeometryTest {
         }
     }
 
-    @Test fun portraitDockPutsShouldersAndMenusInOneRowAboveTheGripsAndTheGamepad() {
+    @Test fun portraitDockMovesUtilitiesAndGripsAboveTheGamepad() {
         for (panel in portraitPanels) {
             val b = portraitBoxes(panel)
-            val row = listOf(Slot.LEFT_OUTER_SHOULDER, Slot.LEFT_INNER_SHOULDER, Slot.VIEW, Slot.MENU, Slot.RIGHT_INNER_SHOULDER, Slot.RIGHT_OUTER_SHOULDER)
-            for (slot in row) assertEquals("${panel.name}: $slot", 8 * panel.density, b.getValue(slot).top, 0.5f)
-            assertEquals(panel.name, row, row.sortedBy { b.getValue(it).cx })
+            assertEquals(panel.name, 8 * panel.density, b.getValue(Slot.VIEW).top, 0.5f)
             assertTrue(panel.name, b.getValue(Slot.MENU).bottom < b.getValue(Slot.L4).top)
-            assertTrue(panel.name, b.getValue(Slot.L4).bottom < b.getValue(Slot.LEFT_SECOND).top)
-            assertTrue(panel.name, b.getValue(Slot.LEFT_SECOND).bottom < b.getValue(Slot.LEFT_MAIN).top)
+            assertTrue(panel.name, b.getValue(Slot.L4).bottom < b.getValue(Slot.LEFT_OUTER_SHOULDER).top)
+            assertTrue(panel.name, b.getValue(Slot.LEFT_OUTER_SHOULDER).bottom < b.getValue(Slot.LEFT_SECOND).top)
         }
-    }
-
-    @Test fun aPortraitDockWithoutGripsGivesTheirRowToTheGamepad() {
-        for (panel in portraitPanels) {
-            val with = portraitBoxes(panel)
-            val without = GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, portraitDock = true, grips = false)
-            assertTrue(panel.name, grips.none { it in without })
-            assertTrue(panel.name, without.getValue(Slot.LEFT_SECOND).top < with.getValue(Slot.LEFT_SECOND).top)
-            assertTrue(panel.name, without.getValue(Slot.LEFT_SECOND).width >= with.getValue(Slot.LEFT_SECOND).width)
-        }
-    }
-
-    @Test fun aShorterPortraitDockStillGetsTheUprightLayout() {
-        val (w, h, density) = Triple(1080f, 1010f, 369 / 160f)
-        val b = GamepadGeometry.layout(w, h, density, portraitDock = true, grips = false)
-        assertEquals(8 * density, b.getValue(Slot.VIEW).top, 0.5f)
-        assertTrue(b.getValue(Slot.RIGHT_SECOND).width >= w * 0.3f)
     }
 
     @Test fun shortPanelsKeepTheExistingLayoutEvenWhenPortraitDockIsRequested() {
         for ((width, height, density) in listOf(Triple(1920f, 1080f, 2f), Triple(720f, 600f, 2.3f))) {
             assertEquals(GamepadGeometry.layout(width, height, density),
                 GamepadGeometry.layout(width, height, density, portraitDock = true))
-        }
-    }
-
-    @Test fun aPortraitDockWithTrackpadsPutsThemOutsideBothSticksWithoutOverlap() {
-        for (panel in portraitPanels) {
-            val b = GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, portraitDock = true, trackpads = true)
-            val row = listOf(Slot.LEFT_TOUCH, Slot.LEFT_MAIN, Slot.RIGHT_MAIN, Slot.RIGHT_TOUCH)
-            assertEquals(panel.name, row, row.sortedBy { b.getValue(it).cx })
-            val placed = b.entries.toList()
-            for (i in placed.indices) for (j in i + 1 until placed.size)
-                assertFalse("${panel.name}: ${placed[i].key} overlaps ${placed[j].key}", placed[i].value.overlaps(placed[j].value))
-            for ((slot, box) in b) assertTrue("${panel.name}: $slot", box.bottom <= panel.controlsHeight + .5f && box.right <= panel.width + .5f)
-        }
-    }
-
-    @Test fun landscapePanelsGiveTheGripsSlotsWithoutOverlap() {
-        for (panel in panels.filter { it.width > it.height }) {
-            val b = GamepadGeometry.layout(panel.width.toFloat(), panel.controlsHeight.toFloat(), panel.density, grips = true)
-            assertTrue(panel.name, grips.all { it in b })
-            val placed = b.entries.toList()
-            for (i in placed.indices) for (j in i + 1 until placed.size)
-                assertFalse("${panel.name}: ${placed[i].key} overlaps ${placed[j].key}", placed[i].value.overlaps(placed[j].value))
-            for ((slot, box) in b) assertTrue("${panel.name}: $slot", box.top >= -.5f && box.bottom <= panel.controlsHeight + .5f)
-        }
-    }
-
-    @Test fun gripsNeverOverlapTheClustersOnSmallTallPanels() {
-        for ((w, h) in listOf(360f to 296f, 480f to 300f, 640f to 420f, 900f to 520f)) {
-            val b = GamepadGeometry.layout(w, h, 1f, grips = true)
-            for (g in grips.filter { it in b }) for ((slot, box) in b) if (slot != g)
-                assertFalse("$w x $h: $g overlaps $slot", b.getValue(g).overlaps(box))
         }
     }
 }

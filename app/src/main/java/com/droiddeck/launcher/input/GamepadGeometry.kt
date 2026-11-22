@@ -9,7 +9,6 @@ object GamepadGeometry {
         VIEW, STEAM, QAM, MENU,
         PANELS,
         L4, L5, R5, R4,
-        LEFT_TOUCH, RIGHT_TOUCH,
     }
 
     data class Box(val cx: Float, val cy: Float, val width: Float, val height: Float) {
@@ -27,11 +26,10 @@ object GamepadGeometry {
 
     fun tall(w: Float, h: Float): Boolean = h >= w * 0.45f
 
-    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false, grips: Boolean = false, upright: Boolean = false,
-        trackpads: Boolean = false): Map<Slot, Box> {
+    fun layout(w: Float, h: Float, density: Float, portraitDock: Boolean = false): Map<Slot, Box> {
         if (w <= 0f || h <= 0f) return emptyMap()
-        if (upright || portraitDock && h >= w * 0.6f && w >= 300 * density && h >= 300 * density) {
-            return portraitLayout(w, h, density, grips, trackpads)
+        if (portraitDock && h >= w * 0.9f && w >= 300 * density && h >= 360 * density) {
+            return portraitLayout(w, h, density)
         }
         val pad = 8 * density
         val buttonH = 40 * density
@@ -72,7 +70,6 @@ object GamepadGeometry {
                 else -> 1
             }
             middleGrid(columns, gap - 2 * gutter, shoulderY - buttonH / 2f)
-            if (grips) gripsBetween(boxes, w, gap - 2 * gutter, boxes.values.maxOf { if (it.cx in (w - gap) / 2f..(w + gap) / 2f) it.bottom else 0f } + gutter, h - pad, density)
         } else {
             val side = min(min(w * 0.5f, h * 0.70f), (w - 2 * gridButton - 2 * gutter) / 1.42f)
             val main = side * 0.62f
@@ -88,75 +85,45 @@ object GamepadGeometry {
             val gap = w - 2 * (side * 0.40f + main / 2f)
             val columns = if (gap >= 2 * gridButton) 2 else 1
             val rows = (middle.size + columns - 1) / columns
-            val gridTop = h - pad - rows * buttonH - (rows - 1) * 10 * density
-            middleGrid(columns, gap - 2 * gutter, gridTop)
-            if (grips) gripsBetween(boxes, w, w - 2 * (side * 0.74f + second / 2f) - 2 * gutter, shoulderY + buttonH / 2f + gutter, gridTop - gutter, density)
+            middleGrid(columns, gap - 2 * gutter, h - pad - rows * buttonH - (rows - 1) * 10 * density)
             val panelsW = min(112 * density, w - 2 * (side * 0.57f + shoulderW / 2f) - 2 * gutter)
             if (panelsW >= buttonH) boxes[Slot.PANELS] = Box(w / 2f, shoulderY, panelsW, buttonH)
         }
         return boxes
     }
 
-    /** The back grips in the gap between a landscape panel's two clusters: one row of four, or two rows of two. */
-    private fun gripsBetween(boxes: MutableMap<Slot, Box>, w: Float, span: Float, top: Float, bottom: Float, density: Float) {
-        val gap = 8 * density
-        val minimum = 44 * density
-        val rows = if ((span - 3 * gap) / 4f >= minimum) 1 else if ((span - gap) / 2f >= minimum) 2 else return
-        val perRow = 4 / rows
-        val cellW = ((span - (perRow - 1) * gap) / perRow).coerceAtMost(96 * density)
-        val cellH = ((bottom - top - (rows - 1) * gap) / rows).coerceAtMost(64 * density)
-        if (cellH < minimum) return
-        for ((i, slot) in listOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4).withIndex()) {
-            val col = i % perRow; val row = i / perRow
-            boxes[slot] = Box(w / 2f + (col - (perRow - 1) / 2f) * (cellW + gap), bottom - (rows - 1 - row) * (cellH + gap) - cellH / 2f, cellW, cellH)
-        }
-    }
-
-    /**
-     * The panel under a portrait game: shoulders with View and Menu across the top, the back grips under them when the kit has
-     * them, then the d-pad and face buttons and, along the bottom edge, the sticks or trackpads, each as large as the panel allows.
-     */
-    private fun portraitLayout(w: Float, h: Float, density: Float, grips: Boolean, trackpads: Boolean): Map<Slot, Box> {
+    private fun portraitLayout(w: Float, h: Float, density: Float): Map<Slot, Box> {
         val pad = 8 * density
         val gap = 8 * density
         val buttonH = 44 * density
-        val boxes = LinkedHashMap<Slot, Box>()
-        val topGap = 4 * density
-        val topW = (w - 2 * pad - 5 * topGap) / 6f
-        val top = listOf(Slot.LEFT_OUTER_SHOULDER, Slot.LEFT_INNER_SHOULDER, Slot.VIEW, Slot.MENU, Slot.RIGHT_INNER_SHOULDER, Slot.RIGHT_OUTER_SHOULDER)
-        for ((i, slot) in top.withIndex()) boxes[slot] = Box(pad + topW / 2f + i * (topW + topGap), pad + buttonH / 2f, topW, buttonH)
-        var areaTop = pad + buttonH + gap
-        if (grips) {
-            val gripW = (w - 2 * pad - 3 * gap) / 4f
-            val gripH = min(56 * density, (h - areaTop) * 0.12f).coerceAtLeast(buttonH)
-            for ((i, slot) in listOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4).withIndex())
-                boxes[slot] = Box(pad + gripW / 2f + i * (gripW + gap), areaTop + gripH / 2f, gripW, gripH)
-            areaTop += gripH + gap
-        }
-        val area = h - pad - areaTop - gap
-        if (trackpads) {
-            val second = min(w * 0.42f, area * 0.5f)
-            val rowH = area - second
-            val col = (w - 2 * pad - 3 * gap) / 4f
-            val stick = min(col, rowH)
-            val rowY = h - pad - rowH / 2f
-            val secondY = areaTop + second / 2f
-            boxes[Slot.LEFT_SECOND] = Box(w * 0.25f, secondY, second, second)
-            boxes[Slot.RIGHT_SECOND] = Box(w * 0.75f, secondY, second, second)
-            boxes[Slot.LEFT_TOUCH] = Box(pad + col / 2f, rowY, col, rowH)
-            boxes[Slot.LEFT_MAIN] = Box(pad + col * 1.5f + gap, rowY, stick, stick)
-            boxes[Slot.RIGHT_MAIN] = Box(w - pad - col * 1.5f - gap, rowY, stick, stick)
-            boxes[Slot.RIGHT_TOUCH] = Box(w - pad - col / 2f, rowY, col, rowH)
-            return boxes
-        }
-        val main = min(w * 0.46f, area * 0.53f)
-        val second = min(w * 0.42f, area - main)
-        val secondY = areaTop + second / 2f
+        val scale = min(1f, (h - 2 * pad - 4 * gap - 3 * buttonH) / (w * 0.7f))
+        val main = w * 0.4f * scale
+        val second = w * 0.3f * scale
         val mainY = h - pad - main / 2f
-        boxes[Slot.LEFT_SECOND] = Box(w * 0.25f, secondY, second, second)
-        boxes[Slot.RIGHT_SECOND] = Box(w * 0.75f, secondY, second, second)
-        boxes[Slot.LEFT_MAIN] = Box(w * 0.25f, mainY, main, main)
-        boxes[Slot.RIGHT_MAIN] = Box(w * 0.75f, mainY, main, main)
+        val secondY = mainY - main / 2f - gap - second / 2f
+        val shoulderY = secondY - second / 2f - gap - buttonH / 2f
+        val boxes = linkedMapOf(
+            Slot.LEFT_MAIN to Box(w * 0.25f, mainY, main, main),
+            Slot.RIGHT_MAIN to Box(w * 0.75f, mainY, main, main),
+            Slot.LEFT_SECOND to Box(w * 0.25f, secondY, second, second),
+            Slot.RIGHT_SECOND to Box(w * 0.75f, secondY, second, second),
+        )
+        val utilityW = (w - 2 * pad - 3 * gap) / 4f
+        for ((i, slot) in middle.withIndex()) {
+            boxes[slot] = Box(pad + utilityW / 2f + i * (utilityW + gap), pad + buttonH / 2f, utilityW, buttonH)
+        }
+        val gripTop = pad + buttonH + gap
+        val gripH = min(64 * density, shoulderY - buttonH / 2f - gap - gripTop)
+        for ((i, slot) in listOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4).withIndex()) {
+            boxes[slot] = Box(pad + utilityW / 2f + i * (utilityW + gap), gripTop + gripH / 2f, utilityW, gripH)
+        }
+        val panelsW = min(112 * density, w * 0.22f)
+        val shoulderW = (w - 2 * pad - 4 * gap - panelsW) / 4f
+        boxes[Slot.PANELS] = Box(w / 2f, shoulderY, panelsW, buttonH)
+        boxes[Slot.LEFT_OUTER_SHOULDER] = Box(pad + shoulderW / 2f, shoulderY, shoulderW, buttonH)
+        boxes[Slot.LEFT_INNER_SHOULDER] = Box(pad + shoulderW * 1.5f + gap, shoulderY, shoulderW, buttonH)
+        boxes[Slot.RIGHT_INNER_SHOULDER] = Box(w - pad - shoulderW * 1.5f - gap, shoulderY, shoulderW, buttonH)
+        boxes[Slot.RIGHT_OUTER_SHOULDER] = Box(w - pad - shoulderW / 2f, shoulderY, shoulderW, buttonH)
         return boxes
     }
 }

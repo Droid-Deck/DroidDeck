@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">Inmatningsprofiler</string>
     <string name="input_profiles">Profiler</string>
     <string name="input_physical">Fysisk handkontroll</string>
     <string name="input_primary">Huvudskärm</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">Öppna Steam-menyn</string>
     <string name="input_command_qam">Öppna Steams snabbåtkomst</string>
     <string name="input_remove_element">Ta bort kontroll</string>
+    <string name="input_add_element">Lägg till kontroll</string>
     <string name="input_extra_keys">Enhetsspecifika knappar</string>
     <string name="input_capture">Tilldela en fysisk knapp</string>
     <string name="input_capture_confirm">Släpp knappen och välj Redigera, Försök igen eller Avbryt. B eller Tillbaka avbryter efter släpp.</string>

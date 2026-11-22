@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -1121,14 +1122,22 @@ internal fun ArtCard(
         }
         val showName = LibraryDisplay.title || hot
         val showDetail = LibraryDisplay.size || hot
-        if (showName || showDetail) Column(
-            verticalArrangement = Arrangement.spacedBy(1.dp),
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .background(Brush.verticalGradient(0f to Color.Transparent, 0.6f to Color.Black.copy(alpha = 0.78f), 1f to Color.Black.copy(alpha = 0.92f)))
-                .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = if (download != null) 14.dp else 6.dp),
-        ) {
-            if (showName) Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = if (hot) 2 else 1, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
-            if (showDetail) detail()
+        if (showName || showDetail) {
+            val top = with(androidx.compose.ui.platform.LocalDensity.current) { 20.dp.roundToPx() }
+            val bottom = with(androidx.compose.ui.platform.LocalDensity.current) { (if (download != null) 14.dp else 6.dp).roundToPx() }
+            Column(
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .background(Brush.verticalGradient(0f to Color.Transparent, 0.6f to Color.Black.copy(alpha = 0.78f), 1f to Color.Black.copy(alpha = 0.92f)))
+                    .layout { measurable, constraints ->
+                        val inner = measurable.measure(constraints)
+                        if (inner.height == 0) layout(inner.width, 0) {} else layout(inner.width, inner.height + top + bottom) { inner.place(0, top) }
+                    }
+                    .padding(horizontal = 8.dp),
+            ) {
+                if (showName) Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = if (hot) 2 else 1, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
+                if (showDetail) detail()
+            }
         }
         if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(start = 6.dp, end = 6.dp, bottom = 5.dp)) {
             ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)

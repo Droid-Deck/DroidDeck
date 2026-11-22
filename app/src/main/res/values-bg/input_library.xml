@@ -75,9 +75,14 @@
     <string name="input_independent_copy">Независимо копие</string>
     <string name="input_floating_stick">Стартиране на стика от точката на докосване</string>
     <string name="input_hide_idle">Скриване на стика, когато не се използва</string>
+    <string name="input_tools">Инструменти</string>
+    <string name="input_quick_auto">Автоматично (%1$s)</string>
+    <string name="input_quick_mixed">Персонализирано (%1$s)</string>
     <string name="input_save_combination">Запазване като нов профил</string>
     <string name="input_profile_controls_mode">Управление на профила</string>
+    <string name="input_profile">Профил</string>
     <string name="input_mouse_gestures">Жестове на тъчпада на мишката</string>
+    <string name="input_mouse_gestures_hint">Когато е зададено на показалеца на мишката: докоснете за щракване, задръжте за плъзгане и превъртайте с два пръста.</string>
     <string name="input_quick_override_hint">%1$s има замяна на бързото меню. Изберете Автоматично, за да използвате профила по подразбиране и трите запазени части.</string>
     <string name="input_route_local">Вход на DroidDeck</string>
     <string name="input_axis_action_hint" formatted="false">Задържа се, докато стикът е отместен в която и да е посока: натиска при над 55%, отпуска под 35%. Използвайте Клавиши за посока, за да зададете всяка посока отделно. Командите на DroidDeck се изпълняват веднъж на отклонение. Щракването на стика се настройва отделно.</string>
@@ -99,11 +104,17 @@
     <string name="input_shortcut_hold_hint">В режим Steam. Задържането на Назад отваря и бързия достъп.</string>
     <string name="input_restore_shortcut">Връщане към подразбирането</string>
     <string name="input_virtual_controller">Виртуален контролер</string>
+    <string name="input_virtual_controller_hint">Типът контролер, който Steam или играта виждат.</string>
     <string name="input_touchscreen">Сензорен екран</string>
+    <string name="input_touchscreen_hint">Как се обработват докосванията на екрана на играта. Бутоните на профила запазват зададените си действия.</string>
     <string name="input_touch_cursor">Курсор за докосване</string>
+    <string name="input_touch_cursor_hint">Показва показалец за директни докосвания на екрана на играта.</string>
     <string name="input_touch_hold">Докосване и задържане</string>
+    <string name="input_touch_hold_hint">Действие на мишката при задържане на пръст на екрана на играта.</string>
     <string name="input_back_taps">Докосвания на бутона Назад</string>
+    <string name="input_back_taps_hint">Първо действие: едно докосване. Второ действие: двойно докосване.</string>
     <string name="input_toggle_button">Превключващ бутон</string>
+    <string name="input_toggle_button_hint">Докоснете за задържане, докоснете отново за освобождаване. Отваряне на меню или смяна на профил освобождава бутона.</string>
     <string name="input_button_shape">Форма</string>
     <string name="input_shape_rounded">Заоблена</string>
     <string name="input_shape_pill">Капсула</string>

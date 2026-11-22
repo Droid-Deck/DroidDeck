@@ -66,6 +66,15 @@ class DumpParsingTest(unittest.TestCase):
     def test_the_bottom_home_is_the_visible_home_on_another_display(self):
         self.assertEqual((2, "rip.moth.cocoonshell"), ab.bottom_home(ACTIVITIES, 0))
 
+    def test_android_13_activity_records_are_counted(self):
+        self.assertEqual(1, ab.session_count(
+            "    * Hist  #1: ActivityRecord{e1ec207 u0 com.droiddeck.launcher/.SessionActivity} t14519}\n"))
+
+    def test_the_visible_app_stands_in_when_no_home_is_on_the_other_display(self):
+        dump = ("Display #4 (activities from top to bottom):\n"
+                "  * Task{21f60d6 #14493 type=standard A=10113:com.discord U=0 visible=true visibleRequested=true mode=fullscreen}\n")
+        self.assertEqual((4, "com.discord"), ab.bottom_home(dump, 0))
+
     def test_no_bottom_home_without_another_display(self):
         self.assertIsNone(ab.bottom_home(ACTIVITIES.split("\n\n")[1], 0))
 
@@ -78,6 +87,25 @@ class DumpParsingTest(unittest.TestCase):
         self.assertEqual((1920, 1080), ab.logical_size(DISPLAYS, 0))
         self.assertEqual((1280, 960), ab.logical_size(DISPLAYS, 2))
         self.assertIsNone(ab.logical_size(DISPLAYS, 5))
+
+
+class HogScriptTest(unittest.TestCase):
+    def test_both_modes_start_the_fill_counter(self):
+        script = ab.HOG.splitlines()
+        counter = next(n for n, line in enumerate(script) if line.startswith("i=0"))
+        self.assertLess(counter, script.index('if [ "$mode" = burst ]; then'))
+        self.assertLess(counter, next(n for n, line in enumerate(script) if line.startswith("while [ $i -lt 512 ]")))
+
+
+    def test_a_failed_write_never_reports_released(self):
+        script = ab.HOG.splitlines()
+        check = script.index('[ "$failed" = 0 ] || { echo "write failed"; cleanup; exit 1; }')
+        self.assertLess(check, script.index("echo released"))
+        self.assertIn("failed=1", ab.HOG.split("echo released")[0])
+
+    def test_a_burst_takes_the_remainder_below_one_chunk(self):
+        self.assertIn("rest=$((take % 256))", ab.HOG)
+        self.assertIn('echo "nothing to take"', ab.HOG)
 
 
 class SummaryTest(unittest.TestCase):

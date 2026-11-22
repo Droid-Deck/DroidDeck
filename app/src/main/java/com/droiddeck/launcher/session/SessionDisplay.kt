@@ -12,6 +12,9 @@ object SessionDisplay {
     const val FOLLOW_SCALE_MAX = 8f
     private const val FOLLOW_SCALED_PREFIX = "follow/"
 
+    const val LINK_LANDSCAPE = "link/landscape"
+    const val LINK_PORTRAIT = "link/portrait"
+
     const val DEFAULT_RESOLUTION = "720p"
     private val PRESET_HEIGHTS = listOf(720, 900, 1080)
 
@@ -33,6 +36,23 @@ object SessionDisplay {
         choice == FOLLOW_SCREEN -> 1f
         choice.startsWith(FOLLOW_SCALED_PREFIX) -> parseFollowScale(choice.removePrefix(FOLLOW_SCALED_PREFIX))
         else -> null
+    }
+
+    fun isLink(choice: String): Boolean = choice == LINK_LANDSCAPE || choice == LINK_PORTRAIT
+
+    fun orientCustom(choice: String, portrait: Boolean): String {
+        val parts = choice.split('x').map { it.toIntOrNull() }
+        if (parts.size != 2 || parts.any { it == null || it <= 0 }) return choice
+        val width = parts[0]!!
+        val height = parts[1]!!
+        return if ((portrait && width > height) || (!portrait && height > width)) "${height}x$width" else choice
+    }
+
+    fun effectiveChoice(landscape: String, portrait: String, forPortrait: Boolean): String {
+        val own = if (forPortrait) portrait else landscape
+        if (!isLink(own)) return own
+        val other = if (forPortrait) landscape else portrait
+        return if (isLink(other)) DEFAULT_RESOLUTION else orientCustom(other, forPortrait)
     }
 
     fun screenSize(panel: Pair<Int, Int>): Pair<Int, Int> =
@@ -69,18 +89,12 @@ object SessionDisplay {
 
     const val UNFOLDED_MIN_DP = 600
 
-    /**
-     * The game's share of a screen with the controls below it, at the game's [aspect] across the full width. A tab row under the bar
-     * comes out of the controls while they keep [UNFOLDED_MIN_CONTROLS_SHARE] of the screen, and out of the game otherwise.
-     */
-    fun unfoldedGameHeight(width: Int, height: Int, tabRow: Int = 0, aspect: Float = 16f / 9f): Int {
-        val game = minOf((width / aspect.coerceAtLeast(.5f)).toInt(), (height * UNFOLDED_MAX_GAME_SHARE).toInt())
-        val tabs = tabRow.coerceAtLeast(0)
-        val roomy = height - game - tabs >= height * UNFOLDED_MIN_CONTROLS_SHARE
-        return (if (roomy) game else game - tabs).coerceAtLeast(0) and 1.inv()
+    fun unfoldedGameHeight(width: Int, height: Int, tabRow: Int = 0, aspect: Float = 0f): Int {
+        val row = tabRow.coerceAtLeast(0)
+        val cap = (height * UNFOLDED_MAX_GAME_SHARE).toInt()
+        if (aspect > 0f && aspect < 16f / 9f) return minOf((width / aspect).toInt(), cap - row).coerceAtLeast(0) and 1.inv()
+        return (minOf(width * 9 / 16, cap) - row).coerceAtLeast(0) and 1.inv()
     }
-
-    const val UNFOLDED_MIN_CONTROLS_SHARE = .45f
 
     fun unfoldedControlsWanted(
         enabled: Boolean,
