@@ -1341,8 +1341,9 @@ def cpuid_values(raw):
             "cpuEcx": "%08x" % regs[1][2], "cpuBrand": brand}
 
 
-EA_PROBE_FIELDS = ("boardManufacturer", "biosManufacturer", "osInstallDate", "osSerial", "volumeSerial", "hostname",
-                   "cpuVendor", "cpuEax", "cpuEdx", "cpuEcx")
+EA_CPU_FIELDS = ("cpuVendor", "cpuEax", "cpuEdx", "cpuEcx")
+EA_PROBE_FIELDS = ("boardManufacturer", "biosManufacturer", "osInstallDate", "osSerial", "volumeSerial",
+                   "hostname") + EA_CPU_FIELDS
 
 
 EA_CPU64 = "cpu64"
@@ -1350,8 +1351,8 @@ EA_RUNTIME = "runtime"
 EA_RUNTIME_FILES = ("version", "files/lib/wine/aarch64-windows/libarm64ecfex.dll", "files/lib/wine/aarch64-windows/libwow64fex.dll")
 
 
-def probe_complete(values):
-    return all(str(values.get(key) or "").strip() for key in EA_PROBE_FIELDS)
+def probe_complete(values, fields=EA_PROBE_FIELDS):
+    return all(str(values.get(key) or "").strip() for key in fields)
 
 
 def runtime_stamp(proton):
@@ -1438,7 +1439,7 @@ def ea_hardware(compat_data, proton, timeout=240):
         wide = read_cpuid(folder / "cpuid64.bin")
         if wide:
             values[EA_CPU64] = wide
-    if probe_complete(values):
+    if probe_complete(values) and probe_complete(values.get(EA_CPU64, {}), EA_CPU_FIELDS):
         values[EA_RUNTIME] = runtime
         try:
             cache.write_text(json.dumps(values))

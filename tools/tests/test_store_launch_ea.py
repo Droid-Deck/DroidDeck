@@ -38,6 +38,31 @@ def called_imports(exe):
     return exe[raw(dll):].split(b'\0')[0], called
 
 
+PROBE_NARROW = bytes.fromhex('1600000047656e756e74656c696e654961060a00000805000f23d882fffb8b27436f727465782d4135323000000000000000000000000000000000000000000000000000000000000000000000000000')
+PROBE_WIDE = bytearray(PROBE_NARROW)
+PROBE_WIDE[16 + 8:16 + 12] = bytes.fromhex('0f33d8be')
+
+
+def fake_probe(wide):
+    def run(argv, **kwargs):
+        bat = Path(argv[-1][2:].replace('\\', '/'))
+        for line in bat.read_text().splitlines():
+            found = re.search(r'"?([^"]*)"? > "([^"]*)"$', line)
+            if not found:
+                continue
+            source, out = found.group(1), Path(found.group(2)[2:].replace('\\', '/'))
+            if source.endswith('cpuid64.exe'):
+                if wide is not None:
+                    out.write_bytes(wide)
+            elif source.endswith('cpuid.exe'):
+                out.write_bytes(PROBE_NARROW)
+            elif source.startswith('vol'):
+                out.write_text(' Volume Serial Number is 1A2B-3C4D\r\n')
+            else:
+                out.write_text('Header\r\nvalue\r\n')
+    return run
+
+
 class EaHook(unittest.TestCase):
     def test_wmi_output_reads_the_value_under_the_header(self):
         text = 'Manufacturer  \r\r\nThe Wine Project  \r\r\n\r\r\n'
@@ -189,33 +214,13 @@ class EaHook(unittest.TestCase):
             self.assertNotEqual(store.runtime_stamp(str(proton)), runtime)
 
     def test_the_probe_records_both_bitnesses_and_the_runtime(self):
-        narrow = bytes.fromhex('1600000047656e756e74656c696e654961060a00000805000f23d882fffb8b27436f727465782d4135323000000000000000000000000000000000000000000000000000000000000000000000000000')
-        wide = bytearray(narrow)
-        wide[16 + 8:16 + 12] = bytes.fromhex('0f33d8be')
         with tempfile.TemporaryDirectory() as tmp:
             proton = Path(tmp) / 'tool/proton'
             proton.parent.mkdir()
             proton.write_text('')
             compat = Path(tmp) / 'compat'
             (compat / 'pfx').mkdir(parents=True)
-
-            def fake_run(argv, **kwargs):
-                bat = Path(argv[-1][2:].replace('\\', '/'))
-                for line in bat.read_text().splitlines():
-                    found = re.search(r'"?([^"]*)"? > "([^"]*)"$', line)
-                    if not found:
-                        continue
-                    source, out = found.group(1), Path(found.group(2)[2:].replace('\\', '/'))
-                    if source.endswith('cpuid64.exe'):
-                        out.write_bytes(bytes(wide))
-                    elif source.endswith('cpuid.exe'):
-                        out.write_bytes(narrow)
-                    elif source.startswith('vol'):
-                        out.write_text(' Volume Serial Number is 1A2B-3C4D\r\n')
-                    else:
-                        out.write_text('Header\r\nvalue\r\n')
-
-            with patch.object(store.subprocess, 'run', side_effect=fake_run):
+            with patch.object(store.subprocess, 'run', side_effect=fake_probe(bytes(PROBE_WIDE))):
                 values, how = store.ea_hardware(str(compat), str(proton))
             self.assertEqual(how, 'probed')
             self.assertEqual(values['cpuEcx'], '82d8230f')
@@ -223,6 +228,33 @@ class EaHook(unittest.TestCase):
             self.assertEqual(values['volumeSerial'], '1a2b3c4d')
             self.assertEqual(values['runtime'], store.runtime_stamp(str(proton)))
             self.assertEqual(json.loads((compat / 'pfx' / store.EA_HARDWARE).read_text()), values)
+
+    def test_a_failed_64_bit_probe_keeps_the_old_cache_and_is_retried(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton = Path(tmp) / 'tool/proton'
+            proton.parent.mkdir()
+            proton.write_text('')
+            compat = Path(tmp) / 'compat'
+            (compat / 'pfx').mkdir(parents=True)
+            cache = compat / 'pfx' / store.EA_HARDWARE
+            for wide in (None, PROBE_NARROW[:40]):
+                with patch.object(store.subprocess, 'run', side_effect=fake_probe(wide)):
+                    values, how = store.ea_hardware(str(compat), str(proton))
+                self.assertEqual(how, 'incomplete')
+                self.assertEqual(values['cpuEcx'], '82d8230f')
+                self.assertNotIn('cpu64', values)
+                self.assertNotIn('runtime', values)
+                self.assertFalse(cache.exists())
+            stale = dict({key: 'x' for key in store.EA_PROBE_FIELDS}, cpu64={'cpuEcx': 'bed8330f'}, runtime='old')
+            cache.write_text(json.dumps(stale))
+            with patch.object(store.subprocess, 'run', side_effect=fake_probe(None)):
+                self.assertEqual(store.ea_hardware(str(compat), str(proton)), (stale, 'incomplete'))
+            self.assertEqual(json.loads(cache.read_text()), stale)
+            with patch.object(store.subprocess, 'run', side_effect=fake_probe(bytes(PROBE_WIDE))):
+                values, how = store.ea_hardware(str(compat), str(proton))
+            self.assertEqual(how, 'probed')
+            self.assertEqual(values['cpu64']['cpuEcx'], 'bed8330f')
+            self.assertEqual(json.loads(cache.read_text()), values)
 
     def test_origin_stub_is_a_windowless_program_installed_once(self):
         import struct
