@@ -211,6 +211,7 @@ internal fun PrimaryButton(
     val pal = LocalPalette.current
     val pillMode = LocalPillButtons.current
     val btnShape = if (pillMode) CircleShape else Shape12
+    val outlined = LocalGradientOutline.current && enabled
     val frontFocus = if (main) LocalFrontFocus.current else null
     if (frontFocus != null) DisposableEffect(Unit) {
         frontFocus.primaryAttached++
@@ -234,6 +235,7 @@ internal fun PrimaryButton(
             .clip(btnShape)
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
             .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, btnShape))
+            .then(if (outlined) Modifier.border(2.dp, Brush.linearGradient(listOf(pal.primary2, colors.primary)), btnShape) else Modifier)
             .glideBorder(hot, btnShape, pal.signal, hotFillAlpha = 0f)
             .hoverable(src).clickable(role = Role.Button, interactionSource = src, indication = null, enabled = enabled) {
                 placed[0]?.takeIf { it.isAttached }?.let { LaunchOrigin.mark(it.boundsInRoot(), placed) }
