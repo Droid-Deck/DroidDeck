@@ -8,6 +8,7 @@ import android.util.Log
 import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.NativeGuest
 import java.io.File
 import java.util.Locale
 import org.json.JSONArray
@@ -27,19 +28,26 @@ object ProtonExtras {
     @Volatile
     private var replacing = false
 
-    class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex)
+    class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex,
+               val prereleases: Boolean = false)
 
     internal data class Asset(val tag: String, val name: String, val url: String, val sha512: String?, val size: Long,
                              val sha256: String? = null, val releaseName: String = tag)
     internal data class ReleaseFetch(val releases: JSONArray, val complete: Boolean)
 
     const val OWN = "droiddeck"
+    const val BIONIC = "bionic"
 
     val tools = listOf(
         Tool("ge", "GE-Proton", "GE-Proton", "GloriousEggroll/proton-ge-custom", Regex("aarch64\\.tar\\.(gz|xz)$")),
         Tool("cachyos", "proton-cachyos", "proton-cachyos", "CachyOS/proton-cachyos", Regex("arm64\\.tar\\.(gz|xz)$")),
-        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "Droid-Deck/DroidDeck-Proton", Regex("aarch64\\.tar\\.(gz|xz)$")),
+        Tool("droiddeck", "DroidDeck-Proton", "DroidDeck-Proton", "Droid-Deck/DroidDeck-Proton", Regex("^DroidDeck-Proton-.*aarch64\\.tar\\.(gz|xz)$")),
+        // Bionic (Android libc) Proton started outside the Linux userland; test builds are prereleases. No-proot only.
+        Tool(BIONIC, "DroidDeck-Bionic", "DroidDeck-Bionic", "Droid-Deck/DroidDeck-Proton", Regex("^DroidDeck-Bionic-.*aarch64\\.tar\\.(gz|xz)$"), prereleases = true),
     )
+
+    /** The sources offered on this device: DroidDeck-Bionic only with Run without proot on. */
+    fun offered(context: Context): List<Tool> = tools.filter { it.id != BIONIC || NativeGuest.enabled(context) }
 
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")
     private fun requests(context: Context) = File(home(context), ".dd-proton-extra")
@@ -115,10 +123,11 @@ object ProtonExtras {
     private var lastAttempt = 0L
 
     fun checkLatest(context: Context, force: Boolean = false, now: Long = System.currentTimeMillis()): Boolean {
+        keepBionicCurrent(context)
         synchronized(checkLock) {
             val file = latestFile(context)
             val cache = readJson(file)
-            val due = tools.filter { tool ->
+            val due = offered(context).filter { tool ->
                 val at = cache.optJSONObject(tool.id)?.optLong("at", 0L) ?: 0L
                 force || (now - at) !in 0 until CHECK_EVERY_MS
             }
@@ -168,13 +177,30 @@ object ProtonExtras {
 
     fun remove(context: Context, tool: Tool, dir: String? = null) {
         val name = if (dir != null) dir.takeIf { it in installedAll(context, tool) } ?: return else installed(context, tool) ?: return
-        if (File(toolsDir(context), name).deleteRecursively()) ComponentsManager.forgetProton(context, name)
+        if (deleteTool(context, name)) ComponentsManager.forgetProton(context, name)
+    }
+
+    // A tool folder can hold links that point out of it (a prefix template's dosdevices/z: -> /), and
+    // File.deleteRecursively() follows links into directories: remove each link itself, never what it points to.
+    private fun deleteTool(context: Context, name: String): Boolean {
+        val dir = File(toolsDir(context), name)
+        FileUtils.delete(dir)
+        return !dir.exists() && !java.nio.file.Files.isSymbolicLink(dir.toPath())
     }
 
     fun removeOlder(context: Context, tool: Tool) {
         installedAll(context, tool).dropLast(1).forEach {
-            if (File(toolsDir(context), it).deleteRecursively()) ComponentsManager.forgetProton(context, it)
+            if (deleteTool(context, it)) ComponentsManager.forgetProton(context, it)
         }
+    }
+
+    // DroidDeck-Bionic: the default and the game picks name the installed build, also when they were left on one an
+    // older app deleted without moving them.
+    private fun keepBionicCurrent(context: Context) {
+        if (SessionState.running) return
+        val tool = tools.firstOrNull { it.id == BIONIC } ?: return
+        val newest = installedAll(context, tool).lastOrNull() ?: return
+        runCatching { ProtonDefault.keepBionicCurrent(context, tool.prefix, newest) }.onFailure { Log.w(TAG, "bionic default and picks", it) }
     }
 
     private fun replaceOlder(context: Context, tool: Tool) {
@@ -189,7 +215,9 @@ object ProtonExtras {
                 if (runCatching { ComponentsManager.carryOver(context, old, newest) }.onFailure { Log.w(TAG, "components of $old", it) }.isFailure) continue
                 if (runCatching { keepUserSettings(context, old, newest) }.onFailure { Log.w(TAG, "user settings of $old", it) }.isFailure) continue
                 if (runCatching { ProtonDefault.moveGames(context, setOf(old), newest) }.onFailure { Log.w(TAG, "per-game picks of $old", it) }.isFailure) continue
-                if (File(toolsDir(context), old).deleteRecursively()) ComponentsManager.forgetProton(context, old)
+                // DroidDeck-Bionic only: the guest finds no default for a deleted Bionic build and falls back to DroidDeck-Proton
+                if (tool.id == BIONIC && runCatching { ProtonDefault.moveDefault(context, setOf(old), newest) }.onFailure { Log.w(TAG, "default pick of $old", it) }.isFailure) continue
+                if (deleteTool(context, old)) ComponentsManager.forgetProton(context, old)
                 else Log.w(TAG, "could not remove $old")
             }
         } finally {
@@ -308,7 +336,7 @@ object ProtonExtras {
                 archive.delete()
                 unqueue(context, tool)
                 record(context, tool, placed, asset.tag)
-                if (tool.id == OWN) replaceOlder(context, tool)
+                if (tool.id == OWN || tool.id == BIONIC) replaceOlder(context, tool)
                 if (EsyncPacks.enabled(context)) {
                     onProgress(context.getString(R.string.esync_fetching), -1)
                     try {
@@ -393,7 +421,7 @@ object ProtonExtras {
     internal fun pickAsset(tool: Tool, array: JSONArray): Asset? {
         val candidates = (0 until array.length()).asSequence()
             .mapNotNull { array.optJSONObject(it) }
-            .filter { !it.optBoolean("draft", false) && !it.optBoolean("prerelease", false) }
+            .filter { !it.optBoolean("draft", false) && (tool.prereleases || !it.optBoolean("prerelease", false)) }
         return candidates.firstNotNullOfOrNull { assetOf(tool, it) }
     }
 

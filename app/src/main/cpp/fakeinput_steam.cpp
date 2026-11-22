@@ -205,6 +205,11 @@ static void controller_fork_prepare();
 static void controller_fork_parent();
 static void controller_fork_child();
 
+// bionic: libc's own start-up calls hooked functions (access) before environ is set. Settings read
+// then would be empty and cached for good, so until environ exists hooks see defaults, uncached.
+extern "C" char **environ;
+static bool env_ready() { return environ != nullptr; }
+
 struct FakeConfig {
   const char *hook_dir;
   const char *udev_data_dir;
@@ -218,6 +223,10 @@ struct FakeConfig {
 // would throw a recursive-init error there, so the fields are filled without allocating, and a
 // reentry on the initializing thread gets them while other threads wait for the fork handlers.
 static FakeConfig &config() {
+  if (!env_ready()) {
+    static FakeConfig early = {"/data/data/com.termux/files/home/fake-input", nullptr, false, false, false};
+    return early;
+  }
   static FakeConfig cfg;
   static std::atomic<int> state{0};
   static __thread bool initializing __attribute__((tls_model("initial-exec")));
@@ -587,7 +596,7 @@ get_fake_input_rdev(const char *event) {
 
 __attribute__((visibility("hidden"))) static void load_ring_paths() {
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
-  if (ring_paths_loaded)
+  if (ring_paths_loaded || !env_ready())
     return;
 
   const char *spec = getenv("FAKE_EVDEV_MEMFD_PATHS");
@@ -807,8 +816,21 @@ __attribute__((visibility("hidden"))) static bool is_steam_client() {
 __attribute__((visibility("hidden"))) static bool presents_steam_virtual() {
   static int known;
   if (known == 0) {
+    if (!env_ready()) return false;
     const char *enabled = getenv("FAKE_EVDEV_STEAM_VIRTUAL");
     known = enabled && atoi(enabled) && !is_steam_client() ? 1 : -1;
+  }
+  return known == 1;
+}
+
+// The bionic Proton layer's winebus has no udev bus, and its SDL bus skips 28de:11ff (Proton reads Steam's virtual
+// pad through udev/evdev), so with FAKE_EVDEV_STEAM_PAD_AS_X360=1 other processes see that pad as a plain Xbox 360 pad.
+__attribute__((visibility("hidden"))) static bool steam_pad_as_x360() {
+  static int known;
+  if (known == 0) {
+    if (!env_ready()) return false;
+    const char *v = getenv("FAKE_EVDEV_STEAM_PAD_AS_X360");
+    known = v && atoi(v) && !is_steam_client() ? 1 : -1;
   }
   return known == 1;
 }
@@ -1391,6 +1413,7 @@ static std::unordered_map<int, std::shared_ptr<DeckHidraw>> &deck_map() {
 
 static bool fake_deck_enabled() {
   static int enabled = -1;
+  if (enabled < 0 && !env_ready()) return false;
   if (enabled < 0) enabled = getenv("FAKE_EVDEV_DECK") && atoi(getenv("FAKE_EVDEV_DECK")) ? 1 : 0;
   return enabled == 1;
 }
@@ -1398,6 +1421,7 @@ static bool fake_deck_enabled() {
 __attribute__((visibility("hidden"))) static uint32_t session_pad_type() {
   static int type = -1;
   if (type < 0) {
+    if (!env_ready()) return PAD_TYPE_DECK;
     const char *env = getenv("FAKE_EVDEV_PAD_TYPE");
     type = env && !strcmp(env, "steamcontroller") ? PAD_TYPE_STEAM
          : env && !strcmp(env, "xbox360") ? PAD_TYPE_XBOX
@@ -1470,6 +1494,7 @@ __attribute__((visibility("hidden"))) static uint64_t monotonic_us() {
 
 static bool fake_triton_enabled() {
   static int enabled = -1;
+  if (enabled < 0 && !env_ready()) return false;
   if (enabled < 0)
     enabled = fake_deck_enabled() && getenv("FAKE_EVDEV_TRITON") && atoi(getenv("FAKE_EVDEV_TRITON")) ? 1 : 0;
   return enabled == 1;
@@ -2091,6 +2116,7 @@ static_assert(sizeof(TouchRingFile) <= TOUCH_RING_SIZE, "TouchRingFile layout");
 
 __attribute__((visibility("hidden"))) static TouchRingFile *touch_ring() {
   static TouchRingFile *ring = nullptr;
+  if (!env_ready()) return nullptr;
   static std::once_flag once;
   std::call_once(once, [] {
     const char *path = getenv("FAKE_TOUCHCTL_RING");
@@ -2434,6 +2460,7 @@ __attribute__((constructor)) static void start_touch_controller() {
 static constexpr long SYSFS_FS_MAGIC = 0x62656572;
 
 __attribute__((visibility("hidden"))) static const char *deck_listing_dir() {
+  if (!env_ready()) return nullptr;
   static const char *dir = getenv("FAKE_DECK_SYSFS_LISTING");
   return dir && *dir ? dir : nullptr;
 }
@@ -3689,6 +3716,10 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     id.bustype = 0x03;
     if (made) {
       id = made->id;
+      if (steam_pad_as_x360() && id.vendor == STEAM_VIRTUAL_VENDOR_ID && id.product == STEAM_VIRTUAL_PRODUCT_ID) {
+        id.vendor = X360_VENDOR_ID;
+        id.product = X360_PRODUCT_ID;
+      }
     } else if (presents_steam_virtual()) {
       id.vendor = STEAM_VIRTUAL_VENDOR_ID;
       id.product = STEAM_VIRTUAL_PRODUCT_ID;

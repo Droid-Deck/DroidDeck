@@ -1,0 +1,86 @@
+#!/bin/bash
+# DroidDeck-Bionic: a Steam compatibility tool that runs Windows games on the bionic (Android libc) Proton layer
+# under files/, outside the Linux userland. Steam calls it inside DroidDeck's no-proot guest; it turns guest paths
+# into Android paths and hands over to bionic/launch.sh, an Android /system/bin/sh script.
+# Verbs: run/waitforexitandrun (start the game), runinprefix (run a program in the prefix), getcompatpath/
+# getnativepath (path conversion); the rest are accepted and ignored.
+set -u
+verb=${1:-}
+[ $# -gt 0 ] && shift
+
+if [ -z "${DDNATV_ROOT:-}" ]; then
+  echo "DroidDeck-Bionic needs Settings > Run without proot" >&2
+  exit 1
+fi
+
+# guest path -> Android path: the longest no-proot bind whose guest side starts the path, else inside the rootfs
+real() {
+  local p="$1" best="" host="" b g h
+  local -a binds
+  IFS='|' read -r -a binds <<< "${DDNATV_BINDS:-}"
+  for b in "${binds[@]}"; do
+    h="${b%%:*}"; g="${b#*:}"
+    case "$p" in "$g"|"$g"/*) [ ${#g} -gt ${#best} ] && { best="$g"; host="$h"; } ;; esac
+  done
+  if [ -n "$best" ]; then echo "$host${p#"$best"}"; return; fi
+  case "$p" in /data/*|/storage/*|/sdcard/*|/system/*|/apex/*|/vendor/*) echo "$p" ;; *) echo "$DDNATV_ROOT$p" ;; esac
+}
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+tool=$(real "$here")
+compat=$(real "${STEAM_COMPAT_DATA_PATH:-$HOME/.local/share/Steam/steamapps/compatdata/0}")
+
+case "$verb" in
+  run|waitforexitandrun|runinprefix)
+    [ $# -gt 0 ] || exit 0
+    # A Windows path (DroidDeck's Xbox launch names the game on a drive letter of its own) or a bare program name
+    # (DroidDeck's store steps run cmd.exe, which Wine finds in system32) goes to Wine unchanged.
+    case "$1" in
+      [A-Za-z]:[\\/]*) exe=$1 ;;
+      /*) exe=$(real "$1") ;;
+      */*) exe=$(real "$PWD/$1") ;;
+      *) exe=$1 ;;
+    esac
+    shift
+    export DROIDDECK_BIONIC_ROOT="$DDNATV_ROOT"
+    # The Xbox runtime's DLC and mount folders come as Z: paths of the guest; this Wine sees the Android side.
+    zreal() {
+      local out="" part p
+      local -a parts
+      IFS=';' read -r -a parts <<< "$1"
+      for part in "${parts[@]}"; do
+        case "$part" in [Zz]:\\*) p=${part:2}; p=$(real "${p//\\//}"); part="Z:${p//\//\\}" ;; esac
+        out="${out:+$out;}$part"
+      done
+      echo "$out"
+    }
+    for v in XODUS_MOUNT_ROOT XODUS_CONTENT_ROOTS; do
+      [ -n "${!v:-}" ] && { printf -v "$v" '%s' "$(zreal "${!v}")"; export "${v?}"; }
+    done
+    # The HUD's GPU-load folder is a guest path; the bionic game writes to it by its Android path.
+    [ -n "${DROIDDECK_GPU_LOAD_DIR:-}" ] && { DROIDDECK_GPU_LOAD_DIR=$(real "$DROIDDECK_GPU_LOAD_DIR"); export DROIDDECK_GPU_LOAD_DIR; }
+    # DroidDeck's game environment (shared entries and this game's), already applied by droiddeck-game-env: the
+    # names launch.sh keeps when it drops the rest of the guest environment.
+    DROIDDECK_BIONIC_KEEP=$(python3 - "${STEAM_COMPAT_DATA_PATH:-}" 2>/dev/null <<'PY'
+import json, os, re, sys
+try:
+    config = json.load(open(os.path.expanduser("~/.config/droiddeck/game-environment.json"), encoding="utf-8"))
+except (OSError, ValueError):
+    sys.exit(0)
+scope = os.path.basename(sys.argv[1].rstrip("/"))
+names = set((config.get("shared") or {}).keys())
+if re.fullmatch(r"[1-9][0-9]{0,9}", scope):
+    names |= set(((config.get("games") or {}).get(scope) or {}).keys())
+print(" ".join(sorted(n for n in names if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", n) and n in os.environ)))
+PY
+)
+    export DROIDDECK_BIONIC_KEEP
+    exec /system/bin/sh "$tool/bionic/launch.sh" "$verb" "$compat" "$exe" "$@" ;;
+  getcompatpath)
+    p=$(real "${1:-}")
+    printf 'Z:%s\n' "${p//\//\\}" ;;
+  getnativepath)
+    p=${1:-}; p=${p#[Zz]:}; p=${p//\\//}
+    echo "$p" ;;
+  *) exit 0 ;;
+esac
