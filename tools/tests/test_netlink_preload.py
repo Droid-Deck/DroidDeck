@@ -96,10 +96,17 @@ FILE *fopen(const char *path, const char *mode) {
 }
 
 static int denied(const char *path) {
-    const char *prefix = getenv("NETLINK_TEST_DENIED");
-    if (!prefix || !path || strncmp(path, prefix, strlen(prefix))) return 0;
-    errno = EACCES;
-    return 1;
+    const char *prefixes = getenv("NETLINK_TEST_DENIED");
+    if (!prefixes || !path) return 0;
+    for (const char *prefix = prefixes; *prefix;) {
+        size_t length = strcspn(prefix, ":");
+        if (length && !strncmp(path, prefix, length)) {
+            errno = EACCES;
+            return 1;
+        }
+        prefix += length + (prefix[length] == ':');
+    }
+    return 0;
 }
 
 int open(const char *path, int flags, ...) {
@@ -110,6 +117,12 @@ int open(const char *path, int flags, ...) {
     mode_t mode = va_arg(ap, mode_t);
     va_end(ap);
     return denied(path) ? -1 : real(path, flags, mode);
+}
+
+int __open_2(const char *path, int flags) {
+    static int (*real)(const char *, int);
+    if (!real) real = dlsym(RTLD_NEXT, "__open_2");
+    return denied(path) ? -1 : real(path, flags);
 }
 
 int openat(int dirfd, const char *path, int flags, ...) {
@@ -167,7 +180,7 @@ static int route_socket(void) {
     return descriptor;
 }
 
-static void proc_net_test(int denied) {
+static void proc_net_test(int denied, int sealed) {
     static const char *const tables[] = {"/proc/net/tcp", "/proc/net/tcp6", "/proc/net/udp", "/proc/net/udp6"};
     char text[512], target[128], link[64];
     for (unsigned i = 0; i < sizeof(tables) / sizeof(tables[0]); i++) {
@@ -180,8 +193,13 @@ static void proc_net_test(int denied) {
         target[length] = 0;
         require((strncmp(target, "/memfd:droiddeck-net", 20) == 0) == denied, "synthesized only when denied");
         if (denied) {
-            require((fcntl(descriptor, F_GETFL) & O_ACCMODE) == O_RDONLY, "socket table is read-only");
-            require(write(descriptor, "x", 1) < 0 && errno == EBADF, "socket table rejects writes");
+            if (sealed) {
+                require(fcntl(descriptor, F_GET_SEALS) & F_SEAL_WRITE, "socket table is sealed");
+                require(write(descriptor, "x", 1) < 0 && errno == EPERM, "sealed socket table rejects writes");
+            } else {
+                require((fcntl(descriptor, F_GETFL) & O_ACCMODE) == O_RDONLY, "socket table is read-only");
+                require(write(descriptor, "x", 1) < 0 && errno == EBADF, "socket table rejects writes");
+            }
             ssize_t total = read(descriptor, text, sizeof(text) - 1);
             require(total > 0, "socket table read");
             text[total] = 0;
@@ -1191,7 +1209,7 @@ int main(int argc, char **argv) {
     }
     else if (!strcmp(argv[1], "range") || !strcmp(argv[1], "cloexec") || !strcmp(argv[1], "closefrom"))
         close_range_test(argv[1]);
-    else if (!strcmp(argv[1], "proc_net")) proc_net_test(argc > 2 && !strcmp(argv[2], "denied"));
+    else if (!strcmp(argv[1], "proc_net")) proc_net_test(argc > 2 && strcmp(argv[2], "allowed"), argc > 2 && !strcmp(argv[2], "sealed"));
     else if (!strcmp(argv[1], "route")) {
         require(argc >= 3, "route destination");
         route_test(argv[2]);
@@ -1366,6 +1384,9 @@ class NetlinkPreloadTest(unittest.TestCase):
 
     def test_denied_socket_tables_open_as_empty_tables(self):
         self.run_program("proc_net", "denied", denied="/proc/net/")
+
+    def test_denied_socket_tables_open_when_fd_reopen_is_denied(self):
+        self.run_program("proc_net", "sealed", denied="/proc/net/:/proc/self/fd/")
 
     def test_readable_socket_tables_stay_real(self):
         self.run_program("proc_net")
