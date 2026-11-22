@@ -154,7 +154,7 @@ new file mode 100755
 index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1198 @@
+@@ -0,0 +1,1285 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -1119,15 +1119,30 @@ index 0000000..d43c5fc
 +        .map_err(|error| format!("Could not list the package folder: {error}"))?
 +        .filter_map(Result::ok)
 +    {
-+        let target = destination.join(entry.file_name());
-+        if target.exists() {
-+            if !updating {
-+                return Err(format!("Extraction would overwrite {}", target.display()));
-+            }
-+            let replaced = if target.is_dir() {
-+                std::fs::remove_dir_all(&target)
++        let name = entry.file_name();
++        let target = destination.join(&name);
++        let metadata = is_package_metadata(&name);
++        // The bundle may have written its copy of a packaging file in other letter casing.
++        let existing: Vec<PathBuf> = if metadata {
++            std::fs::read_dir(destination)
++                .map_err(|error| format!("Could not list the game folder: {error}"))?
++                .filter_map(Result::ok)
++                .filter(|other| other.file_name().eq_ignore_ascii_case(&name))
++                .map(|other| other.path())
++                .collect()
++        } else if target.exists() {
++            vec![target.clone()]
++        } else {
++            Vec::new()
++        };
++        if !existing.is_empty() && !updating && !metadata {
++            return Err(format!("Extraction would overwrite {}", target.display()));
++        }
++        for old in existing {
++            let replaced = if old.is_dir() {
++                std::fs::remove_dir_all(&old)
 +            } else {
-+                std::fs::remove_file(&target)
++                std::fs::remove_file(&old)
 +            };
 +            replaced.map_err(|error| format!("Could not replace an installed file: {error}"))?;
 +        }
@@ -1136,6 +1151,14 @@ index 0000000..d43c5fc
 +    }
 +    std::fs::remove_dir(&inner).map_err(|error| format!("Could not remove the package folder: {error}"))?;
 +    Ok(())
++}
++
++/// Files a package container carries about itself. A bundle leaves its own copies at
++/// the top of the game folder, so the lifted package's copies replace them.
++fn is_package_metadata(name: &std::ffi::OsStr) -> bool {
++    ["AppxBlockMap.xml", "AppxSignature.p7x", "[Content_Types].xml", "AppxMetadata"]
++        .iter()
++        .any(|known| name.eq_ignore_ascii_case(known))
 +}
 +
 +/// Folders below [root] that carry a manifest, at the depth a nested bundle can
@@ -1257,6 +1280,70 @@ index 0000000..d43c5fc
 +        assert_eq!(std::fs::read(root.join("ForzaHorizon4.exe")).unwrap(), b"new");
 +        assert!(root.join("Content").join("pack.bin").is_file());
 +        assert!(!inner.exists());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn hoist_replaces_the_bundles_own_packaging_files() {
++        // Halo Wars: Definitive Edition: the bundle leaves AppxBlockmap.xml at the top and
++        // its one package folder has its own.
++        let root = scratch("bundle-metadata");
++        std::fs::write(root.join("AppxBlockmap.xml"), b"bundle").unwrap();
++        std::fs::write(root.join("AppxSignature.p7x"), b"bundle").unwrap();
++        std::fs::create_dir_all(root.join("AppxMetadata")).unwrap();
++        std::fs::write(root.join("AppxMetadata").join("AppxBundleManifest.xml"), b"bundle").unwrap();
++        let inner = root.join("Bulldog");
++        std::fs::create_dir_all(&inner).unwrap();
++        std::fs::write(inner.join("AppxBlockmap.xml"), b"package").unwrap();
++        std::fs::write(inner.join("AppxSignature.p7x"), b"package").unwrap();
++        std::fs::create_dir_all(inner.join("AppxMetadata")).unwrap();
++        std::fs::write(inner.join("AppxMetadata").join("CodeIntegrity.cat"), b"package").unwrap();
++        std::fs::write(inner.join(LEGACY_MANIFEST), "<Package/>").unwrap();
++        std::fs::write(inner.join("xgameFinal.exe"), b"MZ").unwrap();
++
++        hoist(&root).unwrap();
++
++        assert!(root.join(LEGACY_MANIFEST).is_file());
++        assert!(root.join("xgameFinal.exe").is_file());
++        assert_eq!(std::fs::read(root.join("AppxBlockmap.xml")).unwrap(), b"package");
++        assert_eq!(std::fs::read(root.join("AppxSignature.p7x")).unwrap(), b"package");
++        // The package's AppxMetadata replaces the bundle's whole; nothing of the bundle's is merged in.
++        assert_eq!(std::fs::read(root.join("AppxMetadata").join("CodeIntegrity.cat")).unwrap(), b"package");
++        assert!(!root.join("AppxMetadata").join("AppxBundleManifest.xml").exists());
++        assert!(!inner.exists());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn hoist_replaces_a_packaging_file_the_bundle_wrote_in_other_casing() {
++        let root = scratch("metadata-casing");
++        std::fs::write(root.join("AppxBlockmap.xml"), b"bundle").unwrap();
++        let inner = root.join("Game");
++        std::fs::create_dir_all(&inner).unwrap();
++        std::fs::write(inner.join("AppxBlockMap.xml"), b"package").unwrap();
++        std::fs::write(inner.join(LEGACY_MANIFEST), "<Package/>").unwrap();
++
++        hoist(&root).unwrap();
++
++        let maps: Vec<_> = std::fs::read_dir(&root).unwrap().filter_map(Result::ok)
++            .filter(|entry| entry.file_name().eq_ignore_ascii_case("AppxBlockMap.xml"))
++            .collect();
++        assert_eq!(maps.len(), 1, "the bundle's copy is gone on a case-sensitive filesystem too");
++        assert_eq!(std::fs::read(maps[0].path()).unwrap(), b"package");
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn hoist_still_refuses_to_overwrite_a_game_file_on_a_fresh_install() {
++        let root = scratch("fresh-collision");
++        std::fs::write(root.join("Game.exe"), b"other").unwrap();
++        let inner = root.join("Game");
++        std::fs::create_dir_all(&inner).unwrap();
++        std::fs::write(inner.join(LEGACY_MANIFEST), "<Package/>").unwrap();
++        std::fs::write(inner.join("Game.exe"), b"MZ").unwrap();
++
++        assert!(hoist(&root).unwrap_err().contains("would overwrite"));
++        assert_eq!(std::fs::read(root.join("Game.exe")).unwrap(), b"other");
 +        std::fs::remove_dir_all(&root).ok();
 +    }
 +
