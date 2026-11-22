@@ -4330,7 +4330,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             ?: if (SessionState.gameOnBottom) bottomGameDisplay()?.displayId else null
         SessionState.secondScreenAutoOpened = true
         if (gameDisplay != null && gameDisplay != target.displayId && secondScreenDisplays.any { it.id == gameDisplay }) {
-            panelMode(openingPanel())
+            panelMode(openingSurface())
         } else {
             val selectionChanged = selectedSecondScreenDisplay != target.displayId
             selectedSecondScreenDisplay = target.displayId
@@ -4349,14 +4349,43 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun openingPanel() = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this, desktopSession), SessionState.deckPad,
-        bottomPages().isNotEmpty(), com.droiddeck.launcher.session.BottomDesktop.available(), desktopSession)
+        bottomPages().isNotEmpty(), com.droiddeck.launcher.session.BottomDesktop.available())
+
+    private fun openingSurface() = openingPanel().takeIf { it != SecondScreenMode.MENU } ?: SecondScreenMode.KEYBOARD_TRACKPAD
+
+    private fun menuShownOnBottom() = drawerDocked && (drawerOpen || drawerPinned)
+
+    private fun pinDockedMenu() {
+        if (!dockDrawer()) return
+        drawerLayerOpen = false
+        if (!openDockedMenu()) return
+        drawerDocked = true
+        drawerOpenState = false
+        drawerPinned = true
+        updateKeyboardRoute()
+    }
+
+    private fun showMenuMode() {
+        dualControlsProvisional = false
+        selectSecondScreenMode(secondScreenMode.takeIf { it != SecondScreenMode.NONE } ?: SecondScreenMode.KEYBOARD_TRACKPAD)
+        if (secondScreenMode != SecondScreenMode.NONE) pinDockedMenu()
+    }
+
+    private fun pickMenuMode() {
+        typingReturnMode = null
+        automaticPanel = false
+        SessionPrefs.setSecondScreenPanel(this, desktopSession, SecondScreenMode.MENU.id)
+        drawerOpen = true
+    }
 
     private fun settleDualScreenControls() {
         if (!dualControlsProvisional || pipUi || !started || (::loading.isInitialized && loading.visible)) return
         dualControlsProvisional = false
         if (secondScreenMode == SecondScreenMode.NONE) return
         val wanted = openingPanel()
-        if (wanted != secondScreenMode) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
+        if (wanted == SecondScreenMode.MENU) {
+            if (!menuShownOnBottom()) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
+        } else if (wanted != secondScreenMode) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
@@ -4377,6 +4406,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             closeSecondScreen(reset = true)
             return
         }
+        if (mode == SecondScreenMode.MENU) {
+            showMenuMode()
+            return
+        }
         if (secondScreenDisplays.isEmpty()) {
             panelMode(SecondScreenMode.NONE)
             return
@@ -4393,7 +4426,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun showSecondScreen(requested: SecondScreenMode) {
         if (pipUi || !started) return
-        val mode = if (requested == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad) openingPanel() else requested
+        val mode = when {
+            requested == SecondScreenMode.MENU ->
+                secondScreenMode.takeIf { it != SecondScreenMode.NONE && it != SecondScreenMode.MENU } ?: SecondScreenMode.KEYBOARD_TRACKPAD
+            requested == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad -> openingSurface()
+            else -> requested
+        }
         val target = displayManager.getDisplay(selectedSecondScreenDisplay)
         if (target == null || !target.isValid || (target.flags and Display.FLAG_PRESENTATION) == 0) {
             closeSecondScreen(reset = false)
@@ -4437,7 +4475,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun bottomScreenPicker(mode: SecondScreenMode) = com.droiddeck.launcher.ui.ScreenPicker(
         com.droiddeck.launcher.ui.secondScreenModes(false, SessionState.deckPad, bottomPages().isNotEmpty(),
             com.droiddeck.launcher.session.BottomDesktop.available()),
-        mode, ::pickSecondScreenMode, onMenu = { drawerOpen = true },
+        mode, ::pickSecondScreenMode, onMenu = ::pickMenuMode,
     )
 
     private fun secondScreenPresentation(target: Display) = SecondScreenPresentation(
