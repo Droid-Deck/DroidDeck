@@ -4078,7 +4078,6 @@
     <string name="addons_sort_downloads">Mais baixados</string>
     <string name="addons_category_all">Todas as categorias</string>
     <string name="addons_none_found">Nenhum addon encontrado</string>
-    <string name="addons_curse_session">Inicie uma sessão para usar o CurseForge</string>
     <string name="addons_curse_busy">Feche o CurseForge primeiro</string>
     <string name="addons_unreachable">Não foi possível acessar %1$s</string>
     <string name="addons_no_file">Não há arquivo para esta versão do jogo</string>

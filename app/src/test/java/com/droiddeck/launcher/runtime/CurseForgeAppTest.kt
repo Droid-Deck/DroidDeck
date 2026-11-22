@@ -86,7 +86,11 @@ class CurseForgeAppTest {
         assertEquals("forever", CurseForgeApp.instanceFor(instances, "/root/Games/WoW/_forever_", "retail"))
         assertEquals("retail", CurseForgeApp.instanceFor(instances, "/root/Games/WoW/_retail_", null))
         assertNull(CurseForgeApp.instanceFor(instances, "/root/Games/WoW/_classic_", "retail"))
+        val single = JSONArray("""[{"guid":"retail","installPath":"/root/Games/WoW/_retail_/"}]""")
+        assertNull(CurseForgeApp.instanceFor(single, "/root/Games/WoW/_classic_", "retail"))
+        assertEquals("retail", CurseForgeApp.instanceFor(single, "/root/Games/WoW/_retail_", "other"))
         assertEquals("only", CurseForgeApp.instanceFor(JSONArray(), "/x/_forever_", "only"))
+        assertEquals("only", CurseForgeApp.instanceFor(null, "/x/_forever_", "only"))
         assertNull(CurseForgeApp.instanceFor(JSONArray(), "/x/_forever_", ""))
     }
 
@@ -122,6 +126,16 @@ class CurseForgeAppTest {
         assertEquals(CurseForgeApp.Start.BUSY, CurseForgeApp.startState(3))
         assertEquals(CurseForgeApp.Start.NO_DISPLAY, CurseForgeApp.startState(4))
         assertEquals(CurseForgeApp.Start.FAILED, CurseForgeApp.startState(5))
+    }
+
+    @Test
+    fun onlyASecretInspectorUrlIsTaken() {
+        val url = "ws://127.0.0.1:43117/0f8fad5b-d9cb-469f-a165-70867728950e"
+        assertEquals(url, CurseForgeApp.inspectorUrl("noise\n$url\n"))
+        assertNull(CurseForgeApp.inspectorUrl("ready\n"))
+        assertNull(CurseForgeApp.inspectorUrl("ws://127.0.0.1:9229/\n"))
+        assertNull(CurseForgeApp.inspectorUrl("ws://10.0.0.2:43117/0f8fad5b-d9cb-469f-a165-70867728950e"))
+        assertNull(CurseForgeApp.inspectorUrl("$url/json"))
     }
 
     @Test

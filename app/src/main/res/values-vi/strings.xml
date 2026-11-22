@@ -3987,7 +3987,6 @@
     <string name="addons_sort_downloads">Tải nhiều nhất</string>
     <string name="addons_category_all">Tất cả danh mục</string>
     <string name="addons_none_found">Không tìm thấy addon</string>
-    <string name="addons_curse_session">Hãy bắt đầu một phiên để dùng CurseForge</string>
     <string name="addons_curse_busy">Hãy đóng CurseForge trước</string>
     <string name="addons_unreachable">Không thể kết nối tới %1$s</string>
     <string name="addons_no_file">Không có tệp cho phiên bản trò chơi này</string>

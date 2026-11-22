@@ -4017,7 +4017,6 @@
     <string name="addons_sort_downloads">Най-изтегляни</string>
     <string name="addons_category_all">Всички категории</string>
     <string name="addons_none_found">Няма намерени добавки</string>
-    <string name="addons_curse_session">Стартирайте сесия, за да използвате CurseForge</string>
     <string name="addons_curse_busy">Първо затворете CurseForge</string>
     <string name="addons_unreachable">Няма връзка с %1$s</string>
     <string name="addons_no_file">Няма файл за тази версия на играта</string>

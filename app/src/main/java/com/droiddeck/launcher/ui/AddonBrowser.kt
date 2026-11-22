@@ -67,6 +67,7 @@ import com.droiddeck.launcher.runtime.CurseForgeApp
 import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.runtime.WowAddonCatalog
 import com.droiddeck.launcher.runtime.WowAddons
+import com.droiddeck.launcher.session.BackgroundSession
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import kotlinx.coroutines.Dispatchers
@@ -90,30 +91,77 @@ private enum class AddonSource { WOWI, CURSE }
 private class CurseState(val notice: Int? = null) : Exception()
 
 private class CurseLink(val app: UserApps.App) {
-    @Volatile var started = false
-    @Volatile var held = false
-    val guids = java.util.concurrent.ConcurrentHashMap<String, String>()
+    class Linked(val inspector: String, val guid: String)
 
-    @Synchronized
-    fun guid(context: Context, target: WowAddons.Target): String {
-        if (!SessionState.running) throw CurseState(R.string.addons_curse_session)
+    private val lock = Object()
+    @Volatile private var closed = false
+    private var held = false
+    private var ownSession = false
+    private var started = false
+    @Volatile private var launching = false
+    @Volatile private var inspector: String? = null
+    private val guids = HashMap<String, String>()
+
+    fun guid(context: Context, target: WowAddons.Target): Linked {
+        synchronized(lock) { return link(context, target) }
+    }
+
+    private fun link(context: Context, target: WowAddons.Target): Linked {
+        if (closed) throw CurseState()
+        if (!SessionState.running) {
+            started = false
+            launching = false
+            held = false
+            inspector = null
+            guids.clear()
+            val args = CurseForgeApp.holdArgs(app) ?: throw CurseState()
+            if (!BackgroundSession.start(context, CurseForgeApp.HELPER, args)) throw CurseState()
+            ownSession = true
+        }
+        if (closed) throw CurseState()
         if (!held) {
             held = true
             SessionService.holdForSignIn(context, true)
         }
         val awake = System.currentTimeMillis() + 30_000
         while ((SessionState.suspended || SessionState.suspending) && System.currentTimeMillis() < awake) Thread.sleep(250)
-        if (!started) {
-            when (CurseForgeApp.start(context, app)) {
-                CurseForgeApp.Start.READY -> started = true
+        val url = inspector ?: run {
+            launching = true
+            val done = CurseForgeApp.start(context, app)
+            when (done.state) {
+                CurseForgeApp.Start.READY -> {
+                    started = true
+                    inspector = done.inspector
+                    done.inspector ?: throw CurseState()
+                }
                 CurseForgeApp.Start.BUSY -> throw CurseState(R.string.addons_curse_busy)
                 else -> throw CurseState()
             }
         }
-        guids[target.addOns.path]?.let { return it }
+        if (closed) throw CurseState()
+        guids[target.addOns.path]?.let { return Linked(url, it) }
         val root = WowAddons.root(target)?.let { AddedGames.guestPath(context, it) } ?: throw CurseState()
         val flavor = WowAddons.flavorDir(target)?.let { AddedGames.guestPath(context, it) } ?: throw CurseState()
-        return CurseForgeApp.instance(context, root, flavor).also { guids[target.addOns.path] = it }
+        val guid = CurseForgeApp.instance(context, url, root, flavor)
+        guids[target.addOns.path] = guid
+        return Linked(url, guid)
+    }
+
+    fun close(context: Context) {
+        closed = true
+        Thread {
+            if (launching) CurseForgeApp.stop(context, app, inspector)
+            synchronized(lock) {
+                if (started) CurseForgeApp.stop(context, app, inspector)
+                if (ownSession) BackgroundSession.stop(context)
+                else if (held) SessionService.holdForSignIn(context, false)
+                started = false
+                launching = false
+                ownSession = false
+                held = false
+                inspector = null
+            }
+        }.start()
     }
 }
 
@@ -133,14 +181,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     val curse = if (source == AddonSource.CURSE) curseForge else null
     val link = remember(curseForge?.key) { curseForge?.let(::CurseLink) }
     DisposableEffect(link) {
-        onDispose {
-            link?.takeIf { it.started || it.held }?.let { done ->
-                Thread {
-                    if (done.started) CurseForgeApp.stop(context, done.app)
-                    if (done.held) SessionService.holdForSignIn(context, false)
-                }.start()
-            }
-        }
+        onDispose { link?.close(context) }
     }
     var notice by remember { mutableStateOf<Int?>(null) }
     var curseInstalls by remember { mutableIntStateOf(0) }
@@ -153,7 +194,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     val present by produceState(emptyMap<String, String?>(), target.addOns, WowAddons.imports, curse, curseInstalls, results.items.isEmpty()) {
         val into = target
         value = withContext(Dispatchers.IO) {
-            if (curse != null && link != null) runCatching { CurseForgeApp.installed(context, link.guid(context, into)).associateWith { null } }.getOrDefault(emptyMap())
+            if (curse != null && link != null) runCatching { link.guid(context, into).let { CurseForgeApp.installed(context, it.inspector, it.guid) }.associateWith { null } }.getOrDefault(emptyMap())
             else WowAddons.details(into).mapNotNull { item -> item.wowiId?.let { it to item.version } }.toMap()
         }
     }
@@ -176,7 +217,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         scope.launch {
             val got = withContext(Dispatchers.IO) {
                 runCatching {
-                    if (via != null) CurseForgeApp.search(context, via.guid(context, into), words, order, page)
+                    if (via != null) via.guid(context, into).let { CurseForgeApp.search(context, it.inspector, it.guid, words, order, page) }
                     else WowAddonCatalog.search(context, WowAddonCatalog.Query(words, cat, WowAddonCatalog.client(into), order), page)
                 }
             }
@@ -202,7 +243,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
             val into = target
             installing[key] = 0
             scope.launch {
-                val done = withContext(Dispatchers.IO) { runCatching { CurseForgeApp.install(context, via.guid(context, into), addon.id) } }
+                val done = withContext(Dispatchers.IO) { runCatching { via.guid(context, into).let { CurseForgeApp.install(context, it.inspector, it.guid, addon.id) } } }
                 installing.remove(key)
                 val ok = done.getOrNull() == true
                 if (ok) {

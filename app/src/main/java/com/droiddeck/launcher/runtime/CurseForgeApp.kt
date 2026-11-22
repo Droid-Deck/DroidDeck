@@ -10,13 +10,16 @@ import java.time.Instant
 object CurseForgeApp {
     const val NAME = "CurseForge"
     const val FEED = "https://curseforge.overwolf.com/electron/linux/latest-linux.yml"
-    internal const val PORT = 9229
     internal const val WOW = 1
-    private const val HELPER = "/usr/local/bin/droiddeck-curseforge"
+    const val HELPER = "/usr/local/bin/droiddeck-curseforge"
     private const val READY_MS = 120_000L
     private const val INSTALL_MS = 300_000L
 
     enum class Start { READY, BUSY, NO_DISPLAY, FAILED }
+
+    class Started(val state: Start, val inspector: String? = null)
+
+    private val INSPECTOR = Regex("ws://127\\.0\\.0\\.1:[0-9]{4,5}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
     class Failure(message: String) : Exception(message)
 
@@ -25,6 +28,10 @@ object CurseForgeApp {
     fun request(): UserApps.Request = UserApps.Request(UserApps.Source.Feed(FEED), NAME, null)
 
     internal fun dir(app: UserApps.App): String? = app.args.firstOrNull()?.takeIf { it.startsWith("/") }
+
+    fun holdArgs(app: UserApps.App): List<String>? = dir(app)?.let { listOf("hold", it) }
+
+    internal fun inspectorUrl(stdout: String): String? = stdout.lineSequence().map { it.trim() }.lastOrNull { INSPECTOR.matches(it) }
 
     internal fun startState(exitCode: Int): Start = when (exitCode) {
         0 -> Start.READY
@@ -119,7 +126,8 @@ object CurseForgeApp {
             (0 until all.length()).mapNotNull { all.optJSONObject(it) }
                 .firstOrNull { samePath(it.optString("installPath"), flavorDir) }?.optString("guid")
         }
-        return match?.takeIf { it.isNotBlank() } ?: detected?.takeIf { it.isNotBlank() && (list == null || list.length() <= 1) }
+        if (list != null && list.length() > 0) return match?.takeIf { it.isNotBlank() }
+        return detected?.takeIf { it.isNotBlank() }
     }
 
     internal fun projectIds(value: Any?): Set<String> {
@@ -127,65 +135,75 @@ object CurseForgeApp {
         return (0 until list.length()).mapNotNull { list.opt(it)?.toString()?.takeIf { id -> id.isNotBlank() && id != "null" } }.toSet()
     }
 
-    private fun call(context: Context, service: String, method: String, args: JSONArray?, timeoutMs: Long, pick: String = "r => r"): Any? {
-        val request = JSONObject().put("kind", "cdp").put("port", PORT).put("targetType", "node").put("commandLineApi", true)
+    private fun call(context: Context, inspector: String, service: String, method: String, args: JSONArray?, timeoutMs: Long, pick: String = "r => r"): Any? {
+        val request = JSONObject().put("kind", "cdp").put("inspector", inspector).put("commandLineApi", true)
             .put("expression", expression(service, method, args, pick)).put("timeout", timeoutMs / 1000.0)
         return unwrap(AgentGuest.call(context, request, timeoutMs + 3_000, trusted = true))
     }
 
-    fun start(context: Context, app: UserApps.App): Start {
-        val dir = dir(app) ?: return Start.FAILED
-        val request = JSONObject().put("kind", "exec").put("argv", JSONArray(listOf(HELPER, "start", dir, PORT.toString())))
-            .put("timeout", 90.0)
-        val answer = runCatching { AgentGuest.call(context, request, 95_000, trusted = true) }.getOrNull() ?: return Start.FAILED
-        if (!answer.optBoolean("ok") || answer.optBoolean("timedOut")) return Start.FAILED
+    private fun helper(context: Context, command: String, dir: String, timeoutMs: Long): JSONObject? {
+        val request = JSONObject().put("kind", "exec").put("argv", JSONArray(listOf(HELPER, command, dir))).put("timeout", timeoutMs / 1000.0)
+        return runCatching { AgentGuest.call(context, request, timeoutMs + 5_000, trusted = true) }.getOrNull()
+    }
+
+    fun start(context: Context, app: UserApps.App): Started {
+        val dir = dir(app) ?: return Started(Start.FAILED)
+        val answer = helper(context, "start", dir, 90_000)
+        if (answer == null || !answer.optBoolean("ok") || answer.optBoolean("timedOut")) {
+            stop(context, app, null)
+            return Started(Start.FAILED)
+        }
         val state = startState(answer.optInt("exitCode", -1))
-        if (state != Start.READY) return state
+        if (state == Start.BUSY || state == Start.NO_DISPLAY) return Started(state)
+        val inspector = inspectorUrl(answer.optJSONObject("stdout")?.optString("text").orEmpty())
+        if (state != Start.READY || inspector == null) {
+            stop(context, app, null)
+            return Started(Start.FAILED)
+        }
         val deadline = System.currentTimeMillis() + READY_MS
         while (System.currentTimeMillis() < deadline) {
-            val ready = runCatching { call(context, "InstalledProjectsAppService", "installAddon", null, 10_000) }
-            if (ready.isSuccess) return Start.READY
+            val ready = runCatching { call(context, inspector, "InstalledProjectsAppService", "installAddon", null, 10_000) }
+            if (ready.isSuccess) return Started(Start.READY, inspector)
             val error = ready.exceptionOrNull()
-            if (error is AgentException && error.code == "NO_ACTIVE_SESSION") return Start.FAILED
+            if (error is AgentException && error.code == "NO_ACTIVE_SESSION") break
             Thread.sleep(1_000)
         }
-        return Start.FAILED
+        stop(context, app, inspector)
+        return Started(Start.FAILED)
     }
 
-    fun stop(context: Context, app: UserApps.App) {
+    fun stop(context: Context, app: UserApps.App, inspector: String?) {
         val dir = dir(app) ?: return
-        runCatching { call(context, "CoreService", "shutdown", JSONArray(), 30_000, "r => true") }
-        val request = JSONObject().put("kind", "exec").put("argv", JSONArray(listOf(HELPER, "stop", dir, PORT.toString())))
-            .put("timeout", 30.0)
-        runCatching { AgentGuest.call(context, request, 35_000, trusted = true) }
+        if (inspector != null) runCatching { call(context, inspector, "CoreService", "shutdown", JSONArray(), 30_000, "r => true") }
+        helper(context, "stop", dir, 30_000)
     }
 
-    private fun connect(context: Context) {
-        call(context, "CoreService", "connect", JSONArray(), 120_000, "r => true")
+    private fun connect(context: Context, inspector: String) {
+        call(context, inspector, "CoreService", "connect", JSONArray(), 120_000, "r => true")
     }
 
-    fun instance(context: Context, root: String, flavorDir: String): String {
-        connect(context)
-        val detected = call(context, "GameDetectionAppService", "detectGameFromPath", JSONArray().put(root).put(WOW), 60_000) as? JSONObject
-        val instances = call(context, "GameAppService", "getGameInstances", JSONArray().put(WOW), 30_000,
+    fun instance(context: Context, inspector: String, root: String, flavorDir: String): String {
+        connect(context, inspector)
+        val detected = call(context, inspector, "GameDetectionAppService", "detectGameFromPath", JSONArray().put(root).put(WOW), 60_000) as? JSONObject
+        val instances = call(context, inspector, "GameAppService", "getGameInstances", JSONArray().put(WOW), 30_000,
             "r => (r || []).map(i => ({ guid: i.guid, installPath: i.installPath }))")
         return instanceFor(instances, flavorDir, detected?.optString("gameInstanceGuid")) ?: throw Failure("CurseForge did not find $flavorDir")
     }
 
-    fun search(context: Context, guid: String, text: String, sort: WowAddonCatalog.Sort, page: Int): WowAddonCatalog.Page =
-        parseSearch(call(context, "ProjectAppService", "search", JSONArray().put(searchRequest(guid, text, sort, page)), 60_000))
+    fun search(context: Context, inspector: String, guid: String, text: String, sort: WowAddonCatalog.Sort, page: Int): WowAddonCatalog.Page =
+        parseSearch(call(context, inspector, "ProjectAppService", "search", JSONArray().put(searchRequest(guid, text, sort, page)), 60_000))
 
-    fun installed(context: Context, guid: String): Set<String> {
-        connect(context)
-        return projectIds(call(context, "InstalledProjectsAppService", "getProjects", JSONArray().put(guid), 30_000, "r => (r || []).map(p => String(p.id))"))
+    fun installed(context: Context, inspector: String, guid: String): Set<String> {
+        connect(context, inspector)
+        return projectIds(call(context, inspector, "InstalledProjectsAppService", "getProjects", JSONArray().put(guid), 30_000, "r => (r || []).map(p => String(p.id))"))
     }
 
-    fun install(context: Context, guid: String, projectId: String): Boolean {
-        connect(context)
-        if (call(context, "InstalledProjectsAppService", "installAddon", JSONArray().put(installRequest(guid, projectId)), 300_000) != true) return false
+    fun install(context: Context, inspector: String, guid: String, projectId: String): Boolean {
+        connect(context, inspector)
+        if (call(context, inspector, "InstalledProjectsAppService", "installAddon", JSONArray().put(installRequest(guid, projectId)), 300_000) != true) return false
         val deadline = System.currentTimeMillis() + INSTALL_MS
         while (System.currentTimeMillis() < deadline) {
-            if (projectId in installed(context, guid)) return true
+            if (projectId in installed(context, inspector, guid)) return true
             Thread.sleep(1_000)
         }
         return false

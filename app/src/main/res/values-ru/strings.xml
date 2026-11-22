@@ -4097,7 +4097,6 @@
     <string name="addons_sort_downloads">Самые скачиваемые</string>
     <string name="addons_category_all">Все категории</string>
     <string name="addons_none_found">Аддоны не найдены</string>
-    <string name="addons_curse_session">Запустите сеанс, чтобы пользоваться CurseForge</string>
     <string name="addons_curse_busy">Сначала закройте CurseForge</string>
     <string name="addons_unreachable">Не удалось подключиться к %1$s</string>
     <string name="addons_no_file">Нет файла для этой версии игры</string>

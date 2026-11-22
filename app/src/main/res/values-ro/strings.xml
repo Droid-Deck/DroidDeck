@@ -4057,7 +4057,6 @@
     <string name="addons_sort_downloads">Cele mai descărcate</string>
     <string name="addons_category_all">Toate categoriile</string>
     <string name="addons_none_found">Nu s-au găsit suplimente</string>
-    <string name="addons_curse_session">Pornește o sesiune pentru a folosi CurseForge</string>
     <string name="addons_curse_busy">Închide mai întâi CurseForge</string>
     <string name="addons_unreachable">Nu s-a putut accesa %1$s</string>
     <string name="addons_no_file">Nu există fișier pentru această versiune a jocului</string>
