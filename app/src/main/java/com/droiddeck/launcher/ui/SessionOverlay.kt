@@ -632,11 +632,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 ) {
                     DrawerBumper("LB", stringResource(R.string.drawer_prev_page), modifier = focus.track(page, "prev")) {
-                        host.open = null; onPageChange(pages.step(page, -1))
+                        host.open = null; onPageChange(pages.strip().step(pages.tabFor(page), -1))
                     }
                     DrawerPageTabs(page = pages.tabFor(page), pages = pages.strip(), compact = true, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
-                        host.open = null; onPageChange(pages.step(page, 1))
+                        host.open = null; onPageChange(pages.strip().step(pages.tabFor(page), 1))
                     }
                 }
                 if (insideMore && !managing) DrawerMoreBack(stringResource(page.title), focus.track(page, "more-back")) { host.open = null; onPageChange(SessionDrawerPage.MORE) }
