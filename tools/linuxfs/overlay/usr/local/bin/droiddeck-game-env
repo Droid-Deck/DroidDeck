@@ -208,7 +208,7 @@ def arkham_city_x87(game):
 @fix
 def inno_setup_stability(game):
     if is_inno_setup(game.exe):
-        return STABILITY_FEX, [], "Inno Setup installer: FEX Stability settings (faster presets corrupt the 32-bit setup stub's own paths)"
+        return STABILITY_FEX, [], "Inno Setup installer: FEX Stability settings (under Performance + TSO the 32-bit setup stub corrupts its own paths)"
 
 
 @fix
