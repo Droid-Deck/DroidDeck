@@ -166,9 +166,16 @@ class CurseForgeAppTest {
     }
 
     @Test
-    fun installedIdsAndExitCodes() {
-        assertEquals(setOf("486246", "2"), CurseForgeApp.projectIds(JSONArray("""["486246","2",null]""")))
-        assertEquals(emptySet<String>(), CurseForgeApp.projectIds(JSONObject()))
+    fun installedProjectsAndExitCodes() {
+        val projects = CurseForgeApp.parseProjects(JSONArray("""[
+          {"id":"486246","installedModId":"a_486246","status":3,"locked":false,"folders":["RXPGuides","RXPGuides_Extra"]},
+          {"id":"2","installedModId":"b_2","status":2,"locked":true,"folders":[]},
+          {"id":null}]"""))
+        assertEquals(listOf("486246", "2"), projects.map { it.id })
+        assertEquals("486246", CurseForgeApp.owner(projects, "RXPGuides_Extra")?.id)
+        assertNull(CurseForgeApp.owner(projects, "TomTom"))
+        assertFalse(projects[1].update)
+        assertTrue(CurseForgeApp.parseProjects(JSONObject()).isEmpty())
         assertEquals(CurseForgeApp.Start.READY, CurseForgeApp.startState(0))
         assertEquals(CurseForgeApp.Start.BUSY, CurseForgeApp.startState(3))
         assertEquals(CurseForgeApp.Start.FAILED, CurseForgeApp.startState(4))
@@ -291,6 +298,85 @@ class CurseForgeAppTest {
         assertTrue(line.contains(url))
         assertTrue(!GuestCommand.redacted(line, CurseForgeApp.INSPECTOR).contains("127.0.0.1"))
         assertTrue(!GuestCommand.redacted(url, CurseForgeApp.INSPECTOR).contains(url))
+    }
+
+    private class Curse(val addOns: File) {
+        val projects = java.util.concurrent.CopyOnWriteArrayList<JSONObject>()
+        val methods = java.util.Collections.synchronizedList(mutableListOf<String>())
+
+        fun add(id: String, folder: String, status: Int) {
+            File(addOns, folder).mkdirs()
+            projects += JSONObject().put("id", id).put("installedModId", "m_$id").put("status", status).put("locked", false).put("folders", JSONArray().put(folder))
+        }
+
+        fun answer(expression: String): Any? {
+            val method = Regex("s\\[\\\\\"(\\w+)\\\\\"\\]").find(expression)?.groupValues?.get(1) ?: return true
+            methods += method
+            return when (method) {
+                "scanGameInstance" -> {
+                    projects.removeAll { p -> !File(addOns, p.getJSONArray("folders").getString(0)).isDirectory }
+                    true
+                }
+                "getProjects" -> JSONArray(projects.map { JSONObject(it.toString()) })
+                "updateMod" -> {
+                    projects.forEach { it.put("status", 1) }
+                    true
+                }
+                "deleteMods" -> {
+                    projects.removeAll { p -> (p.getString("installedModId") in expression).also { gone -> if (gone) File(addOns, p.getJSONArray("folders").getString(0)).deleteRecursively() } }
+                    JSONArray()
+                }
+                else -> true
+            }
+        }
+    }
+
+    private fun fakeCurse(): Curse {
+        val curse = Curse(temp.newFolder("AddOns"))
+        CurseForgeApp.guest = { _, argv, _, onLine ->
+            val value = JSONObject().put("value", curse.answer(argv[4]) ?: JSONObject.NULL)
+            onLine(JSONObject().put("ok", true).put("value", value.toString()).toString())
+            0
+        }
+        return curse
+    }
+
+    @Test
+    fun anAddonWhoseFolderWasDeletedShowsAsNotInstalledAfterTheRescan() {
+        val curse = fakeCurse()
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        curse.add("298842", "Leatrix_Maps", 1)
+        assertEquals(listOf("298842"), CurseForgeApp.projects(context, url, "g", rescan = true).map { it.id })
+        assertTrue(File(curse.addOns, "Leatrix_Maps").deleteRecursively())
+        assertTrue(CurseForgeApp.projects(context, url, "g").isNotEmpty())
+        assertTrue(CurseForgeApp.projects(context, url, "g", rescan = true).isEmpty())
+        assertTrue("scanGameInstance" in curse.methods)
+    }
+
+    @Test
+    fun aNewerFileShowsAsAnUpdateUntilCurseForgeUpdatesIt() {
+        val curse = fakeCurse()
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        curse.add("298842", "Leatrix_Maps", 2)
+        curse.add("18808", "TomTom", 1)
+        val before = CurseForgeApp.projects(context, url, "g", rescan = true).associate { it.id to it.update }
+        assertEquals(mapOf("298842" to true, "18808" to false), before)
+        assertTrue(CurseForgeApp.update(context, url, "g", "298842"))
+        assertTrue("updateMod" in curse.methods)
+        assertTrue(CurseForgeApp.projects(context, url, "g").none { it.update })
+    }
+
+    @Test
+    fun uninstallingThroughCurseForgeClearsItsListAndTheFolder() {
+        val curse = fakeCurse()
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        curse.add("298842", "Leatrix_Maps", 1)
+        curse.add("18808", "TomTom", 1)
+        val project = CurseForgeApp.owner(CurseForgeApp.projects(context, url, "g"), "Leatrix_Maps")!!
+        assertTrue(CurseForgeApp.uninstall(context, url, "g", project))
+        assertEquals(listOf("18808"), CurseForgeApp.projects(context, url, "g").map { it.id })
+        assertFalse(File(curse.addOns, "Leatrix_Maps").exists())
+        assertTrue(File(curse.addOns, "TomTom").isDirectory)
     }
 
     @Test
