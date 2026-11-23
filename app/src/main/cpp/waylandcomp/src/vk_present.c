@@ -2647,7 +2647,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
             g_vk.EndCommandBuffer(cmd);
             return -1;
         }
-        if (vkp_effects_active()) vkp_effects_set_formats(HDR_FMT, HDR_FMT);
+        if (vkp_effects_active()) vkp_effects_set_formats(HDR_FMT, HDR_FMT, !hf->tonemap);
     } else {
         VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
         g_vk.CmdClearColorImage(cmd, g_scene.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
@@ -2662,7 +2662,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
             record_draw(cmd, &pass_draws[i], &blit, g_scene.img, SCENE_FMT, input_w, input_h,
                         VK_FILTER_LINEAR);
         }
-        if (vkp_effects_active()) vkp_effects_set_formats(VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM);
+        if (vkp_effects_active()) vkp_effects_set_formats(VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, 0);
     }
 
     int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
