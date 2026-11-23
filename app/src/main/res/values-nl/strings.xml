@@ -332,7 +332,6 @@
     <string name="mode_startup">Opstarten</string>
     <string name="mode_startup_session">Openen bij start</string>
     <string name="mode_startup_session_hint">Start deze sessie wanneer DroidDeck start.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Zoeken naar releases…</string>
     <string name="mode_decky_ready">Klaar om %1$s te installeren.</string>
     <string name="mode_decky_none">Geen compatibele build gevonden. Probeer het later opnieuw.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Up-to-date · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Nieuwste installeren</string>
-    <string name="decky_channel">Updatekanaal</string>
-    <string name="decky_channel_hint">Welke Decky Loader-releases worden geïnstalleerd. De eigen updater van Decky gebruikt hetzelfde kanaal.</string>
     <string name="decky_channel_stable">Stabiel</string>
     <string name="decky_channel_prerelease">Voorlopige release</string>
     <string name="decky_channel_testing">Testversie</string>
     <string name="decky_channel_failed">Kan het Decky-updatekanaal niet opslaan</string>
-    <string name="mode_decky_on">Start met Steam. Zolang dit aan staat, kunnen andere apps op dit apparaat Steam mogelijk bedienen.</string>
-    <string name="mode_decky_off">Uit. De poort voor foutopsporing op afstand van Steam blijft dicht.</string>
     <string name="mode_decky_remove_title">Decky Loader verwijderen?</string>
     <string name="mode_decky_remove_text">Verwijdert de loader. Je plug-ins en instellingen blijven behouden.</string>
     <string name="mode_client">Client</string>

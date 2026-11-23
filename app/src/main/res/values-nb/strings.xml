@@ -332,7 +332,6 @@
     <string name="mode_startup">Oppstart</string>
     <string name="mode_startup_session">Åpne ved oppstart</string>
     <string name="mode_startup_session_hint">Starter denne økten når DroidDeck starter.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Ser etter utgivelser…</string>
     <string name="mode_decky_ready">Klar til å installere %1$s.</string>
     <string name="mode_decky_none">Ingen kompatibel build funnet. Prøv igjen senere.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Oppdatert · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Installer nyeste</string>
-    <string name="decky_channel">Oppdateringskanal</string>
-    <string name="decky_channel_hint">Hvilke Decky Loader-utgivelser som installeres. Deckys egen oppdatering bruker samme kanal.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Forhåndsutgivelse</string>
     <string name="decky_channel_testing">Testing</string>
     <string name="decky_channel_failed">Kunne ikke lagre oppdateringskanalen for Decky</string>
-    <string name="mode_decky_on">Starter med Steam. Mens på, kan andre apper på denne enheten kanskje styre Steam.</string>
-    <string name="mode_decky_off">Av. Steams fjernsøkeport for feilsøking forblir stengt.</string>
     <string name="mode_decky_remove_title">Avinstaller Decky Loader?</string>
     <string name="mode_decky_remove_text">Fjerner loaderen. Programtilleggene og innstillingene dine beholdes.</string>
     <string name="mode_client">Klient</string>
