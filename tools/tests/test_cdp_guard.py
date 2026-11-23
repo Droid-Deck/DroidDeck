@@ -19,7 +19,8 @@ class CdpGuardTest(unittest.TestCase):
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", str(SOURCE), str(SOURCE.parent / "binfmt.c"), str(SOURCE.parent / "webhelper.c"),
                         str(Path(__file__).with_name("netlink_stubs.c")), "-x", "c", "-", "-ldl",
                         "-o", str(cls.library)],
-                       input=b"int dd_udevmon_stand_in(int fd) { return 0; }", check=True, capture_output=True)
+                       input=b"int dd_udevmon_stand_in(int fd) { return 0; }\n"
+                             b"int dd_udevmon_bind(int fd, const void *addr, unsigned len, void *real, int *rc) { return 0; }", check=True, capture_output=True)
 
     @classmethod
     def tearDownClass(cls):

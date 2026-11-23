@@ -1536,6 +1536,18 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["engine_fixes"]("/game/FSD-Win64-Shipping.exe", []), ({}, [], []))
         self.assertEqual(MODULE["engine_fixes"]("/game/Other-WinGDK-Shipping.exe", []), ({}, [], []))
 
+    def test_dragons_dogma_2_turns_its_wine_detection_off_unless_the_user_sets_it(self):
+        game = "/game/Dragons Dogma 2/DD2.exe"
+        env, extra, notes = MODULE["engine_fixes"](game, [], "2054970")
+        self.assertEqual(extra, ["/WineDetectionEnabled:False"])
+        self.assertEqual(env, {})
+        self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"](game, ["-dx12"], "2054970")[1], ["/WineDetectionEnabled:False"])
+        for own in ("/WineDetectionEnabled:False", "/WineDetectionEnabled:True", "/winedetectionenabled:false"):
+            self.assertEqual(MODULE["engine_fixes"](game, [own], "2054970"), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"](game, [], "42"), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"](game, []), ({}, [], []))
+
     def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             city = Path(tmp) / "Batman Arkham City GOTY/Binaries/Win32"
@@ -1614,6 +1626,14 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))
             self.assertTrue(notes)
         self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
+
+    def test_black_ops_ii_starts_with_steam_exec_handling(self):
+        for exe in ("/game/Call of Duty Black Ops II/t6zm.exe", "/game/Call of Duty Black Ops II/t6mp.exe", "/game/Call of Duty Black Ops II/t6sp.exe"):
+            env, extra, notes = MODULE["engine_fixes"](exe, [])
+            self.assertEqual((env, extra), ({"WINESTEAMNOEXEC": "0"}, []))
+            self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/Other.exe", [], "202990")[0], {"WINESTEAMNOEXEC": "0"})
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/Other.exe", []), ({}, [], []))
 
     def test_little_nightmares_keeps_its_render_thread(self):
         env, extra, notes = MODULE["engine_fixes"]("/game/Little Nightmares/Atlas/Binaries/Win64/LittleNightmares.exe", [])

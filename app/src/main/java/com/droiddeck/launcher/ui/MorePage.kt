@@ -81,7 +81,7 @@ private fun MoreTile(s: FrontEndState, key: String, first: Boolean, modifier: Mo
             .then(if (first) Modifier.paneEntry() else Modifier.paneItem("more:$key"))
             .testTag("more-$key")
             .height(112.dp).clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.12f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.12f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src)
             .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)

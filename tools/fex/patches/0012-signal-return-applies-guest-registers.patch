@@ -1,0 +1,112 @@
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
+@@ -263,6 +263,8 @@
+                          FEXCore::Core::CpuStateFrame* Frame, void* ucontext);
+   void RestoreRTFrame_ia32(FEXCore::Core::InternalThreadState* Thread, ArchHelpers::Context::ContextBackup* Context,
+                            FEXCore::Core::CpuStateFrame* Frame, void* ucontext);
++  void ResumeWithGuestGPRs(ArchHelpers::Context::ContextBackup* Context, FEXCore::Core::CpuStateFrame* Frame, void* ucontext,
++                           const uint64_t* GuestGPRs, size_t Count, uint64_t Mask);
+ 
+   ///< Setup the signal frame for x64.
+   uint64_t SetupFrame_x64(FEXCore::Core::InternalThreadState* Thread, ArchHelpers::Context::ContextBackup* ContextBackup,
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
+@@ -122,6 +122,32 @@
+   }
+ }
+ 
++void SignalDelegator::ResumeWithGuestGPRs(ArchHelpers::Context::ContextBackup* Context, FEXCore::Core::CpuStateFrame* Frame, void* ucontext,
++                                          const uint64_t* GuestGPRs, size_t Count, uint64_t Mask) {
++#ifdef ARCHITECTURE_arm64
++  const uint32_t Spilled = Context->InSyscallInfo & 0xFFFF;
++  const bool AllSpilled = Spilled == 0xFFFF;
++  if (!AllSpilled && !(Context->Flags & ArchHelpers::Context::ContextFlags::CONTEXT_FLAG_INJIT)) {
++    return;
++  }
++
++  for (size_t i = 0; i < Count && i < Config.SRAGPRCount; i++) {
++    const uint8_t HostReg = Config.SRAGPRMapping[i];
++    const bool InFrame = AllSpilled || (Spilled & (1U << HostReg));
++    const uint64_t Delivered = InFrame ? Frame->State.gregs[i] : ArchHelpers::Context::GetArmReg(ucontext, HostReg);
++    if (((Delivered ^ GuestGPRs[i]) & Mask) == 0) {
++      continue;
++    }
++
++    if (InFrame) {
++      Frame->State.gregs[i] = GuestGPRs[i];
++    } else {
++      ArchHelpers::Context::SetArmReg(ucontext, HostReg, GuestGPRs[i]);
++    }
++  }
++#endif
++}
++
+ void SignalDelegator::RestoreFrame_x64(FEXCore::Core::InternalThreadState* Thread, ArchHelpers::Context::ContextBackup* Context,
+                                        FEXCore::Core::CpuStateFrame* Frame, void* ucontext) {
+   auto* guest_uctx = reinterpret_cast<FEXCore::x86_64::ucontext_t*>(Context->UContextLocation);
+@@ -202,6 +228,27 @@
+       const auto modulo_i = (i + CurrentOffset) % 8;
+       memcpy(&Frame->State.mm[modulo_i], &fpstate->_st[i], sizeof(Frame->State.mm[0]));
+     }
++  } else {
++    uint64_t GuestGPRs[FEXCore::Core::CPUState::NUM_GPRS];
++#define COPY_REG(x) GuestGPRs[FEXCore::X86State::REG_##x] = guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_##x];
++    COPY_REG(R8);
++    COPY_REG(R9);
++    COPY_REG(R10);
++    COPY_REG(R11);
++    COPY_REG(R12);
++    COPY_REG(R13);
++    COPY_REG(R14);
++    COPY_REG(R15);
++    COPY_REG(RDI);
++    COPY_REG(RSI);
++    COPY_REG(RBP);
++    COPY_REG(RBX);
++    COPY_REG(RDX);
++    COPY_REG(RAX);
++    COPY_REG(RCX);
++    COPY_REG(RSP);
++#undef COPY_REG
++    ResumeWithGuestGPRs(Context, Frame, ucontext, GuestGPRs, FEXCore::Core::CPUState::NUM_GPRS, ~0ULL);
+   }
+ }
+ 
+@@ -280,6 +327,17 @@
+       const auto modulo_i = (i + CurrentOffset) % 8;
+       memcpy(&Frame->State.mm[modulo_i], &fpstate->_st[i], 10);
+     }
++  } else {
++    uint64_t GuestGPRs[8];
++    GuestGPRs[FEXCore::X86State::REG_RAX] = guest_uctx->sc.ax;
++    GuestGPRs[FEXCore::X86State::REG_RCX] = guest_uctx->sc.cx;
++    GuestGPRs[FEXCore::X86State::REG_RDX] = guest_uctx->sc.dx;
++    GuestGPRs[FEXCore::X86State::REG_RBX] = guest_uctx->sc.bx;
++    GuestGPRs[FEXCore::X86State::REG_RSP] = guest_uctx->sc.sp;
++    GuestGPRs[FEXCore::X86State::REG_RBP] = guest_uctx->sc.bp;
++    GuestGPRs[FEXCore::X86State::REG_RSI] = guest_uctx->sc.si;
++    GuestGPRs[FEXCore::X86State::REG_RDI] = guest_uctx->sc.di;
++    ResumeWithGuestGPRs(Context, Frame, ucontext, GuestGPRs, 8, 0xFFFF'FFFFULL);
+   }
+ }
+ 
+@@ -359,6 +417,17 @@
+       const auto modulo_i = (i + CurrentOffset) % 8;
+       memcpy(&Frame->State.mm[modulo_i], &fpstate->_st[i], 10);
+     }
++  } else {
++    uint64_t GuestGPRs[8];
++    GuestGPRs[FEXCore::X86State::REG_RAX] = guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_RAX];
++    GuestGPRs[FEXCore::X86State::REG_RCX] = guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_RCX];
++    GuestGPRs[FEXCore::X86State::REG_RDX] = guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_RDX];
++    GuestGPRs[FEXCore::X86State::REG_RBX] = guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_RBX];
++    GuestGPRs[FEXCore::X86State::REG_RSP] = guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_RSP];
++    GuestGPRs[FEXCore::X86State::REG_RBP] = guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_RBP];
++    GuestGPRs[FEXCore::X86State::REG_RSI] = guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_RSI];
++    GuestGPRs[FEXCore::X86State::REG_RDI] = guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_RDI];
++    ResumeWithGuestGPRs(Context, Frame, ucontext, GuestGPRs, 8, 0xFFFF'FFFFULL);
+   }
+ }
+ 

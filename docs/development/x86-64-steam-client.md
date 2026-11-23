@@ -131,6 +131,18 @@ The client's web helper draws its whole UI. There are two:
   blank. `LinuxRuntime` binds an empty folder over `/sys/bus/pci/devices` on such devices; device:
   0 GPU process exits, ANGLE on zink and Turnip.
 
+FEX ships per-program AppConfigs, and `/usr/local/share/fex-emu/AppConfig/steamwebhelper.json` turns
+the GL thunk off for every program named `steamwebhelper`. A program's AppConfig is read after
+`FEX_THUNKCONFIG`, so the x86 helper got the rootfs's x86 Mesa while the client next to it had the
+thunk. Steam's browser compositor creates its output window through SDL3 and GLX in the helper's
+browser process, and x86 Mesa's `driCreateNewScreen3` (kisak libgallium 26.1.6) faulted there
+(SIGSEGV, exit 139) about 11 s after every start; the client restarted it each time (device: 57
+restarts in 11 minutes). `x64_env` therefore writes, for every global AppConfig that turns off a
+thunk the session uses, a local AppConfig (`$X64_HOME/.config/fex-emu/AppConfig/<name>.json`, read
+after the global one) with the session's thunk set. It never touches a local file with other content,
+so a user's own AppConfig wins, and removes its own files when the client runs in software. Device:
+helper up for over 10 minutes with no restart, ANGLE on zink and Turnip through the thunk.
+
 The session shim (`preload/net.c`) turns `steamrt64/steamwebhelper.sh`'s exec of `./steamwebhelper`
 into `DD_X64_ARM_WEBHELPER`. Nothing in the client's folder is edited: the client checksums its files
 as it starts and reinstalled itself over an edited launcher (2-3 minutes) on every start.
@@ -197,13 +209,97 @@ alone would then read as an installed client.
     restarted from the top forever (found with `perf_event_open` IP sampling, since proot holds
     ptrace). Such a range is now skipped whole and a second exhausted scan returns `-ENOMEM`, as the
     kernel does (`fex-2610-r3`).
+  - `0006-smc-alias-of-code-created-after-translation`: a JIT with a double-mapped memfd (CoreCLR's
+    W^X allocator) maps its writable alias after the executable alias was translated. Under
+    `SMCChecks=mtrack` the new alias was not write-protected, so writes through it never faulted and
+    never invalidated the translated code; x86-64 .NET programs ran stale code (access violations,
+    NullReferenceException, internal CLR errors). A writable mapping or mprotect now write-protects the
+    overlapping part of any alias that is already executable, so the first write faults and invalidates.
+    `FEX_SMCCHECKS=full` was the only workaround; no setting is needed with the patch.
+  - `0007-cmake-install-code-without-depends`: CMake 4.5 rejects the `DEPENDS` argument FEX passes to
+    `install(CODE ...)` for the guest thunk libraries, so builds with host thunks stopped at configure.
+    The guest libraries are external projects in the default build, which `install` already follows.
+  - `0008-signal-return-restores-syscall-state`: a guest `rt_sigreturn` is a system call, so FEX's
+    syscall stub marks every static register as spilled (`InSyscallInfo = 0xFFFF`). When the handler
+    left RIP alone, the return resumed the interrupted JIT code without passing the stub's reset, and
+    the mark stayed. Every asynchronous signal after that (until the next system call ended) skipped the
+    register spill and handed the guest handler stale registers from the last system call: only RIP was
+    right. CoreCLR suspends threads for the GC with such signals and reads or redirects the interrupted
+    context, so x86-64 .NET programs failed at random (`AccessViolationException` in whatever code ran
+    next, then SIGABRT). `tools/fex/probes/async-signal-context.c` shows it: under FEX-2611.1 one signal in
+    2000 carried the interrupted registers, natively all of them. The return now restores the value saved
+    when the signal arrived, and only when the signal interrupted JIT code, which is the only case that
+    saves it. Restoring it for a signal that interrupted a system call cleared the mark while that call
+    was still running, so the next signal in the call's return path spilled clobbered registers:
+    `setitimer` at 100 Hz around `time()` crashed in 15 of 15 runs, and with the guard as often as the
+    same build without the patch (about half; a separate crash that FEX-2611.1 also shows).
+  - `0009-signal-handler-escape-frees-host-stack`: FEX keeps each signal's host context on the host
+    stack and frees it only on `rt_sigreturn`. A guest that leaves its handler another way (`siglongjmp`,
+    or CoreCLR resuming a `catch` after a NullReferenceException) left that 2 KB block and one
+    `SignalHandlerRefCounter` count behind. About 3500 such exceptions on one thread overran the 8 MB
+    host stack, which has no guard page, and the CurseForge agent died with "Internal CLR error.
+    (0x80131506)" and "Stack overflow occurred on the same thread again!" at the start of its second
+    addon scan. FEX now chains each thread's signal frames with the guest frame range and alternate
+    stack they used. When a signal arrives in JIT code that runs at the host level of the newest frame
+    and the guest stack pointer shows the guest has left that frame (above its frame, or back off the
+    alternate stack above where the outermost frame on it interrupted), the left frames are dropped and
+    the new context is stored where the newest live frame (or the dispatcher entry) left the host stack.
+    `rt_sigreturn` pops its frame and any newer ones it skips. Signals that arrive inside system calls or
+    thunk callbacks are left alone. `tools/fex/probes/signal-handler-escape.c` leaves handlers on and
+    off the alternate stack, mixes them with handlers that return, and leaves nested handlers: FEX-2611.1
+    with 0001 to 0008 crashed (SIGSEGV) before 2000 iterations of it, and `siglongjmp` out of a SIGSEGV
+    handler died after about 3500; with this patch 350000 escapes and 200000 straight `siglongjmp`s
+    finish, as natively. The approach is the one suggested in FEX-Emu/FEX#2487.
+  - `0010-syscall-exit-resets-host-stack` (`Fixed-upstream: FEX-2612`): a backport of FEX's
+    "JIT: Ensure IR ops that jump out of the JIT reset the stack" (FEX-Emu/FEX#6122). A system call or
+    code-entry removal that ends a block jumps to the dispatcher without dropping the block's spill
+    slots, and the syscall handler's fast path branches straight into the next block, so every such
+    exit leaked up to 32 bytes per spill slot of host stack. AVX and MMX code keeps enough values live to
+    spill, and `tools/fex/probes/syscall-host-stack.c` overran the 8 MB host stack after about 65000
+    system calls; with the patch 2000000 finish, as natively. The CPUID hunk of the upstream commit is
+    left out, since CPUID returns to the JIT in 2611.
+  - `0011-thunk-calls-mark-spilled-state`: a thunk call (every vDSO `clock_gettime`, `gettimeofday`
+    and `time`, and the host library thunks) spills the static registers to the guest frame and calls
+    host code, which clobbers the caller-saved host registers. A signal that arrived in the JIT code
+    after the host call returned and before the registers were refilled took the interrupted state from
+    those clobbered host registers: the guest handler got garbage registers, and the interrupted code
+    resumed with them, or FEX built the signal frame at a garbage stack pointer and crashed. The thunk
+    call now marks every static register as spilled (`InSyscallInfo = 0xFFFF`, as the system call
+    handler does) until the refill ends, and a fully spilled mark takes only RIP from the host PC and
+    leaves the frame's GPRs, vector registers and flags alone (the 16-bit mask could not name the
+    x16/x17 and v16 to v31 registers the host call clobbers). Every guest signal now saves and clears the
+    mark, so guest handlers and nested signals never inherit it, and every return puts back the value it
+    saved; 0008 restored it only for JIT code because the other paths saved none. A handler that changes
+    RIP restarts at the dispatcher with no mark, and thunk callbacks into guest code run with none.
+    `tools/fex/probes/vdso-signal-state.c` calls `clock_gettime` under a 1 kHz `SIGALRM` and checks the
+    values held across each call: FEX-2611 crashed in 3 of 8 runs, with 0001 to 0010 in 7 of 8; with
+    this patch 0 of 28, as natively. This was the "separate crash" noted under 0008.
+  - `0012-signal-return-applies-guest-registers`: a signal return that kept RIP threw away every
+    register change the guest handler made in its `ucontext`; only a changed RIP made FEX reload the
+    guest state from it. CoreCLR suspends threads for garbage collection with a signal and, in fully
+    interruptible code, runs the collection from that handler and writes the moved object references
+    back into the interrupted registers, so under FEX the thread resumed with pointers into the old heap.
+    The CurseForge agent's crashes during parallel addon scans (an `AccessViolationException` in
+    `Curse.Hashing.MurmurHash2.ComputeHash` or `RegexInterpreter`, or "Internal CLR error. (0x80131506)"
+    with a stack overflow) look like this, but they still happen with this patch, so it is not a fix for
+    them. When RIP is
+    unchanged, each guest GPR the handler changed is now written where the resumed code reads it: the
+    guest frame for registers the interrupted code had spilled (all of them inside a system call or
+    thunk call), otherwise the static host register. Unchanged registers are left alone, signals that
+    interrupted code outside the JIT (and not inside a system call or thunk call) keep the old
+    behaviour, and 32-bit frames compare and write only the low 32 bits. `tools/fex/probes/signal-register-update.c`
+    spins until a `SIGALRM` handler sets a register (R12, or ESI in 32-bit `rt` and legacy frames):
+    FEX-2611.1 with 0001 to 0011 never sees it in any of the three frame types, with this patch all
+    three see it on the first signal, as natively.
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,
   checks the digest GitHub stored, and records the build's version, sha256 and size in its `fex.json`
   (in that order: a device that reads the old `fex.json` meanwhile gets a mismatching archive and keeps
   its FEX). This repository's `build-fex.yml` only builds `tools/fex` when it changes (and on dispatch,
-  for diagnostic builds such as `-DDEBUG_STRACE`); nothing is published from it.
+  for diagnostic builds such as `-DDEBUG_STRACE`); nothing is published from it. It builds FEX's latest
+  release, point releases (`FEX-2611.1`) included; `build-in-arch.sh` takes the tag from `FEX_VERSION`
+  and compares only its four-digit release against a patch's `Fixed-upstream`.
 - Releases so far: `fex-2609-r2` (no thunks), `fex-2609-r3` (thunks), `fex-2610-r1`, `fex-2610-r2`,
   `fex-2610-r3`, `fex-2610-r4` (in-root resolution when openat2 is missing, exact MAP_32BIT
   marking), `fex-2610-r5` (current: bundles libxxhash, which the Linux runtime does not ship; the

@@ -453,7 +453,7 @@ private fun BucketCard(
         modifier = modifier.paneItem("storage:${bucket.name}")
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(Shape14)
-            .background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.10f)) else Modifier)
             .glideBorder(hot, Shape14, pal.signal, pal.line)
             .then(if (onClick != null) Modifier.hoverable(src)
                 .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)

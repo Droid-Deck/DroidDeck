@@ -58,7 +58,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Toys
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -210,7 +209,7 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "storage" -> R.string.rail_storage to Icons.Filled.SdStorage
     "sync" -> R.string.rail_sync to Icons.Filled.Sync
     NavTabs.MORE -> R.string.rail_more to Icons.Filled.MoreHoriz
-    else -> R.string.rail_updates to Icons.Filled.SystemUpdate
+    else -> R.string.rail_updates to updatesIcon(RunningBuild.kind())
 }
 
 internal fun setupNeedsAttention(s: FrontEndState): Boolean = !s.ready || (s.available != null && s.available != s.installed) ||

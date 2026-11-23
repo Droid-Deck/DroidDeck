@@ -189,6 +189,7 @@ internal fun LiftHero(
     onOpenChange: (Boolean) -> Unit = {},
     start: Dp = 44.dp,
     bottom: Dp = 44.dp,
+    onTextBounds: (Rect) -> Unit = {},
     drop: DropSheetState? = null,
     overlay: @Composable BoxWithConstraintsScope.(lifted: () -> Float) -> Unit = {},
 ) {
@@ -573,7 +574,7 @@ internal fun LiftHero(
             }
         }
 
-        Column(Modifier.align(Alignment.BottomStart).padding(start = start, bottom = bottom, end = 20.dp)) {
+        Column(Modifier.align(Alignment.BottomStart).padding(start = start, bottom = bottom, end = 20.dp).onGloballyPositioned { onTextBounds(it.boundsInRoot()) }) {
             Box(Modifier.graphicsLayer { alpha = 1f - wallSink() }) { words() }
             Spacer(Modifier.height(18.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
