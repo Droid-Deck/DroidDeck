@@ -1,0 +1,55 @@
+diff --git a/src/Backends/SDLBackend.cpp b/src/Backends/SDLBackend.cpp
+--- a/src/Backends/SDLBackend.cpp
++++ b/src/Backends/SDLBackend.cpp
+@@ -130,9 +130,12 @@ namespace gamescope
+ 
+ 		SDL_Window *GetSDLWindow() const { return m_pWindow; }
+ 		VkSurfaceKHR GetVulkanSurface() const { return m_pVkSurface; }
++		void SetWindowShown( bool bShown );
+ 	private:
+ 		CSDLBackend *m_pBackend = nullptr;
+ 		SDL_Window *m_pWindow = nullptr;
++		std::mutex m_WindowShownMutex;
++		bool m_bWindowShown = false;
+ 		VkSurfaceKHR m_pVkSurface = VK_NULL_HANDLE;
+ 		BackendConnectorHDRInfo m_HDRInfo{};
+ 	};
+@@ -354,8 +357,22 @@ namespace gamescope
+ 		}
+ 	}
+ 
++	void CSDLConnector::SetWindowShown( bool bShown )
++	{
++		std::scoped_lock lock( m_WindowShownMutex );
++		if ( bShown )
++			SDL_ShowWindow( m_pWindow );
++		else
++			SDL_HideWindow( m_pWindow );
++		m_bWindowShown = bShown;
++	}
++
+ 	int CSDLConnector::Present( const FrameInfo_t *pFrameInfo, bool bAsync )
+ 	{
++		std::unique_lock lock( m_WindowShownMutex, std::try_to_lock );
++		if ( !lock.owns_lock() || !m_bWindowShown )
++			return 0;
++
+ 		// TODO: Resolve const crap
+ 		std::optional oCompositeResult = vulkan_composite( (FrameInfo_t *)pFrameInfo, nullptr, false );
+ 		if ( !oCompositeResult )
+@@ -929,14 +946,7 @@ namespace gamescope
+ 						{
+ 							m_bShown = bVisible;
+ 
+-							if ( m_bShown )
+-							{
+-								SDL_ShowWindow( m_Connector.GetSDLWindow() );
+-							}
+-							else
+-							{
+-								SDL_HideWindow( m_Connector.GetSDLWindow() );
+-							}
++							m_Connector.SetWindowShown( m_bShown );
+ 						}
+ 					}
+ 					else if ( event.type == GetUserEventIndex( GAMESCOPE_SDL_EVENT_WINDOW_MODE ) )

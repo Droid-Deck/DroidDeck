@@ -416,3 +416,15 @@ changed focus. In a nested session with no other window the SDL window stayed hi
 on screen. Focus is now chosen again whenever a window's opacity crosses zero in either direction; a change between
 two visible opacities leaves focus alone. `tools/tests/test_gamescope_focus_opacity.py` compiles the rule from this
 patch and checks the property handler applies it.
+
+## 0141 The SDL backend presents only to a shown window
+
+SDL hides its window when gamescope has no focus window and shows it again when one appears, for example between a
+launcher closing and its game mapping. On Wayland, showing the window gives its surface a new xdg_surface, commits it
+and waits for the first configure, while gamescope's paint thread kept presenting into the same surface. A present
+that landed in that gap attached a buffer before the configure, the host compositor (KWin in the Desktop session)
+disconnected gamescope with `xdg_surface: error 3: attached a buffer before configure event`, every later present
+failed and the swapchain was rebuilt in a loop, so the game ran with nothing on screen. Showing and hiding now hold a
+lock that presenting also takes, and a present is skipped while the window is hidden or being shown instead of waiting
+for it. `tools/tests/test_gamescope_sdl_show_present.py` runs the patch's show, hide and present code against a stub
+that records presents made while the window waits for its configure or is hidden.
