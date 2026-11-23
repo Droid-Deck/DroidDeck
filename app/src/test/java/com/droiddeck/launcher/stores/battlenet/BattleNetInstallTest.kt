@@ -69,7 +69,7 @@ class BattleNetInstallTest {
         assertTrue(BattleNetInstall.headless(CatalogItem(Store.BATTLENET, "gryphon", "Warcraft Rumble", null)))
         assertEquals("hsb", BattleNetInstall.product("hs_beta"))
         assertEquals("d3", BattleNetInstall.product("diablo3_enus"))
-        assertFalse(BattleNetInstall.headless(CatalogItem(Store.BATTLENET, "d3cn", "Diablo III", null)))
+        assertTrue(BattleNetInstall.headless(CatalogItem(Store.BATTLENET, "d3cn", "Diablo III", null)))
         assertFalse(BattleNetInstall.headless(CatalogItem(Store.EPIC, "gryphon", "Warcraft Rumble", null)))
     }
 

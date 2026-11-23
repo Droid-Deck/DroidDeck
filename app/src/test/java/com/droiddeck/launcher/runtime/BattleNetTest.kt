@@ -3,6 +3,11 @@ package com.droiddeck.launcher.runtime
 import android.content.Context
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.GameEnvironmentStore
+import com.droiddeck.launcher.stores.InstalledStoreGame
+import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreGameSidecar
+import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import com.github.luben.zstd.ZstdOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
@@ -295,17 +300,86 @@ class BattleNetTest {
         File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
             field(1, message(field(1, "osic"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo II Resurrected"))))),
             field(1, message(field(1, "s2_cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/StarCraft II"))))),
+            field(1, message(field(1, "d3cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III"))))),
         ))
-        for (folder in listOf("Diablo II Resurrected", "StarCraft II")) {
+        for (folder in listOf("Diablo II Resurrected", "StarCraft II", "Diablo III")) {
             File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/$folder").mkdirs()
         }
         val games = BattleNet.games(context)
-        assertEquals(listOf("osic", "s2_cn"), games.map { it.installUid })
-        assertEquals(listOf("osi", "s2"), games.map { it.uid })
-        assertEquals(listOf("Diablo II: Resurrected" to "OSI", "StarCraft II" to "S2"), games.map { it.name to it.code })
-        assertFalse(BattleNet.notInstalled(BattleNet.title("osi")!!, listOf("osic")))
-        assertFalse(BattleNet.notInstalled(BattleNet.title("s2")!!, games.map { it.installUid }))
+        assertEquals(listOf("osic", "s2_cn", "d3cn"), games.map { it.installUid })
+        assertEquals(listOf("osi", "s2", "diablo3"), games.map { it.uid })
+        assertEquals(listOf("Diablo II: Resurrected" to "OSI", "StarCraft II" to "S2", "Diablo III" to "D3CN"), games.map { it.name to it.code })
+        assertEquals("osic", BattleNet.title("osic")?.product)
+        assertEquals("s2c", BattleNet.title("s2_cn")?.product)
+        assertEquals("anbs", BattleNet.title("anbs_cn")?.product)
+        assertEquals("d3cn", BattleNet.title("d3cn")?.product)
+        assertEquals("s2c", BattleNet.title("s2_cn_zhcn")?.product)
+        assertEquals("osic", BattleNet.title("osic_zhcn")?.product)
+        assertEquals("anbs", BattleNet.title("anbs_cn_zhcn")?.product)
+    }
 
+    @Test fun theFolderPicksBetweenTwoDiabloThreeInstalls() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val legacy = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III")
+        val china = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III China")
+        legacy.mkdirs()
+        china.mkdirs()
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "diablo3"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III"))))),
+            field(1, message(field(1, "d3cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III China"))))),
+        ))
+        assertEquals(setOf("diablo3", "d3cn"), BattleNet.games(context).map { it.installUid }.toSet())
+
+        val sidecar = StoreGameSidecar(Store.BATTLENET, "diablo3", "Diablo III", "")
+        val oldGame = InstalledStoreGame(sidecar, legacy)
+        val chinaGame = InstalledStoreGame(sidecar, china)
+        val records = listOf(oldGame, chinaGame)
+        assertEquals(chinaGame, StoresState.pickInstalled(Store.BATTLENET, "diablo3", china, records))
+        assertEquals(oldGame, StoresState.pickInstalled(Store.BATTLENET, "diablo3", legacy, records))
+        assertEquals("d3cn", BattleNetInstall.installUid(context, chinaGame))
+        assertEquals("diablo3", BattleNetInstall.installUid(context, oldGame))
+        val missing = File(china, "missing")
+        assertNull(StoresState.pickInstalled(Store.BATTLENET, "diablo3", missing, records))
+        assertNull(BattleNetInstall.installUid(context, InstalledStoreGame(sidecar, missing)))
+    }
+
+    @Test fun aChinaCopyLaunchesWithItsRecordedCode() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val legacy = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III").apply { mkdirs() }
+        val china = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III China").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "diablo3"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III"))))),
+            field(1, message(field(1, "d3cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III China"))))),
+        ))
+        assertEquals("D3CN", BattleNet.launchCode(context, "diablo3", china))
+        assertEquals("D3CN", BattleNet.launchCode(context, "d3cn", china))
+        assertEquals("D3", BattleNet.launchCode(context, "diablo3", legacy))
+        assertEquals("D3", BattleNet.launchCode(context, "diablo3", null))
+        assertNull(BattleNet.launchCode(context, "diablo3", File(china, "missing")))
+        val game = com.droiddeck.launcher.frontend.Library.SteamGame(
+            1234, "Diablo III", null, com.droiddeck.launcher.frontend.Library.ADDED,
+            source = Store.BATTLENET.id, storeId = "diablo3", gameFiles = china,
+        )
+        val command = com.droiddeck.launcher.session.NoSteamLaunch.command(context, game, null)!!
+        assertEquals(com.droiddeck.launcher.session.NoSteamLaunch.BATTLENET, command.program)
+        assertEquals(listOf("launch", "D3CN"), command.args)
+    }
+
+    @Test fun theTitlePicksBetweenWarcraftFlavorsInOneFolder() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val wow = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/World of Warcraft")
+        wow.mkdirs()
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "wow"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/World of Warcraft"))))),
+            field(1, message(field(1, "wow_classic"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/World of Warcraft"))))),
+        ))
+        val sidecar = StoreGameSidecar(Store.BATTLENET, "wow_classic", "World of Warcraft Classic", "")
+        assertEquals("wow_classic", BattleNetInstall.installUid(context, InstalledStoreGame(sidecar, wow)))
+        val single = StoreGameSidecar(Store.BATTLENET, "wow", "World of Warcraft", "")
+        assertNull(BattleNetInstall.installUid(context, InstalledStoreGame(single, File(wow, "missing"))))
     }
 
     @Test fun aScannedGamesShortcutReusesTheKeptRankingInsteadOfWalkingItsFolder() {
@@ -358,8 +432,9 @@ class BattleNetTest {
         assertEquals("wow_forever", BattleNet.STORE.first { it.code == "WoWF" }.uid)
         assertEquals("fenris", BattleNet.STORE.first { it.code == "Fen" }.uid)
         assertTrue(BattleNet.STORE.all { it.uid.matches(Regex("[a-z0-9_]{1,32}")) })
-        val installed = listOf("fenris", "diablo3_enus", null)
-        val offered = BattleNet.STORE.filter { BattleNet.notInstalled(it, installed) }.map { it.code }
+        val installedUids = listOf("fenris", "diablo3_enus", null)
+            .mapNotNull { uid -> uid?.let { BattleNet.title(it)?.uid } }.toSet()
+        val offered = BattleNet.STORE.filterNot { it.uid in installedUids }.map { it.code }
         assertFalse("Fen" in offered || "D3" in offered)
         assertTrue("OSI" in offered && "WoWF" in offered)
         assertFalse("WoWF" in BattleNet.STORE.filter { BattleNet.notInstalled(it, listOf("wow_forever")) }.map { it.code })
@@ -378,7 +453,7 @@ class BattleNetTest {
         assertFalse(noSteam.enabled(context, game))
         assertTrue(BattleNet.ensureNoSteam(context))
         assertTrue(noSteam.enabled(context, game))
-        val command = noSteam.command(game, shortcut)!!
+        val command = noSteam.command(context, game, shortcut)!!
         assertEquals(noSteam.BATTLENET, command.program)
         assertEquals(listOf("launch", "Fen"), command.args)
         GameEnvironmentStore.setGameNoSteam(context, BattleNet.APP_ID.toString(), false)

@@ -98,9 +98,16 @@ object BattleNetInstall {
     fun update(context: Context, game: InstalledStoreGame) {
         val app = context.applicationContext
         Thread({
-            val item = updateItem(game, installUid(app, game))
-            game.folder.parentFile?.parentFile?.let { com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, it) }
-            enqueue(app, item, game.folder, update = true)
+            val uid = installUid(app, game)
+            if (uid == null) {
+                Log.w(TAG, "no Battle.net install matches ${game.folder}")
+                StoresState.logLine("Battle.net: no registration matches ${game.folder.name}; update it from Battle.net")
+                StoresState.post { updates.remove(game.sidecar.id) }
+            } else {
+                val item = updateItem(game, uid)
+                game.folder.parentFile?.parentFile?.let { com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, it) }
+                enqueue(app, item, game.folder, update = true)
+            }
         }, "battlenet-update").start()
     }
 
@@ -115,12 +122,17 @@ object BattleNetInstall {
     internal const val UPDATE_FOLDER = "updateFolder"
     internal const val STALLED = "stalled"
 
-    internal fun installUid(context: Context, game: InstalledStoreGame): String =
-        runCatching { BattleNet.games(context).firstOrNull { it.uid == game.sidecar.id }?.installUid }.getOrNull() ?: game.sidecar.id
+    internal fun installUid(context: Context, game: InstalledStoreGame): String? {
+        val games = runCatching { BattleNet.games(context) }.getOrDefault(emptyList())
+        val folder = game.folder.absolutePath
+        val sameTitle = games.filter { it.uid == game.sidecar.id }
+        return sameTitle.firstOrNull { it.folder.absolutePath == folder }?.installUid
+    }
 
     fun uninstall(context: Context, game: InstalledStoreGame): Boolean {
         if (product(game.sidecar.id) == null || !BattleNet.installed(context)) return false
-        val done = agentUninstall(context, installUid(context, game))
+        val uid = installUid(context, game) ?: return false
+        val done = agentUninstall(context, uid)
         if (done) StoresState.post { StoresState.notifyLibraryChanged(context.applicationContext) }
         return done
     }
