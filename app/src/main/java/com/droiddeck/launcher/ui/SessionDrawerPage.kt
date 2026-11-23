@@ -12,10 +12,11 @@ internal enum class SessionDrawerPage(val firstControl: String) {
     DISPLAY("fg"),
     HUD("hud"),
     EFFECTS("look"),
-    VR("steamvr"),
     GAMES("anisotropy"),
     AGENT("agent-input"),
     SESSION("suspend"),
+    MORE("more-edit"),
+    VR("steamvr"),
 }
 
 internal object DrawerPages {
@@ -27,7 +28,7 @@ internal object DrawerPages {
     /** The order captured when a page row was grabbed in Arrange pages; Back restores it. */
     var heldFrom: List<SessionDrawerPage>? = null
 
-    fun hideable(page: SessionDrawerPage) = page != SessionDrawerPage.SESSION
+    fun hideable(page: SessionDrawerPage) = page != SessionDrawerPage.SESSION && page != SessionDrawerPage.MORE
 
     fun load(context: Context) {
         order = arrange(SessionPrefs.drawerPageOrder(context))
@@ -80,6 +81,22 @@ internal fun offeredDrawerPages(
 internal fun sessionDrawerPages(
     hasGlasses: Boolean = false, hasAgent: Boolean = com.droiddeck.launcher.agent.AgentTab.shown,
 ): List<SessionDrawerPage> = offeredDrawerPages(hasGlasses, hasAgent).filter { it !in DrawerPages.hidden }
+
+/** The pages shown as tabs: everything up to and including the More tab. */
+internal fun List<SessionDrawerPage>.strip(): List<SessionDrawerPage> {
+    val more = indexOf(SessionDrawerPage.MORE)
+    return if (more < 0) this else subList(0, more + 1)
+}
+
+/** The pages kept inside More: those after the More tab. */
+internal fun List<SessionDrawerPage>.inMore(): List<SessionDrawerPage> {
+    val more = indexOf(SessionDrawerPage.MORE)
+    return if (more < 0) emptyList() else subList(more + 1, size)
+}
+
+/** The tab that stands for [page]: the More tab for a page kept inside More. */
+internal fun List<SessionDrawerPage>.tabFor(page: SessionDrawerPage): SessionDrawerPage =
+    if (page in inMore()) SessionDrawerPage.MORE else page
 
 internal fun List<SessionDrawerPage>.step(current: SessionDrawerPage, direction: Int): SessionDrawerPage {
     val index = indexOf(current).coerceAtLeast(0)

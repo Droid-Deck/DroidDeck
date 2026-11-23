@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
@@ -182,6 +183,7 @@ internal val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.GAMES -> R.string.game_settings_title
     SessionDrawerPage.AGENT -> R.string.rail_agent
     SessionDrawerPage.SESSION -> R.string.mode_session
+    SessionDrawerPage.MORE -> R.string.drawer_page_more
 }
 
 internal val SessionDrawerPage.icon get() = when (this) {
@@ -194,6 +196,7 @@ internal val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
     SessionDrawerPage.AGENT -> Icons.Outlined.Terminal
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
+    SessionDrawerPage.MORE -> Icons.Outlined.MoreHoriz
 }
 
 private class DrawerFocus {
@@ -440,11 +443,17 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     val focus = remember { DrawerFocus() }
     val inputModeManager = LocalInputModeManager.current
     val focusManager = LocalFocusManager.current
+    // A page kept inside More is one step deeper than the strip: back returns to More before it closes the menu.
+    val insideMore = page in pages.inMore()
     BackHandler(enabled = open) {
-        if (host.open != null) host.open = null else a.onClose()
+        when {
+            host.open != null -> host.open = null
+            insideMore -> onPageChange(SessionDrawerPage.MORE)
+            else -> a.onClose()
+        }
     }
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
-    val layerOpen = open && (host.open != null || appToChooseDisplay != null || confirmStop)
+    val layerOpen = open && (host.open != null || appToChooseDisplay != null || confirmStop || insideMore)
     LaunchedEffect(layerOpen) { onLayerChange(layerOpen) }
     var seenBackRequest by remember { mutableStateOf(backRequest) }
     LaunchedEffect(backRequest) {
@@ -454,9 +463,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             confirmStop -> confirmStop = false
             appToChooseDisplay != null -> appToChooseDisplay = null
             host.open != null -> host.open = null
+            insideMore -> onPageChange(SessionDrawerPage.MORE)
         }
     }
-    LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
+    LaunchedEffect(page) { host.open = null; appToChooseDisplay = null; managing = false }
     LaunchedEffect(a.selectedGameProfileId) {
         if (host.open == "fex") host.open = null
     }
@@ -544,6 +554,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 DrawerPages.rearrange(drawerContext, held)
                                 releaseSignal++
                             } ?: run { managing = false }
+                            insideMore -> onPageChange(SessionDrawerPage.MORE)
                             else -> a.onClose()
                         }
                     }
@@ -621,16 +632,14 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                 ) {
                     DrawerBumper("LB", stringResource(R.string.drawer_prev_page), modifier = focus.track(page, "prev")) {
-                        host.open = null; onPageChange(pages.step(page, -1))
+                        host.open = null; onPageChange(pages.strip().step(pages.tabFor(page), -1))
                     }
-                    DrawerPageTabs(page = page, pages = pages, compact = true, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
+                    DrawerPageTabs(page = pages.tabFor(page), pages = pages.strip(), compact = true, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
-                        host.open = null; onPageChange(pages.step(page, 1))
+                        host.open = null; onPageChange(pages.strip().step(pages.tabFor(page), 1))
                     }
-                    SmallIconButton(
-                        Icons.Outlined.Tune, stringResource(R.string.drawer_manage_pages), colors.onSurfaceVariant,
-                    ) { host.open = null; managing = !managing }
                 }
+                if (insideMore && !managing) DrawerMoreBack(stringResource(page.title), focus.track(page, "more-back")) { host.open = null; onPageChange(SessionDrawerPage.MORE) }
                 if (managing) ManageDrawerPages(
                     offeredDrawerPages(a.glassesPresent),
                     Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
@@ -905,6 +914,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             )
                         }
                         SessionDrawerPage.AGENT -> Unit
+                        SessionDrawerPage.MORE -> DrawerMorePage(host, pages.inMore(), { host.open = null; onPageChange(it) }, { host.open = null; managing = true }) { key -> focus.track(page, key) }
                         SessionDrawerPage.SESSION -> {
                             SettingsGroup(stringResource(R.string.drawer_support)) {
                                 SettingsRow(stringResource(R.string.report_problem), stringResource(R.string.report_problem_hint)) {
@@ -1174,6 +1184,70 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
 }
 
 private const val LOOK_CUSTOM = "custom"
+
+/** The row above a page kept inside More that goes back to the More list. */
+@Composable
+private fun DrawerMoreBack(title: String, modifier: Modifier, onBack: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val source = remember { MutableInteractionSource() }
+    val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+    val shape = RoundedCornerShape(12.dp)
+    val label = stringResource(R.string.drawer_more_back, stringResource(R.string.drawer_page_more))
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.padding(top = 8.dp, start = 14.dp, end = 14.dp).fillMaxWidth().heightIn(min = 44.dp).clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+            .glideBorder(hot, shape, pal.signal)
+            .testTag("drawer-more-back")
+            .hoverable(source)
+            .clickable(interactionSource = source, indication = null, role = androidx.compose.ui.semantics.Role.Button, onClick = onBack)
+            .controllerConfirm(onClick = onBack)
+            .semantics { contentDescription = label }
+            .padding(horizontal = 8.dp),
+    ) {
+        Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(22.dp))
+        Text(stringResource(R.string.drawer_page_more), fontSize = 13.sp, color = colors.onSurfaceVariant)
+        Text("·", fontSize = 13.sp, color = colors.onSurfaceVariant)
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1)
+    }
+}
+
+/** The pages kept inside More, and the way into arranging which pages sit on the strip and which here. */
+@Composable
+private fun DrawerMorePage(host: MenuHost, pages: List<SessionDrawerPage>, onOpen: (SessionDrawerPage) -> Unit, onEdit: () -> Unit, track: (String) -> Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    SettingsGroup(stringResource(R.string.drawer_page_more)) {
+        if (pages.isEmpty()) Text(
+            stringResource(R.string.drawer_more_empty), fontSize = 13.sp, color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+        )
+        for (item in pages) {
+            val source = remember { MutableInteractionSource() }
+            val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+            val shape = RoundedCornerShape(12.dp)
+            val open = { onOpen(item) }
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape)
+                    .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+                    .glideBorder(hot, shape, pal.signal)
+                    .then(track("more-${item.name.lowercase()}"))
+                    .testTag("drawer-more-${item.name.lowercase()}")
+                    .hoverable(source)
+                    .clickable(interactionSource = source, indication = null, role = androidx.compose.ui.semantics.Role.Button, onClick = open)
+                    .controllerConfirm(onClick = open)
+                    .padding(horizontal = 14.dp),
+            ) {
+                Icon(item.icon, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                Text(stringResource(item.title), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    DrawerOutlineButton(stringResource(R.string.drawer_manage_pages), modifier = track("more-edit").testTag("drawer-more-edit"), onClick = onEdit)
+}
 
 @Composable
 private fun ScreenEffectsGroup(
