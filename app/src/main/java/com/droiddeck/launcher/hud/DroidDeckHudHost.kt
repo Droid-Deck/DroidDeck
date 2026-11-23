@@ -52,9 +52,7 @@ class DroidDeckHudHost(context: Context) {
 
     private fun isGameActive(): Boolean {
         val now = System.nanoTime()
-        val compositorLive = lastCompositorFrameNanos > 0L &&
-            now - lastCompositorFrameNanos <= 1_000_000_000L
-        val detected = compositorLive &&
+        val detected = feed.live &&
             (!feed.steamFocusKnown || !feed.steamFocused)
 
         if (detected != candidateGameActive) {
