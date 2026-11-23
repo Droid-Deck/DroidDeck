@@ -1033,6 +1033,9 @@ class SessionService : Service() {
         )
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
+        SessionPrefs.androidDriver(this).takeIf { it.isNotEmpty() }?.let {
+            guest.add("DROIDDECK_DISPLAY_DRIVER=$it")
+        }
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
             guest.add("XWAYLAND_NO_GLAMOR=1")
             Log.w(TAG, "xwayland: the last session's Xwayland crashed; glamor off for this one (XWAYLAND_NO_GLAMOR=1)")
