@@ -291,7 +291,9 @@ private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
                 flight.cancel()
                 val at = glide.boundsOf(s) ?: b
                 launch { solid.animateTo(0f, Motion.tw(150)) }
-                corners.forEachIndexed { i, c -> launch { c.animateTo(endCorners[i], Motion.sp(0.8f, 600f)) } }
+                // The droplet job is cancelled by the next move, so the shape settles on the corner job instead.
+                jobs[4]?.cancel()
+                jobs[4] = scope.launch { corners.forEachIndexed { i, c -> launch { c.animateTo(endCorners[i], Motion.sp(0.8f, 600f)) } } }
                 listOf(at.left, at.top, at.right, at.bottom).forEachIndexed { i, v ->
                     jobs[i] = launch { edges[i].animateTo(v, Motion.sp(0.7f, 750f)) }
                 }
