@@ -13,7 +13,10 @@ internal class LaunchCoordinator<O : Any, R : Any> {
         val ticket: LaunchTicket,
         val owner: O,
         val request: R?,
-    )
+    ) {
+        /** Only the activity intent that delivered this link may finish it by a refresh. */
+        fun ownedBy(owner: O?): Boolean = this.owner === owner
+    }
 
     private var next = 0L
     private var current: LaunchTicket? = null
@@ -68,12 +71,6 @@ internal class LaunchCoordinator<O : Any, R : Any> {
         pending = null
         handling = null
         return true
-    }
-
-    /** Drop any waiting link without cancelling an already-running launch ticket. */
-    fun dropPending() {
-        pending = null
-        handling = null
     }
 
     fun cancelAll() {

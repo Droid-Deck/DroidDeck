@@ -919,7 +919,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun readGameIntent(request: Intent) {
-        dropUnresolvedLink()
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         request.data?.takeIf { it.scheme == "droiddeck" && it.host == "settings" }?.let { uri ->
             val section = uri.pathSegments.firstOrNull()
@@ -977,11 +976,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 }
             }, "game-launch-file").start()
         }
-    }
-
-    private fun dropUnresolvedLink() {
-        val link = launchCoordinator.pendingLink() ?: return
-        if (link.request == null) launchCoordinator.consume(link.ticket)
     }
 
     private fun beginUiLaunch(): LaunchTicket {
@@ -1273,6 +1267,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (ticket != null && link.ticket !== ticket) return
         val request = link.request ?: return
         if (launchCoordinator.isHandling(link.ticket)) return
+        if (ticket == null && !link.ownedBy(intent)) {
+            // A refresh may only finish the link that belongs to the intent this activity shows.
+            launchCoordinator.consume(link.ticket)
+            return
+        }
         val game = request.find(games, byTitle = scanned)
         if (!scanned && game == null) return
         gameLinkTried = true
@@ -1487,7 +1486,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                                             prepareAndLaunch(g, key, ticket)
                                         } else {
                                             preparingGames = preparingGames - key
-                                            if (g == null && !isFinishing && !isDestroyed) android.widget.Toast.makeText(this, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
+                                            if (g == null && launchCoordinator.isCurrent(ticket) && !isFinishing && !isDestroyed) android.widget.Toast.makeText(this, R.string.stores_launch_not_registered, android.widget.Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 }, "store-play").start()
@@ -2018,9 +2017,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        supersedeUncommittedLaunch()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
-            launchCoordinator.dropPending()
             syncDualPanel()
             readIntegrationIntent(intent)
             return
@@ -2028,6 +2027,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         readGameIntent(intent)
         refresh()
         startSteamAtStartupIfEnabled()
+    }
+
+    /** A replacement activity intent supersedes anything this activity has not dispatched yet. */
+    private fun supersedeUncommittedLaunch() {
+        launchCoordinator.cancelAll()
     }
 
     private var soundtrackLaunch = false

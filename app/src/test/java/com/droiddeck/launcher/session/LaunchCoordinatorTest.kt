@@ -93,22 +93,29 @@ class LaunchCoordinatorTest {
     }
 
     @Test
-    fun dropPendingLeavesTheCurrentTicketAlone() {
+    fun aLinkIsOwnedOnlyByItsIntent() {
         val coordinator = LaunchCoordinator<String, String>()
-        val ticket = coordinator.beginLink("link")
-        coordinator.dropPending()
-        assertFalse(coordinator.hasPending())
-        assertTrue(coordinator.isCurrent(ticket))
+        val ticket = coordinator.beginLink("intent-a")
+        coordinator.resolve(ticket, "game")
+        val link = requireNotNull(coordinator.pendingLink())
+        assertTrue(link.ownedBy("intent-a"))
+        assertFalse(link.ownedBy("intent-b"))
+        assertFalse(link.ownedBy(null))
+        assertTrue(coordinator.consume(ticket))
+        assertNull(coordinator.pendingLink())
     }
 
     @Test
     fun cancelAllInvalidatesEveryOutstandingTicket() {
         val coordinator = LaunchCoordinator<String, String>()
-        val launch = coordinator.beginLaunch()
-        coordinator.beginLink("link")
+        coordinator.beginLaunch()
+        val link = coordinator.beginLink("link")
+        assertTrue(coordinator.isCurrent(link))
         coordinator.cancelAll()
-        assertFalse(coordinator.isCurrent(launch))
+        assertFalse(coordinator.isCurrent(link))
         assertFalse(coordinator.hasPending())
         assertNull(coordinator.pendingLink())
+        assertFalse(coordinator.resolve(link, "late"))
+        assertFalse(coordinator.consume(link))
     }
 }
