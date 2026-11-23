@@ -705,6 +705,7 @@
     <string name="drawer_next_page">Next page</string>
     <string name="drawer_manage_pages">Arrange pages</string>
     <string name="drawer_page_more">More</string>
+    <string name="drawer_more_back">Back to %1$s</string>
     <string name="drawer_more_empty">Nothing is kept here. Arrange pages and move one below the More row.</string>
     <string name="drawer_more_divider">Pages below this row are kept in More</string>
     <string name="drawer_pages_reset">Reset</string>

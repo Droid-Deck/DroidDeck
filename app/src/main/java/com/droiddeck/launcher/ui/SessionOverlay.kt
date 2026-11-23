@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
@@ -638,6 +639,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
                 }
+                if (insideMore && !managing) DrawerMoreBack(stringResource(page.title), focus.track(page, "more-back")) { host.open = null; onPageChange(SessionDrawerPage.MORE) }
                 if (managing) ManageDrawerPages(
                     offeredDrawerPages(a.glassesPresent),
                     Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp, start = 14.dp, end = 14.dp),
@@ -1182,6 +1184,34 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
 }
 
 private const val LOOK_CUSTOM = "custom"
+
+/** The row above a page kept inside More that goes back to the More list. */
+@Composable
+private fun DrawerMoreBack(title: String, modifier: Modifier, onBack: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val source = remember { MutableInteractionSource() }
+    val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+    val shape = RoundedCornerShape(12.dp)
+    val label = stringResource(R.string.drawer_more_back, stringResource(R.string.drawer_page_more))
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.padding(top = 8.dp, start = 14.dp, end = 14.dp).fillMaxWidth().heightIn(min = 44.dp).clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+            .glideBorder(hot, shape, pal.signal)
+            .testTag("drawer-more-back")
+            .hoverable(source)
+            .clickable(interactionSource = source, indication = null, role = androidx.compose.ui.semantics.Role.Button, onClick = onBack)
+            .controllerConfirm(onClick = onBack)
+            .semantics { contentDescription = label }
+            .padding(horizontal = 8.dp),
+    ) {
+        Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(22.dp))
+        Text(stringResource(R.string.drawer_page_more), fontSize = 13.sp, color = colors.onSurfaceVariant)
+        Text("·", fontSize = 13.sp, color = colors.onSurfaceVariant)
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1)
+    }
+}
 
 /** The pages kept inside More, and the way into arranging which pages sit on the strip and which here. */
 @Composable
