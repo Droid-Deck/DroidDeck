@@ -1,0 +1,12 @@
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+index b4c7b24..e6777aa 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+@@ -262,6 +262,7 @@ void SignalDelegator::RestoreThreadState(FEXCore::Core::InternalThreadState* Thr
+ 
+   if (Context->UContextLocation) {
+     auto Frame = Thread->CurrentFrame;
++    Frame->InSyscallInfo = Context->InSyscallInfo;
+ 
+     if (Context->Flags & ArchHelpers::Context::ContextFlags::CONTEXT_FLAG_INJIT) {
+       // XXX: Unsupported since it needs state reconstruction

@@ -10,8 +10,6 @@ import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 
 object CompositorHost {
-    private const val TAG = "DroidDeck"
-
     @Volatile
     private var started = false
 
@@ -55,52 +53,6 @@ object CompositorHost {
             WaylandCompositor.nativeVsync(frameTimeNanos)
             if (vsyncRunning) postVsync(generation)
         }
-    }
-
-    class Output internal constructor(
-        internal val runtimeDir: java.io.File,
-        internal val turnip: com.droiddeck.launcher.gpu.TurnipDriver,
-        internal val driverId: String?,
-    )
-
-    fun prepare(context: android.content.Context): Output {
-        val runtimeDir = java.io.File(context.filesDir, ".wayland-rt").apply { mkdirs() }
-        com.droiddeck.launcher.core.FileUtils.copyAsset(context, "wayland/keymap.xkb", java.io.File(runtimeDir, "keymap.xkb"))
-        com.droiddeck.launcher.input.VrControllers.publish(context)
-        val turnip = com.droiddeck.launcher.gpu.TurnipDriver(context)
-        com.droiddeck.launcher.gpu.DriverSetupLog.write(context, "surface.driver-setup")
-        if (!started) {
-            displayChoice = SessionPrefs.androidDriver(context)
-            com.droiddeck.launcher.gpu.AutoDriverTrial.displayStarting(context, SessionPrefs.androidDriver(context))
-        }
-        return Output(runtimeDir, turnip, if (started) null else turnip.install())
-    }
-
-    fun logToSession(context: android.content.Context) {
-        val waylandLog = java.io.File(com.droiddeck.launcher.session.SessionPaths.beginOrCurrent(context), "wayland.log")
-        WaylandCompositor.setSessionLogFile(waylandLog)
-        try {
-            android.system.Os.setenv("DD_WAYLAND_LOG", waylandLog.path, true)
-        } catch (e: Exception) {
-            android.util.Log.w(TAG, "could not point the compositor's log at $waylandLog", e)
-        }
-    }
-
-    fun applyHdr(context: android.content.Context, mode: String) {
-        val on = SessionState.hdrCapable && SessionPrefs.hdr(context, mode)
-        SessionState.hdr = on
-        WaylandCompositor.nativeSetHdrOutput(on)
-        WaylandCompositor.nativeSetZeroCopy(on || SessionPrefs.zeroCopy(context, mode))
-        android.util.Log.i(TAG, "hdr: " + (if (on) "on" else "off") + " for this $mode session")
-    }
-
-    fun start(context: android.content.Context, output: Output, surface: Surface, size: Pair<Int, Int>, refreshHz: Float, fpsLimit: Int): Boolean {
-        com.droiddeck.launcher.gpu.DriverSetupLog.write(context, "compositor.start driver=${output.driverId}")
-        return startOrAttach(
-            context, surface, output.runtimeDir.path,
-            output.driverId?.let { output.turnip.driverPath(it) }, output.driverId?.let { output.turnip.libraryName(it) },
-            context.applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz, fpsLimit,
-        )
     }
 
     @Synchronized
