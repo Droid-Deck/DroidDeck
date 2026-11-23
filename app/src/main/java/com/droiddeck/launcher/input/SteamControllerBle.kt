@@ -36,6 +36,8 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     private var lizardOffSent = false
     private var reportedNone = false
     private var discoveries = 0
+    private var subscribed = false
+    private var subscribeAttempts = 0
     private var outputSequence = 0L
     private var outputWritePending = false
     private var featureRead = 0L
@@ -94,7 +96,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         }
         val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
         val bonded = runCatching { adapter?.takeIf(BluetoothAdapter::isEnabled)?.bondedDevices }
-            .onFailure { Log.w(TAG, "paired devices unreadable", it) }
+            .onFailure { if (!reportedNone) Log.w(TAG, "paired devices unreadable", it) }
             .getOrNull()
         val device = bonded?.firstOrNull(::isSteamController)
         if (device == null) {
@@ -114,6 +116,8 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         val g = gatt ?: return
         gatt = null
         discoveries = 0
+        subscribed = false
+        subscribeAttempts = 0
         input = null
         lizardOffSent = false
         outputWritePending = false
@@ -162,17 +166,9 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-            withSlot {
-                if (g !== gatt || descriptor.characteristic.uuid != input) return
-                Log.i(TAG, "subscribed to report 0x%02x (status %d)".format(reportId, status))
-                connected = status == BluetoothGatt.GATT_SUCCESS
-                FakeInputWriter.setTritonConnected(SLOT, connected)
-            }
-            listener?.invoke()
-            if (connected) {
-                refreshLizardMode()
-                pollOutput()
-            }
+            if (g !== gatt || descriptor.characteristic.uuid != input) return
+            if (status == BluetoothGatt.GATT_SUCCESS) onSubscribed("status $status")
+            else Log.w(TAG, "report 0x%02x subscription failed (status %d)".format(reportId, status))
         }
 
         override fun onCharacteristicWrite(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
@@ -241,11 +237,38 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         Log.i(TAG, "found Triton haptic reports: ${outputReports.keys.sorted().joinToString { "0x%02x".format(it) }}")
         input = chr.uuid
         g.setCharacteristicNotification(chr, true)
+        requestNotifications(g, chr)
+    }
+
+    private fun requestNotifications(g: BluetoothGatt, chr: BluetoothGattCharacteristic) {
+        if (g !== gatt || subscribed) return
+        if (subscribeAttempts++ == SUBSCRIBE_ATTEMPTS) {
+            disconnect("report 0x%02x never subscribed".format(reportId))
+            if (running) handler.postDelayed(::connect, RETRY_MS)
+            return
+        }
         val cccd = chr.getDescriptor(CCCD) ?: return disconnect("state report cannot notify")
         @Suppress("DEPRECATION")
         cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         @Suppress("DEPRECATION")
-        g.writeDescriptor(cccd)
+        if (!g.writeDescriptor(cccd)) Log.w(TAG, "report 0x%02x subscription refused (attempt %d)".format(reportId, subscribeAttempts))
+        handler.postDelayed({ requestNotifications(g, chr) }, SUBSCRIBE_RETRY_MS)
+    }
+
+    private fun onSubscribed(how: String) {
+        var fresh = false
+        withSlot {
+            if (subscribed || gatt == null) return@withSlot
+            subscribed = true
+            fresh = true
+            Log.i(TAG, "subscribed to report 0x%02x (%s)".format(reportId, how))
+            connected = true
+            FakeInputWriter.setTritonConnected(SLOT, true)
+        }
+        if (!fresh) return
+        listener?.invoke()
+        refreshLizardMode()
+        pollOutput()
     }
 
     private fun refreshCache(g: BluetoothGatt) {
@@ -261,11 +284,14 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         handler.postDelayed(::refreshLizardMode, LIZARD_REFRESH_MS)
     }
 
-    private fun onState(data: ByteArray) = withSlot {
-        if (data.size < STATE_BYTES) return@withSlot
-        val timing = InputTiming.begin()
-        FakeInputWriter.writeTritonState(SLOT, reportId, routedInput?.route(data) ?: data)
-        InputTiming.end(timing)
+    private fun onState(data: ByteArray) {
+        withSlot {
+            if (data.size < STATE_BYTES) return
+            val timing = InputTiming.begin()
+            FakeInputWriter.writeTritonState(SLOT, reportId, routedInput?.route(data) ?: data)
+            InputTiming.end(timing)
+        }
+        if (!subscribed) onSubscribed("input before the subscription reply")
     }
 
     private fun release() = synchronized(inputLock) {
@@ -357,6 +383,8 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         private const val SLOT = 0
         private const val RETRY_MS = 5_000L
         private const val LIZARD_REFRESH_MS = 3_000L
+        private const val SUBSCRIBE_RETRY_MS = 1_000L
+        private const val SUBSCRIBE_ATTEMPTS = 3
         private const val OUTPUT_POLL_MS = 4L
         private const val OUTPUT_RETRY_MS = 10L
         private const val FEATURE_BYTES = 62
