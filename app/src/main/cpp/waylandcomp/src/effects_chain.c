@@ -215,14 +215,14 @@ static VkDevice g_dev;
 static VkPhysicalDevice g_pd;
 static VkPhysicalDeviceMemoryProperties g_mp;
 static int g_ready;
-static VkRenderPass g_rp;
+static VkRenderPass g_rp, g_smaa_rp;
 static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
 static VkDescriptorPool g_dpool;
 static VkSampler g_sampler;
 enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_SMAA_EDGE, P_SMAA_WEIGHTS, P_SMAA_BLEND, P_TOON, P_TOON_COLOR, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
 static VkPipeline g_pipe[P_COUNT];
-static struct fx_target g_t[2], g_mid, g_smaa_weights;
+static struct fx_target g_t[2], g_mid, g_smaa_edges, g_smaa_weights;
 
 static struct { VkImage img; VkImageView view; VkDescriptorSet ds; int w, h; } g_scene;
 static uint32_t g_ntsc_frame;
@@ -275,13 +275,14 @@ static void target_destroy(struct fx_target *t) {
                             VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 #define FX_SCRATCH_USAGE (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
 
-static int target_ensure(struct fx_target *t, int w, int h,
-                         VkImageUsageFlags usage, const char *what) {
+static int target_ensure_format(struct fx_target *t, int w, int h,
+                                VkImageUsageFlags usage, const char *what,
+                                VkFormat format, VkRenderPass render_pass) {
     if (t->img && t->w == w && t->h == h) return 0;
     target_destroy(t);
     VkImageCreateInfo ii = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                             .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT, .imageType = VK_IMAGE_TYPE_2D,
-                            .format = g_fx_fmt, .extent = {(uint32_t)w, (uint32_t)h, 1}, .mipLevels = 1,
+                            .format = format, .extent = {(uint32_t)w, (uint32_t)h, 1}, .mipLevels = 1,
                             .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
                             .usage = usage,
                             .sharingMode = VK_SHARING_MODE_EXCLUSIVE, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
@@ -300,14 +301,19 @@ static int target_ensure(struct fx_target *t, int w, int h,
         target_destroy(t); return -1;
     }
     g_vk.BindImageMemory(g_dev, t->img, t->mem, 0);
-    if (!(t->view = make_view(t->img, g_fx_fmt))) { target_destroy(t); return -1; }
-    VkFramebufferCreateInfo fi = {.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, .renderPass = g_rp,
+    if (!(t->view = make_view(t->img, format))) { target_destroy(t); return -1; }
+    VkFramebufferCreateInfo fi = {.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, .renderPass = render_pass,
                                   .attachmentCount = 1, .pAttachments = &t->view, .width = (uint32_t)w,
                                   .height = (uint32_t)h, .layers = 1};
     if (g_vk.CreateFramebuffer(g_dev, &fi, NULL, &t->fb) != VK_SUCCESS) { target_destroy(t); return -1; }
     if (!(t->ds = alloc_ds(t->view))) { target_destroy(t); return -1; }
     t->w = w; t->h = h;
     return 0;
+}
+
+static int target_ensure(struct fx_target *t, int w, int h,
+                         VkImageUsageFlags usage, const char *what) {
+    return target_ensure_format(t, w, h, usage, what, g_fx_fmt, g_rp);
 }
 
 static void scene_release(void) {
@@ -336,7 +342,9 @@ static VkShaderModule shader(const uint32_t *code, size_t size) {
     return m;
 }
 
-static VkPipeline post_pipeline(VkShaderModule vert, const uint32_t *frag_code, size_t frag_size, const char *name) {
+static VkPipeline post_pipeline_for_renderpass(VkShaderModule vert,
+        const uint32_t *frag_code, size_t frag_size, VkRenderPass render_pass,
+        const char *name) {
     VkShaderModule frag = shader(frag_code, frag_size);
     if (!frag) { droiddeck_log("error", "effects: %s: vkCreateShaderModule failed", name); return VK_NULL_HANDLE; }
     VkPipelineShaderStageCreateInfo st[2] = {
@@ -362,7 +370,7 @@ static VkPipeline post_pipeline(VkShaderModule vert, const uint32_t *frag_code, 
                                        .pStages = st, .pVertexInputState = &vi, .pInputAssemblyState = &ia,
                                        .pViewportState = &vp, .pRasterizationState = &rs, .pMultisampleState = &ms,
                                        .pColorBlendState = &cb, .pDynamicState = &ds, .layout = g_pl,
-                                       .renderPass = g_rp, .subpass = 0};
+                                       .renderPass = render_pass, .subpass = 0};
     VkPipeline p = VK_NULL_HANDLE;
     VkResult r = g_vk.CreateGraphicsPipelines(g_dev, VK_NULL_HANDLE, 1, &pi, NULL, &p);
     g_vk.DestroyShaderModule(g_dev, frag, NULL);
@@ -370,18 +378,25 @@ static VkPipeline post_pipeline(VkShaderModule vert, const uint32_t *frag_code, 
     return p;
 }
 
+static VkPipeline post_pipeline(VkShaderModule vert, const uint32_t *frag_code,
+                                size_t frag_size, const char *name) {
+    return post_pipeline_for_renderpass(vert, frag_code, frag_size, g_rp, name);
+}
+
 static void objects_destroy(void) {
     if (!g_dev) return;
     scene_release();
     target_destroy(&g_t[0]); target_destroy(&g_t[1]); target_destroy(&g_mid);
-    target_destroy(&g_smaa_weights);
+    target_destroy(&g_smaa_edges); target_destroy(&g_smaa_weights);
     for (int i = 0; i < P_COUNT; i++) { if (g_pipe[i]) g_vk.DestroyPipeline(g_dev, g_pipe[i], NULL); g_pipe[i] = VK_NULL_HANDLE; }
     if (g_dpool) g_vk.DestroyDescriptorPool(g_dev, g_dpool, NULL);
     if (g_pl) g_vk.DestroyPipelineLayout(g_dev, g_pl, NULL);
     if (g_dsl) g_vk.DestroyDescriptorSetLayout(g_dev, g_dsl, NULL);
     if (g_sampler) g_vk.DestroySampler(g_dev, g_sampler, NULL);
+    if (g_smaa_rp) g_vk.DestroyRenderPass(g_dev, g_smaa_rp, NULL);
     if (g_rp) g_vk.DestroyRenderPass(g_dev, g_rp, NULL);
-    g_dpool = VK_NULL_HANDLE; g_pl = VK_NULL_HANDLE; g_dsl = VK_NULL_HANDLE; g_sampler = VK_NULL_HANDLE; g_rp = VK_NULL_HANDLE;
+    g_dpool = VK_NULL_HANDLE; g_pl = VK_NULL_HANDLE; g_dsl = VK_NULL_HANDLE;
+    g_sampler = VK_NULL_HANDLE; g_rp = VK_NULL_HANDLE; g_smaa_rp = VK_NULL_HANDLE;
     g_ready = 0;
 }
 
@@ -430,6 +445,13 @@ static int objects_ensure(void) {
                                   .subpassCount = 1, .pSubpasses = &sub, .dependencyCount = 2, .pDependencies = deps};
     if (g_vk.CreateRenderPass(g_dev, &rci, NULL, &g_rp) != VK_SUCCESS) goto fail;
 
+    /* SMAA edge and weight maps need four usable 8-bit channels, even in HDR. */
+    VkAttachmentDescription smaa_att = att;
+    smaa_att.format = FX_FORMAT;
+    VkRenderPassCreateInfo smaa_rci = rci;
+    smaa_rci.pAttachments = &smaa_att;
+    if (g_vk.CreateRenderPass(g_dev, &smaa_rci, NULL, &g_smaa_rp) != VK_SUCCESS) goto fail;
+
     VkSamplerCreateInfo sci = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, .magFilter = VK_FILTER_LINEAR,
                                .minFilter = VK_FILTER_LINEAR, .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
                                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
@@ -463,8 +485,12 @@ static int objects_ensure(void) {
     MK(P_CAS, cas_code, "cas");
     MK(P_COLOR, color_code, "color");
     MK(P_FXAA, fxaa_code, "fxaa");
-    MK(P_SMAA_EDGE, smaa_edge_code, "smaa_edge");
-    MK(P_SMAA_WEIGHTS, smaa_weights_code, "smaa_weights");
+    g_pipe[P_SMAA_EDGE] = post_pipeline_for_renderpass(
+        vert, smaa_edge_code, sizeof(smaa_edge_code), g_smaa_rp, "smaa_edge");
+    if (!g_pipe[P_SMAA_EDGE]) { g_vk.DestroyShaderModule(g_dev, vert, NULL); goto fail; }
+    g_pipe[P_SMAA_WEIGHTS] = post_pipeline_for_renderpass(
+        vert, smaa_weights_code, sizeof(smaa_weights_code), g_smaa_rp, "smaa_weights");
+    if (!g_pipe[P_SMAA_WEIGHTS]) { g_vk.DestroyShaderModule(g_dev, vert, NULL); goto fail; }
     MK(P_SMAA_BLEND, smaa_blend_code, "smaa_blend");
     MK(P_TOON, toon_code, "toon");
     MK(P_TOON_COLOR, toon_color_code, "toon_color");
@@ -495,9 +521,10 @@ static void barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkImag
     g_vk.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, NULL, 0, NULL, 1, &b);
 }
 
-static void pass(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst, VkDescriptorSet src,
+static void pass_renderpass(VkCommandBuffer cmd, VkRenderPass render_pass,
+                 VkPipeline p, struct fx_target *dst, VkDescriptorSet src,
                  const void *pc, uint32_t pcsz) {
-    VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_rp, .framebuffer = dst->fb,
+    VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = render_pass, .framebuffer = dst->fb,
                                  .renderArea = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}}};
     g_vk.CmdBeginRenderPass(cmd, &rpi, VK_SUBPASS_CONTENTS_INLINE);
     g_vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
@@ -505,6 +532,11 @@ static void pass(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst, VkDes
     g_vk.CmdPushConstants(cmd, g_pl, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, pcsz, pc);
     g_vk.CmdDraw(cmd, 4, 1, 0, 0);
     g_vk.CmdEndRenderPass(cmd);
+}
+
+static void pass(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst,
+                 VkDescriptorSet src, const void *pc, uint32_t pcsz) {
+    pass_renderpass(cmd, g_rp, p, dst, src, pc, pcsz);
 }
 
 static void pass_dual(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst,
@@ -559,8 +591,10 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
         target_ensure(&g_t[0], cw, ch, FX_TARGET_USAGE, "chain") == 0 && (chain_passes < 2 || target_ensure(&g_t[1], cw, ch, FX_TARGET_USAGE, "chain") == 0) &&
         (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "EASU") == 0)) {
         if (s->aa_mode == 2 &&
-            (target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "SMAA edges") != 0 ||
-             target_ensure(&g_smaa_weights, cw, ch, FX_SCRATCH_USAGE, "SMAA weights") != 0)) {
+            (target_ensure_format(&g_smaa_edges, cw, ch, FX_SCRATCH_USAGE,
+                                  "SMAA edges", FX_FORMAT, g_smaa_rp) != 0 ||
+             target_ensure_format(&g_smaa_weights, cw, ch, FX_SCRATCH_USAGE,
+                                  "SMAA weights", FX_FORMAT, g_smaa_rp) != 0)) {
             droiddeck_log("error", "effects: SMAA scratch allocation failed; falling back to FXAA");
             snapshot.aa_mode = 1;
             s = &snapshot;
@@ -654,9 +688,12 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             switch (order[i]) {
             case FX_FXAA: pass(cmd, g_pipe[P_FXAA], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_SMAA:
-                pass(cmd, g_pipe[P_SMAA_EDGE], &g_mid, cur_ds, &pr, sizeof(pr));
-                pass(cmd, g_pipe[P_SMAA_WEIGHTS], &g_smaa_weights, g_mid.ds, &pr, sizeof(pr));
-                pass_dual(cmd, g_pipe[P_SMAA_BLEND], dst, cur_ds, g_smaa_weights.ds, &pr, sizeof(pr));
+                pass_renderpass(cmd, g_smaa_rp, g_pipe[P_SMAA_EDGE],
+                                &g_smaa_edges, cur_ds, &pr, sizeof(pr));
+                pass_renderpass(cmd, g_smaa_rp, g_pipe[P_SMAA_WEIGHTS],
+                                &g_smaa_weights, g_smaa_edges.ds, &pr, sizeof(pr));
+                pass_dual(cmd, g_pipe[P_SMAA_BLEND], dst, cur_ds,
+                          g_smaa_weights.ds, &pr, sizeof(pr));
                 break;
             case FX_TOON: pass(cmd, g_pipe[P_TOON], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_TOON_COLOR: {
