@@ -204,6 +204,32 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
         assertFalse(WowAddonCatalog.sameVersion("1.2.3", "1.2.4"))
     }
 
+    @Test fun versionsCompareNumericSegmentsFirst() {
+        assertEquals(true, WowAddonCatalog.newer("v4.11.38-7-ge56e9d8", "4.11.39"))
+        assertEquals(true, WowAddonCatalog.newer("1.9", "1.10"))
+        assertEquals(true, WowAddonCatalog.newer("2", "2.0.1"))
+        assertEquals(false, WowAddonCatalog.newer("11.2.0", "6.2.5"))
+        assertEquals(false, WowAddonCatalog.newer("2.0", "2"))
+        assertNull(WowAddonCatalog.newer("11.4.10-beta1", "11.4.10"))
+        assertNull(WowAddonCatalog.newer("release", "1.0"))
+    }
+
+    @Test fun anUpdateIsOfferedOnlyForANewerVersionOrTheSameSourcesCurrentFile() {
+        assertTrue(WowAddonCatalog.offersUpdate("1.9", "1.10", sameSource = false))
+        assertFalse(WowAddonCatalog.offersUpdate("11.2.0", "6.2.5", sameSource = true))
+        assertFalse(WowAddonCatalog.offersUpdate("v1.2", "1.2", sameSource = true))
+        assertTrue(WowAddonCatalog.offersUpdate("11.4.10-beta1", "11.4.10", sameSource = true))
+        assertFalse(WowAddonCatalog.offersUpdate("11.4.10-beta1", "11.4.10", sameSource = false))
+        assertFalse(WowAddonCatalog.offersUpdate(null, "1.0", sameSource = true))
+        assertFalse(WowAddonCatalog.offersUpdate("1.0", "", sameSource = true))
+    }
+
+    @Test fun findUpdatesNeverOffersADowngrade() {
+        val installed = listOf(WowAddons.Installed("Ahead", "3.0", "10"), WowAddons.Installed("Tagged", "r55-alpha", "20"))
+        val updates = WowAddonCatalog.findUpdates(listOf(entry("10", "2.9"), entry("20", "r56")), installed)
+        assertEquals(setOf("Tagged"), updates.keys)
+    }
+
     @Test fun md5Check() {
         val f = File(context.cacheDir, "wowaddon-md5-test.zip")
         f.writeText("hello")

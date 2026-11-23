@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.WowAddonCatalog
+import com.droiddeck.launcher.runtime.WowAddons
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -62,17 +63,32 @@ class AddonRowTest {
         assertEquals(listOf("298842"), installs)
     }
 
-    @Test fun anotherSourcesAddonOnDiskIsInstalledOrUpdatable() {
-        val onDisk = mapOf("questie" to "11.2.0", "questiedb" to null)
-        assertEquals(AddonStatus.UPDATE, diskStatus(listOf("Questie"), onDisk, "6.2.5"))
-        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("Questie"), onDisk, "v11.2.0"))
-        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("QuestieDB"), onDisk, "1.0"))
+    private fun disk(vararg addons: WowAddons.Installed) = addons.associateBy { it.name.lowercase() }
+
+    @Test fun anotherSourcesAddonOnDiskIsUpdatableOnlyToANewerVersion() {
+        val onDisk = disk(WowAddons.Installed("Questie", "11.2.0", null), WowAddons.Installed("QuestieDB", null, null))
+        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("Questie"), onDisk, "6.2.5", "1"))
+        assertEquals(AddonStatus.UPDATE, diskStatus(listOf("Questie"), onDisk, "11.3.0", "1"))
+        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("Questie"), onDisk, "v11.2.0", "1"))
+        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("QuestieDB"), onDisk, "1.0", "1"))
+    }
+
+    @Test fun anIncomparableVersionIsAnUpdateOnlyFromTheSameSource() {
+        val onDisk = disk(WowAddons.Installed("TomTom", "v4.0.1-release", "12"))
+        assertEquals(AddonStatus.UPDATE, diskStatus(listOf("TomTom"), onDisk, "v4.0.1-beta", "12"))
+        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("TomTom"), onDisk, "v4.0.1-beta", "99"))
+        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("TomTom"), onDisk, "4.0.0", "12"))
+    }
+
+    @Test fun foldersOnDiskMatchWhateverTheirCase() {
+        val onDisk = disk(WowAddons.Installed("questie", "11.2.0", null))
+        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("Questie"), onDisk, "11.2.0", "1"))
     }
 
     @Test fun anAddonCountsAsInstalledOnlyWhenEveryFolderIsOnDisk() {
-        val onDisk = mapOf<String, String?>("bartender4" to "4.19.2")
-        assertEquals(AddonStatus.INSTALL, diskStatus(listOf("Bartender4", "Bartender4_Options"), onDisk, "4.19.2"))
-        assertEquals(AddonStatus.INSTALL, diskStatus(emptyList(), onDisk, "4.19.2"))
-        assertEquals(AddonStatus.INSTALL, diskStatus(listOf("TomTom"), onDisk, "4.4.1"))
+        val onDisk = disk(WowAddons.Installed("Bartender4", "4.19.2", null))
+        assertEquals(AddonStatus.INSTALL, diskStatus(listOf("Bartender4", "Bartender4_Options"), onDisk, "4.19.2", "1"))
+        assertEquals(AddonStatus.INSTALL, diskStatus(emptyList(), onDisk, "4.19.2", "1"))
+        assertEquals(AddonStatus.INSTALL, diskStatus(listOf("TomTom"), onDisk, "4.4.1", "1"))
     }
 }

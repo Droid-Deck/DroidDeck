@@ -303,11 +303,17 @@ class CurseForgeAppTest {
     private class Curse(val addOns: File, val flavor: String = "") {
         val projects = java.util.concurrent.CopyOnWriteArrayList<JSONObject>()
         val methods = java.util.Collections.synchronizedList(mutableListOf<String>())
+        @Volatile var unreachableAfterDelete = false
+        @Volatile var unreachable = false
 
-        fun add(id: String, folder: String, status: Int) {
-            File(addOns, folder).mkdirs()
-            projects += JSONObject().put("id", id).put("installedModId", "m_$id").put("status", status).put("locked", false).put("folders", JSONArray().put(folder))
+        fun add(id: String, folder: String, status: Int) = add(id, listOf(folder), status)
+
+        fun add(id: String, folders: List<String>, status: Int, onDisk: List<String> = folders) {
+            onDisk.forEach { File(addOns, it).mkdirs() }
+            projects += JSONObject().put("id", id).put("installedModId", "m_$id").put("status", status).put("locked", false).put("folders", JSONArray(folders))
         }
+
+        private fun folders(p: JSONObject) = (0 until p.getJSONArray("folders").length()).map { p.getJSONArray("folders").getString(it) }
 
         fun answer(expression: String): Any? {
             val method = Regex("s\\[\\\\\"(\\w+)\\\\\"\\]").find(expression)?.groupValues?.get(1) ?: return true
@@ -325,7 +331,12 @@ class CurseForgeAppTest {
                 "detectGameFromPath" -> JSONObject().put("gameInstanceGuid", "g")
                 "getGameInstances" -> JSONArray().put(JSONObject().put("guid", "g").put("installPath", flavor))
                 "deleteMods" -> {
-                    projects.removeAll { p -> (p.getString("installedModId") in expression).also { gone -> if (gone) File(addOns, p.getJSONArray("folders").getString(0)).deleteRecursively() } }
+                    projects.removeAll { p ->
+                        (p.getString("installedModId") in expression).also { gone ->
+                            if (gone) folders(p).forEach { name -> WowAddons.folder(addOns, name)?.deleteRecursively() }
+                        }
+                    }
+                    if (unreachableAfterDelete) unreachable = true
                     JSONArray()
                 }
                 else -> true
@@ -344,6 +355,10 @@ class CurseForgeAppTest {
                     0
                 }
                 argv[0] == CurseForgeApp.HELPER -> 0
+                curse.unreachable -> {
+                    onLine(JSONObject().put("ok", false).put("error", JSONObject().put("code", "DEVTOOLS_UNREACHABLE").put("message", "gone")).toString())
+                    0
+                }
                 else -> {
                     val value = JSONObject().put("value", curse.answer(argv[4]) ?: JSONObject.NULL)
                     onLine(JSONObject().put("ok", true).put("value", value.toString()).toString())
@@ -468,6 +483,83 @@ class CurseForgeAppTest {
         assertEquals(listOf("18808"), CurseForgeApp.projects(context, url, "g").map { it.id })
         assertFalse(File(curse.addOns, "Leatrix_Maps").exists())
         assertTrue(File(curse.addOns, "TomTom").isDirectory)
+    }
+
+    @Test
+    fun anUninstallThatRemovedTheFolderBeforeCurseForgeWentAwayCountsAsDeleted() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val target = wow()
+        val curse = fakeCurse(target.addOns, "/root/Games/World of Warcraft/_retail_")
+        curse.add("298842", "Leatrix_Maps", 1)
+        curse.unreachableAfterDelete = true
+        val link = com.droiddeck.launcher.ui.CurseLink(app)
+        try {
+            link.call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid) }
+            val before = WowAddons.imports
+            com.droiddeck.launcher.ui.deleteAddon(context, target, "Leatrix_Maps")
+            assertTrue("deleteMods" in curse.methods)
+            assertFalse(File(target.addOns, "Leatrix_Maps").exists())
+            assertTrue(WowAddons.imports > before)
+        } finally {
+            kotlinx.coroutines.runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun aLocalDeleteInAProjectWithAMissingFolderKeepsItsOtherFolders() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val target = wow()
+        val curse = fakeCurse(target.addOns, "/root/Games/World of Warcraft/_retail_")
+        curse.add("3358", listOf("DBM-Core", "DBM-GUI", "DBM-StatusBarTimers"), 1, onDisk = listOf("DBM-Core", "DBM-GUI"))
+        curse.add("298842", "Leatrix_Maps", 1)
+        val link = com.droiddeck.launcher.ui.CurseLink(app)
+        try {
+            link.call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid) }
+            com.droiddeck.launcher.ui.deleteAddon(context, target, "DBM-Core")
+            assertFalse("deleteMods" in curse.methods)
+            assertFalse(File(target.addOns, "DBM-Core").exists())
+            assertTrue(File(target.addOns, "DBM-GUI").isDirectory)
+            com.droiddeck.launcher.ui.deleteAddon(context, target, "Leatrix_Maps")
+            assertTrue("deleteMods" in curse.methods)
+            assertFalse(File(target.addOns, "Leatrix_Maps").exists())
+        } finally {
+            kotlinx.coroutines.runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun foldersMatchCurseForgesNamesWhateverTheirCase() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val target = wow()
+        val curse = fakeCurse(target.addOns, "/root/Games/World of Warcraft/_retail_")
+        curse.add("12345", listOf("Questie"), 1, onDisk = listOf("questie"))
+        val listed = CurseForgeApp.projects(context, url, "g")
+        assertEquals(listOf("12345"), CurseForgeApp.onDisk(listed, target.addOns).map { it.id })
+        assertEquals("12345", CurseForgeApp.byFolder(listed)["questie"]?.id)
+        assertEquals("questie", WowAddons.folder(target.addOns, "Questie")?.name)
+        val link = com.droiddeck.launcher.ui.CurseLink(app)
+        try {
+            link.call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid) }
+            com.droiddeck.launcher.ui.deleteAddon(context, target, "Questie")
+            assertTrue("deleteMods" in curse.methods)
+            assertNull(WowAddons.folder(target.addOns, "Questie"))
+        } finally {
+            kotlinx.coroutines.runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun aLocalDeleteFindsTheFolderWhateverItsCaseAndAnAbsentFolderIsAlreadyDeleted() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val target = wow()
+        File(target.addOns, "questie").mkdirs()
+        File(target.addOns, "TomTom").mkdirs()
+        com.droiddeck.launcher.ui.deleteAddon(context, target, "Questie", null)
+        assertNull(WowAddons.folder(target.addOns, "Questie"))
+        assertTrue(File(target.addOns, "TomTom").isDirectory)
+        val before = WowAddons.imports
+        com.droiddeck.launcher.ui.deleteAddon(context, target, "Gone", null)
+        assertTrue(WowAddons.imports > before)
     }
 
     @Test

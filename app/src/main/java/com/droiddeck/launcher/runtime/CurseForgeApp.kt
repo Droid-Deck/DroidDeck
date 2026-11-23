@@ -154,12 +154,15 @@ object CurseForgeApp {
         }
     }
 
-    internal fun owner(projects: List<Project>, folder: String): Project? = projects.firstOrNull { folder in it.folders }
+    internal fun owner(projects: List<Project>, folder: String): Project? =
+        projects.firstOrNull { project -> project.folders.any { it.equals(folder, ignoreCase = true) } }
 
-    internal fun byFolder(projects: List<Project>): Map<String, Project> = projects.flatMap { project -> project.folders.map { it to project } }.toMap()
+    internal fun byFolder(projects: List<Project>): Map<String, Project> = projects.flatMap { project -> project.folders.map { it.lowercase() to project } }.toMap()
 
-    internal fun onDisk(projects: List<Project>, addOns: File): List<Project> =
-        projects.filter { project -> WowAddons.present(project.folders) { File(addOns, it).isDirectory } }
+    internal fun onDisk(projects: List<Project>, addOns: File): List<Project> {
+        val names = addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }.map { it.name.lowercase() }.toSet()
+        return projects.filter { project -> WowAddons.present(project.folders) { it.lowercase() in names } }
+    }
 
     internal var guest: (Context, List<String>, AtomicBoolean?, (String) -> Unit) -> Int = { context, argv, cancelled, onLine ->
         GuestCommand.run(context, argv, logName = "curseforge", extraBinds = BattleNetInstall.binds(context), fastPath = true,

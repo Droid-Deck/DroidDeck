@@ -244,9 +244,32 @@ object WowAddonCatalog {
         return details.version
     }
 
-    internal fun sameVersion(a: String, b: String): Boolean {
-        fun norm(v: String) = v.trim().removePrefix("v").removePrefix("V").trim().lowercase()
-        return norm(a) == norm(b)
+    private fun normVersion(v: String) = v.trim().removePrefix("v").removePrefix("V").trim().lowercase()
+
+    internal fun sameVersion(a: String, b: String): Boolean = normVersion(a) == normVersion(b)
+
+    private val NUMERIC_VERSION = Regex("""^(\d+(?:\.\d+)*)(.*)$""")
+
+    private fun numericVersion(v: String): Pair<List<Long>, String>? {
+        val match = NUMERIC_VERSION.matchEntire(normVersion(v)) ?: return null
+        val parts = match.groupValues[1].split('.').map { it.toLongOrNull() ?: return null }
+        return parts to match.groupValues[2]
+    }
+
+    internal fun newer(have: String, latest: String): Boolean? {
+        val (a, aRest) = numericVersion(have) ?: return null
+        val (b, bRest) = numericVersion(latest) ?: return null
+        for (i in 0 until maxOf(a.size, b.size)) {
+            val x = a.getOrElse(i) { 0L }
+            val y = b.getOrElse(i) { 0L }
+            if (x != y) return y > x
+        }
+        return if (aRest == bRest) false else null
+    }
+
+    internal fun offersUpdate(have: String?, latest: String, sameSource: Boolean): Boolean {
+        if (have.isNullOrBlank() || latest.isBlank() || sameVersion(have, latest)) return false
+        return newer(have, latest) ?: sameSource
     }
 
     internal fun findUpdates(entries: List<Entry>, installed: List<WowAddons.Installed>): Map<String, Addon> {
@@ -256,7 +279,7 @@ object WowAddonCatalog {
             val id = item.wowiId ?: return@mapNotNull null
             val version = item.version ?: return@mapNotNull null
             val latest = byId[id]?.addon?.takeIf { it.summary.isNotBlank() } ?: return@mapNotNull null
-            if (sameVersion(version, latest.summary) || !seen.add(id)) null else item.name to latest
+            if (!offersUpdate(version, latest.summary, sameSource = true) || !seen.add(id)) null else item.name to latest
         }.toMap()
     }
 

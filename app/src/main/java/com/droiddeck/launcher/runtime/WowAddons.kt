@@ -71,6 +71,11 @@ object WowAddons {
 
     fun present(folders: List<String>, exists: (String) -> Boolean): Boolean = folders.isNotEmpty() && folders.all(exists)
 
+    fun folder(addOns: File, name: String): File? {
+        val dirs = addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }
+        return dirs.firstOrNull { it.name == name } ?: dirs.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    }
+
     fun details(target: Target): List<Installed> {
         val origins = origins(target)
         return installed(target).map { name ->

@@ -167,7 +167,8 @@ internal class CurseLink(val app: UserApps.App) {
     }
 
     fun uninstall(context: Context, target: WowAddons.Target, folder: String): Boolean = call(context, target, launch = false) { linked ->
-        val project = CurseForgeApp.owner(CurseForgeApp.projects(context, linked.inspector, linked.guid), folder) ?: return@call false
+        val projects = CurseForgeApp.onDisk(CurseForgeApp.projects(context, linked.inspector, linked.guid), target.addOns)
+        val project = CurseForgeApp.owner(projects, folder) ?: return@call false
         if (!CurseForgeApp.uninstall(context, linked.inspector, linked.guid, project)) throw CurseState()
         true
     }
@@ -199,6 +200,8 @@ private const val CURSE_UPDATE = "update"
 private const val UNINSTALLING = -1
 
 private fun curseMark(project: CurseForgeApp.Project): String? = CURSE_UPDATE.takeIf { project.update }
+
+private class Present(val curse: Map<String, String?> = emptyMap(), val disk: Map<String, WowAddons.Installed> = emptyMap())
 
 @Composable
 internal fun rememberCurseLink(app: UserApps.App?, sessionRunning: Boolean): CurseLink? {
@@ -244,21 +247,21 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     }
     val presentKey = curse to target.addOns
     val scanKey = link?.generation to WowAddons.imports
-    val snapshot by produceState(presentKey to emptyMap<String, String?>(), target.addOns, scanKey, curse, curseInstalls, curse == null && results.items.isEmpty()) {
+    val snapshot by produceState(presentKey to Present(), target.addOns, scanKey, curse, curseInstalls, curse == null && results.items.isEmpty()) {
         val into = target
         val key = curse to into.addOns
         value = key to withContext(Dispatchers.IO) {
-            if (curse != null && link != null) runCatching {
+            if (curse != null && link != null) Present(curse = runCatching {
                 link.installed(context, into, scanKey).associate { it.id to curseMark(it) }
-            }.getOrDefault(emptyMap())
-            else WowAddons.details(into).associate { it.name.lowercase() to it.version }
+            }.getOrDefault(emptyMap()))
+            else Present(disk = WowAddons.details(into).associateBy { it.name.lowercase() })
         }
     }
-    val present = snapshot.second.takeIf { snapshot.first == presentKey } ?: emptyMap()
+    val present = snapshot.second.takeIf { snapshot.first == presentKey } ?: Present()
     fun status(addon: WowAddonCatalog.Addon): AddonStatus {
-        if (curse != null) return if (addon.id !in present) AddonStatus.INSTALL else if (present[addon.id] == CURSE_UPDATE) AddonStatus.UPDATE else AddonStatus.INSTALLED
+        if (curse != null) return if (addon.id !in present.curse) AddonStatus.INSTALL else if (present.curse[addon.id] == CURSE_UPDATE) AddonStatus.UPDATE else AddonStatus.INSTALLED
         val latest = installed[installKey(addon, target)]?.takeIf { it.first == addon.summary }?.second ?: addon.summary
-        return diskStatus(addon.folders, present, latest)
+        return diskStatus(addon.folders, present.disk, latest, addon.id)
     }
     fun load(page: Int) {
         if (results.loading) return
@@ -351,7 +354,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
                     val folders = if (via != null) via.call(context, into) { linked ->
                         CurseForgeApp.projects(context, linked.inspector, linked.guid).firstOrNull { it.id == addon.id }?.folders.orEmpty()
                     } else addon.folders
-                    folders.forEach { if (File(into.addOns, it).isDirectory) deleteAddon(context, into, it, link) }
+                    folders.forEach { name -> WowAddons.folder(into.addOns, name)?.let { deleteAddon(context, into, it.name, link) } }
                 }
             }
             installing.remove(key)
@@ -564,15 +567,16 @@ internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target
     }
 }
 
-internal fun diskStatus(folders: List<String>, onDisk: Map<String, String?>, latest: String): AddonStatus {
+internal fun diskStatus(folders: List<String>, onDisk: Map<String, WowAddons.Installed>, latest: String, id: String): AddonStatus {
     if (!WowAddons.present(folders) { it.lowercase() in onDisk }) return AddonStatus.INSTALL
-    val have = onDisk[folders.first().lowercase()]
-    return if (have == null || latest.isBlank() || WowAddonCatalog.sameVersion(have, latest)) AddonStatus.INSTALLED else AddonStatus.UPDATE
+    val have = onDisk.getValue(folders.first().lowercase())
+    return if (WowAddonCatalog.offersUpdate(have.version, latest, sameSource = have.wowiId == id)) AddonStatus.UPDATE else AddonStatus.INSTALLED
 }
 
 internal fun deleteAddon(context: Context, target: WowAddons.Target, folder: String, link: CurseLink? = CurseLink.live()) {
     val managed = link?.let { runCatching { it.uninstall(context, target, folder) }.getOrDefault(false) } == true
-    if (!managed) WowAddons.delete(target, folder) else WowAddons.changed()
+    val left = WowAddons.folder(target.addOns, folder)
+    if (managed || left == null) WowAddons.changed() else WowAddons.delete(target, left.name)
 }
 
 private fun installKey(addon: WowAddonCatalog.Addon, target: WowAddons.Target) = addon.id + "|" + target.addOns.path

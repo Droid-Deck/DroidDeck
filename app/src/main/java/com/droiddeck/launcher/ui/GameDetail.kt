@@ -1078,7 +1078,7 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, ses
                 target.addOns.mkdirs()
                 a.onBrowseFiles(target.addOns)
             }
-            names.forEach { item -> key(target.addOns, item.name) { AddonRow(item, updates[item.name], target, a, link?.let { l -> managed[item.name]?.let { it to l } }) } }
+            names.forEach { item -> key(target.addOns, item.name) { AddonRow(item, updates[item.name], target, a, link?.let { l -> managed[item.name.lowercase()]?.let { it to l } }) } }
         }
     }
 }
