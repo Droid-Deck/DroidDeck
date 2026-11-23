@@ -79,6 +79,7 @@ object StoresState {
     fun refresh(context: Context) {
         val app = context.applicationContext
         com.droiddeck.launcher.stores.download.SavedQueue.restore(app)
+        com.droiddeck.launcher.stores.battlenet.BattleNetInstall.reconcile(app)
         if (refreshRequests.getAndIncrement() > 0) return
         var seen = 0
         background("stores-refresh", onFailure = { if (refreshRequests.getAndSet(0) > seen) main.post { refresh(app) } }) {
