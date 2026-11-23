@@ -28,6 +28,26 @@ float horizontalEdge(vec2 uv, vec2 px) {
     return max(e.b, e.a);
 }
 
+float measureRun(vec2 origin, vec2 texel, vec2 tangent,
+                  bool verticalLine, float limit, bool positive) {
+    float run = 0.0;
+    for (int i = 1; i <= 6; ++i) {
+        vec2 probe = origin + tangent * float(i) * (positive ? 1.0 : -1.0);
+        if (any(lessThan(probe, texel * 0.5)) ||
+            any(greaterThan(probe, vec2(1.0) - texel * 0.5))) {
+            break;
+        }
+        float edge = verticalLine
+            ? verticalEdge(probe, texel)
+            : horizontalEdge(probe, texel);
+        if (edge <= limit * 0.65) {
+            break;
+        }
+        run = float(i);
+    }
+    return run;
+}
+
 void main() {
     vec2 px = 1.0 / max(pc.resolution, vec2(1.0));
     vec2 uv = clamp(fragTexCoord, px * 0.5, vec2(1.0) - px * 0.5);
@@ -47,21 +67,30 @@ void main() {
         return;
     }
 
-    bool verticalLine = vertical >= horizontal;
+    bool verticalLine;
+    float negativeRun;
+    float positiveRun;
+
+    if (vertical > horizontal) {
+        verticalLine = true;
+    } else if (horizontal > vertical) {
+        verticalLine = false;
+    } else {
+        // Equal contrast: select the axis with the stronger continuation.
+        float vNeg = measureRun(uv, px, vec2(0.0, px.y), true, threshold, false);
+        float vPos = measureRun(uv, px, vec2(0.0, px.y), true, threshold, true);
+        float hNeg = measureRun(uv, px, vec2(px.x, 0.0), false, threshold, false);
+        float hPos = measureRun(uv, px, vec2(px.x, 0.0), false, threshold, true);
+        verticalLine = (vNeg + vPos) >= (hNeg + hPos);
+    }
+
     vec2 tangent = verticalLine ? vec2(0.0, px.y) : vec2(px.x, 0.0);
     vec2 normal = verticalLine
         ? vec2(dL >= dR ? -1.0 : 1.0, 0.0)
         : vec2(0.0, dU >= dD ? -1.0 : 1.0);
 
-    float negativeRun = 0.0;
-    float positiveRun = 0.0;
-    for (int i = 1; i <= 6; ++i) {
-        vec2 offset = tangent * float(i);
-        float edgeN = verticalLine ? verticalEdge(uv - offset, px) : horizontalEdge(uv - offset, px);
-        float edgeP = verticalLine ? verticalEdge(uv + offset, px) : horizontalEdge(uv + offset, px);
-        if (negativeRun == float(i - 1) && edgeN > threshold * 0.65) negativeRun = float(i);
-        if (positiveRun == float(i - 1) && edgeP > threshold * 0.65) positiveRun = float(i);
-    }
+    negativeRun = measureRun(uv, px, tangent, verticalLine, threshold, false);
+    positiveRun = measureRun(uv, px, tangent, verticalLine, threshold, true);
 
     float span = negativeRun + positiveRun;
     float edgeConfidence = smoothstep(threshold, threshold * 2.5, strongest);
@@ -82,7 +111,9 @@ void main() {
     float crossingContrast = abs(crossingA - crossingB);
     float crossingPattern = smoothstep(threshold, threshold * 2.5, crossingContrast);
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
-    float diagonalContrast = max(abs(nw.r - se.g), abs(ne.b - sw.a));
+    float diagonalContrast = max(
+        max(abs(nw.r - se.r), abs(nw.g - se.g)),
+        max(abs(ne.r - sw.r), abs(ne.g - sw.g)));
     float cornerFactor = 1.0 - 0.35 * smoothstep(threshold, threshold * 3.0, diagonalContrast);
     float baseWeight = areaWeight * endpointArea * edgeConfidence * cornerFactor;
 
