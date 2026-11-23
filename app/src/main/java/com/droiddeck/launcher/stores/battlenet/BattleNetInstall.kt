@@ -36,6 +36,8 @@ object BattleNetInstall {
     private const val CN = "cn"
     private const val BUILD_INFO = ".build.info"
     private const val CHECK_AGAIN_MS = 30 * 60_000L
+    private const val CHECK_RETRY_MS = 30_000L
+    private const val CHECK_RETRY_MAX = 2
     private const val START_WAIT_MS = 60_000L
 
     /** Blizzard serves China from battlenet.com.cn; its global version hostnames do not answer for that region. */
@@ -50,6 +52,16 @@ object BattleNetInstall {
 
     internal val checks = Executors.newSingleThreadExecutor { r -> Thread(r, "battlenet-updates") }
     internal val checkedAt = HashMap<String, Long>()
+    private val checkAttempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    private val checkRetry = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "battlenet-update-retry").apply { isDaemon = true }
+    }
+
+    /** Test seams: the version service and the delayed re-check. */
+    internal var fetchVersions: (String) -> String = ::fetch
+    internal var scheduleRecheck: (() -> Unit, Long) -> Unit = { body, delay ->
+        checkRetry.schedule(Runnable { body() }, delay, TimeUnit.MILLISECONDS)
+    }
 
     val updates = mutableStateMapOf<String, Boolean>()
 
@@ -203,25 +215,36 @@ object BattleNetInstall {
         val now = System.currentTimeMillis()
         synchronized(checkedAt) {
             if (!force && now - (checkedAt[key] ?: 0L) < CHECK_AGAIN_MS) return
+            // A new regular check starts a new retry cycle; a forced re-check does not.
+            if (!force) checkAttempts.remove(key)
             checkedAt[key] = now
         }
-        fun retryLater() {
+        fun retryLater(reschedule: Boolean = false) {
             synchronized(checkedAt) { if (checkedAt[key] == now) checkedAt.remove(key) }
             StoresState.post { updates.remove(key) }
+            if (!reschedule) return
+            // A build that changed while the request ran can be checked again, but only a few times.
+            val attempt = checkAttempts.merge(key, 1) { old, _ -> old + 1 } ?: 1
+            if (attempt > CHECK_RETRY_MAX) return
+            scheduleRecheck({
+                Log.i(TAG, "$id: the build changed while checking; asking the version service again")
+                check(id, folder, force = true)
+            }, CHECK_RETRY_MS * attempt)
         }
         checks.execute {
             val local = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
                 ?: return@execute retryLater()
             val served = if (local.first == CN) chinaProduct(id) ?: product else product
-            val latest = runCatching { latestBuild(fetch(versionsUrl(local.first, served)), local.first) }
+            val latest = runCatching { latestBuild(fetchVersions(versionsUrl(local.first, served)), local.first) }
                 .onFailure { Log.w(TAG, "versions of $served: ${it.javaClass.simpleName}") }.getOrNull()
                 ?: return@execute retryLater()
             val current = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
                 ?: return@execute retryLater()
-            if (current != local) return@execute retryLater()
+            if (current != local) return@execute retryLater(reschedule = true)
             val behind = latest != current.second
             Log.i(TAG, "$id: ${if (behind) "update available" else "up to date"}")
             StoresState.post { if (behind) updates[key] = true else updates.remove(key) }
+            checkAttempts.remove(key)
         }
     }
 

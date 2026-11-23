@@ -139,6 +139,52 @@ class BattleNetInstallTest {
         }
     }
 
+    @Test fun aBuildThatChangesDuringTheCheckIsAskedAgainOnlyTwice() {
+        val folder = Files.createTempDirectory("bnet-retry").toFile()
+        val scheduled = mutableListOf<Pair<() -> Unit, Long>>()
+        val originalFetch = BattleNetInstall.fetchVersions
+        val originalSchedule = BattleNetInstall.scheduleRecheck
+        try {
+            File(folder, ".build.info").writeText(buildInfo)
+            var asked = 0
+            BattleNetInstall.fetchVersions = {
+                // Every request runs against a different build, so the post-read never matches.
+                asked += 1
+                File(folder, ".build.info").writeText(buildInfo.replace("e474008a3535d8ea978949a90d9873e6", "%032x".format(asked)))
+                versions
+            }
+            BattleNetInstall.scheduleRecheck = { body, delay -> scheduled += body to delay }
+            synchronized(BattleNetInstall.checkedAt) { BattleNetInstall.checkedAt.clear() }
+
+            BattleNetInstall.check("gryphon", folder, false)
+            BattleNetInstall.checks.submit {}.get()
+            assertEquals(1, scheduled.size)
+            assertEquals(30_000L, scheduled[0].second)
+
+            scheduled[0].first()
+            BattleNetInstall.checks.submit {}.get()
+            assertEquals(2, scheduled.size)
+            assertEquals(60_000L, scheduled[1].second)
+
+            var next = 2
+            repeat(4) {
+                if (next < scheduled.size) {
+                    scheduled[next].first()
+                    BattleNetInstall.checks.submit {}.get()
+                    next += 1
+                }
+            }
+            assertEquals("re-checks are bounded", 2, scheduled.size)
+            assertEquals(30_000L, scheduled[0].second)
+            assertNull(BattleNetInstall.updates[BattleNetInstall.updateKey("gryphon", folder)])
+        } finally {
+            BattleNetInstall.fetchVersions = originalFetch
+            BattleNetInstall.scheduleRecheck = originalSchedule
+            synchronized(BattleNetInstall.checkedAt) { BattleNetInstall.checkedAt.remove(BattleNetInstall.updateKey("gryphon", folder)) }
+            folder.deleteRecursively()
+        }
+    }
+
     @Test fun updateStateIsSeparateForEachInstallFolder() {
         val one = Files.createTempDirectory("bnet-one").toFile()
         val two = Files.createTempDirectory("bnet-two").toFile()
