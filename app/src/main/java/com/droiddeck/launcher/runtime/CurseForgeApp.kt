@@ -1,25 +1,33 @@
 package com.droiddeck.launcher.runtime
 
 import android.content.Context
-import com.droiddeck.launcher.agent.AgentException
-import com.droiddeck.launcher.agent.AgentGuest
+import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 object CurseForgeApp {
     const val NAME = "CurseForge"
     const val FEED = "https://curseforge.overwolf.com/electron/linux/latest-linux.yml"
     internal const val WOW = 1
     const val HELPER = "/usr/local/bin/droiddeck-curseforge"
+    internal const val AGENT = "/usr/local/bin/droiddeck-agent"
     private const val READY_MS = 120_000L
     private const val INSTALL_MS = 300_000L
+    private const val OUT_OF_DATE = 2
 
-    enum class Start { READY, BUSY, NO_DISPLAY, FAILED }
+    enum class Start { READY, BUSY, FAILED }
 
     class Started(val state: Start, val inspector: String? = null)
 
-    private val INSPECTOR = Regex("ws://127\\.0\\.0\\.1:[0-9]{4,5}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+    class Project(val id: String, val installedModId: String, val folders: List<String>, val update: Boolean)
+
+    internal val INSPECTOR = Regex("ws://127\\.0\\.0\\.1:[0-9]{4,5}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
     class Failure(message: String, val code: String? = null) : Exception(message) {
         val gone get() = code == "DEVTOOLS_UNREACHABLE"
@@ -31,14 +39,19 @@ object CurseForgeApp {
 
     internal fun dir(app: UserApps.App): String? = app.args.firstOrNull()?.takeIf { it.startsWith("/") }
 
-    fun holdArgs(app: UserApps.App): List<String>? = dir(app)?.let { listOf("hold", it) }
+    internal fun helperArgv(command: String, dir: String): List<String> = listOf(HELPER, command, dir)
+
+    internal fun evalArgv(inspector: String, expression: String, timeoutMs: Long): List<String> =
+        listOf(AGENT, "--cdp-inspector", inspector, (timeoutMs / 1000.0).toString(), expression)
+
+    internal fun lastJson(lines: List<String>): JSONObject? =
+        lines.asReversed().firstNotNullOfOrNull { line -> runCatching { JSONObject(line.trim()) }.getOrNull() }
 
     internal fun inspectorUrl(stdout: String): String? = stdout.lineSequence().map { it.trim() }.lastOrNull { INSPECTOR.matches(it) }
 
     internal fun startState(exitCode: Int): Start = when (exitCode) {
         0 -> Start.READY
         3 -> Start.BUSY
-        4 -> Start.NO_DISPLAY
         else -> Start.FAILED
     }
 
@@ -132,52 +145,94 @@ object CurseForgeApp {
         return detected?.takeIf { it.isNotBlank() }
     }
 
-    internal fun projectIds(value: Any?): Set<String> {
-        val list = value as? JSONArray ?: return emptySet()
-        return (0 until list.length()).mapNotNull { list.opt(it)?.toString()?.takeIf { id -> id.isNotBlank() && id != "null" } }.toSet()
-    }
-
-    private fun call(context: Context, inspector: String, service: String, method: String, args: JSONArray?, timeoutMs: Long, pick: String = "r => r"): Any? {
-        val request = JSONObject().put("kind", "cdp").put("inspector", inspector).put("commandLineApi", true)
-            .put("expression", expression(service, method, args, pick)).put("timeout", timeoutMs / 1000.0)
-        return unwrap(AgentGuest.call(context, request, timeoutMs + 3_000, trusted = true))
-    }
-
-    private fun helper(context: Context, command: String, dir: String, timeoutMs: Long): JSONObject? {
-        val request = JSONObject().put("kind", "exec").put("argv", JSONArray(listOf(HELPER, command, dir))).put("timeout", timeoutMs / 1000.0)
-        return runCatching { AgentGuest.call(context, request, timeoutMs + 5_000, trusted = true) }.getOrNull()
-    }
-
-    fun start(context: Context, app: UserApps.App): Started {
-        val dir = dir(app) ?: return Started(Start.FAILED)
-        val answer = helper(context, "start", dir, 90_000)
-        if (answer == null || !answer.optBoolean("ok") || answer.optBoolean("timedOut")) {
-            stop(context, app, null)
-            return Started(Start.FAILED)
+    internal fun parseProjects(value: Any?): List<Project> {
+        val list = value as? JSONArray ?: return emptyList()
+        return (0 until list.length()).mapNotNull { list.optJSONObject(it) }.mapNotNull { p ->
+            val id = p.optString("id").takeIf { it.isNotBlank() && it != "null" } ?: return@mapNotNull null
+            val folders = p.optJSONArray("folders")?.let { f -> (0 until f.length()).mapNotNull { f.optString(it).takeIf(String::isNotBlank) } }.orEmpty()
+            Project(id, p.optString("installedModId"), folders, p.optInt("status") == OUT_OF_DATE && !p.optBoolean("locked"))
         }
-        val state = startState(answer.optInt("exitCode", -1))
-        if (state == Start.BUSY || state == Start.NO_DISPLAY) return Started(state)
-        val inspector = inspectorUrl(answer.optJSONObject("stdout")?.optString("text").orEmpty())
-        if (state != Start.READY || inspector == null) {
-            stop(context, app, null)
+    }
+
+    internal fun owner(projects: List<Project>, folder: String): Project? =
+        projects.firstOrNull { project -> project.folders.any { it.equals(folder, ignoreCase = true) } }
+
+    internal fun byFolder(projects: List<Project>): Map<String, Project> = projects.flatMap { project -> project.folders.map { it.lowercase() to project } }.toMap()
+
+    internal fun onDisk(projects: List<Project>, addOns: File): List<Project> {
+        val names = addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }.map { it.name.lowercase() }.toSet()
+        return projects.filter { project -> WowAddons.present(project.folders) { it.lowercase() in names } }
+    }
+
+    internal var guest: (Context, List<String>, AtomicBoolean?, (String) -> Unit) -> Int = { context, argv, cancelled, onLine ->
+        GuestCommand.run(context, argv, logName = "curseforge", extraBinds = BattleNetInstall.binds(context), fastPath = true,
+            cancelled = cancelled, redact = INSPECTOR, onLine = onLine)
+    }
+
+    private val holds = ConcurrentHashMap<String, AtomicBoolean>()
+
+    private fun lines(context: Context, argv: List<String>): List<String> {
+        val out = ArrayList<String>()
+        guest(context, argv, null) { out += it }
+        return out
+    }
+
+    private fun call(context: Context, inspector: String, service: String, method: String, args: JSONArray?, timeoutMs: Long, pick: String = "r => r"): Any? =
+        unwrap(lastJson(lines(context, evalArgv(inspector, expression(service, method, args, pick), timeoutMs))) ?: throw Failure("CurseForge gave no answer"))
+
+    private sealed class Launch {
+        class Url(val inspector: String) : Launch()
+        class Exit(val code: Int) : Launch()
+    }
+
+    private fun launch(context: Context, dir: String, hold: AtomicBoolean): Launch? {
+        val first = LinkedBlockingQueue<Launch>()
+        Thread({
+            val code = runCatching {
+                guest(context, helperArgv("start", dir), hold) { line -> inspectorUrl(line)?.let { first.offer(Launch.Url(it)) } }
+            }.getOrDefault(-1)
+            first.offer(Launch.Exit(code))
+        }, "curseforge-headless").apply { isDaemon = true; start() }
+        return first.poll(READY_MS, TimeUnit.MILLISECONDS)
+    }
+
+    fun start(context: Context, app: UserApps.App, hold: AtomicBoolean): Started {
+        val dir = dir(app) ?: return Started(Start.FAILED)
+        if (hold.get()) return Started(Start.FAILED)
+        holds.put(dir, hold)?.takeIf { it !== hold }?.let {
+            it.set(true)
+            runCatching { lines(context, helperArgv("stop", dir)) }
+        }
+        val inspector = when (val first = launch(context, dir, hold)) {
+            is Launch.Url -> first.inspector
+            is Launch.Exit -> if (startState(first.code) == Start.BUSY) {
+                holds.remove(dir, hold)
+                return Started(Start.BUSY)
+            } else null
+            null -> null
+        }
+        if (inspector == null) {
+            stop(context, app, null, hold)
             return Started(Start.FAILED)
         }
         val deadline = System.currentTimeMillis() + READY_MS
-        while (System.currentTimeMillis() < deadline) {
-            val ready = runCatching { call(context, inspector, "InstalledProjectsAppService", "installAddon", null, 10_000) }
-            if (ready.isSuccess) return Started(Start.READY, inspector)
-            val error = ready.exceptionOrNull()
-            if (error is AgentException && error.code == "NO_ACTIVE_SESSION") break
+        while (System.currentTimeMillis() < deadline && !hold.get()) {
+            if (runCatching { call(context, inspector, "InstalledProjectsAppService", "installAddon", null, 10_000) }.isSuccess) return Started(Start.READY, inspector)
             Thread.sleep(1_000)
         }
-        stop(context, app, inspector)
+        stop(context, app, inspector, hold)
         return Started(Start.FAILED)
     }
 
-    fun stop(context: Context, app: UserApps.App, inspector: String?) {
+    fun stop(context: Context, app: UserApps.App, inspector: String?, hold: AtomicBoolean) {
         val dir = dir(app) ?: return
+        if (holds[dir] !== hold) {
+            hold.set(true)
+            return
+        }
         if (inspector != null) runCatching { call(context, inspector, "CoreService", "shutdown", JSONArray(), 30_000, "r => true") }
-        helper(context, "stop", dir, 30_000)
+        hold.set(true)
+        if (holds.remove(dir, hold)) runCatching { lines(context, helperArgv("stop", dir)) }
     }
 
     private fun connect(context: Context, inspector: String) {
@@ -195,22 +250,44 @@ object CurseForgeApp {
     fun search(context: Context, inspector: String, guid: String, text: String, sort: WowAddonCatalog.Sort, page: Int): WowAddonCatalog.Page =
         parseSearch(call(context, inspector, "ProjectAppService", "search", JSONArray().put(searchRequest(guid, text, sort, page)), 60_000))
 
-    fun installed(context: Context, inspector: String, guid: String): Set<String> {
+    fun projects(context: Context, inspector: String, guid: String, rescan: Boolean = false): List<Project> {
         connect(context, inspector)
-        return projectIds(call(context, inspector, "InstalledProjectsAppService", "getProjects", JSONArray().put(guid), 30_000, "r => (r || []).map(p => String(p.id))"))
+        if (rescan) call(context, inspector, "GameDetectionAppService", "scanGameInstance", JSONArray().put(guid), 120_000)
+        return parseProjects(call(context, inspector, "InstalledProjectsAppService", "getProjects", JSONArray().put(guid), 30_000, PROJECTS))
+    }
+
+    private const val PROJECTS = "r => (r || []).map(p => ({ id: String(p.id), installedModId: p.installedModId, status: p.status, " +
+        "locked: !!(p.installedVersion && p.installedVersion.isLocked), " +
+        "folders: ((p.installedVersion && p.installedVersion.addonFolders) || []).map(f => f.name) }))"
+
+    private fun settle(context: Context, inspector: String, guid: String, done: (List<Project>) -> Boolean): Boolean {
+        val deadline = System.currentTimeMillis() + INSTALL_MS
+        while (System.currentTimeMillis() < deadline) {
+            val listed = runCatching { projects(context, inspector, guid) }
+            val error = listed.exceptionOrNull()
+            if (error is Failure && error.gone) throw error
+            listed.getOrNull()?.let { if (done(it)) return true }
+            Thread.sleep(1_000)
+        }
+        return false
     }
 
     fun install(context: Context, inspector: String, guid: String, projectId: String): Boolean {
         connect(context, inspector)
         if (call(context, inspector, "InstalledProjectsAppService", "installAddon", JSONArray().put(installRequest(guid, projectId)), 300_000) != true) return false
-        val deadline = System.currentTimeMillis() + INSTALL_MS
-        while (System.currentTimeMillis() < deadline) {
-            val listed = runCatching { installed(context, inspector, guid) }
-            val error = listed.exceptionOrNull()
-            if (error is Failure && error.gone || error is AgentException && error.code == "NO_ACTIVE_SESSION") throw error
-            if (projectId in listed.getOrDefault(emptySet())) return true
-            Thread.sleep(1_000)
-        }
-        return false
+        return settle(context, inspector, guid) { list -> list.any { it.id == projectId } }
+    }
+
+    fun update(context: Context, inspector: String, guid: String, projectId: String): Boolean {
+        connect(context, inspector)
+        if (call(context, inspector, "InstalledProjectsAppService", "updateMod", JSONArray().put(guid).put(projectId.toLong()), 300_000) != true) return false
+        return settle(context, inspector, guid) { list -> list.any { it.id == projectId && !it.update } }
+    }
+
+    fun uninstall(context: Context, inspector: String, guid: String, project: Project): Boolean {
+        connect(context, inspector)
+        val failed = call(context, inspector, "InstalledProjectsAppService", "deleteMods", JSONArray().put(guid).put(JSONArray().put(project.installedModId)), 120_000) as? JSONArray
+        if (failed == null || failed.length() > 0) return false
+        return settle(context, inspector, guid) { list -> list.none { it.id == project.id } }
     }
 }

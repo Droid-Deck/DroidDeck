@@ -295,7 +295,7 @@ internal fun GameDetail(
                                 GameTab.ACHIEVEMENTS -> achievementState?.let { st -> AchievementsTab(StoreAchievements.forSource(store?.id)?.label.orEmpty(), st) }
                                 GameTab.LAUNCH -> if (game != null) LaunchTab(game, s, a, hopRail)
                                 GameTab.SAVES -> if (game != null && prefix != null) SavesTab(game, prefix, a)
-                                GameTab.ADDONS -> if (game != null) AddonsTab(game, addonTargets, a)
+                                GameTab.ADDONS -> if (game != null) AddonsTab(game, addonTargets, s.sessionRunning, a)
                                 GameTab.INSTALL -> InstallTab(game, installed, item, store)
                             }
                         }
@@ -1047,9 +1047,11 @@ private fun SavesTab(g: Library.SteamGame, prefix: File, a: FrontEndActions) {
 }
 
 @Composable
-private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: FrontEndActions) {
+private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, sessionRunning: Boolean, a: FrontEndActions) {
     var browsing by remember(g.gameId) { mutableStateOf<WowAddons.Target?>(null) }
-    browsing?.let { AddonBrowserDialog(targets, it, CurseForgeApp.find(UserAppsState.items)) { browsing = null } }
+    val curseForge = CurseForgeApp.find(UserAppsState.items)
+    val link = rememberCurseLink(curseForge, sessionRunning)
+    browsing?.let { AddonBrowserDialog(targets, it, curseForge, link) { browsing = null } }
     Column(Modifier.fillMaxWidth().tabPanel(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         CurseForgeEntry(a)
         targets.forEach { target ->
@@ -1059,6 +1061,12 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: 
             val context = LocalContext.current
             val updates by produceState(emptyMap<String, WowAddonCatalog.Addon>(), names) {
                 value = withContext(Dispatchers.IO) { WowAddonCatalog.updates(context, names, target) }
+            }
+            val scanKey = link?.generation to WowAddons.imports
+            val managed by produceState(emptyMap<String, CurseForgeApp.Project>(), link, target.addOns, scanKey) {
+                value = if (link == null) emptyMap() else withContext(Dispatchers.IO) {
+                    runCatching { CurseForgeApp.byFolder(link.installed(context, target, scanKey)) }.getOrDefault(emptyMap())
+                }
             }
             if (targets.size > 1) SectionLabel(target.flavor)
             MenuItem(stringResource(R.string.addons_download), checked = false) { browsing = target }
@@ -1070,7 +1078,7 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, a: 
                 target.addOns.mkdirs()
                 a.onBrowseFiles(target.addOns)
             }
-            names.forEach { item -> key(target.addOns, item.name) { AddonRow(item, updates[item.name], target, a) } }
+            names.forEach { item -> key(target.addOns, item.name) { AddonRow(item, updates[item.name], target, a, link?.let { l -> managed[item.name.lowercase()]?.let { it to l } }) } }
         }
     }
 }
@@ -1124,8 +1132,10 @@ private fun CurseForgeEntry(a: FrontEndActions) {
 }
 
 @Composable
-private fun AddonRow(item: WowAddons.Installed, update: WowAddonCatalog.Addon?, target: WowAddons.Target, a: FrontEndActions) {
+internal fun AddonRow(item: WowAddons.Installed, wowiUpdate: WowAddonCatalog.Addon?, target: WowAddons.Target, a: FrontEndActions, curse: Pair<CurseForgeApp.Project, CurseLink>? = null) {
     val name = item.name
+    val update = wowiUpdate.takeIf { curse == null }
+    val outdated = update != null || curse?.first?.update == true
     var asking by remember(target.addOns, name) { mutableStateOf(false) }
     var progress by remember(target.addOns, name) { mutableStateOf<Int?>(null) }
     val context = LocalContext.current
@@ -1135,26 +1145,33 @@ private fun AddonRow(item: WowAddons.Installed, update: WowAddonCatalog.Addon?, 
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 2.dp, bottom = 2.dp)) {
         Column(Modifier.weight(1f)) {
             Text(name, fontSize = 14.sp, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val detail = listOfNotNull(item.version, update?.let { stringResource(R.string.upd_available) }).joinToString(" · ")
+            val detail = listOfNotNull(item.version, if (outdated) stringResource(R.string.upd_available) else null).joinToString(" · ")
             if (detail.isNotEmpty()) Text(
                 progress?.let { stringResource(R.string.ctrl_percent, it) } ?: detail, fontSize = 12.sp,
-                color = if (update != null) LocalPalette.current.signal else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = if (outdated) LocalPalette.current.signal else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        if (update != null && !SessionState.running) IconAction(Icons.Outlined.Download, stringResource(R.string.common_update), "addon:update:${target.flavor}:$name", enabled = progress == null) {
+        if (outdated && !SessionState.running) IconAction(Icons.Outlined.Download, stringResource(R.string.common_update), "addon:update:${target.flavor}:$name", enabled = progress == null) {
             progress = 0
             scope.launch {
-                val message = withContext(Dispatchers.IO) { installAddon(context, update, target) { pct -> scope.launch { progress = pct } } }
+                val message = withContext(Dispatchers.IO) {
+                    if (curse != null) {
+                        val (project, link) = curse
+                        val done = runCatching { link.call(context, target) { CurseForgeApp.update(context, it.inspector, it.guid, project.id) } }.getOrDefault(false)
+                        WowAddons.changed()
+                        if (done) context.getString(R.string.user_apps_updated, name) else context.getString(R.string.stores_dl_failed_reason, name)
+                    } else update?.let { installAddon(context, it, target) { pct -> scope.launch { progress = pct } }.first }
+                }
                 progress = null
-                android.widget.Toast.makeText(context, message.first, android.widget.Toast.LENGTH_LONG).show()
+                if (message != null) android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
             }
         }
-        if (!SessionState.running) IconAction(Icons.Outlined.Delete, delete, "addon:delete:${target.flavor}:$name", danger = true) { asking = true }
+        if (!SessionState.running) IconAction(Icons.Outlined.Delete, if (curse != null) stringResource(R.string.common_uninstall) else delete, "addon:delete:${target.flavor}:$name", danger = true) { asking = true }
     }
     if (asking) ConfirmDialog(
-        title = stringResource(R.string.games_delete_addon_title, name),
+        title = if (curse != null) stringResource(R.string.stores_uninstall_title, name) else stringResource(R.string.games_delete_addon_title, name),
         text = stringResource(R.string.games_delete_addon_body),
-        confirm = delete,
+        confirm = if (curse != null) stringResource(R.string.common_uninstall) else delete,
         onConfirm = { a.onAddonDelete(target, name) },
         onDismiss = { asking = false },
     )

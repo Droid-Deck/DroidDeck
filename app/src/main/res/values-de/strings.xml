@@ -332,7 +332,6 @@
     <string name="mode_startup">Start</string>
     <string name="mode_startup_session">Beim Start öffnen</string>
     <string name="mode_startup_session_hint">Startet diese Sitzung, wenn DroidDeck startet.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Suche nach Releases…</string>
     <string name="mode_decky_ready">Bereit zur Installation von %1$s.</string>
     <string name="mode_decky_none">Kein kompatibler Build gefunden. Versuch es später noch einmal.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Aktuell · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Neueste Version installieren</string>
-    <string name="decky_channel">Update-Kanal</string>
-    <string name="decky_channel_hint">Welche Decky-Loader-Releases installiert werden. Deckys eigener Updater nutzt denselben Kanal.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Vorabversion</string>
     <string name="decky_channel_testing">Test</string>
     <string name="decky_channel_failed">Decky-Update-Kanal konnte nicht gespeichert werden</string>
-    <string name="mode_decky_on">Startet mit Steam. Solange aktiv, können andere Apps auf diesem Gerät Steam möglicherweise steuern.</string>
-    <string name="mode_decky_off">Aus. Der Remote-Debugging-Port von Steam bleibt geschlossen.</string>
     <string name="mode_decky_remove_title">Decky Loader deinstallieren?</string>
     <string name="mode_decky_remove_text">Entfernt den Loader. Deine Plugins und Einstellungen bleiben erhalten.</string>
     <string name="mode_client">Client</string>

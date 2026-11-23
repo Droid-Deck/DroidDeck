@@ -187,7 +187,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var gpuClockPin by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
-    private var nativeUserland by mutableStateOf(false)
+    private var nativeUserland by mutableStateOf(true)
     private var cursorComposite by mutableStateOf(false)
     private var guestHostname by mutableStateOf(SessionPrefs.DEFAULT_GUEST_HOSTNAME)
     private var phantomWarning by mutableStateOf<String?>(null)
@@ -921,7 +921,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         request.data?.takeIf { it.scheme == "droiddeck" && it.host == "settings" }?.let { uri ->
             val section = uri.pathSegments.firstOrNull()
-            navRequest = if (section in setOf("storage", "sync", "downloads")) section
+            navRequest = if (section in setOf("storage", "sync", "downloads", "decky", "boot-movies")) section
                 else "settings:" + (com.droiddeck.launcher.ui.SettingsSection.of(section) ?: com.droiddeck.launcher.ui.SettingsSection.OVERVIEW).key
             request.data = null
             gameLinkReading = false
@@ -1531,7 +1531,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onAddonImport = { sg, target -> importAddons(sg.name, target) },
                         onAddonDelete = { target, name ->
                             saveAction(getString(R.string.main_addons_deleting, name)) {
-                                com.droiddeck.launcher.runtime.WowAddons.delete(target, name)
+                                com.droiddeck.launcher.ui.deleteAddon(this, target, name)
                                 getString(R.string.main_addons_deleted, name)
                             }
                         },
@@ -2690,6 +2690,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 deckyChecking = decky.deckyChecking, deckyStage = decky.deckyStage, deckyPercent = decky.deckyPercent,
                 deckyDownloadingBinary = decky.deckyDownloadingBinary,
                 deckyEnabled = decky.deckySupervisor, deckySessionRunning = SessionState.running,
+                deckyPlugins = decky.deckyPlugins, deckyStore = decky.deckyStore, deckyStoreFailed = decky.deckyStoreFailed,
             ),
             ModeSettingsActions(
                 onIntegration = ::configureIntegration,
@@ -2800,6 +2801,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     decky.deckyInstalled = null
                     decky.deckySupervisor = false
                 },
+                onDeckyStoreRefresh = { decky.refreshStore() },
+                onDeckyStoreInstall = { plugin -> decky.installStorePlugin(plugin) },
+                onDeckyRemove = { plugin -> decky.removePlugin(plugin) },
                 onPickDeckyPluginZip = {
                     pickDeckyPluginZip.launch(InAppFilePicker.buildIntent(this, ZIP_EXT, getString(R.string.main_pick_decky_zip)))
                 },
@@ -3090,6 +3094,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     decky.deckyInstalled = deckyInstalled
                     decky.deckySupervisor = deckySupervisor
                     decky.refreshDecky()
+                    decky.refreshPlugins()
                 }
                 fetchAddedGameArt()
             }

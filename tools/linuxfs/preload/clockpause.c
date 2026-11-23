@@ -25,7 +25,6 @@
 #define CP_FDS 65536
 
 static const int64_t *cp_shift;
-static int cp_state;
 static size_t cp_cond_byte;
 static unsigned char cp_cond_mask;
 static unsigned char cp_fds[CP_FDS / 8];
@@ -94,25 +93,14 @@ static void cp_init(void) {
 }
 
 static int64_t cp_offset(void) {
-  const int64_t *shift;
-  int state = __atomic_load_n(&cp_state, __ATOMIC_ACQUIRE);
-  if (state == 0) {
-    int expected = 0;
-    if (__atomic_compare_exchange_n(&cp_state, &expected, 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-      cp_init();
-      __atomic_store_n(&cp_state, 2, __ATOMIC_RELEASE);
-    }
-    return 0;
-  }
-  if (state != 2) return 0;
-  shift = __atomic_load_n(&cp_shift, __ATOMIC_ACQUIRE);
+  const int64_t *shift = __atomic_load_n(&cp_shift, __ATOMIC_ACQUIRE);
   if (!shift) return 0;
   int64_t value = __atomic_load_n(shift, __ATOMIC_RELAXED);
   return value > 0 ? value : 0;
 }
 
 __attribute__((constructor)) static void cp_start(void) {
-  cp_offset();
+  cp_init();
 }
 
 static int cp_mono(clockid_t clock) {

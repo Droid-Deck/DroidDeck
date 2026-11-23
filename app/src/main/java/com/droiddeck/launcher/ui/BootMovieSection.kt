@@ -117,7 +117,7 @@ private fun rememberMovies(refresh: Int, onSelectionChanged: () -> Unit): MovieS
 }
 
 @Composable
-private fun TabChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun TabChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
