@@ -50,10 +50,19 @@ class NativeGuestTest {
     @Test
     fun mountsWithoutADestinationMapToThemselves() {
         val root = rootWithLoader()
-        val env = NativeGuest.sessionEnvironment(root, listOf("/dev", "/a:/b"))
+        val env = NativeGuest.sessionEnvironment(root, listOf("/dev", "/a:/b"), "/usr/bin/env")
         assertEquals("/dev:/dev|/a:/b", env["DDNATV_BINDS"])
         assertEquals(root.path, env["DDNATV_ROOT"])
         assertTrue(env.getValue("LD_PRELOAD").replace(File.separatorChar, '/').endsWith("usr/lib/libddnatv-hook.so"))
+    }
+
+    @Test
+    fun theProgramTheLoaderRunsIsNamedInItsEnvironment() {
+        val root = rootWithLoader()
+        val program = NativeGuest.command(root, "/usr/bin/env", listOf("-i"))[3]
+        assertEquals(program, NativeGuest.sessionEnvironment(root, listOf("/dev"), "/usr/bin/env")["DDNATV_REAL_EXE"])
+        assertEquals(program, NativeGuest.environment(root, "/usr/bin/env")["DDNATV_REAL_EXE"])
+        assertEquals(program, NativeGuest.builder(root, "/", listOf("/usr/bin/env", "-i"), emptyMap()).environment()["DDNATV_REAL_EXE"])
     }
 
     private val linkRoot = "/data/user/0/app/files/linuxfs"

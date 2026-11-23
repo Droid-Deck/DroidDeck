@@ -416,6 +416,7 @@ object BwrapSpawner {
             "DDNATV_ROOT" to sandbox,
             "DDNATV_EXEC" to NativeGuest.execLoader.orEmpty(),
             "DDNATV_LINK_ROOT" to rootfs.path,
+            "DDNATV_REAL_EXE" to program.path,
             "DDNATV_BINDS" to plan.binds.joinToString("|") { "${it.host}:${it.guest}" },
             "DDNATV_HOSTNAME" to SessionPrefs.guestHostname(context),
             "LD_LIBRARY_PATH" to SANDBOX_LIB_DIRS.map(::host).filter { it.isDirectory }.joinToString(":") { it.path },

@@ -64,8 +64,8 @@ class NativeHookProcExeTest(unittest.TestCase):
             shutil.copy(shutil.which(cls.prefix[0]), cls.loader)
             cls.loader_args = list(cls.prefix[1:])
         else:
-            ld = next(p for p in ("/lib/ld-linux-aarch64.so.1", "/lib64/ld-linux-aarch64.so.1") if os.path.exists(p))
-            shutil.copy(ld, cls.loader)
+            cls.ld_so = next(p for p in ("/lib/ld-linux-aarch64.so.1", "/lib64/ld-linux-aarch64.so.1") if os.path.exists(p))
+            shutil.copy(cls.ld_so, cls.loader)
             cls.loader_args = []
 
     @classmethod
@@ -73,11 +73,13 @@ class NativeHookProcExeTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def start(self, loader, real_exe=None, program=None):
-        env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "DDNATV_REAL_EXE")}
-        if real_exe:
-            env["DDNATV_REAL_EXE"] = real_exe
         program = program or Path(self.tmp.name) / "sleeper"
         cmd = ([str(self.loader), *self.loader_args] if loader else list(self.prefix)) + [str(program)]
+        return self.spawn(cmd, {"DDNATV_REAL_EXE": real_exe} if real_exe else {})
+
+    def spawn(self, cmd, extra_env):
+        env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "DDNATV_ROOT", "DDNATV_REAL_EXE")}
+        env.update(extra_env)
         child = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, text=True)
         self.addCleanup(child.stdout.close)
         self.addCleanup(child.wait)
@@ -117,6 +119,14 @@ class NativeHookProcExeTest(unittest.TestCase):
         pid = self.start(loader=False, real_exe=str(self.kwin))
         link = f"/proc/{pid}/exe"
         self.assertEqual(os.readlink(link), self.readlink(link)[link])
+
+    @unittest.skipIf(runner()[1], "qemu answers /proc/self/cmdline from its own copy of the arguments")
+    def test_a_program_whose_hook_moved_its_arguments_is_still_named(self):
+        cmd = [self.ld_so, "--preload", str(self.hook), "--argv0", self.kwin.name, str(self.kwin)]
+        pid = self.spawn(cmd, {"DDNATV_ROOT": str(self.root), "DDNATV_REAL_EXE": str(self.kwin)})
+        self.assertEqual(b"kwin_wayland", Path(f"/proc/{pid}/cmdline").read_bytes().rstrip(b"\0"))
+        link = f"/proc/{pid}/exe"
+        self.assertEqual("/usr/bin/kwin_wayland", self.readlink(link)[link])
 
     def test_a_loader_without_a_known_program_keeps_the_kernel_link(self):
         pid = self.start(loader=True)

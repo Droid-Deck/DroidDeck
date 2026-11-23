@@ -75,6 +75,8 @@ class NativeHookCmdlineTest(unittest.TestCase):
         cls.ddexec = tmp / "lib/libddexec.so"
         cls.ddexec.parent.mkdir()
         subprocess.run([cls.cc, *DDEXEC_FLAGS, "-o", str(cls.ddexec), str(DDEXEC)], check=True)
+        cls.ddexec_runs = subprocess.run(list(cls.prefix) + [str(cls.ddexec), str(cls.probe), str(cls.probe)],
+                                         capture_output=True, timeout=120).returncode == 0
         cls.root = tmp / "root"
         cls.root.mkdir()
         if cls.prefix:
@@ -121,6 +123,8 @@ class NativeHookCmdlineTest(unittest.TestCase):
 
     @unittest.skipIf(runner()[1], "qemu answers /proc/self/cmdline from its own copy of the arguments")
     def test_the_app_loader_in_front_of_the_loader_is_left_out(self):
+        if not self.ddexec_runs:
+            self.skipTest("libddexec.so does not start a program on this host")
         seen = self.run_probe([str(self.ddexec), self.ld_so] + self.loader_argv(WINDOWS_PROGRAM))
         self.assertEqual(["/usr/bin/wine", WINDOWS_PROGRAM], seen["argv"])
         self.assertEqual(["/usr/bin/wine", WINDOWS_PROGRAM], seen["cmdline"])
