@@ -291,6 +291,23 @@ alone would then read as an installed client.
     spins until a `SIGALRM` handler sets a register (R12, or ESI in 32-bit `rt` and legacy frames):
     FEX-2611.1 with 0001 to 0011 never sees it in any of the three frame types, with this patch all
     three see it on the first signal, as natively.
+  - `0013-signal-context-matches-host-pc`: the guest RIP in a signal frame is rebuilt from the host PC,
+    but FEX recorded a RIP only for instructions that might touch memory, and nothing for the code
+    that ends a block. A signal there reported the RIP of the `ret`, `call`, `push` or `pop` while RSP
+    and the stack already held the result, so a handler that reads or rewrites the return address
+    (CoreCLR's return-address hijack for GC suspension does both) saw a frame torn between two
+    instructions and, after `sigreturn`, ran the instruction again or returned through a stale slot. The
+    patch makes the reported state one real instruction boundary: every guest instruction now gets a
+    RIP entry; each block records where its exit code starts, and a host PC inside it reports the
+    branch target (the constant, or the host register holding it), which is the state after the
+    instruction; a PC at a block entry before the block has stored its own header takes that header from
+    the `adr`/`adrp` it is about to store instead of the previous block's; and dispatcher code that
+    still holds the guest registers in host registers (loop top and the exit linker) counts as JIT code,
+    with the exit linker's target read from its link data. Dispatcher PCs never read the block header,
+    which may point into a code buffer freed by a cache clear. `tools/fex/probes/signal-return-hijack.c`
+    rewrites the return address and RIP from a signal handler at every point of a call/ret frame: with
+    0001 to 0012 all three modes fail; with this patch 60 of 60 runs pass (20 per mode), as natively,
+    and the other probes give the same results as before.
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,

@@ -1,0 +1,463 @@
+diff --git a/FEXCore/Source/Interface/Core/CPUBackend.h b/FEXCore/Source/Interface/Core/CPUBackend.h
+--- a/FEXCore/Source/Interface/Core/CPUBackend.h
++++ b/FEXCore/Source/Interface/Core/CPUBackend.h
+@@ -96,8 +96,22 @@
+       bool SingleInst;
+ 
+       uint8_t _Pad[3];
++
++      uint32_t NumberOfExitEntries;
++
++      uint32_t OffsetToExitEntries;
+     };
+ 
++    struct JITExitEntry {
++      uint32_t HostBegin;
++      uint32_t HostEnd;
++      int64_t TargetOffset;
++      uint32_t TargetReg;
++      uint32_t _Pad;
++    };
++
++    static constexpr uint32_t ExitTargetConstant = ~0U;
++
+     /**
+      * @brief Tells this CPUBackend to compile code for the provided IR and DebugData
+      *
+diff --git a/FEXCore/Source/Interface/Core/Core.cpp b/FEXCore/Source/Interface/Core/Core.cpp
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -132,6 +132,54 @@
+   return {InlineHeader, nullptr};
+ }
+ 
++static uint64_t BlockHeaderAtEntryPoint(uint64_t HostPC) {
++  constexpr uint32_t Rd = FEXCore::CPU::TMP1.Idx();
++  constexpr uint32_t HeaderStore =
++    0xF9000000U | ((offsetof(FEXCore::Core::CPUState, InlineJITBlockHeader) / 8) << 10) | (FEXCore::CPU::STATE.Idx() << 5) | Rd;
++  const auto IsAdr = [](uint32_t Inst) {
++    return (Inst & 0x9F00001FU) == (0x10000000U | Rd);
++  };
++  const auto IsAdrp = [](uint32_t Inst) {
++    return (Inst & 0x9F00001FU) == (0x90000000U | Rd);
++  };
++  const auto IsAdd = [](uint32_t Inst) {
++    return (Inst & 0xFFC003FFU) == (0x91000000U | (Rd << 5) | Rd);
++  };
++  const auto Imm21 = [](uint32_t Inst) {
++    const uint64_t Raw = (static_cast<uint64_t>((Inst >> 5) & 0x7FFFF) << 2) | ((Inst >> 29) & 3);
++    return static_cast<int64_t>(Raw << 43) >> 43;
++  };
++
++  const auto Code = reinterpret_cast<const uint32_t*>(HostPC);
++  for (uint64_t Ahead = 0; Ahead < 3; ++Ahead) {
++    if (Code[Ahead] != HeaderStore) {
++      continue;
++    }
++    const uint64_t Store = HostPC + Ahead * 4;
++    const uint64_t Prev = Store - 4;
++    const auto PrevInst = *reinterpret_cast<const uint32_t*>(Prev);
++    uint64_t Start {};
++    uint64_t Header {};
++    if (IsAdr(PrevInst)) {
++      Start = Prev;
++      Header = Prev + Imm21(PrevInst);
++    } else if (IsAdrp(PrevInst)) {
++      Start = Prev;
++      Header = (Prev & ~0xFFFULL) + (Imm21(PrevInst) << 12);
++    } else if (IsAdd(PrevInst) && IsAdrp(*reinterpret_cast<const uint32_t*>(Prev - 4))) {
++      Start = Prev - 4;
++      Header = (Start & ~0xFFFULL) + (Imm21(*reinterpret_cast<const uint32_t*>(Start)) << 12) + ((PrevInst >> 10) & 0xFFF);
++    }
++    if (!Header || HostPC < Start || Header >= Start) {
++      return 0;
++    }
++    const auto InlineHeader = reinterpret_cast<const CPU::CPUBackend::JITCodeHeader*>(Header);
++    const auto InlineTail = reinterpret_cast<const CPU::CPUBackend::JITCodeTail*>(Header + InlineHeader->OffsetToBlockTail);
++    return HostPC < Header + InlineTail->Size ? Header : 0;
++  }
++  return 0;
++}
++
+ bool ContextImpl::IsAddressInCurrentBlock(FEXCore::Core::InternalThreadState* Thread, uint64_t Address, uint64_t Size) {
+   auto [_, InlineTail] = GetFrameBlockInfo(Thread->CurrentFrame);
+   return InlineTail && (Address + Size > InlineTail->RIP && Address < InlineTail->RIP + InlineTail->GuestSize);
+@@ -147,8 +195,20 @@
+   return InlineTail ? InlineTail->RIP : 0;
+ }
+ 
+-uint64_t ContextImpl::RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) {
++uint64_t ContextImpl::RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC, const uint64_t* HostGPRs) {
+   const auto Frame = Thread->CurrentFrame;
++
++  if (IsAddressInCodeBuffer(Thread, HostPC)) {
++    if (const auto Header = BlockHeaderAtEntryPoint(HostPC)) {
++      Frame->State.InlineJITBlockHeader = Header;
++    }
++  } else {
++    if (HostGPRs && HostPC >= Dispatcher->GetExitFunctionLinkerAddress() && HostPC < Dispatcher->GetExitFunctionLinkerGuardedAddress()) {
++      return reinterpret_cast<const ExitFunctionLinkData*>(HostGPRs[30])->GuestRIP;
++    }
++    return Frame->State.rip;
++  }
++
+   const uint64_t BlockBegin = Frame->State.InlineJITBlockHeader;
+   auto [InlineHeader, InlineTail] = GetFrameBlockInfo(Thread->CurrentFrame);
+ 
+@@ -157,6 +217,21 @@
+     // If it is then RIP can be reconstructed from the beginning of the code block.
+     // This is currently as close as FEX can get RIP reconstructions.
+     if (HostPC >= reinterpret_cast<uint64_t>(BlockBegin) && HostPC < reinterpret_cast<uint64_t>(BlockBegin + InlineTail->Size)) {
++      auto Exits = reinterpret_cast<const CPU::CPUBackend::JITExitEntry*>(Frame->State.InlineJITBlockHeader + InlineHeader->OffsetToBlockTail +
++                                                                           InlineTail->OffsetToExitEntries);
++      const uint64_t HostOffset = HostPC - BlockBegin;
++      for (uint32_t i = 0; i < InlineTail->NumberOfExitEntries; ++i) {
++        if (HostOffset < Exits[i].HostBegin || HostOffset >= Exits[i].HostEnd) {
++          continue;
++        }
++        if (Exits[i].TargetReg == CPU::CPUBackend::ExitTargetConstant) {
++          return InlineTail->RIP + Exits[i].TargetOffset;
++        }
++        if (HostGPRs) {
++          return HostGPRs[Exits[i].TargetReg];
++        }
++        break;
++      }
+ 
+       auto RIPEntry =
+         reinterpret_cast<const uint8_t*>(Frame->State.InlineJITBlockHeader + InlineHeader->OffsetToBlockTail + InlineTail->OffsetToRIPEntries);
+@@ -523,7 +598,7 @@
+ }
+ 
+ ContextImpl::GenerateIRResult
+-ContextImpl::GenerateIR(FEXCore::Core::InternalThreadState* Thread, uint64_t GuestRIP, bool ExtendedDebugInfo, uint64_t MaxInst) {
++ContextImpl::GenerateIR(FEXCore::Core::InternalThreadState* Thread, uint64_t GuestRIP, uint64_t MaxInst) {
+   FEXCORE_PROFILE_SCOPED("GenerateIR");
+ 
+   Thread->OpDispatcher->ResetWorkingList();
+@@ -641,9 +716,7 @@
+         // that more explicitly later.
+         Thread->OpDispatcher->FlushRegisterCache(true);
+ 
+-        if (ExtendedDebugInfo || Thread->OpDispatcher->CanHaveSideEffects(TableInfo, DecodedInfo)) {
+-          Thread->OpDispatcher->_GuestOpcode(InstAddress - GuestRIP);
+-        }
++        Thread->OpDispatcher->_GuestOpcode(InstAddress - GuestRIP);
+ 
+         if (Config.SMCChecks == FEXCore::Config::CONFIG_SMC_FULL || Block.ForceFullSMCDetection) {
+           auto ExistingCodePtr = reinterpret_cast<uint8_t*>(Block.Entry + BlockInstructionsLength);
+@@ -810,7 +883,7 @@
+ 
+   // Generate IR + Meta Info
+   auto [IRView, TotalInstructions, TotalInstructionsLength, StartAddr, Length, NeedsAddGuestCodeRanges] =
+-    GenerateIR(Thread, GuestRIP, Config.GDBSymbols(), MaxInst);
++    GenerateIR(Thread, GuestRIP, MaxInst);
+   if (!IRView) {
+     Thread->FrontendDecoder->ValidateDisownedOrFree();
+     Thread->OpDispatcher->ValidateDisownedOrFree();
+diff --git a/FEXCore/Source/Interface/Context/Context.h b/FEXCore/Source/Interface/Context/Context.h
+--- a/FEXCore/Source/Interface/Context/Context.h
++++ b/FEXCore/Source/Interface/Context/Context.h
+@@ -151,7 +151,7 @@
+   bool IsCurrentBlockSingleInst(FEXCore::Core::InternalThreadState* Thread) override;
+   uint64_t GetGuestBlockEntry(FEXCore::Core::InternalThreadState* Thread) override;
+ 
+-  uint64_t RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) override;
++  uint64_t RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC, const uint64_t* HostGPRs = nullptr) override;
+   uint32_t ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs, uint64_t PSTATE) override;
+   void SetFlagsFromCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, uint32_t EFLAGS) override;
+ 
+@@ -416,7 +416,7 @@
+     bool NeedsAddGuestCodeRanges;
+   };
+   [[nodiscard]]
+-  GenerateIRResult GenerateIR(FEXCore::Core::InternalThreadState* Thread, uint64_t GuestRIP, bool ExtendedDebugInfo, uint64_t MaxInst);
++  GenerateIRResult GenerateIR(FEXCore::Core::InternalThreadState* Thread, uint64_t GuestRIP, uint64_t MaxInst);
+ 
+   struct CompileCodeResult {
+     CPU::CPUBackend::CompiledCode CompiledCode;
+diff --git a/FEXCore/include/FEXCore/Core/Context.h b/FEXCore/include/FEXCore/Core/Context.h
+--- a/FEXCore/include/FEXCore/Core/Context.h
++++ b/FEXCore/include/FEXCore/Core/Context.h
+@@ -85,7 +85,7 @@
+ 
+   ///< State reconstruction helpers
+   ///< Reconstructs the guest RIP from the passed in thread context and related Host PC.
+-  FEX_DEFAULT_VISIBILITY virtual uint64_t RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) = 0;
++  FEX_DEFAULT_VISIBILITY virtual uint64_t RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC, const uint64_t* HostGPRs = nullptr) = 0;
+   /**
+    * @brief Reconstructs a compacted EFLAGS from FEX's internal EFLAG representation.
+    *
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+@@ -105,7 +105,8 @@
+ 
+ void SignalDelegator::SpillSRA(FEXCore::Core::InternalThreadState* Thread, void* ucontext, uint32_t IgnoreMask) {
+ #ifdef ARCHITECTURE_arm64
+-  Thread->CurrentFrame->State.rip = CTX->RestoreRIPFromHostPC(Thread, ArchHelpers::Context::GetPc(ucontext));
++  Thread->CurrentFrame->State.rip =
++    CTX->RestoreRIPFromHostPC(Thread, ArchHelpers::Context::GetPc(ucontext), ArchHelpers::Context::GetArmGPRs(ucontext));
+ 
+   if ((IgnoreMask & 0xFFFF) == 0xFFFF) {
+     return;
+@@ -334,7 +335,7 @@
+   ++Thread->CurrentFrame->SignalHandlerRefCounter;
+ 
+   uint64_t OldPC = ArchHelpers::Context::GetPc(ucontext);
+-  const bool WasInJIT = CTX->IsAddressInCodeBuffer(Thread, OldPC);
++  const bool WasInJIT = CTX->IsAddressInCodeBuffer(Thread, OldPC) || IsAddressInDispatcherWithLiveSRA(Frame, OldPC);
+ 
+   // Spill the SRA regardless of signal handler type
+   // We are going to be returning to the top of the dispatcher which will fill again
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
+@@ -224,6 +224,13 @@
+     return Address >= Config.DispatcherBegin && Address < Config.DispatcherEnd;
+   }
+ 
++  bool IsAddressInDispatcherWithLiveSRA(const FEXCore::Core::CpuStateFrame* Frame, uint64_t Address) const {
++    if (Address >= Config.AbsoluteLoopTopAddress && Address < Config.ThreadStopHandlerAddressSpillSRA) {
++      return true;
++    }
++    return Address >= Frame->Pointers.ExitFunctionLinker && Address < Config.SignalHandlerReturnAddress;
++  }
++
+   /*
+    * Signal frames on 32-bit architecture needs to match exactly how the kernel generates the frame.
+    * This is because large parts of the signal frame definition is part of the UAPI.
+diff --git a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
+--- a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
++++ b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp
+@@ -291,6 +291,7 @@
+   {
+     ExitFunctionLinkerAddress = GetCursorAddress<uint64_t>();
+     EmitSignalGuardedRegion([&]() {
++      ExitFunctionLinkerGuardedAddress = GetCursorAddress<uint64_t>();
+       SpillStaticRegs(TMP1);
+ 
+       mov(ARMEmitter::XReg::x0, STATE);
+diff --git a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+--- a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+@@ -8,6 +8,7 @@
+ #include "Interface/Context/Context.h"
+ #include "FEXCore/IR/IR.h"
+ #include "Interface/Core/LookupCache.h"
++#include "Interface/Core/JIT/DebugData.h"
+ 
+ #include "Interface/Core/JIT/JITClass.h"
+ 
+@@ -45,6 +46,12 @@
+ 
+ DEF_OP(ExitFunction) {
+   auto Op = IROp->C<IR::IROp_ExitFunction>();
++  const auto ExitBegin = GetCursorAddress<uint8_t*>() - CodeData.BlockBegin;
++  uint64_t ExitTarget = 0;
++  uint32_t ExitTargetReg = CPU::CPUBackend::ExitTargetConstant;
++  const auto RecordExit = [&] {
++    DebugData->Exits.push_back({ExitBegin, GetCursorAddress<uint8_t*>() - CodeData.BlockBegin, ExitTarget, ExitTargetReg});
++  };
+ 
+   ResetStack();
+ 
+@@ -71,6 +78,13 @@
+     br(TMP2);
+ 
+     if (IsInlineRIP) {
++      ExitTarget = NewRIP;
++    } else {
++      ExitTargetReg = GetReg(Op->NewRIP).Idx();
++    }
++    RecordExit();
++
++    if (IsInlineRIP) {
+       BindOrRestart(&l_ExitLink);
+       dc64(NewRIP);
+     }
+@@ -79,6 +93,7 @@
+   }
+ 
+   if (IsInlineConstant(Op->NewRIP, &NewRIP) || IsInlineEntrypointOffset(Op->NewRIP, &NewRIP)) {
++    ExitTarget = NewRIP;
+ #ifdef ARCHITECTURE_arm64ec
+     if (NewRIP < EC_CODE_BITMAP_MAX_ADDRESS && RtlIsEcCode(NewRIP)) {
+       str(REG_CALLRET_SP, STATE_PTR(CpuStateFrame, State.callret_sp));
+@@ -194,6 +209,7 @@
+   } else {
+     ARMEmitter::ForwardLabel SkipFullLookup;
+     auto RipReg = GetReg(Op->NewRIP);
++    ExitTargetReg = RipReg.Idx();
+ 
+     if (Op->Hint == IR::BranchHint::Return) {
+       // First try to pop from the call-ret stack, otherwise follow the normal path (but ending in a ret)
+@@ -237,6 +253,7 @@
+       br(TMP2);
+     }
+   }
++  RecordExit();
+ }
+ 
+ DEF_OP(Jump) {
+diff --git a/FEXCore/Source/Interface/Core/JIT/JIT.cpp b/FEXCore/Source/Interface/Core/JIT/JIT.cpp
+--- a/FEXCore/Source/Interface/Core/JIT/JIT.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/JIT.cpp
+@@ -542,6 +542,7 @@
+   bool TFSet = Thread->CurrentFrame->State.flags[X86State::RFLAG_TF_RAW_LOC];
+   uintptr_t HostCode {};
+   auto GuestRip = Record->GuestRIP;
++  Frame->State.rip = GuestRip;
+ 
+   if (TFSet) {
+     // If TF is set, the cache must be skipped as different code needs to be generated.
+@@ -883,6 +884,7 @@
+   JumpTargets.clear();
+   CallReturnTargets.clear();
+   PendingJumpThunks.clear();
++  DebugData->Exits.clear();
+   JumpTargets.resize(IR->GetHeader()->BlockCount, {});
+   Relocations.resize(PrevNumAllocations, FEXCore::CPU::Relocation::Default()); // Discard any relocations generated from a previous attempt
+ 
+@@ -1022,12 +1024,15 @@
+ 
+     ARMEmitter::ForwardLabel l_DoLink;
+     uint64_t ThunkAddress = GetCursorAddress<uint64_t>();
++    const auto ThunkBegin = GetCursorAddress<uint8_t*>() - CodeData.BlockBegin;
+     BindOrRestart(&PendingJumpThunk.Label);
+     b_OrRestart(&l_DoLink);
+     br(TMP1);
+     BindOrRestart(&l_DoLink);
+     ldr(TMP1, &l_ExitLink);
+     blr(TMP1);
++    DebugData->Exits.push_back(
++      {ThunkBegin, GetCursorAddress<uint8_t*>() - CodeData.BlockBegin, PendingJumpThunk.GuestRIP, CPU::CPUBackend::ExitTargetConstant});
+ 
+     // This is a ExitFunctionLinkData struct
+     BindOrRestart(&l_ExitLink);
+@@ -1098,6 +1103,24 @@
+     }
+   }
+ 
++  {
++    auto JITExitEntriesLocation = reinterpret_cast<uint8_t*>(AlignUp(reinterpret_cast<uintptr_t>(JITRIPEntriesLocation), alignof(JITExitEntry)));
++    JITBlockTail.NumberOfExitEntries = DebugData->Exits.size();
++    JITBlockTail.OffsetToExitEntries = JITExitEntriesLocation - JITBlockTailLocation;
++    for (const auto& Exit : DebugData->Exits) {
++      const JITExitEntry Record {
++        .HostBegin = static_cast<uint32_t>(Exit.HostBegin),
++        .HostEnd = static_cast<uint32_t>(Exit.HostEnd),
++        .TargetOffset = static_cast<int64_t>(Exit.Target - Entry),
++        .TargetReg = Exit.TargetReg,
++        ._Pad = 0,
++      };
++      memcpy(JITExitEntriesLocation, &Record, sizeof(Record));
++      JITExitEntriesLocation += sizeof(Record);
++    }
++    JITRIPEntriesLocation = JITExitEntriesLocation;
++  }
++
+   SetCursorOffset(JITRIPEntriesLocation - CodeData.BlockBegin);
+   // Make sure code is 16B aligned on the tail.
+   // Can't use Align16B here as vl64pair can cause non-4byte alignment.
+diff --git a/FEXCore/Source/Interface/Core/JIT/DebugData.h b/FEXCore/Source/Interface/Core/JIT/DebugData.h
+--- a/FEXCore/Source/Interface/Core/JIT/DebugData.h
++++ b/FEXCore/Source/Interface/Core/JIT/DebugData.h
+@@ -21,6 +21,13 @@
+   ptrdiff_t HostEntryOffset;
+ };
+ 
++struct DebugDataExit {
++  ptrdiff_t HostBegin;
++  ptrdiff_t HostEnd;
++  uint64_t Target;
++  uint32_t TargetReg;
++};
++
+ /**
+  * @brief Contains debug data for a block of code for later debugger analysis
+  *
+@@ -30,6 +37,7 @@
+   uint64_t HostCodeSize; ///< The size of the code generated in the host JIT
+   fextl::vector<DebugDataSubblock> Subblocks;
+   fextl::vector<DebugDataGuestOpcode> GuestOpcodes;
++  fextl::vector<DebugDataExit> Exits;
+   fextl::vector<FEXCore::CPU::Relocation>* Relocations;
+ };
+ } // namespace FEXCore::Core
+diff --git a/FEXCore/Source/Interface/Core/OpcodeDispatcher.h b/FEXCore/Source/Interface/Core/OpcodeDispatcher.h
+--- a/FEXCore/Source/Interface/Core/OpcodeDispatcher.h
++++ b/FEXCore/Source/Interface/Core/OpcodeDispatcher.h
+@@ -251,38 +251,6 @@
+     return false;
+   }
+ 
+-  static bool CanHaveSideEffects(const FEXCore::X86Tables::X86InstInfo* TableInfo, FEXCore::X86Tables::DecodedOp Op) {
+-    if (TableInfo) {
+-      if (TableInfo->Flags & X86Tables::InstFlags::FLAGS_DEBUG_MEM_ACCESS) {
+-        // If it is marked as having memory access then always say it has a side-effect.
+-        // Not always true but better to be safe.
+-        return true;
+-      }
+-
+-      if (TableInfo->Flags & (X86Tables::InstFlags::FLAGS_SETS_RIP | X86Tables::InstFlags::FLAGS_BLOCK_END)) {
+-        // Cooperative suspend interrupts can be triggered at any back-edge, the RIP must be reconstructed correctly in such cases
+-        return true;
+-      }
+-    }
+-
+-    auto CanHaveSideEffects = false;
+-
+-    auto HasPotentialMemoryAccess = [](const X86Tables::DecodedOperand& Operand) -> bool {
+-      if (Operand.IsNone()) {
+-        return false;
+-      }
+-
+-      // This isn't guaranteed that all of these types will access memory, but be safe.
+-      return Operand.IsGPRDirect() || Operand.IsGPRIndirect() || Operand.IsRIPRelative() || Operand.IsSIB();
+-    };
+-
+-    CanHaveSideEffects |= HasPotentialMemoryAccess(Op->Dest);
+-    CanHaveSideEffects |= HasPotentialMemoryAccess(Op->Src[0]);
+-    CanHaveSideEffects |= HasPotentialMemoryAccess(Op->Src[1]);
+-    CanHaveSideEffects |= HasPotentialMemoryAccess(Op->Src[2]);
+-    return CanHaveSideEffects;
+-  }
+-
+   template<typename F>
+   void ForeachDirection(F&& Routine) {
+     // Otherwise, prepare to branch.
+diff --git a/FEXCore/Source/Interface/Core/CodeCache.cpp b/FEXCore/Source/Interface/Core/CodeCache.cpp
+--- a/FEXCore/Source/Interface/Core/CodeCache.cpp
++++ b/FEXCore/Source/Interface/Core/CodeCache.cpp
+@@ -468,7 +468,7 @@
+         if (i == 1) {
+           if (tail->RIP >= Section.BeginVA && tail->RIP < Section.EndVA) {
+             auto [IRView, TotalInstructions, TotalInstructionsLength, StartAddr, Length, _] =
+-              ValidationCTX->GenerateIR(ValidationThread.get(), tail->RIP, false, FEXCore::Config::Get_MAXINST());
++              ValidationCTX->GenerateIR(ValidationThread.get(), tail->RIP, FEXCore::Config::Get_MAXINST());
+             fextl::ostringstream ss;
+             FEXCore::IR::Dump(&ss, &*IRView);
+             LogMan::Msg::EFmt("IR:\n{}", ss.str());
+diff --git a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.h b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.h
+--- a/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.h
++++ b/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.h
+@@ -59,6 +59,10 @@
+     return ExitFunctionLinkerAddress;
+   }
+ 
++  uint64_t GetExitFunctionLinkerGuardedAddress() const {
++    return ExitFunctionLinkerGuardedAddress;
++  }
++
+   SignalDelegatorConfig MakeSignalDelegatorConfig() const;
+ 
+ protected:
+@@ -84,6 +88,7 @@
+   uint64_t ThreadDispatchSyscallHandler {};
+   uint64_t ThreadDispatchRemoveCodeEntry {};
+   uint64_t ExitFunctionLinkerAddress {};
++  uint64_t ExitFunctionLinkerGuardedAddress {};
+   uint64_t SignalHandlerReturnAddress {};
+   uint64_t SignalHandlerReturnAddressRT {};
+   uint64_t GuestSignal_SIGILL {};
