@@ -332,7 +332,6 @@
     <string name="mode_startup">Стартиране</string>
     <string name="mode_startup_session">Отваряне при стартиране</string>
     <string name="mode_startup_session_hint">Стартира тази сесия, когато DroidDeck се стартира.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Проверка за издания…</string>
     <string name="mode_decky_ready">Готово за инсталиране на %1$s.</string>
     <string name="mode_decky_none">Не е намерена съвместима версия. Опитайте по-късно.</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">Актуално · %1$s</string>
     <string name="mode_decky_loader">Зареждач</string>
     <string name="mode_decky_install_latest">Инсталиране на последната версия</string>
-    <string name="decky_channel">Канал за актуализации</string>
-    <string name="decky_channel_hint">Кои издания на Decky Loader да се инсталират. Собственият актуализатор на Decky използва същия канал.</string>
     <string name="decky_channel_stable">Стабилен</string>
     <string name="decky_channel_prerelease">Предварителен</string>
     <string name="decky_channel_testing">Тестов</string>

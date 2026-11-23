@@ -54,7 +54,7 @@ internal fun deckyStoreMatches(plugins: List<DeckyStore.Plugin>, query: String):
 @Composable
 internal fun DeckyGroups(s: ModeSettings, a: ModeSettingsActions, host: MenuHost) {
     val idle = s.deckyStage == null && !s.deckySessionRunning
-    SettingsGroup(stringResource(R.string.mode_decky)) {
+    SettingsGroup(stringResource(R.string.mode_decky_loader)) {
         val updateAvailable = s.deckyInstalled != null && s.deckyLatestRelease != null &&
             s.deckyInstalled != s.deckyLatestRelease.tag
         val status = when {
@@ -66,7 +66,7 @@ internal fun DeckyGroups(s: ModeSettings, a: ModeSettingsActions, host: MenuHost
             updateAvailable -> stringResource(R.string.mode_decky_update, s.deckyLatestRelease.tag)
             else -> stringResource(R.string.mode_decky_current, s.deckyInstalled)
         }
-        SettingsRow(stringResource(R.string.mode_decky_loader), status) {
+        SettingsRow(stringResource(R.string.decky_status), status) {
             val action = when {
                 s.deckyStage != null -> stringResource(R.string.common_working)
                 s.deckyChecking -> stringResource(R.string.common_checking)
@@ -82,9 +82,16 @@ internal fun DeckyGroups(s: ModeSettings, a: ModeSettingsActions, host: MenuHost
                 if (s.deckyInstalled != null) DeckyUninstall(enabled = idle, onUninstall = a.onDeckyUninstall)
             }
         }
+        if (s.deckyInstalled != null) ToggleRow(
+            host, "decky-enabled", stringResource(R.string.decky_start_with_steam),
+            if (s.deckyEnabled) stringResource(R.string.mode_decky_on) else stringResource(R.string.mode_decky_off),
+            s.deckyEnabled,
+            enabled = idle,
+            onChange = a.onDeckyEnabled,
+        )
         ChoiceRow(
-            host, "decky-channel", stringResource(R.string.decky_channel),
-            stringResource(R.string.decky_channel_hint),
+            host, "decky-channel", stringResource(R.string.decky_release_channel),
+            stringResource(R.string.decky_release_channel_hint),
             listOf(
                 DeckyManager.BRANCH_STABLE to stringResource(R.string.decky_channel_stable),
                 DeckyManager.BRANCH_PRERELEASE to stringResource(R.string.decky_channel_prerelease),
@@ -94,13 +101,6 @@ internal fun DeckyGroups(s: ModeSettings, a: ModeSettingsActions, host: MenuHost
             s.deckyBranch,
             enabled = idle,
             onPick = a.onDeckyBranch,
-        )
-        if (s.deckyInstalled != null) ToggleRow(
-            host, "decky-enabled", stringResource(R.string.mode_decky),
-            if (s.deckyEnabled) stringResource(R.string.mode_decky_on) else stringResource(R.string.mode_decky_off),
-            s.deckyEnabled,
-            enabled = idle,
-            onChange = a.onDeckyEnabled,
         )
         if (s.deckyStage != null && s.deckyPercent >= 0) {
             LinearProgressIndicator(

@@ -332,7 +332,6 @@
     <string name="mode_startup">Mulai</string>
     <string name="mode_startup_session">Buka saat peluncuran</string>
     <string name="mode_startup_session_hint">Memulai sesi ini saat DroidDeck diluncurkan.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Memeriksa rilis…</string>
     <string name="mode_decky_ready">Siap menginstal %1$s.</string>
     <string name="mode_decky_none">Tidak ditemukan build yang kompatibel. Coba lagi nanti.</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">Terbaru · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Instal versi terbaru</string>
-    <string name="decky_channel">Saluran Pembaruan</string>
-    <string name="decky_channel_hint">Rilis Decky Loader mana yang akan diinstal. Pembaru bawaan Decky menggunakan saluran yang sama.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Prarilis</string>
     <string name="decky_channel_testing">Pengujian</string>

@@ -362,7 +362,6 @@
     <string name="mode_startup">Startup</string>
     <string name="mode_startup_session">Open at launch</string>
     <string name="mode_startup_session_hint">Starts this session when DroidDeck launches.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Checking for releases…</string>
     <string name="mode_decky_ready">Ready to install %1$s.</string>
     <string name="mode_decky_none">No compatible build found. Try again later.</string>
@@ -371,8 +370,6 @@
     <string name="mode_decky_current">Up to date · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Install latest</string>
-    <string name="decky_channel">Update Channel</string>
-    <string name="decky_channel_hint">Which Decky Loader releases to install. Decky\'s own updater uses the same channel.</string>
     <string name="decky_channel_stable">Stable</string>
     <string name="decky_channel_prerelease">Prerelease</string>
     <string name="decky_channel_testing">Testing</string>
@@ -4324,6 +4321,10 @@
     <string name="dev_preview_drawer">In-game menu</string>
     <string name="dev_preview_drawer_backdrop">In-game menu preview · Back to close</string>
     <string name="settings_place_tab">Tabs</string>
+    <string name="decky_status">Status</string>
+    <string name="decky_start_with_steam">Start with Steam</string>
+    <string name="decky_release_channel">Release channel</string>
+    <string name="decky_release_channel_hint">Stable or pre-release loader builds. Decky\'s own updater uses the same channel.</string>
     <string name="rail_decky">Decky</string>
     <string name="rail_boot_movies">Boot movies</string>
     <string name="decky_tab_installed">Installed · %1$d</string>

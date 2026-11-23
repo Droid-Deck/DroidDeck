@@ -332,7 +332,6 @@
     <string name="mode_startup">Opstart</string>
     <string name="mode_startup_session">Åbn ved start</string>
     <string name="mode_startup_session_hint">Starter denne session, når DroidDeck startes.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Søger efter udgivelser…</string>
     <string name="mode_decky_ready">Klar til at installere %1$s.</string>
     <string name="mode_decky_none">Ingen kompatibel build fundet. Prøv igen senere.</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">Opdateret · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Installer nyeste</string>
-    <string name="decky_channel">Opdateringskanal</string>
-    <string name="decky_channel_hint">Hvilke Decky Loader-udgivelser der installeres. Deckys egen opdatering bruger samme kanal.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Forhåndsudgivelse</string>
     <string name="decky_channel_testing">Test</string>

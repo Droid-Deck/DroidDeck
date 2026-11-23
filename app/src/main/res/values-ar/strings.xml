@@ -332,7 +332,6 @@
     <string name="mode_startup">بدء التشغيل</string>
     <string name="mode_startup_session">الفتح عند التشغيل</string>
     <string name="mode_startup_session_hint">يبدأ هذه الجلسة عند تشغيل DroidDeck.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">جارٍ البحث عن إصدارات…</string>
     <string name="mode_decky_ready">جاهز لتثبيت %1$s.</string>
     <string name="mode_decky_none">لم يتم العثور على إصدار متوافق. حاول مرة أخرى لاحقًا.</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">محدَّث · %1$s</string>
     <string name="mode_decky_loader">المُحمِّل</string>
     <string name="mode_decky_install_latest">تثبيت أحدث إصدار</string>
-    <string name="decky_channel">قناة التحديث</string>
-    <string name="decky_channel_hint">إصدارات Decky Loader التي تُثبَّت. يستخدم مُحدِّث Decky نفسه القناة ذاتها.</string>
     <string name="decky_channel_stable">مستقرة</string>
     <string name="decky_channel_prerelease">إصدار تجريبي مسبق</string>
     <string name="decky_channel_testing">اختبار</string>

@@ -332,7 +332,6 @@
     <string name="mode_startup">Permulaan</string>
     <string name="mode_startup_session">Buka semasa pelancaran</string>
     <string name="mode_startup_session_hint">Memulakan sesi ini apabila DroidDeck dilancarkan.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Menyemak keluaran…</string>
     <string name="mode_decky_ready">Sedia untuk memasang %1$s.</string>
     <string name="mode_decky_none">Tiada binaan serasi ditemui. Cuba lagi kemudian.</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">Terkini · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Pasang yang terbaharu</string>
-    <string name="decky_channel">Saluran Kemas Kini</string>
-    <string name="decky_channel_hint">Keluaran Decky Loader yang hendak dipasang. Pengemas kini Decky sendiri menggunakan saluran yang sama.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Prakeluaran</string>
     <string name="decky_channel_testing">Pengujian</string>

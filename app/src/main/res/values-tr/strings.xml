@@ -332,7 +332,6 @@
     <string name="mode_startup">Başlangıç</string>
     <string name="mode_startup_session">Açılışta başlat</string>
     <string name="mode_startup_session_hint">DroidDeck açıldığında bu oturumu başlatır.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Sürümler kontrol ediliyor…</string>
     <string name="mode_decky_ready">%1$s yüklenmeye hazır.</string>
     <string name="mode_decky_none">Uyumlu derleme bulunamadı. Daha sonra tekrar deneyin.</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">Güncel · %1$s</string>
     <string name="mode_decky_loader">Yükleyici</string>
     <string name="mode_decky_install_latest">En yenisini yükle</string>
-    <string name="decky_channel">Güncelleme kanalı</string>
-    <string name="decky_channel_hint">Hangi Decky Loader sürümlerinin yükleneceği. Decky\'nin kendi güncelleyicisi de aynı kanalı kullanır.</string>
     <string name="decky_channel_stable">Kararlı</string>
     <string name="decky_channel_prerelease">Ön sürüm</string>
     <string name="decky_channel_testing">Test</string>

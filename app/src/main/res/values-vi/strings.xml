@@ -332,7 +332,6 @@
     <string name="mode_startup">Khởi động</string>
     <string name="mode_startup_session">Mở khi khởi chạy</string>
     <string name="mode_startup_session_hint">Bắt đầu phiên này khi DroidDeck khởi chạy.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Đang kiểm tra bản phát hành…</string>
     <string name="mode_decky_ready">Sẵn sàng cài %1$s.</string>
     <string name="mode_decky_none">Không tìm thấy bản build tương thích. Hãy thử lại sau.</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">Đã mới nhất · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Cài bản mới nhất</string>
-    <string name="decky_channel">Kênh cập nhật</string>
-    <string name="decky_channel_hint">Các bản phát hành Decky Loader sẽ cài. Trình cập nhật riêng của Decky dùng cùng kênh này.</string>
     <string name="decky_channel_stable">Ổn định</string>
     <string name="decky_channel_prerelease">Tiền phát hành</string>
     <string name="decky_channel_testing">Thử nghiệm</string>

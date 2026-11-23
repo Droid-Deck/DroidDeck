@@ -332,7 +332,6 @@
     <string name="mode_startup">Inicialização</string>
     <string name="mode_startup_session">Abrir ao iniciar</string>
     <string name="mode_startup_session_hint">Inicia esta sessão quando o DroidDeck é aberto.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Procurando versões…</string>
     <string name="mode_decky_ready">Pronto para instalar %1$s.</string>
     <string name="mode_decky_none">Nenhuma versão compatível encontrada. Tente novamente mais tarde.</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">Atualizado · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Instalar a mais recente</string>
-    <string name="decky_channel">Canal de atualização</string>
-    <string name="decky_channel_hint">Quais versões do Decky Loader instalar. O atualizador do próprio Decky usa o mesmo canal.</string>
     <string name="decky_channel_stable">Estável</string>
     <string name="decky_channel_prerelease">Pré-lançamento</string>
     <string name="decky_channel_testing">Testes</string>

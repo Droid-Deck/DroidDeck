@@ -332,7 +332,6 @@
     <string name="mode_startup">啟動</string>
     <string name="mode_startup_session">啟動時開啟</string>
     <string name="mode_startup_session_hint">DroidDeck 啟動時開始此工作階段。</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">正在檢查發行版本…</string>
     <string name="mode_decky_ready">已準備好安裝 %1$s。</string>
     <string name="mode_decky_none">未找到相容版本。請稍後再試。</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">已是最新 · %1$s</string>
     <string name="mode_decky_loader">載入器</string>
     <string name="mode_decky_install_latest">安裝最新版本</string>
-    <string name="decky_channel">更新頻道</string>
-    <string name="decky_channel_hint">要安裝哪一種 Decky Loader 版本。Decky 本身的更新程式也會使用相同的頻道。</string>
     <string name="decky_channel_stable">穩定版</string>
     <string name="decky_channel_prerelease">預先發行版</string>
     <string name="decky_channel_testing">測試版</string>

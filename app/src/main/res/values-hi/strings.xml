@@ -332,7 +332,6 @@
     <string name="mode_startup">स्टार्टअप</string>
     <string name="mode_startup_session">लॉन्च पर खोलें</string>
     <string name="mode_startup_session_hint">DroidDeck खुलने पर यह सेशन शुरू करता है।</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">रिलीज़ देखी जा रही हैं…</string>
     <string name="mode_decky_ready">%1$s इंस्टॉल करने के लिए तैयार।</string>
     <string name="mode_decky_none">कोई कम्पैटिबल बिल्ड नहीं मिला। बाद में फिर कोशिश करें।</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">नवीनतम · %1$s</string>
     <string name="mode_decky_loader">लोडर</string>
     <string name="mode_decky_install_latest">नवीनतम इंस्टॉल करें</string>
-    <string name="decky_channel">अपडेट चैनल</string>
-    <string name="decky_channel_hint">कौन-सी Decky Loader रिलीज़ इंस्टॉल करनी हैं। Decky का अपना अपडेटर भी यही चैनल इस्तेमाल करता है।</string>
     <string name="decky_channel_stable">स्टेबल</string>
     <string name="decky_channel_prerelease">प्री-रिलीज़</string>
     <string name="decky_channel_testing">टेस्टिंग</string>

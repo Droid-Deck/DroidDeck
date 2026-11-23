@@ -332,7 +332,6 @@
     <string name="mode_startup">Spouštění</string>
     <string name="mode_startup_session">Otevřít při spuštění</string>
     <string name="mode_startup_session_hint">Spustí tuto relaci při spuštění DroidDeck.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Hledání vydání…</string>
     <string name="mode_decky_ready">Připraveno k instalaci %1$s.</string>
     <string name="mode_decky_none">Nenalezeno žádné kompatibilní sestavení. Zkuste to později.</string>
@@ -341,8 +340,6 @@
     <string name="mode_decky_current">Aktuální · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Nainstalovat nejnovější</string>
-    <string name="decky_channel">Kanál aktualizací</string>
-    <string name="decky_channel_hint">Která vydání Decky Loader instalovat. Vlastní aktualizátor Decky používá stejný kanál.</string>
     <string name="decky_channel_stable">Stabilní</string>
     <string name="decky_channel_prerelease">Předběžné vydání</string>
     <string name="decky_channel_testing">Testovací</string>
