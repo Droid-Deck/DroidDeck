@@ -228,7 +228,28 @@ alone would then read as an installed client.
     context, so x86-64 .NET programs failed at random (`AccessViolationException` in whatever code ran
     next, then SIGABRT). `tools/fex/probes/async-signal-context.c` shows it: under FEX-2611.1 one signal in
     2000 carried the interrupted registers, natively all of them. The return now restores the value saved
-    when the signal arrived.
+    when the signal arrived, and only when the signal interrupted JIT code, which is the only case that
+    saves it. Restoring it for a signal that interrupted a system call cleared the mark while that call
+    was still running, so the next signal in the call's return path spilled clobbered registers:
+    `setitimer` at 100 Hz around `time()` crashed in 15 of 15 runs, and with the guard as often as the
+    same build without the patch (about half; a separate crash that FEX-2611.1 also shows).
+  - `0009-signal-handler-escape-frees-host-stack`: FEX keeps each signal's host context on the host
+    stack and frees it only on `rt_sigreturn`. A guest that leaves its handler another way (`siglongjmp`,
+    or CoreCLR resuming a `catch` after a NullReferenceException) left that 2 KB block and one
+    `SignalHandlerRefCounter` count behind. About 3500 such exceptions on one thread overran the 8 MB
+    host stack, which has no guard page, and the CurseForge agent died with "Internal CLR error.
+    (0x80131506)" and "Stack overflow occurred on the same thread again!" at the start of its second
+    addon scan. FEX now chains each thread's signal frames with the guest frame range and alternate
+    stack they used. When a signal arrives in JIT code that runs at the host level of the newest frame
+    and the guest stack pointer shows the guest has left that frame (above its frame, or back off the
+    alternate stack above where the outermost frame on it interrupted), the left frames are dropped and
+    the new context is stored where the newest live frame (or the dispatcher entry) left the host stack.
+    `rt_sigreturn` pops its frame and any newer ones it skips. Signals that arrive inside system calls or
+    thunk callbacks are left alone. `tools/fex/probes/signal-handler-escape.c` leaves handlers on and
+    off the alternate stack, mixes them with handlers that return, and leaves nested handlers: FEX-2611.1
+    with 0001 to 0008 crashed (SIGSEGV) before 2000 iterations of it, and `siglongjmp` out of a SIGSEGV
+    handler died after about 3500; with this patch 350000 escapes and 200000 straight `siglongjmp`s
+    finish, as natively. The approach is the one suggested in FEX-Emu/FEX#2487.
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,
