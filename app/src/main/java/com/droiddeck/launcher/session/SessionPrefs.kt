@@ -1003,6 +1003,20 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()
     }
 
+    const val GAME_MODE_SYSTEM = ""
+    const val GAME_MODE_BATTERY = "battery"
+    const val GAME_MODE_STANDARD = "standard"
+    const val GAME_MODE_PERFORMANCE = "performance"
+    val GAME_MODES = listOf(GAME_MODE_SYSTEM, GAME_MODE_BATTERY, GAME_MODE_STANDARD, GAME_MODE_PERFORMANCE)
+
+    fun gameMode(context: Context): String =
+        prefs(context).getString("gameMode", GAME_MODE_SYSTEM)?.takeIf { it in GAME_MODES } ?: GAME_MODE_SYSTEM
+
+    fun setGameMode(context: Context, mode: String) {
+        require(mode in GAME_MODES)
+        prefs(context).edit().putString("gameMode", mode).apply()
+    }
+
     fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
 
     fun prootNoSeccomp(context: Context): Boolean = prefs(context).getBoolean("prootNoSeccomp", false)

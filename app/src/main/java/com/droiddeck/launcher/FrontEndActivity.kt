@@ -185,6 +185,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var gamescopeRealtime by mutableStateOf(false)
     private var paceCores by mutableStateOf(true)
     private var gpuClockPin by mutableStateOf(false)
+    private var gameMode by mutableStateOf("")
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
     private var nativeUserland by mutableStateOf(true)
@@ -2821,6 +2822,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
+            gameMode = gameMode,
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, nativeUserland = nativeUserland, cursorComposite = cursorComposite,
             guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
@@ -2835,6 +2837,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             onFsyncFirst = { on -> SessionPrefs.setFsyncFirst(this, on); fsyncFirst = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
+            onGameMode = { mode -> SessionPrefs.setGameMode(this, mode); gameMode = mode; com.droiddeck.launcher.session.GameMode.apply(this) },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
             onNativeUserland = { on -> SessionPrefs.setNativeUserland(this, on); nativeUserland = on },
@@ -3144,6 +3147,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         paceCores = SessionPrefs.paceCores(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
+        gameMode = SessionPrefs.gameMode(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
         nativeUserland = SessionPrefs.nativeUserland(this)

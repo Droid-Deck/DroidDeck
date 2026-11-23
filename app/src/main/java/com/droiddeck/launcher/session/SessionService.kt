@@ -2706,6 +2706,7 @@ class SessionService : Service() {
             displayId: Int = Display.DEFAULT_DISPLAY,
         ) {
             SessionState.activityDisplayId = displayId
+            GameMode.apply(context)
             val intent = Intent(context, SessionService::class.java).putExtra(EXTRA_MODE, mode)
                 .putExtra(EXTRA_DISPLAY_ID, displayId)
                 .putExtra(EXTRA_ACTIVITY_DISPLAY_ID, displayId)
