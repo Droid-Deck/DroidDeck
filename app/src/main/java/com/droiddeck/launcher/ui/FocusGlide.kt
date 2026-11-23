@@ -357,10 +357,11 @@ private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
                         val out = with(density) { 3.dp.toPx() }
                         val grown = listOf(b.left - out, b.top - out, b.right + out, b.bottom + out)
                         jobs.forEach { it?.cancel() }
+                        // Set before the join: a move of the target restarts this block there, after shown is already set.
+                        cornerTo(src, b, snap = true)
                         scope.launch { solid.snapTo(0f); edges.forEachIndexed { i, e -> e.snapTo(grown[i]) } }.join()
                         dirSpecs = List(4) { Edge(0.6f, 700f) }
                         delays = LongArray(4)
-                        cornerTo(src, b, snap = true)
                         scope.launch { alpha.animateTo(1f, Motion.tw(140)) }
                     } else {
                         val dx = b.center.x - (edges[0].value + edges[2].value) / 2f
