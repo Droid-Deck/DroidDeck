@@ -557,9 +557,15 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
 
     if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
         target_ensure(&g_t[0], cw, ch, FX_TARGET_USAGE, "chain") == 0 && (chain_passes < 2 || target_ensure(&g_t[1], cw, ch, FX_TARGET_USAGE, "chain") == 0) &&
-        (s->aa_mode != 2 || (target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "SMAA edges") == 0 &&
-                             target_ensure(&g_smaa_weights, cw, ch, FX_SCRATCH_USAGE, "SMAA weights") == 0)) &&
         (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "EASU") == 0)) {
+        if (s->aa_mode == 2 &&
+            (target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "SMAA edges") != 0 ||
+             target_ensure(&g_smaa_weights, cw, ch, FX_SCRATCH_USAGE, "SMAA weights") != 0)) {
+            droiddeck_log("error", "effects: SMAA scratch allocation failed; falling back to FXAA");
+            snapshot.aa_mode = 1;
+            s = &snapshot;
+        }
+
         VkDescriptorSet cur_ds;
         struct fx_target *cur = NULL;
 #define FREE_TARGET() ((cur == &g_t[0]) ? &g_t[1] : &g_t[0])
