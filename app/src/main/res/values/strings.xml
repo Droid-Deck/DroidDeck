@@ -4399,4 +4399,15 @@
     <string name="tabs_reset_title">Reset tabs</string>
     <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>
     <string name="tabs_reset_body">Your tab order and what sits under More or is hidden go back to the defaults.</string>
+    <string name="onboarding_title">Getting DroidDeck ready</string>
+    <string name="onboarding_summary">%1$d%% · you can keep using the app</string>
+    <string name="onboarding_step_runtime">Linux runtime</string>
+    <string name="onboarding_step_proton">DroidDeck Proton</string>
+    <string name="onboarding_step_steam">Steam client</string>
+    <string name="onboarding_waiting">Waiting</string>
+    <string name="onboarding_done">Ready</string>
+    <string name="onboarding_failed">Will retry</string>
+    <string name="onboarding_steam_downloading">Downloading the Steam client</string>
+    <string name="onboarding_steam_downloading_mb">Downloading the Steam client (%1$d MB)</string>
+    <string name="onboarding_steam_failed">The Steam client download will retry</string>
 </resources>

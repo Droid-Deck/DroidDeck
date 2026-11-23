@@ -8,7 +8,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.session.ExperimentalProtons
+import com.droiddeck.launcher.session.Onboarding
 import com.droiddeck.launcher.session.ProtonExtras
+import com.droiddeck.launcher.session.SteamClientPrefetch
 import com.droiddeck.launcher.ui.ProtonRow
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SessionPhase
@@ -60,10 +62,15 @@ internal class ProtonMenu(
         Thread({
             val problem = runCatching {
                 installer(tool) { label, value ->
+                    if (tool.id == ProtonExtras.OWN) Onboarding.report(Onboarding.Step.PROTON, label, value)
                     ui.post { protonStage = label; protonPercent = value }
                 }
             }.getOrElse { it.message ?: it.javaClass.simpleName }
             if (problem == null && !automatic && tool.id == ProtonExtras.OWN) ProtonExtras.setDeclined(activity, false)
+            if (tool.id == ProtonExtras.OWN) {
+                if (problem == null) Onboarding.finish(Onboarding.Step.PROTON) else Onboarding.fail(Onboarding.Step.PROTON, problem)
+                Onboarding.recheck(activity)
+            }
             ui.post {
                 protonProblem = problem
                 protonBusyId = null
@@ -170,9 +177,37 @@ internal class ProtonMenu(
                     Operation.checking.set(false)
                 }
                 ensureAutoUpdates()
+                ensureSteamClient()
             }
             if (!published) Operation.checking.set(false)
         }, "proton-updates").start()
+    }
+
+    /** Downloads the DroidDeck Proton archive while the runtime installs; the install step later finds it whole. */
+    fun prefetchOwn() {
+        val tool = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
+        if (ProtonExtras.declined(activity) || ProtonExtras.installedAll(activity, tool).isNotEmpty() ||
+            ProtonExtras.installInProgress || !AutoComponents.online(activity) || AutoComponents.unfavourable(activity)) return
+        Thread({
+            val problem = runCatching {
+                ProtonExtras.prefetch(activity, tool) { label, value -> Onboarding.report(Onboarding.Step.PROTON, label, value) }
+            }.getOrElse { it.message ?: it.javaClass.simpleName }
+            if (problem == null) Onboarding.finish(Onboarding.Step.PROTON) else Onboarding.fail(Onboarding.Step.PROTON, problem)
+            Onboarding.recheck(activity)
+            ui.post { ensureAutoUpdates() }
+        }, "proton-prefetch").start()
+    }
+
+    /** Fetches Steam's client in the background once the runtime exists, so the first Play does not wait for it. */
+    fun ensureSteamClient() {
+        if (activity.isFinishing || activity.isDestroyed || !idle() || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
+            SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) || !LinuxRuntime.isInstalled(activity) ||
+            !AutoComponents.online(activity) || AutoComponents.unfavourable(activity) || SteamClientPrefetch.running()) return
+        SteamClientPrefetch.start(
+            activity,
+            { mb -> activity.getString(if (mb > 0) R.string.onboarding_steam_downloading_mb else R.string.onboarding_steam_downloading, mb) },
+            activity.getString(R.string.onboarding_steam_failed),
+        )
     }
 
     internal fun ensureAutoUpdates(now: Long = System.currentTimeMillis()) {

@@ -3209,6 +3209,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
         ui.post { autoUpdateRuntime() }
+        Thread({ com.droiddeck.launcher.session.Onboarding.recheck(this) }, "onboarding-recheck").start()
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
@@ -3440,8 +3441,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         percent = -1
         Thread({
             val ok = run(LinuxRuntimeInstaller.ProgressListener { s, p ->
+                com.droiddeck.launcher.session.Onboarding.report(com.droiddeck.launcher.session.Onboarding.Step.RUNTIME, s, p)
                 ui.post { stage = s; percent = p }
             })
+            if (ok == false) com.droiddeck.launcher.session.Onboarding.fail(com.droiddeck.launcher.session.Onboarding.Step.RUNTIME, LinuxRuntimeInstaller.removalError() ?: "")
+            else com.droiddeck.launcher.session.Onboarding.finish(com.droiddeck.launcher.session.Onboarding.Step.RUNTIME)
+            com.droiddeck.launcher.session.Onboarding.recheck(this)
             ui.post {
                 busy = false
                 if (ok != null) failed = !ok
@@ -3450,7 +3455,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 }
                 refresh()
                 com.droiddeck.launcher.agent.AgentHost.refresh(this)
-                if (ok == true && LinuxRuntime.isInstalled(this)) protons.checkUpdates()
+                if (ok == true && LinuxRuntime.isInstalled(this)) { protons.checkUpdates(); protons.ensureSteamClient() }
             }
         }, "runtime-operation").start()
     }
@@ -3464,6 +3469,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 !com.droiddeck.launcher.frontend.AutoComponents.online(this) || com.droiddeck.launcher.frontend.AutoComponents.unfavourable(this))) return
         if (com.droiddeck.launcher.runtime.RuntimeAutoUpdate.claim(this, installed, release.version)) {
             Log.i(TAG, "runtime: installing ${release.version} over ${installed ?: "nothing"} by itself")
+            if (installed == null) protons.prefetchOwn()
             install(release)
         }
     }
