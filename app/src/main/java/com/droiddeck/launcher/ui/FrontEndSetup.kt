@@ -540,7 +540,7 @@ internal fun SetupPanel(
                                     )
                                     ChoiceRow(
                                         host, "dual-screen-sessions", stringResource(R.string.setup_dual_screen_sessions), stringResource(R.string.setup_dual_screen_sessions_hint),
-                                        dualModes, s.dualScreenSessions, onPick = a.onDualScreenSessions,
+                                        dualModes.take(2) + (com.droiddeck.launcher.input.DualScreen.MODE_SWAPPED to stringResource(R.string.setup_dual_screen_swapped)) + dualModes.drop(2), s.dualScreenSessions, onPick = a.onDualScreenSessions,
                                     )
                                     if (s.dualScreenSessions != com.droiddeck.launcher.input.DualScreen.MODE_OFF) {
                                         ToggleRow(host, "dual-screen-controls", stringResource(R.string.setup_dual_screen_controls),

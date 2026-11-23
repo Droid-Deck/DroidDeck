@@ -1041,10 +1041,11 @@
     <string name="setup_dual_screen_launcher">Dual screen launcher</string>
     <string name="setup_dual_screen_launcher_hint">Automatic puts the launcher sections (Steam, Library, Stores and the rest) on the second screen of handhelds with a built-in one. On uses any second display. Off keeps the launcher on one screen.</string>
     <string name="setup_dual_screen_sessions">Dual screen sessions</string>
-    <string name="setup_dual_screen_sessions_hint">Automatic docks the in-game menu on the built-in second screen instead of a pop-over. On uses any second display. Off keeps the menu on the game screen; you can still pick a second screen from it.</string>
+    <string name="setup_dual_screen_sessions_hint">Automatic docks the in-game menu on the built-in second screen instead of a pop-over. On uses any second display. On, game on second screen runs the game there and keeps the menu and controls on this screen, for a phone driving a monitor or TV. Off keeps the menu on the game screen; you can still pick a second screen from it.</string>
     <string name="setup_dual_screen_auto">Automatic</string>
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>
+    <string name="setup_dual_screen_swapped">On, game on second screen</string>
     <string name="setup_dual_screen_controls">Bottom screen controls in games</string>
     <string name="setup_android_text_field_keyboard">Android keyboard for text fields</string>
     <string name="setup_dual_screen_controls_hint">Opens a panel on the second screen when a session starts: the Deck buttons and trackpads with a Steam Deck or Steam Controller, otherwise the one you used last.</string>
