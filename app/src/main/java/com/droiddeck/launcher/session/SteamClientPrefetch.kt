@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
+import kotlinx.coroutines.flow.update
 
 /**
  * Downloads Valve's Steam client while the session is stopped, so the first Play does not wait on it.
@@ -58,7 +59,8 @@ object SteamClientPrefetch {
             if (problem == null && !pending(app)) Onboarding.finish(Onboarding.Step.STEAM)
             else if (SessionState.running || problem == CANCELLED || isCancelled()) Onboarding.finish(Onboarding.Step.STEAM)
             else Onboarding.fail(Onboarding.Step.STEAM, problem ?: failedLabel)
-            Onboarding.facts.value = Onboarding.facts.value.copy(steam = !pending(app))
+            val steamReady = !pending(app)
+            Onboarding.facts.update { it.copy(steam = steamReady) }
         }, "steam-client-prefetch").also { it.start() }
     }
 
