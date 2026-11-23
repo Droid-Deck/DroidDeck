@@ -1,7 +1,10 @@
 package com.droiddeck.launcher.runtime
 
+import com.droiddeck.launcher.FrontEndActivity
 import com.droiddeck.launcher.SessionActivity
+import com.droiddeck.launcher.session.MaliGraphicsMode
 import com.droiddeck.launcher.session.SessionPhase
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import java.io.File
 import java.nio.file.Files
@@ -49,5 +52,23 @@ class RuntimeRemovalUiTest {
         SessionState.phase = SessionPhase.STARTING_COMPOSITOR
         assertNull(LinuxRuntimeInstaller.beginUninstall(context))
         assertFalse(LinuxRuntimeInstaller.isBusy())
+    }
+
+    @Test fun maliGraphicsModeCannotBeChangedDuringSessionStartupOrRuntimeRemoval() {
+        val activity = Robolectric.buildActivity(FrontEndActivity::class.java).get()
+        val pick = FrontEndActivity::class.java.getDeclaredMethod("pickMaliGraphicsMode", MaliGraphicsMode::class.java)
+            .apply { isAccessible = true }
+        SessionPrefs.setMaliGraphicsMode(activity, MaliGraphicsMode.BRIDGE)
+
+        SessionState.phase = SessionPhase.STARTING_COMPOSITOR
+        pick.invoke(activity, MaliGraphicsMode.AUTO)
+        assertEquals(MaliGraphicsMode.BRIDGE, SessionPrefs.maliGraphicsMode(activity))
+
+        SessionState.phase = SessionPhase.IDLE
+        val removal = LinuxRuntimeInstaller.beginUninstall(null, File(dir, "linuxfs"))!!
+        try {
+            pick.invoke(activity, MaliGraphicsMode.AUTO)
+            assertEquals(MaliGraphicsMode.BRIDGE, SessionPrefs.maliGraphicsMode(activity))
+        } finally { assertTrue(removal.run(null)) }
     }
 }

@@ -619,6 +619,7 @@ class SessionService : Service() {
         MaliGraphics.problem(this, maliRoute)?.let { message ->
             failSession(gen, "MALI_GRAPHICS_FAILED", message, -1)
             stopSession(-1, gen)
+            abandonStart(gen, sessionDir)
             return
         }
         try {
