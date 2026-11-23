@@ -44,8 +44,8 @@ static void resolve_symlinks(const char *path, char *out, size_t out_size, int d
     resolve_symlinks(next_path, out, out_size, depth + 1);
 }
 
-static char **ensure_hook_in_envp(char *const envp[], const char *real_exe) {
-    return prepare_ddnatv_env(envp, real_exe);
+static char **ensure_hook_in_envp(char *const envp[], const char *real_exe, const char *lib_path) {
+    return prepare_ddnatv_env(envp, real_exe, lib_path);
 }
 
 // The file whose header decides how to start `target`: the symlink-resolved ELF (so ld.so and
@@ -162,7 +162,7 @@ static int exec_interp_missing(int fd) {
             syscall(SYS_pread64, fd, interp, ph.p_filesz, (long)ph.p_offset) != (long)ph.p_filesz)
             return ENOEXEC;
         interp[ph.p_filesz] = 0;
-        int ifd = (int)syscall(SYS_openat, AT_FDCWD, interp, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+        int ifd = (int)call_orig_syscall(SYS_openat, AT_FDCWD, (unsigned long)interp, O_RDONLY | O_CLOEXEC | O_NONBLOCK, 0, 0, 0);
         if (ifd < 0) return errno;
         syscall(SYS_close, ifd);
         return 0;
@@ -174,7 +174,7 @@ static int exec_interp_missing(int fd) {
 // a shell walking $PATH moves on at ENOENT and EACCES, and runs a file without "#!" as a script at
 // ENOEXEC.
 static int exec_preflight(const char *path) {
-    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+    int fd = (int)call_orig_syscall(SYS_openat, AT_FDCWD, (unsigned long)path, O_RDONLY | O_CLOEXEC | O_NONBLOCK, 0, 0, 0);
     if (fd < 0) return errno;
     struct stat st;
     int err = 0;
@@ -428,7 +428,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
                     errno = ENOMEM;
                     return -1;
                 }
-                char **new_env = ensure_hook_in_envp(envp, elf_target);
+                char **new_env = ensure_hook_in_envp(envp, elf_target, ld_lib_path);
                 int ret = run_execve(orig_execve, ld_so, new_argv, new_env);
                 if (errno == EACCES && chmod(ld_so, 0755) == 0) {
                     // ld.so without its exec bit (an unusual restore): fix it once and retry
@@ -452,7 +452,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
             }
             if (new_argv) {
                 prepare_static_program(static_elf); // ld.so is a static program itself
-                char **ddnatv_env = prepare_ddnatv_env(envp, target);
+                char **ddnatv_env = prepare_ddnatv_env(envp, target, NULL);
                 int ret = run_execve(orig_execve, target, new_argv, ddnatv_env);
                 int saved_errno = errno;
                 free_modified_env(ddnatv_env, envp);
@@ -486,7 +486,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
                 errno = ELOOP;
                 ret = -1;
             } else {
-                char **ddnatv_env = prepare_ddnatv_env(envp, NULL);
+                char **ddnatv_env = prepare_ddnatv_env(envp, NULL, NULL);
                 ret = ddnatv_execve(rewritten_interp, new_argv, ddnatv_env, depth + 1);
                 int saved_errno = errno;
                 free_modified_env(ddnatv_env, envp);
@@ -506,7 +506,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
     }
 
     if (static_elf) prepare_static_program(static_elf);
-    char **ddnatv_env = prepare_ddnatv_env(envp, target);
+    char **ddnatv_env = prepare_ddnatv_env(envp, target, NULL);
     int ret = run_execve(orig_execve, target, argv, ddnatv_env);
     int saved_errno = errno;
     free_modified_env(ddnatv_env, envp);
@@ -948,17 +948,21 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
 
     // Android programs get Android's environment, as execve() gives them: the glibc hook in
     // LD_PRELOAD crashes them.
-    char **new_envp = in_root ? ensure_hook_in_envp(orig_ep, elf_target) : clean_env_for_system(orig_ep);
+    int via_ld_so = has_ld_so && strcmp(elf_target, ld_so) != 0;
+    char ld_lib_path[PATH_MAX * 6];
+    ld_lib_path[0] = '\0';
+    if (via_ld_so)
+        build_ld_library_path(orig_ep, probe.runpath, probe.runpath_is_rpath, elf_target, ld_lib_path, sizeof(ld_lib_path));
+    char **new_envp = in_root ? ensure_hook_in_envp(orig_ep, elf_target, via_ld_so ? ld_lib_path : NULL)
+                              : clean_env_for_system(orig_ep);
 
     int ret = -1;
-    if (has_ld_so && strcmp(elf_target, ld_so) != 0) {
+    if (via_ld_so) {
         ensure_exec_bit(elf_target, probe.mode);
         if (probe.android_interp) prepare_static_program_ex(elf_target, 1); // a Go program built for Android (#42)
 
         char hook_buf[PATH_MAX];
         const char *hook_so = ddnatv_hook_library(hook_buf, sizeof(hook_buf));
-        char ld_lib_path[PATH_MAX * 6];
-        build_ld_library_path(orig_ep, probe.runpath, probe.runpath_is_rpath, elf_target, ld_lib_path, sizeof(ld_lib_path));
         char **new_argv = build_ldso_argv(ld_so, hook_so, ld_lib_path, elf_target, prog_name, argv);
         if (!new_argv) {
             ret = ENOMEM;

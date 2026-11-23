@@ -15,24 +15,27 @@ RECORDER = r"""
 #define _GNU_SOURCE
 #include <spawn.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
-static void show(const char *path, char *const argv[]) {
+static void show(const char *path, char *const argv[], char *const envp[]) {
   printf("call\t%s", path);
   for (int i = 0; argv[i]; i++) printf("\t%s", argv[i]);
   printf("\n");
+  for (int i = 0; envp && envp[i]; i++)
+    if (strncmp(envp[i], "DDNATV_LIBRARY_PATH=", 20) == 0) printf("libpath\t%s\n", envp[i] + 20);
   fflush(stdout);
 }
 
 int posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *actions,
                 const posix_spawnattr_t *attr, char *const argv[], char *const envp[]) {
-  show(path, argv);
+  show(path, argv, envp);
   if (pid) *pid = 1;
   return 0;
 }
 
 int execve(const char *path, char *const argv[], char *const envp[]) {
-  show(path, argv);
+  show(path, argv, envp);
   _exit(0);
 }
 """
@@ -114,6 +117,7 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
             env.update(hook_env)
         out = subprocess.run(cmd + [str(self.probe), how, *argv], env=env, capture_output=True, text=True, timeout=120)
         calls = [line.split("\t")[1:] for line in out.stdout.splitlines() if line.startswith("call\t")]
+        self.library_paths = [line.split("\t", 1)[1] for line in out.stdout.splitlines() if line.startswith("libpath\t")]
         self.assertEqual(1, len(calls), out.stdout + out.stderr)
         if how == "spawn":
             self.assertIn("ret\t0", out.stdout.splitlines(), out.stdout + out.stderr)
@@ -141,6 +145,18 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
 
     def test_spawn_and_exec_start_a_dynamic_program_the_same_way(self):
         self.assertEqual(self.call("exec", GUEST_TOOL, "x"), self.call("spawn", GUEST_TOOL, "x"))
+
+    def test_a_program_started_through_ldso_records_its_library_path(self):
+        for how in ("exec", "spawn"):
+            with self.subTest(how=how):
+                argv = self.call(how, GUEST_TOOL, "x")[1:]
+                self.assertEqual([argv[argv.index("--library-path") + 1]], self.library_paths)
+
+    def test_ldso_started_by_name_records_no_library_path(self):
+        for how in ("exec", "spawn"):
+            with self.subTest(how=how):
+                self.call(how, GUEST_LDSO, "--list", GUEST_TOOL)
+                self.assertEqual([], self.library_paths)
 
 
 if __name__ == "__main__":

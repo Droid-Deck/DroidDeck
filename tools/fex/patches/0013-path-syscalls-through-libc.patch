@@ -1,0 +1,130 @@
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp
+index 11ff163..085a621 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp
+@@ -209,6 +209,41 @@ uint64_t SyscallPassthrough7(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1,
+ }
+ #endif
+ 
++template<int syscall_num>
++requires (syscall_num != -1)
++uint64_t SyscallPathPassthrough1(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1) {
++  uint64_t Result = ::syscall(syscall_num, arg1);
++  SYSCALL_ERRNO();
++}
++
++template<int syscall_num>
++requires (syscall_num != -1)
++uint64_t SyscallPathPassthrough2(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2) {
++  uint64_t Result = ::syscall(syscall_num, arg1, arg2);
++  SYSCALL_ERRNO();
++}
++
++template<int syscall_num>
++requires (syscall_num != -1)
++uint64_t SyscallPathPassthrough3(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2, uint64_t arg3) {
++  uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3);
++  SYSCALL_ERRNO();
++}
++
++template<int syscall_num>
++requires (syscall_num != -1)
++uint64_t SyscallPathPassthrough4(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4) {
++  uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3, arg4);
++  SYSCALL_ERRNO();
++}
++
++template<int syscall_num>
++requires (syscall_num != -1)
++uint64_t SyscallPathPassthrough5(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5) {
++  uint64_t Result = ::syscall(syscall_num, arg1, arg2, arg3, arg4, arg5);
++  SYSCALL_ERRNO();
++}
++
+ static void RegisterCommon(FEX::HLE::SyscallHandler* Handler) {
+   REGISTER_SYSCALL_IMPL(read, SyscallPassthrough3<SYSCALL_DEF(read)>);
+   REGISTER_SYSCALL_IMPL(write, SyscallPassthrough3<SYSCALL_DEF(write)>);
+@@ -238,9 +273,9 @@ static void RegisterCommon(FEX::HLE::SyscallHandler* Handler) {
+   REGISTER_SYSCALL_IMPL(flock, SyscallPassthrough2<SYSCALL_DEF(flock)>);
+   REGISTER_SYSCALL_IMPL(fsync, SyscallPassthrough1<SYSCALL_DEF(fsync)>);
+   REGISTER_SYSCALL_IMPL(fdatasync, SyscallPassthrough1<SYSCALL_DEF(fdatasync)>);
+-  REGISTER_SYSCALL_IMPL(truncate, SyscallPassthrough2<SYSCALL_DEF(truncate)>);
++  REGISTER_SYSCALL_IMPL(truncate, SyscallPathPassthrough2<SYSCALL_DEF(truncate)>);
+   REGISTER_SYSCALL_IMPL(getcwd, SyscallPassthrough2<SYSCALL_DEF(getcwd)>);
+-  REGISTER_SYSCALL_IMPL(chdir, SyscallPassthrough1<SYSCALL_DEF(chdir)>);
++  REGISTER_SYSCALL_IMPL(chdir, SyscallPathPassthrough1<SYSCALL_DEF(chdir)>);
+   REGISTER_SYSCALL_IMPL(fchdir, SyscallPassthrough1<SYSCALL_DEF(fchdir)>);
+   REGISTER_SYSCALL_IMPL(fchmod, SyscallPassthrough2<SYSCALL_DEF(fchmod)>);
+   REGISTER_SYSCALL_IMPL(fchown, SyscallPassthrough3<SYSCALL_DEF(fchown)>);
+@@ -280,7 +315,7 @@ static void RegisterCommon(FEX::HLE::SyscallHandler* Handler) {
+   REGISTER_SYSCALL_IMPL(mlock, SyscallPassthrough2<SYSCALL_DEF(mlock)>);
+   REGISTER_SYSCALL_IMPL(munlock, SyscallPassthrough2<SYSCALL_DEF(munlock)>);
+   REGISTER_SYSCALL_IMPL(pivot_root, SyscallPassthrough2<SYSCALL_DEF(pivot_root)>);
+-  REGISTER_SYSCALL_IMPL(chroot, SyscallPassthrough1<SYSCALL_DEF(chroot)>);
++  REGISTER_SYSCALL_IMPL(chroot, SyscallPathPassthrough1<SYSCALL_DEF(chroot)>);
+   REGISTER_SYSCALL_IMPL(sync, SyscallPassthrough0<SYSCALL_DEF(sync)>);
+   REGISTER_SYSCALL_IMPL(acct, SyscallPassthrough1<SYSCALL_DEF(acct)>);
+   REGISTER_SYSCALL_IMPL(mount, SyscallPassthrough5<SYSCALL_DEF(mount)>);
+@@ -312,17 +347,17 @@ static void RegisterCommon(FEX::HLE::SyscallHandler* Handler) {
+   REGISTER_SYSCALL_IMPL(keyctl, SyscallPassthrough5<SYSCALL_DEF(keyctl)>);
+   REGISTER_SYSCALL_IMPL(ioprio_set, SyscallPassthrough2<SYSCALL_DEF(ioprio_set)>);
+   REGISTER_SYSCALL_IMPL(ioprio_get, SyscallPassthrough3<SYSCALL_DEF(ioprio_get)>);
+-  REGISTER_SYSCALL_IMPL(inotify_add_watch, SyscallPassthrough3<SYSCALL_DEF(inotify_add_watch)>);
++  REGISTER_SYSCALL_IMPL(inotify_add_watch, SyscallPathPassthrough3<SYSCALL_DEF(inotify_add_watch)>);
+   REGISTER_SYSCALL_IMPL(inotify_rm_watch, SyscallPassthrough2<SYSCALL_DEF(inotify_rm_watch)>);
+   REGISTER_SYSCALL_IMPL(migrate_pages, SyscallPassthrough4<SYSCALL_DEF(migrate_pages)>);
+-  REGISTER_SYSCALL_IMPL(mkdirat, SyscallPassthrough3<SYSCALL_DEF(mkdirat)>);
+-  REGISTER_SYSCALL_IMPL(mknodat, SyscallPassthrough4<SYSCALL_DEF(mknodat)>);
+-  REGISTER_SYSCALL_IMPL(fchownat, SyscallPassthrough5<SYSCALL_DEF(fchownat)>);
+-  REGISTER_SYSCALL_IMPL(unlinkat, SyscallPassthrough3<SYSCALL_DEF(unlinkat)>);
+-  REGISTER_SYSCALL_IMPL(renameat, SyscallPassthrough4<SYSCALL_DEF(renameat)>);
+-  REGISTER_SYSCALL_IMPL(linkat, SyscallPassthrough5<SYSCALL_DEF(linkat)>);
+-  REGISTER_SYSCALL_IMPL(symlinkat, SyscallPassthrough3<SYSCALL_DEF(symlinkat)>);
+-  REGISTER_SYSCALL_IMPL(fchmodat, SyscallPassthrough3<SYSCALL_DEF(fchmodat)>);
++  REGISTER_SYSCALL_IMPL(mkdirat, SyscallPathPassthrough3<SYSCALL_DEF(mkdirat)>);
++  REGISTER_SYSCALL_IMPL(mknodat, SyscallPathPassthrough4<SYSCALL_DEF(mknodat)>);
++  REGISTER_SYSCALL_IMPL(fchownat, SyscallPathPassthrough5<SYSCALL_DEF(fchownat)>);
++  REGISTER_SYSCALL_IMPL(unlinkat, SyscallPathPassthrough3<SYSCALL_DEF(unlinkat)>);
++  REGISTER_SYSCALL_IMPL(renameat, SyscallPathPassthrough4<SYSCALL_DEF(renameat)>);
++  REGISTER_SYSCALL_IMPL(linkat, SyscallPathPassthrough5<SYSCALL_DEF(linkat)>);
++  REGISTER_SYSCALL_IMPL(symlinkat, SyscallPathPassthrough3<SYSCALL_DEF(symlinkat)>);
++  REGISTER_SYSCALL_IMPL(fchmodat, SyscallPathPassthrough3<SYSCALL_DEF(fchmodat)>);
+   REGISTER_SYSCALL_IMPL(unshare, SyscallPassthrough1<SYSCALL_DEF(unshare)>);
+   REGISTER_SYSCALL_IMPL(splice, SyscallPassthrough6<SYSCALL_DEF(splice)>);
+   REGISTER_SYSCALL_IMPL(tee, SyscallPassthrough4<SYSCALL_DEF(tee)>);
+@@ -343,7 +378,7 @@ static void RegisterCommon(FEX::HLE::SyscallHandler* Handler) {
+   REGISTER_SYSCALL_IMPL(kcmp, SyscallPassthrough5<SYSCALL_DEF(kcmp)>);
+   REGISTER_SYSCALL_IMPL(sched_setattr, SyscallPassthrough3<SYSCALL_DEF(sched_setattr)>);
+   REGISTER_SYSCALL_IMPL(sched_getattr, SyscallPassthrough4<SYSCALL_DEF(sched_getattr)>);
+-  REGISTER_SYSCALL_IMPL(renameat2, SyscallPassthrough5<SYSCALL_DEF(renameat2)>);
++  REGISTER_SYSCALL_IMPL(renameat2, SyscallPathPassthrough5<SYSCALL_DEF(renameat2)>);
+   REGISTER_SYSCALL_IMPL(getrandom, SyscallPassthrough3<SYSCALL_DEF(getrandom)>);
+   REGISTER_SYSCALL_IMPL(memfd_create, SyscallPassthrough2<SYSCALL_DEF(memfd_create)>);
+   REGISTER_SYSCALL_IMPL(membarrier, SyscallPassthrough2<SYSCALL_DEF(membarrier)>);
+@@ -468,7 +503,7 @@ namespace x64 {
+     REGISTER_SYSCALL_IMPL_X64(get_robust_list, SyscallPassthrough3<SYSCALL_DEF(get_robust_list)>);
+     REGISTER_SYSCALL_IMPL_X64(sync_file_range, SyscallPassthrough4<SYSCALL_DEF(sync_file_range)>);
+     REGISTER_SYSCALL_IMPL_X64(vmsplice, SyscallPassthrough4<SYSCALL_DEF(vmsplice)>);
+-    REGISTER_SYSCALL_IMPL_X64(utimensat, SyscallPassthrough4<SYSCALL_DEF(utimensat)>);
++    REGISTER_SYSCALL_IMPL_X64(utimensat, SyscallPathPassthrough4<SYSCALL_DEF(utimensat)>);
+     REGISTER_SYSCALL_IMPL_X64(fallocate, SyscallPassthrough4<SYSCALL_DEF(fallocate)>);
+     REGISTER_SYSCALL_IMPL_X64(timerfd_settime, SyscallPassthrough4<SYSCALL_DEF(timerfd_settime)>);
+     REGISTER_SYSCALL_IMPL_X64(timerfd_gettime, SyscallPassthrough2<SYSCALL_DEF(timerfd_gettime)>);
+@@ -492,7 +527,7 @@ namespace x64 {
+       REGISTER_SYSCALL_IMPL_X64(cachestat, UnimplementedSyscallSafe);
+     }
+     if (Handler->IsHostKernelVersionAtLeast(6, 6, 0)) {
+-      REGISTER_SYSCALL_IMPL_X64(fchmodat2, SyscallPassthrough4<SYSCALL_DEF(fchmodat2)>);
++      REGISTER_SYSCALL_IMPL_X64(fchmodat2, SyscallPathPassthrough4<SYSCALL_DEF(fchmodat2)>);
+     } else {
+       REGISTER_SYSCALL_IMPL_X64(fchmodat2, UnimplementedSyscallSafe);
+     }
+@@ -529,7 +564,7 @@ namespace x32 {
+     REGISTER_SYSCALL_IMPL_X32(timer_settime64, SyscallPassthrough4<SYSCALL_DEF(timer_settime)>);
+     REGISTER_SYSCALL_IMPL_X32(timerfd_gettime64, SyscallPassthrough2<SYSCALL_DEF(timerfd_gettime)>);
+     REGISTER_SYSCALL_IMPL_X32(timerfd_settime64, SyscallPassthrough4<SYSCALL_DEF(timerfd_settime)>);
+-    REGISTER_SYSCALL_IMPL_X32(utimensat_time64, SyscallPassthrough4<SYSCALL_DEF(utimensat)>);
++    REGISTER_SYSCALL_IMPL_X32(utimensat_time64, SyscallPathPassthrough4<SYSCALL_DEF(utimensat)>);
+     REGISTER_SYSCALL_IMPL_X32(ppoll_time64, SyscallPassthrough5<SYSCALL_DEF(ppoll)>);
+     REGISTER_SYSCALL_IMPL_X32(io_pgetevents_time64, SyscallPassthrough6<SYSCALL_DEF(io_pgetevents)>);
+     REGISTER_SYSCALL_IMPL_X32(mq_timedsend_time64, SyscallPassthrough5<SYSCALL_DEF(mq_timedsend)>);
