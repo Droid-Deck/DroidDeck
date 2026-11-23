@@ -75,6 +75,33 @@ fn denuvo(ticket: &str, session: &str, product: u32, challenge: &str) -> Result<
     })
 }
 
+fn cloud_urls(request: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let s = |k: &str| request.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let product = request.get("productId").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+    let method = match s("method").as_str() {
+        "put" => super::service::CLOUD_PUT,
+        "get" => super::service::CLOUD_GET,
+        other => return Err(format!("unknown cloud save method {other}")),
+    };
+    let items: Vec<super::service::CloudItem> = request.get("items").and_then(|v| v.as_array()).ok_or("no items")?.iter().map(|i| super::service::CloudItem {
+        name: i.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        size: i.get("size").and_then(|v| v.as_u64()).unwrap_or(0),
+        md5_base64: i.get("md5").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+    }).collect();
+    if items.is_empty() || items.iter().any(|i| i.name.is_empty()) {
+        return Err("cloud save items need names".into());
+    }
+    let (ticket, session) = (s("ticket"), s("sessionId"));
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
+    rt.block_on(async {
+        let mut d = super::demux::Demux::connect(&ticket).await?;
+        let (mut ownership, _) = super::service::Ownership::open(&mut d, &ticket, &session).await?;
+        let token = ownership.token(&mut d, product).await?;
+        let signed = super::service::cloudsave_urls(&mut d, &token, product, method, &items).await?;
+        Ok(json!({ "requests": signed.iter().map(|r| json!({ "url": r.url, "header": r.header })).collect::<Vec<_>>() }))
+    })
+}
+
 fn call(op: &str, request: &str) -> String {
     let parsed: serde_json::Value = serde_json::from_str(request).unwrap_or(serde_json::Value::Null);
     let s = |k: &str| parsed.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -86,6 +113,7 @@ fn call(op: &str, request: &str) -> String {
             .and_then(|r| install::chunks(&r))
             .map(|m| json!({ "chunks": install::chunks_json(&m.chunks), "setup": install::setup_json(&m) }))
             .unwrap_or_else(|e| json!({ "error": e })),
+        "cloud-urls" => cloud_urls(&parsed).unwrap_or_else(|e| json!({ "error": e })),
         "launch" => launch(&s("ticket"), &s("sessionId"), parsed.get("productId").and_then(|v| v.as_u64()).unwrap_or(0) as u32)
             .unwrap_or_else(|e| json!({ "error": e })),
         _ => json!({ "error": format!("unknown operation {op}") }),

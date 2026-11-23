@@ -2,7 +2,7 @@
 
 Valve's x86-64 Linux Steam client, run unchanged under FEX beside the default arm64 client. It is
 opt-in: Steam settings, **Steam client: x86-64** (`steamClientArch`, passed to the
-session as `BL_STEAM_CLIENT_ARCH=x86_64`, applies from the next session), or the desktop menu entry
+session as `DD_STEAM_CLIENT_ARCH=x86_64`, applies from the next session), or the desktop menu entry
 **Steam x86-64 (FEX, experimental)**. The Library lists the active client's games and tags its
 header "x86-64" while that client's list is shown. This page records why each workaround exists and what was seen
 on devices. The timeline is in `docs/progress-log.md`.
@@ -11,7 +11,7 @@ on devices. The timeline is in `docs/progress-log.md`.
 VAC-secured servers ("Connection Blocked ... VAC secured server") and no client log mentions VAC. VAC
 modules are x86 code. Under FEX the x86-64 client has a module it can run, as SteamLite does in Wine.
 
-**Layout.** Everything lives in its own home, `$X64_HOME` (`BL_X64_HOME`, default `~/.droiddeck-x64`):
+**Layout.** Everything lives in its own home, `$X64_HOME` (`DD_X64_HOME`, default `~/.droiddeck-x64`):
 its own `~/.steam` links, config, libraries, x86 rootfs and log (`steam-x64.log`). Shared with the arm64
 client: the sign-in, and its `config/uioverrides` (Steam's startup movie overrides), which the x86 client
 links. One client runs at a time, since both use the same account; the standalone launcher shuts the
@@ -76,7 +76,7 @@ arm64 client down first.
 - **Tracer.** proot is a tracer, so tier0 believes a debugger is attached and breaks into it with int3
   on the first failed assertion: the web helper died of SIGTRAP a second after every start.
   `preload/tracer.c` exempts web helpers on purpose (Chromium traps on a status fd that is not
-  procfs); with `BL_WEBHELPER_HIDE_TRACER=1` only opens called from `libtier0_s.so` get the copy
+  procfs); with `DD_WEBHELPER_HIDE_TRACER=1` only opens called from `libtier0_s.so` get the copy
   without the tracer.
 - **FEXServer owns the rootfs.** A FEX process takes its rootfs from FEXServer, and a server started
   earlier without `FEX_ROOTFS` (any FEX run in the guest) serves none: every x86 library lookup fell
@@ -86,7 +86,7 @@ arm64 client down first.
   never got a browser up. FEX looks in the rootfs first, so an empty `rootfs/dev/dri` hides the node.
 - **Scout runtime.** Valve ships it as `ubuntu12_32/steam-runtime.tar.xz` and `steam.sh` unpacks it.
   Since `steam.sh` is not used, `--prepare` unpacks it when its checksum changes.
-- **Repair.** Repair Steam (`BL_X64_REPAIR=1`), or two starts in a row that never showed the client
+- **Repair.** Repair Steam (`DD_X64_REPAIR=1`), or two starts in a row that never showed the client
   (`package/droiddeck-unconfirmed`; the app clears the count once the client is on screen), removes
   the install stamp so the client is reinstalled. Counts from before this was tracked are dropped
   rather than taken as failed starts. `droiddeck-steam-install` removes the repair request when it is
@@ -100,10 +100,10 @@ arm64 client down first.
 - **FEX settings.** The app's PERFORMANCE_TSO preset (`core/FexPreset.kt`, WinNative's default). FEX's
   own defaults keep half-barrier TSO and full-precision x87, which cost every x86 program time. Values
   already in the environment win.
-- **Fast path.** libblfastpath, preloaded into every guest process and so into FEX, broke FEX's 32-bit
+- **Fast path.** libddfastpath, preloaded into every guest process and so into FEX, broke FEX's 32-bit
   mode (SIGILL at start). It stands down when FEX is about to run a 32-bit program; 64-bit programs
-  keep it. `BL_X64_FP_OFF=1` turns it off for everything.
-- **Diagnostics.** `BL_FEX` runs another FEX build (a `DEBUG_STRACE` one, say). `BL_FEXSERVER_LOG`
+  keep it. `DD_X64_FP_OFF=1` turns it off for everything.
+- **Diagnostics.** `DD_FEX` runs another FEX build (a `DEBUG_STRACE` one, say). `DD_FEXSERVER_LOG`
   starts a FEXServer in the foreground logging there; every FEX process that logs to "server"
   (`FEX_OUTPUTLOG` or an AppConfig) then has its lines tagged with its pid (file logs overwrite each
   other).
@@ -113,26 +113,38 @@ arm64 client down first.
 The client's web helper draws its whole UI. There are two:
 
 - **The arm64 client's helper** (`droiddeck-x64-arm-webhelper`), used when both clients are the same
-  Steam build (unless `BL_X64_X86_WEBHELPER=1`). FEX hands the arm64 program to the CPU, so it runs
+  Steam build (unless `DD_X64_X86_WEBHELPER=1`). FEX hands the arm64 program to the CPU, so it runs
   natively with the session's preloads (KGSL poll fix, fast path) and the arm64 session's GPU
   settings. It talks to the client over IPC, and a helper of another build never comes up: the client
   restarted it every 10 s (device: 1790721607 against 1790904859). The session therefore updates the
   arm64 client's parts on the same channel first (`droiddeck-steam-install --sync
   steamdeck_publicbeta`). With this helper the client itself gets the GPU: it shows every Big Picture
   frame the helper draws, and in software (llvmpipe under FEX) that held the UI at about 20 fps
-  (`BL_X64_CLIENT_SOFTWARE=1` keeps it in software). Device: 144 fps menus.
+  (`DD_X64_CLIENT_SOFTWARE=1` keeps it in software). Device: 144 fps menus.
 - **The client's own x86 helper on the GPU** (`droiddeck-x64-webhelper`), otherwise: ANGLE's GL
   backend through FEX's GL thunk to zink and Turnip. On ANGLE's Vulkan backend the x86 compositor
   thread was the bottleneck (16 fps against 60). Never `--in-process-gpu`, the preload's default: a
-  GPU crash there took the whole helper down (102 restarts). `BL_X64_CEF_GPU=0` keeps it in software.
+  GPU crash there took the whole helper down (102 restarts). `DD_X64_CEF_GPU=0` keeps it in software.
   Its GPU process loads libpci, which exits when `/sys/bus/pci/devices` lists a device whose files
   the app may not read (a RedMagic's PCIe root ports): every GPU process exited with status 1 in about
   50 ms, software ones too, until Chromium gave up ("GPU process isn't usable") and the menus stayed
   blank. `LinuxRuntime` binds an empty folder over `/sys/bus/pci/devices` on such devices; device:
   0 GPU process exits, ANGLE on zink and Turnip.
 
+FEX ships per-program AppConfigs, and `/usr/local/share/fex-emu/AppConfig/steamwebhelper.json` turns
+the GL thunk off for every program named `steamwebhelper`. A program's AppConfig is read after
+`FEX_THUNKCONFIG`, so the x86 helper got the rootfs's x86 Mesa while the client next to it had the
+thunk. Steam's browser compositor creates its output window through SDL3 and GLX in the helper's
+browser process, and x86 Mesa's `driCreateNewScreen3` (kisak libgallium 26.1.6) faulted there
+(SIGSEGV, exit 139) about 11 s after every start; the client restarted it each time (device: 57
+restarts in 11 minutes). `x64_env` therefore writes, for every global AppConfig that turns off a
+thunk the session uses, a local AppConfig (`$X64_HOME/.config/fex-emu/AppConfig/<name>.json`, read
+after the global one) with the session's thunk set. It never touches a local file with other content,
+so a user's own AppConfig wins, and removes its own files when the client runs in software. Device:
+helper up for over 10 minutes with no restart, ANGLE on zink and Turnip through the thunk.
+
 The session shim (`preload/net.c`) turns `steamrt64/steamwebhelper.sh`'s exec of `./steamwebhelper`
-into `BL_X64_ARM_WEBHELPER`. Nothing in the client's folder is edited: the client checksums its files
+into `DD_X64_ARM_WEBHELPER`. Nothing in the client's folder is edited: the client checksums its files
 as it starts and reinstalled itself over an edited launcher (2-3 minutes) on every start.
 
 Quick Access Menu and flicker, x86 helper:
@@ -149,7 +161,7 @@ Quick Access Menu and flicker, x86 helper:
   `LIBGL_KOPPER_DISABLE=true` none did in 60 opens, at 60 fps instead of about 140 (Xwayland's
   per-window timing for child windows). No flashes was chosen over frame rate.
 
-Software path (no host thunks, or `BL_X64_SOFTWARE=1`): x86 Mesa has no driver for this GPU, so
+Software path (no host thunks, or `DD_X64_SOFTWARE=1`): x86 Mesa has no driver for this GPU, so
 llvmpipe for GL (the client's own window needs GLX) and the rootfs's own Vulkan ICDs (lavapipe). GLX
 first failed because the desktop exports zink over the arm64 Turnip ICD; those variables are cleared.
 `LIBGL_DRI3_DISABLE=1`: over DRI3 the X server hands out the GPU node and Mesa's software path then
@@ -187,7 +199,7 @@ alone would then read as an installed client.
     0008). FEX opened every rootfs path with `openat2(RESOLVE_IN_ROOT)` and fell through to the arm64
     guest on anything but EXDEV; x86 bash could not find libtinfo. Since r4 the fallback resolves the
     path inside the rootfs itself (absolute symlinks restart at the rootfs, as `RESOLVE_IN_ROOT` does);
-    before, they resolved against the arm64 guest. `libblsession.so` (`preload/robust.c`) answers
+    before, they resolved against the arm64 guest. `libddsession.so` (`preload/robust.c`) answers
     `openat2` first in practice and does the same walk for `RESOLVE_IN_ROOT` callers, so Valve's FEX-Emu
     on the arm64 client gets it too. Each path component is then its own system call.
   - `0002-thunkgen-newer-clang`: the container's newer clang has no `FileManager::clearStatCache()`,
@@ -197,13 +209,25 @@ alone would then read as an installed client.
     restarted from the top forever (found with `perf_event_open` IP sampling, since proot holds
     ptrace). Such a range is now skipped whole and a second exhausted scan returns `-ENOMEM`, as the
     kernel does (`fex-2610-r3`).
+  - `0006-smc-alias-of-code-created-after-translation`: a JIT with a double-mapped memfd (CoreCLR's
+    W^X allocator) maps its writable alias after the executable alias was translated. Under
+    `SMCChecks=mtrack` the new alias was not write-protected, so writes through it never faulted and
+    never invalidated the translated code; x86-64 .NET programs ran stale code (access violations,
+    NullReferenceException, internal CLR errors). A writable mapping or mprotect now write-protects the
+    overlapping part of any alias that is already executable, so the first write faults and invalidates.
+    `FEX_SMCCHECKS=full` was the only workaround; no setting is needed with the patch.
+  - `0007-cmake-install-code-without-depends`: CMake 4.5 rejects the `DEPENDS` argument FEX passes to
+    `install(CODE ...)` for the guest thunk libraries, so builds with host thunks stopped at configure.
+    The guest libraries are external projects in the default build, which `install` already follows.
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,
   checks the digest GitHub stored, and records the build's version, sha256 and size in its `fex.json`
   (in that order: a device that reads the old `fex.json` meanwhile gets a mismatching archive and keeps
   its FEX). This repository's `build-fex.yml` only builds `tools/fex` when it changes (and on dispatch,
-  for diagnostic builds such as `-DDEBUG_STRACE`); nothing is published from it.
+  for diagnostic builds such as `-DDEBUG_STRACE`); nothing is published from it. It builds FEX's latest
+  release, point releases (`FEX-2611.1`) included; `build-in-arch.sh` takes the tag from `FEX_VERSION`
+  and compares only its four-digit release against a patch's `Fixed-upstream`.
 - Releases so far: `fex-2609-r2` (no thunks), `fex-2609-r3` (thunks), `fex-2610-r1`, `fex-2610-r2`,
   `fex-2610-r3`, `fex-2610-r4` (in-root resolution when openat2 is missing, exact MAP_32BIT
   marking), `fex-2610-r5` (current: bundles libxxhash, which the Linux runtime does not ship; the
@@ -214,7 +238,7 @@ alone would then read as an installed client.
 - **Where the app gets it.** The app downloads FEX from Droid-Deck/DroidDeck-Components, where nothing is
   uploaded by hand. The app follows its `fex.json`: it reads it from
   Components' `main` (directly, at most every ten minutes) and keeps the last copy, and every session passes
-  that build to `droiddeck-fex-update` (`BL_FEX_TAG`, `BL_FEX_SHA256`, `BL_FEX_URLS` with the download
+  that build to `droiddeck-fex-update` (`DD_FEX_TAG`, `DD_FEX_SHA256`, `DD_FEX_URLS` with the download
   source's mirrors). The script installs a build only after its archive matches the sha256 and every
   program in it loads (`ld-linux --list`); the files it replaces are kept aside until the installed copy
   loads too and put back otherwise, and the tag is written last. Otherwise it keeps the installed one while that still loads,
@@ -246,7 +270,7 @@ alone would then read as an installed client.
 - **Mapping** (`x64_map_direct`): every game the client's appinfo cache shows with a Linux build (type
   game, oslist with linux; runtime from `config/app_mappings`: SteamLinuxRuntime_sniper or _soldier,
   none means scout), installed or not, so Steam downloads the Linux depots. A title on a tool chosen in
-  Properties keeps it, except `BL_X64_DIRECT_APPS` (Left 4 Dead 2, 550, by default), which is always
+  Properties keeps it, except `DD_X64_DIRECT_APPS` (Left 4 Dead 2, 550, by default), which is always
   taken back. `direct-auto.json` lists what was mapped. One pass over the mapping: a 2000-title fixture
   went from 16.5 s to 0.2 s with the same output.
 - A game whose Windows build is installed (it ran on a Proton before) stays a Windows game on the
@@ -270,7 +294,7 @@ alone would then read as an installed client.
   in its container.
 - **GPU.** Games get FEX's host thunks and the session's GPU settings (Turnip, Zink), saved by the
   launcher as `game-gpu.env` and rewritten whenever it runs; `game-gpu.local` is the user's, never
-  rewritten, and is read after it. `BL_X64_GAME_SOFTWARE=1` keeps a game in software, with
+  rewritten, and is read after it. `DD_X64_GAME_SOFTWARE=1` keeps a game in software, with
   `mesa_glthread=false` (GL threading is no help with software GL under FEX).
 - Source games (`hl2.sh`, `hl2_linux`, `srcds`) get `-condebug` for the VAC diagnostics.
 - **Controllers.** `libfakeinput` is built for x86-64 and preloaded in the rootfs; Big Picture works
@@ -316,7 +340,7 @@ alone would then read as an installed client.
   written only while no client runs. Shader pre-caching stays each client's own: the x86 client may
   fetch a shared game's shader cache into its own folder (Valheim, 1.8 GB).
 - **SD card.** The x86 client's card library is a folder inside the arm64 one (`/mnt/droiddeck-sd/x86-64`,
-  `GameStorage.X64_CARD_DIR`, passed as `BL_X64_STEAM_LIBRARIES`), so the install dialog offers Internal
+  `GameStorage.X64_CARD_DIR`, passed as `DD_X64_STEAM_LIBRARIES`), so the install dialog offers Internal
   Storage and SD card. compatdata, shadercache and runtime tools stay private, as in the arm64 card
   library. FEX runs x86 programs from the noexec exFAT card. The folder appears with the client's first
   session on the card and its `steamapps` with the first library write. Desktop sessions prepare it as
@@ -378,7 +402,7 @@ alone would then read as an installed client.
   it. It keeps the game display Steam chose: the saved `DISPLAY=:0` hid the game window and made
   DiRT Showdown exit after about 7 s. Proton takes its Steam client parts from the client's install
   folder, and the x86 client's are x86, so `STEAM_COMPAT_CLIENT_INSTALL_PATH` points at the arm64 root
-  and `BL_X64_STEAM_ROOT` keeps the x86 one for install-script lookups.
+  and `DD_X64_STEAM_ROOT` keeps the x86 one for install-script lookups.
 - **Game overlay.** The x86 client preloads its own x86 overlay; the arm64 one takes its place. The
   overlay marks the game's windows with the Steam app ID, and without it gamescope never shows them
   (FlatOut ran and played sound behind Steam's launch screen, "steam app id: 0"). The agent also tags
@@ -425,7 +449,7 @@ alone would then read as an installed client.
   to secure servers."). That console reaches a file only with `-condebug`: `<game>/<mod>/console.log`,
   or `<game>/game/<mod>/console.log` for Source 2. At session start the app writes
   `~/.droiddeck-vac-diagnostics` (start time, client, each console.log's length, since `-condebug`
-  appends). The launch wrapper (`bl_vacdiag`) then adds `-condebug` to Source titles (found by
+  appends). The launch wrapper (`dd_vacdiag`) then adds `-condebug` to Source titles (found by
   `gameinfo.txt` or `gameinfo.gi`), flags `-insecure` in launch options and notes each launch. At the
   end the session copies what each console.log gained into `vac/`, scrubbed, and writes `vac.txt`: the
   game's secure/insecure lines, VAC lines in the client's logs, and which client files are present. A
@@ -440,7 +464,7 @@ alone would then read as an installed client.
 
 ## Session integration, restarts and mapping
 
-- With `BL_STEAM_CLIENT_ARCH=x86_64`, `droiddeck-session` updates the arm64 client's parts
+- With `DD_STEAM_CLIENT_ARCH=x86_64`, `droiddeck-session` updates the arm64 client's parts
   (`droiddeck-steam-install`, then `--sync steamdeck_publicbeta`), runs `droiddeck-steam-x64 --prepare`
   and starts the client with `droiddeck-steam-x64 --exec`. Steps only for the arm64 client (library
   registration, the ARM64 Proton fetch, the live compat helper) are skipped; added games,
@@ -450,7 +474,7 @@ alone would then read as an installed client.
   failed at ../src/pulse/operation.c:136 pa_operation_get_state()", the runtime's PulseAudio 13).
   `preload/pulseguard.c` (x86 builds only; the arm64 client does not hit it) answers a missing operation
   as cancelled and ignores its unref and cancel. The session passes `-steamdeck -steamos3` unless
-  `BL_X64_DECK=0`. Switch to Desktop is expected to need no change (an x86 shell under FEX runs
+  `DD_X64_DECK=0`. Switch to Desktop is expected to need no change (an x86 shell under FEX runs
   `steamos-session-select`); the full switch has not been tested on a device.
 - **Process names.** Under FEX a process's argv[0] is FEX and the program is its first argument. The
   session's game detection, CPU pinning and the zRAM watcher read that argument. Steam pins itself and
@@ -459,13 +483,13 @@ alone would then read as an installed client.
   `steam-compatibility --x64 --live` and `droiddeck-steam-x64 --map-direct --live`, every 15 s and
   only in the session's first hour (720 beats of 5 s). A title installed after that is mapped when the
   client exits and takes effect from the next session. Steam reads a
-  mapping changed while it runs only at its next start, so changed titles go to `.bl-compat-pending`.
+  mapping changed while it runs only at its next start, so changed titles go to `.dd-compat-pending`.
   Once they have installed (`StateFlags` 4 in the client's root or its card folder) and no game runs,
   the client is restarted once per title, at most 3 times a session.
 - **After exit.** Added games, `steam-compatibility --x64` and `--map-direct` run again: the client
   wrote its mapping from memory as it exited, over what the live passes set.
 - The Lossless Scaling ownership probe and the Steam import watcher reach the x86 client through the
-  arm64 client's `steamclient.so` (`BL_STEAMCLIENT`); the watcher restarts the client with
+  arm64 client's `steamclient.so` (`DD_STEAMCLIENT`); the watcher restarts the client with
   `droiddeck-steam-x64 --exec -shutdown`.
 - Steam logs and the Steam language come from the x86 client's home. On the desktop, `steam` and
   `steamdeck-steam` start the selected client, and the desktop game entries list its libraries.

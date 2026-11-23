@@ -153,6 +153,31 @@ def checked(response: dict, default_code: str) -> dict:
     return response
 
 
+def find_game(adb: str, serial: str, wanted: str) -> dict:
+    games = checked(provider_call(adb, serial, "library", request={}), "LIBRARY_FAILED").get("games") or []
+    exact = [g for g in games if g.get("id") == wanted]
+    if exact:
+        return exact[0]
+    named = [g for g in games if wanted.casefold() in str(g.get("name", "")).casefold()]
+    if len(named) == 1:
+        return named[0]
+    if not named:
+        raise ControlError(f"No library game matches {wanted!r}; list them with library", "GAME_NOT_FOUND")
+    names = ", ".join(f"{g.get('name')} ({g.get('id')})" for g in named[:10])
+    raise ControlError(f"{wanted!r} matches {len(named)} games: {names}", "GAME_AMBIGUOUS")
+
+
+def open_game_link(adb: str, serial: str, game_id: str) -> None:
+    if not game_id.isdigit():
+        raise ControlError(f"Library id {game_id!r} is not a number", "INVALID_GAME_ID")
+    result = run_adb(adb, serial, "shell", "am", "start", "-W", "-a", "android.intent.action.VIEW",
+                     "-d", f"droiddeck://game/{game_id}", "-n", f"{PACKAGE}/com.droiddeck.launcher.FrontEndActivity",
+                     timeout=60)
+    output = (result.stdout + result.stderr).decode(errors="replace")
+    if result.returncode != 0 or "error" in output.lower():
+        raise ControlError(output.strip() or "The game link did not open", "ACTIVITY_START_FAILED")
+
+
 def start_agent_activity(adb: str, serial: str, request: dict) -> None:
     encoded = encode_request(request)
     result = run_adb(
@@ -387,10 +412,10 @@ def pacing(adb: str, serial: str, seconds: float) -> dict:
     try:
         time.sleep(seconds)
         dump = run_adb(adb, serial, *timestats, "-dump", timeout=60)
+        elapsed = time.monotonic() - started
     except ControlError as exc:
         raise ControlError(str(exc), "PACING_FAILED") from exc
     finally:
-        elapsed = time.monotonic() - started
         try:
             disabled = run_adb(adb, serial, *timestats, "-disable").returncode == 0
         except ControlError:
@@ -767,7 +792,7 @@ def uinput_commands(samples: list[dict], tool: str, viewport: dict) -> list[dict
                        {"id": 1, "command": "sync", "syncToken": UINPUT_SYNC}]
 
 
-def pen_uinput(adb: str, serial: str, samples: list[dict], tool: str) -> dict:
+def uinput_check(adb: str, serial: str) -> None:
     probe = run_adb(adb, serial, "shell",
                     "command -v uinput >/dev/null 2>&1 || echo no-uinput; [ -w /dev/uinput ] || echo no-dev-uinput")
     if probe.returncode != 0:
@@ -777,6 +802,10 @@ def pen_uinput(adb: str, serial: str, samples: list[dict], tool: str) -> dict:
         raise ControlError("This device's shell has no `uinput` command", "UINPUT_UNAVAILABLE")
     if "no-dev-uinput" in missing:
         raise ControlError("The ADB shell cannot write /dev/uinput on this device", "UINPUT_UNAVAILABLE")
+
+
+def pen_uinput(adb: str, serial: str, samples: list[dict], tool: str) -> dict:
+    uinput_check(adb, serial)
     viewport = input_viewport(run_adb(adb, serial, "shell", "dumpsys", "input").stdout.decode(errors="replace"))
     script = "".join(json.dumps(command) + "\n" for command in uinput_commands(samples, tool, viewport))
     started = time.monotonic()
@@ -790,6 +819,68 @@ def pen_uinput(adb: str, serial: str, samples: list[dict], tool: str) -> dict:
                            "UINPUT_FAILED")
     return {"ok": True, "command": "input", "type": "pen", "samples": len(samples), "ms": elapsed,
             "viewport": {key: viewport[key] for key in ("display", "rotation", "size")}}
+
+
+GAMEPAD_NAME = "DroidDeck test pad"
+GAMEPAD_SYNC = "droiddeckctl-gamepad-done"
+GAMEPAD_BUTTONS = {"a": "BTN_SOUTH", "b": "BTN_EAST", "x": "BTN_NORTH", "y": "BTN_WEST", "lb": "BTN_TL", "rb": "BTN_TR",
+                   "select": "BTN_SELECT", "start": "BTN_START", "guide": "BTN_MODE", "l3": "BTN_THUMBL", "r3": "BTN_THUMBR"}
+GAMEPAD_DPAD = {"up": ("ABS_HAT0Y", -1), "down": ("ABS_HAT0Y", 1), "left": ("ABS_HAT0X", -1), "right": ("ABS_HAT0X", 1)}
+GAMEPAD_MAX_PRESSES = 200
+GAMEPAD_DPAD_MIN_GAP_MS = 20
+
+
+def gamepad_commands(buttons: list[str], hold: int, gap: int) -> list[dict]:
+    def axis(code: str, low: int, high: int) -> dict:
+        return {"code": code, "info": {"value": 0, "minimum": low, "maximum": high, "fuzz": 0, "flat": 0, "resolution": 0}}
+
+    unknown = [name for name in buttons if name not in GAMEPAD_BUTTONS and name not in GAMEPAD_DPAD]
+    if unknown:
+        raise ControlError(f"Unknown gamepad button {unknown[0]!r}; use "
+                           f"{', '.join(list(GAMEPAD_BUTTONS) + list(GAMEPAD_DPAD))}", "INVALID_INPUT")
+    if not 1 <= len(buttons) <= GAMEPAD_MAX_PRESSES:
+        raise ControlError(f"Press between 1 and {GAMEPAD_MAX_PRESSES} buttons", "INVALID_INPUT")
+    if not 10 <= hold <= 5000 or not 0 <= gap <= 5000:
+        raise ControlError("--hold must be 10..5000 ms and --gap 0..5000 ms", "INVALID_INPUT")
+    commands: list[dict] = [
+        {"id": 1, "command": "register", "name": GAMEPAD_NAME, "bus": "usb", "vid": 0x045E, "pid": 0x028E,
+         "configuration": [
+             {"type": "UI_SET_EVBIT", "data": ["EV_KEY", "EV_ABS"]},
+             {"type": "UI_SET_KEYBIT", "data": sorted(GAMEPAD_BUTTONS.values())},
+             {"type": "UI_SET_ABSBIT", "data": ["ABS_X", "ABS_Y", "ABS_RX", "ABS_RY", "ABS_HAT0X", "ABS_HAT0Y"]},
+         ],
+         "abs_info": [axis("ABS_X", -32768, 32767), axis("ABS_Y", -32768, 32767), axis("ABS_RX", -32768, 32767),
+                      axis("ABS_RY", -32768, 32767), axis("ABS_HAT0X", -1, 1), axis("ABS_HAT0Y", -1, 1)]},
+        {"id": 1, "command": "delay", "duration": UINPUT_REGISTER_MS},
+    ]
+    for name in buttons:
+        code, down, up = (GAMEPAD_BUTTONS[name], 1, 0) if name in GAMEPAD_BUTTONS else \
+            (GAMEPAD_DPAD[name][0], GAMEPAD_DPAD[name][1], 0)
+        kind = "EV_KEY" if name in GAMEPAD_BUTTONS else "EV_ABS"
+        commands += [{"id": 1, "command": "inject", "events": [kind, code, down, "EV_SYN", "SYN_REPORT", 0]},
+                     {"id": 1, "command": "delay", "duration": hold},
+                     {"id": 1, "command": "inject", "events": [kind, code, up, "EV_SYN", "SYN_REPORT", 0]}]
+        pause = gap if name in GAMEPAD_BUTTONS else max(gap, GAMEPAD_DPAD_MIN_GAP_MS)
+        if pause > 0:
+            commands.append({"id": 1, "command": "delay", "duration": pause})
+    return commands + [{"id": 1, "command": "delay", "duration": UINPUT_TAIL_MS},
+                       {"id": 1, "command": "sync", "syncToken": GAMEPAD_SYNC}]
+
+
+def gamepad_uinput(adb: str, serial: str, buttons: list[str], hold: int, gap: int) -> dict:
+    commands = gamepad_commands(buttons, hold, gap)
+    uinput_check(adb, serial)
+    script = "".join(json.dumps(command) + "\n" for command in commands)
+    started = time.monotonic()
+    result = run_adb(adb, serial, "shell", "uinput", "-", stdin=script.encode(),
+                     timeout=(UINPUT_REGISTER_MS + len(buttons) * (hold + gap) + UINPUT_TAIL_MS) / 1000 + 30)
+    elapsed = round((time.monotonic() - started) * 1000)
+    if GAMEPAD_SYNC not in result.stdout.decode(errors="replace"):
+        detail = (result.stderr or result.stdout).decode(errors="replace").strip()[-400:]
+        raise ControlError(f"uinput stopped before the last button (exit {result.returncode})"
+                           + (f": {detail}" if detail else "") + "; `adb logcat -s UINPUT UinputDevice` tells why",
+                           "UINPUT_FAILED")
+    return {"ok": True, "command": "input", "type": "gamepad", "buttons": buttons, "ms": elapsed}
 
 
 def xr_ppm_to_png(data: bytes, linear: bool = False) -> bytes:
@@ -949,6 +1040,17 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
         return add_serial(checked(provider_call(adb, serial, "resume"), "RESUME_FAILED"), serial)
 
     if command == "launch":
+        if (args.app_id is None) == (args.game is None):
+            raise ControlError("launch takes a Steam app id or --game, not both", "INVALID_ARGUMENTS")
+        if args.game is not None:
+            game = find_game(adb, serial, args.game)
+            open_game_link(adb, serial, game["id"])
+            response = {"ok": True, "command": "launch", "game": game}
+            if args.wait:
+                state = wait_until(adb, serial, f"{game['name']} to have focus",
+                                   lambda s: focused(s, None), args.timeout, 0.5)
+                response["focus"] = state["session"].get("focus")
+            return add_serial(response, serial)
         response = checked(provider_call(adb, serial, "launch", request={"appId": str(args.app_id)}), "LAUNCH_FAILED")
         if args.wait:
             state = wait_until(adb, serial, f"app {args.app_id} to have focus",
@@ -957,9 +1059,32 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
         return add_serial(response, serial)
 
     if command == "quit":
-        response = provider_call(adb, serial, "quit", request={"appId": args.app_id, "timeout": args.timeout},
+        app_id = args.app_id
+        if app_id is None:
+            current = (get_state(adb, serial)["session"].get("focus") or {}).get("focusedApp")
+            if current in (None, 0, STEAM_CLIENT_APP):
+                raise ControlError("No game has focus; name the app id to quit", "NO_FOCUSED_GAME")
+            app_id = current
+        response = provider_call(adb, serial, "quit", request={"appId": app_id, "timeout": args.timeout},
                                  timeout=args.timeout + 40)
         return add_serial(checked(response, "QUIT_FAILED"), serial)
+
+    if command == "library":
+        request = {"query": args.query or "", "source": args.source or ""}
+        return add_serial(checked(provider_call(adb, serial, "library", request=request), "LIBRARY_FAILED"), serial)
+
+    if command == "xodus":
+        argv = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+        if not argv:
+            raise ControlError("xodus needs its arguments after --", "INVALID_ARGUMENTS")
+        response = provider_call(adb, serial, "xodus", request={"args": argv, "timeout": args.timeout},
+                                 timeout=args.timeout + 30)
+        return add_serial(checked(response, "XODUS_FAILED"), serial)
+
+    if command == "cloud":
+        request = {"direction": args.direction, "store": args.store, "id": args.game_id, "force": args.force}
+        response = provider_call(adb, serial, "cloud", request=request, timeout=args.timeout)
+        return add_serial(checked(response, "CLOUD_FAILED"), serial)
 
     if command == "focus":
         return add_serial(checked(provider_call(adb, serial, "focus", timeout=40), "FOCUS_FAILED"), serial)
@@ -1022,6 +1147,8 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
     if command == "input":
         if args.input_type == "pen":
             return add_serial(pen_uinput(adb, serial, pen_samples(args), args.tool), serial)
+        if args.input_type == "gamepad":
+            return add_serial(gamepad_uinput(adb, serial, args.buttons, args.hold, args.gap), serial)
         return add_serial(checked(provider_call(adb, serial, "input", request=input_request(args), timeout=60),
                                   "INPUT_FAILED"), serial)
 
@@ -1224,14 +1351,30 @@ def build_parser() -> argparse.ArgumentParser:
     stop.add_argument("--artifact-timeout", type=float, default=300)
     commands.add_parser("resume", help="resume a suspended session")
 
-    launch = commands.add_parser("launch", help="launch a Steam game in the running Steam session")
-    launch.add_argument("app_id", type=int)
+    launch = commands.add_parser("launch", help="launch a Steam game in the running Steam session, or any library game with --game")
+    launch.add_argument("app_id", type=int, nargs="?")
+    launch.add_argument("--game", help="a library game id or a unique part of its name (store and added games too)")
     launch.add_argument("--wait", action="store_true", help="wait until the game has focus")
     launch.add_argument("--timeout", type=float, default=180)
 
-    quit_ = commands.add_parser("quit", help="quit a running game (through the client, then signals)")
-    quit_.add_argument("app_id", type=int)
+    quit_ = commands.add_parser("quit", help="quit a running game (through the client, then signals); the focused one by default")
+    quit_.add_argument("app_id", type=int, nargs="?")
     quit_.add_argument("--timeout", type=float, default=15)
+
+    library = commands.add_parser("library", help="the library games the front end lists, with the ids launch --game takes")
+    library.add_argument("--query", help="only games whose name contains this")
+    library.add_argument("--source", help="only games from this source, e.g. steam, xbox, ea, ubisoft, gog, epic")
+
+    xodus = commands.add_parser("xodus", help="run the Xbox backend with the app's credentials (debugging tools)")
+    xodus.add_argument("--timeout", type=float, default=120)
+    xodus.add_argument("argv", nargs=argparse.REMAINDER)
+
+    cloud = commands.add_parser("cloud", help="sync a store game's cloud saves now (debugging tools)")
+    cloud.add_argument("direction", choices=["down", "up"])
+    cloud.add_argument("store", help="gog, epic, ea or ubisoft")
+    cloud.add_argument("game_id", help="the store's id for the game, as its install record names it")
+    cloud.add_argument("--force", action="store_true", help="take this side even over conflicts")
+    cloud.add_argument("--timeout", type=float, default=300)
 
     commands.add_parser("focus", help="gamescope's focus and every Xwayland server's windows, fresh")
 
@@ -1284,6 +1427,13 @@ def build_parser() -> argparse.ArgumentParser:
     pad.add_argument("button")
     pad.add_argument("--action", choices=["tap", "down", "up"], default="tap")
     pad.add_argument("--hold", type=int, default=120)
+    gamepad = kinds.add_parser(
+        "gamepad", help="press buttons on a real uinput gamepad that Android sees as a physical controller "
+                        "(unlike pad, which only feeds the guest's virtual pad)")
+    gamepad.add_argument("buttons", nargs="+", metavar="BUTTON",
+                         help="a b x y lb rb select start guide l3 r3 up down left right, pressed in order")
+    gamepad.add_argument("--hold", type=int, default=120, help="ms each button stays down")
+    gamepad.add_argument("--gap", type=int, default=400, help="ms between buttons (a d-pad press always waits at least 20 ms)")
     stick = kinds.add_parser("stick", help="hold a stick at x, y (-1..1)")
     stick.add_argument("stick", choices=["left", "right"])
     stick.add_argument("x", type=float)
@@ -1355,7 +1505,7 @@ def build_parser() -> argparse.ArgumentParser:
     env_clear = env_ops.add_parser("clear")
     env_clear.add_argument("scope", nargs="?", choices=["next", "persistent", "all"], default="next")
 
-    override = commands.add_parser("override", help="override a program or libblfastpath.so for the next session (debugging tools)")
+    override = commands.add_parser("override", help="override a program or libddfastpath.so for the next session (debugging tools)")
     override.add_argument("name", help="the program name, e.g. gamescope")
     override.add_argument("path", help="the local file to push")
 

@@ -165,62 +165,186 @@ static int is_proc_self_exe(const char *path) {
     return 0;
 }
 
+static void exe_from_cmdline(const char *cmdline_path, char *out, size_t outsz) {
+    int fd = open(cmdline_path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return;
+    char cmdline[8192];
+    ssize_t n = read(fd, cmdline, sizeof(cmdline) - 1);
+    close(fd);
+    if (n <= 0) return;
+    cmdline[n] = '\0';
+    char *args[64] = {0};
+    int ac = 0;
+    char *p = cmdline;
+    while (p < cmdline + n && ac < 64) {
+        args[ac++] = p;
+        p += strlen(p) + 1;
+    }
+    for (int i = 0; i < ac; i++) {
+        if (strcmp(args[i], "--argv0") == 0 && i + 2 < ac) {
+            ddnatv_copy_cstr(out, outsz, args[i + 2]);
+            return;
+        }
+    }
+    if (ac > 0 && args[0] && args[0][0] != '\0') ddnatv_copy_cstr(out, outsz, args[0]);
+}
+
+static ssize_t copy_guest_exe(const char *real_exe, char *buf, size_t bufsiz) {
+    const char *out_path = real_exe;
+    if (g_ddnatv_root[0] != '\0') {
+        size_t rlen = g_ddnatv_root_len;
+        if (strncmp(real_exe, g_ddnatv_root, rlen) == 0 &&
+            (real_exe[rlen] == '/' || real_exe[rlen] == '\0')) {
+            out_path = real_exe + rlen;
+            if (out_path[0] == '\0') out_path = "/";
+        }
+    }
+    size_t len = strlen(out_path);
+    size_t copy_len = (len < bufsiz) ? len : bufsiz;
+    memcpy(buf, out_path, copy_len);
+    return (ssize_t)copy_len;
+}
+
 static ssize_t handle_proc_self_exe(char *buf, size_t bufsiz) {
     if (!buf || bufsiz == 0) {
         errno = EINVAL;
         return -1;
     }
     init_ddnatv_hook();
-    if (g_real_exe[0] == '\0') {
-        int fd = open("/proc/self/cmdline", O_RDONLY);
-        if (fd >= 0) {
-            char cmdline[8192];
-            ssize_t n = read(fd, cmdline, sizeof(cmdline) - 1);
-            close(fd);
-            if (n > 0) {
-                cmdline[n] = '\0';
-                char *args[64] = {0};
-                int ac = 0;
-                char *p = cmdline;
-                while (p < cmdline + n && ac < 64) {
-                    args[ac++] = p;
-                    p += strlen(p) + 1;
-                }
-                for (int i = 0; i < ac; i++) {
-                    if (strcmp(args[i], "--argv0") == 0 && i + 2 < ac) {
-                        strncpy(g_real_exe, args[i + 2], sizeof(g_real_exe) - 1);
-                        g_real_exe[sizeof(g_real_exe) - 1] = '\0';
-                        break;
-                    }
-                }
-                if (g_real_exe[0] == '\0' && ac > 0 && args[0] && args[0][0] != '\0') {
-                    strncpy(g_real_exe, args[0], sizeof(g_real_exe) - 1);
-                    g_real_exe[sizeof(g_real_exe) - 1] = '\0';
-                }
-            }
-        }
-    }
-
-    if (g_real_exe[0] != '\0') {
-        char stripped[PATH_MAX];
-        const char *out_path = g_real_exe;
-        if (g_ddnatv_root[0] != '\0') {
-            size_t rlen = g_ddnatv_root_len;
-            if (strncmp(g_real_exe, g_ddnatv_root, rlen) == 0 &&
-                (g_real_exe[rlen] == '/' || g_real_exe[rlen] == '\0')) {
-                out_path = g_real_exe + rlen;
-                if (out_path[0] == '\0') out_path = "/";
-            }
-        }
-        strncpy(stripped, out_path, sizeof(stripped) - 1);
-        stripped[sizeof(stripped) - 1] = '\0';
-
-        size_t len = strlen(stripped);
-        size_t copy_len = (len < bufsiz) ? len : bufsiz;
-        memcpy(buf, stripped, copy_len);
-        return (ssize_t)copy_len;
-    }
+    if (g_real_exe[0] == '\0') exe_from_cmdline("/proc/self/cmdline", g_real_exe, sizeof(g_real_exe));
+    if (g_real_exe[0] != '\0') return copy_guest_exe(g_real_exe, buf, bufsiz);
     return -1;
+}
+
+static int is_ld_linux(const char *path);
+
+static ssize_t (*real_readlinkat_fn(void))(int, const char *, char *, size_t) {
+    static ssize_t (*fn)(int, const char *, char *, size_t) = NULL;
+    if (!fn) fn = (ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat");
+    return fn;
+}
+
+static int proc_env_value(pid_t pid, const char *key, char *out, size_t outsz) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/environ", (int)pid);
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    size_t cap = 65536, used = 0, keylen = strlen(key);
+    char *env = malloc(cap + 1);
+    ssize_t got;
+    while (env && (got = read(fd, env + used, cap - used)) > 0) {
+        used += (size_t)got;
+        if (used == cap) {
+            char *bigger = cap < (8u << 20) ? realloc(env, cap * 2 + 1) : NULL;
+            if (!bigger) break;
+            env = bigger;
+            cap *= 2;
+        }
+    }
+    close(fd);
+    int found = 0;
+    if (env) {
+        env[used] = '\0';
+        for (char *e = env; e < env + used; e += strlen(e) + 1) {
+            if (strncmp(e, key, keylen) == 0 && e[keylen] == '=' && e[keylen + 1] != '\0') {
+                ddnatv_copy_cstr(out, outsz, e + keylen + 1);
+                found = 1;
+                break;
+            }
+        }
+        free(env);
+    }
+    return found;
+}
+
+// Overlay filesystems report a different device to stat() than in /proc/<pid>/maps; the path, as the
+// kernel resolved it, then stands in for the device.
+static int proc_maps_file(pid_t pid, dev_t dev, ino_t ino, const char *resolved) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/maps", (int)pid);
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    char chunk[4096], line[1024];
+    size_t len = 0;
+    ssize_t got;
+    int found = 0;
+    while (!found && (got = read(fd, chunk, sizeof(chunk))) > 0) {
+        for (ssize_t i = 0; i < got && !found; i++) {
+            if (chunk[i] != '\n') {
+                if (len < sizeof(line) - 1) line[len++] = chunk[i];
+                continue;
+            }
+            line[len] = '\0';
+            len = 0;
+            unsigned long long offset, inode;
+            unsigned int major_nr, minor_nr;
+            int name_at = 0;
+            if (sscanf(line, "%*s %*s %llx %x:%x %llu %n", &offset, &major_nr, &minor_nr, &inode, &name_at) == 4 &&
+                offset == 0 && inode == (unsigned long long)ino &&
+                (makedev(major_nr, minor_nr) == dev || (resolved && name_at > 0 && strcmp(line + name_at, resolved) == 0))) {
+                found = 1;
+            }
+        }
+    }
+    close(fd);
+    return found;
+}
+
+// The kernel's /proc/<pid>/exe of every other guest program is the loader that started it. KWin
+// grants privileged Wayland interfaces by matching that path to a desktop file's Exec, so it is the
+// program the loader runs, as for the calling process. A process can set its environment and
+// arguments, so the program they name counts only if that process has the file mapped from its start.
+static ssize_t handle_proc_other_exe(const char *path, char *buf, size_t bufsiz) {
+    if (!path || !buf || bufsiz == 0 || strncmp(path, "/proc/", 6) != 0) return -1;
+    const char *p = path + 6;
+    if (*p < '1' || *p > '9') return -1;
+    while (*p >= '0' && *p <= '9') p++;
+    if (strcmp(p, "/exe") != 0) return -1;
+    pid_t pid = (pid_t)atoi(path + 6);
+    if (pid == getpid()) return -1;
+    init_ddnatv_hook();
+    if (g_ddnatv_root[0] == '\0') return -1;
+    ssize_t (*real_readlinkat)(int, const char *, char *, size_t) = real_readlinkat_fn();
+    static int (*real_fstatat)(int, const char *, struct stat *, int) = NULL;
+    if (!real_fstatat) real_fstatat = (int (*)(int, const char *, struct stat *, int))dlsym(RTLD_NEXT, "fstatat");
+    if (!real_readlinkat || !real_fstatat) return -1;
+    char loader[PATH_MAX];
+    ssize_t n = real_readlinkat(AT_FDCWD, path, loader, sizeof(loader) - 1);
+    if (n <= 0) return -1;
+    loader[n] = '\0';
+    const char *base = strrchr(loader, '/');
+    base = base ? base + 1 : loader;
+    if (strcmp(base, "libddexec.so") != 0 && !is_ld_linux(loader)) return -1;
+
+    char real_exe[PATH_MAX] = "";
+    if (!proc_env_value(pid, "DDNATV_REAL_EXE", real_exe, sizeof(real_exe))) {
+        char cmdline[64];
+        snprintf(cmdline, sizeof(cmdline), "/proc/%d/cmdline", (int)pid);
+        exe_from_cmdline(cmdline, real_exe, sizeof(real_exe));
+    }
+    static char *(*real_realpath)(const char *, char *) = NULL;
+    if (!real_realpath) real_realpath = (char *(*)(const char *, char *))dlsym(RTLD_NEXT, "realpath");
+    struct stat st;
+    char resolved[PATH_MAX];
+    if (real_exe[0] != '/' || real_fstatat(AT_FDCWD, real_exe, &st, 0) != 0) return -1;
+    if (!real_realpath || !real_realpath(real_exe, resolved)) resolved[0] = '\0';
+    if (!proc_maps_file(pid, st.st_dev, st.st_ino, resolved[0] ? resolved : NULL)) return -1;
+    return copy_guest_exe(real_exe, buf, bufsiz);
+}
+
+// readlinkat(<descriptor for /proc/<pid>>, "exe"), as the absolute path would be answered.
+static ssize_t handle_proc_exe_at(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
+    if (!pathname || pathname[0] == '/' || dirfd == AT_FDCWD || strcmp(pathname, "exe") != 0) return -1;
+    ssize_t (*real_readlinkat)(int, const char *, char *, size_t) = real_readlinkat_fn();
+    if (!real_readlinkat) return -1;
+    char link[64], dir[PATH_MAX], full[PATH_MAX];
+    snprintf(link, sizeof(link), "/proc/self/fd/%d", dirfd);
+    ssize_t n = real_readlinkat(AT_FDCWD, link, dir, sizeof(dir) - 1);
+    if (n <= 0) return -1;
+    dir[n] = '\0';
+    if (strncmp(dir, "/proc/", 6) != 0 || snprintf(full, sizeof(full), "%s/exe", dir) >= (int)sizeof(full)) return -1;
+    if (is_proc_self_exe(full)) return handle_proc_self_exe(buf, bufsiz);
+    return handle_proc_other_exe(full, buf, bufsiz);
 }
 
 static const char *rewrite_path(const char *path, char *buffer, size_t bufsize) {

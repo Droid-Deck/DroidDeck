@@ -8,6 +8,7 @@ add_library(droiddeckwayland SHARED
         src/vk_loader.c
         src/sc_layer.c
         src/ahb_swapchain.c
+        src/display_buffers.c
         src/waylandcomp_jni.c
         src/gpu_clock_pin.c
         src/droiddeck_ext.c
@@ -26,7 +27,7 @@ add_library(droiddeckwayland SHARED
         generated/linux-dmabuf-v1-protocol.c
         generated/wayland-android-protocol.c
         generated/viewporter-protocol.c
-        generated/banner-desktop-v1-protocol.c
+        generated/droiddeck-desktop-v1-protocol.c
         generated/presentation-time-protocol.c
         generated/pointer-constraints-unstable-v1-protocol.c
         generated/relative-pointer-unstable-v1-protocol.c
@@ -34,7 +35,8 @@ add_library(droiddeckwayland SHARED
         generated/text-input-unstable-v3-protocol.c
         generated/xdg-toplevel-icon-v1-protocol.c
         generated/single-pixel-buffer-v1-protocol.c
-        generated/banner-ahb-v1-protocol.c
+        generated/droiddeck-ahb-v1-protocol.c
+        generated/droiddeck-refresh-v1-protocol.c
         src/framegen_bridge.c
         src/framegen_jni.c
         src/hudframes.c

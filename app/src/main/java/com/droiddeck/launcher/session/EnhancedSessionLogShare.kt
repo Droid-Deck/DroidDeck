@@ -708,10 +708,10 @@ internal object EnhancedSessionLogShare {
         }
         val logs = LinuxRuntime.logDir(context)
         for ((name, root) in listOf(SessionLogShare.STORES_DIR to File(logs, SessionLogShare.STORES_DIR), SessionPaths.TOOLS_DIR to File(logs, SessionPaths.TOOLS_DIR))) {
-            val scan = directFiles(root, remaining(maxFiles, out.size))
+            val scan = directFiles(root, STORE_LOG_SCAN)
             truncated = truncated || scan.truncated
             partial = partial || scan.partial
-            scan.files.asSequence().filter { recent(it) }
+            scan.files.filter { recent(it) }.sortedByDescending { it.lastModified() }.take(remaining(maxFiles, out.size))
                 .forEach { add(it, root, "$name/${it.name}", name) }
         }
         if (legacy) {
@@ -965,6 +965,7 @@ internal object EnhancedSessionLogShare {
         "events.jsonl", "memory.csv", "capture.json", "crash.log",
     )
     private const val RECENT_MILLIS = 7L * 24 * 60 * 60 * 1000
+    private const val STORE_LOG_SCAN = 512
     private const val COPY_BUFFER_BYTES = 64 * 1024
     private const val TRACE_SCAN_BYTES = 16L * 1024 * 1024
     private const val MAX_BATTLENET_SCAN = 64

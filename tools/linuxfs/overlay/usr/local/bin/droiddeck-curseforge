@@ -1,0 +1,150 @@
+#!/bin/bash
+set -u
+umask 077
+self=${BASH_SOURCE[0]}
+proc=${DD_PROC:-/proc}
+state=${DD_CURSEFORGE_STATE:-${XDG_RUNTIME_DIR:-/tmp}/droiddeck-curseforge}
+runner=${DD_APPIMAGE_RUN:-${self%/*}/droiddeck-appimage-run}
+wait_s=${DD_CURSEFORGE_WAIT:-60}
+cmd=${1:-}
+dir=${2:-}
+flag=--inspect-publish-uid=stderr
+case $cmd in start|hold|stop|display) ;; *) echo "usage: droiddeck-curseforge start|hold|stop|display <imported AppImage directory>" >&2; exit 2 ;; esac
+if [ "$cmd" != display ] && [ ! -d "$dir/app" ]; then
+  echo "droiddeck-curseforge: $dir is not an imported AppImage" >&2
+  exit 2
+fi
+
+x_display() {
+  if [ -n "${DISPLAY:-}" ]; then
+    printf '%s\n%s\n' "$DISPLAY" "${XAUTHORITY:-}"
+    return 0
+  fi
+  local p name a prev display auth
+  for p in "$proc"/[0-9]*; do
+    name=$(tr '\0' '\n' 2>/dev/null < "$p/cmdline" | head -n 1)
+    case ${name##*/} in Xwayland|Xorg|Xvfb) ;; *) continue ;; esac
+    display= auth= prev=
+    while IFS= read -r a; do
+      case $a in :[0-9]*) [ -z "$display" ] && display=$a ;; esac
+      [ "$prev" = -auth ] && auth=$a
+      prev=$a
+    done < <(tr '\0' '\n' 2>/dev/null < "$p/cmdline")
+    if [ -n "$display" ]; then
+      printf '%s\n%s\n' "$display" "$auth"
+      return 0
+    fi
+  done
+  return 1
+}
+
+running() {
+  local p
+  for p in "$proc"/[0-9]*; do
+    tr '\0' '\n' 2>/dev/null < "$p/cmdline" | grep -qF -- "$dir/app/" && return 0
+  done
+  return 1
+}
+
+started_at() {
+  local stat
+  stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+  stat=${stat##*) }
+  set -- $stat
+  echo "${20}"
+}
+
+tracked() {
+  local pid at launched
+  read -r pid at launched 2>/dev/null < "$state/pid" || return 1
+  case $pid in ''|*[!0-9]*) return 1 ;; esac
+  kill -0 "$pid" 2>/dev/null && [ "$(started_at "$pid")" = "$at" ] || return 1
+  printf '%s %s\n' "$pid" "$launched"
+}
+
+ours() {
+  local pid launched
+  read -r pid launched <<<"$(tracked)"
+  [ -n "$pid" ] && [ "$launched" = "$dir" ] && echo "$pid"
+}
+
+lock() {
+  mkdir -p "$state" && chmod 700 "$state" || return 1
+  exec 9>"$state/lock" || return 1
+  flock 9
+}
+
+inspector() {
+  grep -aom1 'ws://127\.0\.0\.1:[0-9]*/[0-9a-f]\{8\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{12\}' "$state/log" 2>/dev/null
+}
+
+start() {
+  local shown display auth url pid
+  lock || { echo "droiddeck-curseforge: cannot lock $state" >&2; return 5; }
+  if ! ours >/dev/null; then
+    if tracked >/dev/null || running; then
+      exec 9>&-
+      echo busy
+      return 3
+    fi
+    shown=$(x_display) || { exec 9>&-; echo "no X display" >&2; return 4; }
+    display=$(sed -n 1p <<<"$shown")
+    auth=$(sed -n 2p <<<"$shown")
+    env -u DBUS_SESSION_BUS_ADDRESS -u WAYLAND_DISPLAY -u GAMESCOPE_WAYLAND_DISPLAY DISPLAY="$display" ${auth:+XAUTHORITY="$auth"} \
+      setsid "$runner" "$dir" --minimized --inspect=127.0.0.1:0 "$flag" </dev/null >"$state/log" 2>&1 9>&- &
+    pid=$!
+    printf '%s %s %s\n' "$pid" "$(started_at "$pid")" "$dir" > "$state/pid"
+  fi
+  exec 9>&-
+  for _ in $(seq 1 $((wait_s * 2))); do
+    if url=$(inspector); then
+      echo "$url"
+      return 0
+    fi
+    ours >/dev/null || break
+    sleep 0.5
+  done
+  tail -n 20 "$state/log" >&2
+  return 5
+}
+
+stop() {
+  local pid p
+  lock || return 1
+  pid=$(ours) || { tracked >/dev/null || rm -f "$state/pid"; exec 9>&-; return 0; }
+  kill -TERM -- "-$pid" 2>/dev/null
+  for _ in $(seq 1 20); do
+    kill -0 -- "-$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  kill -KILL -- "-$pid" 2>/dev/null
+  for p in "$proc"/[0-9]*; do
+    tr '\0' '\n' 2>/dev/null < "$p/cmdline" | grep -qF -- "$dir/app/" && kill -KILL "${p##*/}" 2>/dev/null
+  done
+  rm -f "$state/pid"
+  exec 9>&-
+  return 0
+}
+
+case $cmd in
+  display)
+    x_display || exit 4
+    ;;
+  start)
+    start
+    exit $?
+    ;;
+  hold)
+    start >/dev/null || exit $?
+    trap 'stop; exit 0' TERM INT HUP
+    while ours >/dev/null; do
+      sleep 1 &
+      wait $!
+    done
+    exit 0
+    ;;
+  stop)
+    stop
+    exit 0
+    ;;
+esac

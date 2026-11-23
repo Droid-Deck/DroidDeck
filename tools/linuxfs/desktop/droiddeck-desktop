@@ -19,15 +19,15 @@ done 2>/dev/null
 export DROIDDECK_NESTED_SCALE=1
 export DROIDDECK_GLTHREAD=${mesa_glthread:-}
 unset MESA_LOADER_DRIVER_OVERRIDE LIBGL_KOPPER_DRI2 mesa_glthread
-if [ -n "${BL_DEBUG_DIR:-}" ]; then
-  mkdir -p "$BL_DEBUG_DIR" 2>/dev/null || true
-  exec >>"$BL_DEBUG_DIR/desktop.log" 2>&1
-  echo "== droiddeck-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') ${BL_WIDTH:-1280}x${BL_HEIGHT:-720}"
+if [ -n "${DD_DEBUG_DIR:-}" ]; then
+  mkdir -p "$DD_DEBUG_DIR" 2>/dev/null || true
+  exec >>"$DD_DEBUG_DIR/desktop.log" 2>&1
+  echo "== droiddeck-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') ${DD_WIDTH:-1280}x${DD_HEIGHT:-720}"
 fi
-find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'keymap.xkb' -exec rm -rf {} + 2>/dev/null
+find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'keymap.xkb' ! -name 'droiddeck-display-buffers' -exec rm -rf {} + 2>/dev/null
 chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
 mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix 2>/dev/null
-export BL_DESKTOP=1
+export DD_DESKTOP=1
 ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
 ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
 python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
@@ -125,9 +125,8 @@ if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
   chmod 755 /run/droiddeck/kwin/kwin_wayland
   export PATH=/run/droiddeck/kwin:$PATH
 fi
-if /usr/local/bin/droiddeck-pipewire start; then
-  eval "$(/usr/local/bin/droiddeck-pipewire env)"
-else
+# Plasma uses the rootfs libpipewire; the bundle's module and plugin paths leave it without a shell.
+if ! /usr/local/bin/droiddeck-pipewire start; then
   echo "== pipewire: not running; screen capture has no picture"
 fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
@@ -135,7 +134,7 @@ dbus-run-session -- startplasma-wayland
 rc=$?
 /usr/local/bin/droiddeck-pipewire stop
 echo "== droiddeck-desktop: Plasma ended ($rc)"
-if [ "$rc" -eq 0 ] && [ -z "${BL_BOTTOM_DESKTOP:-}" ]; then
+if [ "$rc" -eq 0 ] && [ -z "${DD_BOTTOM_DESKTOP:-}" ]; then
   /usr/local/bin/droiddeck-steam-launch bigpicture
   sleep 30
 fi

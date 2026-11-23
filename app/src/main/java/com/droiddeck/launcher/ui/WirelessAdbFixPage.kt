@@ -365,9 +365,13 @@ internal fun AdbTextField(
     onDone: (() -> Unit)? = null,
     focusOnShow: Boolean = false,
     showLabel: Boolean = true,
+    focusAtTap: Int? = null,
+    onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val onBackLatest = rememberUpdatedState(onBack)
     val focusAsked = remember { booleanArrayOf(false) }
+    val focusTapAsked = remember { arrayOfNulls<Int>(1) }
     val palette = LocalPalette.current
     val onValueChangeLatest = rememberUpdatedState(onValueChange)
     val onNextLatest = rememberUpdatedState(onNext)
@@ -384,7 +388,8 @@ internal fun AdbTextField(
     fun typeOnBottom(editText: EditText): Boolean {
         if (!bottomTypingLatest.value || !DualScreenPanel.attached) return false
         val text = editText.text.toString()
-        val request = TypingRequest(
+        lateinit var request: TypingRequest
+        request = TypingRequest(
             TextFieldValue(text, TextRange(editText.selectionStart.coerceIn(0, text.length), editText.selectionEnd.coerceIn(0, text.length))),
             ImeOptions(singleLine = true, keyboardType = keyboardType, imeAction = imeAction),
             { next ->
@@ -392,7 +397,7 @@ internal fun AdbTextField(
                 editText.setSelection(next.selection.start.coerceIn(0, next.text.length), next.selection.end.coerceIn(0, next.text.length))
             },
             { action -> editText.onEditorAction(imeActionFlag(action)) },
-            { editText.post { editText.clearFocus() } },
+            { editText.post { if (typingRequest[0] === request) onBackLatest.value?.invoke() ?: editText.clearFocus() } },
         )
         typingRequest[0] = request
         DualScreenPanel.startTyping(request)
@@ -450,6 +455,20 @@ internal fun AdbTextField(
                                     onDoneLatest.value?.invoke()
                                     true
                                 }
+                                // Search and Go are terminal: leaving them unhandled
+                                // keeps focus in the field, so the keyboard would stay
+                                // up over the results it was used to find.
+                                imeAction in setOf(ImeAction.Search, ImeAction.Go) &&
+                                    (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_GO || isEnter) -> {
+                                    onDoneLatest.value?.invoke()
+                                    post {
+                                        clearFocus()
+                                        (context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                                            as? android.view.inputmethod.InputMethodManager)
+                                            ?.hideSoftInputFromWindow(windowToken, 0)
+                                    }
+                                    true
+                                }
                                 else -> false
                             }
                         }
@@ -463,6 +482,7 @@ internal fun AdbTextField(
                                     ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
                                 if (hidingKeyboard) (view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                                     ?.hideSoftInputFromWindow(view.windowToken, 0)
+                                onBackLatest.value?.let { hidingKeyboard = true; it() }
                             }
                             hidingKeyboard
                         }
@@ -484,9 +504,12 @@ internal fun AdbTextField(
                 },
                 update = { editText ->
                     editText.showSoftInputOnFocus = !bottomTyping
-                    if (focusOnShow && !focusAsked[0]) {
-                        focusAsked[0] = true
+                    // A new tap may ask again: a field still on screen while it closes can be opened once more.
+                    val fresh = if (focusAtTap != null) focusTapAsked[0] != focusAtTap else !focusAsked[0]
+                    if (focusOnShow && fresh) {
+                        if (focusAtTap != null) focusTapAsked[0] = focusAtTap else focusAsked[0] = true
                         editText.post {
+                            if (focusAtTap != null && focusAtTap != ScreenTaps.count) return@post
                             editText.requestFocus()
                             if (!bottomTypingLatest.value) (editText.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                                 ?.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)

@@ -23,6 +23,14 @@ object DualScreen {
     @Volatile private var takenDisplays: Set<Int> = emptySet()
     private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
 
+    fun menuOwnsController(open: Boolean, docked: Boolean, optIn: Boolean): Boolean = open && (!docked || optIn)
+
+    fun menuReturnsOnStart(selected: SecondScreenMode, menuWasShown: Boolean, menuUp: Boolean): Boolean =
+        !menuUp && (selected == SecondScreenMode.MENU || menuWasShown)
+
+    fun menuIdleOnBottom(open: Boolean, docked: Boolean, pinned: Boolean, optIn: Boolean): Boolean =
+        docked && (open || pinned) && !menuOwnsController(open, docked, optIn)
+
     fun yieldsBottom(model: String): Boolean = model.trim().lowercase().let { m -> knownModels.any(m::startsWith) }
 
     fun taken(displayId: Int): Boolean = displayId in takenDisplays
@@ -81,6 +89,12 @@ object DualScreen {
 
     fun sessionDisplay(context: Context, displayManager: DisplayManager, primaryDisplayId: Int): Display? =
         display(context, displayManager, primaryDisplayId, SessionPrefs.dualScreenSessionMode(context))
+
+    fun selectedSessionDisplay(context: Context, displayManager: DisplayManager, primaryDisplayId: Int, selectedDisplayId: Int): Display? =
+        displayManager.getDisplay(selectedDisplayId)?.takeIf {
+            SessionPrefs.dualScreenSessionMode(context) != MODE_OFF && it.isValid && it.displayId != primaryDisplayId &&
+                (it.flags and Display.FLAG_PRESENTATION) != 0 && !taken(it.displayId)
+        }
 
     fun display(context: Context, displayManager: DisplayManager, primaryDisplayId: Int, mode: String = SessionPrefs.dualScreenMode(context)): Display? =
         when (mode) {

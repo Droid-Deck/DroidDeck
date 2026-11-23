@@ -12,19 +12,19 @@ SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/d
 class SteamPresentationTest(unittest.TestCase):
     def launch(self, enabled=None, inherited=None):
         source = SESSION.read_text()
-        begin = source.index("    bl_steam_path=$PATH")
+        begin = source.index("    dd_steam_path=")
         end = source.index("\n    decky_loader=", begin)
-        command = source.index('      PATH="$bl_steam_path"')
+        command = source.index('      PATH="$dd_steam_path"')
         command_end = source.index("\n      rc=$?", command)
-        script = (source[begin:end] + '\n_bl_ui=(-gamepadui); _bl_cdp=(); _bl_lang=()\n'
+        script = (source[begin:end] + '\n_dd_ui=(-gamepadui); _dd_cdp=(); _dd_lang=()\n'
                   # 0.5.0 launches through steam_client (the arm64 client, or the x86-64 one under FEX).
                   + 'steam_client=("$steam_root/steamrtarm64/steam")\n'
                   + source[command:command_end])
         env = dict(os.environ)
-        for key in ("BL_STEAM_GL_PRESENT", "BL_STEAM_SOFT_COMPOSITING", "DISABLE_GAMESCOPE_WSI", "LIBGL_KOPPER_DISABLE"):
+        for key in ("DD_STEAM_GL_PRESENT", "DD_STEAM_SOFT_COMPOSITING", "DISABLE_GAMESCOPE_WSI", "LIBGL_KOPPER_DISABLE"):
             env.pop(key, None)
         if enabled is not None:
-            env["BL_STEAM_GL_PRESENT"] = enabled
+            env["DD_STEAM_GL_PRESENT"] = enabled
         env.update(inherited or {})
         with tempfile.TemporaryDirectory(prefix="droiddeck-steam-gl-") as tmp:
             program = Path(tmp) / "steamrtarm64/steam"
@@ -34,14 +34,14 @@ class SteamPresentationTest(unittest.TestCase):
                                '"disable":os.getenv("DISABLE_GAMESCOPE_WSI"),'
                                '"kopper":os.getenv("LIBGL_KOPPER_DISABLE"),'
                                '"path":os.getenv("PATH"),'
-                               '"helper":os.getenv("BL_STEAM_WEBHELPER")}))\n')
+                               '"helper":os.getenv("DD_STEAM_WEBHELPER")}))\n')
             program.chmod(0o755)
             env.update(steam_root=tmp, steam_channel="steamdeck_publicbeta")
             result = subprocess.run(["bash", "-c", script, "test", "steam://open/main"],
                                     env=env, capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
             launch = json.loads(result.stdout.splitlines()[-1])
-            self.assertEqual(enabled == "1", launch["path"].startswith("/usr/local/libexec/droiddeck-steam:"))
+            self.assertEqual(launch["path"], "/usr/local/libexec/droiddeck-steam:" + env["PATH"])
             self.assertEqual(launch["helper"], str(Path(tmp) / "steamrtarm64/steamwebhelper"))
             return launch
 
@@ -64,20 +64,20 @@ class SteamPresentationTest(unittest.TestCase):
         self.assertEqual(result["args"][-1], "steam://open/main")
 
     def test_explicit_software_compositing_keeps_gpu_raster(self):
-        result = self.launch(inherited={"BL_STEAM_SOFT_COMPOSITING": "1"})
+        result = self.launch(inherited={"DD_STEAM_SOFT_COMPOSITING": "1"})
         self.assertIn("-cef-disable-gpu-compositing", result["args"])
         self.assertIn("-cef-force-gpu", result["args"])
         self.assertIn("-cef-use-angle=vulkan", result["args"])
         self.assertNotIn("-cef-disable-gpu", result["args"])
 
     def test_explicit_gpu_compositing_preserves_vulkan(self):
-        result = self.launch(inherited={"BL_STEAM_SOFT_COMPOSITING": "0"})
+        result = self.launch(inherited={"DD_STEAM_SOFT_COMPOSITING": "0"})
         self.assertNotIn("-cef-disable-gpu-compositing", result["args"])
         self.assertIn("-cef-force-gpu", result["args"])
         self.assertIn("-cef-use-angle=vulkan", result["args"])
 
     def test_powervr_presentation_keeps_its_software_fallback(self):
-        result = self.launch("1", {"BL_STEAM_SOFT_COMPOSITING": "0"})
+        result = self.launch("1", {"DD_STEAM_SOFT_COMPOSITING": "0"})
         self.assertIn("-cef-disable-gpu-compositing", result["args"])
         self.assertIn("-cef-use-angle=gl", result["args"])
 

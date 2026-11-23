@@ -39,6 +39,7 @@ object SessionFiles {
     private val SERVICE_PACKS = mapOf(
         AddonPack.UBISOFT to "usr/local/lib/droiddeck-ubisoft",
         AddonPack.ROCKSTAR to "usr/local/lib/droiddeck-rockstar",
+        AddonPack.EPIC to "usr/local/lib/droiddeck-epic",
         AddonPack.DIRT to "usr/local/lib/droiddeck-dirt",
     )
 
@@ -46,6 +47,8 @@ object SessionFiles {
     fun ensureUbisoftService(context: Context) = ensureStoreService(context, AddonPack.UBISOFT)
 
     fun ensureRockstarService(context: Context) = ensureStoreService(context, AddonPack.ROCKSTAR)
+
+    fun ensureEpicParent(context: Context) = ensureStoreService(context, AddonPack.EPIC)
 
     /** The DiRT 3 / DiRT Showdown ws2_32 stand-in; droiddeck-game-env applies it only when it is staged. */
     fun ensureDirtStandIn(context: Context) = ensureStoreService(context, AddonPack.DIRT)
@@ -109,11 +112,11 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
             "usr/local/bin/droiddeck-steam-taskset" to "usr/local/libexec/droiddeck-steam/taskset",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
-            "libblsession.so" to "usr/local/lib/libblsession.so",
+            "libddsession.so" to "usr/local/lib/libddsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
-            "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libddfastpath.so" to "usr/local/lib/libddfastpath.so",
             "libddnatv-hook.so" to "usr/lib/libddnatv-hook.so",
-            "libblaudit.so" to "usr/local/lib/libblaudit.so",
+            "libddaudit.so" to "usr/local/lib/libddaudit.so",
             "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
             "usr/local/bin/droiddeck-fonts" to "usr/local/bin/droiddeck-fonts",
@@ -177,6 +180,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
             "usr/local/bin/droiddeck-appimage-exec" to "usr/local/bin/droiddeck-appimage-exec",
+            "usr/local/bin/droiddeck-curseforge" to "usr/local/bin/droiddeck-curseforge",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
@@ -234,11 +238,9 @@ object SessionFiles {
         val gpuLoad = listOf(
             "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
             "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_gpu_load.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_gpu_load.json",
-            "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so",
-            "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_vram_cap.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json",
         )
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
-            listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
+            listOf("libddsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         // The Mali compatibility layer (tools/venus/layer, David Cimo): an implicit Vulkan layer that
         // fills in the features DXVK requires and Mali lacks. Idle outside Wine and on GPUs that have them.
@@ -282,8 +284,11 @@ object SessionFiles {
             if (installed) ledger.staged(relative, target) else Log.e(TAG, "$relative NOT staged")
         }
         File(root, "usr/local/bin/bannerlator-steam-compat").delete()
+        File(root, "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so").delete()
+        File(root, "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json").delete()
         LegacyNames.migrateRootfs(root)
         ComponentsManager.migrateLaunchDir(context)
+        runCatching { ComponentsManager.migrateBattleNetFex(context) }.onFailure { Log.w(TAG, "Battle.net FEX selection", it) }
         EsyncPacks.stageBundled(context, root)
         val directAudio = arrayOf(
             "aarch64-unix/winedirectaudio.so",
@@ -315,7 +320,7 @@ object SessionFiles {
         for (pack in SERVICE_PACKS.keys) stageStoreService(context, root, pack, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
-        val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
+        val preload = StringBuilder("/usr/local/lib/libddsession.so\n")
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }

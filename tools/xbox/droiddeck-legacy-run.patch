@@ -1,0 +1,124 @@
+diff --git a/crates/xodus-cli/src/commands/run.rs b/crates/xodus-cli/src/commands/run.rs
+index 44ea870..1d8e218 100644
+--- a/crates/xodus-cli/src/commands/run.rs
++++ b/crates/xodus-cli/src/commands/run.rs
+@@ -20,6 +20,7 @@ use tokio::process::Command;
+ use xodus::models::secrets::Token;
+ use xodus::tokens::TokenManager;
+ 
++use crate::commands::legacy_install::{dependencies, ensure_frameworks};
+ use crate::license::get_license;
+ 
+ const PLAYFAB_RELYING_PARTY: &str = "http://playfab.xboxlive.com/";
+@@ -135,6 +136,98 @@ fn wine_exit_code(status: std::process::ExitStatus) -> u8 {
+     status.code().unwrap_or_else(|| 128 + status.signal().unwrap_or(1)) as u8
+ }
+ 
++/// Start a title that was unpacked into its install folder.
++///
++/// There is no container to read a content key for or to build a launch view
++/// from, so the named executable runs as it lies, with the PlayFab header the
++/// game signs in with.
++async fn run_unpacked(
++    client: &reqwest::Client,
++    tokens: &TokenManager,
++    folder: &Path,
++    wine: String,
++    exe: Option<&str>,
++    materialize_chain: bool,
++    market: Option<String>,
++) -> ExitCode {
++    let Some(name) = exe.filter(|name| !name.is_empty()) else {
++        eprintln!("no executable was named for the unpacked folder {}", folder.display());
++        return ExitCode::FAILURE;
++    };
++    let image = folder.join(name);
++    if !image.is_file() {
++        eprintln!("{} is not in the unpacked folder {}", name, folder.display());
++        return ExitCode::FAILURE;
++    }
++    // A packaged Win32 program starts like any executable. A UWP application
++    // expects the app model to activate a view first, and this runtime has none,
++    // so say so when the launch dies instead of leaving a loader failure.
++    if let Some(entry) = crate::commands::legacy_install::entry_point(folder) {
++        if !entry.eq_ignore_ascii_case("Windows.FullTrustApplication") {
++            eprintln!("NEXUS_LEGACY_INSTALL_DIAGNOSTIC_V1 uwp-entry-point");
++            eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 {name} is activated by {entry}, a UWP app model this runtime has no host for");
++        }
++    }
++    // An unpacked title gets no package graph, so the frameworks its manifest
++    // declares are fetched here the first time it launches.
++    let declared = dependencies(folder);
++    eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 unpacked launch {name} with {} declared frameworks", declared.len());
++    if !declared.is_empty() {
++        if let Ok(delivery) = crate::commands::store_delivery::client() {
++            let region = market.unwrap_or_else(|| "US".into()).to_uppercase();
++            if let Err(error) = ensure_frameworks(&delivery, folder, &region).await {
++                eprintln!("NEXUS_LEGACY_INSTALL_DETAIL_V1 framework install failed {}", crate::commands::legacy_install::plain_for_log(&error));
++            }
++        }
++    }
++    let playfab = playfab_auth_header(client, tokens).await;
++
++    if wine == "droiddeck:prepare" {
++        use std::io::Write;
++        if !materialize_chain {
++            return ExitCode::FAILURE;
++        }
++        let ready = serde_json::json!({
++            "exe": image,
++            "playfab": playfab,
++        });
++        println!("DROIDDECK_LAUNCH_V1 {}", ready);
++        let _ = std::io::stdout().flush();
++        let mut release = String::new();
++        let _ = std::io::stdin().read_line(&mut release);
++        return ExitCode::SUCCESS;
++    }
++
++    let mut command = Command::new(&wine);
++    command.arg(&image);
++    match playfab {
++        Some(header) => {
++            command.env("XODUS_XSTS_PLAYFAB", header);
++        }
++        None => eprintln!("could not authorise a PlayFab token; in-game sign-in may fail"),
++    }
++
++    let mut wn = match command.spawn() {
++        Ok(child) => child,
++        Err(err) => {
++            eprintln!("failed to start Wine: {}", err);
++            return ExitCode::FAILURE;
++        }
++    };
++
++    let pid = wn.id().unwrap_or(0);
++
++    if pid > 0 {
++        let _ = ctrlc::set_handler(move || {
++            let _ = kill(Pid::from_raw(pid as i32), Signal::SIGINT);
++        });
++    }
++
++    let status = wn.wait().await.unwrap();
++
++    ExitCode::from(wine_exit_code(status))
++}
++
+ // Real files in a full launch view must not be redirected back into memfds.
+ // Keep source mappings and encrypted DLL mappings; no title/EAC special case.
+ fn launch_file_maps(
+@@ -542,6 +635,12 @@ pub async fn run(
+     let out_absolute = std::fs::canonicalize(out).unwrap();
+     let final_path = out.join(".xodus-streaming.msixvc");
+ 
++    // A legacy package unpacks where it was installed and keeps no streaming
++    // container, so the folder itself is what gets launched.
++    if !final_path.is_file() {
++        return run_unpacked(client, tokens, &out_absolute, wine, exe.as_deref(), materialize_chain, market).await;
++    }
++
+     let mut file = OpenOptions::new()
+         .read(true)
+         .open(final_path.to_owned())

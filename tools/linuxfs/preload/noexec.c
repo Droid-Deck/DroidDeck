@@ -25,7 +25,7 @@ static int in_fex(void) {
   return known;
 }
 
-__attribute__((visibility("hidden"))) int bl_noexec_retry(int prot, int flags, int fd) {
+__attribute__((visibility("hidden"))) int dd_noexec_retry(int prot, int flags, int fd) {
   int error = errno;
   struct statvfs vfs;
   int retry = (error == EACCES || error == EPERM) && (prot & PROT_EXEC) && fd >= 0 && !(flags & MAP_ANONYMOUS) &&
@@ -45,6 +45,7 @@ static size_t private_range(uintptr_t start, uintptr_t end, struct span *spans, 
   char buf[4096];
   size_t used = 0, count = 0;
   uintptr_t covered = start;
+  int file_backed = 0;
   int fd = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
   if (fd < 0) return 0;
   for (;;) {
@@ -59,7 +60,13 @@ static size_t private_range(uintptr_t start, uintptr_t end, struct span *spans, 
       char *p = line;
       uintptr_t lo = strtoull(p, &p, 16), hi = strtoull(p + 1, &p, 16);
       char perms[5] = {0};
-      if (*p == ' ') memcpy(perms, p + 1, 4);
+      int inode = 0;
+      if (*p == ' ') {
+        memcpy(perms, p + 1, 4);
+        char *field = p + 5;
+        strtoull(field, &field, 16);
+        inode = *field && (field = strchr(field + 1, ' ')) && strtoull(field, NULL, 10);
+      }
       line = nl + 1;
       if (hi <= covered || lo >= end) continue;
       if (lo > covered || perms[3] != 'p' || count == cap) {
@@ -68,11 +75,12 @@ static size_t private_range(uintptr_t start, uintptr_t end, struct span *spans, 
       }
       spans[count].lo = covered;
       spans[count].hi = hi < end ? hi : end;
+      file_backed |= inode;
       spans[count].prot = (perms[0] == 'r' ? PROT_READ : 0) | (perms[1] == 'w' ? PROT_WRITE : 0) | (perms[2] == 'x' ? PROT_EXEC : 0);
       covered = spans[count++].hi;
       if (covered >= end) {
         close(fd);
-        return count;
+        return file_backed ? count : 0;
       }
     }
     used = strlen(line);
@@ -138,7 +146,7 @@ int mprotect(void *addr, size_t len, int prot) {
 
 #else
 
-__attribute__((visibility("hidden"))) int bl_noexec_retry(int prot, int flags, int fd) {
+__attribute__((visibility("hidden"))) int dd_noexec_retry(int prot, int flags, int fd) {
   (void)prot, (void)flags, (void)fd;
   return 0;
 }

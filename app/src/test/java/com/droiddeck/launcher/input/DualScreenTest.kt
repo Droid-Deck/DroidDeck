@@ -23,10 +23,58 @@ class DualScreenTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val displays = context.getSystemService(DisplayManager::class.java)
 
+    @Test fun dockedMenuOnlyTakesTheControllerWhenOptedIn() {
+        assertFalse(DualScreen.menuOwnsController(open = false, docked = false, optIn = true))
+        assertTrue(DualScreen.menuOwnsController(open = true, docked = false, optIn = false))
+        assertFalse(DualScreen.menuOwnsController(open = true, docked = true, optIn = false))
+        assertTrue(DualScreen.menuOwnsController(open = true, docked = true, optIn = true))
+    }
+
+    @Test fun theMenuComesBackOnStartWhenItIsTheSelectedModeOrWasShowingWhenTheScreenClosed() {
+        val menu = SecondScreenMode.MENU
+        val terminal = SecondScreenMode.TERMINAL
+        assertTrue(DualScreen.menuReturnsOnStart(menu, menuWasShown = false, menuUp = false))
+        assertTrue(DualScreen.menuReturnsOnStart(menu, menuWasShown = true, menuUp = false))
+        assertTrue(DualScreen.menuReturnsOnStart(terminal, menuWasShown = true, menuUp = false))
+        assertFalse(DualScreen.menuReturnsOnStart(terminal, menuWasShown = false, menuUp = false))
+        assertFalse(DualScreen.menuReturnsOnStart(menu, menuWasShown = true, menuUp = true))
+        assertFalse(DualScreen.menuReturnsOnStart(terminal, menuWasShown = true, menuUp = true))
+    }
+
+    @Test fun aVisibleDockedMenuThatDoesNotOwnTheControllerIsIdle() {
+        assertFalse(DualScreen.menuIdleOnBottom(open = false, docked = false, pinned = false, optIn = false))
+        assertFalse(DualScreen.menuIdleOnBottom(open = true, docked = false, pinned = false, optIn = false))
+        assertTrue(DualScreen.menuIdleOnBottom(open = true, docked = true, pinned = false, optIn = false))
+        assertTrue(DualScreen.menuIdleOnBottom(open = false, docked = true, pinned = true, optIn = false))
+        assertTrue(DualScreen.menuIdleOnBottom(open = false, docked = true, pinned = true, optIn = true))
+        assertFalse(DualScreen.menuIdleOnBottom(open = true, docked = true, pinned = false, optIn = true))
+        assertFalse(DualScreen.menuIdleOnBottom(open = false, docked = true, pinned = false, optIn = false))
+    }
+
     @Test fun internalPanelsCountAsBuiltIn() {
         assertTrue(DualScreen.isBuiltIn(1, "Anything"))
         assertFalse(DualScreen.isBuiltIn(2, "Retroid Pocket Duo"))
         assertFalse(DualScreen.isBuiltIn(5, "AYN Thor"))
+    }
+
+    @Test @Config(sdk = [34]) fun selectedInternalAndExternalDisplaysCanBeUsed() {
+        withDisplay(INTERNAL, "Bottom screen") { internal ->
+            assertEquals(internal.displayId, DualScreen.selectedSessionDisplay(context, displays, Display.DEFAULT_DISPLAY, internal.displayId)?.displayId)
+        }
+        withDisplay(EXTERNAL, "HDMI Screen") { external ->
+            assertEquals(external.displayId, DualScreen.selectedSessionDisplay(context, displays, Display.DEFAULT_DISPLAY, external.displayId)?.displayId)
+            SessionPrefs.setDualScreenSessionMode(context, DualScreen.MODE_OFF)
+            assertNull(DualScreen.selectedSessionDisplay(context, displays, Display.DEFAULT_DISPLAY, external.displayId))
+            SessionPrefs.setDualScreenSessionMode(context, DualScreen.MODE_AUTO)
+        }
+    }
+
+    @Test @Config(sdk = [34]) fun missingOrRemovedSelectedDisplaysCannotBeUsed() {
+        assertNull(DualScreen.selectedSessionDisplay(context, displays, Display.DEFAULT_DISPLAY, Display.INVALID_DISPLAY))
+        val id = ShadowDisplayManager.addDisplay("w640dp-h480dp", EXTERNAL)
+        shadowOf(displays.getDisplay(id)).setFlags(Display.FLAG_PRESENTATION)
+        ShadowDisplayManager.removeDisplay(id)
+        assertNull(DualScreen.selectedSessionDisplay(context, displays, Display.DEFAULT_DISPLAY, id))
     }
 
     @Test fun knownModelsCountWhenTheTypeIsHidden() {

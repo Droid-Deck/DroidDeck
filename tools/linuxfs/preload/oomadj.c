@@ -33,7 +33,7 @@ static int is_oom_score_adj(const char *path) {
   return strcmp(p, "oom_score_adj") == 0 || strcmp(p, "oom_adj") == 0;
 }
 
-__attribute__((visibility("hidden"))) const char *bl_oom_adj_redirect(const char *path, int writing) {
+__attribute__((visibility("hidden"))) const char *dd_oom_adj_redirect(const char *path, int writing) {
   static int logged;
   if (!writing || !is_oom_score_adj(path)) return path;
   if (!__atomic_exchange_n(&logged, 1, __ATOMIC_RELAXED)) {

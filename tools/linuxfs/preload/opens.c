@@ -11,13 +11,14 @@
 #include <string.h>
 #include <sys/types.h>
 
-int bl_status_without_tracer(const char *path, int flags, const void *caller) __attribute__((visibility("hidden")));
-int bl_writable_retry(int dirfd, const char *path, int flags) __attribute__((visibility("hidden")));
-int bl_ntsync_open(const char *path, int flags) __attribute__((visibility("hidden")));
-const char *bl_oom_adj_redirect(const char *path, int writing) __attribute__((visibility("hidden")));
-int bl_venc_open(const char *path, int flags) __attribute__((visibility("hidden")));
-int bl_vdec_open(const char *path, int flags) __attribute__((visibility("hidden")));
-int bl_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
+int dd_status_without_tracer(const char *path, int flags, const void *caller) __attribute__((visibility("hidden")));
+int dd_writable_retry(int dirfd, const char *path, int flags) __attribute__((visibility("hidden")));
+int dd_ntsync_open(const char *path, int flags) __attribute__((visibility("hidden")));
+const char *dd_oom_adj_redirect(const char *path, int writing) __attribute__((visibility("hidden")));
+int dd_venc_open(const char *path, int flags) __attribute__((visibility("hidden")));
+int dd_vdec_open(const char *path, int flags) __attribute__((visibility("hidden")));
+int dd_net_open(const char *path, int flags, int fd) __attribute__((visibility("hidden")));
+int dd_dircache_create(int dirfd, const char *path, int flags, mode_t mode,
                        int (*real)(int, const char *, int, mode_t)) __attribute__((visibility("hidden")));
 
 static int (*real_open)(const char *, int, ...);
@@ -49,20 +50,20 @@ static int open_from(const char *path, int flags, mode_t mode, const void *calle
     errno = EACCES;
     return -1;
   }
-  path = bl_oom_adj_redirect(path, (flags & O_ACCMODE) != O_RDONLY);
-  if ((fd = bl_status_without_tracer(path, flags, caller)) >= 0) return fd;
-  if ((fd = bl_ntsync_open(path, flags)) != -2) return fd;
-  if ((fd = bl_venc_open(path, flags)) != -2) return fd;
-  if ((fd = bl_vdec_open(path, flags)) != -2) return fd;
+  path = dd_oom_adj_redirect(path, (flags & O_ACCMODE) != O_RDONLY);
+  if ((fd = dd_status_without_tracer(path, flags, caller)) >= 0) return fd;
+  if ((fd = dd_ntsync_open(path, flags)) != -2) return fd;
+  if ((fd = dd_venc_open(path, flags)) != -2) return fd;
+  if ((fd = dd_vdec_open(path, flags)) != -2) return fd;
   if (real_open == NULL) real_open = dlsym(RTLD_NEXT, "open");
   if (real_open == NULL) {
     errno = ENOSYS;
     return -1;
   }
-  fd = bl_dircache_create(AT_FDCWD, path, flags, mode, via_open);
+  fd = dd_dircache_create(AT_FDCWD, path, flags, mode, via_open);
   if (retry_without_noatime(fd, flags)) fd = real_open(path, flags & ~O_NOATIME, mode);
-  if (fd < 0 && bl_writable_retry(AT_FDCWD, path, flags)) fd = real_open(path, flags & ~O_NOATIME, mode);
-  return fd;
+  if (fd < 0 && dd_writable_retry(AT_FDCWD, path, flags)) fd = real_open(path, flags & ~O_NOATIME, mode);
+  return dd_net_open(path, flags, fd);
 }
 
 static int openat_from(int dirfd, const char *path, int flags, mode_t mode, const void *caller) {
@@ -72,20 +73,20 @@ static int openat_from(int dirfd, const char *path, int flags, mode_t mode, cons
     errno = EACCES;
     return -1;
   }
-  path = bl_oom_adj_redirect(path, (flags & O_ACCMODE) != O_RDONLY);
-  if ((fd = bl_status_without_tracer(path, flags, caller)) >= 0) return fd;
-  if ((fd = bl_ntsync_open(path, flags)) != -2) return fd;
-  if ((fd = bl_venc_open(path, flags)) != -2) return fd;
-  if ((fd = bl_vdec_open(path, flags)) != -2) return fd;
+  path = dd_oom_adj_redirect(path, (flags & O_ACCMODE) != O_RDONLY);
+  if ((fd = dd_status_without_tracer(path, flags, caller)) >= 0) return fd;
+  if ((fd = dd_ntsync_open(path, flags)) != -2) return fd;
+  if ((fd = dd_venc_open(path, flags)) != -2) return fd;
+  if ((fd = dd_vdec_open(path, flags)) != -2) return fd;
   if (real_openat == NULL) real_openat = dlsym(RTLD_NEXT, "openat");
   if (real_openat == NULL) {
     errno = ENOSYS;
     return -1;
   }
-  fd = bl_dircache_create(dirfd, path, flags, mode, via_openat);
+  fd = dd_dircache_create(dirfd, path, flags, mode, via_openat);
   if (retry_without_noatime(fd, flags)) fd = real_openat(dirfd, path, flags & ~O_NOATIME, mode);
-  if (fd < 0 && bl_writable_retry(dirfd, path, flags)) fd = real_openat(dirfd, path, flags & ~O_NOATIME, mode);
-  return fd;
+  if (fd < 0 && dd_writable_retry(dirfd, path, flags)) fd = real_openat(dirfd, path, flags & ~O_NOATIME, mode);
+  return dd_net_open(path, flags, fd);
 }
 
 int open(const char *path, int flags, ...) {
