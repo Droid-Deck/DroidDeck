@@ -183,6 +183,8 @@ internal class GameFrameFeed(
         private set
     @Volatile var steamFocused = false
         private set
+    @Volatile var steamFocusKnown = false
+        private set
     @Volatile var pid = 0
         private set
     @Volatile var outputWidth = 0
@@ -199,13 +201,13 @@ internal class GameFrameFeed(
         seenCompositorFrames = compositorFrames
         if (handle == 0L) {
             if (nowNs < nextOpenNs) {
-                if (!live) steamFocused = false
+
                 return compositorAdded
             }
             nextOpenNs = nowNs + REOPEN_NS
             handle = runCatching { HudFrames.nativeOpen(file.path) }.getOrDefault(0L)
             if (handle == 0L) {
-                if (!live) steamFocused = false
+
                 return compositorAdded
             }
             HudFrames.nativePoll(handle, frametimes, times)
@@ -225,7 +227,7 @@ internal class GameFrameFeed(
             fromGamescope = false
         }
         if (n <= 0 && nowNs - maxOf(lastRingFrameNs, nextOpenNs - REOPEN_NS) > STALE_NS) close()
-        if (!live) steamFocused = false
+
         if (nowNs - lastInfoNs >= INFO_NS) {
             lastInfoNs = nowNs
             readInfo()
@@ -272,6 +274,7 @@ internal class GameFrameFeed(
         outputHeight = info[2]
         refreshMilliHz = info[3]
         steamFocused = info[4] != 0
+        steamFocusKnown = true
         engine = engineLabel(name)
     }
 
