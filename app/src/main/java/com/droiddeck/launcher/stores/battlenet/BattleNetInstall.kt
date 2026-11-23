@@ -123,9 +123,9 @@ object BattleNetInstall {
     internal const val STALLED = "stalled"
 
     internal fun installUid(context: Context, game: InstalledStoreGame): String? {
-        val games = runCatching { BattleNet.games(context) }.getOrDefault(emptyList())
+        val games = runCatching { BattleNet.games(context) }.getOrNull() ?: return null
         val folder = game.folder.absolutePath
-        val sameTitle = games.filter { it.uid == game.sidecar.id }
+        val sameTitle = games.filter { BattleNet.sameTitle(it.uid, game.sidecar.id) }
         return sameTitle.firstOrNull { it.folder.absolutePath == folder }?.installUid
     }
 

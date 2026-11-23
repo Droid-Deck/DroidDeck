@@ -340,9 +340,13 @@ object StoresState {
 
     private fun uninstallHeld(app: Context, game: InstalledStoreGame, key: String, onDone: () -> Unit) {
         runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
-        if (game.sidecar.store == Store.BATTLENET && com.droiddeck.launcher.runtime.BattleNet.games(app).any { it.folder.absolutePath == game.folder.absolutePath }) {
-            main.post { uninstalling.remove(key); onDone() }
-            return
+        if (game.sidecar.store == Store.BATTLENET) {
+            val listed = com.droiddeck.launcher.runtime.BattleNet.games(app).any { it.folder.absolutePath == game.folder.absolutePath }
+            // A registration we could not read is not the same as no registration: keep the folder.
+            if (listed || !com.droiddeck.launcher.runtime.BattleNet.registrationsReadable(app)) {
+                main.post { uninstalling.remove(key); onDone() }
+                return
+            }
         }
         StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
             main.post {

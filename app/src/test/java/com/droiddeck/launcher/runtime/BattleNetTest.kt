@@ -367,6 +367,34 @@ class BattleNetTest {
         assertEquals(listOf("launch", "D3CN"), command.args)
     }
 
+    @Test fun aCopyInAnotherFolderResolvesItsOwnLaunchCode() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val first = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/StarCraft II").apply { mkdirs() }
+        val second = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/StarCraft II Copy").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "s2_cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/StarCraft II"))))),
+            field(1, message(field(1, "s2_cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/StarCraft II Copy"))))),
+        ))
+        // games() keeps one copy per launch code, so the second folder is only reachable per folder.
+        assertEquals(1, BattleNet.games(context).size)
+        assertEquals("S2", BattleNet.launchCode(context, "s2", first))
+        assertEquals("S2", BattleNet.launchCode(context, "s2", second))
+    }
+
+    @Test fun aCopyRegisteredUnderAnotherUidOfTheSameProductStillLaunches() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val folder = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo IV").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "fen"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo IV"))))),
+        ))
+        assertTrue(BattleNet.sameTitle("fen", "fenris"))
+        assertFalse(BattleNet.sameTitle("fen", "wow"))
+        assertEquals("Fen", BattleNet.launchCode(context, "fenris", folder))
+        assertEquals("Fen", BattleNet.launchCode(context, "fen", folder))
+    }
+
     @Test fun theTitlePicksBetweenWarcraftFlavorsInOneFolder() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
         File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()

@@ -221,14 +221,62 @@ object BattleNet {
      * The launch code of the copy installed in [folder]. The store card's code is not enough:
      * a China client installs Diablo III under `D3CN` while the store title is `D3`.
      */
-    fun launchCode(context: Context, uid: String, folder: File?): String? =
-        runCatching { games(context) }.getOrNull()?.let { launchCode(it, uid, folder) }
+    fun launchCode(context: Context, uid: String, folder: File?): String? {
+        if (folder == null) return runCatching { games(context) }.getOrNull()?.let { launchCode(it, uid, null) }
+        val at = runCatching { registrationsIn(context, folder) }.getOrNull()
+        at?.firstOrNull { (registered, _) -> sameTitle(registered, uid) }?.let { return it.second.code }
+        return runCatching { games(context) }.getOrNull()?.let { launchCode(it, uid, folder) }
+    }
 
     internal fun launchCode(games: List<Game>, uid: String, folder: File?): String? {
         val canonical = title(uid)?.uid ?: uid
         val same = games.filter { it.uid == canonical }
         if (folder != null) return same.firstOrNull { it.folder.absolutePath == folder.absolutePath }?.code
         return same.singleOrNull()?.code ?: title(uid)?.code
+    }
+
+    /**
+     * Two uids name the same store title: the China aliases fold into the store uid, and fen/fenris
+     * share one product under uids of their own.
+     */
+    internal fun sameTitle(left: String, right: String): Boolean {
+        val a = title(left)
+        val b = title(right)
+        if (a == null || b == null) return left.equals(right, ignoreCase = true)
+        return a.uid == b.uid || (a.code == b.code && a.product != null && a.product == b.product)
+    }
+
+    /**
+     * The registrations that resolve to [folder], whatever uid they were written under.
+     *
+     * [games] deduplicates by launch code, so a second copy of one game in another folder is not in
+     * its list; a per-folder lookup therefore reads the registration sources directly. `null` means
+     * a source could not be read.
+     */
+    internal fun registrationsIn(context: Context, folder: File): List<Pair<String, Title>>? {
+        val pfx = File(prefix(context), "pfx")
+        val agentFile = File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db")
+        val registryFile = File(pfx, "system.reg")
+        val agent = if (!agentFile.exists()) emptyList()
+        else runCatching { productDbInstalls(agentFile.readBytes()) }.getOrNull() ?: return null
+        val registry = if (!registryFile.exists()) emptyList()
+        else runCatching { registryFile.useLines { uninstallEntries(it).toList() } }.getOrNull() ?: return null
+        val products = agent.filter { it.product.isNotEmpty() }.associate { it.uid.lowercase() to it.product }
+        return (registry + agent.map { it.uid to it.path }).mapNotNull { (uid, path) ->
+            if (hostFolder(context, path)?.absolutePath != folder.absolutePath) return@mapNotNull null
+            val found = title(uid) ?: products[uid.lowercase()]?.let(::titleForProduct) ?: return@mapNotNull null
+            uid to found
+        }.distinctBy { it.first.lowercase() }
+    }
+
+    /** False when a registration source exists but cannot be read: "no game here" is not a fact then. */
+    internal fun registrationsReadable(context: Context): Boolean {
+        val pfx = File(prefix(context), "pfx")
+        val agent = File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db")
+        val registry = File(pfx, "system.reg")
+        if (agent.isFile && runCatching { agent.readBytes() }.isFailure) return false
+        if (registry.isFile && runCatching { registry.useLines { uninstallEntries(it).toList() } }.isFailure) return false
+        return true
     }
 
     internal fun ownFolders(games: Map<String, Pair<Title, File>>, saved: Map<String, String?>): Map<String, File> {
