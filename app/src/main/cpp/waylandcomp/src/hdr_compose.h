@@ -14,6 +14,10 @@ struct hdrc_params {
     int count;
     unsigned hdr_mask;
     float rects[HDRC_MAX_RECTS][4];
+    unsigned conv_mask;
+    int conv_linear;
+    float conv_gain;
+    float conv[9];
 };
 
 void hdrc_bind_device(VkDevice dev, const VkPhysicalDeviceMemoryProperties *memprops);

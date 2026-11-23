@@ -417,10 +417,12 @@ class SessionService : Service() {
             SessionPrefs.screenEffectsProfileId(SessionState.mode, resolvedGameId, SessionState.program),
         )
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
-        val gen = synchronized(stopLock) {
-            SessionState.steamClientArch = null
-            SessionState.running = true
-            ++sessionGen
+        val gen = synchronized(SessionState.startLock) {
+            synchronized(stopLock) {
+                SessionState.steamClientArch = null
+                SessionState.running = true
+                ++sessionGen
+            }
         }
         if (SessionState.stopRequested) {
             stopSession(0)
@@ -566,6 +568,7 @@ class SessionService : Service() {
             SessionFiles.stage(this, root, startsSession = true)
         } catch (error: Exception) {
             Log.e(TAG, "Could not prepare the session graphics runtime", error)
+            failSession(gen, "GRAPHICS_RUNTIME_FAILED", getString(R.string.session_graphics_runtime_failed), -1)
             stopSession(-1, gen)
             return
         }
@@ -586,9 +589,13 @@ class SessionService : Service() {
 
         val sessionDir = openSessionFolder()
         try {
-            SessionEvents.step("game-environment") { GameEnvironmentStore.publish(this) }
+            SessionEvents.step("game-environment") {
+                com.droiddeck.launcher.runtime.BattleNet.ensureDefaults(this, SessionState.program)
+                GameEnvironmentStore.publish(this)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "could not publish the game environment", e)
+            failSession(gen, "GAME_ENVIRONMENT_FAILED", getString(R.string.session_game_environment_failed), -1)
             stopSession(-1, gen)
             abandonStart(gen, sessionDir)
             return
@@ -909,10 +916,9 @@ class SessionService : Service() {
                         ))
                     }
                 },
-                readBackAllowed = { SessionPrefs.ramCapMb(this) == 0 },
                 pagedIn = { processes, swapKb, swapBeforeKb, availableKb, millis ->
                     if (processes == 0) {
-                        Log.i(TAG, "left ${swapBeforeKb / 1024} MB in zram after resume (RAM cap, or ${availableKb / 1024} MB available is too little)")
+                        Log.i(TAG, "left ${swapBeforeKb / 1024} MB in zram after resume (${availableKb / 1024} MB available is too little)")
                     } else {
                         Log.i(TAG, "read back $processes processes in $millis ms: zram ${swapBeforeKb / 1024} -> ${swapKb / 1024} MB")
                     }
@@ -1022,6 +1028,9 @@ class SessionService : Service() {
         if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
             SystemVulkanDriver.addEnvironment(this, guest)
         }
+        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetDisplayBufferDriver(
+            !bridge && !venus && LinuxVulkanDriverManager(this).rendersToDisplayBuffers(linuxDriverId),
+        )
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
@@ -1083,11 +1092,7 @@ class SessionService : Service() {
         relativeMouseForSession().takeIf { it != 0 }?.let { guest.add("gamescope_relative_mouse=$it") }
         if (com.droiddeck.launcher.core.ZramSupport.supported()) {
             guest.add("DD_ZRAM=1")
-            if (steamHere) SessionPrefs.ramCapMb(this).takeIf { it > 0 }?.let { guest.add("DD_RAM_CAP_MB=$it") }
-            if (!SessionPrefs.zramClient(this)) guest.add("DD_ZRAM_CLIENT=0")
-            if (!SessionPrefs.zramIdle(this)) guest.add("DD_ZRAM_IDLE=0")
         }
-        SessionPrefs.vramCapMb(this).takeIf { it > 0 }?.let { guest.add("DD_VRAM_MB=$it") }
         guest.add("AUDIO_DIRECT_DECAY=0")
         val extra = extraEnv() + agentEnvironment
         guest.addAll(TurnipEnvironment.gameEnvironment(tuOverride, tuDriver, SessionPrefs.tuSysmem(this), extra))
@@ -1614,6 +1619,11 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
+        if (pendingSteamGameId == null && SteamGameProcess.alreadyRunning(accepted, SessionState.gameId)) {
+            Log.i(TAG, "game $accepted is already running; resuming it instead of launching it again")
+            if (SessionState.suspended || SessionState.suspending) resumeSession()
+            return
+        }
         if (!pendingSteamPreviousGamePending) {
             pendingSteamPreviousGameId = SessionState.gameId
             pendingSteamPreviousGamePending = true
@@ -1942,11 +1952,6 @@ class SessionService : Service() {
                         Log.i(TAG, "Steam requested session sleep")
                         updateSuspendPolicy()
                     }
-                    return
-                }
-                if (path == com.droiddeck.launcher.runtime.BattleNet.FEX_REQUEST) {
-                    File(dir, path).delete()
-                    com.droiddeck.launcher.runtime.BattleNet.answerFexRequest(this@SessionService, dir)
                     return
                 }
                 if (path != null && path.startsWith("desktop-import-") && path.endsWith(".request")) {
@@ -2395,8 +2400,7 @@ class SessionService : Service() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (rootIntent?.component?.className in setOf(
                 com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
-                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name,
-                KeepTopActivity::class.java.name)) return
+                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
         if (pipTask || xrActivityVisible) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false

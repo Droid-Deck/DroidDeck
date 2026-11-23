@@ -60,7 +60,7 @@ internal fun gameResources(title: String, game: Library.SteamGame?): List<GameRe
 internal fun GameResourcesRow(title: String, game: Library.SteamGame?, modifier: Modifier = Modifier) {
     val links = remember(title, game) { gameResources(title, game) }
     if (links.isEmpty()) return
-    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         links.forEach { ResourceLink(it) }
     }
 }
@@ -79,14 +79,14 @@ private fun ResourceLink(link: GameResource) {
     val tint = if (hot) pal.signal else pal.onSurfaceVariant
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
-        modifier = Modifier.paneItem("resource:${link.label}").heightIn(min = 44.dp).clip(shape)
+        modifier = Modifier.paneItem("resource:${link.label}").heightIn(min = 34.dp).clip(shape)
             .background(if (hot) pal.signal.copy(alpha = 0.14f) else if (glass) Color.White.copy(alpha = 0.07f) else Color.Transparent)
             .glideBorder(hot, shape, pal.signal, restColor = if (glass) Color.White.copy(alpha = 0.12f) else Color.Transparent)
             .semantics { contentDescription = description }
             .hoverable(source).clickable(interactionSource = source, indication = LocalIndication.current, role = Role.Button, onClick = open)
-            .controllerConfirm(onClick = open).padding(horizontal = if (glass) 14.dp else 8.dp),
+            .controllerConfirm(onClick = open).padding(horizontal = if (glass) 11.dp else 8.dp),
     ) {
-        Text(label, fontSize = if (glass) 13.sp else 12.sp, fontWeight = FontWeight.Medium, color = if (glass && !hot) MaterialTheme.colorScheme.onBackground else tint, maxLines = 1)
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = if (glass && !hot) MaterialTheme.colorScheme.onBackground else tint, maxLines = 1)
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = tint.copy(alpha = 0.65f), modifier = Modifier.size(11.dp))
     }
 }

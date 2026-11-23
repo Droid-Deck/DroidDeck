@@ -105,62 +105,19 @@ private fun ResetTabsRow() {
     } }
 }
 
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun EditTabsSheet(s: FrontEndState, a: FrontEndActions) {
-    val pal = LocalPalette.current
-    BackHandler(enabled = MoreTabs.editing) { MoreTabs.editing = false }
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { MoreTabs.editing = false } }
-    var wasOpen by remember { mutableStateOf(false) }
-    val closeInput = androidx.compose.ui.platform.LocalInputModeManager.current
-    LaunchedEffect(MoreTabs.editing) {
-        if (MoreTabs.editing) wasOpen = true
-        else if (wasOpen && closeInput.inputMode == androidx.compose.ui.input.InputMode.Keyboard) focusSoon { MoreTabs.button }
-    }
-    Box(Modifier.fillMaxSize()) {
-        AnimatedVisibility(MoreTabs.editing, enter = fadeIn(), exit = fadeOut()) {
-            Box(
-                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))
-                    .focusProperties { canFocus = false }
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { MoreTabs.editing = false },
-            )
-        }
-        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-            val width = minOf(560.dp, maxWidth * 0.92f)
-            AnimatedVisibility(MoreTabs.editing, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
-                val inside = remember { FocusRequester() }
-                var holds by remember { mutableStateOf(false) }
-                val openInput = androidx.compose.ui.platform.LocalInputModeManager.current
-                // The launcher only takes focus in controller mode, so opening by touch switches to it like startup does.
-                LaunchedEffect(Unit) {
-                    repeat(60) {
-                        androidx.compose.runtime.withFrameNanos { }
-                        if (holds || !MoreTabs.editing) return@LaunchedEffect
-                        if (openInput.inputMode != androidx.compose.ui.input.InputMode.Keyboard) openInput.requestInputMode(androidx.compose.ui.input.InputMode.Keyboard)
-                        runCatching { inside.requestFocus() }
-                    }
-                }
-                Column(
-                    Modifier.width(width).fillMaxHeight()
-                        .onFocusChanged { holds = it.hasFocus }
-                        .focusRequester(inside)
-                        .focusProperties { exit = { if (MoreTabs.editing) FocusRequester.Cancel else FocusRequester.Default } }
-                        .focusGroup()
-                        .background(MaterialTheme.colorScheme.background)
-                        .border(1.dp, pal.line).padding(horizontal = 18.dp, vertical = 16.dp).testTag("edit-tabs-sheet"),
-                ) {
-                    PageHeader(stringResource(R.string.more_edit_tabs)) {
-                        Spacer(Modifier.weight(1f))
-                        SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.onSurfaceVariant) {
-                            MoreTabs.editing = false
-                        }
-                    }
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        TabsSettingsGroup(rememberMenuHost(), s, a)
-                        if (!NavTabs.isDefault()) ResetTabsRow()
-                    }
-                }
+    SideSheet(MoreTabs.editing, onClose = { MoreTabs.editing = false }, returnFocus = MoreTabs.button, tag = "edit-tabs-sheet") {
+        PageHeader(stringResource(R.string.more_edit_tabs)) {
+            Spacer(Modifier.weight(1f))
+            SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.onSurfaceVariant) {
+                MoreTabs.editing = false
             }
+        }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            TabsSettingsGroup(rememberMenuHost(), s, a)
+            if (!NavTabs.isDefault()) ResetTabsRow()
         }
     }
 }

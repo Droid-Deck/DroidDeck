@@ -174,7 +174,7 @@ internal fun AchievementRow(a: Achievement, compact: Boolean, modifier: Modifier
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.fillMaxWidth().clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.10f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .focusable(interactionSource = interaction)
             .padding(if (compact) 8.dp else 10.dp),
@@ -369,7 +369,7 @@ internal fun DrawerAchievementsRow(progress: Pair<Int, Int>?, modifier: Modifier
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = modifier.fillMaxWidth().height(44.dp).clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.14f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = interaction, indication = LocalIndication.current, onClick = onClick)
             .controllerConfirm(onClick = onClick)

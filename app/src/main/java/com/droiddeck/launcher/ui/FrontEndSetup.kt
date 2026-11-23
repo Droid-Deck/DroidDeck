@@ -59,6 +59,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -437,6 +438,7 @@ internal fun SetupPanel(
                                 }
                                 if (s.theme == Themes.INNER_GAMER) RgbSpeedRow()
                                 if (s.theme == Themes.GRADIENT) GradientColorRows()
+                                if (s.theme == Themes.CUSTOM) CustomColorRows()
                                 if (s.theme == Themes.TRUE_BLACK) HighlightColorRow()
                                 ChoiceRow(
                                     host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
@@ -514,6 +516,18 @@ internal fun SetupPanel(
                                     if (s.launcherFullscreen) stringResource(R.string.setup_fullscreen_on) else stringResource(R.string.setup_fullscreen_off),
                                     s.launcherFullscreen,
                                 ) { a.onLauncherFullscreen(it) }
+                                ToggleRow(
+                                    host, "page-swipe", stringResource(R.string.setup_page_swipe),
+                                    stringResource(R.string.setup_page_swipe_hint), PageSwipe.on,
+                                ) { on ->
+                                    PageSwipe.on = on
+                                    com.droiddeck.launcher.core.AppUiPrefs.setPageSwipe(ctx, on)
+                                }
+                                ToggleRow(
+                                    host, "controller-haptics", stringResource(R.string.setup_controller_haptics),
+                                    stringResource(R.string.setup_controller_haptics_hint),
+                                    s.controllerHaptics,
+                                ) { a.onControllerHaptics(it) }
                                 if (s.dualScreenDevice) {
                                     val dualModes = listOf(
                                         com.droiddeck.launcher.input.DualScreen.MODE_AUTO to stringResource(R.string.setup_dual_screen_auto),
@@ -594,6 +608,14 @@ internal fun SetupPanel(
                             ToggleRow(host, "developer-tools", stringResource(R.string.dev_tools_title), stringResource(R.string.dev_tools_hint), DeveloperTools.on) {
                                 DeveloperTools.set(devContext, it)
                             }
+                            if (DeveloperTools.on) ActionRow(
+                                stringResource(R.string.dev_ui_zoo), stringResource(R.string.dev_ui_zoo_hint), stringResource(R.string.dev_ui_zoo_open),
+                                onClick = { DevPreview.zoo = true }, modifier = Modifier.testTag("dev-ui-zoo"),
+                            )
+                            if (DeveloperTools.on) ToggleRow(
+                                host, "preview-shortcuts", stringResource(R.string.dev_preview_shortcuts), stringResource(R.string.dev_preview_shortcuts_hint),
+                                DevPreview.shortcuts,
+                            ) { DevPreview.setShortcuts(devContext, it) }
                         }
                         SettingsGroup(stringResource(R.string.dev_group_logs)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
@@ -1144,7 +1166,7 @@ private fun SettingCard(label: String, value: String, id: String, modifier: Modi
         verticalArrangement = Arrangement.spacedBy(3.dp),
         modifier = modifier.paneItem(id)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .then(if (LocalGlass.current != null) Modifier.glass(Shape14, if (hot) 0.04f else 0f) else Modifier.clip(Shape14).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface))
+            .then(if (LocalGlass.current != null) Modifier.glass(Shape14, if (hot) 0.04f else 0f) else Modifier.clip(Shape14).background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.10f)) else Modifier))
             .glideBorder(hot, Shape14, pal.signal, if (LocalGlass.current != null) Color.Transparent else pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)
@@ -1210,5 +1232,44 @@ private fun GradientColorRows() {
         onDismiss = { picking = 0 },
     ) { argb ->
         if (picking == 1) Themes.setGradient(ctx, argb, secondary) else Themes.setGradient(ctx, primary, argb)
+    }
+}
+
+@Composable
+private fun CustomColorRows() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val colors = Themes.customColors
+    var picking by remember { mutableStateOf<String?>(null) }
+
+    val rows = listOf(
+        Triple("background", stringResource(R.string.theme_custom_background), colors.background),
+        Triple("surface", stringResource(R.string.theme_custom_surface), colors.surface),
+        Triple("surfaceVariant", stringResource(R.string.theme_custom_surface_variant), colors.surfaceVariant),
+        Triple("line", stringResource(R.string.theme_custom_line), colors.line),
+        Triple("line2", stringResource(R.string.theme_custom_line2), colors.line2),
+        Triple("onBackground", stringResource(R.string.theme_custom_on_background), colors.onBackground),
+        Triple("onSurfaceVariant", stringResource(R.string.theme_custom_on_surface_variant), colors.onSurfaceVariant),
+        Triple("primary", stringResource(R.string.theme_custom_primary), colors.primary),
+        Triple("onPrimary", stringResource(R.string.theme_custom_on_primary), colors.onPrimary),
+        Triple("signal", stringResource(R.string.theme_custom_signal), colors.signal),
+        Triple("good", stringResource(R.string.theme_custom_good), colors.good),
+        Triple("error", stringResource(R.string.theme_custom_error), colors.error),
+    )
+
+    rows.forEach { (key, label, argb) ->
+        SettingsRow(label, null) {
+            ColorCube(Color(argb), label) { picking = key }
+        }
+    }
+
+    val selected = rows.firstOrNull { it.first == picking }
+    if (selected != null) {
+        ColorPickerDialog(
+            selected.second,
+            selected.third,
+            onDismiss = { picking = null },
+        ) { argb ->
+            Themes.setCustomColor(ctx, selected.first, argb)
+        }
     }
 }

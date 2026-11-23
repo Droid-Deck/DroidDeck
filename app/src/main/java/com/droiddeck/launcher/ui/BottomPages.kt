@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Forum
-import androidx.compose.material.icons.outlined.Speed
-import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,10 +32,10 @@ class BottomPageActions(
 internal const val BOTTOM_PAGE_TELEMETRY = "telemetry"
 
 fun sessionBottomPages(actions: BottomPageActions): List<BottomPage> = listOf(
-    BottomPage(BOTTOM_PAGE_TELEMETRY, R.string.bottom_page_telemetry, Icons.Outlined.Speed) { BottomTelemetryPage(actions.fps, actions.runningGame) },
-    BottomPage("downloads", R.string.bottom_page_downloads, Icons.Outlined.Download) { BottomDownloadsPage() },
-    BottomPage("screenshots", R.string.bottom_page_screenshots, Icons.Outlined.PhotoLibrary) { BottomScreenshotsPage(actions.takeScreenshot) },
-    BottomPage("chat", R.string.bottom_page_chat, Icons.Outlined.Forum) { BottomChatPage() },
+    BottomPage(BOTTOM_PAGE_TELEMETRY, R.string.bottom_page_telemetry, Icons.Filled.Speed) { BottomTelemetryPage(actions.fps, actions.runningGame) },
+    BottomPage("downloads", R.string.bottom_page_downloads, Icons.Filled.Download) { BottomDownloadsPage() },
+    BottomPage("screenshots", R.string.bottom_page_screenshots, Icons.Filled.Image) { BottomScreenshotsPage(actions.takeScreenshot) },
+    BottomPage("chat", R.string.bottom_page_chat, Icons.Filled.People) { BottomChatPage() },
 )
 
 @Composable

@@ -4,6 +4,7 @@
 
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+mod bridge;
 mod launcher;
 mod pb;
 #[cfg(windows)]
@@ -22,12 +23,13 @@ fn main() {
 
 #[cfg(windows)]
 mod service {
+    use crate::bridge::{self, Generation};
     use crate::launcher::{self, AuxReq, Config, SessionReq};
     use crate::win::{self, Handle};
     use std::fs::OpenOptions;
     use std::io::Write;
-    use std::path::PathBuf;
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::{Duration, Instant};
@@ -36,6 +38,9 @@ mod service {
     const ANNOUNCE_WAIT: Duration = Duration::from_secs(120);
     const RESTART_WAIT: Duration = Duration::from_secs(15);
     const DENUVO_WAIT: Duration = Duration::from_secs(90);
+    const SERVE_WAIT: Duration = Duration::from_secs(10);
+    const MARKER_TRIES: u32 = 25;
+    const MARKER_PAUSE: Duration = Duration::from_millis(200);
 
     struct State {
         cfg: Config,
@@ -43,6 +48,8 @@ mod service {
         log: Mutex<Option<std::fs::File>>,
         event: Handle,
         game: AtomicU32,
+        stale_token: AtomicBool,
+        generation: Generation,
         started: Instant,
     }
 
@@ -175,7 +182,8 @@ mod service {
         state.say("session: closed");
     }
 
-    fn denuvo(state: &State, rid: u64, challenge: &[u8]) -> Option<Vec<u8>> {
+    /// The game token for an activation, with the invalidation count it was asked under when it may be a kept one.
+    fn denuvo(state: &State, rid: u64, challenge: &[u8], fresh: bool) -> Option<(Vec<u8>, Option<u64>)> {
         if state.cfg.bridge.is_empty() {
             return None;
         }
@@ -185,12 +193,20 @@ mod service {
         let _ = std::fs::remove_file(&rsp);
         let part = dir.join(format!("denuvo-{rid}.req.part"));
         std::fs::write(&part, challenge).ok()?;
-        std::fs::rename(&part, dir.join(format!("denuvo-{rid}.req"))).ok()?;
+        let seen = state.generation.current();
+        let stale = state.stale_token.swap(false, Ordering::SeqCst) || fresh;
+        let kind = if stale { "req" } else { "cache.req" };
+        if std::fs::rename(&part, dir.join(format!("denuvo-{rid}.{kind}"))).is_err() {
+            if stale {
+                state.stale_token.store(true, Ordering::SeqCst);
+            }
+            return None;
+        }
         let deadline = Instant::now() + DENUVO_WAIT;
         while Instant::now() < deadline {
             if let Ok(token) = std::fs::read(&rsp) {
                 let _ = std::fs::remove_file(&rsp);
-                return (!token.is_empty()).then_some(token);
+                return (!token.is_empty()).then_some((token, (!stale).then_some(seen)));
             }
             thread::sleep(Duration::from_millis(200));
         }
@@ -207,13 +223,47 @@ mod service {
                 }
                 AuxReq::Activate(rid, challenge) => {
                     state.say(&format!("aux: activation {rid} with a {} B challenge", challenge.len()));
-                    match denuvo(state, rid, challenge) {
-                        Some(token) => {
-                            send(&pipe, &launcher::aux_token(rid, &token));
+                    let mut fresh = false;
+                    loop {
+                        let Some((token, seen)) = denuvo(state, rid, challenge, fresh) else {
+                            state.say(&format!("aux: no game token for activation {rid}"));
+                            break;
+                        };
+                        let answer = || send(&pipe, &launcher::aux_token(rid, &token));
+                        let served = match seen {
+                            Some(g) => state.generation.serve(g, answer).is_some(),
+                            None => {
+                                answer();
+                                true
+                            }
+                        };
+                        if served {
                             state.say(&format!("aux: activation {rid} answered ({} B)", token.len()));
+                            break;
                         }
-                        None => state.say(&format!("aux: no game token for activation {rid}")),
+                        state.say(&format!("aux: kept token for activation {rid} came back after an invalidation; asking afresh"));
+                        fresh = true;
                     }
+                }
+                AuxReq::Invalidate(rid) => {
+                    state.stale_token.store(true, Ordering::SeqCst);
+                    let published = state.generation.invalidate(SERVE_WAIT, || {
+                        let published = state.cfg.bridge.is_empty()
+                            || bridge::publish_invalidation(Path::new(&state.cfg.bridge), &state.cfg.user_id, MARKER_TRIES, MARKER_PAUSE);
+                        if published {
+                            send(&pipe, &launcher::aux_invalidated(rid));
+                        }
+                        published
+                    });
+                    if published {
+                        state.say(&format!("aux: token invalidated by request {rid}"));
+                    } else {
+                        state.say(&format!("aux: invalidation {rid} not acknowledged; the kept token could not be marked stale"));
+                    }
+                }
+                AuxReq::BurnTicket(rid) => {
+                    send(&pipe, &launcher::aux_no_burn_ticket(rid));
+                    state.say(&format!("aux: burn ticket {rid} answered as unavailable"));
                 }
                 AuxReq::Other(rid) => state.say(&format!("aux: request {rid} not handled ({} B)", req.len())),
             }
@@ -304,6 +354,8 @@ mod service {
             log: Mutex::new(log),
             event: win::inheritable_event(),
             game: AtomicU32::new(0),
+            stale_token: AtomicBool::new(false),
+            generation: Generation::default(),
             started: Instant::now(),
         });
         state.say(&format!("product {} on {}*", state.cfg.product, state.prefix));

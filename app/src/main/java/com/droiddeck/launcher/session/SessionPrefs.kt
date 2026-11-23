@@ -85,6 +85,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("launcherFullscreen", on).apply()
     }
 
+    fun controllerHaptics(context: Context): Boolean = prefs(context).getBoolean("controllerHaptics", true)
+
+    fun setControllerHaptics(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("controllerHaptics", on).apply()
+    }
+
     fun blackFrameInsertion(context: Context): Boolean = prefs(context).getBoolean("blackFrameInsertion", false)
 
     fun setBlackFrameInsertion(context: Context, on: Boolean) {
@@ -280,6 +286,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("developerTools", on).apply()
     }
 
+    fun previewShortcuts(context: Context): Boolean = prefs(context).getBoolean("previewShortcuts", false)
+
+    fun setPreviewShortcuts(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("previewShortcuts", on).apply()
+    }
+
     fun fpsLimitKey(mode: String?, game: String?): String? = when (mode) {
         SessionService.MODE_RUN -> game?.trim()?.takeIf(com.droiddeck.launcher.frontend.GameLaunchLink::validId)?.let { "fpsLimit.game.$it" }
         SessionService.MODE_DESKTOP -> "fpsLimit.desktop"
@@ -352,6 +364,25 @@ object SessionPrefs {
         prefs(context).edit().putString("storesTabOrder", order.joinToString(",")).apply()
     }
 
+    /**
+     * Where the Library's own tabs (Favorites, Steam, Custom games) sit among the store tabs, as "tab=the tab it follows" pairs in
+     * strip order ("" follows nothing, i.e. first). Null until arranged.
+     */
+    fun libraryTabPlaces(context: Context): List<Pair<String, String>>? =
+        prefs(context).getString("libraryTabPlaces", null)?.split(',')?.mapNotNull { pair ->
+            pair.split('=', limit = 2).takeIf { it.size == 2 && it[0].isNotEmpty() }?.let { it[0] to it[1] }
+        }
+
+    fun setLibraryTabPlaces(context: Context, places: List<Pair<String, String>>) {
+        prefs(context).edit().putString("libraryTabPlaces", places.joinToString(",") { "${it.first}=${it.second}" }).apply()
+    }
+
+    fun libraryTabsHidden(context: Context): Set<String> = idList(prefs(context).getString("libraryTabsHidden", null)).toSet()
+
+    fun setLibraryTabsHidden(context: Context, hidden: Set<String>) {
+        prefs(context).edit().putString("libraryTabsHidden", hidden.joinToString(",")).apply()
+    }
+
     fun storesTabHidden(context: Context): Set<String> = idList(prefs(context).getString("storesTabHidden", null)).toSet()
 
     fun setStoresTabHidden(context: Context, hidden: Set<String>) {
@@ -392,6 +423,18 @@ object SessionPrefs {
         val e = p.edit()
         if (!p.contains("developerTools") && p.getBoolean("agentTab", false)) e.putBoolean("developerTools", true)
         e.remove("gameStoresEnabled").remove("soundtracksEnabled").remove("agentTab").putInt("navTabLayout", version).apply()
+    }
+
+    fun drawerPageOrder(context: Context): List<String> = idList(prefs(context).getString("drawerPageOrder", null))
+
+    fun setDrawerPageOrder(context: Context, order: List<String>) {
+        prefs(context).edit().putString("drawerPageOrder", order.joinToString(",")).apply()
+    }
+
+    fun drawerPageHidden(context: Context): Set<String> = idList(prefs(context).getString("drawerPageHidden", null)).toSet()
+
+    fun setDrawerPageHidden(context: Context, keys: Set<String>) {
+        prefs(context).edit().putString("drawerPageHidden", keys.joinToString(",")).apply()
     }
 
     fun setNavTabHidden(context: Context, keys: Set<String>) {
@@ -571,6 +614,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("backHold", on).apply()
     }
 
+    fun dockedMenuController(context: Context): Boolean = prefs(context).getBoolean("dockedMenuController", false)
+
+    fun setDockedMenuController(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("dockedMenuController", on).apply()
+    }
+
     fun backActionsInverted(context: Context): Boolean = prefs(context).getBoolean("backActionsInverted", false)
 
     fun setBackActionsInverted(context: Context, inverted: Boolean) {
@@ -639,11 +688,20 @@ object SessionPrefs {
         prefs(context).getString("shape", null)
             ?: if (context.packageManager.hasSystemFeature("android.hardware.sensor.hinge_angle")) SHAPE_WIDE else SHAPE_AUTO
 
-    fun oscMode(context: Context): String = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
+    fun oscMode(context: Context, steamSession: Boolean = true): String {
+        val saved = prefs(context).getString("osc", OSC_AUTO) ?: OSC_AUTO
+        return if (!steamSession && saved == OSC_STEAM_QAM) OSC_AUTO else saved
+    }
 
     fun setOscMode(context: Context, mode: String) {
         prefs(context).edit().putString("osc", mode).apply()
     }
+
+    fun oscRearButtons(context: Context): Boolean = prefs(context).getBoolean("oscRearButtons", false)
+    fun setOscRearButtons(context: Context, shown: Boolean) { prefs(context).edit().putBoolean("oscRearButtons", shown).apply() }
+
+    fun oscTrackpads(context: Context): Boolean = prefs(context).getBoolean("oscTrackpads", false)
+    fun setOscTrackpads(context: Context, shown: Boolean) { prefs(context).edit().putBoolean("oscTrackpads", shown).apply() }
 
     fun linuxDriver(context: Context): String =
         prefs(context).getString("linuxDriver", null)
@@ -772,7 +830,7 @@ object SessionPrefs {
         val prefs = prefs(context)
         if (!prefs.contains("shaderPrecache")) {
             if (steamConfig(context).exists()) return null
-            prefs.edit().putBoolean("shaderPrecache", false).apply()
+            prefs.edit().putBoolean("shaderPrecache", true).apply()
         }
         val on = prefs.getBoolean("shaderPrecache", true)
         val applied = shaderPrecacheApplied(context)
@@ -799,6 +857,12 @@ object SessionPrefs {
 
     fun setStretch16x9(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("stretch16x9", on).apply()
+    }
+
+    fun avoidNotch(context: Context): Boolean = prefs(context).getBoolean("avoidNotch", false)
+
+    fun setAvoidNotch(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("avoidNotch", on).apply()
     }
 
 
@@ -932,29 +996,6 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gamescopeRealtime", on).apply()
     }
 
-    fun ramCapMb(context: Context): Int = prefs(context).getInt("ramCapMb", 0).coerceAtLeast(0)
-
-    fun setRamCapMb(context: Context, mb: Int) {
-        prefs(context).edit().putInt("ramCapMb", mb.coerceAtLeast(0)).apply()
-    }
-
-    fun zramClient(context: Context): Boolean = prefs(context).getBoolean("zramClient", true)
-
-    fun setZramClient(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("zramClient", on).apply()
-    }
-
-    fun zramIdle(context: Context): Boolean = prefs(context).getBoolean("zramIdle", true)
-
-    fun setZramIdle(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("zramIdle", on).apply()
-    }
-
-    fun vramCapMb(context: Context): Int = prefs(context).getInt("vramCapMb", 0).coerceAtLeast(0)
-
-    fun setVramCapMb(context: Context, mb: Int) {
-        prefs(context).edit().putInt("vramCapMb", mb.coerceAtLeast(0)).apply()
-    }
 
     fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", false)
 
@@ -970,7 +1011,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootNoSeccomp", on).apply()
     }
 
-    fun nativeUserland(context: Context): Boolean = prefs(context).getBoolean("nativeUserland", false)
+    fun nativeUserland(context: Context): Boolean = prefs(context).getBoolean("nativeUserland", true)
 
     fun setNativeUserland(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("nativeUserland", on).apply()
@@ -1279,14 +1320,31 @@ object SessionPrefs {
 
     private fun resolutionCap(context: Context, mode: String): Int = prefs(context).getInt("resolutionCap.$mode", 720)
 
-    fun resolutionChosen(context: Context, mode: String): Boolean =
+    fun resolutionChosen(context: Context, mode: String, portrait: Boolean = false): Boolean =
         prefs(context).contains("displayResolution.$mode") ||
-            prefs(context).contains("resolutionCap.$mode") || customResolution(context, mode) != null
+            prefs(context).contains("resolutionCap.$mode") || customResolution(context, mode) != null ||
+            (portrait && prefs(context).contains("displayResolution.portrait.$mode"))
 
-    fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>): String {
+    fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>, portrait: Boolean = false): String =
+        SessionDisplay.effectiveChoice(
+            resolutionStored(context, mode, panel, false), resolutionStored(context, mode, panel, true), portrait)
+
+    fun resolutionStored(context: Context, mode: String, panel: Pair<Int, Int>, portrait: Boolean): String {
+        if (!portrait) return landscapeResolutionStored(context, mode, panel)
+        val value = prefs(context).getString("displayResolution.portrait.$mode", null) ?: return SessionDisplay.LINK_LANDSCAPE
+        if (value == SessionDisplay.LINK_LANDSCAPE || value == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(value) ||
+            SessionDisplay.presetHeight(value) != null) return value
+        return parseOrientedResolution(value)?.let { "${it.first}x${it.second}" } ?: SessionDisplay.LINK_LANDSCAPE
+    }
+
+    fun parseOrientedResolution(text: String): Pair<Int, Int>? =
+        parseResolution(text) ?: text.trim().split('x', 'X', '×', '*').takeIf { it.size == 2 }
+            ?.let { parseResolution("${it[1]}x${it[0]}") }?.let { it.second to it.first }
+
+    private fun landscapeResolutionStored(context: Context, mode: String, panel: Pair<Int, Int>): String {
         val saved = prefs(context)
         saved.getString("displayResolution.$mode", null)?.let { value ->
-            if (value == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(value) ||
+            if (value == SessionDisplay.MATCH_SCREEN || value == SessionDisplay.LINK_PORTRAIT || SessionDisplay.isFollow(value) ||
                 SessionDisplay.presetHeight(value) != null) return value
             parseResolution(value)?.let { return "${it.first}x${it.second}" }
         }
@@ -1298,13 +1356,22 @@ object SessionPrefs {
         else "${legacy.first}x${legacy.second}"
     }
 
-    fun setResolutionChoice(context: Context, mode: String, choice: String) {
-        val value = if (choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(choice) ||
+    fun setResolutionChoice(context: Context, mode: String, choice: String, portrait: Boolean = false) {
+        val link = if (portrait) SessionDisplay.LINK_LANDSCAPE else SessionDisplay.LINK_PORTRAIT
+        val value = if (choice == link || choice == SessionDisplay.MATCH_SCREEN || SessionDisplay.isFollow(choice) ||
                 SessionDisplay.presetHeight(choice) != null) choice else {
-            val size = requireNotNull(parseResolution(choice)) { "Invalid resolution" }
+            val size = requireNotNull(if (portrait) parseOrientedResolution(choice) else parseResolution(choice)) { "Invalid resolution" }
             "${size.first}x${size.second}"
         }
-        prefs(context).edit().putString("displayResolution.$mode", value).apply()
+        val panel = SessionDisplay.panelSize(context)
+        val landscapeStored = resolutionStored(context, mode, panel, false)
+        val portraitStored = resolutionStored(context, mode, panel, true)
+        val edit = prefs(context).edit()
+        if (value == link && SessionDisplay.isLink(if (portrait) landscapeStored else portraitStored)) {
+            val concrete = SessionDisplay.effectiveChoice(landscapeStored, portraitStored, !portrait)
+            edit.putString(if (portrait) "displayResolution.$mode" else "displayResolution.portrait.$mode", concrete)
+        }
+        edit.putString(if (portrait) "displayResolution.portrait.$mode" else "displayResolution.$mode", value).apply()
     }
 
     fun fexPreset(context: Context): String = prefs(context).getString("fexPreset", DEFAULT_FEX_PRESET) ?: DEFAULT_FEX_PRESET
@@ -1484,6 +1551,8 @@ object SessionPrefs {
         (id and 0xFFFFFFFFL) to key.removePrefix("addedAppId:")
     }.toMap()
 
+    fun storeGameFolder(context: Context, key: String): String? = prefs(context).getString("storeFolder:$key", null)
+
     fun followStoreGame(context: Context, key: String, folderPath: String, gone: (String) -> Boolean) = synchronized(addedGameLock) {
         val p = prefs(context)
         val previous = p.getString("storeFolder:$key", null)
@@ -1555,6 +1624,45 @@ object SessionPrefs {
         prefs(context).edit().putInt("gradientPrimary", primary).putInt("gradientSecondary", secondary).apply()
     }
 
+    fun customThemeColors(context: Context): com.droiddeck.launcher.ui.CustomThemeColors =
+        prefs(context).let { p ->
+            val defaults = com.droiddeck.launcher.ui.CustomThemeColors()
+            com.droiddeck.launcher.ui.CustomThemeColors(
+                background = p.getInt("customThemeBackground", defaults.background),
+                surface = p.getInt("customThemeSurface", defaults.surface),
+                surfaceVariant = p.getInt("customThemeSurfaceVariant", defaults.surfaceVariant),
+                line = p.getInt("customThemeLine", defaults.line),
+                line2 = p.getInt("customThemeLine2", defaults.line2),
+                onBackground = p.getInt("customThemeOnBackground", defaults.onBackground),
+                onSurfaceVariant = p.getInt("customThemeOnSurfaceVariant", defaults.onSurfaceVariant),
+                primary = p.getInt("customThemePrimary", defaults.primary),
+                onPrimary = p.getInt("customThemeOnPrimary", defaults.onPrimary),
+                signal = p.getInt("customThemeSignal", defaults.signal),
+                good = p.getInt("customThemeGood", defaults.good),
+                error = p.getInt("customThemeError", defaults.error),
+            )
+        }
+
+    fun setCustomThemeColors(
+        context: Context,
+        colors: com.droiddeck.launcher.ui.CustomThemeColors,
+    ) {
+        prefs(context).edit()
+            .putInt("customThemeBackground", colors.background)
+            .putInt("customThemeSurface", colors.surface)
+            .putInt("customThemeSurfaceVariant", colors.surfaceVariant)
+            .putInt("customThemeLine", colors.line)
+            .putInt("customThemeLine2", colors.line2)
+            .putInt("customThemeOnBackground", colors.onBackground)
+            .putInt("customThemeOnSurfaceVariant", colors.onSurfaceVariant)
+            .putInt("customThemePrimary", colors.primary)
+            .putInt("customThemeOnPrimary", colors.onPrimary)
+            .putInt("customThemeSignal", colors.signal)
+            .putInt("customThemeGood", colors.good)
+            .putInt("customThemeError", colors.error)
+            .apply()
+    }
+
     fun trueBlackHighlight(context: Context): Int =
         prefs(context).getInt("trueBlackHighlight", com.droiddeck.launcher.ui.Themes.DEFAULT_HIGHLIGHT)
 
@@ -1574,10 +1682,18 @@ object SessionPrefs {
         return Pair(w and 1.inv(), h and 1.inv())
     }
 
-    fun hdr(context: Context, mode: String): Boolean = prefs(context).getBoolean("hdr.$mode", false)
+    fun hdrKey(mode: String): String = "hdr.$mode"
+
+    fun hdr(context: Context, mode: String): Boolean = prefs(context).getBoolean(hdrKey(mode), false)
 
     fun setHdr(context: Context, mode: String, on: Boolean) {
-        prefs(context).edit().putBoolean("hdr.$mode", on).apply()
+        prefs(context).edit().putBoolean(hdrKey(mode), on).apply()
+    }
+
+    fun zeroCopy(context: Context, mode: String): Boolean = prefs(context).getBoolean("zeroCopy.$mode", true)
+
+    fun setZeroCopy(context: Context, mode: String, on: Boolean) {
+        prefs(context).edit().putBoolean("zeroCopy.$mode", on).apply()
     }
 
     const val FPS_UNPACED = -1
@@ -1894,7 +2010,7 @@ object SessionPrefs {
 
     fun displayMode(context: Context, mode: String, program: String?): String =
         if (mode == SessionService.MODE_RUN && com.droiddeck.launcher.runtime.UserApps.launches(program) &&
-            resolutionChosen(context, SessionService.MODE_DESKTOP)) SessionService.MODE_DESKTOP
+            (resolutionChosen(context, SessionService.MODE_DESKTOP) || resolutionChosen(context, SessionService.MODE_DESKTOP, true))) SessionService.MODE_DESKTOP
         else prefMode(mode)
 
     fun pipAutoEnter(context: Context): Boolean = prefs(context).getBoolean("pipAutoEnter", true)

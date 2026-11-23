@@ -49,7 +49,6 @@
         <item>Add Steam libraries from an SD card, USB drive or SSD, and DroidDeck keeps the games together in your Library.</item>
         <item>Stores lets you sign in to Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io and Game Jolt, then install and update their games from DroidDeck.</item>
         <item>Components like FEX, DXVK and VKD3D-Proton update themselves, and Proton Experimental ARM64 is the default, or Proton 11.0 ARM64 once that build is installed.</item>
-        <item>Compress Steam while a game runs frees RAM on devices that run low.</item>
         <item>Swipe in from the right edge to open the session menu: touchpad mode, PC keyboard, low latency, game profile and more.</item>
         <item>Game running slow? Cap the frame rate in Quick Access, then try another Proton version or FEX preset in the game\'s components.</item>
         <item>Crackling or missing game audio? Try the DirectAudio for games toggle in Steam settings under Audio.</item>
@@ -231,6 +230,8 @@
     <string name="app_fex_not_ready">This program is built for %1$s PCs and runs through FEX, which is not set up yet. Open Steam once while signed in: DroidDeck has it download FEX and the Steam Linux Runtime it needs, then this opens.</string>
     <string name="session_proot_missing">DroidDeck\'s proot could not be downloaded. Check the connection and try again. The session was not started, because the fallback proot is too slow to play on.</string>
     <string name="session_powervr_missing">The PowerVR graphics runtime could not be downloaded. Check the connection and try again.</string>
+    <string name="session_graphics_runtime_failed">The graphics runtime could not be prepared, so the session was not started.</string>
+    <string name="session_game_environment_failed">The game environment could not be set up, so the session was not started.</string>
     <string name="session_directaudio_missing">DirectAudio could not be downloaded, so game audio uses the slower path this session.</string>
     <string name="session_end_program">This program</string>
     <string name="session_end_present_fault">The session could not draw to the screen: %1$s. This screen shows why instead of a black one; the session logs have the details.</string>
@@ -308,7 +309,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 output</string>
     <string name="mode_hdr_unavailable">Not available: %1$s.</string>
-    <string name="mode_hdr_restart">Restart the app to apply.</string>
     <string name="mode_drivers">Drivers</string>
     <string name="mode_gpu_drivers">GPU drivers</string>
     <string name="mode_gpu_drivers_hint">Shared by Steam and Desktop. Set on the Components page.</string>
@@ -323,6 +323,8 @@
     <string name="mode_pen_button">Side button</string>
     <string name="mode_osc">On-screen controls</string>
     <string name="mode_osc_qam">Steam + QAM</string>
+    <string name="osc_rear_buttons">Rear buttons</string>
+    <string name="osc_trackpads">Trackpads</string>
     <string name="mode_osc_note">Auto shows the controls when no controller is connected.</string>
     <string name="osc_steam_touch">Steam touch (beta)</string>
     <string name="osc_style_next_session">Steam\'s touch controls start with the next Steam session</string>
@@ -652,20 +654,8 @@
     <string name="perf_gsrealtime">gamescope: realtime GPU queue</string>
     <string name="perf_gsrealtime_hint">Prioritizes the compositor\'s GPU work. Can smooth frame pacing at some cost to games.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memory</string>
     <string name="perf_cap_off">Off</string>
-    <string name="perf_cap_auto">Driver default</string>
-    <string name="perf_zram_client">Compress Steam while a game runs</string>
-    <string name="perf_zram_idle">Compress idle game memory</string>
-    <string name="perf_zram_idle_hint">Pages out idle game memory when RAM is low. Turn this off if games freeze for a few seconds about every half minute. Applies the next time the session starts.</string>
-    <string name="perf_zram_client_hint">Compresses Steam while a game runs, starting sooner when memory is tight. Steam is read back after the game closes once enough RAM is available. Turn this off if the session closes shortly after games start. A RAM cap above still compresses Steam when the session goes over it.</string>
-    <string name="perf_ram_cap">RAM cap</string>
-    <string name="perf_ram_cap_hint">Applies while the Steam client runs, in Steam mode or from the desktop. When the session uses more than this, Steam and then the session\'s other supported processes are compressed into zRAM. A soft cap: nothing is closed, but games may stutter while pages come back.</string>
-    <string name="perf_ram_cap_unavailable">Needs zRAM swap, which this device does not have.</string>
-    <string name="perf_vram_cap">VRAM cap</string>
-    <string name="perf_vram_cap_hint">Reports this video memory budget to Direct3D 9 to 12 games to encourage lower memory use. Games may exceed it; this does not add GPU paging or guarantee protection from out-of-memory crashes. Takes effect at the next session.</string>
     <string name="perf_gpuclock">Hold the GPU at its top clock</string>
-    <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Applies to the Steam client and games. Required on Adreno 710/720/722.</string>
@@ -718,6 +708,9 @@
     <string name="drawer_open_qam">Open Quick Access Menu</string>
     <string name="drawer_prev_page">Previous page</string>
     <string name="drawer_next_page">Next page</string>
+    <string name="drawer_manage_pages">Arrange pages</string>
+    <string name="drawer_pages_reset">Reset</string>
+    <string name="drawer_pages_done">Done</string>
     <string name="drawer_hud">Performance HUD</string>
     <string name="drawer_hud_fps">Frame rate</string>
     <string name="drawer_hud_battery">Battery temperature</string>
@@ -876,7 +869,6 @@
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
-    <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Shows</string>
     <string name="drawer_android_apps">Android apps</string>
     <string name="drawer_launch_app">Launch an app</string>
@@ -1036,13 +1028,17 @@
     <string name="setup_launcher_orientation_auto">Follow device rotation</string>
     <string name="setup_orientation_portrait">Portrait</string>
     <string name="setup_session_orientation">Session orientation</string>
-    <string name="setup_session_orientation_hint">Applies to Steam, games, desktop, and the controller editor. Resolution presets rotate with the session; custom width and height stay as entered.</string>
+    <string name="setup_session_orientation_hint">Applies to Steam, games, desktop, and the controller editor. Resolution presets rotate with the session; when one orientation follows the other, custom width and height flip to match.</string>
     <string name="setup_orientation_auto">Automatic landscape</string>
     <string name="setup_orientation_landscape">Landscape</string>
     <string name="setup_orientation_reverse">Reverse landscape</string>
     <string name="setup_fullscreen">Fullscreen</string>
     <string name="setup_fullscreen_on">Hides the Android status and navigation bars</string>
     <string name="setup_fullscreen_off">Shows the Android status and navigation bars</string>
+    <string name="setup_page_swipe">Swipe between pages</string>
+    <string name="setup_page_swipe_hint">Swipe across a page to change tabs.</string>
+    <string name="setup_controller_haptics">Controller haptics</string>
+    <string name="setup_controller_haptics_hint">A light tick when the D-pad, A or the shoulder buttons move or select in the launcher. Touch stays silent</string>
     <string name="setup_dual_screen_launcher">Dual screen launcher</string>
     <string name="setup_dual_screen_launcher_hint">Automatic puts the launcher sections (Steam, Library, Stores and the rest) on the second screen of handhelds with a built-in one. On uses any second display. Off keeps the launcher on one screen.</string>
     <string name="setup_dual_screen_sessions">Dual screen sessions</string>
@@ -1254,6 +1250,7 @@
     <string name="agent_done">Agent finished</string>
     <string name="agent_done_failed">Agent stopped with an error</string>
     <string name="agent_done_question">Agent has a question</string>
+    <string name="agent_done_approval">Agent is waiting for your OK</string>
     <plurals name="agent_subagent_steps">
         <item quantity="one">%d step</item>
         <item quantity="other">%d steps</item>
@@ -1331,6 +1328,21 @@
     <string name="agent_plan">Plan first</string>
     <string name="agent_plan_short">Plan</string>
     <string name="agent_plan_hint">Proposes a plan without changing anything</string>
+    <string name="agent_permissions">Permissions</string>
+    <string name="agent_permission_ask">Ask first</string>
+    <string name="agent_permission_ask_hint">Asks before edits and commands that need your OK</string>
+    <string name="agent_permission_edits">Accept edits</string>
+    <string name="agent_permission_edits_hint">Edits files freely, asks before commands</string>
+    <string name="agent_permission_auto">Auto</string>
+    <string name="agent_permission_auto_hint">A safety check decides, blocking risky actions</string>
+    <string name="agent_permission_dont_ask">Don\'t ask</string>
+    <string name="agent_permission_dont_ask_hint">Denies anything your settings don\'t allow</string>
+    <string name="agent_permission_full">Full access</string>
+    <string name="agent_permission_full_hint">Runs everything without asking</string>
+    <string name="agent_approval_title">Allow %1$s?</string>
+    <string name="agent_approval_allow">Allow</string>
+    <string name="agent_approval_deny">Deny</string>
+    <string name="agent_approval_more">+%1$d more</string>
     <string name="agent_history">Conversations</string>
     <string name="agent_history_empty">No conversations yet</string>
     <string name="agent_just_now">Just now</string>
@@ -1769,8 +1781,10 @@
     <string name="game_shortcut_unsupported">This launcher cannot add shortcuts. Use Copy launch link instead.</string>
     <string name="game_link_invalid">Invalid game launch link.</string>
     <string name="game_link_missing">This game is no longer in your DroidDeck library.</string>
+    <string name="game_link_program_unknown">Add this game to DroidDeck first, then start it from your frontend.</string>
     <string name="game_link_session_busy">Stop the current session before launching a Steam game.</string>
     <string name="game_link_failed">Could not send the game to Steam. Try launching it again.</string>
+    <string name="game_needs_app_model">%1$s is a UWP app. This runtime has no Windows app-model host to start it.</string>
     <string name="setup_retry_removal">Retry removal</string>
     <string name="runtime_removing">Removing</string>
     <string name="runtime_removal_incomplete">Removal incomplete</string>
@@ -2032,6 +2046,20 @@
     <string name="theme_color_saturation">Saturation</string>
     <string name="theme_color_brightness">Brightness</string>
     <string name="theme_color_hex">Hex color</string>
+    <string name="theme_custom">Custom</string>
+    <string name="theme_custom_detail">Choose each interface color independently.</string>
+    <string name="theme_custom_background">Background</string>
+    <string name="theme_custom_surface">Panels</string>
+    <string name="theme_custom_surface_variant">Raised panels</string>
+    <string name="theme_custom_line">Dividers</string>
+    <string name="theme_custom_line2">Borders</string>
+    <string name="theme_custom_on_background">Main text</string>
+    <string name="theme_custom_on_surface_variant">Secondary text</string>
+    <string name="theme_custom_primary">Buttons and main accent</string>
+    <string name="theme_custom_on_primary">Button text</string>
+    <string name="theme_custom_signal">Highlights</string>
+    <string name="theme_custom_good">Success</string>
+    <string name="theme_custom_error">Error</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2239,6 +2267,8 @@
     <string name="second_mode_deck_controls">Deck grips + trackpads</string>
     <string name="second_mode_dashboard">Dashboard</string>
     <string name="second_mode_desktop">Desktop</string>
+    <string name="screen_picker_description">Second screen: %1$s</string>
+    <string name="screen_picker_last_used">Last used</string>
     <string name="bottom_desktop_start">Start the desktop</string>
     <string name="bottom_desktop_title">Desktop · %1$s</string>
     <string name="bottom_desktop_mode_trackpad">Trackpad</string>
@@ -2522,6 +2552,17 @@
     <string name="pextra_checksum_mismatch">Checksum mismatch; the download was deleted</string>
     <string name="pextra_session_started">A session started during the download; stop it before installing compatibility tools</string>
     <string name="pextra_installing">Installing %1$s</string>
+    <string name="xproton_title">Experimental builds</string>
+    <string name="xproton_install_file">Install from file</string>
+    <string name="xproton_archive_unsafe">Archive contains an unsafe link or path</string>
+    <string name="xproton_archive_invalid">Unsupported or invalid archive</string>
+    <string name="xproton_no_space">Not enough free space for this Proton build</string>
+    <string name="xproton_unpacking">Unpacking Proton (a few minutes)</string>
+    <string name="xproton_untar_failed">Unpacking failed (tar %1$d)</string>
+    <string name="xproton_no_tree">The archive holds no Proton build</string>
+    <string name="xproton_place_failed">Could not place the Proton build</string>
+    <string name="xproton_remove_failed">Could not fully remove %1$s</string>
+    <string name="xproton_installed">Experimental Proton installed. Pick it in Steam → Properties → Compatibility.</string>
     <string name="pextra_install_failed">%1$s installation failed (exit %2$d)</string>
     <string name="pextra_could_not_install">Could not install %1$s</string>
     <string name="esync_fetching">Fetching droiddeck-esync pack</string>
@@ -2683,10 +2724,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Session display</string>
-    <string name="display_resolution">Resolution</string>
+    <string name="display_zero_copy">Zero-copy presentation</string>
+    <string name="display_resolution_landscape">Landscape resolution</string>
+    <string name="display_resolution_portrait">Portrait resolution</string>
+    <string name="display_follow_landscape">Follow landscape (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Follow portrait (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 game fit</string>
     <string name="display_game_fit_hint">How 16:9 games fit this display. Next session.</string>
     <string name="display_game_fit_unavailable">Choose Match screen or a custom size that isn\'t 16:9.</string>
+    <string name="display_avoid_notch">Avoid notch</string>
+    <string name="display_avoid_notch_hint">Keeps the picture out of the camera cutout. Applies when you return to the session.</string>
     <string name="display_preserve">Keep proportions</string>
     <string name="display_stretch">Stretch to display</string>
     <string name="display_image_scaling">Image scaling</string>
@@ -2879,6 +2926,8 @@
     <string name="cloud_up_to_date">Already up to date</string>
     <string name="cloud_signed_out">Sign in to the store to sync saves</string>
     <string name="cloud_not_synced">Saves were not synced</string>
+    <string name="cloud_partial">Some saves were not synced · %1$s</string>
+    <string name="cloud_conflict_files_detail">Cloud conflict · %1$d files · %2$s</string>
     <string name="stores_eyebrow_installed">installed</string>
     <string name="stores_eyebrow_library">in your library</string>
     <string name="stores_eyebrow_store">store</string>
@@ -2992,6 +3041,9 @@
     <string name="stores_login_close">Close</string>
     <string name="stores_login_retry">Try again</string>
     <string name="stores_login_finishing">Finishing sign-in…</string>
+    <string name="stores_xbox_device_group_full">This Microsoft account is at its device limit. Remove an old device under Manage devices, then resume.</string>
+    <string name="stores_xbox_manage_devices">Manage devices</string>
+    <string name="stores_xbox_license_refused">Microsoft does not license any available version of this game to this device.</string>
     <string name="stores_xbox_sign_in_again">Microsoft rejected the Xbox sign-in. Sign out of Xbox in Stores, sign in again, then resume.</string>
     <string name="stores_login_error_network">The sign-in page could not be loaded: %1$s</string>
     <string name="stores_login_error_idp_blocked">This provider refuses to sign in from an embedded page. Sign in with your store password instead.</string>
@@ -3598,10 +3650,19 @@
     <string name="storage_shared_prefix">Steam’s shared prefix</string>
     <string name="storage_shared_prefix_detail">Steam runs its own Windows helpers here</string>
     <string name="storage_reset_shared_confirm">Deletes it (%1$s). Steam makes a new one the next time it needs it.</string>
+    <string name="storage_remove_launcher_confirm">Deletes this store app’s Wine prefix and shader cache (%1$s), with its sign-in and any saves kept only there. Games that run in it get a fresh prefix, and you may need to set the app up again. Cloud saves stay in your account.</string>
+    <string name="storage_system_clearable">%1$s can be cleared</string>
+    <string name="storage_item_system_caches">Linux and Steam caches</string>
+    <string name="storage_item_system_caches_detail">Old temporary files, downloaded packages and Steam’s web cache</string>
+    <string name="storage_cache_temp">Old temporary files</string>
+    <string name="storage_cache_packages">Downloaded packages</string>
+    <string name="storage_cache_steam_web">Steam web cache</string>
+    <string name="storage_cache_steam_corrupt">Damaged Steam downloads</string>
+    <string name="storage_cache_detail">Made again when needed</string>
+    <string name="storage_clear">Clear</string>
     <string name="storage_launcher_prefix">A store app and the games that run with it</string>
     <string name="storage_launcher_used_by">Used by %1$s</string>
     <string name="storage_shortcut_app">Non-Steam game %1$s</string>
-    <string name="storage_unknown_prefix_detail">Not matched to a game, so it is kept</string>
     <string name="storage_remove_selected">Remove selected · %1$s</string>
     <string name="storage_uninstall_selected">Uninstall selected · %1$s</string>
     <string name="storage_bulk_prefixes">Wine prefixes</string>
@@ -4141,6 +4202,7 @@
     <string name="addons_sort_downloads">Most downloaded</string>
     <string name="addons_category_all">All categories</string>
     <string name="addons_none_found">No addons found</string>
+    <string name="addons_curse_busy">Close CurseForge first</string>
     <string name="addons_unreachable">Could not reach %1$s</string>
     <string name="addons_no_file">No file for this game version</string>
     <string name="addons_source_wowi" translatable="false">WoWInterface</string>
@@ -4243,6 +4305,24 @@
     <string name="settings_place_sheet">Steam or Desktop options (swipe up)</string>
     <string name="settings_place_steam_qam">Steam quick menu (•••)</string>
     <string name="dev_group_logs">Logs</string>
+    <string name="dev_ui_zoo">UI zoo</string>
+    <string name="dev_ui_zoo_hint">Screens that are hard to reach, shown only when you pick one</string>
+    <string name="dev_ui_zoo_open">Open</string>
+    <string name="dev_ui_zoo_show">Show</string>
+    <string name="dev_ui_zoo_note">Previews change nothing real: nothing is installed, removed or signed out, and the menu\'s switches save nothing. A Library preview stays until you end it from its pill or restart.</string>
+    <string name="dev_preview_library">Library</string>
+    <string name="dev_preview_library_nothing_installed">Nothing installed</string>
+    <string name="dev_preview_library_signed_out">Signed out of every store</string>
+    <string name="dev_preview_library_sample">Sample games in every store</string>
+    <string name="dev_preview_banner">Preview: %1$s</string>
+    <string name="dev_preview_end">End preview</string>
+    <string name="dev_preview_real">Real library</string>
+    <string name="dev_preview_shortcut">Preview a state</string>
+    <string name="dev_preview_shortcuts">Preview shortcuts</string>
+    <string name="dev_preview_shortcuts_hint">Adds a preview button where a state lives, such as the Library\'s toolbar, to switch states in place</string>
+    <string name="dev_preview_read_only">Previews are read-only. End the preview to open games.</string>
+    <string name="dev_preview_drawer">In-game menu</string>
+    <string name="dev_preview_drawer_backdrop">In-game menu preview · Back to close</string>
     <string name="settings_place_tab">Tabs</string>
     <string name="rail_storage">Storage</string>
     <string name="rail_sync">Syncthing</string>
@@ -4265,12 +4345,19 @@
     <string name="drawer_hint_button">%1$s opens this menu</string>
     <string name="drawer_hint_steam_inverted">Back twice opens this menu · Back once opens Steam\'s menu</string>
     <string name="drawer_corner_tap">Corner tap opens this menu</string>
+    <string name="drawer_docked_menu_controller">Physical controls can use bottom screen</string>
     <string name="drawer_corner_tap_hint">Double-tap the top-right corner, for devices without a Back button</string>
     <string name="drawer_handle">Open the session menu</string>
     <string name="play_needs_you">Settings need you</string>
     <string name="library_accounts">Store accounts</string>
     <string name="library_account_sign_in">Sign in</string>
     <string name="library_account_sign_out">Sign out</string>
+    <string name="library_manage_stores">Manage stores</string>
+    <string name="library_all_games">All games</string>
+    <string name="library_custom_games">Custom games</string>
+    <string name="store_account_signed_out">Not signed in</string>
+    <string name="store_account_expired">Login expired</string>
+    <string name="store_account_api_key">Uses an API key</string>
     <string name="tabs_reset">Reset</string>
     <string name="tabs_reset_title">Reset tabs</string>
     <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>

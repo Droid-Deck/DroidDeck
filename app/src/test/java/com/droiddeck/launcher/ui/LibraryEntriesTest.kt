@@ -82,6 +82,25 @@ class LibraryEntriesTest {
         assertEquals(listOf("steam", "xbox", "epic", "gog", "added"), librarySources(entries, listOf("xbox", "epic", "gog")))
     }
 
+    @Test fun theLibrarysOwnTabsSitAfterTheTabTheyFollow() {
+        val entries = listOf("added", "gog", "steam", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
+        val order = listOf("xbox", "epic", "gog")
+        assertEquals(listOf("steam", "xbox", "added", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "xbox")))
+        assertEquals(listOf("added", "steam", "xbox", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "", "favorites" to "added", "steam" to "favorites")))
+        assertEquals(listOf("xbox", "epic", "steam", "gog", "added"), librarySources(entries, order, places = listOf("favorites" to "epic", "steam" to "favorites", "added" to "nope")))
+    }
+
+    @Test fun hidingTheTabALibraryTabFollowsKeepsItInPlace() {
+        val entries = listOf("added", "gog", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
+        assertEquals(listOf("xbox", "added", "gog"), librarySources(entries, listOf("xbox", "epic", "gog"), places = listOf("added" to "epic"), offStores = setOf("epic")))
+    }
+
+    @Test fun placesRoundTripThroughTheirOrder() {
+        val order = listOf("epic", "steam", "favorites", LIBRARY_HIDDEN, "gog", "xbox", "added")
+        assertEquals(order, placeLibraryTabs(listOf("epic", "gog", "xbox"), libraryPlacesOf(order)))
+        assertEquals(listOf("favorites", "steam", "epic", "gog", "added", LIBRARY_HIDDEN), placeLibraryTabs(listOf("epic", "gog"), emptyList()))
+    }
+
     @Test fun librarySourcesIgnoreUnknownAndDuplicateOrderEntriesAndAppendNewStores() {
         val entries = listOf("epic", "gog", "battlenet").map { LibraryEntry(it, it, it, null, null, false) }
         assertEquals(listOf("epic", "gog", "battlenet"), librarySources(entries, listOf("missing", "epic", "epic", "amazon")))

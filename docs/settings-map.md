@@ -19,10 +19,6 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Skip GL error checks | Settings › Performance (`droiddeck://settings/performance`) |  |
 | gamescope: realtime GPU queue | Settings › Performance (`droiddeck://settings/performance`) | gamescope |
 | Hold the GPU at its top clock | Settings › Performance (`droiddeck://settings/performance`) | gpu, clock, max |
-| RAM cap | Settings › Performance (`droiddeck://settings/performance`) | ram, memory |
-| VRAM cap | Settings › Performance (`droiddeck://settings/performance`) | vram, memory |
-| Compress idle game memory | Settings › Performance (`droiddeck://settings/performance`) | zram, swap, memory |
-| Compress Steam while a game runs | Settings › Performance (`droiddeck://settings/performance`) | zram, swap, memory |
 | Clear cached apps before a session | Settings › Performance (`droiddeck://settings/performance`) | memory, ram, crash, sleep, killed |
 | Background apps during a session | Settings › Performance (`droiddeck://settings/performance`) | memory, ram, background apps |
 | Memory readout | Settings › Performance (`droiddeck://settings/performance`) | memory, ram, overlay |
@@ -48,6 +44,8 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Launcher orientation | Settings › Launcher (`droiddeck://settings/launcher`) | rotate, portrait |
 | Session orientation | Settings › Launcher (`droiddeck://settings/launcher`) | rotate, portrait |
 | Fullscreen | Settings › Launcher (`droiddeck://settings/launcher`) |  |
+| Swipe between pages | Settings › Launcher (`droiddeck://settings/launcher`) | gesture |
+| Controller haptics | Settings › Launcher (`droiddeck://settings/launcher`) | vibration, rumble |
 | Dual screen launcher | Settings › Launcher (`droiddeck://settings/launcher`) | thor, second screen, bottom screen |
 | Warn when storage is low | Settings › Launcher (`droiddeck://settings/launcher`) |  |
 | SteamGridDB API key | Settings › Launcher (`droiddeck://settings/launcher`) | artwork, steamgriddb |
@@ -79,6 +77,7 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Frame generation | In-game menu › Display | lsfg, lossless, fps |
 | Scaling filter | In-game menu › Display | upscale, fsr, sharpness |
 | Performance HUD | In-game menu › Performance HUD | fps, counter, overlay, performance |
+| Hold the GPU at its top clock | In-game menu › Performance HUD | gpu, clock, max |
 | Touchscreen | In-game menu › Controller | touch, mouse, direct, touchpad, click |
 | On-screen controls | In-game menu › Controller | on-screen, controls, touch controls, buttons |
 | Steam touch layout | In-game menu › Controller | touch layout, edit layout, on-screen |
@@ -97,7 +96,7 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 
 | Setting | Where | Also matches |
 | --- | --- | --- |
-| Session display | Steam or Desktop options (swipe up) › Display | resolution, scaling, hdr, refresh |
+| Session display | Steam or Desktop options (swipe up) › Display | resolution, scaling, hdr, refresh, zero-copy |
 | Graphics drivers | Steam or Desktop options (swipe up) › Display | turnip, driver, gpu, adreno, mali |
 | Offline mode | Steam or Desktop options (swipe up) › Steam | offline, steam |
 | Microphone | Steam or Desktop options (swipe up) › Audio | microphone, voice |

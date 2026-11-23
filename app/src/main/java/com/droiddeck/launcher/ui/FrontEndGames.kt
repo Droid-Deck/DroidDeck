@@ -82,6 +82,12 @@ internal fun cloudMessage(context: android.content.Context, r: com.droiddeck.lau
         r.files == 0 -> context.getString(R.string.cloud_up_to_date)
         else -> context.getString(R.string.cloud_done, r.files)
     }
+    "partial" -> when {
+        r.conflicts > 0 && r.detail.isNotEmpty() -> context.getString(R.string.cloud_conflict_files_detail, r.conflicts, r.detail)
+        r.conflicts > 0 -> context.getString(R.string.cloud_conflict_files, r.conflicts)
+        r.detail.isNotEmpty() -> context.getString(R.string.cloud_partial, r.detail)
+        else -> context.getString(R.string.cloud_not_synced)
+    }
     "skipped" -> context.getString(when (r.reason) {
         "not-signed-in" -> R.string.cloud_signed_out
         "no-cloud-saves" -> R.string.cloud_none
