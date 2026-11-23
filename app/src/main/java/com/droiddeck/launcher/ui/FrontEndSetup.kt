@@ -249,7 +249,7 @@ internal fun SetupPanel(
                 if (listing) SettingsSearchResults(query) { section -> pick(section.ordinal) }
                 else when (tab) {
                     OVERVIEW_TAB -> {
-                        OnboardingCard()
+                        OnboardingCard(limitBlocks, a.onShowPhantomGate)
                         // Setup's "Safe mode" row, under the GPU row while the bridge is on and can be used here.
                         val bridgeModeRow = !s.adreno && s.vkBridge && com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
@@ -1277,7 +1277,7 @@ private fun CustomColorRows() {
 }
 
 @Composable
-internal fun OnboardingCard() {
+internal fun OnboardingCard(limitBlocks: Boolean = false, onSetUpLimit: () -> Unit = {}) {
     val active by com.droiddeck.launcher.session.Onboarding.active.collectAsState()
     val failed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
     val facts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
@@ -1328,6 +1328,19 @@ internal fun OnboardingCard() {
                         else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(3.dp))
                     }
                 }
+            }
+        }
+        if (settling && limitBlocks) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.setup_limit), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                    Text(stringResource(R.string.onboarding_limit_reason), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                }
+                PrimaryButton(stringResource(R.string.onboarding_limit_action), compact = true, onClick = onSetUpLimit)
             }
         }
         if (needsBluetooth) {

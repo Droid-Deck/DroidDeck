@@ -26,7 +26,12 @@ object SteamClientPrefetch {
 
     fun running(): Boolean = thread?.isAlive == true
 
-    fun pending(context: Context): Boolean = SteamDownloadMonitor.clientInstallPending(LinuxRuntime.rootDir(context))
+    private const val CACHED = "root/.local/share/Steam/package/droiddeck-cached"
+
+    fun installPending(context: Context): Boolean = SteamDownloadMonitor.clientInstallPending(LinuxRuntime.rootDir(context))
+
+    fun pending(context: Context): Boolean =
+        installPending(context) || !File(LinuxRuntime.rootDir(context), CACHED).isFile
 
     /** Stops a running download so a session can take over; the script resumes the partial files. */
     fun cancel() {
@@ -52,17 +57,26 @@ object SteamClientPrefetch {
         val root = LinuxRuntime.rootDir(context)
         LinuxRuntime.writeAccounts(context)
         SessionFiles.stage(context, root)
+        val install = installPending(context)
+        if (install) {
+            val problem = script(context, emptyList(), label, 0, 35)
+            if (problem != null) return problem
+        }
+        return script(context, listOf("--cache"), label, if (install) 35 else 0, 100)
+    }
+
+    private fun script(context: Context, args: List<String>, label: (Int) -> String, from: Int, to: Int): String? {
         val guest = listOf(
             "/usr/bin/env", "-i", "HOME=/root", "USER=root", "PATH=/usr/local/bin:/usr/bin:/bin",
             "LANG=C.UTF-8", "XDG_DATA_HOME=/root/.local/share", "/usr/local/bin/droiddeck-steam-install",
-        )
+        ) + args
         val child = ProtonExtras.guestProcess(context, guest).start()
         process = child
         child.inputStream.bufferedReader().useLines { lines ->
             lines.forEach { line ->
                 Log.i(TAG, line)
                 val progress = parse(line)
-                if (progress != null) Onboarding.report(Onboarding.Step.STEAM, label(progress.second), progress.first)
+                if (progress != null) Onboarding.report(Onboarding.Step.STEAM, label(progress.second), from + progress.first * (to - from) / 100)
             }
         }
         val status = child.waitFor()

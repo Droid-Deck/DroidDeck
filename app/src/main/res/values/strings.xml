@@ -36,7 +36,7 @@
     <string name="wall_settings_match" translatable="false">Match screen</string>
     <string name="wall_settings_speed" translatable="false">Scroll speed</string>
     <string-array name="loading_hints">
-        <item>First run downloads Steam. This may take a few minutes.</item>
+        <item>DroidDeck downloads Steam in the background while you set up, so your first launch is quicker.</item>
         <item>Your controller shows up to Steam as a Steam Deck controller. Switch it to a Steam Controller, DualShock 4, DualSense or Xbox 360 pad in the session settings; it applies next session.</item>
         <item>Hold Back on your controller to open Steam\'s Quick Access menu. Hold Back for Steam shortcuts must be on in the session settings.</item>
         <item>Background behavior decides what happens when you leave the app: Native readies Steam for sleep, Auto pauses it, Manual waits for Resume, Never keeps it running.</item>
@@ -4414,4 +4414,7 @@
     <string name="onboarding_bluetooth_reason">Lets DroidDeck connect to Steam Controllers and other Bluetooth pads. Skip it if you only use built-in controls.</string>
     <string name="onboarding_bluetooth_allow">Allow</string>
     <string name="onboarding_bluetooth_skip">Not now</string>
+    <string name="onboarding_limit_reason">Android can close Steam’s helper processes. Turn that off now, while the downloads run, and Play is ready the moment they finish.</string>
+    <string name="onboarding_limit_action">Do it for me</string>
+    <string name="onboarding_limit_while_waiting">Set up while you wait</string>
 </resources>

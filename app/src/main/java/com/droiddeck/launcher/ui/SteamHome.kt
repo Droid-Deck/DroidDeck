@@ -154,8 +154,13 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
         words = {
             val runtimeStatus: @Composable () -> Unit = {
-                if (s.busy || (s.available != null && s.available != s.installed)) RuntimeChip(s)
-                else if (setupNeedsAttention(s)) SecondaryButton(stringResource(R.string.play_needs_you), compact = true,
+                if (s.busy || (s.available != null && s.available != s.installed)) {
+                    RuntimeChip(s)
+                    if (com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)) {
+                        SecondaryButton(stringResource(R.string.onboarding_limit_while_waiting), compact = true,
+                            modifier = Modifier.testTag("setup-while-waiting"), onClick = a.onShowPhantomGate)
+                    }
+                } else if (setupNeedsAttention(s)) SecondaryButton(stringResource(R.string.play_needs_you), compact = true,
                     modifier = Modifier.testTag("play-needs-you")) { SetupTabs.openSection = SettingsSection.OVERVIEW }
                 else if (s.integration.suggested && signedIn && !com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus))
                     IntegrationSuggestion(s.integration, { a.onSteamIntegration(null) }, a.onDismissIntegration)

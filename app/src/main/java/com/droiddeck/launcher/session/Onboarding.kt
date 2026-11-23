@@ -1,7 +1,10 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
+import com.droiddeck.launcher.runtime.RuntimeInstallService
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** What first run installs by itself, in the order it is needed, and how far each part has got. */
@@ -20,6 +23,26 @@ object Onboarding {
     val failed = MutableStateFlow<Map<Step, String>>(emptyMap())
     val facts = MutableStateFlow(Facts())
 
+    @Volatile private var appContext: Context? = null
+    private var hold: (() -> Unit)? = null
+
+    fun attach(context: Context) {
+        appContext = context.applicationContext
+    }
+
+    /** Keeps the process in the foreground, with one notification, while a step downloads and the runtime installer is not already doing so. */
+    @Synchronized private fun keepAlive() {
+        val context = appContext ?: return
+        if (active.value.isNotEmpty() && !LinuxRuntimeInstaller.isBusy()) {
+            if (hold == null) hold = RuntimeInstallService.holdForPackage(context, context.getString(R.string.onboarding_title))
+            val rows = rows(active.value, failed.value, facts.value)
+            RuntimeInstallService.packageProgress(active.value.values.first().label, overall(rows))
+        } else {
+            hold?.invoke()
+            hold = null
+        }
+    }
+
     fun recheck(context: Context) {
         val runtime = LinuxRuntime.isInstalled(context)
         val own = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
@@ -33,16 +56,19 @@ object Onboarding {
     fun report(step: Step, label: String, percent: Int) {
         failed.value = failed.value - step
         active.value = active.value + (step to Progress(label, percent))
+        keepAlive()
     }
 
     fun finish(step: Step) {
         active.value = active.value - step
         failed.value = failed.value - step
+        keepAlive()
     }
 
     fun fail(step: Step, message: String) {
         active.value = active.value - step
         failed.value = failed.value + (step to message)
+        keepAlive()
     }
 
     fun rows(active: Map<Step, Progress>, failed: Map<Step, String>, facts: Facts): List<Row> = Step.entries.map { step ->
