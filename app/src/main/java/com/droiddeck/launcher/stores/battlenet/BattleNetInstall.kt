@@ -53,7 +53,18 @@ object BattleNetInstall {
 
     val updates = mutableStateMapOf<String, Boolean>()
 
+    fun updateKey(id: String, folder: File?): String = "$id@${folder?.absolutePath ?: ""}"
+
     fun product(id: String): String? = BattleNet.title(id)?.product
+
+    /** The China client serves StarCraft II, Diablo II and Diablo III from products of their own; anbs_cn shares anbs. */
+    private val CN_PRODUCTS = mapOf(
+        "osi" to "osic",
+        "s2" to "s2c",
+        "diablo3" to "d3cn",
+    )
+
+    internal fun chinaProduct(id: String): String? = CN_PRODUCTS[id]
 
     fun headless(item: CatalogItem): Boolean = item.store == Store.BATTLENET && product(item.id) != null
 
@@ -102,7 +113,7 @@ object BattleNetInstall {
             if (uid == null) {
                 Log.w(TAG, "no Battle.net install matches ${game.folder}")
                 StoresState.logLine("Battle.net: no registration matches ${game.folder.name}; update it from Battle.net")
-                StoresState.post { updates.remove(game.sidecar.id) }
+                StoresState.post { updates.remove(updateKey(game.sidecar.id, game.folder)) }
             } else {
                 val item = updateItem(game, uid)
                 game.folder.parentFile?.parentFile?.let { com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, it) }
@@ -188,21 +199,29 @@ object BattleNetInstall {
 
     internal fun check(id: String, folder: File, force: Boolean) {
         val product = product(id) ?: return
+        val key = updateKey(id, folder)
         val now = System.currentTimeMillis()
         synchronized(checkedAt) {
-            if (!force && now - (checkedAt[id] ?: 0L) < CHECK_AGAIN_MS) return
-            checkedAt[id] = now
+            if (!force && now - (checkedAt[key] ?: 0L) < CHECK_AGAIN_MS) return
+            checkedAt[key] = now
         }
-        fun retryLater() = synchronized(checkedAt) { if (checkedAt[id] == now) checkedAt.remove(id) }
+        fun retryLater() {
+            synchronized(checkedAt) { if (checkedAt[key] == now) checkedAt.remove(key) }
+            StoresState.post { updates.remove(key) }
+        }
         checks.execute {
             val local = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
                 ?: return@execute retryLater()
-            val latest = runCatching { latestBuild(fetch(versionsUrl(local.first, product)), local.first) }
-                .onFailure { Log.w(TAG, "versions of $product: ${it.javaClass.simpleName}") }.getOrNull()
+            val served = if (local.first == CN) chinaProduct(id) ?: product else product
+            val latest = runCatching { latestBuild(fetch(versionsUrl(local.first, served)), local.first) }
+                .onFailure { Log.w(TAG, "versions of $served: ${it.javaClass.simpleName}") }.getOrNull()
                 ?: return@execute retryLater()
-            val behind = latest != local.second
+            val current = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
+                ?: return@execute retryLater()
+            if (current != local) return@execute retryLater()
+            val behind = latest != current.second
             Log.i(TAG, "$id: ${if (behind) "update available" else "up to date"}")
-            StoresState.post { if (behind) updates[id] = true else updates.remove(id) }
+            StoresState.post { if (behind) updates[key] = true else updates.remove(key) }
         }
     }
 
@@ -300,7 +319,7 @@ internal class BattleNetInstaller(
         if (done == null) throw IllegalStateException(BattleNetInstall.failure(app, reason, code))
         handle.log("Battle.net: ${item.title} ${if (update) "updated" else "installed"} ${done?.optString("version").orEmpty()}".trimEnd())
         StoresState.post {
-            BattleNetInstall.updates.remove(item.id)
+            BattleNetInstall.updates.remove(BattleNetInstall.updateKey(item.id, folder))
             StoresState.notifyLibraryChanged(app)
         }
         BattleNetInstall.check(item.id, folder, force = true)
