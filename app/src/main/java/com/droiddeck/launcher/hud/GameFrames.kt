@@ -259,6 +259,7 @@ internal class GameFrameFeed(
     }
 
     fun close() {
+        fromGamescope = false
         if (handle != 0L) HudFrames.nativeClose(handle)
         handle = 0L
     }
