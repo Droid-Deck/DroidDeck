@@ -685,6 +685,20 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
 
+      # Robolectric's Android jars (about 770 MB) from a DroidDeck-CI release instead of Maven Central, which
+      # answers the shared runners with HTTP 429. Robolectric makes no request for a jar already in ~/.m2.
+      # A new release is needed only when the Robolectric version changes.
+      - name: Robolectric Android jars
+        run: |
+          set -euo pipefail
+          base=https://github.com/Droid-Deck/DroidDeck-CI/releases/download/robolectric-4.16.1
+          dir=$HOME/.m2/repository/org/robolectric/android-all-instrumented
+          tmp=$(mktemp -d)
+          curl -fsSL --retry 3 -o "$tmp/SHA256SUMS" "$base/SHA256SUMS"
+          while read -r _ f; do curl -fsSL --retry 3 -o "$tmp/$f" "$base/$f"; done < "$tmp/SHA256SUMS"
+          (cd "$tmp" && sha256sum -c --quiet SHA256SUMS)
+          for f in "$tmp"/*.jar; do v=$(basename "$f" .jar); v=${v#android-all-instrumented-}; mkdir -p "$dir/$v"; mv "$f" "$dir/$v/"; done
+
       - name: Unit tests
         id: unit-tests
         env:
