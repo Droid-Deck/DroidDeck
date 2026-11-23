@@ -16,6 +16,8 @@ if [ -n "${DDNATV_ROOT:-}" ]; then
   exec 9>"$cache/.lock"
   flock 9
   for dir in "$cache"/*/; do
+    dir=${dir%/}
+    [ -L "$dir" ] && continue
     [ -f "$dir/source" ] && [ ! -e "$(head -n 1 "$dir/source")" ] && rm -rf -- "${dir:?}"
   done
   find "$cache" -mindepth 1 -maxdepth 1 -name '.unpack.*' -mmin +60 -exec rm -rf -- {} + 2>/dev/null

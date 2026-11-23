@@ -107,6 +107,19 @@ class AppImageExecTest(unittest.TestCase):
         self.assertFalse(old.exists())
         self.assertEqual(1, len(self.unpacked_dirs()))
 
+    def test_without_proot_a_linked_cache_entry_and_its_target_survive(self):
+        self.unpacker()
+        outside = self.dir / "outside"
+        outside.mkdir()
+        (outside / "source").write_text("%s\n" % (self.dir / "gone.AppImage"))
+        (outside / "keep").write_text("data")
+        link = self.cache / "droiddeck-appimage" / "linked"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(outside, target_is_directory=True)
+        self.assertEqual("apprun", self.native()[2])
+        self.assertTrue(link.is_symlink())
+        self.assertEqual("data", (outside / "keep").read_text())
+
     def test_without_proot_an_image_that_cannot_be_unpacked_runs_nothing(self):
         self.unpacker(works=False)
         out = self.native()
@@ -117,8 +130,8 @@ class AppImageExecTest(unittest.TestCase):
 
     def test_without_proot_an_x86_image_still_starts_under_fex(self):
         self.machine(62)
-        out = self.launch(DDNATV_ROOT=str(self.dir / "rootfs"), XDG_CACHE_HOME=str(self.dir / "cache"))
-        self.assertEqual(["TARGET= EXTRACT=1", "fex", "run", "--mode", "on", "--", str(self.image), "--no-gui"], out)
+        self.cache = self.dir / "cache"
+        self.assertEqual(["TARGET= EXTRACT=1", "fex", "run", "--mode", "on", "--", str(self.image), "--no-gui"], self.native())
 
     def test_the_session_starts_images_through_the_shared_launcher(self):
         script = ("set -u\n"
