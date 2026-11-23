@@ -80,6 +80,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -118,7 +119,10 @@ internal class CurseLink(val app: UserApps.App) {
     fun installed(context: Context, target: WowAddons.Target, key: Any): List<CurseForgeApp.Project> = CurseForgeApp.onDisk(
         synchronized(scanLock) {
             scans[target.addOns.path]?.takeIf { it.first == key }?.second
-                ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }.also { scans[target.addOns.path] = key to it }
+                ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }.also {
+                    scans[target.addOns.path] = key to it
+                    report(target, it)
+                }
         },
         target.addOns,
     )
@@ -190,6 +194,14 @@ internal class CurseLink(val app: UserApps.App) {
 
     companion object {
         private val current = AtomicReference<CurseLink?>()
+        private val reported = ConcurrentHashMap<String, List<CurseForgeApp.Project>>()
+
+        fun lastReported(target: WowAddons.Target): Map<String, String?> =
+            reported[target.addOns.path]?.let { CurseForgeApp.onDisk(it, target.addOns) }.orEmpty().associate { it.id to null }
+
+        internal fun report(target: WowAddons.Target, projects: List<CurseForgeApp.Project>) {
+            reported[target.addOns.path] = projects
+        }
 
         fun live(): CurseLink? = current.get()
     }
@@ -250,6 +262,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     val snapshot by produceState(presentKey to Present(), target.addOns, scanKey, curse, curseInstalls, curse == null && results.items.isEmpty()) {
         val into = target
         val key = curse to into.addOns
+        if (curse != null && link != null && value.first != key) value = key to withContext(Dispatchers.IO) { Present(curse = CurseLink.lastReported(into)) }
         value = key to withContext(Dispatchers.IO) {
             if (curse != null && link != null) Present(curse = runCatching {
                 link.installed(context, into, scanKey).associate { it.id to curseMark(it) }
