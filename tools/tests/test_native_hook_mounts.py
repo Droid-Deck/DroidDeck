@@ -12,6 +12,7 @@ PROBE = r"""
 #include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -20,6 +21,11 @@ int main(int argc, char **argv) {
   char cwd[4096];
   for (int i = 1; i < argc; i++) {
     struct stat st;
+    if (strncmp(argv[i], "env:", 4) == 0) {
+      const char *value = getenv(argv[i] + 4);
+      printf("%s\t%s\n", argv[i], value ? value : "-");
+      continue;
+    }
     if (strncmp(argv[i], "cd:", 3) == 0) {
       int ok = chdir(argv[i] + 3) == 0 && getcwd(cwd, sizeof(cwd)) != NULL;
       printf("%s\t%s\n", argv[i], ok ? cwd : "-");
@@ -120,7 +126,7 @@ class NativeHookMountTest(unittest.TestCase):
     def run_probe(self, *args):
         binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
         hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": binds, "LD_PRELOAD": str(self.hook)}
-        env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
+        env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "LOCPATH", "GCONV_PATH")}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
         else:
@@ -146,6 +152,11 @@ class NativeHookMountTest(unittest.TestCase):
     def test_guest_drive_link_is_unchanged(self):
         path = f"/pfx/guest/dosdevices/z:{GAME}/game.txt"
         self.assertEqual(self.run_probe(path)[path], ["1", "library"])
+
+    def test_glibc_locale_and_iconv_data_come_from_the_rootfs(self):
+        result = self.run_probe("env:LOCPATH", "env:GCONV_PATH")
+        self.assertEqual(result["env:LOCPATH"], [f"{self.root}/usr/lib/locale"])
+        self.assertEqual(result["env:GCONV_PATH"], [f"{self.root}/usr/lib/aarch64-linux-gnu/gconv"])
 
     def test_rootfs_paths_outside_mounts_are_unchanged(self):
         paths = ["/pfx/native/dosdevices/z:/etc/hostname", f"{self.root}/etc/hostname", "/etc/hostname"]

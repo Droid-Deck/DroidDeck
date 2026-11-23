@@ -84,6 +84,19 @@ static void init_ddnatv_hook(void) {
             setenv("TZDIR", tzdir_buf, 0);
         }
 
+        const char *curr_locpath = getenv("LOCPATH");
+        if (!curr_locpath || curr_locpath[0] == '\0') {
+            char locpath_buf[PATH_MAX];
+            snprintf(locpath_buf, sizeof(locpath_buf), "%s/usr/lib/locale", g_ddnatv_root);
+            setenv("LOCPATH", locpath_buf, 1);
+        }
+
+        if (!getenv("GCONV_PATH")) {
+            char gconv_buf[PATH_MAX];
+            snprintf(gconv_buf, sizeof(gconv_buf), "%s/usr/lib/aarch64-linux-gnu/gconv", g_ddnatv_root);
+            setenv("GCONV_PATH", gconv_buf, 0);
+        }
+
         const char *curr_cert = getenv("SSL_CERT_FILE");
         if (!curr_cert || curr_cert[0] == '\0' || strcmp(curr_cert, "/etc/ssl/certs/ca-certificates.crt") == 0) {
             char cert_buf[PATH_MAX];

@@ -1055,6 +1055,12 @@ class LaunchTest(FexTestCase):
         guest = FEX["guest_environment"]({"portable": True}, {"GLIBC_TUNABLES": "glibc.pthread.rseq=0"})
         self.assertNotIn("GLIBC_TUNABLES", guest)
 
+    def test_host_iconv_modules_stay_on_the_host(self):
+        guest = FEX["guest_environment"]({"portable": True}, {"GCONV_PATH": "/r/usr/lib/aarch64-linux-gnu/gconv"})
+        self.assertEqual(guest["GCONV_PATH"], "")
+        own = FEX["guest_environment"]({"portable": True}, {"GCONV_PATH": "/opt/gconv"})
+        self.assertEqual(own["GCONV_PATH"], "/opt/gconv")
+
     def test_proton_runs_in_the_runtime_its_manifest_requires(self):
         self.fex_tool()
         self.runtime()
