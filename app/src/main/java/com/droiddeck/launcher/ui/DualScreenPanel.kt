@@ -219,7 +219,8 @@ object DualScreenPanel {
         if (activity !== host) activity?.finishAndRemoveTask()
         activity = host
         launching = false
-        handoffHandler.post { releaseLaunches() }
+        val waiting = pendingLaunches
+        handoffHandler.post { if (pendingLaunches === waiting) releaseLaunches() }
         return true
     }
 
