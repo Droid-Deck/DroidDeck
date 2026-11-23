@@ -1720,6 +1720,9 @@ object SessionPrefs {
         return if (pip && mirrorRefreshLimit <= 0 && (limit <= 0 || limit > PIP_FPS)) PIP_FPS else limit
     }
 
+    fun gamescopeFrameLimit(noSteamSession: Boolean, sessionLimit: Int): Int? =
+        if (noSteamSession) sessionLimit.coerceAtLeast(0) else null
+
     val upscalerChoices = listOf(
         2 to "Nearest", 0 to "Linear", 4 to "AMD FSR 1", 3 to "Snapdragon GSR",
         8 to "Snapdragon GSR (quality)", 7 to "NVIDIA NIS", 6 to "Sharpen only",

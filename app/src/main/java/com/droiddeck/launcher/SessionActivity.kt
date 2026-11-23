@@ -122,6 +122,7 @@ import com.droiddeck.launcher.session.GameProfileFollowState
 import com.droiddeck.launcher.session.GameProfileInventoryCache
 import com.droiddeck.launcher.session.GameProfileRefreshState
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.GamescopeConvarSync
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionLogShare
@@ -351,13 +352,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var steamImportAnswered: String? = null
     private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)
     private var relativeMouseMode by mutableIntStateOf(0)
-    @Volatile private var appliedRelativeMouseMode: Int? = null
     private val agentReadyListener: () -> Unit = {
-        relativeMouseRetries = 0
-        requestRelativeMouse()
-        appliedOverlayPlanes = null
-        overlayPlanesRetries = 0
-        requestOverlayPlanes()
+        relativeMouse.restart()
+        overlayPlanes.applied = null
+        overlayPlanes.restart()
+        gamescopeFrameLimit.applied = null
+        gamescopeFrameLimit.restart()
     }
     private val appTextFocus get() = wowChat.request != null
     private val wowChat by lazy { com.droiddeck.launcher.ui.WowChat(this, ::sendWowChat, ::cancelWowChat, ::readGameField) }
@@ -1716,6 +1716,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 fpsLimit = fps
                 SessionPrefs.saveFpsLimit(this@SessionActivity, fpsLimitKey(), fps)
                 applyOutputPacing()
+                gamescopeFrameLimit.restart()
             },
             cornerTap = cornerTap,
             onCornerTap = { on -> SessionPrefs.setDrawerCornerTap(this@SessionActivity, on); cornerTap = on },
@@ -3930,21 +3931,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private val gamescopeConvarRequests = java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "gamescope-convar").apply { isDaemon = true }
     }
-    @Volatile private var desiredRelativeMouseMode = 0
+    private fun gamescopeConvar(name: String, applied: Int?, wanted: () -> Int?) = GamescopeConvarSync(
+        name, wanted,
+        execute = { runCatching { gamescopeConvarRequests.execute(it) } },
+        retryLater = { uiHandler.postDelayed(it, 2_000) },
+        set = { convar, value -> AgentGuest.setGamescopeConvar(this, convar, value) },
+        maxRetries = RELATIVE_MOUSE_MAX_RETRIES,
+        applied = applied,
+    )
 
-    @Volatile private var relativeMouseRetries = 0
+    @Volatile private var desiredRelativeMouseMode = 0
+    private val relativeMouse = gamescopeConvar("relative_mouse", null, ::relativeMouseConvar)
 
     private fun setRelativeMouse(mode: Int) {
         desiredRelativeMouseMode = mode
-        relativeMouseRetries = 0
-        requestRelativeMouse()
+        relativeMouse.restart()
     }
 
-    private fun requestRelativeMouse() {
-        runCatching { gamescopeConvarRequests.execute { applyRelativeMouse() } }
-    }
+    private fun requestRelativeMouse() = relativeMouse.request()
 
-    private fun applyRelativeMouse() {
+    private fun relativeMouseConvar(): Int {
         val wanted = desiredRelativeMouseMode
         val touchpadRoute = com.droiddeck.launcher.input.TouchRouter.decide(com.droiddeck.launcher.input.TouchRouter.Snapshot(
             uiBlocking = false,
@@ -3953,16 +3959,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             steamSession = SessionState.mode == SessionService.MODE_STEAM,
             steamDesktopUi = SessionState.steamUi == "desktop",
         )) == com.droiddeck.launcher.input.TouchRouter.Route.TOUCHPAD
-        val mode = com.droiddeck.launcher.input.TouchGestureConfig.gamescopeRelativeMouse(wanted, mouseAttached(), touchpadRoute)
-        if (appliedRelativeMouseMode == mode) return
-        if (AgentGuest.setGamescopeConvar(this, "relative_mouse", mode)) appliedRelativeMouseMode = mode
-        else if (relativeMouseRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestRelativeMouse() }, 2_000)
-        if (desiredRelativeMouseMode != wanted) requestRelativeMouse()
+        return com.droiddeck.launcher.input.TouchGestureConfig.gamescopeRelativeMouse(wanted, mouseAttached(), touchpadRoute)
     }
 
     @Volatile private var desiredOverlayPlanes = -1
-    @Volatile private var appliedOverlayPlanes: Int? = -1
-    @Volatile private var overlayPlanesRetries = 0
+    private val overlayPlanes = gamescopeConvar("wayland_overlay_planes", -1) { desiredOverlayPlanes }
+    private val gamescopeFrameLimit = gamescopeConvar("debug_set_fps_limit", null) {
+        SessionPrefs.gamescopeFrameLimit(noSteamSession(), SessionState.fpsLimit)
+    }
     @Volatile private var guestRefresh = 0
     @Volatile private var guestFrameRate = 0
     private var pacedFrameGenMode: FrameGen.Mode? = null
@@ -3991,20 +3995,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private val overlayPlanesListener = WaylandCompositor.OverlayPlanesListener { planes ->
         desiredOverlayPlanes = planes
-        overlayPlanesRetries = 0
-        requestOverlayPlanes()
-    }
-
-    private fun requestOverlayPlanes() {
-        runCatching { gamescopeConvarRequests.execute { applyOverlayPlanes() } }
-    }
-
-    private fun applyOverlayPlanes() {
-        val wanted = desiredOverlayPlanes
-        if (appliedOverlayPlanes == wanted) return
-        if (AgentGuest.setGamescopeConvar(this, "wayland_overlay_planes", wanted)) appliedOverlayPlanes = wanted
-        else if (overlayPlanesRetries++ < RELATIVE_MOUSE_MAX_RETRIES) uiHandler.postDelayed({ requestOverlayPlanes() }, 2_000)
-        if (desiredOverlayPlanes != wanted) requestOverlayPlanes()
+        overlayPlanes.restart()
     }
 
     private fun refreshGestureConfig() {
