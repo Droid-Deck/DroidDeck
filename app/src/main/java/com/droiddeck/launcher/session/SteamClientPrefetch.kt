@@ -56,7 +56,7 @@ object SteamClientPrefetch {
             val problem = runCatching { run(app, label) }.getOrElse { it.message ?: it.javaClass.simpleName }
             synchronized(lock) { process = null }
             if (problem == null && !pending(app)) Onboarding.finish(Onboarding.Step.STEAM)
-            else if (SessionState.running || problem == CANCELLED) Onboarding.finish(Onboarding.Step.STEAM)
+            else if (SessionState.running || problem == CANCELLED || isCancelled()) Onboarding.finish(Onboarding.Step.STEAM)
             else Onboarding.fail(Onboarding.Step.STEAM, problem ?: failedLabel)
             Onboarding.facts.value = Onboarding.facts.value.copy(steam = !pending(app))
         }, "steam-client-prefetch").also { it.start() }
