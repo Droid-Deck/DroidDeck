@@ -916,7 +916,6 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
             g_hud_shm = s;
             g_hud_shm_ns = now;
             g_hud_new = 1;
-            droiddeck_on_game_frame();
         }
     }
 }
