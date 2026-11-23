@@ -140,6 +140,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
+        onTextBounds = { words = it },
         background = {
             when {
                 games.isEmpty() -> EmptyLibrary(
@@ -160,13 +161,12 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
                     IntegrationSuggestion(s.integration, { a.onSteamIntegration(null) }, a.onDismissIntegration)
             }
             if (narrow) Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.onPlaced { words = it.boundsInParent() },
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Wordmark(30.dp)
                 runtimeStatus()
             } else Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.onPlaced { words = it.boundsInParent() },
             ) {
                 Wordmark(if (narrow) 30.dp else 40.dp)
                 runtimeStatus()
