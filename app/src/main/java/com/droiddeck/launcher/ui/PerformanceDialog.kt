@@ -2,6 +2,7 @@ package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,7 @@ fun PerformancePage(
     fsyncFirst: Boolean,
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
+    gameMode: String,
     prootNoSeccomp: Boolean,
     prootFastPath: Boolean,
     nativeUserland: Boolean,
@@ -65,6 +67,7 @@ fun PerformancePage(
     onFsyncFirst: (Boolean) -> Unit,
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
+    onGameMode: (String) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
     onNativeUserland: (Boolean) -> Unit,
@@ -126,6 +129,7 @@ fun PerformancePage(
             )
         }
         if (GpuClockPin.supported) GpuClockGroup(host, gpuClockPin, onChange = onGpuClockPin)
+        if (Build.VERSION.SDK_INT >= 31) GameModeGroup(host, gameMode, onChange = onGameMode)
         ShaderPrecompGroup(host, games)
         SettingsGroup(stringResource(R.string.perf_fixes)) {
             ToggleRow(
@@ -226,6 +230,23 @@ internal fun GpuClockGroup(host: MenuHost, on: Boolean, chipModifier: Modifier =
             host, "gpuclock", stringResource(R.string.perf_gpuclock),
             null,
             on, chipModifier = chipModifier, onChange = onChange,
+        )
+    }
+}
+
+@Composable
+internal fun GameModeGroup(host: MenuHost, mode: String, chipModifier: Modifier = Modifier, onChange: (String) -> Unit) {
+    SettingsGroup(stringResource(R.string.perf_game_mode_group)) {
+        ChoiceRow(
+            host, "gameMode", stringResource(R.string.perf_game_mode),
+            stringResource(R.string.perf_game_mode_hint),
+            listOf(
+                SessionPrefs.GAME_MODE_SYSTEM to stringResource(R.string.perf_game_mode_system),
+                SessionPrefs.GAME_MODE_BATTERY to stringResource(R.string.perf_game_mode_battery),
+                SessionPrefs.GAME_MODE_STANDARD to stringResource(R.string.perf_game_mode_standard),
+                SessionPrefs.GAME_MODE_PERFORMANCE to stringResource(R.string.perf_game_mode_performance),
+            ),
+            mode, chipModifier = chipModifier, onPick = onChange,
         )
     }
 }

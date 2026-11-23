@@ -656,6 +656,13 @@
     <string name="perf_gpu">GPU</string>
     <string name="perf_cap_off">Off</string>
     <string name="perf_gpuclock">Hold the GPU at its top clock</string>
+    <string name="perf_game_mode_group">Android</string>
+    <string name="perf_game_mode">Game mode</string>
+    <string name="perf_game_mode_hint">Applied to DroidDeck when a session starts, over the saved Wireless debugging pairing. Some modes also change the render resolution.</string>
+    <string name="perf_game_mode_system">System default</string>
+    <string name="perf_game_mode_battery">Battery</string>
+    <string name="perf_game_mode_standard">Standard</string>
+    <string name="perf_game_mode_performance">Performance</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Applies to the Steam client and games. Required on Adreno 710/720/722.</string>
