@@ -58,6 +58,139 @@ int main(void) {
 '''
 
 
+POOL_HARNESS = r'''
+#define _GNU_SOURCE
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/types.h>
+
+#define FOURCC(a, b, c, d) ((uint32_t)(a) | ((uint32_t)(b) << 8) | ((uint32_t)(c) << 16) | ((uint32_t)(d) << 24))
+#define DRM_ABGR8888 FOURCC('A', 'B', '2', '4')
+#define DRM_ABGR2101010 FOURCC('A', 'B', '3', '0')
+#define AHB_RGBA8 1u
+#define AHB_RGB10A2 0x2bu
+#define MOD_LINEAR 0ULL
+#define MOD_QCOM_COMPRESSED 0x0500000000000001ULL
+#define SC_MOD_GRALLOC (~0ULL - 1)
+#define SC_LAYER_AHB_USAGE_VENDOR_UBWC (1ULL << 28)
+#define AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT (1ULL << 9)
+#define AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE (1ULL << 8)
+#define AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY (1ULL << 11)
+#define AHARDWAREBUFFER_USAGE_CPU_READ_RARELY 2ULL
+
+typedef struct AHardwareBuffer AHardwareBuffer;
+typedef struct {
+    uint32_t width, height, layers, format;
+    uint64_t usage;
+    uint32_t stride, rfu0;
+    uint64_t rfu1;
+} AHardwareBuffer_Desc;
+struct droiddeck_native_handle { int version; int numFds; int numInts; int data[4]; };
+struct vkp_image { int unused; };
+struct slot { AHardwareBuffer *ahb; struct vkp_image *img; int w, h; uint32_t fmt; int release_fd; int busy; };
+struct layer {
+    const char *name;
+    int pool_n;
+    int alloc_tier;
+    unsigned import_failed_fmts;
+    uint64_t pool_modifier;
+    int logged_w, logged_h, logged_tier;
+    uint32_t logged_fmt;
+    uint64_t logged_mod;
+};
+
+enum { TIER_UBWC, TIER_PLAIN, TIER_LINEAR };
+static int g_alloc_failed;
+static uint32_t g_hdr_pool_fmt = AHB_RGB10A2;
+
+static struct droiddeck_native_handle handle = {.numFds = 1, .data = {3}};
+static AHardwareBuffer *buffer = (AHardwareBuffer *)&handle;
+static struct vkp_image image;
+static int allocations, imports_10_bit, imports_8_bit, accept_10_bit, accept_8_bit;
+
+static int AHardwareBuffer_allocate(const AHardwareBuffer_Desc *d, AHardwareBuffer **out) {
+    (void)d; allocations++; *out = buffer; return 0;
+}
+static void AHardwareBuffer_describe(const AHardwareBuffer *b, AHardwareBuffer_Desc *d) {
+    (void)b; d->stride = 1920; d->usage = 0;
+}
+static void AHardwareBuffer_release(AHardwareBuffer *b) { (void)b; }
+static const void *native_handle(const AHardwareBuffer *b) { (void)b; return &handle; }
+static struct { const void *(*getNativeHandle)(const AHardwareBuffer *); } api = {native_handle};
+static int sniff_modifier(const struct droiddeck_native_handle *h, uint64_t *mod) { (void)h; (void)mod; return 0; }
+static int vkp_can_import_ahb(void) { return 0; }
+static struct vkp_image *vkp_image_import_ahb(AHardwareBuffer *b, char *info, size_t n) {
+    (void)b; (void)info; (void)n; return NULL;
+}
+static struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm, uint64_t mod, int w, int h, uint32_t pitch,
+                                                 uint32_t offset, int planes) {
+    (void)fd; (void)mod; (void)w; (void)h; (void)pitch; (void)offset; (void)planes;
+    if (drm == DRM_ABGR2101010) { imports_10_bit++; return accept_10_bit ? &image : NULL; }
+    imports_8_bit++;
+    return accept_8_bit ? &image : NULL;
+}
+static int handle_fd(const struct droiddeck_native_handle *h, off_t need, int *which) {
+    (void)need; *which = 0; return h->data[0];
+}
+static void describe_handle(const struct droiddeck_native_handle *h, char *out, size_t n) { (void)h; snprintf(out, n, "-"); }
+static const char *pool_kind(uint64_t mod) { return mod == SC_MOD_GRALLOC ? "gralloc-laid-out" : "linear"; }
+static void droiddeck_log(const char *tag, const char *fmt, ...) { (void)tag; (void)fmt; }
+
+%(tier_name)s
+%(alloc_slot)s
+
+static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait_fd) {
+    struct slot s = {0};
+    *wait_fd = -1;
+    g_alloc_failed = 0;
+    return alloc_slot(l, &s, w, h, fmt) == 0 ? 0 : -1;
+}
+
+%(take_hdr_slot)s
+
+static int frame(struct layer *l) {
+    int fd;
+    return take_hdr_slot(l, 1920, 1080, &fd);
+}
+
+static void reset(int ten, int eight) {
+    g_hdr_pool_fmt = AHB_RGB10A2;
+    allocations = imports_10_bit = imports_8_bit = 0;
+    accept_10_bit = ten;
+    accept_8_bit = eight;
+}
+
+int main(void) {
+    struct layer ten_bit_refused = {.name = "game", .pool_n = 3};
+    reset(0, 1);
+    assert(frame(&ten_bit_refused) == 0);
+    assert(g_hdr_pool_fmt == AHB_RGBA8);
+    assert(imports_10_bit == 1 && imports_8_bit == 1);
+    assert(ten_bit_refused.alloc_tier == TIER_LINEAR);
+    assert(frame(&ten_bit_refused) == 0);
+    assert(imports_10_bit == 1 && imports_8_bit == 2);
+
+    struct layer ten_bit_works = {.name = "game", .pool_n = 3};
+    reset(1, 1);
+    assert(frame(&ten_bit_works) == 0);
+    assert(g_hdr_pool_fmt == AHB_RGB10A2);
+    assert(imports_10_bit == 1 && imports_8_bit == 0);
+
+    struct layer nothing_imports = {.name = "game", .pool_n = 3};
+    reset(0, 0);
+    assert(frame(&nothing_imports) == -1 && g_alloc_failed);
+    assert(imports_10_bit == 1 && imports_8_bit == 1);
+    const int tried = allocations;
+    assert(frame(&nothing_imports) == -1 && g_alloc_failed);
+    assert(frame(&nothing_imports) == -1 && g_alloc_failed);
+    assert(allocations == tried);
+    assert(imports_10_bit == 1 && imports_8_bit == 1);
+    return 0;
+}
+'''
+
 class LayerAhbImportTest(unittest.TestCase):
     def test_only_the_system_driver_imports_gralloc_layouts(self):
         compiler = shutil.which(os.environ.get("CC", "cc"))
@@ -74,14 +207,21 @@ class LayerAhbImportTest(unittest.TestCase):
             ran = subprocess.run([str(program)], capture_output=True, text=True, timeout=30)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
 
-    def test_pool_import_failure_on_the_last_tier_is_not_retried_every_frame(self):
-        body = function((SRC / "sc_layer.c").read_text(), "alloc_slot")
-        failure = body[body.index("if (!img) {"):]
-        failure = failure[:failure.index("s->ahb = ahb;")]
-        self.assertRegex(failure, r"l->alloc_tier = tier \+ 1;\s*if \(tier < TIER_LINEAR\) continue;\s*"
-                                  r"g_alloc_failed = 1;\s*return -1;")
-        self.assertIn("while (l->alloc_tier <= TIER_LINEAR)", body)
-
+    def test_a_failed_10_bit_pool_still_falls_back_to_8_bit_and_failures_are_latched_per_format(self):
+        compiler = shutil.which(os.environ.get("CC", "cc"))
+        if not compiler:
+            self.fail("A C compiler is required for the layer pool fallback test")
+        text = (SRC / "sc_layer.c").read_text()
+        functions = {name: function(text, name) for name in ("tier_name", "alloc_slot", "take_hdr_slot")}
+        with tempfile.TemporaryDirectory(prefix="droiddeck-layer-pool-") as tmp:
+            source = Path(tmp) / "layer_pool_fallback_test.c"
+            source.write_text(POOL_HARNESS % functions)
+            program = Path(tmp) / "layer-pool-fallback"
+            built = subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter",
+                                    "-UNDEBUG", str(source), "-o", str(program)], capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            ran = subprocess.run([str(program)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
 
 if __name__ == "__main__":
     unittest.main()
