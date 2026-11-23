@@ -105,6 +105,7 @@ class CiChecksTest(unittest.TestCase):
             self.assertIn('install -y -q --no-install-recommends qemu-user', install)
 
             log.unlink()
+            mirrors.unlink()
             release = root / 'os-release'
             release.write_text('ID=ubuntu\n')
             absent = dict(env, UBUNTU_SOURCES_FILE=str(root / 'missing.sources'), APT_RESULT='17',
