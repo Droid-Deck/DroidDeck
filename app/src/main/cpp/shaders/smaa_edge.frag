@@ -25,5 +25,5 @@ void main() {
 
     // Store directional edge strengths for the weight pass.
     outColor = vec4(abs(center - left), abs(center - right),
-                    abs(center - up), abs(center - down));
+                    abs(center - up), 0.0);
 }

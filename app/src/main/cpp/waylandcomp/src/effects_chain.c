@@ -113,10 +113,6 @@ static int effect_count(const struct fx_settings *s) {
     return (s->aa_mode != 0) + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + deband_active(s);
 }
 
-static int effect_pass_count(const struct fx_settings *s) {
-    int aa_passes = s->aa_mode == 2 ? 3 : (s->aa_mode == 1 ? 1 : 0);
-    return aa_passes + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + deband_active(s);
-}
 
 static void log_settings(const struct fx_settings *s) {
     char line[400];
@@ -556,11 +552,11 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     const int nfx = effect_count(s);
     const int resize = cw != scene_w || ch != scene_h;
     const int fuse_toon_color = s->toon && s->color_on && g_fx_fmt == FX_FORMAT;
-    const int npasses = ((spatial || resize) ? 1 : 0) +
-        effect_pass_count(s) - (fuse_toon_color ? 1 : 0);
+    const int chain_passes = ((spatial || resize) ? 1 : 0) +
+        effect_count(s) - (fuse_toon_color ? 1 : 0);
 
     if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
-        target_ensure(&g_t[0], cw, ch, FX_TARGET_USAGE, "chain") == 0 && (npasses < 2 || target_ensure(&g_t[1], cw, ch, FX_TARGET_USAGE, "chain") == 0) &&
+        target_ensure(&g_t[0], cw, ch, FX_TARGET_USAGE, "chain") == 0 && (chain_passes < 2 || target_ensure(&g_t[1], cw, ch, FX_TARGET_USAGE, "chain") == 0) &&
         (s->aa_mode != 2 || (target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "SMAA edges") == 0 &&
                              target_ensure(&g_smaa_weights, cw, ch, FX_SCRATCH_USAGE, "SMAA weights") == 0)) &&
         (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "EASU") == 0)) {
