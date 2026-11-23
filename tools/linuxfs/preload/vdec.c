@@ -615,12 +615,167 @@ static int vd_querybuf(struct vdec *v, struct v4l2_buffer *b) {
     return 0;
 }
 
+struct vd_bits {
+    const uint8_t *data;
+    size_t size, pos;
+};
+
+static uint32_t vd_get_bits(struct vd_bits *b, unsigned count) {
+    uint32_t value = 0;
+    while (count--) {
+        size_t byte = b->pos >> 3;
+        value = value << 1 | (byte < b->size ? (b->data[byte] >> (7 - (b->pos & 7))) & 1u : 0u);
+        b->pos++;
+    }
+    return value;
+}
+
+static uint32_t vd_get_ue(struct vd_bits *b) {
+    unsigned zeros = 0;
+    while (zeros < 32 && vd_get_bits(b, 1) == 0 && (b->pos >> 3) < b->size) zeros++;
+    if (zeros >= 32) return 0;
+    return ((1u << zeros) - 1) + (zeros ? vd_get_bits(b, zeros) : 0);
+}
+
+static int32_t vd_get_se(struct vd_bits *b) {
+    uint32_t k = vd_get_ue(b);
+    return (k & 1) ? (int32_t)((k + 1) / 2) : -(int32_t)(k / 2);
+}
+
+static void vd_skip_scaling_list(struct vd_bits *b, unsigned size) {
+    int32_t last = 8, next = 8;
+    for (unsigned i = 0; i < size; i++) {
+        if (next != 0) next = (last + vd_get_se(b) + 256) % 256;
+        last = next == 0 ? last : next;
+    }
+}
+
+/* The coded size an H.264 SPS announces, rounded up to whole macroblocks, as a V4L2 decoder reports it. */
+static int vd_parse_sps_h264(const uint8_t *rbsp, size_t size, uint32_t *width, uint32_t *height) {
+    uint8_t buf[512];
+    size_t n = 0;
+    for (size_t i = 0; i < size && n < sizeof buf; i++) {
+        if (i >= 2 && rbsp[i] == 3 && rbsp[i - 1] == 0 && rbsp[i - 2] == 0) continue;
+        buf[n++] = rbsp[i];
+    }
+    struct vd_bits b = { buf, n, 0 };
+    uint32_t profile = vd_get_bits(&b, 8);
+    vd_get_bits(&b, 16);
+    vd_get_ue(&b);
+    uint32_t chroma = 1;
+    if (profile == 100 || profile == 110 || profile == 122 || profile == 244 || profile == 44 || profile == 83 ||
+        profile == 86 || profile == 118 || profile == 128 || profile == 138 || profile == 139 || profile == 134 || profile == 135) {
+        chroma = vd_get_ue(&b);
+        if (chroma == 3) vd_get_bits(&b, 1);
+        vd_get_ue(&b);
+        vd_get_ue(&b);
+        vd_get_bits(&b, 1);
+        if (vd_get_bits(&b, 1)) {
+            for (unsigned i = 0; i < (chroma != 3 ? 8u : 12u); i++)
+                if (vd_get_bits(&b, 1)) vd_skip_scaling_list(&b, i < 6 ? 16 : 64);
+        }
+    }
+    vd_get_ue(&b);
+    uint32_t poc = vd_get_ue(&b);
+    if (poc == 0) {
+        vd_get_ue(&b);
+    } else if (poc == 1) {
+        vd_get_bits(&b, 1);
+        vd_get_se(&b);
+        vd_get_se(&b);
+        uint32_t cycle = vd_get_ue(&b);
+        for (uint32_t i = 0; i < cycle && i < 256; i++) vd_get_se(&b);
+    }
+    vd_get_ue(&b);
+    vd_get_bits(&b, 1);
+    uint32_t mbs_wide = vd_get_ue(&b) + 1, map_units_high = vd_get_ue(&b) + 1;
+    if (b.pos > b.size * 8 || mbs_wide > 1024 || map_units_high > 1024) return -1;
+    uint32_t frame_mbs_only = vd_get_bits(&b, 1);
+    *width = mbs_wide * 16;
+    *height = map_units_high * 16 * (2 - frame_mbs_only);
+    return 0;
+}
+
+/* Finds the first SPS in an Annex B access unit; returns its size in the stream through the out parameters. */
+static int vd_stream_size_h264(const uint8_t *data, size_t size, uint32_t *width, uint32_t *height) {
+    for (size_t i = 0; i + 4 < size; i++) {
+        if (data[i] != 0 || data[i + 1] != 0 || data[i + 2] != 1 || (data[i + 3] & 0x1f) != 7) continue;
+        size_t start = i + 4, end = start;
+        while (end + 2 < size && !(data[end] == 0 && data[end + 1] == 0 && (data[end + 2] == 1 || data[end + 2] == 0))) end++;
+        if (end + 2 >= size) end = size;
+        return vd_parse_sps_h264(data + start, end - start, width, height);
+    }
+    return -1;
+}
+
+/* The same for an H.265 SPS: the luma size in samples, rounded up to 16 as the client asks for it. */
+static int vd_parse_sps_h265(const uint8_t *rbsp, size_t size, uint32_t *width, uint32_t *height) {
+    uint8_t buf[512];
+    size_t n = 0;
+    for (size_t i = 0; i < size && n < sizeof buf; i++) {
+        if (i >= 2 && rbsp[i] == 3 && rbsp[i - 1] == 0 && rbsp[i - 2] == 0) continue;
+        buf[n++] = rbsp[i];
+    }
+    struct vd_bits b = { buf, n, 0 };
+    vd_get_bits(&b, 4);
+    uint32_t sub_layers = vd_get_bits(&b, 3);
+    vd_get_bits(&b, 1);
+    for (unsigned i = 0; i < 88; i += 8) vd_get_bits(&b, 8);
+    vd_get_bits(&b, 8);
+    uint32_t profile_present = 0, level_present = 0;
+    for (uint32_t i = 0; i < sub_layers && i < 8; i++) {
+        profile_present |= vd_get_bits(&b, 1) << i;
+        level_present |= vd_get_bits(&b, 1) << i;
+    }
+    if (sub_layers > 0) for (uint32_t i = sub_layers; i < 8; i++) vd_get_bits(&b, 2);
+    for (uint32_t i = 0; i < sub_layers && i < 8; i++) {
+        if (profile_present >> i & 1) for (unsigned k = 0; k < 88; k += 8) vd_get_bits(&b, 8);
+        if (level_present >> i & 1) vd_get_bits(&b, 8);
+    }
+    vd_get_ue(&b);
+    if (vd_get_ue(&b) == 3) vd_get_bits(&b, 1);
+    uint32_t w = vd_get_ue(&b), h = vd_get_ue(&b);
+    if (b.pos > b.size * 8 || w < 16 || h < 16 || w > 16384 || h > 16384) return -1;
+    *width = (w + 15) & ~15u;
+    *height = (h + 15) & ~15u;
+    return 0;
+}
+
+static int vd_stream_size_h265(const uint8_t *data, size_t size, uint32_t *width, uint32_t *height) {
+    for (size_t i = 0; i + 5 < size; i++) {
+        if (data[i] != 0 || data[i + 1] != 0 || data[i + 2] != 1 || ((data[i + 3] >> 1) & 0x3f) != 33) continue;
+        size_t start = i + 5, end = start;
+        while (end + 2 < size && !(data[end] == 0 && data[end + 1] == 0 && (data[end + 2] == 1 || data[end + 2] == 0))) end++;
+        if (end + 2 >= size) end = size;
+        return vd_parse_sps_h265(data + start, end - start, width, height);
+    }
+    return -1;
+}
+
+/*
+ * A stream can change its picture size without telling the client: the host switches games or the window
+ * becomes fullscreen. A V4L2 decoder reports the new size through the format of its bitstream queue, which
+ * the client polls; the capture buffers it already allocated stay at the old size until it reconfigures.
+ */
+static int vd_follow_stream_size(struct vdec *v, const uint8_t *data, size_t size) {
+    uint32_t width, height;
+    int found = v->fourcc == V4L2_PIX_FMT_HEVC ? vd_stream_size_h265(data, size, &width, &height)
+                                               : vd_stream_size_h264(data, size, &width, &height);
+    if (found != 0) return 0;
+    if (width == v->width && height == v->height) return 0;
+    vd_log("the stream is now %ux%u, was %ux%u", width, height, v->width, v->height);
+    v->width = width;
+    v->height = height;
+    return 1;
+}
+
 static int vd_qbuf(struct vdec *v, struct v4l2_buffer *b) {
     if (b->m.planes == NULL || b->length < 1) return -EINVAL;
     if (b->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
         if (b->index >= v->out_count || v->n_out_done >= VDEC_BUFFERS) return -EINVAL;
         uint32_t bytes = b->m.planes[0].bytesused;
         if (bytes > VDEC_BITSTREAM_SIZE) bytes = VDEC_BITSTREAM_SIZE;
+        if (v->out_on && v->bitstream && bytes) vd_follow_stream_size(v, v->bitstream + (size_t)b->index * VDEC_BITSTREAM_SIZE, bytes);
         if (v->out_on && bytes) vd_decode(v, b->index, bytes, b->timestamp);
         v->out_done[v->n_out_done++] = b->index;
     } else if (b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
