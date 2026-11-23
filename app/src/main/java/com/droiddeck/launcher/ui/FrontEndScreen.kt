@@ -143,6 +143,7 @@ class FrontEndState(
     val integrationFocus: com.droiddeck.launcher.core.SteamIntegration.Feature? = null,
     val androidApps: List<HomeApp.LaunchableApp> = emptyList(),
     val secondScreenDisplays: List<SecondScreenDisplay> = emptyList(),
+    val ownScreen: SecondScreenDisplay? = null,
     val dualScreen: Boolean = false,
     val dualScreenDevice: Boolean = false,
     val dualScreenMode: String = com.droiddeck.launcher.input.DualScreen.MODE_AUTO,
@@ -802,7 +803,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     },
                     { selected = it },
                     onAndroidAppClick = { app ->
-                        if (s.secondScreenDisplays.isEmpty()) a.onAndroidApp(app, null)
+                        if (s.secondScreenDisplays.isEmpty() && s.ownScreen == null) a.onAndroidApp(app, null)
                         else appToChooseDisplay = app
                     },
                     onOpenDeveloperOptions = requestChildProcessToggle,
@@ -823,7 +824,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         SessionDrawerPreview(s.secondScreenDisplays)
 
         appToChooseDisplay?.let { app ->
-            val secondaryDisplay = s.secondScreenDisplays.firstOrNull()
+            val secondaryDisplay = s.secondScreenDisplays.firstOrNull() ?: s.ownScreen
             ChooseAppDisplayDialog(
                 app = app,
                 secondaryDisplay = secondaryDisplay,

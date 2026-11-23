@@ -707,6 +707,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
     }
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
+    private var ownScreen by mutableStateOf<SecondScreenDisplay?>(null)
     private var dualDisplayId by mutableStateOf(-1)
     private var dualScreenDevice by mutableStateOf(false)
     private var dualScreenMode by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
@@ -1345,6 +1346,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         integrationFocus = integrationFocus,
                         androidApps = androidApps,
                         secondScreenDisplays = secondScreenDisplays,
+                        ownScreen = ownScreen,
                         dualScreen = dualDisplayId >= 0 && com.droiddeck.launcher.ui.DualScreenPanel.available,
                         dualScreenDevice = dualScreenDevice,
                         dualScreenMode = dualScreenMode,
@@ -2308,6 +2310,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val ownDisplayId = if (android.os.Build.VERSION.SDK_INT >= 30) display?.displayId ?: android.view.Display.DEFAULT_DISPLAY else @Suppress("DEPRECATION") windowManager.defaultDisplay.displayId
         dualScreenMode = SessionPrefs.dualScreenMode(this)
         secondScreenDisplays = SecondScreenDisplays.available(displayManager, ownDisplayId)
+        ownScreen = ownDisplayId.takeIf { it != Display.DEFAULT_DISPLAY }?.let { id ->
+            displayManager.getDisplay(id)?.takeIf { it.isValid }?.let { SecondScreenDisplay(id, "${it.name} · ${it.mode.physicalWidth}×${it.mode.physicalHeight}") }
+        }
         dualScreenDevice = com.droiddeck.launcher.input.DualScreen.anyDisplay(displayManager, ownDisplayId) != null
         dualScreenSessions = SessionPrefs.dualScreenSessionMode(this)
         dualScreenControls = SessionPrefs.dualScreenSessionControls(this)
