@@ -194,12 +194,19 @@ object ShaderPrecompManager {
         SessionPrefs.steamRoot(context, "x86_64"),
     ).distinctBy { it.path }
 
+    private fun replayVenusSocket(context: Context): File = File(File(context.filesDir, "venus"), "vtest-replay.sock")
+
     private fun shaderDirsForGame(context: Context, key: String): List<File> {
-        val libs = (Library.steamLibraries(context, "arm64").map { it.first } +
-            Library.steamLibraries(context, "x86_64").map { it.first } +
-            steamRoots(context)).distinctBy { it.path }
+        val arm64Libs = Library.steamLibraries(context, "arm64").map { it.first }
+        val x64Libs = Library.steamLibraries(context, "x86_64").map { it.first }
+        val roots = steamRoots(context)
+        val libs = (arm64Libs + x64Libs + roots).distinctBy { it.path }
         val storeRoots = com.droiddeck.launcher.stores.StoreInstallRoot.externalRoots(context).map { it.first }
-        val secondary = libs.drop(1).mapNotNull { runCatching { it.canonicalPath }.getOrNull() }.toSet()
+        fun canonical(file: File): String? = runCatching { file.canonicalPath }.getOrNull()
+        val internal = listOfNotNull(arm64Libs.firstOrNull(), x64Libs.firstOrNull(), roots.firstOrNull())
+            .mapNotNull(::canonical).toSet()
+        val secondary = (arm64Libs.drop(1) + x64Libs.drop(1) + roots.drop(1))
+            .mapNotNull(::canonical).toSet() - internal
         fun shaderCacheRoot(lib: File): File {
             val canonical = runCatching { lib.canonicalPath }.getOrNull()
             val root = if (canonical != null && canonical in secondary) SecondaryLibrary.privateRoot(context.filesDir, lib) else lib
@@ -300,7 +307,7 @@ object ShaderPrecompManager {
         val venus = VenusComponent.wanted(context)
         val bridge = DeviceSupport.vkBridge(context)
         if (venus) {
-            VenusComponent.guestEnv(context).forEach { entry ->
+            VenusComponent.guestEnv(context, replayVenusSocket(context)).forEach { entry ->
                 val split = entry.indexOf('=')
                 if (split > 0) env[entry.substring(0, split)] = entry.substring(split + 1)
             }
@@ -359,7 +366,10 @@ object ShaderPrecompManager {
             block()
             return
         }
-        val component = VenusComponent(File(LinuxRuntime.logDir(context), "shader-precomp-venus.log"))
+        val component = VenusComponent(
+            File(LinuxRuntime.logDir(context), "shader-precomp-venus.log"),
+            replayVenusSocket(context),
+        )
         component.attach(context)
         try {
             component.start()
