@@ -12,9 +12,9 @@ layout(push_constant) uniform Constants {
 
 vec4 edgeAt(vec2 uv, vec2 px) {
     vec2 edgeUV = clamp(uv, px * 0.5, vec2(1.0) - px * 0.5);
-    vec4 e = texture(EdgeTexture, edgeUV);
+    vec4 e = textureLod(EdgeTexture, edgeUV, 0.0);
     e.a = edgeUV.y >= 1.0 - px.y
-        ? 0.0 : texture(EdgeTexture, edgeUV + vec2(0.0, px.y)).b;
+        ? 0.0 : textureLod(EdgeTexture, edgeUV + vec2(0.0, px.y), 0.0).b;
     return e;
 }
 
@@ -33,8 +33,10 @@ float measureRun(vec2 origin, vec2 texel, vec2 tangent,
     float run = 0.0;
     for (int i = 1; i <= 6; ++i) {
         vec2 probe = origin + tangent * float(i) * (positive ? 1.0 : -1.0);
-        if (any(lessThan(probe, texel * 0.5)) ||
-            any(greaterThan(probe, vec2(1.0) - texel * 0.5))) {
+        ivec2 index = ivec2(floor(probe * pc.resolution));
+        ivec2 size = ivec2(pc.resolution);
+        if (any(lessThan(index, ivec2(0))) ||
+            any(greaterThanEqual(index, size))) {
             break;
         }
         float edge = verticalLine
@@ -68,8 +70,9 @@ void main() {
     }
 
     bool verticalLine;
-    float negativeRun;
-    float positiveRun;
+    float negativeRun = 0.0;
+    float positiveRun = 0.0;
+    bool runsMeasured = false;
 
     if (vertical > horizontal) {
         verticalLine = true;
@@ -81,6 +84,9 @@ void main() {
         float hNeg = measureRun(uv, px, vec2(px.x, 0.0), false, threshold, false);
         float hPos = measureRun(uv, px, vec2(px.x, 0.0), false, threshold, true);
         verticalLine = (vNeg + vPos) >= (hNeg + hPos);
+        negativeRun = verticalLine ? vNeg : hNeg;
+        positiveRun = verticalLine ? vPos : hPos;
+        runsMeasured = true;
     }
 
     vec2 tangent = verticalLine ? vec2(0.0, px.y) : vec2(px.x, 0.0);
@@ -88,8 +94,10 @@ void main() {
         ? vec2(dL >= dR ? -1.0 : 1.0, 0.0)
         : vec2(0.0, dU >= dD ? -1.0 : 1.0);
 
-    negativeRun = measureRun(uv, px, tangent, verticalLine, threshold, false);
-    positiveRun = measureRun(uv, px, tangent, verticalLine, threshold, true);
+    if (!runsMeasured) {
+        negativeRun = measureRun(uv, px, tangent, verticalLine, threshold, false);
+        positiveRun = measureRun(uv, px, tangent, verticalLine, threshold, true);
+    }
 
     float span = negativeRun + positiveRun;
     float edgeConfidence = smoothstep(threshold, threshold * 2.5, strongest);
@@ -111,8 +119,10 @@ void main() {
     float crossingPattern = smoothstep(threshold, threshold * 2.5, crossingContrast);
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
     float diagonalContrast = max(
-        max(abs(nw.r - se.r), abs(nw.g - se.g)),
-        max(abs(ne.r - sw.r), abs(ne.g - sw.g)));
+        max(max(abs(nw.r - se.r), abs(nw.g - se.g)),
+            max(abs(nw.b - se.b), abs(nw.a - se.a))),
+        max(max(abs(ne.r - sw.r), abs(ne.g - sw.g)),
+            max(abs(ne.b - sw.b), abs(ne.a - sw.a))));
     float cornerFactor = 1.0 - 0.35 * smoothstep(threshold, threshold * 3.0, diagonalContrast);
     float baseWeight = areaWeight * endpointArea * edgeConfidence * cornerFactor;
 
