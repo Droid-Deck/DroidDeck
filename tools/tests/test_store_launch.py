@@ -520,6 +520,15 @@ class SteamEa(unittest.TestCase):
             self.assertEqual('Titanfall 2', manifest['title'])
             self.assertEqual(['Origin.OFR.50.0001452', 'Origin.OFR.50.0001456'], store.steam_ea_offers(folder))
 
+    def test_offer_names_are_normalized_to_the_canonical_prefix(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder, _ = self.steam_copy(root)
+            for old in folder.glob('__Installer/LOC/*.dat'):
+                old.unlink()
+            (folder / '__Installer/LOC/origin.ofr.50.0001456.DAT').write_text('')
+            (folder / '__Installer/LOC/ORIGIN.OFR.50.0001452.dat').write_text('')
+            self.assertEqual(['Origin.OFR.50.0001452', 'Origin.OFR.50.0001456'], store.steam_ea_offers(folder))
+
     def test_a_steam_ea_launch_gets_a_session_and_a_launcher_that_reads_it_once(self):
         with tempfile.TemporaryDirectory() as root:
             folder, data = self.steam_copy(root)
