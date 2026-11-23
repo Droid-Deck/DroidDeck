@@ -1399,6 +1399,8 @@ private fun DrawerResizeHandle(width: Dp, min: Dp, max: Dp, onWidth: (Dp) -> Uni
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     var last = (coords?.positionInRoot()?.x ?: 0f) + down.position.x
+                    // Several moves can arrive before the sheet recomposes, so the width is accumulated here.
+                    var live = current
                     dragging = true
                     do {
                         val event = awaitPointerEvent()
@@ -1406,7 +1408,10 @@ private fun DrawerResizeHandle(width: Dp, min: Dp, max: Dp, onWidth: (Dp) -> Uni
                         val x = (coords?.positionInRoot()?.x ?: 0f) + pointer.position.x
                         val delta = with(density) { (x - last).toDp() }
                         last = x
-                        if (delta != 0.dp) change((current - delta).coerceIn(min, max))
+                        if (delta != 0.dp) {
+                            live = (live - delta).coerceIn(min, max)
+                            change(live)
+                        }
                         pointer.consume()
                     } while (event.changes.any { it.pressed })
                     dragging = false
