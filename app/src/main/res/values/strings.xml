@@ -4410,4 +4410,8 @@
     <string name="onboarding_steam_downloading">Downloading the Steam client</string>
     <string name="onboarding_steam_downloading_mb">Downloading the Steam client (%1$d MB)</string>
     <string name="onboarding_steam_failed">The Steam client download will retry</string>
+    <string name="onboarding_bluetooth_title">Bluetooth controllers</string>
+    <string name="onboarding_bluetooth_reason">Lets DroidDeck connect to Steam Controllers and other Bluetooth pads. Skip it if you only use built-in controls.</string>
+    <string name="onboarding_bluetooth_allow">Allow</string>
+    <string name="onboarding_bluetooth_skip">Not now</string>
 </resources>
