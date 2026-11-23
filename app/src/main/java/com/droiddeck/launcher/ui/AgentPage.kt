@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
@@ -229,9 +230,12 @@ private fun AgentPageContent(
     val topBar: @Composable () -> Unit = { AgentTopBar(panel, togglePanel, inputModifier, menu) }
     val inlineControls: (@Composable () -> Unit)? = if (inline) ({
         // The open menu needs the row's width for its own buttons.
-        if (!menuOpen) {
-            ModelChip(panel, togglePanel, inputModifier, compact = true)
-            ContextRing("agent-usage", onClick = { togglePanel(AgentPanel.USAGE) })
+        androidx.compose.animation.AnimatedVisibility(!menuOpen, enter = expandHorizontally(expandFrom = Alignment.Start) + fadeIn(),
+            exit = shrinkHorizontally(shrinkTowards = Alignment.Start) + fadeOut()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ModelChip(panel, togglePanel, inputModifier, compact = true)
+                ContextRing("agent-usage", onClick = { togglePanel(AgentPanel.USAGE) })
+            }
         }
         menu()
     }) else null
@@ -806,7 +810,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     var focused by remember { mutableStateOf(false) }
     val field = remember { FocusRequester() }
     LaunchedEffect(composer.focusRequests) { if (composer.hasUnconsumedFocusRequest()) runCatching { field.requestFocus() } }
-    val attach = LocalActivityResultRegistryOwner.current != null && !hideAttach
+    val attach = LocalActivityResultRegistryOwner.current != null
     BoxWithConstraints(
         Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape16).background(colors.surface)
             .border(if (focused) 2.dp else 1.dp, if (focused) pal.primary else pal.line, Shape16).padding(6.dp),
@@ -859,14 +863,14 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
         if (stacked) Column {
             text(Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                if (attach) AttachButton()
-                if (AgentAttachments.gameFrame != null && !hideAttach) GameFrameButton()
+                AnimatedVisibility(attach && !hideAttach, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) { AttachButton() }
+                AnimatedVisibility(AgentAttachments.gameFrame != null && !hideAttach, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) { GameFrameButton() }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).height(42.dp).horizontalScroll(rememberScrollState(), reverseScrolling = true)) { if (controls != null && !focused) controls() }
                 actions()
             }
         } else Row(verticalAlignment = Alignment.Bottom) {
-            if (attach) AttachButton()
-            if (AgentAttachments.gameFrame != null && !hideAttach) GameFrameButton()
+            AnimatedVisibility(attach && !hideAttach, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) { AttachButton() }
+            AnimatedVisibility(AgentAttachments.gameFrame != null && !hideAttach, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) { GameFrameButton() }
             text(Modifier.weight(1f))
             if (controls != null && !focused) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(42.dp)) { controls() }
             actions()
