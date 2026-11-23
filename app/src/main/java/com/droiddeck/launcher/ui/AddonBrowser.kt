@@ -72,7 +72,10 @@ import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.runtime.WowAddonCatalog
 import com.droiddeck.launcher.runtime.WowAddons
 import com.droiddeck.launcher.session.SessionState
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -98,6 +101,7 @@ internal class CurseLink(val app: UserApps.App) {
     class Linked(val inspector: String, val guid: String)
 
     private val lock = Object()
+    private val work = SupervisorJob()
     @Volatile private var closed = false
     @Volatile private var hold: AtomicBoolean? = null
     @Volatile private var inspector: String? = null
@@ -168,17 +172,19 @@ internal class CurseLink(val app: UserApps.App) {
         true
     }
 
-    fun close(context: Context) {
+    internal val stopped: Job get() = work
+
+    fun close(context: Context): Job {
         closed = true
         current.compareAndSet(this, null)
-        val launch = hold ?: return
-        Thread {
-            CurseForgeApp.stop(context, app, inspector, launch)
+        val launch = hold
+        return CoroutineScope(work + Dispatchers.IO).launch {
+            if (launch != null) CurseForgeApp.stop(context, app, inspector, launch)
             synchronized(lock) {
                 hold = null
                 inspector = null
             }
-        }.start()
+        }.also { work.complete() }
     }
 
     companion object {

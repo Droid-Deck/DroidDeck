@@ -12,6 +12,8 @@ import com.droiddeck.launcher.runtime.WowAddonCatalog
 import com.droiddeck.launcher.runtime.WowAddons
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -83,9 +85,11 @@ class CurseLinkTabTest {
         val target = wow()
         val shown = mutableStateOf(true)
         val seen = Collections.synchronizedList(mutableListOf<List<String>>())
+        var opened: CurseLink? = null
         compose.setContent {
             if (shown.value) {
                 val link = rememberCurseLink(app, sessionRunning = false)
+                opened = link
                 LaunchedEffect(link) { withContext(Dispatchers.IO) { link?.let { seen += it.installed(context, target, 0).map { p -> p.id } } } }
                 LaunchedEffect(link) { withContext(Dispatchers.IO) { link?.let { seen += it.installed(context, target, 0).map { p -> p.id } } } }
             }
@@ -101,6 +105,11 @@ class CurseLinkTabTest {
         assertNull(CurseLink.live())
         assertTrue("shutdown" in methods)
         assertEquals(1, helper.count { it == "start" })
+        runBlocking { withTimeout(20_000) { opened!!.stopped.join() } }
+        compose.waitUntil(5_000) { Thread.getAllStackTraces().keys.none { it.isAlive && it.name.startsWith("curseforge") } }
+        val calls = helper.size + methods.size
+        Thread.sleep(1_500)
+        assertEquals(calls, helper.size + methods.size)
     }
 
     @Test
@@ -115,7 +124,7 @@ class CurseLinkTabTest {
             assertEquals(2, methods.count { it == "scanGameInstance" })
             assertEquals(1, helper.count { it == "start" })
         } finally {
-            link.close(context)
+            runBlocking { link.close(context).join() }
         }
     }
 
@@ -137,7 +146,7 @@ class CurseLinkTabTest {
         try {
             assertTrue(link.installed(context, target, 0).isEmpty())
         } finally {
-            link.close(context)
+            runBlocking { link.close(context).join() }
         }
     }
 
