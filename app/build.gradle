@@ -211,6 +211,7 @@ android {
         }
         jniLibs {
             useLegacyPackaging = true
+            keepDebugSymbols += ['**/libdroiddeck_tegra_*.so']
             pickFirsts += ['**/libtermux.so']
             excludes += ['**/libproot.so', '**/libopencv_java4.so', '**/libmediapipe_tasks_jni.so']
         }
