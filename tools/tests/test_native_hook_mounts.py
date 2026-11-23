@@ -29,11 +29,12 @@ int main(int argc, char **argv) {
     if (strncmp(argv[i], "parent:", 7) == 0) {
       char dir[4096];
       snprintf(dir, sizeof(dir), "%s", argv[i] + 7);
-      char *rel = strchr(dir, '|');
+      char *rel = strchr(dir, '|'), *want = NULL;
       if (rel) *rel++ = 0;
+      if (rel && (want = strchr(rel, '|'))) *want++ = 0;
       int fd = open(dir, O_RDONLY | O_DIRECTORY);
       struct stat expected;
-      int ok = fd >= 0 && fstatat(fd, rel ? rel : "..", &st, 0) == 0 && stat("/", &expected) == 0;
+      int ok = fd >= 0 && fstatat(fd, rel ? rel : "..", &st, 0) == 0 && stat(want ? want : "/", &expected) == 0;
       printf("%s\t%d\n", argv[i], ok && st.st_dev == expected.st_dev && st.st_ino == expected.st_ino);
       if (fd >= 0) close(fd);
       continue;
@@ -94,6 +95,8 @@ class NativeHookMountTest(unittest.TestCase):
         cls.root = tmp / "root"
         cls.library = tmp / "storage/PC GAMES"
         (cls.root / "etc").mkdir(parents=True)
+        (cls.root / "deep/er/est").mkdir(parents=True)
+        (cls.root / "linked").symlink_to("deep/er/est")
         (cls.root / "etc/hostname").write_text("rootfs")
         (cls.root / "mnt/library/Some Game").mkdir(parents=True)
         (cls.root / "mnt/library/Some Game/game.txt").write_text("mount point")
@@ -183,6 +186,11 @@ class NativeHookMountTest(unittest.TestCase):
     def test_parent_walks_from_any_directory_stay_at_root(self):
         cases = ["parent:/etc|../..", "parent:/mnt/library|../../..", "parent:/|../etc/.."]
         self.assertEqual(self.run_probe(*cases), {case: ["1"] for case in cases})
+
+    def test_parent_walk_from_a_linked_mount_ancestor_follows_the_real_directory(self):
+        binds = f"{self.library}:/linked/library"
+        case = "parent:/linked|../..|/deep"
+        self.assertEqual(self.run_probe(case, binds=binds)[case], ["1"])
 
     def test_absolute_paths_above_root_stay_at_root(self):
         result = self.run_probe("cd:/..", "cd:/etc/../..", "/../etc/hostname")

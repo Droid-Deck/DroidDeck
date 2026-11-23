@@ -857,6 +857,7 @@ static const char *map_at(int dirfd, const char *rel, char *buf, size_t size) {
         if (g_at_dirs[i].ino != (unsigned long)st.st_ino || g_at_dirs[i].dev != (unsigned long)st.st_dev) continue;
         char guest[PATH_MAX];
         const char *base = g_at_dirs[i].guest;
+        if (base[1] && climbs_past_root(base, rel)) return NULL;
         size_t used = ddnatv_append(guest, sizeof(guest), 0, base, strlen(base));
         if (used > 1) used = ddnatv_append(guest, sizeof(guest), used, "/", 1);
         ddnatv_append(guest, sizeof(guest), used, rel, strlen(rel));
