@@ -76,7 +76,6 @@ void main() {
     } else if (horizontal > vertical) {
         verticalLine = false;
     } else {
-        // Equal contrast: select the axis with the stronger continuation.
         float vNeg = measureRun(uv, px, vec2(0.0, px.y), true, threshold, false);
         float vPos = measureRun(uv, px, vec2(0.0, px.y), true, threshold, true);
         float hNeg = measureRun(uv, px, vec2(px.x, 0.0), false, threshold, false);
