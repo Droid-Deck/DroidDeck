@@ -76,8 +76,10 @@ The system PowerVR driver uses the existing SDL/Wayland swapchain backend. Its a
 - `0922-powervr-linear-dmabuf-import.patch`: retain the explicit linear layout when PowerVR
   rejects the mutable-format query, and intersect imported-image and FD memory-type masks.
 - `0923-powervr-rgba-copy-surface.patch`: require an advertised RGBA SDR copy surface matching
-  the shader's `rgba8` storage view. The tested workaround leaves other vendors, HDR and direct
-  composition unchanged; it does not restrict game-facing BGRA formats.
+  the shader's `rgba8` storage view, on every GPU that composes offscreen and copies. Writing
+  through a BGRA view of that image swapped red and blue on PowerVR and on the Xclipse 950's
+  system driver; libhybris always offers RGBA next to BGRA. HDR and direct composition keep the
+  existing selector; it does not restrict game-facing BGRA formats.
 - `0924-sdl-preserve-explicit-refresh.patch` and `0925-sdl-wait-before-present.patch`: preserve
   configured refresh across SDL events and finish composition before presenting without a
   render-finished semaphore. The build runs the focused capability, format and refresh tests.
