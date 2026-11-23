@@ -735,9 +735,11 @@ object SessionFiles {
 
     private fun insertInto(text: String, parent: VdfBlock, lines: List<String>, newline: String): String {
         val lineStart = text.lastIndexOf('\n', parent.close).let { if (it < 0) 0 else it + 1 }
-        val indent = text.substring(lineStart, parent.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+        val before = text.substring(lineStart, parent.close)
+        val indent = before.takeWhile { it == '\t' || it == ' ' } + "\t"
         val section = lines.joinToString(newline) { indent + it } + newline
-        return text.substring(0, lineStart) + section + text.substring(lineStart)
+        if (before.isBlank()) return text.substring(0, lineStart) + section + text.substring(lineStart)
+        return text.substring(0, parent.close) + newline + section + text.substring(parent.close)
     }
 
     private val IDLE_SLEEP_TIMERS = listOf("IdleSuspendBatterySeconds", "IdleSuspendACSeconds")
