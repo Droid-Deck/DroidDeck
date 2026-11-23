@@ -516,6 +516,18 @@ internal fun SetupPanel(
                                     if (s.launcherFullscreen) stringResource(R.string.setup_fullscreen_on) else stringResource(R.string.setup_fullscreen_off),
                                     s.launcherFullscreen,
                                 ) { a.onLauncherFullscreen(it) }
+                                ToggleRow(
+                                    host, "page-swipe", stringResource(R.string.setup_page_swipe),
+                                    stringResource(R.string.setup_page_swipe_hint), PageSwipe.on,
+                                ) { on ->
+                                    PageSwipe.on = on
+                                    com.droiddeck.launcher.core.AppUiPrefs.setPageSwipe(ctx, on)
+                                }
+                                ToggleRow(
+                                    host, "controller-haptics", stringResource(R.string.setup_controller_haptics),
+                                    stringResource(R.string.setup_controller_haptics_hint),
+                                    s.controllerHaptics,
+                                ) { a.onControllerHaptics(it) }
                                 if (s.dualScreenDevice) {
                                     val dualModes = listOf(
                                         com.droiddeck.launcher.input.DualScreen.MODE_AUTO to stringResource(R.string.setup_dual_screen_auto),
@@ -1154,7 +1166,7 @@ private fun SettingCard(label: String, value: String, id: String, modifier: Modi
         verticalArrangement = Arrangement.spacedBy(3.dp),
         modifier = modifier.paneItem(id)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .then(if (LocalGlass.current != null) Modifier.glass(Shape14, if (hot) 0.04f else 0f) else Modifier.clip(Shape14).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface))
+            .then(if (LocalGlass.current != null) Modifier.glass(Shape14, if (hot) 0.04f else 0f) else Modifier.clip(Shape14).background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.10f)) else Modifier))
             .glideBorder(hot, Shape14, pal.signal, if (LocalGlass.current != null) Color.Transparent else pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)

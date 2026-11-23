@@ -6,7 +6,6 @@ import re
 import runpy
 import shutil
 import tempfile
-import threading
 import time
 import unittest
 from unittest import mock
@@ -93,8 +92,6 @@ class IdTest(unittest.TestCase):
         self.assertEqual(int(BNET["APP_ID"]), zlib.crc32(b'"droiddeck-battlenet"Battle.net') | 0x80000000)
         found = re.search(r"const val APP_ID = (\d+)L", KOTLIN.read_text())
         self.assertEqual(found.group(1), BNET["APP_ID"])
-        for name in ("FEX_REQUEST", "FEX_RESULT"):
-            self.assertIn('const val %s = "%s"' % (name, BNET[name]), KOTLIN.read_text())
 
 
 class ProtonRunOptionsTest(Temp):
@@ -761,36 +758,6 @@ class TidyTest(unittest.TestCase):
         self.assertEqual(self.stopped, [])
 
 
-class FexRequestTest(Temp):
-    def answer(self, text, delay=0.2):
-        def respond():
-            request = self.tmp / BNET["FEX_REQUEST"]
-            deadline = time.monotonic() + 5
-            while not request.exists() and time.monotonic() < deadline:
-                time.sleep(0.02)
-            self.requested = request.read_text()
-            request.unlink()
-            time.sleep(delay)
-            (self.tmp / (BNET["FEX_RESULT"] + ".tmp")).write_text(text + "\n")
-            os.replace(self.tmp / (BNET["FEX_RESULT"] + ".tmp"), self.tmp / BNET["FEX_RESULT"])
-        thread = threading.Thread(target=respond)
-        thread.start()
-        self.addCleanup(thread.join)
-
-    def test_the_apps_answer_comes_back(self):
-        (self.tmp / BNET["FEX_RESULT"]).write_text("ok an-old-answer\n")
-        self.answer("ok FEXCore-2610-d2rfix28-linux.wcp")
-        self.assertEqual(BNET["ask_fex"](str(self.tmp), wait=5), "ok FEXCore-2610-d2rfix28-linux.wcp")
-        self.assertEqual(self.requested, "appid=%s\n" % BNET["APP_ID"])
-        self.assertFalse((self.tmp / BNET["FEX_RESULT"]).exists())
-
-    def test_no_answer_or_no_session_starts_without_one(self):
-        with mock.patch.dict(BNET, {"say": lambda message: None}):
-            self.assertIsNone(BNET["ask_fex"](str(self.tmp), wait=0.3))
-            self.assertIsNone(BNET["ask_fex"](None))
-            self.assertIsNone(BNET["ask_fex"](str(self.tmp / "gone")))
-
-
 class OpenTest(Temp):
     def setUp(self):
         super().setUp()
@@ -799,7 +766,6 @@ class OpenTest(Temp):
         self.alive = []
         self.menu = self.tmp / "droiddeck-battlenet.desktop"
         patcher = mock.patch.dict(BNET, {
-            "ask_fex": lambda launch_dir, wait=0: "ok fex.wcp",
             "say": lambda message: None, "notify": lambda *a, **k: self.calls.append(("notify", a[0])),
             "wine_processes": lambda pfx, proc="/proc": list(self.alive),
             "stop": lambda processes, wait=0: self.calls.append(("stop", [pid for pid, _ in processes])) or self.alive.clear(),
@@ -988,7 +954,6 @@ class Harness(Temp):
         self.states = []
         self.last = []
         patcher = mock.patch.dict(BNET, {
-            "ask_fex": lambda launch_dir, wait=0: self.calls.append(("fex",)) or "ok fex.wcp",
             "say": lambda message: None, "notify": lambda *a, **k: self.calls.append(("notify", a[0])),
             "wine_processes": self.processes,
             "stop": lambda processes, wait=0: self.calls.append(("stop", sorted(pid for pid, _ in processes))),
@@ -1019,7 +984,7 @@ class LaunchTest(Harness):
         self.states = [[], [], up, up + [(40, self.GAME)], up, up]
         self.assertEqual(BNET["launch"](self.root, "Fen"), 0)
         self.assertEqual(self.calls, [
-            ("fex",), ("start", "Battle.net Launcher.exe", None),
+            ("start", "Battle.net Launcher.exe", None),
             ("spawn", "Battle.net.exe", "run", ["--exec=launch Fen"]),
             ("stop", [10, 11, 12, 13, 14, 30]),
         ])
@@ -1034,7 +999,7 @@ class LaunchTest(Harness):
         with mock.patch.dict(BNET, {"GAME_SETTLE": 0}):
             self.assertEqual(BNET["launch"](self.root, "Fen"), 0)
         self.assertEqual(self.calls, [
-            ("fex",), ("start", "Battle.net Launcher.exe", None),
+            ("start", "Battle.net Launcher.exe", None),
             ("spawn", "Battle.net.exe", "run", ["--exec=launch Fen"]),
             ("stop", [10, 11, 12, 13, 14, 30]),
             ("stop", [50]),

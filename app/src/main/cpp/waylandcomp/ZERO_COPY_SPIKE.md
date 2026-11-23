@@ -19,8 +19,8 @@ exactly how Turnip already imports every gralloc buffer on Android (`vk_android.
 in play already have every extension needed; nothing is missing in the drivers. What is missing is
 a **WSI hook**: Mesa's Wayland WSI always allocates its own dma-bufs and has no way to receive or
 allocate compositor-visible buffers, so **option (a) or (c) each need a ~300-line patch to
-`wsi_common_wayland.c` in our own Wayland Turnip build** (banners-turnip-wayland
-`build_turnip_wayland_wsi.sh`, Mesa `7cda7850`) plus a small private Wayland protocol. Nothing in
+`wsi_common_wayland.c` in our own Wayland Turnip build**
+(`build_turnip_wayland_wsi.sh`, Mesa `7cda7850`) plus a small private Wayland protocol. Nothing in
 the app can remove the copy on its own. Recommended: **option (a′) - the game's WSI allocates its
 swapchain images as `AHardwareBuffer`s (gralloc-native, UBWC), imports them through the AHB path
 Turnip already has, and hands the compositor the AHB over a Unix socket (`AHardwareBuffer_send/
@@ -77,7 +77,7 @@ Mesa's Wayland WSI creates every native swapchain image with `wsi_create_native_
 (the Android-WSI import path, `tu_image.cc:880-925`) is only reachable from the Android swapchain.
 
 The patch (in our Wayland Turnip build): a new `create_mem` for the Wayland chain, selected when the
-compositor advertises a private global `banner_layer_buffer_v1`:
+compositor advertises a private global `droiddeck_layer_buffer_v1`:
 1. `AHardwareBuffer_allocate(w, h, R8G8B8A8, GPU_COLOR_OUTPUT | GPU_SAMPLED_IMAGE)`;
    `vkGetAndroidHardwareBufferPropertiesANDROID` → `vkAllocateMemory` with
    `VkImportAndroidHardwareBufferInfoANDROID` (Turnip: `tu_device.cc:3828`), bind - the image was
@@ -85,7 +85,7 @@ compositor advertises a private global `banner_layer_buffer_v1`:
 2. `wsi_image.dma_buf_fd = dup(native_handle->data[0])`, `drm_modifier` / `row_pitches[0]` from
    the same layout → the existing `zwp_linux_dmabuf_v1` path stays untouched: the compositor keeps
    importing a dma-buf and can keep the blit path as the fallback.
-3. `banner_layer_buffer_v1.attach(wl_buffer, socket_fd)`: the WSI creates a `socketpair`, sends one
+3. `droiddeck_layer_buffer_v1.attach(wl_buffer, socket_fd)`: the WSI creates a `socketpair`, sends one
    end in the request, and calls `AHardwareBuffer_sendHandleToUnixSocket(ahb, other_end)`; the
    compositor's request handler does `AHardwareBuffer_recvHandleFromUnixSocket` and stores the AHB
    on `struct dmabuf_buffer`. Per swapchain image, once - not per frame.
@@ -262,7 +262,7 @@ D3D12 tabs) as the workload, session log in `Download/Wayland-logs/`.
    since the blit only changed its destination) and `dumpsys gfxinfo`/battery for 5 min each. This
    is the baseline the WSI patch is measured against.
 4. **Fence probe outcome → choose the acquire-fence design** (§3) before starting the WSI patch.
-5. **WSI patch (option a) in banners-turnip-wayland**, wcp rebuild, then the same steps 1–3 with
+5. **WSI patch (option a) in the Wayland Turnip build**, wcp rebuild, then the same steps 1–3 with
    the AHB arriving from the guest: log line to add on the compositor side `layer: buffer N of
    "<window>" received from the game (AHardwareBuffer WxH, UBWC)` and the fps delta vs X11.
 
@@ -296,7 +296,7 @@ unchanged. Off by default: with the variable unset no new code runs.
 Not zero-copy yet - it is the receive side. The copy disappears when step 5 lands and
 `sc_layer_present` is handed the game's own `AHardwareBuffer` instead of a pool slot.
 
-## 7. Step 5 implemented (feat/wayland-zero-copy-wsi + banners-turnip-wayland `banner_ahb_wsi.py`)
+## 7. Step 5 implemented (feat/wayland-zero-copy-wsi + the Wayland Turnip build `droiddeck_ahb_wsi.py`)
 
 Option (a′) as recommended, with one deviation forced by the build: the Wayland Turnip is a
 `platforms=wayland` build with Android detection off, so `VK_ANDROID_external_memory_android_hardware_buffer`

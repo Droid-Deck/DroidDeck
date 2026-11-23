@@ -108,6 +108,8 @@ internal object SettingsIndex {
         s(SettingsSection.LAUNCHER, R.string.setup_launcher_orientation, "rotate", "portrait"),
         s(SettingsSection.LAUNCHER, R.string.setup_session_orientation, "rotate", "portrait"),
         s(SettingsSection.LAUNCHER, R.string.setup_fullscreen),
+        s(SettingsSection.LAUNCHER, R.string.setup_page_swipe, "gesture"),
+        s(SettingsSection.LAUNCHER, R.string.setup_controller_haptics, "vibration", "rumble"),
         s(SettingsSection.LAUNCHER, R.string.setup_dual_screen_launcher, "thor", "second screen", "bottom screen"),
         s(SettingsSection.LAUNCHER, R.string.setup_low_storage_warning),
         s(SettingsSection.LAUNCHER, R.string.mode_sgdb_key, "artwork", "steamgriddb"),
@@ -137,7 +139,7 @@ internal object SettingsIndex {
         SettingsEntry(SettingsPlace.STEAM_QAM, R.string.drawer_frame_limit, R.string.perf_title, words = listOf("fps", "cap", "limit", "steam games")),
         SettingsEntry(SettingsPlace.STEAM_QAM, R.string.perf_title, words = listOf("performance overlay", "fps", "counter", "tdp")),
 
-        sh(R.string.drawer_page_display, R.string.display_session, "resolution", "scaling", "hdr", "refresh"),
+        sh(R.string.drawer_page_display, R.string.display_session, "resolution", "scaling", "hdr", "refresh", "zero-copy"),
         sh(R.string.drawer_page_display, R.string.sheet_graphics_drivers, "turnip", "driver", "gpu", "adreno", "mali"),
         sh(R.string.mode_tab_steam, R.string.setup_offline, "offline", "steam"),
         sh(R.string.mode_audio, R.string.mode_mic, "microphone", "voice"),

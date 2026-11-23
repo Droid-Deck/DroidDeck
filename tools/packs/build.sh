@@ -11,6 +11,8 @@ linuxfs="$repo/app/src/main/assets/linuxfs/usr/local/lib"
 source "$here/tracking/release.env"
 # shellcheck source=butler/release.env
 source "$here/butler/release.env"
+# shellcheck source=zstd/release.env
+source "$here/zstd/release.env"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -20,6 +22,22 @@ sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -
 fetch() {
     bash "$here/fetch-verified.sh" "$@"
 }
+
+zstd_version() { "$1" -V 2>/dev/null | sed -n 's/.* v\([0-9][0-9.]*\),.*/\1/p'; }
+zstd=$(command -v zstd || true)
+if [ -z "$zstd" ] || [ "$(zstd_version "$zstd")" != "$ZSTD_VERSION" ]; then
+    zstd="${DROIDDECK_PACK_CACHE:-"$HOME/.cache/droiddeck-pack-inputs"}/zstd-$ZSTD_VERSION/zstd"
+    if [ ! -x "$zstd" ] || [ "$(zstd_version "$zstd")" != "$ZSTD_VERSION" ]; then
+        fetch "https://github.com/facebook/zstd/releases/download/v$ZSTD_VERSION/zstd-$ZSTD_VERSION.tar.gz" \
+            "$ZSTD_SHA256" "$work/zstd.tar.gz"
+        tar -xzf "$work/zstd.tar.gz" -C "$work"
+        make -s -C "$work/zstd-$ZSTD_VERSION" -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)" zstd-release >/dev/null
+        mkdir -p "$(dirname "$zstd")"
+        install -m755 "$work/zstd-$ZSTD_VERSION/programs/zstd" "$zstd.part.$$"
+        mv -f "$zstd.part.$$" "$zstd"
+    fi
+fi
+[ "$(zstd_version "$zstd")" = "$ZSTD_VERSION" ] || { echo "packs need zstd $ZSTD_VERSION, $zstd is not it" >&2; exit 1; }
 
 pack() {
     local name=$1 src=$2
@@ -47,7 +65,7 @@ with tarfile.open(dest, "w", format=tarfile.USTAR_FORMAT) as tar:
         with open(path, "rb") as f:
             tar.addfile(info, f)
 EOF
-    zstd -q -19 -f "$work/$name.tar" -o "$out/$name.tar.zst"
+    "$zstd" -q -19 -f "$work/$name.tar" -o "$out/$name.tar.zst"
     echo "$name $(sha256 "$out/$name.tar.zst") $(wc -c < "$out/$name.tar.zst" | tr -d ' ')"
 }
 
@@ -80,6 +98,7 @@ pack powervr "$repo/app/src/main/assets/hybris" runtime.tzst version.txt
 [ ! -f "$linuxfs/droiddeck-ubisoft/droiddeck-upc.exe" ] || pack ubisoft "$linuxfs/droiddeck-ubisoft" droiddeck-upc.exe
 [ ! -f "$linuxfs/droiddeck-rockstar/Launcher64.exe" ] || pack rockstar "$linuxfs/droiddeck-rockstar" Launcher32.exe Launcher64.exe
 [ ! -f "$linuxfs/droiddeck-dirt/ws2_32.dll" ] || pack dirt "$linuxfs/droiddeck-dirt" ws2_32.dll
+[ ! -f "$linuxfs/droiddeck-epic/EpicGamesLauncher.exe" ] || pack epic "$linuxfs/droiddeck-epic" EpicGamesLauncher.exe
 
 mkdir "$work/butler"
 fetch "https://broth.itch.zone/butler/linux-arm64/${BUTLER_VERSION}/archive/default" \

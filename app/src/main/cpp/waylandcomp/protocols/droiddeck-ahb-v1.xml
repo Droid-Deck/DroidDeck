@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<protocol name="banner_ahb_v1">
+<protocol name="droiddeck_ahb_v1">
   <copyright>
     Copyright 2026 The412Banner
 
@@ -23,7 +23,7 @@
     DEALINGS IN THE SOFTWARE.
   </copyright>
 
-  <interface name="banner_ahb_v1" version="2">
+  <interface name="droiddeck_ahb_v1" version="2">
     <description summary="Android gralloc buffers behind dma-buf wl_buffers">
       Zero-copy window layers on Android. A Vulkan swapchain image that the
       client allocated as an Android AHardwareBuffer (gralloc) is still shared

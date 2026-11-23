@@ -89,72 +89,6 @@ class BattleNetTest {
         assertEquals(crc or 0x80000000L, BattleNet.APP_ID)
     }
 
-    @Test fun theNewestD2rfixIsTheHighestFexThenTheHighestFix() {
-        val items = listOf(
-            item("FEXCore-2610-linux.wcp"),
-            item("FEXCore-2609-d2rfix25-linux.wcp"),
-            item("FEXCore-2610-d2rfix9-linux.wcp"),
-            item("FEXCore-2610-d2rfix28-linux.wcp"),
-            item("FEXCore-2509.1-d2rfix40-linux.wcp"),
-        )
-        assertEquals("FEXCore-2610-d2rfix28-linux.wcp", BattleNet.newestD2rFix(items)?.file)
-        assertEquals("FEXCore-2610.1-d2rfix1-linux.wcp", BattleNet.newestD2rFix(items + item("FEXCore-2610.1-d2rfix1-linux.wcp"))?.file)
-        assertEquals("FexCore-2611-D2RFIX2-linux.wcp", BattleNet.newestD2rFix(items + item("FexCore-2611-D2RFIX2-linux.wcp"))?.file)
-    }
-
-    @Test fun onlyFexD2rfixPackagesCount() {
-        assertNull(BattleNet.newestD2rFix(listOf(item("FEXCore-2610-linux.wcp"), item("FEXCore-2610-d2rfix28-linux.wcp", comp = "dxvk"))))
-        assertNull(BattleNet.d2rfix("FEXCore-2610-d2rfix28-linux.wcp.part"))
-        assertNull(BattleNet.d2rfix("FEXCore-2610-d2rfix-linux.wcp"))
-        assertEquals(listOf(2610L) to 28L, BattleNet.d2rfix("FEXCore-2610-d2rfix28-linux.wcp"))
-    }
-
-    @Test fun theNewestStoredBuildIsSetForThePrefix() {
-        catalog("FEXCore-2609-d2rfix25-linux.wcp", "FEXCore-2610-d2rfix28-linux.wcp", "FEXCore-2610-linux.wcp")
-        store("FEXCore-2610-d2rfix28-linux.wcp")
-
-        assertEquals("FEXCore-2610-d2rfix28-linux.wcp", BattleNet.ensureFex(context, ::noRefresh))
-
-        assertEquals(mapOf("fex" to "FEXCore-2610-d2rfix28-linux.wcp"), ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString()))
-        assertEquals("FEXCore-2610-d2rfix28-linux.wcp", BattleNet.ensureFex(context, ::noRefresh))
-    }
-
-    @Test fun aNewerBuildReplacesTheOldOne() {
-        catalog("FEXCore-2609-d2rfix25-linux.wcp")
-        store("FEXCore-2609-d2rfix25-linux.wcp")
-        BattleNet.ensureFex(context, ::noRefresh)
-        catalog("FEXCore-2609-d2rfix25-linux.wcp", "FEXCore-2610-d2rfix28-linux.wcp")
-        store("FEXCore-2610-d2rfix28-linux.wcp")
-
-        BattleNet.ensureFex(context, ::noRefresh)
-
-        assertEquals("FEXCore-2610-d2rfix28-linux.wcp", ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString())["fex"])
-    }
-
-    @Test fun aStaleListingIsFetchedAgain() {
-        catalog("FEXCore-2609-d2rfix25-linux.wcp", fetchedAt = 1)
-        store("FEXCore-2610-d2rfix28-linux.wcp")
-
-        BattleNet.ensureFex(context) { listOf(item("FEXCore-2609-d2rfix25-linux.wcp"), item("FEXCore-2610-d2rfix28-linux.wcp")) }
-
-        assertEquals("FEXCore-2610-d2rfix28-linux.wcp", ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString())["fex"])
-    }
-
-    @Test fun aFailedFetchFallsBackOnTheCachedListing() {
-        catalog("FEXCore-2609-d2rfix25-linux.wcp", fetchedAt = 1)
-        store("FEXCore-2609-d2rfix25-linux.wcp")
-
-        assertEquals("FEXCore-2609-d2rfix25-linux.wcp", BattleNet.ensureFex(context) { error("offline") })
-    }
-
-    @Test fun aListingWithoutD2rfixIsAnError() {
-        catalog("FEXCore-2610-linux.wcp")
-        var refreshed = 0
-        assertThrows(IllegalStateException::class.java) { BattleNet.ensureFex(context) { refreshed++; emptyList() } }
-        assertEquals(1, refreshed)
-        assertEquals(emptyMap<String, String>(), ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString()))
-    }
-
     @Test fun installedIsTheLauncherInThePrefix() {
         assertFalse(BattleNet.installed(context))
         launcher().apply { parentFile!!.mkdirs(); writeText("MZ") }
@@ -168,9 +102,9 @@ class BattleNetTest {
     }
 
     @Test fun removeTakesThePrefixItsMenuEntryAndCacheButNothingItLinksTo() {
-        catalog("FEXCore-2610-d2rfix28-linux.wcp")
-        store("FEXCore-2610-d2rfix28-linux.wcp")
-        BattleNet.ensureFex(context, ::noRefresh)
+        store("FEXCore-2610-linux.wcp")
+        ComponentsManager.setGameComponent(context, BattleNet.APP_ID.toString(), "fex", "FEXCore-2610-linux.wcp")
+        assertEquals(mapOf("fex" to "FEXCore-2610-linux.wcp"), ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString()))
         val root = LinuxRuntime.rootDir(context)
         fun put(relative: String) = File(root, relative).apply { parentFile!!.mkdirs(); writeText("x") }
         launcher().apply { parentFile!!.mkdirs(); writeText("MZ") }
@@ -192,7 +126,7 @@ class BattleNetTest {
         assertTrue(otherMenu.isFile)
         assertFalse(log.parentFile!!.exists())
         assertTrue(otherPrefix.isFile)
-        assertNull(BattleNet.fexInUse(context))
+        assertEquals(emptyMap<String, String>(), ComponentsManager.gameComponents(context, BattleNet.APP_ID.toString()))
         outside.deleteRecursively()
     }
 
@@ -918,6 +852,22 @@ class BattleNetTest {
         assertTrue(BattleNet.ensureVideoMemory(context))
     }
 
+    @Test fun theProfileDefaultsAreSetForTheBattleNetProgramOrOnceInstalledAndNeverForAnythingElse() {
+        File(context.filesDir, "game-environment.json").delete()
+        val manager = context.getSystemService(android.app.ActivityManager::class.java)
+        org.robolectric.Shadows.shadowOf(manager).setMemoryInfo(android.app.ActivityManager.MemoryInfo().apply { totalMem = 11113L shl 20 })
+        val scope = BattleNet.APP_ID.toString()
+        BattleNet.ensureDefaults(context, null)
+        assertNull(GameEnvironmentStore.read(context).games[scope]?.get("DXVK_CONFIG"))
+        BattleNet.ensureDefaults(context, BattleNet.PROGRAM)
+        assertEquals(BattleNet.videoMemoryOptions(2048), GameEnvironmentStore.read(context).games[scope]?.get("DXVK_CONFIG"))
+        assertTrue(com.droiddeck.launcher.session.SessionPrefs.battleNetNoSteamSet(context))
+        File(context.filesDir, "game-environment.json").delete()
+        launcher().apply { parentFile!!.mkdirs(); writeText("MZ") }
+        BattleNet.ensureDefaults(context, null)
+        assertEquals(BattleNet.videoMemoryOptions(2048), GameEnvironmentStore.read(context).games[scope]?.get("DXVK_CONFIG"))
+    }
+
     private fun launcher() = File(BattleNet.prefix(context), "pfx/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe")
 
     private fun varint(value: Long): ByteArray {
@@ -932,21 +882,6 @@ class BattleNetTest {
     private fun field(number: Int, text: String) = field(number, text.toByteArray())
     private fun varintField(number: Int, value: Long) = varint((number shl 3).toLong()) + varint(value)
     private fun message(vararg fields: ByteArray) = fields.fold(ByteArray(0)) { all, f -> all + f }
-
-    private fun noRefresh(context: Context): List<ComponentsManager.CatalogItem> = error("the cached listing was fresh")
-
-    private fun item(file: String, comp: String = "fex") = ComponentsManager.CatalogItem(
-        file, comp, "FexCore-Linux", "https://github.com/The412Banner/Nightlies/releases/download/FexCore-Linux/$file", 4, "sha256:" + "ab".repeat(32),
-    )
-
-    private fun catalog(vararg files: String, fetchedAt: Long = System.currentTimeMillis() / 1000) {
-        val cache = File(context.filesDir, "components/catalog.json")
-        cache.parentFile!!.mkdirs()
-        val items = JSONArray()
-        for (file in files) items.put(JSONObject().put("file", file).put("comp", "fex").put("release", "FexCore-Linux")
-            .put("url", item(file).url).put("size", 4).put("digest", item(file).digest))
-        cache.writeText(JSONObject().put("items", items).put("fetchedAt", fetchedAt).toString())
-    }
 
     private fun store(file: String) {
         val wcp = File(context.filesDir, "components/packages/$file")

@@ -39,6 +39,7 @@ object SessionFiles {
     private val SERVICE_PACKS = mapOf(
         AddonPack.UBISOFT to "usr/local/lib/droiddeck-ubisoft",
         AddonPack.ROCKSTAR to "usr/local/lib/droiddeck-rockstar",
+        AddonPack.EPIC to "usr/local/lib/droiddeck-epic",
         AddonPack.DIRT to "usr/local/lib/droiddeck-dirt",
     )
 
@@ -46,6 +47,8 @@ object SessionFiles {
     fun ensureUbisoftService(context: Context) = ensureStoreService(context, AddonPack.UBISOFT)
 
     fun ensureRockstarService(context: Context) = ensureStoreService(context, AddonPack.ROCKSTAR)
+
+    fun ensureEpicParent(context: Context) = ensureStoreService(context, AddonPack.EPIC)
 
     /** The DiRT 3 / DiRT Showdown ws2_32 stand-in; droiddeck-game-env applies it only when it is staged. */
     fun ensureDirtStandIn(context: Context) = ensureStoreService(context, AddonPack.DIRT)
@@ -177,6 +180,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
             "usr/local/bin/droiddeck-appimage-exec" to "usr/local/bin/droiddeck-appimage-exec",
+            "usr/local/bin/droiddeck-curseforge" to "usr/local/bin/droiddeck-curseforge",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
@@ -284,6 +288,7 @@ object SessionFiles {
         File(root, "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json").delete()
         LegacyNames.migrateRootfs(root)
         ComponentsManager.migrateLaunchDir(context)
+        runCatching { ComponentsManager.migrateBattleNetFex(context) }.onFailure { Log.w(TAG, "Battle.net FEX selection", it) }
         EsyncPacks.stageBundled(context, root)
         val directAudio = arrayOf(
             "aarch64-unix/winedirectaudio.so",

@@ -82,7 +82,7 @@ internal object StoreTabsState {
         SessionPrefs.settleStoresTabOrder(context, Store.entries.map { it.id })
         tabs = arrangeStoreTabs(SessionPrefs.storesTabOrder(context), SessionPrefs.storesTabHidden(context))
         libraryPlaces = SessionPrefs.libraryTabPlaces(context) ?: DEFAULT_LIBRARY_PLACES
-        libraryHidden = SessionPrefs.libraryTabsHidden(context)
+        libraryHidden = SessionPrefs.libraryTabsHidden(context) + listOfNotNull(LIBRARY_HIDDEN.takeUnless { SessionPrefs.libraryShowHidden(context) })
     }
 
     /** [ids] may hold the Library's own tabs among the stores; each one's place is kept as the tab it follows. */
@@ -110,20 +110,21 @@ internal object StoreTabsState {
 
     fun setLibraryShown(context: android.content.Context, id: String, show: Boolean) {
         libraryHidden = if (show) libraryHidden - id else libraryHidden + id
-        SessionPrefs.setLibraryTabsHidden(context, libraryHidden)
+        if (id == LIBRARY_HIDDEN) SessionPrefs.setLibraryShowHidden(context, show)
+        else SessionPrefs.setLibraryTabsHidden(context, libraryHidden - LIBRARY_HIDDEN)
     }
 
     private fun save(context: android.content.Context, arranged: Boolean) =
         SessionPrefs.saveStoresTabs(context, tabs.map { it.store.id }, tabs.filterNot { it.shown }.map { it.store.id }.toSet(), arranged)
 }
 
-/** The Library tabs that are not stores but sort among them in Manage stores. Only Favorites and Custom games can be hidden. */
-internal val LIBRARY_OWN_TABS = listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM, Library.ADDED)
-internal val LIBRARY_HIDEABLE_TABS = setOf(LIBRARY_FAVORITES, Library.ADDED)
+/** The Library tabs that are not stores but sort among them in Manage stores. Only Favorites, Custom games and Hidden can be turned off; Hidden starts off. */
+internal val LIBRARY_OWN_TABS = listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM, Library.ADDED, LIBRARY_HIDDEN)
+internal val LIBRARY_HIDEABLE_TABS = setOf(LIBRARY_FAVORITES, Library.ADDED, LIBRARY_HIDDEN)
 
-/** Favorites, then Steam, ahead of the stores; Custom games after them (null: the end). */
+/** Favorites, then Steam, ahead of the stores; Custom games and Hidden after them (null: the end). */
 internal val DEFAULT_LIBRARY_PLACES: List<Pair<String, String?>> =
-    listOf(LIBRARY_FAVORITES to "", Library.SOURCE_STEAM to LIBRARY_FAVORITES, Library.ADDED to null)
+    listOf(LIBRARY_FAVORITES to "", Library.SOURCE_STEAM to LIBRARY_FAVORITES, Library.ADDED to null, LIBRARY_HIDDEN to null)
 
 /**
  * Puts the Library's own tabs into a store tab order. Each goes after the tab it follows ("" for first; null or a tab that is gone
@@ -220,8 +221,8 @@ internal fun SideSheet(open: Boolean, onClose: () -> Unit, returnFocus: FocusReq
     }
 }
 
-private val STORE_ROW = 60.dp
-private val STORE_HANDLE = 44.dp
+internal val STORE_ROW = 60.dp
+internal val STORE_HANDLE = 44.dp
 
 @Composable
 internal fun ManageStoresSheet() {
@@ -301,7 +302,7 @@ private fun StoreSortRow(
 }
 
 @Composable
-private fun SortRowFrame(
+internal fun SortRowFrame(
     held: Boolean, offset: Float, modifier: Modifier, hot: Boolean, src: MutableInteractionSource, onFocus: (Boolean) -> Unit,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {
@@ -338,9 +339,14 @@ private fun LibraryTabSortRow(id: String, held: Boolean, offset: Float, hint: St
     val label = when (id) {
         LIBRARY_FAVORITES -> stringResource(R.string.soundtracks_favorites)
         Library.ADDED -> stringResource(R.string.library_custom_games)
+        LIBRARY_HIDDEN -> stringResource(R.string.apps_filter_hidden)
         else -> stringResource(R.string.source_steam)
     }
-    val dot = if (id == LIBRARY_FAVORITES) FavoritesColours.dot else sourceColours(id).dot
+    val dot = when (id) {
+        LIBRARY_FAVORITES -> FavoritesColours.dot
+        LIBRARY_HIDDEN -> HIDDEN_DOT
+        else -> sourceColours(id).dot
+    }
     SortRowFrame(held, offset, modifier.testTag("store-row-$id"), hot, src, onFocus) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(width = STORE_HANDLE, height = STORE_ROW).testTag("store-handle-$id")) {
             Icon(Icons.Filled.DragHandle, null, tint = if (held) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(20.dp))

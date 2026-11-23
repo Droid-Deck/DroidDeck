@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">Voltar · duas vezes no Steam, uma no desktop</string>
     <string name="input_shortcut_hold_hint">No modo Steam. Manter Voltar também abre o acesso rápido.</string>
     <string name="input_restore_shortcut">Restaurar o padrão</string>
-    <string name="input_second_mode_hint">Sua escolha de painel é lembrada. O desktop abre um segundo espaço de trabalho; não troca a sessão nem o perfil de entrada.</string>
     <string name="input_virtual_controller">Controle virtual</string>
     <string name="input_virtual_controller_hint">O tipo de controle visto pelo Steam ou pelo jogo.</string>
     <string name="input_touchscreen">Tela sensível ao toque</string>

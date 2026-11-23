@@ -37,9 +37,6 @@ USER_PREFERENCES = "UserPreferencesMask"
 WINE_USER_PREFERENCES = bytes((0x10, 0x00, 0x00, 0x80, 0x12, 0x00, 0x00, 0x00))
 CLIENT_AREA_ANIMATION = (4, 0x02)
 WALLPAPER_MAX = (1280, 720)
-FEX_REQUEST = "battlenet-fex.request"
-FEX_RESULT = "battlenet-fex.result"
-FEX_WAIT = 120
 START_GRACE = 90
 POLL = 2
 STOP_WAIT = 5
@@ -791,32 +788,6 @@ def write_menu(path=MENU):
         say("menu entry not written: %s" % error)
 
 
-def ask_fex(launch_dir, wait=FEX_WAIT):
-    if not launch_dir or not os.path.isdir(launch_dir):
-        say("not inside a DroidDeck session; FEX stays as Components has it")
-        return None
-    result = os.path.join(launch_dir, FEX_RESULT)
-    request = os.path.join(launch_dir, FEX_REQUEST)
-    try:
-        os.unlink(result)
-    except OSError:
-        pass
-    with open(request + ".tmp", "w", encoding="utf-8") as f:
-        f.write("appid=%s\n" % APP_ID)
-    os.replace(request + ".tmp", request)
-    deadline = time.monotonic() + wait
-    while time.monotonic() < deadline:
-        try:
-            with open(result, encoding="utf-8") as f:
-                answer = f.read().strip()
-        except OSError:
-            time.sleep(0.5)
-            continue
-        os.unlink(result)
-        return answer
-    return None
-
-
 def wine_processes(pfx, proc="/proc"):
     want = os.path.realpath(pfx).rstrip("/")
     found = []
@@ -1160,8 +1131,6 @@ def stop_leftovers(pfx):
 def open_client(root, reinstall=False):
     pfx = os.path.join(prefix(root), "pfx")
     write_menu()
-    answer = ask_fex(os.environ.get("DD_LAUNCH_DIR"))
-    say("FEX: %s" % (answer or "no answer from the app; Components' choice stays"))
     if running(pfx):
         say("Battle.net is already running in its prefix; waiting for it to close")
         wait_while_open(pfx, grace=0)
@@ -1250,8 +1219,6 @@ def launch(root, code):
     try:
         own = None
         if lock is not None and not running(pfx):
-            answer = ask_fex(os.environ.get("DD_LAUNCH_DIR"))
-            say("FEX: %s" % (answer or "no answer from the app; Components' choice stays"))
             verb = None if stop_leftovers(pfx) else "run"
             configure(root, LIBRARY)
             own = start(launcher(root), verb)

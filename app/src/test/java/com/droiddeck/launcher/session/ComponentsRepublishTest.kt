@@ -82,6 +82,37 @@ class ComponentsRepublishTest {
 
     private fun scopedTools() = rows().filter { it[0] == scope }.map { it[1] }.toSet()
 
+    @Test fun battleNetDropsAnOldPinnedFexOnceAndKeepsAnyOtherChoice() {
+        proton("DroidDeck-Proton 11-11.8", "DroidDeck-Proton-11-11.8")
+        packageFile()
+        ComponentsManager.setGameComponent(context, scope, "fex", fex)
+        ComponentsManager.setGameComponent(context, "123", "fex", fex)
+        assertTrue(rows().any { it[0] == scope })
+
+        ComponentsManager.migrateBattleNetFex(context)
+
+        assertEquals(emptyMap<String, String>(), ComponentsManager.gameComponents(context, scope))
+        assertEquals(fex, ComponentsManager.gameComponents(context, "123")["fex"])
+        assertTrue(rows().none { it[0] == scope })
+        assertTrue(rows().any { it[0] == "123" })
+
+        ComponentsManager.setGameComponent(context, scope, "fex", fex)
+        ComponentsManager.migrateBattleNetFex(context)
+        assertEquals(fex, ComponentsManager.gameComponents(context, scope)["fex"])
+    }
+
+    @Test fun battleNetKeepsAFexTheUserChoseThemselves() {
+        proton("DroidDeck-Proton 11-11.8", "DroidDeck-Proton-11-11.8")
+        val own = "FEXCore-2612-linux.wcp"
+        packageFile()
+        File(context.filesDir, "components/packages/$fex").copyTo(File(context.filesDir, "components/packages/$own"))
+        ComponentsManager.setGameComponent(context, scope, "fex", own)
+
+        ComponentsManager.migrateBattleNetFex(context)
+
+        assertEquals(own, ComponentsManager.gameComponents(context, scope)["fex"])
+    }
+
     private fun rows() = launchState().readLines().filter { it.isNotEmpty() }.map { it.split('\t') }
 
     private fun launchState() = File(LinuxRuntime.rootDir(context), "root/.local/share/droiddeck-components/desired.tsv")

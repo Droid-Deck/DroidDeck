@@ -3,6 +3,7 @@
 #include "ahb_swapchain.h"
 #include "droiddeck_color.h"
 #include "vk_present.h"
+#include "framegen_bridge.h"
 #include <android/hardware_buffer.h>
 #include <android/native_window.h>
 #include <android/rect.h>
@@ -64,6 +65,8 @@ static struct {
     void (*setHdrMetadata_cta861_3)(ASurfaceTransaction *, ASurfaceControl *, const struct droiddeck_hdr_cta861_3 *);
     const void *(*getNativeHandle)(const AHardwareBuffer *);
     void (*setDesiredHdrHeadroom)(ASurfaceTransaction *, ASurfaceControl *, float);
+    void (*setEnableBackPressure)(ASurfaceTransaction *, ASurfaceControl *, bool);
+    void (*setDesiredPresentTime)(ASurfaceTransaction *, int64_t);
     int state;
 } api;
 
@@ -105,6 +108,8 @@ static int load_api(void) {
     SYM(setHdrMetadata_smpte2086, "ASurfaceTransaction_setHdrMetadata_smpte2086");
     SYM(setHdrMetadata_cta861_3, "ASurfaceTransaction_setHdrMetadata_cta861_3");
     SYM(setDesiredHdrHeadroom, "ASurfaceTransaction_setDesiredHdrHeadroom");
+    SYM(setEnableBackPressure, "ASurfaceTransaction_setEnableBackPressure");
+    SYM(setDesiredPresentTime, "ASurfaceTransaction_setDesiredPresentTime");
 #undef SYM
     if (!api.createFromWindow || !api.release || !api.txCreate || !api.txDelete || !api.txApply ||
         !api.setBuffer || !api.setZOrder || !api.setVisibility || !api.setGeometry ||
@@ -134,7 +139,7 @@ void sc_layer_set_frame_rate(float fps) {
 }
 
 
-#define POOL_MAX 5
+#define POOL_MAX 8
 
 struct slot {
     AHardwareBuffer *ahb;
@@ -183,6 +188,12 @@ static int g_layers_ready;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_pending_cb;
 static unsigned g_stat_layer_frames;
+static pthread_mutex_t g_timeline_lock = PTHREAD_MUTEX_INITIALIZER;
+static int64_t g_timeline_present_ns, g_timeline_deadline_ns, g_timeline_period_ns;
+static int g_timeline_late;
+static int64_t g_cadence_seen_ns, g_cadence_gap_ns, g_cadence_target_ns;
+static int g_group_frames = 1, g_group_index;
+static unsigned g_stat_aimed_next, g_stat_aimed_later, g_stat_aimed_even;
 static int g_two_logged;
 static AHardwareBuffer *g_blank;
 static ASurfaceControl *g_base_sc;
@@ -217,6 +228,58 @@ struct complete_ctx {
 static int64_t now_ns(void) {
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
     return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
+
+void sc_layer_frame_timeline(int64_t present_ns, int64_t deadline_ns, int64_t period_ns) {
+    pthread_mutex_lock(&g_timeline_lock);
+    g_timeline_present_ns = present_ns;
+    g_timeline_deadline_ns = deadline_ns;
+    g_timeline_period_ns = period_ns;
+    pthread_mutex_unlock(&g_timeline_lock);
+}
+
+static int64_t cadence_target(int64_t now, int64_t earliest, int64_t period) {
+    const int64_t gap = now - g_cadence_seen_ns;
+    g_cadence_seen_ns = now;
+    if (gap <= 0 || gap > 8 * period) {
+        g_cadence_gap_ns = 0;
+        g_cadence_target_ns = earliest;
+        return earliest;
+    }
+    g_cadence_gap_ns = g_cadence_gap_ns ? (g_cadence_gap_ns * 15 + gap) / 16 : gap;
+    const int64_t steps = (g_cadence_gap_ns + period / 2) / period;
+    const int64_t even = g_cadence_target_ns + steps * period;
+    int64_t target = earliest;
+    if (steps >= 1 && llabs(g_cadence_gap_ns - steps * period) < period / 8 &&
+        even > earliest + period / 2 && even < earliest + steps * period + period / 2) {
+        target = even;
+        g_stat_aimed_even++;
+    }
+    g_cadence_target_ns = target;
+    return target;
+}
+
+static void apply_present_time(ASurfaceTransaction *tx, int game) {
+    if (!api.setDesiredPresentTime) return;
+    pthread_mutex_lock(&g_timeline_lock);
+    const int64_t present = g_timeline_present_ns, deadline = g_timeline_deadline_ns, period = g_timeline_period_ns;
+    pthread_mutex_unlock(&g_timeline_lock);
+    const int64_t now = now_ns();
+    if (period <= 0 || now - deadline > 4 * period) return;
+    int64_t ahead = now > deadline ? (now - deadline + period - 1) / period : -((deadline - now) / period);
+    const int64_t slack = deadline + ahead * period - now;
+    g_timeline_late = slack < (g_timeline_late ? period * 5 / 8 : period / 8);
+    if (g_timeline_late) { ahead++; g_stat_aimed_later++; } else g_stat_aimed_next++;
+    int64_t target = present + ahead * period;
+    if (game && g_group_index > 0) {
+        int64_t steps = (g_group_index * g_cadence_gap_ns / g_group_frames + period / 2) / period;
+        if (steps < g_group_index) steps = g_group_index;
+        if (target < g_cadence_target_ns + steps * period) target = g_cadence_target_ns + steps * period;
+    } else if (game) {
+        target = cadence_target(now, target, period);
+    }
+    if (game && g_group_frames > 1 && ++g_group_index >= g_group_frames) { g_group_index = 0; g_group_frames = 1; }
+    api.setDesiredPresentTime(tx, target - period / 2);
 }
 
 static void on_complete(void *context, ASurfaceTransactionStats *stats) {
@@ -401,10 +464,22 @@ static void describe_handle(const struct droiddeck_native_handle *h, char *out, 
         o += (size_t)snprintf(out + o, n - o, " %#x", (unsigned)h->data[h->numFds + i]);
 }
 
+static int handle_fd(const struct droiddeck_native_handle *h, off_t need, int *which) {
+    for (int i = 0; h && i < h->numFds; i++) {
+        off_t sz = lseek(h->data[i], 0, SEEK_END);
+        if (sz >= 0) lseek(h->data[i], 0, SEEK_SET);
+        if (sz >= need) { if (which) *which = i; return h->data[i]; }
+    }
+    return -1;
+}
+
+int sc_layer_ahb_fd(AHardwareBuffer *ahb, uint64_t need) {
+    return load_api() == 0 ? handle_fd(api.getNativeHandle(ahb), (off_t)need, NULL) : -1;
+}
+
 static int g_alloc_failed;
 
 enum { TIER_UBWC, TIER_PLAIN, TIER_LINEAR };
-#define DROIDDECK_AHB_USAGE_VENDOR_UBWC (1ULL << 28)
 
 static const char *tier_name(int tier) {
     return tier == TIER_UBWC ? "asked for UBWC" : tier == TIER_PLAIN ? "no UBWC request" : "linear by request (CPU bit)";
@@ -419,7 +494,7 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             .format = fmt,
             .usage = AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE |
                      AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY |
-                     (tier == TIER_UBWC ? DROIDDECK_AHB_USAGE_VENDOR_UBWC : 0) |
+                     (tier == TIER_UBWC ? SC_LAYER_AHB_USAGE_VENDOR_UBWC : 0) |
                      (tier == TIER_LINEAR ? AHARDWAREBUFFER_USAGE_CPU_READ_RARELY : 0)};
         AHardwareBuffer *ahb = NULL;
         if (AHardwareBuffer_allocate(&d, &ahb) != 0 || !ahb) {
@@ -443,6 +518,10 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             img = vkp_image_import_dmabuf(nh->data[0], fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod, w, h,
                                           got.stride * 4, 0, 1);
             path = "dma-buf (QTI handle)";
+            if (!img && mod == MOD_LINEAR && vkp_can_import_ahb()) {
+                img = vkp_image_import_ahb(ahb, info, sizeof(info));
+                if (img) { mod = SC_MOD_GRALLOC; path = "AHardwareBuffer"; }
+            }
         } else {
             if (tier == TIER_UBWC) {
                 char hd[256];
@@ -459,13 +538,8 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             path = "AHardwareBuffer";
             img = vkp_image_import_ahb(ahb, info, sizeof(info));
             if (!img && tier == TIER_LINEAR) {
-                const off_t need = (off_t)got.stride * 4 * h;
-                int fd = -1, which = -1;
-                for (int i = 0; nh && i < nh->numFds; i++) {
-                    off_t sz = lseek(nh->data[i], 0, SEEK_END);
-                    if (sz >= 0) lseek(nh->data[i], 0, SEEK_SET);
-                    if (sz >= need) { fd = nh->data[i]; which = i; break; }
-                }
+                int which = -1;
+                int fd = handle_fd(nh, (off_t)got.stride * 4 * h, &which);
                 if (fd < 0 && nh && nh->numFds > 0) { fd = nh->data[0]; which = 0; }
                 mod = MOD_LINEAR;
                 path = "linear dma-buf";
@@ -506,16 +580,27 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
     return -1;
 }
 
-static int fence_signalled(int fd) {
+static int fence_wait(int fd, int timeout_ms) {
     struct pollfd p = {.fd = fd, .events = POLLIN};
     int r;
-    do { r = poll(&p, 1, 0); } while (r < 0 && errno == EINTR);
-    return r > 0;
+    do { r = poll(&p, 1, timeout_ms); } while (r < 0 && errno == EINTR);
+    return r;
+}
+
+static int fence_signalled(int fd) {
+    return fence_wait(fd, 0) > 0;
+}
+
+static void slot_keep_fence(struct slot *s, int fd) {
+    pthread_mutex_lock(&g_lock);
+    if (s->release_fd < 0) s->release_fd = fd; else close(fd);
+    pthread_mutex_unlock(&g_lock);
 }
 
 static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait_fd) {
     int idx = -1, pending = -1, fd = -1;
     *wait_fd = -1;
+    g_alloc_failed = 0;
     pthread_mutex_lock(&g_lock);
     for (int i = 0; i < l->pool_n; i++) {
         if (i == l->cur_slot || l->slots[i].busy) continue;
@@ -535,15 +620,7 @@ static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait
         memset(s, 0, sizeof(*s)); s->release_fd = -1;
     }
     if (fd >= 0 && !vkp_can_wait_sync_fd()) {
-        struct pollfd p = {.fd = fd, .events = POLLIN};
-        int r;
-        do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
-        if (r == 0) {
-            pthread_mutex_lock(&g_lock);
-            if (s->release_fd < 0) s->release_fd = fd; else close(fd);
-            pthread_mutex_unlock(&g_lock);
-            return -1;
-        }
+        if (fence_wait(fd, 100) == 0) { slot_keep_fence(s, fd); return -1; }
         close(fd);
         fd = -1;
     }
@@ -557,6 +634,8 @@ static int take_free_slot(struct layer *l, int w, int h, uint32_t fmt, int *wait
 
 
 int sc_layer_available(void) { return load_api() == 0; }
+
+int sc_layer_queues(void) { return load_api() == 0 && api.setEnableBackPressure != NULL; }
 
 void sc_layer_probe_dmabuf_fd(int fd) {
     static int done;
@@ -595,9 +674,10 @@ static int ensure_sc(struct layer *l) {
     return 0;
 }
 
-static int layer_geometry(int w, int h, int scene_w, int scene_h, int r[8]) {
+static int layer_geometry(int w, int h, int scene_w, int scene_h, const struct vkp_draw *draw, int r[8]) {
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
-    return vkp_map_rect(w, h, scene_w, scene_h, r) ? 1 : 0;
+    if (draw) return vkp_map_draw(draw, r) ? 1 : 0;
+    return vkp_map_rect(w, h, (const int[4]){0, 0, scene_w, scene_h}, r) ? 1 : 0;
 }
 
 static ARect g_game_src, g_game_dst;
@@ -757,6 +837,7 @@ static int present_slot(struct layer *l, int idx, const int r[8], const struct d
     ASurfaceControl *old = swap_sc_begin(l);
     if (old) api.setZOrder(tx, l->sc, l->z);
     api.setBuffer(tx, l->sc, s->ahb, -1);
+    if (api.setEnableBackPressure) api.setEnableBackPressure(tx, l->sc, true);
     api.setBufferTransparency(tx, l->sc,
                               translucent ? ASC_TRANSPARENCY_TRANSLUCENT : ASC_TRANSPARENCY_OPAQUE);
     apply_geometry(tx, l, r);
@@ -769,6 +850,7 @@ static int present_slot(struct layer *l, int idx, const int r[8], const struct d
     pthread_mutex_lock(&g_lock);
     s->busy = 1;
     pthread_mutex_unlock(&g_lock);
+    apply_present_time(tx, l == &g_layers[SC_LAYER_GAME]);
     api.txApply(tx);
     api.txDelete(tx);
     l->cur_slot = idx;
@@ -799,11 +881,12 @@ unsigned sc_layer_drops_take(void) {
 }
 
 int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, void *token, int scene_w, int scene_h,
+                         const struct vkp_draw *draw,
                          const struct droiddeck_color *color, uint32_t ahb_format) {
     struct layer *l = layer_of(SC_LAYER_GAME);
     int r[8];
     if (!ahb || !token || ensure_sc(l) != 0) goto unavailable;
-    int g = layer_geometry(w, h, scene_w, scene_h, r);
+    int g = layer_geometry(w, h, scene_w, scene_h, draw, r);
     if (g < 0) goto unavailable;
     if (g == 0) { if (acquire_fd >= 0) close(acquire_fd); sc_layer_hide(); return 1; }
     if (token == l->cur_token && l->shown && !l->recreate_pending) {
@@ -821,6 +904,7 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
     ASurfaceControl *old = swap_sc_begin(l);
     if (old) api.setZOrder(tx, l->sc, l->z);
     api.setBuffer(tx, l->sc, ahb, acquire_fd);
+    if (api.setEnableBackPressure) api.setEnableBackPressure(tx, l->sc, true);
     api.setBufferTransparency(tx, l->sc, ASC_TRANSPARENCY_OPAQUE);
     apply_geometry(tx, l, r);
     apply_frame_rate(tx, l);
@@ -834,6 +918,7 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
         l->ds_applied = -1; l->md_applied = 0; l->hr_applied = -1.0f;
         return -1;
     }
+    apply_present_time(tx, 1);
     api.txApply(tx);
     api.txDelete(tx);
     l->cur_slot = -1;
@@ -848,18 +933,19 @@ unavailable:
     return -1;
 }
 
-int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const struct droiddeck_color *color) {
+int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const struct vkp_draw *draw,
+                     const struct droiddeck_color *color) {
     struct layer *l = layer_of(SC_LAYER_GAME);
     if (!src || ensure_sc(l) != 0) return -1;
     int sw = vkp_image_width(src), sh = vkp_image_height(src);
     int r[8];
-    int g = layer_geometry(sw, sh, scene_w, scene_h, r);
+    int g = layer_geometry(sw, sh, scene_w, scene_h, draw, r);
     if (g < 0) return -1;
     if (g == 0) { sc_layer_hide(); return 0; }
 
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { log_drop(l); return 0; }
+    if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, r, color, 0) != 0) return -1;
     if (color && color->dataspace) droiddeck_color_frame_shown(color, DROIDDECK_HDR_LAYER_COPY, AHB_RGBA8);
@@ -879,10 +965,10 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
     if (!draws || n <= 0 || ensure_sc(l) != 0) return -1;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
     if (vkp_pass_begin(scene_w, scene_h, draws, n, &rw, &rh) != 0) return -1;
-    if (!vkp_map_rect(rw, rh, scene_w, scene_h, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
+    if (!vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
     int wait_fd;
     int idx = take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
+    if (idx < 0) { vkp_pass_abort(); log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, r, NULL, 0) != 0) return -1;
     if (!l->first_logged) {
@@ -895,7 +981,96 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
     return 0;
 }
 
+static void slots_idle(struct layer *l, const int *idx, int from, int to) {
+    pthread_mutex_lock(&g_lock);
+    for (int i = from; i < to; i++) l->slots[idx[i]].busy = 0;
+    pthread_mutex_unlock(&g_lock);
+}
+
 static uint32_t g_hdr_pool_fmt = AHB_RGB10A2;
+
+static int take_hdr_slot(struct layer *l, int w, int h, int *wait_fd) {
+    int idx = take_free_slot(l, w, h, g_hdr_pool_fmt, wait_fd);
+    if (idx < 0 && g_alloc_failed && g_hdr_pool_fmt == AHB_RGB10A2) {
+        g_hdr_pool_fmt = AHB_RGBA8;
+        droiddeck_log("color", "%s: this device will not make a 10-bit layer buffer (RGBA1010102): the HDR picture goes "
+                   "on 8-bit buffers instead (still tagged BT2020_PQ; less precision)", l->name);
+        idx = take_free_slot(l, w, h, g_hdr_pool_fmt, wait_fd);
+    }
+    return idx;
+}
+
+int sc_layer_present_generated(const struct vkp_draw *draws, int n_draws, const struct vkp_hdr_frame *hf,
+                               int scene_w, int scene_h, int composed, const struct droiddeck_color *color) {
+    struct layer *l = layer_of(SC_LAYER_GAME);
+    int rw = 0, rh = 0, r[8], idx[VKP_FG_MAX_GENERATIONS + 1], m = 0, first_fd = -1, have_fd = 0;
+    struct vkp_image *dst[VKP_FG_MAX_GENERATIONS], *real = NULL;
+    g_group_index = 0;
+    g_group_frames = 1;
+    if (!draws || n_draws <= 0 || ensure_sc(l) != 0) return -1;
+    if (vkp_update_map(scene_w, scene_h) != 0) return -1;
+    const int deep = hf && !hf->tonemap;
+    if (hf) composed = 1;
+    if (hf && hf->tonemap) color = NULL;
+    int n = vkp_pass_begin_generate(scene_w, scene_h, draws, n_draws, hf, &rw, &rh);
+    if (n < 0) return -1;
+    const int mapped = vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r);
+    if (!mapped) n = 0;
+    if (composed) {
+        if (!mapped) { vkp_pass_abort(); sc_layer_hide(); return 0; }
+        idx[VKP_FG_MAX_GENERATIONS] = deep ? take_hdr_slot(l, rw, rh, &first_fd)
+                                           : take_free_slot(l, rw, rh, AHB_RGBA8, &first_fd);
+        if (idx[VKP_FG_MAX_GENERATIONS] < 0) { vkp_pass_abort(); log_drop(l); return g_alloc_failed ? -1 : 0; }
+        pthread_mutex_lock(&g_lock);
+        l->slots[idx[VKP_FG_MAX_GENERATIONS]].busy = 1;
+        pthread_mutex_unlock(&g_lock);
+        real = l->slots[idx[VKP_FG_MAX_GENERATIONS]].img;
+        have_fd = 1;
+    }
+    for (; m < n; m++) {
+        int fd;
+        idx[m] = take_free_slot(l, rw, rh, deep ? g_hdr_pool_fmt : AHB_RGBA8, &fd);
+        if (idx[m] < 0) { log_drop(l); break; }
+        if (have_fd && fd >= 0) {
+            if (fence_wait(fd, 100) == 0) { slot_keep_fence(&l->slots[idx[m]], fd); log_drop(l); break; }
+            close(fd);
+        }
+        pthread_mutex_lock(&g_lock);
+        l->slots[idx[m]].busy = 1;
+        pthread_mutex_unlock(&g_lock);
+        dst[m] = l->slots[idx[m]].img;
+        if (!have_fd) { first_fd = fd; have_fd = 1; }
+    }
+    if (vkp_pass_copy_generated(dst, m, real, first_fd) != 0) {
+        slots_idle(l, idx, 0, m);
+        if (real) slots_idle(l, idx, VKP_FG_MAX_GENERATIONS, VKP_FG_MAX_GENERATIONS + 1);
+        return -1;
+    }
+    g_group_frames = m + 1;
+    for (int k = 0; k < m; k++) {
+        if (present_slot(l, idx[k], r, color, 0) == 0) continue;
+        slots_idle(l, idx, k, m);
+        if (real) slots_idle(l, idx, VKP_FG_MAX_GENERATIONS, VKP_FG_MAX_GENERATIONS + 1);
+        g_group_index = 0;
+        g_group_frames = 1;
+        return -1;
+    }
+    vkp_framegen_presented(m);
+    if (real) {
+        if (present_slot(l, idx[VKP_FG_MAX_GENERATIONS], r, color, 0) != 0) {
+            slots_idle(l, idx, VKP_FG_MAX_GENERATIONS, VKP_FG_MAX_GENERATIONS + 1);
+            g_group_index = 0;
+            g_group_frames = 1;
+            return -1;
+        }
+        l->first_logged = 1;
+        vkp_signal_first_frame();
+    }
+    if (hf && hf->color && hf->color->dataspace)
+        droiddeck_color_frame_shown(hf->color, deep ? DROIDDECK_HDR_COMPOSED : DROIDDECK_HDR_TONEMAPPED,
+                                    deep ? g_hdr_pool_fmt : AHB_RGBA8);
+    return m;
+}
 
 int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct vkp_hdr_frame *hf,
                                int scene_w, int scene_h, const struct droiddeck_color *color) {
@@ -904,19 +1079,11 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
     if (!draws || n <= 0 || !hf || ensure_sc(l) != 0) return -1;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
     if (vkp_pass_begin_hdr(scene_w, scene_h, draws, n, hf, &rw, &rh) != 0) return -1;
-    if (!vkp_map_rect(rw, rh, scene_w, scene_h, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
+    if (!vkp_map_rect(rw, rh, (const int[4]){0, 0, scene_w, scene_h}, r)) { vkp_pass_abort(); sc_layer_hide(); return 0; }
     const int tm = hf->tonemap;
-    const uint32_t fmt = tm ? AHB_RGBA8 : g_hdr_pool_fmt;
-    g_alloc_failed = 0;
     int wait_fd;
-    int idx = take_free_slot(l, rw, rh, fmt, &wait_fd);
-    if (idx < 0 && g_alloc_failed && fmt == AHB_RGB10A2) {
-        g_hdr_pool_fmt = AHB_RGBA8;
-        droiddeck_log("color", "%s: this device will not make a 10-bit layer buffer (RGBA1010102): the HDR picture goes "
-                   "on 8-bit buffers instead (still tagged BT2020_PQ; less precision)", l->name);
-        idx = take_free_slot(l, rw, rh, g_hdr_pool_fmt, &wait_fd);
-    }
-    if (idx < 0) { vkp_pass_abort(); log_drop(l); return 0; }
+    int idx = tm ? take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd) : take_hdr_slot(l, rw, rh, &wait_fd);
+    if (idx < 0) { vkp_pass_abort(); log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, r, tm ? NULL : color, 0) != 0) return -1;
     if (color && color->dataspace)
@@ -967,8 +1134,9 @@ int sc_layer_overlay_affordable(void) {
         if (want)
             droiddeck_log("layer", "overlay layer declined: this display rotates every layer %d° and the game "
                        "layer is scaled %dx%d -> %dx%d, and on that combination a second layer drops the "
-                       "whole frame to GPU composition for the rest of the session (measured). The window "
-                       "above the game goes on the copy path instead - same picture, one blit.",
+                       "whole frame to GPU composition for the rest of the session (measured). A nested "
+                       "compositor is asked to compose its own overlays into the game picture; any other "
+                       "window above the game goes on the copy path instead.",
                        deg, sr[0], sr[1], ds[0], ds[1]);
         else if (!first)
             droiddeck_log("layer", "overlay layer allowed again: the game layer is no longer both rotated and "
@@ -986,7 +1154,7 @@ int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int transl
     if (sw <= 0 || sh <= 0) return -1;
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { log_drop(l); return 0; }
+    if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, geo, NULL, translucent) != 0) return -1;
     if (!l->first_logged) {
@@ -1031,6 +1199,13 @@ void sc_layer_window_gone(void) {
     layers_init();
     for (int i = SC_LAYER_COUNT - 1; i >= 0; i--) retire_sc(&g_layers[i]);
     drain_and_free_pools();
+}
+
+void sc_layer_aim_take(unsigned *next, unsigned *later, unsigned *even) {
+    *next = g_stat_aimed_next;
+    *later = g_stat_aimed_later;
+    *even = g_stat_aimed_even;
+    g_stat_aimed_next = g_stat_aimed_later = g_stat_aimed_even = 0;
 }
 
 unsigned sc_layer_frames_take(void) {

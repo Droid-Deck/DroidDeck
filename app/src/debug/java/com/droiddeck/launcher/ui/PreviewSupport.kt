@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.gpu.FrameGen
 import com.droiddeck.launcher.gpu.Lossless
+import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.session.SessionPrefs
 
@@ -64,7 +65,9 @@ internal val sampleActions: FrontEndActions = FrontEndActions(
 )
 
 /** The in-game menu's actions with settled sample values; its switches do nothing. */
-internal fun sampleDrawerActions(steam: Boolean = true, desktop: Boolean = false): DrawerActions = DrawerActions(
+internal fun sampleDrawerActions(
+    steam: Boolean = true, desktop: Boolean = false, secondScreen: SecondScreenMode? = null,
+): DrawerActions = DrawerActions(
     steam = steam, desktop = desktop, title = if (!steam && !desktop) "Hades" else null,
     isHomeApp = false, androidApps = emptyList(),
     hudOn = true, onHud = {},
@@ -75,8 +78,10 @@ internal fun sampleDrawerActions(steam: Boolean = true, desktop: Boolean = false
     backActionsInverted = false, onBackActionsInverted = {},
     touchMode = SessionPrefs.TOUCH_AUTO, onTouch = {}, touchAuto = "Auto (direct)",
     fexPreset = "", onFexPreset = {},
-    secondScreenMode = SecondScreenMode.NONE, onSecondScreenMode = {},
-    secondScreenDisplays = emptyList(), selectedSecondScreenDisplay = -1, onSecondScreenDisplay = {},
+    secondScreenMode = secondScreen ?: SecondScreenMode.NONE, onSecondScreenMode = {}, secondScreenNone = secondScreen == null,
+    secondScreenDisplays = listOfNotNull(secondScreen?.let { SecondScreenDisplay(2, "Built-in · 1240×1080") }),
+    selectedSecondScreenDisplay = if (secondScreen != null) 2 else -1, onSecondScreenDisplay = {},
+    gameSwapAvailable = secondScreen != null, dashboardAvailable = secondScreen != null,
     onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
     onSteamMenu = if (steam) ({}) else null, onQam = if (steam) ({}) else null,
     onLaunchAndroidApp = { _, _ -> }, onBackground = {}, onShareLogs = {}, onStop = {}, onClose = {},

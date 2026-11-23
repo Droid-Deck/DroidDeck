@@ -1,6 +1,13 @@
 package com.droiddeck.launcher.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import com.droiddeck.launcher.R
+import com.droiddeck.launcher.input.SecondScreenMode
 
 /** The launcher as a whole: rail and page, opened on each tab through FrontEndState.navigate. */
 @Composable
@@ -27,6 +34,28 @@ private fun SessionMenu(page: SessionDrawerPage, steam: Boolean = true, desktop:
 @DroidDeckPreviews @Composable private fun SessionMenuSessionPreview() = SessionMenu(SessionDrawerPage.SESSION)
 @DroidDeckPreviews @Composable private fun SessionMenuDesktopPreview() = SessionMenu(SessionDrawerPage.CONTROLLER, steam = false, desktop = true)
 
+/** The in-game menu docked on the bottom screen, with the screen picker in its header. */
+@Composable
+private fun DockedMenu(page: SessionDrawerPage) = PreviewHost {
+    SessionDrawer(true, page, controllerActive = false, onPageChange = {},
+        a = sampleDrawerActions(secondScreen = SecondScreenMode.KEYBOARD_TRACKPAD), docked = true)
+}
+
+/** The bottom screen's bar on a panel: the panel's name is the screen picker. */
+@Composable
+private fun BottomPanelBar() = PreviewHost {
+    val modes = secondScreenModes(false, deckPad = false, dashboard = true, desktop = false)
+    Column(Modifier.fillMaxSize().background(Color.Black)) {
+        BottomScreenBar(BottomBarModel("Keyboard + trackpad", {}, {}, {}, {},
+            listOf(BarExtra("Keyboard", icon = R.drawable.ic_bottom_keyboard) {}),
+            picker = ScreenPicker(modes, SecondScreenMode.KEYBOARD_TRACKPAD, {}, onMenu = {})))
+    }
+}
+
+@DroidDeckPreviews @Composable private fun SessionMenuDockedPreview() = DockedMenu(SessionDrawerPage.CONTROLLER)
+@DroidDeckPreviews @Composable private fun SessionMenuDockedDisplayPreview() = DockedMenu(SessionDrawerPage.DISPLAY)
+@DroidDeckPreviews @Composable private fun BottomPanelBarPreview() = BottomPanelBar()
+
 /** The Library and Stores tabs read store accounts, which load on a background thread. */
 private val storesLoaded = { com.droiddeck.launcher.stores.StoresState.accountsLoaded }
 
@@ -44,4 +73,7 @@ internal val previewCases: List<PreviewCase> = listOf(
     PreviewCase("session-menu-hud") { SessionMenu(SessionDrawerPage.HUD) },
     PreviewCase("session-menu-session") { SessionMenu(SessionDrawerPage.SESSION) },
     PreviewCase("session-menu-desktop") { SessionMenu(SessionDrawerPage.CONTROLLER, steam = false, desktop = true) },
+    PreviewCase("session-menu-docked") { DockedMenu(SessionDrawerPage.CONTROLLER) },
+    PreviewCase("session-menu-docked-display") { DockedMenu(SessionDrawerPage.DISPLAY) },
+    PreviewCase("bottom-panel-bar") { BottomPanelBar() },
 )
