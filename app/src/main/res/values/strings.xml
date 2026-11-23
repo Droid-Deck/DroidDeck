@@ -659,6 +659,7 @@
     <string name="perf_game_mode_group">Android</string>
     <string name="perf_game_mode">Game mode</string>
     <string name="perf_game_mode_hint">Applied to DroidDeck when a session starts, over the saved Wireless debugging pairing. Some modes also change the render resolution.</string>
+    <string name="perf_game_mode_unpaired">DroidDeck is not paired with Wireless debugging yet, so it cannot apply the mode.</string>
     <string name="perf_game_mode_system">System default</string>
     <string name="perf_game_mode_battery">Battery</string>
     <string name="perf_game_mode_standard">Standard</string>
