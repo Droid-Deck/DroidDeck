@@ -794,7 +794,6 @@ static void ddnatv_add_at_dir(const char *guest) {
 }
 
 static void ddnatv_build_at_dirs(void) {
-    if (g_nbinds == 0) return;
     ddnatv_add_at_dir("/");
     for (int i = 0; i < g_nbinds; i++) {
         char guest[PATH_MAX];
@@ -809,7 +808,7 @@ static void ddnatv_build_at_dirs(void) {
 // The absolute host path for `rel` given relative to `dirfd`, or NULL when the call needs no change.
 static const char *map_at(int dirfd, const char *rel, char *buf, size_t size) {
 #if defined(__aarch64__)
-    if (dirfd == AT_FDCWD || !rel || rel[0] == '\0' || rel[0] == '/' || g_nbinds == 0) return NULL;
+    if (dirfd == AT_FDCWD || !rel || rel[0] == '\0' || rel[0] == '/') return NULL;
     pthread_once(&g_at_once, ddnatv_build_at_dirs);
     if (g_n_at_dirs == 0) return NULL;
     struct stat st;
@@ -821,6 +820,7 @@ static const char *map_at(int dirfd, const char *rel, char *buf, size_t size) {
         size_t used = ddnatv_append(guest, sizeof(guest), 0, base, strlen(base));
         if (used > 1) used = ddnatv_append(guest, sizeof(guest), used, "/", 1);
         ddnatv_append(guest, sizeof(guest), used, rel, strlen(rel));
+        if (strcmp(rel, "..") == 0) normalize_path(guest);
         const char *mapped = rewrite_path_in_root(guest, buf, size);
         if (mapped != buf) ddnatv_copy_cstr(buf, size, mapped);
         return buf;

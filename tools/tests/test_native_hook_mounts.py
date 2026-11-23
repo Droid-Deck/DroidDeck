@@ -26,6 +26,14 @@ int main(int argc, char **argv) {
       printf("%s\t%s\n", argv[i], value ? value : "-");
       continue;
     }
+    if (strncmp(argv[i], "parent:", 7) == 0) {
+      int fd = open(argv[i] + 7, O_RDONLY | O_DIRECTORY);
+      struct stat expected;
+      int ok = fd >= 0 && fstatat(fd, "..", &st, 0) == 0 && stat("/", &expected) == 0;
+      printf("%s\t%d\n", argv[i], ok && st.st_dev == expected.st_dev && st.st_ino == expected.st_ino);
+      if (fd >= 0) close(fd);
+      continue;
+    }
     if (strncmp(argv[i], "cd:", 3) == 0) {
       int ok = chdir(argv[i] + 3) == 0 && getcwd(cwd, sizeof(cwd)) != NULL;
       printf("%s\t%s\n", argv[i], ok ? cwd : "-");
@@ -123,8 +131,9 @@ class NativeHookMountTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_probe(self, *args):
-        binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
+    def run_probe(self, *args, binds=None):
+        if binds is None:
+            binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
         hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": binds, "LD_PRELOAD": str(self.hook)}
         env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "LOCPATH", "GCONV_PATH")}
         if self.prefix:
@@ -157,6 +166,15 @@ class NativeHookMountTest(unittest.TestCase):
         result = self.run_probe("env:LOCPATH", "env:GCONV_PATH")
         self.assertEqual(result["env:LOCPATH"], [f"{self.root}/usr/lib/locale"])
         self.assertEqual(result["env:GCONV_PATH"], [f"{self.root}/usr/lib/aarch64-linux-gnu/gconv"])
+
+    def test_parent_of_root_stays_at_root(self):
+        self.assertEqual(self.run_probe("parent:/")["parent:/"], ["1"])
+
+    def test_parent_of_root_without_mounts_stays_at_root(self):
+        self.assertEqual(self.run_probe("parent:/", binds="")["parent:/"], ["1"])
+
+    def test_parent_of_mount_ancestor_is_guest_root(self):
+        self.assertEqual(self.run_probe("parent:/mnt")["parent:/mnt"], ["1"])
 
     def test_rootfs_paths_outside_mounts_are_unchanged(self):
         paths = ["/pfx/native/dosdevices/z:/etc/hostname", f"{self.root}/etc/hostname", "/etc/hostname"]
