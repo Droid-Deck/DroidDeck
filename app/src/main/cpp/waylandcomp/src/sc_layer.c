@@ -559,7 +559,8 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
                        pool_kind(mod), w, h, got.stride, tier_name(tier), (unsigned long long)got.usage, path,
                        nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd);
             AHardwareBuffer_release(ahb);
-            if (tier < TIER_LINEAR) { l->alloc_tier = tier + 1; continue; }
+            l->alloc_tier = tier + 1;
+            if (tier < TIER_LINEAR) continue;
             g_alloc_failed = 1;
             return -1;
         }
