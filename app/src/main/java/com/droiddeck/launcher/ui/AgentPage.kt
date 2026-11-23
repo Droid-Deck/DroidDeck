@@ -411,7 +411,7 @@ private fun AgentMenu(open: Boolean, onOpen: (Boolean) -> Unit, onPanel: (AgentP
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.clip(Shape16).background(colors.surface.copy(alpha = if (open) 0.97f else 0.88f))
-            .border(1.dp, pal.line, Shape16).padding(end = 4.dp),
+            .border(1.dp, pal.line, Shape16).padding(top = 3.dp, bottom = 3.dp, end = 4.dp),
     ) {
         androidx.compose.animation.AnimatedVisibility(open, enter = expandHorizontally(expandFrom = Alignment.End) + fadeIn(),
             exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut()) {
