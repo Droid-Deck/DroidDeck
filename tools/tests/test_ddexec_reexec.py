@@ -15,6 +15,12 @@ LIBRARY = r"""
 int dd_probe_value(void) { return 7; }
 """
 
+HOOK = r"""
+#include <unistd.h>
+
+__attribute__((constructor)) static void hooked(void) { write(1, "hooked\n", 7); }
+"""
+
 PROGRAM = r"""
 #include <stdio.h>
 #include <string.h>
@@ -71,6 +77,13 @@ class DdexecReexecTest(unittest.TestCase):
         cls.program = tmp / "prog"
         subprocess.run([cc, "-O1", "-o", str(cls.program), str(tmp / "prog.c"), "-L", str(cls.libdir), "-lddprobe"],
                        check=True)
+        cls.root = tmp / "root"
+        (cls.root / "usr/lib").mkdir(parents=True)
+        (cls.root / "lib").mkdir()
+        shutil.copy2(SYSROOT / "lib/ld-linux-aarch64.so.1", cls.root / "lib/ld-linux-aarch64.so.1")
+        (tmp / "hook.c").write_text(HOOK)
+        subprocess.run([cc, "-shared", "-fPIC", "-O1", "-o", str(cls.root / "usr/lib/libddnatv-hook.so"), str(tmp / "hook.c")],
+                       check=True)
         probe = subprocess.run(["bwrap", "--dev-bind", "/", "/", "true"], capture_output=True)
         if probe.returncode != 0:
             raise unittest.SkipTest("bwrap cannot create a namespace here")
@@ -79,9 +92,9 @@ class DdexecReexecTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def env(self, real_exe, library_path=None):
+    def env(self, real_exe, library_path=None, root=SYSROOT):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("DDNATV_", "LD_", "QEMU_"))}
-        env["DDNATV_ROOT"] = str(SYSROOT)
+        env["DDNATV_ROOT"] = str(root)
         env["LD_LIBRARY_PATH"] = f"{SYSROOT / 'lib'}:{self.libdir}" if library_path is None else str(SYSROOT / "lib")
         if real_exe:
             env["DDNATV_REAL_EXE"] = str(real_exe)
@@ -89,13 +102,13 @@ class DdexecReexecTest(unittest.TestCase):
             env["DDNATV_LIBRARY_PATH"] = library_path
         return env
 
-    def reexec(self, execfn, real_exe, library_path=None):
+    def reexec(self, execfn, real_exe, library_path=None, root=SYSROOT):
         jail = ["bwrap", "--dev-bind", "/", "/", "--tmpfs", "/proc"]
         parent = str(Path(execfn).parent)
         jail += ["--dir", parent, "--ro-bind", str(self.loader), execfn]
         start = self.qemu + ["-0", "first", execfn] if self.qemu else ["bash", "-c", 'exec -a first "$0" "$@"', execfn]
         cmd = jail + start + ["again", "x y"]
-        return subprocess.run(cmd, env=self.env(real_exe, library_path), capture_output=True, text=True, timeout=120)
+        return subprocess.run(cmd, env=self.env(real_exe, library_path, root), capture_output=True, text=True, timeout=120)
 
     def test_reexec_through_proc_self_exe_runs_the_guest_program(self):
         out = self.reexec("/proc/self/exe", self.program)
@@ -111,6 +124,11 @@ class DdexecReexecTest(unittest.TestCase):
         out = self.reexec("/proc/self/exe", self.program, f"{self.libdir}:{SYSROOT / 'lib'}")
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual(["first|again|x y", str(self.program)], out.stdout.splitlines())
+
+    def test_reexec_through_ld_so_preloads_the_hook_of_the_root(self):
+        out = self.reexec("/proc/self/exe", self.program, f"{self.libdir}:{SYSROOT / 'lib'}", self.root)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(["hooked", "first|again|x y", str(self.program)], out.stdout.splitlines())
 
     def test_reexec_without_a_known_program_fails_cleanly(self):
         out = self.reexec("/proc/self/exe", None)

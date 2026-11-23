@@ -279,6 +279,7 @@ __attribute__((used, noreturn)) void ddexec_main(uintptr_t *sp) {
     char **args = argv + 2;
     long nargs = argc - 2;
     char interp_buf[4096];
+    char hook_buf[4096];
     if (reexec) {
         path = env_get(envp, "DDNATV_REAL_EXE");
         if (!path || !path[0]) die("re-executed without DDNATV_REAL_EXE", 0, 0);
@@ -289,18 +290,25 @@ __attribute__((used, noreturn)) void ddexec_main(uintptr_t *sp) {
         interp_of(path, prog_interp, sizeof(prog_interp));
         if (prog_interp[0] && lib_path && lib_path[0]) {
             const char *ld_so = guest_interp(envp, prog_interp, interp_buf, sizeof(interp_buf));
+            const char *hook = guest_interp(envp, "/usr/lib/libddnatv-hook.so", hook_buf, sizeof(hook_buf));
+            if (hook != (const char *)hook_buf) hook = guest_interp(envp, "/lib/libddnatv-hook.so", hook_buf, sizeof(hook_buf));
             long n = argc > 1 ? argc - 1 : 0;
-            char **v = (char **)__builtin_alloca((size_t)(n + 7) * sizeof(char *));
-            v[0] = (char *)ld_so;
-            v[1] = (char *)"--library-path";
-            v[2] = (char *)lib_path;
-            v[3] = (char *)"--argv0";
-            v[4] = argc > 0 ? argv[0] : (char *)path;
-            v[5] = (char *)path;
-            for (long i = 0; i < n; i++) v[6 + i] = argv[1 + i];
-            v[6 + n] = 0;
+            char **v = (char **)__builtin_alloca((size_t)(n + 9) * sizeof(char *));
+            long k = 0;
+            v[k++] = (char *)ld_so;
+            if (hook == (const char *)hook_buf) {
+                v[k++] = (char *)"--preload";
+                v[k++] = (char *)hook;
+            }
+            v[k++] = (char *)"--library-path";
+            v[k++] = (char *)lib_path;
+            v[k++] = (char *)"--argv0";
+            v[k++] = argc > 0 ? argv[0] : (char *)path;
+            v[k++] = (char *)path;
+            for (long i = 0; i < n; i++) v[k++] = argv[1 + i];
+            v[k] = 0;
             args = v;
-            nargs = n + 6;
+            nargs = k;
             path = ld_so;
         }
     } else if (argc < 3) {
