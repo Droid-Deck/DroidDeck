@@ -864,6 +864,7 @@
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
+    <string name="drawer_resize">Resize the menu</string>
     <string name="drawer_second_screen_shows">Shows</string>
     <string name="drawer_android_apps">Android apps</string>
     <string name="drawer_launch_app">Launch an app</string>
