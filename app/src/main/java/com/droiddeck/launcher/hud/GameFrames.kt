@@ -265,6 +265,7 @@ internal class GameFrameFeed(
         val name = if (handle != 0L && fromGamescope) HudFrames.nativeInfo(handle, info) else null
         if (name == null) {
             engine = ""
+            steamFocused = false
             return
         }
         pid = info[0]
