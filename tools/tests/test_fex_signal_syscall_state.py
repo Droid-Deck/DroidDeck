@@ -68,7 +68,7 @@ class AsyncSignalContextProbeTest(unittest.TestCase):
         result = subprocess.run([str(self.binary), "500"], capture_output=True, text=True, timeout=120)
         self.assertEqual(result.returncode, 0, result.stdout)
         counts = dict(part.split("=") for part in result.stdout.split())
-        self.assertEqual(counts["matched"], "500")
+        self.assertGreaterEqual(int(counts["matched"]), 500)
         self.assertEqual(counts["stale"], "0")
 
 

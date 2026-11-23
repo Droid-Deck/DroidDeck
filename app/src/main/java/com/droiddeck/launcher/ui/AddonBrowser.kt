@@ -73,6 +73,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 private class AddonResults {
     val items = mutableStateListOf<WowAddonCatalog.Addon>()
@@ -93,8 +94,7 @@ private class CurseLink(val app: UserApps.App) {
 
     private val lock = Object()
     @Volatile private var closed = false
-    private var started = false
-    @Volatile private var launching = false
+    @Volatile private var hold: AtomicBoolean? = null
     @Volatile private var inspector: String? = null
     private val guids = HashMap<String, String>()
 
@@ -116,11 +116,12 @@ private class CurseLink(val app: UserApps.App) {
     private fun link(context: Context, target: WowAddons.Target): Linked {
         if (closed) throw CurseState()
         val url = inspector ?: run {
-            launching = true
-            val done = CurseForgeApp.start(context, app)
+            val launch = AtomicBoolean(false)
+            hold = launch
+            if (closed) throw CurseState()
+            val done = CurseForgeApp.start(context, app, launch)
             when (done.state) {
                 CurseForgeApp.Start.READY -> {
-                    started = true
                     inspector = done.inspector
                     done.inspector ?: throw CurseState()
                 }
@@ -139,12 +140,11 @@ private class CurseLink(val app: UserApps.App) {
 
     fun close(context: Context) {
         closed = true
+        val launch = hold ?: return
         Thread {
-            if (launching) CurseForgeApp.stop(context, app, inspector)
+            CurseForgeApp.stop(context, app, inspector, launch)
             synchronized(lock) {
-                if (started) CurseForgeApp.stop(context, app, inspector)
-                started = false
-                launching = false
+                hold = null
                 inspector = null
             }
         }.start()

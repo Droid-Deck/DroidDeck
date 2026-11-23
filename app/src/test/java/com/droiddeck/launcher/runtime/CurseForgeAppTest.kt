@@ -28,9 +28,15 @@ class CurseForgeAppTest {
 
     @After
     fun restoreGuest() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        launches.forEach { CurseForgeApp.stop(context, app, null, it) }
         holder.get()?.set(true)
         CurseForgeApp.guest = original
     }
+
+    private val launches = mutableListOf<java.util.concurrent.atomic.AtomicBoolean>()
+
+    private fun launch(): java.util.concurrent.atomic.AtomicBoolean = java.util.concurrent.atomic.AtomicBoolean(false).also { launches += it }
 
     private val holder = java.util.concurrent.atomic.AtomicReference<java.util.concurrent.atomic.AtomicBoolean?>()
     private val released = java.util.concurrent.CountDownLatch(1)
@@ -198,7 +204,7 @@ class CurseForgeAppTest {
     @Test
     fun theAppStartsInTheGuestWithoutASessionAndIsAskedThroughItsInspector() {
         val calls = fakeGuest(0)
-        val started = CurseForgeApp.start(org.robolectric.RuntimeEnvironment.getApplication(), app)
+        val started = CurseForgeApp.start(org.robolectric.RuntimeEnvironment.getApplication(), app, launch())
         assertEquals(CurseForgeApp.Start.READY, started.state)
         assertEquals(url, started.inspector)
         assertEquals(listOf(CurseForgeApp.HELPER, "start", "/root/apps/curseforge"), calls.first())
@@ -212,39 +218,79 @@ class CurseForgeAppTest {
     fun theLaunchLivesUntilItIsStopped() {
         fakeGuest(0)
         val context = org.robolectric.RuntimeEnvironment.getApplication()
-        assertEquals(CurseForgeApp.Start.READY, CurseForgeApp.start(context, app).state)
+        val hold = launch()
+        assertEquals(CurseForgeApp.Start.READY, CurseForgeApp.start(context, app, hold).state)
         assertEquals(false, holder.get()?.get())
         assertEquals(1L, released.count)
-        CurseForgeApp.stop(context, app, url)
+        CurseForgeApp.stop(context, app, url, hold)
         assertTrue(released.await(5, java.util.concurrent.TimeUnit.SECONDS))
     }
 
     @Test
     fun anAppThatIsAlreadyOpenIsNeitherUsedNorStopped() {
         val calls = fakeGuest(3)
-        assertEquals(CurseForgeApp.Start.BUSY, CurseForgeApp.start(org.robolectric.RuntimeEnvironment.getApplication(), app).state)
+        assertEquals(CurseForgeApp.Start.BUSY, CurseForgeApp.start(org.robolectric.RuntimeEnvironment.getApplication(), app, launch()).state)
         assertEquals(listOf(listOf(CurseForgeApp.HELPER, "start", "/root/apps/curseforge")), calls)
     }
 
     @Test
-    fun stoppingAsksTheAppToQuitThenStopsItsHeadlessLaunch() {
+    fun stoppingAsksTheAppToQuitThenStopsItsHeadlessLaunchOnce() {
         val calls = fakeGuest(0)
-        CurseForgeApp.stop(org.robolectric.RuntimeEnvironment.getApplication(), app, url)
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val hold = launch()
+        CurseForgeApp.start(context, app, hold)
+        calls.clear()
+        CurseForgeApp.stop(context, app, url, hold)
         assertEquals(CurseForgeApp.AGENT, calls[0][0])
         assertTrue(calls[0][4].contains("shutdown"))
         assertEquals(listOf(CurseForgeApp.HELPER, "stop", "/root/apps/curseforge"), calls[1])
+        assertTrue(hold.get())
         calls.clear()
-        CurseForgeApp.stop(org.robolectric.RuntimeEnvironment.getApplication(), app, null)
+        CurseForgeApp.stop(context, app, url, hold)
+        assertTrue(calls.isEmpty())
+    }
+
+    @Test
+    fun aLateStopLeavesTheNewerLaunchRunning() {
+        val calls = fakeGuest(0)
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val old = launch()
+        val newer = launch()
+        CurseForgeApp.start(context, app, old)
+        CurseForgeApp.start(context, app, newer)
+        assertTrue(old.get())
+        calls.clear()
+        CurseForgeApp.stop(context, app, url, old)
+        assertTrue(calls.isEmpty())
+        assertEquals(false, newer.get())
+        CurseForgeApp.stop(context, app, null, newer)
         assertEquals(listOf(listOf(CurseForgeApp.HELPER, "stop", "/root/apps/curseforge")), calls)
+    }
+
+    @Test
+    fun aStoppedLaunchNeverStarts() {
+        val calls = fakeGuest(0)
+        val hold = launch().apply { set(true) }
+        assertEquals(CurseForgeApp.Start.FAILED, CurseForgeApp.start(org.robolectric.RuntimeEnvironment.getApplication(), app, hold).state)
+        assertTrue(calls.isEmpty())
     }
 
     @Test
     fun anAppWithoutADirectoryIsNeverLaunched() {
         val calls = fakeGuest(0)
         val bare = UserApps.App("appimage:d", UserApps.Kind.APPIMAGE, "CurseForge", null, null, AppImageManager.LAUNCHER, emptyList(), feed = CurseForgeApp.FEED)
-        assertEquals(CurseForgeApp.Start.FAILED, CurseForgeApp.start(org.robolectric.RuntimeEnvironment.getApplication(), bare).state)
-        CurseForgeApp.stop(org.robolectric.RuntimeEnvironment.getApplication(), bare, url)
+        val hold = launch()
+        assertEquals(CurseForgeApp.Start.FAILED, CurseForgeApp.start(org.robolectric.RuntimeEnvironment.getApplication(), bare, hold).state)
+        CurseForgeApp.stop(org.robolectric.RuntimeEnvironment.getApplication(), bare, url, hold)
         assertTrue(calls.isEmpty())
+    }
+
+    @Test
+    fun theInspectorUrlIsRedactedFromCommandLogs() {
+        val line = CurseForgeApp.evalArgv(url, "x", 1_000).joinToString(" ")
+        assertTrue(line.contains(url))
+        assertTrue(!GuestCommand.redacted(line, CurseForgeApp.INSPECTOR).contains("127.0.0.1"))
+        assertTrue(!GuestCommand.redacted(url, CurseForgeApp.INSPECTOR).contains(url))
     }
 
     @Test

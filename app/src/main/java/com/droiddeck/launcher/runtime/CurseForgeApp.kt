@@ -23,7 +23,7 @@ object CurseForgeApp {
 
     class Started(val state: Start, val inspector: String? = null)
 
-    private val INSPECTOR = Regex("ws://127\\.0\\.0\\.1:[0-9]{4,5}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+    internal val INSPECTOR = Regex("ws://127\\.0\\.0\\.1:[0-9]{4,5}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
     class Failure(message: String, val code: String? = null) : Exception(message) {
         val gone get() = code == "DEVTOOLS_UNREACHABLE"
@@ -148,7 +148,7 @@ object CurseForgeApp {
 
     internal var guest: (Context, List<String>, AtomicBoolean?, (String) -> Unit) -> Int = { context, argv, cancelled, onLine ->
         GuestCommand.run(context, argv, logName = "curseforge", extraBinds = BattleNetInstall.binds(context), fastPath = true,
-            cancelled = cancelled, onLine = onLine)
+            cancelled = cancelled, redact = INSPECTOR, onLine = onLine)
     }
 
     private val holds = ConcurrentHashMap<String, AtomicBoolean>()
@@ -178,10 +178,13 @@ object CurseForgeApp {
         return first.poll(READY_MS, TimeUnit.MILLISECONDS)
     }
 
-    fun start(context: Context, app: UserApps.App): Started {
+    fun start(context: Context, app: UserApps.App, hold: AtomicBoolean): Started {
         val dir = dir(app) ?: return Started(Start.FAILED)
-        val hold = AtomicBoolean(false)
-        holds.put(dir, hold)?.set(true)
+        if (hold.get()) return Started(Start.FAILED)
+        holds.put(dir, hold)?.takeIf { it !== hold }?.let {
+            it.set(true)
+            runCatching { lines(context, helperArgv("stop", dir)) }
+        }
         val inspector = when (val first = launch(context, dir, hold)) {
             is Launch.Url -> first.inspector
             is Launch.Exit -> if (startState(first.code) == Start.BUSY) {
@@ -191,7 +194,7 @@ object CurseForgeApp {
             null -> null
         }
         if (inspector == null) {
-            stop(context, app, null)
+            stop(context, app, null, hold)
             return Started(Start.FAILED)
         }
         val deadline = System.currentTimeMillis() + READY_MS
@@ -199,15 +202,19 @@ object CurseForgeApp {
             if (runCatching { call(context, inspector, "InstalledProjectsAppService", "installAddon", null, 10_000) }.isSuccess) return Started(Start.READY, inspector)
             Thread.sleep(1_000)
         }
-        stop(context, app, inspector)
+        stop(context, app, inspector, hold)
         return Started(Start.FAILED)
     }
 
-    fun stop(context: Context, app: UserApps.App, inspector: String?) {
+    fun stop(context: Context, app: UserApps.App, inspector: String?, hold: AtomicBoolean) {
         val dir = dir(app) ?: return
+        if (holds[dir] !== hold) {
+            hold.set(true)
+            return
+        }
         if (inspector != null) runCatching { call(context, inspector, "CoreService", "shutdown", JSONArray(), 30_000, "r => true") }
-        runCatching { lines(context, helperArgv("stop", dir)) }
-        holds.remove(dir)?.set(true)
+        hold.set(true)
+        if (holds.remove(dir, hold)) runCatching { lines(context, helperArgv("stop", dir)) }
     }
 
     private fun connect(context: Context, inspector: String) {

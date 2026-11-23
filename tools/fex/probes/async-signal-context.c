@@ -46,7 +46,10 @@ int main(int argc, char **argv) {
   action.sa_flags = SA_SIGINFO | SA_RESTART;
   sigaction(SIGUSR1, &action, NULL);
   target = syscall(SYS_gettid);
-  pthread_create(&thread, NULL, sender, NULL);
+  if (pthread_create(&thread, NULL, sender, NULL) != 0) {
+    fprintf(stderr, "cannot start the signal sender\n");
+    return 2;
+  }
   while (matched + stale < want) {
     __asm__ volatile("mov $0x1111111111111111, %%rbx\n"
                      "mov $0x2222222222222222, %%r12\n"
@@ -54,10 +57,10 @@ int main(int argc, char **argv) {
                      "mov $0x4444444444444444, %%r14\n"
                      "mov $0x5555555555555555, %%r15\n"
                      "mov %%rsp, base(%%rip)\n"
+                     "mov $4096, %%ecx\n"
                      ".globl probe_loop_start\n"
                      "probe_loop_start:\n"
                      "push %%rax\n"
-                     "mov $4096, %%ecx\n"
                      "1: dec %%ecx\n"
                      "jnz 1b\n"
                      "pop %%rax\n"
