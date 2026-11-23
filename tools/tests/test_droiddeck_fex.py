@@ -1008,6 +1008,65 @@ class ExtractTest(FexTestCase):
         self.assertIn("-no-xattrs", commands[-1])
         self.assertTrue(Path("squashfs-root/AppRun").is_file())
 
+    def seven_zip(self, tool, which, works=True):
+        commands = []
+
+        def call(argv, **kwargs):
+            commands.append(argv)
+            if argv[0] != "/usr/bin/7z" or not works:
+                return 2
+            (self.work / "squashfs-root").mkdir()
+            (self.work / "squashfs-root/AppRun").touch()
+            return 0
+
+        with mock.patch.dict(G, {
+            "URUNTIME": tool,
+            "prepare": lambda: None,
+            "fex_install": lambda: None,
+            "steam_running": lambda: False,
+            "want_fex": lambda: None,
+        }), mock.patch("shutil.which", side_effect=lambda name: which.get(name)), \
+                mock.patch("subprocess.call", side_effect=call):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        return status, said, commands
+
+    def test_without_proot_the_shipped_runtime_is_skipped_and_7zip_unpacks(self):
+        self.write(self.image, elf(183) + b"payload", 0o755)
+        ran = self.tmp / "uruntime-ran"
+        tool = self.uruntime("touch %s\nexit 1\n" % ran)
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual((status, said), (0, ""))
+        self.assertFalse(ran.exists())
+        self.assertEqual([["/usr/bin/7z", "x", "-tSquashFS", "-y", "-osquashfs-root", str(self.image)]], commands)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_with_proot_the_shipped_runtime_is_still_tried_first(self):
+        ran = self.tmp / "uruntime-ran"
+        tool = self.uruntime("touch %s\nexit 1\n" % ran)
+        env = {k: v for k, v in os.environ.items() if k != "DDNATV_ROOT"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertTrue(ran.exists())
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual("/usr/bin/7z", commands[-1][0])
+
+    def test_unsquashfs_is_preferred_over_7zip(self):
+        tool = self.uruntime("exit 1\n")
+        status, said, commands = self.seven_zip(tool, {"unsquashfs": "/usr/bin/unsquashfs", "7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertIn("unsquashfs could not extract it (status 2)", said)
+        self.assertEqual(["/usr/bin/unsquashfs", "/usr/bin/7z"], [c[0] for c in commands])
+
+    def test_a_7zip_failure_leaves_nothing_unpacked(self):
+        tool = self.uruntime("exit 1\n")
+        status, said, _ = self.seven_zip(tool, {"7z": "/usr/bin/7z"}, works=False)
+        self.assertEqual(status, 1)
+        self.assertIn("7-Zip could not extract it (status 2)", said)
+        self.assertNotIn("no unsquashfs", said)
+        self.assertFalse(os.path.lexists("squashfs-root"))
+
 
 class LaunchTest(FexTestCase):
     def test_the_guest_environment(self):

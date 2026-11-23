@@ -848,7 +848,7 @@ def extract(image):
     image = os.path.abspath(image)
     clear_extracted()
     x86 = elf_arch(image) in X86.values()
-    if os.access(URUNTIME, os.X_OK):
+    if not os.environ.get("DDNATV_ROOT") and os.access(URUNTIME, os.X_OK):
         run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                              env=dict(os.environ, TARGET_APPIMAGE=image))
         errors = run.stderr.decode("utf-8", "replace")
@@ -880,7 +880,17 @@ def extract(image):
                 want_fex()
             return 0
         say("unsquashfs could not extract it (status %d)" % status)
-    elif fex is None:
+    seven = shutil.which("7z")
+    if seven:
+        clear_extracted()
+        status = subprocess.call([seven, "x", "-tSquashFS", "-y", "-osquashfs-root", image], stdout=subprocess.DEVNULL)
+        if status == 0 and extracted():
+            if x86:
+                want_fex()
+            return 0
+        say("7-Zip could not extract it (status %d)" % status)
+        clear_extracted()
+    elif fex is None and not unsquashfs:
         say("this AppImage could not be unpacked here: no AppImage runtime for ARM64, no FEX yet and no unsquashfs")
     return 1
 
