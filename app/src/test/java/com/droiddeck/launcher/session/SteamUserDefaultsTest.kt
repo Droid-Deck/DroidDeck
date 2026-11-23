@@ -59,6 +59,16 @@ class SteamUserDefaultsTest {
         assertFalse(File(home, "userdata/123/config/droiddeck-user-defaults-initialized").exists())
     }
 
+    @Test fun libraryHomeUsesBigArtUnlessChosenOtherwise() {
+        val fresh = home("")
+        SessionFiles.seedUserDefaults(fresh)
+        assertTrue(text(fresh).contains("\"LibraryHomeBigArt\"\t\t\"1\""))
+        val chosen = home("\t\"LibraryHomeBigArt\"\t\t\"0\"\n")
+        SessionFiles.seedUserDefaults(chosen)
+        assertTrue(text(chosen).contains("\"LibraryHomeBigArt\"\t\t\"0\""))
+        assertEquals(1, Regex("LibraryHomeBigArt").findAll(text(chosen)).count())
+    }
+
     @Test fun librarySortsByRecentlyPlayed() {
         val fresh = home("")
         SessionFiles.seedUserDefaults(fresh)
