@@ -67,7 +67,12 @@ private const val IMPACT = 2200f
 private const val RIPPLE_MS = 1250f
 private const val HIT_MS = 900f
 private const val END = 3600f
-private const val REVEAL_MS = 1500f
+private const val REVEAL_MS = 2300f
+private const val TRACE_DRAW_MS = 900f
+private const val TRACE_FADE_MS = 500f
+private const val REVEAL_FILL_FROM = 600f
+private const val REVEAL_FILL_MS = 450f
+private const val REVEAL_FADE_FROM = 1700f
 private const val POKE = 880f
 private const val DRIFT_MS = 75_000f
 
@@ -301,8 +306,8 @@ private fun Mark(clock: MarkClock) {
         translate(0f, shake) {
             val since = t - IMPACT
             if (since in 0f..REVEAL_MS) {
-                val fade = 1f - clamp01((since - REVEAL_MS * 0.66f) / (REVEAL_MS * 0.34f))
-                val fill = Out.transform(clamp01((since - 150f) / 450f)) * fade
+                val fade = 1f - clamp01((since - REVEAL_FADE_FROM) / (REVEAL_MS - REVEAL_FADE_FROM))
+                val fill = Out.transform(clamp01((since - REVEAL_FILL_FROM) / REVEAL_FILL_MS)) * fade
                 if (fill > 0f) {
                     val lift = 8f * k * (1f - fill / fade)
                     val edge = 5f * f.s
@@ -315,8 +320,8 @@ private fun Mark(clock: MarkClock) {
                     drawPath(left, ink.copy(alpha = fill))
                     drawPath(right, ink.copy(alpha = fill))
                 }
-                val drawn = TraceEase.transform(clamp01(since / 550f))
-                val alpha = (if (since < 550f) 1f else 1f - (since - 550f) / 350f).coerceIn(0f, 1f) * fade
+                val drawn = TraceEase.transform(clamp01(since / TRACE_DRAW_MS))
+                val alpha = (if (since < TRACE_DRAW_MS) 1f else 1f - (since - TRACE_DRAW_MS) / TRACE_FADE_MS).coerceIn(0f, 1f) * fade
                 if (alpha > 0f) {
                     LogoShape.left(left, 0f, f::px)
                     LogoShape.right(right, f::px)
@@ -324,7 +329,7 @@ private fun Mark(clock: MarkClock) {
                         measure.setPath(half, false)
                         piece.reset()
                         measure.getSegment(0f, measure.length * drawn, piece, true)
-                        drawPath(piece, pal.signal.copy(alpha = alpha), style = Stroke(2f * f.s))
+                        drawPath(piece, pal.signal.copy(alpha = alpha), style = Stroke(3f * f.s))
                     }
                 }
             }
