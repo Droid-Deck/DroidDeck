@@ -15,7 +15,7 @@ class WowAddonCatalogTest {
     private val context get() = RuntimeEnvironment.getApplication()
 
     private val files = """[
-      {"UID":"1","UICATID":"19","UIVersion":"1.0","UIDate":300,"UIName":"Bartender","UIAuthorName":"Nevcairiel","UIDownloadTotal":"500","UICompatibility":[{"version":"12.0.0","name":"Midnight"}],"UIIMG_Thumbs":["https://cdn.example/a.jpg"]},
+      {"UID":"1","UICATID":"19","UIVersion":"1.0","UIDate":300,"UIName":"Bartender","UIAuthorName":"Nevcairiel","UIDownloadTotal":"500","UICompatibility":[{"version":"12.0.0","name":"Midnight"}],"UIIMG_Thumbs":["https://cdn.example/a.jpg"],"UIDir":["Bartender4"," Bartender4_Options "]},
       {"UID":"2","UICATID":"20","UIVersion":"2.0","UIDate":100,"UIName":"Zygor","UIAuthorName":"Kappa","UIDownloadTotal":"900","UICompatibility":[{"version":"1.15.7","name":"Classic"},{"version":"4.4.2","name":"Cataclysm Classic"}],"UIIMG_Thumbs":null},
       {"UID":"3","UICATID":"21","UIVersion":"3.0","UIDate":200,"UIName":"Alpha","UIAuthorName":"bartuser","UIDownloadTotal":"10","UIDownloadMonthly":"9","UICompatibility":null},
       {"UID":"4","UICATID":"19","UIVersion":"4.0","UIDate":400,"UIName":"TBCOnly","UIAuthorName":"x","UIDownloadTotal":"20","UIDownloadMonthly":"5","UICompatibility":[{"version":"2.5.4","name":"The Burning Crusade Classic"}]}
@@ -42,6 +42,12 @@ class WowAddonCatalogTest {
         assertEquals("https://cdn.example/a.jpg", a.thumb)
         assertNull(e[1].addon.thumb)
         assertEquals("19", e[0].category)
+    }
+
+    @Test fun fileListEntriesCarryTheirAddonFolders() {
+        val e = WowAddonCatalog.parseWowiFiles(files)
+        assertEquals(listOf("Bartender4", "Bartender4_Options"), e[0].addon.folders)
+        assertEquals(emptyList<String>(), e[1].addon.folders)
     }
 
     @Test fun versionsMapToFlavors() {

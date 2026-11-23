@@ -159,7 +159,7 @@ object CurseForgeApp {
     internal fun byFolder(projects: List<Project>): Map<String, Project> = projects.flatMap { project -> project.folders.map { it to project } }.toMap()
 
     internal fun onDisk(projects: List<Project>, addOns: File): List<Project> =
-        projects.filter { project -> project.folders.isNotEmpty() && project.folders.all { File(addOns, it).isDirectory } }
+        projects.filter { project -> WowAddons.present(project.folders) { File(addOns, it).isDirectory } }
 
     internal var guest: (Context, List<String>, AtomicBoolean?, (String) -> Unit) -> Int = { context, argv, cancelled, onLine ->
         GuestCommand.run(context, argv, logName = "curseforge", extraBinds = BattleNetInstall.binds(context), fastPath = true,

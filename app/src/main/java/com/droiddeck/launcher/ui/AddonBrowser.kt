@@ -245,16 +245,14 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
             if (curse != null && link != null) runCatching {
                 link.installed(context, into, scanKey).associate { it.id to curseMark(it) }
             }.getOrDefault(emptyMap())
-            else WowAddons.details(into).mapNotNull { item -> item.wowiId?.let { it to item.version } }.toMap()
+            else WowAddons.details(into).associate { it.name.lowercase() to it.version }
         }
     }
     val present = snapshot.second.takeIf { snapshot.first == presentKey } ?: emptyMap()
     fun status(addon: WowAddonCatalog.Addon): AddonStatus {
-        if (addon.id !in present) return AddonStatus.INSTALL
-        if (curse != null) return if (present[addon.id] == CURSE_UPDATE) AddonStatus.UPDATE else AddonStatus.INSTALLED
-        val have = present[addon.id]
+        if (curse != null) return if (addon.id !in present) AddonStatus.INSTALL else if (present[addon.id] == CURSE_UPDATE) AddonStatus.UPDATE else AddonStatus.INSTALLED
         val latest = installed[installKey(addon, target)]?.takeIf { it.first == addon.summary }?.second ?: addon.summary
-        return if (have == null || latest.isBlank() || WowAddonCatalog.sameVersion(have, latest)) AddonStatus.INSTALLED else AddonStatus.UPDATE
+        return diskStatus(addon.folders, present, latest)
     }
     fun load(page: Int) {
         if (results.loading) return
@@ -346,8 +344,8 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
                 runCatching {
                     val folders = if (via != null) via.call(context, into) { linked ->
                         CurseForgeApp.projects(context, linked.inspector, linked.guid).firstOrNull { it.id == addon.id }?.folders.orEmpty()
-                    } else WowAddons.details(into).filter { it.wowiId == addon.id }.map { it.name }
-                    folders.forEach { if (File(into.addOns, it).isDirectory) deleteAddon(context, into, it, via) }
+                    } else addon.folders
+                    folders.forEach { if (File(into.addOns, it).isDirectory) deleteAddon(context, into, it, link) }
                 }
             }
             installing.remove(key)
@@ -558,6 +556,12 @@ internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target
     } finally {
         zip.delete()
     }
+}
+
+internal fun diskStatus(folders: List<String>, onDisk: Map<String, String?>, latest: String): AddonStatus {
+    if (!WowAddons.present(folders) { it.lowercase() in onDisk }) return AddonStatus.INSTALL
+    val have = onDisk[folders.first().lowercase()]
+    return if (have == null || latest.isBlank() || WowAddonCatalog.sameVersion(have, latest)) AddonStatus.INSTALLED else AddonStatus.UPDATE
 }
 
 internal fun deleteAddon(context: Context, target: WowAddons.Target, folder: String, link: CurseLink? = CurseLink.live()) {

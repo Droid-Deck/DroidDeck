@@ -29,6 +29,7 @@ object WowAddonCatalog {
         val downloads: Long,
         val updated: Long,
         val thumb: String?,
+        val folders: List<String> = emptyList(),
     )
 
     class Page(val items: List<Addon>, val more: Boolean)
@@ -114,9 +115,11 @@ object WowAddonCatalog {
             }
             val thumbs = o.optJSONArray("UIIMG_Thumbs")
             val thumb = if (thumbs != null && thumbs.length() > 0) thumbs.optString(0).ifEmpty { null } else null
+            val dirs = o.optJSONArray("UIDir")
+            val folders = if (dirs == null) emptyList() else (0 until dirs.length()).map { dirs.optString(it).trim() }.filter { it.isNotEmpty() }
             val addon = Addon(
                 id, o.optString("UIName"), o.optString("UIAuthorName"), o.optString("UIVersion"),
-                o.optString("UIDownloadTotal").toLongOrNull() ?: 0L, o.optLong("UIDate"), thumb,
+                o.optString("UIDownloadTotal").toLongOrNull() ?: 0L, o.optLong("UIDate"), thumb, folders,
             )
             out.add(Entry(addon, o.optString("UICATID"), flavors, o.optString("UIDownloadMonthly").toLongOrNull() ?: 0L))
         }

@@ -69,6 +69,8 @@ object WowAddons {
         target.addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }
             .map { it.name }.sortedBy { it.lowercase() }
 
+    fun present(folders: List<String>, exists: (String) -> Boolean): Boolean = folders.isNotEmpty() && folders.all(exists)
+
     fun details(target: Target): List<Installed> {
         val origins = origins(target)
         return installed(target).map { name ->

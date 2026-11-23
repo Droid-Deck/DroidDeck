@@ -61,4 +61,18 @@ class AddonRowTest {
         compose.onNodeWithText(text(R.string.common_update)).performClick()
         assertEquals(listOf("298842"), installs)
     }
+
+    @Test fun anotherSourcesAddonOnDiskIsInstalledOrUpdatable() {
+        val onDisk = mapOf("questie" to "11.2.0", "questiedb" to null)
+        assertEquals(AddonStatus.UPDATE, diskStatus(listOf("Questie"), onDisk, "6.2.5"))
+        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("Questie"), onDisk, "v11.2.0"))
+        assertEquals(AddonStatus.INSTALLED, diskStatus(listOf("QuestieDB"), onDisk, "1.0"))
+    }
+
+    @Test fun anAddonCountsAsInstalledOnlyWhenEveryFolderIsOnDisk() {
+        val onDisk = mapOf<String, String?>("bartender4" to "4.19.2")
+        assertEquals(AddonStatus.INSTALL, diskStatus(listOf("Bartender4", "Bartender4_Options"), onDisk, "4.19.2"))
+        assertEquals(AddonStatus.INSTALL, diskStatus(emptyList(), onDisk, "4.19.2"))
+        assertEquals(AddonStatus.INSTALL, diskStatus(listOf("TomTom"), onDisk, "4.4.1"))
+    }
 }
