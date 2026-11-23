@@ -1531,7 +1531,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onAddonImport = { sg, target -> importAddons(sg.name, target) },
                         onAddonDelete = { target, name ->
                             saveAction(getString(R.string.main_addons_deleting, name)) {
-                                com.droiddeck.launcher.runtime.WowAddons.delete(target, name)
+                                com.droiddeck.launcher.ui.deleteAddon(this, target, name)
                                 getString(R.string.main_addons_deleted, name)
                             }
                         },

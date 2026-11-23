@@ -15,7 +15,7 @@ class WowAddonCatalogTest {
     private val context get() = RuntimeEnvironment.getApplication()
 
     private val files = """[
-      {"UID":"1","UICATID":"19","UIVersion":"1.0","UIDate":300,"UIName":"Bartender","UIAuthorName":"Nevcairiel","UIDownloadTotal":"500","UICompatibility":[{"version":"12.0.0","name":"Midnight"}],"UIIMG_Thumbs":["https://cdn.example/a.jpg"]},
+      {"UID":"1","UICATID":"19","UIVersion":"1.0","UIDate":300,"UIName":"Bartender","UIAuthorName":"Nevcairiel","UIDownloadTotal":"500","UICompatibility":[{"version":"12.0.0","name":"Midnight"}],"UIIMG_Thumbs":["https://cdn.example/a.jpg"],"UIDir":["Bartender4"," Bartender4_Options "]},
       {"UID":"2","UICATID":"20","UIVersion":"2.0","UIDate":100,"UIName":"Zygor","UIAuthorName":"Kappa","UIDownloadTotal":"900","UICompatibility":[{"version":"1.15.7","name":"Classic"},{"version":"4.4.2","name":"Cataclysm Classic"}],"UIIMG_Thumbs":null},
       {"UID":"3","UICATID":"21","UIVersion":"3.0","UIDate":200,"UIName":"Alpha","UIAuthorName":"bartuser","UIDownloadTotal":"10","UIDownloadMonthly":"9","UICompatibility":null},
       {"UID":"4","UICATID":"19","UIVersion":"4.0","UIDate":400,"UIName":"TBCOnly","UIAuthorName":"x","UIDownloadTotal":"20","UIDownloadMonthly":"5","UICompatibility":[{"version":"2.5.4","name":"The Burning Crusade Classic"}]}
@@ -42,6 +42,12 @@ class WowAddonCatalogTest {
         assertEquals("https://cdn.example/a.jpg", a.thumb)
         assertNull(e[1].addon.thumb)
         assertEquals("19", e[0].category)
+    }
+
+    @Test fun fileListEntriesCarryTheirAddonFolders() {
+        val e = WowAddonCatalog.parseWowiFiles(files)
+        assertEquals(listOf("Bartender4", "Bartender4_Options"), e[0].addon.folders)
+        assertEquals(emptyList<String>(), e[1].addon.folders)
     }
 
     @Test fun versionsMapToFlavors() {
@@ -196,6 +202,32 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
         assertTrue(WowAddonCatalog.sameVersion("v1.2.3", "1.2.3"))
         assertTrue(WowAddonCatalog.sameVersion(" 1.2-Beta ", "1.2-beta"))
         assertFalse(WowAddonCatalog.sameVersion("1.2.3", "1.2.4"))
+    }
+
+    @Test fun versionsCompareNumericSegmentsFirst() {
+        assertEquals(true, WowAddonCatalog.newer("v4.11.38-7-ge56e9d8", "4.11.39"))
+        assertEquals(true, WowAddonCatalog.newer("1.9", "1.10"))
+        assertEquals(true, WowAddonCatalog.newer("2", "2.0.1"))
+        assertEquals(false, WowAddonCatalog.newer("11.2.0", "6.2.5"))
+        assertEquals(false, WowAddonCatalog.newer("2.0", "2"))
+        assertNull(WowAddonCatalog.newer("11.4.10-beta1", "11.4.10"))
+        assertNull(WowAddonCatalog.newer("release", "1.0"))
+    }
+
+    @Test fun anUpdateIsOfferedOnlyForANewerVersionOrTheSameSourcesCurrentFile() {
+        assertTrue(WowAddonCatalog.offersUpdate("1.9", "1.10", sameSource = false))
+        assertFalse(WowAddonCatalog.offersUpdate("11.2.0", "6.2.5", sameSource = true))
+        assertFalse(WowAddonCatalog.offersUpdate("v1.2", "1.2", sameSource = true))
+        assertTrue(WowAddonCatalog.offersUpdate("11.4.10-beta1", "11.4.10", sameSource = true))
+        assertFalse(WowAddonCatalog.offersUpdate("11.4.10-beta1", "11.4.10", sameSource = false))
+        assertFalse(WowAddonCatalog.offersUpdate(null, "1.0", sameSource = true))
+        assertFalse(WowAddonCatalog.offersUpdate("1.0", "", sameSource = true))
+    }
+
+    @Test fun findUpdatesNeverOffersADowngrade() {
+        val installed = listOf(WowAddons.Installed("Ahead", "3.0", "10"), WowAddons.Installed("Tagged", "r55-alpha", "20"))
+        val updates = WowAddonCatalog.findUpdates(listOf(entry("10", "2.9"), entry("20", "r56")), installed)
+        assertEquals(setOf("Tagged"), updates.keys)
     }
 
     @Test fun md5Check() {
