@@ -43,6 +43,7 @@ class SettingsResetTest {
         SessionPrefs.setHdr(app, SessionService.MODE_DESKTOP, true)
         SessionPrefs.setResolutionChoice(app, SessionService.MODE_STEAM, "1280x800")
         SessionPrefs.setGuestHostname(app, "MyDeck")
+        SessionPrefs.setGameMode(app, SessionPrefs.GAME_MODE_BATTERY)
         assertTrue(SessionPrefs.setGameDebugLogsEnabled(app, true))
         assertTrue(EnhancedDiagnostics.setArmed(app, true))
         SessionPrefs.setHudShowFps(app, false)
@@ -56,6 +57,15 @@ class SettingsResetTest {
         AppUiPrefs.setScale(app, 150)
         FrameGen.set(app, FrameGen.Mode(FrameGen.ENGINE_DDFG, 3))
         prefs("steam_touch").edit().putBoolean("gyro", false).commit()
+        SessionPrefs.setShaderPrecompEnabled(app, true)
+        SessionPrefs.setShaderPrecompGames(app, setOf("440", "730"))
+        SessionPrefs.setShaderPrecompThreads(app, 4)
+        SessionPrefs.setShaderPrecompIdleOnly(app, false)
+        SessionPrefs.setShaderPrecompMaxMemoryMb(app, 2048)
+        SessionPrefs.setShaderPrecompSkipCompiled(app, false)
+        SessionPrefs.setShaderPrecompRecordMissing(app, true)
+        SessionPrefs.setShaderPrecompAutoDriverRebuild(app, true)
+        SessionPrefs.setShaderPrecompLastDriver(app, "turnip-test")
 
         assertTrue(SettingsReset.resetAll(app, gameProfiles = false))
 
@@ -69,6 +79,7 @@ class SettingsResetTest {
         assertFalse(SessionPrefs.hdr(app, SessionService.MODE_DESKTOP))
         assertFalse(SessionPrefs.resolutionChosen(app, SessionService.MODE_STEAM))
         assertEquals(SessionPrefs.DEFAULT_GUEST_HOSTNAME, SessionPrefs.guestHostname(app))
+        assertEquals(SessionPrefs.GAME_MODE_SYSTEM, SessionPrefs.gameMode(app))
         assertFalse(SessionPrefs.gameDebugLogsEnabled(app))
         assertFalse(EnhancedDiagnostics.isArmed(app))
         val guest = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app),
@@ -85,6 +96,15 @@ class SettingsResetTest {
         assertEquals(AppUiPrefs.DEFAULT_SCALE, AppUiPrefs.scale(app))
         assertEquals(FrameGen.Mode.OFF.engine, FrameGen.engine(app))
         assertFalse(prefs("steam_touch").contains("gyro"))
+        assertFalse(SessionPrefs.shaderPrecompEnabled(app))
+        assertTrue(SessionPrefs.shaderPrecompGames(app).isEmpty())
+        assertEquals(0, SessionPrefs.shaderPrecompThreads(app))
+        assertTrue(SessionPrefs.shaderPrecompIdleOnly(app))
+        assertEquals(0, SessionPrefs.shaderPrecompMaxMemoryMb(app))
+        assertTrue(SessionPrefs.shaderPrecompSkipCompiled(app))
+        assertFalse(SessionPrefs.shaderPrecompRecordMissing(app))
+        assertFalse(SessionPrefs.shaderPrecompAutoDriverRebuild(app))
+        assertEquals("", SessionPrefs.shaderPrecompLastDriver(app))
     }
 
     @Test fun penSettingsKeepOnlyKnownValues() {

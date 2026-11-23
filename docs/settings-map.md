@@ -19,6 +19,8 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | Skip GL error checks | Settings › Performance (`droiddeck://settings/performance`) |  |
 | gamescope: realtime GPU queue | Settings › Performance (`droiddeck://settings/performance`) | gamescope |
 | Hold the GPU at its top clock | Settings › Performance (`droiddeck://settings/performance`) | gpu, clock, max |
+| Game mode | Settings › Performance (`droiddeck://settings/performance`) | game mode, battery, boost, thermal, performance |
+| Shader pre-compilation | Settings › Performance (`droiddeck://settings/performance`) | shader, precompile, pre-compilation, fossilize, cache, stutter |
 | Clear cached apps before a session | Settings › Performance (`droiddeck://settings/performance`) | memory, ram, crash, sleep, killed |
 | Background apps during a session | Settings › Performance (`droiddeck://settings/performance`) | memory, ram, background apps |
 | Memory readout | Settings › Performance (`droiddeck://settings/performance`) | memory, ram, overlay |

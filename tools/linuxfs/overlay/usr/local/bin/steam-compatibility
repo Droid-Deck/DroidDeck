@@ -76,6 +76,10 @@ dd_store_launch() {
   /usr/local/bin/droiddeck-store-launch "$@"
   rc=$?
   [ $rc -eq 10 ] && DD_STORE_EXIT=1
+  if [ $rc -eq 13 ]; then
+    DD_STORE_EXIT=1
+    DD_STORE_REPLACE="${STEAM_COMPAT_DATA_PATH%/}/droiddeck-ea-steam.bat"
+  fi
   [ $rc -eq 11 ] && exit 0
   [ $rc -eq 12 ] && exit 1
   return 0
@@ -84,6 +88,17 @@ dd_store_launch() {
 dd_run() {
   if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "${verb:-}"; then
     set -- /usr/local/bin/droiddeck-steamvr-game "$@"
+  fi
+  if [ -n "${DD_STORE_REPLACE:-}" ]; then
+    local arg norm replaced=()
+    for arg in "$@"; do
+      norm=${arg#"${arg%%[![:space:]]*}"}
+      norm=${norm%"${norm##*[![:space:]]}"}
+      while [ "${norm#\\"}" != "$norm" ]; do norm=${norm#\\"}; done
+      while [ "${norm%\\"}" != "$norm" ]; do norm=${norm%\\"}; done
+      case ${norm,,} in steam2ea://*) replaced+=("$DD_STORE_REPLACE") ;; *) replaced+=("$arg") ;; esac
+    done
+    set -- "${replaced[@]}"
   fi
   if [ -n "${DD_STORE_EXIT:-}" ]; then
     trap : INT TERM HUP
