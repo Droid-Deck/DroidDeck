@@ -1567,6 +1567,27 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
+    def test_split_second_gets_x87_fip_unless_the_game_sets_jit_features(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "SplitSecond"
+            game.mkdir()
+            exe = game / "SplitSecond.exe"
+            exe.touch()
+            for app_id in ("297860", ""):
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [], app_id)
+                self.assertEqual((env, extra), ({"FEX_JITFEATURES": "enablex87fip"}, []))
+                self.assertTrue(notes)
+            other = Path(tmp) / "Other/Game.exe"
+            other.parent.mkdir()
+            other.touch()
+            self.assertEqual(MODULE["engine_fixes"](str(other), [], "297860")[0], {"FEX_JITFEATURES": "enablex87fip"})
+            self.assertEqual(MODULE["engine_fixes"](str(other), [], "42"), ({}, [], []))
+            config = {"version": 1, "shared": {"FEX_X87REDUCEDPRECISION": "1"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "297860", env),
+                             {"FEX_X87REDUCEDPRECISION": "1", "FEX_JITFEATURES": "enablex87fip"})
+            config["games"] = {"297860": {"FEX_JITFEATURES": "off"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "297860", env)["FEX_JITFEATURES"], "off")
+
     def test_d3dgear_capture_hook_beside_the_game_is_turned_off(self):
         with tempfile.TemporaryDirectory() as tmp:
             game = Path(tmp) / "The Crew 2"

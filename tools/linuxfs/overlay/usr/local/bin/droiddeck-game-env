@@ -176,6 +176,11 @@ def arkham_city_x87(game):
         return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"
 
 
+@fix
+def split_second_x87_fip(game):
+    if game.app_id == "297860" or game.stem == "splitsecond":
+        return {"FEX_JITFEATURES": "enablex87fip"}, [], "Split/Second: FEX x87 FIP emulation on (its SecuROM stops with error 8016 without it)"
+
 
 @fix
 def doom_2016_swapchain_images(game):
