@@ -4322,7 +4322,7 @@
     <string name="dev_preview_drawer_backdrop">In-game menu preview · Back to close</string>
     <string name="settings_place_tab">Tabs</string>
     <string name="decky_status">Status</string>
-    <string name="decky_start_with_steam">Start with Steam</string>
+    <string name="decky_enable">Enable</string>
     <string name="decky_release_channel">Release channel</string>
     <string name="decky_release_channel_hint">Stable or pre-release loader builds. Decky\'s own updater uses the same channel.</string>
     <string name="rail_decky">Decky</string>

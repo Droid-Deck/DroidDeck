@@ -83,7 +83,7 @@ internal fun DeckyGroups(s: ModeSettings, a: ModeSettingsActions, host: MenuHost
             }
         }
         if (s.deckyInstalled != null) ToggleRow(
-            host, "decky-enabled", stringResource(R.string.decky_start_with_steam),
+            host, "decky-enabled", stringResource(R.string.decky_enable),
             if (s.deckyEnabled) stringResource(R.string.mode_decky_on) else stringResource(R.string.mode_decky_off),
             s.deckyEnabled,
             enabled = idle,
