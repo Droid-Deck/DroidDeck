@@ -327,7 +327,10 @@ object BattleNetInstall {
             if (!force && now - (checkedAt[key] ?: 0L) < CHECK_AGAIN_MS) return
             checkedAt[key] = now
         }
-        fun retryLater() = synchronized(checkedAt) { if (checkedAt[key] == now) checkedAt.remove(key) }
+        fun retryLater() {
+            synchronized(checkedAt) { if (checkedAt[key] == now) checkedAt.remove(key) }
+            StoresState.post { updates.remove(key) }
+        }
         checks.execute {
             val local = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
                 ?: return@execute retryLater()
@@ -335,7 +338,10 @@ object BattleNetInstall {
             val latest = runCatching { latestBuild(fetch(versionsUrl(local.first, served)), local.first) }
                 .onFailure { Log.w(TAG, "versions of $served: ${it.javaClass.simpleName}") }.getOrNull()
                 ?: return@execute retryLater()
-            val behind = latest != local.second
+            val current = runCatching { buildKey(File(folder, BUILD_INFO).readText()) }.getOrNull()
+                ?: return@execute retryLater()
+            if (current != local) return@execute retryLater()
+            val behind = latest != current.second
             Log.i(TAG, "$id: ${if (behind) "update available" else "up to date"}")
             StoresState.post { if (behind) updates[key] = true else updates.remove(key) }
         }

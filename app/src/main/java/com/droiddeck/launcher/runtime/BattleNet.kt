@@ -244,7 +244,14 @@ object BattleNet {
             if (flavor != null && folder.name == flavor) folder.parentFile?.let { add(it.absolutePath) }
         }
         if (agent.any { it.uid.isEmpty() && hostFolder(context, it.path)?.absolutePath in folders }) return null
-        return (registry + agent.map { it.uid to it.path }).mapNotNull { (uid, path) ->
+        val agentFolders = agent.filter { it.uid.isNotEmpty() }.groupBy { it.uid.lowercase() }.mapValues { (_, rows) ->
+            rows.mapNotNull { hostFolder(context, it.path)?.absolutePath }.toSet()
+        }
+        val registryRows = registry.filter { (uid, _) ->
+            val recorded = agentFolders[uid.lowercase()] ?: return@filter true
+            recorded.any { it in folders }
+        }
+        return (registryRows + agent.map { it.uid to it.path }).mapNotNull { (uid, path) ->
             if (hostFolder(context, path)?.absolutePath !in folders) return@mapNotNull null
             val title = title(uid) ?: products[uid.lowercase()]?.let(::titleForProduct)
             if (title?.uid == canonical) uid else null

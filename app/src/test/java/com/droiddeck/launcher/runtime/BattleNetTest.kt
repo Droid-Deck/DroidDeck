@@ -414,6 +414,24 @@ class BattleNetTest {
         assertFalse("a registration whose folder was missing is still pre-existing", uninstalled.get())
     }
 
+    @Test fun aStaleRegistryRowDoesNotHideAnAgentRegistrationInAnotherFolder() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        val a = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III A")
+        val b = File(LinuxRuntime.rootDir(context), "root/Games/Stores/Battle.net/Diablo III B")
+        File(pfx, "system.reg").writeText("""
+            WINE REGISTRY Version 2
+            [Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Diablo III] 1
+            "InstallLocation"="Z:/root/Games/Stores/Battle.net/Diablo III A"
+            "UninstallString"="\"C:\\ProgramData\\Battle.net\\Agent\\Blizzard Uninstaller.exe\" --uid=d3cn"
+        """.trimIndent())
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "d3cn"), field(3, message(field(1, "Z:/root/Games/Stores/Battle.net/Diablo III B"))))),
+        ))
+        assertEquals(emptyList<String>(), BattleNet.registrationsAt(context, "diablo3", a))
+        assertEquals(listOf("d3cn"), BattleNet.registrationsAt(context, "diablo3", b))
+    }
+
     @Test fun aPathOnlyAgentRegistrationMakesTheFolderUnknown() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
         File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
