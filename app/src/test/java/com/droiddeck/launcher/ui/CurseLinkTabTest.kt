@@ -134,6 +134,88 @@ class CurseLinkTabTest {
     }
 
     @Test
+    fun anInstallHandsCurseForgesSettledListToTheNextReadWithoutARescan() {
+        val target = wow()
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertTrue(link.change(context, target) { CurseForgeApp.install(context, it.inspector, it.guid, "298842") })
+            assertEquals(listOf("298842"), link.installed(context, target, 1).map { it.id })
+            assertEquals(1, methods.count { it == "scanGameInstance" })
+            link.installed(context, target, 2)
+            assertEquals(2, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun aFailedInstallLeavesTheNextReadToRescan() {
+        val target = wow()
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertFalse(link.change(context, target) { null })
+            link.installed(context, target, 1)
+            assertEquals(2, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun aRefreshAfterAnInstallStillRescans() {
+        val target = wow()
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertTrue(link.change(context, target) { CurseForgeApp.install(context, it.inspector, it.guid, "298842") })
+            link.refresh()
+            link.installed(context, target, 1)
+            assertEquals(2, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun aFailedChangeDropsAnEarlierSettledList() {
+        val target = wow()
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertTrue(link.change(context, target) { CurseForgeApp.install(context, it.inspector, it.guid, "298842") })
+            assertFalse(link.change(context, target) { null })
+            link.installed(context, target, 1)
+            assertEquals(2, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun anOlderChangeFinishingLastDoesNotReplaceTheNewerList() {
+        val target = wow()
+        tocFolder(target.addOns, "Older", "1")
+        tocFolder(target.addOns, "Newer", "2")
+        val older = CurseForgeApp.Project("1", "11", listOf("Older"), false)
+        val newer = CurseForgeApp.Project("2", "22", listOf("Newer"), false)
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertTrue(link.change(context, target) {
+                assertTrue(link.change(context, target) { listOf(older, newer) })
+                listOf(older)
+            })
+            assertEquals(setOf("1", "2"), CurseLink.lastReported(target).keys)
+            assertEquals(listOf("1", "2"), link.installed(context, target, 1).map { it.id })
+            assertEquals(1, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
     fun aFailedScanKeepsTheLastReportInsteadOfClearingIt() {
         val target = wow()
         val link = CurseLink(app)

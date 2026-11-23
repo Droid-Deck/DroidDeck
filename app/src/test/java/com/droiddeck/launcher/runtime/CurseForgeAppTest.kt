@@ -5,6 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -158,6 +159,7 @@ class CurseForgeAppTest {
         assertTrue(text.startsWith("(() => { const w = require('electron').BrowserWindow.getAllWindows()"))
         assertTrue(text.contains("desktop.html"))
         assertTrue(text.contains("executeJavaScript("))
+        assertTrue(text.contains("let m = globalThis.__droiddeckServices; if (!m || !m[\\\"ProjectAppService\\\"]) m = globalThis.__droiddeckServices = "))
         assertFalse(text.contains("show()"))
         val probe = CurseForgeApp.expression("InstalledProjectsAppService", "installAddon", null)
         assertFalse(probe.contains("await s["))
@@ -293,6 +295,37 @@ class CurseForgeAppTest {
     }
 
     @Test
+    fun aGameFolderCurseForgeAlreadyKnowsSkipsTheFolderDetection() {
+        val flavor = "/root/Games/World of Warcraft/_retail_"
+        val curse = fakeCurse(flavor = flavor)
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        assertEquals("g", CurseForgeApp.instance(context, url, "/root/Games/World of Warcraft", flavor))
+        assertFalse("detectGameFromPath" in curse.methods)
+    }
+
+    @Test
+    fun aGameFolderCurseForgeDoesNotKnowIsDetectedOnce() {
+        val flavor = "/root/Games/World of Warcraft/_retail_"
+        val curse = fakeCurse(flavor = flavor)
+        curse.known = false
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        assertEquals("g", CurseForgeApp.instance(context, url, "/root/Games/World of Warcraft", flavor))
+        assertEquals(1, curse.methods.count { it == "detectGameFromPath" })
+        assertEquals(listOf("getGameInstances", "detectGameFromPath", "getGameInstances"), curse.methods.filter { it != "connect" })
+    }
+
+    @Test
+    fun curseForgeConnectsOncePerLaunch() {
+        val curse = fakeCurse()
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val launched = "ws://127.0.0.1:43118/${java.util.UUID.randomUUID()}"
+        CurseForgeApp.projects(context, launched, "g")
+        CurseForgeApp.projects(context, launched, "g")
+        CurseForgeApp.instance(context, launched, "/root", "")
+        assertEquals(1, curse.methods.count { it == "connect" })
+    }
+
+    @Test
     fun theInspectorUrlIsRedactedFromCommandLogs() {
         val line = CurseForgeApp.evalArgv(url, "x", 1_000).joinToString(" ")
         assertTrue(line.contains(url))
@@ -305,6 +338,7 @@ class CurseForgeAppTest {
         val methods = java.util.Collections.synchronizedList(mutableListOf<String>())
         @Volatile var unreachableAfterDelete = false
         @Volatile var unreachable = false
+        @Volatile var known = true
 
         fun add(id: String, folder: String, status: Int) = add(id, listOf(folder), status)
 
@@ -328,8 +362,11 @@ class CurseForgeAppTest {
                     projects.forEach { it.put("status", 1) }
                     true
                 }
-                "detectGameFromPath" -> JSONObject().put("gameInstanceGuid", "g")
-                "getGameInstances" -> JSONArray().put(JSONObject().put("guid", "g").put("installPath", flavor))
+                "detectGameFromPath" -> {
+                    known = true
+                    JSONObject().put("gameInstanceGuid", "g")
+                }
+                "getGameInstances" -> if (known) JSONArray().put(JSONObject().put("guid", "g").put("installPath", flavor)) else JSONArray()
                 "deleteMods" -> {
                     projects.removeAll { p ->
                         (p.getString("installedModId") in expression).also { gone ->
@@ -467,7 +504,7 @@ class CurseForgeAppTest {
         curse.add("18808", "TomTom", 1)
         val before = CurseForgeApp.projects(context, url, "g", rescan = true).associate { it.id to it.update }
         assertEquals(mapOf("298842" to true, "18808" to false), before)
-        assertTrue(CurseForgeApp.update(context, url, "g", "298842"))
+        assertNotNull(CurseForgeApp.update(context, url, "g", "298842"))
         assertTrue("updateMod" in curse.methods)
         assertTrue(CurseForgeApp.projects(context, url, "g").none { it.update })
     }
@@ -479,7 +516,7 @@ class CurseForgeAppTest {
         curse.add("298842", "Leatrix_Maps", 1)
         curse.add("18808", "TomTom", 1)
         val project = CurseForgeApp.owner(CurseForgeApp.projects(context, url, "g"), "Leatrix_Maps")!!
-        assertTrue(CurseForgeApp.uninstall(context, url, "g", project))
+        assertNotNull(CurseForgeApp.uninstall(context, url, "g", project))
         assertEquals(listOf("18808"), CurseForgeApp.projects(context, url, "g").map { it.id })
         assertFalse(File(curse.addOns, "Leatrix_Maps").exists())
         assertTrue(File(curse.addOns, "TomTom").isDirectory)
