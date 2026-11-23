@@ -3,6 +3,7 @@ package com.droiddeck.launcher.ui
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import android.os.Build
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.core.WirelessAdbFix
 import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.SessionPrefs
 
@@ -236,10 +238,14 @@ internal fun GpuClockGroup(host: MenuHost, on: Boolean, chipModifier: Modifier =
 
 @Composable
 internal fun GameModeGroup(host: MenuHost, mode: String, chipModifier: Modifier = Modifier, onChange: (String) -> Unit) {
+    val context = LocalContext.current
+    val paired = remember { WirelessAdbFix.hasSavedPairing(context) }
+    val hint = stringResource(R.string.perf_game_mode_hint) +
+        if (paired) "" else " " + stringResource(R.string.perf_game_mode_unpaired)
     SettingsGroup(stringResource(R.string.perf_game_mode_group)) {
         ChoiceRow(
             host, "gameMode", stringResource(R.string.perf_game_mode),
-            stringResource(R.string.perf_game_mode_hint),
+            hint,
             listOf(
                 SessionPrefs.GAME_MODE_SYSTEM to stringResource(R.string.perf_game_mode_system),
                 SessionPrefs.GAME_MODE_BATTERY to stringResource(R.string.perf_game_mode_battery),
