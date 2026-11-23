@@ -104,11 +104,21 @@ object WowAddons {
     }
 
     private fun toc(folder: File): Map<String, String> {
-        val tocs = folder.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".toc", ignoreCase = true) }
-        val main = tocs.firstOrNull { it.name.dropLast(4).equals(folder.name, ignoreCase = true) }
-            ?: tocs.firstOrNull { it.name.dropLast(4).replace(SUFFIX, "").equals(folder.name, ignoreCase = true) }
-            ?: tocs.minByOrNull { it.name.length } ?: return emptyMap()
-        return runCatching { main.bufferedReader().useLines { tocFields(it) } }.getOrDefault(emptyMap())
+        val tocs = folder.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".toc", ignoreCase = true) }.sortedWith(
+            compareBy<File>(
+                { !it.name.dropLast(4).equals(folder.name, ignoreCase = true) },
+                { !it.name.dropLast(4).replace(SUFFIX, "").equals(folder.name, ignoreCase = true) },
+                { it.name.length },
+                { it.name },
+            ),
+        )
+        val out = LinkedHashMap<String, String>()
+        for (file in tocs) {
+            if (out.size == TOC_KEYS.size) break
+            val missing = TOC_KEYS - out.keys
+            runCatching { file.bufferedReader().useLines { tocFields(it, missing) } }.getOrNull()?.let(out::putAll)
+        }
+        return out
     }
 
     internal fun parseOrigins(text: String): Map<String, Origin> = text.lineSequence().mapNotNull { line ->

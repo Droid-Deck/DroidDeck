@@ -127,6 +127,9 @@ internal class CurseLink(val app: UserApps.App) {
         target.addOns,
     )
 
+    fun marks(context: Context, target: WowAddons.Target, key: Any): Map<String, String?> =
+        runCatching { installed(context, target, key).associate { it.id to curseMark(it) } }.getOrElse { lastReported(target) }
+
     fun <T> call(context: Context, target: WowAddons.Target, launch: Boolean = true, block: (Linked) -> T): T {
         val linked = synchronized(lock) { link(context, target, launch) }
         try {
@@ -266,9 +269,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         val key = curse to into.addOns
         if (curse != null && link != null && value.first != key) value = key to withContext(Dispatchers.IO) { Present(curse = CurseLink.lastReported(into)) }
         value = key to withContext(Dispatchers.IO) {
-            if (curse != null && link != null) Present(curse = runCatching {
-                link.installed(context, into, scanKey).associate { it.id to curseMark(it) }
-            }.getOrDefault(emptyMap()))
+            if (curse != null && link != null) Present(curse = link.marks(context, into, scanKey))
             else Present(disk = WowAddons.details(into).associateBy { it.name.lowercase() })
         }
     }

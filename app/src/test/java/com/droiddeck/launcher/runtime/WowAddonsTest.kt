@@ -266,6 +266,28 @@ class WowAddonsTest {
         assertEquals(null, details.getValue("Bar").version)
     }
 
+    @Test fun detailsFillFieldsTheMainTocLacksFromTheFlavourTocs() {
+        val target = target()
+        val questie = File(target.addOns, "Questie").apply { mkdirs() }
+        File(questie, "Questie.toc").writeText("## Interface: 00000\n## Title: Questie\n")
+        File(questie, "Questie_Vanilla.toc").writeText("## Version: 12.6.4\n## X-Curse-Project-ID: 334372\n")
+        File(questie, "Questie_Wrath.toc").writeText("## Version: 12.6.4\n")
+        val questieDetails = WowAddons.details(target).single()
+        assertEquals("12.6.4", questieDetails.version)
+        assertEquals("334372", questieDetails.curseId)
+    }
+
+    @Test fun detailsKeepTheMainTocWhenItHasTheFields() {
+        val target = target()
+        val foo = File(target.addOns, "Foo").apply { mkdirs() }
+        File(foo, "Foo.toc").writeText("## Version: 2.0\n## X-Curse-Project-ID: 5\n")
+        File(foo, "Foo_Classic.toc").writeText("## Version: 1.0\n## X-Curse-Project-ID: 6\n## X-WoWI-ID: 7\n")
+        val fooDetails = WowAddons.details(target).single()
+        assertEquals("2.0", fooDetails.version)
+        assertEquals("5", fooDetails.curseId)
+        assertEquals("7", fooDetails.wowiId)
+    }
+
     @Test fun importRecordsTheSourceAndPlainImportsClearIt() {
         val target = target()
         WowAddons.import(zip("Foo/Foo.toc" to "## Version: 1.0\n"), target, WowAddons.Origin("55", "2.0"))
