@@ -773,12 +773,13 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     showRailPage(key, false)
                     if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
                     val since = MainTabSteps.otherKeys
+                    val owner = selected
                     railHold?.cancel()
                     // Pages focus their own first control as they appear; the ring stays on the rail until another key moves it.
                     railHold = stepScope.launch {
                         repeat(RAIL_HOLD_FRAMES) {
                             withFrameNanos { }
-                            if (MainTabSteps.otherKeys != since) return@launch
+                            if (MainTabSteps.otherKeys != since || selected != owner) return@launch
                             if (frontFocus.focusedRail != key) runCatching { frontFocus.railFor(key).requestFocus() }
                         }
                     }
