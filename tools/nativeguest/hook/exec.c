@@ -268,6 +268,9 @@ struct ldso_direct {
     char lib_path[PATH_MAX * 6];
 };
 
+// ld.so started directly (ldd, "ld.so --list PROGRAM", "ld.so PROGRAM"): the program it loads
+// gets the --library-path a start of its own gets, or ldd reports its libraries as not found,
+// and its path mapped into the rootfs, since ld.so opens it without the hook
 static char **ldso_direct_argv(char *const argv[], char *const envp[], struct ldso_direct *buf, int *err) {
     *err = 0;
     int caller_lib_path = 0;
@@ -277,6 +280,8 @@ static char **ldso_direct_argv(char *const argv[], char *const envp[], struct ld
     while (argv[argc]) argc++;
     const char *prog = argv[pi];
     if (caller_lib_path) {
+        // the caller's own --library-path stays as it is; only the program is mapped (when it is
+        // in the rootfs: a caller can also name a file by its real path)
         if (prog[0] == '/') {
             const char *mapped = rewrite_path(prog, buf->prog, sizeof(buf->prog));
             int fd = mapped != prog ? (int)syscall(SYS_openat, AT_FDCWD, mapped, O_PATH | O_CLOEXEC) : -1;
@@ -308,7 +313,7 @@ static char **ldso_direct_argv(char *const argv[], char *const envp[], struct ld
     out[1] = (char *)"--library-path";
     out[2] = buf->lib_path;
     for (int i = 1; i <= argc; i++) out[i + 2] = argv[i];
-    out[pi + 2] = (char *)prog;
+    out[pi + 2] = (char *)prog; // ld.so opens it itself: "ldd /usr/bin/adb" as well
     return out;
 }
 
@@ -446,7 +451,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
                 return -1;
             }
             if (new_argv) {
-                prepare_static_program(static_elf);
+                prepare_static_program(static_elf); // ld.so is a static program itself
                 char **ddnatv_env = prepare_ddnatv_env(envp, target);
                 int ret = run_execve(orig_execve, target, new_argv, ddnatv_env);
                 int saved_errno = errno;
