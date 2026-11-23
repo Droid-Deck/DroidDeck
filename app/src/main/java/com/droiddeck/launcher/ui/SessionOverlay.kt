@@ -1519,6 +1519,7 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
             listOf(
                 com.droiddeck.launcher.input.DualScreen.MODE_AUTO to stringResource(R.string.setup_dual_screen_auto),
                 com.droiddeck.launcher.input.DualScreen.MODE_ON to stringResource(R.string.setup_dual_screen_on),
+                com.droiddeck.launcher.input.DualScreen.MODE_SWAPPED to stringResource(R.string.setup_dual_screen_swapped),
                 com.droiddeck.launcher.input.DualScreen.MODE_OFF to stringResource(R.string.setup_dual_screen_off),
             ), a.dualScreenMode, chipModifier = track("dual-screen-mode"), onPick = a.onDualScreenMode)
         if (swapsGame) ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
