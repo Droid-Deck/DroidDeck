@@ -45,6 +45,10 @@ int main(int argc, char **argv) {
   action.sa_sigaction = handler;
   action.sa_flags = SA_SIGINFO | SA_RESTART;
   sigaction(SIGUSR1, &action, NULL);
+  sigset_t usr1;
+  sigemptyset(&usr1);
+  sigaddset(&usr1, SIGUSR1);
+  pthread_sigmask(SIG_UNBLOCK, &usr1, NULL);
   target = syscall(SYS_gettid);
   if (pthread_create(&thread, NULL, sender, NULL) != 0) {
     fprintf(stderr, "cannot start the signal sender\n");
