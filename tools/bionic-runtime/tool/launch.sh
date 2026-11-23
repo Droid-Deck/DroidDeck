@@ -12,10 +12,17 @@ ROOTFS=${DROIDDECK_BIONIC_ROOT:?started without DROIDDECK_BIONIC_ROOT}
 APP=${ROOTFS%/linuxfs}
 LINKER=/system/bin/linker64
 VERSION=$(awk '{print $2}' "$TOOL/version" 2>/dev/null)
+LOGS=${DROIDDECK_BIONIC_LOGS:-}
 
 mkdir -p "$COMPAT"
 LOG=$COMPAT/droiddeck-bionic.log
 [ "$verb" = runinprefix ] || { [ -f "$LOG" ] && mv -f "$LOG" "$LOG.1"; }
+# A game's log is written into DroidDeck's session folder (../proton names it), which Share logs takes only as a
+# file with one name; the usual name here points to it, and dangles once that session's folder is removed.
+[ -L "$LOG" ] && [ ! -e "$LOG" ] && rm -f "$LOG"
+if [ -n "$LOGS" ] && [ ! -e "$LOG" ] && mkdir -p "$LOGS" 2>/dev/null && : >> "$LOGS/droiddeck-bionic.log" 2>/dev/null; then
+  ln -s "$LOGS/droiddeck-bionic.log" "$LOG" 2>/dev/null
+fi
 exec >> "$LOG" 2>&1
 echo "$(date +%H:%M:%S) $verb $EXE ($VERSION, uid $(id -u), DISPLAY ${DISPLAY:-unset})"
 
@@ -36,6 +43,7 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     XODUS_*|RUST_LOG) ;;
     WINE_OFFSCREEN_CHECK_MS|WINE_CPU_TOPOLOGY|WINE_LARGE_ADDRESS_AWARE|WINESTEAMNOEXEC|TZ) ;;
     DXVK_LOG_LEVEL|DXVK_HDR|VKD3D_DEBUG|VKD3D_SHADER_DEBUG) ;;
+    DXVK_LOG_PATH|VKD3D_LOG_FILE|MESA_LOG_FILE) ;;
     DROIDDECK_GPU_LOAD|DROIDDECK_GPU_LOAD_DIR|DROIDDECK_VRAM_CAP|DROIDDECK_VRAM_CAP_MB|DROIDDECK_DISPLAY_DRIVER) ;;
     DROIDDECK_GUEST_ROOT) ;;
     VKD3D_FEATURE_LEVEL|VKD3D_SHADER_MODEL|vk_x11_strict_image_count) ;;
@@ -119,7 +127,7 @@ export WINE_LSTEAMCLIENT=${WINE_LSTEAMCLIENT:-1}
 # points the Android library's shared memory there (it keeps its own in-process otherwise) and gives it the
 # sem_open Android lacks (without it the game hangs once that data arrives).
 export DROIDDECK_BIONIC_SHM_DIR=${APP%/files}/no_backup/guest-runtime/shm
-export DXVK_LOG_PATH=$COMPAT PULSE_SERVER=unix:$APP/pulseaudio/PS0
+export DXVK_LOG_PATH=${DXVK_LOG_PATH:-$COMPAT} PULSE_SERVER=unix:$APP/pulseaudio/PS0
 export ANDROID_SYSVSHM_SERVER=$COMPAT/.no-sysvshm-server  # its client faults on an unset name, inside a Wine lock
 
 # The pack's imagefs libraries carry Winlator's prefix for plugins and X11 data. No FONTCONFIG_*: with the

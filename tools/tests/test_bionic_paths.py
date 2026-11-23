@@ -1,6 +1,7 @@
 import importlib.machinery
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -12,6 +13,7 @@ TOOLS = Path(__file__).resolve().parents[1]
 PROTON = TOOLS / 'bionic-runtime/tool/proton'
 LAUNCH = TOOLS / 'bionic-runtime/tool/launch.sh'
 BIN = TOOLS / 'linuxfs/overlay/usr/local/bin'
+SHARE = TOOLS.parent / 'app/src/main/java/com/droiddeck/launcher/session/EnhancedSessionLogShare.kt'
 ANDROID = '/data/user/0/com.droiddeck.launcher/files/linuxfs'
 BINDS = '/storage/emulated/0/Games:/home/games|/storage/1234-5678/Steam:/mnt/sd'
 
@@ -27,12 +29,20 @@ def load(name):
 store = load('droiddeck-store-launch')
 
 
-def zpath(arg):
+def proton_function(call, *args, **env):
     text = PROTON.read_text()
     functions = text[text.index('real() {'):text.index('\nhere=')]
-    env = dict(os.environ, DDNATV_ROOT=ANDROID, DDNATV_BINDS=BINDS)
-    return subprocess.run(['bash', '-c', functions + '\nzpath "$1"', 'zpath', arg], env=env,
+    env = dict(os.environ, DDNATV_ROOT=ANDROID, DDNATV_BINDS=BINDS, **env)
+    return subprocess.run(['bash', '-c', functions + '\n' + call, 'proton', *args], env=env,
                           capture_output=True, text=True, check=True).stdout.rstrip('\n')
+
+
+def zpath(arg):
+    return proton_function('zpath "$1"', arg)
+
+
+def session_logs(verb, **env):
+    return proton_function('verb=$1; session_logs', verb, **env)
 
 
 class ToolArguments(unittest.TestCase):
@@ -54,6 +64,76 @@ class ToolArguments(unittest.TestCase):
 
     def test_wine_keeps_the_guest_root(self):
         self.assertIn('DROIDDECK_GUEST_ROOT) ;;', LAUNCH.read_text())
+
+
+class SessionLogs(unittest.TestCase):
+    SESSION = '/data/user/0/com.droiddeck.launcher/files/logs/2026-11-22-09-steam'
+
+    def test_a_game_launch_gets_a_folder_of_its_own_in_the_session(self):
+        folder = session_logs('waitforexitandrun', DD_DEBUG_DIR=self.SESSION + '/', SteamAppId='341940')
+        self.assertRegex(folder, '^' + re.escape(self.SESSION) + r'/games/[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}-bionic-341940$')
+
+    def test_the_folder_name_survives_share_logs(self):
+        pattern = re.search(r'Regex\("(\[0-9\]\{4\}-[^"]+)"\)', SHARE.read_text()).group(1).replace('\\\\', '\\')
+        name = session_logs('waitforexitandrun', DD_DEBUG_DIR=self.SESSION, SteamAppId='341940').rsplit('/', 1)[1]
+        self.assertRegex(name, '^(?:' + pattern + ')$')
+        self.assertIn('"droiddeck-bionic.log"', SHARE.read_text())
+
+    def test_detailed_graphics_logs_keep_the_game_log_folder(self):
+        self.assertEqual(ANDROID + '/tmp/logs/games/20261122-201105-ab12-341940',
+                         session_logs('waitforexitandrun', DD_DEBUG_DIR=self.SESSION, PROTON_LOG_DIR='/tmp/logs/games/20261122-201105-ab12-341940'))
+
+    def test_other_verbs_and_sessions_without_a_folder_get_none(self):
+        self.assertEqual('', session_logs('run', DD_DEBUG_DIR=self.SESSION))
+        self.assertEqual('', session_logs('runinprefix', DD_DEBUG_DIR=self.SESSION))
+        env = dict(os.environ)
+        env.pop('DD_DEBUG_DIR', None)
+        with patch.dict(os.environ, env, clear=True):
+            self.assertEqual('', session_logs('waitforexitandrun'))
+
+
+class LaunchLog(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.compat = self.root / 'compatdata/341940'
+        self.logs = self.root / 'session/games/2026-11-22-201105-bionic-341940'
+
+    def run_block(self, verb, logs=''):
+        text = LAUNCH.read_text()
+        block = text[text.index('mkdir -p "$COMPAT"'):text.index('exec >> "$LOG" 2>&1')]
+        script = 'set -e\n' + block + 'echo "line from %s" >> "$LOG"\n' % verb
+        subprocess.run(['sh', '-c', script], check=True, env=dict(os.environ, COMPAT=str(self.compat), LOGS=str(logs), verb=verb))
+        return self.compat / 'droiddeck-bionic.log'
+
+    def test_a_game_log_lives_in_the_session_folder_with_one_name(self):
+        self.compat.mkdir(parents=True)
+        (self.compat / 'droiddeck-bionic.log').write_text('previous launch\n')
+        log = self.run_block('waitforexitandrun', self.logs)
+        shared = self.logs / 'droiddeck-bionic.log'
+        self.assertTrue(log.is_symlink())
+        self.assertEqual(shared, Path(os.readlink(log)))
+        self.assertEqual('line from waitforexitandrun\n', shared.read_text())
+        self.assertEqual(1, shared.stat().st_nlink)
+        self.assertEqual('previous launch\n', (self.compat / 'droiddeck-bionic.log.1').read_text())
+
+    def test_a_removed_session_folder_leaves_no_dangling_log(self):
+        self.run_block('waitforexitandrun', self.logs)
+        shutil.rmtree(self.root / 'session')
+        log = self.run_block('runinprefix')
+        self.assertFalse(log.is_symlink())
+        self.assertEqual('line from runinprefix\n', log.read_text())
+
+    def test_without_a_session_folder_the_log_stays_in_the_prefix(self):
+        log = self.run_block('run')
+        self.assertFalse(log.is_symlink())
+        self.assertEqual('line from run\n', log.read_text())
+
+    def test_graphics_logs_follow_the_launch(self):
+        text = LAUNCH.read_text()
+        self.assertIn('DXVK_LOG_PATH|VKD3D_LOG_FILE|MESA_LOG_FILE) ;;', text)
+        self.assertIn('DXVK_LOG_PATH=${DXVK_LOG_PATH:-$COMPAT}', text)
 
 
 class StorePaths(unittest.TestCase):

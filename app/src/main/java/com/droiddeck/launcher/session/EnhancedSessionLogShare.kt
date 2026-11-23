@@ -937,7 +937,7 @@ internal object EnhancedSessionLogShare {
         val value = entry.lowercase(Locale.US)
         if (value.startsWith("battlenet/") || value.startsWith("stores/") || value.startsWith("tools/") ||
             value.contains("droiddeck-esync/") || GAME_LOG.matches(value.substringAfterLast('/')) ||
-            listOf("proton", "wine", "dxvk", "vkd3d", "battle.net", "game-debug").any(value::contains)) return Category.GAMES
+            listOf("proton", "wine", "dxvk", "vkd3d", "battle.net", "game-debug", "bionic").any(value::contains)) return Category.GAMES
         if (listOf("wayland", "gamescope", "xwayland", "vulkan", "gpu", "mesa", "egl", "glx", "drm", "compositor", "frame-trace").any(value::contains)) return Category.GRAPHICS
         return Category.SESSION
     }
@@ -948,7 +948,7 @@ internal object EnhancedSessionLogShare {
         "droiddeck", "droiddeck-esync", "session.log", "app.log", "wayland.log", "audio.log",
         "device.txt", "network.txt", "events.jsonl", "memory.csv", "capture.json", "crash.log",
         "frame-trace.log", "process-trace.log", "game-lifecycle.log", "launches.log", "tools.tsv", "wanted.tsv", "prefixes.json",
-        "battlenet.log", "spawned.log", "flatpak-install.log", "cef_log.txt", "cef_log.previous.txt",
+        "battlenet.log", "spawned.log", "flatpak-install.log", "cef_log.txt", "cef_log.previous.txt", "droiddeck-bionic.log",
         "console_log.txt", "webhelper_js.txt", "controller_support.txt", "systemperfmanager.txt",
     )
     private val KNOWN_COMPONENT_PATTERNS = listOf(

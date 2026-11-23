@@ -36,6 +36,18 @@ zpath() {
   esac
 }
 
+# Where a game launch's log goes in DroidDeck's session folder (Share logs takes that folder): the game's log folder
+# when Detailed graphics logs made one (droiddeck-game-env), else a folder of its own; nothing for other verbs
+session_logs() {
+  [ "$verb" = waitforexitandrun ] && [ -n "${DD_DEBUG_DIR:-}" ] || return 0
+  if [ -n "${PROTON_LOG_DIR:-}" ]; then
+    real "$PROTON_LOG_DIR"
+  else
+    local id=${SteamAppId:-0}
+    printf '%s/games/%s-bionic-%s\n' "$(real "${DD_DEBUG_DIR%/}")" "$(date +%Y-%m-%d-%H%M%S)" "${id//[^0-9]/}"
+  fi
+}
+
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 tool=$(real "$here")
 compat=$(real "${STEAM_COMPAT_DATA_PATH:-$HOME/.local/share/Steam/steamapps/compatdata/0}")
@@ -76,6 +88,11 @@ case "$verb" in
     done
     # The HUD's GPU-load folder is a guest path; the bionic game writes to it by its Android path.
     [ -n "${DROIDDECK_GPU_LOAD_DIR:-}" ] && { DROIDDECK_GPU_LOAD_DIR=$(real "$DROIDDECK_GPU_LOAD_DIR"); export DROIDDECK_GPU_LOAD_DIR; }
+    # So are the graphics log locations Detailed graphics logs or game debugging set for this launch.
+    for v in DXVK_LOG_PATH VKD3D_LOG_FILE MESA_LOG_FILE; do
+      [ -n "${!v:-}" ] && { printf -v "$v" '%s' "$(real "${!v}")"; export "${v?}"; }
+    done
+    DROIDDECK_BIONIC_LOGS=$(session_logs); export DROIDDECK_BIONIC_LOGS
     # DroidDeck's game environment (shared entries and this game's), already applied by droiddeck-game-env: the
     # names launch.sh keeps when it drops the rest of the guest environment.
     DROIDDECK_BIONIC_KEEP=$(python3 - "${STEAM_COMPAT_DATA_PATH:-}" 2>/dev/null <<'PY'
