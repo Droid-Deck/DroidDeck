@@ -408,10 +408,12 @@ private fun AgentMenu(open: Boolean, onOpen: (Boolean) -> Unit, onPanel: (AgentP
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val working = AgentHost.state == AgentHost.State.WORKING
+    // Closed, the outline sits flush against the lone button.
+    val shape = if (open) Shape16 else Shape12
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clip(Shape16).background(colors.surface.copy(alpha = if (open) 0.97f else 0.88f))
-            .border(1.dp, pal.line, Shape16).padding(top = 3.dp, bottom = 3.dp, end = 4.dp),
+        modifier = Modifier.clip(shape).background(colors.surface.copy(alpha = if (open) 0.97f else 0.88f))
+            .border(1.dp, pal.line, shape).then(if (open) Modifier.padding(top = 3.dp, bottom = 3.dp, end = 4.dp) else Modifier),
     ) {
         androidx.compose.animation.AnimatedVisibility(open, enter = expandHorizontally(expandFrom = Alignment.End) + fadeIn(),
             exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut()) {
@@ -434,7 +436,7 @@ private fun AgentMenu(open: Boolean, onOpen: (Boolean) -> Unit, onPanel: (AgentP
                 }
             }
         }
-        HeaderAction(Icons.Outlined.MoreHoriz, stringResource(R.string.agent_more), selected = open, size = 36.dp, tag = "agent-menu") { onOpen(!open) }
+        HeaderAction(Icons.Outlined.MoreHoriz, stringResource(R.string.agent_more), selected = open, size = 36.dp, tag = "agent-menu", startPadding = if (open) null else 0.dp) { onOpen(!open) }
     }
 }
 
@@ -448,12 +450,13 @@ private fun AgentPanelBar(title: String, onClose: () -> Unit) {
 
 @Composable
 internal fun HeaderAction(
-    icon: ImageVector, label: String, enabled: Boolean = true, selected: Boolean = false, tag: String? = null, size: Dp = 44.dp, onClick: () -> Unit,
+    icon: ImageVector, label: String, enabled: Boolean = true, selected: Boolean = false, tag: String? = null, size: Dp = 44.dp,
+    startPadding: Dp? = null, onClick: () -> Unit,
 ) {
     val pal = LocalPalette.current
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.padding(start = if (size < 44.dp) 4.dp else 8.dp).size(size).clip(Shape12)
+        modifier = Modifier.padding(start = startPadding ?: if (size < 44.dp) 4.dp else 8.dp).size(size).clip(Shape12)
             .background(if (selected) pal.primary.copy(alpha = 0.2f) else pal.surfaceVariant)
             .clickable(enabled = enabled, onClick = onClick)
             .then(if (tag != null) Modifier.testTag(tag) else Modifier),
