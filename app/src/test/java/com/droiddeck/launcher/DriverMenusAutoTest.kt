@@ -168,12 +168,11 @@ class DriverMenusAutoTest {
             .edit().putString("latest", stored.toString()).commit()
     }
 
-    private fun prepareActiveMaliJmPair(): Pair<Activity, DriverMenus> {
+    private fun prepareActiveMaliJmPair(assetName: String = "PanVK-JM-Pair.zip"): Pair<Activity, DriverMenus> {
         ShadowBuild.setModel("Generic phone")
         ShadowBuild.setDevice("generic")
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val bundle = DriverBundle.install(activity, bundleZip(activity))
-        val assetName = "PanVK-JM-Pair.zip"
         setCachedMaliJmPair(activity, assetName)
         TurnipReleases.recordDownload(activity, TurnipReleases.cached(activity)!!.assets.first(), bundle.id)
         SessionPrefs.setGpuDriverMode(activity, SessionPrefs.GPU_DRIVERS_AUTO)
@@ -212,4 +211,37 @@ class DriverMenusAutoTest {
         }
         assertEquals(activity.getString(R.string.upd_current_status), menus.autoStatus)
     }
+
+    @Test fun activeRecommendedPairWithSuccessfulForcedRefreshShowsCurrentStatus() {
+        val (activity, menus) = prepareActiveMaliJmPair("PanVK-Mali-JM-Pair.zip")
+        val asset = TurnipReleases.cached(activity)!!.assets.single()
+        val releases = JSONArray().put(JSONObject()
+            .put("tag_name", asset.tag)
+            .put("assets", JSONArray().put(JSONObject()
+                .put("name", asset.name).put("browser_download_url", asset.url)
+                .put("digest", "sha256:" + asset.sha256).put("size", 1L)
+                .put("id", 1L).put("updated_at", "2026-01-01T00:00:00Z"))))
+        val original = TurnipReleases.fetch
+        val requests = java.util.concurrent.atomic.AtomicInteger()
+        TurnipReleases.fetch = { _, _, url ->
+            if (url.contains("droiddeck-nonadreno-drivers/releases")) {
+                requests.incrementAndGet()
+                releases.toString()
+            } else "[]"
+        }
+        try {
+            menus.ensureAuto(force = true)
+            for (i in 0..40) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(50)
+                shadowOf(Looper.getMainLooper()).idle()
+                if (!menus.releaseChecking) break
+            }
+            assertFalse(menus.releaseChecking)
+            assertTrue(requests.get() > 0)
+            assertTrue(TurnipReleases.cached(activity)!!.failed.isEmpty())
+            assertEquals(activity.getString(R.string.upd_current_status), menus.autoStatus)
+        } finally { TurnipReleases.fetch = original }
+    }
+
 }
