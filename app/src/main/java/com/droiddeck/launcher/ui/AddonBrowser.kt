@@ -110,7 +110,9 @@ internal class CurseLink(val app: UserApps.App) {
     private val guids = HashMap<String, String>()
     private val scanLock = Object()
     private val scans = HashMap<String, Pair<Any, List<CurseForgeApp.Project>>>()
-    private val settled = HashMap<String, List<CurseForgeApp.Project>>()
+    private val settleLock = Object()
+    private val settled = HashMap<String, Pair<Int, List<CurseForgeApp.Project>>>()
+    private val turns = HashMap<String, Int>()
     var generation by mutableIntStateOf(0)
         private set
 
@@ -121,7 +123,7 @@ internal class CurseLink(val app: UserApps.App) {
     fun installed(context: Context, target: WowAddons.Target, key: Any): List<CurseForgeApp.Project> = CurseForgeApp.onDisk(
         synchronized(scanLock) {
             scans[target.addOns.path]?.takeIf { it.first == key }?.second
-                ?: (settled.remove(target.addOns.path) ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }).also {
+                ?: (settledFor(target) ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }).also {
                     scans[target.addOns.path] = key to it
                     report(target, it)
                 }
@@ -132,10 +134,21 @@ internal class CurseLink(val app: UserApps.App) {
     fun marks(context: Context, target: WowAddons.Target, key: Any): Map<String, String?> =
         runCatching { installed(context, target, key).associate { it.id to curseMark(it) } }.getOrElse { lastReported(target) }
 
+    private fun settledFor(target: WowAddons.Target): List<CurseForgeApp.Project>? = synchronized(settleLock) {
+        settled.remove(target.addOns.path)?.takeIf { it.first == generation }?.second
+    }
+
     fun change(context: Context, target: WowAddons.Target, launch: Boolean = true, block: (Linked) -> List<CurseForgeApp.Project>?): Boolean {
+        val path = target.addOns.path
+        val turn = synchronized(settleLock) {
+            settled.remove(path)
+            ((turns[path] ?: 0) + 1).also { turns[path] = it }
+        }
         val projects = call(context, target, launch, block) ?: return false
-        synchronized(scanLock) { settled[target.addOns.path] = projects }
-        report(target, projects)
+        val newest = synchronized(settleLock) {
+            (turns[path] == turn).also { if (it) settled[path] = generation to projects }
+        }
+        if (newest) report(target, projects)
         return true
     }
 
