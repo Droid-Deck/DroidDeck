@@ -5928,6 +5928,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (show) {
             if (::hud.isInitialized) hud.setHidden(true)
             drawerOpen = false
+            pcKeyboardForField = false
             pcKeyboardOpen = false
             achievementsOpen = false
             pendingBackAction?.let(uiHandler::removeCallbacks)
@@ -6168,6 +6169,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val menuUp = menuShownOnBottom()
             drawerOpen = false
             if (menuUp) SessionState.bottomMenu = true
+            pcKeyboardForField = false
             pcKeyboardOpen = false
             achievementsOpen = false
         }
