@@ -129,6 +129,9 @@ class StreamSizeTest(unittest.TestCase):
     def test_h265_sizes_round_up_to_sixteen(self):
         self.assertEqual(['0', '1920', '1088'], self.run_driver(hevc_sps(1920, 1080, sub_layers_minus1=2), hevc=True))
 
+    def test_a_truncated_sps_is_rejected(self):
+        self.assertEqual('-1', self.run_driver(b'\x00\x00\x00\x01\x67\x64\x00\x33\xac\xb4\x02\x80\x2d')[0])
+
     def test_a_stream_without_an_sps_is_left_alone(self):
         self.assertEqual('-1', self.run_driver(b'\x00\x00\x00\x01\x65\x88\x84\x00\x00\x01')[0])
 

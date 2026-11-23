@@ -652,12 +652,17 @@ static int32_t vd_get_se(struct vd_bits *b) {
     return (k & 1) ? (int32_t)((k + 1) / 2) : -(int32_t)(k / 2);
 }
 
-static void vd_skip_scaling_list(struct vd_bits *b, unsigned size) {
+static int vd_skip_scaling_list(struct vd_bits *b, unsigned size) {
     int32_t last = 8, next = 8;
     for (unsigned i = 0; i < size; i++) {
-        if (next != 0) next = (last + vd_get_se(b) + 256) % 256;
+        if (next != 0) {
+            int32_t delta = vd_get_se(b);
+            if (delta < -128 || delta > 127) return -1;
+            next = (last + delta + 256) % 256;
+        }
         last = next == 0 ? last : next;
     }
+    return 0;
 }
 
 /* The coded size an H.264 SPS announces, rounded up to whole macroblocks, as a V4L2 decoder reports it. */
@@ -682,7 +687,7 @@ static int vd_parse_sps_h264(const uint8_t *rbsp, size_t size, uint32_t *width, 
         vd_get_bits(&b, 1);
         if (vd_get_bits(&b, 1)) {
             for (unsigned i = 0; i < (chroma != 3 ? 8u : 12u); i++)
-                if (vd_get_bits(&b, 1)) vd_skip_scaling_list(&b, i < 6 ? 16 : 64);
+                if (vd_get_bits(&b, 1) && vd_skip_scaling_list(&b, i < 6 ? 16 : 64) != 0) return -1;
         }
     }
     vd_get_ue(&b);
@@ -701,6 +706,7 @@ static int vd_parse_sps_h264(const uint8_t *rbsp, size_t size, uint32_t *width, 
     uint32_t mbs_wide = vd_get_ue(&b) + 1, map_units_high = vd_get_ue(&b) + 1;
     if (b.pos > b.size * 8 || mbs_wide > 1024 || map_units_high > 1024) return -1;
     uint32_t frame_mbs_only = vd_get_bits(&b, 1);
+    if (b.pos > b.size * 8) return -1;
     *width = mbs_wide * 16;
     *height = map_units_high * 16 * (2 - frame_mbs_only);
     return 0;
