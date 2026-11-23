@@ -1748,8 +1748,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 pickLossless.launch(InAppFilePicker.buildIntent(
                     this@SessionActivity, listOf("dll"), getString(R.string.lsfg_pick_title)))
             },
-            onKeyboard = { drawerOpen = false; pcKeyboardOpen = false; togglePrimaryKeyboard() },
+            onKeyboard = { drawerOpen = false; pcKeyboardForField = false; pcKeyboardOpen = false; togglePrimaryKeyboard() },
             onHardwareKeyboard = ::togglePcKeyboard,
+            onDesktopKeyboard = { SessionPrefs.setDesktopKeyboard(this, it) },
             wowChatShown = com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram),
             wowChat = wowChat.remembered,
             onWowChat = wowChat::choose,
@@ -5762,8 +5763,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 else if (host.shown) host.hide()
             } else {
                 val tapped = android.os.SystemClock.uptimeMillis() - lastUserPressMs < TEXT_FIELD_TAP_MS && resumed
-                val hardware = resources.configuration.hardKeyboardHidden != android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO
-                when (DesktopKeyboard.decide(SessionPrefs.desktopKeyboard(this), focused, tapped, hardware, pcKeyboardOpen)) {
+                val hardwareKeyboard = resources.configuration.hardKeyboardHidden == android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO
+                when (DesktopKeyboard.decide(SessionPrefs.desktopKeyboard(this), focused, tapped, hardwareKeyboard, pcKeyboardOpen)) {
                     DesktopKeyboard.Action.OPEN_PC -> {
                         if (host.shown) host.hide()
                         pcKeyboardForField = true

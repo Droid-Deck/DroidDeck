@@ -305,6 +305,7 @@ class DrawerActions(
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
+    val onDesktopKeyboard: (String) -> Unit = {},
     val wowChatShown: Boolean = false,
     val wowChat: String? = null,
     val onWowChat: (String?) -> Unit = {},
@@ -849,7 +850,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     ),
                                     desktopKeyboardDefault, chipModifier = focus.track(page, "desktop-keyboard")) {
                                     desktopKeyboardDefault = it
-                                    SessionPrefs.setDesktopKeyboard(keyboardContext, it)
+                                    a.onDesktopKeyboard(it)
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
                                     DrawerOutlineButton(stringResource(R.string.drawer_pc_keyboard), modifier = Modifier.weight(1f).height(48.dp).then(focus.track(page, "hardware"))) {
