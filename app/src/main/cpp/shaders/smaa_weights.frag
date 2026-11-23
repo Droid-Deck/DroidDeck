@@ -13,8 +13,7 @@ layout(push_constant) uniform Constants {
 vec4 edgeAt(vec2 uv, vec2 px) {
     vec2 edgeUV = clamp(uv, px * 0.5, vec2(1.0) - px * 0.5);
     vec4 e = textureLod(EdgeTexture, edgeUV, 0.0);
-    e.a = edgeUV.y >= 1.0 - px.y
-        ? 0.0 : textureLod(EdgeTexture, edgeUV + vec2(0.0, px.y), 0.0).b;
+    e.a = edgeUV.y >= 1.0 - px.y ? 0.0 : e.a;
     return e;
 }
 
