@@ -250,6 +250,47 @@ alone would then read as an installed client.
     with 0001 to 0008 crashed (SIGSEGV) before 2000 iterations of it, and `siglongjmp` out of a SIGSEGV
     handler died after about 3500; with this patch 350000 escapes and 200000 straight `siglongjmp`s
     finish, as natively. The approach is the one suggested in FEX-Emu/FEX#2487.
+  - `0010-syscall-exit-resets-host-stack` (`Fixed-upstream: FEX-2612`): a backport of FEX's
+    "JIT: Ensure IR ops that jump out of the JIT reset the stack" (FEX-Emu/FEX#6122). A system call or
+    code-entry removal that ends a block jumps to the dispatcher without dropping the block's spill
+    slots, and the syscall handler's fast path branches straight into the next block, so every such
+    exit leaked up to 32 bytes per spill slot of host stack. AVX and MMX code keeps enough values live to
+    spill, and `tools/fex/probes/syscall-host-stack.c` overran the 8 MB host stack after about 65000
+    system calls; with the patch 2000000 finish, as natively. The CPUID hunk of the upstream commit is
+    left out, since CPUID returns to the JIT in 2611.
+  - `0011-thunk-calls-mark-spilled-state`: a thunk call (every vDSO `clock_gettime`, `gettimeofday`
+    and `time`, and the host library thunks) spills the static registers to the guest frame and calls
+    host code, which clobbers the caller-saved host registers. A signal that arrived in the JIT code
+    after the host call returned and before the registers were refilled took the interrupted state from
+    those clobbered host registers: the guest handler got garbage registers, and the interrupted code
+    resumed with them, or FEX built the signal frame at a garbage stack pointer and crashed. The thunk
+    call now marks every static register as spilled (`InSyscallInfo = 0xFFFF`, as the system call
+    handler does) until the refill ends, and a fully spilled mark takes only RIP from the host PC and
+    leaves the frame's GPRs, vector registers and flags alone (the 16-bit mask could not name the
+    x16/x17 and v16 to v31 registers the host call clobbers). Every guest signal now saves and clears the
+    mark, so guest handlers and nested signals never inherit it, and every return puts back the value it
+    saved; 0008 restored it only for JIT code because the other paths saved none. A handler that changes
+    RIP restarts at the dispatcher with no mark, and thunk callbacks into guest code run with none.
+    `tools/fex/probes/vdso-signal-state.c` calls `clock_gettime` under a 1 kHz `SIGALRM` and checks the
+    values held across each call: FEX-2611 crashed in 3 of 8 runs, with 0001 to 0010 in 7 of 8; with
+    this patch 0 of 28, as natively. This was the "separate crash" noted under 0008.
+  - `0012-signal-return-applies-guest-registers`: a signal return that kept RIP threw away every
+    register change the guest handler made in its `ucontext`; only a changed RIP made FEX reload the
+    guest state from it. CoreCLR suspends threads for garbage collection with a signal and, in fully
+    interruptible code, runs the collection from that handler and writes the moved object references
+    back into the interrupted registers, so under FEX the thread resumed with pointers into the old heap.
+    The CurseForge agent's crashes during parallel addon scans (an `AccessViolationException` in
+    `Curse.Hashing.MurmurHash2.ComputeHash` or `RegexInterpreter`, or "Internal CLR error. (0x80131506)"
+    with a stack overflow) look like this, but they still happen with this patch, so it is not a fix for
+    them. When RIP is
+    unchanged, each guest GPR the handler changed is now written where the resumed code reads it: the
+    guest frame for registers the interrupted code had spilled (all of them inside a system call or
+    thunk call), otherwise the static host register. Unchanged registers are left alone, signals that
+    interrupted code outside the JIT (and not inside a system call or thunk call) keep the old
+    behaviour, and 32-bit frames compare and write only the low 32 bits. `tools/fex/probes/signal-register-update.c`
+    spins until a `SIGALRM` handler sets a register (R12, or ESI in 32-bit `rt` and legacy frames):
+    FEX-2611.1 with 0001 to 0011 never sees it in any of the three frame types, with this patch all
+    three see it on the first signal, as natively.
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,
