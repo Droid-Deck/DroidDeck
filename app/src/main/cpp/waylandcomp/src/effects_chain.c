@@ -445,7 +445,6 @@ static int objects_ensure(void) {
                                   .subpassCount = 1, .pSubpasses = &sub, .dependencyCount = 2, .pDependencies = deps};
     if (g_vk.CreateRenderPass(g_dev, &rci, NULL, &g_rp) != VK_SUCCESS) goto fail;
 
-    /* SMAA edge and weight maps need four usable 8-bit channels, even in HDR. */
     VkAttachmentDescription smaa_att = att;
     smaa_att.format = FX_FORMAT;
     VkRenderPassCreateInfo smaa_rci = rci;
