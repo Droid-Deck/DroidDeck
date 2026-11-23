@@ -660,6 +660,7 @@ object SessionFiles {
     private const val UI_STATE = "UIStoreLocalSteamUIState"
     private const val SORT_RECENT_OFF = "\\\"bSortedByRecent\\\":false"
     private const val SORT_RECENT_ON = "\\\"bSortedByRecent\\\":true"
+    private const val LIBRARY_BIG_ART = "LibraryHomeBigArt"
     private const val BATTERY_PERCENT_ON = "{\\\"bShowBatteryPercentage\\\":true}"
 
     /**
@@ -709,7 +710,12 @@ object SessionFiles {
             val block = out.substring(web.keyStart, web.close + 1)
             out = out.replaceRange(web.keyStart, web.close + 1, setScalar(block, BATTERY_PREFERENCES, BATTERY_PERCENT_ON, newline))
         }
-        return seedRecentSort(out, newline)
+        out = seedRecentSort(out, newline)
+        val last = findObject(out, "UserLocalConfigStore", 0, out.length) ?: return out
+        if (!hasKey(out.substring(last.open + 1, last.close), LIBRARY_BIG_ART)) {
+            out = insertInto(out, last, listOf("\"$LIBRARY_BIG_ART\"\t\t\"1\""), newline)
+        }
+        return out
     }
 
     // The library sort lives inside a JSON string; Steam writes bSortedByRecent:false until the player picks a sort,
@@ -729,9 +735,11 @@ object SessionFiles {
 
     private fun insertInto(text: String, parent: VdfBlock, lines: List<String>, newline: String): String {
         val lineStart = text.lastIndexOf('\n', parent.close).let { if (it < 0) 0 else it + 1 }
-        val indent = text.substring(lineStart, parent.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+        val before = text.substring(lineStart, parent.close)
+        val indent = before.takeWhile { it == '\t' || it == ' ' } + "\t"
         val section = lines.joinToString(newline) { indent + it } + newline
-        return text.substring(0, lineStart) + section + text.substring(lineStart)
+        if (before.isBlank()) return text.substring(0, lineStart) + section + text.substring(lineStart)
+        return text.substring(0, parent.close) + newline + section + text.substring(parent.close)
     }
 
     private val IDLE_SLEEP_TIMERS = listOf("IdleSuspendBatterySeconds", "IdleSuspendACSeconds")
