@@ -196,8 +196,10 @@ internal class CurseLink(val app: UserApps.App) {
         private val current = AtomicReference<CurseLink?>()
         private val reported = ConcurrentHashMap<String, List<CurseForgeApp.Project>>()
 
-        fun lastReported(target: WowAddons.Target): Map<String, String?> =
-            reported[target.addOns.path]?.let { CurseForgeApp.onDisk(it, target.addOns) }.orEmpty().associate { it.id to null }
+        fun lastReported(target: WowAddons.Target, disk: () -> List<WowAddons.Installed> = { WowAddons.details(target) }): Map<String, String?> {
+            val last = reported[target.addOns.path] ?: return disk().mapNotNull { it.curseId }.associateWith { null }
+            return CurseForgeApp.onDisk(last, target.addOns).associate { it.id to null }
+        }
 
         internal fun report(target: WowAddons.Target, projects: List<CurseForgeApp.Project>) {
             reported[target.addOns.path] = projects

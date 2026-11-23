@@ -39,4 +39,30 @@ class CurseLinkReportTest {
         java.io.File(target.addOns, "Questie").delete()
         assertEquals(emptyMap<String, String?>(), CurseLink.lastReported(target))
     }
+
+    private fun toc(target: WowAddons.Target, folder: String, curseId: String) {
+        val dir = java.io.File(target.addOns, folder).apply { mkdirs() }
+        java.io.File(dir, "$folder.toc").writeText("## Interface: 110207\n## Title: $folder\n## X-Curse-Project-ID: $curseId\n$folder.lua\n")
+    }
+
+    @Test fun beforeAnyReportAnAddonWhoseTocNamesTheProjectShowsAsInstalled() {
+        val target = target()
+        toc(target, "Questie", "334372")
+        toc(target, "Auctionator", "@project-id@")
+        assertEquals(mapOf<String, String?>("334372" to null), CurseLink.lastReported(target))
+    }
+
+    @Test fun aPlaceholderProjectIdIsIgnored() {
+        val target = target()
+        toc(target, "Auctionator", "@project-id@")
+        assertEquals(emptyMap<String, String?>(), CurseLink.lastReported(target))
+    }
+
+    @Test fun curseForgesReportOverridesTheTocProjectId() {
+        val target = target()
+        toc(target, "Questie", "334372")
+        toc(target, "Auctionator", "1")
+        CurseLink.report(target, listOf(project("1", "Auctionator", update = true)))
+        assertEquals(mapOf<String, String?>("1" to null), CurseLink.lastReported(target))
+    }
 }

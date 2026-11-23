@@ -40,14 +40,15 @@ object WowAddons {
 
     class Addon(val name: String, val root: String)
 
-    class Installed(val name: String, val version: String?, val wowiId: String?)
+    class Installed(val name: String, val version: String?, val wowiId: String?, val curseId: String? = null)
 
     class Origin(val id: String, val version: String)
 
     private const val ORIGINS = ".droiddeck-sources"
     private const val TOC_VERSION = "Version"
     private const val TOC_WOWI_ID = "X-WoWI-ID"
-    private val TOC_KEYS = setOf(TOC_VERSION, TOC_WOWI_ID)
+    private const val TOC_CURSE_ID = "X-Curse-Project-ID"
+    private val TOC_KEYS = setOf(TOC_VERSION, TOC_WOWI_ID, TOC_CURSE_ID)
 
     internal const val MAX_EXPANDED_BYTES = 4L * 1024 * 1024 * 1024
 
@@ -84,7 +85,7 @@ object WowAddons {
         return installed(target).map { name ->
             val toc = toc(File(target.addOns, name))
             val origin = origins[name]
-            Installed(name, origin?.version ?: toc[TOC_VERSION], origin?.id ?: toc[TOC_WOWI_ID])
+            Installed(name, origin?.version ?: toc[TOC_VERSION], origin?.id ?: toc[TOC_WOWI_ID], toc[TOC_CURSE_ID])
         }
     }
 

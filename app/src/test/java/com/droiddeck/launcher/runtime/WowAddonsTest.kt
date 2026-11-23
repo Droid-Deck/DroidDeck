@@ -231,10 +231,11 @@ class WowAddonsTest {
         val lines = sequence {
             yield("## Version: 2.0")
             yield("## X-WoWI-ID: 5")
+            yield("## X-Curse-Project-ID: 9")
             repeat(100_000) { read++; yield("## X-Data-$it: payload") }
         }
         val fields = WowAddons.tocFields(lines)
-        assertEquals(mapOf("Version" to "2.0", "X-WoWI-ID" to "5"), fields)
+        assertEquals(mapOf("Version" to "2.0", "X-WoWI-ID" to "5", "X-Curse-Project-ID" to "9"), fields)
         assertEquals(0, read)
     }
 
@@ -254,12 +255,14 @@ class WowAddonsTest {
     @Test fun detailsUseTheTocAndTheRecordedSource() {
         val target = target()
         val foo = File(target.addOns, "Foo").apply { mkdirs() }
-        File(foo, "Foo_Mainline.toc").writeText("## Version: 1.0\n## X-WoWI-ID: 77\n")
+        File(foo, "Foo_Mainline.toc").writeText("## Version: 1.0\n## X-WoWI-ID: 77\n## X-Curse-Project-ID: 334372\n")
         File(target.addOns, "Bar").mkdirs()
         val details = WowAddons.details(target).associateBy { it.name }
         assertEquals(setOf("Bar", "Foo"), details.keys)
         assertEquals("1.0", details.getValue("Foo").version)
         assertEquals("77", details.getValue("Foo").wowiId)
+        assertEquals("334372", details.getValue("Foo").curseId)
+        assertEquals(null, details.getValue("Bar").curseId)
         assertEquals(null, details.getValue("Bar").version)
     }
 
