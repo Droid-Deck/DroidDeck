@@ -126,7 +126,7 @@ class NativeHookMountTest(unittest.TestCase):
     def run_probe(self, *args):
         binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
         hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": binds, "LD_PRELOAD": str(self.hook)}
-        env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
+        env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "LOCPATH", "GCONV_PATH")}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
         else:
