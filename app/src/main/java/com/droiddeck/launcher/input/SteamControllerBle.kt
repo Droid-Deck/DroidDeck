@@ -37,7 +37,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
     private var reportedNone = false
     private var discoveries = 0
     private var subscribed = false
-    private var subscribeAttempts = 0
+    private var linkChecks = 0
     private var outputSequence = 0L
     private var outputWritePending = false
     private var featureRead = 0L
@@ -117,7 +117,7 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         gatt = null
         discoveries = 0
         subscribed = false
-        subscribeAttempts = 0
+        linkChecks = 0
         input = null
         lizardOffSent = false
         outputWritePending = false
@@ -237,22 +237,24 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         Log.i(TAG, "found Triton haptic reports: ${outputReports.keys.sorted().joinToString { "0x%02x".format(it) }}")
         input = chr.uuid
         g.setCharacteristicNotification(chr, true)
-        requestNotifications(g, chr)
+        watchLink(g, chr)
     }
 
-    private fun requestNotifications(g: BluetoothGatt, chr: BluetoothGattCharacteristic) {
-        if (g !== gatt || subscribed) return
-        if (subscribeAttempts++ == SUBSCRIBE_ATTEMPTS) {
-            disconnect("report 0x%02x never subscribed".format(reportId))
+    private fun watchLink(g: BluetoothGatt, chr: BluetoothGattCharacteristic) {
+        if (g !== gatt || lizardOffSent) return
+        if (linkChecks++ == LINK_CHECKS) {
+            disconnect(if (subscribed) "lizard mode off never acknowledged" else "report 0x%02x never subscribed".format(reportId))
             if (running) handler.postDelayed(::connect, RETRY_MS)
             return
         }
-        val cccd = chr.getDescriptor(CCCD) ?: return disconnect("state report cannot notify")
-        @Suppress("DEPRECATION")
-        cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        @Suppress("DEPRECATION")
-        if (!g.writeDescriptor(cccd)) Log.w(TAG, "report 0x%02x subscription refused (attempt %d)".format(reportId, subscribeAttempts))
-        handler.postDelayed({ requestNotifications(g, chr) }, SUBSCRIBE_RETRY_MS)
+        if (!subscribed) {
+            val cccd = chr.getDescriptor(CCCD) ?: return disconnect("state report cannot notify")
+            @Suppress("DEPRECATION")
+            cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+            @Suppress("DEPRECATION")
+            if (!g.writeDescriptor(cccd)) Log.w(TAG, "report 0x%02x subscription refused (attempt %d)".format(reportId, linkChecks))
+        }
+        handler.postDelayed({ watchLink(g, chr) }, LINK_CHECK_MS)
     }
 
     private fun onSubscribed(how: String) {
@@ -383,8 +385,8 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
         private const val SLOT = 0
         private const val RETRY_MS = 5_000L
         private const val LIZARD_REFRESH_MS = 3_000L
-        private const val SUBSCRIBE_RETRY_MS = 1_000L
-        private const val SUBSCRIBE_ATTEMPTS = 3
+        private const val LINK_CHECK_MS = 1_000L
+        private const val LINK_CHECKS = 3
         private const val OUTPUT_POLL_MS = 4L
         private const val OUTPUT_RETRY_MS = 10L
         private const val FEATURE_BYTES = 62

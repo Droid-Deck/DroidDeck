@@ -25,7 +25,7 @@ import java.time.Duration
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], manifest = Config.NONE, shadows = [SteamControllerBleTest.Writer::class])
+@Config(sdk = [34], manifest = Config.NONE, shadows = [SteamControllerBleTest.Writer::class, SteamControllerBleTest.BusyGatt::class])
 class SteamControllerBleTest {
     private val keys = ArrayList<Pair<Int, Boolean>>()
     private val router = InputRouter(object : InputOutput {
@@ -156,86 +156,118 @@ class SteamControllerBleTest {
         }
     }
 
-    @Test fun unansweredSubscriptionIsRetriedThenTheLinkIsDropped() {
-        val link = ValveLink(answerWrites = false)
+    @Test fun unansweredSubscriptionDropsTheLink() {
+        val link = ValveLink()
         link.start()
-        assertEquals(1, link.descriptorWrites)
+        assertEquals(1, link.shadow.descriptorWrites)
         shadowOf(handler.looper).idleFor(Duration.ofMillis(2_500))
-        assertEquals(3, link.descriptorWrites)
+        assertEquals(1, link.shadow.descriptorWrites)
+        assertEquals(2, link.shadow.refused)
         assertSame(link.gatt, ReflectionHelpers.getField<Any?>(controller, "gatt"))
         shadowOf(handler.looper).idleFor(Duration.ofMillis(1_000))
-        assertEquals(3, link.descriptorWrites)
         assertNull(ReflectionHelpers.getField<Any?>(controller, "gatt"))
         assertFalse(SteamControllerBle.connected)
-        assertEquals(0, link.lizardWrites)
+        assertEquals(0, link.shadow.lizardWrites)
     }
 
-    @Test fun inputBeforeTheSubscriptionReplyTurnsLizardModeOff() {
-        val link = ValveLink(answerWrites = false)
+    @Test fun failedSubscriptionIsWrittenAgain() {
+        val link = ValveLink()
         link.start()
+        link.answer(BluetoothGatt.GATT_FAILURE)
         assertFalse(SteamControllerBle.connected)
-        ReflectionHelpers.getField<BluetoothGattCallback>(controller, "callback")
-            .onCharacteristicChanged(link.gatt, link.input, ByteArray(45))
+        shadowOf(handler.looper).idleFor(Duration.ofMillis(1_500))
+        assertEquals(2, link.shadow.descriptorWrites)
+        link.answer()
         assertTrue(SteamControllerBle.connected)
-        assertTrue(Writer.connections.last())
-        assertEquals(1, link.lizardWrites)
-        shadowOf(handler.looper).idleFor(Duration.ofMillis(3_500))
-        assertEquals(1, link.descriptorWrites)
+        assertEquals(1, link.shadow.lizardWrites)
+        link.answer()
+        shadowOf(handler.looper).idleFor(Duration.ofMillis(2_000))
+        assertEquals(2, link.shadow.descriptorWrites)
         assertSame(link.gatt, ReflectionHelpers.getField<Any?>(controller, "gatt"))
         assertTrue(SteamControllerBle.connected)
+    }
+
+    @Test fun inputBeforeTheSubscriptionReplyTurnsLizardModeOffOnceTheReplyArrives() {
+        val link = ValveLink()
+        link.start()
+        link.input()
+        assertTrue(SteamControllerBle.connected)
+        assertTrue(Writer.connections.last())
+        shadowOf(handler.looper).idleFor(Duration.ofMillis(500))
+        assertEquals(0, link.shadow.lizardWrites)
+        link.answer()
+        shadowOf(handler.looper).idleFor(Duration.ofMillis(20))
+        assertEquals(1, link.shadow.lizardWrites)
+        link.answer()
+        shadowOf(handler.looper).idleFor(Duration.ofMillis(3_000))
+        assertEquals(1, link.shadow.descriptorWrites)
+        assertSame(link.gatt, ReflectionHelpers.getField<Any?>(controller, "gatt"))
+        assertTrue(SteamControllerBle.connected)
+    }
+
+    @Test fun inputWithoutALizardModeReplyDropsTheLink() {
+        val link = ValveLink()
+        link.start()
+        link.input()
+        assertTrue(SteamControllerBle.connected)
+        shadowOf(handler.looper).idleFor(Duration.ofMillis(2_500))
+        assertEquals(1, link.shadow.descriptorWrites)
+        assertEquals(0, link.shadow.lizardWrites)
+        assertSame(link.gatt, ReflectionHelpers.getField<Any?>(controller, "gatt"))
+        shadowOf(handler.looper).idleFor(Duration.ofMillis(1_000))
+        assertNull(ReflectionHelpers.getField<Any?>(controller, "gatt"))
+        assertFalse(SteamControllerBle.connected)
+        assertFalse(Writer.connections.last())
     }
 
     @Test fun answeredSubscriptionStartsOneLizardModeRefresh() {
-        val link = ValveLink(answerWrites = true)
+        val link = ValveLink()
         link.start()
+        link.answer()
         assertTrue(SteamControllerBle.connected)
-        assertEquals(1, link.descriptorWrites)
-        assertEquals(1, link.lizardWrites)
-        ReflectionHelpers.getField<BluetoothGattCallback>(controller, "callback")
-            .onCharacteristicChanged(link.gatt, link.input, ByteArray(45))
-        assertEquals(1, link.lizardWrites)
+        assertEquals(1, link.shadow.lizardWrites)
+        link.answer()
+        link.input()
+        assertEquals(1, link.shadow.lizardWrites)
         shadowOf(handler.looper).idleFor(Duration.ofMillis(3_500))
-        assertEquals(1, link.descriptorWrites)
-        assertEquals(2, link.lizardWrites)
+        assertEquals(1, link.shadow.descriptorWrites)
+        assertEquals(2, link.shadow.lizardWrites)
     }
 
-    private inner class ValveLink(answerWrites: Boolean) {
-        var descriptorWrites = 0
-        var lizardWrites = 0
+    private inner class ValveLink {
         val gatt: BluetoothGatt = ShadowBluetoothGatt.newInstance(
             BluetoothAdapter.getDefaultAdapter().getRemoteDevice("00:11:22:33:44:66"))
-        val input = BluetoothGattCharacteristic(INPUT, BluetoothGattCharacteristic.PROPERTY_NOTIFY, 0).apply {
+        val shadow = Shadow.extract<BusyGatt>(gatt)
+        private val characteristic = BluetoothGattCharacteristic(INPUT, BluetoothGattCharacteristic.PROPERTY_NOTIFY, 0).apply {
             addDescriptor(BluetoothGattDescriptor(CCCD, 0))
         }
         private val callback = ReflectionHelpers.getField<BluetoothGattCallback>(controller, "callback")
 
         init {
             val service = BluetoothGattService(SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-            service.addCharacteristic(input)
+            service.addCharacteristic(characteristic)
             service.addCharacteristic(BluetoothGattCharacteristic(REPORT,
                 BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_READ, 0))
-            val shadow = Shadow.extract<ShadowBluetoothGatt>(gatt)
             shadow.addDiscoverableService(service)
             shadow.setGattCallback(object : BluetoothGattCallback() {})
             gatt.discoverServices()
-            shadow.setGattCallback(object : BluetoothGattCallback() {
-                override fun onDescriptorWrite(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
-                    descriptorWrites++
-                    if (answerWrites) callback.onDescriptorWrite(g, descriptor, status)
-                }
-
-                override fun onCharacteristicWrite(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-                    @Suppress("DEPRECATION")
-                    val value = characteristic.value
-                    if (characteristic.uuid == REPORT && value[0] == 0x87.toByte() && value[2] == 9.toByte()) lizardWrites++
-                    if (answerWrites) callback.onCharacteristicWrite(g, characteristic, status)
-                }
-            })
         }
 
         fun start() {
             ReflectionHelpers.setField(controller, "gatt", gatt)
             callback.onMtuChanged(gatt, 517, BluetoothGatt.GATT_SUCCESS)
+        }
+
+        fun input() = callback.onCharacteristicChanged(gatt, characteristic, ByteArray(45))
+
+        fun answer(status: Int = BluetoothGatt.GATT_SUCCESS) {
+            val op = shadow.pending
+            shadow.pending = null
+            when (op) {
+                is BluetoothGattDescriptor -> callback.onDescriptorWrite(gatt, op, status)
+                is BluetoothGattCharacteristic -> callback.onCharacteristicWrite(gatt, op, status)
+                else -> fail("no write is waiting for a reply")
+            }
         }
     }
 
@@ -260,6 +292,39 @@ class SteamControllerBleTest {
         val INPUT: UUID = UUID.fromString("100F6C7A-1735-4313-B402-38567131E5F3")
         val REPORT: UUID = UUID.fromString("100F6C34-1735-4313-B402-38567131E5F3")
         val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+    }
+
+    @Implements(BluetoothGatt::class)
+    class BusyGatt : ShadowBluetoothGatt() {
+        var pending: Any? = null
+        var descriptorWrites = 0
+        var lizardWrites = 0
+        var refused = 0
+
+        @Implementation
+        override fun writeDescriptor(descriptor: BluetoothGattDescriptor): Boolean {
+            if (!accept(descriptor)) return false
+            descriptorWrites++
+            return true
+        }
+
+        @Implementation
+        override fun writeCharacteristic(characteristic: BluetoothGattCharacteristic): Boolean {
+            if (!accept(characteristic)) return false
+            @Suppress("DEPRECATION")
+            val value = characteristic.value
+            if (characteristic.uuid == REPORT && value[0] == 0x87.toByte() && value[2] == 9.toByte()) lizardWrites++
+            return true
+        }
+
+        private fun accept(op: Any): Boolean {
+            if (pending != null) {
+                refused++
+                return false
+            }
+            pending = op
+            return true
+        }
     }
 
     @Implements(FakeInputWriter::class)
