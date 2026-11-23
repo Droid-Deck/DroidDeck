@@ -254,6 +254,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         SessionPrefs.setWifiDiscoveryEnabled(this, WifiDiscovery.permissionGranted(this))
         refreshWifiDiscovery()
     }
+    private val bluetoothPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted && !shouldShowRequestPermissionRationale(android.Manifest.permission.BLUETOOTH_CONNECT)) {
+            integrationSettings(SteamIntegration.appInfo(this))
+        }
+        integrationState = readIntegration()
+    }
     private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         com.droiddeck.launcher.handtracking.HandTracking.refreshPermission(this)
     }
@@ -374,6 +380,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             SteamIntegration.Feature.HOME -> if (HomeApp.isDefault(this)) HomeApp.openSystemHomeSettings(this) else offerHomeScreen()
             SteamIntegration.Feature.SHORTCUTS -> {
                 if (integrationState.shortcuts) openShortcutSettings() else installShortcuts()
+            }
+            SteamIntegration.Feature.BLUETOOTH -> {
+                if (SteamIntegration.bluetoothAllowed(this)) integrationSettings(SteamIntegration.appInfo(this))
+                else bluetoothPermission.launch(android.Manifest.permission.BLUETOOTH_CONNECT)
             }
         }
     }

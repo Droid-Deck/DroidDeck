@@ -1282,26 +1282,18 @@ internal fun OnboardingCard(limitBlocks: Boolean = false, onSetUpLimit: () -> Un
     val failed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
     val facts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
     val rows = com.droiddeck.launcher.session.Onboarding.rows(active, failed, facts)
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var bluetoothAsked by remember { mutableStateOf(com.droiddeck.launcher.session.SessionPrefs.bluetoothAsked(context)) }
-    val bluetoothPermission = "android.permission.BLUETOOTH_CONNECT"
-    val needsBluetooth = android.os.Build.VERSION.SDK_INT >= 31 && !bluetoothAsked &&
-        context.checkSelfPermission(bluetoothPermission) != android.content.pm.PackageManager.PERMISSION_GRANTED
-    val askBluetooth = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
-    ) { bluetoothAsked = true }
     val settling = com.droiddeck.launcher.session.Onboarding.pending(rows)
-    if (!settling && !needsBluetooth) return
+    if (!settling) return
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val overall = com.droiddeck.launcher.session.Onboarding.overall(rows)
     Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
-        if (settling) Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
             Text(stringResource(R.string.onboarding_title), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
             Text(stringResource(R.string.onboarding_summary, overall), fontSize = 13.sp, color = colors.onSurfaceVariant)
             LinearProgressIndicator(progress = { overall / 100f }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(4.dp))
         }
-        if (settling) rows.forEach { row ->
+        rows.forEach { row ->
             Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
             Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1330,7 +1322,7 @@ internal fun OnboardingCard(limitBlocks: Boolean = false, onSetUpLimit: () -> Un
                 }
             }
         }
-        if (settling && limitBlocks) {
+        if (limitBlocks) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
             Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1341,26 +1333,6 @@ internal fun OnboardingCard(limitBlocks: Boolean = false, onSetUpLimit: () -> Un
                     Text(stringResource(R.string.onboarding_limit_reason), fontSize = 13.sp, color = colors.onSurfaceVariant)
                 }
                 PrimaryButton(stringResource(R.string.onboarding_limit_action), compact = true, onClick = onSetUpLimit)
-            }
-        }
-        if (needsBluetooth) {
-            if (settling) Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
-            Row(
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.onboarding_bluetooth_title), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
-                    Text(stringResource(R.string.onboarding_bluetooth_reason), fontSize = 13.sp, color = colors.onSurfaceVariant)
-                }
-                SecondaryButton(stringResource(R.string.onboarding_bluetooth_skip), compact = true) {
-                    com.droiddeck.launcher.session.SessionPrefs.setBluetoothAsked(context)
-                    bluetoothAsked = true
-                }
-                PrimaryButton(stringResource(R.string.onboarding_bluetooth_allow), compact = true) {
-                    com.droiddeck.launcher.session.SessionPrefs.setBluetoothAsked(context)
-                    askBluetooth.launch(bluetoothPermission)
-                }
             }
         }
     }

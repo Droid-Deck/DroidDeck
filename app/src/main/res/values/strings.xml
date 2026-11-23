@@ -4152,6 +4152,8 @@
     <string name="integration_wifi_denied">Location denied · allow it in App info</string>
     <string name="integration_brightness_hint">Steam’s slider sets screen brightness</string>
     <string name="integration_home_hint">Home opens the Steam menu in a session</string>
+    <string name="integration_bluetooth">Bluetooth controllers</string>
+    <string name="integration_bluetooth_hint">Lets DroidDeck connect to Steam Controllers and other Bluetooth pads</string>
     <string name="integration_shortcuts_hint">Alt+Tab, Win key and Home button stay in the session</string>
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_install_failed">System keys didn\'t install</string>
@@ -4410,10 +4412,6 @@
     <string name="onboarding_steam_downloading">Downloading the Steam client</string>
     <string name="onboarding_steam_downloading_mb">Downloading the Steam client (%1$d MB)</string>
     <string name="onboarding_steam_failed">The Steam client download will retry</string>
-    <string name="onboarding_bluetooth_title">Bluetooth controllers</string>
-    <string name="onboarding_bluetooth_reason">Lets DroidDeck connect to Steam Controllers and other Bluetooth pads. Skip it if you only use built-in controls.</string>
-    <string name="onboarding_bluetooth_allow">Allow</string>
-    <string name="onboarding_bluetooth_skip">Not now</string>
     <string name="onboarding_limit_reason">Android can close Steam’s helper processes. Turn that off now, while the downloads run, and Play is ready the moment they finish.</string>
     <string name="onboarding_limit_action">Do it for me</string>
     <string name="onboarding_limit_while_waiting">Set up while you wait</string>
