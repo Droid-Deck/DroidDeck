@@ -254,6 +254,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         SessionPrefs.setWifiDiscoveryEnabled(this, WifiDiscovery.permissionGranted(this))
         refreshWifiDiscovery()
     }
+    private val bluetoothPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted && !shouldShowRequestPermissionRationale(android.Manifest.permission.BLUETOOTH_CONNECT)) {
+            integrationSettings(SteamIntegration.appInfo(this))
+        }
+        integrationState = readIntegration()
+    }
     private val cameraPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         com.droiddeck.launcher.handtracking.HandTracking.refreshPermission(this)
     }
@@ -374,6 +380,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             SteamIntegration.Feature.HOME -> if (HomeApp.isDefault(this)) HomeApp.openSystemHomeSettings(this) else offerHomeScreen()
             SteamIntegration.Feature.SHORTCUTS -> {
                 if (integrationState.shortcuts) openShortcutSettings() else installShortcuts()
+            }
+            SteamIntegration.Feature.BLUETOOTH -> {
+                if (SteamIntegration.bluetoothAllowed(this)) integrationSettings(SteamIntegration.appInfo(this))
+                else bluetoothPermission.launch(android.Manifest.permission.BLUETOOTH_CONNECT)
             }
         }
     }
@@ -2166,9 +2176,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 if (!OfflineMode.enabled(this)) {
                     val updated = runCatching { ComponentUpdater.ensure(this, force = false) }
                         .onFailure { android.util.Log.w("ComponentUpdater", "automatic component updates", it) }.getOrDefault(emptyList())
-                    if (updated.isNotEmpty()) ui.post {
-                        android.widget.Toast.makeText(this, updated.joinToString("\n"), android.widget.Toast.LENGTH_LONG).show()
-                    }
+                    if (updated.isNotEmpty()) android.util.Log.i("ComponentUpdater", updated.joinToString("; "))
                 }
                 ui.post {
                     componentsQueueBusy = false
@@ -3209,6 +3217,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         bridgeProtonDxvk = SessionPrefs.bridgeProtonDxvk(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
         ui.post { autoUpdateRuntime() }
+        Thread({ com.droiddeck.launcher.session.Onboarding.recheck(this) }, "onboarding-recheck").start()
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)
@@ -3430,18 +3439,24 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun install(release: LinuxRuntimeInstaller.Release) {
         com.droiddeck.launcher.runtime.RuntimeInstallService.start(this, release)
-        followRuntimeOperation { listener -> LinuxRuntimeInstaller.install(this, release, listener) }
+        followRuntimeOperation(onboarding = true) { listener -> LinuxRuntimeInstaller.install(this, release, listener) }
     }
 
-    private fun followRuntimeOperation(run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
+    private fun followRuntimeOperation(onboarding: Boolean = false, run: (LinuxRuntimeInstaller.ProgressListener) -> Boolean?) {
         busy = true
         failed = false
         stage = getString(if (LinuxRuntimeInstaller.isMaintaining()) R.string.desktop_removing else if (LinuxRuntimeInstaller.isRemoving()) R.string.main_removing_runtime else R.string.store_starting)
         percent = -1
         Thread({
             val ok = run(LinuxRuntimeInstaller.ProgressListener { s, p ->
+                if (onboarding) com.droiddeck.launcher.session.Onboarding.report(com.droiddeck.launcher.session.Onboarding.Step.RUNTIME, s, p)
                 ui.post { stage = s; percent = p }
             })
+            if (onboarding) {
+                if (ok == false) com.droiddeck.launcher.session.Onboarding.fail(com.droiddeck.launcher.session.Onboarding.Step.RUNTIME, LinuxRuntimeInstaller.removalError() ?: "")
+                else com.droiddeck.launcher.session.Onboarding.finish(com.droiddeck.launcher.session.Onboarding.Step.RUNTIME)
+            }
+            com.droiddeck.launcher.session.Onboarding.recheck(this)
             ui.post {
                 busy = false
                 if (ok != null) failed = !ok
@@ -3450,7 +3465,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 }
                 refresh()
                 com.droiddeck.launcher.agent.AgentHost.refresh(this)
-                if (ok == true && LinuxRuntime.isInstalled(this)) protons.checkUpdates()
+                if (ok == true && LinuxRuntime.isInstalled(this)) { protons.checkUpdates(); protons.ensureSteamClient() }
             }
         }, "runtime-operation").start()
     }
@@ -3461,9 +3476,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (installed != null) com.droiddeck.launcher.runtime.RuntimeAutoUpdate.seed(this)
         if (release.version == installed) return
         if (installed == null && (OfflineMode.enabled(this) || !com.droiddeck.launcher.core.DeviceSupport.canDraw(this) ||
-                !com.droiddeck.launcher.frontend.AutoComponents.online(this) || com.droiddeck.launcher.frontend.AutoComponents.unfavourable(this))) return
+                !com.droiddeck.launcher.frontend.AutoComponents.online(this) || com.droiddeck.launcher.frontend.AutoComponents.firstRunHeldBack(this))) return
         if (com.droiddeck.launcher.runtime.RuntimeAutoUpdate.claim(this, installed, release.version)) {
             Log.i(TAG, "runtime: installing ${release.version} over ${installed ?: "nothing"} by itself")
+            if (installed == null) protons.prefetchOwn()
             install(release)
         }
     }

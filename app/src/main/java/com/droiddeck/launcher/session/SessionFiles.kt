@@ -95,7 +95,11 @@ object SessionFiles {
         return all
     }
 
-    fun stage(context: Context, root: File, startsSession: Boolean = false) {
+    private val STAGE_LOCK = Any()
+
+    fun stage(context: Context, root: File, startsSession: Boolean = false) = synchronized(STAGE_LOCK) { stageNow(context, root, startsSession) }
+
+    private fun stageNow(context: Context, root: File, startsSession: Boolean) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
