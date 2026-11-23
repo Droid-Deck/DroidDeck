@@ -219,6 +219,16 @@ alone would then read as an installed client.
   - `0007-cmake-install-code-without-depends`: CMake 4.5 rejects the `DEPENDS` argument FEX passes to
     `install(CODE ...)` for the guest thunk libraries, so builds with host thunks stopped at configure.
     The guest libraries are external projects in the default build, which `install` already follows.
+  - `0008-signal-return-restores-syscall-state`: a guest `rt_sigreturn` is a system call, so FEX's
+    syscall stub marks every static register as spilled (`InSyscallInfo = 0xFFFF`). When the handler
+    left RIP alone, the return resumed the interrupted JIT code without passing the stub's reset, and
+    the mark stayed. Every asynchronous signal after that (until the next system call ended) skipped the
+    register spill and handed the guest handler stale registers from the last system call: only RIP was
+    right. CoreCLR suspends threads for the GC with such signals and reads or redirects the interrupted
+    context, so x86-64 .NET programs failed at random (`AccessViolationException` in whatever code ran
+    next, then SIGABRT). `tools/fex/probes/async-signal-context.c` shows it: under FEX-2611.1 one signal in
+    2000 carried the interrupted registers, natively all of them. The return now restores the value saved
+    when the signal arrived.
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,
