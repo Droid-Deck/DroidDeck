@@ -158,12 +158,14 @@ object DualScreenPanel {
         val shown = presentation
         if (shown == null || displayId != display) { launch(); return }
         pendingLaunches = mutableListOf(launch)
+        val generation = ++handoffGeneration
         handoffWaited = 0
         presentation = null
         shown.dismiss()
         launching = true
         val intent = Intent(context, DualScreenActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            .putExtra(EXTRA_HANDOFF, generation)
         val started = runCatching {
             context.startActivity(intent, ActivityOptions.makeBasic().setLaunchDisplayId(display).toBundle())
         }.isSuccess
@@ -173,6 +175,8 @@ object DualScreenPanel {
 
     private var pendingLaunches: MutableList<() -> Unit>? = null
     private var handoffWaited = 0
+    private var handoffGeneration = 0
+    internal const val EXTRA_HANDOFF = "handoff"
     private val handoffHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val handoffPoll = object : Runnable {
         override fun run() {
@@ -220,7 +224,8 @@ object DualScreenPanel {
         activity = host
         launching = false
         val waiting = pendingLaunches
-        handoffHandler.post { if (pendingLaunches === waiting) releaseLaunches() }
+        val generation = host.intent?.getIntExtra(EXTRA_HANDOFF, -1) ?: -1
+        handoffHandler.post { if (pendingLaunches === waiting && generation == handoffGeneration) releaseLaunches() }
         return true
     }
 
