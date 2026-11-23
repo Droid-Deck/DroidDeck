@@ -519,6 +519,13 @@ static int close_range_all(unsigned int first, unsigned int last, int flags) {
 
 static __thread int t_syscall_redirect = 0;
 
+static long nested_path_syscall(long number, unsigned long dirfd, unsigned long pathname, unsigned long arg3, unsigned long arg4) {
+    char nested_buf[PATH_MAX];
+    const char *path = (const char *)pathname;
+    if (path && path[0] == '/') path = rewrite_path(path, nested_buf, sizeof(nested_buf));
+    return call_orig_syscall(number, dirfd, (unsigned long)path, arg3, arg4, 0, 0);
+}
+
 long syscall(long number, ...) {
     va_list ap;
     va_start(ap, number);
@@ -560,6 +567,38 @@ long syscall(long number, ...) {
     }
     if (number == __NR_landlock_restrict_self) {
         return (long)landlock_restrict_self((int)arg1, (uint32_t)arg2);
+    }
+#endif
+
+#ifdef __NR_rt_sigprocmask
+    if (number == __NR_rt_sigprocmask && arg2 && (arg1 == SIG_BLOCK || arg1 == SIG_SETMASK) && arg4 == sizeof(uint64_t)) {
+        uint64_t mask;
+        memcpy(&mask, (const void *)arg2, sizeof(mask));
+        mask &= ~(1ULL << (SIGSYS - 1));
+        return call_orig_syscall(number, arg1, (unsigned long)&mask, arg3, arg4, 0, 0);
+    }
+#endif
+
+#ifdef __NR_rt_sigaction
+    if (number == __NR_rt_sigaction && arg1 == SIGSYS && arg4 == sizeof(uint64_t)) {
+        struct { void *handler; unsigned long flags; void *restorer; uint64_t mask; } kact, kold;
+        struct sigaction act, old;
+        memset(&act, 0, sizeof(act));
+        if (arg2) {
+            memcpy(&kact, (const void *)arg2, sizeof(kact));
+            act.sa_sigaction = (void (*)(int, siginfo_t *, void *))kact.handler;
+            act.sa_flags = (int)kact.flags;
+            memcpy(&act.sa_mask, &kact.mask, sizeof(kact.mask));
+        }
+        remember_app_sigsys(arg2 ? &act : NULL, arg3 ? &old : NULL);
+        if (arg3) {
+            memset(&kold, 0, sizeof(kold));
+            kold.handler = (void *)old.sa_sigaction;
+            kold.flags = (unsigned long)(unsigned int)old.sa_flags;
+            memcpy(&kold.mask, &old.sa_mask, sizeof(kold.mask));
+            memcpy((void *)arg3, &kold, sizeof(kold));
+        }
+        return 0;
     }
 #endif
 
@@ -618,16 +657,84 @@ long syscall(long number, ...) {
     }
 #endif
 
+    if (g_initialized) {
+#ifdef __NR_openat
+        if (number == __NR_openat) {
+            if (t_syscall_redirect) return nested_path_syscall(number, arg1, arg2, arg3, arg4);
+            t_syscall_redirect++;
+            long ret = (long)openat((int)arg1, (const char *)arg2, (int)arg3, (mode_t)arg4);
+            t_syscall_redirect--;
+            return ret;
+        }
+#endif
+#if defined(__NR_mkdirat)
+        if (number == __NR_mkdirat) {
+            return (long)mkdirat((int)arg1, (const char *)arg2, (mode_t)arg3);
+        }
+#endif
+#if defined(__NR_unlinkat)
+        if (number == __NR_unlinkat) {
+            return (long)unlinkat((int)arg1, (const char *)arg2, (int)arg3);
+        }
+#endif
+#if defined(__NR_renameat)
+        if (number == __NR_renameat) {
+            return (long)renameat((int)arg1, (const char *)arg2, (int)arg3, (const char *)arg4);
+        }
+#endif
+#if defined(__NR_renameat2)
+        if (number == __NR_renameat2) {
+            return (long)renameat2((int)arg1, (const char *)arg2, (int)arg3, (const char *)arg4, (unsigned int)arg5);
+        }
+#endif
+#if defined(__NR_symlinkat)
+        if (number == __NR_symlinkat) {
+            return (long)symlinkat((const char *)arg1, (int)arg2, (const char *)arg3);
+        }
+#endif
+#if defined(__NR_fchmodat)
+        if (number == __NR_fchmodat) {
+            return (long)fchmodat((int)arg1, (const char *)arg2, (mode_t)arg3, 0);
+        }
+#endif
+#if defined(__NR_fchownat)
+        if (number == __NR_fchownat) {
+            return (long)fchownat((int)arg1, (const char *)arg2, (uid_t)arg3, (gid_t)arg4, (int)arg5);
+        }
+#endif
+#if defined(__NR_utimensat)
+        if (number == __NR_utimensat) {
+            if (!arg2) return call_orig_syscall(number, arg1, arg2, arg3, arg4, 0, 0);
+            return (long)utimensat((int)arg1, (const char *)arg2, (const struct timespec *)arg3, (int)arg4);
+        }
+#endif
+#if defined(__NR_truncate)
+        if (number == __NR_truncate) {
+            return (long)truncate((const char *)arg1, (off_t)arg2);
+        }
+#endif
+#if defined(__NR_chdir)
+        if (number == __NR_chdir) {
+            return (long)chdir((const char *)arg1);
+        }
+#endif
+#if defined(__NR_chroot)
+        if (number == __NR_chroot) {
+            return (long)chroot((const char *)arg1);
+        }
+#endif
+#if defined(__NR_inotify_add_watch)
+        if (number == __NR_inotify_add_watch) {
+            return (long)inotify_add_watch((int)arg1, (const char *)arg2, (uint32_t)arg3);
+        }
+#endif
+    }
+
 #ifdef __NR_openat2
     if (number == __NR_openat2) {
         // libddsession's openat2() calls syscall() again (an endless loop until the stack ran out): the nested
         // call maps the path and goes straight to the kernel
-        if (t_syscall_redirect) {
-            char nested_buf[PATH_MAX];
-            const char *path = (const char *)arg2;
-            if (path && path[0] == '/') path = rewrite_path(path, nested_buf, sizeof(nested_buf));
-            return call_orig_syscall(number, arg1, (unsigned long)path, arg3, arg4, 0, 0);
-        }
+        if (t_syscall_redirect) return nested_path_syscall(number, arg1, arg2, arg3, arg4);
         t_syscall_redirect++;
         long ret = (long)openat2((int)arg1, (const char *)arg2, (struct ddnatv_open_how *)arg3, (size_t)arg4);
         t_syscall_redirect--;
@@ -649,12 +756,7 @@ long syscall(long number, ...) {
 
 #if defined(__NR_faccessat)
     if (number == __NR_faccessat) {
-        if (t_syscall_redirect) {
-            char nested_buf[PATH_MAX];
-            const char *path = (const char *)arg2;
-            if (path && path[0] == '/') path = rewrite_path(path, nested_buf, sizeof(nested_buf));
-            return call_orig_syscall(number, arg1, (unsigned long)path, arg3, 0, 0, 0);
-        }
+        if (t_syscall_redirect) return nested_path_syscall(number, arg1, arg2, arg3, 0);
         t_syscall_redirect++;
         long ret = (long)faccessat((int)arg1, (const char *)arg2, (int)arg3, 0);
         t_syscall_redirect--;
