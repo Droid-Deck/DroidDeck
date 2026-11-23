@@ -12,6 +12,7 @@ PROBE = r"""
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <limits.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -43,12 +44,25 @@ int main(int argc, char **argv) {
   show("symlinkat", syscall(SYS_symlinkat, "file", AT_FDCWD, q));
   show("unlinkat", syscall(SYS_unlinkat, AT_FDCWD, q, 0));
   snprintf(q, sizeof(q), "%s/made/sock", dir);
-  struct sockaddr_un addr = {.sun_family = AF_UNIX};
-  snprintf(addr.sun_path, sizeof(addr.sun_path), "%.107s", q);
+  struct sockaddr_un addr = {.sun_family = AF_UNIX}, extra = {.sun_family = AF_UNIX};
+  size_t len = strlen(q);
+  int fits = len + sizeof("-extra") <= sizeof(addr.sun_path);
+  if (fits) {
+    memcpy(addr.sun_path, q, len);
+    memcpy(extra.sun_path, q, len);
+    memcpy(extra.sun_path + len, "-extra", sizeof("-extra"));
+  }
   int server = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0), client = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-  show("bind", syscall(SYS_bind, server, &addr, sizeof(addr)));
+  show("bind", fits ? syscall(SYS_bind, server, &addr, sizeof(addr)) : -1);
   listen(server, 1);
-  show("connect", syscall(SYS_connect, client, &addr, sizeof(addr)));
+  show("connect", fits ? syscall(SYS_connect, client, &addr, sizeof(addr)) : -1);
+  close(client);
+  close(server);
+  syscall(SYS_unlinkat, AT_FDCWD, q, 0);
+  server = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0), client = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  show("bind-length", fits ? syscall(SYS_bind, server, &extra, offsetof(struct sockaddr_un, sun_path) + len) : -1);
+  listen(server, 1);
+  show("connect-length", fits ? syscall(SYS_connect, client, &addr, sizeof(addr)) : -1);
   close(client);
   close(server);
   syscall(SYS_unlinkat, AT_FDCWD, q, 0);
@@ -100,7 +114,7 @@ __attribute__((constructor)) static void early(void) { free(malloc(1)); }
 """
 
 CALLS = ("mkdirat", "openat", "truncate", "fchmodat", "utimensat", "futimens", "renameat", "renameat2", "symlinkat", "unlinkat",
-         "bind", "connect", "chdir", "cwd", "unlinkat-file", "unlinkat-dir")
+         "bind", "connect", "bind-length", "connect-length", "chdir", "cwd", "unlinkat-file", "unlinkat-dir")
 
 
 class NativeHookPathSyscallsTest(unittest.TestCase):
@@ -109,7 +123,7 @@ class NativeHookPathSyscallsTest(unittest.TestCase):
         cls.cc, cls.prefix = runner()
         if cls.cc is None:
             raise unittest.SkipTest("no aarch64 compiler and runner")
-        cls.tmp = tempfile.TemporaryDirectory()
+        cls.tmp = tempfile.TemporaryDirectory(dir="/tmp")
         tmp = Path(cls.tmp.name)
         cls.hook = tmp / "hook.so"
         subprocess.run(["bash", str(HOOK_BUILD), str(cls.hook), cls.cc], check=True, capture_output=True)
