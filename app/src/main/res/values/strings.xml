@@ -866,6 +866,8 @@
     <string name="drawer_relative_mouse_off">Off</string>
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
+    <string name="drawer_desktop_keyboard">Desktop text fields</string>
+    <string name="drawer_desktop_keyboard_none">Nothing</string>
     <string name="drawer_second_screen">Second screen</string>
     <string name="drawer_resize">Resize the menu</string>
     <string name="drawer_second_screen_shows">Shows</string>

@@ -795,6 +795,8 @@
     <string name="drawer_relative_mouse_off">关</string>
     <string name="drawer_pc_keyboard">PC 键盘</string>
     <string name="drawer_android_keyboard">Android</string>
+    <string name="drawer_desktop_keyboard">桌面文本框默认打开</string>
+    <string name="drawer_desktop_keyboard_none">不打开</string>
     <string name="drawer_second_screen">副屏</string>
     <string name="drawer_second_screen_shows">显示</string>
     <string name="drawer_android_apps">Android 应用</string>

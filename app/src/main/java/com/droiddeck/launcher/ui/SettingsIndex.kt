@@ -135,6 +135,7 @@ internal object SettingsIndex {
         d(R.string.drawer_page_controller, R.string.mode_osc, "on-screen", "controls", "touch controls", "buttons"),
         d(R.string.drawer_page_controller, R.string.osc_steam_layout, "touch layout", "edit layout", "on-screen"),
         d(R.string.drawer_page_controller, R.string.drawer_pc_keyboard, "keyboard", "typing"),
+        d(R.string.drawer_page_controller, R.string.drawer_desktop_keyboard, "desktop", "keyboard", "pc", "android", "default", "ime"),
         d(R.string.mode_session, R.string.report_problem, "logs", "log", "bug", "crash", "share", "zip"),
         d(R.string.mode_session, R.string.mode_suspend, "sleep", "background", "native", "resume"),
 

@@ -548,6 +548,13 @@ object SessionPrefs {
     fun pcKeyboardSize(context: Context): Int =
         prefs(context).getInt("pcKeyboardSize", PC_KEYBOARD_SIZE_DEFAULT).takeIf { it in PC_KEYBOARD_SIZE_RANGE } ?: PC_KEYBOARD_SIZE_DEFAULT
 
+    fun desktopKeyboard(context: Context): String =
+        DesktopKeyboard.normalize(prefs(context).getString("desktopKeyboard", DesktopKeyboard.ANDROID))
+
+    fun setDesktopKeyboard(context: Context, value: String) {
+        prefs(context).edit().putString("desktopKeyboard", DesktopKeyboard.normalize(value)).apply()
+    }
+
     fun setPcKeyboardSize(context: Context, percent: Int) {
         prefs(context).edit().putInt("pcKeyboardSize", percent.coerceIn(PC_KEYBOARD_SIZE_RANGE)).apply()
     }
