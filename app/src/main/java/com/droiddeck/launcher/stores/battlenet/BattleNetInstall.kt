@@ -32,6 +32,7 @@ object BattleNetInstall {
     internal const val STATE = "BNET_STATE "
     internal const val DONE = "BNET_DONE "
     internal const val ERROR = "BNET_ERROR "
+    internal const val UID = "BNET_UID "
     private const val CN = "cn"
     private const val BUILD_INFO = ".build.info"
     private const val CHECK_AGAIN_MS = 30 * 60_000L
@@ -241,6 +242,7 @@ internal class BattleNetInstaller(
     private val cancelled = AtomicBoolean(false)
     private val started = AtomicBoolean(false)
     private val ended = java.util.concurrent.CountDownLatch(1)
+    @Volatile private var effectiveUid: String? = null
     private var before = 0L
     private var kept = -1L
 
@@ -274,7 +276,11 @@ internal class BattleNetInstaller(
                 line == BattleNetInstall.STATE + "waiting" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_waiting))
                 line == BattleNetInstall.STATE + "queued" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_queued))
                 line == BattleNetInstall.STATE + "starting" -> handle.stage(DownloadStage.MANIFEST, app.getString(R.string.bnet_dl_starting))
-                line.startsWith(BattleNetInstall.DONE) -> done = runCatching { JSONObject(line.removePrefix(BattleNetInstall.DONE)) }.getOrNull()
+                line.startsWith(BattleNetInstall.UID) -> effectiveUid = line.removePrefix(BattleNetInstall.UID).trim().takeIf { it.isNotEmpty() }
+                line.startsWith(BattleNetInstall.DONE) -> {
+                    done = runCatching { JSONObject(line.removePrefix(BattleNetInstall.DONE)) }.getOrNull()
+                    done?.optString("uid")?.takeIf { it.isNotEmpty() }?.let { effectiveUid = it }
+                }
                 line.startsWith(BattleNetInstall.ERROR) -> reason = line.removePrefix(BattleNetInstall.ERROR)
             }
         }
@@ -305,12 +311,15 @@ internal class BattleNetInstaller(
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
         if (!deleteFiles || update) return
-        val uid = item.extra[BattleNetInstall.INSTALL_UID] ?: BattleNet.title(item.id)?.uid ?: return
         Thread({
-            if (started.get() && !ended.await(END_WAIT_S, TimeUnit.SECONDS)) Log.w("BattleNetInstall", "the cancelled install of $uid is still stopping")
-            val gone = BattleNetInstall.agentUninstall(app, uid)
+            if (started.get() && !ended.await(END_WAIT_S, TimeUnit.SECONDS)) Log.w("BattleNetInstall", "the cancelled install of ${item.id} is still stopping")
+            // The driver may report its uid while this thread waits for the job to stop.
+            val recorded = item.extra[BattleNetInstall.INSTALL_UID] ?: effectiveUid
+            if (recorded == null) Log.w("BattleNetInstall", "cancelled install of ${item.id}: the driver did not report a uid; the registration is left for Battle.net")
+            // Never guess the store id here: the Agent may have installed under a China uid of its own.
+            val gone = recorded != null && BattleNetInstall.agentUninstall(app, recorded)
             if (folder.isDirectory && (gone || folder.list().isNullOrEmpty())) com.droiddeck.launcher.core.FileUtils.delete(folder)
-            Log.i("BattleNetInstall", "cancelled install of $uid: ${if (gone) "removed" else "left for Battle.net to remove"}")
+            Log.i("BattleNetInstall", "cancelled install of ${item.id}: ${if (gone) "removed" else "left for Battle.net to remove"}")
         }, "battlenet-cancel").start()
     }
 }

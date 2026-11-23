@@ -1373,6 +1373,11 @@ class AgentTest(Temp):
         self.assertIn('country = "CHN";', script)
         self.assertIn('region = "CN";', script)
 
+    def test_the_driver_reports_the_uid_the_agent_really_uses(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn('  save(".uid", uid);', script)
+        self.assertLess(script.index('save(".uid", uid);'), script.index('if (action == "install") install();'))
+
 
 class AgentJobTest(Harness):
     def setUp(self):
@@ -1426,6 +1431,39 @@ class AgentJobTest(Harness):
         self.assertEqual(cmd[cmd.index("--") + 2:-1], ["agent-serve", "install", "gryphon", "gryphon", "Z:" + folder, "enUS", "USA", "US"])
         self.assertEqual([kind for kind, _ in self.lines], ["STATE", "PROGRESS", "DONE"])
         self.assertEqual(json.loads(self.lines[-1][1]), {"install_dir": "Z:" + folder, "exe": "WarcraftRumble.exe", "version": "16.1.2.119725"})
+
+    def test_the_uid_the_agent_installed_under_is_reported(self):
+        self.install()
+        folder = str(self.tmp / "Games/Battle.net/Diablo III")
+        self.files = {
+            ".json": json.dumps({"progress": 1.0, "download_complete": True, "state": 1004}),
+            ".game": json.dumps({"installed": True, "playable": True, "install_dir": "Z:" + folder, "local_version": "2.8.1",
+                                 "binaries": {"game": {"relative_path": "Diablo III.exe"}}}),
+            ".uid": "d3cn",
+        }
+        self.assertEqual(BNET["agent_job"](self.root, "install", "diablo3", "d3cn", folder, "enUS", "CHN", "CN", poll=0), 0)
+        self.assertIn(("UID", "d3cn"), self.lines)
+        self.assertEqual(self.lines[-1][0], "DONE")
+        self.assertEqual(json.loads(self.lines[-1][1])["uid"], "d3cn")
+
+    def test_a_job_that_never_reported_its_uid_reports_none(self):
+        self.install()
+        folder = str(self.tmp / "Games/Battle.net/Warcraft Rumble")
+        self.files = {
+            ".json": json.dumps({"progress": 1.0, "download_complete": True, "state": 1004}),
+            ".game": json.dumps({"installed": True, "playable": True, "install_dir": "Z:" + folder, "local_version": "1"}),
+        }
+        self.assertEqual(BNET["agent_job"](self.root, "install", "gryphon", "gryphon", folder, "enUS", "USA", "US", poll=0), 0)
+        self.assertNotIn("UID", [kind for kind, _ in self.lines])
+        self.assertNotIn("uid", json.loads(self.lines[-1][1]))
+
+    def test_a_job_file_is_read_as_text_in_either_encoding(self):
+        path = self.tmp / "uid"
+        path.write_bytes("d3cn".encode("utf-16"))
+        self.assertEqual(BNET["read_text"](str(path)), "d3cn")
+        path.write_bytes(b"d3cn")
+        self.assertEqual(BNET["read_text"](str(path)), "d3cn")
+        self.assertIsNone(BNET["read_text"](str(self.tmp / "missing")))
 
     def test_an_install_on_another_volume_is_handed_over_by_its_drive_once_the_prefix_is_stopped(self):
         self.install()
