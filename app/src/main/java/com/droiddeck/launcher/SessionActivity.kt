@@ -594,6 +594,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var backHold by mutableStateOf(true)
     private var dockedMenuController by mutableStateOf(false)
     private var sessionOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+    private var dualScreenSessionMode by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
     private var backActionsInverted by mutableStateOf(false)
     private var backDoubleTapMs by mutableStateOf(500)
     private var lowLatency by mutableStateOf(true)
@@ -1535,6 +1536,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             fexPreset = fexPreset,
             secondScreenMode = secondScreenMode,
             secondScreenNone = !bottomOutputActive && !dockDrawer(),
+            dualScreenMode = dualScreenSessionMode,
+            onDualScreenMode = ::chooseDualScreenSessionMode,
             gameOnBottom = bottomOutputActive,
             gameSwapAvailable = bottomSwapAvailable,
             gameSwapBuiltIn = !::displayManager.isInitialized || displayManager.getDisplay(selectedSecondScreenDisplay)
@@ -2659,6 +2662,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         backHold = SessionPrefs.backHold(this)
         dockedMenuController = SessionPrefs.dockedMenuController(this)
         sessionOrientation = SessionPrefs.orientation(this)
+        dualScreenSessionMode = SessionPrefs.dualScreenSessionMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         physicalShortcuts.bindings = PhysicalShortcuts.read(this)
         backDoubleTapMs = SessionPrefs.backDoubleTapMs(this)
@@ -4394,6 +4398,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (wanted == SecondScreenMode.MENU) {
             if (!menuShownOnBottom()) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
         } else if (wanted != secondScreenMode) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
+    }
+
+    private fun chooseDualScreenSessionMode(mode: String) {
+        if (mode !in com.droiddeck.launcher.input.DualScreen.modes || mode == dualScreenSessionMode) return
+        SessionPrefs.setDualScreenSessionMode(this, mode)
+        dualScreenSessionMode = mode
+        SessionState.secondScreenAutoOpened = false
+        if (mode == com.droiddeck.launcher.input.DualScreen.MODE_OFF) {
+            if (gameOnBottom) putGameOnBottom(false)
+            if (secondScreenMode != SecondScreenMode.NONE) closeSecondScreen(reset = true)
+        }
+        refreshSecondScreenDisplays()
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
