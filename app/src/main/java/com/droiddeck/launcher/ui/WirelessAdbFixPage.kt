@@ -365,11 +365,13 @@ internal fun AdbTextField(
     onDone: (() -> Unit)? = null,
     focusOnShow: Boolean = false,
     showLabel: Boolean = true,
+    focusAtTap: Int? = null,
     onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val onBackLatest = rememberUpdatedState(onBack)
     val focusAsked = remember { booleanArrayOf(false) }
+    val focusTapAsked = remember { arrayOfNulls<Int>(1) }
     val palette = LocalPalette.current
     val onValueChangeLatest = rememberUpdatedState(onValueChange)
     val onNextLatest = rememberUpdatedState(onNext)
@@ -502,9 +504,12 @@ internal fun AdbTextField(
                 },
                 update = { editText ->
                     editText.showSoftInputOnFocus = !bottomTyping
-                    if (focusOnShow && !focusAsked[0]) {
-                        focusAsked[0] = true
+                    // A new tap may ask again: a field still on screen while it closes can be opened once more.
+                    val fresh = if (focusAtTap != null) focusTapAsked[0] != focusAtTap else !focusAsked[0]
+                    if (focusOnShow && fresh) {
+                        if (focusAtTap != null) focusTapAsked[0] = focusAtTap else focusAsked[0] = true
                         editText.post {
+                            if (focusAtTap != null && focusAtTap != ScreenTaps.count) return@post
                             editText.requestFocus()
                             if (!bottomTypingLatest.value) (editText.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
                                 ?.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)

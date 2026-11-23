@@ -218,4 +218,50 @@ class WowAddonsTest {
         File(root, "_retail_").mkdirs()
         assertEquals(emptyList<String>(), WowAddons.targets(BattleNet.title("fenris")!!, root).map { it.flavor })
     }
+
+    @Test fun tocFieldsReadVersionAndSourceIds() {
+        val fields = WowAddons.tocFields("\uFEFF## Interface: 110002\n## Title: Foo\n## Version: 1.4.2\n## X-WoWI-ID: 1234\n## Version: 9\n## X-Curse-Project-ID: @curse-id@\nFoo.lua\n")
+        assertEquals("1.4.2", fields["Version"])
+        assertEquals("1234", fields["X-WoWI-ID"])
+        assertEquals(null, fields["X-Curse-Project-ID"])
+    }
+
+    @Test fun detailsUseTheTocAndTheRecordedSource() {
+        val target = target()
+        val foo = File(target.addOns, "Foo").apply { mkdirs() }
+        File(foo, "Foo_Mainline.toc").writeText("## Version: 1.0\n## X-WoWI-ID: 77\n")
+        File(target.addOns, "Bar").mkdirs()
+        val details = WowAddons.details(target).associateBy { it.name }
+        assertEquals(setOf("Bar", "Foo"), details.keys)
+        assertEquals("1.0", details.getValue("Foo").version)
+        assertEquals("77", details.getValue("Foo").wowiId)
+        assertEquals(null, details.getValue("Bar").version)
+    }
+
+    @Test fun importRecordsTheSourceAndPlainImportsClearIt() {
+        val target = target()
+        WowAddons.import(zip("Foo/Foo.toc" to "## Version: 1.0\n"), target, WowAddons.Origin("55", "2.0"))
+        val recorded = WowAddons.details(target).single()
+        assertEquals("2.0", recorded.version)
+        assertEquals("55", recorded.wowiId)
+        WowAddons.import(zip("Foo/Foo.toc" to "## Version: 3.0\n"), target)
+        val plain = WowAddons.details(target).single()
+        assertEquals("3.0", plain.version)
+        assertEquals(null, plain.wowiId)
+        assertFalse(File(target.addOns, ".droiddeck-sources").exists())
+    }
+
+    @Test fun deleteForgetsTheRecordedSource() {
+        val target = target()
+        WowAddons.import(zip("Foo/Foo.toc" to "x", "Bar/Bar.toc" to "y"), target, WowAddons.Origin("55", "2.0"))
+        WowAddons.delete(target, "Foo")
+        assertEquals(mapOf("Bar" to "55"), WowAddons.parseOrigins(File(target.addOns, ".droiddeck-sources").readText()).mapValues { it.value.id })
+        assertEquals(listOf("Bar"), WowAddons.installed(target))
+    }
+
+    @Test fun originsRoundTripAndSkipBrokenLines() {
+        val text = WowAddons.formatOrigins(mapOf("A" to WowAddons.Origin("1", "1.0 beta\t2")))
+        assertEquals("1.0 beta 2", WowAddons.parseOrigins(text).getValue("A").version)
+        assertEquals(emptyMap<String, WowAddons.Origin>(), WowAddons.parseOrigins("bad line\nA\t\t1\n"))
+    }
 }

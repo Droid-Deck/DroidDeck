@@ -9,6 +9,7 @@ import com.droiddeck.launcher.gpu.DriverBundle
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.ShadowGpuInfo
+import com.droiddeck.launcher.wayland.WaylandCompositor
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -18,6 +19,8 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.FutureTask
@@ -117,6 +120,7 @@ class MaliGraphicsPrefsTest {
         } finally { dir.deleteRecursively() }
     }
 
+    @Config(shadows = [CompositorShadow::class])
     @Test fun incompatibleSelectedRuntimeDoesNotSuppressComponents() = withRuntime("libvulkan_freedreno.so") {
         assertTrue(LinuxVulkanDriverManager(context).isInstalled("selected"))
         assertEquals(MaliGraphicsMode.BRIDGE, MaliGraphics.resolve(context))
@@ -162,6 +166,7 @@ class MaliGraphicsPrefsTest {
         assertEquals(MaliGraphicsMode.BRIDGE, migrate(true, "memory"))
     }
 
+    @Config(shadows = [CompositorShadow::class])
     @Test fun standaloneAndPairedRuntimeShareOpenDriverEnvironmentButFixedRoutesExcludeIt() = withRuntime("libvulkan_panfrost.so") { dir ->
         assertNull(DriverBundle.containing(context, "selected", true))
         assertTrue(DeviceSupport.openDriverActive(context))
@@ -211,6 +216,7 @@ class MaliGraphicsPrefsTest {
         return guest.filter { '=' in it }.associate { it.substringBefore('=') to it.substringAfter('=') }
     }
 
+    @Config(shadows = [CompositorShadow::class])
     @Test fun launchEnvironmentKeepsFixedVenusDespitePrivateAndAgentOverrides() {
         val service = Robolectric.buildService(SessionService::class.java).get()
         val override = SessionService.envSwitchFile(service)!!
@@ -232,6 +238,14 @@ class MaliGraphicsPrefsTest {
             assertFalse(env.containsKey("DD_VK_DRIVER"))
             assertEquals(VenusComponent.socket(context).path, env["VTEST_SOCKET_NAME"])
         } finally { override.delete() }
+    }
+
+    @Implements(value = WaylandCompositor::class, isInAndroidSdk = false)
+    class CompositorShadow {
+        companion object {
+            @JvmStatic @Implementation fun __staticInitializer__() {}
+            @JvmStatic @Implementation fun nativeSetDisplayBufferDriver(on: Boolean) {}
+        }
     }
 
     @Test fun automaticFallbackStatusDoesNotTakeOwnershipOfTheChoice() {

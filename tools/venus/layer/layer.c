@@ -615,6 +615,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     inst->GetPhysicalDeviceMemoryProperties(physical_device, &dev->memory_properties);
     VkPhysicalDeviceProperties properties;
     inst->GetPhysicalDeviceProperties(physical_device, &properties);
+    dev->active = inst->active && (requested != 0 || properties.apiVersion >= VK_API_VERSION_1_2);
     uint32_t components = properties.limits.maxVertexOutputComponents;
     if (properties.limits.maxFragmentInputComponents < components)
         components = properties.limits.maxFragmentInputComponents;
@@ -672,15 +673,18 @@ struct hook {
     const char *name;
     PFN_vkVoidFunction function;
     uint32_t gaps;
+    bool always;
 };
 
-#define HOOK(name, gaps) {"vk" #name, (PFN_vkVoidFunction)name, gaps}
-#define HOOK_ALIAS(name, alias, gaps) {"vk" #alias, (PFN_vkVoidFunction)name, gaps}
+#define HOOK(name, gaps) {"vk" #name, (PFN_vkVoidFunction)name, gaps, false}
+#define HOOK_ALIAS(name, alias, gaps) {"vk" #alias, (PFN_vkVoidFunction)name, gaps, false}
+#define HOOK_ALWAYS(name) {"vk" #name, (PFN_vkVoidFunction)name, 0, true}
 
 static const struct hook device_hooks[] = {
-    HOOK(CreateShaderModule, GAPS_SHADER | GAP_DUAL_SRC_BLEND),
-    HOOK(DestroyShaderModule, GAPS_SHADER | GAP_DUAL_SRC_BLEND),
-    HOOK(CreateGraphicsPipelines, GAPS_PIPELINE),
+    HOOK_ALWAYS(CreateShaderModule),
+    HOOK_ALWAYS(DestroyShaderModule),
+    HOOK_ALWAYS(CreateGraphicsPipelines),
+    HOOK_ALWAYS(CreateComputePipelines),
     HOOK(CmdSetViewport, GAP_MULTI_VIEWPORT),
     HOOK(CmdSetScissor, GAP_MULTI_VIEWPORT),
     HOOK(CmdSetViewportWithCount, GAP_MULTI_VIEWPORT),
@@ -756,7 +760,8 @@ static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL GetDeviceProcAddr(VkDevice devic
     if (!next)
         return NULL;
     for (size_t i = 0; i < sizeof(device_hooks) / sizeof(device_hooks[0]); i++) {
-        if ((dev->emulated & device_hooks[i].gaps) && !strcmp(name, device_hooks[i].name))
+        bool installed = device_hooks[i].always ? dev->active : (dev->emulated & device_hooks[i].gaps) != 0;
+        if (installed && !strcmp(name, device_hooks[i].name))
             return device_hooks[i].function;
     }
     return next;

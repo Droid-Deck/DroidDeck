@@ -150,8 +150,8 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
 
     @Test fun wowiDetailsGiveUrlAndMd5() {
         val d = WowAddonCatalog.parseWowiDetails("""[{"UID":"1","UIMD5":"abc","UIDownload":"https://cdn.wowinterface.com/downloads/getfile.php?id=1"}]""")
-        assertEquals("https://cdn.wowinterface.com/downloads/getfile.php?id=1", d?.first)
-        assertEquals("abc", d?.second)
+        assertEquals("https://cdn.wowinterface.com/downloads/getfile.php?id=1", d?.url)
+        assertEquals("abc", d?.md5)
         assertNull(WowAddonCatalog.parseWowiDetails("""[{"UID":"1","UIDownload":""}]"""))
         assertNull(WowAddonCatalog.parseWowiDetails("[]"))
     }
@@ -162,9 +162,40 @@ us|1|aa|bb|cc||tpr/wow|h|s|t||1|12.1.0.65000|kk|wowf
         assertTrue(WowAddonCatalog.isHttps("https://example.com/a.zip"))
     }
 
-    @Test fun curseForgeUrlAddsTheSearchText() {
-        assertEquals("https://www.curseforge.com/wow/search?class=addons", WowAddonCatalog.curseForgeUrl("  "))
-        assertEquals("https://www.curseforge.com/wow/search?class=addons&search=deadly+boss+%26+mods", WowAddonCatalog.curseForgeUrl(" deadly boss & mods "))
+    private fun entry(id: String, version: String) =
+        WowAddonCatalog.Entry(WowAddonCatalog.Addon(id, "Addon $id", "author", version, 0L, 0L, null), "1", null)
+
+    @Test fun updatesComeFromTheInstalledSourceVersion() {
+        val entries = listOf(entry("10", "2.1.0"), entry("20", "v5"), entry("30", ""))
+        val installed = listOf(
+            WowAddons.Installed("Old", "2.0.9", "10"),
+            WowAddons.Installed("OldPart", "2.0.9", "10"),
+            WowAddons.Installed("Same", "5", "20"),
+            WowAddons.Installed("NoLatest", "1", "30"),
+            WowAddons.Installed("Unknown", "1", "99"),
+            WowAddons.Installed("Local", "1", null),
+            WowAddons.Installed("NoVersion", null, "10"),
+        )
+        val updates = WowAddonCatalog.findUpdates(entries, installed)
+        assertEquals(setOf("Old"), updates.keys)
+        assertEquals("2.1.0", updates.getValue("Old").summary)
+    }
+
+    @Test fun aCurrentRowDoesNotHideAnOutdatedRowWithTheSameSource() {
+        val installed = listOf(WowAddons.Installed("A", "2", "10"), WowAddons.Installed("B", "1", "10"))
+        assertEquals(setOf("B"), WowAddonCatalog.findUpdates(listOf(entry("10", "2")), installed).keys)
+    }
+
+    @Test fun wowiDetailsCarryTheDownloadedVersion() {
+        val d = WowAddonCatalog.parseWowiDetails("""[{"UIDownload":"https://cdn.wowinterface.com/a.zip","UIVersion":" 2.0 "}]""")
+        assertEquals("2.0", d?.version)
+        assertNull(WowAddonCatalog.parseWowiDetails("""[{"UIDownload":"https://cdn.wowinterface.com/a.zip"}]""")?.version)
+    }
+
+    @Test fun versionsCompareWithoutPrefixOrCase() {
+        assertTrue(WowAddonCatalog.sameVersion("v1.2.3", "1.2.3"))
+        assertTrue(WowAddonCatalog.sameVersion(" 1.2-Beta ", "1.2-beta"))
+        assertFalse(WowAddonCatalog.sameVersion("1.2.3", "1.2.4"))
     }
 
     @Test fun md5Check() {

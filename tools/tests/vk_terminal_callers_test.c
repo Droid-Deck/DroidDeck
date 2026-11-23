@@ -110,7 +110,7 @@ struct damage_list { int n; };
 struct surface {
     struct vkp_image *shm_img;
     struct wl_resource *resource;
-    int buf_w, buf_h, buf_alpha, has_content;
+    int buf_w, buf_h, buf_alpha, has_content, black_fill;
     /* Read by take_shm's game-frame detection; with no damage it stays off here. */
     int src_set; float src[4];
     struct damage_list damage_buf, damage_local;

@@ -586,7 +586,10 @@ class SessionService : Service() {
 
         val sessionDir = openSessionFolder()
         try {
-            SessionEvents.step("game-environment") { GameEnvironmentStore.publish(this) }
+            SessionEvents.step("game-environment") {
+                com.droiddeck.launcher.runtime.BattleNet.ensureDefaults(this, SessionState.program)
+                GameEnvironmentStore.publish(this)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "could not publish the game environment", e)
             failSession(gen, "GAME_ENVIRONMENT_FAILED", getString(R.string.session_game_environment_failed), -1)
@@ -1035,6 +1038,9 @@ class SessionService : Service() {
         if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
             SystemVulkanDriver.addEnvironment(this, guest)
         }
+        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetDisplayBufferDriver(
+            !bridge && !venus && LinuxVulkanDriverManager(this).rendersToDisplayBuffers(linuxDriverId),
+        )
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
@@ -1622,6 +1628,11 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
+        if (pendingSteamGameId == null && SteamGameProcess.alreadyRunning(accepted, SessionState.gameId)) {
+            Log.i(TAG, "game $accepted is already running; resuming it instead of launching it again")
+            if (SessionState.suspended || SessionState.suspending) resumeSession()
+            return
+        }
         if (!pendingSteamPreviousGamePending) {
             pendingSteamPreviousGameId = SessionState.gameId
             pendingSteamPreviousGamePending = true
@@ -1950,11 +1961,6 @@ class SessionService : Service() {
                         Log.i(TAG, "Steam requested session sleep")
                         updateSuspendPolicy()
                     }
-                    return
-                }
-                if (path == com.droiddeck.launcher.runtime.BattleNet.FEX_REQUEST) {
-                    File(dir, path).delete()
-                    com.droiddeck.launcher.runtime.BattleNet.answerFexRequest(this@SessionService, dir)
                     return
                 }
                 if (path != null && path.startsWith("desktop-import-") && path.endsWith(".request")) {
@@ -2403,8 +2409,7 @@ class SessionService : Service() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (rootIntent?.component?.className in setOf(
                 com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
-                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name,
-                KeepTopActivity::class.java.name)) return
+                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
         if (pipTask || xrActivityVisible) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false

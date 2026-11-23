@@ -171,12 +171,20 @@ x86_key=$(inputs_hash bullseye tools/linuxfs/build-x86-preloads.sh tools/linuxfs
     app/src/main/cpp/fakeinput_steam.cpp)
 x86_stage="${staging_dir}/x86-preloads"
 if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
-    docker run --rm --platform linux/amd64 \
+    x86_platform=linux/amd64
+    x86_packages="gcc g++ gcc-multilib g++-multilib binutils"
+    x86_cross=0
+    if [[ "${docker_platform}" == linux/arm64 ]]; then
+        x86_platform=linux/arm64
+        x86_packages="gcc-x86-64-linux-gnu g++-x86-64-linux-gnu gcc-i686-linux-gnu g++-i686-linux-gnu libc6-dev-amd64-cross libc6-dev-i386-cross binutils-x86-64-linux-gnu binutils-i686-linux-gnu"
+        x86_cross=1
+    fi
+    docker run --rm --platform "${x86_platform}" -e X86_CROSS="${x86_cross}" -e X86_PACKAGES="${x86_packages}" \
         -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
             set -euo pipefail
             printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
             apt-get -o Acquire::Check-Valid-Until=false update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends gcc g++ gcc-multilib g++-multilib binutils >/dev/null
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $X86_PACKAGES >/dev/null
             tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
             chown -R '"$(id -u):$(id -g)"' app/src/main/assets/linuxfs
         '
@@ -436,9 +444,20 @@ if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
     rockstar_out="${linuxfs_dir}/usr/local/lib/droiddeck-rockstar"
     rockstar_key=$(inputs_hash "windows-gnu" tools/rockstar-launcher/src tools/rockstar-launcher/Cargo.toml tools/rockstar-launcher/Cargo.lock tools/rockstar-launcher/build.sh)
     if ! restore_step rockstar "${rockstar_key}" "${rockstar_out}"; then
-        command -v i686-w64-mingw32-gcc >/dev/null 2>&1 || { echo "i686-w64-mingw32-gcc is required for the Rockstar launcher service." >&2; exit 1; }
-        CARGO_TARGET_DIR="${cache_dir}/rockstar-target" bash tools/rockstar-launcher/build.sh "${rockstar_out}"
+        if [[ "$(uname -s)" == Darwin ]]; then
+            bash tools/rockstar-launcher/build-container.sh "${rockstar_out}"
+        else
+            command -v i686-w64-mingw32-gcc >/dev/null 2>&1 || { echo "i686-w64-mingw32-gcc is required for the Rockstar launcher service." >&2; exit 1; }
+            CARGO_TARGET_DIR="${cache_dir}/rockstar-target" bash tools/rockstar-launcher/build.sh "${rockstar_out}"
+        fi
         save_step rockstar "${rockstar_key}" "${rockstar_out}"
+    fi
+    epic_out="${linuxfs_dir}/usr/local/lib/droiddeck-epic"
+    epic_key=$(inputs_hash "x86_64-pc-windows-gnu" tools/epic-launcher/src tools/epic-launcher/Cargo.toml tools/epic-launcher/Cargo.lock tools/epic-launcher/build.sh)
+    if ! restore_step epic "${epic_key}" "${epic_out}"; then
+        command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { echo "x86_64-w64-mingw32-gcc is required for EpicGamesLauncher.exe." >&2; exit 1; }
+        CARGO_TARGET_DIR="${cache_dir}/epic-target" bash tools/epic-launcher/build.sh "${epic_out}"
+        save_step epic "${epic_key}" "${epic_out}"
     fi
 fi
 python3 tools/powervr/fetch.py
@@ -466,7 +485,7 @@ readelf_path=$(find "${NDK}/toolchains/llvm/prebuilt" -name llvm-readelf | head 
 [[ -x "${readelf_path}" ]] || { echo "NDK llvm-readelf is missing" >&2; exit 1; }
 stores_check=()
 [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]] || stores_check+=(--without-stores)
-python3 tools/release/check_android_libraries.py "${apk}" --readelf "${readelf_path}" "${stores_check[@]}"
+python3 tools/release/check_android_libraries.py "${apk}" --readelf "${readelf_path}" ${stores_check[@]+"${stores_check[@]}"}
 git diff --exit-code -- app/src/main/rust/stores/Cargo.lock
 
 build_tools=$(find "${sdk_dir}/build-tools" -mindepth 1 -maxdepth 1 -type d -print | sort -V | tail -1)

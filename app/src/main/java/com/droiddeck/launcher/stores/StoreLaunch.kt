@@ -13,6 +13,15 @@ object StoreLaunch {
     const val EPIC_ARGS = ".droiddeck-epic-args"
     const val UBISOFT_LAUNCH = ".droiddeck-ubisoft.json"
     private const val UBISOFT_SERVICE = "Z:\\usr\\local\\lib\\droiddeck-ubisoft\\droiddeck-upc.exe"
+    const val EPIC_PARENT = "Z:\\usr\\local\\lib\\droiddeck-epic\\EpicGamesLauncher.exe"
+    /** Per-game environment switch: 1 starts any Epic game under [EPIC_PARENT], 0 never does. */
+    const val EPIC_PARENT_SWITCH = "DD_EPIC_PARENT"
+    /** Epic app names whose launchers treat the game as unowned unless a process named EpicGamesLauncher.exe started it. */
+    val EPIC_PARENT_TITLES = setOf(
+        "9d2d0eb64d5c44529cece33fe2a46482", "8769e24080ea413b8ebca3f1b8c50951", "Heather",
+        "c180bd9859624278aa20f1333918498a", "0828ecd4297c4f89bfcc45420e695b67",
+        "e5f031908d2e460b8757387d1a136e48", "afd9f29c1af44610b9e0f9b69742e257",
+    )
     const val EA_ENV = ".droiddeck-ea-env"
     /** A sleeping stand-in that the launch hook installs; older EA SDKs require a running Origin process. */
     const val EA_ORIGIN = "C:\\Program Files (x86)\\Origin\\Origin.exe"
@@ -39,22 +48,29 @@ object StoreLaunch {
         val args = sidecar.args.joinToString(" ") { if (sidecar.store == Store.ROCKSTAR) batchArg(it) else quoteArg(it) }
         val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
         if (sidecar.store == Store.EPIC) {
+            lines += "set \"$PARENT_VAR=${if (sidecar.id in EPIC_PARENT_TITLES) "1" else ""}\""
+            lines += "if \"%$EPIC_PARENT_SWITCH%\"==\"1\" set \"$PARENT_VAR=1\""
+            lines += "if \"%$EPIC_PARENT_SWITCH%\"==\"0\" set \"$PARENT_VAR=\""
+            lines += "if defined $PARENT_VAR set \"SteamAppId=\""
+            lines += "if defined $PARENT_VAR if not exist \"$EPIC_PARENT\" set \"$PARENT_VAR=\""
+            lines += "if defined $PARENT_VAR set $PARENT_VAR=\"$EPIC_PARENT\""
+            val game = "%$PARENT_VAR% $run"
             lines += "if exist \"%~dp0$EPIC_ARGS\" goto client"
             lines += "set \"$CODE_VAR=\""
             lines += "if exist \"%~dp0$EPIC_CODE\" set /p $CODE_VAR=<\"%~dp0$EPIC_CODE\""
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
             lines += "if defined $CODE_VAR goto signed"
-            lines += run
+            lines += "$game %*"
             lines += "goto :eof"
             lines += ":signed"
-            lines += "set \"$CODE_VAR=\" & $run -AUTH_LOGIN=unused -AUTH_PASSWORD=%$CODE_VAR% -AUTH_TYPE=exchangecode"
+            lines += "set \"$CODE_VAR=\" & $game -AUTH_LOGIN=unused -AUTH_PASSWORD=%$CODE_VAR% -AUTH_TYPE=exchangecode %*"
             lines += "goto :eof"
             lines += ":client"
             lines += "set \"$CLIENT_VAR=\""
             lines += "set /p $CLIENT_VAR=<\"%~dp0$EPIC_ARGS\""
             lines += "del \"%~dp0$EPIC_ARGS\""
             lines += "if exist \"%~dp0$EPIC_CODE\" del \"%~dp0$EPIC_CODE\""
-            lines += "set \"$CLIENT_VAR=\" & \"%~dp0$exe\" %$CLIENT_VAR%"
+            lines += "set \"$CLIENT_VAR=\" & %$PARENT_VAR% \"%~dp0$exe\" %$CLIENT_VAR% %*"
         } else if (sidecar.store == Store.ROCKSTAR) {
             lines += "if not exist \"C:\\Program Files\\Rockstar Games\\Launcher\\launch.json\" goto direct"
             lines += "\"C:\\Program Files\\Rockstar Games\\Launcher\\Launcher.exe\""
@@ -107,6 +123,7 @@ object StoreLaunch {
 
     private const val CODE_VAR = "DD_X"
     private const val CLIENT_VAR = "DD_A"
+    private const val PARENT_VAR = "DD_P"
 
     fun installedGame(context: Context, store: Store, id: String): Library.SteamGame? {
         val folder = StoreInstallRoot.gameFolders(context).firstOrNull { folder ->
