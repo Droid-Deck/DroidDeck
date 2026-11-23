@@ -220,6 +220,21 @@ class SteamControllerBleTest {
         assertFalse(Writer.connections.last())
     }
 
+    @Test fun failedLizardModeWriteDropsTheLink() {
+        val link = ValveLink()
+        link.start()
+        link.answer()
+        assertEquals(1, link.shadow.lizardWrites)
+        link.answer(BluetoothGatt.GATT_FAILURE)
+        link.input()
+        shadowOf(handler.looper).idleFor(Duration.ofMillis(2_500))
+        assertSame(link.gatt, ReflectionHelpers.getField<Any?>(controller, "gatt"))
+        shadowOf(handler.looper).idleFor(Duration.ofMillis(1_000))
+        assertNull(ReflectionHelpers.getField<Any?>(controller, "gatt"))
+        assertFalse(SteamControllerBle.connected)
+        assertFalse(Writer.connections.last())
+    }
+
     @Test fun answeredSubscriptionStartsOneLizardModeRefresh() {
         val link = ValveLink()
         link.start()

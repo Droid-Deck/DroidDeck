@@ -173,11 +173,11 @@ class SteamControllerBle(private val context: Context, router: InputRouter? = nu
 
         override fun onCharacteristicWrite(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
             if (g !== gatt) return
-            if (characteristic.uuid == REPORT && !lizardOffSent) {
-                lizardOffSent = true
-                Log.i(TAG, "lizard mode off (status $status)")
-            } else if (status != BluetoothGatt.GATT_SUCCESS) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.w(TAG, "output report write failed for ${characteristic.uuid} (status $status)")
+            } else if (characteristic.uuid == REPORT && !lizardOffSent) {
+                lizardOffSent = true
+                Log.i(TAG, "lizard mode off")
             }
             outputWritePending = false
             writeNextOutput()
