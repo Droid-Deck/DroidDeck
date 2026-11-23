@@ -29,6 +29,8 @@
 #define VDEC_BITSTREAM_SIZE (4u << 20)
 #define VDEC_PADDING 64
 #define VDEC_DUMB 64
+#define VDEC_CAP_MIN_WIDTH 4096u
+#define VDEC_CAP_MIN_HEIGHT 2304u
 
 struct vd_dma_heap_alloc {
     uint64_t len;
@@ -135,6 +137,8 @@ struct vdec {
     uint32_t n_cap_done;
     int out_on, cap_on;
     int sock, hw, hw_failed;
+    int resizing;
+    uint32_t stream_w, stream_h;
     int64_t pts;
     void *ctx, *packet, *frame;
     uint8_t *packet_data;
@@ -318,7 +322,8 @@ static int vd_open_hardware(struct vdec *v) {
     if (sock < 0) return -1;
     struct vdec_config c = {
         .type = VDEC_CONFIG, .codec = v->fourcc == V4L2_PIX_FMT_HEVC ? VENC_HEVC : VENC_H264,
-        .width = v->width ? v->width : v->cap_width, .height = v->height ? v->height : v->cap_height,
+        .width = v->stream_w ? v->stream_w : v->width ? v->width : v->cap_width,
+        .height = v->stream_h ? v->stream_h : v->height ? v->height : v->cap_height,
         .stride = v->bpl, .rows = v->cap_height, .bitstreams = v->out_count, .bitstream_size = VDEC_BITSTREAM_SIZE,
     };
     struct vdec_result r;
@@ -563,8 +568,12 @@ static int vd_set_format(struct vdec *v, struct v4l2_format *f, int apply) {
         t.fourcc = p->pixelformat;
         t.width = p->width;
         t.height = p->height;
+        t.stream_w = p->width;
+        t.stream_h = p->height;
     } else {
         uint32_t w = p->width > t.width ? p->width : t.width, h = p->height > t.height ? p->height : t.height;
+        if (w < VDEC_CAP_MIN_WIDTH) w = VDEC_CAP_MIN_WIDTH;
+        if (h < VDEC_CAP_MIN_HEIGHT) h = VDEC_CAP_MIN_HEIGHT;
         if (w < 16 || h < 16 || w > 8192 || h > 8192) return -EINVAL;
         t.cap_width = (w + 15) & ~15u;
         t.cap_height = (h + 15) & ~15u;
@@ -574,6 +583,7 @@ static int vd_set_format(struct vdec *v, struct v4l2_format *f, int apply) {
     if (apply) {
         if (t.fourcc != v->fourcc || (t.hw && (t.bpl != v->bpl || t.cap_height != v->cap_height))) vd_close_decoder(&t);
         *v = t;
+        if (v->cap_width >= v->width && v->cap_height >= v->height) v->resizing = 0;
     }
     vd_fill_format(&t, f);
     return 0;
@@ -762,10 +772,20 @@ static int vd_follow_stream_size(struct vdec *v, const uint8_t *data, size_t siz
     int found = v->fourcc == V4L2_PIX_FMT_HEVC ? vd_stream_size_h265(data, size, &width, &height)
                                                : vd_stream_size_h264(data, size, &width, &height);
     if (found != 0) return 0;
-    if (width == v->width && height == v->height) return 0;
-    vd_log("the stream is now %ux%u, was %ux%u", width, height, v->width, v->height);
-    v->width = width;
-    v->height = height;
+    uint32_t known_w = v->stream_w ? v->stream_w : v->width, known_h = v->stream_h ? v->stream_h : v->height;
+    if (width == known_w && height == known_h) return 0;
+    vd_log("the stream is now %ux%u, was %ux%u", width, height, known_w, known_h);
+    if (width <= v->cap_width && height <= v->cap_height) {
+        /* The client's capture buffers already hold the new size, so only the app decoder is reopened for it. */
+        v->stream_w = width;
+        v->stream_h = height;
+        if (v->hw) vd_close_decoder(v);
+        return 1;
+    }
+    v->width = v->stream_w = width;
+    v->height = v->stream_h = height;
+    v->resizing = 1;
+    v->n_cap_done = 0;
     return 1;
 }
 
@@ -776,7 +796,7 @@ static int vd_qbuf(struct vdec *v, struct v4l2_buffer *b) {
         uint32_t bytes = b->m.planes[0].bytesused;
         if (bytes > VDEC_BITSTREAM_SIZE) bytes = VDEC_BITSTREAM_SIZE;
         if (v->out_on && v->bitstream && bytes) vd_follow_stream_size(v, v->bitstream + (size_t)b->index * VDEC_BITSTREAM_SIZE, bytes);
-        if (v->out_on && bytes) vd_decode(v, b->index, bytes, b->timestamp);
+        if (v->out_on && bytes && !v->resizing) vd_decode(v, b->index, bytes, b->timestamp);
         v->out_done[v->n_out_done++] = b->index;
     } else if (b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
         if (b->index >= v->cap_count || v->cap_size == 0) return -EINVAL;
@@ -807,9 +827,15 @@ static int vd_dqbuf(struct vdec *v, struct v4l2_buffer *b) {
         return 0;
     }
     if (b->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) return -EINVAL;
-    if (v->n_cap_done == 0) return -EAGAIN;
-    struct vd_done d = v->cap_done[0];
-    memmove(v->cap_done, v->cap_done + 1, --v->n_cap_done * sizeof d);
+    struct vd_done d;
+    for (;;) {
+        if (v->n_cap_done == 0) return -EAGAIN;
+        d = v->cap_done[0];
+        memmove(v->cap_done, v->cap_done + 1, --v->n_cap_done * sizeof d);
+        struct stat st;
+        struct vd_capture *c = &v->cap[d.index];
+        if (c->map && c->fd >= 0 && fstat(c->fd, &st) == 0 && st.st_ino == c->ino) break;
+    }
     b->index = d.index;
     b->memory = V4L2_MEMORY_DMABUF;
     b->flags = V4L2_BUF_FLAG_DONE | V4L2_BUF_FLAG_TIMESTAMP_COPY;
