@@ -36,6 +36,13 @@ class SessionDrawerPageTest {
         assertTrue(out.inMore().isEmpty())
     }
 
+    @Test fun sessionCanBeKeptInsideMore() {
+        val saved = listOf("CONTROLLER", "DISPLAY", "HUD", "EFFECTS", "GAMES", "AGENT", "MORE", "SESSION", "VR")
+        val out = DrawerPages.arrange(saved)
+        assertEquals(listOf(SessionDrawerPage.SESSION, SessionDrawerPage.VR), out.inMore())
+        assertFalse(SessionDrawerPage.SESSION in out.strip())
+    }
+
     @Test fun moreAndSessionCannotBeHidden() {
         assertFalse(DrawerPages.hideable(SessionDrawerPage.MORE))
     }

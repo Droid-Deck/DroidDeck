@@ -55,7 +55,7 @@ internal object DrawerPages {
     fun rearrange(context: Context, placed: List<SessionDrawerPage>) {
         if (placed.isEmpty() || !order.containsAll(placed)) return
         val next = placed.iterator()
-        order = keepSessionOnTheStrip(order.map { if (it in placed) next.next() else it })
+        order = order.map { if (it in placed) next.next() else it }
         if (DevPreview.drawer == null) SessionPrefs.setDrawerPageOrder(context, order.map { it.name })
     }
 
@@ -65,14 +65,6 @@ internal object DrawerPages {
         if (DevPreview.drawer != null) return
         SessionPrefs.setDrawerPageOrder(context, order.map { it.name })
         SessionPrefs.setDrawerPageHidden(context, emptySet())
-    }
-
-    /** The Session page has the controls that end the session, so it never ends up inside More. */
-    private fun keepSessionOnTheStrip(pages: List<SessionDrawerPage>): List<SessionDrawerPage> {
-        val more = pages.indexOf(SessionDrawerPage.MORE)
-        val session = pages.indexOf(SessionDrawerPage.SESSION)
-        if (more < 0 || session < more) return pages
-        return pages.toMutableList().also { it.remove(SessionDrawerPage.SESSION); it.add(more, SessionDrawerPage.SESSION) }
     }
 
     fun isDefault() = order == SessionDrawerPage.entries.toList() && hidden.isEmpty()
