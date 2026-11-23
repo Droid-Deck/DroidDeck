@@ -52,9 +52,6 @@ class DroidDeckHudHost(context: Context) {
 
     private fun isGameActive(): Boolean {
         val now = System.nanoTime()
-        // Compositor callbacks do not identify their source surface, so they
-        // cannot reliably distinguish game frames from Steam UI frames.
-        // Use Gamescope metadata as the authority for game activity.
         val detected = feed.live && !feed.steamFocused
 
         if (detected != candidateGameActive) {
