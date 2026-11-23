@@ -332,7 +332,6 @@
     <string name="mode_startup">시작</string>
     <string name="mode_startup_session">실행 시 열기</string>
     <string name="mode_startup_session_hint">DroidDeck을 실행할 때 이 세션을 시작합니다.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">릴리스 확인 중…</string>
     <string name="mode_decky_ready">%1$s을(를) 설치할 준비가 되었습니다.</string>
     <string name="mode_decky_none">호환되는 버전을 찾을 수 없습니다. 나중에 다시 시도하세요.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">최신 버전 · %1$s</string>
     <string name="mode_decky_loader">로더</string>
     <string name="mode_decky_install_latest">최신 버전 설치</string>
-    <string name="decky_channel">업데이트 채널</string>
-    <string name="decky_channel_hint">설치할 Decky Loader 릴리스입니다. Decky 자체 업데이터도 같은 채널을 사용합니다.</string>
     <string name="decky_channel_stable">안정판</string>
     <string name="decky_channel_prerelease">사전 출시판</string>
     <string name="decky_channel_testing">테스트판</string>
     <string name="decky_channel_failed">Decky 업데이트 채널을 저장할 수 없습니다</string>
-    <string name="mode_decky_on">Steam과 함께 시작됩니다. 활성화하면 이 기기의 다른 앱이 Steam을 제어할 수 있습니다.</string>
-    <string name="mode_decky_off">끔. Steam의 원격 디버깅 포트가 닫힌 상태로 유지됩니다.</string>
     <string name="mode_decky_remove_title">Decky Loader를 제거하시겠습니까?</string>
     <string name="mode_decky_remove_text">로더를 제거합니다. 플러그인과 설정은 유지됩니다.</string>
     <string name="mode_client">클라이언트</string>
