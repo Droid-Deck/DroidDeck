@@ -27,9 +27,13 @@ int main(int argc, char **argv) {
       continue;
     }
     if (strncmp(argv[i], "parent:", 7) == 0) {
-      int fd = open(argv[i] + 7, O_RDONLY | O_DIRECTORY);
+      char dir[4096];
+      snprintf(dir, sizeof(dir), "%s", argv[i] + 7);
+      char *rel = strchr(dir, '|');
+      if (rel) *rel++ = 0;
+      int fd = open(dir, O_RDONLY | O_DIRECTORY);
       struct stat expected;
-      int ok = fd >= 0 && fstatat(fd, "..", &st, 0) == 0 && stat("/", &expected) == 0;
+      int ok = fd >= 0 && fstatat(fd, rel ? rel : "..", &st, 0) == 0 && stat("/", &expected) == 0;
       printf("%s\t%d\n", argv[i], ok && st.st_dev == expected.st_dev && st.st_ino == expected.st_ino);
       if (fd >= 0) close(fd);
       continue;
@@ -175,6 +179,23 @@ class NativeHookMountTest(unittest.TestCase):
 
     def test_parent_of_mount_ancestor_is_guest_root(self):
         self.assertEqual(self.run_probe("parent:/mnt")["parent:/mnt"], ["1"])
+
+    def test_parent_walks_from_any_directory_stay_at_root(self):
+        cases = ["parent:/etc|../..", "parent:/mnt/library|../../..", "parent:/|../etc/.."]
+        self.assertEqual(self.run_probe(*cases), {case: ["1"] for case in cases})
+
+    def test_absolute_paths_above_root_stay_at_root(self):
+        result = self.run_probe("cd:/..", "cd:/etc/../..", "/../etc/hostname")
+        self.assertEqual(result["cd:/.."], [str(self.root)])
+        self.assertEqual(result["cd:/etc/../.."], [str(self.root)])
+        self.assertEqual(result["/../etc/hostname"], ["1", "rootfs"])
+
+    def test_relative_parent_of_cwd_stays_in_guest(self):
+        result = self.run_probe("cd:/", "cd:..", "cd:./../..", "../etc/hostname", f"cd:{GAME}", "cd:../..")
+        self.assertEqual(result["cd:.."], [str(self.root)])
+        self.assertEqual(result["cd:./../.."], [str(self.root)])
+        self.assertEqual(result["cd:../.."], [str(self.root / "mnt")])
+        self.assertEqual(result["../etc/hostname"], ["1", "rootfs"])
 
     def test_rootfs_paths_outside_mounts_are_unchanged(self):
         paths = ["/pfx/native/dosdevices/z:/etc/hostname", f"{self.root}/etc/hostname", "/etc/hostname"]

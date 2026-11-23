@@ -363,8 +363,11 @@ static ssize_t handle_proc_exe_at(int dirfd, const char *pathname, char *buf, si
 static const char *rewrite_path(const char *path, char *buffer, size_t bufsize) {
     if (!path) return NULL;
     // Relative paths must NEVER be rewritten to rootfs root
-    if (path[0] != '/') return path;
     init_ddnatv_hook();
+    if (path[0] != '/') {
+        const char *walked = map_at(AT_FDCWD, path, buffer, bufsize);
+        return walked ? walked : path;
+    }
     return rewrite_path_in_root(path, buffer, bufsize);
 }
 
@@ -374,7 +377,7 @@ static const char *rewrite_path(const char *path, char *buffer, size_t bufsize) 
 // followed in the guest's view first. The rootfs's own links were made relative already.
 static const char *rewrite_path_follow(const char *path, char *buffer, size_t bufsize) {
     if (!path) return NULL;
-    if (path[0] != '/') return path;
+    if (path[0] != '/') return rewrite_path(path, buffer, bufsize);
     init_ddnatv_hook();
     int moved = 0;
     for (int i = 0; i < g_nbinds; i++) {
