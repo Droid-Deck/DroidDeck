@@ -46,13 +46,29 @@ class DroidDeckHudHost(context: Context) {
     @Volatile private var lastWindow: String? = null
     @Volatile private var lastCompositorFrameNanos = 0L
     @Volatile private var lastVisibilityGameActive = false
+    private var candidateGameActive = false
+    private var candidateGameActiveSinceNs = 0L
+    private var stableGameActive = false
 
     private fun isGameActive(): Boolean {
-        val lastFrame = lastCompositorFrameNanos
         val now = System.nanoTime()
+        val lastFrame = lastCompositorFrameNanos
         val compositorLive = lastFrame > 0L &&
             now - lastFrame <= 1_000_000_000L
-        return !feed.steamFocused && (feed.live || compositorLive)
+        val detected = !feed.steamFocused && (feed.live || compositorLive)
+
+        if (detected != candidateGameActive) {
+            candidateGameActive = detected
+            candidateGameActiveSinceNs = now
+        }
+
+        if (detected != stableGameActive &&
+            now - candidateGameActiveSinceNs >= GAME_ACTIVITY_STABLE_NS
+        ) {
+            stableGameActive = detected
+        }
+
+        return stableGameActive
     }
 
     var onPresentingWindowChanged: (() -> Unit)? = null
@@ -557,6 +573,7 @@ class DroidDeckHudHost(context: Context) {
     }
 
     companion object {
+        private const val GAME_ACTIVITY_STABLE_NS = 350_000_000L
         private const val DOCK_OVERHANG = 0.4f
         private const val PREVIEW_FROM = 0.55f
         private const val STRIP_PULL_ACROSS_DP = 360f
