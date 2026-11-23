@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import functools
 import json
 import os
 import re
@@ -156,7 +157,27 @@ def ask(channel, request, timeout=TIMEOUT, claim=False):
 
 
 def windows_path(unix):
-    return "Z:" + unix.replace("/", "\\")
+    tool = bionic_tool(os.environ.get("DD_STORE_PROTON", ""))
+    return (tool and bionic_path(tool, unix)) or "Z:" + unix.replace("/", "\\")
+
+
+def bionic_tool(proton):
+    if not proton or not os.environ.get("DDNATV_ROOT"):
+        return None
+    tool = Path(proton).parent
+    return str(tool / "proton") if (tool / "bionic" / "launch.sh").is_file() else None
+
+
+@functools.lru_cache(maxsize=None)
+def bionic_path(proton, unix):
+    # DroidDeck-Bionic's Wine sees Android's root on Z:, so a guest path is named by the Android file it maps to.
+    try:
+        result = subprocess.run([proton, "getcompatpath", unix], stdin=subprocess.DEVNULL, capture_output=True,
+                                text=True, timeout=TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    path = result.stdout.strip()
+    return path if result.returncode == 0 and path[:3] == "Z:\\" else None
 
 
 def reg_escape(value):
