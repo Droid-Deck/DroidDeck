@@ -7,8 +7,7 @@
 //  Ported verbatim from the OpenGL NTSCCombinedEffect.java shader. GL sampled
 //  with the varying vUV; here fragTexCoord IS that uv. GL's TextureSize and
 //  resolution uniforms were both the screen size -> we feed both from pc.resolution.
-//  FrameCount animates the chroma phase; planUpscaleFrame feeds a per-frame
-//  counter (mod 4, the visible cos/sin period) so the analog shimmer animates.
+//  Chroma offsets are fixed; this effect does not animate its color phase.
 //
 //  Conventions match upscale.vert: combined-image-sampler at binding 0, the
 //  push-constant block leads with vec4 ndc (offset 0), fragTexCoord in [0,1].
@@ -20,7 +19,6 @@ layout(binding = 0) uniform sampler2D InputTexture;
 layout(push_constant) uniform PC {
     vec4  ndc;        // quad NDC rect, consumed by upscale.vert (offset 0)
     vec2  resolution; // screen size in px (= TextureSize = resolution in GL)
-    float frameCount; // animated chroma-phase counter (cos/sin period 4)
 } pc;
 
 layout(location = 0) in  vec2 fragTexCoord;

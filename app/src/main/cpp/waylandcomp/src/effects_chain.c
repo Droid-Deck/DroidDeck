@@ -225,7 +225,6 @@ static VkPipeline g_pipe[P_COUNT];
 static struct fx_target g_t[2], g_mid, g_smaa_edges, g_smaa_weights;
 
 static struct { VkImage img; VkImageView view; VkDescriptorSet ds; int w, h; } g_scene;
-static uint32_t g_ntsc_frame;
 
 void vkp_effects_bind_device(VkDevice dev, VkPhysicalDevice pd,
                              const VkPhysicalDeviceMemoryProperties *memprops) {
@@ -718,7 +717,6 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             case FX_CAS: pr.extra = (float)s->cas_pct / 100.0f; pass(cmd, g_pipe[P_CAS], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_HDR: pass(cmd, g_pipe[P_HDR], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_NTSC:
-                pr.extra = (float)(g_ntsc_frame++ & 3u);
                 pass(cmd, g_pipe[P_NTSC], dst, cur_ds, &pr, sizeof(pr));
                 break;
             case FX_CRT: pass(cmd, g_pipe[P_CRT], dst, cur_ds, &pr, sizeof(pr)); break;
