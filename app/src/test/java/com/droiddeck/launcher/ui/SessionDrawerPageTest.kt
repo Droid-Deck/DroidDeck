@@ -22,9 +22,10 @@ class SessionDrawerPageTest {
         assertFalse(SessionDrawerPage.VR in pages.strip())
         assertEquals(SessionDrawerPage.MORE, pages.tabFor(SessionDrawerPage.VR))
         assertEquals(SessionDrawerPage.GAMES, pages.tabFor(SessionDrawerPage.GAMES))
-        assertEquals(SessionDrawerPage.MORE, pages.step(SessionDrawerPage.SESSION, 1))
-        assertEquals(SessionDrawerPage.VR, pages.step(SessionDrawerPage.MORE, 1))
-        assertEquals(SessionDrawerPage.CONTROLLER, pages.step(SessionDrawerPage.VR, 1))
+        val strip = pages.strip()
+        assertEquals(SessionDrawerPage.MORE, strip.step(SessionDrawerPage.SESSION, 1))
+        assertEquals(SessionDrawerPage.CONTROLLER, strip.step(SessionDrawerPage.MORE, 1))
+        assertEquals(SessionDrawerPage.SESSION, strip.step(pages.tabFor(SessionDrawerPage.VR), -1))
     }
 
     @Test fun anOlderSavedOrderKeepsItsPagesAndGetsAMoreTabAfterSession() {

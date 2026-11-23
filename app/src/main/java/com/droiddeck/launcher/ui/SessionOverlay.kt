@@ -442,11 +442,17 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     val focus = remember { DrawerFocus() }
     val inputModeManager = LocalInputModeManager.current
     val focusManager = LocalFocusManager.current
+    // A page kept inside More is one step deeper than the strip: back returns to More before it closes the menu.
+    val insideMore = page in pages.inMore()
     BackHandler(enabled = open) {
-        if (host.open != null) host.open = null else a.onClose()
+        when {
+            host.open != null -> host.open = null
+            insideMore -> onPageChange(SessionDrawerPage.MORE)
+            else -> a.onClose()
+        }
     }
     BackHandler(enabled = open && confirmStop) { confirmStop = false }
-    val layerOpen = open && (host.open != null || appToChooseDisplay != null || confirmStop)
+    val layerOpen = open && (host.open != null || appToChooseDisplay != null || confirmStop || insideMore)
     LaunchedEffect(layerOpen) { onLayerChange(layerOpen) }
     var seenBackRequest by remember { mutableStateOf(backRequest) }
     LaunchedEffect(backRequest) {
@@ -456,6 +462,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             confirmStop -> confirmStop = false
             appToChooseDisplay != null -> appToChooseDisplay = null
             host.open != null -> host.open = null
+            insideMore -> onPageChange(SessionDrawerPage.MORE)
         }
     }
     LaunchedEffect(page) { host.open = null; appToChooseDisplay = null; managing = false }
@@ -546,6 +553,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 DrawerPages.rearrange(drawerContext, held)
                                 releaseSignal++
                             } ?: run { managing = false }
+                            insideMore -> onPageChange(SessionDrawerPage.MORE)
                             else -> a.onClose()
                         }
                     }

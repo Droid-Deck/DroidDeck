@@ -154,6 +154,8 @@ import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.LatestRequestCoordinator
 import com.droiddeck.launcher.ui.SessionDrawerPage
 import com.droiddeck.launcher.ui.sessionDrawerPages
+import com.droiddeck.launcher.ui.strip
+import com.droiddeck.launcher.ui.tabFor
 import com.droiddeck.launcher.ui.step
 import kotlin.math.abs
 
@@ -3668,8 +3670,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (drawerOpen && (menuOwnsController || (!fromController && !(dockedTouchOnly && event.keyCode == KeyEvent.KEYCODE_BACK)))) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    drawerPage = sessionDrawerPages(glasses.present)
-                        .step(drawerPage, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
+                    // The bumpers walk the tabs on the strip; a page kept inside More counts as the More tab.
+                    val pages = sessionDrawerPages(glasses.present)
+                    drawerPage = pages.strip().step(pages.tabFor(drawerPage), if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
                     releaseDrawerDirection()
                 }
                 return true
