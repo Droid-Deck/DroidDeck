@@ -23,6 +23,7 @@ object ProtonExtras {
     const val CHECK_EVERY_MS = 60L * 60 * 1000
     @Volatile
     var installInProgress = false
+    @Volatile var prefetching = false
         private set
     @Volatile
     private var replacing = false
@@ -217,7 +218,7 @@ object ProtonExtras {
 
     @Synchronized
     fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
-        if (installInProgress) return context.getString(R.string.pextra_busy)
+        if (installInProgress || prefetching) return context.getString(R.string.pextra_busy)
         installInProgress = true
         return try { installNow(context, tool, onProgress) } finally { installInProgress = false }
     }
@@ -247,6 +248,11 @@ object ProtonExtras {
     @Synchronized
     fun prefetch(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
         if (installInProgress) return context.getString(R.string.pextra_busy)
+        prefetching = true
+        try { return prefetchNow(context, tool, onProgress) } finally { prefetching = false }
+    }
+
+    private fun prefetchNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
         val asset = releases(tool)?.let { pickAsset(tool, it) } ?: return context.getString(R.string.pextra_no_release, tool.name)
         val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
         val archive = File(downloads, "${tool.id}-${asset.name}")

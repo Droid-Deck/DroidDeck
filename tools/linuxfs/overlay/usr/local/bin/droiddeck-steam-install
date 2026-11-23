@@ -195,10 +195,6 @@ if [ -n "$cache_only" ]; then
   i=0
   while read -r block file sum size; do
     i=$((i + 1))
-    if [ "$size" -gt 0 ] && [ "$(size_of "$cache/$file")" -eq "$size" ]; then
-      done_bytes=$((done_bytes + size))
-      continue
-    fi
     progress "$cache/$file" "$block"
     fetched=""
     for host in "${cdn_order[@]}"; do

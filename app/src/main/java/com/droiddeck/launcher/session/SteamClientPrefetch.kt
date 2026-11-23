@@ -14,7 +14,10 @@ object SteamClientPrefetch {
     private const val TAG = "SteamClientPrefetch"
     private val DOWNLOADING = Regex("""downloading Steam: .*, (\d+) of (\d+) MB""")
 
-    @Volatile private var process: Process? = null
+    private const val CANCELLED = "cancelled"
+    private val lock = Any()
+    private var process: Process? = null
+    private var cancelled = false
     @Volatile private var thread: Thread? = null
 
     internal fun parse(line: String): Pair<Int, Int>? {
@@ -35,25 +38,32 @@ object SteamClientPrefetch {
 
     /** Stops a running download so a session can take over; the script resumes the partial files. */
     fun cancel() {
-        process?.destroy()
+        synchronized(lock) {
+            cancelled = true
+            process?.destroy()
+        }
     }
+
+    private fun isCancelled() = synchronized(lock) { cancelled }
 
     @Synchronized
     fun start(context: Context, label: (Int) -> String, failedLabel: String) {
         if (running() || SessionState.running || !LinuxRuntime.isInstalled(context) || !pending(context)) return
         val app = context.applicationContext
+        synchronized(lock) { cancelled = false }
         thread = Thread({
             Onboarding.report(Onboarding.Step.STEAM, label(-1), -1)
             val problem = runCatching { run(app, label) }.getOrElse { it.message ?: it.javaClass.simpleName }
-            process = null
+            synchronized(lock) { process = null }
             if (problem == null && !pending(app)) Onboarding.finish(Onboarding.Step.STEAM)
-            else if (SessionState.running) Onboarding.finish(Onboarding.Step.STEAM)
+            else if (SessionState.running || problem == CANCELLED) Onboarding.finish(Onboarding.Step.STEAM)
             else Onboarding.fail(Onboarding.Step.STEAM, problem ?: failedLabel)
             Onboarding.facts.value = Onboarding.facts.value.copy(steam = !pending(app))
         }, "steam-client-prefetch").also { it.start() }
     }
 
     private fun run(context: Context, label: (Int) -> String): String? {
+        if (isCancelled()) return CANCELLED
         val root = LinuxRuntime.rootDir(context)
         LinuxRuntime.writeAccounts(context)
         SessionFiles.stage(context, root)
@@ -70,8 +80,15 @@ object SteamClientPrefetch {
             "/usr/bin/env", "-i", "HOME=/root", "USER=root", "PATH=/usr/local/bin:/usr/bin:/bin",
             "LANG=C.UTF-8", "XDG_DATA_HOME=/root/.local/share", "/usr/local/bin/droiddeck-steam-install",
         ) + args
+        if (isCancelled()) return CANCELLED
         val child = ProtonExtras.guestProcess(context, guest).start()
-        process = child
+        synchronized(lock) {
+            if (cancelled) {
+                child.destroy()
+                return CANCELLED
+            }
+            process = child
+        }
         child.inputStream.bufferedReader().useLines { lines ->
             lines.forEach { line ->
                 Log.i(TAG, line)

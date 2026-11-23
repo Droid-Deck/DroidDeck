@@ -212,7 +212,7 @@ internal class ProtonMenu(
 
     internal fun ensureAutoUpdates(now: Long = System.currentTimeMillis()) {
         if (activity.isFinishing || activity.isDestroyed || !idle() || protonBusyId != null ||
-            ProtonExtras.installInProgress || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
+            ProtonExtras.installInProgress || ProtonExtras.prefetching || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
             SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
             !LinuxRuntime.isInstalled(activity) || !AutoComponents.online(activity)) return
         val firstInstall = !ProtonExtras.declined(activity) && ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).isEmpty()

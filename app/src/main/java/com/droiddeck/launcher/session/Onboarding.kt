@@ -33,17 +33,18 @@ object Onboarding {
     /** Keeps the process in the foreground, with one notification, while a step downloads and the runtime installer is not already doing so. */
     @Synchronized private fun keepAlive() {
         val context = appContext ?: return
-        if (active.value.isNotEmpty() && !LinuxRuntimeInstaller.isBusy()) {
+        val running = active.value
+        if (running.isNotEmpty() && !LinuxRuntimeInstaller.isBusy()) {
             if (hold == null) hold = RuntimeInstallService.holdForPackage(context, context.getString(R.string.onboarding_title))
-            val rows = rows(active.value, failed.value, facts.value)
-            RuntimeInstallService.packageProgress(active.value.values.first().label, overall(rows))
+            val rows = rows(running, failed.value, facts.value)
+            RuntimeInstallService.packageProgress(running.values.first().label, overall(rows))
         } else {
             hold?.invoke()
             hold = null
         }
     }
 
-    fun recheck(context: Context) {
+    @Synchronized fun recheck(context: Context) {
         val runtime = LinuxRuntime.isInstalled(context)
         val own = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
         facts.value = Facts(
