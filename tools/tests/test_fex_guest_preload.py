@@ -41,6 +41,17 @@ int main(int argc, char** argv) {
 """
 
 
+def x86_compiler():
+    for name in ("x86_64-linux-gnu-gcc", "gcc"):
+        path = shutil.which(name)
+        if path and subprocess.run([path, "-dumpmachine"], capture_output=True, text=True).stdout.startswith("x86_64"):
+            return path
+    return None
+
+
+X86_CC = x86_compiler()
+
+
 def patch_function():
     lines = [line[1:] for line in PATCH.read_text().splitlines() if line.startswith("+") and not line.startswith("+++")]
     body = "\n".join(lines)
@@ -49,7 +60,7 @@ def patch_function():
     return body[first:last]
 
 
-@unittest.skipUnless(shutil.which("g++") and shutil.which("gcc") and shutil.which("aarch64-linux-gnu-gcc"), "needs g++, gcc and aarch64-linux-gnu-gcc")
+@unittest.skipUnless(shutil.which("g++") and X86_CC and shutil.which("aarch64-linux-gnu-gcc"), "needs g++, an x86-64 gcc and aarch64-linux-gnu-gcc")
 class FexGuestPreloadTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -68,9 +79,9 @@ class FexGuestPreloadTest(unittest.TestCase):
         for folder in (cls.host / "lib", cls.rootfs_shadow.parent):
             folder.mkdir(parents=True)
         cls.compile("aarch64-linux-gnu-gcc", stub, cls.host / "lib/libhost.so")
-        cls.compile("gcc", stub, cls.host / "lib/libguest.so")
+        cls.compile(X86_CC, stub, cls.host / "lib/libguest.so")
         cls.compile("aarch64-linux-gnu-gcc", stub, cls.shadow)
-        cls.compile("gcc", stub, cls.rootfs_shadow)
+        cls.compile(X86_CC, stub, cls.rootfs_shadow)
 
     @classmethod
     def tearDownClass(cls):
