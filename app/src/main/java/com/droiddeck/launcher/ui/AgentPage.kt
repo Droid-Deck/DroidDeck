@@ -328,7 +328,7 @@ private fun AgentPageContent(
                     }
                 }
                 androidx.compose.animation.AnimatedVisibility(!hidden, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    AgentComposer(composer, draft, visible && started, inlineControls, onPanel = { panel = it }, onSent = toLatest)
+                    AgentComposer(composer, draft, visible && started, inlineControls, onPanel = { panel = it }, onSent = toLatest, hideAttach = inline && menuOpen)
                 }
             }
         }
@@ -722,7 +722,7 @@ internal fun liveUsed(limit: AgentHost.Limit) = if (limit.resetsAt > 0 && limit.
 @Composable
 private fun AgentComposer(
     composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?,
-    onPanel: (AgentPanel) -> Unit, onSent: () -> Unit,
+    onPanel: (AgentPanel) -> Unit, onSent: () -> Unit, hideAttach: Boolean = false,
 ) {
     val context = LocalContext.current
     var draft by draftState
@@ -754,13 +754,13 @@ private fun AgentComposer(
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
         ) { AgentActivity(labOpen) { labOpen = !labOpen } }
-        AgentEditor(composer, draftState, visible, controls, send)
+        AgentEditor(composer, draftState, visible, controls, send, hideAttach)
     }
 }
 
 /** The text with attach, stop and send beside it, and [controls] while the text is not being typed in. */
 @Composable
-private fun AgentEditor(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?, send: () -> Unit) {
+private fun AgentEditor(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?, send: () -> Unit, hideAttach: Boolean = false) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -806,7 +806,7 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
     var focused by remember { mutableStateOf(false) }
     val field = remember { FocusRequester() }
     LaunchedEffect(composer.focusRequests) { if (composer.hasUnconsumedFocusRequest()) runCatching { field.requestFocus() } }
-    val attach = LocalActivityResultRegistryOwner.current != null
+    val attach = LocalActivityResultRegistryOwner.current != null && !hideAttach
     BoxWithConstraints(
         Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape16).background(colors.surface)
             .border(if (focused) 2.dp else 1.dp, if (focused) pal.primary else pal.line, Shape16).padding(6.dp),
@@ -860,13 +860,13 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
             text(Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 if (attach) AttachButton()
-                if (AgentAttachments.gameFrame != null) GameFrameButton()
+                if (AgentAttachments.gameFrame != null && !hideAttach) GameFrameButton()
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).height(42.dp).horizontalScroll(rememberScrollState(), reverseScrolling = true)) { if (controls != null && !focused) controls() }
                 actions()
             }
         } else Row(verticalAlignment = Alignment.Bottom) {
             if (attach) AttachButton()
-            if (AgentAttachments.gameFrame != null) GameFrameButton()
+            if (AgentAttachments.gameFrame != null && !hideAttach) GameFrameButton()
             text(Modifier.weight(1f))
             if (controls != null && !focused) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(42.dp)) { controls() }
             actions()
