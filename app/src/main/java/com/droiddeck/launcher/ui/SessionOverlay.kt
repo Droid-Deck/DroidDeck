@@ -519,8 +519,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize().exposeTestTags(), contentAlignment = Alignment.CenterEnd) {
         val short = maxHeight < 440.dp
         // The handle keeps a strip on the left free, so a sheet dragged wide can always be dragged back.
-        val minSheet = minOf(DRAWER_MIN_WIDTH, maxWidth * 0.92f)
-        val maxSheet = (maxWidth - DRAWER_EDGE_GAP).coerceAtLeast(minSheet)
+        val maxSheet = (maxWidth - DRAWER_EDGE_GAP).coerceAtLeast(0.dp)
+        val minSheet = minOf(DRAWER_MIN_WIDTH, maxSheet)
         val defaultSheet = minOf(420.dp, maxWidth * 0.92f)
         val sheetWidth = if (docked) maxWidth else (savedWidth?.dp ?: defaultSheet).coerceIn(minSheet, maxSheet)
         val narrow = sheetWidth < 320.dp
@@ -1375,6 +1375,8 @@ private fun DrawerResizeHandle(width: Dp, min: Dp, max: Dp, onWidth: (Dp) -> Uni
     var dragging by remember { mutableStateOf(false) }
     var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val current by rememberUpdatedState(width)
+    val lower by rememberUpdatedState(min)
+    val upper by rememberUpdatedState(max)
     val change by rememberUpdatedState(onWidth)
     val commit by rememberUpdatedState(onCommit)
     val hot = focused || dragging
@@ -1390,7 +1392,7 @@ private fun DrawerResizeHandle(width: Dp, min: Dp, max: Dp, onWidth: (Dp) -> Uni
                 if (!wider && key.keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) false
                 else {
                     if (key.action == KeyEvent.ACTION_DOWN) {
-                        change((current + if (wider) 24.dp else (-24).dp).coerceIn(min, max))
+                        change((current + if (wider) 24.dp else (-24).dp).coerceIn(lower, upper))
                         commit()
                     }
                     true
@@ -1411,7 +1413,7 @@ private fun DrawerResizeHandle(width: Dp, min: Dp, max: Dp, onWidth: (Dp) -> Uni
                         val delta = with(density) { (x - last).toDp() }
                         last = x
                         if (delta != 0.dp) {
-                            live = (live - delta).coerceIn(min, max)
+                            live = (live - delta).coerceIn(lower, upper)
                             change(live)
                         }
                         pointer.consume()

@@ -5983,7 +5983,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             if (secondScreenPresentation == null) showSecondScreen(secondScreenMode)
             if (com.droiddeck.launcher.input.DualScreen.menuReturnsOnStart(openingPanel(), SessionState.bottomMenu, menuShownOnBottom())) pinDockedMenu()
             SessionState.bottomMenu = false
-        } else openDualScreenControls()
+        } else {
+            if (SessionState.bottomMenu && !menuShownOnBottom()) pinDockedMenu()
+            SessionState.bottomMenu = false
+            if (!menuShownOnBottom()) openDualScreenControls()
+        }
         startedScreens++
         SessionService.setActivityVisible(this, true, sessionActivityDisplayId)
         Glasses.rescan()
