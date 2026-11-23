@@ -33,7 +33,9 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
@@ -47,21 +49,25 @@ import kotlin.math.sin
 
 @Composable
 internal fun EmptyLibrary(avoid: Rect?, wall: (@Composable () -> Unit)? = null, fade: @Composable () -> Unit) {
-    val clock = rememberMarkClock(avoid)
-    Box(Modifier.fillMaxSize().onSizeChanged { clock.page = Size(it.width.toFloat(), it.height.toFloat()) }) {
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    val clock = rememberMarkClock(avoid?.translate(-origin.x, -origin.y))
+    Box(
+        Modifier.fillMaxSize()
+            .onGloballyPositioned { origin = it.positionInRoot() }
+            .onSizeChanged { clock.page = Size(it.width.toFloat(), it.height.toFloat()) },
+    ) {
         if (wall != null) wall() else EmptyWall(clock)
         fade()
         Mark(clock)
     }
 }
 
-private const val TRACE_MS = 1250f
-private const val FILL_FROM = 450f
 private const val POP_FROM = 900f
 private const val IMPACT = 2200f
 private const val RIPPLE_MS = 1250f
 private const val HIT_MS = 900f
 private const val END = 3600f
+private const val REVEAL_MS = 1500f
 private const val POKE = 880f
 private const val DRIFT_MS = 75_000f
 
@@ -82,8 +88,7 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
     val haptics = LocalHapticFeedback.current
     val keepOff by rememberUpdatedState(avoid)
     val speed = with(LocalDensity.current) { 64.dp.toPx() }
-    val inset = with(LocalDensity.current) { 10.dp.toPx() }
-    val clearance = with(LocalDensity.current) { 16.dp.toPx() }
+        val clearance = with(LocalDensity.current) { 16.dp.toPx() }
     LaunchedEffect(clock) {
         var last = -1L
         var vx = speed * 0.8f
@@ -109,12 +114,12 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
 
                 var x = clock.at.x + vx * dt / 1000f
                 var y = clock.at.y + vy * dt / 1000f
-                val hw = f.halfWidth
-                val hh = f.halfHeight
-                if (x - hw < inset) { x = inset + hw; vx = abs(vx) }
-                if (x + hw > clock.page.width - inset) { x = clock.page.width - inset - hw; vx = -abs(vx) }
-                if (y - hh < inset) { y = inset + hh; vy = abs(vy) }
-                if (y + hh > clock.page.height - inset) { y = clock.page.height - inset - hh; vy = -abs(vy) }
+                val hw = f.ball
+                val hh = f.ball
+                if (x - hw < 0f) { x = hw; vx = abs(vx) }
+                if (x + hw > clock.page.width) { x = clock.page.width - hw; vx = -abs(vx) }
+                if (y - hh < 0f) { y = hh; vy = abs(vy) }
+                if (y + hh > clock.page.height) { y = clock.page.height - hh; vy = -abs(vy) }
                 keepOff?.inflate(clearance)?.let { r ->
                     if (x + hw > r.left && x - hw < r.right && y + hh > r.top && y - hh < r.bottom) {
                         val outX = if (x < r.center.x) r.left - (x + hw) else r.right - (x - hw)
@@ -294,30 +299,33 @@ private fun Mark(clock: MarkClock) {
         } else 0f
 
         translate(0f, shake) {
-            val fill = Out.transform(clamp01((intro - FILL_FROM) / 450f))
-            if (fill > 0f) {
-                val lift = 8f * k * (1f - fill)
-                val edge = 5f * f.s
-                LogoShape.left(left, 0f) { x, y -> f.px(x, y) + Offset(0f, lift + edge) }
-                LogoShape.right(right) { x, y -> f.px(x, y) + Offset(0f, lift + edge) }
-                drawPath(left, slabEdge.copy(alpha = fill))
-                drawPath(right, slabEdge.copy(alpha = fill))
-                LogoShape.left(left, 0f) { x, y -> f.px(x, y) + Offset(0f, lift) }
-                LogoShape.right(right) { x, y -> f.px(x, y) + Offset(0f, lift) }
-                drawPath(left, ink.copy(alpha = fill))
-                drawPath(right, ink.copy(alpha = fill))
-            }
-
-            if (intro < TRACE_MS) {
-                val drawn = TraceEase.transform(clamp01(intro / 775f))
-                val alpha = if (intro < 775f) 1f else 1f - (intro - 775f) / 475f
-                LogoShape.left(left, 0f, f::px)
-                LogoShape.right(right, f::px)
-                for (half in listOf(left, right)) {
-                    measure.setPath(half, false)
-                    piece.reset()
-                    measure.getSegment(0f, measure.length * drawn, piece, true)
-                    drawPath(piece, pal.signal.copy(alpha = alpha), style = Stroke(2f * f.s))
+            val since = t - IMPACT
+            if (since in 0f..REVEAL_MS) {
+                val fade = 1f - clamp01((since - REVEAL_MS * 0.66f) / (REVEAL_MS * 0.34f))
+                val fill = Out.transform(clamp01((since - 150f) / 450f)) * fade
+                if (fill > 0f) {
+                    val lift = 8f * k * (1f - fill / fade)
+                    val edge = 5f * f.s
+                    LogoShape.left(left, 0f) { x, y -> f.px(x, y) + Offset(0f, lift + edge) }
+                    LogoShape.right(right) { x, y -> f.px(x, y) + Offset(0f, lift + edge) }
+                    drawPath(left, slabEdge.copy(alpha = fill))
+                    drawPath(right, slabEdge.copy(alpha = fill))
+                    LogoShape.left(left, 0f) { x, y -> f.px(x, y) + Offset(0f, lift) }
+                    LogoShape.right(right) { x, y -> f.px(x, y) + Offset(0f, lift) }
+                    drawPath(left, ink.copy(alpha = fill))
+                    drawPath(right, ink.copy(alpha = fill))
+                }
+                val drawn = TraceEase.transform(clamp01(since / 550f))
+                val alpha = (if (since < 550f) 1f else 1f - (since - 550f) / 350f).coerceIn(0f, 1f) * fade
+                if (alpha > 0f) {
+                    LogoShape.left(left, 0f, f::px)
+                    LogoShape.right(right, f::px)
+                    for (half in listOf(left, right)) {
+                        measure.setPath(half, false)
+                        piece.reset()
+                        measure.getSegment(0f, measure.length * drawn, piece, true)
+                        drawPath(piece, pal.signal.copy(alpha = alpha), style = Stroke(2f * f.s))
+                    }
                 }
             }
 
