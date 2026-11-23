@@ -67,8 +67,6 @@ import com.droiddeck.launcher.runtime.CurseForgeApp
 import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.runtime.WowAddonCatalog
 import com.droiddeck.launcher.runtime.WowAddons
-import com.droiddeck.launcher.session.BackgroundSession
-import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -95,8 +93,6 @@ private class CurseLink(val app: UserApps.App) {
 
     private val lock = Object()
     @Volatile private var closed = false
-    private var held = false
-    private var ownSession: String? = null
     private var started = false
     @Volatile private var launching = false
     @Volatile private var inspector: String? = null
@@ -119,23 +115,6 @@ private class CurseLink(val app: UserApps.App) {
 
     private fun link(context: Context, target: WowAddons.Target): Linked {
         if (closed) throw CurseState()
-        if (!SessionState.running) {
-            started = false
-            launching = false
-            held = false
-            ownSession = null
-            inspector = null
-            guids.clear()
-            val args = CurseForgeApp.holdArgs(app) ?: throw CurseState()
-            ownSession = BackgroundSession.start(context, CurseForgeApp.HELPER, args) ?: throw CurseState()
-        }
-        if (closed) throw CurseState()
-        if (!held) {
-            held = true
-            SessionService.holdForSignIn(context, true)
-        }
-        val awake = System.currentTimeMillis() + 30_000
-        while ((SessionState.suspended || SessionState.suspending) && System.currentTimeMillis() < awake) Thread.sleep(250)
         val url = inspector ?: run {
             launching = true
             val done = CurseForgeApp.start(context, app)
@@ -164,13 +143,8 @@ private class CurseLink(val app: UserApps.App) {
             if (launching) CurseForgeApp.stop(context, app, inspector)
             synchronized(lock) {
                 if (started) CurseForgeApp.stop(context, app, inspector)
-                val owned = ownSession
-                if (owned != null) BackgroundSession.stop(context, owned)
-                else if (held) SessionService.holdForSignIn(context, false)
                 started = false
                 launching = false
-                ownSession = null
-                held = false
                 inspector = null
             }
         }.start()

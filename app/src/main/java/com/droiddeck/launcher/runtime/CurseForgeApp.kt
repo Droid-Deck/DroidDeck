@@ -1,21 +1,25 @@
 package com.droiddeck.launcher.runtime
 
 import android.content.Context
-import com.droiddeck.launcher.agent.AgentException
-import com.droiddeck.launcher.agent.AgentGuest
+import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 object CurseForgeApp {
     const val NAME = "CurseForge"
     const val FEED = "https://curseforge.overwolf.com/electron/linux/latest-linux.yml"
     internal const val WOW = 1
     const val HELPER = "/usr/local/bin/droiddeck-curseforge"
+    internal const val AGENT = "/usr/local/bin/droiddeck-agent"
     private const val READY_MS = 120_000L
     private const val INSTALL_MS = 300_000L
 
-    enum class Start { READY, BUSY, NO_DISPLAY, FAILED }
+    enum class Start { READY, BUSY, FAILED }
 
     class Started(val state: Start, val inspector: String? = null)
 
@@ -31,14 +35,19 @@ object CurseForgeApp {
 
     internal fun dir(app: UserApps.App): String? = app.args.firstOrNull()?.takeIf { it.startsWith("/") }
 
-    fun holdArgs(app: UserApps.App): List<String>? = dir(app)?.let { listOf("hold", it) }
+    internal fun helperArgv(command: String, dir: String): List<String> = listOf(HELPER, command, dir)
+
+    internal fun evalArgv(inspector: String, expression: String, timeoutMs: Long): List<String> =
+        listOf(AGENT, "--cdp-inspector", inspector, (timeoutMs / 1000.0).toString(), expression)
+
+    internal fun lastJson(lines: List<String>): JSONObject? =
+        lines.asReversed().firstNotNullOfOrNull { line -> runCatching { JSONObject(line.trim()) }.getOrNull() }
 
     internal fun inspectorUrl(stdout: String): String? = stdout.lineSequence().map { it.trim() }.lastOrNull { INSPECTOR.matches(it) }
 
     internal fun startState(exitCode: Int): Start = when (exitCode) {
         0 -> Start.READY
         3 -> Start.BUSY
-        4 -> Start.NO_DISPLAY
         else -> Start.FAILED
     }
 
@@ -137,37 +146,57 @@ object CurseForgeApp {
         return (0 until list.length()).mapNotNull { list.opt(it)?.toString()?.takeIf { id -> id.isNotBlank() && id != "null" } }.toSet()
     }
 
-    private fun call(context: Context, inspector: String, service: String, method: String, args: JSONArray?, timeoutMs: Long, pick: String = "r => r"): Any? {
-        val request = JSONObject().put("kind", "cdp").put("inspector", inspector).put("commandLineApi", true)
-            .put("expression", expression(service, method, args, pick)).put("timeout", timeoutMs / 1000.0)
-        return unwrap(AgentGuest.call(context, request, timeoutMs + 3_000, trusted = true))
+    internal var guest: (Context, List<String>, AtomicBoolean?, (String) -> Unit) -> Int = { context, argv, cancelled, onLine ->
+        GuestCommand.run(context, argv, logName = "curseforge", extraBinds = BattleNetInstall.binds(context), fastPath = true,
+            cancelled = cancelled, onLine = onLine)
     }
 
-    private fun helper(context: Context, command: String, dir: String, timeoutMs: Long): JSONObject? {
-        val request = JSONObject().put("kind", "exec").put("argv", JSONArray(listOf(HELPER, command, dir))).put("timeout", timeoutMs / 1000.0)
-        return runCatching { AgentGuest.call(context, request, timeoutMs + 5_000, trusted = true) }.getOrNull()
+    private val holds = ConcurrentHashMap<String, AtomicBoolean>()
+
+    private fun lines(context: Context, argv: List<String>): List<String> {
+        val out = ArrayList<String>()
+        guest(context, argv, null) { out += it }
+        return out
+    }
+
+    private fun call(context: Context, inspector: String, service: String, method: String, args: JSONArray?, timeoutMs: Long, pick: String = "r => r"): Any? =
+        unwrap(lastJson(lines(context, evalArgv(inspector, expression(service, method, args, pick), timeoutMs))) ?: throw Failure("CurseForge gave no answer"))
+
+    private sealed class Launch {
+        class Url(val inspector: String) : Launch()
+        class Exit(val code: Int) : Launch()
+    }
+
+    private fun launch(context: Context, dir: String, hold: AtomicBoolean): Launch? {
+        val first = LinkedBlockingQueue<Launch>()
+        Thread({
+            val code = runCatching {
+                guest(context, helperArgv("start", dir), hold) { line -> inspectorUrl(line)?.let { first.offer(Launch.Url(it)) } }
+            }.getOrDefault(-1)
+            first.offer(Launch.Exit(code))
+        }, "curseforge-headless").apply { isDaemon = true; start() }
+        return first.poll(READY_MS, TimeUnit.MILLISECONDS)
     }
 
     fun start(context: Context, app: UserApps.App): Started {
         val dir = dir(app) ?: return Started(Start.FAILED)
-        val answer = helper(context, "start", dir, 90_000)
-        if (answer == null || !answer.optBoolean("ok") || answer.optBoolean("timedOut")) {
-            stop(context, app, null)
-            return Started(Start.FAILED)
+        val hold = AtomicBoolean(false)
+        holds.put(dir, hold)?.set(true)
+        val inspector = when (val first = launch(context, dir, hold)) {
+            is Launch.Url -> first.inspector
+            is Launch.Exit -> if (startState(first.code) == Start.BUSY) {
+                holds.remove(dir, hold)
+                return Started(Start.BUSY)
+            } else null
+            null -> null
         }
-        val state = startState(answer.optInt("exitCode", -1))
-        if (state == Start.BUSY || state == Start.NO_DISPLAY) return Started(state)
-        val inspector = inspectorUrl(answer.optJSONObject("stdout")?.optString("text").orEmpty())
-        if (state != Start.READY || inspector == null) {
+        if (inspector == null) {
             stop(context, app, null)
             return Started(Start.FAILED)
         }
         val deadline = System.currentTimeMillis() + READY_MS
-        while (System.currentTimeMillis() < deadline) {
-            val ready = runCatching { call(context, inspector, "InstalledProjectsAppService", "installAddon", null, 10_000) }
-            if (ready.isSuccess) return Started(Start.READY, inspector)
-            val error = ready.exceptionOrNull()
-            if (error is AgentException && error.code == "NO_ACTIVE_SESSION") break
+        while (System.currentTimeMillis() < deadline && !hold.get()) {
+            if (runCatching { call(context, inspector, "InstalledProjectsAppService", "installAddon", null, 10_000) }.isSuccess) return Started(Start.READY, inspector)
             Thread.sleep(1_000)
         }
         stop(context, app, inspector)
@@ -177,7 +206,8 @@ object CurseForgeApp {
     fun stop(context: Context, app: UserApps.App, inspector: String?) {
         val dir = dir(app) ?: return
         if (inspector != null) runCatching { call(context, inspector, "CoreService", "shutdown", JSONArray(), 30_000, "r => true") }
-        helper(context, "stop", dir, 30_000)
+        runCatching { lines(context, helperArgv("stop", dir)) }
+        holds.remove(dir)?.set(true)
     }
 
     private fun connect(context: Context, inspector: String) {
@@ -207,7 +237,7 @@ object CurseForgeApp {
         while (System.currentTimeMillis() < deadline) {
             val listed = runCatching { installed(context, inspector, guid) }
             val error = listed.exceptionOrNull()
-            if (error is Failure && error.gone || error is AgentException && error.code == "NO_ACTIVE_SESSION") throw error
+            if (error is Failure && error.gone) throw error
             if (projectId in listed.getOrDefault(emptySet())) return true
             Thread.sleep(1_000)
         }

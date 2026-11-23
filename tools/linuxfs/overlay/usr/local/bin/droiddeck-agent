@@ -1206,6 +1206,15 @@ def handle(agent_dir, req):
     raise AgentError("UNKNOWN_REQUEST", "Unknown agent request '%s'" % kind)
 
 
+def reply(agent_dir, req):
+    try:
+        return dict(handle(agent_dir, req), ok=True)
+    except AgentError as e:
+        return {"ok": False, "error": {"code": e.code, "message": str(e)}}
+    except Exception as e:
+        return {"ok": False, "error": {"code": "AGENT_FAILED", "message": "%s: %s" % (type(e).__name__, e)}}
+
+
 def answer(agent_dir, path):
     rid = path.stem
     try:
@@ -1225,12 +1234,7 @@ def answer(agent_dir, path):
         except OSError:
             pass
     if req is not None:
-        try:
-            result = dict(handle(agent_dir, req), ok=True)
-        except AgentError as e:
-            result = {"ok": False, "error": {"code": e.code, "message": str(e)}}
-        except Exception as e:
-            result = {"ok": False, "error": {"code": "AGENT_FAILED", "message": "%s: %s" % (type(e).__name__, e)}}
+        result = reply(agent_dir, req)
     write_json(agent_dir / "resp" / (rid + ".json"), result)
 
 
@@ -1257,6 +1261,13 @@ def serve(agent_dir, focus=True, poll=0.1):
 
 
 def main(argv):
+    if argv and argv[0] == "--cdp-inspector":
+        if len(argv) != 4:
+            print("usage: droiddeck-agent --cdp-inspector <inspector url> <seconds> <expression>", file=sys.stderr)
+            return 2
+        print(json.dumps(reply(Path("/"), {"kind": "cdp", "inspector": argv[1], "timeout": argv[2],
+                                            "expression": argv[3], "commandLineApi": True})))
+        return 0
     base = os.environ.get("DD_LAUNCH_DIR")
     if not base:
         print("DD_LAUNCH_DIR is not set", file=sys.stderr)
