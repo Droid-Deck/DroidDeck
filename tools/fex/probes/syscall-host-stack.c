@@ -7,13 +7,15 @@
 #define YMM_STEP(a, b) "vpaddq %%ymm" #b ", %%ymm" #a ", %%ymm" #a "\n"
 #define MMX_STEP(a, b) "paddq %%mm" #b ", %%mm" #a "\n"
 
-static int has_avx(void) {
+static int has_avx2(void) {
   unsigned a, b, c, d;
   if (!__get_cpuid(1, &a, &b, &c, &d) || !(c & bit_AVX) || !(c & bit_OSXSAVE))
     return 0;
   unsigned lo, hi;
   __asm__ volatile("xgetbv" : "=a"(lo), "=d"(hi) : "c"(0));
-  return (lo & 6) == 6;
+  if ((lo & 6) != 6 || !__get_cpuid_count(7, 0, &a, &b, &c, &d))
+    return 0;
+  return (b & bit_AVX2) != 0;
 }
 
 static long ymm_round(long n) {
@@ -52,7 +54,7 @@ static long mmx_round(long n) {
 
 int main(int argc, char **argv) {
   long want = argc > 1 ? atol(argv[1]) : 2000000;
-  int avx = has_avx();
+  int avx = has_avx2();
   long done = 0;
   for (; done < want; done += 1000) {
     if (avx ? ymm_round(1000) <= 0 : mmx_round(1000) <= 0)

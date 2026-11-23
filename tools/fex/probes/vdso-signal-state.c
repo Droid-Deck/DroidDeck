@@ -31,6 +31,7 @@ int main(int argc, char **argv) {
   do {
     clock_gettime(CLOCK_MONOTONIC, &now);
     calls++;
+    __asm__ volatile("" : "+r"(a), "+r"(b), "+r"(c));
     if (b != a * 3 || c != (a ^ 0x5a5a5a5a5a5a5a5aUL))
       bad++;
     if (now.tv_sec < last.tv_sec || (now.tv_sec == last.tv_sec && now.tv_nsec < last.tv_nsec))
@@ -39,7 +40,7 @@ int main(int argc, char **argv) {
     a = a * 6364136223846793005UL + 1442695040888963407UL;
     b = a * 3;
     c = a ^ 0x5a5a5a5a5a5a5a5aUL;
-  } while (now.tv_sec - start.tv_sec < seconds);
+  } while ((now.tv_sec - start.tv_sec) * 1000000000L + (now.tv_nsec - start.tv_nsec) < seconds * 1000000000L);
 
   struct itimerval off = {{0, 0}, {0, 0}};
   setitimer(ITIMER_REAL, &off, NULL);
